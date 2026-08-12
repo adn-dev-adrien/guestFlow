@@ -13,6 +13,7 @@ vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getTariffRecipes: vi.fn(),
+    getTariffRecipe: vi.fn().mockResolvedValue({ recipe: null }),
     previewTariffRecipe: vi.fn(),
     applyTariffRecipe: vi.fn().mockResolvedValue({ applied: true }),
     detachTariffRecipe: vi.fn().mockResolvedValue({ ok: true }),
@@ -38,7 +39,41 @@ const PREVIEW = {
   blocking: false,
 };
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  api.getTariffRecipe.mockResolvedValue({ recipe: null });
+});
+
+test('the particularities panel states the recipe deal in plain French', async () => {
+  api.getTariffRecipes.mockResolvedValue(RECIPES);
+  api.getTariffRecipe.mockResolvedValue({
+    recipe: {
+      id: 'aventura-lodge-2026', horizonYears: 2,
+      lengthOfStayDiscounts: [{ nights: 2, discountPct: 24 }, { nights: 7, discountPct: 45 }],
+      extraGuest: { appliesAbove: 2, unit: 'per_night', followsDiscount: true },
+      seasons: [{ label: 'Basse saison', pricePerNight: 179, netTargetPerNight: 160, extraGuestPrice: 27, minNights: 1, maxNights: 7, changeover: null }],
+      calendar: { modifiers: [{ type: 'public_holiday_bridge', amount: 1, minNights: 'block' }] },
+      closures: [{ label: 'Fermeture hivernale', from: '10-15', to: '03-31' }],
+    },
+  });
+  render(
+    <TariffRecipeCard
+      propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.0.0"
+      rateInclusions={[
+        { optionId: 1, title: 'Ménage', unitPrice: 30, offered: 1, freeUnits: 0 },
+        { optionId: 2, title: 'Petit déjeuner', unitPrice: 10, offered: 0, freeUnits: 2 },
+      ]}
+    />
+  );
+  // The degressive extra-guest rule and the direct-only free breakfasts both surface here.
+  expect(await screen.findByText(/soumise à la même dégressivité/)).toBeInTheDocument();
+  expect(screen.getByText(/les 2 premiers offerts/)).toBeInTheDocument();
+  expect(screen.getByText(/réservations directes uniquement/)).toBeInTheDocument();
+  expect(screen.getByText(/2 nuits −24 %/)).toBeInTheDocument();
+  expect(screen.getByText(/de 1 à 7 nuits/)).toBeInTheDocument();
+  expect(screen.getByText(/minimum de séjour égal à la longueur du pont/)).toBeInTheDocument();
+  expect(screen.getByText(/Fermeture hivernale : 15\/10 → 31\/03/)).toBeInTheDocument();
+});
 
 test('shows the applied version and the recipe select', async () => {
   api.getTariffRecipes.mockResolvedValue(RECIPES);

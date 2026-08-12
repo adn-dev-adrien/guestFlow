@@ -5,8 +5,10 @@ import { vi } from 'vitest';
 import PricingSummary from '../PricingSummary';
 
 // specs/per-property-default-options.md — a property-default option configured « offered » is INCLUDED
-// in the night rate: the summary shows « Comprise » + « incluse dans le tarif » at 0 €, NOT the green
-// « ✓ Offert » with the struck-through original price (which stays for a one-off geste commercial).
+// in the night rate: the summary labels it « Comprise » + « incluse dans le tarif », not the green
+// « ✓ Offert » of a one-off geste commercial. Both, however, show their REAL price STRUCK THROUGH and
+// bill 0 — the guest has to see what the rate already covers AND what it is worth
+// (specs/tariff-recipes/spec.md §3.8).
 
 const PROPERTY_OPTIONS = [
   { id: 10, title: 'Petit-déjeuner', price: 25, priceType: 'per_stay' },
@@ -35,16 +37,17 @@ function renderSummary(optionLines) {
   );
 }
 
-test('included-in-rate option → « Comprise » + « incluse dans le tarif » + 0,00€, never « ✓ Offert »', () => {
+test('included-in-rate option → « Comprise » + « incluse dans le tarif » + its real price struck through', () => {
   renderSummary([
     { optionId: 10, title: 'Petit-déjeuner', quantity: 1, offered: true, includedInRate: true, totalPrice: 0, originalTotalPrice: 25 },
   ]);
   expect(screen.getByText('incluse dans le tarif')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Comprise' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '✓ Offert' })).toBeNull();
-  // Shown at 0 €, NOT the struck-through original price.
-  expect(screen.getAllByText('0,00 €').length).toBeGreaterThan(0);
-  expect(screen.queryByText('25,00 €')).toBeNull();
+  // The real price is shown, struck through — not a bare 0 €.
+  const amount = screen.getByText('25,00 €');
+  expect(amount).toBeInTheDocument();
+  expect(getComputedStyle(amount).textDecoration).toContain('line-through');
 });
 
 test('a one-off offered option (not included) keeps « ✓ Offert » + the struck-through price', () => {

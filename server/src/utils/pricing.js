@@ -754,6 +754,24 @@ function applyOfferedToLine(realTotal, offered) {
   };
 }
 
+// specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are covered
+// by the rate (the direct welcome pack's two breakfasts). The operator orders the FULL quantity and
+// only the units beyond the free ones are billed; `billedUnits` — what the Planning and SAS cards
+// prepare — is deliberately untouched. Direct bookings only: the pack is the single difference with
+// a commissioned channel (rule 53), and a platform reservation is priced by its recorded gross.
+function applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice }) {
+  const freeUnits = isDirectBooking
+    ? Math.min(Math.max(0, Number(option.freeUnits || 0)), billedUnits)
+    : 0;
+  const chargedUnits = roundMoney(Math.max(0, billedUnits - freeUnits));
+  return {
+    freeUnits,
+    freeUnitsAmount: roundMoney(freeUnits * unitPrice),
+    chargedUnits,
+    realTotal: roundMoney(chargedUnits * unitPrice),
+  };
+}
+
 function getApplicableOptions(db, propertyId) {
   const pid = Number(propertyId);
   const options = db.prepare('SELECT * FROM options ORDER BY title').all();
@@ -762,14 +780,19 @@ function getApplicableOptions(db, propertyId) {
   // this property is the override row when present, else the option's base price. Guarded so a
   // schema without the table keeps the base price. A row with price 0 is an explicit free.
   let priceStmt = null;
-  try { priceStmt = db.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?'); }
-  catch { priceStmt = null; }
+  try { priceStmt = db.prepare('SELECT price, freeUnits FROM property_option_prices WHERE optionId = ? AND propertyId = ?'); }
+  catch {
+    try { priceStmt = db.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?'); }
+    catch { priceStmt = null; }
+  }
   return options
     .map((option) => {
       const override = priceStmt ? priceStmt.get(option.id, pid) : undefined;
       return {
         ...option,
         price: override ? Number(override.price) : Number(option.price || 0),
+        // specs/tariff-recipes/spec.md §3.9 rule 52bis — units included in the rate for this property.
+        freeUnits: override ? Math.max(0, Number(override.freeUnits || 0)) : 0,
         propertyIds: propStmt.all(option.id).map((row) => Number(row.propertyId)),
       };
     })
@@ -1214,6 +1237,9 @@ function calculateReservationQuote({
   }
 
   const persons = (Number(adults || 1) || 1) + (Number(children || 0) || 0) + (Number(teens || 0) || 0);
+  // Resolved here (the fuller platform routing lives further down) because the option lines above
+  // need it for the included-units rule (specs/tariff-recipes/spec.md §3.9 rule 52bis).
+  const isDirectBooking = String(platform || 'direct').toLowerCase() === 'direct';
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};
@@ -1323,26 +1349,33 @@ function calculateReservationQuote({
             quantity: qty,
             unitPrice: unitBase,
             billedUnits,
+            ...applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase }),
             priceType,
             cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
             toBeScheduled: true,
-            ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
+            ...applyOfferedToLine(
+              applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase }).realTotal,
+              offeredOptionIdSet.has(optionId)
+            ),
             ...pickContribsAndForce(selected, locked),
           };
         }
         const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
         if (occurrences.length === 0) return null;
         const billedUnits = roundMoney(occurrences.length * (perPerson ? persons : 1));
-        const realTotal = roundMoney(billedUnits * unitBase);
+        const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase });
         return {
           optionId,
           title: option.title,
           quantity: occurrences.length,
           unitPrice: unitBase,
           billedUnits,
+          freeUnits: free.freeUnits,
+          freeUnitsAmount: free.freeUnitsAmount,
+          chargedUnits: free.chargedUnits,
           priceType,
           cardOccurrences: occurrences,
-          ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
+          ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
           ...pickContribsAndForce(selected, locked),
         };
       }
@@ -1397,14 +1430,21 @@ function calculateReservationQuote({
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });
+      const free = applyFreeUnitsToLine({
+        option, isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
+      });
       return {
         optionId,
         title: option.title,
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
+        // What the guest does not pay for, and what it is worth — the summary strikes it through.
+        freeUnits: free.freeUnits,
+        freeUnitsAmount: free.freeUnitsAmount,
+        chargedUnits: free.chargedUnits,
         priceType,
-        ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
+        ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
         ...pickContribsAndForce(selected, locked),
       };
     })

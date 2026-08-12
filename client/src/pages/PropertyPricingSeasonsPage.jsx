@@ -5,7 +5,8 @@ import 'dayjs/locale/fr';
 import {
   Box, Typography, Card, CardContent, Button, Grid, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
-  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch, RadioGroup, Radio, FormLabel
+  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch, RadioGroup, Radio, FormLabel,
+  IconButton
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -13,6 +14,8 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { frFR } from '@mui/x-date-pickers/locales';
 import AddIcon from '@mui/icons-material/Add';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import DateRangeIcon from '@mui/icons-material/DateRange';
@@ -79,6 +82,13 @@ function getSortedDateRanges(ranges) {
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
+// Only the ranges that still have sellable days ahead — a season's past dates are noise on a page
+// whose job is to answer « what do I charge from here on ». Purely presentational: nothing is
+// dropped from the data (specs/tariff-recipes/spec.md §3.4 rule 25quinquies).
+function upcomingRangesFrom(ranges, todayIso) {
+  return getSortedDateRanges(ranges).filter((range) => range.endDate >= todayIso);
+}
+
 // Closure lookup for a day — the ranges come computed from the server, this is a plain containment
 // test (specs/tariff-recipes/spec.md §3.4 rule 25bis).
 function findClosureForDate(closureRanges, dateStr) {
@@ -130,7 +140,7 @@ export default function PropertyPricingSeasonsPage() {
   const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [publicHolidays, setPublicHolidays] = useState(() => new Set());
   const [displayStartYear, setDisplayStartYear] = useState(new Date().getFullYear());
-  const [displayYears, setDisplayYears] = useState(1);
+  const displayYears = 1; // one year per screen; the arrows move it
 
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
   const [editingSeasonId, setEditingSeasonId] = useState(null);
@@ -224,6 +234,12 @@ export default function PropertyPricingSeasonsPage() {
   }, [loadData]);
 
   const seasons = property?.pricingRules || [];
+  // Computed once per render: today in ISO, and the per-season upcoming ranges the table shows.
+  const todayIso = toIsoDate(new Date());
+  const upcomingRanges = useCallback(
+    (season) => upcomingRangesFrom(season.dateRangesVisible || season.dateRanges, todayIso),
+    [todayIso]
+  );
   const otherProperties = useMemo(
     () => (allProperties || []).filter((p) => Number(p.id) !== Number(id)),
     [allProperties, id]
@@ -717,6 +733,7 @@ export default function PropertyPricingSeasonsPage() {
         propertyId={id}
         activeRecipeId={property.tariffRecipeId || ''}
         appliedVersion={property.tariffRecipeVersion || ''}
+        rateInclusions={property.rateInclusions || []}
         onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
         onError={(message) => showError(message)}
       />
@@ -756,20 +773,35 @@ export default function PropertyPricingSeasonsPage() {
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                         {/* Closed dates are hidden from the display only — the stored ranges keep
                             their full span, so moving a closure re-reveals them
-                            (specs/tariff-recipes/spec.md §3.4 rule 25ter). */}
-                        {getSortedDateRanges(s.dateRangesVisible || s.dateRanges).map((range, index) => (
-                          <Box key={`${s.id}-range-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                            <Typography variant="body2" sx={{ lineHeight: 1.25 }}>
-                              {displayDate(range.startDate)} → {displayDate(range.endDate)}
-                            </Typography>
-                            {range.minNights != null && (
-                              <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
+                            (specs/tariff-recipes/spec.md §3.4 rule 25ter). Past ranges are hidden
+                            too: only what is still sellable is worth reading here. */}
+                        {upcomingRanges(s).map((range, index, all) => (
+                          <React.Fragment key={`${s.id}-range-${index}`}>
+                            {(index === 0 || range.startDate.slice(0, 4) !== all[index - 1].startDate.slice(0, 4)) && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: index === 0 ? 0 : 0.75, mb: 0.25 }}>
+                                <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: 0.5 }}>
+                                  {range.startDate.slice(0, 4)}
+                                </Typography>
+                                <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+                              </Box>
                             )}
-                          </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <Typography variant="body2" sx={{ lineHeight: 1.25 }}>
+                                {displayDate(range.startDate)} → {displayDate(range.endDate)}
+                              </Typography>
+                              {range.minNights != null && (
+                                <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
+                              )}
+                            </Box>
+                          </React.Fragment>
                         ))}
-                        {getSortedDateRanges(s.dateRangesVisible || s.dateRanges).length === 0 && (
+                        {upcomingRanges(s).length === 0 && (
                           <Typography variant="caption" color="text.secondary">
-                            {getSortedDateRanges(s.dateRanges).length > 0 ? 'entièrement en fermeture' : 'aucune plage'}
+                            {getSortedDateRanges(s.dateRanges).length === 0
+                              ? 'aucune plage'
+                              : (getSortedDateRanges(s.dateRangesVisible || s.dateRanges).length === 0
+                                ? 'entièrement en fermeture'
+                                : 'aucune date à venir')}
                           </Typography>
                         )}
                       </Box>
@@ -795,55 +827,35 @@ export default function PropertyPricingSeasonsPage() {
         </CardContent>
       </Card>
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap' }}>
-          <TextField
-            label="Année de départ"
-            type="number"
-            value={displayStartYear}
-            onChange={(e) => setDisplayStartYear(Number(e.target.value || minYear))}
-            size="small"
-            slotProps={{
-              htmlInput: { min: minYear, max: maxYear + 2 }
-            }}
-          />
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Nombre d'années affichées</InputLabel>
-            <Select
-              value={displayYears}
-              label="Nombre d'années affichées"
-              onChange={(e) => setDisplayYears(Number(e.target.value))}
-            >
-              <MenuItem value={1}>1 an</MenuItem>
-              <MenuItem value={2}>2 ans</MenuItem>
-              <MenuItem value={3}>3 ans</MenuItem>
-            </Select>
-          </FormControl>
-          <Button
-            variant="outlined"
-            onClick={() => navigate(withFrom(`/properties/${id}`, `/properties/${id}/pricing-seasons`))}
-          >
-            Retour au logement
-          </Button>
-        </CardContent>
-      </Card>
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {yearsToDisplay.map((year) => (
           <Grid key={year} size={12}>
             <Card>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
-                  <Typography variant="sectionHeader">{year}</Typography>
-                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', color: 'text.secondary' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'error.main' }} />
-                      <Typography variant="caption">Jour férié</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'info.main' }} />
-                      <Typography variant="caption">Vacances scolaires</Typography>
-                    </Box>
-                  </Box>
+                {/* One year at a time, navigated by the arrows framing it. */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: 2.5 }}>
+                  <IconButton
+                    onClick={() => setDisplayStartYear((y) => y - 1)}
+                    disabled={displayStartYear <= minYear - 1}
+                    aria-label="Année précédente"
+                    size="large"
+                  >
+                    <ChevronLeftIcon fontSize="inherit" />
+                  </IconButton>
+                  <Typography
+                    component="div"
+                    sx={{ fontSize: { xs: 30, sm: 40 }, fontWeight: 700, lineHeight: 1, minWidth: { xs: 100, sm: 130 }, textAlign: 'center', letterSpacing: 1 }}
+                  >
+                    {year}
+                  </Typography>
+                  <IconButton
+                    onClick={() => setDisplayStartYear((y) => y + 1)}
+                    disabled={displayStartYear >= maxYear + 2}
+                    aria-label="Année suivante"
+                    size="large"
+                  >
+                    <ChevronRightIcon fontSize="inherit" />
+                  </IconButton>
                 </Box>
                 <Grid container spacing={1.5}>
                   {Array.from({ length: 12 }, (_, month) => {

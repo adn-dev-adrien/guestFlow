@@ -31,6 +31,108 @@ const ACTION_LABELS = {
   unchanged: { label: 'inchangée', color: 'default' },
 };
 
+const WEEKDAY_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+const eur = (v) => `${Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+
+/**
+ * Every particularity of the applied recipe, in plain French — the page where the operator answers
+ * « what exactly did I promise on this property? ». Derived from the recipe document plus the
+ * property-level inclusions the recipe deliberately does not own (spec §3.1 rule 6), so the two
+ * halves of the deal read in one place instead of being spread across three screens.
+ */
+function recipeHighlights(recipe, rateInclusions) {
+  if (!recipe) return [];
+  const out = [];
+  const seasons = recipe.seasons || [];
+
+  const prices = seasons.map((s) => `${s.label} ${eur(s.pricePerNight)}`).join(' · ');
+  if (prices) out.push({ label: 'Saisons', value: prices });
+
+  const nets = seasons.filter((s) => s.netTargetPerNight != null);
+  if (nets.length) {
+    out.push({
+      label: 'Cible nette / nuit',
+      value: `${nets.map((s) => `${s.label} ${eur(s.netTargetPerNight)}`).join(' · ')} — les prix affichés par canal en découlent`,
+    });
+  }
+
+  const table = recipe.lengthOfStayDiscounts || [];
+  if (table.length) {
+    out.push({
+      label: 'Dégressivité',
+      value: `${table.map((r) => `${r.nights} nuits −${r.discountPct} %`).join(' · ')}. Au-delà, le prix de la dernière nuit déclarée se prolonge.`,
+    });
+  }
+
+  const eg = recipe.extraGuest || {};
+  const egSeason = seasons.find((s) => s.extraGuestPrice != null);
+  if (egSeason || eg.appliesAbove != null) {
+    const bits = [];
+    if (egSeason) bits.push(eur(egSeason.extraGuestPrice));
+    if (eg.unit === 'per_night') bits.push('par nuit et par personne');
+    if (eg.appliesAbove != null) bits.push(`au-delà de ${eg.appliesAbove} personnes`);
+    out.push({
+      label: 'Personne supplémentaire',
+      value: `${bits.join(', ')}${eg.followsDiscount ? ' — soumise à la même dégressivité que la nuit' : ''}`,
+    });
+  }
+
+  const minmax = seasons.map((s) => `${s.minNights || 1}${s.maxNights ? `–${s.maxNights}` : ''}`);
+  if (minmax.length && new Set(minmax).size === 1) {
+    const [only] = minmax;
+    const max = seasons[0].maxNights;
+    out.push({ label: 'Durée de séjour', value: max ? `de ${seasons[0].minNights || 1} à ${max} nuits` : `minimum ${only} nuit(s)` });
+  } else if (minmax.length) {
+    out.push({ label: 'Durée de séjour', value: seasons.map((s, i) => `${s.label} ${minmax[i]}`).join(' · ') });
+  }
+
+  const changeovers = seasons.filter((s) => s.changeover && (s.changeover.arrival != null || s.changeover.departure != null));
+  if (changeovers.length) {
+    out.push({
+      label: 'Jour de changement',
+      value: changeovers.map((s) => {
+        const parts = [];
+        if (s.changeover.arrival != null) parts.push(`arrivée ${WEEKDAY_FR[s.changeover.arrival]}`);
+        if (s.changeover.departure != null) parts.push(`départ ${WEEKDAY_FR[s.changeover.departure]}`);
+        return `${s.label} : ${parts.join(', ')}`;
+      }).join(' · '),
+    });
+  }
+
+  const holiday = (recipe.calendar?.modifiers || []).find((m) => m.type === 'public_holiday_bridge');
+  if (holiday) {
+    const bits = [`week-end férié monté de ${holiday.amount || 1} cran`];
+    if (holiday.minNights === 'block') bits.push('minimum de séjour égal à la longueur du pont (2 ou 3 nuits)');
+    else if (Number.isInteger(holiday.minNights)) bits.push(`minimum ${holiday.minNights} nuits`);
+    out.push({ label: 'Jours fériés', value: bits.join(', ') });
+  }
+
+  for (const closure of recipe.closures || []) {
+    const fr = (md) => md.split('-').reverse().join('/');
+    out.push({ label: 'Fermeture', value: `${closure.label} : ${fr(closure.from)} → ${fr(closure.to)}, chaque année` });
+  }
+
+  out.push({ label: 'Horizon', value: `${recipe.horizonYears || 2} ans, étendu automatiquement` });
+
+  // Property-level inclusions — outside the recipe's scope, but part of the same promise.
+  const included = (rateInclusions || []).filter((r) => Number(r.offered) === 1);
+  if (included.length) {
+    out.push({
+      label: 'Compris dans le tarif',
+      value: `${included.map((r) => `${r.title} (${eur(r.unitPrice)})`).join(' · ')} — facturés 0, montant barré sur le devis`,
+    });
+  }
+  const freebies = (rateInclusions || []).filter((r) => Number(r.freeUnits) > 0);
+  for (const f of freebies) {
+    out.push({
+      label: 'Offert en direct',
+      value: `${f.title} : les ${f.freeUnits} premiers offerts (${eur(f.unitPrice)} l'unité). Au-delà, facturés normalement — réservations directes uniquement.`,
+    });
+  }
+
+  return out;
+}
+
 function frRange(range) {
   const fr = (iso) => iso.split('-').reverse().join('/');
   const extras = [];
@@ -38,7 +140,7 @@ function frRange(range) {
   return `${fr(range.startDate)} → ${fr(range.endDate)}${extras.length ? ` (${extras.join(', ')})` : ''}`;
 }
 
-export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVersion, onApplied, onError }) {
+export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVersion, rateInclusions = [], onApplied, onError }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [recipes, setRecipes] = useState(null);
@@ -46,8 +148,24 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
   const [preview, setPreview] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [activeDocument, setActiveDocument] = useState(null);
 
   useEffect(() => { setSelectedId(activeRecipeId || ''); }, [activeRecipeId]);
+
+  // The applied recipe's own document — the source for the particularities panel below.
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeRecipeId) { setActiveDocument(null); return undefined; }
+    api.getTariffRecipe(activeRecipeId)
+      .then((res) => { if (!cancelled) setActiveDocument(res?.recipe || null); })
+      .catch(() => { if (!cancelled) setActiveDocument(null); });
+    return () => { cancelled = true; };
+  }, [activeRecipeId]);
+
+  const highlights = useMemo(
+    () => recipeHighlights(activeDocument, rateInclusions),
+    [activeDocument, rateInclusions]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -131,6 +249,20 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
             Version {newerVersion} disponible (v{appliedVersion} appliquée) — relancer « Appliquer »
             pour la prendre en compte.
           </Alert>
+        )}
+
+        {/* Every particularity of what is applied on this property, in one readable block. */}
+        {highlights.length > 0 && (
+          <Box sx={{ mb: 2, p: { xs: 1.5, sm: 2 }, bgcolor: 'action.hover', borderRadius: 1 }}>
+            {highlights.map((h, index) => (
+              <Box key={index} sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column', sm: 'row' }, mb: 0.75 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, minWidth: { sm: 168 }, flexShrink: 0 }}>
+                  {h.label}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">{h.value}</Typography>
+              </Box>
+            ))}
+          </Box>
         )}
 
         {recipes !== null && (

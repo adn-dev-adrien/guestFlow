@@ -313,6 +313,26 @@ function createPropertiesModel(database) {
             : '9999-12-31');
           return first(a).localeCompare(first(b)) || String(a.label || '').localeCompare(String(b.label || ''), 'fr');
         });
+      // specs/tariff-recipes/spec.md §3.9 rule 53bis — what this property's RATE already covers:
+      // the options marked « comprise » by default, and any option whose first N units are included
+      // (the direct welcome pack's breakfasts). Surfaced so the tariff page can state the deal in
+      // one place instead of leaving it implicit across three screens.
+      try {
+        property.rateInclusions = database.prepare(`
+          SELECT o.id AS optionId, o.title, o.priceType,
+                 COALESCE(pop.price, o.price) AS unitPrice,
+                 COALESCE(d.offered, 0) AS offered,
+                 COALESCE(pop.freeUnits, 0) AS freeUnits
+          FROM options o
+          JOIN property_options po ON po.optionId = o.id AND po.propertyId = ?
+          LEFT JOIN property_option_defaults d ON d.optionId = o.id AND d.propertyId = ?
+          LEFT JOIN property_option_prices pop ON pop.optionId = o.id AND pop.propertyId = ?
+          WHERE o.archivedAt IS NULL AND COALESCE(o.displayToClient, 1) != 0
+            AND (COALESCE(d.offered, 0) = 1 OR COALESCE(pop.freeUnits, 0) > 0)
+          ORDER BY o.title COLLATE NOCASE
+        `).all(Number(id), Number(id), Number(id));
+      } catch (_) { property.rateInclusions = []; }
+
       property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id);
       property.optionIds = database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id).map((r) => r.optionId);
       // Options applicable to this property, each carrying its EFFECTIVE price for THIS property (the

@@ -276,6 +276,7 @@ CREATE TABLE IF NOT EXISTS property_option_prices (
     propertyId INTEGER NOT NULL,
     optionId INTEGER NOT NULL,
     price REAL NOT NULL DEFAULT 0,
+    freeUnits REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (propertyId, optionId),
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
