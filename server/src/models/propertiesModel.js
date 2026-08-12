@@ -40,6 +40,13 @@ function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
   return VALID_EXTRA_GUEST_UNITS.includes(value) ? value : fallback;
 }
 
+// Maximum stay in nights; NULL/blank/0 = unlimited (what every existing property carries).
+function normalizeMaxNights(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n >= 1 ? n : null;
+}
+
 // Changeover weekday: JS convention (0 = dimanche … 6 = samedi); NULL/blank = unrestricted.
 function normalizeChangeoverDay(value) {
   if (value === '' || value === null || value === undefined) return null;
@@ -52,6 +59,29 @@ function normalizeOptionalMoney(value) {
   if (value === '' || value === null || value === undefined) return null;
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// Subtract a set of closure ranges from a season's date ranges — DISPLAY ONLY (spec §3.4 rule 25ter).
+// A range entirely inside a closure disappears; one that straddles a boundary is trimmed; one split
+// in two by a closure yields two visible pieces. Per-range overrides ride along on each piece. Pure.
+function subtractClosuresFromRanges(ranges, closures) {
+  if (!Array.isArray(closures) || closures.length === 0) return (ranges || []).map((r) => ({ ...r }));
+  let out = (ranges || []).map((r) => ({ ...r }));
+  for (const closure of closures) {
+    const next = [];
+    for (const range of out) {
+      if (range.endDate < closure.startDate || range.startDate > closure.endDate) { next.push(range); continue; }
+      if (range.startDate < closure.startDate) {
+        next.push({ ...range, endDate: addDaysToIsoDate(closure.startDate, -1) });
+      }
+      if (range.endDate > closure.endDate) {
+        next.push({ ...range, startDate: addDaysToIsoDate(closure.endDate, 1) });
+      }
+      // fully covered → dropped
+    }
+    out = next;
+  }
+  return out.sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
 // A per-range `minNights` is only stored when it OVERRIDES the season default; a value equal to the
@@ -242,6 +272,20 @@ function createPropertiesModel(database) {
         database.ensureCateringOptions(database);
       }
 
+      // specs/tariff-recipes/spec.md §3.4 rules 25bis-25ter — the closures applicable to this
+      // property (its own + the global ones), and, per season, the date ranges MINUS those closures.
+      // The stored ranges keep their full span: a closure that moves simply re-reveals the days.
+      // Computed here rather than in the client so the page renders without doing date maths.
+      let closureRanges = [];
+      try {
+        closureRanges = database.prepare(`
+          SELECT startDate, endDate, label FROM establishment_closures
+          WHERE propertyId IS NULL OR propertyId = ?
+          ORDER BY startDate
+        `).all(Number(id));
+      } catch (_) { closureRanges = []; } // table absent in minimal test schemas
+      property.closureRanges = closureRanges;
+
       property.pricingRules = database.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(id)
         .map((rule) => {
           let tiers = [];
@@ -250,13 +294,24 @@ function createPropertiesModel(database) {
           } catch {
             tiers = [];
           }
+          const dateRanges = parseRuleDateRanges(rule);
           return {
             ...rule,
             pricingMode: rule.pricingMode || 'fixed',
             color: rule.color || '#1976d2',
-            dateRanges: parseRuleDateRanges(rule),
+            dateRanges,
+            // Display-only view; never persisted, never used for pricing.
+            dateRangesVisible: subtractClosuresFromRanges(dateRanges, closureRanges),
             progressiveTiers: Array.isArray(tiers) ? tiers : [],
           };
+        })
+        // Ordered by the earliest date the season actually covers — the stored `startDate` can lag
+        // behind a multi-range season, and a season fully hidden by a closure must not jump the queue.
+        .sort((a, b) => {
+          const first = (rule) => (rule.dateRanges.length
+            ? rule.dateRanges.map((r) => r.startDate).sort()[0]
+            : '9999-12-31');
+          return first(a).localeCompare(first(b)) || String(a.label || '').localeCompare(String(b.label || ''), 'fr');
         });
       property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id);
       property.optionIds = database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id).map((r) => r.optionId);
@@ -511,8 +566,8 @@ function createPropertiesModel(database) {
       const bounds = getBoundsFromDateRanges(normalizedDateRanges);
       const result = database.prepare(`
         INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights,
-          seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, changeoverArrival, changeoverDeparture)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, maxNights, changeoverArrival, changeoverDeparture)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId,
         sentenceCase(label || 'Standard'),
@@ -531,6 +586,7 @@ function createPropertiesModel(database) {
         normalizeOptionalMoney(body.netTargetPerNight),
         normalizeOptionalMoney(body.extraGuestPrice),
         normalizeOptionalMoney(body.extraGuestNetTarget),
+        normalizeMaxNights(body.maxNights),
         normalizeChangeoverDay(body.changeoverArrival),
         normalizeChangeoverDay(body.changeoverDeparture),
       );
@@ -553,12 +609,12 @@ function createPropertiesModel(database) {
       }
       // The recipe columns keep their stored value when the caller doesn't send them (the season
       // dialog edits a subset; a recipe apply always sends the full set).
-      const existing = database.prepare('SELECT seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, changeoverArrival, changeoverDeparture FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || {};
+      const existing = database.prepare('SELECT seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, maxNights, changeoverArrival, changeoverDeparture FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || {};
       const keepOr = (key, normalizer) => (body[key] === undefined ? (existing[key] ?? null) : normalizer(body[key]));
       const bounds = getBoundsFromDateRanges(normalizedDateRanges);
       database.prepare(`
         UPDATE pricing_rules SET label=?, pricePerNight=?, pricingMode=?, progressiveTiers=?, dateRanges=?, color=?, startDate=?, endDate=?, minNights=?,
-          seasonKey=?, seasonRank=?, netTargetPerNight=?, extraGuestPrice=?, extraGuestNetTarget=?, changeoverArrival=?, changeoverDeparture=?
+          seasonKey=?, seasonRank=?, netTargetPerNight=?, extraGuestPrice=?, extraGuestNetTarget=?, maxNights=?, changeoverArrival=?, changeoverDeparture=?
         WHERE id=? AND propertyId=?
       `).run(
         sentenceCase(label || 'Standard'),
@@ -575,6 +631,7 @@ function createPropertiesModel(database) {
         keepOr('netTargetPerNight', normalizeOptionalMoney),
         keepOr('extraGuestPrice', normalizeOptionalMoney),
         keepOr('extraGuestNetTarget', normalizeOptionalMoney),
+        keepOr('maxNights', normalizeMaxNights),
         keepOr('changeoverArrival', normalizeChangeoverDay),
         keepOr('changeoverDeparture', normalizeChangeoverDay),
         ruleId,
@@ -777,6 +834,6 @@ function createPropertiesModel(database) {
 const defaultModel = createPropertiesModel(db);
 defaultModel.buildModel = createPropertiesModel;
 // Exposed for unit tests.
-defaultModel.__test = { normalizeNameArticle, VALID_NAME_ARTICLES, computeDateRangeAssignment, stripRangeMinEqualToDefault };
+defaultModel.__test = { normalizeNameArticle, VALID_NAME_ARTICLES, computeDateRangeAssignment, stripRangeMinEqualToDefault, subtractClosuresFromRanges };
 
 module.exports = defaultModel;

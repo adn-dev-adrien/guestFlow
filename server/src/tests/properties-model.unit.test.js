@@ -9,7 +9,7 @@ const DDL = `
   CREATE TABLE pricing_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, label TEXT, pricePerNight REAL,
     pricingMode TEXT, progressiveTiers TEXT, dateRanges TEXT, color TEXT, startDate TEXT, endDate TEXT, minNights INTEGER,
-    seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL,
+    seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL, maxNights INTEGER,
     changeoverArrival INTEGER, changeoverDeparture INTEGER
   );
   CREATE TABLE documents (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, type TEXT, name TEXT, filePath TEXT);

@@ -129,6 +129,11 @@ all-inclusive pricing as the first such recipe.
    preview flags each adoption (`adopted: true`) so the takeover is visible before it happens; a
    manual season with an unrelated label still blocks, and a season the recipe already owns is never
    hijacked.
+9ter. **A date the recipe cannot write is recorded, not just mentioned.** Every generated range
+   blocked by a manual season lands in a structured `conflicts[]` — the dates, the recipe season that
+   wanted them, the manual season blocking them and its own range — so the apply dialog lists them as
+   dated rows in a red panel instead of burying them in a warning sentence. The operator sees exactly
+   which periods stayed untouched and why.
 10. **Applying is transactional.** Either the whole diff lands or nothing does. A validation failure
     mid-way leaves the property exactly as it was.
 11. **Applying is idempotent.** Re-applying the same recipe version to an unchanged property produces
@@ -197,6 +202,12 @@ all-inclusive pricing as the first such recipe.
     range override wins over the season default, and the requirement over a stay is the maximum across
     the nights it touches ([pricing-min-nights-per-range.md](../pricing-min-nights-per-range.md)). A
     recipe simply declares them.
+20bis. **A season may cap the stay length.** `maxNights` is the exact mirror of the minimum: declared
+    per season, overridable per date range, and **absent/NULL = unlimited**, which is what every
+    existing property carries. Over a stay, the **most restrictive** ceiling among the nights touched
+    wins (the minimum takes the maximum; the ceiling takes the minimum). A season without a ceiling
+    never lifts a neighbour's. Enforced at save exactly like the minimum — same 409-with-code, same
+    force-override, iCal never blocked.
 21. **A changeover rule restricts the arrival weekday, the departure weekday, or both.** Declared per
     season and overridable per date range, exactly like minimum nights. `null` means unrestricted,
     which is what every existing property gets.
@@ -210,6 +221,17 @@ all-inclusive pricing as the first such recipe.
 24. **iCal imports are never blocked by either rule.** A platform booking that violates the constraint
     is a fact to record, not a request to validate; it imports and is flagged, as today for minimum
     nights.
+25bis. **Closed days are greyed on the tariff calendar** and lose their season colour: they cannot be
+    sold, so showing a tariff on them is noise. The tooltip names the closure instead of the season,
+    and the minimum-nights / changeover markers are suppressed there.
+25ter. **Closed days are hidden from the seasons table — display only.** A season's ranges are shown
+    minus the closures: a range straddling a boundary is trimmed, one entirely inside a closure
+    disappears (the row reads « entièrement en fermeture »), one containing a whole closure shows as
+    two pieces. **The stored ranges keep their full span**, so moving or removing a closure re-reveals
+    the days with no re-application. Computed server-side (`dateRangesVisible`) so the page does no
+    date maths.
+25quater. **The seasons table is ordered by the earliest date each season actually covers**, computed
+    from its ranges rather than the stored `startDate`, which can lag behind a multi-range season.
 25. **Both constraints are visible on the tariff calendar.** The effective minimum shows on every day
     where it exceeds 1 — not only, as today, where a range overrides its season's default — and a day
     that is a valid arrival or departure carries a marker. A legend names every marker on the calendar.
@@ -343,8 +365,9 @@ all-inclusive pricing as the first such recipe.
     | MID | 04/04→05/04 **[2]** · 01/05→02/05 **[2]** · 08/05→09/05 **[2]** · 14/05→16/05 **[3]** · 23/05→24/05 **[2]** · 04/07→10/07 · 22/08→28/08 |
     | HIGH | 11/07→13/07 **[3]** (14 juillet, mardi — already peak, minimum only) · 14/07→21/08 |
 
-45. **Minimum nights: 1 everywhere except the holiday blocks** (rule 16bis — 2 or 3 nights), and
-    **no changeover restriction**, in this first version of the recipe. Both are declared explicitly
+45. **Minimum nights: 1 everywhere except the holiday blocks** (rule 16bis — 2 or 3 nights),
+    **maximum 7 nights** on every season, and **no changeover restriction**, in this first version of
+    the recipe. Both are declared explicitly
     rather than omitted, so tightening high season to « 7 nuits, samedi au samedi » later is a
     one-line recipe edit and a re-apply — which is the whole point.
 46. **Horizon: two calendar years**, the current one and the next. Nothing further: a five-year calendar
@@ -468,6 +491,7 @@ Eleven idempotent columns and one small table. Recipes themselves are files, not
 | `pricing_rules` | `netTargetPerNight` | REAL | `NULL` | Channel-grid pivot (rule 34bis). `NULL` = `pricePerNight` is the net, legacy behaviour. |
 | `pricing_rules` | `extraGuestPrice` | REAL | `NULL` | Per-season billed override; `NULL` inherits the property's. |
 | `pricing_rules` | `extraGuestNetTarget` | REAL | `NULL` | Channel-grid pivot for the extra guest (rule 34bis). |
+| `pricing_rules` | `maxNights` | INTEGER | `NULL` | Maximum stay in nights (rule 20bis). `NULL` = unlimited. |
 | `pricing_rules` | `changeoverArrival` | INTEGER | `NULL` | 0–6 (JS weekday, 0 = dimanche), `NULL` = unrestricted. |
 | `pricing_rules` | `changeoverDeparture` | INTEGER | `NULL` | 0–6, `NULL` = unrestricted. |
 

@@ -34,7 +34,7 @@ function parseRanges(raw) {
 
 // Stable signature of a range, override keys included — what "same range" means in the diff.
 function rangeSignature(range) {
-  return [range.startDate, range.endDate, range.minNights ?? '', range.changeoverArrival ?? '', range.changeoverDeparture ?? ''].join('|');
+  return [range.startDate, range.endDate, range.minNights ?? '', range.maxNights ?? '', range.changeoverArrival ?? '', range.changeoverDeparture ?? ''].join('|');
 }
 
 function rangesOverlap(a, b) {
@@ -54,6 +54,7 @@ function createTariffRecipeModel(database, recipeStore) {
       pricingMode: season.pricingMode || 'fixed',
       progressiveTiers: season.progressiveTiers || [],
       minNights: Number(season.minNights || 1),
+      maxNights: season.maxNights ?? null,
       dateRanges,
       seasonKey: season.key,
       seasonRank: Number(season.rank),
@@ -77,6 +78,7 @@ function createTariffRecipeModel(database, recipeStore) {
     compare('pricePerNight', Number(existingRule.pricePerNight || 0), desired.pricePerNight);
     compare('pricingMode', existingRule.pricingMode || 'fixed', desired.pricingMode);
     compare('minNights', Number(existingRule.minNights || 1), desired.minNights);
+    compare('maxNights', existingRule.maxNights ?? null, desired.maxNights);
     compare('seasonRank', existingRule.seasonRank, desired.seasonRank);
     compare('netTargetPerNight', roundOrNull(existingRule.netTargetPerNight), desired.netTargetPerNight);
     compare('extraGuestPrice', roundOrNull(existingRule.extraGuestPrice), desired.extraGuestPrice);
@@ -110,6 +112,9 @@ function createTariffRecipeModel(database, recipeStore) {
 
   function preview(propertyId, recipeId) {
     const warnings = [];
+    // specs/tariff-recipes/spec.md §3.2 rule 9ter — every date the recipe could NOT write is
+    // recorded here (not merely mentioned in a warning string) so the UI can list it.
+    const conflicts = [];
     let blocking = false;
 
     const recipe = recipeStore.getRecipe(recipeId);
@@ -117,7 +122,7 @@ function createTariffRecipeModel(database, recipeStore) {
       return {
         recipe: { id: recipeId, version: null, label: null },
         horizon: null, seasons: [], closures: { added: [], kept: [], skipped: [] },
-        warnings: ['Recette introuvable.'], blocking: true,
+        conflicts: [], warnings: ['Recette introuvable.'], blocking: true,
       };
     }
     const property = database.prepare('SELECT id, name FROM properties WHERE id = ?').get(Number(propertyId));
@@ -125,7 +130,7 @@ function createTariffRecipeModel(database, recipeStore) {
       return {
         recipe: { id: recipe.id, version: recipe.version, label: recipe.label },
         horizon: null, seasons: [], closures: { added: [], kept: [], skipped: [] },
-        warnings: ['Logement introuvable.'], blocking: true,
+        conflicts: [], warnings: ['Logement introuvable.'], blocking: true,
       };
     }
 
@@ -209,6 +214,16 @@ function createTariffRecipeModel(database, recipeStore) {
       for (const desired of desiredInHorizon) {
         const obstacle = manualRules.find((rule) => parseRanges(rule.dateRanges).some((r) => rangesOverlap(desired, r)));
         if (obstacle) {
+          const blockingRange = parseRanges(obstacle.dateRanges).find((r) => rangesOverlap(desired, r));
+          conflicts.push({
+            startDate: desired.startDate,
+            endDate: desired.endDate,
+            seasonKey: season.key,
+            seasonLabel: season.label,
+            blockedByRuleId: Number(obstacle.id),
+            blockedByLabel: obstacle.label,
+            blockedByRange: blockingRange ? { startDate: blockingRange.startDate, endDate: blockingRange.endDate } : null,
+          });
           warnings.push(`La plage ${desired.startDate} → ${desired.endDate} (${season.label}) chevauche la saison manuelle « ${obstacle.label} ».`);
           blocking = true;
         }
@@ -262,6 +277,7 @@ function createTariffRecipeModel(database, recipeStore) {
       horizon: { fromYear, toYear },
       seasons,
       closures: closuresDiff,
+      conflicts,
       warnings,
       blocking,
     };

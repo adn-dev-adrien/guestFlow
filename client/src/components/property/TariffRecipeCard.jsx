@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Card, CardContent, Box, Typography, Chip, Button, Select, MenuItem, FormControl, InputLabel,
-  Dialog, DialogTitle, DialogContent, DialogActions, Alert, List, ListItem, ListItemText,
+  Dialog, DialogTitle, DialogContent, DialogActions, Alert, AlertTitle, List, ListItem,
   useMediaQuery, useTheme,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -172,9 +172,34 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
                   {preview.recipe.label} — v{preview.recipe.version} · horizon {preview.horizon.fromYear} → {preview.horizon.toYear}
                 </Typography>
               )}
-              {(preview.warnings || []).map((warning, index) => (
-                <Alert key={index} severity={preview.blocking ? 'error' : 'warning'} sx={{ mb: 1 }}>{warning}</Alert>
-              ))}
+              {/* Dates the recipe could NOT write, listed explicitly (spec §3.2 rule 9ter): a
+                  warning paragraph is easy to skim past, a dated list is not. */}
+              {(preview.conflicts || []).length > 0 && (
+                <Alert severity="error" sx={{ mb: 1.5 }}>
+                  <AlertTitle sx={{ fontWeight: 700 }}>
+                    {preview.conflicts.length} période{preview.conflicts.length > 1 ? 's' : ''} ne peut pas être écrite
+                  </AlertTitle>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    Ces dates appartiennent à une saison créée à la main que la recette ne gère pas.
+                    Renommez-la comme la saison de la recette pour qu'elle soit adoptée, ou supprimez-la.
+                  </Typography>
+                  {preview.conflicts.map((conflict, index) => (
+                    <Box key={index} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
+                      <Chip size="small" color="error" variant="outlined" label={frRange(conflict)} />
+                      <Typography variant="caption" color="text.secondary">
+                        {conflict.seasonLabel} — bloquée par « {conflict.blockedByLabel} »
+                        {conflict.blockedByRange ? ` (${frRange(conflict.blockedByRange)})` : ''}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Alert>
+              )}
+              {(preview.warnings || [])
+                // Each conflict already has its own line above; don't say it twice.
+                .filter((w) => !(preview.conflicts || []).length || !w.includes('chevauche la saison manuelle'))
+                .map((warning, index) => (
+                  <Alert key={index} severity={preview.blocking ? 'error' : 'warning'} sx={{ mb: 1 }}>{warning}</Alert>
+                ))}
               {changedSeasons.length === 0 && (preview.closures?.added || []).length === 0 && !preview.blocking && (
                 <Alert severity="success">Rien à modifier — les saisons sont déjà conformes à la recette.</Alert>
               )}

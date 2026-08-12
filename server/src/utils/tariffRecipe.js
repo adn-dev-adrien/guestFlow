@@ -149,6 +149,11 @@ function validateRecipe(json) {
     if (!VALID_PRICING_MODES.includes(mode)) return fail(`${where}.pricingMode`, `doit être ${VALID_PRICING_MODES.join(' | ')}`);
     const minNights = s.minNights === undefined ? 1 : s.minNights;
     if (!Number.isInteger(minNights) || minNights < 1) return fail(`${where}.minNights`, 'entier ≥ 1');
+    // Maximum stay: absent/null = unlimited. Must not contradict the minimum.
+    if (s.maxNights !== undefined && s.maxNights !== null) {
+      if (!Number.isInteger(s.maxNights) || s.maxNights < 1) return fail(`${where}.maxNights`, 'entier ≥ 1 (ou absent)');
+      if (s.maxNights < minNights) return fail(`${where}.maxNights`, `ne peut pas être inférieur au minimum (${minNights})`);
+    }
     const chErr = validateChangeover(s.changeover, `${where}.changeover`);
     if (chErr) return chErr;
 
@@ -181,7 +186,10 @@ function validateRecipe(json) {
     // re-validates cleanly (validation is idempotent).
     const { extraNightRatio, lengthOfStayDiscounts, ...rest } = s;
     void extraNightRatio; void lengthOfStayDiscounts;
-    resolvedSeasons.push({ ...rest, pricingMode: mode, minNights, changeover: s.changeover ?? null, progressiveTiers });
+    resolvedSeasons.push({
+      ...rest, pricingMode: mode, minNights, maxNights: s.maxNights ?? null,
+      changeover: s.changeover ?? null, progressiveTiers,
+    });
   }
   const sortedRanks = [...ranks].sort((a, b) => a - b);
   for (let i = 0; i < sortedRanks.length; i += 1) {

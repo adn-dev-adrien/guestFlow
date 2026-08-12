@@ -105,13 +105,18 @@ function reservationNumberOverrideError(value, exceptId) {
   return null;
 }
 
-// specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
-// maps to a `countsAsBedLinen = 1` row in `options`. Used by create + update to gate the
-// bed-counts coercion: if the saved reservation has no bed-linen contract, `singleBeds /
-// doubleBeds / babyBeds` are forced to 0 before insert/update (the values would never
-// contribute to the laundry aggregation anyway — the SQL in `laundryModel.js` requires a
-// flagged option). The query is tiny (option list ≤ ~10) so a single `IN` round-trip
-// is fine.
+// specs/tariff-recipes/spec.md §3.4 rule 20bis — the maximum stay, mirror of MIN_NIGHTS: same
+// 409-with-code + force-override contract, same iCal exemption.
+function maxNightsErrorPayload(quote) {
+  return {
+    error: `Cette réservation comporte ${quote.nights} nuit(s), au-delà du maximum autorisé (${quote.requiredMaxNights}).`,
+    code: 'MAX_NIGHTS',
+    requiredMaxNights: quote.requiredMaxNights,
+    nights: quote.nights,
+    maxNightsRules: quote.maxNightsRules,
+  };
+}
+
 // specs/tariff-recipes/spec.md §3.4 rule 23 — a changeover breach is refused with the same
 // 409-with-code + force-override contract as MIN_NIGHTS. iCal imports never go through these
 // handlers, so a platform booking that violates the constraint still imports (rule 24).
@@ -129,6 +134,13 @@ function changeoverErrorPayload(quote) {
   };
 }
 
+// specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
+// maps to a `countsAsBedLinen = 1` row in `options`. Used by create + update to gate the
+// bed-counts coercion: if the saved reservation has no bed-linen contract, `singleBeds /
+// doubleBeds / babyBeds` are forced to 0 before insert/update (the values would never
+// contribute to the laundry aggregation anyway — the SQL in `laundryModel.js` requires a
+// flagged option). The query is tiny (option list ≤ ~10) so a single `IN` round-trip
+// is fine.
 function hasBedLinenOption(reservationOptions) {
   if (!Array.isArray(reservationOptions) || reservationOptions.length === 0) return false;
   const ids = reservationOptions
@@ -395,7 +407,7 @@ function create(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceCapacity, forceChangeover,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover,
     options: rawReservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -481,6 +493,9 @@ function create(req, res) {
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
+  if (quote.maxNightsBreached && !forceMaxNights) {
+    return res.status(409).json(maxNightsErrorPayload(quote));
+  }
   if (quote.changeoverBreached && !forceChangeover) {
     return res.status(409).json(changeoverErrorPayload(quote));
   }
@@ -556,7 +571,7 @@ function update(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceCapacity, forceChangeover, refreshPricingToCurrent,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, refreshPricingToCurrent,
     options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -685,6 +700,9 @@ function update(req, res) {
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
+  }
+  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked) {
+    return res.status(409).json(maxNightsErrorPayload(quote));
   }
   if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
     return res.status(409).json(changeoverErrorPayload(quote));

@@ -416,6 +416,7 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   tryAddRule('netTargetPerNight', 'ALTER TABLE pricing_rules ADD COLUMN netTargetPerNight REAL DEFAULT NULL');
   tryAddRule('extraGuestPrice', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestPrice REAL DEFAULT NULL');
   tryAddRule('extraGuestNetTarget', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestNetTarget REAL DEFAULT NULL');
+  tryAddRule('maxNights', 'ALTER TABLE pricing_rules ADD COLUMN maxNights INTEGER DEFAULT NULL');
   tryAddRule('changeoverArrival', 'ALTER TABLE pricing_rules ADD COLUMN changeoverArrival INTEGER DEFAULT NULL');
   tryAddRule('changeoverDeparture', 'ALTER TABLE pricing_rules ADD COLUMN changeoverDeparture INTEGER DEFAULT NULL');
 

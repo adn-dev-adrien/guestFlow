@@ -23,21 +23,21 @@
       "pricePerNight": 179, "netTargetPerNight": 160,
       "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
-      "minNights": 1, "changeover": null
+      "minNights": 1, "maxNights": 7, "changeover": null
     },
     {
       "key": "mid", "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195,
       "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
-      "minNights": 1, "changeover": null
+      "minNights": 1, "maxNights": 7, "changeover": null
     },
     {
       "key": "high", "label": "Haute saison", "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225,
       "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
-      "minNights": 1, "changeover": null
+      "minNights": 1, "maxNights": 7, "changeover": null
     }
   ],
 

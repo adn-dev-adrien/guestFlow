@@ -18,7 +18,7 @@ function createDb() {
     CREATE TABLE pricing_rules (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, label TEXT,
       pricePerNight REAL DEFAULT 100, pricingMode TEXT DEFAULT 'fixed', progressiveTiers TEXT DEFAULT '[]',
       dateRanges TEXT DEFAULT '[]', color TEXT DEFAULT '#1976d2', startDate TEXT, endDate TEXT, minNights INTEGER DEFAULT 1,
-      seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL,
+      seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL, maxNights INTEGER,
       changeoverArrival INTEGER, changeoverDeparture INTEGER);
     CREATE TABLE establishment_closures (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER,
       label TEXT NOT NULL DEFAULT 'Fermeture établissement', startDate TEXT NOT NULL, endDate TEXT NOT NULL,
@@ -120,6 +120,17 @@ test('a manual season with an UNRELATED label stays an obstacle (rule 9)', () =>
   const out = model.preview(1, 'aventura-test');
   assert.equal(out.blocking, true);
   assert.ok(out.warnings.some((w) => w.includes('Peinte à la main')));
+  // specs/tariff-recipes/spec.md §3.2 rule 9ter — the blocked dates are RECORDED, not just mentioned
+  // in a sentence, so the UI can list them.
+  assert.ok(out.conflicts.length > 0);
+  for (const conflict of out.conflicts) {
+    assert.equal(conflict.blockedByLabel, 'Peinte à la main');
+    assert.ok(conflict.startDate <= conflict.endDate);
+    assert.ok(conflict.seasonKey && conflict.seasonLabel);
+    assert.deepEqual(conflict.blockedByRange, { startDate: `${year}-06-01`, endDate: `${year}-06-30` });
+  }
+  // Every conflicting range really does overlap the manual season it names.
+  assert.ok(out.conflicts.some((c) => c.startDate <= `${year}-06-30` && c.endDate >= `${year}-06-01`));
   const applied = model.apply(1, 'aventura-test');
   assert.equal(applied.applied, false);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pricing_rules WHERE propertyId = 1').get().n, 1);

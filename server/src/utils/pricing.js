@@ -98,6 +98,8 @@ function normalizeDateRanges(dateRanges, startDate, endDate) {
       // absent value means "inherit the season-level minNights", so we drop the key entirely.
       const minNights = Math.floor(Number(range?.minNights));
       if (Number.isFinite(minNights) && minNights >= 1) normalized.minNights = minNights;
+      const maxNights = Math.floor(Number(range?.maxNights));
+      if (Number.isFinite(maxNights) && maxNights >= 1) normalized.maxNights = maxNights;
       // Per-range changeover overrides ride the same JSON with the same "blank = inherit the season"
       // rule (specs/tariff-recipes/spec.md §3.4). JS weekday convention: 0 = dimanche … 6 = samedi.
       const arrival = Math.floor(Number(range?.changeoverArrival));
@@ -852,6 +854,9 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
       requiredMinNights: 1,
       minNightsRules: [],
       minNightsBreached: false,
+      requiredMaxNights: null,
+      maxNightsRules: [],
+      maxNightsBreached: false,
     };
   }
 
@@ -862,6 +867,8 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
   // the nights the stay actually touches, plus a per-label view so the message can name the season(s).
   const perNightMinNights = [];
   const minNightsByLabel = new Map();
+  const perNightMaxNights = [];
+  const maxNightsByLabel = new Map();
   let currentDateStr = startDate;
 
   for (let nightIndex = 0; nightIndex < nights; nightIndex += 1) {
@@ -894,6 +901,18 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
         : Math.max(1, Number(matchedRule.minNights || 1));
       perNightMinNights.push(effectiveMin);
       minNightsByLabel.set(label, Math.max(minNightsByLabel.get(label) || 1, effectiveMin));
+      // Maximum stay (specs/tariff-recipes/spec.md §3.4 rule 20bis), the mirror of the minimum:
+      // per-range override ⇒ season default ⇒ unlimited. NULL/0 = no ceiling, which is what every
+      // existing property carries.
+      const rangeMax = Math.floor(Number(matchedRange?.maxNights));
+      const seasonMax = Math.floor(Number(matchedRule.maxNights));
+      const effectiveMax = Number.isFinite(rangeMax) && rangeMax >= 1
+        ? rangeMax
+        : (Number.isFinite(seasonMax) && seasonMax >= 1 ? seasonMax : null);
+      if (effectiveMax !== null) {
+        perNightMaxNights.push(effectiveMax);
+        maxNightsByLabel.set(label, Math.min(maxNightsByLabel.get(label) || Infinity, effectiveMax));
+      }
     }
 
     if ((matchedRule?.pricingMode || 'fixed') === 'progressive') {
@@ -924,6 +943,9 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
   }
 
   const requiredMinNights = Math.max(1, ...perNightMinNights);
+  // The most restrictive ceiling across the nights the stay touches wins (mirror of the minimum,
+  // which takes the max). No season carrying a ceiling → null = unlimited.
+  const requiredMaxNights = perNightMaxNights.length ? Math.min(...perNightMaxNights) : null;
   return {
     nights,
     totalPrice: roundMoney(totalPrice),
@@ -934,6 +956,12 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
       minNights: Number(minNights || 1),
     })),
     minNightsBreached: nights < requiredMinNights,
+    requiredMaxNights,
+    maxNightsRules: Array.from(maxNightsByLabel.entries()).map(([label, maxNights]) => ({
+      label,
+      maxNights: Number(maxNights),
+    })),
+    maxNightsBreached: requiredMaxNights !== null && nights > requiredMaxNights,
   };
 }
 
@@ -1135,6 +1163,9 @@ function calculateReservationQuote({
     requiredMinNights,
     minNightsRules,
     minNightsBreached,
+    requiredMaxNights,
+    maxNightsRules,
+    maxNightsBreached,
   } = calculatedBase;
   if (nights <= 0) {
     return {
@@ -1144,6 +1175,9 @@ function calculateReservationQuote({
       requiredMinNights: 1,
       minNightsRules: [],
       minNightsBreached: false,
+      requiredMaxNights: null,
+      maxNightsRules: [],
+      maxNightsBreached: false,
       persons: 0,
       totalPrice: 0,
       optionsTotal: 0,
@@ -1986,6 +2020,10 @@ function calculateReservationQuote({
     requiredMinNights,
     minNightsRules,
     minNightsBreached,
+    // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum.
+    requiredMaxNights,
+    maxNightsRules,
+    maxNightsBreached,
     changeoverBreached: changeover.breached,
     changeoverArrivalBreached: changeover.arrivalBreached,
     changeoverDepartureBreached: changeover.departureBreached,
