@@ -170,6 +170,19 @@ all-inclusive pricing as the first such recipe.
 
     Holidays come from [frenchHolidays.js](../../server/src/utils/frenchHolidays.js) — no list is
     hardcoded, so Easter and the movable feasts follow automatically.
+16bis. **A holiday block also imposes a minimum stay: its own length.** A « pont » is a commercial
+    unit and can't be sold as a single isolated night. The block length gives the minimum directly —
+    **2 nights** when the holiday falls on a Friday or a Monday, **3 nights** when a bridge day is
+    involved (Tuesday or Thursday). This matches the common practice among French rentals, where a
+    2-night weekend minimum is near-universal and a 3-night minimum on real bridges is the norm;
+    forcing the eve of an isolated Friday holiday is deliberately *not* done, as it would refuse a
+    guest arriving Friday evening for two nights. Declared as `minNights: "block"` on the modifier
+    (an integer forces a fixed value; absent imposes nothing, which is what a recipe without the
+    setting keeps).
+16ter. **The minimum applies even where the rank cannot rise.** A block already at the top rank —
+    14 juillet, always inside high season — is not raised, but still carries its minimum and
+    therefore still splits the range. Two overlapping blocks resolve to the longer one, and neither
+    raises the same night twice.
 17. **`skipClosedDays` keeps the calendar readable.** When set, nights covered by a closure are left
     alone: they would never be sold, and raising them only adds noise to the painted calendar.
 18. **Closures are declared as recurring month-day windows** and materialised as per-property
@@ -252,21 +265,27 @@ all-inclusive pricing as the first such recipe.
     displayed price whatever the entry point, and the welcome pack financed on every direct stay.
     Reservations imported from a commissioned platform keep today's behaviour: the operator records the
     amount actually paid (`platformGrossAmount`); the engine does not re-price them.
-36. **The discount is capped at 30 %, and a night is never more expensive than the one before it.**
-    Those two constraints make the discount **asymptotic**: it approaches 30 % without reaching it. At
-    7 nights a 30 % discount would mean 112 €/night average in LOW; with night 1 at full price the six
-    others would have to average 104 €, which forces night 8 back up to 112 € — an increase, forbidden.
-37. **Curve: night 1 at full price, every subsequent night at 70 % of it.** The most generous curve
-    satisfying rule 36 — no other can discount more at any stay length.
+36. **A night is never more expensive than the one before it, and 7 nights are discounted 45 %** —
+    the source document's §6 target. The document's own table cannot be implemented as written: at
+    « 45 % from 7 nights on », the 8th night costs 98,45 € against 76,97 € for the 7th, i.e. it gets
+    *dearer*. Pinning the target at 7 nights instead, with a constant marginal price beyond night 1,
+    satisfies both and lands within a point of the document at every length.
+37. **Curve: night 1 at full price, every subsequent night at 47,5 % of it.** The floor that puts the
+    7-night discount exactly on 45 %.
 
     | Season | Night 1 | Nights 2+ | Extra guest, night 1 | Extra guest, nights 2+ |
     |---|---|---|---|---|
-    | LOW | 179,00 € | 125,30 € | 27,00 € | 18,90 € |
-    | MID | 216,00 € | 151,20 € | 27,00 € | 18,90 € |
-    | HIGH | 247,00 € | 172,90 € | 27,00 € | 18,90 € |
+    | LOW | 179,00 € | 85,03 € | 27,00 € | 12,83 € |
+    | MID | 216,00 € | 102,60 € | 27,00 € | 12,83 € |
+    | HIGH | 247,00 € | 117,32 € | 27,00 € | 12,82 € |
 
-    Total discount: 15 % at 2 nights, 20 % at 3, 22,5 % at 4, 24 % at 5, 25 % at 6, 25,7 % at 7,
-    27,9 % at 14, 28,9 % at 28.
+    Total discount vs. the document: 26,2 % at 2 nights (doc 24 %), 35,0 % at 3 (33 %), 39,4 % at 4
+    (38 %), 42,0 % at 5 (41 %), 43,7 % at 6 (43 %), **45,0 % at 7 (45 %)**. Beyond a week it keeps
+    deepening towards its 52,5 % asymptote — 48,7 % at 14 nights, 50,6 % at 28.
+
+    > The per-night extra-guest amounts differ by a cent between seasons: the floor is computed on
+    > each season's own price and rounded there (247 × 0,475 = 117,325 → 117,32), so the ratio each
+    > season applies to the supplement is its own tier ÷ its own base.
 38. **The discount applies to the extra-guest supplement too**, night by night, using that night's own
     ratio (`tier price ÷ season full price`). A `fixed`-mode season yields ratio 1, i.e. a plain
     per-night fee.
@@ -316,15 +335,16 @@ all-inclusive pricing as the first such recipe.
     shoulder change behaves predictably, never fired by the current shape.
 44. **What 2026 produces in full:**
 
-    | Level | Ranges |
+    | Level | Ranges (holiday minimum in brackets) |
     |---|---|
     | LOW | 01/01→03/04 · 06/04→30/04 · 03/05→07/05 · 10/05→13/05 · 17/05→22/05 · 25/05→03/07 · 29/08→31/12 |
-    | MID | 04/04→05/04 · 01/05→02/05 · 08/05→09/05 · 14/05→16/05 · 23/05→24/05 · 04/07→10/07 · 22/08→28/08 |
-    | HIGH | 11/07→21/08 |
+    | MID | 04/04→05/04 **[2]** · 01/05→02/05 **[2]** · 08/05→09/05 **[2]** · 14/05→16/05 **[3]** · 23/05→24/05 **[2]** · 04/07→10/07 · 22/08→28/08 |
+    | HIGH | 11/07→13/07 **[3]** (14 juillet, mardi — already peak, minimum only) · 14/07→21/08 |
 
-45. **Minimum nights: 1 everywhere**, and **no changeover restriction**, in this first version of the
-    recipe. Both are declared explicitly rather than omitted, so tightening high season to « 7 nuits,
-    samedi au samedi » later is a one-line recipe edit and a re-apply — which is the whole point.
+45. **Minimum nights: 1 everywhere except the holiday blocks** (rule 16bis — 2 or 3 nights), and
+    **no changeover restriction**, in this first version of the recipe. Both are declared explicitly
+    rather than omitted, so tightening high season to « 7 nuits, samedi au samedi » later is a
+    one-line recipe edit and a re-apply — which is the whole point.
 46. **Horizon: two calendar years**, the current one and the next. Nothing further: a five-year calendar
     written today would mostly be re-derived before anyone booked into it.
 
@@ -358,32 +378,33 @@ all-inclusive pricing as the first such recipe.
 ### 3.10 Reference totals
 
 54. **Channel totals** —
-    `total = displayed + 0,7 × displayed × (nights − 1) + extraGuests × extra × (1 + 0,7 × (nights − 1))`:
+    `total = displayed + 0,475 × displayed × (nights − 1) + extraGuests × extra × (1 + 0,475 × (nights − 1))`:
 
-    | # | Case | Expected |
-    |---|---|---|
-    | 1 | Airbnb · 2 p · 1 n · LOW | 190,00 € |
-    | 2 | Airbnb · 2 p · 2 n · LOW | 323,00 € |
-    | 3 | Airbnb · 4 p · 3 n · HIGH | 784,80 € |
-    | 4 | Booking · 2 p · 1 n · HIGH | 265,00 € |
-    | 5 | Abracadaroom · 5 p · 7 n · HIGH | 1 965,60 € |
-    | 6 | Direct · 2 p · 1 n · LOW | 179,00 € |
-    | 7 | Direct · 2 p · 3 n · MID | 518,40 € |
-    | 8 | Abritel · 3 p · 2 n · MID | 431,80 € |
+    | # | Case | Expected | Source document §14 |
+    |---|---|---|---|
+    | 1 | Airbnb · 2 p · 1 n · LOW | 190,00 € | 190 € |
+    | 2 | Airbnb · 2 p · 2 n · LOW | 280,25 € | 289 € |
+    | 3 | Airbnb · 4 p · 3 n · HIGH | 637,65 € | 657 € |
+    | 4 | Booking · 2 p · 1 n · HIGH | 265,00 € | 265 € |
+    | 5 | Abracadaroom · 5 p · 7 n · HIGH | **1 455,30 €** | **1 455 €** |
+    | 6 | Direct · 2 p · 1 n · LOW | 179,00 € | 179 € |
+    | 7 | Direct · 2 p · 3 n · MID | 421,20 € | 434 € |
+    | 8 | Abritel · 3 p · 2 n · MID | 374,65 € | 386 € |
 
-    > These supersede the source document's §14, computed with the uncapped 24/33/38/41/43/45 % grid.
-    > The 30 % cap makes long stays materially more expensive: case 5 moves from 1 455 € to 1 966 €.
+    > The 7-night case lands on the document to the euro — expected, since that is where the curve is
+    > pinned. The intermediate cases come out slightly below it because a constant marginal price
+    > discounts 2 to 6 nights a little more deeply than the document's table does.
 
 55. **Engine totals** — what `calculateReservationQuote` must return for a **direct** reservation:
 
     | # | Case | Accommodation | Extra guests | Total |
     |---|---|---|---|---|
     | D1 | 2 p · 1 n · LOW | 179,00 € | — | 179,00 € |
-    | D2 | 2 p · 2 n · LOW | 304,30 € | — | 304,30 € |
-    | D3 | 2 p · 3 n · MID | 518,40 € | — | 518,40 € |
-    | D4 | 4 p · 3 n · HIGH | 592,80 € | 129,60 € | 722,40 € |
-    | D5 | 5 p · 7 n · HIGH | 1 284,40 € | 421,20 € | 1 705,60 € |
-    | D6 | 3 p · 2 n · MID | 367,20 € | 45,90 € | 413,10 € |
+    | D2 | 2 p · 2 n · LOW | 264,03 € | — | 264,03 € |
+    | D3 | 2 p · 3 n · MID | 421,20 € | — | 421,20 € |
+    | D4 | 4 p · 3 n · HIGH | 481,64 € | 105,30 € | 586,94 € |
+    | D5 | 5 p · 7 n · HIGH | 950,92 € | 311,84 € | 1 262,76 € |
+    | D6 | 3 p · 2 n · MID | 318,60 € | 39,83 € | 358,43 € |
 
     The engine works in cents; whole-euro rounding is a channel-configuration concern, not a billing one.
 
@@ -625,8 +646,13 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - Recipes load from the repository, then from `data/recipes/` which can override by `id` — updating a
   recipe needs no release. Browser read-only in this version. ✅
 - Applying previews first; seasons the recipe does not declare are removed after confirmation. ✅
-- Discount capped at 30 % with non-increasing marginal nights → floor at 70 % of the full rate from
-  night 2; the cap is asymptotic, never reached. ✅
+- Discount curve: floor at **47,5 %** of the full rate from night 2, which puts the 7-night discount
+  exactly on the source document's 45 % while keeping marginal nights non-increasing. (An earlier
+  pass capped the discount at 30 %; corrected on 2026-08-12 after review — the document's target was
+  the intent, and the 30 % cap only ever existed because the document's table as written is not
+  implementable.) ✅
+- Holiday blocks impose a minimum stay equal to their own length — 2 nights for a Friday or Monday
+  holiday, 3 for a bridge. ✅
 - Direct bookings taken in GuestFlow are billed at the Lodgify displayed price (179 / 216 / 247 €). ✅
 - Whole-euro ceiling rounding on the platform grid, globally — verified safe: `grossFromNet` feeds the
   display grid only, never a billed amount. ✅

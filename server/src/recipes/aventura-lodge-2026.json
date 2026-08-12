@@ -2,7 +2,7 @@
   "id": "aventura-lodge-2026",
   "version": "1.0.0",
   "label": "Aventura Lodge — tarification tout compris 2026",
-  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus) ; dégressivité plafonnée à 30 % ; week-ends fériés montés d'un cran ; fermeture hivernale du 15 octobre au 31 mars.",
+  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus) ; dégressivité atteignant 45 % à 7 nuits ; week-ends fériés montés d'un cran ; fermeture hivernale du 15 octobre au 31 mars.",
   "horizonYears": 2,
 
   "extraGuest": { "appliesAbove": 2, "unit": "per_night", "followsDiscount": true },
@@ -11,21 +11,21 @@
     {
       "key": "low", "label": "Basse saison", "rank": 1, "color": "#5B8C6E",
       "pricePerNight": 179, "netTargetPerNight": 160,
-      "pricingMode": "progressive", "extraNightRatio": 0.70,
+      "pricingMode": "progressive", "extraNightRatio": 0.475,
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null
     },
     {
       "key": "mid", "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195,
-      "pricingMode": "progressive", "extraNightRatio": 0.70,
+      "pricingMode": "progressive", "extraNightRatio": 0.475,
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null
     },
     {
       "key": "high", "label": "Haute saison", "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225,
-      "pricingMode": "progressive", "extraNightRatio": 0.70,
+      "pricingMode": "progressive", "extraNightRatio": 0.475,
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null
     }
@@ -50,7 +50,7 @@
       }
     ],
     "modifiers": [
-      { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1, "skipClosedDays": true }
+      { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1, "skipClosedDays": true, "minNights": "block" }
     ]
   },
 

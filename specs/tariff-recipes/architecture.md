@@ -110,13 +110,14 @@ buildYearPlan(recipe, year, closures):
      resolvedSpans[p.id] ← span
      day[span] ← p.season
 
-  # 3. Modifiers — spec rules 15 to 17
+  # 3. Modifiers — spec rules 15 to 17, 16bis
   for each modifier m where type = 'public_holiday_bridge':
      for each holiday h of getFrenchPublicHolidays(year):
         block  ← consecutive non-working days around h
         nights ← block minus its last day
         if m.skipClosedDays: nights ← nights \ closures
-        day[nights] ← seasonAtRank(min(maxRank, rank(day[n]) + m.amount))
+        day[nights] ← seasonAtRank(min(maxRank, rank(day[n]) + m.amount))   # once per night
+        min[nights] ← max(min[nights], |block|)   # m.minNights = "block" → the pont's own length
 
   # 4. Back to ranges — spec rule 19
   return runsOf(day)
@@ -347,15 +348,15 @@ Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside
   "seasons": [
     { "key": "low",  "label": "Basse saison",   "rank": 1, "color": "#5B8C6E",
       "pricePerNight": 179, "netTargetPerNight": 160, "pricingMode": "progressive",
-      "extraNightRatio": 0.70, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "extraNightRatio": 0.475, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null },
     { "key": "mid",  "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195, "pricingMode": "progressive",
-      "extraNightRatio": 0.70, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "extraNightRatio": 0.475, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null },
     { "key": "high", "label": "Haute saison",   "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225, "pricingMode": "progressive",
-      "extraNightRatio": 0.70, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "extraNightRatio": 0.475, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null }
   ],
 
@@ -372,7 +373,8 @@ Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside
         "anchor": { "type": "between", "after": "july-shoulder", "before": "august-shoulder" } }
     ],
     "modifiers": [
-      { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1, "skipClosedDays": true }
+      { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1,
+        "skipClosedDays": true, "minNights": "block" }
     ]
   },
 
