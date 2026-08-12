@@ -2,6 +2,7 @@ const { priceSessions } = require('./resourceHourlyPricing');
 const { resolveMidStaySplit } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
+const { isDirectChannel } = require('./platformNameFormat');
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -757,8 +758,9 @@ function applyOfferedToLine(realTotal, offered) {
 // specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are covered
 // by the rate (the direct welcome pack's two breakfasts). The operator orders the FULL quantity and
 // only the units beyond the free ones are billed; `billedUnits` — what the Planning and SAS cards
-// prepare — is deliberately untouched. Direct bookings only: the pack is the single difference with
-// a commissioned channel (rule 53), and a platform reservation is priced by its recorded gross.
+// prepare — is deliberately untouched. Own-channel bookings only — `direct` AND `Lodgify`, the
+// booking engine on the operator's own site (rule 53): the pack is the single difference with a
+// commissioned channel, and a platform reservation is priced by its recorded gross.
 function applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice }) {
   const freeUnits = isDirectBooking
     ? Math.min(Math.max(0, Number(option.freeUnits || 0)), billedUnits)
@@ -1239,7 +1241,7 @@ function calculateReservationQuote({
   const persons = (Number(adults || 1) || 1) + (Number(children || 0) || 0) + (Number(teens || 0) || 0);
   // Resolved here (the fuller platform routing lives further down) because the option lines above
   // need it for the included-units rule (specs/tariff-recipes/spec.md §3.9 rule 52bis).
-  const isDirectBooking = String(platform || 'direct').toLowerCase() === 'direct';
+  const isDirectBooking = isDirectChannel(platform);
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};

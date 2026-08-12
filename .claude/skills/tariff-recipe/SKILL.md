@@ -96,6 +96,20 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
 11. **Archived and internal options must never become defaults.** An archived duplicate or an
     internal counter (`displayToClient = 0`, e.g. « Tapis de bain ») produces a phantom line on the
     fiche that is displayed, priced at 0 and dropped at save.
+12. **« Direct » is not the string `direct`.** Bookings taken through the operator's own booking
+    engine are recorded under `Lodgify` — 15 of 29 reservations, against 2 for `direct`. Any rule
+    conditioned on "direct bookings" must go through
+    [`isDirectChannel`](../../../server/src/utils/platformNameFormat.js), never a string comparison,
+    or it silently never fires for the bookings it was written for. **Query the platform column for
+    real counts before encoding any channel condition.**
+13. **An included freebie is units, not a line.** « First breakfast for 2 offered » is `freeUnits` on
+    the existing option, not a synthetic « Pack accueil » option: the guest orders all 10 breakfasts,
+    2 are covered, 8 are billed, and the kitchen still prepares 10 (`billedUnits` untouched). A
+    single 25 € offered line would force the operator to do that arithmetic by hand. Apply it on the
+    **planning-card branch** too — that is the path every real breakfast takes.
+14. **Check the announced pack value against the catalogue prices.** « 25 € of value » for 2
+    breakfasts + a juice only holds at 10 €/breakfast; the catalogue said 8 €. Either the
+    per-property price moves or the announced value is wrong — decide, do not let them disagree.
 
 ## Validation the loader enforces
 
