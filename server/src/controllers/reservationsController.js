@@ -657,6 +657,10 @@ function update(req, res) {
     complementAmount: frozenComplementAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
+    // specs/tariff-recipes/spec.md §3.2 rule 12bis — replay the tariff the reservation was SOLD
+    // under. « Utiliser les tarifs actuels » (refreshPricingToCurrent) drops it with the rest of the
+    // snapshot: re-pricing stays possible, but only as a deliberate act.
+    lockedTariff: lockedPricing.lockedTariff,
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
     depositDisabled: depositDisabledFlag,

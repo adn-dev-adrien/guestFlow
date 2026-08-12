@@ -11,3 +11,6 @@
   aucun minimum de séjour imposé. Un férié un dimanche continue de ne rien déclencher.
 - La grille « Prix plateformes » n'affiche plus **Lodgify en ligne séparée** : c'est la ligne Direct,
   dont la commission est justement celle du moteur.
+- Ni les **options** : une réservation déjà vendue garde ses lignes, leurs prix et son total quand
+  une option devient « comprise dans le tarif » ou gagne des unités offertes, et une sauvegarde
+  n'y greffe jamais les nouvelles options par défaut du logement.
