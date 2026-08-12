@@ -10,12 +10,19 @@ const { computeExtraGuestSurcharge } = require('../utils/pricing');
 // explicitly for nights 2..7 here; the single-tier + carry-forward form is covered by
 // tier-carry-forward.unit.test.js.
 
-// specs/tariff-recipes/spec.md §3.6 rule 37 — nights 2+ at 47,5 % of the full rate, the floor that
-// lands the 7-night discount on the source document's 45 %.
-const RATIO = 0.475;
-const tiersFor = (base) => JSON.stringify(
-  [2, 3, 4, 5, 6, 7].map((n) => ({ nightNumber: n, extraNightPrice: Math.round(base * RATIO * 100) / 100 }))
-);
+// specs/tariff-recipes/spec.md §3.6 rule 37 — the source document's §6 cumulative discount table,
+// converted to the marginal night prices the engine bills.
+const DISCOUNT_TABLE = { 2: 24, 3: 33, 4: 38, 5: 41, 6: 43, 7: 45 };
+const r2 = (v) => Math.round(v * 100) / 100;
+const tiersFor = (base) => {
+  let previousTotal = base;
+  return JSON.stringify(Object.entries(DISCOUNT_TABLE).map(([night, pct]) => {
+    const total = r2(base * Number(night) * (1 - pct / 100));
+    const tier = { nightNumber: Number(night), extraNightPrice: r2(total - previousTotal) };
+    previousTotal = total;
+    return tier;
+  }));
+};
 
 function createDb({ perNight = true, seasonOverride = null } = {}) {
   const db = new Database(':memory:');
@@ -65,11 +72,11 @@ const BASE = {
 const CASES = [
   // [label, adults, children, start, end, accommodation, extraSurcharge, total]
   ['D1 2p 1n LOW', 2, 0, '2026-04-06', '2026-04-07', 179.00, 0, 179.00],
-  ['D2 2p 2n LOW', 2, 0, '2026-04-06', '2026-04-08', 264.03, 0, 264.03],
-  ['D3 2p 3n MID', 2, 0, '2026-07-04', '2026-07-07', 421.20, 0, 421.20],
-  ['D4 4p 3n HIGH (2 adults + 2 children billed alike)', 2, 2, '2026-07-13', '2026-07-16', 481.64, 105.30, 586.94],
-  ['D5 5p 7n HIGH', 5, 0, '2026-07-13', '2026-07-20', 950.92, 311.84, 1262.76],
-  ['D6 3p 2n MID', 3, 0, '2026-07-04', '2026-07-06', 318.60, 39.83, 358.43],
+  ['D2 2p 2n LOW', 2, 0, '2026-04-06', '2026-04-08', 272.08, 0, 272.08],
+  ['D3 2p 3n MID', 2, 0, '2026-07-04', '2026-07-07', 434.16, 0, 434.16],
+  ['D4 4p 3n HIGH (2 adults + 2 children billed alike)', 2, 2, '2026-07-13', '2026-07-16', 496.47, 108.54, 605.01],
+  ['D5 5p 7n HIGH', 5, 0, '2026-07-13', '2026-07-20', 950.95, 311.85, 1262.80],
+  ['D6 3p 2n MID', 3, 0, '2026-07-04', '2026-07-06', 328.32, 41.04, 369.36],
 ];
 
 for (const [label, adults, children, startDate, endDate, accommodation, surcharge, total] of CASES) {
@@ -84,10 +91,10 @@ for (const [label, adults, children, startDate, endDate, accommodation, surcharg
   });
 }
 
-test('ratio total exposed for the client label: 3 nights → 1.95, 7 nights → 3.85', () => {
+test('ratio total exposed for the client label: 3 nights → 2.01, 7 nights → 3.85', () => {
   const db = createDb();
   const q3 = calculateReservationQuote({ ...BASE, db, adults: 4, startDate: '2026-07-13', endDate: '2026-07-16' });
-  assert.equal(q3.extraGuestNightlyRatioTotal, 1.95);
+  assert.equal(q3.extraGuestNightlyRatioTotal, 2.01);
   const q7 = calculateReservationQuote({ ...BASE, db, adults: 5, startDate: '2026-07-13', endDate: '2026-07-20' });
   assert.equal(q7.extraGuestNightlyRatioTotal, 3.85);
   db.close();
@@ -105,8 +112,8 @@ test('per_stay property keeps the legacy flat surcharge (regression guarantee)',
 test('per-season extraGuestPrice override wins over the property unit price', () => {
   const db = createDb({ seasonOverride: { seasonId: 3, price: 30 } }); // HIGH bills 30 instead of 27
   const q = calculateReservationQuote({ ...BASE, db, adults: 3, startDate: '2026-07-13', endDate: '2026-07-15' });
-  // 1 extra guest × 30 × (1 + 0.475) = 44.25
-  assert.equal(q.extraGuestSurcharge, 44.25);
+  // 1 extra guest × 30 × (1 + night-2 ratio of the document table) = 45.60
+  assert.equal(q.extraGuestSurcharge, 45.6);
   db.close();
 });
 
@@ -116,7 +123,7 @@ test('offered surcharge still zeroes the billed amount but keeps the original', 
     ...BASE, db, adults: 5, startDate: '2026-07-13', endDate: '2026-07-20', extraGuestSurchargeOffered: true,
   });
   assert.equal(q.extraGuestSurcharge, 0);
-  assert.equal(q.extraGuestSurchargeOriginal, 311.84);
+  assert.equal(q.extraGuestSurchargeOriginal, 311.85);
   db.close();
 });
 

@@ -113,6 +113,58 @@ for (const [label, json, needle] of cases) {
   });
 }
 
+test('validateRecipe expands a cumulative discount table into marginal tiers', () => {
+  const out = validateRecipe({
+    ...MINIMAL,
+    lengthOfStayDiscounts: [
+      { nights: 2, discountPct: 24 }, { nights: 3, discountPct: 33 }, { nights: 7, discountPct: 45 },
+    ],
+    seasons: [
+      { ...MINIMAL.seasons[0], pricePerNight: 179, pricingMode: 'progressive' },
+      MINIMAL.seasons[1],
+    ],
+  });
+  assert.equal(out.valid, true, out.error);
+  const tiers = out.recipe.seasons[0].progressiveTiers;
+  const byNight = new Map(tiers.map((t) => [t.nightNumber, t.extraNightPrice]));
+  // Walk the nights ONCE, accumulating, and check the total wherever the table declares a value.
+  const declared = { 2: 24, 3: 33, 7: 45 };
+  let cumulative = 179;
+  for (let n = 2; n <= 7; n += 1) {
+    cumulative = Math.round((cumulative + byNight.get(n)) * 100) / 100;
+    if (declared[n] === undefined) continue;
+    assert.equal(cumulative, Math.round(179 * n * (1 - declared[n] / 100) * 100) / 100, `${n} nights`);
+  }
+  // Nights 4-6 are absent from the table: they keep night 3's cumulative discount.
+  assert.equal(byNight.get(4), Math.round((179 * 4 * 0.67 - 179 * 3 * 0.67) * 100) / 100);
+});
+
+const discountTableCases = [
+  ['nights below 2', [{ nights: 1, discountPct: 10 }], 'nights'],
+  ['nights not increasing', [{ nights: 3, discountPct: 10 }, { nights: 3, discountPct: 20 }], 'croissantes'],
+  ['discount going backwards', [{ nights: 2, discountPct: 30 }, { nights: 3, discountPct: 20 }], 'inférieur'],
+  ['discount out of range', [{ nights: 2, discountPct: 120 }], 'discountPct'],
+];
+for (const [label, table, needle] of discountTableCases) {
+  test(`validateRecipe rejects a discount table with ${label}`, () => {
+    const out = validateRecipe({ ...MINIMAL, lengthOfStayDiscounts: table });
+    assert.equal(out.valid, false);
+    assert.ok(out.error.includes(needle), `error « ${out.error} » should mention « ${needle} »`);
+  });
+}
+
+test('validateRecipe rejects declaring a table AND a ratio on the same season', () => {
+  const out = validateRecipe({
+    ...MINIMAL,
+    seasons: [
+      { ...MINIMAL.seasons[0], pricingMode: 'progressive', extraNightRatio: 0.7, lengthOfStayDiscounts: [{ nights: 2, discountPct: 24 }] },
+      MINIMAL.seasons[1],
+    ],
+  });
+  assert.equal(out.valid, false);
+  assert.ok(out.error.includes('mutuellement exclusifs'));
+});
+
 test('validateRecipe expands extraNightRatio into the single night-2 tier', () => {
   const out = validateRecipe({
     ...MINIMAL,

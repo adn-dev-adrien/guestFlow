@@ -345,18 +345,25 @@ Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside
 
   "extraGuest": { "appliesAbove": 2, "unit": "per_night", "followsDiscount": true },
 
+  // The source document's §6 table, verbatim — one set of percentages for the three seasons.
+  "lengthOfStayDiscounts": [
+    { "nights": 2, "discountPct": 24 }, { "nights": 3, "discountPct": 33 },
+    { "nights": 4, "discountPct": 38 }, { "nights": 5, "discountPct": 41 },
+    { "nights": 6, "discountPct": 43 }, { "nights": 7, "discountPct": 45 }
+  ],
+
   "seasons": [
     { "key": "low",  "label": "Basse saison",   "rank": 1, "color": "#5B8C6E",
       "pricePerNight": 179, "netTargetPerNight": 160, "pricingMode": "progressive",
-      "extraNightRatio": 0.475, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null },
     { "key": "mid",  "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195, "pricingMode": "progressive",
-      "extraNightRatio": 0.475, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null },
     { "key": "high", "label": "Haute saison",   "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225, "pricingMode": "progressive",
-      "extraNightRatio": 0.475, "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null }
   ],
 
@@ -384,10 +391,17 @@ Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside
 }
 ```
 
-`extraNightRatio: 0.70` is sugar the loader expands into the `progressiveTiers` the engine already
-consumes — night 1 at `pricePerNight`, every later night at `ratio × pricePerNight` — so the recipe
-stays readable and the engine keeps one tier format. A recipe may also give `progressiveTiers`
-explicitly for a non-uniform curve; the two are mutually exclusive and validation says so.
+Three mutually exclusive ways to declare the curve, all resolved by the loader into the
+`progressiveTiers` the engine already consumes, so the engine keeps one tier format:
+
+| Form | Meaning |
+|---|---|
+| `lengthOfStayDiscounts` | A **cumulative** discount table — the form the source document uses. Each night's marginal price is the difference between two cumulative totals, both rounded to the cent, so the totals an operator reads in the document come out exact. Declared at recipe level (shared by every season) or per season. |
+| `extraNightRatio` | A flat ratio for every night after the first; expands to the single night-2 tier the carry-forward extends. |
+| `progressiveTiers` | Explicit marginal prices, for a curve neither form expresses. |
+
+Nights past the last declared one fall to the engine's carry-forward (spec rule 39): the last tier
+repeats, which is what keeps a further night from ever costing more than the one before it.
 
 Tightening high season later is the one-line edit spec rule 45 promises:
 
