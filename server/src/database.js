@@ -397,6 +397,106 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   }
 }
 
+// ---------- TARIFF RECIPES (specs/tariff-recipes/) ----------
+// Every default reproduces the pre-recipe behaviour byte-for-byte: no recipe, per-stay extra guest,
+// no welcome-pack add-on, untagged seasons (never touched by an apply), unrestricted changeover,
+// net = pricePerNight for the platform grid.
+{
+  const propCols = db.prepare("PRAGMA table_info(properties)").all().map((c) => c.name);
+  const tryAddProp = (col, sql) => { if (!propCols.includes(col)) db.exec(sql); };
+  tryAddProp('tariffRecipeId', "ALTER TABLE properties ADD COLUMN tariffRecipeId TEXT DEFAULT ''");
+  tryAddProp('tariffRecipeVersion', "ALTER TABLE properties ADD COLUMN tariffRecipeVersion TEXT DEFAULT ''");
+  tryAddProp('extraGuestPriceUnit', "ALTER TABLE properties ADD COLUMN extraGuestPriceUnit TEXT DEFAULT 'per_stay'");
+  tryAddProp('welcomePackCost', 'ALTER TABLE properties ADD COLUMN welcomePackCost REAL DEFAULT 0');
+
+  const ruleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map((c) => c.name);
+  const tryAddRule = (col, sql) => { if (!ruleCols.includes(col)) db.exec(sql); };
+  tryAddRule('seasonKey', 'ALTER TABLE pricing_rules ADD COLUMN seasonKey TEXT DEFAULT NULL');
+  tryAddRule('seasonRank', 'ALTER TABLE pricing_rules ADD COLUMN seasonRank INTEGER DEFAULT NULL');
+  tryAddRule('netTargetPerNight', 'ALTER TABLE pricing_rules ADD COLUMN netTargetPerNight REAL DEFAULT NULL');
+  tryAddRule('extraGuestPrice', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestPrice REAL DEFAULT NULL');
+  tryAddRule('extraGuestNetTarget', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestNetTarget REAL DEFAULT NULL');
+  tryAddRule('maxNights', 'ALTER TABLE pricing_rules ADD COLUMN maxNights INTEGER DEFAULT NULL');
+  tryAddRule('changeoverArrival', 'ALTER TABLE pricing_rules ADD COLUMN changeoverArrival INTEGER DEFAULT NULL');
+  tryAddRule('changeoverDeparture', 'ALTER TABLE pricing_rules ADD COLUMN changeoverDeparture INTEGER DEFAULT NULL');
+  // specs/tariff-events-and-extra-guest-tiers/spec.md §5 — the extra-guest supplement as a per-night
+  // tier table, JSON, mirroring `progressiveTiers`. NULL = the single `extraGuestPrice` applies,
+  // which is what every existing row has: the migration cannot move a price.
+  tryAddRule('extraGuestTiers', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestTiers TEXT DEFAULT NULL');
+
+  // specs/tariff-recipes/spec.md §3.9 rule 52bis — the first N units of an option can be included in
+  // the rate (the direct welcome pack's two breakfasts). 0 = nothing free, today's behaviour.
+  {
+    const priceCols = db.prepare("PRAGMA table_info(property_option_prices)").all().map((c) => c.name);
+    if (priceCols.length && !priceCols.includes('freeUnits')) {
+      db.exec('ALTER TABLE property_option_prices ADD COLUMN freeUnits REAL NOT NULL DEFAULT 0');
+    }
+  }
+
+  // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff context a reservation was SOLD under,
+  // captured at creation. Nights and option lines were already frozen per date / per line; the
+  // property-level tariff (included guests, extra-guest price/unit/tiers, included units per option)
+  // was not, so editing an old reservation re-priced it with today's recipe. NULL = a reservation
+  // created before this column: it keeps the live behaviour, which is what it has always had.
+  {
+    const resCols = db.prepare("PRAGMA table_info(reservations)").all().map((c) => c.name);
+    if (resCols.length && !resCols.includes('tariffSnapshot')) {
+      db.exec('ALTER TABLE reservations ADD COLUMN tariffSnapshot TEXT DEFAULT NULL');
+
+      // ONE-SHOT BACKFILL, in the same boot as the column. Without it the protection would only
+      // cover reservations created from here on, and every booking ALREADY SOLD — the ones a recipe
+      // change actually threatens — would still be re-priced the next time someone saved it.
+      //
+      // What is stamped is exact, not approximate: at this instant no recipe has been applied yet
+      // (the configure script runs after the deploy), so the property still holds the tariff these
+      // reservations were sold under. And the two recipe-era fields provably did not exist for them:
+      // `pricing_rules.extraGuestTiers` and `property_option_prices.freeUnits` are introduced by this
+      // very migration with NULL / 0, so no existing reservation was ever sold with either.
+      //
+      // Guarded by the column creation rather than by `WHERE tariffSnapshot IS NULL`, so it can only
+      // ever run once and can never stamp a row created later by a path that writes no snapshot.
+      const sold = db.prepare(`
+        SELECT r.id,
+               COALESCE(p.basePriceIncludedGuests, 0) AS includedGuests,
+               COALESCE(p.extraGuestPrice, 0)         AS extraGuestPrice,
+               COALESCE(p.extraGuestPriceUnit, 'per_stay') AS extraGuestPriceUnit
+        FROM reservations r JOIN properties p ON p.id = r.propertyId
+      `).all();
+      const stamp = db.prepare('UPDATE reservations SET tariffSnapshot = ? WHERE id = ?');
+      db.transaction(() => {
+        for (const row of sold) {
+          stamp.run(JSON.stringify({
+            includedGuests: Number(row.includedGuests),
+            extraGuestPrice: Number(row.extraGuestPrice),
+            extraGuestPriceUnit: row.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
+            extraGuestTiers: null,
+            freeUnitsByOption: {},
+          }), row.id);
+        }
+      })();
+      if (sold.length) console.log(`[tariff-snapshot] ${sold.length} réservation(s) figée(s) au tarif en vigueur`);
+    }
+  }
+
+  // Journal of the scheduled horizon-extension runs → Dashboard alerts (spec §5). UI applies do
+  // not write here — only the background task, so a silently generated year is always surfaced.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tariff_recipe_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      propertyId INTEGER NOT NULL,
+      recipeId TEXT NOT NULL,
+      recipeVersion TEXT NOT NULL DEFAULT '',
+      generatedYear INTEGER,
+      note TEXT NOT NULL DEFAULT '',
+      blocking INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT DEFAULT (datetime('now')),
+      dismissedAt TEXT,
+      FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId)');
+}
+
 // Single-rate VAT migration (specs/single-vat-rate.md §5). Seeds `vatRate` from the legacy
 // accommodation column ONCE (prod has 10 % there → no behavioural surprise), then DROPS the
 // two legacy columns. Idempotent: re-runs are no-ops because the legacy columns are absent

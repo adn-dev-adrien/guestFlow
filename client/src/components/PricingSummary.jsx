@@ -115,6 +115,8 @@ export default function PricingSummary({
   const touristTaxUnitAmount = Number(quote?.touristTaxUnitAmount || 0);
   const touristTaxAdultsCount = Number(quote?.touristTaxAdultsCount || 0);
   const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
+  const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
+  const touristTaxBaseBeforeDeduction = Number(quote?.touristTaxBaseBeforeDeduction || 0);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
   const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -122,7 +124,14 @@ export default function PricingSummary({
   const extraGuestUnitPrice = Number(quote?.extraGuestUnitPrice || 0);
   const extraGuestSurchargeOriginal = Number(quote?.extraGuestSurchargeOriginal || 0);
   const extraGuestSurchargeOffered = Boolean(quote?.extraGuestSurchargeOffered ?? form.extraGuestSurchargeOffered);
-  const hasExtraGuestSurcharge = extraGuestCount > 0 && extraGuestUnitPrice > 0 && extraGuestSurchargeOriginal > 0;
+  // A tiered supplement can be billed while the property's single `extraGuestPrice` is 0 — the
+  // amount, not the unit price, is what proves there is something to show.
+  const hasExtraGuestSurcharge = extraGuestCount > 0 && extraGuestSurchargeOriginal > 0
+    && (extraGuestUnitPrice > 0 || Boolean(quote?.extraGuestTiersLabel));
+  const extraGuestPerNight = quote?.extraGuestPriceUnit === 'per_night';
+  // Tiered supplement: the server phrases the rule (« 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit »)
+  // because no single unit price describes it (specs/tariff-events-and-extra-guest-tiers §3.1).
+  const extraGuestTiersLabel = quote?.extraGuestTiersLabel || null;
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
@@ -258,7 +267,16 @@ export default function PricingSummary({
                     Surcoût voyageurs
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
+                    {extraGuestTiersLabel ? (
+                      `${extraGuestCount} pers. au-delà de ${includedGuests} incluses — ${extraGuestTiersLabel}`
+                    ) : (
+                      <>
+                        {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
+                        {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
+                            nights count (Σ of the discount ratios is applied to the amount, not shown). */}
+                        {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
+                      </>
+                    )}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -302,14 +320,16 @@ export default function PricingSummary({
                   ? Boolean(so.offered)
                   : Boolean(so.offered ?? offeredOptionIds.has(Number(so.optionId)));
                 // specs/per-property-default-options.md — a property-default option configured
-                // « offered » is INCLUDED in the night rate: show « Comprise » at 0 €, not « Offert »
-                // (struck-through original price). The engine tags the line `includedInRate`.
+                // « offered » is INCLUDED in the night rate. It is labelled « Comprise » rather than
+                // « Offert », but like any offered line it shows its REAL price struck through and
+                // bills 0: the guest must be able to see what the rate already covers, and what it
+                // is worth. The engine tags the line `includedInRate`.
                 const isIncludedInRate = !isCustom && Boolean(so.includedInRate);
-                const total = isIncludedInRate
-                  ? 0
-                  : (isOffered
-                    ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
-                    : Number(so.totalPrice || 0));
+                const freeUnits = Number(so.freeUnits || 0);
+                const freeUnitsAmount = Number(so.freeUnitsAmount || 0);
+                const total = isOffered
+                  ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
+                  : Number(so.totalPrice || 0);
                 // "Auto" hint = engine-derived early/late check option only. Linen options
                 // carry autoOptionType for undeletability but autoEnabled=0 — they're manual
                 // and must NOT display the "nuit complète" / "Xh suppl." hint.
@@ -367,6 +387,18 @@ export default function PricingSummary({
                           incluse dans le tarif
                         </Typography>
                       )}
+                      {/* specs/tariff-recipes/spec.md §3.9 rule 52bis — the first N units are covered
+                          by the rate: say how many, and what they are worth. */}
+                      {freeUnits > 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ width: '100%' }}>
+                          dont {freeUnits} inclus dans le tarif 
+                          {freeUnitsAmount > 0 && (
+                            <Box component="span" sx={{ textDecoration: 'line-through', ml: 0.5 }}>
+                              {formatCurrency(freeUnitsAmount)}
+                            </Box>
+                          )}
+                        </Typography>
+                      )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {withOfferedToggle && (
@@ -393,9 +425,8 @@ export default function PricingSummary({
                         sx={{
                           fontWeight: 600,
                           whiteSpace: 'nowrap',
-                          // « Comprise » (included in the rate) shows a plain 0 €; « Offert » (geste
-                          // commercial) keeps the struck-through original price.
-                          textDecoration: (isOffered && !isIncludedInRate) ? 'line-through' : 'none',
+                          // Offered and included-in-rate alike: the real price, struck through.
+                          textDecoration: isOffered ? 'line-through' : 'none',
                           opacity: isOffered ? 0.6 : 1,
                           color: isOffered ? 'text.secondary' : 'inherit',
                         }}
@@ -599,6 +630,13 @@ export default function PricingSummary({
                   <Typography variant="caption" color="text.secondary">
                     Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
+                  {/* specs/tariff-recipes/spec.md §3.8 rule 48 — services structurally included in
+                      the rate are not accommodation: their value leaves the declared base. */}
+                  {touristTaxIncludedDeduction > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      Base : {formatCurrency(touristTaxBaseBeforeDeduction)} − {formatCurrency(touristTaxIncludedDeduction)} de prestations comprises
+                    </Typography>
+                  )}
                 </Box>
               )}
 

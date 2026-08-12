@@ -85,6 +85,41 @@ function addDaysToIsoDate(isoDate, daysDelta) {
   return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+/**
+ * The extra-guest supplement row for the devis / invoice PDF — or null when there is nothing to draw.
+ *
+ * The PDF's line items are the accommodation nights, the options and the resources; the supplement
+ * used to be inside the GRAND TOTAL only, so any devis with extra guests printed a sub-total that
+ * did not match its own lines (69 € of unexplained gap on a 2-night Lodge stay). This resolves the
+ * row's amounts from the LIVE quote when the engine could produce one, and otherwise derives the
+ * remainder `finalPrice − rows` — which, by the engine's own composition
+ * (finalPrice = accommodation + supplement + options + resources), is exactly the supplement.
+ * An offered supplement returns `totalTtc: 0` with the real value in `originalTtc`, the same
+ * struck-through contract as an offered option.
+ */
+function resolveExtraGuestPdfRow({ quote, finalPriceTtc, accommodationTtc, optionsTtc, resourcesTtc }) {
+  if (quote && quote.extraGuestSurchargeOriginal != null) {
+    const original = roundMoney(quote.extraGuestSurchargeOriginal);
+    if (original <= 0.009) return null;
+    const offered = Boolean(quote.extraGuestSurchargeOffered);
+    return {
+      totalTtc: offered ? 0 : roundMoney(quote.extraGuestSurcharge ?? original),
+      originalTtc: original,
+      offered,
+      count: Math.max(0, Number(quote.extraGuestCount || 0)),
+      tiersLabel: quote.extraGuestTiersLabel || null,
+    };
+  }
+  // Fallback (engine failure at print time): the remainder the drawn rows leave unexplained.
+  // An offered supplement is already absent from finalPrice, so the remainder is 0 → no row, which
+  // is the correct degraded rendering (no strike-through without the engine's word for it).
+  const remainder = roundMoney(
+    Number(finalPriceTtc || 0) - Number(accommodationTtc || 0) - Number(optionsTtc || 0) - Number(resourcesTtc || 0),
+  );
+  if (remainder <= 0.009) return null;
+  return { totalTtc: remainder, originalTtc: remainder, offered: false, count: 0, tiersLabel: null };
+}
+
 module.exports = {
   roundMoney,
   formatDateFR,
@@ -92,6 +127,7 @@ module.exports = {
   formatDateLocalised,
   formatCurrency,
   isLineOffered,
+  resolveExtraGuestPdfRow,
   timeToDecimalHour,
   formatHoursLabel,
   diffDays,

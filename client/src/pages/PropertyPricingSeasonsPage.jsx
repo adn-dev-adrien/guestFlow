@@ -5,7 +5,8 @@ import 'dayjs/locale/fr';
 import {
   Box, Typography, Card, CardContent, Button, Grid, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
-  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch, RadioGroup, Radio, FormLabel
+  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch, RadioGroup, Radio, FormLabel,
+  IconButton, useMediaQuery, useTheme
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -13,9 +14,12 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { frFR } from '@mui/x-date-pickers/locales';
 import AddIcon from '@mui/icons-material/Add';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import DateRangeIcon from '@mui/icons-material/DateRange';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FormDialog from '../components/FormDialog';
@@ -24,6 +28,7 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import PlatformPriceCard from '../components/PlatformPriceCard';
+import TariffRecipeCard from '../components/property/TariffRecipeCard';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -78,6 +83,102 @@ function getSortedDateRanges(ranges) {
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
+// Only the ranges that still have sellable days ahead — a season's past dates are noise on a page
+// whose job is to answer « what do I charge from here on ». Purely presentational: nothing is
+// dropped from the data (specs/tariff-recipes/spec.md §3.4 rule 25quinquies).
+function upcomingRangesFrom(ranges, todayIso) {
+  return getSortedDateRanges(ranges).filter((range) => range.endDate >= todayIso);
+}
+
+// Closure lookup for a day — the ranges come computed from the server, this is a plain containment
+// test (specs/tariff-recipes/spec.md §3.4 rule 25bis).
+function findClosureForDate(closureRanges, dateStr) {
+  return (closureRanges || []).find((c) => dateStr >= c.startDate && dateStr <= c.endDate) || null;
+}
+
+// Changeover weekdays (specs/tariff-recipes/spec.md §3.4) — JS convention 0 = dimanche … 6 = samedi,
+// listed Monday-first for the French eye. '' = « Aucun » = unrestricted.
+const WEEKDAYS_FR = [
+  { value: 1, label: 'lundi' }, { value: 2, label: 'mardi' }, { value: 3, label: 'mercredi' },
+  { value: 4, label: 'jeudi' }, { value: 5, label: 'vendredi' }, { value: 6, label: 'samedi' },
+  { value: 0, label: 'dimanche' },
+];
+
+// The season's identity — colour dot, label, and whether a recipe owns it. Shared by the desktop
+// table and the mobile card list so the two can never drift apart.
+function SeasonIdentity({ season }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => season.color || t.palette.primary.main }} />
+      {season.label}
+      {/* Recipe-owned vs manual (specs/tariff-recipes/spec.md §3.2 rule 9). */}
+      <Chip
+        size="small"
+        variant="outlined"
+        color={season.seasonKey ? 'info' : 'default'}
+        label={season.seasonKey ? `recette · ${season.seasonKey}` : 'Manuelle'}
+        sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
+      />
+    </Box>
+  );
+}
+
+/**
+ * A season's sellable date ranges, grouped under a discreet year rule.
+ *
+ * Closed dates are hidden from the display only — the stored ranges keep their full span, so moving
+ * a closure re-reveals them (specs/tariff-recipes/spec.md §3.4 rule 25ter). Past ranges are hidden
+ * too: only what is still sellable is worth reading here.
+ *
+ * A date NEVER wraps: `21/06/2027 → 27/06/2027` broken across two lines is unreadable, and the
+ * event chip used to force exactly that. The chips wrap below the date instead.
+ */
+function SeasonRanges({ season, ranges }) {
+  if (ranges.length === 0) {
+    return (
+      <Typography variant="caption" color="text.secondary">
+        {getSortedDateRanges(season.dateRanges).length === 0
+          ? 'aucune plage'
+          : (getSortedDateRanges(season.dateRangesVisible || season.dateRanges).length === 0
+            ? 'entièrement en fermeture'
+            : 'aucune date à venir')}
+      </Typography>
+    );
+  }
+  return ranges.map((range, index, all) => (
+    <React.Fragment key={`${season.id}-range-${index}`}>
+      {(index === 0 || range.startDate.slice(0, 4) !== all[index - 1].startDate.slice(0, 4)) && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: index === 0 ? 0 : 0.75, mb: 0.25 }}>
+          <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: 0.5 }}>
+            {range.startDate.slice(0, 4)}
+          </Typography>
+          <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+        </Box>
+      )}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+        <Typography variant="body2" sx={{ lineHeight: 1.25, whiteSpace: 'nowrap' }}>
+          {displayDate(range.startDate)} → {displayDate(range.endDate)}
+        </Typography>
+        {range.minNights != null && (
+          <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
+        )}
+        {/* WHY this week is priced the way it is, readable from the table alone
+            (specs/tariff-events-and-extra-guest-tiers §3.3 rule 15bis). No icon: it bought nothing
+            and cost the ~20 px that pushed the date onto a second line. */}
+        {range.eventLabel && (
+          <Chip
+            size="small"
+            label={range.eventLabel}
+            color="secondary"
+            variant="outlined"
+            sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
+          />
+        )}
+      </Box>
+    </React.Fragment>
+  ));
+}
+
 function isoToDayjs(value) {
   return value ? dayjs(value) : null;
 }
@@ -115,7 +216,7 @@ export default function PropertyPricingSeasonsPage() {
   const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [publicHolidays, setPublicHolidays] = useState(() => new Set());
   const [displayStartYear, setDisplayStartYear] = useState(new Date().getFullYear());
-  const [displayYears, setDisplayYears] = useState(1);
+  const displayYears = 1; // one year per screen; the arrows move it
 
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
   const [editingSeasonId, setEditingSeasonId] = useState(null);
@@ -155,7 +256,10 @@ export default function PropertyPricingSeasonsPage() {
     pricePerNight: 100,
     pricingMode: 'fixed',
     minNights: 1,
+    maxNights: '',
     progressiveTiers: [],
+    changeoverArrival: '',
+    changeoverDeparture: '',
   });
 
   const [initialSeasonForm, setInitialSeasonForm] = useState({
@@ -165,7 +269,10 @@ export default function PropertyPricingSeasonsPage() {
     pricePerNight: 100,
     pricingMode: 'fixed',
     minNights: 1,
+    maxNights: '',
     progressiveTiers: [],
+    changeoverArrival: '',
+    changeoverDeparture: '',
   });
 
   const loadData = useCallback(async () => {
@@ -183,15 +290,16 @@ export default function PropertyPricingSeasonsPage() {
     }
     setProperty({
       ...p,
-      pricingRules: (p.pricingRules || [])
-        .map((r) => ({
-          ...r,
-          pricingMode: r.pricingMode || 'fixed',
-          color: r.color || DEFAULT_COLORS[0],
-          dateRanges: parseDateRanges(r.dateRanges, r.startDate, r.endDate),
-          progressiveTiers: parseTiers(r.progressiveTiers),
-        }))
-        .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))),
+      // The server already returns the seasons ordered by the earliest date they cover, and each
+      // one's closure-aware display ranges — no re-sorting, no date maths here.
+      pricingRules: (p.pricingRules || []).map((r) => ({
+        ...r,
+        pricingMode: r.pricingMode || 'fixed',
+        color: r.color || DEFAULT_COLORS[0],
+        dateRanges: parseDateRanges(r.dateRanges, r.startDate, r.endDate),
+        dateRangesVisible: Array.isArray(r.dateRangesVisible) ? r.dateRangesVisible : null,
+        progressiveTiers: parseTiers(r.progressiveTiers),
+      })),
     });
     setSchoolHolidays(holidays?.periods || []);
     setAllProperties(props || []);
@@ -201,7 +309,18 @@ export default function PropertyPricingSeasonsPage() {
     loadData();
   }, [loadData]);
 
+  // Below md: the seasons render as cards and the page-bar actions collapse to icons — a labelled
+  // button row and a 980 px table are both unusable on a phone.
+  const theme = useTheme();
+  const isCompact = useMediaQuery(theme.breakpoints.down('md'));
+
   const seasons = property?.pricingRules || [];
+  // Computed once per render: today in ISO, and the per-season upcoming ranges the table shows.
+  const todayIso = toIsoDate(new Date());
+  const upcomingRanges = useCallback(
+    (season) => upcomingRangesFrom(season.dateRangesVisible || season.dateRanges, todayIso),
+    [todayIso]
+  );
   const otherProperties = useMemo(
     () => (allProperties || []).filter((p) => Number(p.id) !== Number(id)),
     [allProperties, id]
@@ -382,7 +501,10 @@ export default function PropertyPricingSeasonsPage() {
       pricePerNight: 100,
       pricingMode: 'fixed',
       minNights: 1,
+      maxNights: '',
       progressiveTiers: [],
+      changeoverArrival: '',
+      changeoverDeparture: '',
     };
     setEditingSeasonId(null);
     setSeasonForm(newForm);
@@ -401,7 +523,10 @@ export default function PropertyPricingSeasonsPage() {
       pricePerNight: Number(season.pricePerNight || 0),
       pricingMode: season.pricingMode || 'fixed',
       minNights: Number(season.minNights || 1),
+      maxNights: season.maxNights ?? '',
       progressiveTiers: parseTiers(season.progressiveTiers),
+      changeoverArrival: season.changeoverArrival ?? '',
+      changeoverDeparture: season.changeoverDeparture ?? '',
     };
     setEditingSeasonId(season.id);
     setSeasonForm(newForm);
@@ -562,7 +687,10 @@ export default function PropertyPricingSeasonsPage() {
       pricePerNight: Number(seasonForm.pricePerNight || 0),
       pricingMode: seasonForm.pricingMode || 'fixed',
       minNights: Number(seasonForm.minNights || 1),
+      maxNights: seasonForm.maxNights === '' ? null : Number(seasonForm.maxNights),
       progressiveTiers: seasonForm.pricingMode === 'progressive' ? seasonForm.progressiveTiers : [],
+      changeoverArrival: seasonForm.changeoverArrival === '' ? null : Number(seasonForm.changeoverArrival),
+      changeoverDeparture: seasonForm.changeoverDeparture === '' ? null : Number(seasonForm.changeoverDeparture),
     };
     try {
       setSeasonSaveError('');
@@ -626,6 +754,17 @@ export default function PropertyPricingSeasonsPage() {
             ...prev,
             progressiveTiers: preview.progressiveTiers || [],
           }));
+          // Tiers are STORED normalized over 365 nights but previewed over 14, so opening a
+          // progressive season always rewrites them here — which used to mark a merely-consulted
+          // form as modified and pop the « quitter sans enregistrer ? » confirm on Annuler.
+          // When the rewrite is a pure normalization (the user hasn't edited a tier yet, i.e. the
+          // form still carries the pristine list), move the pristine snapshot with it so the form
+          // stays clean. A real tier edit leaves the snapshot behind and still counts as dirty.
+          setInitialSeasonForm((pristine) => (
+            JSON.stringify(pristine.progressiveTiers || []) === currentSerialized
+              ? { ...pristine, progressiveTiers: preview.progressiveTiers || [] }
+              : pristine
+          ));
         }
       })
       .catch(() => {
@@ -647,10 +786,22 @@ export default function PropertyPricingSeasonsPage() {
   return (
     <Box>
       <PageActionBar
-        title={`Gestion tarifaire - ${property.name}`}
+        // On a phone the property name costs the whole title (« Gesti… ») — the sidebar and the
+        // recipe card both name the property anyway.
+        title={isCompact ? 'Gestion tarifaire' : `Gestion tarifaire - ${property.name}`}
         titleOnXs
         backTo={`/properties/${id}`}
-        actionsBefore={[{
+        // Compact: ICON actions, which PageActionBar collapses into its « … » overflow menu past two
+        // items. As custom `node` buttons they stayed inline by design and stacked into a staircase
+        // that squeezed the title out.
+        actionsBefore={isCompact ? [{
+          icon: <ContentCopyIcon />, tooltip: 'Appliquer à un autre logement',
+          onClick: openApplyDialog, disabled: otherProperties.length === 0,
+        }, {
+          icon: <DateRangeIcon />, tooltip: 'Affecter une période', onClick: () => openAssignDialog({}),
+        }, {
+          icon: <AddIcon />, tooltip: 'Nouvelle saison', onClick: openCreateSeason, color: 'primary',
+        }] : [{
           node: (
             <Button key="apply-other" variant="outlined" size="small" onClick={openApplyDialog} disabled={otherProperties.length === 0}>
               Appliquer à un autre logement
@@ -670,9 +821,54 @@ export default function PropertyPricingSeasonsPage() {
           ),
         }]}
       />
+      {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
+      <TariffRecipeCard
+        propertyId={id}
+        activeRecipeId={property.tariffRecipeId || ''}
+        appliedVersion={property.tariffRecipeVersion || ''}
+        rateInclusions={property.rateInclusions || []}
+        onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
+        onError={(message) => showError(message)}
+      />
+
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="sectionHeader" sx={{ mb: 2 }}>Saisons</Typography>
+
+          {/* Below md the table is a card list: at 390 px the 980 px-wide table meant scrolling
+              2,6 screens sideways to read one season, every date cut mid-way. CLAUDE.md §Responsive:
+              cards or stacked rows on the small breakpoints, a true <Table> from md up. Both render
+              the SAME <SeasonIdentity> and <SeasonRanges>, so they cannot drift. */}
+          {isCompact ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {seasons.map((s) => (
+                <Card key={s.id} variant="outlined">
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <SeasonIdentity season={s} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 1 }}>
+                      <SeasonRanges season={s} ranges={upcomingRanges(s)} />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.25, color: 'text.secondary' }}>
+                      <Typography variant="caption">{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</Typography>
+                      <Typography variant="caption">·</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                        {formatCurrency(Number(s.pricePerNight || 0))} / nuit
+                      </Typography>
+                      <Typography variant="caption">·</Typography>
+                      <Typography variant="caption">
+                        {s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''} nuit{(s.maxNights || s.minNights) > 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
+                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+              {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
+            </Box>
+          ) : (
           <TableCard minWidth={980}>
               <TableHead>
                 <TableRow>
@@ -680,36 +876,22 @@ export default function PropertyPricingSeasonsPage() {
                   <TableCell>Dates</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Tarif base 1 nuit</TableCell>
-                  <TableCell>Min nuits</TableCell>
+                  <TableCell>Min – max nuits</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {seasons.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => s.color || t.palette.primary.main }} />
-                        {s.label}
-                      </Box>
-                    </TableCell>
+                    <TableCell><SeasonIdentity season={s} /></TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                        {getSortedDateRanges(s.dateRanges).map((range, index) => (
-                          <Box key={`${s.id}-range-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                            <Typography variant="body2" sx={{ lineHeight: 1.25 }}>
-                              {displayDate(range.startDate)} → {displayDate(range.endDate)}
-                            </Typography>
-                            {range.minNights != null && (
-                              <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
-                            )}
-                          </Box>
-                        ))}
+                        <SeasonRanges season={s} ranges={upcomingRanges(s)} />
                       </Box>
                     </TableCell>
                     <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
                     <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
-                    <TableCell>{s.minNights}</TableCell>
+                    <TableCell>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
                     <TableCell>
                       <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
                       <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
@@ -725,58 +907,39 @@ export default function PropertyPricingSeasonsPage() {
                 )}
               </TableBody>
           </TableCard>
+          )}
         </CardContent>
       </Card>
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap' }}>
-          <TextField
-            label="Année de départ"
-            type="number"
-            value={displayStartYear}
-            onChange={(e) => setDisplayStartYear(Number(e.target.value || minYear))}
-            size="small"
-            slotProps={{
-              htmlInput: { min: minYear, max: maxYear + 2 }
-            }}
-          />
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Nombre d'années affichées</InputLabel>
-            <Select
-              value={displayYears}
-              label="Nombre d'années affichées"
-              onChange={(e) => setDisplayYears(Number(e.target.value))}
-            >
-              <MenuItem value={1}>1 an</MenuItem>
-              <MenuItem value={2}>2 ans</MenuItem>
-              <MenuItem value={3}>3 ans</MenuItem>
-            </Select>
-          </FormControl>
-          <Button
-            variant="outlined"
-            onClick={() => navigate(withFrom(`/properties/${id}`, `/properties/${id}/pricing-seasons`))}
-          >
-            Retour au logement
-          </Button>
-        </CardContent>
-      </Card>
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {yearsToDisplay.map((year) => (
           <Grid key={year} size={12}>
             <Card>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
-                  <Typography variant="sectionHeader">{year}</Typography>
-                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', color: 'text.secondary' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'error.main' }} />
-                      <Typography variant="caption">Jour férié</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'info.main' }} />
-                      <Typography variant="caption">Vacances scolaires</Typography>
-                    </Box>
-                  </Box>
+                {/* One year at a time, navigated by the arrows framing it. */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: 2.5 }}>
+                  <IconButton
+                    onClick={() => setDisplayStartYear((y) => y - 1)}
+                    disabled={displayStartYear <= minYear - 1}
+                    aria-label="Année précédente"
+                    size="large"
+                  >
+                    <ChevronLeftIcon fontSize="inherit" />
+                  </IconButton>
+                  <Typography
+                    component="div"
+                    sx={{ fontSize: { xs: 30, sm: 40 }, fontWeight: 700, lineHeight: 1, minWidth: { xs: 100, sm: 130 }, textAlign: 'center', letterSpacing: 1 }}
+                  >
+                    {year}
+                  </Typography>
+                  <IconButton
+                    onClick={() => setDisplayStartYear((y) => y + 1)}
+                    disabled={displayStartYear >= maxYear + 2}
+                    aria-label="Année suivante"
+                    size="large"
+                  >
+                    <ChevronRightIcon fontSize="inherit" />
+                  </IconButton>
                 </Box>
                 <Grid container spacing={1.5}>
                   {Array.from({ length: 12 }, (_, month) => {
@@ -795,7 +958,16 @@ export default function PropertyPricingSeasonsPage() {
                       const coveringRange = season ? (season.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate) : null;
                       const seasonDefaultMin = season ? Number(season.minNights || 1) : 1;
                       const dayMin = coveringRange ? Number(coveringRange.minNights ?? seasonDefaultMin) : seasonDefaultMin;
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin });
+                      // Changeover markers (specs/tariff-recipes/spec.md §3.4 rule 25): range override
+                      // ⇒ season default ⇒ unrestricted; the marker shows only on the permitted weekday.
+                      const arrivalDay = coveringRange?.changeoverArrival ?? season?.changeoverArrival ?? null;
+                      const departureDay = coveringRange?.changeoverDeparture ?? season?.changeoverDeparture ?? null;
+                      const weekday = d.getDay();
+                      const isArrivalDay = arrivalDay != null && arrivalDay !== '' && Number(arrivalDay) === weekday;
+                      const isDepartureDay = departureDay != null && departureDay !== '' && Number(departureDay) === weekday;
+                      const closure = findClosureForDate(property.closureRanges, dateStr);
+                      const eventLabel = coveringRange?.eventLabel || null;
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure, eventLabel });
                     }
 
                     return (
@@ -823,35 +995,55 @@ export default function PropertyPricingSeasonsPage() {
                                   height: 20,
                                   borderRadius: 0.8,
                                   userSelect: 'none',
-                                  borderTop: (t) => (c.inMonth && c.season ? `3px solid ${c.season.color || t.palette.primary.main}` : '3px solid transparent'),
+                                  // A closed day is greyed out and loses its season colour: it is not
+                                  // sellable, so showing a tariff there is noise (spec rule 25bis).
+                                  borderTop: (t) => (c.inMonth && c.season && !c.closure ? `3px solid ${c.season.color || t.palette.primary.main}` : '3px solid transparent'),
                                   bgcolor: (t) => {
                                     if (!c.inMonth) return 'transparent';
                                     if (isInSelection(c.dateStr)) return alpha(t.palette.primary.main, 0.28);
+                                    if (c.closure) return t.palette.action.disabledBackground;
                                     return c.season ? `${c.season.color || t.palette.primary.main}22` : t.palette.background.paper;
                                   },
-                                  color: c.inMonth ? 'text.primary' : 'transparent',
+                                  color: c.inMonth ? (c.closure ? 'text.disabled' : 'text.primary') : 'transparent',
                                   fontSize: 10,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   position: 'relative',
                                   cursor: c.inMonth ? 'pointer' : 'default',
+                                  // An event night keeps its season colour on top and adds a dotted
+                                  // frame — a third channel that reads as « something else decided
+                                  // this week » (specs/tariff-events-and-extra-guest-tiers §6).
+                                  border: (t) => (c.inMonth && c.eventLabel && !c.closure
+                                    ? `1px dotted ${t.palette.secondary.main}` : '1px solid transparent'),
                                   outline: (t) => (isInSelection(c.dateStr) ? `2px solid ${t.palette.primary.main}` : 'none'),
                                   outlineOffset: '-2px',
                                   '&:hover': c.inMonth && !isInSelection(c.dateStr) ? {
                                     outline: (t) => `1px solid ${c.season ? (c.season.color || t.palette.primary.main) : t.palette.divider}`,
                                   } : undefined,
                                 }}
-                                title={[
-                                  c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : '',
-                                  c.inMonth && c.dayMin > 1 ? `min ${c.dayMin} nuits` : '',
-                                ].filter(Boolean).join(' · ')}
+                                title={c.closure
+                                  ? `Fermé — ${c.closure.label || 'fermeture'} (${displayDate(c.closure.startDate)} → ${displayDate(c.closure.endDate)})`
+                                  : [
+                                    c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRangesVisible || c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : '',
+                                    c.inMonth && c.dayMin > 1 ? `min ${c.dayMin} nuits` : '',
+                                    c.eventLabel || '',
+                                  ].filter(Boolean).join(' · ')}
                               >
                                 {c.inMonth ? c.day : ''}
-                                {c.inMonth && c.dayMin > c.seasonDefaultMin && (
+                                {/* Effective minimum shown whenever it exceeds 1 — a season-wide
+                                    minimum is a constraint too, not only a range override
+                                    (specs/tariff-recipes/spec.md §3.4 rule 25). */}
+                                {!c.closure && c.inMonth && c.dayMin > 1 && (
                                   <Box sx={{ position: 'absolute', top: -1, right: 1, fontSize: 8, fontWeight: 700, color: 'warning.dark', lineHeight: 1 }}>
                                     {c.dayMin}
                                   </Box>
+                                )}
+                                {!c.closure && c.inMonth && c.isArrivalDay && (
+                                  <Box sx={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '3px solid transparent', borderBottom: '3px solid transparent', borderLeft: '4px solid', borderLeftColor: 'success.main' }} />
+                                )}
+                                {!c.closure && c.inMonth && c.isDepartureDay && (
+                                  <Box sx={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '3px solid transparent', borderBottom: '3px solid transparent', borderRight: '4px solid', borderRightColor: 'secondary.main' }} />
                                 )}
                                 {c.inMonth && c.isPublicHoliday && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'error.main', position: 'absolute', bottom: 1, left: 1 }} />
@@ -867,6 +1059,38 @@ export default function PropertyPricingSeasonsPage() {
                     );
                   })}
                 </Grid>
+                {/* Legend (specs/tariff-recipes/spec.md §3.4 rule 25) — the calendar now carries five
+                    distinct signals; every marker is named here. */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2.5 }, mt: 1.5, alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: 'action.disabledBackground', border: '1px solid', borderColor: 'divider' }} />
+                    <Typography variant="caption" color="text.secondary">fermeture</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />
+                    <Typography variant="caption" color="text.secondary">jour férié</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main' }} />
+                    <Typography variant="caption" color="text.secondary">vacances scolaires</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark' }}>3</Typography>
+                    <Typography variant="caption" color="text.secondary">minimum de nuits</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '5px solid', borderLeftColor: 'success.main' }} />
+                    <Typography variant="caption" color="text.secondary">arrivée possible</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderRight: '5px solid', borderRightColor: 'secondary.main' }} />
+                    <Typography variant="caption" color="text.secondary">départ possible</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: 0.5, border: '1px dotted', borderColor: 'secondary.main' }} />
+                    <Typography variant="caption" color="text.secondary">événement</Typography>
+                  </Box>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -975,6 +1199,45 @@ export default function PropertyPricingSeasonsPage() {
               <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth slotProps={{
                 htmlInput: { min: 1 }
               }} />
+              <TextField
+                label="Max nuits"
+                type="number"
+                value={seasonForm.maxNights}
+                onChange={(e) => handleSeasonFormField('maxNights', e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="illimité"
+                fullWidth
+                helperText="Laisser vide = illimité"
+                slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }}
+              />
+            </Box>
+
+            {/* Changeover day (specs/tariff-recipes/spec.md §3.4): restrict the arrival and/or
+                departure weekday for the season. « Aucun » = unrestricted (the default). */}
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <FormControl fullWidth>
+                <InputLabel id="changeover-arrival-label">Jour d'arrivée imposé</InputLabel>
+                <Select
+                  labelId="changeover-arrival-label"
+                  label="Jour d'arrivée imposé"
+                  value={seasonForm.changeoverArrival}
+                  onChange={(e) => handleSeasonFormField('changeoverArrival', e.target.value)}
+                >
+                  <MenuItem value="">Aucun</MenuItem>
+                  {WEEKDAYS_FR.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth>
+                <InputLabel id="changeover-departure-label">Jour de départ imposé</InputLabel>
+                <Select
+                  labelId="changeover-departure-label"
+                  label="Jour de départ imposé"
+                  value={seasonForm.changeoverDeparture}
+                  onChange={(e) => handleSeasonFormField('changeoverDeparture', e.target.value)}
+                >
+                  <MenuItem value="">Aucun</MenuItem>
+                  {WEEKDAYS_FR.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Box>
 
             {seasonForm.pricingMode === 'progressive' && (

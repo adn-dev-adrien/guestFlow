@@ -44,4 +44,23 @@ function formatPlatformName(input) {
     .join('');
 }
 
-module.exports = { formatPlatformName };
+/**
+ * Own-channel platforms — `isDirectChannel(platform)`.
+ *
+ * A booking is « direct » in the commercial sense when the guest relationship is the operator's own,
+ * with no OTA in between. That covers two recorded platform values, not one:
+ *   - `direct`   — created by hand in GuestFlow (phone, email, walk-in).
+ *   - `Lodgify`  — the booking engine ON the operator's own website. Commercially a direct booking;
+ *                  its 5 % is an engine fee, not a marketplace commission.
+ *
+ * Used by the welcome pack (specs/tariff-recipes/spec.md §3.9 rule 53). A strict equality against
+ * `'direct'` would miss the majority of real direct bookings, which come through Lodgify.
+ * A third own channel is a one-line addition here rather than a new condition somewhere else.
+ */
+const DIRECT_CHANNELS = new Set(['direct', 'lodgify']);
+
+function isDirectChannel(platform) {
+  return DIRECT_CHANNELS.has(String(platform ?? 'direct').trim().toLowerCase() || 'direct');
+}
+
+module.exports = { formatPlatformName, isDirectChannel, DIRECT_CHANNELS };

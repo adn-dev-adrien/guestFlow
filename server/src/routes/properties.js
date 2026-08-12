@@ -21,6 +21,12 @@ router.post('/:id/pricing/apply-to', ctrl.applyPricing);
 router.post('/:id/pricing/assign-dates', ctrl.assignPricingDateRange);
 router.get('/:id/platform-prices', ctrl.platformPrices);
 
+// Tariff recipe preview/apply for a property (specs/tariff-recipes/spec.md §3.2).
+const tariffRecipes = require('../controllers/tariffRecipesController');
+router.get('/:id/tariff-recipe/preview', tariffRecipes.previewForProperty);
+router.post('/:id/tariff-recipe/apply', tariffRecipes.applyToProperty);
+router.post('/:id/tariff-recipe/detach', tariffRecipes.detachFromProperty);
+
 // Documents
 router.post('/:id/documents', handleDocumentUpload, ctrl.addDocument);
 router.delete('/:id/documents/:docId', ctrl.deleteDocument);
