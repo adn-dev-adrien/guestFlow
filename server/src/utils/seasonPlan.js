@@ -108,6 +108,12 @@ const HOLIDAY_NIGHT_OFFSETS = {
   2: [-3, -2, -1],   // Tuesday  → Sat, Sun, Mon (bridge)
   4: [0, 1, 2],      // Thursday → Thu, Fri, Sat (bridge)
   5: [0, 1],         // Friday   → Fri, Sat
+  // Saturday → the Saturday night alone. It forms NO bridge (Saturday is already a non-working
+  // day), which is why it was originally left out — but « le 1er mai » still fills the area whatever
+  // weekday it lands on, and skipping it silently priced 7 holidays over 5 years as ordinary nights,
+  // among them 1 AND 8 May 2027. One night, no minimum-stay constraint: the demand is real, the
+  // extra time off is not.
+  6: [0],
 };
 
 // One entry per holiday that actually forms a block, with its nights. The block LENGTH is the
@@ -230,7 +236,10 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // which also resolves two overlapping blocks to the longer « pont ».
         const kept = raisedKey === current.season ? (current.override || {}) : {};
         const minNights = Math.max(blockMinNights, Number(kept.minNights || 0));
-        const override = minNights > 0
+        // A minimum of ONE night is not a constraint, it is the default — recording it would split
+        // the range around a single raised night for nothing (a one-night Saturday « block » is
+        // exactly that case). Only a real minimum, 2 nights or more, carries an override.
+        const override = minNights > 1
           ? { ...kept, minNights }
           : (Object.keys(kept).length ? kept : null);
         days[t] = { season: raisedKey, override };

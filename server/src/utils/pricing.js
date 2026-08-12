@@ -567,7 +567,7 @@ function getRuleNightBaseForDate(rules, dateStr) {
 //             prices drive the supplement too. A per-season `pricing_rules.extraGuestPrice`
 //             override wins over the property's unit price for the nights it covers; a fixed-mode
 //             season yields ratio 1 (a plain per-night fee).
-function computeExtraGuestSurcharge({ unit, extraGuestCount, propertyUnitPrice, nightlyBreakdown, rules }) {
+function computeExtraGuestSurcharge({ unit, extraGuestCount, propertyUnitPrice, nightlyBreakdown, rules, lockedTiers }) {
   const count = Math.max(0, Number(extraGuestCount || 0));
   const baseUnit = Math.max(0, Number(propertyUnitPrice || 0));
   if (unit !== 'per_night') {
@@ -584,7 +584,10 @@ function computeExtraGuestSurcharge({ unit, extraGuestCount, propertyUnitPrice, 
     const { matchedRule, nightlyBase } = getRuleNightBaseForDate(rules, night.date);
     // A tier table already encodes the degressivity, so the season ratio must NOT compose with it:
     // night 2 costs its declared 8 €, not 8 × 0,52. The tier index is the night's rank in the STAY.
-    const nightTiers = matchedRule ? parseJsonArray(matchedRule.extraGuestTiers) : [];
+    // A sold reservation replays the tier table it was sold under; a fresh quote reads the season's.
+    const nightTiers = lockedTiers !== undefined
+      ? parseJsonArray(lockedTiers)
+      : (matchedRule ? parseJsonArray(matchedRule.extraGuestTiers) : []);
     const tierPrice = resolveTierPrice(nightTiers, index + 1);
     if (tierPrice != null) {
       if (!tiers) tiers = normalizeExtraGuestTiers(nightTiers);
@@ -789,9 +792,12 @@ function applyOfferedToLine(realTotal, offered) {
 // prepare — is deliberately untouched. Own-channel bookings only — `direct` AND `Lodgify`, the
 // booking engine on the operator's own site (rule 53): the pack is the single difference with a
 // commissioned channel, and a platform reservation is priced by its recorded gross.
-function applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice }) {
+function applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice, lockedFreeUnits = null }) {
+  // A sold reservation replays the units it was GRANTED (rule 12bis): raising the pack from 2 to 3
+  // breakfasts must not retroactively widen what an old booking got for free.
+  const granted = lockedFreeUnits != null ? Number(lockedFreeUnits) : Number(option.freeUnits || 0);
   const freeUnits = isDirectBooking
-    ? Math.min(Math.max(0, Number(option.freeUnits || 0)), billedUnits)
+    ? Math.min(Math.max(0, granted), billedUnits)
     : 0;
   const chargedUnits = roundMoney(Math.max(0, billedUnits - freeUnits));
   return {
@@ -1111,6 +1117,7 @@ function calculateReservationQuote({
   lockedOptionUnits,
   lockedResourceUnits,
   lockedNightlyBreakdown,
+  lockedTariff = null,
   lockedOptionLines,
   lockedResourceLines,
   platform,
@@ -1270,6 +1277,14 @@ function calculateReservationQuote({
   // Resolved here (the fuller platform routing lives further down) because the option lines above
   // need it for the included-units rule (specs/tariff-recipes/spec.md §3.9 rule 52bis).
   const isDirectBooking = isDirectChannel(platform);
+  // Units the reservation was granted when it was sold, per option id (rule 12bis).
+  const lockedFreeUnitsFor = (optionId) => {
+    if (!lockedTariff) return null;                       // no snapshot → live
+    const map = lockedTariff.freeUnitsByOption || {};
+    // Absent from the map = this option was granted NOTHING when the reservation was sold. Falling
+    // back to the live value there would let a widened pack reach the very bookings this protects.
+    return Number(map[String(optionId)] || 0);
+  };
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};
@@ -1301,9 +1316,20 @@ function calculateReservationQuote({
   const nightlyBreakdown = mergedNightly.nightlyBreakdown;
   const baseAccommodationPrice = mergedNightly.totalPrice;
 
-  const includedGuests = Math.max(0, Number(property.basePriceIncludedGuests || 0));
-  const extraGuestUnitPrice = Math.max(0, Number(property.extraGuestPrice || 0));
-  const extraGuestPriceUnit = property.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay';
+  // specs/tariff-recipes/spec.md §3.2 rule 12bis — a reservation is priced by the tariff in force
+  // WHEN IT WAS SOLD. Nights and option lines were already frozen (per date, per line); the
+  // property-level tariff was not, so editing an old reservation silently re-priced its supplement
+  // with today's recipe. `lockedTariff` is that missing half, captured at creation and replayed on
+  // every later save. Absent (reservations created before the column, and every fresh quote) → the
+  // live property, which is the correct source for a reservation being sold now.
+  const includedGuests = lockedTariff?.includedGuests != null
+    ? Math.max(0, Number(lockedTariff.includedGuests))
+    : Math.max(0, Number(property.basePriceIncludedGuests || 0));
+  const extraGuestUnitPrice = lockedTariff?.extraGuestPrice != null
+    ? Math.max(0, Number(lockedTariff.extraGuestPrice))
+    : Math.max(0, Number(property.extraGuestPrice || 0));
+  const extraGuestPriceUnit = (lockedTariff?.extraGuestPriceUnit ?? property.extraGuestPriceUnit) === 'per_night'
+    ? 'per_night' : 'per_stay';
   const isExtraGuestSurchargeOffered = Boolean(extraGuestSurchargeOffered);
   const extraGuestCount = Math.max(0, persons - includedGuests);
   const extraGuestCalc = computeExtraGuestSurcharge({
@@ -1312,6 +1338,10 @@ function calculateReservationQuote({
     propertyUnitPrice: extraGuestUnitPrice,
     nightlyBreakdown,
     rules,
+    // `undefined` = no snapshot → read the live season. An EMPTY array = sold without tiers, which
+    // is an answer, not an absence: confusing the two let the new recipe back in through the
+    // fallback (a test caught exactly that).
+    lockedTiers: lockedTariff ? (lockedTariff.extraGuestTiers ?? []) : undefined,
   });
   const extraGuestSurchargeOriginal = extraGuestCalc.total;
   const extraGuestSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal;
@@ -1372,7 +1402,7 @@ function calculateReservationQuote({
           const qty = Math.max(0, Number(selected?.quantity || 0));
           if (qty <= 0) return null;
           const billedUnits = roundMoney(qty * (perPerson ? persons : 1));
-          const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase });
+          const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
           return {
             optionId,
             title: option.title,
@@ -1392,7 +1422,7 @@ function calculateReservationQuote({
         const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
         if (occurrences.length === 0) return null;
         const billedUnits = roundMoney(occurrences.length * (perPerson ? persons : 1));
-        const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase });
+        const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
         return {
           optionId,
           title: option.title,
@@ -1461,6 +1491,7 @@ function calculateReservationQuote({
       });
       const free = applyFreeUnitsToLine({
         option, isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
+        lockedFreeUnits: lockedFreeUnitsFor(optionId),
       });
       return {
         optionId,
@@ -2139,6 +2170,19 @@ function calculateReservationQuote({
     ...touristTaxBreakdown,
     touristTaxOriginalTotal: Number(touristTaxBreakdown.touristTaxTotal || 0),
     touristTaxTotal,
+    // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff context this quote was built with,
+    // ready to be stored on the reservation so a later edit replays it instead of today's recipe.
+    tariffSnapshot: {
+      includedGuests,
+      extraGuestPrice: extraGuestUnitPrice,
+      extraGuestPriceUnit,
+      extraGuestTiers: extraGuestCalc.tiers || null,
+      freeUnitsByOption: Object.fromEntries(
+        finalOptionLines
+          .filter((line) => line && Number(line.freeUnits || 0) > 0)
+          .map((line) => [String(line.optionId), Number(line.freeUnits)]),
+      ),
+    },
     // specs/tariff-recipes/spec.md §3.8 — the tax base after deducting the included-in-rate services,
     // the base BEFORE it, and the deduction, so the summary renders « Base : X − Y de prestations
     // comprises » without adding two numbers back together (wrong whenever the base was floored at 0).

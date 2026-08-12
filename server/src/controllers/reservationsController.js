@@ -357,6 +357,10 @@ function calculatePrice(req, res) {
     lockedOptionUnits: req.body.lockedOptionUnits,
     lockedResourceUnits: req.body.lockedResourceUnits,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
+    // specs/tariff-recipes/spec.md §3.2 rule 12bis — replay the tariff the reservation was sold
+    // under. « Utiliser les tarifs actuels » (refreshPricingToCurrent) drops it with the rest of the
+    // snapshot: re-pricing stays possible, but only as a deliberate act.
+    lockedTariff: lockedPricing.lockedTariff,
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
@@ -610,7 +614,7 @@ function update(req, res) {
     && Number(existingReservation.propertyId) === Number(propertyId);
   const lockedPricing = canReuseLockedPricing
     ? model.getPricingSnapshot(id)
-    : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] };
+    : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [], lockedTariff: null };
 
   // Per-reservation opt-out of the deposit/balance split. When ON, force-zero the deposit-
   // paid fields too so the accounting export emits a single journal entry. The pricing

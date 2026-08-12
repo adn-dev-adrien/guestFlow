@@ -15,6 +15,7 @@ const {
   grossFromNet,
 } = require('../utils/pricing');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
+const { isDirectChannel } = require('../utils/platformNameFormat');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const platformsModel = require('./platformsModel');
@@ -559,7 +560,12 @@ function createPropertiesModel(database) {
       // Direct row first (synthesized at 0 % when no `Direct` platform row exists yet).
       const directRow = rows.find((p) => p.isDirect)
         || { id: 'direct', name: 'Direct', commissionPercent: 0, isDirect: true };
-      const platforms = [directRow, ...rows.filter((p) => !p.isDirect)];
+      // The other OWN channels — Lodgify — are the Direct row: its « moteur Lodgify » caption says
+      // so, and its commission IS the engine fee. Listing Lodgify again underneath would ask the
+      // operator to configure the same channel twice, with two rates that must never disagree.
+      // Hidden from this grid only: the platform row itself still carries reservations and their
+      // commissions.
+      const platforms = [directRow, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))];
 
       const seasons = database.prepare(
         'SELECT id, label, pricePerNight, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, extraGuestTiers FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
