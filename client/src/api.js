@@ -113,6 +113,12 @@ const api = {
   // former PropertyDetail "Options incluses" card was removed, so no per-property write endpoint is
   // exposed here anymore.
   getPropertyOptionDefaults: (propId) => request(`/properties/${propId}/option-defaults`),
+  // specs/welcome-pack-auto-options.md §4.3 — the option lines a brand-new own-channel reservation
+  // may apply as-is. The server decides eligibility and quantities; `params` is the form's context
+  // (platform, dates, check-in/out, guests).
+  getWelcomePack: (propId, params = {}) => request(`/properties/${propId}/welcome-pack?${new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)])
+  ).toString()}`),
   getOptionPropertyDefaults: (optionId) => request(`/options/${optionId}/property-defaults`),
 
   // Options
