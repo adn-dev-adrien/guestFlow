@@ -59,8 +59,8 @@ async function applyRecipe(propertyId) {
 // « appliquer à un autre logement » dialog, so a card-wide match is ambiguous.
 const seasonsTable = (page) => page.getByRole('table').first();
 
-test.describe('recette tarifaire', () => {
-  test("appliquer depuis l'aperçu écrit les saisons, et rien avant la confirmation", async ({ page }) => {
+test.describe('tariff recipe', () => {
+  test("applying from the preview writes the seasons, and nothing before confirmation", async ({ page }) => {
     const property = await bareProperty('E2E recette lodge');
 
     await page.goto(`/properties/${property.id}/pricing-seasons`);
@@ -84,7 +84,7 @@ test.describe('recette tarifaire', () => {
     await expect(seasonsTable(page).getByText('recette · high')).toBeVisible();
   });
 
-  test("l'événement survit à l'aller-retour serveur et est nommé dans le tableau", async ({ page }) => {
+  test("the event survives the server round trip and is named in the table", async ({ page }) => {
     const property = await bareProperty('E2E recette événement');
     await applyRecipe(property.id);
 
@@ -104,7 +104,7 @@ test.describe('recette tarifaire', () => {
     await expect(seasonsTable(page).getByText("L'Ardéchoise").first()).toBeVisible();
   });
 
-  test('la grille plateformes affiche les deux paliers de personne supplémentaire', async ({ page }) => {
+  test('the platform grid shows both extra-guest tiers', async ({ page }) => {
     const property = await bareProperty('E2E recette paliers');
     await applyRecipe(property.id);
 
@@ -115,7 +115,7 @@ test.describe('recette tarifaire', () => {
     await expect(grid.getByText(/puis \d+ €/).first()).toBeVisible();
   });
 
-  test('réappliquer une recette inchangée ne propose aucune modification', async ({ page }) => {
+  test('re-applying an unchanged recipe offers no modification', async ({ page }) => {
     const property = await bareProperty('E2E recette idempotente');
     await applyRecipe(property.id);
 
@@ -135,7 +135,7 @@ test.describe('recette tarifaire', () => {
     await expect(page.getByText('sera supprimée')).toHaveCount(0);
   });
 
-  test('une saison manuelle bloque la recette et le conflit est nommé', async ({ page }) => {
+  test('a manual season blocks the recipe and the conflict is named', async ({ page }) => {
     // The safety rule that matters most in production: hand-painted work is never silently
     // overwritten. A property created through the API keeps its automatic « Tarif annuel » season,
     // which is manual — so this is the real-world first-apply case, not a contrived one.

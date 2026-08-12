@@ -165,3 +165,16 @@ test('a per_stay property never sees a tier', () => {
   assert.equal(q.extraGuestSurcharge, 80, '2 extra × 40 € flat');
   db.close();
 });
+
+test('normalization PRESERVES netPrice but the billing engine never reads it', () => {
+  const merged = [{ fromNight: 1, price: 15, netPrice: 14 }, { fromNight: 2, price: 8, netPrice: 7 }];
+  assert.deepEqual(normalizeExtraGuestTiers(merged), merged, 'the net pivot survives storage round trips');
+  assert.equal(resolveTierPrice(merged, 1), 15, 'billed = displayed price, never the net');
+  assert.equal(resolveTierPrice(merged, 5), 8);
+  assert.equal(describeExtraGuestTiers(merged), '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit');
+});
+
+test('a malformed netPrice is dropped, the band itself survives', () => {
+  const out = normalizeExtraGuestTiers([{ fromNight: 1, price: 15, netPrice: 'quatorze' }]);
+  assert.deepEqual(out, [{ fromNight: 1, price: 15 }]);
+});

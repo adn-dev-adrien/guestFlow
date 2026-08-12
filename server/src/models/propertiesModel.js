@@ -14,7 +14,7 @@ const {
   normalizeProgressiveTiers,
   grossFromNet,
 } = require('../utils/pricing');
-const { normalizeExtraGuestTiers, describeExtraGuestTiers } = require('../utils/extraGuestTiers');
+const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const platformsModel = require('./platformsModel');
@@ -569,20 +569,23 @@ function createPropertiesModel(database) {
           ? Number(s.extraGuestNetTarget)
           : (s.extraGuestPrice != null ? Number(s.extraGuestPrice) : Number(property.extraGuestPrice || 0));
         // A tiered supplement grosses up tier by tier: each band is its own net pivot, so a channel
-        // sees « 17 € puis 9 € » rather than one price no night actually costs.
-        const netTiers = normalizeExtraGuestTiers(parseTiersColumn(s.extraGuestTiers));
+        // sees « 17 € puis 9 € » rather than one price no night actually costs. The pivot is the
+        // band's NET (`netPrice`, merged in by the recipe apply); a band without one uses its
+        // displayed price as its own net — never the other way round, or every channel is grossed
+        // up from a price that already contains the direct margin.
+        const storedTiers = normalizeExtraGuestTiers(parseTiersColumn(s.extraGuestTiers));
         const byPlatform = {};
         const extraGuestByPlatform = {};
-        const extraGuestTiersByPlatform = netTiers ? {} : null;
+        const extraGuestTiersByPlatform = storedTiers ? {} : null;
         for (const p of platforms) {
           // The welcome pack is per stay, not per guest: it loads the nightly price of the direct
           // channel only, never the extra-guest column.
           byPlatform[p.id] = grossFromNet(netPerNight, p.commissionPercent, { fixedCost: p.isDirect ? welcomePackCost : 0 });
           extraGuestByPlatform[p.id] = grossFromNet(extraGuestNet, p.commissionPercent);
-          if (netTiers) {
-            extraGuestTiersByPlatform[p.id] = netTiers.map((t) => ({
+          if (storedTiers) {
+            extraGuestTiersByPlatform[p.id] = storedTiers.map((t) => ({
               fromNight: t.fromNight,
-              price: grossFromNet(t.price, p.commissionPercent),
+              price: grossFromNet(t.netPrice ?? t.price, p.commissionPercent),
             }));
           }
         }

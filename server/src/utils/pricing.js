@@ -1372,21 +1372,20 @@ function calculateReservationQuote({
           const qty = Math.max(0, Number(selected?.quantity || 0));
           if (qty <= 0) return null;
           const billedUnits = roundMoney(qty * (perPerson ? persons : 1));
-          const realTotal = roundMoney(billedUnits * unitBase);
+          const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase });
           return {
             optionId,
             title: option.title,
             quantity: qty,
             unitPrice: unitBase,
             billedUnits,
-            ...applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase }),
+            freeUnits: unscheduledFree.freeUnits,
+            freeUnitsAmount: unscheduledFree.freeUnitsAmount,
+            chargedUnits: unscheduledFree.chargedUnits,
             priceType,
             cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
             toBeScheduled: true,
-            ...applyOfferedToLine(
-              applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase }).realTotal,
-              offeredOptionIdSet.has(optionId)
-            ),
+            ...applyOfferedToLine(unscheduledFree.realTotal, offeredOptionIdSet.has(optionId)),
             ...pickContribsAndForce(selected, locked),
           };
         }
@@ -1761,13 +1760,14 @@ function calculateReservationQuote({
       0,
     )
   );
-  const taxBaseAccommodation = roundMoney(Math.max(0, roundMoney(
+  const taxBaseBeforeDeduction = roundMoney(
     pinnedAccommodationInclTax != null
       ? pinnedAccommodationInclTax
       : (Number.isFinite(customFinalPrice)
         ? customFinalPrice
         : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100))
-  ) - touristTaxIncludedInRateDeduction));
+  );
+  const taxBaseAccommodation = roundMoney(Math.max(0, taxBaseBeforeDeduction - touristTaxIncludedInRateDeduction));
 
   // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
   // Resolved HERE (before the brut back-solve) so the reversed tax can be treated as part of the brut.
@@ -2111,8 +2111,12 @@ function calculateReservationQuote({
     extraGuestPriceUnit,
     extraGuestNightlyRatioTotal: extraGuestCalc.ratioTotal,
     // Tiered supplement: the phrased rule, so the summary shows « 15,00 € la 1ʳᵉ nuit, puis 8,00
-    // €/nuit » instead of a single unit price that no night actually costs.
-    extraGuestTiers: extraGuestCalc.tiers || null,
+    // €/nuit » instead of a single unit price that no night actually costs. `netPrice` (the channel
+    // net pivot stored beside each band) is STRIPPED: margin targets stay server-side and never
+    // reach a fiche or a public quote payload.
+    extraGuestTiers: extraGuestCalc.tiers
+      ? extraGuestCalc.tiers.map((t) => ({ fromNight: t.fromNight, price: t.price }))
+      : null,
     extraGuestTiersLabel: extraGuestCalc.label || null,
     extraGuestCount,
     extraGuestSurchargeOffered: isExtraGuestSurchargeOffered,
@@ -2136,8 +2140,10 @@ function calculateReservationQuote({
     touristTaxOriginalTotal: Number(touristTaxBreakdown.touristTaxTotal || 0),
     touristTaxTotal,
     // specs/tariff-recipes/spec.md §3.8 — the tax base after deducting the included-in-rate services,
-    // and the deduction itself, so the summary renders « Base : X − Y de prestations comprises ».
+    // the base BEFORE it, and the deduction, so the summary renders « Base : X − Y de prestations
+    // comprises » without adding two numbers back together (wrong whenever the base was floored at 0).
     touristTaxBaseAccommodation: taxBaseAccommodation,
+    touristTaxBaseBeforeDeduction: taxBaseBeforeDeduction,
     touristTaxIncludedInRateDeduction,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     touristTaxRemittedByOwner: isTouristTaxRemittedByOwnerFlag,

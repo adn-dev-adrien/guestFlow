@@ -110,6 +110,11 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
 14. **Check the announced pack value against the catalogue prices.** « 25 € of value » for 2
     breakfasts + a juice only holds at 10 €/breakfast; the catalogue said 8 €. Either the
     per-property price moves or the announced value is wrong — decide, do not let them disagree.
+15. **A net target that is validated but never persisted is a lie.** The recipe's `netTiers` were
+    checked by the loader and then dropped by the apply, so the platform grid grossed up the
+    DISPLAYED prices as if they were net (direct showed 16/9 instead of 15/8). After applying a
+    recipe, verify the grid's direct row REPRODUCES the displayed prices — that identity is the
+    whole point of a net pivot, and it fails loudly the moment one is dropped.
 
 ## Validation the loader enforces
 

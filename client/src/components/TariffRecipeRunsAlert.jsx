@@ -2,8 +2,15 @@
  * TariffRecipeRunsAlert — Dashboard notification card for the tariff-recipe horizon task
  * (specs/tariff-recipes/spec.md §3.2 rule 12): a year the scheduled task generated (« à relire »)
  * or a blocking condition it hit. One dismissible row per run; a click navigates to the property's
- * tariff page. Renders nothing when no run is pending, or on fetch error (a dashboard card must
- * never break the page). Mirrors the IcalNewReservationsAlert pattern.
+ * tariff page.
+ *
+ * Also carries the recurring-event years whose dates are not yet declared
+ * (specs/tariff-events-and-extra-guest-tiers/spec.md §3.3 rule 17): « L'Ardéchoise 2028 — dates pas
+ * encore connues ». Not dismissible — the row disappears the day the dates are filled in, and until
+ * then it is precisely the reminder the mechanism exists for.
+ *
+ * Renders nothing when there is nothing to say, or on fetch error (a dashboard card must never
+ * break the page). Mirrors the IcalNewReservationsAlert pattern.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -17,21 +24,24 @@ import api from '../api';
 export default function TariffRecipeRunsAlert() {
   const navigate = useNavigate();
   const [runs, setRuns] = useState([]);
+  const [missingEvents, setMissingEvents] = useState([]);
 
   const refresh = useCallback(async () => {
     try {
       const payload = await api.getTariffRecipeRuns();
       setRuns(Array.isArray(payload?.runs) ? payload.runs : []);
+      setMissingEvents(Array.isArray(payload?.missingEvents) ? payload.missingEvents : []);
     } catch {
       setRuns([]);
+      setMissingEvents([]);
     }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  if (runs.length === 0) return null;
+  if (runs.length === 0 && missingEvents.length === 0) return null;
 
-  const hasBlocking = runs.some((run) => Number(run.blocking) === 1);
+  const hasBlocking = runs.some((run) => Number(run.blocking) === 1) || missingEvents.length > 0;
   const open = (run) => navigate(`/properties/${run.propertyId}/pricing-seasons`);
   const dismiss = async (event, run) => {
     event.stopPropagation();
@@ -74,6 +84,32 @@ export default function TariffRecipeRunsAlert() {
                 <CloseIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            <ChevronRightIcon fontSize="small" color="action" />
+          </Box>
+        ))}
+        {missingEvents.map((gap) => (
+          <Box
+            key={`gap-${gap.propertyId}-${gap.key}-${gap.year}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate(`/properties/${gap.propertyId}/pricing-seasons`)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/properties/${gap.propertyId}/pricing-seasons`); } }}
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1,
+              cursor: 'pointer', borderRadius: 1, px: 1, py: 1, mx: -1,
+              minHeight: 44,
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                {gap.propertyName} — {gap.label} {gap.year}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Dates pas encore connues — la semaine restera au tarif de base tant qu'elles ne sont pas déclarées.
+                {gap.sourceUrl ? ' Consulter le site officiel puis compléter la recette.' : ''}
+              </Typography>
+            </Box>
             <ChevronRightIcon fontSize="small" color="action" />
           </Box>
         ))}

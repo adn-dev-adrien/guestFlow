@@ -160,3 +160,37 @@ test('platformPrices: empty seasons → empty grid (direct + platforms still lis
   assert.equal(out.platforms[0].isDirect, true);
   db.close();
 });
+
+test('platformPrices grosses up a tiered supplement from each band NET pivot, not the displayed price', () => {
+  const db = gridDb();
+  db.prepare("UPDATE platforms SET commissionPercent = 5 WHERE name = 'direct'").run();
+  db.prepare("UPDATE platforms SET commissionPercent = 15.5 WHERE name = 'Airbnb'").run();
+  db.prepare("INSERT INTO properties (id, name, extraGuestPrice, extraGuestPriceUnit) VALUES (1, 'Lodge', 15, 'per_night')").run();
+  // The Aventura bands: displayed 15/8, net 14/7. Grossing up the DISPLAYED price was the review
+  // finding this test pins: direct would show 16/9 — a grid nobody configured anywhere.
+  db.prepare(`INSERT INTO pricing_rules (propertyId, label, pricePerNight, startDate, extraGuestTiers)
+    VALUES (1, 'Haute', 247, '2026-07-11', ?)`).run(
+    JSON.stringify([{ fromNight: 1, price: 15, netPrice: 14 }, { fromNight: 2, price: 8, netPrice: 7 }]),
+  );
+  const grid = buildPropertiesModel(db).platformPrices(1);
+  const direct = grid.platforms.find((p) => p.isDirect);
+  const season = grid.seasons[0];
+  // ceil(14 / 0.95) = 15 and ceil(7 / 0.95) = 8 — the direct row REPRODUCES the displayed tiers.
+  assert.deepEqual(season.extraGuestTiersByPlatform[direct.id], [
+    { fromNight: 1, price: 15 },
+    { fromNight: 2, price: 8 },
+  ]);
+  // A commissioned channel grosses the same nets up by its own rate: ceil(14/0.845)=17, ceil(7/0.845)=9.
+  const airbnb = grid.platforms.find((p) => String(p.name).toLowerCase() === 'airbnb');
+  assert.deepEqual(season.extraGuestTiersByPlatform[airbnb.id], [
+    { fromNight: 1, price: 17 },
+    { fromNight: 2, price: 9 },
+  ]);
+  // A band WITHOUT a net pivot uses its displayed price as its own net (the documented fallback).
+  db.prepare(`UPDATE pricing_rules SET extraGuestTiers = ? WHERE propertyId = 1`).run(
+    JSON.stringify([{ fromNight: 1, price: 15 }]),
+  );
+  const fallback = buildPropertiesModel(db).platformPrices(1);
+  assert.deepEqual(fallback.seasons[0].extraGuestTiersByPlatform[direct.id], [{ fromNight: 1, price: 16 }]);
+  db.close();
+});

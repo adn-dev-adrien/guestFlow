@@ -50,6 +50,19 @@ function rangesOverlap(a, b) {
   return a.startDate <= b.endDate && a.endDate >= b.startDate;
 }
 
+// `[{fromNight, price}]` × `[{fromNight, price:net}]` → `[{fromNight, price, netPrice}]`, the shape
+// pricing_rules stores. Null netTiers → the displayed tiers stand alone (they gross up as their own
+// net, the documented fallback).
+function mergeTiersWithNet(perNightTiers, netTiers) {
+  if (!Array.isArray(perNightTiers) || perNightTiers.length === 0) return null;
+  const netByNight = new Map((netTiers || []).map((t) => [Number(t.fromNight), Number(t.price)]));
+  return perNightTiers.map((t) => ({
+    fromNight: Number(t.fromNight),
+    price: Number(t.price),
+    ...(netByNight.has(Number(t.fromNight)) ? { netPrice: netByNight.get(Number(t.fromNight)) } : {}),
+  }));
+}
+
 function createTariffRecipeModel(database, recipeStore) {
   const propertiesModel = require('./propertiesModel').buildModel(database);
   const closuresModel = require('./establishmentClosuresModel').create(database);
@@ -73,7 +86,11 @@ function createTariffRecipeModel(database, recipeStore) {
       // Per-night tiers are recipe-level, not per-season: the Aventura supplement is flat across
       // seasons (15/8 everywhere). A season declaring its own price still wins, because
       // `extraGuestPrice` and the tiers are read independently by the engine.
-      extraGuestTiers: recipe.extraGuest?.perNightTiers || null,
+      // The recipe's netTiers (the per-band net pivots the platform grid grosses up) are merged
+      // into the SAME stored rows as `netPrice` — the loader guarantees the night sequences match.
+      // Without this merge the grid grosses up the DISPLAYED price as if it were net, overstating
+      // every channel (direct 16/9 instead of 15/8).
+      extraGuestTiers: mergeTiersWithNet(recipe.extraGuest?.perNightTiers, recipe.extraGuest?.netTiers),
       changeoverArrival: season.changeover?.arrival ?? null,
       changeoverDeparture: season.changeover?.departure ?? null,
     };

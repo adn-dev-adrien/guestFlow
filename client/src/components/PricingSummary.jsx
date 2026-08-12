@@ -116,7 +116,7 @@ export default function PricingSummary({
   const touristTaxAdultsCount = Number(quote?.touristTaxAdultsCount || 0);
   const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
   const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
-  const touristTaxBaseAccommodation = Number(quote?.touristTaxBaseAccommodation || 0);
+  const touristTaxBaseBeforeDeduction = Number(quote?.touristTaxBaseBeforeDeduction || 0);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
   const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -634,7 +634,7 @@ export default function PricingSummary({
                       the rate are not accommodation: their value leaves the declared base. */}
                   {touristTaxIncludedDeduction > 0 && (
                     <Typography variant="caption" color="text.secondary">
-                      Base : {formatCurrency(touristTaxBaseAccommodation + touristTaxIncludedDeduction)} − {formatCurrency(touristTaxIncludedDeduction)} de prestations comprises
+                      Base : {formatCurrency(touristTaxBaseBeforeDeduction)} − {formatCurrency(touristTaxIncludedDeduction)} de prestations comprises
                     </Typography>
                   )}
                 </Box>
