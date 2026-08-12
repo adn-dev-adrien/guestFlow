@@ -1,0 +1,159 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const { buildYearPlan, buildHorizonPlan, materializeClosures } = require('../utils/seasonPlan');
+const { validateRecipe } = require('../utils/tariffRecipe');
+
+// specs/tariff-recipes/spec.md §3.7 rules 41-44 — the Aventura calendar derived to the day, plus the
+// generic invariants of §3.3: shoulders on the anchor weekday, no overlap, full coverage, closure
+// skip, merged adjacent holiday blocks.
+
+const AVENTURA = validateRecipe({
+  id: 'aventura-test', version: '1.0.0', label: 'Aventura', horizonYears: 2,
+  seasons: [
+    { key: 'low', label: 'Basse saison', rank: 1, color: '#5B8C6E', pricePerNight: 179, pricingMode: 'progressive', extraNightRatio: 0.70 },
+    { key: 'mid', label: 'Moyenne saison', rank: 2, color: '#D9A441', pricePerNight: 216, pricingMode: 'progressive', extraNightRatio: 0.70 },
+    { key: 'high', label: 'Haute saison', rank: 3, color: '#C25B4E', pricePerNight: 247, pricingMode: 'progressive', extraNightRatio: 0.70 },
+  ],
+  calendar: {
+    baseSeason: 'low',
+    periods: [
+      { id: 'july-shoulder', season: 'mid', anchor: { type: 'nth_weekday_of_month', month: 7, weekday: 6, occurrence: 1 }, nights: 7 },
+      { id: 'august-shoulder', season: 'mid', anchor: { type: 'last_full_week_of_month', month: 8, weekday: 6 }, nights: 7 },
+      { id: 'summer-core', season: 'high', anchor: { type: 'between', after: 'july-shoulder', before: 'august-shoulder' } },
+    ],
+    modifiers: [
+      { type: 'public_holiday_bridge', effect: 'raise_rank', amount: 1, skipClosedDays: true },
+    ],
+  },
+  closures: [{ label: 'Fermeture hivernale', from: '10-15', to: '03-31' }],
+}).recipe;
+
+// The previous winter's tail matters for January-March holidays → materialize from year − 1.
+const closuresFor = (year) => materializeClosures(AVENTURA, year - 1, year);
+
+const r = (startDate, endDate) => ({ startDate, endDate });
+
+test('2026 produces exactly the spec rule 44 table', () => {
+  const plan = buildYearPlan(AVENTURA, 2026, closuresFor(2026));
+  assert.deepEqual(plan.low, [
+    r('2026-01-01', '2026-04-03'), r('2026-04-06', '2026-04-30'), r('2026-05-03', '2026-05-07'),
+    r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'), r('2026-05-25', '2026-07-03'),
+    r('2026-08-29', '2026-12-31'),
+  ]);
+  assert.deepEqual(plan.mid, [
+    r('2026-04-04', '2026-04-05'), r('2026-05-01', '2026-05-02'), r('2026-05-08', '2026-05-09'),
+    r('2026-05-14', '2026-05-16'), r('2026-05-23', '2026-05-24'),
+    r('2026-07-04', '2026-07-10'), r('2026-08-22', '2026-08-28'),
+  ]);
+  assert.deepEqual(plan.high, [r('2026-07-11', '2026-08-21')]);
+});
+
+test('2027: Ascension absorbs Victoire (6-8 May), Pentecôte 15-16 May, Easter Monday skipped (closed)', () => {
+  const plan = buildYearPlan(AVENTURA, 2027, closuresFor(2027));
+  assert.deepEqual(plan.mid, [
+    r('2027-05-06', '2027-05-08'), // Ascension (jeu 6) + Victoire (sam 8) merged into ONE range
+    r('2027-05-15', '2027-05-16'), // Pentecôte (lun 17)
+    r('2027-07-03', '2027-07-09'), // July shoulder
+    r('2027-08-21', '2027-08-27'), // August shoulder
+  ]);
+  assert.deepEqual(plan.high, [r('2027-07-10', '2027-08-20')]);
+  // Easter Monday 2027 = 29 March → nights 27-28 March are inside the closure → NOT raised.
+  assert.ok(!plan.mid.some((range) => range.startDate.startsWith('2027-03')));
+});
+
+test('shoulders land on the anchor weekday (Saturday) for ten consecutive years', () => {
+  for (let year = 2026; year < 2036; year += 1) {
+    const plan = buildYearPlan(AVENTURA, year, closuresFor(year));
+    const shoulders = plan.mid.filter((range) => range.startDate.slice(5, 7) === '07' || range.startDate.slice(5, 7) === '08');
+    assert.equal(shoulders.length, 2, `${year}: two summer shoulders`);
+    for (const s of shoulders) {
+      const d = new Date(`${s.startDate}T00:00:00Z`);
+      assert.equal(d.getUTCDay(), 6, `${year}: shoulder ${s.startDate} starts on Saturday`);
+      const nights = (new Date(`${s.endDate}T00:00:00Z`) - d) / 86400000 + 1;
+      assert.equal(nights, 7, `${year}: shoulder ${s.startDate} is 7 nights`);
+    }
+  }
+});
+
+test('seasons never overlap and together cover every day of every generated year', () => {
+  for (let year = 2026; year < 2031; year += 1) {
+    const plan = buildYearPlan(AVENTURA, year, closuresFor(year));
+    const all = [...plan.low, ...plan.mid, ...plan.high]
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    assert.equal(all[0].startDate, `${year}-01-01`);
+    assert.equal(all[all.length - 1].endDate, `${year}-12-31`);
+    for (let i = 1; i < all.length; i += 1) {
+      const prevEnd = new Date(`${all[i - 1].endDate}T00:00:00Z`);
+      const nextStart = new Date(`${all[i].startDate}T00:00:00Z`);
+      assert.equal(nextStart - prevEnd, 86400000, `${year}: gap/overlap between ${all[i - 1].endDate} and ${all[i].startDate}`);
+    }
+  }
+});
+
+test('horizon plan spans exactly horizonYears, ranges within their own year', () => {
+  // Closures for a horizon must include the PREVIOUS winter's tail (Jan-Mar of the first year).
+  const plan = buildHorizonPlan(AVENTURA, 2026, materializeClosures(AVENTURA, 2025, 2027));
+  assert.ok(plan.low.some((range) => range.startDate === '2026-01-01'));
+  assert.ok(plan.low.some((range) => range.startDate === '2027-01-01'));
+  assert.ok(!plan.low.some((range) => range.startDate.startsWith('2028')));
+  for (const key of Object.keys(plan)) {
+    for (const range of plan[key]) {
+      assert.equal(range.startDate.slice(0, 4), range.endDate.slice(0, 4), 'range crosses a year boundary');
+    }
+  }
+});
+
+test('materializeClosures: a wrapping window ends in the next year', () => {
+  const rows = materializeClosures(AVENTURA, 2026, 2027);
+  assert.deepEqual(rows, [
+    { label: 'Fermeture hivernale', startDate: '2026-10-15', endDate: '2027-03-31' },
+    { label: 'Fermeture hivernale', startDate: '2027-10-15', endDate: '2028-03-31' },
+  ]);
+});
+
+test('period overrides (minNights, changeover) ride on the produced ranges', () => {
+  const recipe = validateRecipe({
+    id: 'override-test', version: '1.0.0', label: 'x', horizonYears: 1,
+    seasons: [
+      { key: 'low', label: 'Basse', rank: 1, color: '#111', pricePerNight: 100 },
+      { key: 'high', label: 'Haute', rank: 2, color: '#222', pricePerNight: 200, minNights: 7, changeover: { arrival: 6, departure: 6 } },
+    ],
+    calendar: {
+      baseSeason: 'low',
+      periods: [
+        { id: 'core', season: 'high', anchor: { type: 'fixed_dates', from: '07-01', to: '08-31' }, minNights: 3, changeover: { arrival: 6, departure: null } },
+      ],
+      modifiers: [],
+    },
+    closures: [],
+  }).recipe;
+  const plan = buildYearPlan(recipe, 2026, []);
+  assert.equal(plan.high.length, 1);
+  assert.equal(plan.high[0].minNights, 3);
+  assert.equal(plan.high[0].changeoverArrival, 6);
+  assert.equal(plan.high[0].changeoverDeparture, undefined);
+});
+
+test('a between anchor with an empty span produces no range; the base season keeps those days', () => {
+  const recipe = validateRecipe({
+    id: 'empty-between', version: '1.0.0', label: 'x', horizonYears: 1,
+    seasons: [
+      { key: 'low', label: 'Basse', rank: 1, color: '#111', pricePerNight: 100 },
+      { key: 'high', label: 'Haute', rank: 2, color: '#222', pricePerNight: 200 },
+    ],
+    calendar: {
+      baseSeason: 'low',
+      periods: [
+        { id: 'a', season: 'high', anchor: { type: 'fixed_dates', from: '07-01', to: '07-15' } },
+        { id: 'b', season: 'high', anchor: { type: 'fixed_dates', from: '07-16', to: '07-31' } },
+        { id: 'between-them', season: 'high', anchor: { type: 'between', after: 'a', before: 'b' } },
+      ],
+      modifiers: [],
+    },
+    closures: [],
+  }).recipe;
+  const plan = buildYearPlan(recipe, 2026, []);
+  // a and b are adjacent → the between span is empty → one merged high run, base low elsewhere.
+  assert.deepEqual(plan.high, [r('2026-07-01', '2026-07-31')]);
+});

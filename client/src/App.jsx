@@ -35,6 +35,7 @@ import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import SellIcon from '@mui/icons-material/Sell';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
 import SearchIcon from '@mui/icons-material/Search';
@@ -54,6 +55,7 @@ import ClientsPage from './pages/ClientsPage';
 import PropertiesPage from './pages/PropertiesPage';
 import PropertyDetail from './pages/PropertyDetail';
 import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
+import TariffRecipesPage from './pages/TariffRecipesPage';
 import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationPage from './pages/ReservationPage';
@@ -100,7 +102,7 @@ const navItems = [
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/paiements', '/account', '/design'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/recettes', '/parametres/paiements', '/account', '/design'];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -607,6 +609,20 @@ function NavContent({ onItemClick }) {
                     }} />
                   </ListItemButton>
                   )}
+                  {can('/parametres/recettes') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/parametres/recettes"
+                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/recettes')}
+                    selected={location.pathname === '/parametres/recettes'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><MenuBookIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Recettes tarifaires" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
                   {can('/parametres/paiements') && (
                   <ListItemButton
                     component={Link}
@@ -870,6 +886,7 @@ function AppShell() {
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetail />} />
           <Route path="/properties/:id/pricing-seasons" element={<PropertyPricingSeasonsPage />} />
+          <Route path="/parametres/recettes" element={<TariffRecipesPage />} />
           <Route path="/options" element={<OptionsPage />} />
           <Route path="/resources" element={<ResourcesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />

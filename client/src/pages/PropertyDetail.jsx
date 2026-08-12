@@ -4,7 +4,7 @@ import {
   Box, Typography, Card, CardContent, TextField, Button,
   TableBody, TableCell, TableHead, TableRow,
   IconButton, Chip,
-  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
+  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, FormHelperText,
   Tooltip, useMediaQuery, useTheme
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -56,6 +56,8 @@ const NEW_DEFAULTS = {
   name: '', nameArticle: 'au', maxAdults: 2, maxChildren: 0, maxBabies: 0,
   basePriceIncludedGuests: 0,
   extraGuestPrice: 0,
+  extraGuestPriceUnit: 'per_stay',
+  welcomePackCost: 0,
   singleBeds: 0, doubleBeds: 0,
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
   publicDepositEnabled: false,
@@ -180,6 +182,8 @@ export default function PropertyDetail() {
       name: p.name, nameArticle: p.nameArticle || 'au', maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
       extraGuestPrice: p.extraGuestPrice ?? 0,
+      extraGuestPriceUnit: p.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
+      welcomePackCost: p.welcomePackCost ?? 0,
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       publicDepositEnabled: Boolean(p.publicDepositEnabled),
@@ -864,7 +868,7 @@ export default function PropertyDetail() {
                     }}
                   />
                   <TextField
-                    label="Supplément par personne (€ / séjour)"
+                    label="Supplément par personne (€)"
                     type="number"
                     value={form.extraGuestPrice ?? 0}
                     onChange={(e) => updateField('extraGuestPrice', e.target.value)}
@@ -872,6 +876,34 @@ export default function PropertyDetail() {
                     fullWidth
                     size="small"
                     helperText="Ex: 15 pour facturer 15€ par personne supplémentaire"
+                    slotProps={{
+                      htmlInput: { min: 0, step: 0.01 }
+                    }}
+                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="extra-guest-unit-label">Unité du supplément</InputLabel>
+                    <Select
+                      labelId="extra-guest-unit-label"
+                      label="Unité du supplément"
+                      value={form.extraGuestPriceUnit ?? 'per_stay'}
+                      onChange={(e) => updateField('extraGuestPriceUnit', e.target.value)}
+                    >
+                      <MenuItem value="per_stay">par séjour</MenuItem>
+                      <MenuItem value="per_night">par nuit</MenuItem>
+                    </Select>
+                    <FormHelperText>« par nuit » suit la dégressivité de la saison</FormHelperText>
+                  </FormControl>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <TextField
+                    label="Coût du pack accueil (direct)"
+                    type="number"
+                    value={form.welcomePackCost ?? 0}
+                    onChange={(e) => updateField('welcomePackCost', e.target.value)}
+                    onFocus={handleZeroFocus}
+                    fullWidth
+                    size="small"
+                    helperText="Couvert par le prix direct affiché (grille plateformes)"
                     slotProps={{
                       htmlInput: { min: 0, step: 0.01 }
                     }}
@@ -1141,6 +1173,14 @@ export default function PropertyDetail() {
                   Gestion tarifaire
                 </Button>
               </Box>
+              {/* specs/tariff-recipes/spec.md §3.5 rule 29 — read-only echo of the active recipe;
+                  it is chosen and applied on the tariff page. */}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                Recette tarifaire :{' '}
+                {property?.tariffRecipeId
+                  ? <strong>{property.tariffRecipeId}{property.tariffRecipeVersion ? ` (v${property.tariffRecipeVersion})` : ''}</strong>
+                  : <strong>aucune — saisons manuelles</strong>}
+              </Typography>
               <TableCard minWidth={700}>
 
                   <TableHead>

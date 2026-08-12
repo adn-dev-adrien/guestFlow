@@ -24,6 +24,7 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import PlatformPriceCard from '../components/PlatformPriceCard';
+import TariffRecipeCard from '../components/property/TariffRecipeCard';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -77,6 +78,14 @@ function getSortedDateRanges(ranges) {
     .filter((range) => range.startDate && range.endDate)
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
+
+// Changeover weekdays (specs/tariff-recipes/spec.md §3.4) — JS convention 0 = dimanche … 6 = samedi,
+// listed Monday-first for the French eye. '' = « Aucun » = unrestricted.
+const WEEKDAYS_FR = [
+  { value: 1, label: 'lundi' }, { value: 2, label: 'mardi' }, { value: 3, label: 'mercredi' },
+  { value: 4, label: 'jeudi' }, { value: 5, label: 'vendredi' }, { value: 6, label: 'samedi' },
+  { value: 0, label: 'dimanche' },
+];
 
 function isoToDayjs(value) {
   return value ? dayjs(value) : null;
@@ -156,6 +165,8 @@ export default function PropertyPricingSeasonsPage() {
     pricingMode: 'fixed',
     minNights: 1,
     progressiveTiers: [],
+    changeoverArrival: '',
+    changeoverDeparture: '',
   });
 
   const [initialSeasonForm, setInitialSeasonForm] = useState({
@@ -166,6 +177,8 @@ export default function PropertyPricingSeasonsPage() {
     pricingMode: 'fixed',
     minNights: 1,
     progressiveTiers: [],
+    changeoverArrival: '',
+    changeoverDeparture: '',
   });
 
   const loadData = useCallback(async () => {
@@ -383,6 +396,8 @@ export default function PropertyPricingSeasonsPage() {
       pricingMode: 'fixed',
       minNights: 1,
       progressiveTiers: [],
+      changeoverArrival: '',
+      changeoverDeparture: '',
     };
     setEditingSeasonId(null);
     setSeasonForm(newForm);
@@ -402,6 +417,8 @@ export default function PropertyPricingSeasonsPage() {
       pricingMode: season.pricingMode || 'fixed',
       minNights: Number(season.minNights || 1),
       progressiveTiers: parseTiers(season.progressiveTiers),
+      changeoverArrival: season.changeoverArrival ?? '',
+      changeoverDeparture: season.changeoverDeparture ?? '',
     };
     setEditingSeasonId(season.id);
     setSeasonForm(newForm);
@@ -563,6 +580,8 @@ export default function PropertyPricingSeasonsPage() {
       pricingMode: seasonForm.pricingMode || 'fixed',
       minNights: Number(seasonForm.minNights || 1),
       progressiveTiers: seasonForm.pricingMode === 'progressive' ? seasonForm.progressiveTiers : [],
+      changeoverArrival: seasonForm.changeoverArrival === '' ? null : Number(seasonForm.changeoverArrival),
+      changeoverDeparture: seasonForm.changeoverDeparture === '' ? null : Number(seasonForm.changeoverDeparture),
     };
     try {
       setSeasonSaveError('');
@@ -670,6 +689,15 @@ export default function PropertyPricingSeasonsPage() {
           ),
         }]}
       />
+      {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
+      <TariffRecipeCard
+        propertyId={id}
+        activeRecipeId={property.tariffRecipeId || ''}
+        appliedVersion={property.tariffRecipeVersion || ''}
+        onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
+        onError={(message) => showError(message)}
+      />
+
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="sectionHeader" sx={{ mb: 2 }}>Saisons</Typography>
@@ -688,9 +716,17 @@ export default function PropertyPricingSeasonsPage() {
                 {seasons.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => s.color || t.palette.primary.main }} />
                         {s.label}
+                        {/* Recipe-owned vs manual (specs/tariff-recipes/spec.md §3.2 rule 9). */}
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={s.seasonKey ? 'info' : 'default'}
+                          label={s.seasonKey ? `recette · ${s.seasonKey}` : 'Manuelle'}
+                          sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
+                        />
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -795,7 +831,14 @@ export default function PropertyPricingSeasonsPage() {
                       const coveringRange = season ? (season.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate) : null;
                       const seasonDefaultMin = season ? Number(season.minNights || 1) : 1;
                       const dayMin = coveringRange ? Number(coveringRange.minNights ?? seasonDefaultMin) : seasonDefaultMin;
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin });
+                      // Changeover markers (specs/tariff-recipes/spec.md §3.4 rule 25): range override
+                      // ⇒ season default ⇒ unrestricted; the marker shows only on the permitted weekday.
+                      const arrivalDay = coveringRange?.changeoverArrival ?? season?.changeoverArrival ?? null;
+                      const departureDay = coveringRange?.changeoverDeparture ?? season?.changeoverDeparture ?? null;
+                      const weekday = d.getDay();
+                      const isArrivalDay = arrivalDay != null && arrivalDay !== '' && Number(arrivalDay) === weekday;
+                      const isDepartureDay = departureDay != null && departureDay !== '' && Number(departureDay) === weekday;
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay });
                     }
 
                     return (
@@ -848,10 +891,19 @@ export default function PropertyPricingSeasonsPage() {
                                 ].filter(Boolean).join(' · ')}
                               >
                                 {c.inMonth ? c.day : ''}
-                                {c.inMonth && c.dayMin > c.seasonDefaultMin && (
+                                {/* Effective minimum shown whenever it exceeds 1 — a season-wide
+                                    minimum is a constraint too, not only a range override
+                                    (specs/tariff-recipes/spec.md §3.4 rule 25). */}
+                                {c.inMonth && c.dayMin > 1 && (
                                   <Box sx={{ position: 'absolute', top: -1, right: 1, fontSize: 8, fontWeight: 700, color: 'warning.dark', lineHeight: 1 }}>
                                     {c.dayMin}
                                   </Box>
+                                )}
+                                {c.inMonth && c.isArrivalDay && (
+                                  <Box sx={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '3px solid transparent', borderBottom: '3px solid transparent', borderLeft: '4px solid', borderLeftColor: 'success.main' }} />
+                                )}
+                                {c.inMonth && c.isDepartureDay && (
+                                  <Box sx={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '3px solid transparent', borderBottom: '3px solid transparent', borderRight: '4px solid', borderRightColor: 'secondary.main' }} />
                                 )}
                                 {c.inMonth && c.isPublicHoliday && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'error.main', position: 'absolute', bottom: 1, left: 1 }} />
@@ -867,6 +919,30 @@ export default function PropertyPricingSeasonsPage() {
                     );
                   })}
                 </Grid>
+                {/* Legend (specs/tariff-recipes/spec.md §3.4 rule 25) — the calendar now carries five
+                    distinct signals; every marker is named here. */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2.5 }, mt: 1.5, alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />
+                    <Typography variant="caption" color="text.secondary">jour férié</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main' }} />
+                    <Typography variant="caption" color="text.secondary">vacances scolaires</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark' }}>3</Typography>
+                    <Typography variant="caption" color="text.secondary">minimum de nuits</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '5px solid', borderLeftColor: 'success.main' }} />
+                    <Typography variant="caption" color="text.secondary">arrivée possible</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderRight: '5px solid', borderRightColor: 'secondary.main' }} />
+                    <Typography variant="caption" color="text.secondary">départ possible</Typography>
+                  </Box>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -975,6 +1051,35 @@ export default function PropertyPricingSeasonsPage() {
               <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth slotProps={{
                 htmlInput: { min: 1 }
               }} />
+            </Box>
+
+            {/* Changeover day (specs/tariff-recipes/spec.md §3.4): restrict the arrival and/or
+                departure weekday for the season. « Aucun » = unrestricted (the default). */}
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <FormControl fullWidth>
+                <InputLabel id="changeover-arrival-label">Jour d'arrivée imposé</InputLabel>
+                <Select
+                  labelId="changeover-arrival-label"
+                  label="Jour d'arrivée imposé"
+                  value={seasonForm.changeoverArrival}
+                  onChange={(e) => handleSeasonFormField('changeoverArrival', e.target.value)}
+                >
+                  <MenuItem value="">Aucun</MenuItem>
+                  {WEEKDAYS_FR.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth>
+                <InputLabel id="changeover-departure-label">Jour de départ imposé</InputLabel>
+                <Select
+                  labelId="changeover-departure-label"
+                  label="Jour de départ imposé"
+                  value={seasonForm.changeoverDeparture}
+                  onChange={(e) => handleSeasonFormField('changeoverDeparture', e.target.value)}
+                >
+                  <MenuItem value="">Aucun</MenuItem>
+                  {WEEKDAYS_FR.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Box>
 
             {seasonForm.pricingMode === 'progressive' && (

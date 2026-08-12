@@ -115,6 +115,8 @@ export default function PricingSummary({
   const touristTaxUnitAmount = Number(quote?.touristTaxUnitAmount || 0);
   const touristTaxAdultsCount = Number(quote?.touristTaxAdultsCount || 0);
   const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
+  const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
+  const touristTaxBaseAccommodation = Number(quote?.touristTaxBaseAccommodation || 0);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
   const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -123,6 +125,7 @@ export default function PricingSummary({
   const extraGuestSurchargeOriginal = Number(quote?.extraGuestSurchargeOriginal || 0);
   const extraGuestSurchargeOffered = Boolean(quote?.extraGuestSurchargeOffered ?? form.extraGuestSurchargeOffered);
   const hasExtraGuestSurcharge = extraGuestCount > 0 && extraGuestUnitPrice > 0 && extraGuestSurchargeOriginal > 0;
+  const extraGuestPerNight = quote?.extraGuestPriceUnit === 'per_night';
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
@@ -259,6 +262,9 @@ export default function PricingSummary({
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
+                    {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
+                        nights count (Σ of the discount ratios is applied to the amount, not shown). */}
+                    {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -599,6 +605,13 @@ export default function PricingSummary({
                   <Typography variant="caption" color="text.secondary">
                     Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
+                  {/* specs/tariff-recipes/spec.md §3.8 rule 48 — services structurally included in
+                      the rate are not accommodation: their value leaves the declared base. */}
+                  {touristTaxIncludedDeduction > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      Base : {formatCurrency(touristTaxBaseAccommodation + touristTaxIncludedDeduction)} − {formatCurrency(touristTaxIncludedDeduction)} de prestations comprises
+                    </Typography>
+                  )}
                 </Box>
               )}
 

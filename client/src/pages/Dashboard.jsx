@@ -19,6 +19,7 @@ import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
+import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import { useToast } from '../components/DialogProvider';
@@ -367,6 +368,7 @@ export default function Dashboard() {
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <IcalNewReservationsAlert />
+          <TariffRecipeRunsAlert />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <EmailPendingAlert />

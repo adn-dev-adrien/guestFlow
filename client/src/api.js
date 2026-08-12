@@ -86,6 +86,14 @@ const api = {
   // + the per-platform commission % editor (global per platform).
   getPlatformPrices: (propId) => request(`/properties/${propId}/platform-prices`),
   setPlatformCommission: (platformId, commissionPercent) => request(`/platforms/${platformId}/commission`, { method: 'PUT', body: { commissionPercent } }),
+  // Tariff recipes (specs/tariff-recipes/spec.md §3.5)
+  getTariffRecipes: () => request('/tariff-recipes'),
+  getTariffRecipe: (recipeId) => request(`/tariff-recipes/${recipeId}`),
+  previewTariffRecipe: (propId, recipeId) => request(`/properties/${propId}/tariff-recipe/preview?recipeId=${encodeURIComponent(recipeId)}`),
+  applyTariffRecipe: (propId, recipeId) => request(`/properties/${propId}/tariff-recipe/apply`, { method: 'POST', body: { recipeId } }),
+  detachTariffRecipe: (propId) => request(`/properties/${propId}/tariff-recipe/detach`, { method: 'POST' }),
+  getTariffRecipeRuns: () => request('/tariff-recipes/runs'),
+  dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
 
   // Documents
   uploadDocument: (propId, formData) => request(`/properties/${propId}/documents`, { method: 'POST', body: formData }),

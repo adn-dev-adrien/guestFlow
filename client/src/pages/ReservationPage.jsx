@@ -1861,7 +1861,7 @@ export default function ReservationPage() {
     }
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
     if (!selectedProp) {
@@ -1928,7 +1928,7 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover);
       }
       return false;
     }
@@ -1993,7 +1993,24 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
+        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover);
+      }
+
+      // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
+      // pattern as the minimum-nights guard just above.
+      if (quote.changeoverBreached && !forceChangeover) {
+        const parts = [];
+        if (quote.changeoverArrivalBreached) parts.push(`une arrivée le ${quote.requiredArrivalDayLabel}`);
+        if (quote.changeoverDepartureBreached) parts.push(`un départ le ${quote.requiredDepartureDayLabel}`);
+        const proceed = await confirm({
+          title: 'Jour de changement non respecté',
+          message: `Ces dates imposent ${parts.join(' et ')}. Voulez-vous forcer l'enregistrement ?`,
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return false;
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true);
       }
 
       if (isDevisMode) {
@@ -2114,6 +2131,7 @@ export default function ReservationPage() {
           refreshPricingToCurrent: useCurrentPricing,
           forceMinNights,
           forceCapacity,
+          forceChangeover,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2167,6 +2185,7 @@ export default function ReservationPage() {
           notes: form.notes,
           forceMinNights,
           forceCapacity,
+          forceChangeover,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2190,7 +2209,20 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
+          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover);
+        }
+        return false;
+      }
+      if (err?.code === 'CHANGEOVER' && !forceChangeover) {
+        const proceed = await confirm({
+          title: 'Jour de changement non respecté',
+          message: err.message || 'Le jour d\'arrivée ou de départ imposé pour ces dates n\'est pas respecté. Voulez-vous forcer l\'enregistrement ?',
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (proceed) {
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true);
         }
         return false;
       }
