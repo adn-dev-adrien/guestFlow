@@ -126,7 +126,7 @@ function recipeHighlights(recipe, rateInclusions) {
   for (const f of freebies) {
     out.push({
       label: 'Offert en direct',
-      value: `${f.title} : les ${f.freeUnits} premiers offerts (${eur(f.unitPrice)} l'unité). Au-delà, facturés normalement — réservations directes uniquement.`,
+      value: `${f.title} : ${f.freeUnits === 1 ? 'le premier offert' : `les ${f.freeUnits} premiers offerts`} (${eur(f.unitPrice)} l'unité). Au-delà, facturés normalement — réservations directes et Lodgify uniquement.`,
     });
   }
 

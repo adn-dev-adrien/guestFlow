@@ -92,7 +92,7 @@ test('no free units configured → the option bills in full (every existing prop
   db.close();
 });
 
-test('a platform reservation gets no free units — the pack is direct-only (rule 53)', () => {
+test('a platform reservation gets no free units — the pack is own-channel only (rule 53)', () => {
   const db = createDb();
   const q = calculateReservationQuote({
     ...BASE, db, adults: 5, startDate: '2026-05-01', endDate: '2026-05-03', platform: 'Airbnb',
@@ -102,6 +102,22 @@ test('a platform reservation gets no free units — the pack is direct-only (rul
   assert.equal(l.totalPrice, 100);
   db.close();
 });
+
+// The channel MOST direct bookings actually carry: Lodgify is the booking engine on the operator's
+// own site, so a stay recorded under it is a direct booking commercially. Gating on the string
+// 'direct' alone would deny the pack to the majority of the very bookings it exists for.
+for (const platform of ['Lodgify', 'lodgify', 'direct', '', null]) {
+  test(`« ${platform === null ? 'null' : platform || '(vide)'} » is an own channel and gets the pack`, () => {
+    const db = createDb();
+    const q = calculateReservationQuote({
+      ...BASE, db, adults: 5, startDate: '2026-05-01', endDate: '2026-05-03', platform,
+    });
+    const l = line(q);
+    assert.equal(l.freeUnits, 2);
+    assert.equal(l.totalPrice, 80);
+    db.close();
+  });
+}
 
 test('offering the whole line still zeroes it and keeps the real price recoverable', () => {
   const db = createDb();
@@ -137,6 +153,21 @@ test('planning-card breakfast: 5 guests × 2 mornings ticked → 10 prepared, 2 
   assert.equal(l.cardOccurrences.length, 2, 'both mornings stay scheduled');
   assert.equal(l.freeUnits, 2);
   assert.equal(l.freeUnitsAmount, 20);
+  assert.equal(l.totalPrice, 80);
+  db.close();
+});
+
+test('planning-card breakfast on a Lodgify reservation still gets the pack', () => {
+  const db = createPlanningCardDb();
+  const q = calculateReservationQuote({
+    ...BASE, db, adults: 5, startDate: '2026-05-01', endDate: '2026-05-03', platform: 'Lodgify',
+    selectedOptions: [{
+      optionId: 10, quantity: 1,
+      cardOccurrences: [{ date: '2026-05-02', time: '08:30' }, { date: '2026-05-03', time: '08:30' }],
+    }],
+  });
+  const l = line(q);
+  assert.equal(l.freeUnits, 2);
   assert.equal(l.totalPrice, 80);
   db.close();
 });

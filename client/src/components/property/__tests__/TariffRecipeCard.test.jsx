@@ -68,7 +68,9 @@ test('the particularities panel states the recipe deal in plain French', async (
   // The degressive extra-guest rule and the direct-only free breakfasts both surface here.
   expect(await screen.findByText(/soumise à la même dégressivité/)).toBeInTheDocument();
   expect(screen.getByText(/les 2 premiers offerts/)).toBeInTheDocument();
-  expect(screen.getByText(/réservations directes uniquement/)).toBeInTheDocument();
+  // Lodgify is the channel most direct bookings actually carry — the panel must say so, or the
+  // operator reads « direct » as « created by hand in GuestFlow » and thinks the pack never fires.
+  expect(screen.getByText(/réservations directes et Lodgify uniquement/)).toBeInTheDocument();
   expect(screen.getByText(/2 nuits −24 %/)).toBeInTheDocument();
   expect(screen.getByText(/de 1 à 7 nuits/)).toBeInTheDocument();
   expect(screen.getByText(/minimum de séjour égal à la longueur du pont/)).toBeInTheDocument();

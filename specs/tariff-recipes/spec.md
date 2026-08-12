@@ -397,15 +397,26 @@ all-inclusive pricing as the first such recipe.
 50. **The laundry contract is unaffected.** The options remain ticked on the reservation, so the bed-
     and bath-linen counters keep working exactly as today.
 
-### 3.9 Welcome pack — direct bookings only
+### 3.9 Welcome pack — own-channel bookings only
 
-51. **An option included in the rate on direct bookings** (GuestFlow-native and Lodgify alike):
-    first-morning breakfast for 2 + a 1 L bottle of Pressoir du Pilat apple juice, **25 € of displayed
-    value, 9,32 € of real cost**. Billed 0 €, shown « Comprise », deducted from the tourist-tax base
-    (rule 48), and present in the Planning preparation cards like any other breakfast.
-52. **The breakfast is capped at 2 people**; further occupants add breakfast at 10 €/person.
-53. **Not proposed on commissioned channels** — the single deliberate difference between a direct and a
-    platform booking.
+51. **Included by the unit, not by the line.** The pack is first-morning breakfast for 2 + a 1 L
+    bottle of Pressoir du Pilat apple juice: **25 € of displayed value, 9,32 € of real cost**. It is
+    not a « Pack accueil » option — it is `freeUnits` on two existing options (2 on « Petit
+    déjeuner », 1 on « Jus de pomme 1L »), so the guest can order beyond it without the operator
+    doing arithmetic.
+52. **The rate covers the first N units; the guest orders as many as they want.** 5 guests × 2 nights
+    = 10 breakfasts prepared, 2 covered (20 € struck through), 8 billed. `billedUnits` — what the
+    Planning and SAS cards prepare — is deliberately untouched, so the kitchen still sees the full
+    count. Applies to the planning-card branch too, which is the path every real breakfast takes.
+52bis. **The Lodge charges 10 € a breakfast, the catalogue says 8 €.** A per-property price override
+    carries it (the Gîte keeps 8 €). This is what makes the announced 25 € exact: 2 × 10 € + 5 €.
+53. **Own-channel only — `direct` AND `Lodgify`.** Lodgify is the booking engine on the operator's own
+    site: commercially a direct booking, its 5 % an engine fee rather than a marketplace commission,
+    and the channel carrying the majority of real direct bookings. Gating on the string `direct`
+    alone would deny the pack to most of the very bookings it exists for. Commissioned channels
+    (Airbnb, Booking, Abracadaroom, Abritel, Greengo, GitesDeFrance) get nothing — the single
+    deliberate difference between a direct and a platform booking. One helper,
+    [`isDirectChannel`](../../server/src/utils/platformNameFormat.js), owns the list.
 
 ### 3.10 Reference totals
 
@@ -657,9 +668,20 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 
 ## 9. Open questions
 
-- **Q3 — 1-night plancha and early check-in prices** are `[À CONFIRMER]` in the source document; early
-  check-in is already an auto-option with fixed or proportional pricing.
-  - A: _pending_
+_None. All three are answered below._
+
+**Resolved (2026-08-12) — the welcome pack, decided by the owner:**
+- **Which channels.** `direct` **and** `Lodgify` (rule 53). The code shipped gating on the string
+  `direct` alone while the spec already said « Lodgify alike » — a real defect: 15 of the 29
+  reservations in the database are Lodgify, 2 are `direct`, so the pack would almost never have
+  fired. Fixed by a single named helper. ✅
+- **Breakfast price.** 10 € **at the Lodge only**, via a per-property override; the catalogue and the
+  Gîte stay at 8 €. The announced 25 € of pack value is now exact (rule 52bis). ✅
+- **The apple juice.** Modelled like the breakfasts — 1 covered unit on the existing « Jus de pomme
+  1L » (Boissons), not a synthetic « Pack accueil » line. A second bottle is billed normally. ✅
+- **Q3 — early check-in.** Left as it is: an auto-option priced **proportionally**, so it derives from
+  the nightly rate and follows the new seasonal prices with no maintenance. The 1-night plancha price
+  is moot — the plancha is not a GuestFlow object and stays a manual gesture (§8). ✅
 
 **Resolved (2026-08-12) — tourist tax, both questions closed by the owner:**
 - **Q1 — Satillieu's rate and mode.** Already configured in production, working, and **not to be

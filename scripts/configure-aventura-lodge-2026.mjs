@@ -34,8 +34,15 @@ const require = createRequire(pathToFileURL(path.join(ROOT, 'server', 'src', 'in
 
 const APPLY = process.argv.includes('--apply');
 const PROPERTY_NAME = 'Aventura lodge';
-// specs/tariff-recipes/spec.md §3.9 — the direct welcome pack: breakfast for 2 on the first morning.
-const WELCOME_PACK_FREE_BREAKFASTS = 2;
+// specs/tariff-recipes/spec.md §3.9 — the own-channel welcome pack: breakfast for 2 on the first
+// morning + a 1 L bottle of Pressoir du Pilat apple juice. 25 € of displayed value = 2 × 10 € + 5 €,
+// which is why the Lodge charges 10 € a breakfast where the catalogue says 8 € (the Gîte keeps 8 €).
+// `unitPrice: null` = keep the catalogue price. Matching is by title substring, lowercased: « jus de
+// pomme 1l » is deliberately that precise so it cannot catch the 25 cl bottle or the pomme-kiwi.
+const WELCOME_PACK = [
+  { label: 'Petit déjeuner', match: 'petit déjeuner', freeUnits: 2, unitPrice: 10 },
+  { label: 'Jus de pomme 1L', match: 'jus de pomme 1l', freeUnits: 1, unitPrice: null },
+];
 const RECIPE_ID = 'aventura-lodge-2026';
 
 // Property fields the recipe does not own (spec §3.1 rule 6, §3.6 rule 35, §3.7 rule 41).
@@ -66,11 +73,11 @@ const COMMISSIONS = {
   'gites de france': 0,
 };
 
-// Options included in the rate on this property (spec §3.8 rules 47-50, §3.9 rule 51).
-// They stay chargeable in the catalogue; the property DEFAULT marks them offered → « Comprise ».
-const INCLUDED_OPTION_TITLES = [
-  'ménage', 'linge de lit', 'parure de lit', 'linge de toilette', 'pack accueil',
-];
+// Options included in the rate on this property (spec §3.8 rules 47-50). They stay chargeable in the
+// catalogue; the property DEFAULT marks them offered → « Comprise ». Titles are the real ones on the
+// Lodge: no speculative alias, or a missing alias reports as missing work when nothing is missing.
+// The welcome pack is NOT here — it is included by the unit (WELCOME_PACK), not by the whole line.
+const INCLUDED_OPTION_TITLES = ['ménage', 'linge de lit', 'linge de toilette'];
 
 function log(...args) { console.log(...args); }
 
@@ -171,34 +178,38 @@ function main() {
     log('        (à créer/rattacher à la main — le script ne crée jamais d\'option)');
   }
 
-  // ── 3bis. Welcome pack: the first 2 breakfasts included on direct bookings ─
+  // ── 3bis. Welcome pack: the units the rate covers on own-channel bookings ──
   log('');
-  log('Pack accueil (réservations directes) :');
-  const breakfast = linkedOptions.find((o) => o.title.toLowerCase().includes('petit'));
-  if (!breakfast) {
-    log('    ⚠️  Option « Petit déjeuner » introuvable sur ce logement — à rattacher à la main.');
-  } else {
-    const current = db.prepare('SELECT price, freeUnits FROM property_option_prices WHERE propertyId = ? AND optionId = ?')
-      .get(property.id, breakfast.id);
-    const currentFree = Number(current?.freeUnits || 0);
-    if (currentFree === WELCOME_PACK_FREE_BREAKFASTS) {
-      log(`    ${breakfast.title} : ${currentFree} premiers offerts (déjà)`);
-    } else {
-      log(`    ${breakfast.title} : ${currentFree} → ${WELCOME_PACK_FREE_BREAKFASTS} premiers offerts`);
-      if (APPLY) {
-        // A per-property price row means « this property charges THIS », so creating one just to
-        // carry the free units must copy the catalogue price — writing 0 would make the option free.
-        const catalogPrice = db.prepare('SELECT price FROM options WHERE id = ?').get(breakfast.id)?.price ?? 0;
-        db.prepare(`
-          INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT(propertyId, optionId) DO UPDATE SET freeUnits = excluded.freeUnits
-        `).run(property.id, breakfast.id, current?.price != null ? current.price : catalogPrice, WELCOME_PACK_FREE_BREAKFASTS);
-      }
+  log('Pack accueil (direct + Lodgify) :');
+  for (const item of WELCOME_PACK) {
+    const option = linkedOptions.find((o) => o.title.toLowerCase().includes(item.match));
+    if (!option) {
+      log(`    ⚠️  Option « ${item.label} » introuvable sur ce logement — à rattacher à la main.`);
+      continue;
     }
-    log('        Le client peut commander tous ses petits déjeuners : seuls ceux au-delà des');
-    log('        2 offerts sont facturés, et le SAS en prépare toujours la totalité.');
+    // A per-property price row means « this property charges THIS », so creating one just to carry
+    // the free units must copy the catalogue price — writing 0 would make the option free.
+    const catalogPrice = Number(db.prepare('SELECT price FROM options WHERE id = ?').get(option.id)?.price ?? 0);
+    const current = db.prepare('SELECT price, freeUnits FROM property_option_prices WHERE propertyId = ? AND optionId = ?')
+      .get(property.id, option.id);
+    const currentPrice = current?.price != null ? Number(current.price) : catalogPrice;
+    const currentFree = Number(current?.freeUnits || 0);
+    const targetPrice = item.unitPrice ?? currentPrice;
+    if (currentPrice === targetPrice && currentFree === item.freeUnits) {
+      log(`    ${option.title} : ${targetPrice} €, ${item.freeUnits} offert(s) (déjà)`);
+      continue;
+    }
+    log(`    ${option.title} : ${currentPrice} € → ${targetPrice} €, ${currentFree} → ${item.freeUnits} offert(s)`);
+    if (APPLY) {
+      db.prepare(`
+        INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(propertyId, optionId) DO UPDATE SET price = excluded.price, freeUnits = excluded.freeUnits
+      `).run(property.id, option.id, targetPrice, item.freeUnits);
+    }
   }
+  log('        Le client commande tout ce qu\'il veut : seules les unités au-delà des offertes');
+  log('        sont facturées, et le SAS prépare toujours la totalité.');
 
   // ── 4. The recipe: seasons, ranges, closures ──────────────────────────────
   log('');
