@@ -10,6 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsVatSection from '../components/SettingsVatSection';
+import SettingsFiscalYearSection from '../components/SettingsFiscalYearSection';
 import SettingsReservationLockSection from '../components/SettingsReservationLockSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
@@ -27,6 +28,8 @@ const EMPTY_FORM = {
   },
   quote: { footerText: '', footerTextEn: '', validityDays: 30 },
   vat: { rate: 10, rateCommission: 20 },
+  // Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). 12 = calendar year.
+  accounting: { fiscalYearEndMonth: 12 },
   smtp: {
     host: '', port: 587, secure: false,
     username: '',
@@ -82,6 +85,10 @@ function buildPayloadFromDraft(draft, saved) {
   const vatDirty = diffFields(draft.vat, saved.vat);
   if (Object.keys(vatDirty).length > 0) payload.vat = vatDirty;
 
+  // Accounting — single integer month, same per-field diff as the other simple groups.
+  const accountingDirty = diffFields(draft.accounting, saved.accounting);
+  if (Object.keys(accountingDirty).length > 0) payload.accounting = accountingDirty;
+
   // SMTP — same per-field 3-way pattern as the other groups, with passwordDraft as the
   // masked secret (specs/admin-account-management.md M3).
   const smtpDirty = {};
@@ -121,6 +128,7 @@ function fromServer(settings) {
     company: { ...EMPTY_FORM.company, ...(settings.company || {}) },
     quote: { ...EMPTY_FORM.quote, ...(settings.quote || {}) },
     vat: { ...EMPTY_FORM.vat, ...(settings.vat || {}) },
+    accounting: { ...EMPTY_FORM.accounting, ...(settings.accounting || {}) },
     smtp: {
       ...EMPTY_FORM.smtp,
       ...(settings.smtp || {}),
@@ -350,6 +358,17 @@ export default function SettingsPage() {
               values={draft.vat}
               errors={errors}
               onChange={updateGroup('vat')}
+              disabled={loading || saving}
+            />
+          </Box>
+
+          {/* Accounting closing month — kept next to the VAT card so the accounting settings sit
+              together (specs/fiscal-year-and-nights-sold.md §6.1). */}
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsFiscalYearSection
+              values={draft.accounting}
+              errors={errors}
+              onChange={updateGroup('accounting')}
               disabled={loading || saving}
             />
           </Box>

@@ -11,8 +11,26 @@ const {
 const {
   isSettled, remainingToPay, platformCommission, midStayNotesTotal, refundsBook, comptaCollected,
 } = require('../utils/reservationSettlement');
+const fiscalYearUtil = require('../utils/fiscalYear');
 
 const UPCOMING_PER_PROPERTY = 5;
+
+// specs/fiscal-year-and-nights-sold.md §3.2 — SQL twin of reservationSettlement's `attributionDate`:
+// the date a stay is attached to for accounting = when its SOLDE was collected, falling back to the
+// departure date when it never was (unpaid stay, or no solde at all). Every money window of this file
+// filters and sorts on it instead of `r.endDate`, because the books are kept on a cash basis.
+// `DATE(...)` normalises a legacy 'YYYY-MM-DD HH:MM:SS' value to a plain day.
+// Pinned against the JS helper by tests/finance-attribution-date.unit.test.js.
+//
+// Guarded at factory level like the refund columns below: a minimal test schema without
+// `balancePaidDate` degrades to the plain departure date rather than failing every query.
+const ATTRIBUTION_DATE_SQL_FULL = `(
+  CASE
+    WHEN r.balancePaid = 1 AND TRIM(COALESCE(r.balancePaidDate, '')) <> ''
+      THEN DATE(r.balancePaidDate)
+    ELSE r.endDate
+  END
+)`;
 
 // specs/tourist-tax-on-solde.md — SQL predicate: is a reservation's tourist tax COLLECTED ON ARRIVAL
 // (→ it rides on the complement, paid at check-in) rather than on the solde? True when the operator
@@ -67,6 +85,17 @@ function getVatRate(database) {
   return row && row.vatRate != null ? Number(row.vatRate) : 10;
 }
 
+// Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). A minimal test schema without
+// the column — or a fresh install — degrades to 12 = calendar year, the pre-spec behaviour.
+function getFiscalYearEndMonth(database) {
+  try {
+    const row = database.prepare('SELECT fiscalYearEndMonth FROM app_settings WHERE id = 1').get();
+    return fiscalYearUtil.normaliseEndMonth(row && row.fiscalYearEndMonth);
+  } catch {
+    return fiscalYearUtil.DEFAULT_END_MONTH;
+  }
+}
+
 // specs/finance-overview-rework.md §3.7 — element-by-element HT (decision 2026-06-16): the VAT-able revenue
 // of a reservation is `finalPrice` (accommodation + options + resources, single global rate); the tourist
 // tax bears NO VAT and is NOT revenue HT. The HT fraction of the full TTC is therefore
@@ -87,15 +116,28 @@ function htAmount(r, ttcPortion, vatRate) {
 // it sums over and the label its amount column carries in the breakdown dialog. The `total` of a
 // breakdown is guaranteed equal to the matching getSummary figure because both reuse totalSejour /
 // comptaCollected / isSettled over the same set.
+// specs/fiscal-year-and-nights-sold.md §3.4 rules 18-19 + 22 — `nights: true` marks the three metrics
+// whose amount is Σ « total de séjour » over a SET OF STAYS: they carry the per-property nights on
+// their card and a « Nuits » column in the breakdown. « Encaissé » and « En attente » are subsets of
+// échéances, not sets of stays, so a nights figure there would be ambiguous.
 const BREAKDOWN_METRICS = {
-  revenueTotal:   { label: 'Revenu total sur la période',         column: 'Total de séjour', window: 'period' },
-  totalCollected: { label: 'Encaissé',                            column: 'Encaissé',        window: 'period' },
-  totalPending:   { label: 'En attente de règlement',             column: 'En attente',      window: 'global' },
-  yearToDate:     { label: "Revenus depuis le début de l'année",  column: 'Total de séjour', window: 'year' },
-  yearTotal:      { label: "Revenu total sur l'année",            column: 'Total de séjour', window: 'year' },
+  revenueTotal:   { label: 'Revenu total sur la période',            column: 'Total de séjour', window: 'period',     nights: true },
+  totalCollected: { label: 'Encaissé',                               column: 'Encaissé',        window: 'period' },
+  totalPending:   { label: 'En attente de règlement',                column: 'En attente',      window: 'global' },
+  yearToDate:     { label: "Revenus depuis le début de l'exercice",  column: 'Total de séjour', window: 'fiscalYear', nights: true },
+  yearTotal:      { label: "Revenu total sur l'exercice",            column: 'Total de séjour', window: 'fiscalYear', nights: true },
 };
 
 function createFinanceModel(database) {
+  const hasReservationColumn = (name) => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
+    catch { return false; }
+  };
+  // The window key of every money query (see ATTRIBUTION_DATE_SQL_FULL above).
+  const ATTRIBUTION_DATE_SQL = hasReservationColumn('balancePaidDate')
+    ? ATTRIBUTION_DATE_SQL_FULL
+    : 'r.endDate';
+
   // specs/reservation-refunds.md §3.3 — per-reservation refund totals, injected into every query that
   // feeds totalSejour/comptaCollected. Guarded like the mid-stay columns: a minimal test schema without
   // the refund tables degrades to 0 (no refund) instead of failing the query.
@@ -144,22 +186,35 @@ function createFinanceModel(database) {
     // specs/finance-pending-global-remaining.md — « En attente de règlement » is GLOBAL (every finished
     // stay, period ignored) and counts the RESTANT DÛ (Σ remainingToPay), so it equals the operational
     // « Paiements en attente » chip and never double-counts what « Encaissé » already holds.
-    getSummary({ from, to } = {}) {
+    getSummary({ from, to, fiscalYear } = {}) {
       const today = todayIso();
       const start = from || today;
       const end = to || '2099-12-31';
-      const year = new Date().getFullYear();
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year}-12-31`;
+
+      // Selected exercise + the selector's options (specs/fiscal-year-and-nights-sold.md §3.5).
+      const endMonth = getFiscalYearEndMonth(database);
+      const exercise = fiscalYearUtil.resolve(endMonth, { key: fiscalYear, today });
+      const currentExercise = fiscalYearUtil.containing(endMonth, today);
+      const attributionRange = database.prepare(`
+        SELECT MIN(${ATTRIBUTION_DATE_SQL}) AS minDate, MAX(${ATTRIBUTION_DATE_SQL}) AS maxDate
+        FROM reservations r WHERE r.kind = 'reservation'
+      `).get() || {};
+      const fiscalYears = fiscalYearUtil.list(endMonth, {
+        minDate: attributionRange.minDate,
+        maxDate: attributionRange.maxDate,
+        today,
+      });
 
       const reservations = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName,
+               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
                ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
-        ORDER BY r.endDate
+        WHERE r.kind = 'reservation'
+          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?
+        ORDER BY ${ATTRIBUTION_DATE_SQL}
       `).all(start, end);
 
       const vatRate = getVatRate(database);
@@ -167,36 +222,54 @@ function createFinanceModel(database) {
       let totalCollected = 0;
       let revenueTotalHt = 0;
       let totalCollectedHt = 0;
-      // Both per-logement aggregates are seeded from the properties table so every logement is in
-      // the payload, 0 included (specs/finance-per-property-revenue-chart.md rule 6).
-      const emptyAgg = (p) => ({ propertyId: p.id, propertyName: p.name, revenue: 0, revenueHt: 0 });
+      // The three per-logement aggregates are seeded from the properties table so every logement is in
+      // the payload, 0 included (specs/finance-per-property-revenue-chart.md rule 6). Each one now also
+      // carries the NIGHTS SOLD over its window (specs/fiscal-year-and-nights-sold.md §3.3).
+      const emptyAgg = (p) => ({ propertyId: p.id, propertyName: p.name, revenue: 0, revenueHt: 0, nights: 0 });
       const allProperties = database.prepare('SELECT id, name FROM properties').all();
       const byProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
       const yearByProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
+      const yearTotalByProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
       const finalizeByProperty = (map) => Array.from(map.values())
-        .map((p) => ({ propertyId: p.propertyId, propertyName: p.propertyName, revenue: round2(p.revenue), revenueHt: round2(p.revenueHt) }))
+        .map((p) => ({
+          propertyId: p.propertyId,
+          propertyName: p.propertyName,
+          revenue: round2(p.revenue),
+          revenueHt: round2(p.revenueHt),
+          nights: p.nights,
+        }))
         .sort((a, b) => (b.revenue - a.revenue) || a.propertyName.localeCompare(b.propertyName, 'fr'));
+      // A reservation absent from the seed (its logement was deleted) still contributes, under its own
+      // name, rather than vanishing from the aggregate.
+      const accumulate = (map, r, stay, stayHt, nights) => {
+        const agg = map.get(r.propertyId)
+          || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0, revenueHt: 0, nights: 0 };
+        agg.revenue += stay;
+        agg.revenueHt += stayHt;
+        agg.nights += nights;
+        map.set(r.propertyId, agg);
+      };
 
+      let revenueTotalNights = 0;
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
         const stayHt = htAmount(r, stay, vatRate);
         const settled = isSettled(r);
         const collected = comptaCollected(r);
+        const nights = nightsBetween(r.startDate, r.endDate);
         revenueTotal += stay;
         revenueTotalHt += stayHt;
+        revenueTotalNights += nights;
         totalCollected += collected;
         totalCollectedHt += htAmount(r, collected, vatRate);
 
-        const agg = byProperty.get(r.propertyId)
-          || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0, revenueHt: 0 };
-        agg.revenue += stay;
-        agg.revenueHt += stayHt;
-        byProperty.set(r.propertyId, agg);
+        accumulate(byProperty, r, stay, stayHt, nights);
 
         const status = computePaymentStatus(r, today);
         return {
           ...r,
           totalSejour: stay,
+          nights,
           settled,
           remainingDue: status.remainingDue,
           paymentComplete: status.paymentComplete,
@@ -221,73 +294,94 @@ function createFinanceModel(database) {
         totalPendingHt += htAmount(r, remaining, vatRate);
       }
 
-      // Year cards (by endDate), independent of the selected period.
+      // Exercise cards — the SELECTED fiscal year, independent of the du/au period. Attributed by the
+      // accounting date, so a stay settled before the closing counts in the closing exercise even when
+      // the guest leaves after it (specs/fiscal-year-and-nights-sold.md §3.2).
       const yearRows = database.prepare(`
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
-               endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes, endDate,
+               endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes,
+               r.startDate, r.endDate,
+               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
                finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
                r.propertyId, p.name AS propertyName,
                ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
-      `).all(yearStart, yearEnd);
+        WHERE r.kind = 'reservation'
+          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?
+      `).all(exercise.from, exercise.to);
       let yearToDate = 0;
       let yearTotal = 0;
       let yearToDateHt = 0;
       let yearTotalHt = 0;
+      let yearToDateNights = 0;
+      let yearTotalNights = 0;
       for (const r of yearRows) {
         const stay = totalSejour(r);
         const stayHt = htAmount(r, stay, vatRate);
+        const nights = nightsBetween(r.startDate, r.endDate);
         yearTotal += stay;
         yearTotalHt += stayHt;
-        if (r.endDate <= today) {
+        yearTotalNights += nights;
+        accumulate(yearTotalByProperty, r, stay, stayHt, nights);
+        // « Depuis le début de l'exercice » stops at today — on a closed exercise that is the whole
+        // exercise (rule 16), on a future one it is empty (rule 17).
+        if (r.attributionDate <= today) {
           yearToDate += stay;
           yearToDateHt += stayHt;
-          const agg = yearByProperty.get(r.propertyId)
-            || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0, revenueHt: 0 };
-          agg.revenue += stay;
-          agg.revenueHt += stayHt;
-          yearByProperty.set(r.propertyId, agg);
+          yearToDateNights += nights;
+          accumulate(yearByProperty, r, stay, stayHt, nights);
         }
       }
       const yearToDateByProperty = finalizeByProperty(yearByProperty);
+      const yearTotalByPropertyList = finalizeByProperty(yearTotalByProperty);
 
       return {
-        revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by endDate)
+        revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by attribution date)
         revenueTotalHt: round2(revenueTotalHt), // …its element-by-element HT (tax excluded, ÷ vat)
+        revenueTotalNights,                     // …and the nights sold over that same set
         totalCollected: round2(totalCollected), // accounting total (encaissé)
         totalCollectedHt: round2(totalCollectedHt),
         totalPending:   round2(totalPending),   // Σ remainingToPay of ALL past + non-settled (global)
         totalPendingHt: round2(totalPendingHt),
-        yearToDate:     round2(yearToDate),      // Σ total-séjour, Jan 1 → today
+        yearToDate:     round2(yearToDate),      // Σ total-séjour, exercise start → today
         yearToDateHt:   round2(yearToDateHt),
-        yearTotal:      round2(yearTotal),       // Σ total-séjour, full calendar year
+        yearToDateNights,
+        yearTotal:      round2(yearTotal),       // Σ total-séjour, whole selected exercise
         yearTotalHt:    round2(yearTotalHt),
+        yearTotalNights,
         reservations:   enriched,
-        revenueByProperty,      // period, per logement (+ revenueHt, zero-seeded)
-        yearToDateByProperty,   // Jan 1 → today, per logement (same shape)
+        revenueByProperty,      // period, per logement (+ revenueHt + nights, zero-seeded)
+        yearToDateByProperty,   // exercise start → today, per logement (same shape)
+        yearTotalByProperty: yearTotalByPropertyList, // whole exercise, per logement (same shape)
+        // The exercise the annual figures describe + the selector's options (§3.5).
+        fiscalYear: { ...exercise, isCurrent: Boolean(currentExercise && currentExercise.key === exercise.key) },
+        fiscalYears,
       };
     },
 
     // specs/finance-card-breakdown.md — the reservations behind a single card figure, with one amount
     // column whose Σ equals the card. Reuses the SAME per-reservation helpers as getSummary so the total
-    // is coherent by construction. Period metrics honour the du/au range; annual metrics use the calendar
-    // year computed here (the from/to are ignored for them).
-    getBreakdown({ metric, from, to } = {}) {
+    // is coherent by construction. Period metrics honour the du/au range; the exercise metrics use the
+    // selected fiscal year (the from/to are ignored for them).
+    getBreakdown({ metric, from, to, fiscalYear } = {}) {
       const def = BREAKDOWN_METRICS[metric];
       if (!def) return { ok: false, status: 400, error: 'Métrique inconnue.' };
 
       const today = todayIso();
       const vatRate = getVatRate(database);
 
+      // Same attribution window as getSummary (specs/fiscal-year-and-nights-sold.md §3.2 rule 8), so a
+      // breakdown always lists exactly the stays that built the card figure.
       const selectRows = (start, end) => database.prepare(`
         SELECT r.*, c.lastName, c.firstName, p.name as propertyName,
+               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
                ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
-        ORDER BY r.endDate
+        WHERE r.kind = 'reservation'
+          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?
+        ORDER BY ${ATTRIBUTION_DATE_SQL}
       `).all(start, end);
 
       let rows;
@@ -303,11 +397,9 @@ function createFinanceModel(database) {
         rows = selectRows(start, end);
         windowMeta = { kind: 'period', from: start, to: end };
       } else {
-        const year = new Date().getFullYear();
-        const yearStart = `${year}-01-01`;
-        const yearEnd = `${year}-12-31`;
-        rows = selectRows(yearStart, yearEnd);
-        windowMeta = { kind: 'year', year, from: yearStart, to: yearEnd };
+        const exercise = fiscalYearUtil.resolve(getFiscalYearEndMonth(database), { key: fiscalYear, today });
+        rows = selectRows(exercise.from, exercise.to);
+        windowMeta = { kind: 'fiscalYear', key: exercise.key, label: exercise.label, from: exercise.from, to: exercise.to };
       }
 
       // include = does this reservation contribute to the figure; amount = its contribution. Mirrors the
@@ -315,9 +407,10 @@ function createFinanceModel(database) {
       const contribution = (r) => {
         switch (metric) {
           case 'totalCollected': { const amount = comptaCollected(r); return { include: amount > 0, amount }; }
-          // Restant dû of every finished, non-settled stay (period-free — spec above).
+          // Restant dû of every finished, non-settled stay (period-free — spec above). A non-settled
+          // stay's attribution date IS its departure date, so this stays the « séjour terminé » predicate.
           case 'totalPending':   return { include: r.endDate < today && !isSettled(r), amount: remainingToPay(r) };
-          case 'yearToDate':     return { include: r.endDate <= today, amount: totalSejour(r) };
+          case 'yearToDate':     return { include: r.attributionDate <= today, amount: totalSejour(r) };
           case 'revenueTotal':
           case 'yearTotal':
           default:               return { include: true, amount: totalSejour(r) };
@@ -326,13 +419,16 @@ function createFinanceModel(database) {
 
       let total = 0;
       let totalHt = 0;
+      let totalNights = 0;
       const outRows = [];
       for (const r of rows) {
         const { include, amount } = contribution(r);
         if (!include) continue;
         const amountHt = htAmount(r, amount, vatRate);
+        const nights = nightsBetween(r.startDate, r.endDate);
         total += amount;
         totalHt += amountHt;
+        totalNights += nights;
         outRows.push({
           id: r.id,
           clientName: `${r.firstName} ${r.lastName}`.trim(),
@@ -342,6 +438,9 @@ function createFinanceModel(database) {
           endDate: r.endDate,
           amount: round2(amount),
           amountHt,
+          // Only the set-of-stays metrics expose nights (rule 19); elsewhere the key is absent and the
+          // client renders no column.
+          ...(def.nights ? { nights } : {}),
         });
       }
 
@@ -354,25 +453,28 @@ function createFinanceModel(database) {
           window: windowMeta,
           total: round2(total),
           totalHt: round2(totalHt),
+          ...(def.nights ? { totalNights } : {}),
           rows: outRows,
         },
       };
     },
 
     // Projection by a target date (specs/finance-overview-rework.md §3.4): the revenue realised by that
-    // date = Σ total-de-séjour of reservations whose departure (endDate) is on/before it, split into the
-    // accounting « encaissé » and the rest still « en attente ».
+    // date = Σ total-de-séjour of reservations attributed on/before it, split into the accounting
+    // « encaissé » and the rest still « en attente ». Attribution = solde payment date, else departure
+    // (specs/fiscal-year-and-nights-sold.md §3.2 rule 8).
     getProjection({ date } = {}) {
       const targetDate = date || todayIso();
 
       const reservations = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName,
+               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
                ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.endDate <= ?
-        ORDER BY r.endDate
+        WHERE r.kind = 'reservation' AND ${ATTRIBUTION_DATE_SQL} <= ?
+        ORDER BY ${ATTRIBUTION_DATE_SQL}
       `).all(targetDate);
 
       let total = 0;

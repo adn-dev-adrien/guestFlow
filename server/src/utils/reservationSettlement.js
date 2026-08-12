@@ -83,6 +83,21 @@ function remainingToPay(r) {
   return round2(deposit + balance + complement + endOfStay);
 }
 
+// specs/fiscal-year-and-nights-sold.md §3.2 — the ACCOUNTING ATTRIBUTION DATE of a reservation: the
+// date its solde was collected, or its departure date when the solde was never collected (unpaid, or
+// no solde at all because the stay was fully prepaid on the acompte). The books are kept on a cash
+// basis, so this — not the departure — is what attaches a stay, its turnover AND its nights to a
+// fiscal year. One date per reservation: the acompte, the complements and the mid-stay notes follow
+// the solde, they are never attributed separately (rule 7).
+//
+// Mirrored in SQL by financeModel's ATTRIBUTION_DATE_SQL; the two are pinned together by
+// tests/finance-attribution-date.unit.test.js.
+function attributionDate(r = {}) {
+  const paidDate = String(r.balancePaidDate == null ? '' : r.balancePaidDate).trim();
+  if (r.balancePaid && paidDate) return paidDate.slice(0, 10);
+  return String(r.endDate == null ? '' : r.endDate).slice(0, 10);
+}
+
 // « Notes en séjour » already collected (specs/mid-stay-notes.md §3.4 rule 15): book money by
 // default, caisse-interne ones only when explicitly asked for.
 function midStayNotesTotal(r, { withCash = false } = {}) {
@@ -116,6 +131,6 @@ function comptaCollected(r) {
 }
 
 module.exports = {
-  bucketStates, isSettled, remainingToPay, platformCommission,
+  bucketStates, isSettled, remainingToPay, platformCommission, attributionDate,
   midStayNotesTotal, refundsBook, comptaCollected, round2,
 };

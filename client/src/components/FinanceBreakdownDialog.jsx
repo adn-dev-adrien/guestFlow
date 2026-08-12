@@ -22,9 +22,9 @@ import api from '../api';
  * form dialog's Annuler/Enregistrer actions would be wrong. It sets its own fullScreen-on-xs
  * (specs/ds-sweep-finance.md §9). Money via formatCurrency, PlatformChip, shared load/error states.
  *
- * Props: open, metric, from, to, onClose, onOpenReservation(id).
+ * Props: open, metric, from, to, fiscalYear, onClose, onOpenReservation(id).
  */
-export default function FinanceBreakdownDialog({ open, metric, from, to, onClose, onOpenReservation }) {
+export default function FinanceBreakdownDialog({ open, metric, from, to, fiscalYear, onClose, onOpenReservation }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [data, setData] = useState(null);
@@ -37,14 +37,18 @@ export default function FinanceBreakdownDialog({ open, metric, from, to, onClose
     setLoading(true);
     setData(null);
     setError(false);
-    api.getFinanceBreakdown(metric, from, to)
+    api.getFinanceBreakdown(metric, from, to, fiscalYear)
       .then((res) => { if (alive) { setData(res); setLoading(false); } })
       .catch(() => { if (alive) { setError(true); setLoading(false); } });
     return () => { alive = false; };
-  }, [open, metric, from, to]);
+  }, [open, metric, from, to, fiscalYear]);
 
-  const windowLabel = data?.window?.kind === 'year'
-    ? `${data.window.year}`
+  // « Nuits » column — only the set-of-stays metrics send nights (specs/fiscal-year-and-nights-sold.md
+  // §3.4 rules 19 + 22); elsewhere the server omits the key and the column disappears.
+  const showNights = data?.totalNights != null;
+
+  const windowLabel = data?.window?.kind === 'fiscalYear'
+    ? `exercice ${data.window.label}`
     // specs/finance-pending-global-remaining.md — « En attente de règlement » is period-free:
     // every finished stay counts, whatever the du/au selection.
     : data?.window?.kind === 'global'
@@ -84,6 +88,7 @@ export default function FinanceBreakdownDialog({ open, metric, from, to, onClose
                   <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                  {showNights && <TableCell sx={{ fontWeight: 600 }} align="right">Nuits</TableCell>}
                   <TableCell sx={{ fontWeight: 600 }} align="right">{data.column}</TableCell>
                 </TableRow>
               </TableHead>
@@ -94,6 +99,9 @@ export default function FinanceBreakdownDialog({ open, metric, from, to, onClose
                     <TableCell>{r.propertyName}</TableCell>
                     <TableCell><PlatformChip platform={r.platform} /></TableCell>
                     <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                    {showNights && (
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{r.nights}</TableCell>
+                    )}
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                       <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{formatCurrency(r.amount)}</Typography>
                       <Typography variant="caption" color="text.secondary">{formatCurrency(r.amountHt)} HT</Typography>
@@ -104,6 +112,9 @@ export default function FinanceBreakdownDialog({ open, metric, from, to, onClose
               <TableFooter>
                 <TableRow>
                   <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                  {showNights && (
+                    <TableCell align="right" sx={footerCellSx}>{data.totalNights}</TableCell>
+                  )}
                   <TableCell align="right" sx={footerCellSx}>
                     <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{formatCurrency(data.total)}</Typography>
                     <Typography variant="caption" color="text.secondary">{formatCurrency(data.totalHt)} HT</Typography>

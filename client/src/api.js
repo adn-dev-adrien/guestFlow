@@ -183,17 +183,21 @@ const api = {
   },
 
   // Finance
-  getFinanceSummary: (from, to) => {
+  // `fiscalYear` = END year of the exercise to report on (specs/fiscal-year-and-nights-sold.md §4.3).
+  // Omitted → the server answers on the current exercise.
+  getFinanceSummary: (from, to, fiscalYear) => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    if (fiscalYear) params.set('fiscalYear', String(fiscalYear));
     return request(`/finance/summary?${params}`);
   },
-  getFinanceBreakdown: (metric, from, to) => {
+  getFinanceBreakdown: (metric, from, to, fiscalYear) => {
     const params = new URLSearchParams();
     params.set('metric', metric);
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    if (fiscalYear) params.set('fiscalYear', String(fiscalYear));
     return request(`/finance/breakdown?${params}`);
   },
   getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),

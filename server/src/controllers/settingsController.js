@@ -101,6 +101,12 @@ const LINEN_STOCK_FIELDS = [
   { input: 'towelBathMat', column: 'towelStockBathMat',  validator: validation.validateLinenStockCount },
 ];
 
+// Accounting group — the closing month driving every annual window of the Suivi financier
+// (specs/fiscal-year-and-nights-sold.md §4.1).
+const ACCOUNTING_FIELDS = [
+  { input: 'fiscalYearEndMonth', column: 'fiscalYearEndMonth', validator: validation.validateFiscalYearEndMonth },
+];
+
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
@@ -128,6 +134,7 @@ function updateSettings(req, res) {
   const company = pickGroup(body, 'company');
   const quote = pickGroup(body, 'quote');
   const vat = pickGroup(body, 'vat');
+  const accounting = pickGroup(body, 'accounting');
   const smtp = pickGroup(body, 'smtp');
   const reservations = pickGroup(body, 'reservations');
   const laundry = pickGroup(body, 'laundry');
@@ -173,6 +180,15 @@ function updateSettings(req, res) {
   applyGroup(laundry, LAUNDRY_FIELDS);
   applyGroup(linenStock, LINEN_STOCK_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
+  applyGroup(accounting, ACCOUNTING_FIELDS);
+
+  // `fiscalYearEndMonth` is NOT NULL: an empty/null value (a Select cleared client-side) must
+  // preserve the stored month rather than write 0. A valid one is coerced to a plain integer.
+  if (Object.prototype.hasOwnProperty.call(payload, 'fiscalYearEndMonth')) {
+    const month = payload.fiscalYearEndMonth;
+    if (month === '' || month == null) delete payload.fiscalYearEndMonth;
+    else payload.fiscalYearEndMonth = Math.trunc(Number(month));
+  }
 
   // SMTP password — 3-way semantics. Absent → preserve; '' → clear; non-empty → store.
   // Strip ALL whitespace before storing. Google App Passwords are displayed as 4 groups of 4 chars

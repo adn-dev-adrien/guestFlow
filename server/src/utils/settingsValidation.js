@@ -87,6 +87,17 @@ function validateVatRate(value) {
   return null;
 }
 
+// Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). 1 = January … 12 = December
+// (calendar year). Empty/absent is accepted: the controller's per-field « absent → preserve »
+// semantics then leave the stored value alone.
+function validateFiscalYearEndMonth(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isInteger(n)) return 'Doit être un mois entre 1 (janvier) et 12 (décembre).';
+  if (n < 1 || n > 12) return 'Doit être un mois entre 1 (janvier) et 12 (décembre).';
+  return null;
+}
+
 // SMTP validators (specs/admin-account-management.md M3).
 function validateSmtpPort(value) {
   if (value == null || value === '') return null;
@@ -138,6 +149,7 @@ module.exports = {
   validateBic,
   validateQuoteValidityDays,
   validateVatRate,
+  validateFiscalYearEndMonth,
   validateSmtpPort,
   validatePublicUrl,
   validateLaundryWeekday,

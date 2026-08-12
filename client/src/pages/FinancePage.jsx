@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
+  Box, Typography, Card, CardContent, Grid, TextField, MenuItem, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Divider, Tabs, Tab,
   Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
@@ -36,6 +36,13 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) =
   );
 };
 
+// specs/fiscal-year-and-nights-sold.md §3.4 rule 20 + §6.2 — « Gîte 187 nuits · Lodge 142 nuits ».
+// Logements with no night in the window drop out; nothing to show → no line at all.
+const nightsLine = (byProperty) => (byProperty || [])
+  .filter((p) => p.nights > 0)
+  .map((p) => `${p.propertyName} ${p.nights} nuit${p.nights > 1 ? 's' : ''}`)
+  .join(' · ');
+
 export default function FinancePage() {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -52,6 +59,16 @@ export default function FinancePage() {
     const d = new Date(); d.setMonth(d.getMonth() + 1);
     return d.toISOString().split('T')[0];
   });
+  // specs/fiscal-year-and-nights-sold.md §3.5 — the selected exercise lives in the URL (`?exercice=`)
+  // so the back button restores it after opening a reservation, exactly like AccountingPage's
+  // `?month=&year=`. Empty → the server answers on the current exercise.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedFiscalYear = searchParams.get('exercice') || '';
+  const setSelectedFiscalYear = (key) => {
+    const next = new URLSearchParams(searchParams);
+    if (key) next.set('exercice', String(key)); else next.delete('exercice');
+    setSearchParams(next, { replace: true });
+  };
   const [summary, setSummary] = useState(null);
   const [projection, setProjection] = useState(null);
   const [operational, setOperational] = useState(null);
@@ -65,8 +82,8 @@ export default function FinancePage() {
   // Loaders no longer swallow errors silently (specs/ds-sweep-finance.md §3.8): any failure raises a
   // retryable ErrorAlert instead of leaving the page blank.
   const loadSummary = useCallback(async () => {
-    try { setSummary(await api.getFinanceSummary(from, to)); } catch { setLoadError(true); }
-  }, [from, to]);
+    try { setSummary(await api.getFinanceSummary(from, to, selectedFiscalYear)); } catch { setLoadError(true); }
+  }, [from, to, selectedFiscalYear]);
   const loadProjection = useCallback(async () => {
     try { setProjection(await api.getFinanceProjection(projectionDate)); } catch { setLoadError(true); }
   }, [projectionDate]);
@@ -110,29 +127,59 @@ export default function FinancePage() {
   // « Depuis le début de l'année » (Jan 1 → today). Both arrays are zero-seeded server-side, so keep
   // only logements with actual revenue for the bars (the « Aucun revenu… » empty state relies on it).
   const chartSource = chartTab === 'year' ? summary?.yearToDateByProperty : summary?.revenueByProperty;
-  const barData = chartSource?.filter((p) => p.revenue > 0).map((p) => ({ name: p.propertyName, revenue: p.revenue, revenueHt: p.revenueHt })) || [];
+  const barData = chartSource?.filter((p) => p.revenue > 0).map((p) => ({ name: p.propertyName, revenue: p.revenue, revenueHt: p.revenueHt, nights: p.nights })) || [];
 
-  // Two-line in-bar label: TTC bold + its HT beneath, discreet (mirrors the KPI cards' HT sub-line).
-  // Short bars fall back to the TTC line alone so nothing overflows.
+  // In-bar label: TTC bold, its HT beneath (discreet, mirrors the KPI cards' HT sub-line), then the
+  // nights sold over the same window (specs/fiscal-year-and-nights-sold.md §3.4 rule 21 — this is
+  // where the period's nights are read).
+  //
+  // A bar too short to hold all three lines does NOT drop the nights: they move just above the bar,
+  // in the chart's text color. A low-revenue logement is exactly where nights-vs-revenue is worth
+  // reading, so that line must survive a short bar.
   const renderBarLabel = ({ x, y, width, height, index }) => {
     const d = barData[index];
     if (!d) return null;
     const cx = x + width / 2;
     const cy = y + height / 2;
+    const nightsLabel = `${d.nights} nuit${d.nights > 1 ? 's' : ''}`;
+    const nightsAboveBar = (
+      <text x={cx} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600} fill={theme.palette.text.secondary}>
+        {nightsLabel}
+      </text>
+    );
     if (height < 40) {
       return (
-        <text x={cx} y={cy} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
-          {formatCurrencyRounded(d.revenue)}
-        </text>
+        <g>
+          {nightsAboveBar}
+          <text x={cx} y={cy} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+            {formatCurrencyRounded(d.revenue)}
+          </text>
+        </g>
+      );
+    }
+    if (height < 62) {
+      return (
+        <g>
+          {nightsAboveBar}
+          <text x={cx} y={cy - 8} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+            {formatCurrencyRounded(d.revenue)}
+          </text>
+          <text x={cx} y={cy + 10} fill="rgba(255,255,255,0.75)" textAnchor="middle" dominantBaseline="central" fontSize={10}>
+            {formatCurrencyRounded(d.revenueHt)} HT
+          </text>
+        </g>
       );
     }
     return (
       <g>
-        <text x={cx} y={cy - 8} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+        <text x={cx} y={cy - 18} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
           {formatCurrencyRounded(d.revenue)}
         </text>
-        <text x={cx} y={cy + 10} fill="rgba(255,255,255,0.75)" textAnchor="middle" dominantBaseline="central" fontSize={10}>
+        <text x={cx} y={cy} fill="rgba(255,255,255,0.75)" textAnchor="middle" dominantBaseline="central" fontSize={10}>
           {formatCurrencyRounded(d.revenueHt)} HT
+        </text>
+        <text x={cx} y={cy + 18} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
+          {nightsLabel}
         </text>
       </g>
     );
@@ -150,11 +197,15 @@ export default function FinancePage() {
 
   // KPI cards — neutral « Maison » tiles (2026-07-16 decision): white card, muted kpiLabel + tabular
   // kpiValue, thin semantic left accent (no more full-color backgrounds).
+  // The three turnover cards carry the nights sold per logement; « Encaissé » / « En attente » are
+  // subsets of échéances, not sets of stays, so they carry none (spec §3.4 rules 18-19).
   const yearCards = summary ? [
-    { metric: 'yearToDate', label: 'Revenus', caption: "depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, accent: 'info.main' },
-    { metric: 'yearTotal', label: 'Revenu total', caption: "sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, accent: 'primary.main' },
+    { metric: 'yearToDate', label: 'Revenus', caption: "depuis le début de l'exercice", value: summary.yearToDate, valueHt: summary.yearToDateHt, nights: nightsLine(summary.yearToDateByProperty), accent: 'info.main' },
+    { metric: 'yearTotal', label: 'Revenu total', caption: "sur l'exercice", value: summary.yearTotal, valueHt: summary.yearTotalHt, nights: nightsLine(summary.yearTotalByProperty), accent: 'primary.main' },
   ] : [];
   const periodCards = summary ? [
+    // The period's nights live in the « Revenu par logement » chart, not on this card (2026-08-12
+    // decision — the chart already splits the period per logement, so the card stays a single figure).
     { metric: 'revenueTotal', label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, accent: 'primary.main' },
     { metric: 'totalCollected', label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, accent: 'success.main' },
     // specs/finance-pending-global-remaining.md — period-free figure (every finished stay's restant dû).
@@ -177,6 +228,9 @@ export default function FinancePage() {
             {c.caption && <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
           </Typography>
           <Typography variant="kpiValue" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', my: 1 }}>{formatCurrencyRounded(c.value)}</Typography>
+          {c.nights && (
+            <Typography variant="caption" color="text.secondary">{c.nights}</Typography>
+          )}
           {c.valueHt != null && (
             <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', ...TABULAR }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
           )}
@@ -270,7 +324,30 @@ export default function FinancePage() {
         {loadError && <ErrorAlert message="Impossible de charger les données financières." onRetry={refreshAll} sx={{ mb: 2 }} />}
         {!summary && !loadError && <LoadingState label="Chargement du suivi financier…" />}
 
-        {/* Row 1 — annual cards at the very top (independent of the selected period). */}
+        {/* Row 0 — exercise selector. Deliberately NOT in PageActionBar.center, which is hidden on xs
+            (specs/fiscal-year-and-nights-sold.md §6.3); it is a filter, not an action. */}
+        {summary?.fiscalYear && (
+          <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 2 }, mb: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
+            <TextField
+              select
+              size="small"
+              label="Exercice"
+              value={summary.fiscalYear.key}
+              onChange={(e) => setSelectedFiscalYear(e.target.value)}
+              sx={{ minWidth: { sm: 200 } }}
+            >
+              {(summary.fiscalYears || []).map((fy) => (
+                <MenuItem key={fy.key} value={fy.key}>
+                  {fy.label}{fy.isCurrent ? ' (en cours)' : ''}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Typography variant="caption" color="text.secondary">
+              du {displayDate(summary.fiscalYear.from)} au {displayDate(summary.fiscalYear.to)}
+            </Typography>
+          </Box>
+        )}
+        {/* Row 1 — exercise cards at the very top (independent of the selected period). */}
         {summary && (
           <Grid container spacing={2} sx={{ mb: 2 }}>
             {yearCards.map((c) => renderCard(c, { xs: 12, sm: 6 }))}
@@ -297,12 +374,13 @@ export default function FinancePage() {
                 <Typography variant="sectionHeader">Revenu par logement</Typography>
                 <Tabs value={chartTab} onChange={(_, nextTab) => setChartTab(nextTab)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 1 }}>
                   <Tab value="period" label="Sur la période" />
-                  <Tab value="year" label="Depuis le début de l'année" />
+                  <Tab value="year" label="Depuis le début de l'exercice" />
                 </Tabs>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
                   {chartTab === 'period'
                     ? `Période du ${displayDate(from)} au ${displayDate(to)} · montants TTC`
-                    : "Du 1er janvier à aujourd'hui · montants TTC"}
+                    // Bounds come from the payload — the client never derives an exercise itself.
+                    : `Exercice ${summary?.fiscalYear?.label || ''} · depuis le ${displayDate(summary?.fiscalYear?.from)} · montants TTC`}
                 </Typography>
                 {barData.length === 0 ? (
                   <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -317,7 +395,7 @@ export default function FinancePage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis />
-                      <RechartsTooltip formatter={(value, name, item) => `${formatCurrencyRounded(value)} (${formatCurrencyRounded(item?.payload?.revenueHt || 0)} HT)`} />
+                      <RechartsTooltip formatter={(value, name, item) => `${formatCurrencyRounded(value)} (${formatCurrencyRounded(item?.payload?.revenueHt || 0)} HT) · ${item?.payload?.nights || 0} nuit${(item?.payload?.nights || 0) > 1 ? 's' : ''}`} />
                       <Bar dataKey="revenue" fill={theme.palette.primary.main} name="Total de séjour" radius={[4, 4, 0, 0]}>
                         <LabelList dataKey="revenue" content={renderBarLabel} />
                       </Bar>
@@ -531,6 +609,7 @@ export default function FinancePage() {
         metric={breakdownMetric}
         from={from}
         to={to}
+        fiscalYear={summary?.fiscalYear?.key}
         onClose={() => setBreakdownMetric(null)}
         onOpenReservation={(id) => navigate(`/reservations/${id}`)}
       />
