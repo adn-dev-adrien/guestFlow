@@ -433,6 +433,18 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     }
   }
 
+  // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff context a reservation was SOLD under,
+  // captured at creation. Nights and option lines were already frozen per date / per line; the
+  // property-level tariff (included guests, extra-guest price/unit/tiers, included units per option)
+  // was not, so editing an old reservation re-priced it with today's recipe. NULL = a reservation
+  // created before this column: it keeps the live behaviour, which is what it has always had.
+  {
+    const resCols = db.prepare("PRAGMA table_info(reservations)").all().map((c) => c.name);
+    if (resCols.length && !resCols.includes('tariffSnapshot')) {
+      db.exec('ALTER TABLE reservations ADD COLUMN tariffSnapshot TEXT DEFAULT NULL');
+    }
+  }
+
   // Journal of the scheduled horizon-extension runs → Dashboard alerts (spec §5). UI applies do
   // not write here — only the background task, so a silently generated year is always surfaced.
   db.exec(`

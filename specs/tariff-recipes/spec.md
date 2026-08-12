@@ -203,6 +203,17 @@ all-inclusive pricing as the first such recipe.
     representation and only converts to ranges at the end, so splitting a range around a raised block
     is a consequence of the representation, not a special case.
 
+16ter. **A holiday on a SATURDAY raises its own night, alone.** It forms no bridge — Saturday is
+    already a non-working day — but « le 1er mai » fills the area whatever weekday it lands on, and
+    skipping it priced 7 holidays over 5 years as ordinary nights, among them 1 May 2027. One night,
+    and **no minimum-stay constraint**: the demand is real, the extra time off is not. A minimum of
+    1 night is not a constraint at all, so it is never recorded — otherwise a single raised night
+    would split its season's range for nothing.
+16quater. **A holiday on a SUNDAY changes nothing.** It adds no day off: the Sunday night runs into
+    a working Monday, and the Saturday before it is an ordinary weekend night. _(Owner's call,
+    2026-08-12.)_ A holiday on a **Wednesday** likewise forms no block — left as is, nobody has
+    asked for it.
+
 ### 3.4 Minimum nights and changeover day
 
 20. **Minimum nights already exist per season and per date range** and keep their current semantics: a
@@ -326,6 +337,11 @@ all-inclusive pricing as the first such recipe.
 40. **Babies are not occupants for pricing.** The extra-guest count is
     `max(0, adults + teens + children − 2)`; babies in a travel cot are excluded, as today. Children and
     teens are billed as adults.
+
+34ter. **The channel grid lists an own channel ONCE.** `Lodgify` is the Direct row — its « moteur
+    Lodgify » caption says so and its commission IS the engine fee — so it is not listed again
+    underneath. Hidden from the grid only: the platform row still carries reservations and their
+    commissions. _(Owner's call, 2026-08-12.)_
 
 ### 3.7 The Aventura Lodge recipe — calendar
 

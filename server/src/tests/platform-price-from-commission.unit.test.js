@@ -194,3 +194,19 @@ test('platformPrices grosses up a tiered supplement from each band NET pivot, no
   assert.deepEqual(fallback.seasons[0].extraGuestTiersByPlatform[direct.id], [{ fromNight: 1, price: 16 }]);
   db.close();
 });
+
+test('Lodgify is not listed on its own — the Direct row IS that channel', () => {
+  // Its « moteur Lodgify » caption says so and its commission is the engine fee. Two rows would ask
+  // the operator to configure the same channel twice, with two rates that must never disagree.
+  const db = gridDb();
+  db.prepare("INSERT INTO platforms (name) VALUES ('Lodgify')").run();
+  db.prepare("UPDATE platforms SET commissionPercent = 5 WHERE name IN ('direct', 'Lodgify')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Lodge')").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, startDate) VALUES (1, 'Basse', 179, '2026-01-01')").run();
+
+  const names = buildPropertiesModel(db).platformPrices(1).platforms.map((p) => p.name);
+  assert.equal(names[0].toLowerCase(), 'direct', 'the own channel leads the grid');
+  assert.equal(names.filter((n) => /lodgify/i.test(n)).length, 0, 'and appears exactly once');
+  assert.ok(names.includes('Airbnb'), 'commissioned platforms are untouched');
+  db.close();
+});

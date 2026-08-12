@@ -60,9 +60,10 @@ test('2026 produces exactly the spec rule 44 table, holiday minimums included', 
   ]);
 });
 
-test('2027: Ascension absorbs Victoire (6-8 May), Pentecôte 15-16 May, Easter Monday skipped (closed)', () => {
+test('2027: 1 May stands alone, Ascension absorbs Victoire (6-8 May), Pentecôte 15-16 May, Easter Monday skipped (closed)', () => {
   const plan = buildYearPlan(AVENTURA, 2027, closuresFor(2027));
   assert.deepEqual(plan.mid, [
+    r('2027-05-01', '2027-05-01'),    // Fête du Travail on a SATURDAY: its own night, no minimum
     r('2027-05-06', '2027-05-08', 3), // Ascension (jeu 6) + Victoire (sam 8) merged into ONE range
     r('2027-05-15', '2027-05-16', 2), // Pentecôte (lun 17)
     r('2027-07-03', '2027-07-09'),    // July shoulder
@@ -189,4 +190,37 @@ test('a between anchor with an empty span produces no range; the base season kee
   const plan = buildYearPlan(recipe, 2026, []);
   // a and b are adjacent → the between span is empty → one merged high run, base low elsewhere.
   assert.deepEqual(plan.high, [r('2026-07-01', '2026-07-31')]);
+});
+
+// specs/tariff-recipes/spec.md §3.3 rule 16ter — a holiday landing on a SATURDAY.
+test('a Saturday holiday raises its own night, alone and with no minimum-stay constraint', () => {
+  // It forms no bridge — Saturday is already a non-working day — which is why it was originally
+  // skipped. But « le 1er mai » still fills the area whatever weekday it lands on: 1 AND 8 May 2027
+  // are Saturdays, and both were priced as ordinary nights.
+  const plan = buildYearPlan(AVENTURA, 2027, closuresFor(2027));
+  const covering = (date) => Object.entries(plan)
+    .find(([, ranges]) => ranges.some((r) => date >= r.startDate && date <= r.endDate));
+
+  const [seasonKey, ranges] = covering('2027-05-01');
+  assert.equal(seasonKey, 'mid', '1 May 2027 (Saturday) goes up one rank');
+  const range = ranges.find((r) => '2027-05-01' >= r.startDate && '2027-05-01' <= r.endDate);
+  assert.equal(range.startDate, '2027-05-01');
+  assert.equal(range.endDate, '2027-05-01', 'one night — the Saturday night, nothing around it');
+  assert.equal(range.minNights, undefined, 'a single raised night imposes NO minimum: a minimum of 1 is not a constraint');
+
+  // The neighbours are untouched.
+  assert.equal(covering('2027-04-30')[0], 'low');
+  assert.equal(covering('2027-05-02')[0], 'low');
+});
+
+test('a Sunday holiday changes nothing — it adds no day off', () => {
+  // Owner's call, 2026-08-12. Assomption 2027 falls on a Sunday: the Sunday night runs into a
+  // working Monday, so nobody stays for it, and the Saturday before is an ordinary weekend night.
+  const recipe = JSON.parse(JSON.stringify(AVENTURA));
+  recipe.calendar.periods = [];                       // strip the summer periods so only the holiday could raise
+  const plan = buildYearPlan(recipe, 2027, []);
+  const covering = (date) => Object.entries(plan)
+    .find(([, ranges]) => ranges.some((r) => date >= r.startDate && date <= r.endDate))[0];
+  assert.equal(covering('2027-08-15'), recipe.calendar.baseSeason, 'the holiday itself');
+  assert.equal(covering('2027-08-14'), recipe.calendar.baseSeason, 'and the Saturday before it');
 });

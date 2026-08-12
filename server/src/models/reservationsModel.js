@@ -585,7 +585,15 @@ function createReservationsModel(database) {
           acompteContribTtc, soldeContribTtc
         FROM reservation_resources WHERE reservationId = ?
       `).all(reservationId);
-      return { lockedNightlyBreakdown, lockedOptionLines, lockedResourceLines };
+      // The property-level tariff the reservation was sold under (rule 12bis). NULL for a row
+      // created before the column: it keeps the pre-existing live behaviour rather than inventing
+      // a past tariff nobody recorded.
+      let lockedTariff = null;
+      try {
+        const row = database.prepare('SELECT tariffSnapshot FROM reservations WHERE id = ?').get(reservationId);
+        if (row && row.tariffSnapshot) lockedTariff = JSON.parse(row.tariffSnapshot);
+      } catch { lockedTariff = null; }
+      return { lockedNightlyBreakdown, lockedOptionLines, lockedResourceLines, lockedTariff };
     },
 
     getAuditSnapshotFromDb(reservationId) {
@@ -957,8 +965,9 @@ function createReservationsModel(database) {
           platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
           notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
-          depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
+          tariffSnapshot)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -979,6 +988,10 @@ function createReservationsModel(database) {
         acompteCommissionForStore,
         platformGrossForStore,
         platformPayoutForStore,
+        // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff this reservation is SOLD under.
+        // Written once, at creation, and replayed by every later save so a recipe change never
+        // re-prices what is already in the database.
+        quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistReservationNumber(result.lastInsertRowid, payload);

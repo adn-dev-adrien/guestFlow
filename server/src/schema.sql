@@ -432,6 +432,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     checkInTime TEXT DEFAULT '15:00',
     checkOutTime TEXT DEFAULT '10:00',
     platform TEXT DEFAULT 'direct',
+    tariffSnapshot TEXT DEFAULT NULL,
     totalPrice REAL NOT NULL DEFAULT 0,
     discountPercent REAL DEFAULT 0,
     finalPrice REAL NOT NULL DEFAULT 0,
