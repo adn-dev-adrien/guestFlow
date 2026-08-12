@@ -86,6 +86,9 @@ const COLUMNS = [
   //     row carries `hasVatOnCommission = 1`. Lives in Settings → Général → Taux de TVA.
   'defaultCommissionAccountNumber',
   'vatRateCommission',
+  // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
+  // window of the Suivi financier. Plain integer — nothing secret, no encryption.
+  'fiscalYearEndMonth',
   // SMTP for the account-management flow (specs/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.

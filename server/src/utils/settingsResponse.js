@@ -49,6 +49,12 @@ function shapeResponse(row) {
       rate: row.vatRate == null ? 10 : Number(row.vatRate),
       rateCommission: row.vatRateCommission == null ? 20 : Number(row.vatRateCommission),
     },
+    // Accounting block (specs/fiscal-year-and-nights-sold.md §4.3). `fiscalYearEndMonth` is the month
+    // the books are closed on; 12 (calendar year) when unset. Every annual window of the Suivi
+    // financier is derived from it server-side.
+    accounting: {
+      fiscalYearEndMonth: row.fiscalYearEndMonth == null ? 12 : Number(row.fiscalYearEndMonth),
+    },
     // SMTP block for the account-management flow (specs/admin-account-management.md). The password
     // is masked: the row already comes from settingsModel.read() which substitutes
     // smtpPasswordEncrypted with the boolean smtpPasswordSet. We never echo cleartext or ciphertext.

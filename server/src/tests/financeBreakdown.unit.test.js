@@ -136,18 +136,23 @@ test('getBreakdown(totalPending): ignores from/to (global window) + rows carry t
   assert.equal(bd.data.total, 200);
 });
 
-test('getBreakdown(yearToDate / yearTotal): year window, total === summary figure (from/to ignored)', () => {
+test('getBreakdown(yearToDate / yearTotal): fiscal-year window, total === summary figure (from/to ignored)', () => {
   const { db, model } = freshModel();
   const Y = new Date().getFullYear();
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: `${Y}-01-02`, endDate: `${Y}-01-05`, depositAmount: 100 });
   insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: `${Y}-12-20`, endDate: `${Y}-12-25`, depositAmount: 100 });
   const summary = model.getSummary({ from: `${Y}-01-01`, to: `${Y}-12-31` });
 
-  // Pass a deliberately narrow period — annual metrics must ignore it and use the calendar year.
+  // Pass a deliberately narrow period — the exercise metrics must ignore it and use the fiscal year.
+  // This schema carries no `fiscalYearEndMonth`, so the closing month degrades to December and the
+  // exercise IS the calendar year Y (specs/fiscal-year-and-nights-sold.md §3.1 rule 2).
   const ytd = model.getBreakdown({ metric: 'yearToDate', from: iso(0), to: iso(1) });
   const yt = model.getBreakdown({ metric: 'yearTotal', from: iso(0), to: iso(1) });
-  assert.equal(ytd.data.window.kind, 'year');
-  assert.equal(ytd.data.window.year, Y);
+  assert.equal(ytd.data.window.kind, 'fiscalYear');
+  assert.equal(ytd.data.window.key, Y);
+  assert.equal(ytd.data.window.label, String(Y));
+  assert.equal(ytd.data.window.from, `${Y}-01-01`);
+  assert.equal(ytd.data.window.to, `${Y}-12-31`);
   const expectedYtdIds = [1, 2].filter((id) => (id === 1 ? `${Y}-01-05` : `${Y}-12-25`) <= TODAY);
   assert.deepEqual(ytd.data.rows.map((r) => r.id), expectedYtdIds);
   assert.equal(ytd.data.total, summary.yearToDate);
@@ -189,6 +194,32 @@ test('getBreakdown: a kind=devis row never leaks into the breakdown', () => {
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, depositAmount) VALUES (99, 'devis', 1, 1, ?, ?, 9999)").run(iso(1), iso(4));
   const bd = model.getBreakdown({ metric: 'revenueTotal', from: iso(0), to: iso(10) });
   assert.deepEqual(bd.data.rows.map((r) => r.id), [1]);
+});
+
+// ── « Nuits » column (specs/fiscal-year-and-nights-sold.md §3.4 rules 19 + 22) ──────────
+
+test('getBreakdown: the set-of-stays metrics carry nights per row + a footer total', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), depositAmount: 300 }); // 3 nuits
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(7), depositAmount: 500 }); // 5 nuits
+
+  for (const metric of ['revenueTotal', 'yearToDate', 'yearTotal']) {
+    const bd = model.getBreakdown({ metric, from: iso(0), to: iso(10) });
+    const nights = bd.data.rows.reduce((s, r) => s + r.nights, 0);
+    assert.equal(bd.data.totalNights, nights, `${metric}: footer must equal Σ of the column`);
+    assert.ok(bd.data.rows.every((r) => r.nights != null), `${metric}: every row carries its nights`);
+  }
+  assert.equal(model.getBreakdown({ metric: 'revenueTotal', from: iso(0), to: iso(10) }).data.totalNights, 8);
+});
+
+test('getBreakdown: « Encaissé » / « En attente » expose NO nights — they are not sets of stays', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), depositAmount: 300, depositPaid: 1 });
+  for (const metric of ['totalCollected', 'totalPending']) {
+    const bd = model.getBreakdown({ metric, from: iso(-10), to: iso(0) });
+    assert.equal(bd.data.totalNights, undefined, `${metric}: no footer total`);
+    assert.ok(bd.data.rows.every((r) => r.nights === undefined), `${metric}: no per-row nights`);
+  }
 });
 
 test('getBreakdown: unknown metric → 400', () => {

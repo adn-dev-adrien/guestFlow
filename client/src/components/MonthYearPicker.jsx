@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, Stack, TextField, MenuItem, Typography } from '@mui/material';
+import { MONTH_LABELS } from '../constants/months';
 
 /**
  * MonthYearPicker — shared month + year selector card.
@@ -19,10 +20,7 @@ import { Card, CardContent, Stack, TextField, MenuItem, Typography } from '@mui/
  *   helperText   optional helper text shown under the Mois field
  */
 
-const MONTHS = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-];
+const MONTHS = MONTH_LABELS;
 
 function pad2(v) { return String(v).padStart(2, '0'); }
 
