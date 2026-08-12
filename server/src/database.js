@@ -442,6 +442,39 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     const resCols = db.prepare("PRAGMA table_info(reservations)").all().map((c) => c.name);
     if (resCols.length && !resCols.includes('tariffSnapshot')) {
       db.exec('ALTER TABLE reservations ADD COLUMN tariffSnapshot TEXT DEFAULT NULL');
+
+      // ONE-SHOT BACKFILL, in the same boot as the column. Without it the protection would only
+      // cover reservations created from here on, and every booking ALREADY SOLD — the ones a recipe
+      // change actually threatens — would still be re-priced the next time someone saved it.
+      //
+      // What is stamped is exact, not approximate: at this instant no recipe has been applied yet
+      // (the configure script runs after the deploy), so the property still holds the tariff these
+      // reservations were sold under. And the two recipe-era fields provably did not exist for them:
+      // `pricing_rules.extraGuestTiers` and `property_option_prices.freeUnits` are introduced by this
+      // very migration with NULL / 0, so no existing reservation was ever sold with either.
+      //
+      // Guarded by the column creation rather than by `WHERE tariffSnapshot IS NULL`, so it can only
+      // ever run once and can never stamp a row created later by a path that writes no snapshot.
+      const sold = db.prepare(`
+        SELECT r.id,
+               COALESCE(p.basePriceIncludedGuests, 0) AS includedGuests,
+               COALESCE(p.extraGuestPrice, 0)         AS extraGuestPrice,
+               COALESCE(p.extraGuestPriceUnit, 'per_stay') AS extraGuestPriceUnit
+        FROM reservations r JOIN properties p ON p.id = r.propertyId
+      `).all();
+      const stamp = db.prepare('UPDATE reservations SET tariffSnapshot = ? WHERE id = ?');
+      db.transaction(() => {
+        for (const row of sold) {
+          stamp.run(JSON.stringify({
+            includedGuests: Number(row.includedGuests),
+            extraGuestPrice: Number(row.extraGuestPrice),
+            extraGuestPriceUnit: row.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
+            extraGuestTiers: null,
+            freeUnitsByOption: {},
+          }), row.id);
+        }
+      })();
+      if (sold.length) console.log(`[tariff-snapshot] ${sold.length} réservation(s) figée(s) au tarif en vigueur`);
     }
   }
 
