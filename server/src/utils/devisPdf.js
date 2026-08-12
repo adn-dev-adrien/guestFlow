@@ -9,7 +9,7 @@ const fs = require("fs");
 const PDFDocument = require("pdfkit");
 const {
   roundMoney, formatDateFR, formatDateLocalised, formatCurrency, isLineOffered,
-  timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
+  resolveExtraGuestPdfRow, timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 
@@ -358,6 +358,9 @@ function generateDevisPdf(full, settings, quote) {
   const optionsTotalTtc = (full.options || []).reduce((s, o) => s + Number(o.totalPrice || 0), 0);
   const resourcesTotalTtc = (full.resources || []).reduce((s, r) => s + Number(r.totalPrice || 0), 0);
   const hasManualPrice = full.customPrice != null && full.customPrice !== '';
+  // What the accommodation branches actually put on paper — the supplement fallback derives the
+  // unexplained remainder from it.
+  let accommodationTtcDrawn = 0;
 
   if (hasManualPrice) {
     // `totalPrice` is the engine accommodation price (no extras) — the same "Prix hébergement brut"
@@ -369,6 +372,7 @@ function generateDevisPdf(full, settings, quote) {
       originalTtc: engineAccommodationTtc,
       forceOriginal: true,
     });
+    accommodationTtcDrawn += manualAccommodationTtc;
   } else if (full.nights && full.nights.length > 0) {
     // Group consecutive nights by season
     let groups = [];
@@ -394,6 +398,7 @@ function generateDevisPdf(full, settings, quote) {
         originalTtc: Number(g.totalPrice || 0),
         badgeText: Number(full.discountPercent || 0) > 0 ? L.accommodationDiscount(Number(full.discountPercent || 0)) : '',
       });
+      accommodationTtcDrawn += reducedTotal;
     }
   } else {
     // Flat accommodation row
@@ -406,6 +411,33 @@ function generateDevisPdf(full, settings, quote) {
       originalTtc: Number(accTotal || 0),
       badgeText: Number(full.discountPercent || 0) > 0 ? L.accommodationDiscount(Number(full.discountPercent || 0)) : '',
     });
+    accommodationTtcDrawn += reducedAccTotal;
+  }
+
+  // Extra-guest supplement (specs/tariff-events-and-extra-guest-tiers §6). Until now it lived in
+  // the GRAND TOTAL only, so any devis with extra guests printed a sub-total that did not match its
+  // own lines. Skipped under a manual price, whose accommodation row already absorbs it.
+  if (!hasManualPrice) {
+    const supplementRow = resolveExtraGuestPdfRow({
+      quote,
+      finalPriceTtc: Number(full.finalPrice || 0),
+      accommodationTtc: accommodationTtcDrawn,
+      optionsTtc: optionsTotalTtc,
+      resourcesTtc: resourcesTotalTtc,
+    });
+    if (supplementRow) {
+      const detail = language === 'fr' ? supplementRow.tiersLabel : null;
+      drawRow(
+        L.extraGuestSupplement(supplementRow.count, detail),
+        supplementRow.count || 1,
+        supplementRow.totalTtc,
+        vatAccommodation,
+        false,
+        supplementRow.offered
+          ? { originalTtc: supplementRow.originalTtc, badgeText: L.offered }
+          : {},
+      );
+    }
   }
 
   // Options

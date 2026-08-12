@@ -74,6 +74,7 @@ export const ROUTE_ROLES = Object.freeze({
   '/parametres/stock-blanchisserie': [ADMIN],
   // Dedicated « Tarifs facturables » page (prix du linge manquant + montants de réparation SAS).
   '/parametres/tarifs':      [ADMIN],
+  '/parametres/recettes':    [ADMIN],
   // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
   '/parametres/paiements':   [ADMIN],
   '/account':                [ADMIN, ACCOUNTANT, RECEPTION],

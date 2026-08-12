@@ -105,6 +105,35 @@ function reservationNumberOverrideError(value, exceptId) {
   return null;
 }
 
+// specs/tariff-recipes/spec.md §3.4 rule 20bis — the maximum stay, mirror of MIN_NIGHTS: same
+// 409-with-code + force-override contract, same iCal exemption.
+function maxNightsErrorPayload(quote) {
+  return {
+    error: `Cette réservation comporte ${quote.nights} nuit(s), au-delà du maximum autorisé (${quote.requiredMaxNights}).`,
+    code: 'MAX_NIGHTS',
+    requiredMaxNights: quote.requiredMaxNights,
+    nights: quote.nights,
+    maxNightsRules: quote.maxNightsRules,
+  };
+}
+
+// specs/tariff-recipes/spec.md §3.4 rule 23 — a changeover breach is refused with the same
+// 409-with-code + force-override contract as MIN_NIGHTS. iCal imports never go through these
+// handlers, so a platform booking that violates the constraint still imports (rule 24).
+function changeoverErrorPayload(quote) {
+  const parts = [];
+  if (quote.changeoverArrivalBreached) parts.push(`une arrivée le ${quote.requiredArrivalDayLabel}`);
+  if (quote.changeoverDepartureBreached) parts.push(`un départ le ${quote.requiredDepartureDayLabel}`);
+  return {
+    error: `Ces dates imposent ${parts.join(' et ')}.`,
+    code: 'CHANGEOVER',
+    requiredArrivalWeekday: quote.requiredArrivalWeekday,
+    requiredDepartureWeekday: quote.requiredDepartureWeekday,
+    requiredArrivalDayLabel: quote.requiredArrivalDayLabel,
+    requiredDepartureDayLabel: quote.requiredDepartureDayLabel,
+  };
+}
+
 // specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
 // maps to a `countsAsBedLinen = 1` row in `options`. Used by create + update to gate the
 // bed-counts coercion: if the saved reservation has no bed-linen contract, `singleBeds /
@@ -328,6 +357,10 @@ function calculatePrice(req, res) {
     lockedOptionUnits: req.body.lockedOptionUnits,
     lockedResourceUnits: req.body.lockedResourceUnits,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
+    // specs/tariff-recipes/spec.md §3.2 rule 12bis — replay the tariff the reservation was sold
+    // under. « Utiliser les tarifs actuels » (refreshPricingToCurrent) drops it with the rest of the
+    // snapshot: re-pricing stays possible, but only as a deliberate act.
+    lockedTariff: lockedPricing.lockedTariff,
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
@@ -378,7 +411,7 @@ function create(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceCapacity,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover,
     options: rawReservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -464,6 +497,12 @@ function create(req, res) {
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
+  if (quote.maxNightsBreached && !forceMaxNights) {
+    return res.status(409).json(maxNightsErrorPayload(quote));
+  }
+  if (quote.changeoverBreached && !forceChangeover) {
+    return res.status(409).json(changeoverErrorPayload(quote));
+  }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
   // The model rejects `startDate < today` by default. When the admin escape hatch is ON
@@ -536,7 +575,7 @@ function update(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceCapacity, refreshPricingToCurrent,
+    forceMinNights, forceMaxNights, forceCapacity, forceChangeover, refreshPricingToCurrent,
     options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -575,7 +614,7 @@ function update(req, res) {
     && Number(existingReservation.propertyId) === Number(propertyId);
   const lockedPricing = canReuseLockedPricing
     ? model.getPricingSnapshot(id)
-    : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] };
+    : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [], lockedTariff: null };
 
   // Per-reservation opt-out of the deposit/balance split. When ON, force-zero the deposit-
   // paid fields too so the accounting export emits a single journal entry. The pricing
@@ -618,6 +657,10 @@ function update(req, res) {
     complementAmount: frozenComplementAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
+    // specs/tariff-recipes/spec.md §3.2 rule 12bis — replay the tariff the reservation was SOLD
+    // under. « Utiliser les tarifs actuels » (refreshPricingToCurrent) drops it with the rest of the
+    // snapshot: re-pricing stays possible, but only as a deliberate act.
+    lockedTariff: lockedPricing.lockedTariff,
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
     depositDisabled: depositDisabledFlag,
@@ -665,6 +708,12 @@ function update(req, res) {
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
+  }
+  if (quote.maxNightsBreached && !forceMaxNights && !pastReservationLocked) {
+    return res.status(409).json(maxNightsErrorPayload(quote));
+  }
+  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
+    return res.status(409).json(changeoverErrorPayload(quote));
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);

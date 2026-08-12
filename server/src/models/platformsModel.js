@@ -188,10 +188,12 @@ function createPlatformsModel(database) {
         .map((p) => ({ id: p.id, name: p.name, commissionPercent: Number(p.commissionPercent) || 0 }));
     },
 
-    // Set a platform's global commission % (clamped to [0, 99.99]). The Direct row is never editable.
+    // Set a platform's global commission % (clamped to [0, 99.99]). The Direct row is editable too
+    // since specs/tariff-recipes/spec.md §3.6 rule 32: it carries the booking-engine fee (Lodgify 5 %)
+    // that the direct displayed price must cover.
     setCommissionPercent(id, commissionPercent) {
       const row = stmts.findById.get(Number(id));
-      if (!row || row.name === DIRECT_NAME) return null;
+      if (!row) return null;
       const c = Math.max(0, Math.min(99.99, Number(commissionPercent) || 0));
       stmts.updateCommissionPercent.run(c, Number(id));
       return stmts.findById.get(Number(id));
