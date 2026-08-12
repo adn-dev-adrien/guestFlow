@@ -281,6 +281,26 @@ describe('applyQuoteToForm — engine tourist tax always wins over the stale for
     expect(next.touristTaxTotal).toBe(16.80);
   });
 
+  test('preserves the welcome-pack tag across a recompute', () => {
+    // specs/welcome-pack-auto-options.md §3.4 — the tag is form-local (the engine never sees it),
+    // and it is what lets the form take the pack back off on a platform change. Rebuilding the line
+    // from the quote without it would strand the pack lines on the fiche.
+    const prev = {
+      ...basePrev,
+      selectedOptions: [{ optionId: 21, quantity: 1, welcomePack: true }, { optionId: 22, quantity: 1 }],
+    };
+    const quote = {
+      ...baseQuote,
+      optionLines: [
+        { optionId: 21, quantity: 1, totalPrice: 0 },
+        { optionId: 22, quantity: 1, totalPrice: 5 },
+      ],
+    };
+    const next = applyQuoteToForm(prev, quote);
+    expect(next.selectedOptions[0].welcomePack).toBe(true);
+    expect(next.selectedOptions[1].welcomePack).toBeUndefined();
+  });
+
   test('blank/null engine values map to 0 (no NaN leak into the form)', () => {
     // Defensive: if the engine round-trip fails and the helper receives a partial
     // quote, the form must not end up with NaN-cascading values that crash

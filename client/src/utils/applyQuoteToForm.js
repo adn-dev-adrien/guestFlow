@@ -17,6 +17,10 @@
  * @param {boolean} [opts.preserveBlankPrice=false]  reserved for the iCal-imported-blank case
  * @returns {object} the next form state
  */
+// Explicit extension: `applyQuoteToForm.test.js` loads this module through CommonJS `require`, and
+// that path has no extension resolution.
+import { WELCOME_PACK_TAG } from './welcomePackApply.js';
+
 function applyQuoteToForm(prev, quote, opts = {}) {
   const { preserveBlankPrice = false } = opts;
   void preserveBlankPrice; // kept in the signature for callers that pass it through
@@ -70,6 +74,10 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(prevLine && Array.isArray(prevLine.cardOccurrences)
           ? { cardOccurrences: prevLine.cardOccurrences }
           : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
+        // specs/welcome-pack-auto-options.md §3.4 — same reason as `cardOccurrences`: the pack tag is
+        // form-local (the engine knows nothing about it), so rebuilding the line from the quote would
+        // erase it, and with it the form's ability to take back what it added on a platform change.
+        ...(prevLine && prevLine[WELCOME_PACK_TAG] ? { [WELCOME_PACK_TAG]: true } : {}),
       };
     }),
     // Custom lines the payload builder filtered out as incomplete (empty description or amount ≤ 0

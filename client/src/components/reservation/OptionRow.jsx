@@ -8,6 +8,7 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
 import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
+import { isWelcomePackLine } from '../../utils/welcomePackApply';
 import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 
@@ -252,7 +253,13 @@ export default function OptionRow({ opt }) {
       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-start' }, justifyContent: 'space-between' }}>
           <Box flex={1}>
-            <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
+              {/* specs/welcome-pack-auto-options.md §6 — says why this option ticked itself. */}
+              {isWelcomePackLine(selected) && (
+                <Chip size="small" color="success" variant="outlined" label="Pack de bienvenue" />
+              )}
+            </Stack>
             <Typography variant="body2" color="text.secondary">
               {isAutoTimedOption
                 ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
