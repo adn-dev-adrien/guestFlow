@@ -66,16 +66,24 @@ function landANewTariff(propertyId, optionId) {
   });
 }
 
-/** The option the seeded catering catalogue links to every property. */
-function anyLinkedOption(propertyId) {
+/** Billable options the seeded catering catalogue links to every property. */
+function linkedOptions(propertyId, limit = 1) {
   return withDb((db) => db.prepare(`
     SELECT o.id, o.title, COALESCE(pop.price, o.price) AS price
     FROM options o
     JOIN property_options po ON po.optionId = o.id AND po.propertyId = ?
     LEFT JOIN property_option_prices pop ON pop.optionId = o.id AND pop.propertyId = ?
     WHERE o.archivedAt IS NULL AND COALESCE(o.displayToClient, 1) != 0 AND o.price > 0
-    ORDER BY o.id LIMIT 1
-  `).get(propertyId, propertyId));
+    ORDER BY o.id LIMIT ?
+  `).all(propertyId, propertyId, limit));
+}
+const anyLinkedOption = (propertyId) => linkedOptions(propertyId, 1)[0];
+
+/** What the configure script does: mark an option as a property default, offered or billed. */
+function makeDefaultOption(propertyId, optionId, offered) {
+  withDb((db) => db.prepare(
+    'INSERT OR REPLACE INTO property_option_defaults (propertyId, optionId, offered) VALUES (?, ?, ?)',
+  ).run(propertyId, optionId, offered ? 1 : 0));
 }
 
 const financeOf = (r) => ({
@@ -151,19 +159,40 @@ test.describe('a sold reservation never moves', () => {
     expect(after.finalPrice).toBe(sold.finalPrice);
   });
 
-  test('a reservation created AFTER the new tariff gets it in full', async () => {
-    // The freeze protects the past; it must not petrify the future.
+  test('a reservation created AFTER the new recipe carries its new options, offered AND billed', async () => {
+    // The symmetric half, and the one that matters just as much: the freeze protects the past, it
+    // must not petrify the future. A booking taken after the recipe lands has to receive everything
+    // the recipe brought — the supplement AND the options it turned into property defaults, whether
+    // those are « comprises dans le tarif » (billed 0) or simply pre-selected and billed.
     const property = await lodgeWithRecipe('E2E nouvelle résa');
     const client = await createClient({ firstName: 'Nouveau', lastName: 'Client' });
-    const option = anyLinkedOption(property.id);
-    landANewTariff(property.id, option.id);
+    const [comprise, billed] = linkedOptions(property.id, 2);
+    expect(billed, 'the catalogue offers two billable options').toBeTruthy();
+
+    landANewTariff(property.id, comprise.id);          // new tiers on the supplement
+    makeDefaultOption(property.id, comprise.id, true);  // « comprise dans le tarif »
+    makeDefaultOption(property.id, billed.id, false);   // pre-selected, still billed
 
     const fresh = await createReservation({
       propertyId: property.id, clientId: client.id,
       startDate: '2027-09-10', endDate: '2027-09-12', adults: 5,
     });
     const detail = await api((ctx) => ctx.get(`/api/reservations/${fresh.id}`).then((r) => r.json()));
-    // 3 extra guests on the NEW tiers: 3 × (15 + 8) = 69 €.
-    expect(detail.finalPrice - detail.totalPrice).toBe(69);
+    const lines = Object.fromEntries((detail.options || []).map((o) => [o.optionId, o]));
+
+    // Both defaults landed on the reservation without anyone ticking them.
+    expect(lines[comprise.id], 'the offered default is on the reservation').toBeTruthy();
+    expect(lines[billed.id], 'the billed default is on it too').toBeTruthy();
+
+    // The offered one bills 0 while keeping the price it is worth; the other bills normally.
+    expect(lines[comprise.id].offered).toBe(1);
+    expect(lines[comprise.id].totalPrice).toBe(0);
+    expect(lines[comprise.id].unitPrice).toBeGreaterThan(0);
+    expect(lines[billed.id].offered).toBe(0);
+    expect(lines[billed.id].totalPrice).toBeGreaterThan(0);
+
+    // …and the supplement follows the NEW tiers: 3 extra guests × (15 + 8) = 69 €.
+    const optionsTotal = (detail.options || []).reduce((sum, o) => sum + Number(o.totalPrice || 0), 0);
+    expect(detail.finalPrice - detail.totalPrice - optionsTotal).toBe(69);
   });
 });
