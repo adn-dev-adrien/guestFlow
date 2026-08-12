@@ -55,7 +55,21 @@ function detachFromProperty(req, res) {
 }
 
 function listRuns(req, res) {
-  res.json({ runs: getDefaultModel().listPendingRuns() });
+  // Alongside the run journal, the event years still missing from the horizon of every
+  // recipe-driven property (specs/tariff-events-and-extra-guest-tiers/spec.md §3.3 rule 17): the
+  // Dashboard is where a December « les dates de l'Ardéchoise sont sorties » must land without
+  // anyone opening a property page. Same derivation as the property card — they cannot disagree.
+  const store = getDefaultStore();
+  const fromYear = new Date().getFullYear();
+  const missingEvents = [];
+  for (const property of db.prepare("SELECT id, name, tariffRecipeId FROM properties WHERE tariffRecipeId != ''").all()) {
+    const recipe = store.getRecipe(property.tariffRecipeId);
+    if (!recipe) continue; // the vanished-recipe case already journals its own blocking run
+    for (const gap of missingEventYears(recipe, fromYear, fromYear + (recipe.horizonYears || 2) - 1)) {
+      missingEvents.push({ propertyId: property.id, propertyName: property.name, ...gap });
+    }
+  }
+  res.json({ runs: getDefaultModel().listPendingRuns(), missingEvents });
 }
 
 function dismissRun(req, res) {

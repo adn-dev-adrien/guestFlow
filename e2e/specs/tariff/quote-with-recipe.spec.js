@@ -68,8 +68,8 @@ async function quote(propertyId, { adults, startDate, endDate }) {
   });
 }
 
-test.describe('devis sous recette', () => {
-  test("la semaine de l'Ardéchoise est facturée en haute saison", async () => {
+test.describe('quotes under a recipe', () => {
+  test("the Ardéchoise week is billed at the high-season price", async () => {
     const property = await lodgeWithRecipe('E2E devis événement');
 
     const inEvent = await quote(property.id, { adults: 2, startDate: '2027-06-10', endDate: '2027-06-11' });
@@ -79,7 +79,7 @@ test.describe('devis sous recette', () => {
     expect(outside.baseAccommodationPrice).toBe(179);
   });
 
-  test('une nuit isolée passe pendant la course, mais pas sur un pont férié', async () => {
+  test('a single night passes during the race, but not on a holiday bridge', async () => {
     const property = await lodgeWithRecipe('E2E devis minimum');
 
     const race = await quote(property.id, { adults: 2, startDate: '2027-06-10', endDate: '2027-06-11' });
@@ -92,7 +92,7 @@ test.describe('devis sous recette', () => {
     expect(bridge.minNightsBreached).toBeTruthy();
   });
 
-  test('le supplément suit les paliers 15 € puis 8 €, et le devis porte la phrase', async () => {
+  test('the supplement follows the 15 € then 8 € tiers, and the quote carries the phrase', async () => {
     const property = await lodgeWithRecipe('E2E devis paliers');
 
     const one = await quote(property.id, { adults: 5, startDate: '2027-07-20', endDate: '2027-07-21' });
@@ -109,7 +109,7 @@ test.describe('devis sous recette', () => {
     expect(one.extraGuestTiersLabel).toBe('15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit');
   });
 
-  test('la fiche affiche la phrase des paliers, pas un prix unitaire inventé', async ({ page }) => {
+  test('the fiche shows the phrased tier rule, not an invented unit price', async ({ page }) => {
     // The last seam: the server phrases the rule, the client renders it. Every client test mocks
     // the quote, so only here is the real `extraGuestTiersLabel` shown to a real browser.
     const property = await lodgeWithRecipe('E2E fiche paliers');
@@ -127,7 +127,7 @@ test.describe('devis sous recette', () => {
     await expect(summary.getByText('93,00 €')).toBeVisible();
   });
 
-  test('le séjour est plafonné à 7 nuits', async () => {
+  test('the stay is capped at 7 nights', async () => {
     const property = await lodgeWithRecipe('E2E devis plafond');
     const ok = await quote(property.id, { adults: 2, startDate: '2027-07-13', endDate: '2027-07-20' });
     const tooLong = await quote(property.id, { adults: 2, startDate: '2027-07-13', endDate: '2027-07-21' });

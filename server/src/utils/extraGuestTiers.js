@@ -25,13 +25,23 @@
  * non-negative `price` are dropped: a malformed tier must not silently become 0 €.
  * Returns `null` when nothing usable remains, which every caller reads as « no tiers, use the
  * single price » — the behaviour of every property that has never declared tiers.
+ *
+ * A tier may also carry `netPrice` — the net pivot the platform grid grosses up per channel
+ * (specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 rule 6). It is PRESERVED here, never
+ * consumed: the billing engine reads `price` only, so a net target can never leak into an amount
+ * a guest is charged.
  */
 function normalizeExtraGuestTiers(tiers) {
   if (!Array.isArray(tiers) || tiers.length === 0) return null;
   const clean = tiers
     .filter((t) => t && Number.isInteger(Number(t.fromNight)) && Number(t.fromNight) >= 1
       && Number.isFinite(Number(t.price)) && Number(t.price) >= 0)
-    .map((t) => ({ fromNight: Number(t.fromNight), price: Number(t.price) }))
+    .map((t) => ({
+      fromNight: Number(t.fromNight),
+      price: Number(t.price),
+      ...(Number.isFinite(Number(t.netPrice)) && Number(t.netPrice) >= 0
+        ? { netPrice: Number(t.netPrice) } : {}),
+    }))
     .sort((a, b) => a.fromNight - b.fromNight);
   if (clean.length === 0) return null;
   // Two tiers on the same night: the last one declared wins, so the list stays a function.
@@ -82,9 +92,10 @@ function money(value) {
 
 /**
  * Ready-to-render French sentence for a tier table — « 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit ».
- * Built server-side because the client renders, it does not phrase business rules
- * (CLAUDE.md §6.0), and because the reservation summary, the recipe card and the channel grid must
- * not each invent their own wording.
+ * Built server-side because the client renders, it does not phrase business rules (CLAUDE.md §6.0).
+ * The reservation summary and the devis PDF print this verbatim; the recipe card phrases the raw
+ * recipe DOCUMENT itself (unrounded, no-decimals style), which is presentation of data it already
+ * holds, not a re-derivation of a billing rule.
  */
 function describeExtraGuestTiers(tiers) {
   const normalized = normalizeExtraGuestTiers(tiers);

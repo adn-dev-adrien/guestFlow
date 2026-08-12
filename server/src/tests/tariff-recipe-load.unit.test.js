@@ -279,3 +279,13 @@ test('an event with no dates yet is valid — the gap is reported, not rejected'
 test('an event maxNights below its minNights is refused', () => {
   assert.equal(withEvents([{ ...ARDECHOISE, minNights: 3, maxNights: 2 }]).valid, false);
 });
+
+test('netTiers on different nights than perNightTiers is refused — a net band nobody displays', () => {
+  const out = withExtraGuest({
+    unit: 'per_night',
+    perNightTiers: [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }],
+    netTiers: [{ fromNight: 1, price: 14 }, { fromNight: 3, price: 7 }],
+  });
+  assert.equal(out.valid, false);
+  assert.ok(out.error.includes('mêmes nuits'));
+});

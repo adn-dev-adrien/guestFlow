@@ -346,6 +346,17 @@ function validateRecipe(json) {
     if (eg.netTiers && !eg.perNightTiers) {
       return fail('extraGuest.netTiers', 'ne peut être déclaré sans perNightTiers');
     }
+    // The two tables are merged band-by-band into what pricing_rules stores
+    // (`[{ fromNight, price, netPrice }]`), so their night sequences must be IDENTICAL — a net band
+    // with no displayed counterpart would be a price nobody is ever billed but every channel is
+    // grossed up from.
+    if (eg.netTiers && eg.perNightTiers) {
+      const displayed = eg.perNightTiers.map((t) => t.fromNight).join(',');
+      const net = eg.netTiers.map((t) => t.fromNight).join(',');
+      if (displayed !== net) {
+        return fail('extraGuest.netTiers', `les paliers nets doivent porter les mêmes nuits que perNightTiers (${displayed}), reçu (${net})`);
+      }
+    }
   }
 
   return {

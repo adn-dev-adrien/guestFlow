@@ -64,10 +64,16 @@ owner's wording: a mechanism to **consult** the dates, not to guess them.
 5. **The tier index is the night's rank in the stay**, 1-based, not a calendar date: a 3-night stay
    is 15 + 8 + 8 = 31 € per extra person, whatever the seasons it crosses.
 6. **The displayed and net prices.** The tiers are the **direct/displayed** prices, the role
-   `extraGuestPrice: 27` had. Their net counterpart is `extraGuest.netTiers`, same shape; the channel
-   grid grosses each tier up by that channel's commission, whole-euro, exactly as it does for the
-   single price today. If `netTiers` is absent the gross tiers are used as their own net, which is
-   what a recipe with no channel ambition wants.
+   `extraGuestPrice: 27` had. Their net counterpart is `extraGuest.netTiers`, same shape and — loader-
+   enforced — the **same `fromNight` sequence**. The apply merges the two band-by-band into the
+   stored rows (`[{ fromNight, price, netPrice }]`), and the channel grid grosses each band up from
+   its `netPrice`, whole-euro, exactly as it does for the single price today. If `netTiers` is absent
+   the displayed tiers are used as their own net, which is what a recipe with no channel ambition
+   wants. `netPrice` never leaves the server: the quote payload strips it, so a margin target cannot
+   reach a fiche or a public quote.
+   _(Review note 2026-08-12: the first implementation validated `netTiers` but never persisted them —
+   the grid grossed up the displayed 15/8 as if net, showing 16/9 on the direct row. The merged
+   storage above is the fix, pinned by a grid unit test.)_
 
 **Money impact, stated plainly** — the new model is materially cheaper, which is the owner's
 decision to make, not a side effect to bury:
@@ -213,6 +219,14 @@ current pricing. No other property is affected.
   is visible; the legend gains « Événement ».
 - **Seasons table** — the event's range shows its label in the Saison cell, in the same discreet
   style as the closure marker.
+- **Devis / invoice PDF** — the supplement is a **line item**: « Surcoût voyageurs (3 pers. au-delà
+  du tarif de base) — 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit », accommodation VAT, struck through with
+  the « OFFERT » badge when offered. Before this line existed the supplement lived in the grand total
+  only, so any devis with extra guests printed a sub-total that did not match its own lines. The EN
+  PDF prints the row without the French tier phrase. Skipped under a manual price, whose
+  accommodation row already absorbs the whole total.
+- **Dashboard** — the missing event years ride the same card as the horizon-task journal (rule 17):
+  one warning row per (property, event, year), not dismissible — it leaves when the dates are filled.
 - **Mobile** — the tier text wraps on two lines on `xs`; no table gains a column, so nothing new can
   overflow. The calendar outline is a border, not a pseudo-element, so it survives the mobile layout.
 

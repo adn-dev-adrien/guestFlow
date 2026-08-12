@@ -162,7 +162,7 @@ function isClosed(dateIso, closureRows) {
 // `eventKey` rides along so an event's nights form their OWN range instead of merging into the
 // neighbouring high-season one — that separation is what lets the seasons table name the event
 // (spec §3.3 rule 15bis). `eventLabel` follows it for display and never affects the signature.
-const OVERRIDE_KEYS = ['minNights', 'changeoverArrival', 'changeoverDeparture', 'eventKey'];
+const OVERRIDE_KEYS = ['minNights', 'maxNights', 'changeoverArrival', 'changeoverDeparture', 'eventKey'];
 
 function overrideOfPeriod(period) {
   const override = {};

@@ -138,7 +138,12 @@ test('the tiers the apply WROTE are the tiers the quote bills', () => {
   applyAndPin(db, recipe, [2026, 2027]);
 
   const stored = db.prepare("SELECT extraGuestTiers FROM pricing_rules WHERE propertyId = 1 AND seasonKey = 'high'").get();
-  assert.deepEqual(JSON.parse(stored.extraGuestTiers), [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }]);
+  // Each band carries its NET pivot beside the displayed price — the platform grid grosses up from
+  // netPrice, never from the displayed 15/8 (which already contains the direct margin).
+  assert.deepEqual(JSON.parse(stored.extraGuestTiers), [
+    { fromNight: 1, price: 15, netPrice: 14 },
+    { fromNight: 2, price: 8, netPrice: 7 },
+  ]);
 
   // 5 guests = 3 extra. The figures are the spec §3.1 table, derived independently there.
   const q = (nights) => calculateReservationQuote({
