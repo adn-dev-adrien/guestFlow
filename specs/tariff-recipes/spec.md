@@ -105,8 +105,15 @@ all-inclusive pricing as the first such recipe.
 5. **A recipe is property-agnostic.** Nothing in it names a property. The same recipe can be applied to
    several properties; the property is the target, not part of the description.
 6. **Out of a recipe's scope**, and staying per-property: capacity, beds, check-in/out times, security
-   deposit, options included in the rate, the welcome pack, and platform commissions — the last because
-   they are global per platform and shared between properties.
+   deposit, options included in the rate, which options carry included units, and platform commissions
+   — the last because they are global per platform and shared between properties.
+6bis. **The welcome pack's COST price is recipe-owned** (`welcomePack.cost`), written to the property
+   by the apply and absent from the property form. It is a margin input — it loads the direct
+   displayed price in the channel grid so that price still covers the pack after the booking-engine
+   fee — and never a guest-facing amount, so leaving it in the settings invited an operator to nudge
+   a number whose only consumer is the recipe's own grid. Which OPTIONS make up the pack stays
+   per-property (rule 6): the recipe owns what it costs us, the property owns what is served.
+   _(Changed 2026-08-12 on the owner's call, after it shipped as a settings field.)_
 
 ### 3.2 Applying a recipe
 
@@ -620,7 +627,8 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
       chevrons, and the legend.
 - [ ] `PricingSummary` renders the per-night extra-guest label, the tax-base deduction, and the
       changeover breach message.
-- [ ] `PropertyDetail` round-trips the extra-guest unit and the welcome-pack cost.
+- [ ] `PropertyDetail` round-trips the extra-guest unit. (The welcome-pack cost left the form in
+      2026-08-12 — rule 6bis: the recipe owns it.)
 
 ### Manual UI verification
 

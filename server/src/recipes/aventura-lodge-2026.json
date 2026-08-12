@@ -5,6 +5,9 @@
   "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus, hors taxe de séjour) ; dégressivité du §6 du document (24/33/38/41/43/45 %) ; week-ends fériés montés d'un cran avec minimum de séjour ; fermeture hivernale du 15 octobre au 31 mars.",
   "horizonYears": 2,
 
+  "_comment_welcomePack": "Coût de revient du pack accueil offert en direct (2 petits déjeuners + le jus de pomme). Sert UNIQUEMENT à charger le prix direct affiché dans la grille plateformes, pour qu'il couvre le pack après la commission du moteur. Interne à la recette : ce n'est pas un réglage du logement, et le client ne le voit jamais.",
+  "welcomePack": { "cost": 9.32 },
+
   "_comment_extraGuest": "15 € la 1re nuit puis 8 €/nuit, par personne au-delà de 2. Les paliers SONT la dégressivité : followsDiscount est donc interdit avec eux (la 2e nuit serait facturée 8 × 0,52 = 4,16 €). Tarif plat sur les trois saisons, comme l'ancien 27 € qu'il remplace. netTiers = la cible nette pour la grille plateformes.",
   "extraGuest": {
     "appliesAbove": 2,

@@ -4,8 +4,7 @@
  * (specs/tariff-recipes/architecture.md §6).
  *
  * Handles ONLY what a recipe deliberately does not cover (spec §3.1 rule 6):
- *   - the property fields (occupancy, check-in/out, deposit, extra-guest price + unit, welcome-pack
- *     cost);
+ *   - the property fields (occupancy, check-in/out, deposit, extra-guest price + unit);
  *   - the platform commissions (global per platform);
  *   - the linen / cleaning options as property defaults marked « offered » (→ `includedInRate`,
  *     deducted from the tourist-tax base — they are KEPT, never deleted: the laundry engine counts
@@ -58,7 +57,6 @@ const PROPERTY_FIELDS = {
   // the conservative direction for a state that already means « the calendar has a hole ».
   extraGuestPrice: 15,
   extraGuestPriceUnit: 'per_night',
-  welcomePackCost: 9.32,
   defaultCheckIn: '16:00',
   defaultCheckOut: '10:00',
   defaultCautionAmount: 400,

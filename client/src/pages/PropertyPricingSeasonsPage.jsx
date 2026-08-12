@@ -6,7 +6,7 @@ import {
   Box, Typography, Card, CardContent, Button, Grid, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
   MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch, RadioGroup, Radio, FormLabel,
-  IconButton
+  IconButton, useMediaQuery, useTheme
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -19,7 +19,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import DateRangeIcon from '@mui/icons-material/DateRange';
-import EventIcon from '@mui/icons-material/Event';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FormDialog from '../components/FormDialog';
@@ -103,6 +103,81 @@ const WEEKDAYS_FR = [
   { value: 4, label: 'jeudi' }, { value: 5, label: 'vendredi' }, { value: 6, label: 'samedi' },
   { value: 0, label: 'dimanche' },
 ];
+
+// The season's identity — colour dot, label, and whether a recipe owns it. Shared by the desktop
+// table and the mobile card list so the two can never drift apart.
+function SeasonIdentity({ season }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => season.color || t.palette.primary.main }} />
+      {season.label}
+      {/* Recipe-owned vs manual (specs/tariff-recipes/spec.md §3.2 rule 9). */}
+      <Chip
+        size="small"
+        variant="outlined"
+        color={season.seasonKey ? 'info' : 'default'}
+        label={season.seasonKey ? `recette · ${season.seasonKey}` : 'Manuelle'}
+        sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
+      />
+    </Box>
+  );
+}
+
+/**
+ * A season's sellable date ranges, grouped under a discreet year rule.
+ *
+ * Closed dates are hidden from the display only — the stored ranges keep their full span, so moving
+ * a closure re-reveals them (specs/tariff-recipes/spec.md §3.4 rule 25ter). Past ranges are hidden
+ * too: only what is still sellable is worth reading here.
+ *
+ * A date NEVER wraps: `21/06/2027 → 27/06/2027` broken across two lines is unreadable, and the
+ * event chip used to force exactly that. The chips wrap below the date instead.
+ */
+function SeasonRanges({ season, ranges }) {
+  if (ranges.length === 0) {
+    return (
+      <Typography variant="caption" color="text.secondary">
+        {getSortedDateRanges(season.dateRanges).length === 0
+          ? 'aucune plage'
+          : (getSortedDateRanges(season.dateRangesVisible || season.dateRanges).length === 0
+            ? 'entièrement en fermeture'
+            : 'aucune date à venir')}
+      </Typography>
+    );
+  }
+  return ranges.map((range, index, all) => (
+    <React.Fragment key={`${season.id}-range-${index}`}>
+      {(index === 0 || range.startDate.slice(0, 4) !== all[index - 1].startDate.slice(0, 4)) && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: index === 0 ? 0 : 0.75, mb: 0.25 }}>
+          <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: 0.5 }}>
+            {range.startDate.slice(0, 4)}
+          </Typography>
+          <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
+        </Box>
+      )}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+        <Typography variant="body2" sx={{ lineHeight: 1.25, whiteSpace: 'nowrap' }}>
+          {displayDate(range.startDate)} → {displayDate(range.endDate)}
+        </Typography>
+        {range.minNights != null && (
+          <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
+        )}
+        {/* WHY this week is priced the way it is, readable from the table alone
+            (specs/tariff-events-and-extra-guest-tiers §3.3 rule 15bis). No icon: it bought nothing
+            and cost the ~20 px that pushed the date onto a second line. */}
+        {range.eventLabel && (
+          <Chip
+            size="small"
+            label={range.eventLabel}
+            color="secondary"
+            variant="outlined"
+            sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
+          />
+        )}
+      </Box>
+    </React.Fragment>
+  ));
+}
 
 function isoToDayjs(value) {
   return value ? dayjs(value) : null;
@@ -233,6 +308,11 @@ export default function PropertyPricingSeasonsPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Below md: the seasons render as cards and the page-bar actions collapse to icons — a labelled
+  // button row and a 980 px table are both unusable on a phone.
+  const theme = useTheme();
+  const isCompact = useMediaQuery(theme.breakpoints.down('md'));
 
   const seasons = property?.pricingRules || [];
   // Computed once per render: today in ISO, and the per-season upcoming ranges the table shows.
@@ -706,10 +786,22 @@ export default function PropertyPricingSeasonsPage() {
   return (
     <Box>
       <PageActionBar
-        title={`Gestion tarifaire - ${property.name}`}
+        // On a phone the property name costs the whole title (« Gesti… ») — the sidebar and the
+        // recipe card both name the property anyway.
+        title={isCompact ? 'Gestion tarifaire' : `Gestion tarifaire - ${property.name}`}
         titleOnXs
         backTo={`/properties/${id}`}
-        actionsBefore={[{
+        // Compact: ICON actions, which PageActionBar collapses into its « … » overflow menu past two
+        // items. As custom `node` buttons they stayed inline by design and stacked into a staircase
+        // that squeezed the title out.
+        actionsBefore={isCompact ? [{
+          icon: <ContentCopyIcon />, tooltip: 'Appliquer à un autre logement',
+          onClick: openApplyDialog, disabled: otherProperties.length === 0,
+        }, {
+          icon: <DateRangeIcon />, tooltip: 'Affecter une période', onClick: () => openAssignDialog({}),
+        }, {
+          icon: <AddIcon />, tooltip: 'Nouvelle saison', onClick: openCreateSeason, color: 'primary',
+        }] : [{
           node: (
             <Button key="apply-other" variant="outlined" size="small" onClick={openApplyDialog} disabled={otherProperties.length === 0}>
               Appliquer à un autre logement
@@ -742,6 +834,41 @@ export default function PropertyPricingSeasonsPage() {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="sectionHeader" sx={{ mb: 2 }}>Saisons</Typography>
+
+          {/* Below md the table is a card list: at 390 px the 980 px-wide table meant scrolling
+              2,6 screens sideways to read one season, every date cut mid-way. CLAUDE.md §Responsive:
+              cards or stacked rows on the small breakpoints, a true <Table> from md up. Both render
+              the SAME <SeasonIdentity> and <SeasonRanges>, so they cannot drift. */}
+          {isCompact ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {seasons.map((s) => (
+                <Card key={s.id} variant="outlined">
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <SeasonIdentity season={s} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 1 }}>
+                      <SeasonRanges season={s} ranges={upcomingRanges(s)} />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.25, color: 'text.secondary' }}>
+                      <Typography variant="caption">{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</Typography>
+                      <Typography variant="caption">·</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                        {formatCurrency(Number(s.pricePerNight || 0))} / nuit
+                      </Typography>
+                      <Typography variant="caption">·</Typography>
+                      <Typography variant="caption">
+                        {s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''} nuit{(s.maxNights || s.minNights) > 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
+                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+              {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
+            </Box>
+          ) : (
           <TableCard minWidth={980}>
               <TableHead>
                 <TableRow>
@@ -756,67 +883,10 @@ export default function PropertyPricingSeasonsPage() {
               <TableBody>
                 {seasons.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => s.color || t.palette.primary.main }} />
-                        {s.label}
-                        {/* Recipe-owned vs manual (specs/tariff-recipes/spec.md §3.2 rule 9). */}
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color={s.seasonKey ? 'info' : 'default'}
-                          label={s.seasonKey ? `recette · ${s.seasonKey}` : 'Manuelle'}
-                          sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
-                        />
-                      </Box>
-                    </TableCell>
+                    <TableCell><SeasonIdentity season={s} /></TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                        {/* Closed dates are hidden from the display only — the stored ranges keep
-                            their full span, so moving a closure re-reveals them
-                            (specs/tariff-recipes/spec.md §3.4 rule 25ter). Past ranges are hidden
-                            too: only what is still sellable is worth reading here. */}
-                        {upcomingRanges(s).map((range, index, all) => (
-                          <React.Fragment key={`${s.id}-range-${index}`}>
-                            {(index === 0 || range.startDate.slice(0, 4) !== all[index - 1].startDate.slice(0, 4)) && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: index === 0 ? 0 : 0.75, mb: 0.25 }}>
-                                <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 600, letterSpacing: 0.5 }}>
-                                  {range.startDate.slice(0, 4)}
-                                </Typography>
-                                <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
-                              </Box>
-                            )}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                              <Typography variant="body2" sx={{ lineHeight: 1.25 }}>
-                                {displayDate(range.startDate)} → {displayDate(range.endDate)}
-                              </Typography>
-                              {range.minNights != null && (
-                                <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
-                              )}
-                              {/* WHY this week is priced the way it is, readable from the table alone
-                                  (specs/tariff-events-and-extra-guest-tiers §3.3 rule 15bis). */}
-                              {range.eventLabel && (
-                                <Chip
-                                  size="small"
-                                  icon={<EventIcon sx={{ fontSize: 14 }} />}
-                                  label={range.eventLabel}
-                                  color="secondary"
-                                  variant="outlined"
-                                  sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
-                                />
-                              )}
-                            </Box>
-                          </React.Fragment>
-                        ))}
-                        {upcomingRanges(s).length === 0 && (
-                          <Typography variant="caption" color="text.secondary">
-                            {getSortedDateRanges(s.dateRanges).length === 0
-                              ? 'aucune plage'
-                              : (getSortedDateRanges(s.dateRangesVisible || s.dateRanges).length === 0
-                                ? 'entièrement en fermeture'
-                                : 'aucune date à venir')}
-                          </Typography>
-                        )}
+                        <SeasonRanges season={s} ranges={upcomingRanges(s)} />
                       </Box>
                     </TableCell>
                     <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
@@ -837,6 +907,7 @@ export default function PropertyPricingSeasonsPage() {
                 )}
               </TableBody>
           </TableCard>
+          )}
         </CardContent>
       </Card>
 

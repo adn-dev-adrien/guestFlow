@@ -318,6 +318,7 @@ function createTariffRecipeModel(database, recipeStore) {
 
   function apply(propertyId, recipeId) {
     const diff = preview(propertyId, recipeId);
+    const recipe = recipeStore.getRecipe(recipeId);
     if (diff.blocking) {
       return { applied: false, ...diff };
     }
@@ -358,8 +359,13 @@ function createTariffRecipeModel(database, recipeStore) {
       propertiesModel.setTariffRecipe(Number(propertyId), recipeId, diff.recipe.version);
     });
 
+    // The welcome-pack cost is recipe-owned: it loads the direct displayed price in the channel grid
+    // and is never a property setting. Written on BOTH paths — a recipe whose only change is that
+    // cost produces an EMPTY season diff, so writing it inside the transaction alone would make the
+    // apply silently ignore it (a test caught exactly that).
     if (!nothingToDo) runTransaction();
     else propertiesModel.setTariffRecipe(Number(propertyId), recipeId, diff.recipe.version);
+    propertiesModel.setWelcomePackCost(Number(propertyId), recipe?.welcomePack?.cost ?? 0);
 
     return { applied: !nothingToDo, ...diff };
   }
