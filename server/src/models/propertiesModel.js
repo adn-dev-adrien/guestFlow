@@ -14,6 +14,7 @@ const {
   normalizeProgressiveTiers,
   grossFromNet,
 } = require('../utils/pricing');
+const { normalizeExtraGuestTiers, describeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const platformsModel = require('./platformsModel');
@@ -38,6 +39,26 @@ function normalizeNameArticle(value) {
 const VALID_EXTRA_GUEST_UNITS = ['per_stay', 'per_night'];
 function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
   return VALID_EXTRA_GUEST_UNITS.includes(value) ? value : fallback;
+}
+
+// `pricing_rules.extraGuestTiers` is a JSON TEXT column; a malformed value must degrade to "no
+// tiers" (the single price applies) rather than throw on a page load.
+function parseTiersColumn(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Store a tier table, or NULL when there is nothing usable — NULL is what every existing row holds
+// and means « the single extraGuestPrice applies », so a bad payload can never silently re-price.
+function serializeTiers(value) {
+  const normalized = normalizeExtraGuestTiers(parseTiersColumn(value));
+  return normalized ? JSON.stringify(normalized) : null;
 }
 
 // Maximum stay in nights; NULL/blank/0 = unlimited (what every existing property carries).
@@ -541,19 +562,29 @@ function createPropertiesModel(database) {
       const platforms = [directRow, ...rows.filter((p) => !p.isDirect)];
 
       const seasons = database.prepare(
-        'SELECT id, label, pricePerNight, netTargetPerNight, extraGuestPrice, extraGuestNetTarget FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
+        'SELECT id, label, pricePerNight, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, extraGuestTiers FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
       ).all(Number(propertyId)).map((s) => {
         const netPerNight = s.netTargetPerNight != null ? Number(s.netTargetPerNight) : (Number(s.pricePerNight) || 0);
         const extraGuestNet = s.extraGuestNetTarget != null
           ? Number(s.extraGuestNetTarget)
           : (s.extraGuestPrice != null ? Number(s.extraGuestPrice) : Number(property.extraGuestPrice || 0));
+        // A tiered supplement grosses up tier by tier: each band is its own net pivot, so a channel
+        // sees « 17 € puis 9 € » rather than one price no night actually costs.
+        const netTiers = normalizeExtraGuestTiers(parseTiersColumn(s.extraGuestTiers));
         const byPlatform = {};
         const extraGuestByPlatform = {};
+        const extraGuestTiersByPlatform = netTiers ? {} : null;
         for (const p of platforms) {
           // The welcome pack is per stay, not per guest: it loads the nightly price of the direct
           // channel only, never the extra-guest column.
           byPlatform[p.id] = grossFromNet(netPerNight, p.commissionPercent, { fixedCost: p.isDirect ? welcomePackCost : 0 });
           extraGuestByPlatform[p.id] = grossFromNet(extraGuestNet, p.commissionPercent);
+          if (netTiers) {
+            extraGuestTiersByPlatform[p.id] = netTiers.map((t) => ({
+              fromNight: t.fromNight,
+              price: grossFromNet(t.price, p.commissionPercent),
+            }));
+          }
         }
         return {
           ruleId: s.id,
@@ -563,6 +594,7 @@ function createPropertiesModel(database) {
           extraGuestPriceUnit: property.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
           byPlatform,
           extraGuestByPlatform,
+          extraGuestTiersByPlatform,
         };
       });
 
@@ -586,8 +618,9 @@ function createPropertiesModel(database) {
       const bounds = getBoundsFromDateRanges(normalizedDateRanges);
       const result = database.prepare(`
         INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights,
-          seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, maxNights, changeoverArrival, changeoverDeparture)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, maxNights, changeoverArrival, changeoverDeparture,
+          extraGuestTiers)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId,
         sentenceCase(label || 'Standard'),
@@ -609,6 +642,7 @@ function createPropertiesModel(database) {
         normalizeMaxNights(body.maxNights),
         normalizeChangeoverDay(body.changeoverArrival),
         normalizeChangeoverDay(body.changeoverDeparture),
+        serializeTiers(body.extraGuestTiers),
       );
       return { data: { id: result.lastInsertRowid } };
     },
@@ -629,12 +663,13 @@ function createPropertiesModel(database) {
       }
       // The recipe columns keep their stored value when the caller doesn't send them (the season
       // dialog edits a subset; a recipe apply always sends the full set).
-      const existing = database.prepare('SELECT seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, maxNights, changeoverArrival, changeoverDeparture FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || {};
+      const existing = database.prepare('SELECT seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, maxNights, changeoverArrival, changeoverDeparture, extraGuestTiers FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || {};
       const keepOr = (key, normalizer) => (body[key] === undefined ? (existing[key] ?? null) : normalizer(body[key]));
       const bounds = getBoundsFromDateRanges(normalizedDateRanges);
       database.prepare(`
         UPDATE pricing_rules SET label=?, pricePerNight=?, pricingMode=?, progressiveTiers=?, dateRanges=?, color=?, startDate=?, endDate=?, minNights=?,
-          seasonKey=?, seasonRank=?, netTargetPerNight=?, extraGuestPrice=?, extraGuestNetTarget=?, maxNights=?, changeoverArrival=?, changeoverDeparture=?
+          seasonKey=?, seasonRank=?, netTargetPerNight=?, extraGuestPrice=?, extraGuestNetTarget=?, maxNights=?, changeoverArrival=?, changeoverDeparture=?,
+          extraGuestTiers=?
         WHERE id=? AND propertyId=?
       `).run(
         sentenceCase(label || 'Standard'),
@@ -654,6 +689,7 @@ function createPropertiesModel(database) {
         keepOr('maxNights', normalizeMaxNights),
         keepOr('changeoverArrival', normalizeChangeoverDay),
         keepOr('changeoverDeparture', normalizeChangeoverDay),
+        keepOr('extraGuestTiers', serializeTiers),
         ruleId,
         propertyId,
       );

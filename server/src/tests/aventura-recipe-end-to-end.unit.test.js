@@ -5,7 +5,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const { validateRecipe } = require('../utils/tariffRecipe');
-const { buildYearPlan, materializeClosures } = require('../utils/seasonPlan');
+const { buildYearPlan, materializeClosures, missingEventYears } = require('../utils/seasonPlan');
 const { createTariffRecipeModel } = require('../models/tariffRecipeModel');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
@@ -28,9 +28,15 @@ test('the shipped recipe validates and derives the spec rule 44 table for 2026',
   const r = (startDate, endDate, minNights) => (
     minNights ? { startDate, endDate, minNights } : { startDate, endDate }
   );
+  // An event range carries the event that painted it, so the seasons table can name it.
+  const ev = (startDate, endDate, minNights) => ({
+    startDate, endDate, eventKey: 'ardechoise', eventLabel: "L'Ardéchoise", minNights,
+  });
   assert.deepEqual(plan.low, [
     r('2026-01-01', '2026-04-03'), r('2026-04-06', '2026-04-30'), r('2026-05-03', '2026-05-07'),
-    r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'), r('2026-05-25', '2026-07-03'),
+    r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'),
+    // L'Ardéchoise splits the long low-season run: 8-13 June is high season.
+    r('2026-05-25', '2026-06-07'), r('2026-06-14', '2026-07-03'),
     r('2026-08-29', '2026-12-31'),
   ]);
   assert.deepEqual(plan.mid, [
@@ -38,7 +44,10 @@ test('the shipped recipe validates and derives the spec rule 44 table for 2026',
     r('2026-05-14', '2026-05-16', 3), r('2026-05-23', '2026-05-24', 2),
     r('2026-07-04', '2026-07-10'), r('2026-08-22', '2026-08-28'),
   ]);
-  assert.deepEqual(plan.high, [r('2026-07-11', '2026-07-13', 3), r('2026-07-14', '2026-08-21')]);
+  assert.deepEqual(plan.high, [
+    ev('2026-06-08', '2026-06-13', 1),
+    r('2026-07-11', '2026-07-13', 3), r('2026-07-14', '2026-08-21'),
+  ]);
 });
 
 test('the shipped recipe refuses a single night on a holiday block, allows the full pont', () => {
@@ -66,7 +75,7 @@ test('applied to a property, the shipped recipe quotes the six D-cases to the ce
       pricePerNight REAL DEFAULT 100, pricingMode TEXT DEFAULT 'fixed', progressiveTiers TEXT DEFAULT '[]',
       dateRanges TEXT DEFAULT '[]', color TEXT DEFAULT '#1976d2', startDate TEXT, endDate TEXT, minNights INTEGER DEFAULT 1,
       seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL, maxNights INTEGER,
-      changeoverArrival INTEGER, changeoverDeparture INTEGER);
+      changeoverArrival INTEGER, changeoverDeparture INTEGER, extraGuestTiers TEXT);
     CREATE TABLE establishment_closures (id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER,
       label TEXT NOT NULL DEFAULT '', startDate TEXT NOT NULL, endDate TEXT NOT NULL, createdAt TEXT, updatedAt TEXT);
     CREATE TABLE reservations (id INTEGER PRIMARY KEY, propertyId INTEGER, startDate TEXT, endDate TEXT,
@@ -112,13 +121,37 @@ test('applied to a property, the shipped recipe quotes the six D-cases to the ce
     ['D1', 2, '2026-04-07', '2026-04-08', 179.00],
     ['D2', 2, '2026-04-07', '2026-04-09', 272.08],
     ['D3', 2, '2026-07-04', '2026-07-07', 434.16],
-    ['D4', 4, '2026-07-13', '2026-07-16', 605.01],
-    ['D5', 5, '2026-07-13', '2026-07-20', 1262.80],
-    ['D6', 3, '2026-07-04', '2026-07-06', 369.36],
+    // D4-D6 carry extra guests, so they moved with the 15/8 tier table
+    // (specs/tariff-events-and-extra-guest-tiers §3.1). Each delta is the OLD supplement
+    // (27 € × Σ of the night ratios) minus the NEW one, derived by hand:
+    //   D4  2 extra × 3 nights : 108,54 → 62,00  (Σratio 2,01)  → 605,01 − 46,54
+    //   D5  3 extra × 7 nights : 311,85 → 189,00 (Σratio 3,85)  → 1 262,80 − 122,85
+    //   D6  1 extra × 2 nights :  41,04 →  23,00 (Σratio 1,52)  → 369,36 − 18,04
+    ['D4', 4, '2026-07-13', '2026-07-16', 558.47],
+    ['D5', 5, '2026-07-13', '2026-07-20', 1139.95],
+    ['D6', 3, '2026-07-04', '2026-07-06', 351.32],
   ];
   for (const [label, adults, startDate, endDate, expected] of CASES) {
     const q = calculateReservationQuote({ ...BASE, adults, startDate, endDate });
     assert.equal(q.finalPrice, expected, `${label}: expected ${expected}, got ${q.finalPrice}`);
   }
   db.close();
+});
+
+test("L'Ardéchoise: the June week is high season and a single night is bookable", () => {
+  const recipe = loadShippedRecipe();
+  const closures = materializeClosures(recipe, 2025, 2027);
+  for (const [year, from, to] of [[2026, '2026-06-08', '2026-06-13'], [2027, '2027-06-07', '2027-06-12']]) {
+    const plan = buildYearPlan(recipe, year, closures);
+    const range = plan.high.find((x) => x.eventKey === 'ardechoise');
+    assert.ok(range, `${year}: the event paints a high-season range`);
+    assert.equal(range.startDate, from);
+    assert.equal(range.endDate, to);
+    // The whole point of the request: no minimum stay on the race week, even though the recipe's
+    // holiday modifier imposes one on every « pont ».
+    assert.equal(range.minNights, 1);
+    assert.equal(range.eventLabel, "L'Ardéchoise");
+  }
+  // And 2028 is honestly reported as unknown rather than guessed from the 2nd-Saturday coincidence.
+  assert.deepEqual(missingEventYears(recipe, 2026, 2028).map((m) => m.year), [2028]);
 });

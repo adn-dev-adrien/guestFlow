@@ -19,6 +19,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import DateRangeIcon from '@mui/icons-material/DateRange';
+import EventIcon from '@mui/icons-material/Event';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FormDialog from '../components/FormDialog';
@@ -792,6 +793,18 @@ export default function PropertyPricingSeasonsPage() {
                               {range.minNights != null && (
                                 <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
                               )}
+                              {/* WHY this week is priced the way it is, readable from the table alone
+                                  (specs/tariff-events-and-extra-guest-tiers §3.3 rule 15bis). */}
+                              {range.eventLabel && (
+                                <Chip
+                                  size="small"
+                                  icon={<EventIcon sx={{ fontSize: 14 }} />}
+                                  label={range.eventLabel}
+                                  color="secondary"
+                                  variant="outlined"
+                                  sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
+                                />
+                              )}
                             </Box>
                           </React.Fragment>
                         ))}
@@ -882,7 +895,8 @@ export default function PropertyPricingSeasonsPage() {
                       const isArrivalDay = arrivalDay != null && arrivalDay !== '' && Number(arrivalDay) === weekday;
                       const isDepartureDay = departureDay != null && departureDay !== '' && Number(departureDay) === weekday;
                       const closure = findClosureForDate(property.closureRanges, dateStr);
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure });
+                      const eventLabel = coveringRange?.eventLabel || null;
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure, eventLabel });
                     }
 
                     return (
@@ -926,6 +940,11 @@ export default function PropertyPricingSeasonsPage() {
                                   justifyContent: 'center',
                                   position: 'relative',
                                   cursor: c.inMonth ? 'pointer' : 'default',
+                                  // An event night keeps its season colour on top and adds a dotted
+                                  // frame — a third channel that reads as « something else decided
+                                  // this week » (specs/tariff-events-and-extra-guest-tiers §6).
+                                  border: (t) => (c.inMonth && c.eventLabel && !c.closure
+                                    ? `1px dotted ${t.palette.secondary.main}` : '1px solid transparent'),
                                   outline: (t) => (isInSelection(c.dateStr) ? `2px solid ${t.palette.primary.main}` : 'none'),
                                   outlineOffset: '-2px',
                                   '&:hover': c.inMonth && !isInSelection(c.dateStr) ? {
@@ -937,6 +956,7 @@ export default function PropertyPricingSeasonsPage() {
                                   : [
                                     c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRangesVisible || c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : '',
                                     c.inMonth && c.dayMin > 1 ? `min ${c.dayMin} nuits` : '',
+                                    c.eventLabel || '',
                                   ].filter(Boolean).join(' · ')}
                               >
                                 {c.inMonth ? c.day : ''}
@@ -994,6 +1014,10 @@ export default function PropertyPricingSeasonsPage() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Box sx={{ width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderRight: '5px solid', borderRightColor: 'secondary.main' }} />
                     <Typography variant="caption" color="text.secondary">départ possible</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: 0.5, border: '1px dotted', borderColor: 'secondary.main' }} />
+                    <Typography variant="caption" color="text.secondary">événement</Typography>
                   </Box>
                 </Box>
               </CardContent>

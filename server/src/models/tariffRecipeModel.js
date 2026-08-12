@@ -33,8 +33,17 @@ function parseRanges(raw) {
 }
 
 // Stable signature of a range, override keys included — what "same range" means in the diff.
-function rangeSignature(range) {
-  return [range.startDate, range.endDate, range.minNights ?? '', range.maxNights ?? '', range.changeoverArrival ?? '', range.changeoverDeparture ?? ''].join('|');
+//
+// `seasonMinNights` matters: the WRITE path drops a per-range `minNights` equal to the season default
+// (a range that merely restates the default inherits instead — specs/pricing-min-nights-per-range.md).
+// Comparing an unstripped desired range against a stripped stored one made the diff report the same
+// dates as removed AND added on every run, so « re-applying without a change writes nothing »
+// (specs/tariff-recipes/spec.md rule 11) quietly stopped holding. Normalising here keeps the diff
+// comparing what will actually be stored.
+function rangeSignature(range, seasonMinNights = null) {
+  const min = range.minNights ?? '';
+  const effectiveMin = seasonMinNights != null && Number(min) === Number(seasonMinNights) ? '' : min;
+  return [range.startDate, range.endDate, effectiveMin, range.maxNights ?? '', range.changeoverArrival ?? '', range.changeoverDeparture ?? ''].join('|');
 }
 
 function rangesOverlap(a, b) {
@@ -61,6 +70,10 @@ function createTariffRecipeModel(database, recipeStore) {
       netTargetPerNight: roundOrNull(season.netTargetPerNight),
       extraGuestPrice: roundOrNull(season.extraGuestPrice),
       extraGuestNetTarget: roundOrNull(season.extraGuestNetTarget),
+      // Per-night tiers are recipe-level, not per-season: the Aventura supplement is flat across
+      // seasons (15/8 everywhere). A season declaring its own price still wins, because
+      // `extraGuestPrice` and the tiers are read independently by the engine.
+      extraGuestTiers: recipe.extraGuest?.perNightTiers || null,
       changeoverArrival: season.changeover?.arrival ?? null,
       changeoverDeparture: season.changeover?.departure ?? null,
     };
@@ -83,6 +96,7 @@ function createTariffRecipeModel(database, recipeStore) {
     compare('netTargetPerNight', roundOrNull(existingRule.netTargetPerNight), desired.netTargetPerNight);
     compare('extraGuestPrice', roundOrNull(existingRule.extraGuestPrice), desired.extraGuestPrice);
     compare('extraGuestNetTarget', roundOrNull(existingRule.extraGuestNetTarget), desired.extraGuestNetTarget);
+    compare('extraGuestTiers', parseRanges(existingRule.extraGuestTiers), desired.extraGuestTiers || []);
     compare('changeoverArrival', existingRule.changeoverArrival, desired.changeoverArrival);
     compare('changeoverDeparture', existingRule.changeoverDeparture, desired.changeoverDeparture);
     // Stored tiers are the full normalized list while a recipe provides a single night-2 tier the
@@ -229,10 +243,12 @@ function createTariffRecipeModel(database, recipeStore) {
         }
       }
 
-      const existingSigs = new Set(existingInHorizon.map(rangeSignature));
-      const desiredSigs = new Set(desiredInHorizon.map(rangeSignature));
-      const rangesAdded = desiredInHorizon.filter((r) => !existingSigs.has(rangeSignature(r)));
-      const rangesRemoved = existingInHorizon.filter((r) => !desiredSigs.has(rangeSignature(r)));
+      const seasonMin = Number(season.minNights || 1);
+      const sig = (r) => rangeSignature(r, seasonMin);
+      const existingSigs = new Set(existingInHorizon.map(sig));
+      const desiredSigs = new Set(desiredInHorizon.map(sig));
+      const rangesAdded = desiredInHorizon.filter((r) => !existingSigs.has(sig(r)));
+      const rangesRemoved = existingInHorizon.filter((r) => !desiredSigs.has(sig(r)));
       const changes = existing ? fieldChanges(existing, payload) : [];
       const adopted = Boolean(existing && adoptedRuleIds.has(existing.id));
       const action = !existing
@@ -248,7 +264,7 @@ function createTariffRecipeModel(database, recipeStore) {
         fieldChanges: changes,
         rangesAdded,
         rangesRemoved,
-        rangesKept: existingInHorizon.filter((r) => desiredSigs.has(rangeSignature(r))),
+        rangesKept: existingInHorizon.filter((r) => desiredSigs.has(sig(r))),
         payload,
       });
     }

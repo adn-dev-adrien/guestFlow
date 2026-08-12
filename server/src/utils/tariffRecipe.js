@@ -24,6 +24,7 @@ const VALID_PRICING_MODES = ['fixed', 'progressive'];
 const VALID_ANCHOR_TYPES = ['fixed_dates', 'nth_weekday_of_month', 'last_full_week_of_month', 'between'];
 const VALID_MODIFIER_TYPES = ['public_holiday_bridge'];
 const MONTH_DAY_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const ISO_DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
 
 function fail(pathStr, message) {
@@ -68,6 +69,27 @@ function tiersFromDiscountTable(pricePerNight, table) {
     previousTotal = total;
   }
   return tiers;
+}
+
+/**
+ * Extra-guest per-night tiers: `[{ fromNight, price }]`, strictly increasing and starting at night 1.
+ * Starting anywhere else would leave the opening nights of every stay unpriced by the table and
+ * silently fall back to the single price — the table would then describe something nobody is billed.
+ */
+function validateTierTable(table, where) {
+  if (!Array.isArray(table) || table.length === 0) return fail(where, 'doit être un tableau non vide');
+  let previousNight = 0;
+  for (let i = 0; i < table.length; i += 1) {
+    const tier = table[i];
+    const at = `${where}[${i}]`;
+    if (!tier || typeof tier !== 'object') return fail(at, 'doit être un objet { fromNight, price }');
+    if (!Number.isInteger(tier.fromNight) || tier.fromNight < 1) return fail(`${at}.fromNight`, 'entier ≥ 1');
+    if (i === 0 && tier.fromNight !== 1) return fail(`${at}.fromNight`, 'le premier palier doit commencer à la nuit 1');
+    if (tier.fromNight <= previousNight) return fail(`${at}.fromNight`, `doit être strictement supérieur à ${previousNight}`);
+    previousNight = tier.fromNight;
+    if (!isFiniteNonNegative(tier.price)) return fail(`${at}.price`, 'nombre ≥ 0 requis');
+  }
+  return null;
 }
 
 function validateDiscountTable(table, where) {
@@ -251,6 +273,44 @@ function validateRecipe(json) {
     }
   }
 
+  // ── events (spec tariff-events-and-extra-guest-tiers §3.2) ─────────────────
+  // Dates the calendar cannot derive — L'Ardéchoise moved from the 4th to the 2nd Saturday of June
+  // across recent editions — so they are declared per year and validated hard: a typo here silently
+  // mis-prices a whole week.
+  const events = Array.isArray(cal.events) ? cal.events : [];
+  const eventKeys = new Set();
+  for (let i = 0; i < events.length; i += 1) {
+    const e = events[i];
+    const where = `calendar.events[${i}]`;
+    if (!e || typeof e !== 'object') return fail(where, 'doit être un objet');
+    if (!e.key || typeof e.key !== 'string' || !e.key.trim()) return fail(`${where}.key`, 'requis');
+    if (eventKeys.has(e.key)) return fail(`${where}.key`, `clé « ${e.key} » en double`);
+    eventKeys.add(e.key);
+    if (!e.label || typeof e.label !== 'string') return fail(`${where}.label`, 'requis');
+    if (!keys.has(e.season)) return fail(`${where}.season`, 'doit être une clé de saison déclarée');
+    const eventMin = e.minNights === undefined ? 1 : e.minNights;
+    if (!Number.isInteger(eventMin) || eventMin < 1) return fail(`${where}.minNights`, 'entier ≥ 1');
+    if (e.maxNights !== undefined && e.maxNights !== null) {
+      if (!Number.isInteger(e.maxNights) || e.maxNights < 1) return fail(`${where}.maxNights`, 'entier ≥ 1 (ou absent)');
+      if (e.maxNights < eventMin) return fail(`${where}.maxNights`, `ne peut pas être inférieur au minimum (${eventMin})`);
+    }
+    if (e.dates !== undefined) {
+      if (!e.dates || typeof e.dates !== 'object' || Array.isArray(e.dates)) return fail(`${where}.dates`, 'doit être un objet { année: { from, to } }');
+      for (const year of Object.keys(e.dates)) {
+        const w = `${where}.dates.${year}`;
+        if (!/^\d{4}$/.test(year)) return fail(w, 'la clé doit être une année à 4 chiffres');
+        const window = e.dates[year];
+        if (!window || typeof window !== 'object') return fail(w, 'doit être { from, to }');
+        if (!ISO_DATE_RE.test(String(window.from || ''))) return fail(`${w}.from`, 'format YYYY-MM-DD requis');
+        if (!ISO_DATE_RE.test(String(window.to || ''))) return fail(`${w}.to`, 'format YYYY-MM-DD requis');
+        if (window.from > window.to) return fail(`${w}`, 'from doit précéder to');
+        // The year key must match the dates it declares, or the plan for 2027 silently paints 2026.
+        if (!String(window.from).startsWith(`${year}-`)) return fail(`${w}.from`, `doit être dans l'année ${year}`);
+        if (!String(window.to).startsWith(`${year}-`)) return fail(`${w}.to`, `doit être dans l'année ${year}`);
+      }
+    }
+  }
+
   // ── closures ───────────────────────────────────────────────────────────────
   const closures = Array.isArray(json.closures) ? json.closures : [];
   for (let i = 0; i < closures.length; i += 1) {
@@ -270,6 +330,22 @@ function validateRecipe(json) {
     if (eg.appliesAbove !== undefined && (!Number.isInteger(eg.appliesAbove) || eg.appliesAbove < 0)) {
       return fail('extraGuest.appliesAbove', 'entier ≥ 0');
     }
+    // Per-night tier table — « 15 € la 1ʳᵉ nuit, puis 8 €/nuit ».
+    for (const field of ['perNightTiers', 'netTiers']) {
+      if (eg[field] === undefined || eg[field] === null) continue;
+      const err = validateTierTable(eg[field], `extraGuest.${field}`);
+      if (err) return err;
+    }
+    // A tier table IS a degressivity. Letting the season's discount curve compose with it would bill
+    // night 2 at 8 × 0,52 = 4,16 € — a halving invisible to whoever reads this file. Refuse loudly
+    // once rather than under-bill quietly for ever.
+    if (eg.perNightTiers && eg.followsDiscount === true) {
+      return fail('extraGuest.followsDiscount',
+        'incompatible avec perNightTiers : les paliers sont déjà une dégressivité (la 2ᵉ nuit serait facturée 8 × 0,52 = 4,16 €)');
+    }
+    if (eg.netTiers && !eg.perNightTiers) {
+      return fail('extraGuest.netTiers', 'ne peut être déclaré sans perNightTiers');
+    }
   }
 
   return {
@@ -278,7 +354,7 @@ function validateRecipe(json) {
       ...json,
       horizonYears,
       seasons: resolvedSeasons,
-      calendar: { ...cal, periods, modifiers },
+      calendar: { ...cal, periods, modifiers, events },
       closures,
     },
   };

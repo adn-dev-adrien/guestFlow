@@ -3,6 +3,9 @@ const { resolveMidStaySplit } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
+const {
+  normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
+} = require('./extraGuestTiers');
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -110,6 +113,13 @@ function normalizeDateRanges(dateRanges, startDate, endDate) {
       const departure = Math.floor(Number(range?.changeoverDeparture));
       if (Number.isFinite(departure) && departure >= 0 && departure <= 6 && range?.changeoverDeparture !== '' && range?.changeoverDeparture != null) {
         normalized.changeoverDeparture = departure;
+      }
+      // The event that painted this range, so the seasons table can say WHY a June week is high
+      // season (specs/tariff-events-and-extra-guest-tiers §3.3 rule 15bis). Display-only — nothing
+      // prices off it — but this whitelist is rebuilt from scratch, so an unlisted key is lost.
+      if (range?.eventKey) {
+        normalized.eventKey = String(range.eventKey);
+        if (range.eventLabel) normalized.eventLabel = String(range.eventLabel);
       }
       return normalized;
     })
@@ -568,8 +578,20 @@ function computeExtraGuestSurcharge({ unit, extraGuestCount, propertyUnitPrice, 
   }
   let total = 0;
   let ratioTotal = 0;
-  for (const night of nightlyBreakdown) {
+  let tiers = null;
+  for (let index = 0; index < nightlyBreakdown.length; index += 1) {
+    const night = nightlyBreakdown[index];
     const { matchedRule, nightlyBase } = getRuleNightBaseForDate(rules, night.date);
+    // A tier table already encodes the degressivity, so the season ratio must NOT compose with it:
+    // night 2 costs its declared 8 €, not 8 × 0,52. The tier index is the night's rank in the STAY.
+    const nightTiers = matchedRule ? parseJsonArray(matchedRule.extraGuestTiers) : [];
+    const tierPrice = resolveTierPrice(nightTiers, index + 1);
+    if (tierPrice != null) {
+      if (!tiers) tiers = normalizeExtraGuestTiers(nightTiers);
+      ratioTotal += 1;
+      total += count * tierPrice;
+      continue;
+    }
     const override = matchedRule ? Number(matchedRule.extraGuestPrice) : NaN;
     const seasonUnit = Number.isFinite(override) && matchedRule.extraGuestPrice != null
       ? Math.max(0, override)
@@ -578,7 +600,13 @@ function computeExtraGuestSurcharge({ unit, extraGuestCount, propertyUnitPrice, 
     ratioTotal += ratio;
     total += count * seasonUnit * ratio;
   }
-  return { total: roundMoney(total), ratioTotal: roundMoney(ratioTotal), unit: 'per_night' };
+  return {
+    total: roundMoney(total),
+    ratioTotal: roundMoney(ratioTotal),
+    unit: 'per_night',
+    tiers,
+    label: tiers ? describeExtraGuestTiers(tiers) : null,
+  };
 }
 
 function getLateCheckoutNextNightReferencePrice({ rules, endDate, stayNights }) {
@@ -2082,6 +2110,10 @@ function calculateReservationQuote({
     // stay at 1 + 0,7 + 0,7) so the client renders « 27 €/nuit × 2 pers. × 3 nuits » without math.
     extraGuestPriceUnit,
     extraGuestNightlyRatioTotal: extraGuestCalc.ratioTotal,
+    // Tiered supplement: the phrased rule, so the summary shows « 15,00 € la 1ʳᵉ nuit, puis 8,00
+    // €/nuit » instead of a single unit price that no night actually costs.
+    extraGuestTiers: extraGuestCalc.tiers || null,
+    extraGuestTiersLabel: extraGuestCalc.label || null,
     extraGuestCount,
     extraGuestSurchargeOffered: isExtraGuestSurchargeOffered,
     extraGuestSurchargeOriginal,

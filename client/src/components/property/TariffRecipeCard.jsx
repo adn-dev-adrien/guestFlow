@@ -33,6 +33,10 @@ const ACTION_LABELS = {
 
 const WEEKDAY_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const eur = (v) => `${Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+// ISO → « 8 juin 2026 », for the event windows.
+const frDate = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR', {
+  day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+});
 
 /**
  * Every particularity of the applied recipe, in plain French — the page where the operator answers
@@ -40,7 +44,7 @@ const eur = (v) => `${Number(v).toLocaleString('fr-FR', { minimumFractionDigits:
  * property-level inclusions the recipe deliberately does not own (spec §3.1 rule 6), so the two
  * halves of the deal read in one place instead of being spread across three screens.
  */
-function recipeHighlights(recipe, rateInclusions) {
+function recipeHighlights(recipe, rateInclusions, missingEvents) {
   if (!recipe) return [];
   const out = [];
   const seasons = recipe.seasons || [];
@@ -66,14 +70,25 @@ function recipeHighlights(recipe, rateInclusions) {
 
   const eg = recipe.extraGuest || {};
   const egSeason = seasons.find((s) => s.extraGuestPrice != null);
-  if (egSeason || eg.appliesAbove != null) {
+  const egTiers = eg.perNightTiers || [];
+  if (egTiers.length || egSeason || eg.appliesAbove != null) {
     const bits = [];
-    if (egSeason) bits.push(eur(egSeason.extraGuestPrice));
-    if (eg.unit === 'per_night') bits.push('par nuit et par personne');
+    // A tier table is its own degressivity, so it replaces both the single price and the mention of
+    // the discount curve (specs/tariff-events-and-extra-guest-tiers §3.1 rule 2).
+    if (egTiers.length) {
+      bits.push(egTiers.map((t, i) => (
+        i === egTiers.length - 1
+          ? `puis ${eur(t.price)}/nuit`
+          : `${eur(t.price)} la ${t.fromNight === 1 ? '1ʳᵉ' : `${t.fromNight}ᵉ`} nuit`
+      )).join(', '));
+    } else if (egSeason) {
+      bits.push(eur(egSeason.extraGuestPrice));
+    }
+    if (!egTiers.length && eg.unit === 'per_night') bits.push('par nuit et par personne');
     if (eg.appliesAbove != null) bits.push(`au-delà de ${eg.appliesAbove} personnes`);
     out.push({
       label: 'Personne supplémentaire',
-      value: `${bits.join(', ')}${eg.followsDiscount ? ' — soumise à la même dégressivité que la nuit' : ''}`,
+      value: `${bits.join(', ')}${!egTiers.length && eg.followsDiscount ? ' — soumise à la même dégressivité que la nuit' : ''}`,
     });
   }
 
@@ -105,6 +120,34 @@ function recipeHighlights(recipe, rateInclusions) {
     if (holiday.minNights === 'block') bits.push('minimum de séjour égal à la longueur du pont (2 ou 3 nuits)');
     else if (Number.isInteger(holiday.minNights)) bits.push(`minimum ${holiday.minNights} nuits`);
     out.push({ label: 'Jours fériés', value: bits.join(', ') });
+  }
+
+  // Events: the declared years, then the ones still unknown — the « mécanisme pour consulter les
+  // dates » (specs/tariff-events-and-extra-guest-tiers §3.3 rules 15-16).
+  for (const event of recipe.calendar?.events || []) {
+    const years = Object.keys(event.dates || {}).sort();
+    const bits = [];
+    const season = seasons.find((s) => s.key === event.season);
+    if (season) bits.push(season.label.toLowerCase());
+    if (event.minNights) bits.push(`${event.minNights} nuit${event.minNights > 1 ? 's' : ''} minimum`);
+    const windows = years.map((y) => {
+      const w = event.dates[y];
+      return `${frDate(w.from)}→${frDate(w.to)}`;
+    });
+    out.push({
+      label: event.label,
+      value: `${bits.join(', ')} : ${windows.join(' · ')}`,
+      sourceUrl: event.sourceUrl || null,
+    });
+    const missing = (missingEvents || []).filter((m) => m.key === event.key);
+    if (missing.length) {
+      out.push({
+        label: event.label,
+        value: `dates ${missing.map((m) => m.year).join(', ')} pas encore connues — à compléter dès leur publication`,
+        warning: true,
+        sourceUrl: event.sourceUrl || null,
+      });
+    }
   }
 
   for (const closure of recipe.closures || []) {
@@ -149,6 +192,7 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
   const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [activeDocument, setActiveDocument] = useState(null);
+  const [missingEvents, setMissingEvents] = useState([]);
 
   useEffect(() => { setSelectedId(activeRecipeId || ''); }, [activeRecipeId]);
 
@@ -157,14 +201,20 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
     let cancelled = false;
     if (!activeRecipeId) { setActiveDocument(null); return undefined; }
     api.getTariffRecipe(activeRecipeId)
-      .then((res) => { if (!cancelled) setActiveDocument(res?.recipe || null); })
-      .catch(() => { if (!cancelled) setActiveDocument(null); });
+      .then((res) => {
+        if (cancelled) return;
+        setActiveDocument(res?.recipe || null);
+        // Server-computed (spec §3.3): the property card and the Dashboard alert must not disagree
+        // about which years are missing, so neither of them derives it.
+        setMissingEvents(res?.missingEvents || []);
+      })
+      .catch(() => { if (!cancelled) { setActiveDocument(null); setMissingEvents([]); } });
     return () => { cancelled = true; };
   }, [activeRecipeId]);
 
   const highlights = useMemo(
-    () => recipeHighlights(activeDocument, rateInclusions),
-    [activeDocument, rateInclusions]
+    () => recipeHighlights(activeDocument, rateInclusions, missingEvents),
+    [activeDocument, rateInclusions, missingEvents]
   );
 
   const load = useCallback(async () => {
@@ -259,7 +309,24 @@ export default function TariffRecipeCard({ propertyId, activeRecipeId, appliedVe
                 <Typography variant="caption" sx={{ fontWeight: 700, minWidth: { sm: 168 }, flexShrink: 0 }}>
                   {h.label}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">{h.value}</Typography>
+                <Typography variant="caption" color={h.warning ? 'warning.main' : 'text.secondary'}>
+                  {h.value}
+                  {h.sourceUrl && (
+                    <>
+                      {' '}
+                      <Typography
+                        component="a"
+                        variant="caption"
+                        href={h.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ color: 'primary.main' }}
+                      >
+                        (voir le site)
+                      </Typography>
+                    </>
+                  )}
+                </Typography>
               </Box>
             ))}
           </Box>

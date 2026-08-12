@@ -100,7 +100,7 @@ function gridDb() {
     CREATE TABLE pricing_rules (
       id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER NOT NULL, label TEXT,
       pricePerNight REAL NOT NULL DEFAULT 0, startDate TEXT,
-      seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL
+      seasonKey TEXT, seasonRank INTEGER, netTargetPerNight REAL, extraGuestPrice REAL, extraGuestNetTarget REAL, extraGuestTiers TEXT
     );`);
   return db;
 }
