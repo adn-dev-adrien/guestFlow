@@ -119,7 +119,7 @@ describe('FinancePage — total-de-séjour overview', () => {
     await screen.findByText('Revenus');
     // Exercise cards split into a main label + a smaller qualifier (like the period card). The chart
     // tab label « Depuis le début de l'exercice » is capitalized, so this lowercase caption stays unique.
-    expect(screen.getByText("depuis le début de l'exercice")).toBeInTheDocument();
+    expect(screen.getByText("depuis le début de l'exercice jusqu'à aujourd'hui")).toBeInTheDocument();
     expect(screen.getByText("sur l'exercice")).toBeInTheDocument();
     // « sur la période » qualifies the period revenue card.
     expect(screen.getAllByText('sur la période').length).toBeGreaterThan(0);

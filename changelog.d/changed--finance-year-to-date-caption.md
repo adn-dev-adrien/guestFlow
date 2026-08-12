@@ -1,0 +1,1 @@
+- Suivi financier : la carte « Revenus » précise désormais sa borne haute — « depuis le début de l'exercice **jusqu'à aujourd'hui** » — pour la distinguer de « Revenu total sur l'exercice », qui inclut les séjours à venir.

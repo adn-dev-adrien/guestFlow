@@ -101,8 +101,9 @@ The operator can declare their **accounting closing month** once in the settings
 ### 3.4 Where the figures are shown
 
 15. The two annual cards become exercise cards:
-    « **Revenus** depuis le début de l'exercice » (start → today) and
-    « **Revenu total** sur l'exercice » (the whole exercise).
+    « **Revenus** depuis le début de l'exercice jusqu'à aujourd'hui » (start → today) and
+    « **Revenu total** sur l'exercice » (the whole exercise). The first caption spells out its upper
+    bound (2026-08-12 feedback): without « jusqu'à aujourd'hui » the two cards read as synonyms.
 16. On a **closed** exercise, « depuis le début de l'exercice » covers the whole exercise, so the two
     cards carry the same amount. That is correct and no warning is shown.
 17. On a **future** exercise (selectable only if reservations already point into it),
@@ -279,11 +280,13 @@ together).
  ─────────────────────────────────────────────────────────
  Exercice : [ 2025-2026 ▾ ]   du 01/10/2025 au 30/09/2026
 
- ┌─ Revenus  depuis le début de l'exercice ─┐ ┌─ Revenu total  sur l'exercice ───────────┐
- │  48 320 €                                │ │  61 940 €                               │
- │  Gîte 187 nuits · Lodge 142 nuits        │ │  Gîte 224 nuits · Lodge 173 nuits       │
- │                             43 927 € HT  │ │                            56 309 € HT  │
- └──────────────────────────────────────────┘ └─────────────────────────────────────────┘
+ ┌─ Revenus                                 ─┐ ┌─ Revenu total  sur l'exercice ───────────┐
+ │  depuis le début de l'exercice            │ │  61 940 €                               │
+ │  jusqu'à aujourd'hui                      │ │  Gîte 224 nuits · Lodge 173 nuits       │
+ │  48 320 €                                 │ │                            56 309 € HT  │
+ │  Gîte 187 nuits · Lodge 142 nuits         │ └─────────────────────────────────────────┘
+ │                             43 927 € HT   │
+ └───────────────────────────────────────────┘
 
  [ Du 01/08/2026 ]  [ Au 31/08/2026 ]
 

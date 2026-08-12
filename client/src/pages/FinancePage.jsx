@@ -200,7 +200,7 @@ export default function FinancePage() {
   // The three turnover cards carry the nights sold per logement; « Encaissé » / « En attente » are
   // subsets of échéances, not sets of stays, so they carry none (spec §3.4 rules 18-19).
   const yearCards = summary ? [
-    { metric: 'yearToDate', label: 'Revenus', caption: "depuis le début de l'exercice", value: summary.yearToDate, valueHt: summary.yearToDateHt, nights: nightsLine(summary.yearToDateByProperty), accent: 'info.main' },
+    { metric: 'yearToDate', label: 'Revenus', caption: "depuis le début de l'exercice jusqu'à aujourd'hui", value: summary.yearToDate, valueHt: summary.yearToDateHt, nights: nightsLine(summary.yearToDateByProperty), accent: 'info.main' },
     { metric: 'yearTotal', label: 'Revenu total', caption: "sur l'exercice", value: summary.yearTotal, valueHt: summary.yearTotalHt, nights: nightsLine(summary.yearTotalByProperty), accent: 'primary.main' },
   ] : [];
   const periodCards = summary ? [
