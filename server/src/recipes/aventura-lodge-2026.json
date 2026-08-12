@@ -2,7 +2,7 @@
   "id": "aventura-lodge-2026",
   "version": "1.0.0",
   "label": "Aventura Lodge — tarification tout compris 2026",
-  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus) ; dégressivité du §6 du document (24/33/38/41/43/45 %) ; week-ends fériés montés d'un cran avec minimum de séjour ; fermeture hivernale du 15 octobre au 31 mars.",
+  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus, hors taxe de séjour) ; dégressivité du §6 du document (24/33/38/41/43/45 %) ; week-ends fériés montés d'un cran avec minimum de séjour ; fermeture hivernale du 15 octobre au 31 mars.",
   "horizonYears": 2,
 
   "extraGuest": { "appliesAbove": 2, "unit": "per_night", "followsDiscount": true },
