@@ -43,15 +43,30 @@ const SUMMARY = {
   totalPendingHt: 270,
   yearToDateHt: 3780,
   yearTotalHt: 7200,
-  // specs/finance-per-property-revenue-chart.md — both per-logement arrays are zero-seeded and carry
+  // specs/fiscal-year-and-nights-sold.md §3.3 — nights sold ride on the same per-logement aggregates.
+  revenueTotalNights: 4,
+  yearToDateNights: 21,
+  yearTotalNights: 30,
+  // specs/finance-per-property-revenue-chart.md — the per-logement arrays are zero-seeded and carry
   // an HT; the splits sum to the matching global figures (period 1500 = 1500 + 0, ytd 4200 = 2700 + 1500).
   revenueByProperty: [
-    { propertyId: 1, propertyName: 'Gîte', revenue: 1500, revenueHt: 1350 },
-    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0 },
+    { propertyId: 1, propertyName: 'Gîte', revenue: 1500, revenueHt: 1350, nights: 4 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0, nights: 0 },
   ],
   yearToDateByProperty: [
-    { propertyId: 1, propertyName: 'Gîte', revenue: 2700, revenueHt: 2430 },
-    { propertyId: 2, propertyName: 'Tente', revenue: 1500, revenueHt: 1350 },
+    { propertyId: 1, propertyName: 'Gîte', revenue: 2700, revenueHt: 2430, nights: 13 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 1500, revenueHt: 1350, nights: 8 },
+  ],
+  yearTotalByProperty: [
+    { propertyId: 1, propertyName: 'Gîte', revenue: 5000, revenueHt: 4500, nights: 18 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 3000, revenueHt: 2700, nights: 12 },
+  ],
+  // specs/fiscal-year-and-nights-sold.md §3.5 — the exercise the annual cards describe + the selector
+  // options. Closing month September → 1 Oct … 30 Sep.
+  fiscalYear: { key: 2026, label: '2025-2026', from: '2025-10-01', to: '2026-09-30', isCurrent: true },
+  fiscalYears: [
+    { key: 2026, label: '2025-2026', from: '2025-10-01', to: '2026-09-30', isCurrent: true },
+    { key: 2025, label: '2024-2025', from: '2024-10-01', to: '2025-09-30', isCurrent: false },
   ],
   reservations: [
     {
@@ -102,10 +117,10 @@ describe('FinancePage — total-de-séjour overview', () => {
   test('renders the 5 top cards, year cards first', async () => {
     renderPage();
     await screen.findByText('Revenus');
-    // Year cards split into a main label + a smaller qualifier (like the period card). The chart tab
-    // label « Depuis le début de l'année » is capitalized, so this lowercase caption stays unique.
-    expect(screen.getByText("depuis le début de l'année")).toBeInTheDocument();
-    expect(screen.getByText("sur l'année")).toBeInTheDocument();
+    // Exercise cards split into a main label + a smaller qualifier (like the period card). The chart
+    // tab label « Depuis le début de l'exercice » is capitalized, so this lowercase caption stays unique.
+    expect(screen.getByText("depuis le début de l'exercice")).toBeInTheDocument();
+    expect(screen.getByText("sur l'exercice")).toBeInTheDocument();
     // « sur la période » qualifies the period revenue card.
     expect(screen.getAllByText('sur la période').length).toBeGreaterThan(0);
     // specs/finance-pending-global-remaining.md — the pending card is period-free: its caption
@@ -193,10 +208,40 @@ describe('FinancePage — total-de-séjour overview', () => {
     expect(screen.getByRole('tab', { name: 'Sur la période' })).toBeInTheDocument();
     // Default window: the du/au period, with its TTC caption.
     expect(screen.getByText(/Période du .+ au .+ · montants TTC/)).toBeInTheDocument();
-    // Switch to the year-to-date window.
-    fireEvent.click(screen.getByRole('tab', { name: "Depuis le début de l'année" }));
-    expect(screen.getByText("Du 1er janvier à aujourd'hui · montants TTC")).toBeInTheDocument();
+    // Switch to the exercise window — its caption is built from the payload's bounds, never derived
+    // client-side (specs/fiscal-year-and-nights-sold.md §6.2).
+    fireEvent.click(screen.getByRole('tab', { name: "Depuis le début de l'exercice" }));
+    expect(screen.getByText(/Exercice 2025-2026 · depuis le 01\/10\/2025 · montants TTC/)).toBeInTheDocument();
     expect(screen.queryByText(/Période du .+ au .+ · montants TTC/)).not.toBeInTheDocument();
+  });
+
+  test('the two exercise cards carry the nights sold per logement; the period card does not', async () => {
+    // specs/fiscal-year-and-nights-sold.md §3.4 rules 18-21 — the PERIOD's nights are read off the
+    // « Revenu par logement » chart (2026-08-12 decision), so its card stays a single figure.
+    // « Encaissé » / « En attente » are subsets of échéances, not sets of stays → no nights either.
+    renderPage();
+    await screen.findByText('Revenus');
+    expect(screen.getByText('Gîte 13 nuits · Tente 8 nuits')).toBeInTheDocument();   // yearToDate
+    expect(screen.getByText('Gîte 18 nuits · Tente 12 nuits')).toBeInTheDocument();  // yearTotal
+    // The period split (Gîte 4 nuits) is NOT on a card…
+    expect(screen.queryByText('Gîte 4 nuits')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tente 0 nuit/)).not.toBeInTheDocument();
+    // …so exactly two nights lines sit among the cards.
+    expect(screen.getAllByText(/nuits/).length).toBe(2);
+  });
+
+  test('the exercise selector drives the summary refetch and the URL', async () => {
+    renderPage();
+    await screen.findByText('Revenus');
+    // Current exercise is preselected, with its bounds spelled out beside it.
+    expect(screen.getByText('du 01/10/2025 au 30/09/2026')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Exercice' })).toHaveTextContent('2025-2026');
+    // Picking a closed exercise refetches the summary for that key.
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Exercice' }));
+    fireEvent.click(await screen.findByRole('option', { name: '2024-2025' }));
+    await waitFor(() => expect(api.getFinanceSummary).toHaveBeenLastCalledWith(
+      expect.any(String), expect.any(String), '2025',
+    ));
   });
 
   test('each card shows its element-by-element HT in smaller text', async () => {

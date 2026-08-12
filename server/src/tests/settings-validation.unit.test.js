@@ -11,6 +11,7 @@ const {
   validateSmtpPort,
   validatePublicUrl,
   validateLaundryWeekday,
+  validateFiscalYearEndMonth,
 } = require('../utils/settingsValidation');
 
 // --- email ---
@@ -132,4 +133,24 @@ test('validateLaundryWeekday rejects out-of-range and non-integer values', () =>
   assert.match(validateLaundryWeekday(7), /entre 0/);
   assert.match(validateLaundryWeekday(2.5), /entre 0/);
   assert.match(validateLaundryWeekday('mardi'), /entre 0/);
+});
+
+// Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1).
+test('validateFiscalYearEndMonth accepts 1..12; empty/null are a no-op (preserve semantics)', () => {
+  for (let m = 1; m <= 12; m++) {
+    assert.equal(validateFiscalYearEndMonth(m), null, `month ${m} should be valid`);
+  }
+  // The form sends the Select value, which may arrive as a string.
+  assert.equal(validateFiscalYearEndMonth('9'), null);
+  assert.equal(validateFiscalYearEndMonth(null), null);
+  assert.equal(validateFiscalYearEndMonth(''), null);
+  assert.equal(validateFiscalYearEndMonth(undefined), null);
+});
+
+test('validateFiscalYearEndMonth rejects out-of-range and non-integer months', () => {
+  assert.match(validateFiscalYearEndMonth(0), /entre 1/);
+  assert.match(validateFiscalYearEndMonth(13), /entre 1/);
+  assert.match(validateFiscalYearEndMonth(-3), /entre 1/);
+  assert.match(validateFiscalYearEndMonth(9.5), /entre 1/);
+  assert.match(validateFiscalYearEndMonth('septembre'), /entre 1/);
 });

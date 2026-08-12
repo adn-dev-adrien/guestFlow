@@ -304,8 +304,8 @@ test('getSummary: empty range → revenueByProperty seeded at 0 € for every lo
   // the properties table so a logement with no reservation stays in the payload at 0.
   const { model } = freshModel();
   assert.deepEqual(model.getSummary({ from: iso(0), to: iso(10) }).revenueByProperty, [
-    { propertyId: 1, propertyName: 'Gite', revenue: 0, revenueHt: 0 },
-    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0 },
+    { propertyId: 1, propertyName: 'Gite', revenue: 0, revenueHt: 0, nights: 0 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0, nights: 0 },
   ]);
 });
 

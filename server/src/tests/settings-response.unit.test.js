@@ -59,3 +59,13 @@ test('shapeResponse: empty row → empty wrapped payload + defaults', () => {
   assert.equal(out.googleCalendar, undefined);
   assert.equal(out.updatedAtLabel, null);
 });
+
+// Accounting block (specs/fiscal-year-and-nights-sold.md §4.3).
+test('shapeResponse: accounting.fiscalYearEndMonth round-trips, defaulting to December', () => {
+  assert.equal(shapeResponse({ fiscalYearEndMonth: 9 }).accounting.fiscalYearEndMonth, 9);
+  // A pre-migration row (column NULL) reads as the calendar year, i.e. the pre-spec behaviour.
+  assert.equal(shapeResponse({ fiscalYearEndMonth: null }).accounting.fiscalYearEndMonth, 12);
+  assert.equal(shapeResponse({}).accounting.fiscalYearEndMonth, 12);
+  // SQLite hands integers back as numbers, but be explicit: the client binds this to a Select value.
+  assert.equal(typeof shapeResponse({ fiscalYearEndMonth: '9' }).accounting.fiscalYearEndMonth, 'number');
+});

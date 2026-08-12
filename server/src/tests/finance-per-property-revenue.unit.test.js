@@ -70,9 +70,11 @@ test('revenueByProperty: per-logement revenue + HT, zero-revenue logement seeded
   // Gite, direct, no tourist tax: 150 + 400 = 550 TTC → HT = 550 ÷ 1.1 = 500.
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), finalPrice: 550, depositAmount: 150, balanceAmount: 400 });
   const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  // …and the nights sold ride along on the same aggregate (specs/fiscal-year-and-nights-sold.md §3.3):
+  // the stay runs iso(1) → iso(4) = 3 nights; the logement with no stay stays seeded at 0.
   assert.deepEqual(summary.revenueByProperty, [
-    { propertyId: 1, propertyName: 'Gite', revenue: 550, revenueHt: 500 },
-    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0 },
+    { propertyId: 1, propertyName: 'Gite', revenue: 550, revenueHt: 500, nights: 3 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0, nights: 0 },
   ]);
 });
 
