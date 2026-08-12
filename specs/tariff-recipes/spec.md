@@ -383,6 +383,13 @@ all-inclusive pricing as the first such recipe.
     value (`originalTotalPrice`) is subtracted from the accommodation amount before the percentage-mode
     tax is computed, floored at 0. Nothing else moves: the sale, the instalments, the VAT and the
     accounting are untouched — this is a tax-base adjustment only.
+48bis. **The tourist-tax configuration itself is never written by this work.** Rate, mode and
+    departmental share are already set in production and correct (the Lodge is in
+    `percentage_accommodation`, so rule 48's deduction does bite for it). The recipe schema has no
+    tourist-tax field and `configure-aventura-lodge-2026.mjs` does not list one in `PROPERTY_FIELDS` —
+    the deduction changes the computed base, never the parameters. Every price this spec quotes —
+    nightly rates, net targets, the channel grid — is **exclusive of tourist tax**, which GuestFlow
+    adds on top at quote time.
 49. **A one-off commercial gesture is not an inclusion.** Manually offering an option that is not a
     property default stays « Offert » and is **not** deducted: only a structural inclusion is a
     non-accommodation service in the eyes of the declaration. The distinction already exists in the
@@ -641,6 +648,8 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
   without it.
 - **Conditional freebies** — « plancha offerte dès 2 nuits », « location matériel 18 € dès 3 nuits » are
   not expressible as pricing rules; they stay a manual gesture.
+- **Tourist-tax configuration.** Rate, mode and departmental share are production-owned, correct, and
+  deliberately untouched (rule 48bis). Only the computed base moves.
 - **Automatic rate push to the OTAs.** The grid is a copy-paste reference.
 - **Re-pricing existing reservations.** The new tariff applies to reservations created or re-quoted
   after the change; locked snapshots keep their prices.
@@ -648,18 +657,19 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 
 ## 9. Open questions
 
-- **Q1 — Tourist tax.** Satillieu's rate and mode (flat per adult/night vs. percentage of the
-  accommodation) are `[À REMPLIR]`. Rule 48's deduction only bites in percentage mode; in flat mode it
-  is inert for this property.
-  - A: _pending_
-- **Q2 — Extra-guest supplement in the tourist-tax base.** The supplement is accommodation revenue but
-  is currently excluded from `taxBaseAccommodation`. With a per-night supplement this becomes material
-  (421,20 € on case D5). Include it?
-  - A (proposed): yes, in percentage mode — after Q1 confirms the mode, and as a separate change so the
-    tariff work is not blocked by a declaration question.
 - **Q3 — 1-night plancha and early check-in prices** are `[À CONFIRMER]` in the source document; early
   check-in is already an auto-option with fixed or proportional pricing.
   - A: _pending_
+
+**Resolved (2026-08-12) — tourist tax, both questions closed by the owner:**
+- **Q1 — Satillieu's rate and mode.** Already configured in production, working, and **not to be
+  touched**. The Lodge is in `percentage_accommodation` mode, so rule 48's deduction is live for it
+  rather than inert. Nothing in this work writes the parameters (rule 48bis). ✅
+- **Q2 — Extra-guest supplement in the tax base.** **No.** The declaration works as it stands; the
+  supplement stays out of `taxBaseAccommodation`. Reopening it would change amounts that are correct
+  today, which is exactly what the owner ruled out. ✅
+- Consequence for every price in this spec and in the UI: they are **exclusive of tourist tax**. The
+  « prix tout compris » of the source document means cleaning and linen included, not the tax. ✅
 
 **Resolved (2026-08-11):**
 - The tariff model is expressed as a **recipe**: a declarative, AI-generatable document with an open
