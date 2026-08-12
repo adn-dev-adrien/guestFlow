@@ -127,20 +127,34 @@ iCal sources management + sync feedback all behave identically. (No `PageActionB
 `PropertyDetail` (`/properties/:id`) previously laid its cards out in a `<Grid container>` of
 `md=6` items. Because the cards have very uneven heights (e.g. "Horaires & Ménage" = 2 fields vs
 "Informations" / "Tarification" = tall), the row-based Grid left large empty gaps under the short
-cards. Reworked to **two explicit columns** (a flex row, `flexDirection: { xs: 'column', md: 'row' }`,
+cards. Reworked to **two explicit columns** (a flex row, `flexDirection: { xs: 'column', lg: 'row' }`,
 `gap: 3`, `alignItems: 'flex-start'` so each column keeps its own height) for the compact cards,
 plus a full-width section below for the wide ones:
 
-- **Left column:** Informations (incl. the article selector) + Acompte & Solde.
-- **Right column:** Horaires & Ménage + Options horaires automatiques + Options par défaut.
+- **Left column:** Informations (incl. the article selector) + Horaires & Ménage.
+- **Right column:** Acompte & Solde + Options horaires automatiques + Options par défaut.
 - **Full width below:** **Tarification** (holds the pricing-seasons table, `minWidth 700`),
   **Documents**, **iCal Export**, **Connexions iCal**.
 
 Explicit columns (rather than a CSS-`columnCount` masonry) are used so card placement is
-deterministic — e.g. Acompte stays in the left column — and inter-card spacing is regular (no
-margin-collapse against a `column-span` element). On `xs` everything stacks into one column. No
-behaviour change — purely layout; logic, role gating, dirty-form guard and endpoints untouched.
-The `Grid` import is dropped from the page.
+deterministic and inter-card spacing is regular (no margin-collapse against a `column-span`
+element). Below `lg` everything stacks into one column. No behaviour change — purely layout;
+logic, role gating, dirty-form guard and endpoints untouched. The `Grid` import is dropped from
+the page.
+
+**2026-08-12 — rebalancing pass.** The 4 top cards were unevenly split (a single tall Informations
+card on the left, three cards on the right), leaving a large void under the left column. Changes:
+
+- **Acompte & Solde** moved from the left column to the **top of the right** column; **Horaires &
+  Ménage** moved from the right column to **under Informations** on the left. Both columns now end
+  at roughly the same height.
+- Cards pack their fields **3 per row** on `sm+` instead of stacking short number inputs full-width:
+  Informations (nom + article ; max adultes/enfants/bébés ; lits doubles/simples + capacité incluse ;
+  supplément + unité), Acompte & Solde (% acompte + acompte j-N + solde j-N, then caution), Horaires
+  & Ménage (arrivée + départ + temps de ménage on one row).
+- The two-column split moved from `md` to **`lg`**: at `md` the sidebar leaves each column too narrow
+  for 3 fields and the labels ellipse. Between `sm` and `lg` the page is one full-width column (rows
+  of 3 still apply); on `xs` every field stacks.
 
 ## 7. Test plan
 

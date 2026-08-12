@@ -785,10 +785,13 @@ export default function PropertyDetail() {
           color: 'error',
         }] : []}
       />
-      {/* Two explicit columns on md+ (1 on xs): left = Informations + Acompte,
-          right = Horaires + Options horaires + Options par défaut. alignItems flex-start
-          keeps each column at its own height. Wide / table cards go full-width below. */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, alignItems: 'flex-start' }}>
+      {/* Two explicit columns on lg+ (1 below): left = Informations + Horaires,
+          right = Acompte + Options horaires + Options par défaut — the split keeps both columns
+          roughly the same height. The cards pack their fields 3-per-row, which needs the full
+          width below lg (at md the sidebar leaves each column too narrow and labels ellipse).
+          alignItems flex-start keeps each column at its own height. Wide / table cards go
+          full-width below. */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3, alignItems: 'flex-start' }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* Infos */}
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
@@ -797,15 +800,31 @@ export default function PropertyDetail() {
               <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Informations</Typography>
               {/* Name is the first form field (specs/ds-sweep-reservations.md rule 9) — the bar shows
                   a static title; this drives it. */}
-              <TextField
-                label="Nom du logement"
-                value={form.name || ''}
-                onChange={(e) => updateField('name', e.target.value)}
-                fullWidth
-                size="small"
-                autoFocus={isNew}
-                sx={{ mb: 2 }}
-              />
+              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'flex-start', mb: 2 }}>
+                <TextField
+                  label="Nom du logement"
+                  value={form.name || ''}
+                  onChange={(e) => updateField('name', e.target.value)}
+                  fullWidth
+                  size="small"
+                  autoFocus={isNew}
+                />
+                <TextField
+                  select
+                  label="Article du nom (emails clients)"
+                  value={form.nameArticle || 'au'}
+                  onChange={(e) => updateField('nameArticle', e.target.value)}
+                  size="small"
+                  fullWidth
+                  helperText={previewWithArticle(form.name, form.nameArticle)
+                    ? `Aperçu : « votre séjour ${previewWithArticle(form.name, form.nameArticle)} »`
+                    : 'Utilisé pour « votre séjour … » dans les emails clients.'}
+                >
+                  {NAME_ARTICLES.map((a) => (
+                    <MenuItem key={a} value={a}>{a}</MenuItem>
+                  ))}
+                </TextField>
+              </Box>
               {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box>
@@ -823,21 +842,6 @@ export default function PropertyDetail() {
                     </Typography>
                   )}
                 </Box>
-                <TextField
-                  select
-                  label="Article du nom (emails clients)"
-                  value={form.nameArticle || 'au'}
-                  onChange={(e) => updateField('nameArticle', e.target.value)}
-                  size="small"
-                  sx={{ width: { xs: '100%', sm: 360 } }}
-                  helperText={previewWithArticle(form.name, form.nameArticle)
-                    ? `Aperçu : « votre séjour ${previewWithArticle(form.name, form.nameArticle)} »`
-                    : 'Utilisé pour « votre séjour … » dans les emails clients.'}
-                >
-                  {NAME_ARTICLES.map((a) => (
-                    <MenuItem key={a} value={a}>{a}</MenuItem>
-                  ))}
-                </TextField>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="2 à 18 ans" />
@@ -850,8 +854,6 @@ export default function PropertyDetail() {
                   <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
                     htmlInput: { min: 0 }
                   }} />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField
                     label="Capacité incluse dans le prix de base"
                     type="number"
@@ -865,6 +867,8 @@ export default function PropertyDetail() {
                       htmlInput: { min: 0, step: 1 }
                     }}
                   />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField
                     label="Supplément par personne (€)"
                     type="number"
@@ -897,14 +901,42 @@ export default function PropertyDetail() {
           </Card>
         </Box>
 
+        {/* Horaires & Ménage */}
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Horaires & Ménage</Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Heure d'arrivée</InputLabel>
+                  <Select value={form.defaultCheckIn || '15:00'} label="Heure d'arrivée" onChange={(e) => updateField('defaultCheckIn', e.target.value)}>
+                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Heure de départ</InputLabel>
+                  <Select value={form.defaultCheckOut || '10:00'} label="Heure de départ" onChange={(e) => updateField('defaultCheckOut', e.target.value)}>
+                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                  htmlInput: { min: 0, step: 0.5 }
+                }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+        </Box>{/* fin colonne gauche */}
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* Acompte & Solde */}
-        <Box sx={{ mb: 3 }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Acompte & Solde</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 </Box>
@@ -920,36 +952,6 @@ export default function PropertyDetail() {
                     Le site encaisse l'acompte à la réservation ; le solde est demandé par email à l'échéance. Sinon, le séjour est payé en une fois.
                   </Typography>
                 </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
-        </Box>{/* fin colonne gauche */}
-
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-        {/* Horaires & Ménage */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Horaires & Ménage</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Heure d'arrivée</InputLabel>
-                    <Select value={form.defaultCheckIn || '15:00'} label="Heure d'arrivée" onChange={(e) => updateField('defaultCheckIn', e.target.value)}>
-                      {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Heure de départ</InputLabel>
-                    <Select value={form.defaultCheckOut || '10:00'} label="Heure de départ" onChange={(e) => updateField('defaultCheckOut', e.target.value)}>
-                      {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Box>
-                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                  htmlInput: { min: 0, step: 0.5 }
-                }} />
               </Box>
             </CardContent>
           </Card>
