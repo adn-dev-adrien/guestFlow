@@ -2,6 +2,7 @@ const router = require('express').Router();
 const ctrl = require('../controllers/propertiesController');
 const ical = require('../controllers/propertyIcalController');
 const optionDefaults = require('../controllers/propertyOptionDefaultsController');
+const welcomePack = require('../controllers/welcomePackController');
 const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require('../utils/propertyUploads');
 
 // Properties
@@ -38,6 +39,10 @@ router.put('/:id/options', ctrl.setOptions);
 router.get('/:id/option-defaults', optionDefaults.listForProperty);
 router.put('/:id/option-defaults/:optionId', optionDefaults.setForProperty);
 router.delete('/:id/option-defaults/:optionId', optionDefaults.unsetForProperty);
+
+// Welcome pack applied by the reservation form on own-channel bookings
+// (specs/welcome-pack-auto-options.md §4.3).
+router.get('/:id/welcome-pack', welcomePack.forProperty);
 
 // Merged platform list for a property (specs/platforms-and-ical-rework.md §4.3): every platform +
 // this property's iCal-source config + the global colour.

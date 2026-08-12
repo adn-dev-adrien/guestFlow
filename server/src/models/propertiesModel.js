@@ -889,6 +889,33 @@ function createPropertiesModel(database) {
       return { data: { ok: true } };
     },
 
+    // specs/welcome-pack-auto-options.md §3.1 — the property's welcome pack: the options this
+    // property's rate already covers by the unit (`freeUnits > 0`, written by the tariff recipe).
+    // Engine-derived options (`autoEnabled = 1`) are excluded: they are never part of a reservation's
+    // manual selection. Defensive like `rateInclusions`: a minimal schema degrades to an empty pack.
+    listWelcomePackOptions(propertyId) {
+      const pid = Number(propertyId);
+      if (!Number.isInteger(pid) || pid <= 0) return [];
+      try {
+        return database.prepare(`
+          SELECT o.id AS optionId, o.title, o.priceType, o.autoOptionType,
+                 o.showsPlanningCard, o.cardRepeat, o.planningCardTimes, o.breakfastTime,
+                 COALESCE(pop.price, o.price) AS unitPrice,
+                 COALESCE(pop.freeUnits, 0) AS freeUnits
+          FROM options o
+          JOIN property_options po ON po.optionId = o.id AND po.propertyId = ?
+          JOIN property_option_prices pop ON pop.optionId = o.id AND pop.propertyId = ?
+          WHERE o.archivedAt IS NULL
+            AND COALESCE(o.displayToClient, 1) != 0
+            AND COALESCE(o.autoEnabled, 0) != 1
+            AND COALESCE(pop.freeUnits, 0) > 0
+          ORDER BY o.title COLLATE NOCASE
+        `).all(pid, pid);
+      } catch (_) {
+        return [];
+      }
+    },
+
     setOptions(propertyId, optionIds = []) {
       const deleteAll = database.prepare('DELETE FROM property_options WHERE propertyId = ?');
       const insert = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');

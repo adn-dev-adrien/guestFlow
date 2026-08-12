@@ -36,6 +36,8 @@ import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
+import useWelcomePack from '../hooks/useWelcomePack';
+import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
   buildInitialGrid as buildInitialCardGrid,
   buildGridFromStored as buildCardGridFromStored,
@@ -135,6 +137,10 @@ export default function ReservationPage() {
   const devisIdFromUrl = searchParams.get('devisId');
   const editingDevisId = isDevisMode && devisIdFromUrl ? Number(devisIdFromUrl) : null;
   const prefillDevis = isDevisMode && !editingDevisId ? location.state?.prefillDevis : null;
+  // specs/welcome-pack-auto-options.md §3.2 rules 4-5 — the pack is applied to a reservation being
+  // created from scratch and to nothing else: a saved reservation's option set is history, and a
+  // devis (or a fiche prefilled from one) carries its own.
+  const isBlankNewReservation = !editingReservationId && !isDevisMode;
 
   const theme = useTheme();
   const downSm = useMediaQuery(theme.breakpoints.down('sm'));
@@ -186,6 +192,13 @@ export default function ReservationPage() {
   // flag (set by the refresh button) forces a one-off live recompute until the reservation is reloaded.
   const [touristTaxRefreshRequested, setTouristTaxRefreshRequested] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
+  // specs/welcome-pack-auto-options.md rule 11 — options the operator took out of the pack's hands.
+  // Unticking a pack line deletes it, tag included, so the tag alone cannot remember the refusal:
+  // without this set the next context change (platform, dates, guests) would put the line back.
+  const [welcomePackOptOut, setWelcomePackOptOut] = useState(() => new Set());
+  const releaseFromWelcomePack = useCallback((optionId) => {
+    setWelcomePackOptOut((prev) => (prev.has(Number(optionId)) ? prev : new Set(prev).add(Number(optionId))));
+  }, []);
 
   // §3.7 — cache of the current property's option defaults. Refreshed whenever `form.propertyId`
   // changes (incl. on edit-load), so `setOptionQuantity` can apply the offered flag when the
@@ -1338,21 +1351,26 @@ export default function ReservationPage() {
     // (e.g. mirror the property's `offered` default into offeredOptionIds). React forbids
     // calling another setState inside an updater function — track the side effect here.
     let didAdd = false;
+    let didReleasePack = false;
     setForm(prev => {
       const parsed = Number(quantity);
       const normalizedQty = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-      const exists = prev.selectedOptions.find(so => so.optionId === optionId);
+      // specs/welcome-pack-auto-options.md rule 11 — the operator just took ownership of this
+      // option: the pack stops managing it (no removal on a platform change, no rebuild).
+      const selected = releaseWelcomePackLine(prev.selectedOptions, optionId);
+      if (selected !== prev.selectedOptions) didReleasePack = true;
+      const exists = selected.find(so => so.optionId === optionId);
       let newOpts;
       if (normalizedQty <= 0) {
-        newOpts = prev.selectedOptions.filter(so => so.optionId !== optionId);
+        newOpts = selected.filter(so => so.optionId !== optionId);
       } else if (exists) {
-        newOpts = prev.selectedOptions.map(so =>
+        newOpts = selected.map(so =>
           so.optionId === optionId ? { ...so, quantity: normalizedQty } : so
         );
       } else {
         // Absent → present transition. Mark for the offered-mirror side effect below.
         didAdd = true;
-        newOpts = [...prev.selectedOptions, { optionId, quantity: normalizedQty, totalPrice: 0 }];
+        newOpts = [...selected, { optionId, quantity: normalizedQty, totalPrice: 0 }];
       }
       return { ...prev, selectedOptions: newOpts };
     });
@@ -1361,6 +1379,7 @@ export default function ReservationPage() {
     // whatever the offeredOptionIds had at load time, ignoring the property contract.
     // Only fires on a fresh add AND when a default actually exists for this option — no
     // default → leave the historical state alone.
+    if (didReleasePack) releaseFromWelcomePack(optionId);
     if (didAdd) {
       const def = propertyOptionDefaultsMap.get(Number(optionId));
       if (def) {
@@ -1377,13 +1396,18 @@ export default function ReservationPage() {
   // Option-driven planning cards (specs/option-planning-card.md §3.2). Set the working occurrence
   // grid ({date,time,slot,checked}[]) on a card-option's selected line. Adds the line if absent.
   const setOptionCardOccurrences = (optionId, occurrences) => {
+    let didReleasePack = false;
     setForm((prev) => {
-      const exists = (prev.selectedOptions || []).some((so) => Number(so.optionId) === Number(optionId));
+      // Rule 11 again: editing the occurrences is an operator act, so the line leaves the pack's hands.
+      const selected = releaseWelcomePackLine(prev.selectedOptions || [], optionId);
+      if (selected !== (prev.selectedOptions || [])) didReleasePack = true;
+      const exists = selected.some((so) => Number(so.optionId) === Number(optionId));
       const next = exists
-        ? prev.selectedOptions.map((so) => (Number(so.optionId) === Number(optionId) ? { ...so, cardOccurrences: occurrences } : so))
-        : [...(prev.selectedOptions || []), { optionId: Number(optionId), quantity: 1, totalPrice: 0, cardOccurrences: occurrences }];
+        ? selected.map((so) => (Number(so.optionId) === Number(optionId) ? { ...so, cardOccurrences: occurrences } : so))
+        : [...selected, { optionId: Number(optionId), quantity: 1, totalPrice: 0, cardOccurrences: occurrences }];
       return { ...prev, selectedOptions: next };
     });
+    if (didReleasePack) releaseFromWelcomePack(optionId);
   };
 
   const setOptionEnabled = (optionId, enabled) => {
@@ -1427,6 +1451,40 @@ export default function ReservationPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.startDate, form.endDate, form.checkInTime, form.checkOutTime, propertyOptions]);
+
+  // Welcome pack (specs/welcome-pack-auto-options.md). The server answers « what does the rate
+  // already cover for THIS context » — own channel, party size, stay dates — and returns lines that
+  // are safe to apply as-is; the effect below is the only thing the client decides: put them in,
+  // take them back out. It is declared AFTER the grid reconcile above so that, on a date change,
+  // the pack's single morning wins over the reconcile's « new day ⇒ pre-checked » rule.
+  const welcomePackLines = useWelcomePack({
+    enabled: isBlankNewReservation,
+    propertyId: selectedProp || null,
+    platform: form.platform,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    checkInTime: form.checkInTime,
+    checkOutTime: form.checkOutTime,
+    adults: form.adults,
+    children: form.children,
+    teens: form.teens,
+  });
+
+  useEffect(() => {
+    if (!isBlankNewReservation) return;
+    setForm((prev) => {
+      const nextOptions = applyWelcomePack(prev.selectedOptions, welcomePackLines, {
+        options: propertyOptions,
+        excludedOptionIds: welcomePackOptOut,
+        startDate: prev.startDate,
+        endDate: prev.endDate,
+        checkInTime: prev.checkInTime,
+        checkOutTime: prev.checkOutTime,
+      });
+      return nextOptions === prev.selectedOptions ? prev : { ...prev, selectedOptions: nextOptions };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [welcomePackLines, propertyOptions, isBlankNewReservation, welcomePackOptOut]);
 
   const setResourceQuantity = (resourceId, quantity) => {
     setForm(prev => {
@@ -1714,6 +1772,8 @@ export default function ReservationPage() {
 
     setSelectedProp(nextPropertyId);
     setSelectedProperty(prop);
+    // A different logement is a different pack — the refusals of the previous one mean nothing here.
+    setWelcomePackOptOut(new Set());
     setReservations(allRes || []);
     setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
     setPropertyOptionGroups(prop?.optionGroups || null);
