@@ -140,6 +140,16 @@ test('create: the iCal import leaves `notes` empty and keeps the summary only in
   assert.equal(row.icalOriginalSummary, 'Jean Dupont', 'the summary is preserved in its own column');
 });
 
+test('create: the client auto-created by the import gets an empty note', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  const client = db.prepare('SELECT firstName, lastName, notes FROM clients').get();
+  assert.equal(client.firstName, 'Jean');
+  assert.equal(client.lastName, 'Dupont');
+  assert.equal(client.notes, '', 'no auto-generated mention in the client note');
+});
+
 test('update: a re-sync never clobbers the operator note', async () => {
   const { db, model, source } = freshModel();
   stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
