@@ -131,10 +131,7 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
               </TableHead>
               <TableBody>
                 {platforms.map((p) => (
-                  <TableRow
-                    key={p.id}
-                    sx={p.isDirect ? { '& td': { borderBottomWidth: 2, borderBottomColor: 'divider' } } : undefined}
-                  >
+                  <TableRow key={p.id}>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: p.isDirect ? 700 : 500 }}>{p.name}</Typography>
                       {p.isDirect && (
