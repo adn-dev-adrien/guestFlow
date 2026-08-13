@@ -1,4 +1,4 @@
-# iCal import leaves the reservation note empty
+# iCal import leaves the reservation and client notes empty
 
 | Field | Value |
 |---|---|
@@ -28,10 +28,16 @@ moved. The original summary is already preserved in its own column (`icalOrigina
 cross-UID dedup fallback (specs/ical-summary-fallback-cross-uid.md), and the `sourceType='ical'` +
 platform columns already identify the booking as an import — so the note carried no unique information.
 
+**2026-08-13 extension.** The same noise existed one level down: when the import had to create the
+guest, `getOrCreateIcalClient` seeded the new client's `notes` with `"<Plateforme>: créé
+automatiquement lors de l'import iCal"`. Same reasoning — the client fiche already shows where its
+reservations come from, so the mention only cluttered the operator's free-text field.
+
 ## 2. Goal
 
-The `notes` field of an iCal-imported reservation is reserved for the operator's own free text. The
-import never writes into it, and a re-sync never overwrites it.
+The `notes` field of an iCal-imported reservation — and of the client the import auto-creates — is
+reserved for the operator's own free text. The import never writes into it, and a re-sync never
+overwrites it.
 
 ## 3. Functional rules
 
@@ -40,9 +46,13 @@ import never writes into it, and a re-sync never overwrites it.
    the UPDATE** — whatever the operator wrote survives untouched.
 3. The original event summary keeps being stored in `icalOriginalSummary` on create (unchanged) — the
    dedup / cross-UID fallback still works.
-4. **Out of scope / unchanged:** pre-existing reservations imported before this change keep their old
-   note blob (no backfill); the legacy `extractSummaryFromIcalReservationNotes` parse stays as a
-   fallback for those old rows.
+4. On **client auto-creation** during an import (`getOrCreateIcalClient`, when no client matches the
+   parsed first/last name), the new client's `notes` is the empty string — no
+   "créé automatiquement lors de l'import iCal" mention. The identity resolution itself is unchanged
+   (the platform label still feeds the fallback name for anonymous events).
+5. **Out of scope / unchanged:** pre-existing reservations and clients created before this change keep
+   their old note blob / mention (no backfill); the legacy `extractSummaryFromIcalReservationNotes`
+   parse stays as a fallback for those old rows.
 
 ## 4. Architecture
 
@@ -52,7 +62,7 @@ import never writes into it, and a re-sync never overwrites it.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `models/` | `propertyIcalModel.js` | C | `notes` constant set to `''`; `notes` removed from both the create metadata blob and from the `updateReservation` prepared statement + its `.run()` call (so re-sync leaves the column alone). |
+| `models/` | `propertyIcalModel.js` | C | `notes` constant set to `''`; `notes` removed from both the create metadata blob and from the `updateReservation` prepared statement + its `.run()` call (so re-sync leaves the column alone). **2026-08-13:** `getOrCreateIcalClient` inserts the new client with `notes = ''` instead of the auto-generated platform mention. |
 
 ## 5. Data model
 
@@ -61,18 +71,21 @@ No schema change. `notes` and `icalOriginalSummary` columns already exist.
 ## 6. UI / UX
 
 No UI change. Observable effect: a freshly-imported iCal booking opens with an empty note instead of the
-import blob; a note typed on an iCal booking is no longer wiped on the next sync. Identical on mobile and
-desktop (the note field is unchanged).
+import blob; a note typed on an iCal booking is no longer wiped on the next sync; a client created by the
+import opens with an empty **Notes** field on its fiche. Identical on mobile and desktop (the note fields
+are unchanged).
 
 ## 7. Test plan
 
 ### Server unit tests (`property-ical-sync.unit.test.js`)
 - [x] create: import leaves `notes` empty and keeps the summary only in `icalOriginalSummary`.
+- [x] create: the client auto-created by the import gets an empty note.
 - [x] update: a re-sync (date change) never clobbers the operator note.
 
 ## 8. Out of scope
 
-- Backfilling / clearing the old note blob on reservations imported before this change.
+- Backfilling / clearing the old note blob on reservations imported before this change, or the old
+  "créé automatiquement" mention on clients created before it.
 
 ## 9. Open questions
 
