@@ -582,6 +582,8 @@ field.
 
 **Platform grid** — gains a **Direct** row, rendered first with a « moteur Lodgify » caption, and a
 **« Personne supp. / nuit »** column. Whole euros. Existing horizontal scroll container kept on `xs`.
+The Direct row uses the same row separator as every other row — its channel name is bold, but no
+thicker bottom border sets it apart (feedback 2026-08-13).
 
 **Reservation summary** — the extra-guest line reads « Personne supplémentaire — 27 €/nuit × 3 pers. ×
 5 nuits » when the unit is per-night. A muted line under the tourist tax reads « Base : 518,40 € −
