@@ -99,8 +99,8 @@ function createPropertyIcalModel(database) {
 
     const result = database.prepare(`
       INSERT INTO clients (lastName, firstName, notes)
-      VALUES (?, ?, ?)
-    `).run(lastName, firstName, `${platformLabel}: créé automatiquement lors de l'import iCal`);
+      VALUES (?, ?, '')
+    `).run(lastName, firstName);
     return Number(result.lastInsertRowid);
   }
 
