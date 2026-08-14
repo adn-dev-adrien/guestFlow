@@ -102,9 +102,13 @@ function createController(model, { googleCalendarSync = require('../utils/google
             babies: Number(full.babies || 0),
             discountPercent: Number(full.discountPercent || 0),
             customPrice: full.customPrice != null ? Number(full.customPrice) : undefined,
+            // The scheduled occurrences ride along: without them the engine treats a planning-card
+            // option as « not taken » and the PDF loses the line it is supposed to quote
+            // (specs/devis-extras-parity-and-price-lock.md §3 rule 6).
             selectedOptions: (full.options || []).filter((o) => !o.isCustom).map((o) => ({
               optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
               unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
+              cardOccurrences: Array.isArray(o.cardOccurrences) ? o.cardOccurrences : [],
             })),
             customOptions: (full.options || []).filter((o) => o.isCustom).map((o) => ({
               customKey: String(o.customOptionId || o.title || ''),
@@ -115,6 +119,7 @@ function createController(model, { googleCalendarSync = require('../utils/google
             selectedResources: (full.resources || []).map((r) => ({
               resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
               unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
+              sessions: Array.isArray(r.sessions) ? r.sessions : [],
             })),
             platform: full.platform,
           });

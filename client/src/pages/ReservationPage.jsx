@@ -39,13 +39,17 @@ import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess
 import useWelcomePack from '../hooks/useWelcomePack';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
+  hydrateSelectedOptions, hydrateCustomOptions, hydrateSelectedResources,
+  hydrateOfferedOptionIds, frozenUnitPrices,
+} from '../utils/bookingFormHydration';
+import {
   buildInitialGrid as buildInitialCardGrid,
   buildGridFromStored as buildCardGridFromStored,
   reconcileGrid as reconcileCardGrid,
   toWireOccurrences as toWireCardOccurrences,
   isDailyCard,
 } from '../utils/cardOccurrences';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, displayDate } from '../utils/formatters';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 
@@ -137,10 +141,12 @@ export default function ReservationPage() {
   const devisIdFromUrl = searchParams.get('devisId');
   const editingDevisId = isDevisMode && devisIdFromUrl ? Number(devisIdFromUrl) : null;
   const prefillDevis = isDevisMode && !editingDevisId ? location.state?.prefillDevis : null;
-  // specs/welcome-pack-auto-options.md §3.2 rules 4-5 — the pack is applied to a reservation being
-  // created from scratch and to nothing else: a saved reservation's option set is history, and a
-  // devis (or a fiche prefilled from one) carries its own.
-  const isBlankNewReservation = !editingReservationId && !isDevisMode;
+  // specs/welcome-pack-auto-options.md §3.2 rules 4-5 — the pack is applied to a booking being
+  // created from scratch and to nothing else: a saved reservation or devis carries its own option
+  // set (history), and a fiche prefilled from a devis carries the devis'. A blank DEVIS is a
+  // creation like any other and gets the pack too: same channel, same rate, same promise
+  // (specs/devis-extras-parity-and-price-lock.md §3 rule 5).
+  const isBlankNewBooking = !editingReservationId && !editingDevisId && !prefillDevis;
 
   const theme = useTheme();
   const downSm = useMediaQuery(theme.breakpoints.down('sm'));
@@ -249,6 +255,40 @@ export default function ReservationPage() {
       // Soft fail — a defaults fetch must never block the reservation flow.
     }
   }, []);
+
+  // The ONE way this page populates « what this logement offers »: catalogue options (with their
+  // per-property price + card config), the server-computed category grouping, and the resources.
+  // Every entry point goes through it — edit a reservation, edit a devis, create from the calendar
+  // with dates, create blank (« Nouveau devis », Dashboard « + »), or switch the Logement select.
+  // Before that, the blank path deliberately emptied the catalogue and no branch ever refilled it,
+  // so a new devis showed a fiche with no option at all (specs/devis-extras-parity-and-price-lock.md
+  // §1 root cause 1). Returns the effective option list so callers can read an option's config
+  // without re-fetching the catalogue.
+  const loadPropertyContext = useCallback(async (propertyId, propertiesList = []) => {
+    const numId = Number(propertyId);
+    if (!numId) return { property: null, options: [] };
+    const [propDetails, catalogue] = await Promise.all([api.getProperty(numId), api.getOptions()]);
+    // `propDetails.options` is the property-scoped, priced, grouped list; the flat catalogue filtered
+    // by `propertyIds` is the fallback for a payload that predates it.
+    const options = Array.isArray(propDetails?.options)
+      ? propDetails.options
+      : (catalogue || []).filter((o) => (o.propertyIds || []).includes(numId));
+    setSelectedProp(numId);
+    setSelectedProperty(propDetails || propertiesList.find((p) => p.id === numId) || null);
+    setPropertyOptions(options);
+    setPropertyOptionGroups(propDetails?.optionGroups || null);
+    if (Array.isArray(propDetails?.resources)) {
+      setAvailableResources(propDetails.resources.map((r) => ({
+        ...r,
+        available: Number(r.available ?? r.quantity ?? 0),
+      })));
+    }
+    return { property: propDetails, options };
+  }, []);
+
+  // Validity state of the devis being edited, straight from the server (`validUntil` + `expired`).
+  // Drives the action-bar chip and the price lock — the fiche decides nothing here.
+  const [devisValidity, setDevisValidity] = useState({ validUntil: null, expired: false });
 
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -443,8 +483,12 @@ export default function ReservationPage() {
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
+  // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
+  // that promise has an end date: while the quote is valid its prices are frozen exactly like a
+  // reservation's, once expired everything re-prices (specs/devis-extras-parity-and-price-lock.md §3
+  // rules 13-14). The server applies the same rule on save — this only keeps the preview honest.
   const isExistingReservationPricingLocked = Boolean(
-    editingReservationId
+    (editingReservationId || (editingDevisId && !devisValidity.expired))
       && initialPricingContextRef.current.startDate
       && Number(selectedProp) === Number(initialPricingContextRef.current.propertyId)
       && form.startDate === initialPricingContextRef.current.startDate
@@ -619,20 +663,7 @@ export default function ReservationPage() {
         if (prefillDevis?.form) {
           const prefillPropertyId = Number(prefillDevis.propertyId || prefillDevis.form.propertyId || 0) || null;
           if (prefillPropertyId) {
-            const propDetails = await api.getProperty(prefillPropertyId);
-            const opts = await api.getOptions();
-            const availableOpts = opts.filter(o => (o.propertyIds || []).includes(prefillPropertyId));
-
-            setSelectedProp(prefillPropertyId);
-            setSelectedProperty(propDetails || props.find((p) => p.id === prefillPropertyId) || null);
-            setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
-            setPropertyOptionGroups(propDetails?.optionGroups || null);
-            if (Array.isArray(propDetails?.resources)) {
-              setAvailableResources(propDetails.resources.map((r) => ({
-                ...r,
-                available: Number(r.available ?? r.quantity ?? 0),
-              })));
-            }
+            await loadPropertyContext(prefillPropertyId, props);
 
             const allRes = await api.getReservations({ propertyId: prefillPropertyId });
             setReservations(allRes || []);
@@ -653,16 +684,6 @@ export default function ReservationPage() {
           return;
         }
         
-        if (initialPropId) {
-          setSelectedProp(initialPropId);
-          const prop = props.find(p => p.id === initialPropId);
-          if (prop) {
-            setSelectedProperty(prop);
-            setPropertyOptions([]);
-            setPropertyOptionGroups(null);
-          }
-        }
-
         // Load reservation details if editing
         if (reservationId) {
           // Fetch the reservation AND the global settings in parallel — we need
@@ -678,21 +699,7 @@ export default function ReservationPage() {
           const isPast = Boolean(res.startDate && res.startDate <= todayStr);
           const adminUnlock = Boolean(settings?.reservations?.allowEditPastReservations);
           setExistingReservationLocked(isPast && !adminUnlock);
-          const prop = props.find(p => p.id === res.propertyId);
-          const propDetails = await api.getProperty(res.propertyId);
-          setSelectedProp(res.propertyId);
-          setSelectedProperty(propDetails || prop);
-          
-          const opts = await api.getOptions();
-          const availableOpts = opts.filter(o => (o.propertyIds || []).includes(res.propertyId));
-          setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
-          setPropertyOptionGroups(propDetails?.optionGroups || null);
-          if (Array.isArray(propDetails?.resources)) {
-            setAvailableResources(propDetails.resources.map((r) => ({
-              ...r,
-              available: Number(r.available ?? r.quantity ?? 0),
-            })));
-          }
+          const { options: catalogueOptions } = await loadPropertyContext(res.propertyId, props);
 
           // Load all reservations for this property to check conflicts
           const allRes = await api.getReservations({ propertyId: res.propertyId });
@@ -734,48 +741,11 @@ export default function ReservationPage() {
             notes: res.notes || '',
             // Per-item routing (spec force-item-to-complement.md): hydrate `inComplement` +
             // captured contribs so PricingSummary can render `[compl.]` chips and split lines
-            // where current totalPrice > acompteContribTtc + soldeContribTtc.
-            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => {
-              // Option-driven planning cards (specs/option-planning-card.md §3.2): rebuild the
-              // working occurrence grid from the stored {date,time}[] so the checklist restores the
-              // exact saved selection. The option's catalog config (mode + slots) drives the grid.
-              const cat = (opts || []).find((c) => Number(c.id) === Number(o.optionId));
-              const cardOccurrences = (cat && cat.showsPlanningCard)
-                ? buildCardGridFromStored(cat, res.startDate, res.endDate, o.cardOccurrences, res.checkInTime, res.checkOutTime)
-                : undefined;
-              return {
-                optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice,
-                offered: Boolean(o.offered),
-                inComplement: Number(o.inComplement || 0) === 1,
-                acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
-                soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
-                ...(cardOccurrences ? { cardOccurrences } : {}),
-              };
-            }),
-            customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({
-              customKey: String(o.customOptionId || `custom_${index + 1}`),
-              customOptionId: o.customOptionId != null ? Number(o.customOptionId) : undefined,
-              description: o.title || o.description || '',
-              amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0),
-              offered: Boolean(o.offered),
-              inComplement: Number(o.inComplement || 0) === 1,
-              acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
-              soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
-            })),
-            selectedResources: (res.resources || []).map(r => ({
-              resourceId: r.resourceId,
-              quantity: r.quantity,
-              unitPrice: r.unitPrice,
-              billedUnits: r.billedUnits,
-              priceType: r.priceType,
-              totalPrice: r.totalPrice,
-              originalTotalPrice: Number(r.originalTotalPrice ?? r.totalPrice ?? 0),
-              offered: Boolean(r.offered),
-              inComplement: Number(r.inComplement || 0) === 1,
-              acompteContribTtc: r.acompteContribTtc != null ? Number(r.acompteContribTtc) : null,
-              soldeContribTtc: r.soldeContribTtc != null ? Number(r.soldeContribTtc) : null,
-              sessions: Array.isArray(r.sessions) ? r.sessions : [],
-            })),
+            // where current totalPrice > acompteContribTtc + soldeContribTtc. Shared with the devis
+            // branch below — one mapper, so neither can drift again.
+            selectedOptions: hydrateSelectedOptions(res.options, res, catalogueOptions, buildCardGridFromStored),
+            customOptions: hydrateCustomOptions(res.options),
+            selectedResources: hydrateSelectedResources(res.resources),
             checkInTime: res.checkInTime || '15:00',
             checkOutTime: res.checkOutTime || '10:00',
             startDate: res.startDate,
@@ -834,48 +804,18 @@ export default function ReservationPage() {
           };
           
           // Charger les options offertes depuis le flag persistant
-          const offeredOpts = new Set((res.options || [])
-            .filter(o => !o.isCustom && Boolean(o.offered))
-            .map(o => o.optionId)
-          );
-          setOfferedOptionIds(offeredOpts);
-          
+          setOfferedOptionIds(hydrateOfferedOptionIds(res.options));
+
           setUseCurrentPricing(false);
-          frozenOptionUnitByQuantityRef.current = Object.fromEntries(
-            (res.options || []).map((o) => [
-              o.optionId,
-              o.unitPrice !== undefined
-                ? Number(o.unitPrice || 0)
-                : (Math.max(0, Number(o.totalPrice || 0)) / Math.max(1, Number(o.quantity || 1))),
-            ])
-          );
-          frozenResourceUnitByQuantityRef.current = Object.fromEntries(
-            (res.resources || []).map((r) => [
-              r.resourceId,
-              Number(r.unitPrice !== undefined ? r.unitPrice : (Math.max(0, Number(r.totalPrice || 0)) / Math.max(1, Number(r.quantity || 1)))),
-            ])
-          );
+          frozenOptionUnitByQuantityRef.current = frozenUnitPrices(res.options, 'optionId');
+          frozenResourceUnitByQuantityRef.current = frozenUnitPrices(res.resources, 'resourceId');
 
           // Load resources
           await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
         } else if (editingDevisId) {
           const devis = await api.getDevisById(editingDevisId);
-          const prop = props.find(p => p.id === devis.propertyId);
-          const propDetails = await api.getProperty(devis.propertyId);
-          setSelectedProp(devis.propertyId);
-          setSelectedProperty(propDetails || prop || null);
-
-          const opts = await api.getOptions();
-          const availableOpts = opts.filter(o => (o.propertyIds || []).includes(devis.propertyId));
-          setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
-          setPropertyOptionGroups(propDetails?.optionGroups || null);
-          if (Array.isArray(propDetails?.resources)) {
-            setAvailableResources(propDetails.resources.map((r) => ({
-              ...r,
-              available: Number(r.available ?? r.quantity ?? 0),
-            })));
-          }
+          const { options: catalogueOptions } = await loadPropertyContext(devis.propertyId, props);
 
           const allRes = await api.getReservations({ propertyId: devis.propertyId });
           setReservations(allRes || []);
@@ -900,7 +840,7 @@ export default function ReservationPage() {
             doubleBeds: devis.doubleBeds || '',
             babyBeds: devis.babyBeds || '',
             breakfastTime: devis.breakfastTime || '',
-            extraGuestSurchargeOffered: false,
+            extraGuestSurchargeOffered: Boolean(devis.extraGuestSurchargeOffered),
             totalPrice: devis.totalPrice || 0,
             touristTaxRate: devis.touristTaxRate || 0,
             touristTaxTotal: devis.touristTaxTotal || 0,
@@ -917,9 +857,11 @@ export default function ReservationPage() {
             cautionReturned: false,
             cautionReturnedDate: '',
             notes: devis.notes || '',
-            selectedOptions: (devis.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
-            customOptions: (devis.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
-            selectedResources: (devis.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice, offered: Boolean(r.offered) })),
+            // Same mapper as the reservation branch above — occurrences, sessions, routing and
+            // custom-option ids all come back (specs/devis-extras-parity-and-price-lock.md §3 rule 12).
+            selectedOptions: hydrateSelectedOptions(devis.options, devis, catalogueOptions, buildCardGridFromStored),
+            customOptions: hydrateCustomOptions(devis.options),
+            selectedResources: hydrateSelectedResources(devis.resources),
             checkInTime: devis.checkInTime || '15:00',
             checkOutTime: devis.checkOutTime || '10:00',
             startDate: devis.startDate,
@@ -946,54 +888,64 @@ export default function ReservationPage() {
             acompteCommissionAmount: '',
             platformGrossAmount: '',
             platformPayoutAmount: '',
+            touristTaxInComplement: Boolean(devis.touristTaxInComplement),
+            autoOptionsInComplement: (devis.options || [])
+              .filter((o) => !o.isCustom && Number(o.autoEnabled || 0) === 1 && Number(o.inComplement || 0) === 1)
+              .map((o) => Number(o.optionId)),
           });
 
-          const offeredOpts = new Set((devis.options || [])
-            .filter(o => !o.isCustom && Boolean(o.offered))
-            .map(o => o.optionId)
-          );
-          setOfferedOptionIds(offeredOpts);
+          setOfferedOptionIds(hydrateOfferedOptionIds(devis.options));
           // A devis carries no money movement, so it can carry no refund either.
           setRefundRegister(EMPTY_REFUND_REGISTER);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(false);
           setIsIcalSource(false);
           setUseCurrentPricing(false);
+          // The server replays the quoted prices while the devis is valid; the fiche mirrors that by
+          // pinning the same unit prices in its live preview (§3 rule 13).
+          setDevisValidity({ validUntil: devis.validUntil || null, expired: Boolean(devis.expired) });
+          frozenOptionUnitByQuantityRef.current = frozenUnitPrices(devis.options, 'optionId');
+          frozenResourceUnitByQuantityRef.current = frozenUnitPrices(devis.resources, 'resourceId');
+          initialPricingContextRef.current = {
+            propertyId: devis.propertyId,
+            startDate: devis.startDate,
+            endDate: devis.endDate,
+          };
 
           await loadResourcesAvailability(devis.startDate, devis.endDate, devis.propertyId, null);
           await loadBabyBedAvailability(devis.startDate, devis.endDate, devis.propertyId, null);
-        } else if (initialPropId && startDate && endDate) {
-          // New reservation with pre-filled dates from URL
-          const prop = await api.getProperty(initialPropId);
-          const opts = await api.getOptions();
-          const propIdNum = parseInt(initialPropId, 10);
-          const availableOpts = opts.filter(o => (o.propertyIds || []).includes(propIdNum));
-          setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
-          setPropertyOptionGroups(prop?.optionGroups || null);
-          if (Array.isArray(prop?.resources)) {
-            setAvailableResources(prop.resources.map((r) => ({
-              ...r,
-              available: Number(r.available ?? r.quantity ?? 0),
-            })));
-          }
+        } else if (initialPropId) {
+          // A brand-new booking — reservation OR devis. One branch for the three entry points
+          // (specs/devis-extras-parity-and-price-lock.md §3 rule 2): the calendar (propertyId +
+          // both dates), the dashboard « + » (a start date only) and the blank forms
+          // (« Nouvelle réservation », « Nouveau devis »). Whatever the URL carries, the logement's
+          // context — catalogue, categories, resources, defaults, caution, horaires — is loaded the
+          // same way; only the pricing quote needs a complete stay range.
+          const { property: prop } = await loadPropertyContext(initialPropId, props);
+          const hasStayRange = Boolean(startDate && endDate);
+          const defaultCheckIn = prop?.defaultCheckIn || '15:00';
+          const defaultCheckOut = prop?.defaultCheckOut || '10:00';
 
-          const calc = await api.calculatePrice({
-            propertyId: initialPropId,
-            startDate,
-            endDate,
-            checkInTime: prop.defaultCheckIn || '15:00',
-            checkOutTime: prop.defaultCheckOut || '10:00',
-            adults: 1,
-            children: 0,
-            teens: 0,
-            extraGuestSurchargeOffered: false,
-            offeredOptionIds: [],
-            platform: 'direct',
-            ...(editingReservationId ? { reservationId: editingReservationId } : {}),
-          });
-          setPricingQuote(calc);
-          setNightlyBreakdown(calc.nightlyBreakdown || []);
-          applyQuoteMinNights(calc);
+          const calc = hasStayRange
+            ? await api.calculatePrice({
+              propertyId: initialPropId,
+              startDate,
+              endDate,
+              checkInTime: defaultCheckIn,
+              checkOutTime: defaultCheckOut,
+              adults: 1,
+              children: 0,
+              teens: 0,
+              extraGuestSurchargeOffered: false,
+              offeredOptionIds: [],
+              platform: 'direct',
+            })
+            : null;
+          if (calc) {
+            setPricingQuote(calc);
+            setNightlyBreakdown(calc.nightlyBreakdown || []);
+            applyQuoteMinNights(calc);
+          }
 
           const allRes = await api.getReservations({ propertyId: initialPropId });
           setReservations(allRes);
@@ -1010,17 +962,17 @@ export default function ReservationPage() {
             doubleBeds: '',
             babyBeds: '',
             extraGuestSurchargeOffered: false,
-            totalPrice: calc.totalPrice,
-            touristTaxRate: calc.touristTaxRate || 0,
-            touristTaxTotal: calc.touristTaxTotal || 0,
+            totalPrice: calc ? calc.totalPrice : 0,
+            touristTaxRate: calc?.touristTaxRate || 0,
+            touristTaxTotal: calc?.touristTaxTotal || 0,
             discountPercent: 0,
-            finalPrice: calc.totalPrice,
+            finalPrice: calc ? calc.totalPrice : 0,
             customPrice: '',
-            depositAmount: calc.depositAmount,
-            depositDueDate: calc.depositDueDate,
-            balanceAmount: calc.balanceAmount,
-            balanceDueDate: calc.balanceDueDate,
-            cautionAmount: prop.defaultCautionAmount ?? 500,
+            depositAmount: calc ? calc.depositAmount : 0,
+            depositDueDate: calc ? calc.depositDueDate : '',
+            balanceAmount: calc ? calc.balanceAmount : 0,
+            balanceDueDate: calc ? calc.balanceDueDate : '',
+            cautionAmount: prop?.defaultCautionAmount ?? 500,
             cautionReceived: false,
             cautionReceivedDate: '',
             cautionReturned: false,
@@ -1029,10 +981,12 @@ export default function ReservationPage() {
             selectedOptions: [],
             customOptions: [],
             selectedResources: [],
-            checkInTime: calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
-            checkOutTime: calc.defaultCheckOut || prop.defaultCheckOut || '10:00',
-            startDate,
-            endDate,
+            checkInTime: calc?.defaultCheckIn || defaultCheckIn,
+            checkOutTime: calc?.defaultCheckOut || defaultCheckOut,
+            // A lone `?startDate=` (dashboard / calendar « + ») is honoured too — it used to be
+            // dropped on the floor because only the complete-range branch read the URL.
+            startDate: startDate || '',
+            endDate: hasStayRange ? endDate : '',
             propertyId: initialPropId,
             depositPaid: false,
             depositPaidDate: '',
@@ -1074,10 +1028,11 @@ export default function ReservationPage() {
 
   // ==================== DATA LOADING FUNCTIONS ====================
   const loadResourcesAvailability = async (startDate, endDate, propertyId, excludeReservationId = null) => {
-    if (!propertyId || !startDate || !endDate) {
-      setAvailableResources([]);
-      return;
-    }
+    // No stay range yet (blank fiche, « Nouveau devis », a half-filled date pair): the availability
+    // endpoint has nothing to answer, but the resources themselves are already known — they came with
+    // the property context. Leave them alone instead of blanking the Ressources block; the refinement
+    // (« déjà réservée », remaining quantity) lands as soon as both dates are set.
+    if (!propertyId || !startDate || !endDate) return;
     const resources = await api.getResourcesAvailability({
       propertyId,
       startDate,
@@ -1186,6 +1141,9 @@ export default function ReservationPage() {
         autoOptionsInComplement: form.autoOptionsInComplement || [],
         freezeTouristTax,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
+        // A saved devis locks its prices while it is still valid — the server replays its stored
+        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+        ...(editingDevisId ? { devisId: editingDevisId } : {}),
         });
 
         if (requestId !== pricingQuoteRequestRef.current) return;
@@ -1458,7 +1416,7 @@ export default function ReservationPage() {
   // take them back out. It is declared AFTER the grid reconcile above so that, on a date change,
   // the pack's single morning wins over the reconcile's « new day ⇒ pre-checked » rule.
   const welcomePackLines = useWelcomePack({
-    enabled: isBlankNewReservation,
+    enabled: isBlankNewBooking,
     propertyId: selectedProp || null,
     platform: form.platform,
     startDate: form.startDate,
@@ -1471,7 +1429,7 @@ export default function ReservationPage() {
   });
 
   useEffect(() => {
-    if (!isBlankNewReservation) return;
+    if (!isBlankNewBooking) return;
     setForm((prev) => {
       const nextOptions = applyWelcomePack(prev.selectedOptions, welcomePackLines, {
         options: propertyOptions,
@@ -1484,7 +1442,7 @@ export default function ReservationPage() {
       return nextOptions === prev.selectedOptions ? prev : { ...prev, selectedOptions: nextOptions };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [welcomePackLines, propertyOptions, isBlankNewReservation, welcomePackOptOut]);
+  }, [welcomePackLines, propertyOptions, isBlankNewBooking, welcomePackOptOut]);
 
   const setResourceQuantity = (resourceId, quantity) => {
     setForm(prev => {
@@ -1745,9 +1703,8 @@ export default function ReservationPage() {
     const nextPropertyId = Number(propertyId);
     if (!nextPropertyId) return;
 
-    const [prop, opts, calc, allRes] = await Promise.all([
-      api.getProperty(nextPropertyId),
-      api.getOptions(),
+    const [{ property: prop }, calc, allRes] = await Promise.all([
+      loadPropertyContext(nextPropertyId, properties),
       api.calculatePrice({
         propertyId: nextPropertyId,
         startDate: form.startDate,
@@ -1764,25 +1721,16 @@ export default function ReservationPage() {
         autoOptionsInComplement: form.autoOptionsInComplement || [],
         freezeTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
+        // A saved devis locks its prices while it is still valid — the server replays its stored
+        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+        ...(editingDevisId ? { devisId: editingDevisId } : {}),
       }),
       api.getReservations({ propertyId: nextPropertyId }),
     ]);
 
-    const availableOpts = opts.filter(o => (o.propertyIds || []).includes(nextPropertyId));
-
-    setSelectedProp(nextPropertyId);
-    setSelectedProperty(prop);
     // A different logement is a different pack — the refusals of the previous one mean nothing here.
     setWelcomePackOptOut(new Set());
     setReservations(allRes || []);
-    setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
-    setPropertyOptionGroups(prop?.optionGroups || null);
-    if (Array.isArray(prop?.resources)) {
-      setAvailableResources(prop.resources.map((r) => ({
-        ...r,
-        available: Number(r.available ?? r.quantity ?? 0),
-      })));
-    }
     setPricingQuote(calc);
     applyQuoteMinNights(calc);
     setUseCurrentPricing(false);
@@ -1795,9 +1743,9 @@ export default function ReservationPage() {
       doubleBeds: '',
       babyBeds: '',
       totalPrice: Number(calc.totalPrice || 0),
-      cautionAmount: prop.defaultCautionAmount ?? 500,
-      checkInTime: prev.checkInTime || calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
-      checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop.defaultCheckOut || '10:00',
+      cautionAmount: prop?.defaultCautionAmount ?? 500,
+      checkInTime: prev.checkInTime || calc.defaultCheckIn || prop?.defaultCheckIn || '15:00',
+      checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop?.defaultCheckOut || '10:00',
     }));
 
     await Promise.all([
@@ -1907,6 +1855,9 @@ export default function ReservationPage() {
         autoOptionsInComplement: form.autoOptionsInComplement || [],
         freezeTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
+        // A saved devis locks its prices while it is still valid — the server replays its stored
+        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+        ...(editingDevisId ? { devisId: editingDevisId } : {}),
         forceCurrentPricing: true,
         customPrice: '',
       });
@@ -2040,6 +1991,9 @@ export default function ReservationPage() {
         autoOptionsInComplement: form.autoOptionsInComplement || [],
         freezeTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
+        // A saved devis locks its prices while it is still valid — the server replays its stored
+        // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
+        ...(editingDevisId ? { devisId: editingDevisId } : {}),
       });
       setPricingQuote(quote);
       applyQuoteMinNights(quote);
@@ -2123,7 +2077,13 @@ export default function ReservationPage() {
           offeredOptionIds: Array.from(offeredOptionIds),
           selectedOptions: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
+          // Engine output, exactly like `resources` on a reservation save: it already carries the
+          // hourly sessions, the billed units and the routing.
           selectedResources: quote.resourceLines,
+          // « Actualiser les tarifs » is the one way to re-price a devis that is still valid — the
+          // server otherwise replays the prices it was quoted at (specs/devis-extras-parity-and-price-lock.md
+          // §3 rules 13 + 15).
+          refreshPricingToCurrent: useCurrentPricing,
           // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md §3 rule 1).
           // Defaults to 'fr' for new devis; persists whatever the operator picked.
           pdfLanguage: form.pdfLanguage || 'fr',
@@ -2675,7 +2635,13 @@ export default function ReservationPage() {
   const defaultCheckInTime = selectedProperty?.defaultCheckIn || '15:00';
   const defaultCheckOutTime = selectedProperty?.defaultCheckOut || '10:00';
   const quantityPersons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
-  const quantityNights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+  // Nights of the stay, used for the « ×N j. » hint on per-night options. A fiche can now show its
+  // options BEFORE the dates are entered (« Nouveau devis » lands on a dateless form), so an invalid
+  // range must read 1, not NaN.
+  const quantityNights = (() => {
+    const span = Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000);
+    return Number.isFinite(span) ? Math.max(1, span) : 1;
+  })();
   const getQuantityMultiplier = (priceType) => {
     if (priceType === 'per_person') return quantityPersons;
     if (priceType === 'per_night') return quantityNights;
@@ -2721,6 +2687,29 @@ export default function ReservationPage() {
   const computedTitle = isDevisMode
     ? (editingDevisId ? 'Modifier le devis' : 'Nouveau devis')
     : (reservationId ? 'Modifier la réservation' : 'Nouvelle réservation');
+
+  // Which promise this quote still carries (specs/devis-extras-parity-and-price-lock.md §3 rule 16).
+  // Both the date and the expiry verdict come from the server; the fiche only picks the wording — a
+  // terser one on xs, where the bar shares its row with the language toggle and the action buttons.
+  const devisValidityChip = (editingDevisId && devisValidity.validUntil)
+    ? (devisValidity.expired
+      ? (
+        <Chip
+          size="small"
+          color="warning"
+          variant="outlined"
+          label={downSm ? 'Périmé' : 'Devis périmé — tarifs actualisés'}
+        />
+      )
+      : (
+        <Chip
+          size="small"
+          color="info"
+          variant="outlined"
+          label={`${downSm ? 'Valide' : 'Valide jusqu\'au'} ${displayDate(devisValidity.validUntil)}`}
+        />
+      ))
+    : null;
 
   // specs/mid-stay-notes.md §3.5 rule 17 — « Nouvelle note » en TÊTE de barre : c'est l'action la
   // plus fréquente d'un séjour en cours (le client prend une consommation au comptoir), et le bloc
@@ -2873,10 +2862,11 @@ export default function ReservationPage() {
       <PageActionBar
         title={computedTitle}
         onBack={goBackToOrigin}
-        subtitle={(useCurrentPricing || form.bookingConflictAt)
+        subtitle={(useCurrentPricing || form.bookingConflictAt || devisValidityChip)
           ? (
             <>
               {useCurrentPricing && <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />}
+              {devisValidityChip}
               <ReservationConflictBadge conflictAt={form.bookingConflictAt} />
             </>
           )
