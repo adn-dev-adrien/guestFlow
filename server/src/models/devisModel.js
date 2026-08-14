@@ -19,6 +19,8 @@ const { buildHistoryRows } = require('../utils/reservationAudit');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
+const bookingLinesModel = require('./bookingLinesModel');
+const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
 
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
@@ -36,24 +38,14 @@ function sqliteNow() {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
-/**
- * Compute a devis `validUntil` per §3.2 rule 6:
- *   validUntil = MIN(createdAtIsoDate + quoteValidityDays, startDate - 2 days).
- * Both inputs are ISO `YYYY-MM-DD` strings; output same. Falls back to the un-capped
- * value if `startDate` isn't a valid ISO date.
- */
-function computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) {
-  // Honour `quoteValidityDays = 0` as a deliberate "same day" choice (spec §3 edge case).
-  // Only fall back to 30 when the input is non-finite (undefined / null / NaN).
-  const rawDays = Number(quoteValidityDays);
-  const days = Number.isFinite(rawDays) ? Math.max(0, rawDays) : 30;
-  const raw = addDaysToIsoDate(createdAtIsoDate, days);
-  if (!raw) return null;
-  if (startDateIso && /^\d{4}-\d{2}-\d{2}$/.test(startDateIso)) {
-    const cap = addDaysToIsoDate(startDateIso, -2);
-    if (cap && raw > cap) return cap;
-  }
-  return raw;
+// A JSON column read back as text → the array the client expects. Anything unparseable reads empty.
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
 }
 
 const DEVIS_HISTORY_FIELD_LABELS = {
@@ -93,6 +85,17 @@ function createModel(database) {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'displayToClient'); }
     catch { return false; }
   })();
+  // Columns a devis row shares with a reservation row but never used to write
+  // (specs/devis-extras-parity-and-price-lock.md §3 rules 8-11). Probed once so a minimal test
+  // schema silently drops what it doesn't have instead of throwing on the INSERT.
+  const RESERVATION_COLUMNS = (() => {
+    try { return new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name)); }
+    catch { return new Set(); }
+  })();
+  const hasReservationColumn = (name) => RESERVATION_COLUMNS.has(name);
+  // The lines of a devis live in the `reservation_*` children, written by the same store as a
+  // reservation's — the whole point of §4.1.
+  const bookingLines = bookingLinesModel.buildModel(database);
 
   // ---- settings access ----
   // Read `quoteValidityDays` from the SAME database handle the model was given so tests can
@@ -146,11 +149,39 @@ function createModel(database) {
         rr.offered as offered
       FROM reservation_resources rr JOIN resources r ON rr.resourceId = r.id WHERE rr.reservationId = ?
     `).all(row.id);
+    // The scheduled occurrences and the hourly sessions are stored as JSON strings; the fiche wants
+    // arrays — same contract as `GET /reservations/:id`, so the shared hydrator can read either
+    // payload (specs/devis-extras-parity-and-price-lock.md §4.3).
+    for (const opt of options) opt.cardOccurrences = parseJsonArray(opt.cardOccurrences);
+    for (const resource of resources) resource.sessions = parseJsonArray(resource.sessions);
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
     const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
     const schedule = resolvePaymentSchedule(row, property);
-    return { ...row, status: row.devisStatus, ...schedule, options: [...options, ...customOptions], resources, nights, client, property };
+    // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
+    // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
+    // operator still deserves to see the date their quote would carry.
+    const today = sqliteNow().slice(0, 10);
+    const resolvedValidUntil = row.validUntil || computeValidUntil({
+      createdAtIsoDate: String(row.createdAt || sqliteNow()).slice(0, 10),
+      startDateIso: row.startDate,
+      quoteValidityDays: readQuoteValidityDays(),
+    }) || null;
+    const expired = isDevisExpired(row.validUntil, today);
+    return {
+      ...row,
+      status: row.devisStatus,
+      validUntil: resolvedValidUntil,
+      expired,
+      // While the quote holds, its prices are frozen exactly like a saved reservation's (rule 13).
+      pricingLocked: !expired,
+      ...schedule,
+      options: [...options, ...customOptions],
+      resources,
+      nights,
+      client,
+      property,
+    };
   }
 
   // ---- audit / history ----
@@ -218,6 +249,23 @@ function createModel(database) {
   }
 
   // ---- quote building (shared by create/update) ----
+  // `existing` is the stored devis row when updating, null on create. A stored devis that has NOT
+  // expired keeps the prices it was issued at — same lock, same engine inputs as a saved reservation
+  // (specs/devis-extras-parity-and-price-lock.md §3 rule 13). An expired one — or one the operator
+  // explicitly refreshed via « Actualiser les tarifs » — is re-quoted at today's tariffs (rule 14).
+  function resolveLockedPricing(body, existing) {
+    if (!existing || !existing.id) return {};
+    if (body.refreshPricingToCurrent) return {};
+    if (isDevisExpired(existing.validUntil, sqliteNow().slice(0, 10))) return {};
+    // Changing the logement or the stay range invalidates the snapshot: those lines priced something
+    // else. Mirrors `isExistingReservationPricingLocked` on the fiche.
+    const samePlacement = Number(body.propertyId || existing.propertyId) === Number(existing.propertyId)
+      && (body.startDate || existing.startDate) === existing.startDate
+      && (body.endDate || existing.endDate) === existing.endDate;
+    if (!samePlacement) return {};
+    return bookingLines.getPricingSnapshot(Number(existing.id));
+  }
+
   function computeQuote(body, existing, property) {
     // Read autoOptionType + autoEnabled so we drop ONLY engine-managed auto-options (the engine
     // re-adds those from the chosen check-in/out times). Options that merely carry an autoOptionType
@@ -233,25 +281,45 @@ function createModel(database) {
       const meta = optionMetaById.get(Number(optionId));
       return Boolean(meta && meta.autoOptionType && Number(meta.autoEnabled || 0) === 1);
     };
+    // `cardOccurrences` and `sessions` are what the fiche schedules — the checked mornings of a
+    // planning-card option, the booked hours of an hourly resource. Dropping them here is what used
+    // to make the engine treat those lines as « not taken » and return nothing at all, so the option
+    // and its price vanished from the devis (specs/devis-extras-parity-and-price-lock.md §1 root
+    // cause 2). They are forwarded verbatim, exactly like the reservation controller does.
+    // On a devis an unflagged line stays OUT of the Complément — whatever the platform. A quote shows
+    // the guest one total, not a payment plan, so the engine's « non-direct platform ⇒ everything in
+    // Complément » default (specs/force-extras-complement-on-platform.md §3) is neutralised by pinning
+    // 0; an explicit operator flag still wins and is carried into the reservation at conversion
+    // (specs/devis-extras-parity-and-price-lock.md §3 rules 17-18).
+    const routing = (value) => (value != null ? value : 0);
     const selectedOptions = (body.selectedOptions || []).map((o) => ({
       optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
       unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
+      ...(o.cardOccurrences !== undefined ? { cardOccurrences: o.cardOccurrences } : {}),
+      inComplement: routing(o.inComplement),
     })).filter((line) => !isEngineManagedAuto(line.optionId));
     const customOptions = (body.customOptions || []).map((line, index) => ({
       customKey: String(line.customKey || `custom_${index + 1}`),
       description: String(line.description || '').trim(),
       amount: Number(line.amount || 0), offered: Boolean(line.offered),
+      inComplement: routing(line.inComplement),
     })).filter((line) => line.description && Number(line.amount || 0) > 0);
     const selectedResources = (body.selectedResources || []).map((r) => ({
       resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
+      ...(Array.isArray(r.sessions) ? { sessions: r.sessions } : {}),
+      inComplement: routing(r.inComplement),
     }));
-    const lockedResourceLines = (body.selectedResources || []).map((r) => ({
+    const payloadResourceLines = (body.selectedResources || []).map((r) => ({
       resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
       billedUnits: r.billedUnits != null ? Number(r.billedUnits) : Number(r.quantity || 1),
       priceType: r.priceType || 'per_stay', totalPrice: Number(r.totalPrice || 0), offered: Boolean(r.offered),
     })).filter((line) => Number(line.totalPrice || 0) === 0 && Number(line.unitPrice || 0) > 0);
+    // The stored snapshot wins when the devis is still valid; otherwise the payload's own
+    // zero-priced resource lines keep their historic role (a caller-supplied unit price).
+    const locked = resolveLockedPricing(body, existing);
+    const lockedResourceLines = locked.lockedResourceLines || payloadResourceLines;
 
     return calculateReservationQuote({
       db: database,
@@ -269,7 +337,13 @@ function createModel(database) {
       extraGuestSurchargeOffered: Boolean(body.extraGuestSurchargeOffered),
       customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
       offeredOptionIds: body.offeredOptionIds, lockedResourceLines,
+      lockedOptionLines: locked.lockedOptionLines,
+      lockedNightlyBreakdown: locked.lockedNightlyBreakdown,
+      // The tariff the devis was quoted under (tariff-recipes rule 12bis) — replayed while the quote
+      // holds, dropped once it expires so the new recipe applies.
+      lockedTariff: locked.lockedTariff,
       platform: body.platform || existing?.platform,
+      touristTaxInComplement: body.touristTaxInComplement,
       // Public/site devis: bill planning-card options by quantity (unschedulable on the site) —
       // specs/public-planning-options.md. Admin devis leave this falsy (occurrence-based).
       planningCardAsQuantity: Boolean(body.planningCardAsQuantity),
@@ -277,30 +351,31 @@ function createModel(database) {
   }
 
   // ---- persist lines (shared by create/update) — into the reservation_* children ----
+  // Same store as a reservation's, so a devis line keeps everything a reservation line keeps:
+  // scheduled occurrences, hourly sessions, Complément routing (§4.1). Amounts are rounded here,
+  // where the engine's raw figures enter storage.
   function persistLines(devisId, quote) {
-    database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(devisId);
-    const insertOption = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const line of (quote.optionLines || []).filter((item) => !item.isCustom)) {
-      insertOption.run(devisId, Number(line.optionId), Number(line.quantity || 1), roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0), line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
-    }
-    database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(devisId);
-    const insertCustomOption = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
-    let customOrder = 0;
-    for (const line of quote.optionLines || []) {
-      if (!line.isCustom) continue;
-      insertCustomOption.run(devisId, String(line.title || '').trim(), roundMoney(line.originalTotalPrice || line.totalPrice || 0), line.offered ? 1 : 0, customOrder);
-      customOrder += 1;
-    }
-    database.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(devisId);
-    const insertResource = database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const line of quote.resourceLines || []) {
-      insertResource.run(devisId, Number(line.resourceId), Number(line.quantity || 1), roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0), line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
-    }
-    database.prepare('DELETE FROM reservation_nights WHERE reservationId = ?').run(devisId);
-    const insertNight = database.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
-    for (const night of quote.nightlyBreakdown || []) {
-      insertNight.run(devisId, night.date, night.seasonLabel || 'Standard', night.pricingMode || 'fixed', roundMoney(night.price));
-    }
+    const optionLines = (quote.optionLines || []).map((line) => ({
+      ...line,
+      quantity: Number(line.quantity || 1),
+      unitPrice: roundMoney(line.unitPrice),
+      billedUnits: roundMoney(line.billedUnits || 0),
+      totalPrice: roundMoney(line.totalPrice),
+      originalTotalPrice: roundMoney(line.originalTotalPrice || line.totalPrice || 0),
+    }));
+    bookingLines.replaceOptions(devisId, optionLines);
+    bookingLines.replaceCustomOptions(devisId, optionLines);
+    bookingLines.replaceResources(devisId, (quote.resourceLines || []).map((line) => ({
+      ...line,
+      quantity: Number(line.quantity || 1),
+      unitPrice: roundMoney(line.unitPrice),
+      billedUnits: roundMoney(line.billedUnits || 0),
+      totalPrice: roundMoney(line.totalPrice),
+    })));
+    bookingLines.replaceNights(devisId, (quote.nightlyBreakdown || []).map((night) => ({
+      ...night,
+      price: roundMoney(night.price),
+    })));
   }
 
   // ---- public API ----
@@ -388,34 +463,54 @@ function createModel(database) {
       // Bilingual PDF (specs/devis-english-language.md §3 rule 1): default 'fr', accept 'en'.
       const insertedPdfLanguage = ['fr', 'en'].includes(String(payloadWithDefaults.pdfLanguage || '').toLowerCase())
         ? String(payloadWithDefaults.pdfLanguage).toLowerCase() : 'fr';
-      const insertSql = HAS_PDF_LANGUAGE_COL
-        ? `INSERT INTO reservations (
-            kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
-            singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
-            discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt, pdfLanguage
-          ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        : `INSERT INTO reservations (
-            kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
-            singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
-            discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt
-          ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      const insertParams = [
-        devisNumber, Number(payloadWithDefaults.propertyId), Number(payloadWithDefaults.clientId), payloadWithDefaults.startDate, payloadWithDefaults.endDate,
-        Number(payloadWithDefaults.adults || 1), Number(payloadWithDefaults.children || 0), Number(payloadWithDefaults.teens || 0), Number(payloadWithDefaults.babies || 0),
-        payloadWithDefaults.singleBeds != null && payloadWithDefaults.singleBeds !== '' ? Number(payloadWithDefaults.singleBeds) : null,
-        payloadWithDefaults.doubleBeds != null && payloadWithDefaults.doubleBeds !== '' ? Number(payloadWithDefaults.doubleBeds) : null,
-        payloadWithDefaults.babyBeds != null && payloadWithDefaults.babyBeds !== '' ? Number(payloadWithDefaults.babyBeds) : null,
-        payloadWithDefaults.checkInTime || property.defaultCheckIn || '15:00', payloadWithDefaults.checkOutTime || property.defaultCheckOut || '10:00',
-        payloadWithDefaults.platform || 'direct', roundMoney(quote.totalPrice), roundMoney(quote.touristTaxRate || 0), roundMoney(quote.touristTaxTotal || 0),
-        Number(payloadWithDefaults.discountPercent || 0),
-        payloadWithDefaults.customPrice !== undefined && payloadWithDefaults.customPrice !== null && payloadWithDefaults.customPrice !== '' ? Number(payloadWithDefaults.customPrice) : null,
-        roundMoney(quote.finalPrice), roundMoney(quote.depositAmount), quote.depositDueDate || null,
-        roundMoney(quote.balanceAmount), quote.balanceDueDate || null,
-        roundMoney(payloadWithDefaults.cautionAmount != null ? payloadWithDefaults.cautionAmount : (property.defaultCautionAmount || 0)),
-        String(payloadWithDefaults.notes || ''), validUntil, createdAt,
-      ];
-      if (HAS_PDF_LANGUAGE_COL) insertParams.push(insertedPdfLanguage);
-      const info = database.prepare(insertSql).run(...insertParams);
+      // Column → value, filtered by what the schema actually has (minimal test schemas drop what
+      // they lack instead of throwing). Everything below the divider is a column a reservation row
+      // has always written and a devis row never did — specs/devis-extras-parity-and-price-lock.md
+      // §3 rules 8-11.
+      const columns = {
+        kind: 'devis',
+        devisNumber,
+        devisStatus: 'draft',
+        propertyId: Number(payloadWithDefaults.propertyId),
+        clientId: Number(payloadWithDefaults.clientId),
+        startDate: payloadWithDefaults.startDate,
+        endDate: payloadWithDefaults.endDate,
+        adults: Number(payloadWithDefaults.adults || 1),
+        children: Number(payloadWithDefaults.children || 0),
+        teens: Number(payloadWithDefaults.teens || 0),
+        babies: Number(payloadWithDefaults.babies || 0),
+        singleBeds: payloadWithDefaults.singleBeds != null && payloadWithDefaults.singleBeds !== '' ? Number(payloadWithDefaults.singleBeds) : null,
+        doubleBeds: payloadWithDefaults.doubleBeds != null && payloadWithDefaults.doubleBeds !== '' ? Number(payloadWithDefaults.doubleBeds) : null,
+        babyBeds: payloadWithDefaults.babyBeds != null && payloadWithDefaults.babyBeds !== '' ? Number(payloadWithDefaults.babyBeds) : null,
+        checkInTime: payloadWithDefaults.checkInTime || property.defaultCheckIn || '15:00',
+        checkOutTime: payloadWithDefaults.checkOutTime || property.defaultCheckOut || '10:00',
+        platform: payloadWithDefaults.platform || 'direct',
+        totalPrice: roundMoney(quote.totalPrice),
+        touristTaxRate: roundMoney(quote.touristTaxRate || 0),
+        touristTaxTotal: roundMoney(quote.touristTaxTotal || 0),
+        discountPercent: Number(payloadWithDefaults.discountPercent || 0),
+        customPrice: payloadWithDefaults.customPrice !== undefined && payloadWithDefaults.customPrice !== null && payloadWithDefaults.customPrice !== '' ? Number(payloadWithDefaults.customPrice) : null,
+        finalPrice: roundMoney(quote.finalPrice),
+        depositAmount: roundMoney(quote.depositAmount),
+        depositDueDate: quote.depositDueDate || null,
+        balanceAmount: roundMoney(quote.balanceAmount),
+        balanceDueDate: quote.balanceDueDate || null,
+        cautionAmount: roundMoney(payloadWithDefaults.cautionAmount != null ? payloadWithDefaults.cautionAmount : (property.defaultCautionAmount || 0)),
+        notes: String(payloadWithDefaults.notes || ''),
+        validUntil,
+        createdAt,
+        pdfLanguage: insertedPdfLanguage,
+        // ── parity with a reservation row ──
+        breakfastTime: payloadWithDefaults.breakfastTime || null,
+        extraGuestSurchargeOffered: payloadWithDefaults.extraGuestSurchargeOffered ? 1 : 0,
+        touristTaxInComplement: payloadWithDefaults.touristTaxInComplement ? 1 : 0,
+        // The tariff this devis is quoted under — replayed for as long as it stays valid (rule 13).
+        tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
+      };
+      const names = Object.keys(columns).filter(hasReservationColumn);
+      const info = database
+        .prepare(`INSERT INTO reservations (${names.join(', ')}) VALUES (${names.map(() => '?').join(', ')})`)
+        .run(...names.map((name) => columns[name]));
       const devisId = info.lastInsertRowid;
       persistLines(devisId, quote);
       const afterSnapshot = snapshotFromDb(devisId);
@@ -436,15 +531,18 @@ function createModel(database) {
     const quote = computeQuote(payload, existing, property);
     // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
     const beforeSnapshot = snapshotFromDb(numId);
-    // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and
-    // the payload doesn't override. This silently rescues legacy devis (NULL validUntil
-    // in the prod-copy DB) on the first edit without needing a data migration.
+    // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and the payload
+    // doesn't override. This silently rescues legacy devis (NULL validUntil) on the first edit
+    // without needing a data migration. specs/devis-extras-parity-and-price-lock.md §3 rule 14: a
+    // devis that had EXPIRED is re-priced by `computeQuote`, so saving it re-issues a validity
+    // window from today — the quote the operator just refreshed is a quote they can send again.
     const resolvedValidUntil = (() => {
       if (payload.validUntil !== undefined && payload.validUntil !== null) return payload.validUntil;
-      if (existing.validUntil) return existing.validUntil;
-      const createdAtIsoDate = String(existing.createdAt || sqliteNow()).slice(0, 10);
-      const startDateIso = payload.startDate || existing.startDate;
       const quoteValidityDays = readQuoteValidityDays();
+      const startDateIso = payload.startDate || existing.startDate;
+      const today = sqliteNow().slice(0, 10);
+      if (existing.validUntil && !isDevisExpired(existing.validUntil, today)) return existing.validUntil;
+      const createdAtIsoDate = existing.validUntil ? today : String(existing.createdAt || sqliteNow()).slice(0, 10);
       return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
     })();
 
@@ -458,42 +556,56 @@ function createModel(database) {
         const v = String(payload.pdfLanguage).toLowerCase();
         return ['fr', 'en'].includes(v) ? v : (existing.pdfLanguage || 'fr');
       })();
-      const updateSql = HAS_PDF_LANGUAGE_COL
-        ? `UPDATE reservations SET
-            propertyId = ?, clientId = ?, devisStatus = ?, startDate = ?, endDate = ?,
-            adults = ?, children = ?, teens = ?, babies = ?, singleBeds = ?, doubleBeds = ?, babyBeds = ?,
-            checkInTime = ?, checkOutTime = ?, platform = ?, totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
-            discountPercent = ?, customPrice = ?, finalPrice = ?, depositAmount = ?, depositDueDate = ?,
-            balanceAmount = ?, balanceDueDate = ?, cautionAmount = ?, notes = ?, validUntil = ?, pdfLanguage = ?, updatedAt = datetime('now')
-          WHERE id = ? AND kind = 'devis'`
-        : `UPDATE reservations SET
-            propertyId = ?, clientId = ?, devisStatus = ?, startDate = ?, endDate = ?,
-            adults = ?, children = ?, teens = ?, babies = ?, singleBeds = ?, doubleBeds = ?, babyBeds = ?,
-            checkInTime = ?, checkOutTime = ?, platform = ?, totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
-            discountPercent = ?, customPrice = ?, finalPrice = ?, depositAmount = ?, depositDueDate = ?,
-            balanceAmount = ?, balanceDueDate = ?, cautionAmount = ?, notes = ?, validUntil = ?, updatedAt = datetime('now')
-          WHERE id = ? AND kind = 'devis'`;
-      const updateParams = [
-        Number(payload.propertyId || existing.propertyId), Number(payload.clientId || existing.clientId),
-        payload.status || existing.devisStatus, payload.startDate || existing.startDate, payload.endDate || existing.endDate,
-        Number(payload.adults ?? existing.adults), Number(payload.children ?? existing.children),
-        Number(payload.teens ?? existing.teens), Number(payload.babies ?? existing.babies),
-        payload.singleBeds != null && payload.singleBeds !== '' ? Number(payload.singleBeds) : null,
-        payload.doubleBeds != null && payload.doubleBeds !== '' ? Number(payload.doubleBeds) : null,
-        payload.babyBeds != null && payload.babyBeds !== '' ? Number(payload.babyBeds) : null,
-        payload.checkInTime || existing.checkInTime, payload.checkOutTime || existing.checkOutTime,
-        payload.platform || existing.platform, roundMoney(quote.totalPrice), roundMoney(quote.touristTaxRate || 0), roundMoney(quote.touristTaxTotal || 0),
-        Number(payload.discountPercent ?? existing.discountPercent ?? 0),
-        payload.customPrice !== undefined && payload.customPrice !== null && payload.customPrice !== '' ? Number(payload.customPrice) : (existing.customPrice == null ? null : Number(existing.customPrice)),
-        roundMoney(quote.finalPrice), roundMoney(quote.depositAmount), quote.depositDueDate || null,
-        roundMoney(quote.balanceAmount), quote.balanceDueDate || null,
-        roundMoney(payload.cautionAmount ?? existing.cautionAmount ?? 0),
-        String(payload.notes ?? existing.notes ?? ''),
-        resolvedValidUntil,
-      ];
-      if (HAS_PDF_LANGUAGE_COL) updateParams.push(nextPdfLanguage);
-      updateParams.push(numId);
-      database.prepare(updateSql).run(...updateParams);
+      // Column → value, same dynamic shape as `create` above: the schema decides which ones exist,
+      // and the four parity columns (breakfastTime, extraGuestSurchargeOffered,
+      // touristTaxInComplement, tariffSnapshot) are written like a reservation's
+      // (specs/devis-extras-parity-and-price-lock.md §3 rules 8-11).
+      const columns = {
+        propertyId: Number(payload.propertyId || existing.propertyId),
+        clientId: Number(payload.clientId || existing.clientId),
+        devisStatus: payload.status || existing.devisStatus,
+        startDate: payload.startDate || existing.startDate,
+        endDate: payload.endDate || existing.endDate,
+        adults: Number(payload.adults ?? existing.adults),
+        children: Number(payload.children ?? existing.children),
+        teens: Number(payload.teens ?? existing.teens),
+        babies: Number(payload.babies ?? existing.babies),
+        singleBeds: payload.singleBeds != null && payload.singleBeds !== '' ? Number(payload.singleBeds) : null,
+        doubleBeds: payload.doubleBeds != null && payload.doubleBeds !== '' ? Number(payload.doubleBeds) : null,
+        babyBeds: payload.babyBeds != null && payload.babyBeds !== '' ? Number(payload.babyBeds) : null,
+        checkInTime: payload.checkInTime || existing.checkInTime,
+        checkOutTime: payload.checkOutTime || existing.checkOutTime,
+        platform: payload.platform || existing.platform,
+        totalPrice: roundMoney(quote.totalPrice),
+        touristTaxRate: roundMoney(quote.touristTaxRate || 0),
+        touristTaxTotal: roundMoney(quote.touristTaxTotal || 0),
+        discountPercent: Number(payload.discountPercent ?? existing.discountPercent ?? 0),
+        customPrice: payload.customPrice !== undefined && payload.customPrice !== null && payload.customPrice !== ''
+          ? Number(payload.customPrice)
+          : (existing.customPrice == null ? null : Number(existing.customPrice)),
+        finalPrice: roundMoney(quote.finalPrice),
+        depositAmount: roundMoney(quote.depositAmount),
+        depositDueDate: quote.depositDueDate || null,
+        balanceAmount: roundMoney(quote.balanceAmount),
+        balanceDueDate: quote.balanceDueDate || null,
+        cautionAmount: roundMoney(payload.cautionAmount ?? existing.cautionAmount ?? 0),
+        notes: String(payload.notes ?? existing.notes ?? ''),
+        validUntil: resolvedValidUntil,
+        pdfLanguage: nextPdfLanguage,
+        // ── parity with a reservation row ──
+        breakfastTime: payload.breakfastTime !== undefined ? (payload.breakfastTime || null) : (existing.breakfastTime || null),
+        extraGuestSurchargeOffered: (payload.extraGuestSurchargeOffered !== undefined
+          ? payload.extraGuestSurchargeOffered : existing.extraGuestSurchargeOffered) ? 1 : 0,
+        touristTaxInComplement: (payload.touristTaxInComplement !== undefined
+          ? payload.touristTaxInComplement : existing.touristTaxInComplement) ? 1 : 0,
+        // Written once, at creation, and replayed by every later save — except when the quote had
+        // expired and was just re-priced, where the fresh snapshot IS the new promise.
+        tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : (existing.tariffSnapshot || null),
+      };
+      const names = Object.keys(columns).filter(hasReservationColumn);
+      database
+        .prepare(`UPDATE reservations SET ${names.map((n) => `${n} = ?`).join(', ')}, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'`)
+        .run(...names.map((name) => columns[name]), numId);
       persistLines(numId, quote);
       const afterSnapshot = snapshotFromDb(numId);
       const changes = computeAuditChanges(beforeSnapshot, afterSnapshot);
@@ -511,23 +623,29 @@ function createModel(database) {
   }
 
   // Copy a booking's line graph from one reservations row to another (used by both convert flows).
+  // Delegated to the shared store so what was quoted is what gets booked, column for column:
+  // scheduled occurrences, hourly sessions and Complément routing included
+  // (specs/devis-extras-parity-and-price-lock.md §3 rules 19-20).
   function copyLineGraph(fromId, toId) {
-    const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const o of database.prepare('SELECT * FROM reservation_options WHERE reservationId = ?').all(fromId)) {
-      insertOpt.run(toId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice, o.offered ? 1 : 0);
-    }
-    const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
-    for (const o of database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(fromId)) {
-      insertCustomOpt.run(toId, o.description, o.amount, Number(o.offered || 0), o.sortOrder || 0);
-    }
-    const insertRsc = database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const r of database.prepare('SELECT * FROM reservation_resources WHERE reservationId = ?').all(fromId)) {
-      insertRsc.run(toId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice, r.offered ? 1 : 0);
-    }
-    const insertNight = database.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
-    for (const n of database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(fromId)) {
-      insertNight.run(toId, n.date, n.seasonLabel, n.pricingMode, n.price);
-    }
+    bookingLines.copyLineGraph(fromId, toId);
+  }
+
+  // The row-level fields a conversion must carry across, when the target schema has them. They are
+  // NOT part of the historic INSERT lists: a converted devis used to arrive with no breakfast time,
+  // no offered extra-guest surcharge and no tariff snapshot (§3 rule 19).
+  function carryOverColumns(sourceRow, targetId, extra = {}) {
+    const values = {
+      breakfastTime: sourceRow.breakfastTime || null,
+      extraGuestSurchargeOffered: sourceRow.extraGuestSurchargeOffered ? 1 : 0,
+      touristTaxInComplement: sourceRow.touristTaxInComplement ? 1 : 0,
+      tariffSnapshot: sourceRow.tariffSnapshot || null,
+      ...extra,
+    };
+    const names = Object.keys(values).filter(hasReservationColumn);
+    if (names.length === 0) return;
+    database
+      .prepare(`UPDATE reservations SET ${names.map((n) => `${n} = ?`).join(', ')} WHERE id = ?`)
+      .run(...names.map((name) => values[name]), targetId);
   }
 
   function convertToReservation(id) {
@@ -556,6 +674,12 @@ function createModel(database) {
       );
       const reservationId = info.lastInsertRowid;
       copyLineGraph(numId, reservationId);
+      // The guest already told us how they read and when they want breakfast — the reservation must
+      // not ask again (§3 rule 19). `pdfLanguage` becomes the reservation's `emailLanguage`: the
+      // operator picked EN for the quote, the automatic emails follow.
+      carryOverColumns(devisRow, reservationId, {
+        emailLanguage: String(devisRow.pdfLanguage || 'fr').toLowerCase() === 'en' ? 'en' : 'fr',
+      });
       // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
       assignReservationNumberIfMissing(database, reservationId);
 
@@ -601,6 +725,11 @@ function createModel(database) {
       );
       const devisId = info.lastInsertRowid;
       copyLineGraph(numId, devisId);
+      // Symmetric to the devis → réservation direction: the quote inherits what the fiche holds,
+      // including the tariff the stay is priced under.
+      carryOverColumns(reservation, devisId, {
+        pdfLanguage: String(reservation.emailLanguage || 'fr').toLowerCase() === 'en' ? 'en' : 'fr',
+      });
       return devisId;
     });
     const devisId = tx();
