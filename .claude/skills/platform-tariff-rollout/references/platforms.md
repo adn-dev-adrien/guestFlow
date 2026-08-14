@@ -27,6 +27,13 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 1. **Les promotions ne se cumulent pas** — la plus avantageuse gagne. Une table croissante
    (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc. Prouvé par devis : un séjour de 6 nuits a reçu
    −43 % et non −24 %.
+1bis. **Booking.com n'honore PAS ces promotions**, même en cochant son canal dans les
+   « Restrictions » — Lodgify affiche d'ailleurs l'avertissement « promotion susceptible de ne pas
+   s'appliquer […] en raison de restrictions sur certains canaux ». Mesuré le 2026-08-14 : une nuit
+   290 €, trois nuits 870 € = 3 × 290. Airbnb, lui, applique bien la remise. **Corriger une note
+   antérieure de ce fichier qui affirmait le contraire.** Le seul correctif possible est une remise
+   longue durée créée dans l'extranet Booking. **Toujours tester 1 nuit puis N nuits sur chaque
+   canal** : c'est la seule façon de voir qu'une dégressivité n'est pas appliquée.
 2. **« Prix par durée du séjour » n'exprime pas une dégressivité** : il demande un prix total fixe en
    euros, pas un pourcentage, et Booking ne le supporte pas. Utiliser les **Promotions**
    (pourcentage + « Durée de séjour minimum »), dont les « Restrictions » cochent les quatre canaux —
@@ -84,6 +91,36 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 18. Une saison accepte **plusieurs plages de dates** : ajouter les dates de l'année suivante à la
     saison existante plutôt que d'en créer une nouvelle — le prix, le supplément voyageur et les
     minimums sont déjà bons.
+
+---
+
+## Airbnb, Booking, Vrbo — les canaux nourris par Lodgify
+
+Ils n'ont pas de console à configurer : Lodgify y pousse prix et disponibilités. **Ils se vérifient
+donc uniquement sur leur page publique**, et c'est là que les surprises apparaissent.
+
+| Canal | Identifiants relevés le 2026-08-14 | Page publique |
+|---|---|---|
+| Airbnb | annonce **1576845044615216441** | `airbnb.fr/rooms/<id>?check_in=AAAA-MM-JJ&check_out=…&adults=N` |
+| Booking | hôtel **15343212**, chambre 1534321201 | `booking.com/hotel/fr/tente-domaine-solio.fr.html?checkin=…&checkout=…&group_adults=N#availability` |
+| Vrbo / Abritel | propriété **123465737**, unité 327755592 | **URL publique non retrouvée** — ces identifiants ne correspondent à aucune URL Abritel/Vrbo testée. À récupérer auprès de l'opérateur une fois pour toutes. |
+
+Les identifiants se lisent dans `app.lodgify.com/channels/manager/<canal>`, colonne « Hébergement
+sur … ». La page Booking se trouve sinon par une recherche sur le nom de l'annonce.
+
+**Lire le prix**
+- **Airbnb** : cliquer le total (`button[aria-haspopup="dialog"]` contenant « au total ») ouvre
+  « Détail du prix ». Il affiche le **prix moyen après remise** (« 3 nuits x 178,67 € »), jamais le
+  prix de saison : ne pas conclure trop vite que la grille est fausse. Deux modales à écarter d'abord
+  (traduction, cookies).
+- **Booking** : ajouter `#availability` à l'URL et lire `#hprt-table`. Booking affiche plusieurs plans
+  tarifaires (5 ici, de 290 à 344 € la nuit) ; **le premier est le moins cher**, c'est celui à relever.
+  Tout est « taxes et frais compris », donc non comparable tel quel à un hébergement seul.
+
+**Le contenu éditorial ne suit pas les prix.** Lodgify pousse les tarifs et les disponibilités, mais
+le titre et la description restent propres à chaque plateforme : le titre changé le 2026-08-13 est
+arrivé sur Booking et **jamais sur Airbnb**, resté « Domaine Solio : là où la nature est à vous seul ».
+Toute reformulation d'annonce se fait donc dans le back-office de chaque canal, un par un.
 
 ---
 
