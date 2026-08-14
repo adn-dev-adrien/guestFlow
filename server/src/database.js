@@ -500,6 +500,62 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     )
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId)');
+
+  // specs/tariff-change-journal.md §5 — WHEN the grid changed, and when travellers saw it. Two
+  // distinct beats: `recipe` (the apply inside GuestFlow) and `platforms` (the rollout to Lodgify,
+  // GreenGo, Abracadaroom, declared by hand because GuestFlow cannot observe it). `occurredAt` is
+  // the moment the change took effect, `createdAt` the moment the row was written — a rollout is
+  // routinely declared after the fact. Nothing here feeds a price: it is a register.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tariff_change_events (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      propertyId    INTEGER NOT NULL,
+      kind          TEXT    NOT NULL,
+      recipeId      TEXT    NOT NULL DEFAULT '',
+      recipeVersion TEXT    NOT NULL DEFAULT '',
+      occurredAt    TEXT    NOT NULL,
+      source        TEXT    NOT NULL DEFAULT 'manual',
+      note          TEXT    NOT NULL DEFAULT '',
+      createdAt     TEXT    DEFAULT (datetime('now')),
+      FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tariff_change_events_property ON tariff_change_events(propertyId, occurredAt)');
+
+  // RATTRAPAGE (spec rule 11). Before this table existed, the only trace of an apply was
+  // `properties.updatedAt` — a column the next property-form save overwrites. Recover it while it is
+  // still there, for every property carrying a recipe and holding no event yet.
+  //
+  // The date is DEDUCED, not observed: `updatedAt` is the property's last modification, which is the
+  // apply only if nothing touched the row since. The note says so, so nobody later reads it as a
+  // measurement. Guarded by the absence of an event rather than by the table creation, so a property
+  // whose recipe is attached later by a script gets caught too.
+  {
+    const orphans = db.prepare(`
+      SELECT p.id, p.tariffRecipeId, p.tariffRecipeVersion, p.updatedAt
+      FROM properties p
+      WHERE p.tariffRecipeId != ''
+        AND NOT EXISTS (SELECT 1 FROM tariff_change_events e WHERE e.propertyId = p.id)
+    `).all();
+    if (orphans.length) {
+      const stamp = db.prepare(`
+        INSERT INTO tariff_change_events (propertyId, kind, recipeId, recipeVersion, occurredAt, source, note)
+        VALUES (?, 'recipe', ?, ?, ?, 'backfill', ?)
+      `);
+      db.transaction(() => {
+        for (const row of orphans) {
+          stamp.run(
+            row.id,
+            row.tariffRecipeId || '',
+            row.tariffRecipeVersion || '',
+            row.updatedAt || new Date().toISOString().slice(0, 19).replace('T', ' '),
+            "Date déduite de la dernière modification de la fiche logement, pas observée : le journal n'existait pas encore lors de cette application.",
+          );
+        }
+      })();
+      console.log(`[tariff-change-journal] ${orphans.length} application(s) de recette rattrapée(s) depuis updatedAt`);
+    }
+  }
 }
 
 // Single-rate VAT migration (specs/single-vat-rate.md §5). Seeds `vatRate` from the legacy

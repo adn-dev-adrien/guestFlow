@@ -97,6 +97,10 @@ const api = {
   detachTariffRecipe: (propId) => request(`/properties/${propId}/tariff-recipe/detach`, { method: 'POST' }),
   getTariffRecipeRuns: () => request('/tariff-recipes/runs'),
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
+  // Journal des changements tarifaires (specs/tariff-change-journal.md §4.3)
+  getTariffChangeJournal: (propId) => request(`/tariff-recipes/journal${propId ? `?propertyId=${propId}` : ''}`),
+  addTariffChangeEvent: (payload) => request('/tariff-recipes/journal', { method: 'POST', body: payload }),
+  deleteTariffChangeEvent: (eventId) => request(`/tariff-recipes/journal/${eventId}`, { method: 'DELETE' }),
 
   // Documents
   uploadDocument: (propId, formData) => request(`/properties/${propId}/documents`, { method: 'POST', body: formData }),

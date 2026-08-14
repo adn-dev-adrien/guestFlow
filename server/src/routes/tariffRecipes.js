@@ -5,6 +5,13 @@ const ctrl = require('../controllers/tariffRecipesController');
 router.get('/', ctrl.list);
 router.get('/runs', ctrl.listRuns);
 router.post('/runs/:runId/dismiss', ctrl.dismissRun);
+
+// Journal des changements tarifaires (specs/tariff-change-journal.md §4.3). Declared BEFORE the
+// `/:id` catch-all, which would otherwise swallow `/journal` as a recipe identifier.
+router.get('/journal', ctrl.listJournal);
+router.post('/journal', ctrl.createJournalEntry);
+router.delete('/journal/:eventId', ctrl.deleteJournalEntry);
+
 router.get('/:id', ctrl.getOne);
 
 module.exports = router;

@@ -12,11 +12,13 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import AddIcon from '@mui/icons-material/Add';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
+import TariffChangeJournal from '../components/TariffChangeJournal';
 
 function RecipeCard({ recipe }) {
   const [expanded, setExpanded] = useState(false);
@@ -98,6 +100,11 @@ function RecipeCard({ recipe }) {
 export default function TariffRecipesPage() {
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(false);
+  // Journal des changements tarifaires (specs/tariff-change-journal.md §6)
+  const [journal, setJournal] = useState(null);
+  const [journalError, setJournalError] = useState(false);
+  const [properties, setProperties] = useState([]);
+  const [declareOpen, setDeclareOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -108,11 +115,34 @@ export default function TariffRecipesPage() {
     }
   }, []);
 
+  const loadJournal = useCallback(async () => {
+    setJournalError(false);
+    try {
+      const res = await api.getTariffChangeJournal();
+      setJournal(res?.events || []);
+    } catch {
+      setJournalError(true);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadJournal(); }, [loadJournal]);
+  useEffect(() => {
+    api.getProperties().then((list) => setProperties(list || [])).catch(() => setProperties([]));
+  }, []);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
-      <PageActionBar title="Recettes tarifaires" backTo="/settings" />
+      <PageActionBar
+        title="Recettes tarifaires"
+        backTo="/settings"
+        actionsBefore={[{
+          icon: <AddIcon />,
+          tooltip: 'Déclarer un changement tarifaire',
+          onClick: () => setDeclareOpen(true),
+          color: 'primary',
+        }]}
+      />
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
         Les saisons et tarifs des logements en mode automatique sont calculés à partir de ces
@@ -137,6 +167,27 @@ export default function TariffRecipesPage() {
           {(data.recipes || []).map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}
         </Box>
       )}
+
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>Journal des changements</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+          Quand la grille a changé, et quand les voyageurs l'ont vu. La recette appliquée ici est
+          datée automatiquement ; la mise en ligne sur les plateformes se déclare à la main.
+        </Typography>
+
+        {journalError && <ErrorAlert message="Impossible de charger le journal." onRetry={loadJournal} />}
+        {!journalError && !journal && <LoadingState py={4} label="Chargement…" />}
+        {!journalError && journal && (
+          <TariffChangeJournal
+            events={journal}
+            properties={properties}
+            declareOpen={declareOpen}
+            onDeclareClose={() => setDeclareOpen(false)}
+            onCreate={async (payload) => { await api.addTariffChangeEvent(payload); await loadJournal(); }}
+            onDelete={async (eventId) => { await api.deleteTariffChangeEvent(eventId); await loadJournal(); }}
+          />
+        )}
+      </Box>
     </Box>
   );
 }

@@ -78,4 +78,41 @@ function dismissRun(req, res) {
   return res.json({ ok: true });
 }
 
-module.exports = { list, getOne, previewForProperty, applyToProperty, detachFromProperty, listRuns, dismissRun };
+// ── Journal des changements tarifaires (specs/tariff-change-journal.md §4.3) ──────────────────
+// The register of WHEN the grid changed. Thin handlers: the model owns validation and shaping, so
+// the client renders a list it never has to interpret.
+
+function listJournal(req, res) {
+  const { getDefaultModel: journal } = require('../models/tariffChangeJournalModel');
+  const propertyId = req.query.propertyId ? Number(req.query.propertyId) : null;
+  if (req.query.propertyId && !Number.isFinite(propertyId)) {
+    return res.status(400).json({ error: 'propertyId invalide' });
+  }
+  return res.json({ events: journal().list({ propertyId }) });
+}
+
+function createJournalEntry(req, res) {
+  const { getDefaultModel: journal } = require('../models/tariffChangeJournalModel');
+  const result = journal().insert({
+    propertyId: Number(req.body?.propertyId),
+    kind: String(req.body?.kind || ''),
+    occurredAt: req.body?.occurredAt,
+    note: req.body?.note,
+    source: 'manual',
+  });
+  if (result.error) return res.status(400).json({ error: result.error });
+  return res.status(201).json(result);
+}
+
+function deleteJournalEntry(req, res) {
+  const { getDefaultModel: journal } = require('../models/tariffChangeJournalModel');
+  if (!journal().remove(req.params.eventId)) {
+    return res.status(404).json({ error: 'Événement introuvable' });
+  }
+  return res.json({ ok: true });
+}
+
+module.exports = {
+  list, getOne, previewForProperty, applyToProperty, detachFromProperty, listRuns, dismissRun,
+  listJournal, createJournalEntry, deleteJournalEntry,
+};
