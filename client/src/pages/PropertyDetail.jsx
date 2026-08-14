@@ -53,7 +53,7 @@ export function previewWithArticle(name, article) {
 }
 
 const NEW_DEFAULTS = {
-  name: '', nameArticle: 'au', maxAdults: 2, maxChildren: 0, maxBabies: 0,
+  name: '', nameArticle: 'au', maxGuests: 2, maxBabies: 0,
   basePriceIncludedGuests: 0,
   extraGuestPrice: 0,
   extraGuestPriceUnit: 'per_stay',
@@ -178,7 +178,7 @@ export default function PropertyDetail() {
     }
     setProperty(p);
     const initial = {
-      name: p.name, nameArticle: p.nameArticle || 'au', maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
+      name: p.name, nameArticle: p.nameArticle || 'au', maxGuests: p.maxGuests, maxBabies: p.maxBabies,
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
       extraGuestPrice: p.extraGuestPrice ?? 0,
       extraGuestPriceUnit: p.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
@@ -843,9 +843,12 @@ export default function PropertyDetail() {
                   )}
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="2 à 18 ans" />
-                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="0 à 2 ans" />
+                  <TextField label="Max voyageurs" type="number" value={form.maxGuests ?? 0} onChange={(e) => updateField('maxGuests', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="Adultes, ados et enfants de plus de 2 ans" slotProps={{
+                    htmlInput: { min: 0 }
+                  }} />
+                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="0 à 2 ans, ne comptent pas dans la capacité" slotProps={{
+                    htmlInput: { min: 0 }
+                  }} />
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{

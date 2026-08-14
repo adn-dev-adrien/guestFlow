@@ -239,7 +239,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
       "id": 1,
       "name": "Le Nid",
       "nameArticle": "le",
-      "maxAdults": 4, "maxChildren": 2, "maxBabies": 1,
+      "maxGuests": 4, "maxBabies": 1, "maxAdults": 4,
       "singleBeds": 1, "doubleBeds": 2,
       "basePriceIncludedGuests": 2,
       "defaultCheckIn": "15:00", "defaultCheckOut": "10:00"
@@ -249,6 +249,11 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 ```
   - **No image/document URLs** are exposed: the WordPress site hosts its own visuals (Q7). The API
     returns only descriptive/structural fields.
+  - **Capacity** (specs/property-capacity-single-total.md, 2026-08-14): `maxGuests` is the ONE total
+    for everyone over 2 (adults + teens + children); `maxBabies` is a separate allowance that does
+    NOT count towards it. `maxAdults` is a **deprecated alias of `maxGuests`**, kept for consumers
+    not yet redeployed (the `gf-seo-*` mu-plugins); `maxChildren` is **gone** — it has no correct
+    value under the one-total model. Never sum these fields to get a capacity.
 - **Errors:** `401`.
 
 ##### GET `/public/v1/properties/:id`
@@ -259,7 +264,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 {
   "data": {
     "id": 1, "name": "Le Nid", "nameArticle": "le",
-    "maxAdults": 4, "maxChildren": 2, "maxBabies": 1,
+    "maxGuests": 4, "maxBabies": 1, "maxAdults": 4,
     "singleBeds": 1, "doubleBeds": 2,
     "basePriceIncludedGuests": 2, "extraGuestPrice": 25,
     "defaultCheckIn": "15:00", "defaultCheckOut": "10:00",
@@ -421,6 +426,10 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     confirmation receipt, not a quote dump (it can re-quote if it needs the breakdown).
 - **Errors:** `409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 OVER_CAPACITY`,
   `422 VALIDATION_FAILED`, `404 PROPERTY_NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `401`.
+  - `OVER_CAPACITY` fires when `adults + children + teens > maxGuests` **or** `babies > maxBabies`
+    (server/src/utils/capacity.js — the same rule as the back-office, minus the force override).
+    The age MIX never matters on its own: before 2026-08-14 a property with `maxChildren: 0` refused
+    « 1 adulte + 1 enfant » outright.
 
 ---
 

@@ -309,13 +309,33 @@
       }
     }
 
+    // Capacity — ONE total for everyone over 2, babies apart (GuestFlow
+    // specs/property-capacity-single-total.md §3 rule 13). Capping the steppers here is what stops a
+    // visitor composing an occupancy the API would reject with 409 OVER_CAPACITY at submit time.
+    // 0 = capacity not configured → no cap.
+    var maxGuests = Number(detail.maxGuests || detail.maxAdults || 0);
+    var maxBabies = Number(detail.maxBabies || 0);
+    // The widget opens on 2 adults — a 1-guest property would start over capacity.
+    if (maxGuests && state.adults > maxGuests) state.adults = maxGuests;
+    function guestCap(get) {
+      return function () {
+        if (!maxGuests) return 99;
+        return get() + Math.max(0, maxGuests - persons());
+      };
+    }
+    var capacityNote = maxGuests
+      ? GF.t('capacity') + ' : ' + maxGuests + ' ' + GF.t('guestsUnit')
+        + (maxBabies ? ' · ' + maxBabies + ' ' + GF.t('babiesUnit') : '')
+      : null;
+
     var guestsBox = GF.el('div', { class: 'gf-section' },
       GF.el('div', { class: 'gf-section-title' }, GF.t('travelers')),
+      capacityNote ? GF.el('div', { class: 'gf-line-sub' }, capacityNote) : null,
       GF.el('div', { class: 'gf-lines' },
-        line(GF.t('adults'), null, null, stepper(function () { return state.adults; }, function (v) { state.adults = v; renderSupplements(); }, 1)),
-        line(GF.t('teens'), GF.t('teensAges'), null, stepper(function () { return state.teens; }, function (v) { state.teens = v; renderSupplements(); }, 0)),
-        line(GF.t('children'), GF.t('childrenAges'), null, stepper(function () { return state.children; }, function (v) { state.children = v; renderSupplements(); }, 0)),
-        line(GF.t('babies'), GF.t('babiesAges'), null, stepper(function () { return state.babies; }, function (v) { state.babies = v; if (state.babyBeds > v) state.babyBeds = v; renderBabyBeds(); }, 0)),
+        line(GF.t('adults'), null, null, stepper(function () { return state.adults; }, function (v) { state.adults = v; renderSupplements(); }, 1, guestCap(function () { return state.adults; }))),
+        line(GF.t('teens'), GF.t('teensAges'), null, stepper(function () { return state.teens; }, function (v) { state.teens = v; renderSupplements(); }, 0, guestCap(function () { return state.teens; }))),
+        line(GF.t('children'), GF.t('childrenAges'), null, stepper(function () { return state.children; }, function (v) { state.children = v; renderSupplements(); }, 0, guestCap(function () { return state.children; }))),
+        line(GF.t('babies'), GF.t('babiesAges'), null, stepper(function () { return state.babies; }, function (v) { state.babies = v; if (state.babyBeds > v) state.babyBeds = v; renderBabyBeds(); }, 0, function () { return maxBabies; })),
         babyBedsHolder
       )
     );

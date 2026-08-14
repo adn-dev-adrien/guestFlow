@@ -24,10 +24,9 @@ function ctx(overrides = {}) {
     formSectionCardSx: {}, lockedSectionSx: {}, formSectionContentSx: {},
     form: { adults: 2, children: 0, teens: 0, babies: 0, babyBeds: '' },
     updateForm: () => {},
-    maxAdultsAllowed: 4, maxBabiesAllowed: 2,
-    exceedsAdultsCapacity: false, exceedsChildrenCapacity: false,
-    exceedsBabiesCapacity: false, exceedsTotalCapacity: false,
-    totalGuestsCount: 2, totalGuestsMax: 6,
+    maxGuestsAllowed: 4, maxBabiesAllowed: 2,
+    exceedsGuestsCapacity: false, exceedsBabiesCapacity: false,
+    guestsCount: 2,
     maxBabyBedsByRule: 0, remainingBabyBeds: null,
     ...overrides,
   };

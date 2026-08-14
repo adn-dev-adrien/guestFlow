@@ -32,7 +32,7 @@ function fakeRes() {
 }
 
 function buildController({
-  property = { maxAdults: 10, maxChildren: 5, maxBabies: 2 },
+  property = { maxGuests: 10, maxBabies: 2 },
   blockedNight = false,
   engineQuote = { error: null, minNightsBreached: false, requiredMinNights: 1, finalPrice: 300 },
   optError = null,
@@ -163,9 +163,21 @@ test('min-nights breached → 409 MIN_NIGHTS, nothing persisted', () => {
   assert.equal(captures.devisCreate, undefined);
 });
 
+// specs/property-capacity-single-total.md §3 rule 2 — the mix no longer matters, only the total.
+// Before the one-total model a `maxChildren: 0` property refused this request outright (409), so a
+// guest travelling with a child simply could not book online.
+test('1 adulte + 1 enfant under the total → accepted, request persisted', () => {
+  const captures = {};
+  const controller = buildController({ property: { maxGuests: 5, maxBabies: 1 }, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ adults: 1, children: 1 }) }, res);
+  assert.notEqual(res.statusCode, 409);
+  assert.ok(captures.devisCreate, 'the booking request was persisted');
+});
+
 test('over capacity → 409 OVER_CAPACITY, nothing persisted', () => {
   const captures = {};
-  const controller = buildController({ property: { maxAdults: 1, maxChildren: 0, maxBabies: 0 }, captures });
+  const controller = buildController({ property: { maxGuests: 1, maxBabies: 0 }, captures });
   const res = fakeRes();
   controller.create({ body: validBody({ adults: 5 }) }, res);
   assert.equal(res.statusCode, 409);

@@ -37,7 +37,7 @@ async function lodgeWithRecipe(name) {
   await api(async (ctx) => {
     const detail = await (await ctx.get(`/api/properties/${property.id}`)).json();
     await ctx.put(`/api/properties/${property.id}`, {
-      data: { ...detail, maxAdults: 5, basePriceIncludedGuests: 2, extraGuestPrice: 27, extraGuestPriceUnit: 'per_night' },
+      data: { ...detail, maxGuests: 5, basePriceIncludedGuests: 2, extraGuestPrice: 27, extraGuestPriceUnit: 'per_night' },
     });
     for (const rule of detail.pricingRules || []) await ctx.delete(`/api/properties/${property.id}/pricing/${rule.id}`);
     const res = await ctx.post(`/api/properties/${property.id}/tariff-recipe/apply`, { data: { recipeId: RECIPE_ID } });

@@ -621,7 +621,7 @@ function createReservationsModel(database) {
     },
 
     getPropertyCapacity(propertyId) {
-      return database.prepare('SELECT singleBeds, doubleBeds, maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(propertyId);
+      return database.prepare('SELECT singleBeds, doubleBeds, maxGuests, maxBabies FROM properties WHERE id = ?').get(propertyId);
     },
 
     getPropertyIdOf(reservationId) {
