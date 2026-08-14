@@ -821,96 +821,9 @@ export default function PropertyPricingSeasonsPage() {
           ),
         }]}
       />
-      {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
-      <TariffRecipeCard
-        propertyId={id}
-        activeRecipeId={property.tariffRecipeId || ''}
-        appliedVersion={property.tariffRecipeVersion || ''}
-        rateInclusions={property.rateInclusions || []}
-        onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
-        onError={(message) => showError(message)}
-      />
-
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="sectionHeader" sx={{ mb: 2 }}>Saisons</Typography>
-
-          {/* Below md the table is a card list: at 390 px the 980 px-wide table meant scrolling
-              2,6 screens sideways to read one season, every date cut mid-way. CLAUDE.md §Responsive:
-              cards or stacked rows on the small breakpoints, a true <Table> from md up. Both render
-              the SAME <SeasonIdentity> and <SeasonRanges>, so they cannot drift. */}
-          {isCompact ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              {seasons.map((s) => (
-                <Card key={s.id} variant="outlined">
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <SeasonIdentity season={s} />
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 1 }}>
-                      <SeasonRanges season={s} ranges={upcomingRanges(s)} />
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.25, color: 'text.secondary' }}>
-                      <Typography variant="caption">{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</Typography>
-                      <Typography variant="caption">·</Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                        {formatCurrency(Number(s.pricePerNight || 0))} / nuit
-                      </Typography>
-                      <Typography variant="caption">·</Typography>
-                      <Typography variant="caption">
-                        {s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''} nuit{(s.maxNights || s.minNights) > 1 ? 's' : ''}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
-                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
-              {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
-            </Box>
-          ) : (
-          <TableCard minWidth={980}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Saison</TableCell>
-                  <TableCell>Dates</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Tarif base 1 nuit</TableCell>
-                  <TableCell>Min – max nuits</TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {seasons.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell><SeasonIdentity season={s} /></TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                        <SeasonRanges season={s} ranges={upcomingRanges(s)} />
-                      </Box>
-                    </TableCell>
-                    <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
-                    <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
-                    <TableCell>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
-                    <TableCell>
-                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
-                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {seasons.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} sx={{ p: 0, border: 0 }}>
-                      <EmptyState message="Aucune saison. Créez votre première saison." py={4} />
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-          </TableCard>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* Calendar first (specs/pricing-min-nights-per-range.md §6): it answers « what is configured
+          on which dates » at a glance; the recipe card and the season table below are the editing
+          surfaces. */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {yearsToDisplay.map((year) => (
           <Grid key={year} size={12}>
@@ -1096,6 +1009,96 @@ export default function PropertyPricingSeasonsPage() {
           </Grid>
         ))}
       </Grid>
+
+      {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
+      <TariffRecipeCard
+        propertyId={id}
+        activeRecipeId={property.tariffRecipeId || ''}
+        appliedVersion={property.tariffRecipeVersion || ''}
+        rateInclusions={property.rateInclusions || []}
+        onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
+        onError={(message) => showError(message)}
+      />
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="sectionHeader" sx={{ mb: 2 }}>Saisons</Typography>
+
+          {/* Below md the table is a card list: at 390 px the 980 px-wide table meant scrolling
+              2,6 screens sideways to read one season, every date cut mid-way. CLAUDE.md §Responsive:
+              cards or stacked rows on the small breakpoints, a true <Table> from md up. Both render
+              the SAME <SeasonIdentity> and <SeasonRanges>, so they cannot drift. */}
+          {isCompact ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {seasons.map((s) => (
+                <Card key={s.id} variant="outlined">
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <SeasonIdentity season={s} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 1 }}>
+                      <SeasonRanges season={s} ranges={upcomingRanges(s)} />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.25, color: 'text.secondary' }}>
+                      <Typography variant="caption">{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</Typography>
+                      <Typography variant="caption">·</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                        {formatCurrency(Number(s.pricePerNight || 0))} / nuit
+                      </Typography>
+                      <Typography variant="caption">·</Typography>
+                      <Typography variant="caption">
+                        {s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''} nuit{(s.maxNights || s.minNights) > 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
+                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+              {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
+            </Box>
+          ) : (
+          <TableCard minWidth={980}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Saison</TableCell>
+                  <TableCell>Dates</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Tarif base 1 nuit</TableCell>
+                  <TableCell>Min – max nuits</TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {seasons.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell><SeasonIdentity season={s} /></TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        <SeasonRanges season={s} ranges={upcomingRanges(s)} />
+                      </Box>
+                    </TableCell>
+                    <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
+                    <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
+                    <TableCell>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
+                    <TableCell>
+                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
+                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {seasons.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ p: 0, border: 0 }}>
+                      <EmptyState message="Aucune saison. Créez votre première saison." py={4} />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+          </TableCard>
+          )}
+        </CardContent>
+      </Card>
 
       {/* « Prix plateformes » — placed last on the page (specs/platform-price-from-commission.md §6):
           gross-up of each season net /nuit by each platform's commission %. */}
