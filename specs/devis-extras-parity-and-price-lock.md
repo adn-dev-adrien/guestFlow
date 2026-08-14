@@ -6,7 +6,7 @@
 | **Branch** | `fix/devis-extras-parity` _(Claude-managed)_ |
 | **Created** | 2026-08-14 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | https://github.com/adn-dev-adrien/guestFlow/pull/423 |
 | **Bloc** | Bloc 4 — Devis. See `specs/ROADMAP.md`. |
 
 ---
