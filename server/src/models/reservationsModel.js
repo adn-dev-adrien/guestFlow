@@ -24,6 +24,7 @@ const {
   buildMidStayLine, parseNotes, nextNoteId, MID_STAY_SOURCE,
 } = require('../utils/midStayExtras');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
+const bookingLinesModel = require('./bookingLinesModel');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
@@ -175,13 +176,9 @@ function createReservationsModel(database) {
         .run(generateReservationNumber(database), reservationId);
     }
   }
-  // Option-driven planning cards (specs/option-planning-card.md §3.2). The selected occurrences for a
-  // card-option are stored on reservation_options.cardOccurrences (JSON). Guarded so minimal test
-  // schemas without the column simply skip the column in the INSERT/SELECT.
-  const HAS_RO_CARD_OCCURRENCES = (() => {
-    try { return database.prepare("PRAGMA table_info(reservation_options)").all().some((c) => c.name === 'cardOccurrences'); }
-    catch { return false; }
-  })();
+  // Every write to reservation_options / _custom_options / _resources / _nights goes through this
+  // shared store, which `devisModel` uses too (specs/devis-extras-parity-and-price-lock.md §4.1).
+  const bookingLines = bookingLinesModel.buildModel(database);
   // « This option row was added by the arrival SAS » (specs/sas-upsells-activate-catalogue-option.md
   // §3.2 rule 5). Guarded so minimal test schemas without the column simply behave as legacy.
   const HAS_RO_SAS_ARRIVAL_ORIGIN = (() => {
@@ -216,12 +213,6 @@ function createReservationsModel(database) {
                              midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?`)
       .run(amount, detailJson, (notes && notes.length) ? JSON.stringify(notes) : null, reservationId);
   };
-  // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored on
-  // reservation_resources.sessions (JSON). Guarded for minimal test schemas.
-  const HAS_RESERVATION_RESOURCE_SESSIONS = (() => {
-    try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions'); }
-    catch { return false; }
-  })();
   // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11). Guarded
   // so minimal test schemas without the column degrade to "visible" (the SELECT emits 1).
   const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
@@ -230,11 +221,6 @@ function createReservationsModel(database) {
   })();
   const OPTION_DISPLAY_TO_CLIENT_SELECT = HAS_OPTION_DISPLAY_TO_CLIENT
     ? 'o.displayToClient as displayToClient' : '1 as displayToClient';
-  const serializeCardOccurrences = (opt) => (
-    Array.isArray(opt.cardOccurrences) && opt.cardOccurrences.length > 0
-      ? JSON.stringify(opt.cardOccurrences)
-      : null
-  );
 
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
@@ -567,33 +553,7 @@ function createReservationsModel(database) {
     },
 
     getPricingSnapshot(reservationId) {
-      const lockedNightlyBreakdown = database.prepare(`
-        SELECT date, seasonLabel, pricingMode, price
-        FROM reservation_nights WHERE reservationId = ? ORDER BY date
-      `).all(reservationId);
-      // `inComplement` / `acompteContribTtc` / `soldeContribTtc` are surfaced so the engine can
-      // thread them into the returned `quote.optionLines[i]` for the client + accounting model.
-      const lockedOptionLines = database.prepare(`
-        SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-          COALESCE(inComplement, 0) as inComplement,
-          acompteContribTtc, soldeContribTtc
-        FROM reservation_options WHERE reservationId = ?
-      `).all(reservationId);
-      const lockedResourceLines = database.prepare(`
-        SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-          COALESCE(inComplement, 0) as inComplement,
-          acompteContribTtc, soldeContribTtc
-        FROM reservation_resources WHERE reservationId = ?
-      `).all(reservationId);
-      // The property-level tariff the reservation was sold under (rule 12bis). NULL for a row
-      // created before the column: it keeps the pre-existing live behaviour rather than inventing
-      // a past tariff nobody recorded.
-      let lockedTariff = null;
-      try {
-        const row = database.prepare('SELECT tariffSnapshot FROM reservations WHERE id = ?').get(reservationId);
-        if (row && row.tariffSnapshot) lockedTariff = JSON.parse(row.tariffSnapshot);
-      } catch { lockedTariff = null; }
-      return { lockedNightlyBreakdown, lockedOptionLines, lockedResourceLines, lockedTariff };
+      return bookingLines.getPricingSnapshot(reservationId);
     },
 
     getAuditSnapshotFromDb(reservationId) {
@@ -1078,117 +1038,39 @@ function createReservationsModel(database) {
     // payment-flip code path (`updatePayment` → `captureContribsOnFlip`); regular saves preserve
     // them by passing through the values the engine returned. Lines in Complément (`inComplement = 1`)
     // always get NULL contribs — they live 100 % in the Complément entry, never in Acompte/Solde.
+    // The four line tables are written by ONE module, shared with `devisModel`
+    // (specs/devis-extras-parity-and-price-lock.md §4.1): a devis and a reservation store their lines in
+    // the same children, so a new column must land on both sides at once or not at all.
     replaceOptions(reservationId, optionLines) {
-      // specs/sas-upsells-activate-catalogue-option.md §3.2 rule 9 — a fiche save is a DELETE + INSERT,
-      // so the SAS-origin marker must be carried over per optionId; otherwise the arrival SAS loses the
-      // right to remove its own upsell at the first save (exactly what already happens to the custom
-      // lines, see §8). Guarded: absent column → nothing to carry.
-      let sasOriginIds = [];
-      if (HAS_RO_SAS_ARRIVAL_ORIGIN) {
-        sasOriginIds = database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
-          .all(reservationId).map((r) => Number(r.optionId));
-      }
-      database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(reservationId);
-      this.insertOptions(reservationId, optionLines, sasOriginIds);
+      bookingLines.replaceOptions(reservationId, optionLines);
     },
 
     insertOptions(reservationId, optionLines, sasOriginIds = []) {
-      const sasOriginSet = new Set((sasOriginIds || []).map((id) => Number(id)));
-      const carrySasOrigin = HAS_RO_SAS_ARRIVAL_ORIGIN && sasOriginSet.size > 0;
-      const cols = 'reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc'
-        + (HAS_RO_CARD_OCCURRENCES ? ', cardOccurrences' : '')
-        + (carrySasOrigin ? ', sasArrivalOrigin' : '');
-      const placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?'
-        + (HAS_RO_CARD_OCCURRENCES ? ', ?' : '')
-        + (carrySasOrigin ? ', ?' : '');
-      const insertOpt = database.prepare(`INSERT INTO reservation_options (${cols}) VALUES (${placeholders})`);
-      // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
-      // NEVER persisted as a reservation line — they're counted via the laundry/stock property-default
-      // fallback and never billed/shown. Scoped to linen ON PURPOSE: a non-linen internal option
-      // (e.g. an internal breakfast) MUST still be materialised so it keeps producing its planning
-      // card; only its client display is suppressed elsewhere. Guarded → minimal schemas no-op.
-      const internalLinenIds = (() => {
-        if (!HAS_OPTION_DISPLAY_TO_CLIENT) return new Set();
-        try {
-          return new Set(database.prepare(`
-            SELECT id FROM options
-             WHERE displayToClient = 0
-               AND (COALESCE(countsAsBedLinen, 0) = 1 OR COALESCE(countsAsBathroomLinen, 0) = 1 OR COALESCE(countsAsBathMat, 0) = 1)
-          `).all().map((r) => Number(r.id)));
-        } catch { return new Set(); }
-      })();
-      for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalLinenIds.has(Number(line.optionId)))) {
-        const forced = opt.inComplement ? 1 : 0;
-        const args = [reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
-          Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
-          forced,
-          forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
-          forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null)];
-        if (HAS_RO_CARD_OCCURRENCES) args.push(serializeCardOccurrences(opt));
-        if (carrySasOrigin) args.push(sasOriginSet.has(Number(opt.optionId)) ? 1 : 0);
-        insertOpt.run(...args);
-      }
+      bookingLines.insertOptions(reservationId, optionLines, sasOriginIds);
     },
 
     deleteCustomOptions(reservationId) {
-      database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(reservationId);
+      bookingLines.deleteCustomOptions(reservationId);
     },
 
-    // Same engine-authoritative `inComplement` rule as `replaceOptions` — see comment above.
     insertCustomOptions(reservationId, optionLines) {
-      const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      let sortOrder = 0;
-      for (const line of optionLines || []) {
-        if (!line.isCustom) continue;
-        const forced = line.inComplement ? 1 : 0;
-        insertCustomOpt.run(reservationId, String(line.title || line.description || '').trim(),
-          Number(line.originalTotalPrice || line.totalPrice || 0), line.offered ? 1 : 0, sortOrder,
-          forced,
-          forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
-          forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null));
-        sortOrder += 1;
-      }
+      bookingLines.insertCustomOptions(reservationId, optionLines);
     },
 
     replaceNights(reservationId, nightlyBreakdown) {
-      database.prepare('DELETE FROM reservation_nights WHERE reservationId = ?').run(reservationId);
-      this.insertNights(reservationId, nightlyBreakdown);
+      bookingLines.replaceNights(reservationId, nightlyBreakdown);
     },
 
     insertNights(reservationId, nightlyBreakdown) {
-      if (!nightlyBreakdown || nightlyBreakdown.length === 0) return;
-      const insertNight = database.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
-      for (const night of nightlyBreakdown) {
-        insertNight.run(reservationId, night.date, night.seasonLabel || 'Standard', night.pricingMode || 'fixed', Number(night.price || 0));
-      }
+      bookingLines.insertNights(reservationId, nightlyBreakdown);
     },
 
     deleteResources(reservationId) {
-      database.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(reservationId);
+      bookingLines.deleteResources(reservationId);
     },
 
-    // Same engine-authoritative `inComplement` rule as `replaceOptions` — see comment above.
     insertResourceLine(reservationId, rr, unitPrice, qty, priceType) {
-      const forced = rr.inComplement ? 1 : 0;
-      // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md): persisted as JSON when the
-      // column exists; the planning cards + re-edit read them back.
-      const sessions = Array.isArray(rr.sessions) && rr.sessions.length ? JSON.stringify(rr.sessions) : null;
-      if (HAS_RESERVATION_RESOURCE_SESSIONS) {
-        database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc, sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(reservationId, rr.resourceId, qty, unitPrice, Number(rr.billedUnits || qty),
-            priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0,
-            forced,
-            forced ? null : (rr.acompteContribTtc != null ? Number(rr.acompteContribTtc) : null),
-            forced ? null : (rr.soldeContribTtc != null ? Number(rr.soldeContribTtc) : null),
-            sessions);
-        return;
-      }
-      database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(reservationId, rr.resourceId, qty, unitPrice, Number(rr.billedUnits || qty),
-          priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0,
-          forced,
-          forced ? null : (rr.acompteContribTtc != null ? Number(rr.acompteContribTtc) : null),
-          forced ? null : (rr.soldeContribTtc != null ? Number(rr.soldeContribTtc) : null));
+      bookingLines.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
     },
 
     updatePaymentField(sql, ...params) {

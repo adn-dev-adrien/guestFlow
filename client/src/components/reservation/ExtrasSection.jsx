@@ -121,6 +121,7 @@ export default function ExtrasSection() {
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
     setResourceInComplement,
     bedLinenForcedOptionIds,
+    isDevisMode,
   } = useReservationForm();
   // specs/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
@@ -128,8 +129,10 @@ export default function ExtrasSection() {
   // their toggle hidden — their routing is the algorithm's, not the operator's (rule 5).
   const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
-  // defaults INTO Complément, so the toggle must read ON until the operator flips it.
-  const complementChecked = (value) => (value == null ? isPlatformReservation : Boolean(value));
+  // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
+  // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
+  // split whatever the platform (specs/devis-extras-parity-and-price-lock.md §3 rule 17).
+  const complementChecked = (value) => (value == null ? (isPlatformReservation && !isDevisMode) : Boolean(value));
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
   // never shown as selectable extras on the fiche — they're managed globally and counted in the
   // laundry/stock only. `displayToClient` absent → visible (back-compat).
@@ -154,7 +157,7 @@ export default function ExtrasSection() {
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
         <Typography variant="sectionHeader" sx={{ mb: 2 }}>Options et ressources</Typography>
-        {isPlatformReservation && (
+        {isPlatformReservation && !isDevisMode && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontStyle: 'italic' }}>
             Réservation plateforme — les extras sont placés en paiement complémentaire par défaut (modifiable par ligne).
           </Typography>

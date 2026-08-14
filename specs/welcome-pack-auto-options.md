@@ -28,9 +28,9 @@ keeps the pack lines on the fiche even though the rate no longer covers them.
 
 ## 2. Goal
 
-Creating a reservation on an own channel (`direct` or `Lodgify`) arrives with the property's welcome
-pack already on the fiche — and only the pack, never a billable unit. Changing the platform before
-saving takes it back off.
+Creating a **booking** — a reservation OR a devis — on an own channel (`direct` or `Lodgify`) arrives
+with the property's welcome pack already on the fiche, and only the pack, never a billable unit.
+Changing the platform before saving takes it back off.
 
 ## 3. Functional rules
 
@@ -48,13 +48,16 @@ saving takes it back off.
 
 ### 3.2 When it applies
 
-4. **Unsaved reservations only.** The auto-apply runs on the reservation form while it has never been
-   saved (no `reservationId`). A reservation loaded from the database is never touched — not on load,
-   not on a platform change, not on a guest-count change. Its option set is history (option-planning
-   rule 30), and the engine already stops covering the free units the moment the platform becomes a
-   commissioned one.
-5. It runs on the **blank** new-reservation path only. A reservation pre-filled from a devis, from an
-   iCal import or from a duplication carries its own option set and is left alone.
+4. **Unsaved bookings only.** The auto-apply runs on the fiche while it has never been saved (no
+   `reservationId` **and** no `devisId`). A reservation or a devis loaded from the database is never
+   touched — not on load, not on a platform change, not on a guest-count change. Its option set is
+   history (option-planning rule 30), and the engine already stops covering the free units the moment
+   the platform becomes a commissioned one.
+5. It runs on the **blank** new-booking path — « Nouvelle réservation » **and** « Nouveau devis »
+   (amended 2026-08-14, specs/devis-extras-parity-and-price-lock.md §3 rule 5: the quote must show the
+   guest the same package the reservation would, since it is the document the guest actually reads).
+   A fiche pre-filled from a devis, from an iCal import or from a duplication carries its own option
+   set and is left alone.
 6. The form re-evaluates the pack whenever the context that decides it changes: **platform, property,
    stay dates, guest counts**.
 
@@ -135,7 +138,7 @@ saving takes it back off.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `ReservationPage.jsx` | T | One effect: fetch the pack for the current context (unsaved reservations only) and reconcile it into `form.selectedOptions`; drops the tag + records the opt-out in `setOptionQuantity` / `setOptionCardOccurrences` (rule 11); clears the opt-out on a logement change |
+| `pages/` | `ReservationPage.jsx` | T | One effect: fetch the pack for the current context (unsaved bookings only — `isBlankNewBooking`, reservation or devis, amended 2026-08-14) and reconcile it into `form.selectedOptions`; drops the tag + records the opt-out in `setOptionQuantity` / `setOptionCardOccurrences` (rule 11); clears the opt-out on a logement change |
 | `utils/` | `applyQuoteToForm.js` | T | Carries the pack tag across a pricing recompute, like `inComplement` / `cardOccurrences` (rule 10) |
 | `components/` | `reservation/OptionRow.jsx` | T | Renders a « Pack de bienvenue » chip on a tagged line so the operator knows why the option appeared by itself |
 | `hooks/` | `useWelcomePack.js` | C | Fetches the ready-to-apply lines for `{ propertyId, platform, dates, guests }`, soft-failing; returns `{ lines }` |

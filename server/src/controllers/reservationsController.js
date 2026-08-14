@@ -24,6 +24,7 @@ const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsMod
 const platformsModel = require('../models/platformsModel');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
+const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
@@ -295,6 +296,15 @@ function getHistory(req, res) {
   res.json(model.getHistory(req.params.id));
 }
 
+// An expired devis is re-quoted at the current tariffs, so its stored lines must NOT lock the preview
+// (specs/devis-extras-parity-and-price-lock.md §3 rule 14). Unknown id → treated as expired: nothing to
+// replay anyway.
+function isDevisPricingExpired(devisId) {
+  const row = db.prepare("SELECT validUntil FROM reservations WHERE id = ? AND kind = 'devis'").get(devisId);
+  if (!row) return true;
+  return isDevisExpired(row.validUntil, getTodayIsoDate());
+}
+
 function calculatePrice(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
@@ -311,16 +321,22 @@ function calculatePrice(req, res) {
   }
 
   const reservationId = Number(req.body.reservationId || 0);
+  // A devis being edited locks its prices too, for as long as the quote is valid — same snapshot, same
+  // engine inputs (specs/devis-extras-parity-and-price-lock.md §3 rule 13). The fiche sends `devisId`
+  // so this preview shows exactly what the save will store; without it the operator saw today's
+  // tariffs on screen and the quoted ones in the PDF.
+  const devisId = Number(req.body.devisId || 0);
   const forceCurrentPricing = Boolean(req.body.forceCurrentPricing);
   let lockedPricing = {
     lockedNightlyBreakdown: req.body.lockedNightlyBreakdown,
     lockedOptionLines: req.body.lockedOptionLines,
     lockedResourceLines: req.body.lockedResourceLines,
   };
-  if (reservationId > 0 && !forceCurrentPricing) {
-    const existingReservation = model.getPropertyIdOf(reservationId);
-    if (existingReservation && Number(existingReservation.propertyId) === Number(req.body.propertyId)) {
-      lockedPricing = model.getPricingSnapshot(reservationId);
+  const lockedBookingId = reservationId > 0 ? reservationId : (devisId > 0 && !isDevisPricingExpired(devisId) ? devisId : 0);
+  if (lockedBookingId > 0 && !forceCurrentPricing) {
+    const existingBooking = model.getPropertyIdOf(lockedBookingId);
+    if (existingBooking && Number(existingBooking.propertyId) === Number(req.body.propertyId)) {
+      lockedPricing = model.getPricingSnapshot(lockedBookingId);
     }
   }
 

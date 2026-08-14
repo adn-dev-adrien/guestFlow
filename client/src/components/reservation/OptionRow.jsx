@@ -206,6 +206,7 @@ export default function OptionRow({ opt }) {
     setOptionEnabled, setOptionQuantity, isReservationLocked,
     setOptionInComplement, setAutoOptionInComplement,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds,
+    isDevisMode,
   } = useReservationForm();
 
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
@@ -217,8 +218,10 @@ export default function OptionRow({ opt }) {
   // is the algorithm's, not the operator's (rule 5).
   const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
-  // defaults INTO Complément, so the toggle must read ON until the operator flips it.
-  const complementChecked = (value) => (value == null ? isPlatformReservation : Boolean(value));
+  // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
+  // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
+  // split whatever the platform (specs/devis-extras-parity-and-price-lock.md §3 rule 17).
+  const complementChecked = (value) => (value == null ? (isPlatformReservation && !isDevisMode) : Boolean(value));
 
   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
   const explicitlyEnabled = Boolean(selected && Number(selected.quantity) > 0);
