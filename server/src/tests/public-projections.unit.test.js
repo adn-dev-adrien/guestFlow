@@ -9,7 +9,7 @@ const {
 // A property row as the DB returns it, padded with fields that must NEVER leak.
 const PROPERTY_ROW = {
   id: 1, name: 'Le Nid', nameArticle: 'le',
-  maxAdults: 4, maxChildren: 2, maxBabies: 1, singleBeds: 1, doubleBeds: 2,
+  maxGuests: 4, maxBabies: 1, singleBeds: 1, doubleBeds: 2,
   basePriceIncludedGuests: 2, extraGuestPrice: 25, defaultCheckIn: '15:00', defaultCheckOut: '10:00',
   // sensitive / internal — must be stripped:
   photo: '/uploads/properties/1/cover.jpg', depositPercent: 30, depositDaysBefore: 30,
@@ -20,7 +20,7 @@ test('toPublicProperty exposes only the whitelisted fields (no photo / tax / dep
   const p = toPublicProperty(PROPERTY_ROW);
   assert.deepEqual(Object.keys(p).sort(), [
     'basePriceIncludedGuests', 'defaultCheckIn', 'defaultCheckOut', 'doubleBeds',
-    'id', 'maxAdults', 'maxBabies', 'maxChildren', 'name', 'nameArticle', 'singleBeds',
+    'id', 'maxAdults', 'maxBabies', 'maxGuests', 'name', 'nameArticle', 'singleBeds',
   ]);
   assert.equal('photo' in p, false);
   assert.equal('depositPercent' in p, false);

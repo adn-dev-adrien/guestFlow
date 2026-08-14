@@ -23,14 +23,11 @@ const baseCtx = {
   formSectionContentSx: {},
   form: { adults: 2, children: 0, teens: 0, babies: 0 },
   updateForm: () => {},
-  maxAdultsAllowed: 4,
+  maxGuestsAllowed: 4,
   maxBabiesAllowed: 2,
-  exceedsAdultsCapacity: false,
-  exceedsChildrenCapacity: false,
+  exceedsGuestsCapacity: false,
   exceedsBabiesCapacity: false,
-  exceedsTotalCapacity: false,
-  totalGuestsCount: 2,
-  totalGuestsMax: 6,
+  guestsCount: 2,
 };
 
 test('card title is "Voyageurs" (not "Voyageurs et couchages")', () => {

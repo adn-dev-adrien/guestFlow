@@ -87,7 +87,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
       if (k === 'getPropertyIdOf') return () => null;
-      if (k === 'getPropertyCapacity') return () => ({ maxAdults: 99, maxChildren: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
+      if (k === 'getPropertyCapacity') return () => ({ maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getPropertyBeds') return () => ({ singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: 99 });
       if (k === 'validateAvailability') return () => null;

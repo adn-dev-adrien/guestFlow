@@ -12,17 +12,11 @@ const clientsModel = require('../../models/clientsModel');
 const devisModel = require('../../models/devisModel');
 const notificationService = require('../../utils/notificationService');
 const { validateStayInput, validateGuest } = require('../../utils/publicInputValidation');
+const { checkGuestCapacity } = require('../../utils/capacity');
 const { generateToken } = require('../../utils/publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const { ok, fail } = require('./publicHttp');
-
-function checkCapacity(property, { adults, children, teens, babies }) {
-  if (adults > Number(property.maxAdults || 0)) return 'adults';
-  if ((children + teens) > Number(property.maxChildren || 0)) return 'children';
-  if (babies > Number(property.maxBabies || 0)) return 'babies';
-  return null;
-}
 
 function create(req, res) {
   // Honeypot: a filled `_hp` means a bot. Respond like a success WITHOUT persisting anything, so a
@@ -43,10 +37,11 @@ function create(req, res) {
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
   if (resErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Ressource non disponible pour ce logement.', resErrors);
 
-  const property = db.prepare('SELECT maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(v.value.propertyId);
+  const property = db.prepare('SELECT maxGuests, maxBabies FROM properties WHERE id = ?').get(v.value.propertyId);
   if (!property) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
 
-  if (checkCapacity(property, v.value)) {
+  // Same rule as the back-office (utils/capacity.js), but with NO force override on the public path.
+  if (checkGuestCapacity(property, v.value)) {
     return fail(res, 409, 'OVER_CAPACITY', 'Le nombre de personnes dépasse la capacité du logement.');
   }
 

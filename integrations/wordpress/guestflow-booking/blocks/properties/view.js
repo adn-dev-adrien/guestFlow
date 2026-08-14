@@ -37,7 +37,10 @@
       var grid = GF.el('div', { class: 'gf-props' });
       grid.style.setProperty('--gf-cols', columns);
       list.forEach(function (p) {
-        var capacity = (p.maxAdults || 0) + (p.maxChildren || 0) + (p.maxBabies || 0);
+        // GuestFlow specs/property-capacity-single-total.md §3 rule 12 — the advertised capacity is
+        // the property's ONE guest total (over-2s); babies are a separate allowance, never added in.
+        // `maxAdults` is the deprecated alias kept by the API for older consumers.
+        var capacity = Number(p.maxGuests || p.maxAdults || 0);
         var priceEl = GF.el('div', { class: 'gf-prop-price' }, '');
         var link = bookingLink(bookingPage, p.id);
         var card = GF.el('div', { class: 'gf-prop-card' },

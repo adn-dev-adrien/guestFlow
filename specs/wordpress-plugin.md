@@ -216,7 +216,12 @@ respects its container width.
 **`guestflow/booking`** — the core wizard. Attributes: `propertyId` (or a property selector if unset),
 `showOptions` (bool, default true).
 - Step 1 — dates + guests: date range picker (blocked dates disabled via availability), adults/children/
-  teens/babies steppers bounded by the property capacity.
+  teens/babies steppers bounded by the property capacity. Since 2026-08-14
+  (specs/property-capacity-single-total.md §3 rule 13) that bound is ONE shared total: the `+` of
+  adults/ados/enfants goes inert as soon as their sum reaches `maxGuests`, babies are capped by
+  `maxBabies`, and a `Capacité : N voyageurs · N bébés` caption sits under the section title. Purpose:
+  a visitor can no longer compose an occupancy the API rejects with `409 OVER_CAPACITY` at submit.
+  `maxGuests: 0` = capacity not configured → no cap, no caption.
 - Step 2 — options: list from `options`, with quantity inputs; live recompute. Only the
   **time-derived** auto-options are hidden (`autoOptionType` ∈ {`early_check_in`, `late_check_out`} —
   they are driven by the arrival/departure time fields, not a quantity). All other options are
@@ -233,7 +238,9 @@ respects its container width.
 - Mobile: vertical stepper, full-width inputs, sticky summary/total at the bottom.
 
 **`guestflow/properties`** — attributes: `columns` (2–4, default 3), `bookingPageUrl`.
-- Renders bookable properties (name, capacity, "à partir de X €/nuit" from `fromPricePerNight`); each
+- Renders bookable properties (name, capacity = `maxGuests`, **never** a sum of the capacity fields —
+  it used to add `maxAdults + maxChildren + maxBabies` and advertised 21 personnes for a 10-person
+  gîte —, "à partir de X €/nuit" from `fromPricePerNight`); each
   links to a configured booking page anchor. No images (the API exposes none; the editor can add theme
   images alongside).
 - Mobile: single column; desktop: grid (`columns`, default 3).

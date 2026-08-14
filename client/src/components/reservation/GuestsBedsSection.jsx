@@ -14,37 +14,50 @@ import { useReservationForm } from './ReservationFormContext';
  * independent resource needed whenever there are babies, so it is shown HERE (always, when
  * babies > 0) instead of being hidden behind the bed-linen option. Title kept "Voyageurs".
  *
+ * specs/property-capacity-single-total.md (2026-08-14) — capacity is ONE total: adultes + enfants +
+ * ados ≤ maxGuests, babies bounded separately. The three "over capacity" counters therefore share a
+ * single error state, and the property's capacity is shown as a caption next to the title instead of
+ * a "(max N)" suffix on the Adultes label.
+ *
  * Reads everything from the reservation form context — no props.
  */
 export default function GuestsBedsSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
     form, updateForm,
-    maxAdultsAllowed, maxBabiesAllowed,
-    exceedsAdultsCapacity, exceedsChildrenCapacity, exceedsBabiesCapacity, exceedsTotalCapacity,
-    totalGuestsCount, totalGuestsMax,
+    maxGuestsAllowed, maxBabiesAllowed,
+    exceedsGuestsCapacity, exceedsBabiesCapacity,
+    guestsCount,
     maxBabyBedsByRule, remainingBabyBeds,
     isReservationLocked,
   } = useReservationForm();
 
   const showBabyBed = Number(form.babies || 0) > 0;
+  const capacityHint = maxGuestsAllowed
+    ? `Capacité : ${maxGuestsAllowed} voyageur${maxGuestsAllowed > 1 ? 's' : ''}${maxBabiesAllowed ? ` · ${maxBabiesAllowed} bébé${maxBabiesAllowed > 1 ? 's' : ''}` : ''}`
+    : null;
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
-        <Typography variant="sectionHeader" sx={{ mb: 2 }}>Voyageurs</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 1, mb: 2 }}>
+          <Typography variant="sectionHeader">Voyageurs</Typography>
+          {capacityHint && (
+            <Typography variant="body2" color="text.secondary">{capacityHint}</Typography>
+          )}
+        </Box>
         <Stack spacing={2}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
               <TextField
-                label={`Adultes${maxAdultsAllowed !== null ? ` (max ${maxAdultsAllowed})` : ''}`}
+                label="Adultes"
                 type="number"
                 value={form.adults}
                 onChange={(e) => updateForm({ adults: Number(e.target.value) })}
                 fullWidth
-                error={exceedsAdultsCapacity}
+                error={exceedsGuestsCapacity}
                 slotProps={{
-                  htmlInput: { min: 1, max: maxAdultsAllowed ?? undefined }
+                  htmlInput: { min: 1 }
                 }}
               />
             </Box>
@@ -55,7 +68,7 @@ export default function GuestsBedsSection() {
                 value={form.children}
                 onChange={(e) => updateForm({ children: Number(e.target.value) })}
                 fullWidth
-                error={exceedsChildrenCapacity}
+                error={exceedsGuestsCapacity}
                 slotProps={{
                   htmlInput: { min: 0 }
                 }}
@@ -68,7 +81,7 @@ export default function GuestsBedsSection() {
                 value={form.teens}
                 onChange={(e) => updateForm({ teens: Number(e.target.value) })}
                 fullWidth
-                error={exceedsChildrenCapacity}
+                error={exceedsGuestsCapacity}
                 slotProps={{
                   htmlInput: { min: 0 }
                 }}
@@ -105,9 +118,11 @@ export default function GuestsBedsSection() {
             </Box>
           )}
 
-          {exceedsTotalCapacity && (
+          {(exceedsGuestsCapacity || exceedsBabiesCapacity) && (
             <Typography variant="body2" color="error">
-              Capacité totale dépassée: {totalGuestsCount}/{totalGuestsMax} personnes.
+              Capacité dépassée :
+              {exceedsGuestsCapacity ? ` ${guestsCount}/${maxGuestsAllowed} voyageurs.` : ''}
+              {exceedsBabiesCapacity ? ` ${Number(form.babies || 0)}/${maxBabiesAllowed} bébés.` : ''}
             </Typography>
           )}
         </Stack>
