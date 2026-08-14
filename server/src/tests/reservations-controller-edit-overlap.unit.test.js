@@ -38,7 +38,7 @@ function buildController({ stored, availabilityError = null, capacity, captures 
     },
   };
   const dbMock = { prepare() { return { get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }; } };
-  const cap = capacity || { maxAdults: 99, maxChildren: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 };
+  const cap = capacity || { maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 };
 
   return withMocks({
     '../utils/pricing': pricingMock,
@@ -106,7 +106,7 @@ test('edit with unchanged occupancy: a pre-existing capacity excess does NOT blo
   // Property allows 0 babies but the stored reservation already has 1 (e.g. an iCal import).
   const controller = buildController({
     stored: { ...PLACEMENT, babies: 1 },
-    capacity: { maxAdults: 99, maxChildren: 99, maxBabies: 0, singleBeds: 99, doubleBeds: 99, babyBeds: 0 },
+    capacity: { maxGuests: 99, maxBabies: 0, singleBeds: 99, doubleBeds: 99, babyBeds: 0 },
     captures,
   });
   const res = fakeRes();
@@ -119,7 +119,7 @@ test('increasing occupancy beyond capacity IS still rejected', () => {
   const captures = {};
   const controller = buildController({
     stored: { ...PLACEMENT, babies: 0 },
-    capacity: { maxAdults: 99, maxChildren: 99, maxBabies: 0, singleBeds: 99, doubleBeds: 99, babyBeds: 0 },
+    capacity: { maxGuests: 99, maxBabies: 0, singleBeds: 99, doubleBeds: 99, babyBeds: 0 },
     captures,
   });
   const res = fakeRes();

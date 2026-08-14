@@ -51,11 +51,11 @@ export function makeMockContext(overrides = {}) {
     defaultCheckInTime: '15:00', defaultCheckOutTime: '10:00',
     isReservationLocked: false,
     // guests / beds
-    maxAdultsAllowed: 6, maxBabiesAllowed: 2, maxSingleBeds: 4, maxDoubleBeds: 2,
-    exceedsAdultsCapacity: false, exceedsChildrenCapacity: false, exceedsBabiesCapacity: false,
-    exceedsTotalCapacity: false, exceedsSingleBedsLimit: false, exceedsDoubleBedsLimit: false,
+    maxGuestsAllowed: 6, maxBabiesAllowed: 2, maxSingleBeds: 4, maxDoubleBeds: 2,
+    exceedsGuestsCapacity: false, exceedsBabiesCapacity: false,
+    exceedsSingleBedsLimit: false, exceedsDoubleBedsLimit: false,
     bedsCapacityMismatch: false,
-    totalGuestsCount: 2, totalGuestsMax: 8, reservationBedCapacity: 0, requiredRegularBeds: 2,
+    guestsCount: 2, reservationBedCapacity: 0, requiredRegularBeds: 2,
     maxBabyBedsByRule: 2, remainingBabyBeds: 2,
     handleSuggestBeds: vi.fn(),
     // extras

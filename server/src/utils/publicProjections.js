@@ -15,9 +15,13 @@ function toPublicProperty(row) {
     id: Number(row.id),
     name: row.name,
     nameArticle: row.nameArticle || null,
-    maxAdults: Number(row.maxAdults || 0),
-    maxChildren: Number(row.maxChildren || 0),
+    maxGuests: Number(row.maxGuests || 0),
     maxBabies: Number(row.maxBabies || 0),
+    // Deprecated alias of maxGuests (specs/property-capacity-single-total.md §3 rule 11): the
+    // manually-deployed gf-seo-* mu-plugins read `maxAdults` as the advertised « capacité ». Drop it
+    // once they are redeployed. `maxChildren` is NOT aliased — it has no correct value under the
+    // one-total model.
+    maxAdults: Number(row.maxGuests || 0),
     singleBeds: Number(row.singleBeds || 0),
     doubleBeds: Number(row.doubleBeds || 0),
     basePriceIncludedGuests: Number(row.basePriceIncludedGuests || 0),

@@ -1245,8 +1245,7 @@ export default function ReservationPage() {
   // ==================== CAPACITY & PRICING CALCULATIONS ====================
   const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
   const maxDoubleBeds = selectedProperty ? Number(selectedProperty.doubleBeds ?? 0) : null;
-  const maxAdultsAllowed = selectedProperty ? Number(selectedProperty.maxAdults ?? 0) : null;
-  const maxChildrenAllowed = selectedProperty ? Number(selectedProperty.maxChildren ?? 0) : null;
+  const maxGuestsAllowed = selectedProperty ? Number(selectedProperty.maxGuests ?? 0) : null;
   const maxBabiesAllowed = selectedProperty ? Number(selectedProperty.maxBabies ?? 0) : null;
 
   const bedsEntered = form.singleBeds !== '' || form.doubleBeds !== '' || form.babyBeds !== '';
@@ -1254,12 +1253,11 @@ export default function ReservationPage() {
   const childrenCount = Number(form.children) || 0;
   const teensCount = Number(form.teens) || 0;
   const babiesCount = Number(form.babies) || 0;
-  const totalGuestsCount = adultsCount + childrenCount + teensCount + babiesCount;
-  const totalGuestsMax = maxAdultsAllowed === null || maxChildrenAllowed === null || maxBabiesAllowed === null
-    ? null
-    : maxAdultsAllowed + maxChildrenAllowed + maxBabiesAllowed;
-
-  const exceedsAdultsCapacity = maxAdultsAllowed !== null && adultsCount > maxAdultsAllowed;
+  // ONE total for everyone over 2, babies apart (specs/property-capacity-single-total.md §3).
+  // Mirrors server/src/utils/capacity.js for the inline warning only — the server decides.
+  const guestsCount = adultsCount + childrenCount + teensCount;
+  // maxGuests 0 = capacity not configured (guard off); maxBabies 0 = no babies accepted (enforced).
+  const exceedsGuestsCapacity = Boolean(maxGuestsAllowed) && guestsCount > maxGuestsAllowed;
   const exceedsBabiesCapacity = maxBabiesAllowed !== null && babiesCount > maxBabiesAllowed;
   const reservationBedCapacity = (Number(form.singleBeds) || 0) + (Number(form.doubleBeds) || 0) * 2;
   const exceedsSingleBedsLimit = maxSingleBeds !== null && form.singleBeds !== '' && Number(form.singleBeds) > maxSingleBeds;
@@ -1272,10 +1270,7 @@ export default function ReservationPage() {
   const selectedBabyBeds = Number(form.babyBeds || 0);
   const childrenSleepingInBabyBeds = Math.max(0, selectedBabyBeds - babiesCount);
   const childrenSleepingInRegularBeds = Math.max(0, childrenCount - childrenSleepingInBabyBeds);
-  const childrenTeensCountForCapacity = childrenSleepingInRegularBeds + teensCount;
-  const exceedsChildrenCapacity = maxChildrenAllowed !== null && childrenTeensCountForCapacity > maxChildrenAllowed;
-  const exceedsTotalCapacity = totalGuestsMax !== null && totalGuestsCount > totalGuestsMax;
-  const exceedsGuestCapacity = exceedsAdultsCapacity || exceedsChildrenCapacity || exceedsBabiesCapacity || exceedsTotalCapacity;
+  const exceedsGuestCapacity = exceedsGuestsCapacity || exceedsBabiesCapacity;
   const requiredRegularBeds = adultsCount + teensCount + childrenSleepingInRegularBeds;
   const bedsCapacityMismatch = bedsEntered && reservationBedCapacity < requiredRegularBeds;
   const remainingBabyBeds = babyAvailableNumber === null
@@ -1976,10 +1971,8 @@ export default function ReservationPage() {
 
     if (exceedsGuestCapacity && !forceCapacity && !occupancyUnchanged) {
       const capacityParts = [];
-      if (exceedsAdultsCapacity) capacityParts.push(`adultes: ${adultsCount}/${maxAdultsAllowed}`);
-      if (exceedsChildrenCapacity) capacityParts.push(`enfants+ados (hors lit bébé): ${childrenTeensCountForCapacity}/${maxChildrenAllowed}`);
+      if (exceedsGuestsCapacity) capacityParts.push(`voyageurs: ${guestsCount}/${maxGuestsAllowed}`);
       if (exceedsBabiesCapacity) capacityParts.push(`bébés: ${babiesCount}/${maxBabiesAllowed}`);
-      if (exceedsTotalCapacity) capacityParts.push(`total: ${totalGuestsCount}/${totalGuestsMax}`);
       const proceed = await confirm({
         title: 'Capacité du logement dépassée',
         message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}). Voulez-vous forcer l'enregistrement ?`,
@@ -2830,10 +2823,10 @@ export default function ReservationPage() {
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
     isReservationLocked,
     // guests / beds
-    maxAdultsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
-    exceedsAdultsCapacity, exceedsChildrenCapacity, exceedsBabiesCapacity, exceedsTotalCapacity,
+    maxGuestsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
+    exceedsGuestsCapacity, exceedsBabiesCapacity,
     exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
-    totalGuestsCount, totalGuestsMax, reservationBedCapacity, requiredRegularBeds,
+    guestsCount, reservationBedCapacity, requiredRegularBeds,
     maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
     // specs/bed-config-in-linen-card.md — drives the bed-inputs sub-block in ExtrasSection
     // and suppresses the (now-removed) bed inputs from GuestsBedsSection.

@@ -45,7 +45,7 @@ import api from '../../api';
 
 const PROPERTY = {
   id: 5, name: 'Le Moulin', nameArticle: 'au',
-  maxAdults: 3, maxChildren: 2, maxBabies: 1,
+  maxGuests: 3, maxBabies: 1,
   basePriceIncludedGuests: 2, extraGuestPrice: 15,
   singleBeds: 1, doubleBeds: 2,
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
@@ -76,7 +76,11 @@ test('existing property: loads via api.getProperty and populates the form', asyn
   expect(await screen.findByDisplayValue('Le Moulin')).toBeInTheDocument(); // name field value (first form field)
   expect(api.getProperty).toHaveBeenCalledWith('5');
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
-  expect(screen.getByLabelText(/Max adultes/)).toHaveValue(3);
+  // specs/property-capacity-single-total.md — one total instead of adultes/enfants buckets.
+  expect(screen.getByLabelText(/Max voyageurs/)).toHaveValue(3);
+  expect(screen.getByLabelText(/Max bébés/)).toHaveValue(1);
+  expect(screen.queryByLabelText(/Max adultes/)).toBeNull();
+  expect(screen.queryByLabelText(/Max enfants/)).toBeNull();
   // Not dirty → Save/Cancel hidden; the destructive action is always available.
   expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Supprimer le logement' })).toBeInTheDocument();

@@ -393,6 +393,26 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     }
   }
 }
+// Capacity as ONE total instead of three additive buckets (specs/property-capacity-single-total.md
+// §5). `maxGuests` counts everyone over 2 (adults + teens + children); `maxBabies` stays separate
+// and out of the total. Backfilled from `maxAdults`, which is the number operators actually used as
+// "how many people fit" — so no property gets tighter than it is today, and every property stops
+// rejecting children (`maxChildren` was 0 on the lodge, blocking 1 adulte + 1 enfant).
+// Driven by PRAGMA so restoring an older backup re-runs add → backfill → drop safely.
+{
+  const propColsBefore = db.prepare("PRAGMA table_info(properties)").all().map((c) => c.name);
+  if (!propColsBefore.includes('maxGuests')) {
+    db.exec('ALTER TABLE properties ADD COLUMN maxGuests INTEGER DEFAULT 2');
+    if (propColsBefore.includes('maxAdults')) {
+      db.exec('UPDATE properties SET maxGuests = COALESCE(NULLIF(maxAdults, 0), 2)');
+    }
+  }
+  const propColsAfter = db.prepare("PRAGMA table_info(properties)").all().map((c) => c.name);
+  for (const col of ['maxAdults', 'maxChildren']) {
+    if (propColsAfter.includes(col)) db.exec(`ALTER TABLE properties DROP COLUMN ${col}`);
+  }
+}
+
 // Per-property « Acompte en ligne » toggle (specs/public-online-deposit.md §5). Default 0 → existing
 // behaviour (single online full payment) is unchanged until the operator opts a property in.
 {

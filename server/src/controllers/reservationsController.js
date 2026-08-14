@@ -11,6 +11,7 @@ const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require(
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
+const { checkGuestCapacity } = require('../utils/capacity');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
 const { sasDetailAmount, storedMidStayLines } = require('../utils/midStayExtras');
@@ -154,31 +155,17 @@ function hasBedLinenOption(reservationOptions) {
   return Boolean(row);
 }
 
-// Shared capacity/baby-bed validation for create & update. Returns an error string or null.
-function checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity }) {
+// Shared capacity/bed validation for create & update. Returns an error string or null.
+// The guest rule itself lives in utils/capacity.js — ONE total (adults + children + teens ≤
+// maxGuests) plus a separate baby allowance (specs/property-capacity-single-total.md §3).
+// `forceCapacity` is the operator's escape hatch: it lifts the guest guard only, never the beds one.
+function checkCapacity({ propertyId, adults, children, teens, babies, singleBeds, doubleBeds, forceCapacity }) {
   const property = model.getPropertyCapacity(propertyId);
   if (!property) return null;
-  const adultsCount = Number(adults || 1);
-  const childrenCount = Number(children || 0);
-  const teensCount = Number(teens || 0);
-  const babiesCount = Number(babies || 0);
-  const babyBedsCount = Number(babyBeds || 0);
-  const childrenSleepingInBabyBeds = Math.max(0, Math.min(childrenCount, babyBedsCount - babiesCount));
-  const childrenTeensCount = Math.max(0, childrenCount - childrenSleepingInBabyBeds) + teensCount;
-  const totalGuests = adultsCount + childrenCount + teensCount + babiesCount;
-  const totalMax = Number(property.maxAdults || 0) + Number(property.maxChildren || 0) + Number(property.maxBabies || 0);
 
-  if (!forceCapacity && adultsCount > Number(property.maxAdults || 0)) {
-    return `Le nombre d'adultes (${adultsCount}) dépasse la capacité du logement (${property.maxAdults || 0}).`;
-  }
-  if (!forceCapacity && childrenTeensCount > Number(property.maxChildren || 0)) {
-    return `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).`;
-  }
-  if (!forceCapacity && babiesCount > Number(property.maxBabies || 0)) {
-    return `Le nombre de bébés (${babiesCount}) dépasse la capacité du logement (${property.maxBabies || 0}).`;
-  }
-  if (!forceCapacity && totalGuests > totalMax) {
-    return `Le nombre total de personnes (${totalGuests}) dépasse la capacité du logement (${totalMax}).`;
+  if (!forceCapacity) {
+    const breach = checkGuestCapacity(property, { adults, children, teens, babies });
+    if (breach) return breach.message;
   }
   if (singleBeds !== null && singleBeds !== undefined && singleBeds !== '' && Number(singleBeds) > Number(property.singleBeds || 0)) {
     return `Le nombre de lits simples (${singleBeds}) dépasse la capacité du logement (${property.singleBeds || 0}).`;
@@ -516,7 +503,7 @@ function create(req, res) {
 
   const capacityError = checkCapacity({
     propertyId, adults, children, teens, babies,
-    babyBeds: effectiveBabyBeds, singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
+    singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
     forceCapacity,
   });
   if (capacityError) return res.status(400).json({ error: capacityError });
@@ -754,7 +741,7 @@ function update(req, res) {
     if (!occupancyUnchanged) {
       const capacityError = checkCapacity({
         propertyId, adults, children, teens, babies,
-        babyBeds: effectiveBabyBeds, singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
+        singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
         forceCapacity,
       });
       if (capacityError) return res.status(400).json({ error: capacityError });

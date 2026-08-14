@@ -134,6 +134,8 @@ final class GF_Blocks
                 'pickDeparture'   => __('Sélectionnez votre date de départ', 'guestflow-booking'),
                 'rangeBlocked'    => __('Ces dates incluent une nuit indisponible. Choisissez une autre période.', 'guestflow-booking'),
                 'travelers'       => __('Voyageurs', 'guestflow-booking'),
+                'guestsUnit'      => __('voyageurs', 'guestflow-booking'),
+                'babiesUnit'      => __('bébés', 'guestflow-booking'),
                 'supplements'     => __('Options & suppléments', 'guestflow-booking'),
                 'teensAges'       => __('12 à 18 ans', 'guestflow-booking'),
                 'childrenAges'    => __('2 à 12 ans', 'guestflow-booking'),

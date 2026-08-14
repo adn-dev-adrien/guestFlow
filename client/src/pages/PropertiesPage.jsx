@@ -85,7 +85,7 @@ export default function PropertiesPage() {
                 <CardContent>
                   <Typography variant="sectionHeader">{p.name}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {p.maxAdults} adultes · {p.maxChildren} enfants · {p.maxBabies} bébés
+                    {p.maxGuests} voyageur{p.maxGuests > 1 ? 's' : ''} · {p.maxBabies} bébé{p.maxBabies > 1 ? 's' : ''}
                   </Typography>
                 </CardContent>
                 <CardActions>

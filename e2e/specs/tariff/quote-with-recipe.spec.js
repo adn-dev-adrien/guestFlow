@@ -41,7 +41,7 @@ async function lodgeWithRecipe(name) {
   await api(async (ctx) => {
     const detail = await (await ctx.get(`/api/properties/${property.id}`)).json();
     const updated = await ctx.put(`/api/properties/${property.id}`, {
-      data: { ...detail, maxAdults: 5, basePriceIncludedGuests: 2, extraGuestPrice: 15, extraGuestPriceUnit: 'per_night' },
+      data: { ...detail, maxGuests: 5, basePriceIncludedGuests: 2, extraGuestPrice: 15, extraGuestPriceUnit: 'per_night' },
     });
     if (!updated.ok()) throw new Error(`property update failed: ${updated.status()}`);
     // The auto « Tarif annuel » season is manual and would block the recipe (rule 9).
