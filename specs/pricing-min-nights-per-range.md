@@ -178,6 +178,11 @@ shapes; only their **values** get finer. No public-API contract change.
 
 ## 6. UI / UX
 
+**Page order** (top → bottom): **calendar (multi-month grid)** → recipe card → season table → « Prix
+plateformes ». The calendar is what the owner reads first — it is the visual answer to "what is
+configured on which dates" — so it sits directly under the `PageActionBar`; the recipe and the season
+table are the *editing* surfaces below it.
+
 **Season edit dialog** (`FormDialog`, existing). Each date-range row gains a compact **"Min nuits"**
 number input (min 1) after the two date pickers; empty = inherit the season default shown below. On
 `xs` the row stacks (dates then min then delete). Season-level "Min nuits" field stays.
