@@ -67,6 +67,17 @@ function createTariffRecipeModel(database, recipeStore) {
   const propertiesModel = require('./propertiesModel').buildModel(database);
   const closuresModel = require('./establishmentClosuresModel').create(database);
 
+  // Bound to the SAME database as this model, so a test on an in-memory schema journals in-memory
+  // too. Lazy: a schema without `tariff_change_events` (an older test fixture) must still be able to
+  // apply a recipe — the journal write is best-effort by design.
+  let journalModel = null;
+  const journal = () => {
+    if (!journalModel) {
+      journalModel = require('./tariffChangeJournalModel').createTariffChangeJournalModel(database);
+    }
+    return journalModel;
+  };
+
   // The desired season payload (everything propertiesModel.add/updatePricingRule persists).
   function desiredSeasonPayload(recipe, season, dateRanges) {
     return {
@@ -366,6 +377,18 @@ function createTariffRecipeModel(database, recipeStore) {
     if (!nothingToDo) runTransaction();
     else propertiesModel.setTariffRecipe(Number(propertyId), recipeId, diff.recipe.version);
     propertiesModel.setWelcomePackCost(Number(propertyId), recipe?.welcomePack?.cost ?? 0);
+
+    // specs/tariff-change-journal.md rule 5 — date the change, and only a real one. An apply that
+    // moves no season and adds no closure changed no tariff, so it writes nothing: a journal full of
+    // no-ops cannot be read against reservations. Outside the transaction and never throwing —
+    // losing a line of history must not roll back seasons that are already written.
+    if (!nothingToDo) {
+      journal().recordRecipeApply({
+        propertyId: Number(propertyId),
+        recipeId,
+        recipeVersion: diff.recipe.version,
+      });
+    }
 
     return { applied: !nothingToDo, ...diff };
   }
