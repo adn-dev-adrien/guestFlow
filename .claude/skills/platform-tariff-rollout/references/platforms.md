@@ -27,6 +27,13 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 1. **Les promotions ne se cumulent pas** — la plus avantageuse gagne. Une table croissante
    (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc. Prouvé par devis : un séjour de 6 nuits a reçu
    −43 % et non −24 %.
+1bis. **Booking.com n'honore PAS ces promotions**, même en cochant son canal dans les
+   « Restrictions » — Lodgify affiche d'ailleurs l'avertissement « promotion susceptible de ne pas
+   s'appliquer […] en raison de restrictions sur certains canaux ». Mesuré le 2026-08-14 : une nuit
+   290 €, trois nuits 870 € = 3 × 290. Airbnb, lui, applique bien la remise. **Corriger une note
+   antérieure de ce fichier qui affirmait le contraire.** Le seul correctif possible est une remise
+   longue durée créée dans l'extranet Booking. **Toujours tester 1 nuit puis N nuits sur chaque
+   canal** : c'est la seule façon de voir qu'une dégressivité n'est pas appliquée.
 2. **« Prix par durée du séjour » n'exprime pas une dégressivité** : il demande un prix total fixe en
    euros, pas un pourcentage, et Booking ne le supporte pas. Utiliser les **Promotions**
    (pourcentage + « Durée de séjour minimum »), dont les « Restrictions » cochent les quatre canaux —
@@ -84,6 +91,127 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 18. Une saison accepte **plusieurs plages de dates** : ajouter les dates de l'année suivante à la
     saison existante plutôt que d'en créer une nouvelle — le prix, le supplément voyageur et les
     minimums sont déjà bons.
+
+---
+
+## Airbnb, Booking, Vrbo — les canaux nourris par Lodgify
+
+Ils n'ont pas de console à configurer : Lodgify y pousse prix et disponibilités. **Ils se vérifient
+donc uniquement sur leur page publique**, et c'est là que les surprises apparaissent.
+
+| Canal | Identifiants relevés le 2026-08-14 | Page publique |
+|---|---|---|
+| Airbnb | annonce **1576845044615216441** | `airbnb.fr/rooms/<id>?check_in=AAAA-MM-JJ&check_out=…&adults=N` |
+| Booking | hôtel **15343212**, chambre 1534321201 | `booking.com/hotel/fr/tente-domaine-solio.fr.html?checkin=…&checkout=…&group_adults=N#availability` |
+| Vrbo / Abritel | propriété **123465737**, unité 327755592, annonce **AB 2622643**, clé composite **731.2622643.2799576** | `abritel.fr/location-vacances/p2622643` |
+
+Les identifiants se lisent dans `app.lodgify.com/channels/manager/<canal>`, colonne « Hébergement
+sur … ». La page Booking se trouve sinon par une recherche sur le nom de l'annonce.
+
+**Lire le prix**
+- **Airbnb** : cliquer le total (`button[aria-haspopup="dialog"]` contenant « au total ») ouvre
+  « Détail du prix ». Il affiche le **prix moyen après remise** (« 3 nuits x 178,67 € »), jamais le
+  prix de saison : ne pas conclure trop vite que la grille est fausse. Deux modales à écarter d'abord
+  (traduction, cookies).
+- **Booking** : ajouter `#availability` à l'URL et lire `#hprt-table`. Booking affiche plusieurs plans
+  tarifaires (5 ici, de 290 à 344 € la nuit) ; **le premier est le moins cher**, c'est celui à relever.
+  Tout est « taxes et frais compris », donc non comparable tel quel à un hébergement seul.
+
+**Le contenu éditorial ne suit pas les prix.** Lodgify pousse les tarifs et les disponibilités, mais
+le titre et la description restent propres à chaque plateforme : le titre changé le 2026-08-13 est
+arrivé sur Booking et **jamais sur Airbnb**, resté « Domaine Solio : là où la nature est à vous seul ».
+Toute reformulation d'annonce se fait donc dans le back-office de chaque canal, un par un.
+
+**Airbnb — les champs de langue peuvent être inversés.** Le titre a un champ par langue ; ici le champ
+« Français » contenait la version anglaise et réciproquement, si bien que la page publique française
+affichait une traduction automatique. **Toujours lire le contenu de chaque champ, pas seulement son
+étiquette.** Limite : 50 caractères par titre, 500 pour « Description du logement » — prévoir une
+formulation courte pour ce canal. Corollaire : l'**éditeur** affiche la version anglaise, donc y lire
+« Aventura Lodge: 13 ha, alone in the wild, family » ne veut pas dire que le titre français est faux —
+le vérifier sur le titre de la page `multicalendar/<id>`, qui rend le français.
+
+**Où trouver quoi, quand la console résiste** (relevé le 2026-08-14) :
+
+| Réglage | Airbnb | Booking | Abritel |
+|---|---|---|---|
+| Horaires arrivée/départ | `hosting/listings/editor/<id>/details/house-rules` | `extranet_ng/manage/property_policies.html` | `lodging-supply/settings/rentalpolicy/times?propertyId=<id>` |
+| Description | `…/details/description` | **non éditable** — voir ci-dessous | `supply/pe/description/headlineDescription?propertyId=<id>` |
+| Règlement intérieur | `…/details/house-rules` | `property_policies.html` | `…/rentalpolicy/houserules` |
+| Fenêtre de réservation | `multicalendar/<id>/availability-settings` | — | — |
+
+Les URL Airbnb en `…/arrival-guide/checkin-checkout` **n'existent pas** (404) ; les horaires sont dans
+`house-rules`. Chez Abritel, tout part de `supply/pe?propertyId=<id>` (« Outil de gestion des
+hébergements ») et des « Règles et règlements » atteintes par `rm/settings/protection/l-<clé
+composite>`, qui redirige vers `lodging-supply/settings/…`.
+
+**Booking ne laisse pas éditer sa description** : « Votre description est conçue de manière à vous
+assurer le plus de réservations possible. Par conséquent, nous ne pouvons pas la modifier sauf en cas
+de faute de frappe. » Elle est **générée à partir des équipements déclarés**. Pour y faire figurer une
+information commerciale (ce qui est compris dans le tarif), passer par
+`extranet_ng/manage/request_change.html` :
+- le champ **`fine_print`** (« L'information que vous souhaitez communiquer n'est pas proposée
+  ci-dessus ? ») alimente la rubrique publique « À savoir » — c'est le bon endroit ;
+- le champ **`room_descriptions`** accepte une demande d'ajout, à rédiger en liste à puces selon leur
+  propre exemple (« 1. Veuillez ajouter : … ») ;
+- « Demander une modification » ne renvoie **aucun message de confirmation** : la seule preuve est une
+  ligne « Content - request change request » horodatée dans `inbox.html`. Toujours aller la vérifier.
+- Délai annoncé : traité par leurs éditeurs sous ~6 jours.
+- Piège : la case « Serviettes » de `facilities.html` appartient à la section **Piscine** (chaises
+  longues, toboggan) — la cocher n'a rien à voir avec le linge fourni.
+
+**Abritel reçoit la description depuis Lodgify.** Contrairement à Airbnb et Booking, le titre **et** le
+corps de l'annonce y arrivent par le canal : la phrase « tout compris » écrite dans Lodgify s'y
+trouvait déjà, sans intervention. Vérifier plutôt que corriger.
+
+**La commission Abritel est de 15 %, pas 13 %.** `p/property-details` annonce la formule
+« Performance - 2 (15 % pour chaque réservation) ». La majoration Vrbo de **+5 %** posée dans Lodgify
+avait été calculée pour 13 % : à 260 €/nuit en haute saison, trois nuits affichées 522,60 € laissent
+444,21 € nets contre une cible recette de 452,25 €, soit **8 € sous la cible par séjour**. Il faudrait
+environ **+7,3 %** pour retomber sur la cible. Vérifier la formule tarifaire de chaque canal dans son
+back-office avant de figer une majoration — le taux « connu » peut dater.
+
+**Airbnb ne vend qu'à 12 mois.** `multicalendar/<id>/availability-settings` affiche « Plage de
+disponibilité : 12 mois en avance », et le réglage est **verrouillé** tant que Lodgify est connecté
+(« Vous pouvez modifier les paramètres de disponibilité dans votre logiciel de gestion locative »).
+Conséquence directe : la fin 2027 n'est pas réservable sur Airbnb même quand la recette et Lodgify la
+couvrent. À reprendre côté Lodgify.
+
+**Recréer la dégressivité dans l'extranet Booking** (échelle complète posée le 2026-08-14) :
+
+1. `admin.booking.com` → le menu **Promotions** ne s'ouvre pas au clic scripté ; lire ses liens dans
+   `nav.ext-navigation` **après un vrai `browser_click` sur l'entrée du menu** — sinon la nav ne
+   contient que « Accueil » et « Réservations ». Les trois URL utiles :
+   `promotions/list.html` (les promotions actives), `promotions/marketplace.html` (en choisir une),
+   `promotions/setup.html?hotel_id=<id>&product=BASIC_DEAL` (« Offre Standard », la seule
+   personnalisable). `promotions.html` et `promotions/index.html` renvoient 404.
+2. Renseigner `#usp-discount-action` (le %), `#promotion-name-usp-promotion-name` (nom interne).
+3. **La date de fin : format ISO, et le champ doit d'abord être ouvert.** Écrire `31 déc. 2027`
+   n'entre pas dans l'état de l'application, mais **`2027-12-31` oui** — à condition d'avoir cliqué
+   `#to-date` d'abord (le picker doit être monté). Un `fill()` sur un champ jamais ouvert passe
+   silencieusement : le champ affiche la nouvelle date et le récapitulatif garde l'ancienne.
+   **Toujours relire « Votre réduction s'appliquera aux séjours effectués aux dates suivantes »
+   avant de valider** — c'est ce récapitulatif qui a rattrapé le palier 4 nuits.
+   Ne **jamais** essayer de naviguer le calendrier aux flèches : il est mono-mois, les clics scriptés
+   l'emballent (parti à septembre 2034), et l'entête lue en haut de page est celle du champ « Du : »,
+   donc une boucle de convergence ne converge jamais.
+4. « Durée de séjour → Modifier » → radio `#select_los` → `#min-length-of-stay-value` →
+   « Enregistrer les modifications ». Le libellé doit ensuite afficher « Séjour de N nuits minimum ».
+5. « Vérifier » ouvre un récapitulatif complet, puis « Activer ».
+6. **« Créer une promotion similaire » ne clone rien** : le formulaire revient vierge (10 %,
+   « Basic Deal », fin à +3 mois). Refaire les 5 étapes à chaque palier.
+
+**Le point qui rend l'échelle possible** : le formulaire annonce « en cas de promotions non cumulables
+applicables, **seule la réduction la plus importante** est affichée aux clients ». Une échelle
+croissante (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc, exactement comme sur Lodgify — il faut
+une promotion par palier.
+
+**La propagation vers la page publique est lente et non garantie dans la séance.** Le palier 2 nuits,
+créé et vérifié actif dans l'extranet (public, tous les jours, tous les plans tarifaires, séjours
+14/08/2026–31/12/2027), n'était toujours pas appliqué sur la page publique **une heure après** :
+2 nuits en moyenne saison restaient à 509 € = 2 × 254,50. Le simulateur « Simuler la réduction
+maximum » de l'extranet ne sert à rien pour ça — il est générique et n'interroge pas les tarifs réels
+de l'établissement. **Le seul contrôle valable est un devis sur la page publique, et il faut le
+refaire le lendemain.** `curl` ne convient pas (protection anti-bot) : passer par le navigateur.
 
 ---
 
