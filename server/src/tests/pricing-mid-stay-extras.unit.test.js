@@ -27,8 +27,9 @@ function createDb() {
       progressiveTiers TEXT NOT NULL DEFAULT '[]', dateRanges TEXT NOT NULL DEFAULT '[]',
       color TEXT NOT NULL DEFAULT '#1976d2', startDate TEXT, endDate TEXT, minNights INTEGER DEFAULT 1
     );
-    CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT NOT NULL, priceType TEXT DEFAULT 'per_stay', price REAL DEFAULT 0, optionProgressiveTiers TEXT DEFAULT '[]', autoOptionType TEXT, autoEnabled INTEGER DEFAULT 0, autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT);
+    CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT NOT NULL, priceType TEXT DEFAULT 'per_stay', price REAL DEFAULT 0, optionProgressiveTiers TEXT DEFAULT '[]', autoOptionType TEXT, autoEnabled INTEGER DEFAULT 0, autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT, showsPlanningCard INTEGER NOT NULL DEFAULT 0, cardRepeat TEXT DEFAULT 'once', planningCardDate TEXT, planningCardTimes TEXT);
     CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
+    CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, quantity INTEGER DEFAULT 0, price REAL DEFAULT 0, priceType TEXT DEFAULT 'per_stay', isComplex INTEGER DEFAULT 0, propertyIds TEXT DEFAULT '[]');
     CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId));
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
@@ -37,7 +38,9 @@ function createDb() {
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Tente')").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 100, 1)').run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (9, 'Petit-déjeuner', 'per_stay', 12)").run();
-  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 9)').run();
+  // Carte de planning (le petit-déjeuner réel du Lodge) : facturée à l'occurrence, 8 €/pers/nuit.
+  db.prepare("INSERT INTO options (id, title, priceType, price, showsPlanningCard, cardRepeat) VALUES (10, 'Petit déjeuner', 'per_person_per_night', 8, 1, 'once_per_day')").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 9), (1, 10)').run();
   return db;
 }
 
@@ -208,4 +211,44 @@ test('aucune note — comportement strictement identique (non-régression)', () 
   assert.equal(withEmpty.midStaySettledTotal, 0);
   assert.equal(withEmpty.endOfStayComplementTotal, without.endOfStayComplementTotal);
   assert.equal(withEmpty.sejourNetTotal, without.sejourNetTotal);
+});
+
+// Régression prod (16/08/2026) — une hausse du tarif d'une option à carte de planning ne doit PAS
+// être facturée aux séjours déjà vendus : le moteur re-tarifait la ligne au prix du jour, l'écart
+// dépassait la baseline d'arrivée et ressortait en complément de fin de séjour.
+// See specs/devis-extras-parity-and-price-lock.md §3 rule 13bis.
+const SOLD_BREAKFASTS = [{ date: '2026-07-10', time: '07:30' }, { date: '2026-07-11', time: '07:30' }];
+const soldBreakfastLine = {
+  optionId: 10, quantity: 2, unitPrice: 8, billedUnits: 4, priceType: 'per_person_per_night',
+  totalPrice: 32, offered: 0,
+};
+
+test('hausse du tarif petit-déj — la résa déjà vendue ne génère aucun complément', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 10, 10)').run();
+  const q = calculateReservationQuote({
+    ...DIRECT, db,
+    selectedOptions: [{ optionId: 10, quantity: 1, cardOccurrences: SOLD_BREAKFASTS }],
+    lockedOptionLines: [soldBreakfastLine],
+    arrivalExtrasBaseline: JSON.stringify({ 'opt:10': 32 }),
+  });
+  const line = q.optionLines.find((l) => l.optionId === 10);
+  assert.equal(line.totalPrice, 32, 'toujours les 32 € vendus, pas 40 €');
+  assert.equal(q.midStayExtrasTotal, 0, 'rien n\'a été vendu pendant le séjour');
+  assert.equal(q.endOfStayComplementTotal, 0);
+  assert.equal(q.totalStayPrice, 232);
+  db.close();
+});
+
+test('un petit-déj ajouté pendant le séjour reste, lui, un complément de fin de séjour', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 10, 10)').run();
+  const q = calculateReservationQuote({
+    ...DIRECT, db,
+    selectedOptions: [{ optionId: 10, quantity: 1, cardOccurrences: [...SOLD_BREAKFASTS, { date: '2026-07-12', time: '07:30' }] }],
+    lockedOptionLines: [soldBreakfastLine],
+    arrivalExtrasBaseline: JSON.stringify({ 'opt:10': 32 }),
+  });
+  assert.equal(q.midStayExtrasTotal, 16, 'la 3e matinée, aux 8 € du séjour');
+  assert.equal(q.endOfStayComplementTotal, 16);
 });
