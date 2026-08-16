@@ -91,6 +91,38 @@ while the grid was copied forward.
 **Recompute every total from the rules and compare to the cent**, then also compute the net after
 commission and check it clears the recipe's net target. Anything you cannot reproduce is a finding.
 
+## The test matrix — run all of it, or the report comes back incomplete
+
+Two rollouts in a row shipped a report that had to be reopened, because coverage was decided case by
+case instead of from a list. Take the whole list, every time.
+
+**Per channel — and that means the OTAs too**, not just the consoles you configured. Airbnb, Booking
+and Vrbo are quoted on their *public* pages like a guest would; a channel manager pushing prices is
+not evidence that the guest sees them.
+
+| # | Case | Why it exists |
+|---|---|---|
+| 1 | One stay per **season** — low, mid, high | A grid proven only in high season is a grid proven for two weeks of the year. |
+| 2 | The **two comparable cases**, same dates on every channel | The only way to read channels against each other. |
+| 3 | **One night**, single, in high season | Isolates the season price from the discount — and is how you prove a channel ignores degressivity (n nights = n × 1 night). |
+| 4 | Every **event week** (l'Ardéchoise…), plus the **day after it ends** | Events are painted by rank; the boundary is where the carving breaks. |
+| 5 | A stay with **extra guests** | The supplement is folded into the nightly rate, so it only surfaces here. |
+| 6 | A date **inside a closure** | Expected: no price at all. Proves the closure reaches the channel. |
+| 7 | A date in **each configured year** | A next-year season can be perfectly declared and still unsellable — see the booking-window trap. |
+
+**Read the listing while you are on the page**, since you are already there and a second visit costs
+another login: the title actually displayed, any lingering mention of a fee the rate now includes
+(linen, towels, cleaning), and the check-in / check-out times.
+
+**Content does not travel with the prices.** Lodgify pushes rates and availability to Airbnb, Booking
+and Vrbo, but the *editorial* — title, description — stays on each platform: the 2026 title change
+reached Booking and never reached Airbnb. Verify the title on each public page, and expect to edit
+the text in each platform's own back office.
+
+**Record what each quote is worth before moving on**: the accommodation subtotal (excluding the
+platform's taxes and fees), the net after that channel's commission, and the recipe's target. A total
+alone cannot be compared across channels that collect different taxes.
+
 ## The verification page
 
 `build-verification-page.mjs` turns a list of cases plus screenshots into one self-contained HTML
