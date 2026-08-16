@@ -773,6 +773,28 @@ function reconstructLockedRealTotal(lockedLine, fallbackUnitPrice = 0) {
 }
 
 /**
+ * The unit price a line was SOLD at, for the paths that rebuild their billed units from scratch on
+ * every save (planning-card occurrences) and therefore cannot go through
+ * `mergeLineWithLockedSnapshot`. Falls back to `currentUnitPrice` when the booking carries no
+ * snapshot for that line — a fresh quote, or a line added today.
+ *
+ * The stored `unitPrice` is preferred over `totalPrice / billedUnits`: the total is NET of the free
+ * units included in the rate (specs/tariff-recipes/spec.md §3.9 rule 52bis) while `billedUnits` is
+ * gross, so the division would deflate the price of an option covered by a welcome pack.
+ */
+function lockedUnitPriceOr(lockedLine, currentUnitPrice) {
+  if (!lockedLine) return currentUnitPrice;
+  const stored = roundMoney(lockedLine.unitPrice);
+  if (stored > 0) return stored;
+  const units = normalizeBilledUnits(
+    lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity
+  );
+  const total = roundMoney(lockedLine.totalPrice);
+  if (units > 0 && total > 0) return roundMoney(total / units);
+  return currentUnitPrice;
+}
+
+/**
  * Applies the `offered` flag to a computed (real) line total. The real price is always preserved as
  * `originalTotalPrice`; offering only zeroes the billed `totalPrice`. This is the single place where
  * offering affects money, so toggling offered on/off is always lossless.
@@ -1389,6 +1411,12 @@ function calculateReservationQuote({
       // selected occurrences REPLACE the automatic nights/days path and drive the billed quantity:
       // billedUnits = occurrences × (persons when the option is per-person, else 1). An empty
       // selection means the option isn't taken → no line, no charge.
+      //
+      // Because this path rebuilds the quantity from the occurrences it CANNOT use
+      // `mergeLineWithLockedSnapshot` (which merges by units) — so the unit price is locked on its
+      // own, from the booking's snapshot (specs/devis-extras-parity-and-price-lock.md §3 rule 13bis).
+      // Without it a tariff change re-priced the card options of reservations already sold and paid:
+      // the raise landed in the mid-stay split as an end-of-stay complement nobody had agreed to.
       if (option.showsPlanningCard) {
         // PUBLIC/site flow (planningCardAsQuantity): the visitor can't schedule the slots, so the
         // selected QUANTITY stands in for the occurrence count — bill quantity × (perPerson ? persons :
@@ -1397,7 +1425,7 @@ function calculateReservationQuote({
         const perPerson = String(priceType).includes('per_person');
         const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
           ? Number(optionUnitOverrides[optionId])
-          : Number(option.price || 0);
+          : lockedUnitPriceOr(locked, Number(option.price || 0));
         if (planningCardAsQuantity) {
           const qty = Math.max(0, Number(selected?.quantity || 0));
           if (qty <= 0) return null;

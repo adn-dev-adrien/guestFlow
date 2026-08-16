@@ -100,6 +100,11 @@ label + the client + the property. Clicking the card opens the reservation fiche
 11. Checking/unchecking or editing an occurrence on the fiche updates the quantity + price **live** (client
     preview) and is **recomputed server-side on save** (the authority). The reservation's total + the
     devis/PDF follow.
+11.bis **`unitPrice` is the one the booking was sold at, not today's**
+    (`specs/devis-extras-parity-and-price-lock.md` §3 rule 13bis, added 2026-08-16). Only `billedUnits`
+    follows the selection; the price per unit is replayed from `reservation_options.unitPrice` for as long
+    as the booking is price-locked. Raising a catalogue / per-property price never re-prices a card option
+    on an existing reservation — that used to surface as an unexplained end-of-stay complement.
 
 > **Candidate days** (decision 2026-06-17): every day the guest is present, `startDate … endDate`
 > inclusive, **all pre-checked**; the operator unchecks unwanted days (the departure-day case is handled by
