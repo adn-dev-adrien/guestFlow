@@ -116,3 +116,83 @@ test('card option carries its occurrences on the line (for persistence)', () => 
   assert.deepEqual(line.cardOccurrences, [{ date: '2026-07-11', time: '12:00', done: false }]);
   db.close();
 });
+
+// specs/devis-extras-parity-and-price-lock.md §3 rule 13bis — a card option is billed from its
+// occurrences, so it never went through the units-based locked merge and was silently re-priced at
+// today's tariff on every save of an already-sold booking.
+
+const TWO_MORNINGS = [
+  { date: '2026-07-10', time: '08:00' },
+  { date: '2026-07-11', time: '08:00' },
+];
+
+test('a sold card option keeps its unit price when the tariff rises', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 21, 8)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardOccurrences: TWO_MORNINGS }],
+    lockedOptionLines: [{ optionId: 21, quantity: 2, unitPrice: 5, billedUnits: 8, priceType: 'per_person', totalPrice: 40, offered: 0 }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.unitPrice, 5, 'sold at 5 €, not re-priced to 8 €');
+  assert.equal(line.totalPrice, 40);
+  db.close();
+});
+
+test('an occurrence added to a sold card option is billed at the sold price too', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 21, 8)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardOccurrences: [...TWO_MORNINGS, { date: '2026-07-12', time: '08:00' }] }],
+    lockedOptionLines: [{ optionId: 21, quantity: 2, unitPrice: 5, billedUnits: 8, priceType: 'per_person', totalPrice: 40, offered: 0 }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.billedUnits, 12, '3 occurrences × 4 persons');
+  assert.equal(line.totalPrice, 60, '12 × the sold 5 €');
+  db.close();
+});
+
+test('an offered card line replays its sold unit price once un-offered', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 21, 8)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardOccurrences: TWO_MORNINGS }],
+    // Offered → stored with totalPrice = 0; the unit price is what survives.
+    lockedOptionLines: [{ optionId: 21, quantity: 2, unitPrice: 5, billedUnits: 8, priceType: 'per_person', totalPrice: 0, offered: 1 }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.totalPrice, 40, 'back to the sold 5 €/unit, not the catalogue 8 €');
+  db.close();
+});
+
+test('« utiliser les tarifs actuels » (no locked lines) re-prices the card option', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 21, 8)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardOccurrences: TWO_MORNINGS }],
+    lockedOptionLines: [],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.unitPrice, 8);
+  assert.equal(line.totalPrice, 64); // 8 units × 8
+  db.close();
+});
+
+test('a card option added to an existing booking is priced at today’s tariff', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 21, 8)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardOccurrences: TWO_MORNINGS }],
+    // The booking carries another option only — nothing locked for 21.
+    lockedOptionLines: [{ optionId: 20, quantity: 1, unitPrice: 10, billedUnits: 1, priceType: 'per_stay', totalPrice: 10, offered: 0 }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.unitPrice, 8);
+  assert.equal(line.totalPrice, 64);
+  db.close();
+});

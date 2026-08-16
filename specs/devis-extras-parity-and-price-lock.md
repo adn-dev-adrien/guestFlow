@@ -65,6 +65,19 @@ Two secondary consequences worth naming: a devis is **re-priced at the current t
 reservation freezes its unit prices), and the per-line « Compl. » switches are rendered on the devis fiche but
 never stored.
 
+### 1.bis Prod incident 2026-08-16 — the price lock had a hole (rule 13bis)
+
+A Lodge reservation sold on 2026-07-03 with 4 breakfasts at 8 €/pers/nuit (32 €) was asked for an **8 €
+end-of-stay complement** on its check-out day. Nobody had sold anything during the stay: the 2026 tariff
+rollout had raised the Lodge breakfast to 10 €, and the arrival-SAS save re-priced the line 32 € → 40 €.
+The mid-stay engine, doing its job, saw a total exceeding the arrival baseline and billed the 8 € difference
+as « vendu en cours de séjour » (`specs/mid-stay-extras-to-end-of-stay-complement.md`).
+
+Root cause: a `showsPlanningCard` option is billed from its occurrences, so its line is rebuilt on every save
+and never reaches `mergeLineWithLockedSnapshot` — the very helper that freezes every other option against a
+tariff change. The lock existed for the fiche *preview* only (the client-sent `lockedOptionUnits`), never for
+the *save*: the screen showed 32 € while the server wrote 40 €. Rule 13bis closes it server-side.
+
 ## 2. Goal
 
 A devis behaves like the reservation it is about to become: the same option catalogue on screen, the same
@@ -114,6 +127,15 @@ guest was quoted holds for as long as the quote is valid.
     field and saving keeps the unit prices, the nightly breakdown and the tariff snapshot captured at
     creation. The live preview on the fiche shows those same locked prices — preview and saved value never
     disagree.
+13bis. **A planning-card option replays the unit price it was sold at** — on a devis under lock *and on
+    every saved reservation*. This line is billed from its occurrences (`billedUnits = occurrences ×
+    persons`), rebuilt from scratch on each save, so it never went through the units-based merge that
+    freezes the other options: it was silently re-priced at the current catalogue / per-property price.
+    Every unit of the line — including an occurrence added later — is billed at the sold price; only
+    « Utiliser les tarifs actuels » re-prices it. A card option **added** to an existing booking carries
+    no snapshot and is priced at today's tariff, as expected.
+    _Amended 2026-08-16 after the prod incident below._
+
 14. A devis whose `validUntil` is **past** — or a legacy devis with no `validUntil` — is **re-priced at the
     current tariffs**, on load and on save. Saving it re-issues a validity window
     (`min(today + quoteValidityDays, startDate − 2 days)`), so an expired quote that is worked on becomes a
@@ -271,7 +293,7 @@ supprimer, Enregistrer/Annuler). This spec only adds the `subtitle` chip — no 
 
 ## 7. Test plan
 
-### Server unit tests — **25 added, whole suite green at 2800**
+### Server unit tests — **32 added, whole suite green at 2823**
 
 - [x] `tests/booking-lines-model.unit.test.js` (7) — the shared store writes every column for options /
       custom options / resources / nights, degrades on a minimal schema, keeps the SAS-origin marker,
@@ -284,6 +306,13 @@ supprimer, Enregistrer/Annuler). This spec only adds the `subtitle` chip — no 
 - [x] `tests/devis-price-lock.unit.test.js` (9) — rules 13-16: unchanged total while valid, re-priced +
       re-dated once expired, « Actualiser les tarifs » override, placement change drops the lock, legacy
       NULL `validUntil` treated as expired, plus the two pure helpers
+- [x] `tests/pricing-option-planning-card.unit.test.js` (5 added) — rule 13bis: a sold card option keeps
+      its unit price when the tariff rises, an occurrence added later is billed at that same sold price,
+      an offered line replays it once un-offered, « tarifs actuels » (no locked lines) re-prices, and a
+      card option newly added to an existing booking takes today's tariff
+- [x] `tests/pricing-mid-stay-extras.unit.test.js` (2 added) — the 2026-08-16 prod scenario end to end:
+      a per-property breakfast raised 8 € → 10 € produces **no** end-of-stay complement on a booking
+      already sold, while a genuine extra morning still does
 - [x] Regression, green untouched: `devis-model*.unit.test.js`, `devis-quote.unit.test.js`,
       `devis-pdf*.unit.test.js`, `public-devis-options-persist.unit.test.js`,
       `reservation-option-immutability.unit.test.js`, `pricing-option-planning-card.unit.test.js`,
