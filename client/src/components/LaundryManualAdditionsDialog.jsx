@@ -1,10 +1,12 @@
 /**
- * LaundryManualAdditionsDialog — editor for a laundry trip's manual linen additions
- * (specs/manual-laundry-additions.md §6).
+ * LaundryManualAdditionsDialog — editor for a laundry trip's manual linen line
+ * (specs/manual-laundry-additions.md §6, specs/laundry-manual-removals.md §6).
  *
  * Six per-type steppers grouped « Draps » (simple / double / bébé) + « Serviettes » (grande /
- * moyenne / petite), pre-filled with the trip's current values. Saving calls
- * `onSave(date, counts)` with the six counts; the parent PUTs and reloads the planning.
+ * moyenne / petite), pre-filled with the trip's current values. The values are SIGNED: positive =
+ * extra linen to wash on this trip, negative = linen the operator washes himself, withdrawn from the
+ * trip. Saving calls `onSave(date, counts)` with the six counts; the parent PUTs and reloads the
+ * planning.
  *
  * Props: { open, date, current, saving, onClose, onSave }
  *   current — { singleBeds, doubleBeds, babyBeds, largeTowels, mediumTowels, smallTowels } | undefined.
@@ -30,15 +32,27 @@ function frDate(iso) {
   catch { return iso; }
 }
 
+// A signed stepper: « − » keeps going below zero, and a negative line says out loud what it means —
+// this is linen the operator washes himself (specs/laundry-manual-removals.md §6).
 function Stepper({ label, value, onChange }) {
+  const withdrawn = value < 0;
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+        {withdrawn && (
+          <Typography variant="caption" sx={{ color: 'info.main', fontWeight: 600 }}>lavé par vos soins</Typography>
+        )}
+      </Box>
       <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-        <Button size="small" variant="outlined" onClick={() => onChange(Math.max(0, value - 1))} disabled={value <= 0} sx={{ minWidth: 40 }}>−</Button>
+        <Button size="small" variant="outlined" onClick={() => onChange(value - 1)} sx={{ minWidth: 40 }}>−</Button>
         <TextField
           value={value}
-          onChange={(e) => onChange(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+          onChange={(e) => {
+            // Keep a lone « - » usable while typing: it means « I'm about to withdraw ».
+            const raw = String(e.target.value).trim();
+            onChange(raw === '-' || raw === '' ? 0 : Math.trunc(Number(raw) || 0));
+          }}
           size="small"
           sx={{ width: 64 }}
           slotProps={{ htmlInput: { style: { textAlign: 'center' }, inputMode: 'numeric' } }}
@@ -56,7 +70,7 @@ export default function LaundryManualAdditionsDialog({ open, date, current, savi
 
   useEffect(() => {
     if (!open) return;
-    setCounts({ ...ZEROS, ...Object.fromEntries(ALL_KEYS.map((k) => [k, Math.max(0, Math.round(Number(current && current[k]) || 0))])) });
+    setCounts({ ...ZEROS, ...Object.fromEntries(ALL_KEYS.map((k) => [k, Math.round(Number(current && current[k]) || 0)])) });
   }, [open, current]);
 
   const setKey = (k, v) => setCounts((prev) => ({ ...prev, [k]: v }));
@@ -66,13 +80,15 @@ export default function LaundryManualAdditionsDialog({ open, date, current, savi
       <Box sx={{ bgcolor: cyan[800], color: '#fff', px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <LocalLaundryServiceIcon />
         <Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>Ajout manuel de linge</Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>Linge ajouté ou retiré</Typography>
           <Typography variant="caption" sx={{ opacity: 0.9, textTransform: 'capitalize' }}>{frDate(date)}</Typography>
         </Box>
       </Box>
       <DialogContent sx={{ pt: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Linge à laver ce voyage en plus des réservations (entre dans le calcul À apporter / À récupérer / stock).
+          Valeur positive : du linge à laver ce voyage en plus des réservations. Valeur négative : du linge
+          que vous lavez vous-même, retiré du voyage. Dans les deux cas le calcul À apporter / À récupérer
+          et le stock suivent.
         </Typography>
         <Stack spacing={1.5} divider={<Divider />}>
           {GROUPS.map((g) => (

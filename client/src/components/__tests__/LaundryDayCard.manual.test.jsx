@@ -46,3 +46,25 @@ test('a card whose only content is a manual addition still renders (server folds
   expect(screen.getByText('À apporter')).toBeInTheDocument();
   expect(screen.getByText(/dont ajout manuel/)).toBeInTheDocument();
 });
+
+// ---- withdrawals (specs/laundry-manual-removals.md §3 rule 7) ----
+
+test('a withdrawal reads « dont lavé par vos soins », in positive numbers', () => {
+  render(
+    <LaundryDayCard data={DATA} date="2026-06-16" onEditManual={() => {}}
+      manualAddition={{ ...ZERO, singleBeds: -2 }} />,
+  );
+  const caption = screen.getByText(/dont lavé par vos soins/);
+  expect(caption.textContent).toMatch(/2 simples/);
+  expect(caption.textContent).not.toMatch(/-2|−2/);
+  expect(screen.queryByText(/dont ajout manuel/)).toBeNull();
+});
+
+test('a mixed trip renders both captions, each with its own half', () => {
+  render(
+    <LaundryDayCard data={DATA} date="2026-06-16" onEditManual={() => {}}
+      manualAddition={{ ...ZERO, doubleBeds: 1, singleBeds: -2 }} />,
+  );
+  expect(screen.getByText(/dont ajout manuel/).textContent).toMatch(/1 double/);
+  expect(screen.getByText(/dont lavé par vos soins/).textContent).toMatch(/2 simples/);
+});

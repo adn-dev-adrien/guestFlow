@@ -84,3 +84,62 @@ test('a same-day manual drop does not strand the initial at-laundry batch when `
   assert.equal(r.shortagesByType.double.firstDate, null, 'no phantom shortage');
   assertConservation(r, st);
 });
+
+// ---- withdrawals: « je lave moi-même » (specs/laundry-manual-removals.md §3 rules 4-5) ----
+
+test('a NEGATIVE manual line washes the linen at home: dirty → clean the same day, never at the laundry', () => {
+  const st = stock({ double: 10 });
+  const options = [{
+    id: 100, countsAsBedLinen: 1, countsAsBathroomLinen: 0,
+    linenIncludesSingle: 0, linenIncludesDouble: 1, linenIncludesBaby: 0,
+    towelLargePerPerson: 0, towelMediumPerPerson: 0, towelSmallPerPerson: 0,
+  }];
+  // Checked out 2026-06-04 ⇒ 4 dirty doubles waiting for the 2026-06-09 trip.
+  const reservations = [{
+    id: 1, kind: 'reservation', propertyId: 1, startDate: '2026-06-03', endDate: '2026-06-04',
+    singleBeds: 0, doubleBeds: 4, babyBeds: 0, adults: 2, teens: 0, children: 0, babies: 0,
+  }];
+  const reservationOptions = [{ reservationId: 1, optionId: 100, quantity: 1 }];
+  const r = simulateInventory({
+    ...base, options, reservations, reservationOptions, stock: st, from: '2026-06-02', to: '2026-06-23',
+    manualAdditionsByDate: new Map([['2026-06-09', stock({ double: -3 })]]),
+  });
+  assert.equal(dayOf(r, '2026-06-09').atLaundry.double, 1, 'only the 4th dirty double went to the laundry');
+  assert.equal(dayOf(r, '2026-06-09').clean.double, 9, 'the 3 washed at home are clean again the same day');
+  assert.equal(dayOf(r, '2026-06-16').atLaundry.double, 0, 'nothing extra comes back — they never left');
+  assert.equal(dayOf(r, '2026-06-16').clean.double, 10);
+  assertConservation(r, st);
+});
+
+test('a withdrawal is capped at the dirty pile — it never invents clean linen', () => {
+  // 10 doubles, all clean, nothing dirty: withdrawing 3 is a no-op (they are not dirty, so there is
+  // nothing to wash at home). Without the cap the stock would climb to 13.
+  const st = stock({ double: 10 });
+  const r = simulateInventory({
+    ...base, stock: st, from: '2026-06-02', to: '2026-06-16',
+    manualAdditionsByDate: new Map([['2026-06-09', stock({ double: -3 })]]),
+  });
+  for (const day of r.days) assert.equal(day.clean.double, 10, `stock invented on ${day.date}`);
+  assertConservation(r, st);
+});
+
+test('mixed signs on the same trip: each type is independent', () => {
+  const st = stock({ single: 6, double: 6 });
+  const options = [{
+    id: 100, countsAsBedLinen: 1, countsAsBathroomLinen: 0,
+    linenIncludesSingle: 1, linenIncludesDouble: 1, linenIncludesBaby: 0,
+    towelLargePerPerson: 0, towelMediumPerPerson: 0, towelSmallPerPerson: 0,
+  }];
+  const reservations = [{
+    id: 1, kind: 'reservation', propertyId: 1, startDate: '2026-06-03', endDate: '2026-06-04',
+    singleBeds: 2, doubleBeds: 2, babyBeds: 0, adults: 2, teens: 0, children: 0, babies: 0,
+  }];
+  const reservationOptions = [{ reservationId: 1, optionId: 100, quantity: 1 }];
+  const r = simulateInventory({
+    ...base, options, reservations, reservationOptions, stock: st, from: '2026-06-02', to: '2026-06-23',
+    manualAdditionsByDate: new Map([['2026-06-09', stock({ single: -2, double: 1 })]]),
+  });
+  assert.equal(dayOf(r, '2026-06-09').atLaundry.single, 0, 'both dirty singles washed at home');
+  assert.equal(dayOf(r, '2026-06-09').atLaundry.double, 3, '2 dirty + 1 added by hand');
+  assertConservation(r, st);
+});

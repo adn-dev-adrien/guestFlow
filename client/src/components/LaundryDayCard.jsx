@@ -89,6 +89,19 @@ function formatTowels(side) {
   return parts.join(' · ');
 }
 
+// One half of a signed manual line, as positive counts: `sign = 1` keeps the additions, `sign = -1`
+// keeps the withdrawals (specs/laundry-manual-removals.md §3 rule 7). Everything else lands at 0, so
+// the existing formatters — which only print what is > 0 — render exactly one sentence per half.
+function signedHalf(counts, sign) {
+  if (!counts) return null;
+  const out = {};
+  for (const [key, value] of Object.entries(counts)) {
+    const n = Number(value) || 0;
+    out[key] = Math.sign(n) === sign ? Math.abs(n) : 0;
+  }
+  return out;
+}
+
 function SideBlock({ title, side }) {
   const sheetsLine = formatSheets(side);
   const towelsLine = formatTowels(side);
@@ -177,11 +190,19 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
   // bed linen but carry no quantity yet. They contribute 0 to the counts above, so the card says so
   // rather than letting the operator read a number it knows is short.
   const incomplete = Array.isArray(data.dropOff?.incomplete) ? data.dropOff.incomplete : [];
-  // Manual additions (specs/manual-laundry-additions.md) are already folded into `data` by the server;
-  // here we only surface the « dont ajout manuel » caption + the edit affordance.
-  const manualSheets = formatSheets(manualAddition);
-  const manualTowels = formatTowels(manualAddition);
+  // The manual line (specs/manual-laundry-additions.md) is already folded into `data` by the server;
+  // here we only surface the captions + the edit affordance. It is SIGNED
+  // (specs/laundry-manual-removals.md §3 rule 7): the positive half is linen added to the trip, the
+  // negative half is linen the operator washed himself — two different sentences, both in positive
+  // numbers, so « −2 » never reaches the operator's eye.
+  const manualAdded = signedHalf(manualAddition, 1);
+  const manualWithdrawn = signedHalf(manualAddition, -1);
+  const manualSheets = formatSheets(manualAdded);
+  const manualTowels = formatTowels(manualAdded);
+  const withdrawnSheets = formatSheets(manualWithdrawn);
+  const withdrawnTowels = formatTowels(manualWithdrawn);
   const hasManual = Boolean(manualSheets || manualTowels);
+  const hasWithdrawn = Boolean(withdrawnSheets || withdrawnTowels);
   const canEditManual = typeof onEditManual === 'function' && Boolean(date);
   // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
   // spec rule 13 — keeps a quiet week silent. EXCEPTION (specs/skip-laundry-trip.md §3.3
@@ -270,6 +291,11 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
             {hasManual && (
               <Typography variant="caption" sx={{ display: 'block', mt: 0.75, fontStyle: 'italic', color: 'text.secondary' }}>
                 dont ajout manuel : {[manualSheets, manualTowels].filter(Boolean).join(' · ')}
+              </Typography>
+            )}
+            {hasWithdrawn && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.25, fontStyle: 'italic', color: 'text.secondary' }}>
+                dont lavé par vos soins : {[withdrawnSheets, withdrawnTowels].filter(Boolean).join(' · ')}
               </Typography>
             )}
             {incomplete.length > 0 && (

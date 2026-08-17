@@ -399,3 +399,36 @@ test('laundrySummary: a model without incompleteBedConfigForWindow degrades to a
   c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff.incomplete, []);
 });
+
+test('laundrySummary: a manual withdrawal leaves the trip, and a block never goes negative', () => {
+  // specs/laundry-manual-removals.md §3 rule 3 — « je lave moi-même » 2 draps simples on 2026-06-09.
+  // The reservations of that window bring 3 → the trip carries 1. A withdrawal bigger than the trip
+  // floors the block at 0: one cannot deposit a negative pile.
+  const fake = makeFake({
+    laundryWeekday: 2,
+    windowFn: (start, end) => (
+      (start < '2026-06-09' && '2026-06-09' <= end)
+        ? { singleBeds: 3, doubleBeds: 0, babyBeds: 0 }
+        : { singleBeds: 0, doubleBeds: 0, babyBeds: 0 }
+    ),
+  });
+  const withdrawal = (n) => ({
+    sumForWindow: (start, end) => ({
+      singleBeds: (start < '2026-06-09' && '2026-06-09' <= end) ? n : 0,
+      doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    }),
+  });
+
+  const res = fakeRes();
+  buildController({ ...fake, laundryManualAdditionsModel: withdrawal(-2) })
+    .laundrySummary({ query: { from: '2026-06-02', to: '2026-06-16' } }, res);
+  const day = (body, d) => body.laundryDays.find((x) => x.date === d);
+  assert.equal(day(res.body, '2026-06-09').dropOff.singleBeds, 1, '3 − 2 washed at home');
+  assert.equal(day(res.body, '2026-06-16').pickUp.singleBeds, 1, 'only what really left comes back');
+
+  const res2 = fakeRes();
+  buildController({ ...fake, laundryManualAdditionsModel: withdrawal(-9) })
+    .laundrySummary({ query: { from: '2026-06-02', to: '2026-06-16' } }, res2);
+  assert.equal(day(res2.body, '2026-06-09').dropOff.singleBeds, 0, 'floored — never negative');
+  assert.equal(day(res2.body, '2026-06-16').pickUp.singleBeds, 0);
+});
