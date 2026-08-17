@@ -242,13 +242,29 @@ test('NON-REGRESSION: heatUp = 0 + retention = 0 reproduces the pre-thermal clas
 test('pending: a block placed during the SAS occupies its slot and warms the next one', () => {
   const days = buildDays({
     resource: BAIN, dayRate: 30, stayDates: STAY,
-    occupancy: [{ date: '2026-09-11', start: '15:00', end: '16:00' }], // just placed by the operator
+    pending: [{ date: '2026-09-11', start: '15:00', end: '16:00' }], // just placed by the operator
     notBefore: at('2026-09-11', '11:00'),
   });
   assert.equal(stateAt(days, '2026-09-11', '15:00'), 'taken');
   const next = slotAt(days, '2026-09-11', '17:00');
   assert.equal(next.state, 'free');
   assert.equal(next.warm, true); // the whole point: a second session can sit right after the first
+});
+
+test('pending: the operator\'s own placement gates the slots but stays out of the « déjà réservé » strip', () => {
+  // That strip is there to show somebody ELSE's bookings, so the operator can deliberately place
+  // next to one. Their own placements are already listed — and removable — under the grid.
+  const days = buildDays({
+    resource: BAIN, dayRate: 30, stayDates: STAY,
+    occupancy: [{ date: '2026-09-11', start: '13:00', end: '14:00' }],
+    pending: [{ date: '2026-09-11', start: '17:00', end: '18:00' }],
+    notBefore: at('2026-09-11', '11:00'),
+  });
+  assert.deepEqual(
+    days.find((d) => d.date === '2026-09-11').occupancy,
+    [{ start: '13:00', end: '14:00' }],
+  );
+  assert.equal(stateAt(days, '2026-09-11', '17:00'), 'taken'); // still gated
 });
 
 // ── Evening supplement badge ───────────────────────────────────────────────────────────────────────

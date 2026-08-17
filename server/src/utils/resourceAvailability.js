@@ -159,14 +159,20 @@ function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfte
  * @param {object}   args.resource      row from `resources` (+ the two thermal columns)
  * @param {number}   args.dayRate       resolved per-property hourly rate (for the evening badge)
  * @param {string[]} args.stayDates     `YYYY-MM-DD` days on which the guest may place hours
- * @param {object[]} args.occupancy     `[{ date, start, end }]` — bookings + sessions + pending
+ * @param {object[]} args.occupancy     `[{ date, start, end }]` — other people's bookings + sessions
+ * @param {object[]} args.pending       blocks placed in the current SAS run, not saved yet
  * @param {number}   args.notBefore     absolute minutes: `max(now, check-in)`
  * @param {number}   args.notAfter      absolute minutes: the check-out
  * @returns {object[]} `[{ date, weekdayLabel, closed, occupancy, slots }]`
  */
-function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], notBefore = -Infinity, notAfter = Infinity }) {
+function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], pending = [], notBefore = -Infinity, notAfter = Infinity }) {
   const norm = normalizeResource(resource);
-  const ranges = toRanges(occupancy);
+  // Pending blocks gate the slots exactly like a saved booking — they hold their slot and keep the
+  // resource warm for the next one — but they are kept OUT of the displayed strip: that strip exists
+  // to show the operator somebody ELSE's bookings, to place next to them. The operator's own
+  // placements are already listed, and removable, under the grid.
+  const ranges = toRanges([...occupancy, ...pending]);
+  const visibleRanges = toRanges(occupancy);
   const supplementCfg = {
     dayRate,
     eveningRate: Number(resource?.hourlyEveningRate) || 0,
@@ -205,7 +211,7 @@ function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], notB
       closed: dayClosed,
       // Times only — the SAS is run with the guest standing there, so no other client is named
       // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 19).
-      occupancy: ranges
+      occupancy: visibleRanges
         .filter((r) => r.start >= dayStart && r.start < dayStart + MINUTES_PER_DAY)
         .map((r) => ({ start: minutesToTime(r.start), end: minutesToTime(r.end) })),
       slots,

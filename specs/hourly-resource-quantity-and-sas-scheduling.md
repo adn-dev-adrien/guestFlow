@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `feature/hourly-resource-quantity-and-sas-scheduling` _(user-managed)_ |
 | **Created** | 2026-08-17 |
 | **Author** | Adrien |
@@ -185,6 +185,10 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
     15:00 réservé ». **No client name is displayed** — the SAS is run with the guest standing there.
     Their purpose is to let the operator *deliberately place the new session next to an existing one*,
     where only the remise en état applies instead of a full montée en chauffe.
+    **The operator's own in-run placements stay out of that strip** (amended 2026-08-17 during
+    implementation): they still gate the slots (rule 25), but the strip answers « who else has it? »,
+    and the placements are already listed — and removable — under the grid. Showing them twice read
+    as somebody else having booked the slot the operator had just chosen.
 20. **Free placement in blocks** (decision 2026-08-17). The guest places the remaining hours as any
     combination of blocks, on any day of the stay, provided each block is ≥ `minimumUsageMinutes` and
     aligned on `slotDuration`. 3 h can be one 3 h block, three 1 h blocks on three days, or 1 h + 2 h.
@@ -317,7 +321,7 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/properties/:id` | — | `{ …, resources: [{ id, name, price, freeMinutes, priceType, showsPlanningCard, slotDuration, openTime, closeTime, minimumUsageMinutes, quantity }] }` | Rule 8, additive. |
-| GET | `/api/resources/:id/free-slots` | query `propertyId, startDate, endDate, reservationId, pending=<json blocks>` | `{ days: [{ date, weekdayLabel, closed, occupancy: [{ start, end }], slots: [{ start, end, state, warm, supplement }] }] }` | Rules 12-15, 19, 21-22, 25. `state ∈ free \| taken \| heating \| past \| closed`. `occupancy` carries **no** client identity (rule 19). |
+| GET | `/api/resources/:id/free-slots` | query `reservationId, pending=<json blocks>` | `{ days: [{ date, weekdayLabel, closed, occupancy: [{ start, end }], slots: [{ start, end, state, warm, supplement }] }] }` | Rules 12-15, 19, 21-22, 25. `state ∈ free \| taken \| heating \| past \| closed`. `occupancy` carries **no** client identity and **excludes** the in-run `pending` blocks (rule 19). The stay range and the property come from the reservation — the client passes neither. |
 | GET | `/api/reservations/:id/sas?mode=arrival` | — | `{ …, resourceScheduling: { applicable, resources: [{ resourceId, name, hoursSold, hoursPlaced, hoursRemaining, slotDuration, minimumUsageMinutes, sessions, days: […] }] } }` | Rules 17-18, additive to the existing payload; `days` has the same shape as `free-slots`. |
 | POST | `/api/reservations/:id/sas/arrival` | `{ …, resourceBlocks: [{ resourceId, date, start, end }] }` | `{ ok, complementAmount, eveningSupplement }` | Rules 24, 26-27. `409 { error: 'SLOT_CONFLICT', block, reason }` with `reason ∈ taken \| heating \| past \| closed \| budget \| duration`; writes nothing. |
 | GET | `/api/resource-bookings?resourceId&weekStart` | — | `[{ …, kind: 'booking' \| 'session', reservationId, turnoverMinutes }]` | Rule 29, unified occupancy. |
@@ -430,105 +434,130 @@ exhaustively by unit tests; the regressions found in §1 each get a dedicated gu
 
 ### Server — new unit tests
 
-**`tests/pricing-hourly-resource-quantity.unit.test.js`** (rules 1-3, 6-7)
-- [ ] hourly-scheduled resource, no session → a priced line is returned (**regression guard, defect 1**)
-- [ ] …and the quote total increases by that amount
-- [ ] with valid sessions → priced from the sessions, quantity ignored
-- [ ] with only *invalid* sessions → falls back to quantity pricing, never `null`
-- [ ] `freeMinutes` deducted exactly once on the quantity path (Gîte 1 h free → 0 € visible line)
-- [ ] `quantity` (hours sold) preserved next to `billedUnits` on both paths
-- [ ] `planningCardAsQuantity: true` and `false` now produce the same resource line
+_Implemented 2026-08-17: **2912 server tests green** (+61), **941 client tests green** (+23). Every box
+below is checked unless noted._
+
+**`tests/planning-card-public-pricing.unit.test.js` + `tests/pricing-resource-types.unit.test.js`**
+(rules 1-3, 6-7) — the quantity-pricing cases landed in the two existing pricing suites rather than a
+new file, next to the assertions they replace (three of which pinned the old, buggy contract)
+- [x] hourly-scheduled resource, no session → a priced line is returned (**regression guard, defect 1**)
+- [x] …and the quote total increases by that amount
+- [x] with valid sessions → priced from the sessions, quantity ignored
+- [x] with only *invalid* sessions → falls back to quantity pricing, never `null`
+- [x] `freeMinutes` deducted exactly once on the quantity path (Gîte 1 h free → 0 € visible line)
+- [x] `quantity` (hours sold) preserved next to `billedUnits` on both paths
+- [x] `planningCardAsQuantity: true` and `false` now produce the same resource line
 
 **`tests/resource-availability.unit.test.js`** (rules 12-16, 20-21, 25) — the core algebra
-- [ ] grid built from `openTime`/`closeTime` in `slotDuration` steps; last slot fits `minimumUsageMinutes`
-- [ ] weekday not in `openDays` → all `closed`; date in `closedDays` → all `closed`
-- [ ] slot before `notBefore` → `past`; `notBefore` = `max(now, checkIn)` both ways round
-- [ ] overlapping occupancy → `taken`; capacity 2 → still `free` with one overlap, `taken` with two
-- [ ] turnover buffer blocks the slot immediately after a use, and the one immediately before
-- [ ] **cold path**: no prior use → slots before `notBefore + heatUpMinutes` are `heating`, the first
+- [x] grid built from `openTime`/`closeTime` in `slotDuration` steps; last slot fits `minimumUsageMinutes`
+- [x] weekday not in `openDays` → all `closed`; date in `closedDays` → all `closed`
+- [x] slot before `notBefore` → `past`; `notBefore` = `max(now, checkIn)` both ways round
+- [x] overlapping occupancy → `taken`; capacity 2 → still `free` with one overlap, `taken` with two
+- [x] turnover buffer blocks the slot immediately after a use, and the one immediately before
+- [x] **cold path**: no prior use → slots before `notBefore + heatUpMinutes` are `heating`, the first
       one after is `free`
-- [ ] **hot path**: prior use ending 14:00, retention 480, turnover 15 → 14:15 is `free` + `warm`
-- [ ] **retention boundary**: gap exactly `heatRetentionMinutes` → still `warm`; one slot later → `heating`
-- [ ] **cross-midnight look-back**: use ends 22:00 day 1, retention 480 → 06:00 day 2 `warm`; retention
+- [x] **hot path**: prior use ending 14:00, retention 480, turnover 15 → 14:15 is `free` + `warm`
+- [x] **retention boundary**: gap exactly `heatRetentionMinutes` → still `warm`; one slot later → `heating`
+- [x] **cross-midnight look-back**: use ends 22:00 day 1, retention 480 → 06:00 day 2 `warm`; retention
       60 → 11:00 day 2 `heating`
-- [ ] `heatRetentionMinutes = 0` → every slot cold whatever the neighbours
-- [ ] **`heatUpMinutes = 0` + `heatRetentionMinutes = 0` reproduces the pre-existing classification
+- [x] `heatRetentionMinutes = 0` → every slot cold whatever the neighbours
+- [x] **`heatUpMinutes = 0` + `heatRetentionMinutes = 0` reproduces the pre-existing classification
       exactly** (**non-regression guard for every existing resource**, rule 16)
-- [ ] `pending` in-run blocks count as occupancy (rule 25): placing 15:00–16:00 makes 15:00 `taken` and
+- [x] `pending` in-run blocks count as occupancy (rule 25): placing 15:00–16:00 makes 15:00 `taken` and
       16:15 `free` + `warm`
-- [ ] block validation: below `minimumUsageMinutes` → rejected; unaligned on `slotDuration` → rejected;
+- [x] block validation: below `minimumUsageMinutes` → rejected; unaligned on `slotDuration` → rejected;
       crossing `closeTime` → rejected; exceeding the remaining budget → rejected
-- [ ] the function is deterministic: same inputs + injected `now` → same output (no `Date.now()`)
+- [x] the function is deterministic: same inputs + injected `now` → same output (no `Date.now()`)
 
 **`tests/resource-evening-supplement.unit.test.js`** (rule 22)
-- [ ] day-only block → 0
-- [ ] evening-only block → full `(eveningRate − dayRate) × hours`
-- [ ] block straddling `hourlyEveningStart` → pro-rata on the evening minutes only
-- [ ] `eveningRate ≤ dayRate`, or no `hourlyEveningStart` → 0, never negative
-- [ ] several blocks → summed
+- [x] day-only block → 0
+- [x] evening-only block → full `(eveningRate − dayRate) × hours`
+- [x] block straddling `hourlyEveningStart` → pro-rata on the evening minutes only
+- [x] `eveningRate ≤ dayRate`, or no `hourlyEveningStart` → 0, never negative
+- [x] several blocks → summed
 
 **`tests/resource-occupancy-conflicts.unit.test.js`** (rules 28-29)
-- [ ] a guest session blocks a standalone booking creation (**regression guard, defect 4**)
-- [ ] a standalone booking blocks a guest session placement
-- [ ] turnover respected on both sides of the union
-- [ ] capacity > 1 lets the second one through, refuses the third
-- [ ] the unified list tags each item `kind: 'booking' | 'session'` and carries no client identity when
+- [x] a guest session blocks a standalone booking creation (**regression guard, defect 4**)
+- [x] a standalone booking blocks a guest session placement
+- [x] turnover respected on both sides of the union
+- [x] capacity > 1 lets the second one through, refuses the third
+- [x] the unified list tags each item `kind: 'booking' | 'session'` and carries no client identity when
       requested for the SAS
 
 **`tests/sas-resource-scheduling.unit.test.js`** (rules 17-19, 23-27)
-- [ ] page `applicable: false` with no hourly resource, or with everything already placed
-- [ ] `hoursRemaining` = quantity − placed, per resource
-- [ ] commit writes the blocks into `reservation_resources.sessions`
-- [ ] commit folds the evening supplement into the arrival complement (one `sasArrivalOrigin` line)
-- [ ] a stale/taken block → `409 SLOT_CONFLICT` with its `reason`, **and nothing is written**
-- [ ] a block over the remaining budget → `409` `reason: 'budget'`
-- [ ] re-commit **replaces** the blocks and recomputes the supplement (no accumulation, rule 26)
-- [ ] skipping the step (no `resourceBlocks`) writes nothing and leaves the hours unplaced
-- [ ] the occupancy returned to the SAS carries no client name (rule 19)
+- [x] page `applicable: false` with no hourly resource, or with everything already placed
+- [x] `hoursRemaining` = quantity − placed, per resource
+- [x] commit writes the blocks into `reservation_resources.sessions`
+- [x] commit folds the evening supplement into the arrival complement (one `sasArrivalOrigin` line)
+- [x] a stale/taken block → `409 SLOT_CONFLICT` with its `reason`, **and nothing is written**
+- [x] a block over the remaining budget → `409` `reason: 'budget'`
+- [x] re-commit **replaces** the blocks and recomputes the supplement (no accumulation, rule 26)
+- [x] skipping the step (no `resourceBlocks`) writes nothing and leaves the hours unplaced
+- [x] the occupancy returned to the SAS carries no client name (rule 19)
 
 ### Server — extended existing tests
 
-- [ ] `tests/devis-extras-parity.unit.test.js` — `recomputeDevisQuote` keeps `sessions`
+- [x] `tests/devis-extras-parity.unit.test.js` — `recomputeDevisQuote` keeps `sessions`
       (**regression guard, defect 3**)
-- [ ] `tests/properties-model.unit.test.js` — `getByIdWithDetails` returns applicable resources with
+- [x] `tests/properties-model.unit.test.js` — `getByIdWithDetails` returns applicable resources with
       resolved price + freeMinutes (**regression guard, defect 2**)
-- [ ] `tests/resources-model.unit.test.js` — `heatUpMinutes` / `heatRetentionMinutes` round-trip through
+- [x] `tests/resources-model.unit.test.js` — `heatUpMinutes` / `heatRetentionMinutes` round-trip through
       create/update, default 0, negatives clamped
-- [ ] Migration verified on a copy of the production DB; full server suite green.
+- [x] Migration verified on a copy of the production DB; full server suite green.
 
 ### Client tests (vitest)
 
-- [ ] `components/sas/__tests__/SasResourceSchedulingPage.test.jsx` — placing a block decrements the
+- [x] `components/sas/__tests__/SasResourceSchedulingPage.test.jsx` — placing a block decrements the
       counter; a `taken` / `heating` / `past` / `closed` slot is not tappable and shows its reason; the
       🔥 warm badge and the « +40 € » supplement badge render; the occupancy strip shows times but no
       name; delete frees the hour; « Planifier plus tard » advances with nothing placed; a failed slot
       load shows the error, **not** an empty grid.
-- [ ] `components/SlotPickerGrid` — renders each state from the server payload without deriving any of
-      them locally.
-- [ ] `ExtrasSection` — the « Heures » field is back for an hourly-scheduled resource and the session
+- [x] `components/SlotPickerGrid` — renders each state from the server payload without deriving any of
+      them locally. _Covered through `SasResourceSchedulingPage.test.jsx` rather than a dedicated file:
+      the grid has no state of its own, so testing it in isolation would only re-assert its props._
+      A non-free slot renders as a **disabled MUI Chip — a `div`**, so the guard asserts it is inert
+      (class + a click that places nothing), not `toBeDisabled()`.
+- [x] `ExtrasSection` — the « Heures » field is back for an hourly-scheduled resource and the session
       editor still renders.
-- [ ] `PricingSummary` — « à planifier » chip on an unscheduled resource line.
-- [ ] `ResourcesPage` / `resourceToPayload` — the two new fields round-trip.
-- [ ] Full client suite green.
+- [x] `PricingSummary` — « à planifier » chip on an unscheduled resource line.
+- [x] `ResourcesPage` / `resourceToPayload` — the two new fields round-trip.
+- [x] Full client suite green.
 
 ### E2E (Playwright)
 
-- [ ] New devis → Lodge → dates → the **Ressources** block is present (**defect 2**) → enable Bain
-      nordique → the summary shows the line and the total increases (**defect 1**).
+- [x] `e2e/specs/reservations/hourly-resource-sold-by-hour.spec.js` — new devis → the **Ressources**
+      block is present with no dates set (**defect 2**) → set the dates → enable the hourly resource →
+      the summary shows the line, marks it « à planifier », the total rises by its price
+      (**defect 1**), and the « Heures » field is editable. New `createHourlyResource` fixture in
+      `e2e/fixtures/apiSeed.js`. Full suite: **62 passed, 1 skipped**.
 
 ### Manual UI verification
 
-- [ ] Happy path: new devis Lodge direct, 2 h of Bain nordique sold → line + total correct → save →
-      arrival SAS → the picker shows the day's existing bookings → place 2 h on a free evening slot →
-      supplement in the recap → commit → sessions visible on the fiche and on the resource planning.
-- [ ] Thermal: set 240 / 480 on the Bain nordique; arrive 16:00 with no prior use → nothing before
-      20:00, greyed « montée en chauffe »; add a booking ending 14:00 → 16:00 becomes free and warm.
-- [ ] Conflict: the slot of a standalone booking is greyed; creating a standalone booking over a guest
-      session is refused.
-- [ ] Edge: Gîte free first hour → 0 € line, still placeable.
-- [ ] Skip path: « Planifier plus tard » → recap « 2 h non planifiées » → re-open the SAS → place them.
-- [ ] Regression: a resource with 0/0 thermal settings behaves exactly as before.
-- [ ] Mobile 390 px: day chips, occupancy strip, slot grid, footer — no horizontal scroll, targets ≥ 48 px.
+Done in the browser on 2026-08-17, against the dev server. The Bain nordique was temporarily set to
+240 / 480 and a neighbouring booking added to exercise the thermal paths; **the dev DB was restored
+afterwards** (reservation dates, sold hours, sessions, thermal columns, and the seeded booking).
+
+- [x] New devis, Lodge, direct → the **Ressources** block renders with no dates set → enable the Bain
+      nordique → the summary shows the line marked « à planifier » and the total goes
+      **375,54 € → 405,54 €**. Checked at 1440 px.
+- [x] Thermal, arrival 16:00, warm-up 240 / retention 480: **cold** → 16:00–19:00 greyed « montée en
+      chauffe », first bookable slot 20:00; **with a use ending 14:00** → 16:00 free and 🔥 warm.
+      Verified on the live `/sas` payload and in the SAS UI.
+- [x] SAS at **390 px**: day chips, occupancy strip, 2-column slot grid, placed-block list with its
+      delete action, evening supplement total, « Suivant » / « Planifier plus tard ». Placing a block
+      decrements the counter, removing it gives the hour back. **Horizontal overflow measured at 0 px.**
+- [x] The occupancy strip shows the neighbour (13:00–14:00) and **not** the operator's own placement.
+- [x] Departure day fully « fermé » (check-out 10:00 precedes the 11:00 opening).
+
+Covered by automated tests but **not exercised by hand** — worth a pass on the first real check-in:
+
+- [ ] Full round trip through the UI: devis → convert → arrival SAS → commit → sessions visible on the
+      fiche and on the resource planning. _(commit + persistence unit-tested; the recap → commit click
+      path was not walked in the browser.)_
+- [ ] Refusing a standalone booking created over a guest session, from the resource planning UI.
+      _(unit-tested in `resource-occupancy-conflicts.unit.test.js`.)_
+- [ ] Gîte free first hour → 0 € line, still placeable. _(unit-tested; not seen on screen.)_
+- [ ] Skip path in the browser: « Planifier plus tard » → recap « N h non planifiées ».
 
 ## 8. Out of scope
 

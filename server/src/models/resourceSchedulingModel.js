@@ -108,7 +108,8 @@ function createModel(database) {
       resource: entry.resource,
       dayRate: Number(entry.resource.price || 0),
       stayDates: eachDate(reservation.startDate, reservation.endDate),
-      occupancy: [...stored, ...pending.map((b) => ({ date: b.date, start: b.start, end: b.end }))],
+      occupancy: stored,
+      pending: pending.map((b) => ({ date: b.date, start: b.start, end: b.end })),
       notBefore,
       notAfter,
     });
