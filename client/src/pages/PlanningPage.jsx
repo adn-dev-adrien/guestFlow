@@ -48,6 +48,15 @@ function addDays(dateStr, n) {
   return d.toISOString().split('T')[0];
 }
 
+// « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
+// (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
+// card sits at the end of the evening, which IS the instruction.
+function ignitionLabel(item) {
+  const when = Number(item.dayOffset) === 1 ? 'demain' : `dans ${Number(item.dayOffset) || 2} jours`;
+  const target = `pour ${when} ${item.sessionStart}`;
+  return item.time ? `${item.time} → ${target}` : target;
+}
+
 function frenchWeekday(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -215,17 +224,21 @@ export default function PlanningPage() {
   // reservationId + resourceId + date + start; optimistic with revert on failure.
   const handleToggleResourceCardDone = useCallback(async (item, nextDone) => {
     if (!item) return;
+    // An ignition card lives on ITS OWN day (specs/resource-ignition-task.md §3 rule 4) while still
+    // addressing the session it prepares — hence `cardDate` for the optimistic patch and `kind` in the
+    // match, so ticking « démarrer » never flips the session's « préparé ».
+    const cardDate = item.cardDate || item.date;
     const matches = (it) => it.reservationId === item.reservationId && it.resourceId === item.resourceId
-      && it.date === item.date && it.start === item.start;
+      && it.date === item.date && it.start === item.start && (it.kind || 'session') === (item.kind || 'session');
     const apply = (value) => setResourceCardsByDate((prev) => {
-      const day = prev[item.date];
+      const day = prev[cardDate];
       if (!day) return prev;
-      return { ...prev, [item.date]: { ...day, items: day.items.map((it) => (matches(it) ? { ...it, done: value } : it)) } };
+      return { ...prev, [cardDate]: { ...day, items: day.items.map((it) => (matches(it) ? { ...it, done: value } : it)) } };
     });
     apply(nextDone);
     try {
       await api.setPlanningResourceCardDone({
-        reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone,
+        reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone, kind: item.kind,
       });
     } catch (e) {
       apply(!nextDone); // revert
@@ -892,18 +905,30 @@ export default function PlanningPage() {
             ),
           }));
           // Resource session cards — sort by the range start; display the full start–end range.
-          (resourceCardsByDate[date]?.items || []).forEach((i) => entries.push({
-            key: `res-${i.reservationId}-${i.resourceId}-${i.start || ''}`,
-            time: i.start,
-            node: (
-              <OptionDayCard
-                theme="resource"
-                data={{ items: [{ ...i, optionId: i.resourceId, title: i.name, time: i.end ? `${i.start}–${i.end}` : i.start }] }}
-                onItemClick={openReservation}
-                onToggleDone={handleToggleResourceCardDone}
-              />
-            ),
-          }));
+          (resourceCardsByDate[date]?.items || []).forEach((i) => {
+            // specs/resource-ignition-task.md §3 rule 5 — « Démarrer le bain nordique — pour 09:00 »,
+            // placed at the moment it must be lit; the session card itself is unchanged.
+            const isIgnition = i.kind === 'ignition';
+            entries.push({
+              key: `res-${isIgnition ? 'ign-' : ''}${i.reservationId}-${i.resourceId}-${i.start || ''}`,
+              time: isIgnition ? i.time : i.start,
+              node: (
+                <OptionDayCard
+                  theme="resource"
+                  data={{
+                    items: [{
+                      ...i,
+                      optionId: i.resourceId,
+                      title: isIgnition ? `Démarrer ${i.name}` : i.name,
+                      time: isIgnition ? ignitionLabel(i) : (i.end ? `${i.start}–${i.end}` : i.start),
+                    }],
+                  }}
+                  onItemClick={openReservation}
+                  onToggleDone={handleToggleResourceCardDone}
+                />
+              ),
+            });
+          });
           // Resource bookings (startTime) — one section per booking so each is orderable.
           dayResourceBookings.forEach((b) => entries.push({
             key: `rb-${b.id}`,

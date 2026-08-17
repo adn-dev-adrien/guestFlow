@@ -295,7 +295,8 @@ function buildController({
 
     /**
      * POST /api/planning/resource-cards/done
-     * Body: { reservationId, resourceId, date, start, done } — toggles one session's « préparé » flag.
+     * Body: { reservationId, resourceId, date, start, done, kind? } — toggles one session's « préparé »
+     * flag, or its « démarrer » one with `kind: 'ignition'` (specs/resource-ignition-task.md §3 rule 6).
      */
     setResourceCardDone(req, res) {
       const body = req.body || {};
@@ -309,6 +310,7 @@ function buildController({
       }
       const result = injectedResourceCardsModel.setSessionDone({
         reservationId, resourceId, date, start: String(body.start || ''), done: Boolean(body.done),
+        kind: body.kind === 'ignition' ? 'ignition' : 'session',
       });
       if (result && result.error) {
         const status = result.error === 'NOT_FOUND' || result.error === 'SESSION_NOT_FOUND' ? 404 : 400;
