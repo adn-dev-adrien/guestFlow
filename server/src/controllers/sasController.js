@@ -10,8 +10,11 @@ const reservationsModel = require('../models/reservationsModel');
 const linenItemsModel = require('../models/linenItemsModel');
 const settingsModel = require('../models/settingsModel');
 const breakfastModel = require('../models/breakfastModel');
+const optionsModel = require('../models/optionsModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
 const resourceSchedulingModel = require('../models/resourceSchedulingModel');
+const { buildSasSaleOffers } = require('../utils/sasOptionSale');
+const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
 const { isReceptionOnly } = require('../constants/roles');
 const { sasLockReason } = require('../utils/sasEditWindow');
@@ -42,6 +45,7 @@ function snapshotSas(reservationId) {
     bathLinenPresent: upsells.bathLinen.present,
     endOfStayLines,
     linenLines: reservationsModel.listSasArrivalCustomLines(reservationId),
+    soldOptionLines: reservationsModel.listSasArrivalOptionLines(reservationId),
   });
 }
 
@@ -129,6 +133,17 @@ function getSas(req, res) {
     // Breakfast page state (arrival SAS): applicable? + resolved person count + effective hour +
     // stored counts/note. `reservation.departureHandoverNote` rides along via `r.*`.
     breakfast: breakfastModel.getForReservation(reservation.id),
+    // specs/sas-breakfast-and-catering-upsell.md §3.1-§3.2 — what the check-in may still sell: the
+    // breakfast (its candidate mornings, bounded by the nights of the stay) and the « Restauration »
+    // catalogue of the property, prices already resolved per property. Arrival only — nothing is sold
+    // at check-out. An option the operator booked on the fiche is absent (its step is closed).
+    sasSales: isDeparture
+      ? { persons: 0, nights: 0, breakfast: { available: false }, catering: { available: false, options: [] } }
+      : buildSasSaleOffers({
+        reservation,
+        options: optionsModel.listForProperty(reservation.propertyId),
+        cateringCategory: CATERING_CATEGORY,
+      }),
     // « Planifier les ressources » step (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4):
     // the hours still owed per hourly resource + every slot of the stay, already classified
     // free/taken/heating/past/closed. Arrival only — nothing is scheduled at check-out.
@@ -149,7 +164,7 @@ function commitArrival(req, res) {
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
-    cleaningAdded, bathLinenAdded, resourceBlocks,
+    cleaningAdded, bathLinenAdded, resourceBlocks, soldOptions,
     offeredExtras, cleaningOffered, bathLinenOffered,
   } = req.body || {};
 
@@ -199,6 +214,9 @@ function commitArrival(req, res) {
     // catalogue option and its price. Tri-state: undefined = step not shown → leave the option alone.
     cleaningAdded: cleaningAdded === undefined ? undefined : Boolean(cleaningAdded),
     bathLinenAdded: bathLinenAdded === undefined ? undefined : Boolean(bathLinenAdded),
+    // specs/sas-breakfast-and-catering-upsell.md §3.3 — intent only; the model resolves the option,
+    // its per-property price and the engine arithmetic. `undefined` = the sale steps never ran.
+    soldOptions: Array.isArray(soldOptions) ? soldOptions : undefined,
     // specs/sas-offer-complement-lines.md §3.2 rule 8 — the upsell stays activated, billed 0 €.
     cleaningOffered: Boolean(cleaningOffered),
     bathLinenOffered: Boolean(bathLinenOffered),

@@ -19,6 +19,7 @@ const SAS_FIELD_LABELS = {
   cautionReturned: 'Caution restituée',
   cleaningOption: 'Ménage',
   bathLinenOption: 'Linge de toilette',
+  soldOptions: 'Prestations vendues au check-in',
   complementAmount: 'Complément à percevoir',
   complementPaid: 'Complément encaissé',
   complementDeferredToCheckout: 'Complément reporté en fin de séjour',
@@ -88,6 +89,9 @@ function buildSasSnapshot(row, extras = {}) {
     cautionReturned: yesNo(r.cautionReturned),
     cleaningOption: takenOrNot(extras.cleaningPresent),
     bathLinenOption: takenOrNot(extras.bathLinenPresent),
+    // specs/sas-breakfast-and-catering-upsell.md §3.5 — the prestations the check-in sold (petit
+    // déjeuner, restauration), so the fiche history says what was added and for how much.
+    soldOptions: itemsText(extras.soldOptionLines),
     complementAmount: money(r.complementAmount),
     complementPaid: yesNo(r.complementPaid),
     complementDeferredToCheckout: yesNo(r.complementDeferredToCheckout),

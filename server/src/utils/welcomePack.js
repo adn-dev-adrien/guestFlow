@@ -13,58 +13,23 @@
 
 const { getTypeMultiplier } = require('./pricing');
 const { isDirectChannel } = require('./platformNameFormat');
+const { enumerateStayDates, nightsBetween, cardSlots, seedTime } = require('./cardOccurrences');
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMPTY_PACK = { eligible: false, lines: [] };
-
-function isIsoDate(value) {
-  return ISO_DATE_RE.test(String(value || ''));
-}
-
-// Stay days startDate..endDate INCLUSIVE — the candidate days of a daily card, mirroring
-// `client/src/utils/cardOccurrences.js`. UTC math so the day never shifts under a timezone.
-function enumerateStayDates(startDate, endDate) {
-  if (!isIsoDate(startDate) || !isIsoDate(endDate)) return [];
-  const [sy, sm, sd] = String(startDate).split('-').map(Number);
-  const [ey, em, ed] = String(endDate).split('-').map(Number);
-  let cur = Date.UTC(sy, sm - 1, sd);
-  const end = Date.UTC(ey, em - 1, ed);
-  if (Number.isNaN(cur) || Number.isNaN(end) || cur > end) return [];
-  const out = [];
-  for (let i = 0; i < 366 && cur <= end; i += 1) {
-    out.push(new Date(cur).toISOString().slice(0, 10));
-    cur += 86400000;
-  }
-  return out;
-}
-
-function nightsBetween(startDate, endDate) {
-  const days = enumerateStayDates(startDate, endDate);
-  return Math.max(0, days.length - 1);
-}
 
 // The card's serving time: its first configured slot, else the option's breakfast hour. '' = untimed,
 // which is present on every day.
 function servingTime(option) {
-  let times = option.planningCardTimes;
-  if (typeof times === 'string') {
-    try { times = JSON.parse(times || '[]'); } catch { times = []; }
-  }
-  const first = (Array.isArray(times) ? times : []).find((t) => String(t || '').trim() !== '');
-  return String(first || option.breakfastTime || '').trim();
+  const first = cardSlots(option).find((t) => String(t || '').trim() !== '');
+  return String(first || '').trim();
 }
 
-// Same presence rule as the reservation form's occurrence grid: on the arrival day a slot before
+// Same presence rule as the reservation form's occurrence grid (`seedTime` excludes what the guest
+// can't attend and retimes the breakfast of a departure morning): on the arrival day a slot before
 // check-in is out, on the departure day a slot after check-out is out — EXCEPT breakfast, still
-// served (retimed) the departure morning. Middle days are always in.
+// served the departure morning. Middle days are always in.
 function isServedOn(option, date, time, startDate, endDate, checkInTime, checkOutTime) {
-  const t = String(time || '');
-  if (!t) return true;
-  if (date === startDate && checkInTime && t < String(checkInTime)) return false;
-  if (date === endDate && checkOutTime && t > String(checkOutTime)) {
-    return option.autoOptionType === 'breakfast';
-  }
-  return true;
+  return seedTime(option, date, time, startDate, endDate, checkInTime, checkOutTime) != null;
 }
 
 // Rule 8 — the first morning: the earliest stay day the option is actually served on. Breakfast at
