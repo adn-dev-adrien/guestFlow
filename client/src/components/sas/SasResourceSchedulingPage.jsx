@@ -141,6 +141,9 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
                 onPick={(slot) => onAdd({
                   resourceId: resource.resourceId,
                   date: day.date,
+                  // The server's French label, carried along so the placed-block list reads
+                  // « ven. 11 sept. · 20:00–21:00 » like the day chips, not a raw ISO date.
+                  dayLabel: dayLabel(day),
                   start: slot.start,
                   end: slot.end,
                   supplement: Number(slot.supplement || 0),

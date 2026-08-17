@@ -155,3 +155,12 @@ test('a resource with nothing left to place is not rendered at all', () => {
   }} />);
   expect(screen.queryByText('Bain nordique')).not.toBeInTheDocument();
 });
+
+test('a placed block reads with the French day label, not a raw ISO date', () => {
+  render(<Harness />);
+  fireEvent.click(screen.getByLabelText('16:00 — libre'));
+  return waitFor(() => {
+    expect(screen.getByText(/sam\. 12 sept\. · 16:00–17:00/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-09-12 · 16:00/)).not.toBeInTheDocument();
+  });
+});
