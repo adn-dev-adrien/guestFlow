@@ -63,12 +63,15 @@ function breakfastText(row) {
 
 // Line items billed by the SAS, as « Serviette de bain ×2 (16 €) ». Accepts the end-of-stay detail
 // array or the SAS-origin custom rows; both carry `{ label|description, amount, qty }`.
+// specs/sas-offer-complement-lines.md §3.5 — an offered line reads « Ménage ×1 (offert) »: the history
+// is where the operator later checks what was given away, so the gesture must be spelled out.
 function itemsText(lines) {
   const list = (lines || [])
     .map((l) => {
       const label = String((l && (l.label ?? l.description)) || '').trim();
       const qty = Number(l && l.qty) > 1 ? ` ×${Number(l.qty)}` : '';
-      return label ? `${label}${qty} (${money(l && l.amount)})` : '';
+      const value = Number(l && l.offered) === 1 ? 'offert' : money(l && l.amount);
+      return label ? `${label}${qty} (${value})` : '';
     })
     .filter(Boolean);
   return list.length > 0 ? list.join(', ') : 'aucun';
