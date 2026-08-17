@@ -22,11 +22,13 @@ test('get → zeros when no row', () => {
   assert.deepEqual(makeDb().get('2026-06-09'), ZEROS);
 });
 
-test('set upserts, clamps negatives, rounds floats; get reads back; update replaces (not merges)', () => {
+test('set upserts, keeps the sign, rounds floats; get reads back; update replaces (not merges)', () => {
+  // specs/laundry-manual-removals.md §3 rules 1-2 — a negative value is linen the operator washes
+  // himself, withdrawn from the trip. It is stored as-is; the clamping lives where the trip is known.
   const m = makeDb();
   const stored = m.set('2026-06-09', { singleBeds: 2, doubleBeds: -1, largeTowels: 3.7, bogus: 9 });
   assert.equal(stored.singleBeds, 2);
-  assert.equal(stored.doubleBeds, 0);   // negative clamped
+  assert.equal(stored.doubleBeds, -1);  // withdrawal kept
   assert.equal(stored.largeTowels, 4);  // float rounded
   assert.equal(m.get('2026-06-09').singleBeds, 2);
   m.set('2026-06-09', { singleBeds: 5 }); // omitted fields → 0 (full replace)
@@ -61,4 +63,22 @@ test('sumForWindow sums only dates in (startExclusive, endInclusive]', () => {
 
 test('set rejects a non-ISO date', () => {
   assert.throws(() => makeDb().set('2026/06/09', { singleBeds: 1 }));
+});
+
+// ---- withdrawals (specs/laundry-manual-removals.md §3 rules 1-2) ----
+
+test('a withdrawal-only trip is a real row (not an empty one) and survives a round-trip', () => {
+  const m = makeDb();
+  m.set('2026-06-09', { singleBeds: -2 });
+  assert.equal(m.get('2026-06-09').singleBeds, -2);
+  assert.deepEqual(Object.keys(m.listAll()), ['2026-06-09']);
+});
+
+test('sumForWindow adds signed values — an addition and a withdrawal cancel out', () => {
+  const m = makeDb();
+  m.set('2026-06-09', { singleBeds: 3 });
+  m.set('2026-06-16', { singleBeds: -3, doubleBeds: -1 });
+  const s = m.sumForWindow('2026-06-02', '2026-06-16');
+  assert.equal(s.singleBeds, 0);
+  assert.equal(s.doubleBeds, -1);
 });
