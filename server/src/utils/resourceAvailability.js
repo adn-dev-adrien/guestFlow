@@ -134,13 +134,16 @@ function isWarmAt(ranges, start, retention) {
  * `state ∈ closed | past | taken | heating | free`, checked from the most immovable constraint down
  * so the reason shown to the operator is the most useful one.
  */
-function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore }) {
+function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter = Infinity }) {
   const warm = isWarmAt(ranges, start, norm.retention);
   if (dayClosed) return { state: 'closed', warm };
   const dayStart = Math.floor(start / MINUTES_PER_DAY) * MINUTES_PER_DAY;
   if (start < dayStart + norm.openMinutes || end > dayStart + norm.closeMinutes) {
     return { state: 'closed', warm };
   }
+  // Past the check-out: the guests are gone, so the resource is not theirs to book — « fermé » for
+  // them, whatever the resource's own hours say.
+  if (end > notAfter) return { state: 'closed', warm };
   if (start < notBefore) return { state: 'past', warm };
   if (countOverlaps(ranges, start, end, norm.turnover) >= norm.capacity) return { state: 'taken', warm };
   // Thermal readiness: warm → the turnover (already enforced above) is the only wait;
@@ -158,9 +161,10 @@ function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore }) {
  * @param {string[]} args.stayDates     `YYYY-MM-DD` days on which the guest may place hours
  * @param {object[]} args.occupancy     `[{ date, start, end }]` — bookings + sessions + pending
  * @param {number}   args.notBefore     absolute minutes: `max(now, check-in)`
+ * @param {number}   args.notAfter      absolute minutes: the check-out
  * @returns {object[]} `[{ date, weekdayLabel, closed, occupancy, slots }]`
  */
-function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], notBefore = -Infinity }) {
+function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], notBefore = -Infinity, notAfter = Infinity }) {
   const norm = normalizeResource(resource);
   const ranges = toRanges(occupancy);
   const supplementCfg = {
@@ -182,7 +186,7 @@ function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], notB
     ) {
       const start = dayStart + offset;
       const end = start + norm.minDuration;
-      const { state, warm } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore });
+      const { state, warm } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter });
       slots.push({
         start: minutesToTime(offset),
         end: minutesToTime(offset + norm.minDuration),
@@ -217,7 +221,7 @@ function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], notB
  * @returns {{ ok: true } | { ok: false, reason: string }} reason ∈
  *   `duration | closed | past | taken | heating | budget`
  */
-function validateBlock({ resource, block, occupancy = [], notBefore = -Infinity, remainingMinutes = Infinity }) {
+function validateBlock({ resource, block, occupancy = [], notBefore = -Infinity, notAfter = Infinity, remainingMinutes = Infinity }) {
   const norm = normalizeResource(resource);
   const ranges = toRanges(occupancy);
   const start = toAbsMinutes(block?.date, block?.start);
@@ -233,7 +237,7 @@ function validateBlock({ resource, block, occupancy = [], notBefore = -Infinity,
   if (duration > remainingMinutes) return { ok: false, reason: 'budget' };
 
   const dayClosed = !norm.openDays.includes(weekdayOf(block.date)) || norm.closedDays.includes(String(block.date));
-  const { state } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore });
+  const { state } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter });
   return state === 'free' ? { ok: true } : { ok: false, reason: state };
 }
 

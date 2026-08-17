@@ -185,6 +185,12 @@ function createReservationsModel(database) {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'sasArrivalOrigin'); }
     catch { return false; }
   })();
+  // Hours placed on real slots (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4). Same guard
+  // rationale: a minimal test schema without the column just never writes a session.
+  const HAS_RR_SESSIONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions'); }
+    catch { return false; }
+  })();
   // Extras baseline captured when the stay starts (specs/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1). Guarded so minimal test schemas without the column simply never route anything to the
   // end-of-stay complement (legacy behaviour).
@@ -1472,6 +1478,10 @@ function createReservationsModel(database) {
       // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — the two upsells are sent as
       // INTENT (booleans); the server resolves the option + its price. Tri-state, like the caution.
       cleaningAdded, bathLinenAdded,
+      // specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 24 — the hours the guest placed
+      // on real slots, `[{ resourceId, date, start, end }]`. Already validated by the controller;
+      // `undefined` = the step was skipped → the stored sessions are left exactly as they were.
+      resourceBlocks,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
@@ -1529,6 +1539,25 @@ function createReservationsModel(database) {
           } else {
             database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
+          }
+        }
+
+        // Hours placed on real slots during the SAS. REPLACE, never append: a re-opened SAS must be
+        // able to move or remove a block (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4
+        // rule 26). Only the resources named in the payload are rewritten, so a resource the operator
+        // never opened keeps its sessions.
+        if (HAS_RR_SESSIONS && Array.isArray(resourceBlocks)) {
+          const byResource = new Map();
+          for (const b of resourceBlocks) {
+            const key = Number(b?.resourceId);
+            if (!key) continue;
+            if (!byResource.has(key)) byResource.set(key, []);
+            byResource.get(key).push({ date: b.date, start: b.start, end: b.end });
+          }
+          const writeSessions = database.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?');
+          for (const [resourceId, sessions] of byResource) {
+            sessions.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start).localeCompare(String(b.start)));
+            writeSessions.run(JSON.stringify(sessions), reservationId, resourceId);
           }
         }
 

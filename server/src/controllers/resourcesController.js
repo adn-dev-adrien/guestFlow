@@ -17,6 +17,9 @@ function validateResourcePayload(body) {
   return '';
 }
 
+const reservationsModel = require('../models/reservationsModel');
+const resourceSchedulingModel = require('../models/resourceSchedulingModel');
+
 function createController(model) {
   function list(req, res) {
     return res.json(model.list(req.query.propertyId));
@@ -83,7 +86,36 @@ function createController(model) {
     return res.json({ ok: true });
   }
 
-  return { list, availability, babyBedAvailability, getOne, getDeleteImpact, create, update, remove };
+  /**
+   * Bookable slots of one resource over a reservation's stay, for the arrival SAS picker
+   * (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rules 21, 25). Every slot comes back
+   * already classified — the client renders states, it never derives them.
+   *
+   * `pending` carries the blocks the operator has placed earlier in this SAS run: not persisted yet,
+   * but they occupy their slot and keep the resource warm for the next one.
+   */
+  function freeSlots(req, res) {
+    const reservation = reservationsModel.getByIdWithDetails(req.query.reservationId);
+    if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+
+    let pending = [];
+    if (req.query.pending) {
+      try {
+        const parsed = JSON.parse(req.query.pending);
+        pending = Array.isArray(parsed) ? parsed : [];
+      } catch { return res.status(400).json({ error: 'pending invalide' }); }
+    }
+
+    const payload = resourceSchedulingModel.getFreeSlots({
+      reservation,
+      resourceId: req.params.id,
+      pending,
+    });
+    if (!payload) return res.status(404).json({ error: 'RESOURCE_NOT_SOLD_ON_RESERVATION' });
+    return res.json(payload);
+  }
+
+  return { list, availability, babyBedAvailability, getOne, getDeleteImpact, create, update, remove, freeSlots };
 }
 
 const defaultController = createController(require('../models/resourcesModel'));
