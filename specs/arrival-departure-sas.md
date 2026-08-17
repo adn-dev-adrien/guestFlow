@@ -106,9 +106,22 @@ confirmation — records the caution status and the complement(s) on the reserva
     question here** — the whole complement (bath linen included) is settled on the recap
     (CB/Chèque · Payé en liquide · En fin de séjour). Skipped when bath linen is already taken or no priced
     `bathroom_linen` option exists.
+10.ter **Petit déjeuner — vente (only if the reservation did NOT take the breakfast option).** Offer page
+    (tarif + how many mornings the stay allows) with **Ajouter le petit déjeuner** / **Non merci**; adding it
+    opens **« Quels matins ? »** — the same occurrence grid as the fiche, all mornings pre-checked, with the
+    fiche's quantity caption — then **chains the existing composition page** (drinks/food), pre-filled with
+    the defaults of a never-committed check-in. See
+    [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) §3.1.
+10.quater **Restauration (only if the property has sellable « Restauration » options left).** Ask page
+    (**Oui, proposer** / **Non merci**) then the catalogue: moments grid for a card option (*Le repas des
+    trappeurs*), switch + stepper pre-filled with the type multiplier for the others (planches). Same spec
+    §3.2. Both steps write **catalogue options** (`inComplement = 1`, `sasArrivalOrigin = 1`, with their
+    `cardOccurrences`), settled on the recap with the rest of the complement — or routed to the end-of-stay
+    complement when the arrival complement is already collected (§3.4 there).
 11. **Caution reportée (only if rule 6 = « Reporté »).** Re-shows the caution page once more before the recap.
 12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
-    (before the SAS) **+** the items added during the SAS (linen elements + cleaning), **with the full detail
+    (before the SAS) **+** the items added during the SAS (linen elements, cleaning, bath linen, breakfast and
+    catering sold at check-in), **with the full detail
     line by line**. Also shows the caution status (Fait / non traité). When the cleaning is included, shows the
     client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
     specs/sas-hide-settled-steps.md §3). Buttons **Valider et terminer** (commit) / **Quitter**.

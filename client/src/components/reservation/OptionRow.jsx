@@ -6,25 +6,19 @@ import {
 import { alpha } from '@mui/material/styles';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import QuantityField from '../QuantityField';
+import OccurrenceGrid from '../OccurrenceGrid';
 import { useReservationForm } from './ReservationFormContext';
 import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
 import { isWelcomePackLine } from '../../utils/welcomePackApply';
 import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
 
-// French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
-function occurrenceDateLabel(iso) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return iso || '';
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
 /**
  * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
  * 'once' → a single editable date + heure. 'daily' → one checkbox row per (stay day × time slot),
  * all pre-checked, with an editable heure. The selection drives the billed quantity (§3.4), shown
- * as a caption. Reads/writes the working occurrence grid via `setOptionCardOccurrences`.
+ * as a caption. Reads/writes the working occurrence grid via `setOptionCardOccurrences`; the grid
+ * itself is rendered by the shared `OccurrenceGrid` (the arrival SAS sells the same moments).
  */
 function OptionCardOccurrences({ opt }) {
   const { form, quantityPersons, setOptionCardOccurrences, isReservationLocked } = useReservationForm();
@@ -44,78 +38,31 @@ function OptionCardOccurrences({ opt }) {
   }
 
   // The distinct time slots (shared across all days) — edited once here, applied to every day.
-  const slots = [...new Set(grid.map((o) => o.slot ?? 0))].sort((a, b) => a - b);
-  const slotTime = (slot) => { const e = grid.find((o) => (o.slot ?? 0) === slot); return e ? (e.time || '') : ''; };
+  const slotTimes = [...new Set(grid.map((o) => o.slot ?? 0))]
+    .sort((a, b) => a - b)
+    .map((slot) => ({ slot, time: (grid.find((o) => (o.slot ?? 0) === slot) || {}).time || '' }));
   const setSlotTime = (slot, time) => {
     const retimed = grid.map((o) => ((o.slot ?? 0) === slot ? { ...o, time } : o));
     // Re-filter presence: moving a slot's time across the check-in/out bound on the arrival/departure
     // day adds or removes that day's occurrence (specs/option-planning-card.md § presence).
     setOptionCardOccurrences(opt.id, reconcileCardGrid(opt, form.startDate, form.endDate, retimed, form.checkInTime, form.checkOutTime));
   };
-
-  const multi = slots.length > 1;
-  // The stay days (one row each). Every présent créneau is a selectable chip — same layout for
-  // « une fois par jour » (one chip/day) and « plusieurs fois par jour » (N chips/day).
-  const days = [...new Set(grid.map((o) => o.date))].sort();
   const toggleOcc = (date, slot, checked) => setOptionCardOccurrences(opt.id, grid.map((o) => (o.date === date && (o.slot ?? 0) === slot ? { ...o, checked } : o)));
-  const entriesFor = (date) => grid.filter((o) => o.date === date).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
 
   return (
-    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-      {/* Editable default hour(s) — shared across all days (specs/option-planning-card.md §3.2). */}
-      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1 }}>
-        {multi ? 'Heures (par défaut)' : 'Heure (par défaut)'}
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 1 }}>
-        {slots.map((slot) => (
-          <TextField
-            key={slot}
-            size="small"
-            type="time"
-            label={multi ? `Créneau ${slot + 1}` : undefined}
-            value={slotTime(slot)}
-            onChange={(e) => setSlotTime(slot, e.target.value)}
-            disabled={isReservationLocked}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: 130 }}
-          />
-        ))}
-      </Stack>
-
-      {/* Per-day selection + the resulting billed quantity. */}
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-          {multi ? 'Créneaux par jour' : 'Jours concernés'}
-        </Typography>
-        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+    <OccurrenceGrid
+      grid={grid}
+      onToggle={toggleOcc}
+      slotTimes={slotTimes}
+      onSlotTimeChange={setSlotTime}
+      disabled={isReservationLocked}
+      quantityText={(
+        <>
           Quantité&nbsp;: <strong>{billedUnits}</strong>
           {perPerson ? ` (${checkedCount} × ${personFactor} pers.)` : ''}
-        </Typography>
-      </Stack>
-
-      {/* One row per day; each présent créneau is a selectable chip. Boundary days only carry the
-          créneaux within the guest's presence (the grid is already presence-filtered, §6.bis). */}
-      <Stack spacing={0.5}>
-        {days.map((date) => (
-          <Box key={date} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ minWidth: 104, textTransform: 'capitalize', color: 'text.secondary' }}>
-              {occurrenceDateLabel(date)}
-            </Typography>
-            {entriesFor(date).map((o) => (
-              <Chip
-                key={o.slot}
-                label={o.time || '—'}
-                size="small"
-                color={o.checked ? 'primary' : 'default'}
-                variant={o.checked ? 'filled' : 'outlined'}
-                onClick={isReservationLocked ? undefined : () => toggleOcc(date, o.slot ?? 0, !o.checked)}
-                sx={{ height: 24, fontWeight: 600 }}
-              />
-            ))}
-          </Box>
-        ))}
-      </Stack>
-    </Box>
+        </>
+      )}
+    />
   );
 }
 
