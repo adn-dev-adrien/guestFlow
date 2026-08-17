@@ -393,7 +393,11 @@ const api = {
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
   // Arrival / departure SAS (specs/arrival-departure-sas.md). One GET to assemble the wizard
   // data, one POST to commit each SAS (single write, no per-step persistence).
-  getReservationSas: (id) => request(`/reservations/${encodeURIComponent(id)}/sas`),
+  // `mode` matters: the server hides the departure ménage step when the cleaning is already sold,
+  // and skips the arrival-only resource-scheduling payload (specs/sas-departure-mode-param.md).
+  getReservationSas: (id, mode) => request(
+    `/reservations/${encodeURIComponent(id)}/sas${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
+  ),
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
   // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the

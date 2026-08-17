@@ -271,7 +271,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null);
     setWeatherAlerts([]); setOffered(new Set());
-    api.getReservationSas(reservationId)
+    // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
+    // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
+    // still undo its own upsell) and at check-out (where it can never be billed twice).
+    api.getReservationSas(reservationId, mode)
       .then((d) => {
         if (cancelled) return;
         setData(d); setStepKey('intro');
@@ -396,7 +399,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       .catch((e) => { if (!cancelled) setError(e?.message || 'Erreur de chargement.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [open, reservationId]);
+  }, [open, reservationId, mode]);
 
   // Weather alerts (specs/checkin-weather-alerts.md) — background fetch on open, arrival SAS only.
   // Non-blocking: the wizard renders normally; the weather page appears (before recap) once/if the

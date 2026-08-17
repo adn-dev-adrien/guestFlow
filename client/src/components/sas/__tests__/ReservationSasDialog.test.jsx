@@ -970,6 +970,23 @@ test('reception lock: a 403 SAS_LOCKED at commit surfaces the French message', a
   expect(shown.length).toBeGreaterThan(0);
 });
 
+// ---- the read carries the end of the stay (specs/sas-departure-mode-param.md) ----
+
+test('the SAS read tells the server which end it is', async () => {
+  // Without it the check-out SAS got the check-in answer to « le ménage est-il déjà vendu ? », asked a
+  // question it could never bill, and announced 80 € the commit threw away.
+  api.getReservationSas.mockResolvedValue(sasPayload({ reservation: { cautionAmount: 0 } }));
+  const { unmount } = renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  expect(api.getReservationSas).toHaveBeenCalledWith(1, 'departure');
+  unmount();
+
+  api.getReservationSas.mockClear();
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  expect(api.getReservationSas).toHaveBeenCalledWith(1, 'arrival');
+});
+
 // ---- « Offrir » a recap line (specs/sas-offer-complement-lines.md) ----
 
 // A stay whose complement holds one catalogue extra (20 €) — the recap can give it away.
