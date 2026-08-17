@@ -91,8 +91,9 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 ### 3.3 Home page for reception (`/`)
 
 5. When the logged-in user is **reception-only**, route `/` renders a **reduced Dashboard**:
-   - **Only** two sections: **Arrivées — {date}** and **Départs — {date}**, plus the existing date
-     navigator (previous / today / next day).
+   - **Only** two sections: **Départs — {date}** then **Arrivées — {date}** (departures first —
+     revised 2026-08-17, issue #427: the day runs in that order, departures in the morning, arrivals
+     in the afternoon), plus the existing date navigator (previous / today / next day).
    - Each row shows: guest **display name**, **logement**, **plateforme** badge, **heure**
      d'arrivée/départ, **nombre de personnes**, **options/ressources** réservées, the **caution**
      and **complément à percevoir** indicators (rule 3), and the operational **statut** toggles
@@ -272,8 +273,9 @@ added, no migration, no backfill.
 
 - **PageActionBar:** `title="Tableau de bord"`, no `backTo`, no Save/Cancel, no actions (read-only
   overview). Keep the date navigator (prev / today / next) as the existing inline control.
-- **Layout:** two stacked sections — **Arrivées — {date}** then **Départs — {date}** — each a
-  `ResponsiveTable`. Columns (md+): Client (name, plain text) · Logement · Plateforme (badge) ·
+- **Layout:** two stacked sections — **Départs — {date}** then **Arrivées — {date}** (departures
+  first, revised 2026-08-17 / issue #427; the same order applies to the admin dashboard, which is the
+  same component) — each a `ResponsiveTable`. Columns (md+): Client (name, plain text) · Logement · Plateforme (badge) ·
   Heure · Personnes · Options/Ressources · Caution/Complément à percevoir · Statut (toggle
   chips/checkboxes). **No Paiements column.** On `xs`: `ResponsiveTable` collapses to stacked cards
   (existing behaviour). Empty state per list: *« Aucune arrivée / Aucun départ ce jour. »*
