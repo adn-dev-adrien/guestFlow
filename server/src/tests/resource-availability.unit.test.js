@@ -226,6 +226,7 @@ test('NON-REGRESSION: heatUp = 0 + retention = 0 reproduces the pre-thermal clas
     '13:00:taken',  // turnover before the use
     '14:00:taken',  // the use itself
     '15:00:taken',  // turnover after the use
+    '15:15:free',   // …and the reset ends here — offered on purpose (rule 20.bis), grid or not
     '16:00:free',
     '17:00:free',
     '18:00:free',
@@ -376,4 +377,84 @@ test('validateBlock: refuses a block longer than the hours still owed', () => {
     { ok: false, reason: 'budget' },
   );
   assert.deepEqual(validate({ date: '2026-09-11', start: '15:00', end: '17:00' }, { remainingMinutes: 120 }), { ok: true });
+});
+
+// ── The slot right after the remise en état (§3.4 rule 20.bis) ─────────────────────────────────────
+
+test('after a use, the moment the reset ends is offered even off the whole hour', () => {
+  // Use 14:00→15:00, reset 15 min ⇒ the bath is free at 15:15. A whole-hour grid would only offer
+  // 16:00 and waste three quarters of an hour of an already-hot bath.
+  const days = build({
+    occupancy: [{ date: '2026-09-11', start: '14:00', end: '15:00' }],
+    notBefore: at('2026-09-11', '11:00'),
+  });
+  const slot = slotAt(days, '2026-09-11', '15:15');
+  assert.ok(slot, 'the reset-end must be offered as its own start');
+  assert.equal(slot.state, 'free');
+  assert.equal(slot.end, '16:15');
+  assert.equal(slot.afterReset, true, 'flagged so the picker can say « enchaîne »');
+  assert.equal(slot.warm, true, 'and the bath is of course still hot');
+});
+
+test('the off-grid start appears in chronological order, between 15:00 and 16:00', () => {
+  const days = build({
+    occupancy: [{ date: '2026-09-11', start: '14:00', end: '15:00' }],
+    notBefore: at('2026-09-11', '11:00'),
+  });
+  const starts = slotsOf(days, '2026-09-11').map((s) => s.start);
+  assert.equal(starts.indexOf('15:15'), starts.indexOf('15:00') + 1);
+  assert.equal(starts.indexOf('16:00'), starts.indexOf('15:15') + 1);
+});
+
+test('the whole hour is shifted ONLY after a reset — never anywhere else', () => {
+  const days = build({ notBefore: at('2026-09-11', '11:00') });
+  const offGrid = slotsOf(days, '2026-09-11').filter((s) => !s.start.endsWith(':00'));
+  assert.deepEqual(offGrid, [], 'no occupancy → nothing but whole hours');
+});
+
+test('a reset-end that is NOT bookable is not offered as a stray odd time', () => {
+  // Same use, but the bath closes at 15:30 → 15:15 cannot fit the minimum hour.
+  const days = build({
+    resource: { ...BAIN, closeTime: '15:30' },
+    occupancy: [{ date: '2026-09-11', start: '14:00', end: '15:00' }],
+    notBefore: at('2026-09-11', '11:00'),
+  });
+  assert.equal(slotAt(days, '2026-09-11', '15:15'), undefined);
+});
+
+test('a reset-end that lands on the grid stays a normal grid slot', () => {
+  // Turnover 0 ⇒ the use ending at 15:00 frees 15:00 itself; nothing off-grid is invented.
+  const days = build({
+    resource: { ...BAIN, turnoverMinutes: 0 },
+    occupancy: [{ date: '2026-09-11', start: '14:00', end: '15:00' }],
+    notBefore: at('2026-09-11', '11:00'),
+  });
+  const slot = slotAt(days, '2026-09-11', '15:00');
+  assert.equal(slot.state, 'free');
+  assert.equal(slot.afterReset, false);
+});
+
+test('chaining: a block placed at 15:15 opens the next reset-end at 16:30', () => {
+  const days = build({
+    occupancy: [{ date: '2026-09-11', start: '14:00', end: '15:00' }],
+    pending: [{ date: '2026-09-11', start: '15:15', end: '16:15' }],
+    notBefore: at('2026-09-11', '11:00'),
+  });
+  // Their own block now holds 15:15, so that off-grid start stops being offered at all — an odd time
+  // that cannot be taken would explain nothing. The reset after it becomes the next offer.
+  assert.equal(slotAt(days, '2026-09-11', '15:15'), undefined);
+  const next = slotAt(days, '2026-09-11', '16:30');
+  assert.equal(next.state, 'free');
+  assert.equal(next.afterReset, true);
+});
+
+test('validateBlock accepts a start that is exactly a reset-end, and refuses other odd times', () => {
+  const occupancy = [{ date: '2026-09-11', start: '14:00', end: '15:00' }];
+  const args = { occupancy, notBefore: at('2026-09-11', '11:00'), remainingMinutes: 180 };
+  assert.deepEqual(validate({ date: '2026-09-11', start: '15:15', end: '16:15' }, args), { ok: true });
+  // 15:20 is not a grid time and not a reset-end → refused.
+  assert.deepEqual(
+    validate({ date: '2026-09-11', start: '15:20', end: '16:20' }, args),
+    { ok: false, reason: 'duration' },
+  );
 });

@@ -50,6 +50,13 @@ export default function SlotPickerGrid({ slots = [], onPick, selected = [], empt
               <span>{slot.start}</span>
               {isFree && slot.warm && <LocalFireDepartmentIcon sx={{ fontSize: 14, color: 'warning.main' }} />}
             </Box>
+            {/* An off-grid start: the resource frees up here, right after the previous reset. Saying
+                so turns an odd time (« 15:15 ») into an obvious opportunity. */}
+            {isFree && slot.afterReset && (
+              <Typography component="span" variant="caption" sx={{ fontSize: 9, color: 'success.main' }}>
+                enchaîne
+              </Typography>
+            )}
             {isFree && supplement > 0 && (
               <Typography component="span" variant="caption" sx={{ fontSize: 10, color: 'warning.dark' }}>
                 +{supplement} €

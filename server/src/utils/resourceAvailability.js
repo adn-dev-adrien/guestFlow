@@ -129,6 +129,41 @@ function isWarmAt(ranges, start, retention) {
   return lastEnd !== null && (start - lastEnd) <= retention;
 }
 
+/** Is `start` one of the day's regular grid times (openTime + n × slotDuration)? */
+function isOnGrid(start, dayStart, norm) {
+  const offset = start - dayStart;
+  return offset >= norm.openMinutes && ((offset - norm.openMinutes) % norm.slotMinutes === 0);
+}
+
+/**
+ * The start times worth offering on a day: the regular grid, **plus** the exact moment a previous
+ * use's remise en état finishes.
+ *
+ * A bath used until 14:00 with a 15-minute reset is free from 14:15 — but a whole-hour grid would
+ * only offer 16:00, because 15:00 still collides with the buffer. That is an hour and three quarters
+ * of a hot bath thrown away. So the reset-end is offered as its own start; the whole hour is shifted
+ * only in that case, never arbitrarily
+ * (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 20.bis).
+ */
+function candidateStarts({ norm, ranges, dayStart }) {
+  const fits = (start) => {
+    const offset = start - dayStart;
+    return offset >= norm.openMinutes && offset + norm.minDuration <= norm.closeMinutes;
+  };
+  const starts = new Map(); // absolute start → offGrid
+  for (let offset = norm.openMinutes; offset + norm.minDuration <= norm.closeMinutes; offset += norm.slotMinutes) {
+    starts.set(dayStart + offset, false);
+  }
+  for (const range of ranges) {
+    const start = range.end + norm.turnover;
+    if (!fits(start) || starts.has(start)) continue;
+    starts.set(start, !isOnGrid(start, dayStart, norm));
+  }
+  return [...starts.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([start, offGrid]) => ({ start, offGrid }));
+}
+
 /**
  * Classify one candidate block. Returns `{ state, warm }` with
  * `state ∈ closed | past | taken | heating | free`, checked from the most immovable constraint down
@@ -185,23 +220,23 @@ function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], pend
     const dayClosed = !norm.openDays.includes(weekdayOf(date)) || norm.closedDays.includes(date);
     const slots = [];
 
-    for (
-      let offset = norm.openMinutes;
-      offset + norm.minDuration <= norm.closeMinutes;
-      offset += norm.slotMinutes
-    ) {
-      const start = dayStart + offset;
+    for (const { start, offGrid } of candidateStarts({ norm, ranges, dayStart })) {
       const end = start + norm.minDuration;
       const { state, warm } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter });
+      // The grid is shown whole — a blocked slot has to say WHY. An off-grid start exists only to
+      // offer the moment a reset ends, so it earns its place only when it is actually bookable;
+      // otherwise it would be a stray odd time explaining nothing.
+      if (offGrid && state !== 'free') continue;
+      const startLabel = minutesToTime(start);
+      const endLabel = minutesToTime(end);
       slots.push({
-        start: minutesToTime(offset),
-        end: minutesToTime(offset + norm.minDuration),
+        start: startLabel,
+        end: endLabel,
         state,
         warm,
-        supplement: eveningSupplement(
-          [{ start: minutesToTime(offset), end: minutesToTime(offset + norm.minDuration) }],
-          supplementCfg,
-        ),
+        // « Enchaîne un passage » — this start exists because a reset finishes exactly here.
+        afterReset: offGrid,
+        supplement: eveningSupplement([{ start: startLabel, end: endLabel }], supplementCfg),
       });
     }
 
@@ -237,9 +272,11 @@ function validateBlock({ resource, block, occupancy = [], notBefore = -Infinity,
   const duration = end - start;
   if (duration < norm.minDuration) return { ok: false, reason: 'duration' };
   if (duration % norm.slotMinutes !== 0) return { ok: false, reason: 'duration' };
-  if ((start % MINUTES_PER_DAY) % norm.slotMinutes !== norm.openMinutes % norm.slotMinutes) {
-    return { ok: false, reason: 'duration' };
-  }
+  // A start is legitimate when it sits on the grid, or when it is exactly the moment a previous
+  // use's reset finishes — the only case where the whole hour is shifted (§3.4 rule 20.bis).
+  const dayStart = Math.floor(start / MINUTES_PER_DAY) * MINUTES_PER_DAY;
+  const afterAReset = ranges.some((range) => range.end + norm.turnover === start);
+  if (!isOnGrid(start, dayStart, norm) && !afterAReset) return { ok: false, reason: 'duration' };
   if (duration > remainingMinutes) return { ok: false, reason: 'budget' };
 
   const dayClosed = !norm.openDays.includes(weekdayOf(block.date)) || norm.closedDays.includes(String(block.date));

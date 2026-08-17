@@ -181,6 +181,12 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
     (`quantity` − hours already placed in `sessions`). Skipped otherwise, like every other conditional
     page.
 18. **One sub-card per resource**, headed « Bain nordique — 3 h achetées, 2 h à planifier ».
+18.bis **The day strip is swipeable, and says so** (added 2026-08-17). A long stay does not fit: a
+    fortnight is 14 day chips for about three visible on a phone. The strip has always scrolled, but
+    nothing signalled it — the last visible chip sat flush against the edge and read as the end of the
+    list. It now carries a fade on whichever side still has days, a chevron that jumps a screenful
+    (for the desktop operator without a swipe gesture), scroll-snap, and it **keeps the selected day
+    scrolled into view** so a day picked late in the stay does not vanish when the slots refresh.
 19. **The existing bookings of the stay are shown**, per day, as a read-only occupancy strip: « 14:00–
     15:00 réservé ». **No client name is displayed** — the SAS is run with the guest standing there.
     Their purpose is to let the operator *deliberately place the new session next to an existing one*,
@@ -192,6 +198,19 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 20. **Free placement in blocks** (decision 2026-08-17). The guest places the remaining hours as any
     combination of blocks, on any day of the stay, provided each block is ≥ `minimumUsageMinutes` and
     aligned on `slotDuration`. 3 h can be one 3 h block, three 1 h blocks on three days, or 1 h + 2 h.
+20.bis **The moment a remise en état ends is offered as its own start** (added 2026-08-17). The reset
+    is a per-resource setting, so the exact minute the resource frees up is known: a bath used until
+    14:00 with a 15-minute reset is available at **14:15**. On a whole-hour grid the first offer would
+    be 16:00 — an hour and three quarters of an already-hot bath thrown away. So `previous end +
+    turnoverMinutes` becomes a candidate start of its own.
+    - **The whole hour is shifted ONLY in that case.** No other off-grid time is ever invented.
+    - It is offered **only when it is genuinely bookable**; an off-grid start that is taken, heating
+      or past is not rendered at all — unlike a grid slot, it explains nothing, it is purely an extra
+      opportunity.
+    - It chains: placing a block at 14:15 makes 15:30 the next such offer.
+    - The picker labels it **« enchaîne »**, so an odd time reads as an opportunity rather than a bug.
+    - The commit re-validates it: a start is legitimate when it sits on the grid **or** is exactly a
+      reset-end. Any other odd time is refused with `reason: 'duration'`.
 21. **Only bookable slots are tappable; the rest are greyed with a reason.** The server returns every
     slot of every stay day with an explicit state, and the picker renders — never hides — them:
 
@@ -199,6 +218,7 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
     |---|---|---|
     | `free` | bookable now | outlined chip, tappable |
     | `free` + `warm: true` | bookable **and still hot** (rule 12 hot path) | outlined chip + 🔥 « encore chaude » |
+    | `free` + `afterReset: true` | an off-grid start opened by a reset ending (rule 20.bis) | outlined chip + « enchaîne » |
     | `taken` | capacity reached (rule 15) | greyed, « réservé », not tappable |
     | `heating` | blocked only by the montée en chauffe (rule 12 cold path) | greyed, « montée en chauffe » |
     | `past` | before `notBefore` (rule 13) | greyed, « passé » |
@@ -469,8 +489,13 @@ new file, next to the assertions they replace (three of which pinned the old, bu
       exactly** (**non-regression guard for every existing resource**, rule 16)
 - [x] `pending` in-run blocks count as occupancy (rule 25): placing 15:00–16:00 makes 15:00 `taken` and
       16:15 `free` + `warm`
+- [x] **rule 20.bis** — a use ending 15:00 with a 15-min reset offers `15:15`, flagged `afterReset`,
+      inserted in chronological order between 15:00 and 16:00; nothing off-grid appears without an
+      occupancy; a reset-end that cannot fit the minimum is not offered; a reset-end landing on the
+      grid stays an ordinary grid slot; placing at 15:15 chains the next offer to 16:30
 - [x] block validation: below `minimumUsageMinutes` → rejected; unaligned on `slotDuration` → rejected;
-      crossing `closeTime` → rejected; exceeding the remaining budget → rejected
+      crossing `closeTime` → rejected; exceeding the remaining budget → rejected; a start that is
+      exactly a reset-end → **accepted**, any other odd time → rejected (rule 20.bis)
 - [x] the function is deterministic: same inputs + injected `now` → same output (no `Date.now()`)
 
 **`tests/resource-evening-supplement.unit.test.js`** (rule 22)
@@ -521,7 +546,10 @@ new file, next to the assertions they replace (three of which pinned the old, bu
       name; delete frees the hour; « Planifier plus tard » advances with nothing placed; a failed slot
       load shows the error, **not** an empty grid.
 - [x] `components/SlotPickerGrid` — renders each state from the server payload without deriving any of
-      them locally. _Covered through `SasResourceSchedulingPage.test.jsx` rather than a dedicated file:
+      them locally, including the « enchaîne » badge of a reset-end slot (rule 20.bis).
+- [x] **Long stay (rule 18.bis)** — all 14 days of a fortnight render, picking one far down the strip
+      selects it and scrolls it back into view. _The fade/chevron affordances depend on layout, which
+      jsdom does not compute; they are verified in the browser instead._ _Covered through `SasResourceSchedulingPage.test.jsx` rather than a dedicated file:
       the grid has no state of its own, so testing it in isolation would only re-assert its props._
       A non-free slot renders as a **disabled MUI Chip — a `div`**, so the guard asserts it is inert
       (class + a click that places nothing), not `toBeDisabled()`.
@@ -554,6 +582,11 @@ afterwards** (reservation dates, sold hours, sessions, thermal columns, and the 
 - [x] SAS at **390 px**: day chips, occupancy strip, 2-column slot grid, placed-block list with its
       delete action, evening supplement total, « Suivant » / « Planifier plus tard ». Placing a block
       decrements the counter, removing it gives the hour back. **Horizontal overflow measured at 0 px.**
+- [x] **17-day stay at 390 px** (rule 18.bis): 17 chips for 332 px of strip — 1 538 px off-screen.
+      Fade + chevron appear on the side that still has days, swap when scrolled to the end, and the
+      last day (« dim. 27 sept. ») is reachable.
+- [x] **Reset-end slot** (rule 20.bis): an external booking 16:00→17:00 with a 15-min reset makes
+      **17:15** appear between 17:00 and 18:00, badged « enchaîne » and 🔥.
 - [x] The occupancy strip shows the neighbour (13:00–14:00) and **not** the operator's own placement.
 - [x] Departure day fully « fermé » (check-out 10:00 precedes the 11:00 opening).
 - [x] Resource planning after the merge moved server-side: the guest session renders with

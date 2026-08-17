@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box, Card, CardContent, Chip, IconButton, Stack, Typography, Divider, Button, Skeleton, Alert,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SlotPickerGrid from '../SlotPickerGrid';
 import api from '../../api';
 
@@ -28,6 +30,123 @@ function formatHours(hours) {
 
 function dayLabel(day) {
   return day.weekdayLabel || day.date;
+}
+
+/**
+ * The day strip of a long stay does not fit on a phone — a fortnight is 14 chips for ~3 visible.
+ * It has always scrolled, but nothing said so: the last visible chip sat flush against the edge and
+ * read as « that's all there is ». This adds the affordances that make the swipe discoverable —
+ * a fade on whichever side still has days, and an arrow that jumps a screenful for the desktop
+ * operator with no touchpad gesture. The selected day is also kept scrolled into view, so a day
+ * picked far down the stay does not vanish when the slots refresh.
+ */
+function DayStrip({ days, activeDate, onPick }) {
+  const scrollerRef = useRef(null);
+  const activeRef = useRef(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = scrollerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure, days.length]);
+
+  useEffect(() => {
+    // Guarded: scroll APIs are absent under jsdom, and a missing one must not take the step down.
+    const chip = activeRef.current;
+    if (typeof chip?.scrollIntoView === 'function') {
+      chip.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    measure();
+  }, [activeDate, measure]);
+
+  const nudge = (direction) => {
+    const el = scrollerRef.current;
+    if (typeof el?.scrollBy !== 'function') return;
+    el.scrollBy({ left: direction * Math.max(160, el.clientWidth * 0.8), behavior: 'smooth' });
+  };
+
+  const fade = (side) => ({
+    position: 'absolute',
+    top: 0,
+    bottom: 8,
+    [side]: 0,
+    width: 32,
+    pointerEvents: 'none',
+    zIndex: 1,
+    background: (t) => `linear-gradient(to ${side === 'left' ? 'right' : 'left'}, ${t.palette.background.paper}, transparent)`,
+  });
+
+  return (
+    <Box sx={{ position: 'relative', mb: 1 }}>
+      <Box
+        ref={scrollerRef}
+        onScroll={measure}
+        sx={{
+          display: 'flex',
+          gap: 1,
+          overflowX: 'auto',
+          pb: 1,
+          scrollSnapType: 'x proximity',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        {days.map((d) => {
+          const hasFree = d.slots.some((s) => s.state === 'free');
+          const selected = d.date === activeDate;
+          return (
+            <Chip
+              key={d.date}
+              ref={selected ? activeRef : undefined}
+              label={dayLabel(d)}
+              onClick={() => onPick(d.date)}
+              variant={selected ? 'filled' : 'outlined'}
+              color={selected ? 'primary' : 'default'}
+              aria-current={selected ? 'true' : undefined}
+              sx={{
+                minHeight: 48, borderRadius: 1.5, flexShrink: 0,
+                scrollSnapAlign: 'start',
+                textTransform: 'capitalize',
+                opacity: hasFree ? 1 : 0.55, // dimmed, still selectable: the operator must see WHY
+              }}
+            />
+          );
+        })}
+      </Box>
+
+      {edges.left && <Box sx={fade('left')} />}
+      {edges.right && <Box sx={fade('right')} />}
+
+      {edges.left && (
+        <IconButton
+          size="small" aria-label="Jours précédents" onClick={() => nudge(-1)}
+          sx={{ position: 'absolute', left: -6, top: 6, zIndex: 2, bgcolor: 'background.paper', boxShadow: 1, '&:hover': { bgcolor: 'background.paper' } }}
+        >
+          <ChevronLeftIcon fontSize="small" />
+        </IconButton>
+      )}
+      {edges.right && (
+        <IconButton
+          size="small" aria-label="Jours suivants" onClick={() => nudge(1)}
+          sx={{ position: 'absolute', right: -6, top: 6, zIndex: 2, bgcolor: 'background.paper', boxShadow: 1, '&:hover': { bgcolor: 'background.paper' } }}
+        >
+          <ChevronRightIcon fontSize="small" />
+        </IconButton>
+      )}
+    </Box>
+  );
 }
 
 function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
@@ -86,26 +205,7 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
           />
         </Stack>
 
-        {/* Day selector — horizontally scrollable so it never widens the page on a phone. */}
-        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1, mb: 1 }}>
-          {days.map((d) => {
-            const hasFree = d.slots.some((s) => s.state === 'free');
-            return (
-              <Chip
-                key={d.date}
-                label={dayLabel(d)}
-                onClick={() => setActiveDate(d.date)}
-                variant={d.date === (day?.date) ? 'filled' : 'outlined'}
-                color={d.date === (day?.date) ? 'primary' : 'default'}
-                sx={{
-                  minHeight: 48, borderRadius: 1.5, flexShrink: 0,
-                  textTransform: 'capitalize',
-                  opacity: hasFree ? 1 : 0.55, // dimmed, still selectable: the operator must see WHY
-                }}
-              />
-            );
-          })}
-        </Box>
+        <DayStrip days={days} activeDate={day?.date} onPick={setActiveDate} />
 
         {loadError && (
           <Alert severity="error" sx={{ mb: 1 }} action={<Button size="small" onClick={refresh}>Réessayer</Button>}>

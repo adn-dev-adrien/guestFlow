@@ -164,3 +164,63 @@ test('a placed block reads with the French day label, not a raw ISO date', () =>
     expect(screen.queryByText(/2026-09-12 · 16:00/)).not.toBeInTheDocument();
   });
 });
+
+// ── Long stay: the day strip (§3.4 rule 18.bis) ────────────────────────────────────────────────────
+// A fortnight is 14 chips for ~3 visible on a phone. jsdom has no layout, so the fade/chevron
+// affordances (driven by scrollWidth vs clientWidth) are verified in the browser, not here; what is
+// pinned below is that every day is reachable and that the selected one is scrolled back into view.
+
+const LONG_STAY = {
+  applicable: true,
+  resources: [{
+    ...SCHEDULING.resources[0],
+    hoursSold: 6, hoursRemaining: 6,
+    days: Array.from({ length: 14 }, (_, i) => ({
+      ...DAY,
+      date: `2026-09-${String(11 + i).padStart(2, '0')}`,
+      weekdayLabel: `jour ${i + 1}`,
+    })),
+  }],
+};
+
+test('every day of a long stay is rendered, not just the ones that fit', () => {
+  render(<Harness scheduling={LONG_STAY} />);
+  expect(screen.getByText('jour 1')).toBeInTheDocument();
+  expect(screen.getByText('jour 14')).toBeInTheDocument();
+  expect(screen.getAllByText(/^jour \d+$/)).toHaveLength(14);
+});
+
+test('picking a day far down the stay selects it and scrolls it back into view', () => {
+  const scrollIntoView = vi.fn();
+  Element.prototype.scrollIntoView = scrollIntoView;
+  render(<Harness scheduling={LONG_STAY} />);
+
+  fireEvent.click(screen.getByText('jour 12'));
+  expect(screen.getByText('jour 12').closest('.MuiChip-root')).toHaveAttribute('aria-current', 'true');
+  expect(screen.getByText('jour 1').closest('.MuiChip-root')).not.toHaveAttribute('aria-current');
+  expect(scrollIntoView).toHaveBeenCalled();
+});
+
+// ── The slot right after the reset (§3.4 rule 20.bis) ──────────────────────────────────────────────
+
+test('a slot opened by the end of a reset is marked « enchaîne »', () => {
+  const withChain = {
+    applicable: true,
+    resources: [{
+      ...SCHEDULING.resources[0],
+      days: [{
+        ...DAY,
+        slots: [
+          slot('16:00', { state: 'taken' }),
+          { start: '17:15', end: '18:15', state: 'free', warm: true, supplement: 0, afterReset: true },
+          slot('18:00'),
+        ],
+      }],
+    }],
+  };
+  render(<Harness scheduling={withChain} />);
+  expect(screen.getByText('enchaîne')).toBeInTheDocument();
+  expect(screen.getByLabelText('17:15 — libre')).toBeEnabled();
+  // The regular grid slot beside it carries no such badge.
+  expect(screen.getAllByText('enchaîne')).toHaveLength(1);
+});
