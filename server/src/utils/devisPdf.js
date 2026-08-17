@@ -13,20 +13,38 @@ const {
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 
-// §3.4 rules 15–18 — single source of truth for the tax + grand-total numbers the PDF
-// renders. When the engine quote is provided, every figure flows from it; without a quote
-// we read the persisted row (legacy fallback for devis whose engine call fails). Exported
-// so the consistency invariant — "PDF total equals PricingSummary total" — can be tested
-// without rendering and parsing the FlateDecode-compressed PDF stream.
-function resolveLiveTaxTotals(full, quote) {
-  const liveTaxTotal = quote && Number(quote.touristTaxTotal || 0) > 0
-    ? Number(quote.touristTaxTotal)
+// specs/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
+// numbers the PDF renders. Two principles, in order:
+//
+//   1. The document must agree with itself: the grand total is ALWAYS the stay the table actually
+//      printed (`printedStayTtc`, the sum of the drawn rows) plus the tax printed above it. A total
+//      that matches nothing on the page is the bug this replaces — the user got 595 € under a
+//      523,92 € sub-total because the total came from a re-quote of a different pricing state.
+//   2. The tax stays engine-authoritative — but only when the engine speaks for THIS document, i.e.
+//      when its `finalPrice` reproduces the printed stay. Otherwise the persisted row wins: it is the
+//      value the printed lines were computed with.
+//
+// Amends devis-pdf-and-tourist-tax-fixes.md §3.4 rule 20, which sourced both figures from the quote
+// unconditionally. That rule's own bug (PDF tax 15,36 € vs. summary 16,80 €) stays fixed: a quote
+// that reconciles still wins. Exported under `__test` so the invariant is provable without parsing
+// the FlateDecode-compressed PDF stream.
+function resolveLiveTaxTotals(full, quote, printedStayTtc) {
+  // Legacy callers render no table and pass nothing — the persisted stay price is their "printed" one.
+  const printedStay = roundMoney(Number(printedStayTtc != null ? printedStayTtc : (full.finalPrice || 0)));
+  const quoteFinalPrice = quote && quote.finalPrice != null ? Number(quote.finalPrice) : null;
+  const quoteReconciles = quoteFinalPrice != null && Math.abs(quoteFinalPrice - printedStay) <= 0.01;
+  // A zero `touristTaxTotal` in the quote means "engine didn't compute it", never "no tax" — keep the
+  // known-good row rather than silently zeroing a persisted tax.
+  const quoteTaxTotal = quote && Number(quote.touristTaxTotal || 0) > 0 ? Number(quote.touristTaxTotal) : null;
+  const liveTaxTotal = quoteReconciles && quoteTaxTotal != null
+    ? quoteTaxTotal
     : Number(full.touristTaxTotal || 0);
-  const liveFinalPrice = quote && quote.finalPrice != null
-    ? Number(quote.finalPrice)
-    : Number(full.finalPrice || 0);
-  const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
-  return { liveTaxTotal, liveFinalPrice, grandTotalTtc };
+  return {
+    liveTaxTotal,
+    liveFinalPrice: printedStay,
+    grandTotalTtc: roundMoney(printedStay + liveTaxTotal),
+    quoteReconciles,
+  };
 }
 
 function generateDevisPdf(full, settings, quote) {
@@ -532,36 +550,34 @@ function generateDevisPdf(full, settings, quote) {
   drawTotalLine(L.subtotalHt, subtotalHt, false);
   const subtotalTtc = roundMoney(subtotalTtcFromRows);
   drawTotalLine(L.subtotalTtc, subtotalTtc, false);
-  // §3.4 rules 15–18 — Tourist tax + grand total flow through `resolveLiveTaxTotals` so
-  // the PDF stays consistent with PricingSummary even when the persisted row drifts (e.g.
-  // user changed pricing then re-printed without updating the row). Mixing live + persisted
-  // here is what caused the user-reported PDF/summary drift (16.80€ summary vs. 15.36€ PDF
-  // on percentage-based tax with department surcharge).
-  const { liveTaxTotal, liveFinalPrice } = resolveLiveTaxTotals(full, quote);
+  // specs/devis-pdf-total-parity.md §3.2 — the tax and the grand total are resolved against the stay
+  // the table just printed, so the totals block can never contradict the lines above it.
+  const { liveTaxTotal, grandTotalTtc, quoteReconciles } = resolveLiveTaxTotals(full, quote, subtotalTtc);
   if (liveTaxTotal > 0) {
     drawTotalLine(L.touristTax, liveTaxTotal, false);
-    let taxablePersons;
-    let taxNights;
-    let taxUnitLabel;
-    if (quote && Number(quote.touristTaxTotal || 0) > 0) {
-      taxablePersons = Number(quote.touristTaxAdultsCount || 0);
-      taxNights = Number(quote.touristTaxNights || 0);
+    // Rule 8 — the detail follows the amount it explains: the engine breakdown when the quote is what
+    // we printed, otherwise a breakdown derived from the row so it multiplies out to that amount.
+    const engineBreakdown = quoteReconciles && quote && Number(quote.touristTaxTotal || 0) > 0;
+    const taxablePersons = engineBreakdown
+      ? Number(quote.touristTaxAdultsCount || 0)
+      : Number(full.adults || 0);
+    const taxNights = engineBreakdown
+      ? Number(quote.touristTaxNights || 0)
+      : Math.max(0, diffDays(full.startDate, full.endDate));
+    if (taxablePersons > 0 && taxNights > 0) {
       // Engine-authoritative per-person-per-night unit; the engine resolves percentage vs
       // fixed-amount + department tax + capping into a single coherent number.
-      taxUnitLabel = formatCurrency(Number(quote.touristTaxUnitAmount || 0));
-    } else {
-      taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);
-      taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
-      taxUnitLabel = formatCurrency(Number(full.touristTaxRate || 0));
+      const taxUnitAmount = engineBreakdown
+        ? Number(quote.touristTaxUnitAmount || 0)
+        : roundMoney(liveTaxTotal / (taxablePersons * taxNights));
+      const taxDetail = L.touristTaxBreakdown(taxablePersons, taxNights, formatCurrency(taxUnitAmount));
+      doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
+        .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     }
-    const taxDetail = L.touristTaxBreakdown(taxablePersons, taxNights, taxUnitLabel);
-    doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
-      .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     totY += 10;
   }
 
   // Total line
-  const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
     .text(L.grandTotal, TOTAL_RX - 4, totY + 4, { width: 120 });

@@ -158,7 +158,16 @@ each of these lives on the server — no UI-side calculation.
     through can land in a follow-up if the demo reveals a need.
 19. **No schema change** is required — the engine outputs the breakdown each time. The
     PDF doesn't persist breakdown fields.
-20. **Consistency invariant — tax total + grand total must mirror the engine quote.**
+20. ~~**Consistency invariant — tax total + grand total must mirror the engine quote.**~~
+    **SUPERSEDED on 2026-08-17 by [devis-pdf-total-parity.md](devis-pdf-total-parity.md) §3.2
+    rules 6-10.** Sourcing the grand total from `quote.finalPrice` while the table is drawn from the
+    persisted lines let the PDF print a total matching nothing on the page (523,92 € of rows under a
+    595,00 € total) whenever the re-quote described a different pricing state. The total is now
+    always « printed rows + printed tax », and the quote's tax is used only when the quote reproduces
+    the printed stay — which it does once the re-quote replays the sold state. The bug below stays
+    fixed. Original text kept for context:
+
+    **Consistency invariant — tax total + grand total must mirror the engine quote.**
     When the engine quote is provided, both the displayed "Taxe de séjour" line *and*
     the TOTAL TTC line are sourced from `quote.touristTaxTotal` + `quote.finalPrice` —
     never from the persisted `full.touristTaxTotal` / `full.finalPrice`, which may

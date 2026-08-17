@@ -93,20 +93,28 @@ test('rule 18: touristTaxTotal = 0 → skip block without throwing', async () =>
   await assertValidPdf(buf);
 });
 
-// ── Consistency invariant — the PDF's tourist tax + grand total MUST match the engine
-// quote (= PricingSummary) when one is provided. Pins the regression behind PR #112:
-// percentage-based tax with a department surcharge would persist 15.36€ on the row but
-// the live engine returns 16.80€ — the PDF must show the live figure, not the row. ───
+// ── Consistency invariant — specs/devis-pdf-total-parity.md §3.2 rules 6-10.
 //
-// Walkthrough of the user's report:
+// Two things must hold at once, and the second one used to break the first:
+//   (a) the grand total is the stay the table PRINTED plus the tax printed above it — always;
+//   (b) the tax mirrors the engine quote (= PricingSummary) whenever that quote speaks for the
+//       document it is printed on, i.e. its finalPrice reproduces the printed stay.
+//
+// (b) pins PR #112: percentage-based tax with a department surcharge persisted 15.36€ on the row
+// while the live engine returned 16.80€ — the PDF must show the live figure.
 //   summary: (227.27EUR HT/nuit ÷ 12 occupants) × 5% × 1.10 dep = 1.05€/adulte/nuit
 //            → 1.05 × 8 adultes × 2 nuits = 16.80€
-//   PDF before fix: 8 × 2 × 0.96 = 15.36€ (no department surcharge in the row total)
+//   PDF before that fix: 8 × 2 × 0.96 = 15.36€ (no department surcharge in the row total)
+//
+// (a) pins the 2026-08-17 report: a re-quote of a DIFFERENT pricing state (offered option re-billed,
+// price lock ignored) printed « TOTAL TTC 595,00 € » under a « Sous-total TTC 523,92 € ».
 
-test('invariant: PDF tax total mirrors quote.touristTaxTotal when row drifts (user-report scenario)', () => {
+test('invariant: PDF tax total mirrors quote.touristTaxTotal when the row drifts (PR #112 scenario)', () => {
   const full = { touristTaxTotal: 15.36, finalPrice: 1000, touristTaxRate: 0.05 };
   const quote = { touristTaxTotal: 16.80, touristTaxUnitAmount: 1.05, touristTaxAdultsCount: 8, touristTaxNights: 2, finalPrice: 1000 };
-  const out = resolveLiveTaxTotals(full, quote);
+  // The quote reproduces the 1000 € of stay the table printed → it speaks for this document.
+  const out = resolveLiveTaxTotals(full, quote, 1000);
+  assert.equal(out.quoteReconciles, true);
   assert.equal(out.liveTaxTotal, 16.80);
   assert.equal(out.liveFinalPrice, 1000);
   // Grand total must include the LIVE tax, not the stale 15.36 — otherwise the PDF totals
@@ -114,12 +122,26 @@ test('invariant: PDF tax total mirrors quote.touristTaxTotal when row drifts (us
   assert.equal(out.grandTotalTtc, 1016.80);
 });
 
-test('invariant: quote.finalPrice overrides full.finalPrice (engine is the source of truth)', () => {
-  const full = { touristTaxTotal: 6, finalPrice: 900 }; // stale
-  const quote = { touristTaxTotal: 6, finalPrice: 1000 };
-  const out = resolveLiveTaxTotals(full, quote);
-  assert.equal(out.liveFinalPrice, 1000);
-  assert.equal(out.grandTotalTtc, 1006);
+test('invariant: a quote that does NOT reproduce the printed rows never reaches the totals', () => {
+  // The user-reported devis: rows print 523.92 (persisted lines), the re-quote says 583.92 because it
+  // re-billed a 60 € offered option and lost its tourist-tax deduction. The document must ignore it.
+  const full = { touristTaxTotal: 9.60, finalPrice: 523.92 };
+  const quote = { touristTaxTotal: 11.08, finalPrice: 583.92 };
+  const out = resolveLiveTaxTotals(full, quote, 523.92);
+  assert.equal(out.quoteReconciles, false);
+  assert.equal(out.liveTaxTotal, 9.60);
+  assert.equal(out.liveFinalPrice, 523.92);
+  assert.equal(out.grandTotalTtc, 533.52); // never 595.00
+});
+
+test('invariant: the grand total is always the printed rows + the printed tax', () => {
+  // Even a reconciling quote can't move the total away from the lines: liveFinalPrice IS the rows.
+  const full = { touristTaxTotal: 6, finalPrice: 900 };
+  const quote = { touristTaxTotal: 6, finalPrice: 900.004 }; // sub-cent noise still reconciles
+  const out = resolveLiveTaxTotals(full, quote, 900);
+  assert.equal(out.quoteReconciles, true);
+  assert.equal(out.liveFinalPrice, 900);
+  assert.equal(out.grandTotalTtc, 906);
 });
 
 test('fallback: no quote → persisted row values drive the totals (legacy callsite)', () => {
@@ -135,15 +157,14 @@ test('fallback: quote with zero tax → row value wins (engine reported no tax t
   // row as the safer fallback to avoid silently zeroing a known-correct persisted tax.
   const full = { touristTaxTotal: 6, finalPrice: 900 };
   const quote = { touristTaxTotal: 0, finalPrice: 900 };
-  const out = resolveLiveTaxTotals(full, quote);
+  const out = resolveLiveTaxTotals(full, quote, 900);
   assert.equal(out.liveTaxTotal, 6);
 });
 
-test('quote.finalPrice = 0 is honoured (not treated as missing)', () => {
-  // An offered stay has finalPrice = 0 — must not silently fall back to the row.
-  const full = { touristTaxTotal: 0, finalPrice: 900 };
-  const quote = { touristTaxTotal: 0, finalPrice: 0 };
-  const out = resolveLiveTaxTotals(full, quote);
+test('offered stay: rows sum to 0 → the total is the tax alone', () => {
+  const full = { touristTaxTotal: 6, finalPrice: 900 }; // row kept a price, the lines are offered
+  const quote = { touristTaxTotal: 6, finalPrice: 0 };
+  const out = resolveLiveTaxTotals(full, quote, 0);
   assert.equal(out.liveFinalPrice, 0);
-  assert.equal(out.grandTotalTtc, 0);
+  assert.equal(out.grandTotalTtc, 6);
 });
