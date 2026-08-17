@@ -57,6 +57,15 @@ test('surfaces a server-side validation error on the host field', () => {
   expect(screen.getByText('Hôte requis')).toBeInTheDocument();
 });
 
+// The server refuses a display name carrying a control character (it would break out of the
+// `From:` header) — the message has to land under the field, not vanish into a toast.
+test('surfaces the header-injection error on the sender-name field', () => {
+  const message = 'Caractère interdit (retour à la ligne ou caractère de contrôle).';
+  renderSection({ errors: { smtpFromName: message } });
+  expect(screen.getByText(message)).toBeInTheDocument();
+  expect(screen.queryByText(/Nom affiché aux destinataires/)).not.toBeInTheDocument();
+});
+
 test('the test button is enabled when host, fromEmail and a saved password are present', () => {
   renderSection();
   expect(screen.getByRole('button', { name: /Envoyer un mail de test/ })).toBeEnabled();

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   validateEmail,
+  validateHeaderSafeText,
   validateSiret,
   validateTvaIntracom,
   validateIban,
@@ -27,6 +28,34 @@ test('validateEmail: invalid', () => {
   assert.match(validateEmail('no-at-sign'), /invalide/);
   assert.match(validateEmail('foo@'), /invalide/);
   assert.match(validateEmail('@bar.com'), /invalide/);
+});
+test('validateEmail: rejects the control characters an email header cannot carry', () => {
+  // A CRLF here would end the `To:`/`From:` line and let the rest be read as a new header.
+  assert.match(validateEmail('a@b.com\r\nBcc: pirate@evil.com'), /Caractère interdit/);
+  assert.match(validateEmail('a\u0000b@c.com'), /Caractère interdit/);
+  assert.match(validateEmail('a\u007Fb@c.com'), /Caractère interdit/);
+});
+
+// --- header-safe free text (SMTP display name) ---
+test('validateHeaderSafeText: empty is valid', () => {
+  assert.equal(validateHeaderSafeText(''), null);
+  assert.equal(validateHeaderSafeText(null), null);
+});
+test('validateHeaderSafeText: ordinary display names pass, accents included', () => {
+  assert.equal(validateHeaderSafeText('Domaine Solio'), null);
+  assert.equal(validateHeaderSafeText('Gîte Solio — été'), null);
+  assert.equal(validateHeaderSafeText('L\'Aventura "Lodge"'), null);
+});
+test('validateHeaderSafeText: rejects an interior control character', () => {
+  assert.match(validateHeaderSafeText('GuestFlow\r\nBcc: pirate@evil.com'), /Caractère interdit/);
+  assert.match(validateHeaderSafeText('Guest\nFlow'), /Caractère interdit/);
+  assert.match(validateHeaderSafeText('Guest\u0000Flow'), /Caractère interdit/);
+  assert.match(validateHeaderSafeText('Guest\u007FFlow'), /Caractère interdit/);
+  assert.match(validateHeaderSafeText('Guest\tFlow'), /Caractère interdit/);
+});
+test('validateHeaderSafeText: tolerates surrounding whitespace — the controller trims it', () => {
+  assert.equal(validateHeaderSafeText('Domaine Solio\r\n'), null);
+  assert.equal(validateHeaderSafeText('  Domaine Solio  '), null);
 });
 
 // --- SIRET ---
