@@ -147,3 +147,32 @@ test('listRange: malformed session JSON is ignored, never thrown', () => {
     .run(resourceId, 'not json at all');
   assert.deepEqual(occupancy.listRange({ resourceId, from: '2026-09-12', to: '2026-09-12' }), []);
 });
+
+// ── The planning list (§3.5 rule 29) ───────────────────────────────────────────────────────────────
+
+test('listForResource merges bookings and sessions, tagged, ordered, for the planning page', () => {
+  const { db, model, resourceId } = seed({ sessions: GUEST_SESSION });
+  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Dupont')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Aventura lodge')").run();
+  model.createBooking({ resourceId, date: '2026-09-12', startTime: '17:00', endTime: '18:00', clientName: 'Extérieur' });
+
+  const rows = model.listForResource({ resourceId, date: '2026-09-12' });
+  assert.deepEqual(rows.map((r) => [r.startTime, r.kind]), [['14:00', 'session'], ['17:00', 'booking']]);
+
+  // Unlike the SAS picker, the OPERATOR's planning names the guest — same as the booking beside it.
+  const session = rows.find((r) => r.kind === 'session');
+  assert.equal(session.displayName, 'Camille Dupont');
+  assert.equal(session.propertyName, 'Aventura lodge');
+  assert.equal(session.reservationId, 700);
+});
+
+test('listForResource scopes sessions to the requested week', () => {
+  const { model, resourceId } = seed({
+    sessions: [
+      { date: '2026-09-12', start: '14:00', end: '15:00' },
+      { date: '2026-09-30', start: '14:00', end: '15:00' },
+    ],
+  });
+  const rows = model.listForResource({ resourceId, weekStart: '2026-09-07' });
+  assert.deepEqual(rows.map((r) => r.date), ['2026-09-12']);
+});
