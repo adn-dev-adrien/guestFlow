@@ -125,7 +125,12 @@ function buildController({
           ...injectedLaundryModel.dropOffBathMatForWindow(startExclusive, endInclusive),
         };
         const manual = injectedLaundryManualAdditionsModel.sumForWindow(startExclusive, endInclusive);
-        for (const k of Object.keys(manual)) block[k] = (Number(block[k]) || 0) + Number(manual[k] || 0);
+        // specs/laundry-manual-removals.md §3 rule 3 — the manual line is SIGNED: a negative value is
+        // linen the operator washed himself, so it leaves the trip. Floored at 0 per type: one cannot
+        // deposit (nor fetch) a negative pile of sheets.
+        for (const k of Object.keys(manual)) {
+          block[k] = Math.max(0, (Number(block[k]) || 0) + Number(manual[k] || 0));
+        }
         return block;
       };
       // specs/laundry-counts-explicit-option-only.md §3.2 rule 8 — only the drop-off side carries the
@@ -290,7 +295,8 @@ function buildController({
 
     /**
      * POST /api/planning/resource-cards/done
-     * Body: { reservationId, resourceId, date, start, done } — toggles one session's « préparé » flag.
+     * Body: { reservationId, resourceId, date, start, done, kind? } — toggles one session's « préparé »
+     * flag, or its « démarrer » one with `kind: 'ignition'` (specs/resource-ignition-task.md §3 rule 6).
      */
     setResourceCardDone(req, res) {
       const body = req.body || {};
@@ -304,6 +310,7 @@ function buildController({
       }
       const result = injectedResourceCardsModel.setSessionDone({
         reservationId, resourceId, date, start: String(body.start || ''), done: Boolean(body.done),
+        kind: body.kind === 'ignition' ? 'ignition' : 'session',
       });
       if (result && result.error) {
         const status = result.error === 'NOT_FOUND' || result.error === 'SESSION_NOT_FOUND' ? 404 : 400;

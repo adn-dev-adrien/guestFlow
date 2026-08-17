@@ -37,6 +37,17 @@ const api = {
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: `{ items, counts }` with the
+  // bucket (« à venir » / « passés »), the qualifying stay date and the server-side ordering.
+  getClientsDirectory: ({ q, bucket, sort, dir } = {}) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (bucket) params.set('bucket', bucket);
+    if (sort) params.set('sort', sort);
+    if (dir) params.set('dir', dir);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return request(`/clients/directory${suffix}`);
+  },
   getClient: (id) => request(`/clients/${id}`),
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
@@ -367,10 +378,12 @@ const api = {
   // `{ resourceCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] } } }`.
   getPlanningResourceCards: ({ from, to }) =>
     request(`/planning/resource-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  setPlanningResourceCardDone: ({ reservationId, resourceId, date, start, done }) =>
+  // `kind: 'ignition'` ticks the « démarrer » task rather than the session's « préparé »
+  // (specs/resource-ignition-task.md §4.3).
+  setPlanningResourceCardDone: ({ reservationId, resourceId, date, start, done, kind }) =>
     request('/planning/resource-cards/done', {
       method: 'POST',
-      body: { reservationId, resourceId, date, start, done },
+      body: { reservationId, resourceId, date, start, done, ...(kind ? { kind } : {}) },
     }),
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.

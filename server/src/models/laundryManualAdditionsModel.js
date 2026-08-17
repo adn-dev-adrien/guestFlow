@@ -1,13 +1,16 @@
 /**
  * Laundry trip manual additions model — sole DB access for `laundry_trip_manual_additions`.
  *
- * A manual addition is per laundry trip date (`YYYY-MM-DD`), global (one human, one trip per day —
- * same scope as `laundryTripSkipsModel`). It holds six non-negative per-type counts of linen the
- * operator washes on that trip on top of what the reservations imply. The planning summary folds
- * them into « À apporter / À récupérer » and the inventory engine washes them like reservation linen
- * (clean → laundry → clean), so « disponible après ce dépôt » reflects them too.
+ * A manual line is per laundry trip date (`YYYY-MM-DD`), global (one human, one trip per day —
+ * same scope as `laundryTripSkipsModel`). It holds six SIGNED per-type counts:
+ *   - positive = linen the operator washes on that trip on top of what the reservations imply. The
+ *     planning summary folds it into « À apporter / À récupérer » and the inventory engine washes it
+ *     like reservation linen (clean → laundry → clean).
+ *   - negative = linen the operator washes HIMSELF, withdrawn from the trip: it leaves « À apporter »,
+ *     never returns in « À récupérer », and the engine puts it straight back in the clean stock
+ *     (specs/laundry-manual-removals.md).
  *
- * Spec: specs/manual-laundry-additions.md §4.1 + §5.
+ * Spec: specs/manual-laundry-additions.md §4.1 + §5, specs/laundry-manual-removals.md §4.1.
  */
 
 const db = require('../database');
@@ -25,9 +28,13 @@ function zeros() {
   return { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
 }
 
-// Clamp to a non-negative integer (authoritative server-side validation).
+// A SIGNED integer (specs/laundry-manual-removals.md §3 rules 1-2): positive = extra linen to wash on
+// this trip, negative = linen the operator washes himself, withdrawn from the trip. Rounding is the
+// only authoritative normalisation left — the clamping that matters (never deposit a negative pile,
+// never wash more than what is dirty) belongs to the summary and to the inventory engine, which are
+// the two places that know what the trip actually holds.
 function clampCount(v) {
-  return Math.max(0, Math.round(Number(v) || 0));
+  return Math.round(Number(v) || 0);
 }
 
 function normalize(counts) {
@@ -70,8 +77,8 @@ function createModel(database) {
     },
 
     /**
-     * Upsert the six counts for `date`. All-zero → the row is deleted (no empty rows). Negative /
-     * non-integer inputs are clamped to non-negative integers. Returns the stored counts (or zeros).
+     * Upsert the six counts for `date`. All-zero → the row is deleted (no empty rows). Values are
+     * rounded to signed integers (negative = withdrawn, washed at home). Returns the stored counts.
      */
     set(date, counts) {
       assertIsoDate(date);

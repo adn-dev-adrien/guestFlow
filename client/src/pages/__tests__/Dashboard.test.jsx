@@ -190,3 +190,13 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
     expect(navigateSpy).toHaveBeenCalledWith('/planning?sas=arrival&reservationId=42');
   });
 });
+
+test('the day lists run departures FIRST, arrivals second (issue #427)', async () => {
+  // specs/reception-role-checkin-only.md §3.3 / §6.1 — the day is handled in that order (departures
+  // in the morning, arrivals in the afternoon), so the first list is the one needed first.
+  renderPage();
+  const departures = await screen.findByText(/^Départs — /);
+  const arrivals = await screen.findByText(/^Arrivées — /);
+  // Node.compareDocumentPosition: 4 = arrivals FOLLOWS departures in the document.
+  expect(departures.compareDocumentPosition(arrivals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
