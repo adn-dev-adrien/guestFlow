@@ -25,6 +25,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getClients: vi.fn(),
+    getClientsDirectory: vi.fn(),
     getClient: vi.fn(),
     getClientDeleteImpact: vi.fn(),
     cleanupOrphanClients: vi.fn(),
@@ -97,7 +98,7 @@ function getUrl() {
 
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn?.mockReset?.());
-  api.getClients.mockResolvedValue([SAMPLE_CLIENT]);
+  api.getClientsDirectory.mockResolvedValue({ items: [SAMPLE_CLIENT], counts: { upcoming: 1, past: 0 } });
   api.getClient.mockResolvedValue(SAMPLE_CLIENT);
   api.getClientDeleteImpact.mockResolvedValue({
     client: SAMPLE_CLIENT, reservationsCount: 0, reservations: [], devisCount: 0, devis: [],

@@ -81,6 +81,72 @@ function createModel(database) {
     return database.prepare('SELECT * FROM clients ORDER BY lastName, firstName').all();
   }
 
+  // specs/clients-upcoming-past-directory.md §3 — the Clients page's own read: each client with the
+  // stay that qualifies it, the bucket it belongs to, the per-bucket counts of the current search, and
+  // the ordering. All of it server-side; the page renders what it receives.
+  //
+  // Bucket rule: a client is « à venir » as soon as ONE stay has not ended yet (a guest currently in a
+  // property is still in the operator's hands), and a client with no stay at all lands there too — the
+  // list the operator works on never loses a row. Only `kind = 'reservation'` counts: a devis is not
+  // a stay.
+  const SORTABLE = new Set(['lastName', 'firstName', 'stayDate']);
+  function directory({ q, bucket, sort, dir } = {}) {
+    const today = todayKey();
+    const search = String(q || '').trim();
+    const like = `%${search}%`;
+    const where = search
+      ? `WHERE c.lastName LIKE ? OR c.firstName LIKE ? OR c.email LIKE ? OR c.phone LIKE ?
+            OR c.street LIKE ? OR c.city LIKE ? OR c.postalCode LIKE ?`
+      : '';
+    const params = search ? [today, today, ...Array(7).fill(like)] : [today, today];
+    const rows = database.prepare(`
+      SELECT c.*,
+        (SELECT MIN(r.startDate) FROM reservations r
+          WHERE r.clientId = c.id AND r.kind = 'reservation' AND r.endDate >= ?) AS nextStayDate,
+        (SELECT MAX(r.startDate) FROM reservations r
+          WHERE r.clientId = c.id AND r.kind = 'reservation' AND r.endDate < ?) AS lastStayDate
+      FROM clients c
+      ${where}
+    `).all(...params);
+
+    const enriched = rows.map(({ nextStayDate, lastStayDate, ...client }) => ({
+      ...client,
+      bucket: (nextStayDate || !lastStayDate) ? 'upcoming' : 'past',
+      stayDate: nextStayDate || lastStayDate || null,
+    }));
+    const counts = {
+      upcoming: enriched.filter((c) => c.bucket === 'upcoming').length,
+      past: enriched.filter((c) => c.bucket === 'past').length,
+    };
+
+    const activeBucket = bucket === 'past' ? 'past' : 'upcoming';
+    // Default per bucket (§3.3 rule 6): the soonest arrival first, the most recent stay first.
+    const sortCol = SORTABLE.has(sort) ? sort : 'stayDate';
+    const direction = dir === 'asc' || dir === 'desc'
+      ? dir
+      : (activeBucket === 'past' ? 'desc' : 'asc');
+    const factor = direction === 'desc' ? -1 : 1;
+    const byName = (a, b) => String(a.lastName || '').localeCompare(String(b.lastName || ''), 'fr')
+      || String(a.firstName || '').localeCompare(String(b.firstName || ''), 'fr')
+      || a.id - b.id;
+    const items = enriched
+      .filter((c) => c.bucket === activeBucket)
+      .sort((a, b) => {
+        if (sortCol === 'stayDate') {
+          // A client with no date is never « the smallest »: it sorts last in both directions.
+          if (!a.stayDate || !b.stayDate) {
+            if (a.stayDate === b.stayDate) return byName(a, b);
+            return a.stayDate ? -1 : 1;
+          }
+          return factor * String(a.stayDate).localeCompare(String(b.stayDate)) || byName(a, b);
+        }
+        const primary = String(a[sortCol] || '').localeCompare(String(b[sortCol] || ''), 'fr');
+        return factor * primary || byName(a, b);
+      });
+
+    return { items, counts };
+  }
+
   function findById(id) {
     return database.prepare('SELECT * FROM clients WHERE id = ?').get(Number(id));
   }
@@ -234,6 +300,7 @@ function createModel(database) {
 
   return {
     list,
+    directory,
     findById,
     findByEmail,
     insert,

@@ -37,6 +37,17 @@ const api = {
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: `{ items, counts }` with the
+  // bucket (« à venir » / « passés »), the qualifying stay date and the server-side ordering.
+  getClientsDirectory: ({ q, bucket, sort, dir } = {}) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (bucket) params.set('bucket', bucket);
+    if (sort) params.set('sort', sort);
+    if (dir) params.set('dir', dir);
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return request(`/clients/directory${suffix}`);
+  },
   getClient: (id) => request(`/clients/${id}`),
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),

@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Box, TextField, TableRow, Stack,
+  Box, TextField, TableRow, Stack, Tabs, Tab, TableSortLabel, useMediaQuery,
   TableCell, IconButton, InputAdornment, Chip, Typography, Divider, Button, Tooltip
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -23,8 +24,25 @@ import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, displayDate } from '../utils/formatters';
 import { useToast } from '../components/DialogProvider';
+
+// A sortable column header (specs/clients-upcoming-past-directory.md §3.3), same interaction as the
+// « Tarifs facturables » page. Module-level on purpose: a component defined inside the page would be a
+// new type on every render, remounting the header — and dropping the click target mid-interaction.
+function SortableCell({ col, sort, onSort, children }) {
+  return (
+    <TableCell sx={{ fontWeight: 600 }}>
+      <TableSortLabel
+        active={sort.col === col}
+        direction={sort.col === col ? sort.dir : 'asc'}
+        onClick={() => onSort(col)}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
 
 const DEVIS_STATUS = {
   draft: { status: 'neutral', label: 'Brouillon' },
@@ -60,6 +78,13 @@ export default function ClientsPage() {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [urlParams, setUrlParams] = useSearchParams();
+  // specs/clients-upcoming-past-directory.md §3 — the two lists, the « Séjour » date, the counts and
+  // the ordering all come from the server; the page holds only the tab, the search and the sort.
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down('sm'));
+  const [bucket, setBucket] = useState('upcoming');
+  const [sort, setSort] = useState({ col: 'stayDate', dir: 'asc' });
+  const [counts, setCounts] = useState({ upcoming: 0, past: 0 });
   const {
     items: clients,
     loading,
@@ -68,7 +93,11 @@ export default function ClientsPage() {
     createItem,
     updateItem,
   } = useCrudResource({
-    listFn: (q) => api.getClients(q),
+    listFn: async (params) => {
+      const res = await api.getClientsDirectory(params);
+      setCounts(res?.counts || { upcoming: 0, past: 0 });
+      return res?.items || [];
+    },
     createFn: (payload) => api.createClient(payload),
     updateFn: (id, payload) => api.updateClient(id, payload),
     deleteFn: (id) => api.deleteClient(id),
@@ -95,7 +124,33 @@ export default function ClientsPage() {
 
   // The failure is surfaced through the scaffold's error state (useCrudResource re-throws); swallow
   // the rejection here so it doesn't bubble as an unhandled promise rejection.
-  useEffect(() => { reload(search).catch(() => {}); }, [search, reload]);
+  useEffect(() => {
+    reload({ q: search, bucket, sort: sort.col, dir: sort.dir }).catch(() => {});
+  }, [search, bucket, sort, reload]);
+
+  // Switching tab restores that tab's default order (§3.3 rule 6): the soonest arrival first on
+  // « À venir », the most recent stay first on « Passés ».
+  const handleTabChange = (next) => {
+    setBucket(next);
+    setSort({ col: 'stayDate', dir: next === 'past' ? 'desc' : 'asc' });
+  };
+  const handleSortClick = (col) => {
+    setSort((prev) => (prev.col === col
+      ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { col, dir: col === 'stayDate' && bucket === 'past' ? 'desc' : 'asc' }));
+  };
+  const bucketTabs = (
+    <Tabs
+      value={bucket}
+      onChange={(_, next) => handleTabChange(next)}
+      variant="scrollable"
+      allowScrollButtonsMobile
+      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40 } }}
+    >
+      <Tab value="upcoming" label={`À venir (${counts.upcoming})`} />
+      <Tab value="past" label={`Passés (${counts.past})`} />
+    </Tabs>
+  );
 
   const setClientParam = (clientId) => {
     const nextParams = new URLSearchParams(urlParams);
@@ -275,7 +330,7 @@ export default function ClientsPage() {
     try {
       await api.deleteClient(deleteImpact.clientId, { force: true });
       closeDeleteImpact();
-      await reload(search);
+      await reload({ q: search, bucket, sort: sort.col, dir: sort.dir });
     } catch (error) {
       setDeleteImpact((prev) => ({
         ...prev,
@@ -433,7 +488,7 @@ export default function ClientsPage() {
     try {
       const result = await api.cleanupOrphanClientsByIds(ids);
       setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
-      await reload(search);
+      await reload({ q: search, bucket, sort: sort.col, dir: sort.dir });
       const deleted = Number(result?.deletedCount || 0);
       const skipped = Number(result?.skippedCount || 0);
       const skippedSuffix = skipped > 0
@@ -448,8 +503,12 @@ export default function ClientsPage() {
 
   return (
     <Box>
+      {isXs && (
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 1 }}>{bucketTabs}</Box>
+      )}
       <DataPageScaffold
         title="Clients"
+        barCenter={isXs ? undefined : bucketTabs}
         actionLabel="Nouveau client"
         actionIcon={<AddIcon />}
         onAction={() => handleOpen(null)}
@@ -479,12 +538,13 @@ export default function ClientsPage() {
         )}
         loading={loading}
         error={listError}
-        onRetry={() => reload(search)}
-        minWidth={860}
+        onRetry={() => reload({ q: search, bucket, sort: sort.col, dir: sort.dir })}
+        minWidth={960}
         head={(
           <TableRow>
-            <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Prénom</TableCell>
+            <SortableCell col="lastName" sort={sort} onSort={handleSortClick}>Nom</SortableCell>
+            <SortableCell col="firstName" sort={sort} onSort={handleSortClick}>Prénom</SortableCell>
+            <SortableCell col="stayDate" sort={sort} onSort={handleSortClick}>Séjour</SortableCell>
             <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Téléphone</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>CP</TableCell>
@@ -500,6 +560,7 @@ export default function ClientsPage() {
           <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpen(c)}>
             <TableCell>{c.lastName}</TableCell>
             <TableCell>{c.firstName}</TableCell>
+            <TableCell>{c.stayDate ? displayDate(c.stayDate) : '—'}</TableCell>
             <TableCell>{c.email}</TableCell>
             <TableCell>{c.phone}</TableCell>
             <TableCell>{c.postalCode || '—'}</TableCell>
@@ -526,6 +587,9 @@ export default function ClientsPage() {
                 <IconButton size="small" color="error" aria-label="Supprimer" onClick={() => handleDelete(c.id)}><DeleteIcon fontSize="small" /></IconButton>
               </Box>
             </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Séjour : {c.stayDate ? displayDate(c.stayDate) : '—'}
+            </Typography>
             {c.email && <Typography variant="caption" color="text.secondary">{c.email}</Typography>}
             {c.phone && <Typography variant="caption" color="text.secondary">{c.phone}</Typography>}
             {(c.postalCode || c.city) && (
