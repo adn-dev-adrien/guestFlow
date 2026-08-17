@@ -236,7 +236,11 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 29. **The planning merge moves to the server.** `GET /api/resource-bookings` returns the unified
     occupancy (standalone + reservation sessions, each tagged `kind: 'booking' | 'session'`), and
     `ResourcePlanningPage` drops its client-side merge — fat backend, and one single definition of
-    « occupied ».
+    « occupied ». Unlike the SAS picker (rule 19), this list **does** name the client: it is the
+    operator's own planning, beside standalone bookings that already do.
+29.bis **The « remise en état » band is drawn after a guest session too** (amended 2026-08-17 during
+    implementation). It used to be suppressed for sessions. Now that the reset gates both kinds
+    identically (rule 28), hiding it showed the grid as freer than the server will actually allow.
 
 **Edge cases:**
 - Resource enabled, quantity 0 → no line (unchanged; the Switch always sets ≥ 1).
@@ -305,7 +309,7 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 | `components/` | `components/PricingSummary.jsx` | T | Rule 5: « à planifier » / « 1 h sur 3 planifiées » chip on a resource line. |
 | `pages/` | `pages/ReservationPage.jsx` | T | Rule 9: effect re-running `loadResourcesAvailability` when both dates are set. |
 | `pages/` | `pages/ResourcesPage.jsx` | T | Rule 11: « Montée en chauffe (min) » + « Reste chaude (min) » fields for `per_hour` resources, wired through `resourceToPayload`. |
-| `pages/` | `pages/ResourcePlanningPage.jsx` | T | Rule 29: drop the client-side merge, consume the unified occupancy. |
+| `pages/` | `pages/ResourcePlanningPage.jsx` | T | Rules 29 / 29.bis: drop the client-side merge and the second fetch, read `kind` for the read-only + colour branches, draw the turnover band after a session too. |
 | `api.js` | `api.js` | T | `getResourceFreeSlots`; `commitArrivalSas` carries `resourceBlocks`. |
 
 **Component reuse declaration (mandatory):**
@@ -481,8 +485,12 @@ new file, next to the assertions they replace (three of which pinned the old, bu
 - [x] a standalone booking blocks a guest session placement
 - [x] turnover respected on both sides of the union
 - [x] capacity > 1 lets the second one through, refuses the third
+- [x] a session carried by a **devis** reserves nothing — a quote holds no slot
 - [x] the unified list tags each item `kind: 'booking' | 'session'` and carries no client identity when
       requested for the SAS
+- [x] `listForResource` (the planning list) merges both, ordered, scoped to the week, and **does** name
+      the client (rule 29)
+- [x] malformed session JSON is ignored, never thrown
 
 **`tests/sas-resource-scheduling.unit.test.js`** (rules 17-19, 23-27)
 - [x] page `applicable: false` with no hourly resource, or with everything already placed
@@ -548,6 +556,9 @@ afterwards** (reservation dates, sold hours, sessions, thermal columns, and the 
       decrements the counter, removing it gives the hour back. **Horizontal overflow measured at 0 px.**
 - [x] The occupancy strip shows the neighbour (13:00–14:00) and **not** the operator's own placement.
 - [x] Departure day fully « fermé » (check-out 10:00 precedes the 11:00 opening).
+- [x] Resource planning after the merge moved server-side: the guest session renders with
+      « Réservation · 20:00→21:00 · Delphine Barge · Aventura lodge · remise en état 15 min », no
+      console error, and the second fetch is gone.
 
 Covered by automated tests but **not exercised by hand** — worth a pass on the first real check-in:
 
