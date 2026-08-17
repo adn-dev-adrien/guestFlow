@@ -3,6 +3,7 @@
 
 const db = require('../database');
 const optionsModel = require('./optionsModel');
+const resourcesModel = require('./resourcesModel');
 const { sentenceCase } = require('../utils/textFormatters');
 const { groupOptionsByCategory } = require('../utils/optionGrouping');
 const { isClientVisibleOption } = require('../utils/optionVisibility');
@@ -380,6 +381,17 @@ function createPropertiesModel(database) {
         WHERE propertyId = ?
         ORDER BY name COLLATE NOCASE, id DESC
       `).all(id);
+
+      // The resources this property can sell, priced for it. The reservation fiche has always read
+      // `propDetails.resources` to fill its « Ressources » block, but this payload never carried the
+      // key — so on a blank « Nouveau devis » the block simply never appeared, and only re-picking the
+      // Logement (which hits the availability endpoint) revealed it
+      // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 2 / §3.2 rule 8).
+      // Availability (« déjà réservée », remaining quantity) still comes from the dedicated endpoint
+      // once both stay dates are known; this is the catalogue, not the occupancy.
+      try {
+        property.resources = resourcesModel.create(database).list(Number(id));
+      } catch (_) { property.resources = []; } // resources tables absent in minimal test schemas
       return property;
     },
 

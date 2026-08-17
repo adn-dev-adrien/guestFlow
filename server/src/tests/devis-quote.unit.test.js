@@ -71,7 +71,24 @@ test('recomputeDevisQuote: passes the devis options + resources to the engine (s
   const devisModel = { findById: () => ({ propertyId: 1, startDate: '2026-09-15', endDate: '2026-09-18', adults: 2, options: [{ optionId: 7, quantity: 2 }], resources: [{ resourceId: 3, quantity: 1 }] }) };
   recomputeDevisQuote({ database: {}, devisModel, calc }, 1);
   assert.deepEqual(input.selectedOptions, [{ optionId: 7, quantity: 2, unitPrice: undefined }]);
-  assert.deepEqual(input.selectedResources, [{ resourceId: 3, quantity: 1, unitPrice: undefined, offered: false }]);
+  assert.deepEqual(input.selectedResources, [{ resourceId: 3, quantity: 1, unitPrice: undefined, offered: false, sessions: [] }]);
+});
+
+test('recomputeDevisQuote: carries the scheduled sessions of an hourly resource', () => {
+  // Regression guard: this path rebuilt `selectedResources` WITHOUT `sessions`, so an hourly resource
+  // was re-priced from its quantity alone and the recompute diverged from the stored devis
+  // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 3).
+  let input = null;
+  const calc = (i) => { input = i; return {}; };
+  const sessions = [{ date: '2026-09-16', start: '20:00', end: '22:00' }];
+  const devisModel = {
+    findById: () => ({
+      propertyId: 1, startDate: '2026-09-15', endDate: '2026-09-18', adults: 2, options: [],
+      resources: [{ resourceId: 3, quantity: 2, sessions }],
+    }),
+  };
+  recomputeDevisQuote({ database: {}, devisModel, calc }, 1);
+  assert.deepEqual(input.selectedResources[0].sessions, sessions);
 });
 
 // ---------- Part B: real pricing engine — options / resources / tourist tax ----------

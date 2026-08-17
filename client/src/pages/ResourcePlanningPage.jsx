@@ -59,10 +59,11 @@ export default function ResourcePlanningPage() {
   const [resources, setResources] = useState([]);
   const [selectedResourceId, setSelectedResourceId] = useState(null);
   const [monday, setMonday] = useState(() => getMondayOf(todayStr()));
+  // Standalone bookings AND the sessions placed on reservations, already merged and tagged `kind` by
+  // the server (specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 rule 29). This page used to
+  // fetch the two separately and merge them here — a second definition of « occupied », which the
+  // conflict check on the write side did not share.
   const [bookings, setBookings] = useState([]);
-  // Reservation-attached hourly sessions (specs/resource-hourly-scheduling.md §3.4) — shown read-only
-  // alongside the standalone bookings, reusing the existing planning-resource-cards endpoint.
-  const [reservationSessions, setReservationSessions] = useState([]);
   const [loadError, setLoadError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
@@ -94,30 +95,6 @@ export default function ResourcePlanningPage() {
     api.getResourceBookings({ resourceId: selectedResourceId, weekStart: monday })
       .then(setBookings)
       .catch(() => { setBookings([]); setLoadError(true); });
-    // Reservation sessions for this resource in the visible week (read-only). Reuses the planning
-    // cards endpoint and filters to the selected resource.
-    api.getPlanningResourceCards({ from: monday, to: addDays(monday, 6) })
-      .then((summary) => {
-        const byDate = summary?.resourceCardsByDate || {};
-        const out = [];
-        for (const date of Object.keys(byDate)) {
-          for (const it of (byDate[date].items || [])) {
-            if (Number(it.resourceId) !== Number(selectedResourceId)) continue;
-            out.push({
-              id: `res-${it.reservationId}-${it.date}-${it.start}`,
-              reservationId: it.reservationId,
-              date: it.date,
-              startTime: it.start,
-              endTime: it.end,
-              displayName: it.clientName,
-              propertyName: it.propertyName,
-              isReservationSession: true,
-            });
-          }
-        }
-        setReservationSessions(out);
-      })
-      .catch(() => { setReservationSessions([]); setLoadError(true); });
   }, [selectedResourceId, monday]);
 
   useEffect(() => { loadBookings(); }, [loadBookings]);
@@ -162,7 +139,7 @@ export default function ResourcePlanningPage() {
   }, [openMin, closeMin]);
 
   function getBookingsForDate(date) {
-    return [...bookings.filter((b) => b.date === date), ...reservationSessions.filter((s) => s.date === date)];
+    return bookings.filter((b) => b.date === date);
   }
 
   function getBookingStyle(b) {
@@ -189,7 +166,7 @@ export default function ResourcePlanningPage() {
   function handleBookingClick(e, booking) {
     e.stopPropagation();
     // A reservation session is read-only here → open the reservation fiche instead of the booking editor.
-    if (booking.isReservationSession) {
+    if (booking.kind === 'session') {
       navigate(withFrom(`/reservations/${booking.reservationId}`, '/resource-planning'));
       return;
     }
@@ -469,7 +446,7 @@ export default function ResourcePlanningPage() {
                         return (
                           <Tooltip
                             key={b.id}
-                            title={`${b.isReservationSession ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
+                            title={`${b.kind === 'session' ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
                             arrow
                           >
                             <Box>
@@ -481,7 +458,7 @@ export default function ResourcePlanningPage() {
                                   right: 2,
                                   top,
                                   height,
-                                  bgcolor: (t) => (b.isReservationSession ? t.palette.secondary.dark : (b.paid ? t.palette.success.main : t.palette.info.main)),
+                                  bgcolor: (t) => (b.kind === 'session' ? t.palette.secondary.dark : (b.paid ? t.palette.success.main : t.palette.info.main)),
                                   color: 'common.white',
                                   borderRadius: 0.75,
                                   px: 0.5,
@@ -516,7 +493,11 @@ export default function ResourcePlanningPage() {
                                   </Typography>
                                 )}
                               </Box>
-                              {!b.isReservationSession && turnoverHeight > 0 && (
+                              {/* Drawn for a guest session too since the conflict check applies the
+                                  reset on both kinds alike — hiding it here would show the grid as
+                                  freer than the server will actually let it be
+                                  (specs/hourly-resource-quantity-and-sas-scheduling.md §3.5). */}
+                              {turnoverHeight > 0 && (
                                 <Typography
                                   component="div"
                                   sx={{

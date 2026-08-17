@@ -11,6 +11,7 @@ const linenItemsModel = require('../models/linenItemsModel');
 const settingsModel = require('../models/settingsModel');
 const breakfastModel = require('../models/breakfastModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
+const resourceSchedulingModel = require('../models/resourceSchedulingModel');
 const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
 const { isReceptionOnly } = require('../constants/roles');
 const { sasLockReason } = require('../utils/sasEditWindow');
@@ -115,6 +116,12 @@ function getSas(req, res) {
     // Breakfast page state (arrival SAS): applicable? + resolved person count + effective hour +
     // stored counts/note. `reservation.departureHandoverNote` rides along via `r.*`.
     breakfast: breakfastModel.getForReservation(reservation.id),
+    // « Planifier les ressources » step (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4):
+    // the hours still owed per hourly resource + every slot of the stay, already classified
+    // free/taken/heating/past/closed. Arrival only — nothing is scheduled at check-out.
+    resourceScheduling: isDeparture
+      ? { applicable: false, resources: [] }
+      : resourceSchedulingModel.getSchedulingPayload(reservation),
   });
 }
 
@@ -129,14 +136,34 @@ function commitArrival(req, res) {
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
-    cleaningAdded, bathLinenAdded,
+    cleaningAdded, bathLinenAdded, resourceBlocks,
   } = req.body || {};
+
+  // Hours placed on the resource picker. The picker only ever offers bookable slots, but its payload
+  // can be stale by the time it commits — so everything is re-checked here (opening window, capacity,
+  // turnover, thermal readiness, the sold-hours budget) and a conflict aborts the WHOLE commit rather
+  // than double-booking (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 27).
+  let eveningSupplements = [];
+  const blocks = Array.isArray(resourceBlocks) ? resourceBlocks : undefined;
+  if (blocks) {
+    const verdict = resourceSchedulingModel.validateBlocks({ reservation, blocks });
+    if (!verdict.ok) {
+      return res.status(409).json({ error: 'SLOT_CONFLICT', block: verdict.block, reason: verdict.reason });
+    }
+    eveningSupplements = verdict.supplements;
+  }
+
   const beforeSas = snapshotSas(Number(req.params.id));
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
-    complementItems: Array.isArray(complementItems) ? complementItems : [],
+    // The evening supplement rides in as an ordinary SAS complement line, so it inherits the
+    // replace-and-delta machinery for free: a re-committed SAS recomputes it instead of stacking it.
+    complementItems: [
+      ...(Array.isArray(complementItems) ? complementItems : []),
+      ...eveningSupplements.map((s) => ({ label: s.label, amount: s.amount })),
+    ],
     breakfastTime,
     breakfastCoffee,
     breakfastTea,
@@ -155,9 +182,14 @@ function commitArrival(req, res) {
     // catalogue option and its price. Tri-state: undefined = step not shown → leave the option alone.
     cleaningAdded: cleaningAdded === undefined ? undefined : Boolean(cleaningAdded),
     bathLinenAdded: bathLinenAdded === undefined ? undefined : Boolean(bathLinenAdded),
+    resourceBlocks: blocks,
   });
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
-  return res.json({ ok: true, complementAmount });
+  return res.json({
+    ok: true,
+    complementAmount,
+    eveningSupplement: Math.round(eveningSupplements.reduce((s, x) => s + x.amount, 0) * 100) / 100,
+  });
 }
 
 function commitDeparture(req, res) {

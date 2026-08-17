@@ -8,6 +8,7 @@
 
 const db = require('../database');
 const { priceSessions } = require('../utils/resourceHourlyPricing');
+const resourceOccupancyModel = require('./resourceOccupancyModel');
 
 const JOIN_QUERY = `
   SELECT rb.*,
@@ -46,6 +47,9 @@ function enrichBooking(b) {
 }
 
 function createModel(database) {
+  // Bound to the same database handle so the test factory and production agree on what « occupied » is.
+  const occupancyModel = resourceOccupancyModel.create(database);
+
   function computeBookingTotalPrice({ resource, startTime, endTime, propertyId, reservationId }) {
     const durationMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
     const pid = Number(propertyId || 0);
@@ -88,19 +92,14 @@ function createModel(database) {
       : (resource.isComplex ? Number(resource.slotDuration || 0) : 0);
   }
 
-  // Count overlapping bookings (including turnover buffer) on a date, optionally excluding one booking.
+  // Count everything overlapping (turnover buffer included) on a date, optionally excluding one
+  // booking. Delegates to `resourceOccupancyModel` so guest sessions count too: this predicate used to
+  // read `resource_bookings` alone, which let a standalone booking be created straight on top of a
+  // reservation's session (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 4).
   function countConflicts(resourceId, date, startTime, endTime, turnover, excludeId) {
-    let sql = `
-      SELECT COUNT(*) as cnt
-      FROM resource_bookings rb
-      WHERE rb.resourceId = ?
-        AND rb.date = ?
-        AND rb.startTime < strftime('%H:%M', ?, '+' || ? || ' minutes')
-        AND strftime('%H:%M', rb.endTime, '+' || ? || ' minutes') > ?
-    `;
-    const params = [resourceId, date, endTime, turnover, turnover, startTime];
-    if (excludeId) { sql += ' AND rb.id != ?'; params.push(excludeId); }
-    return database.prepare(sql).get(...params).cnt;
+    return occupancyModel.countConflicts({
+      resourceId, date, startTime, endTime, turnover, excludeBookingId: excludeId,
+    });
   }
 
   function getResourceForBooking(resourceId) {
@@ -131,14 +130,72 @@ function createModel(database) {
     }));
   }
 
+  /**
+   * Everything occupying the resource over the window — standalone bookings AND the sessions placed
+   * on reservations — each tagged `kind`. The planning page used to fetch the two separately and merge
+   * them in React (a fat-backend violation, and a second definition of « occupied » that could drift
+   * from the one the writer enforces). Reservation sessions come back read-only: they belong to a
+   * booking, and are edited from its fiche or from the arrival SAS.
+   * See specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 rule 29.
+   */
   function listForResource({ resourceId, date, weekStart }) {
-    if (weekStart) {
-      const endDate = addDays(weekStart, 7);
-      return database.prepare(`${JOIN_QUERY} WHERE rb.resourceId = ? AND rb.date >= ? AND rb.date < ? ORDER BY rb.date, rb.startTime`)
-        .all(resourceId, weekStart, endDate).map(enrichBooking);
+    const from = weekStart || date;
+    const to = weekStart ? addDays(weekStart, 6) : date;
+    const bookings = (weekStart
+      ? database.prepare(`${JOIN_QUERY} WHERE rb.resourceId = ? AND rb.date >= ? AND rb.date < ? ORDER BY rb.date, rb.startTime`)
+        .all(resourceId, weekStart, addDays(weekStart, 7))
+      : database.prepare(`${JOIN_QUERY} WHERE rb.resourceId = ? AND rb.date = ? ORDER BY rb.startTime`)
+        .all(resourceId, date)
+    ).map((b) => ({ ...enrichBooking(b), kind: 'booking' }));
+
+    return [...bookings, ...listReservationSessions({ resourceId, from, to })]
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime).localeCompare(String(b.startTime)));
+  }
+
+  /**
+   * The guest sessions of the window, shaped like a booking row so the planning can render one list.
+   * Unlike `resourceOccupancyModel` (which feeds conflict checks and the guest-facing SAS picker, and
+   * deliberately carries no identity), this is the OPERATOR's planning: it names the client, exactly
+   * as the standalone bookings beside it do.
+   */
+  function listReservationSessions({ resourceId, from, to }) {
+    let rows;
+    try {
+      rows = database.prepare(`
+        SELECT rr.reservationId, rr.sessions,
+               r.name AS resourceName, r.turnoverMinutes,
+               COALESCE(c.firstName, '') AS firstName, COALESCE(c.lastName, '') AS lastName,
+               COALESCE(p.name, '') AS propertyName
+        FROM reservation_resources rr
+        JOIN resources r ON r.id = rr.resourceId
+        JOIN reservations res ON res.id = rr.reservationId
+        LEFT JOIN clients c ON c.id = res.clientId
+        LEFT JOIN properties p ON p.id = res.propertyId
+        WHERE rr.resourceId = ? AND res.kind = 'reservation'
+          AND rr.sessions IS NOT NULL AND TRIM(rr.sessions) != ''
+      `).all(resourceId);
+    } catch { return []; } // `sessions` column absent in minimal test schemas
+    const out = [];
+    for (const row of rows) {
+      for (const session of occupancyModel.parseSessions(row.sessions)) {
+        if (session.date < from || session.date > to) continue;
+        out.push({
+          id: `session-${row.reservationId}-${session.date}-${session.start}`,
+          kind: 'session',
+          reservationId: Number(row.reservationId),
+          resourceId: Number(resourceId),
+          resourceName: row.resourceName,
+          date: session.date,
+          startTime: session.start,
+          endTime: session.end,
+          turnoverMinutes: Number(row.turnoverMinutes || 0),
+          propertyName: row.propertyName,
+          displayName: [row.firstName, row.lastName].filter(Boolean).join(' ') || 'Client',
+          paid: false,
+        });
+      }
     }
-    return database.prepare(`${JOIN_QUERY} WHERE rb.resourceId = ? AND rb.date = ? ORDER BY rb.startTime`)
-      .all(resourceId, date).map(enrichBooking);
+    return out;
   }
 
   function findById(id) {
@@ -228,6 +285,7 @@ function createModel(database) {
     listPlanningEvents,
     getOccupiedSlots,
     listForResource,
+    listReservationSessions,
     findById,
     createBooking,
     update,

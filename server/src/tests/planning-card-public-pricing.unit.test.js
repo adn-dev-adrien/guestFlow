@@ -90,8 +90,10 @@ test('admin flow (flag off): a planning-card option WITH occurrences prices by o
 });
 
 // ---- Hourly-scheduled RESOURCES in the public flow (specs/wp-booking-widget-redesign.md §3.10) ----
-// The site sells N hours as a bare quantity; the host schedules the sessions later. Without the
-// flag (admin/fiche), sessions stay the only pricing source (specs/resource-hourly-scheduling.md).
+// The site sells N hours as a bare quantity; the host schedules the sessions later.
+// Since specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rules 1-3 the ADMIN fiche behaves
+// the same way — selling by the hour is the default everywhere and `planningCardAsQuantity` no longer
+// gates the resource branch. Sessions, when present and valid, still win.
 
 function seedHourlyResource(db) {
   db.prepare("INSERT INTO resources (id, name, quantity, price, priceType, showsPlanningCard, propertyIds, hourlyEveningStart, hourlyEveningRate) VALUES (3, 'Bain nordique', 1, 30, 'per_hour', 1, '[1]', '20:00', 50)").run();
@@ -119,10 +121,27 @@ test('public flow: sessions still win over the bare quantity when provided', () 
   });
   const line = q.resourceLines.find((l) => l.resourceId === 3);
   assert.equal(line.totalPrice, 100); // 2 h × 50 € evening grid — not 5 × 30
-  assert.equal(line.quantity, 1);    // 1 valid session
+  assert.equal(line.quantity, 2);     // HOURS scheduled, not the session count (§3.1 rule 7)
 });
 
-test('admin flow (flag off): an hourly-scheduled resource with NO sessions is still dropped (unchanged)', () => {
+test('admin flow (flag off): an hourly-scheduled resource with NO sessions is billed by quantity', () => {
+  // Regression guard for the reported bug: enabling the Bain nordique on a devis used to return NO
+  // line at all, so the resource vanished from the summary and from the total
+  // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
   const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 2 }] });
-  assert.equal(q.resourceLines.find((l) => l.resourceId === 3), undefined, 'admin still needs scheduled sessions');
+  const line = q.resourceLines.find((l) => l.resourceId === 3);
+  assert.ok(line, 'an enabled hourly resource must never be dropped from the quote');
+  assert.equal(line.quantity, 2);
+  assert.equal(line.totalPrice, 60); // 2 h × 30 € day rate — scheduled later, in the arrival SAS
+  assert.equal(q.resourcesTotal, 60);
+});
+
+test('the resource line no longer depends on planningCardAsQuantity', () => {
+  const args = { selectedResources: [{ resourceId: 3, quantity: 2 }] };
+  const withFlag = quote(seedHourlyResource(seedDb()), { ...args, planningCardAsQuantity: true });
+  const withoutFlag = quote(seedHourlyResource(seedDb()), args);
+  assert.deepEqual(
+    withFlag.resourceLines.find((l) => l.resourceId === 3),
+    withoutFlag.resourceLines.find((l) => l.resourceId === 3),
+  );
 });

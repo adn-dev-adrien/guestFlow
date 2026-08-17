@@ -93,9 +93,46 @@ async function createIcalSource({
   });
 }
 
+/**
+ * An hourly-SCHEDULED resource (`showsPlanningCard` + `per_hour`) — the « Bain nordique » shape.
+ * Sold by the hour on the fiche, placed on real slots during the arrival SAS
+ * (specs/hourly-resource-quantity-and-sas-scheduling.md).
+ */
+async function createHourlyResource({
+  name = 'Bain nordique E2E',
+  propertyIds = [],
+  price = 30,
+  quantity = 1,
+  slotDuration = 60,
+  minimumUsageMinutes = 60,
+  openTime = '11:00',
+  closeTime = '22:00',
+  turnoverMinutes = 15,
+  hourlyEveningStart = '20:00',
+  hourlyEveningRate = 50,
+  heatUpMinutes = 0,
+  heatRetentionMinutes = 0,
+} = {}) {
+  return withRequest(async (ctx) => {
+    const res = await ctx.post('/api/resources', {
+      data: {
+        name, propertyIds, price, quantity, priceType: 'per_hour', isComplex: true,
+        showsPlanningCard: true, slotDuration, minimumUsageMinutes, openTime, closeTime,
+        openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes,
+        hourlyEveningStart, hourlyEveningRate, heatUpMinutes, heatRetentionMinutes,
+      },
+    });
+    if (!res.ok()) throw new Error(`createHourlyResource failed: ${res.status()} ${await res.text()}`);
+    // `POST /api/resources` answers `{ id }` only — merge the payload back so callers can locate the
+    // card by name without a second round-trip (and without silently filtering on `undefined`).
+    return { ...(await res.json()), name, price, quantity };
+  });
+}
+
 module.exports = {
   createClient,
   createProperty,
   createReservation,
   createIcalSource,
+  createHourlyResource,
 };

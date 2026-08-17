@@ -141,6 +141,13 @@ const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/resources/baby-bed-availability${qs ? `?${qs}` : ''}`);
   },
+  // Arrival-SAS slot picker (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4). `pending` =
+  // the blocks placed earlier in this SAS run: not saved yet, but they occupy their slot and keep the
+  // resource warm for the next one, so the server must see them to classify correctly.
+  getResourceFreeSlots: ({ resourceId, reservationId, pending = [] }) => {
+    const qs = new URLSearchParams({ reservationId, pending: JSON.stringify(pending) }).toString();
+    return request(`/resources/${encodeURIComponent(resourceId)}/free-slots?${qs}`);
+  },
   createResource: (data) => request('/resources', { method: 'POST', body: data }),
   updateResource: (id, data) => request(`/resources/${id}`, { method: 'PUT', body: data }),
   getResourceDeleteImpact: (id) => request(`/resources/${id}/delete-impact`),
