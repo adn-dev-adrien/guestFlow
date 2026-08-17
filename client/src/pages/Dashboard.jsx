@@ -416,22 +416,11 @@ export default function Dashboard() {
           </Grid>
           )}
 
-          {/* Daily arrivals / departures */}
+          {/* Daily departures / arrivals — DEPARTURES FIRST (issue #427,
+              specs/reception-role-checkin-only.md §6): the day runs in that order, the departures are
+              handled in the morning and the arrivals in the afternoon, so the first list is the one
+              the operator needs first. */}
           <Stack spacing={3} sx={{ mb: 3 }}>
-            <Box>
-              <Typography variant="sectionHeader" gutterBottom>Arrivées — {displayDate(selectedDate)}</Typography>
-              <ResponsiveTable
-                items={arrivalsToday}
-                getKey={(r) => r.id}
-                minWidth={1080}
-                emptyText="Aucune arrivée ce jour."
-                head={arrivalsHead}
-                renderRow={renderArrivalRow}
-                renderMobileCard={renderArrivalCard}
-                onItemClick={openArrival}
-              />
-            </Box>
-
             <Box>
               <Typography variant="sectionHeader" gutterBottom>Départs — {displayDate(selectedDate)}</Typography>
               <ResponsiveTable
@@ -443,6 +432,20 @@ export default function Dashboard() {
                 renderRow={renderDepartureRow}
                 renderMobileCard={renderDepartureCard}
                 onItemClick={openDeparture}
+              />
+            </Box>
+
+            <Box>
+              <Typography variant="sectionHeader" gutterBottom>Arrivées — {displayDate(selectedDate)}</Typography>
+              <ResponsiveTable
+                items={arrivalsToday}
+                getKey={(r) => r.id}
+                minWidth={1080}
+                emptyText="Aucune arrivée ce jour."
+                head={arrivalsHead}
+                renderRow={renderArrivalRow}
+                renderMobileCard={renderArrivalCard}
+                onItemClick={openArrival}
               />
             </Box>
           </Stack>

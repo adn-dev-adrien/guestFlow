@@ -49,6 +49,17 @@ function snapshotSas(reservationId) {
   });
 }
 
+// specs/sas-offer-complement-lines.md §4.3 — the offered set sent by a recap, sanitised at the
+// boundary: `[{ kind, id }]` limited to the three addressable row kinds. `undefined` (the recap had no
+// offerable line, or an older client) means « leave every offered flag as it is ».
+const OFFERABLE_KINDS = new Set(['option', 'resource', 'custom']);
+function normaliseOfferedRefs(refs) {
+  if (!Array.isArray(refs)) return undefined;
+  return refs
+    .filter((x) => x && OFFERABLE_KINDS.has(String(x.kind)) && Number.isFinite(Number(x.id)))
+    .map((x) => ({ kind: String(x.kind), id: Number(x.id) }));
+}
+
 function recordSasHistory(reservationId, eventType, before) {
   try {
     const changes = computeSasChanges(before, snapshotSas(reservationId));
@@ -114,7 +125,9 @@ function getSas(req, res) {
     linenItems: linenItemsModel.list(),
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
     // itemised detail) so the departure SAS can recall it when it was never settled.
-    arrivalComplement: reservationsModel.buildArrivalComplementDetail(reservation.id),
+    // `includeOffered` is the SAS flavour (specs/sas-offer-complement-lines.md §4.3): the already-offered
+    // lines ride along at 0 € with their real price, so the recap can show the gesture and undo it.
+    arrivalComplement: reservationsModel.buildArrivalComplementDetail(reservation.id, { includeOffered: true }),
     // « Tarifs facturables » — repair prices (incl. the keyed extinguisher seal) for the SAS check.
     repairAmounts: repairAmountsModel.list(),
     // Breakfast page state (arrival SAS): applicable? + resolved person count + effective hour +
@@ -152,6 +165,7 @@ function commitArrival(req, res) {
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
     cleaningAdded, bathLinenAdded, resourceBlocks, soldOptions,
+    offeredExtras, cleaningOffered, bathLinenOffered,
   } = req.body || {};
 
   // Hours placed on the resource picker. The picker only ever offers bookable slots, but its payload
@@ -175,8 +189,11 @@ function commitArrival(req, res) {
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
     // The evening supplement rides in as an ordinary SAS complement line, so it inherits the
     // replace-and-delta machinery for free: a re-committed SAS recomputes it instead of stacking it.
+    // specs/sas-offer-complement-lines.md §3.2 — each item carries its own `offered` flag (a linen
+    // element noted but not billed). The evening supplement is never offered: it is machine-computed.
     complementItems: [
-      ...(Array.isArray(complementItems) ? complementItems : []),
+      ...(Array.isArray(complementItems) ? complementItems : [])
+        .map((i) => ({ label: i && i.label, amount: i && i.amount, offered: Boolean(i && i.offered) })),
       ...eveningSupplements.map((s) => ({ label: s.label, amount: s.amount })),
     ],
     breakfastTime,
@@ -200,6 +217,10 @@ function commitArrival(req, res) {
     // specs/sas-breakfast-and-catering-upsell.md §3.3 — intent only; the model resolves the option,
     // its per-property price and the engine arithmetic. `undefined` = the sale steps never ran.
     soldOptions: Array.isArray(soldOptions) ? soldOptions : undefined,
+    // specs/sas-offer-complement-lines.md §3.2 rule 8 — the upsell stays activated, billed 0 €.
+    cleaningOffered: Boolean(cleaningOffered),
+    bathLinenOffered: Boolean(bathLinenOffered),
+    offeredExtras: normaliseOfferedRefs(offeredExtras),
     resourceBlocks: blocks,
   });
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
@@ -215,7 +236,10 @@ function commitDeparture(req, res) {
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
-  const { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, complementsSettled, complementsPaidCash } = req.body || {};
+  const {
+    cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges,
+    complementsSettled, complementsPaidCash, offeredArrivalExtras,
+  } = req.body || {};
   const beforeSas = snapshotSas(Number(req.params.id));
   reservationsModel.commitDepartureSas(Number(req.params.id), {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
@@ -229,6 +253,8 @@ function commitDeparture(req, res) {
     // positive complement (end-of-stay + recalled arrival) at the checkout moment.
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
     complementsPaidCash: Boolean(complementsPaidCash),
+    // specs/sas-offer-complement-lines.md §3.2 rule 6 — gestes commerciaux on the RECALLED arrival lines.
+    offeredArrivalExtras: normaliseOfferedRefs(offeredArrivalExtras),
   });
   recordSasHistory(Number(req.params.id), 'sas_departure', beforeSas);
   return res.json({ ok: true });

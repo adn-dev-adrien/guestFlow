@@ -1353,6 +1353,28 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- ZERO THE TOTAL OF OFFERED RESOURCE LINES ----------
+// specs/devis-offered-resource-parity.md §3 rule 5. `insertResourceLine` used to re-bill an offered
+// resource at its catalogue price (`rr.totalPrice || unitPrice * qty` swallowed the engine's
+// legitimate 0), so every offered resource line was persisted WITH its price: the devis PDF printed it
+// unmarked and deducted it from the accommodation row. From this boot onwards the model stores 0; the
+// rows already written are repaired here. Idempotent via
+// `migrations.offered_resource_totals_zeroed_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'offered_resource_totals_zeroed_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runOfferedResourceTotalRepair } = require('./utils/offeredResourceTotalRepair');
+    const tx = db.transaction(() => {
+      const { repairedCount } = runOfferedResourceTotalRepair(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:offered-resource-totals-zeroed] repaired ${repairedCount} offered resource line(s)`);
+    });
+    tx();
+  }
+}
+
 // ---------- NORMALISE EMPTY PLATFORM TO 'direct' ----------
 // specs/bed-config-in-linen-card.md §10 hotfix follow-up #4. Data invariant: the
 // `reservations.platform` column never holds NULL or empty/whitespace. Legacy rows that

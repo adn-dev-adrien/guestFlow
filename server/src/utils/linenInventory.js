@@ -390,9 +390,22 @@ function simulateInventory({
     // drop step (3) washes it and it returns clean on pick-up (+7d). On a SKIPPED trip the drop is
     // skipped, so it stays dirty and defers to the next non-skipped trip — same carry-forward as
     // reservation linen. Conservation holds: what leaves clean returns on pick-up.
+    // A NEGATIVE manual value is the mirror move (specs/laundry-manual-removals.md §3 rules 4-5): the
+    // operator washed that linen himself, so it goes dirty → clean on the trip date, never joins the
+    // at-laundry batch and never comes back on the +7 j pick-up. Capped at the dirty pile of its type:
+    // linen still in a guest's room — or already clean — cannot be « washed at home », and inventing it
+    // here would break the conservation invariant.
     if (isLaundryDay) {
       const manual = manualAdditionsByDate.get(cursor);
-      if (manual) { addInto(dirty, manual); subtractInto(clean, manual); }
+      if (manual) {
+        const applied = zeroByType();
+        for (const t of ALL_TYPES) {
+          const wanted = Number(manual[t] || 0);
+          applied[t] = wanted < 0 ? -Math.max(0, Math.min(dirty[t], -wanted)) : wanted;
+        }
+        addInto(dirty, applied);
+        subtractInto(clean, applied);
+      }
     }
 
     // 3) Laundry-day drop: dirty → atLaundry, dirty resets to 0. Skipped trips don't drop.

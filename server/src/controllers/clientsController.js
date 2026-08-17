@@ -22,6 +22,13 @@ function createController(model) {
     return res.json(model.list(req.query.q));
   }
 
+  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page's read. Unknown values fall back
+  // to the defaults rather than 400: a stale bookmark must still show a list.
+  function directory(req, res) {
+    const { q, bucket, sort, dir } = req.query || {};
+    return res.json(model.directory({ q, bucket, sort, dir }));
+  }
+
   function getOne(req, res) {
     const client = model.findById(req.params.id);
     if (!client) return res.status(404).json({ error: 'Client non trouvé' });
@@ -102,7 +109,7 @@ function createController(model) {
   }
 
   return {
-    list, getOne, getDeleteImpact, create, update, remove, parseContact,
+    list, directory, getOne, getDeleteImpact, create, update, remove, parseContact,
     cleanupOrphans, cleanupOrphansPreview, cleanupOrphansDelete,
   };
 }
