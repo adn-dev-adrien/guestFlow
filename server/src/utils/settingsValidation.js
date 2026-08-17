@@ -9,6 +9,13 @@
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TVA_REGEX = /^[A-Z]{2}\d+$/;
 const BIC_REGEX = /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
+// An RFC 5322 header value is one unfolded line: a C0 control character or DEL smuggled into a
+// display name or an address closes the header and opens whatever follows it (`Bcc:`,
+// `Content-Type:`…). nodemailer ≥ 9.0.5 scrubs these itself, but the settings boundary is where
+// such a value should be REFUSED rather than silently rewritten — and refusing here keeps the
+// guarantee if the mail library ever loosens up again. Non-ASCII (C1 and above) is safe: it goes
+// out RFC 2047-encoded, never raw.
+const HEADER_CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F]/;
 
 function trimOrEmpty(value) {
   return String(value == null ? '' : value).trim();
@@ -18,9 +25,26 @@ function stripWhitespace(value) {
   return String(value == null ? '' : value).replace(/\s+/g, '');
 }
 
+// Surrounding whitespace is trimmed first — a value pasted from a mail client often carries a
+// trailing newline, and the controller stores the trimmed string (see TRIMMED_TEXT_COLUMNS), so
+// only an INTERIOR control character is a genuine injection attempt.
+function validateHeaderSafeText(value) {
+  const v = trimOrEmpty(value);
+  if (v === '') return null;
+  if (HEADER_CONTROL_CHARS_REGEX.test(v)) {
+    return 'Caractère interdit (retour à la ligne ou caractère de contrôle).';
+  }
+  return null;
+}
+
 function validateEmail(value) {
   const v = trimOrEmpty(value);
   if (v === '') return null;
+  // Runs before the pattern check so a control character gets its own actionable message instead
+  // of a generic « Email invalide. » — `\s` in EMAIL_REGEX already rejects CR/LF, but NUL and DEL
+  // slip through it.
+  const headerError = validateHeaderSafeText(v);
+  if (headerError) return headerError;
   if (!EMAIL_REGEX.test(v)) return 'Email invalide.';
   return null;
 }
@@ -143,6 +167,7 @@ function validateLinenStockCount(value) {
 
 module.exports = {
   validateEmail,
+  validateHeaderSafeText,
   validateSiret,
   validateTvaIntracom,
   validateIban,

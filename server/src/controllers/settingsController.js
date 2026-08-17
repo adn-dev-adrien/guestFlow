@@ -65,7 +65,7 @@ const SMTP_FIELDS = [
   { input: 'secure', column: 'smtpSecure' },
   { input: 'username', column: 'smtpUsername' },
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
-  { input: 'fromName', column: 'smtpFromName' },
+  { input: 'fromName', column: 'smtpFromName', validator: validation.validateHeaderSafeText },
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
 ];
 
@@ -119,6 +119,14 @@ const INTEGER_COUNT_COLUMNS = new Set([
   'towelStockLarge', 'towelStockMedium', 'towelStockSmall', 'towelStockBathMat',
 ]);
 
+// Columns whose value ends up VERBATIM inside an email header — `From: "<name>" <address>` and
+// `To: <address>` (specs/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
+// rejects an interior control character above; the trim here removes the surrounding whitespace it
+// deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
+const TRIMMED_TEXT_COLUMNS = new Set([
+  'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
+]);
+
 function pickGroup(body, group) {
   const value = body && body[group];
   return value && typeof value === 'object' ? value : null;
@@ -165,6 +173,8 @@ function updateSettings(req, res) {
           // above, but the coercion here keeps the DB row clean if the validator path is
           // bypassed in a future refactor).
           payload[column] = Math.max(0, Math.floor(Number(value) || 0));
+        } else if (TRIMMED_TEXT_COLUMNS.has(column)) {
+          payload[column] = String(value == null ? '' : value).trim();
         } else {
           payload[column] = value;
         }

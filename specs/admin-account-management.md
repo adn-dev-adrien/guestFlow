@@ -248,6 +248,22 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
     - **`smtpFromName`** TEXT DEFAULT `'GuestFlow'`
     - **`publicUrl`** TEXT DEFAULT `''` (the public origin Adrien wants users to reach, e.g.
       `https://guestflow.adn-dev.fr`; injected into the welcome email).
+16b. **(2026-08-17) Header-injection guard.** Three settings end up *verbatim* inside an email
+    header — `smtpFromName` and `smtpFromEmail` build `From: "<name>" <address>`,
+    `notificationRecipientEmail` builds `To: <address>`. A C0 control character or DEL in any of
+    them closes the header line and lets the rest be parsed as a new header (`Bcc:`,
+    `Content-Type:`…). The server therefore:
+    - **rejects** a value carrying an *interior* control character, with
+      `400 SETTINGS_INVALID` and the French message *"Caractère interdit (retour à la ligne ou
+      caractère de contrôle)."* under the offending column's error key;
+    - **trims** the surrounding whitespace it deliberately tolerates, so a value pasted from a
+      mail client with a trailing newline is stored clean instead of refused (same spirit as the
+      SMTP password's whitespace stripping, rule 16/follow-up #4).
+    Non-ASCII is untouched: accents and em-dashes go out RFC 2047-encoded, never raw, so
+    *"Gîte Solio — été"* stays a valid display name.
+    nodemailer ≥ 9.0.5 scrubs these characters on its own, but validating at the settings
+    boundary refuses bad data instead of silently rewriting it, and keeps the guarantee
+    independent of the mail library's version.
 17. A new **Envoi d'emails (SMTP)** section appears in `/parametres`, with form fields for the
     above + a button **"Envoyer un mail de test"** that sends *"Email de test GuestFlow"* to the
     admin's own email and returns 200 on success or 400 + `{error: 'SMTP_TEST_FAILED', detail:
@@ -306,7 +322,8 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | `utils/emailService.js` | — | C | `createEmailService(settings) → { send(toEmail, subject, bodyPlain), sendTest(toEmail) }`. Wraps `nodemailer` (new dependency). Throws `EMAIL_NOT_CONFIGURED` when `settings.smtpHost` empty. Reads the decrypted password lazily. Pure plain-text emails (no HTML — keeps the code small and avoids the templating dependency for now). |
 | `utils/emailTemplates.js` | — | C | Two pure functions: `welcomeEmailBody({ firstName, email, temporaryPassword, publicUrl })` → `{ subject, body }` and `passwordResetEmailBody(...)`. Returns French plain-text. |
 | `controllers/usersController.js` | `usersController.js` | T | Extended: `list()` returns enriched users (with roles + lastLoginAt); `create({...})` orchestrates: validate → generate temp password → wrap in transaction → insert user + roles → send welcome email → on send failure, rollback; `update(id, payload)` (identity + roles); `resetPassword(id)` analogous to create (re-generate + email + rollback); `softDelete(id)` + `hardDelete(id)` with eligibility check + last-admin guard. All self-action checks reject `403 SELF_ACTION_FORBIDDEN`. **Follow-up #6:** new `updateSelf(req, res)` action — same identity-field validation as `create`, calls `usersModel.updateUser(req.user.id, { firstName, lastName, companyName, notes })` with NO `roles` (privilege guard). Returns 200 with the refreshed safe user, 401 when no session, 404 when the session id is gone from the DB. **Follow-up #7 (2026-06-02):** `updateSelf` now accepts an optional `email` key — normalised, validated with `isValidEmail` (400 `INVALID_EMAIL`), unique-checked (409 `EMAIL_ALREADY_EXISTS`); same-value is a no-op. New `emailStatus(req, res)` action re-reads the user from DB and returns `{ myEmail, defaultStillUsed, mustVerifyNewEmail, emailChangedAt }` — the verification flag drives the persistent anti-lockout banner. |
-| `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` (destination = `smtpFromEmail`, see rule 17). SMTP field validation lives here (port range, email pattern). **2026-05-30:** `updateSettings` strips ALL whitespace from `smtp.password` before passing it to `settingsModel.upsert` so Gmail App Passwords (4-by-4 format `abcd efgh ijkl mnop`) auth correctly without surfacing the cleanup to the user. |
+| `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` (destination = `smtpFromEmail`, see rule 17). SMTP field validation lives here (port range, email pattern). **2026-05-30:** `updateSettings` strips ALL whitespace from `smtp.password` before passing it to `settingsModel.upsert` so Gmail App Passwords (4-by-4 format `abcd efgh ijkl mnop`) auth correctly without surfacing the cleanup to the user. **2026-08-17 (rule 16b):** `SMTP_FIELDS` runs `validateHeaderSafeText` on `fromName`, and the new `TRIMMED_TEXT_COLUMNS` set trims `smtpFromName` / `smtpFromEmail` / `notificationRecipientEmail` on the way into the payload — the three values that reach an email header raw. |
+| `utils/settingsValidation.js` | `settingsValidation.js` | T | **2026-08-17 (rule 16b):** new pure `validateHeaderSafeText(value)` — returns the French *"Caractère interdit…"* message when the trimmed value carries a C0 control character or DEL, `null` otherwise. `validateEmail` now delegates to it before its pattern check, so every email setting (`companyEmail`, `smtpFromEmail`, `notificationRecipientEmail`) inherits the guard. |
 | `controllers/authController.js` | `authController.js` | T | `login` now calls `usersModel.touchLastLogin(user.id)` on success. `changePassword` now: if the *pre-change* session had `mustChangePassword=1`, **destroy the session** after the password update and return 204 (the client redirects to /login). Otherwise existing behaviour (session stays). |
 | `middleware/requireAuth.js` | `requireAuth.js` | T | `req.user.roles` is the new shape. Allowlist check stays identical. |
 | `middleware/enforceRoleAccess.js` | `enforceRoleAccess.js` | T | Multi-role aware: `userHasRole(req.user, 'admin')` rather than `req.user.role === 'admin'`. Allowlist for `accountant` extended to `/api/users/me` (read self). Admin-only group `/api/users` (except `/api/users/me`) gated here. |
@@ -467,6 +484,7 @@ SMTP fields start empty — the new account-creation endpoint returns
 - Fields: SMTP Host, Port (number), Sécurité (`Select` with options *Aucun (STARTTLS)* / *TLS implicite*), Utilisateur, Mot de passe (MaskedTextField), Adresse expéditeur, Nom expéditeur, URL publique.
 - A help caption under URL publique: *"Cette URL est insérée dans les emails envoyés aux utilisateurs (ex. https://guestflow.adn-dev.fr)."*
 - "Envoyer un mail de test" button, disabled while any required SMTP field is empty. On click: calls `POST /api/settings/smtp-test`, shows success (*"Mail de test envoyé à <adminEmail>."*) or the error detail in a snackbar.
+- **(2026-08-17)** Server validation errors land **under their field**, replacing its helper text — *Adresse expéditeur* (`smtpFromEmail`) and, since rule 16b, *Nom expéditeur* (`smtpFromName`). Editing the field clears its error, so the mapping `smtp.fromName → smtpFromName` must exist in `mapClientKeyToErrorKey`, otherwise a stale message sticks until the next save.
 
 ### 6.5 Login + ChangePassword flow
 
@@ -522,6 +540,15 @@ SMTP fields start empty — the new account-creation endpoint returns
       is present on welcome / reset / test bodies.
 - [x] `users-controller.unit.test.js` (extended, 2026-05-30) — `create` and `resetPassword`
       flow `fromName` from `settingsModel.decryptedSmtpSettings()` into the templates.
+- [x] `settings-validation.unit.test.js` (extended, 2026-08-17, 5 cases) — rule 16b:
+      `validateHeaderSafeText` passes ordinary and accented display names, rejects an interior
+      CR/LF, NUL, DEL or TAB, and tolerates surrounding whitespace; `validateEmail` rejects the
+      same control characters ahead of its pattern check.
+- [x] `settings-controller-header-injection.unit.test.js` (new, 2026-08-17, 8 cases) — rule 16b at
+      the controller boundary: a CRLF in `fromName` / `fromEmail` / `recipientEmail` returns
+      `400 SETTINGS_INVALID` under the right error key and writes nothing; NUL and DEL are refused
+      too; a value pasted with a trailing newline saves trimmed; an accented name and an explicit
+      clear both go through untouched.
 
 ### Client unit tests
 

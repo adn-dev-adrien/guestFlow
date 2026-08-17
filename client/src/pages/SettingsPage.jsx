@@ -469,6 +469,7 @@ function mapClientKeyToErrorKey(group, key) {
       host: 'smtpHost',
       port: 'smtpPort',
       fromEmail: 'smtpFromEmail',
+      fromName: 'smtpFromName',
       publicUrl: 'publicUrl',
     })[key];
   }

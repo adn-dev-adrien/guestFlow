@@ -14,7 +14,8 @@
  *                  undefined → preserve the existing value on save
  *                  ''        → explicit clear
  *                  'value'   → store
- *   errors:      { smtpHost?, smtpPort?, smtpFromEmail?, publicUrl? }   (server-side validation)
+ *   errors:      { smtpHost?, smtpPort?, smtpFromEmail?, smtpFromName?, publicUrl? }
+ *                (server-side validation)
  *   onChange:    (key, value) => void   — key is one of the `values` field names
  *   onChangePassword: (value: string | undefined) => void   — passwordDraft setter
  *   onSendTest:  () => Promise          — triggers POST /api/settings/smtp-test
@@ -138,7 +139,8 @@ export default function SettingsSmtpSection({
             value={v.fromName || ''}
             onChange={setEvt('fromName')}
             disabled={disabled}
-            helperText="Nom affiché aux destinataires (par défaut : GuestFlow)."
+            error={Boolean(errors.smtpFromName)}
+            helperText={errors.smtpFromName || 'Nom affiché aux destinataires (par défaut : GuestFlow).'}
             fullWidth
             size="small"
           />
