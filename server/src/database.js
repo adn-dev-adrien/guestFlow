@@ -685,6 +685,17 @@ if (holidayCount === 0) {
   if (!rrcols.includes('sessions')) db.exec('ALTER TABLE reservation_resources ADD COLUMN sessions TEXT');
 }
 
+// Thermal model of an hourly resource (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3).
+// A nordic bath needs a warm-up from cold, and stays usable for a while after a use — which decides
+// whether the next guest only waits the turnover or the whole warm-up. Both default to 0, i.e. the
+// pre-existing availability behaviour, so no configured resource changes until the operator fills
+// them in (§3.3 rule 16).
+{
+  const rcols = db.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+  if (!rcols.includes('heatUpMinutes')) db.exec('ALTER TABLE resources ADD COLUMN heatUpMinutes INTEGER NOT NULL DEFAULT 0');
+  if (!rcols.includes('heatRetentionMinutes')) db.exec('ALTER TABLE resources ADD COLUMN heatRetentionMinutes INTEGER NOT NULL DEFAULT 0');
+}
+
 // Seed default resource: baby bed (global = no resource_properties rows).
 const babyBed = db.prepare(`
   SELECT r.id FROM resources r

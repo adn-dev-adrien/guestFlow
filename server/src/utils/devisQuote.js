@@ -36,6 +36,11 @@ function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
     selectedResources: (full.resources || []).map((r) => ({
       resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
+      // The scheduled hours have to ride along: without them the engine re-prices an hourly resource
+      // from its quantity alone and the recompute silently diverges from the stored devis
+      // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 3). The PDF path always
+      // passed them; this one did not.
+      sessions: Array.isArray(r.sessions) ? r.sessions : [],
     })),
     platform: full.platform,
     // A public devis prices planning-card options by quantity (specs/public-planning-options.md), so the

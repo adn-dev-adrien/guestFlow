@@ -1,4 +1,4 @@
-const { priceSessions } = require('./resourceHourlyPricing');
+const { priceSessions, toMinutes } = require('./resourceHourlyPricing');
 const { resolveMidStaySplit } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
@@ -1634,12 +1634,17 @@ function calculateReservationQuote({
         && resourceForFlags.priceType === 'per_hour';
       const sessions = Array.isArray(selected?.sessions) ? selected.sessions : [];
 
-      // Hourly-scheduled resource: priced from the time-banded grid over the fiche sessions
-      // (specs/resource-hourly-scheduling.md §3.3). Sessions are the source of truth — no quantity field.
-      // PUBLIC/site flow exception (planningCardAsQuantity, specs/wp-booking-widget-redesign.md §3.10):
-      // the visitor can't schedule the sessions, so a bare QUANTITY (= hours) stands in and the line is
-      // priced by the generic hourly-quantity path below — unscheduled, « à planifier avec l'hôte ».
-      if (hourlyScheduled && !(planningCardAsQuantity && sessions.length === 0)) {
+      // Hourly-scheduled resource: when the operator HAS scheduled sessions, they are the source of
+      // truth and the line is priced from the time-banded grid (specs/resource-hourly-scheduling.md
+      // §3.3). With no valid session the line falls through to the generic hourly-QUANTITY path below
+      // — the resource was simply sold by the hour and will be placed on real slots during the arrival
+      // SAS (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rules 1-3).
+      //
+      // This used to `return null` instead, which erased an enabled resource from the summary AND from
+      // the total, silently: at quote time nobody knows which evening the guests will want the nordic
+      // bath, so the fiche's Switch legitimately leaves the sessions empty. `planningCardAsQuantity`
+      // (the public/site flow) no longer gates the branch — every caller now behaves the same way.
+      if (hourlyScheduled && sessions.length > 0) {
         const priced = priceSessions(
           sessions,
           {
@@ -1653,23 +1658,38 @@ function calculateReservationQuote({
           },
           resourceForFlags.freeMinutes,
         );
-        if (priced.validSessions.length === 0) return null;
-        const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
-        const lockedLine = lockedResourcesById.get(resourceId);
-        const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
-        return {
-          resourceId,
-          name: resourceForFlags.name,
-          quantity: priced.validSessions.length,
-          unitPrice: priced.unitPrice,
-          billedUnits: priced.billedHours,
-          sessions: priced.validSessions,
-          ...applyOfferedToLine(priced.totalPrice, offered),
-          ...pickContribsAndForce(selected, lockedLine),
-        };
+        if (priced.validSessions.length > 0) {
+          const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
+          const lockedLine = lockedResourcesById.get(resourceId);
+          const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
+          return {
+            resourceId,
+            name: resourceForFlags.name,
+            // Hours the guest gets, NOT the session count — `billedUnits` is what is charged after the
+            // free allowance (§3.1 rule 7). The SAS reads `quantity` to know how much is left to place,
+            // and the summary renders it as « ×N h ».
+            quantity: priced.totalHours,
+            unitPrice: priced.unitPrice,
+            billedUnits: priced.billedHours,
+            sessions: priced.validSessions,
+            ...applyOfferedToLine(priced.totalPrice, offered),
+            ...pickContribsAndForce(selected, lockedLine),
+          };
+        }
+        // Every session invalid (a resource reconfigured under a saved booking): fall through to the
+        // quantity path rather than dropping the line and its money.
       }
 
-      const quantity = Math.max(0, Number(selected?.quantity || 0));
+      // The fiche may send a scheduled resource with its sessions but no explicit quantity. When those
+      // sessions turn out unusable, the hours they described are still what was sold — derive them
+      // rather than letting the line fall to 0 and disappear.
+      const declaredQuantity = Math.max(0, Number(selected?.quantity || 0));
+      const quantity = (declaredQuantity <= 0 && hourlyScheduled && sessions.length > 0)
+        ? roundMoney(sessions.reduce(
+          (sum, s) => sum + Math.max(0, toMinutes(s?.end) - toMinutes(s?.start)),
+          0,
+        ) / 60)
+        : declaredQuantity;
       debugResourceLine('parsed.quantity', { quantity });
       if (quantity <= 0) {
         debugResourceLine('skip.non_positive_quantity', { quantity, selected });
