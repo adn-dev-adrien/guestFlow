@@ -39,3 +39,30 @@ test('Annuler calls onClose without saving', () => {
   expect(onClose).toHaveBeenCalled();
   expect(onSave).not.toHaveBeenCalled();
 });
+
+// ---- withdrawals: « je lave moi-même » (specs/laundry-manual-removals.md §6) ----
+
+test('« − » goes below zero and the withdrawal is sent as a negative count', () => {
+  const onSave = vi.fn();
+  render(<LaundryManualAdditionsDialog open date="2026-06-16" current={ZERO} onSave={onSave} onClose={() => {}} />);
+  const minus = screen.getAllByRole('button', { name: '−' })[0]; // Draps → Simple
+  expect(minus).not.toBeDisabled();
+  fireEvent.click(minus);
+  fireEvent.click(minus);
+  // The line says out loud what a negative number means.
+  expect(screen.getByText('lavé par vos soins')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  expect(onSave).toHaveBeenCalledWith('2026-06-16', expect.objectContaining({ singleBeds: -2 }));
+});
+
+test('a stored withdrawal pre-fills as a negative value and can be typed by hand', () => {
+  const onSave = vi.fn();
+  render(
+    <LaundryManualAdditionsDialog open date="2026-06-16" current={{ ...ZERO, doubleBeds: -3 }}
+      onSave={onSave} onClose={() => {}} />,
+  );
+  expect(screen.getByDisplayValue('-3')).toBeInTheDocument();
+  fireEvent.change(screen.getByDisplayValue('-3'), { target: { value: '-1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  expect(onSave).toHaveBeenCalledWith('2026-06-16', expect.objectContaining({ doubleBeds: -1 }));
+});
