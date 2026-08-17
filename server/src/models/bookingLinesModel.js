@@ -164,6 +164,13 @@ function createBookingLinesModel(database) {
 
     insertResourceLine(bookingId, rr, unitPrice, qty, priceType) {
       const forced = rr.inComplement ? 1 : 0;
+      // specs/devis-offered-resource-parity.md §3 rule 1 — an OFFERED line is priced 0 € by the engine,
+      // and `||` used to read that legitimate zero as « no total supplied » and re-bill the resource at
+      // its catalogue price. The line was then stored `offered = 1` WITH its price, so the devis PDF
+      // printed it unmarked and subtracted it from the accommodation row. The fallback now only covers
+      // a caller that supplies no total at all.
+      const suppliedTotal = rr.totalPrice == null || rr.totalPrice === '' ? null : Number(rr.totalPrice);
+      const billedTotal = suppliedTotal != null ? suppliedTotal : Number(unitPrice) * Number(qty);
       insertResource({
         reservationId: bookingId,
         resourceId: rr.resourceId,
@@ -171,7 +178,7 @@ function createBookingLinesModel(database) {
         unitPrice,
         billedUnits: Number(rr.billedUnits || qty),
         priceType: priceType || rr.priceType || 'per_stay',
-        totalPrice: rr.totalPrice || unitPrice * qty,
+        totalPrice: rr.offered ? 0 : billedTotal,
         offered: rr.offered ? 1 : 0,
         inComplement: forced,
         acompteContribTtc: forced ? null : (rr.acompteContribTtc != null ? Number(rr.acompteContribTtc) : null),

@@ -41,7 +41,12 @@ function formatCurrency(amount) {
   return `${Number(amount || 0).toFixed(2).replace('.', ',')} €`;
 }
 
+// specs/devis-offered-resource-parity.md §3 rule 2 — the stored `offered` flag wins when the line
+// carries one: a legacy row persisted with the phantom price (offered = 1 AND totalPrice > 0) must
+// still print « Offert ». The historical heuristic stays for the lines that reach the renderer without
+// the flag — an engine quote line, or a devis written before the column existed.
 function isLineOffered(line) {
+  if (line?.offered === true || Number(line?.offered || 0) === 1) return true;
   const total = Number(line?.totalPrice || 0);
   const billedUnits = Number(line?.billedUnits || line?.quantity || 0);
   const unitPrice = Number(line?.unitPrice || 0);
