@@ -147,6 +147,32 @@ function createReservationsModel(database) {
     const raw = String(payload.breakfastTime || '').trim();
     const value = raw === '' ? null : (formatTimeShort(raw) || null); // '' / invalid → NULL = use option default
     database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
+    applyBreakfastTimeToOccurrences(reservationId, value);
+  }
+  // specs/sas-breakfast-time-applies.md §3 — the breakfast hour of a stay lives in TWO places since the
+  // planning cards shipped: `reservations.breakfastTime` and, per served morning, the `time` of the
+  // breakfast option's `cardOccurrences`. The planning card and the push notice read the occurrence, so
+  // a new hour that only lands on the reservation is invisible. Writing the hour therefore rewrites
+  // every occurrence of the stay; clearing it puts them back on the option default. Guarded: no
+  // `cardOccurrences` column, no breakfast option, or no stored occurrence → no-op.
+  function applyBreakfastTimeToOccurrences(reservationId, timeOrNull) {
+    let optionRow;
+    try {
+      optionRow = database.prepare(`
+        SELECT ro.optionId AS optionId, ro.cardOccurrences AS cardOccurrences, o.breakfastTime AS optionTime
+          FROM reservation_options ro JOIN options o ON o.id = ro.optionId
+         WHERE ro.reservationId = ? AND o.autoOptionType = 'breakfast'
+         ORDER BY ro.optionId LIMIT 1
+      `).get(reservationId);
+    } catch { return; } // minimal test schema without cardOccurrences / autoOptionType
+    if (!optionRow || !optionRow.cardOccurrences) return;
+    let occurrences = [];
+    try { occurrences = JSON.parse(optionRow.cardOccurrences) || []; } catch { return; }
+    if (!Array.isArray(occurrences) || occurrences.length === 0) return;
+    const nextTime = timeOrNull || formatTimeShort(optionRow.optionTime) || '09:00';
+    const next = occurrences.map((occ) => ({ ...occ, time: nextTime }));
+    database.prepare('UPDATE reservation_options SET cardOccurrences = ? WHERE reservationId = ? AND optionId = ?')
+      .run(JSON.stringify(next), reservationId, optionRow.optionId);
   }
   // Per-reservation email language (specs/email-language-fr-en.md). Guarded; 'en' or 'fr' (default), only
   // written when the payload carries it. Absent column (minimal test schema) → no-op.
@@ -1616,11 +1642,10 @@ function createReservationsModel(database) {
 
         // Breakfast composition + hour (specs/sas-breakfast-and-handover-note.md). breakfastTime '' /
         // invalid → NULL (= fall back to the option default). Counts default 0 when omitted.
-        if (breakfastTime !== undefined) {
-          const raw = String(breakfastTime || '').trim();
-          const value = raw === '' ? null : (formatTimeShort(raw) || null);
-          database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
-        }
+        // Single write path with the fiche (specs/sas-breakfast-time-applies.md §3 rule 2): the hour
+        // lands on the reservation AND on the stay's breakfast occurrences, which is what the planning
+        // card and the push notice actually read.
+        persistBreakfastTime(reservationId, { breakfastTime });
         database.prepare(`UPDATE reservations SET
             breakfastCoffee = ?, breakfastTea = ?, breakfastChocolate = ?, breakfastMilk = ?,
             breakfastPastries = ?, breakfastCereals = ?, breakfastBread = ?, breakfastNote = ?,
