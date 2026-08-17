@@ -39,8 +39,37 @@ function sasPayload(over = {}) {
     repairAmounts: over.repairAmounts || [],
     breakfast: over.breakfast, // undefined → breakfast page hidden
     arrivalComplement: over.arrivalComplement, // undefined → no recall at departure
+    // specs/sas-breakfast-and-catering-upsell.md — sale steps; nothing on offer by default.
+    sasSales: over.sasSales || { persons: 0, nights: 0, breakfast: { available: false }, catering: { available: false, options: [] } },
   };
 }
+
+// A 2-night stay (10 → 12 July) for 2 persons: 2 candidate mornings at 8 €/pers.
+const BREAKFAST_OFFER = {
+  available: true, optionId: 6, title: 'Petit déjeuner', description: '', unitPrice: 8,
+  priceType: 'per_person_per_night', perPerson: true, showsPlanningCard: true, persons: 2,
+  multiplier: 4, defaultUnits: 4, sasOrigin: false, selectedUnits: 0, selectedOccurrences: [], selected: [],
+  occurrences: [{ date: '2026-07-11', time: '09:00', slot: 0 }, { date: '2026-07-12', time: '09:00', slot: 0 }],
+  mornings: [{ date: '2026-07-11', time: '09:00', slot: 0 }, { date: '2026-07-12', time: '09:00', slot: 0 }],
+  defaultComposition: { coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 2, cereals: 0, bread: 1 },
+};
+const MEAL_OFFER = {
+  optionId: 16, title: 'Le repas des trappeurs', description: 'Repas', unitPrice: 25,
+  priceType: 'per_person_per_night', perPerson: true, showsPlanningCard: true, persons: 2,
+  multiplier: 4, defaultUnits: 4, sasOrigin: false, selectedUnits: 0, selectedOccurrences: [],
+  occurrences: [{ date: '2026-07-11', time: '19:30', slot: 0 }, { date: '2026-07-12', time: '19:30', slot: 0 }],
+};
+const BOARD_OFFER = {
+  optionId: 27, title: 'Planche S', description: 'Apéro', unitPrice: 17, priceType: 'per_stay',
+  perPerson: false, showsPlanningCard: false, persons: 2, multiplier: 1, defaultUnits: 1,
+  sasOrigin: false, selectedUnits: 0, selectedOccurrences: [], occurrences: [],
+};
+const salesPayload = (over = {}) => ({
+  persons: 2, nights: 2,
+  breakfast: over.breakfast || { available: false },
+  catering: over.catering || { available: false, options: [] },
+});
+
 
 function renderDialog(props) {
   return render(
@@ -1150,4 +1179,227 @@ test('departure recap: a recalled arrival line is offerable, the taxe de séjour
   clickBtn('Valider et terminer');
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   expect(api.commitDepartureSas.mock.calls[0][1].offeredArrivalExtras).toEqual([{ kind: 'option', id: 4 }]);
+});
+
+// ── Prestations sold at check-in (specs/sas-breakfast-and-catering-upsell.md) ────────────────
+
+test('arrival SAS: selling the breakfast — mornings pre-selected, count shown, composition seeded', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    sasSales: salesPayload({ breakfast: BREAKFAST_OFFER }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  // Offer page: the per-morning price and how many mornings the stay allows.
+  await screen.findByText(/n'a pas pris le petit déjeuner/);
+  expect(screen.getByText(/2 matins possibles sur ce séjour/)).toBeInTheDocument();
+  clickBtn('Ajouter le petit déjeuner');
+
+  // Mornings page: every morning pre-checked, quantity read like the fiche (2 × 2 pers.).
+  await screen.findByText('Quels matins ?');
+  expect(screen.getByText(/\(2 × 2 pers\.\)/)).toBeInTheDocument();
+  expect(screen.getByText(/4 petits déjeuners — 32,00 €/)).toBeInTheDocument();
+  clickBtn('Suivant');
+
+  // Composition page, seeded with the defaults of a fresh check-in (2 viennoiseries, 1 baguette).
+  await screen.findByLabelText('Heure du petit déjeuner');
+  expect(screen.getByText('Viennoiseries').closest('div').parentElement).toBeTruthy();
+  expect(screen.getByText(/2 à manger pour 2 personnes/)).toBeInTheDocument();
+  clickBtn('Suivant');
+  // Drinks are still 0 → the coherence warning asks for a confirmation.
+  await screen.findByText('Quantités ≠ personnes');
+  clickBtn('Continuer');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/Petit déjeuner : 4 × 8,00 € = 32,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Total : 32,00 €/)).toBeInTheDocument();
+  // findBy…: the confirm dialog that just closed leaves the wizard aria-hidden for a tick.
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const payload = api.commitArrivalSas.mock.calls[0][1];
+  expect(payload.soldOptions).toEqual([{
+    optionId: 6,
+    occurrences: [{ date: '2026-07-11', time: '09:00' }, { date: '2026-07-12', time: '09:00' }],
+  }]);
+  expect(payload.breakfastPastries).toBe(2);
+  expect(payload.breakfastBread).toBe(1);
+  expect(payload.breakfastTime).toBe('09:00');
+});
+
+test('arrival SAS: « Non merci » on the breakfast sells nothing and skips the mornings', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    sasSales: salesPayload({ breakfast: BREAKFAST_OFFER }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/n'a pas pris le petit déjeuner/);
+  clickBtn('Non merci');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.queryByText('Quels matins ?')).toBeNull();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([]);
+});
+
+test('arrival SAS: unselecting every morning drops the sale, with a warning', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    breakfast: { applicable: false },
+    sasSales: salesPayload({ breakfast: BREAKFAST_OFFER }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/n'a pas pris le petit déjeuner/);
+  clickBtn('Ajouter le petit déjeuner');
+
+  await screen.findByText('Quels matins ?');
+  fireEvent.click(screen.getAllByText('09:00')[0]);   // uncheck the first morning
+  expect(screen.getByText(/2 petits déjeuners — 16,00 €/)).toBeInTheDocument();
+  fireEvent.click(screen.getAllByText('09:00')[1]);   // …and the second
+  expect(screen.getByText(/Aucun matin sélectionné/)).toBeInTheDocument();
+  clickBtn('Suivant');
+
+  await screen.findByLabelText('Heure du petit déjeuner');
+  clickBtn('Suivant');
+  await screen.findByText('Quantités ≠ personnes');
+  clickBtn('Continuer');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([]);
+});
+
+test('arrival SAS re-open: a breakfast this SAS sold reopens on its own mornings', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2, arrivalSasDoneAt: '2026-07-10 16:00:00' },
+    cleaning: { included: true, price: 80 },
+    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 2, tea: 0, chocolate: 0, milk: 0, pastries: 2, cereals: 0, bread: 1, note: '' },
+    sasSales: salesPayload({
+      breakfast: { ...BREAKFAST_OFFER, sasOrigin: true, selected: [{ date: '2026-07-12', time: '09:00' }] },
+    }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  // The booked-breakfast composition page comes first (the option now exists on the reservation).
+  await screen.findByLabelText('Heure du petit déjeuner');
+  clickBtn('Suivant');
+
+  await screen.findByText(/n'a pas pris le petit déjeuner/);
+  expect(screen.getByText('Petit déjeuner ajouté')).toBeInTheDocument();
+  clickBtn('Ajouter le petit déjeuner');
+
+  await screen.findByText('Quels matins ?');
+  expect(screen.getByText(/2 petits déjeuners — 16,00 €/)).toBeInTheDocument();  // only the sold morning
+  clickBtn('Suivant');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([
+    { optionId: 6, occurrences: [{ date: '2026-07-12', time: '09:00' }] },
+  ]);
+});
+
+test('arrival SAS: the restauration page sells a meal by its moment and a board by quantity', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    sasSales: salesPayload({ catering: { available: true, options: [MEAL_OFFER, BOARD_OFFER] } }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText(/souhaite-t-il de la restauration/);
+  clickBtn('Oui, proposer');
+
+  await screen.findByText('Le repas des trappeurs');
+  // Card option: one moment → 1 × 2 pers. × 25 €.
+  fireEvent.click(screen.getAllByText('19:30')[0]);
+  expect(screen.getByText(/\(1 × 2 pers\.\) = 50,00 €/)).toBeInTheDocument();
+  // Plain option: the switch fills the quantity in (per_stay → 1).
+  fireEvent.click(screen.getByRole('switch', { name: 'Planche S' }));
+  expect(screen.getByText(/Total restauration : 67,00 €/)).toBeInTheDocument();
+  clickBtn('Suivant');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/Le repas des trappeurs : 2 × 25,00 € = 50,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Planche S : 17,00 €/)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([
+    { optionId: 16, occurrences: [{ date: '2026-07-11', time: '19:30' }] },
+    { optionId: 27, units: 1 },
+  ]);
+});
+
+test('arrival SAS: no sale steps when nothing is on offer, and no soldOptions in the payload', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1 },
+    cleaning: { included: true, price: 80 },
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.queryByText(/n'a pas pris le petit déjeuner/)).toBeNull();
+  expect(screen.queryByText(/souhaite-t-il de la restauration/)).toBeNull();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toBeUndefined();
+});
+
+test('arrival SAS re-open: declining a prior sale skips its sub-pages instead of dead-ending on them', async () => {
+  // The sub-pages are active on load (a prior run sold both), so « Non merci » must jump PAST them:
+  // `activeKeys` still lists them when the handler runs, and landing there is a dead end.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2, arrivalSasDoneAt: '2026-07-10 16:00:00' },
+    cleaning: { included: true, price: 80 },
+    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 2, tea: 0, chocolate: 0, milk: 0, pastries: 2, cereals: 0, bread: 1, note: '' },
+    sasSales: salesPayload({
+      breakfast: { ...BREAKFAST_OFFER, sasOrigin: true, selected: [{ date: '2026-07-12', time: '09:00' }] },
+      catering: { available: true, options: [{ ...BOARD_OFFER, sasOrigin: true, selectedUnits: 1 }] },
+    }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByLabelText('Heure du petit déjeuner');   // booked-breakfast composition
+  clickBtn('Suivant');
+
+  await screen.findByText(/n'a pas pris le petit déjeuner/);
+  clickBtn('Non merci');
+  // Straight to the restauration question — not on « Quels matins ? », not on the composition again.
+  await screen.findByText(/souhaite-t-il de la restauration/);
+  expect(screen.queryByText('Quels matins ?')).toBeNull();
+  clickBtn('Non merci');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([]);
 });

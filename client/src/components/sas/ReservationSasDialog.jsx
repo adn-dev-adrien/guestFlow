@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
-  CircularProgress, TextField, Link, Divider, Chip, useMediaQuery,
+  CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
   LinearProgress, IconButton,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -28,6 +28,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DialpadIcon from '@mui/icons-material/Dialpad';
 import SavingsIcon from '@mui/icons-material/Savings';
 import RoomServiceIcon from '@mui/icons-material/RoomService';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import SasResourceSchedulingPage from './SasResourceSchedulingPage';
 import KingBedIcon from '@mui/icons-material/KingBed';
@@ -47,12 +48,14 @@ import { useNavigate } from 'react-router';
 import api from '../../api';
 import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 import ConfirmDialog from '../ConfirmDialog';
+import OccurrenceGrid from '../OccurrenceGrid';
 import LoadingState from '../LoadingState';
 import ErrorAlert from '../ErrorAlert';
 import { useToast } from '../DialogProvider';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
 import OfferableLine from './OfferableLine';
 import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
+import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
 import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -97,6 +100,11 @@ function stepMeta(key, mode) {
     case 'options': return { title: 'Prestations', Icon: RoomServiceIcon };
     case 'resourceScheduling': return { title: 'Planifier', Icon: HotTubIcon };
     case 'breakfast': return { title: 'Petit déjeuner', Icon: FreeBreakfastIcon };
+    // specs/sas-breakfast-and-catering-upsell.md — the two sale steps at the end of the check-in.
+    case 'breakfastSale':
+    case 'breakfastMornings': return { title: 'Petit déjeuner', Icon: BakeryDiningIcon };
+    case 'cateringAsk':
+    case 'cateringItems': return { title: 'Restauration', Icon: RestaurantIcon };
     case 'linen':
     case 'linenItems': return { title: 'Linge de lit', Icon: KingBedIcon };
     case 'cleaning': return { title: 'Ménage', Icon: CleaningServicesIcon };
@@ -230,6 +238,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [breakfastNote, setBreakfastNote] = useState('');
   const [handoverNote, setHandoverNote] = useState(''); // arrival recap → shown at departure
   const [breakfastWarnOpen, setBreakfastWarnOpen] = useState(false);
+  // specs/sas-breakfast-and-catering-upsell.md — prestations SOLD at the end of the check-in. The
+  // server ships the offer (candidate mornings / moments, per-property prices); these hold the
+  // operator's choice until the single commit, like every other SAS decision.
+  const [breakfastSold, setBreakfastSold] = useState(false);
+  const [breakfastMornings, setBreakfastMornings] = useState([]); // [{ date, time, slot, checked }]
+  const [cateringWanted, setCateringWanted] = useState(null);     // true | false | null
+  const [cateringUnits, setCateringUnits] = useState({});         // { [optionId]: billed units }
+  const [cateringGrids, setCateringGrids] = useState({});         // { [optionId]: [{ date, time, slot, checked }] }
   // Re-edit (specs/reopen-completed-sas.md): complement lines from a PRIOR commit whose label no
   // longer maps to a priced item (renamed / deleted since) — carried verbatim into the re-commit so
   // they're never lost or duplicated.
@@ -268,6 +284,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false); setBathLinenAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
+    setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({});
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null);
     setWeatherAlerts([]); setOffered(new Set());
@@ -285,6 +302,40 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           setBreakfastFood({ pastries: Number(b.pastries) || 0, cereals: Number(b.cereals) || 0, bread: Number(b.bread) || 0 });
           setBreakfastTime(b.time || '');
           setBreakfastNote(b.note || '');
+        }
+        // specs/sas-breakfast-and-catering-upsell.md §3.1-§3.2 — seed the two sale steps from the
+        // server offer. A fresh check-in opens with every morning pre-selected (the natural upsell is
+        // « le petit déjeuner pour tout le séjour ») and nothing pre-selected on the catering (a meal
+        // is picked moment by moment). A SAS that already sold something reopens on its own choice.
+        const sales = d?.sasSales;
+        if (sales?.breakfast?.available) {
+          const sold = sales.breakfast.selected || [];
+          setBreakfastSold(sold.length > 0);
+          setBreakfastMornings((sales.breakfast.mornings || []).map((m) => ({
+            ...m,
+            slot: m.slot ?? 0,
+            checked: sold.length === 0 || sold.some((s) => s.date === m.date && String(s.time || '') === String(m.time || '')),
+          })));
+        }
+        if (sales?.catering?.available) {
+          const units = {}; const grids = {}; let anySold = false;
+          for (const opt of (sales.catering.options || [])) {
+            if (opt.showsPlanningCard) {
+              const sold = opt.selectedOccurrences || [];
+              if (sold.length > 0) anySold = true;
+              grids[opt.optionId] = (opt.occurrences || []).map((o) => ({
+                ...o,
+                slot: o.slot ?? 0,
+                checked: sold.some((s) => s.date === o.date && String(s.time || '') === String(o.time || '')),
+              }));
+            } else {
+              const sold = Number(opt.selectedUnits) || 0;
+              if (sold > 0) anySold = true;
+              units[opt.optionId] = sold;
+            }
+          }
+          setCateringUnits(units); setCateringGrids(grids);
+          setCateringWanted(anySold ? true : null);
         }
         // specs/sas-offer-complement-lines.md §3.4 rule 13 — the gestes commerciaux already recorded on
         // the reservation reopen as « ✓ Offert », so they stay visible and undoable. Seeded whether or
@@ -446,6 +497,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     // On departure, the caution-RETURN step stays reachable when re-editing a completed SAS
     // (specs/reopen-completed-sas.md §3 rule 3), so a mis-marked return can be corrected.
     const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
+    const sales = data.sasSales || {};
     if (mode === 'arrival') {
       // Arrival caution is hidden as soon as it's received, even in re-edit (specs/sas-hide-settled-steps.md §3).
       const cautionStep = Number(r.cautionAmount || 0) > 0 && !r.cautionReceived;
@@ -467,6 +519,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         data.cleaning?.included ? null : 'cleaning',
         // specs/sas-bath-linen-upsell.md §3.1 — offer bath linen when the guest didn't take it.
         data.bathLinen?.available ? 'bathLinen' : null,
+        // specs/sas-breakfast-and-catering-upsell.md §3.1 — the sale steps close the check-in: the
+        // breakfast (offer → mornings → composition) then the « Restauration » catalogue.
+        sales.breakfast?.available ? 'breakfastSale' : null,
+        (sales.breakfast?.available && breakfastSold) ? 'breakfastMornings' : null,
+        // Composing a breakfast sold in THIS run: a breakfast the guest had already booked keeps its
+        // own page, higher up, so the key can never appear twice.
+        (!data.breakfast?.applicable && sales.breakfast?.available && breakfastSold) ? 'breakfast' : null,
+        sales.catering?.available ? 'cateringAsk' : null,
+        (sales.catering?.available && cateringWanted === true) ? 'cateringItems' : null,
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
         // Weather alert (specs/checkin-weather-alerts.md): last page before the recap, only when a
         // qualifying alert overlaps the stay.
@@ -490,12 +551,23 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean);
-  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLock]);
+  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLock,
+    breakfastSold, cateringWanted]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
     if (i >= 0 && i < activeKeys.length - 1) setStepKey(activeKeys[i + 1]);
   }, [activeKeys, stepKey]);
+  // Same forward move, but SKIPPING the pages the answer just closed. `activeKeys` is memoised on the
+  // decisions, so it still lists them when the handler runs (the setState has not landed yet) and a
+  // plain `goNext()` would land on a page about to disappear — a dead end, since the next `Suivant`
+  // reads an index of -1. Used by the « Non merci » of the sale steps, which is the only case where
+  // re-opening a committed SAS starts with those sub-pages already active.
+  const goPast = useCallback((from, skipped) => {
+    const i = activeKeys.indexOf(from);
+    const next = activeKeys.slice(i + 1).find((key) => !skipped.includes(key));
+    setStepKey(next || 'recap');
+  }, [activeKeys]);
   // « Précédent » — go back one active page (specs/arrival-departure-sas.md §3.0; in-memory
   // decisions persist, so revisiting a page shows the prior answer).
   const goBack = useCallback(() => {
@@ -531,7 +603,48 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       qty: Number(data.bathLinen.persons) || 1, offerKey: 'bathLinen',
       real: round2(data.bathLinen.amount), amount: billed('bathLinen', data.bathLinen.amount),
     } : null;
-  const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : []), ...(bathLinenLine ? [bathLinenLine] : [])];
+  // specs/sas-breakfast-and-catering-upsell.md §3.3 — what the two sale steps are selling right now.
+  // `units` are the BILLED units (moments × personnes, or the quantity the operator picked), i.e. the
+  // very number the fiche shows; the amounts here are a recap PREVIEW — the server re-prices every
+  // line authoritatively at commit, from the option and its per-property price.
+  const salesOffer = data?.sasSales || null;
+  const salesPersons = Number(salesOffer?.persons || 0);
+  const soldSelections = useMemo(() => {
+    if (mode !== 'arrival' || !salesOffer) return [];
+    const out = [];
+    const bf = salesOffer.breakfast;
+    if (bf?.available && breakfastSold) {
+      const occurrences = breakfastMornings.filter((m) => m.checked).map(({ date, time }) => ({ date, time }));
+      if (occurrences.length > 0) {
+        out.push({ offer: bf, occurrences, units: occurrences.length * (bf.perPerson ? salesPersons : 1) });
+      }
+    }
+    if (salesOffer.catering?.available && cateringWanted === true) {
+      for (const opt of (salesOffer.catering.options || [])) {
+        if (opt.showsPlanningCard) {
+          const occurrences = (cateringGrids[opt.optionId] || []).filter((o) => o.checked).map(({ date, time }) => ({ date, time }));
+          if (occurrences.length > 0) {
+            out.push({ offer: opt, occurrences, units: occurrences.length * (opt.perPerson ? salesPersons : 1) });
+          }
+        } else {
+          const units = Number(cateringUnits[opt.optionId]) || 0;
+          if (units > 0) out.push({ offer: opt, occurrences: null, units });
+        }
+      }
+    }
+    return out;
+  }, [mode, salesOffer, salesPersons, breakfastSold, breakfastMornings, cateringWanted, cateringGrids, cateringUnits]);
+  // No `offerKey` here, deliberately: « Offrir » (specs/sas-offer-complement-lines.md) can only zero a
+  // line the server knows how to store at 0 €, and `writeSoldOptions` inserts every sold prestation
+  // with `offered = 0`. Offering a freshly-sold breakfast would need a server-side flag that does not
+  // exist yet — the operator's lever remains not selling it (or selling fewer units).
+  const soldOptionLines = useMemo(() => soldSelections.map((s) => ({
+    label: s.offer.title,
+    unitPrice: Math.round(Number(s.offer.unitPrice) * 100) / 100,
+    qty: s.units,
+    amount: Math.round(Number(s.offer.unitPrice) * s.units * 100) / 100,
+  })), [soldSelections]);
+  const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : []), ...(bathLinenLine ? [bathLinenLine] : []), ...soldOptionLines];
   const arrivalAdded = arrivalAddedLines.reduce((s, l) => s + l.amount, 0);
   // On re-edit, the SAS-origin complement lines from the prior commit are REPLACED, not added — so
   // the recap must exclude their amount from « déjà dû » (specs/reopen-completed-sas.md §4), else it
@@ -718,6 +831,20 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       .filter((u) => u.hours > 0)
   ), [data, resourceBlocks]);
 
+  // specs/sas-breakfast-and-catering-upsell.md §3.1 — selling the breakfast seeds the composition the
+  // operator is about to fill in: the option's serving hour and the defaults a never-committed
+  // check-in gets (one viennoiserie per person, half a baguette each). Without it the commit would
+  // store zeros and the kitchen would prepare nothing. An already-filled composition is left alone.
+  const sellBreakfast = () => {
+    setBreakfastSold(true);
+    const bf = data?.sasSales?.breakfast;
+    if (!bf || data?.breakfast?.applicable) return;
+    const def = bf.defaultComposition || {};
+    setBreakfastFood((f) => ((f.pastries || f.cereals || f.bread) ? f : {
+      pastries: Number(def.pastries) || 0, cereals: Number(def.cereals) || 0, bread: Number(def.bread) || 0,
+    }));
+    setBreakfastTime((t) => t || String((bf.mornings || [])[0]?.time || ''));
+  };
   // specs/sas-offer-complement-lines.md §4.3 — the offered keys `kind:id` become the refs the commit
   // sends; a line with no ref (tax, remainder) can never be in the set.
   const offeredRefsOf = (lines) => lines
@@ -759,6 +886,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // Intent only — the server resolves the option + its price (tri-state: undefined = step not shown).
           cleaningAdded: activeKeys.includes('cleaning') ? cleaningAdded : undefined,
           bathLinenAdded: activeKeys.includes('bathLinen') ? bathLinenAdded : undefined,
+          // specs/sas-breakfast-and-catering-upsell.md §3.3 — the prestations sold at check-in, as
+          // intent (moments, or billed units). The array is the WHOLE selection: an option dropped on
+          // a re-run is simply absent and the server removes it. `undefined` = neither sale step ran.
+          soldOptions: (activeKeys.includes('breakfastSale') || activeKeys.includes('cateringAsk'))
+            ? soldSelections.map((s) => (s.occurrences
+              ? { optionId: s.offer.optionId, occurrences: s.occurrences }
+              : { optionId: s.offer.optionId, units: s.units }))
+            : undefined,
           // « Offrir » on an upsell keeps its option activated (laundry + linen stock) but bills 0 €.
           cleaningOffered: isOffered('cleaning'),
           bathLinenOffered: isOffered('bathLinen'),
@@ -778,7 +913,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             ? resourceBlocks.map((b) => ({ resourceId: b.resourceId, date: b.date, start: b.start, end: b.end }))
             : undefined,
         };
-        if (data.breakfast?.applicable) {
+        // The composition page ran — either for a booked breakfast or for one just sold (its counts
+        // would otherwise be written back as zeros).
+        if (activeKeys.includes('breakfast')) {
           payload.breakfastTime = breakfastTime;
           payload.breakfastCoffee = breakfast.coffee;
           payload.breakfastTea = breakfast.tea;
@@ -856,7 +993,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // (soft warnings — specs/sas-breakfast-milk-and-food.md rule 3).
   const breakfastTotal = Number(breakfast.coffee) + Number(breakfast.tea) + Number(breakfast.chocolate) + Number(breakfast.milk);
   const breakfastFoodTotal = Number(breakfastFood.pastries) + Number(breakfastFood.cereals);
-  const breakfastPersons = Number(data?.breakfast?.persons || 0);
+  // The morning head count: the server-resolved one for a booked breakfast, the party of the sale for
+  // one just sold at check-in (the `breakfast` payload block is not applicable yet on that run).
+  const breakfastPersons = Number(data?.breakfast?.applicable ? data.breakfast.persons : salesPersons) || 0;
   const breakfastMismatch = breakfastTotal !== breakfastPersons;
   const breakfastFoodMismatch = breakfastFoodTotal !== breakfastPersons;
   const breakfastAnyMismatch = breakfastMismatch || breakfastFoodMismatch;
@@ -1062,6 +1201,129 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="body1">Le client n'a pas pris le linge de toilette.</Typography>
             <Typography variant="body2">Tarif : <strong>{formatCurrency(bl.amount)}</strong> ({bl.persons} pers × {formatCurrency(bl.unitPrice)}). Proposer au client ?</Typography>
             {bathLinenAdded && <Chip label={`Linge ajouté (${formatCurrency(bl.amount)})`} color="info" sx={{ alignSelf: 'flex-start' }} />}
+          </Stack>
+        );
+      }
+      case 'breakfastSale': {
+        const bf = salesOffer.breakfast;
+        const perMorning = Math.round(Number(bf.unitPrice) * (bf.perPerson ? salesPersons : 1) * 100) / 100;
+        return (
+          <Stack spacing={1.5}>
+            <Typography variant="body1">Le client n'a pas pris le petit déjeuner.</Typography>
+            <Typography variant="body2">
+              Tarif : <strong>{formatCurrency(bf.unitPrice)}</strong> {bf.perPerson ? 'par personne et par matin' : 'par matin'}
+              {bf.perPerson ? ` — ${formatCurrency(perMorning)} le matin pour ${salesPersons} pers.` : ''}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {bf.mornings.length} matin{bf.mornings.length > 1 ? 's' : ''} possible{bf.mornings.length > 1 ? 's' : ''} sur ce séjour.
+            </Typography>
+            {breakfastSold && <Chip label="Petit déjeuner ajouté" color="info" sx={{ alignSelf: 'flex-start' }} />}
+          </Stack>
+        );
+      }
+      case 'breakfastMornings': {
+        const bf = salesOffer.breakfast;
+        const chosen = breakfastMornings.filter((m) => m.checked).length;
+        const units = chosen * (bf.perPerson ? salesPersons : 1);
+        return (
+          <Stack spacing={1}>
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
+            <OccurrenceGrid
+              grid={breakfastMornings}
+              onToggle={(date, slot, checked) => setBreakfastMornings((prev) => prev.map((m) => (
+                m.date === date && (m.slot ?? 0) === slot ? { ...m, checked } : m
+              )))}
+              quantityText={(
+                <>
+                  Quantité&nbsp;: <strong>{units}</strong>
+                  {bf.perPerson ? ` (${chosen} × ${salesPersons} pers.)` : ''}
+                </>
+              )}
+            />
+            <Divider />
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {units} petit{units > 1 ? 's' : ''} déjeuner{units > 1 ? 's' : ''} — {formatCurrency(Math.round(Number(bf.unitPrice) * units * 100) / 100)}
+            </Typography>
+            {chosen === 0 && (
+              <Typography variant="body2" color="warning.main">Aucun matin sélectionné — le petit déjeuner ne sera pas ajouté.</Typography>
+            )}
+          </Stack>
+        );
+      }
+      case 'cateringAsk':
+        return (
+          <Stack spacing={1}>
+            <Typography variant="body1">Le client souhaite-t-il de la restauration ?</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Repas, planches apéro… ajoutés au complément à percevoir.
+            </Typography>
+          </Stack>
+        );
+      case 'cateringItems': {
+        const options = salesOffer.catering?.options || [];
+        const total = soldOptionLines
+          .filter((l) => l.label !== salesOffer.breakfast?.title)
+          .reduce((s, l) => s + l.amount, 0);
+        return (
+          <Stack spacing={0.5} divider={<Divider />}>
+            {options.map((o) => {
+              const grid = cateringGrids[o.optionId] || [];
+              const chosen = grid.filter((x) => x.checked).length;
+              const units = o.showsPlanningCard
+                ? chosen * (o.perPerson ? salesPersons : 1)
+                : Number(cateringUnits[o.optionId]) || 0;
+              const amount = Math.round(Number(o.unitPrice) * units * 100) / 100;
+              return (
+                <Box key={o.optionId} sx={{ py: 0.5 }}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{o.title}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {formatCurrency(o.unitPrice)} {PRICE_TYPE_LABELS[o.priceType] || ''}
+                      </Typography>
+                    </Box>
+                    {/* A card option is taken by picking its moments; everything else works like the
+                        fiche: the switch fills the quantity in for you, the stepper adjusts it. */}
+                    {!o.showsPlanningCard && (
+                      <Switch
+                        checked={units > 0}
+                        slotProps={{ input: { 'aria-label': o.title } }}
+                        onChange={(e) => setCateringUnits((prev) => ({
+                          ...prev, [o.optionId]: e.target.checked ? Number(o.defaultUnits) || 1 : 0,
+                        }))}
+                      />
+                    )}
+                  </Stack>
+                  {o.showsPlanningCard ? (
+                    <OccurrenceGrid
+                      grid={grid}
+                      onToggle={(date, slot, checked) => setCateringGrids((prev) => ({
+                        ...prev,
+                        [o.optionId]: (prev[o.optionId] || []).map((x) => (
+                          x.date === date && (x.slot ?? 0) === slot ? { ...x, checked } : x
+                        )),
+                      }))}
+                      quantityText={units > 0 ? (
+                        <>
+                          Quantité&nbsp;: <strong>{units}</strong>
+                          {o.perPerson ? ` (${chosen} × ${salesPersons} pers.)` : ''} = {formatCurrency(amount)}
+                        </>
+                      ) : null}
+                    />
+                  ) : units > 0 && (
+                    <CountStepper
+                      icon={<RestaurantIcon color="action" />}
+                      label={`Quantité — ${formatCurrency(amount)}`}
+                      value={units}
+                      onChange={(v) => setCateringUnits((prev) => ({ ...prev, [o.optionId]: v }))}
+                    />
+                  )}
+                </Box>
+              );
+            })}
+            <Typography variant="body2" sx={{ fontWeight: 700, pt: 1 }}>
+              Total restauration : {formatCurrency(Math.round(total * 100) / 100)}
+            </Typography>
           </Stack>
         );
       }
@@ -1339,6 +1601,23 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Button variant="outlined" onClick={() => { setBathLinenAdded(true); goNext(); }}>Ajouter le linge de toilette</Button>
           <Button variant="contained" onClick={() => { setBathLinenAdded(false); goNext(); }}>Non merci</Button>
         </>;
+      // specs/sas-breakfast-and-catering-upsell.md §3.1 — same neutral upsell shape as the ménage.
+      // « Ajouter » opens the mornings page (navigate explicitly: activeKeys is recomputed after the
+      // setState) and seeds the composition the operator is about to fill in.
+      case 'breakfastSale':
+        return <>{quit}
+          <Button variant="outlined" onClick={() => { sellBreakfast(); setStepKey('breakfastMornings'); }}>Ajouter le petit déjeuner</Button>
+          <Button variant="contained" onClick={() => { setBreakfastSold(false); goPast('breakfastSale', ['breakfastMornings', 'breakfast']); }}>Non merci</Button>
+        </>;
+      case 'breakfastMornings': return <>{quit}{next()}</>;
+      case 'cateringAsk':
+        // « Non merci » sells nothing (the selection is simply never sent), and « Oui » opens the
+        // catalogue page — navigated explicitly, like the other conditional pages.
+        return <>{quit}
+          <Button variant="outlined" onClick={() => { setCateringWanted(true); setStepKey('cateringItems'); }}>Oui, proposer</Button>
+          <Button variant="contained" onClick={() => { setCateringWanted(false); goPast('cateringAsk', ['cateringItems']); }}>Non merci</Button>
+        </>;
+      case 'cateringItems': return <>{quit}{next()}</>;
       case 'missingAsk':
         // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.
         // « Oui » opens the conditional missing-items page — navigate explicitly (see linen above).
