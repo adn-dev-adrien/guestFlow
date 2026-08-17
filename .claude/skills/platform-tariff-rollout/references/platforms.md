@@ -117,6 +117,52 @@ sur … ». La page Booking se trouve sinon par une recherche sur le nom de l'an
   tarifaires (5 ici, de 290 à 344 € la nuit) ; **le premier est le moins cher**, c'est celui à relever.
   Tout est « taxes et frais compris », donc non comparable tel quel à un hébergement seul.
 
+**Le titre est une promesse contractuelle — le relire comme un voyageur pressé.** Le 2026-08-17, une
+cliente a annulé son séjour parce qu'elle croyait pouvoir venir avec son animal. **Aucun canal
+n'acceptait les animaux** : le réglage était juste partout. C'est le **titre Booking**,
+« Aventura Lodge isolée, nature, **animaux** », qui mentait — répété dans les résultats de recherche,
+l'onglet du navigateur, les avis et un bandeau « Les animaux seront vos plus proche voisins ». Le mot
+désignait les animaux de la ferme ; le voyageur lit « animaux acceptés ».
+
+Règle : **un mot du titre qui peut se lire comme un service offert au voyageur doit être désambiguïsé
+par le concret.** GreenGo écrivait « ânes et chèvres » et n'a jamais posé de problème ; c'est la
+formulation retenue partout le 2026-08-17. Vérifier aussi le **nom Lodgify du Gîte**, qui portait le
+même piège (« Confort, Nature & Animaux »).
+
+**Où se règle la politique animaux, par canal** (tous relevés « non acceptés » le 2026-08-17) :
+
+| Canal | Écran | Forme |
+|---|---|---|
+| Lodgify | `rental/<id>/overview` → Équipements de l'hébergement | case « Animaux acceptés », **décochée** |
+| Airbnb | `hosting/listings/editor/<id>/details/house-rules` | « Animaux acceptés » ✗ / ✓ |
+| Booking | `extranet_ng/manage/property_policies.html` | affiché en public sous « Conditions » |
+| Abritel | `lodging-supply/settings/rentalpolicy/houserules?propertyId=<id>` | radio « Non, les animaux… » |
+| GreenGo | annonce publique | affiche « Animaux non acceptés » en clair |
+| Abracadaroom | annonce publique | affiche « ANIMAUX NON ACCEPTÉS » en clair |
+
+**Le réglage ne suffit pas : ce qui compte est ce qui est affiché.** GreenGo et Abracadaroom
+l'annoncent en clair ; Booking l'enterre dans « Conditions » ; Airbnb dans le règlement intérieur ;
+**Abritel ne l'affiche pas du tout** et la **réservation directe (Lodgify) restait muette**. Le
+silence laisse le voyageur supposer. Une ligne dans la description, qui donne la raison plutôt que
+l'interdiction, vaut mieux qu'une case cochée : « Nos ânes et nos chèvres vivent en liberté sur le
+domaine ; pour leur tranquillité et celle de nos hôtes, les animaux de compagnie ne sont pas
+acceptés. »
+
+**Le nom Booking se change seul, sans passer par leurs éditeurs.**
+`extranet_ng/manage/general_info.html` → « Changer le nom de l'établissement » : champ libre, aperçu
+en direct, trois étapes (saisie → « Suivant » → « Changer le nom de l'établissement » dans le pied de
+la modale, `[data-test-id="footer"] button[type="submit"]`). Effectif immédiatement ; seul le `<title>`
+de la page publique reste en cache quelques heures. **À ne pas confondre avec la description**, elle,
+non éditable.
+
+**Airbnb : la description de Lodgify n'arrive jamais.** Le Channel Manager signale en permanence
+« Synchronisé avec les problèmes » → `channels/manager/<rental>/room/<room>/resolve-issues` :
+« Raccourcir la description — le résumé doit comporter 500 caractères ou moins ». La description
+Lodgify fait 1 743 caractères : elle ne passera jamais. **Airbnb a donc sa propre description, à
+maintenir à la main**, et toute phrase ajoutée dans Lodgify doit y être recopiée séparément.
+Pire : ses deux champs sont étiquetés « English » et « Français » mais **contiennent tous deux du
+français** — écrire dans les deux.
+
 **Le contenu éditorial ne suit pas les prix.** Lodgify pousse les tarifs et les disponibilités, mais
 le titre et la description restent propres à chaque plateforme : le titre changé le 2026-08-13 est
 arrivé sur Booking et **jamais sur Airbnb**, resté « Domaine Solio : là où la nature est à vous seul ».
@@ -205,13 +251,23 @@ applicables, **seule la réduction la plus importante** est affichée aux client
 croissante (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc, exactement comme sur Lodgify — il faut
 une promotion par palier.
 
-**La propagation vers la page publique est lente et non garantie dans la séance.** Le palier 2 nuits,
-créé et vérifié actif dans l'extranet (public, tous les jours, tous les plans tarifaires, séjours
-14/08/2026–31/12/2027), n'était toujours pas appliqué sur la page publique **une heure après** :
-2 nuits en moyenne saison restaient à 509 € = 2 × 254,50. Le simulateur « Simuler la réduction
-maximum » de l'extranet ne sert à rien pour ça — il est générique et n'interroge pas les tarifs réels
-de l'établissement. **Le seul contrôle valable est un devis sur la page publique, et il faut le
-refaire le lendemain.** `curl` ne convient pas (protection anti-bot) : passer par le navigateur.
+**Ces promotions ne s'appliquent PAS — constat définitif du 2026-08-17.** Les six paliers, créés le
+14 août, toujours affichés « Activée(s) » trois jours plus tard (publics, tous les jours, tous les
+plans tarifaires, séjours 14/08/2026–31/12/2027), n'ont **jamais** été appliqués sur la page
+publique :
+
+| Séjour | Palier | Attendu | Affiché le 14/08 | Affiché le 17/08 |
+|---|---|---|---|---|
+| 24→26 août, 2 nuits | −24 % | 386,84 € | 509 € | **509 €** |
+| 24→30 août, 6 nuits | −43 % | 870,39 € | 1 486 € | — |
+
+Trois jours écartent l'hypothèse du délai de propagation. **Conclusion : Booking n'applique pas ses
+promotions aux tarifs poussés par un gestionnaire de canaux.** Ni la table de Lodgify ni les
+promotions natives ne donnent de dégressivité sur ce canal — c'est un arbitrage commercial à porter
+(accepter Booking sans dégressivité, ou lui pousser une grille déjà dégressive depuis Lodgify), pas
+un réglage à trouver. Le simulateur « Simuler la réduction maximum » de l'extranet ne sert à rien
+pour ça : il est générique et n'interroge pas les tarifs réels. `curl` ne convient pas non plus
+(protection anti-bot) : passer par le navigateur.
 
 ---
 
