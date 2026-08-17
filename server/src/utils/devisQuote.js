@@ -10,7 +10,13 @@
  * Every dependency is injected so this is unit-testable without the prod DB.
  */
 
-// Build the engine input from a persisted devis row (same mapping the fiche/PDF use) and run it.
+// Build the engine input from a persisted devis row and run it.
+//
+// NOT the full replay of the sold state: this mapping drops `offeredOptionIds` and the price-lock
+// snapshot, so its AMOUNTS can drift from the fiche (specs/devis-pdf-total-parity.md §1). That is
+// harmless here and here only — the two callers below read exactly one boolean from the result
+// (`touristTaxCollectedOnArrival`, a property-config flag) and take every euro from the stored row.
+// Any consumer that needs the devis's actual quote must call `devisModel.recomputeQuote(id)`.
 function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
   const full = devisModel.findById(devisId);
   if (!full) return null;
