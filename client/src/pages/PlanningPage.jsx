@@ -26,6 +26,7 @@ import { orderDayEntries } from '../utils/planningDayOrder';
 import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
+import { countDayTasks } from '../utils/planningDayTasks';
 import { useAuth } from '../hooks/useAuth';
 import { isReceptionOnly } from '../constants/roles';
 import api from '../api';
@@ -831,7 +832,15 @@ export default function PlanningPage() {
           const dayDepartures = departuresMap[date] || [];
           const reservations = day ? day.reservations : [];
           const isToday = date === todayStr;
-          const allReady = reservations.length > 0 && reservations.every((r) => r.checkInReady);
+          // specs/planning-day-task-count.md — the chip counts EVERY tickable card of the day
+          // (arrivals + departures + resource sessions), not just the arrivals: a day of departures
+          // used to read « 0/0 » and could never turn green.
+          const dayTasks = countDayTasks({
+            arrivals: reservations,
+            departures: dayDepartures,
+            resourceCards: resourceCardsByDate[date]?.items,
+          });
+          const allReady = dayTasks.allDone;
 
           // Build every card of the day as an orderable entry `{ key, time, node }`, then sort them
           // into a single chronological stream (specs/planning-chronological-day-ordering.md).
@@ -973,7 +982,7 @@ export default function PlanningPage() {
                     {isToday && ' — Aujourd\'hui'}
                   </Typography>
                   <Chip
-                    label={`${reservations.filter((r) => r.checkInReady).length}/${reservations.length}`}
+                    label={`${dayTasks.done}/${dayTasks.total}`}
                     size="small"
                     sx={(t) => ({
                       ml: 'auto',

@@ -15,6 +15,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getClients: vi.fn(),
+    getClientsDirectory: vi.fn(),
     getClientDeleteImpact: vi.fn(),
     createClient: vi.fn(),
     updateClient: vi.fn(),
@@ -48,7 +49,7 @@ beforeEach(() => {
 });
 
 test('a failed clients list shows the retryable ErrorAlert (not a silent empty table)', async () => {
-  api.getClients.mockRejectedValue(new Error('boom'));
+  api.getClientsDirectory.mockRejectedValue(new Error('boom'));
   renderPage();
   expect(await screen.findByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
   // The empty-table copy must NOT be what the operator sees on a failure.
@@ -56,7 +57,7 @@ test('a failed clients list shows the retryable ErrorAlert (not a silent empty t
 });
 
 test('an empty clients list shows the empty state, not an error', async () => {
-  api.getClients.mockResolvedValue([]);
+  api.getClientsDirectory.mockResolvedValue({ items: [], counts: { upcoming: 0, past: 0 } });
   renderPage();
   expect(await screen.findByText('Aucun client trouvé')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument();
