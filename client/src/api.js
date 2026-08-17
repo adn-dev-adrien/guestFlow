@@ -367,10 +367,12 @@ const api = {
   // `{ resourceCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] } } }`.
   getPlanningResourceCards: ({ from, to }) =>
     request(`/planning/resource-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  setPlanningResourceCardDone: ({ reservationId, resourceId, date, start, done }) =>
+  // `kind: 'ignition'` ticks the « démarrer » task rather than the session's « préparé »
+  // (specs/resource-ignition-task.md §4.3).
+  setPlanningResourceCardDone: ({ reservationId, resourceId, date, start, done, kind }) =>
     request('/planning/resource-cards/done', {
       method: 'POST',
-      body: { reservationId, resourceId, date, start, done },
+      body: { reservationId, resourceId, date, start, done, ...(kind ? { kind } : {}) },
     }),
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
