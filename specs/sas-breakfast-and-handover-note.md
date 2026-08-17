@@ -52,8 +52,12 @@ leave a **free handover note** that resurfaces in the **departure SAS** and on t
    property declares a breakfast default and the reservation has no explicit breakfast row). When breakfast
    is not applicable, the page is skipped.
 2. The page shows, as a reminder, the **current effective breakfast time** (resolved exactly like the
-   planning card: `reservations.breakfastTime` → option default → `09:00` fallback) and lets the operator
-   **set a new time** (writes `reservations.breakfastTime`).
+   planning card: the hour of the stay's breakfast occurrences → `reservations.breakfastTime` → option
+   default → `09:00` fallback) and lets the operator **set a new time**. Committing writes
+   `reservations.breakfastTime` **and rewrites the hour of every breakfast morning of the stay** — the
+   planning card and the push notice read the occurrence, so writing the column alone left the change
+   invisible (fixed 2026-08-17, issue #426 —
+   [sas-breakfast-time-applies.md](sas-breakfast-time-applies.md)).
 3. The page has three **quantity steppers** — **Café**, **Thé**, **Chocolat** — each a non-negative integer,
    **initial value 0** (decision 2026-06-13). They reuse the same `QtyRow` stepper pattern as the linen page.
 4. The page has a **free note** text field (multiline) for breakfast-specific remarks (e.g. allergies,

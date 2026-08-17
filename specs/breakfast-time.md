@@ -33,7 +33,12 @@ breakfasts **sorted by time**.
 3. On the reservation page, when the breakfast option is enabled, a time field lets the operator set
    the desired breakfast time. It is **pre-filled with the option's default** the first time breakfast
    is enabled (and when empty); the operator can override it. Clearing it falls back to the default.
-4. The **effective** breakfast time for a reservation/day is
+4. *(Amended 2026-08-17 — [sas-breakfast-time-applies.md](sas-breakfast-time-applies.md).)* Since the
+   per-morning planning cards shipped, the hour of a served morning is carried by its **occurrence**
+   (`reservation_options.cardOccurrences[].time`); `reservations.breakfastTime` is the stay-level hour,
+   used as the fallback when a stay has no occurrence — and writing it rewrites the occurrences, so the
+   two never diverge.
+4.bis The **effective** breakfast time for a reservation/day is
    `COALESCE(reservations.breakfastTime, options.breakfastTime, '09:00')` — resolved **server-side**.
 5. The planning breakfast payload carries the effective `breakfastTime` per item, and the card
    displays it.
