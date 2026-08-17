@@ -76,7 +76,11 @@ function isValidSession(session, cfg = {}) {
  * Price a set of sessions for one reservation-resource (or a single standalone booking).
  *  - cfg: { dayRate, eveningRate, eveningStart, slotMinutes, openTime, closeTime, minMinutes }
  *  - freeMinutes: free allowance applied ONCE, to the earliest valid session's first minutes.
- * Returns { totalPrice, grossPrice, billedHours, unitPrice, validSessions }.
+ * Returns { totalPrice, grossPrice, totalHours, billedHours, unitPrice, validSessions }.
+ *
+ * `totalHours` are the hours the guest actually gets (what the SAS has to place);
+ * `billedHours` are what is charged, i.e. `totalHours` minus the free allowance
+ * (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 7).
  */
 function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const norm = normalizeConfig(cfg);
@@ -85,7 +89,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || (toMinutes(a.start) - toMinutes(b.start)));
 
   if (valid.length === 0) {
-    return { totalPrice: 0, grossPrice: 0, billedHours: 0, unitPrice: 0, validSessions: [] };
+    return { totalPrice: 0, grossPrice: 0, totalHours: 0, billedHours: 0, unitPrice: 0, validSessions: [] };
   }
 
   const gross = valid.reduce((sum, s) => sum + priceMinutes(toMinutes(s.start), toMinutes(s.end), norm), 0);
@@ -103,7 +107,35 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const totalPrice = Math.max(0, round2(gross - freeValue));
   const unitPrice = billedHours > 0 ? round2(totalPrice / billedHours) : 0;
 
-  return { totalPrice, grossPrice: round2(gross), billedHours, unitPrice, validSessions: valid };
+  return {
+    totalPrice,
+    grossPrice: round2(gross),
+    totalHours: round2(totalMinutes / 60),
+    billedHours,
+    unitPrice,
+    validSessions: valid,
+  };
 }
 
-module.exports = { toMinutes, priceRange, priceSessions, isValidSession, normalizeConfig };
+/**
+ * Evening supplement of a set of placed blocks (specs/hourly-resource-quantity-and-sas-scheduling.md
+ * §3.4 rule 22). The hours were SOLD at the day rate; placing one in the evening band owes the
+ * difference, which the arrival SAS adds to the arrival complement instead of re-playing the quote.
+ *
+ * Computed as « banded price − day-only price » so it stays consistent with `priceSessions` by
+ * construction (same slot walk, same band boundary). Clamped per block, so a block configured cheaper
+ * in the evening yields 0 rather than discounting another block.
+ */
+function eveningSupplement(blocks, cfg = {}) {
+  const banded = normalizeConfig(cfg);
+  const dayOnly = { ...banded, eveningRate: banded.dayRate, eveningStart: Infinity };
+  const total = (Array.isArray(blocks) ? blocks : []).reduce((sum, block) => {
+    const start = toMinutes(block?.start);
+    const end = toMinutes(block?.end);
+    if (!(end > start)) return sum;
+    return sum + Math.max(0, priceMinutes(start, end, banded) - priceMinutes(start, end, dayOnly));
+  }, 0);
+  return round2(total);
+}
+
+module.exports = { toMinutes, priceRange, priceSessions, isValidSession, normalizeConfig, eveningSupplement };

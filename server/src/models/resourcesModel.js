@@ -30,6 +30,17 @@ function createModel(database) {
     } catch { return false; }
   })();
 
+  // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3). Guarded as its OWN
+  // group rather than appended to HOURLY_COLUMNS, so a test schema carrying the hourly columns but
+  // not these two keeps writing the hourly ones instead of silently dropping all of them.
+  const THERMAL_COLUMNS = ['heatUpMinutes', 'heatRetentionMinutes'];
+  const HAS_THERMAL_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return THERMAL_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
   function getPropertyIds(resourceId) {
     return database.prepare('SELECT propertyId FROM resource_properties WHERE resourceId = ? ORDER BY propertyId')
       .all(Number(resourceId))
@@ -71,6 +82,8 @@ function createModel(database) {
       closeTime: resource.closeTime || '22:00',
       openDays,
       turnoverMinutes: Number(resource.turnoverMinutes || 0),
+      heatUpMinutes: Math.max(0, Number(resource.heatUpMinutes || 0)),
+      heatRetentionMinutes: Math.max(0, Number(resource.heatRetentionMinutes || 0)),
     };
   }
 
@@ -241,13 +254,22 @@ function createModel(database) {
       hourlyEveningRate: Number(payload.hourlyEveningRate) || 0,
       hourlyExternalDayRate: Number(payload.hourlyExternalDayRate) || 0,
       hourlyExternalEveningRate: Number(payload.hourlyExternalEveningRate) || 0,
+      // Negatives would invert the slot algebra (a negative warm-up would open past slots), so clamp.
+      heatUpMinutes: Math.max(0, Number(payload.heatUpMinutes) || 0),
+      heatRetentionMinutes: Math.max(0, Number(payload.heatRetentionMinutes) || 0),
     };
   }
 
-  // Column/placeholder fragments shared by insert + update, appending the hourly columns when present.
-  const HOURLY_SET = HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS.map((c) => `${c}=@${c}`).join(', ') : '';
-  const HOURLY_INSERT_COLS = HAS_HOURLY_COLUMNS ? `, ${HOURLY_COLUMNS.join(', ')}` : '';
-  const HOURLY_INSERT_VALS = HAS_HOURLY_COLUMNS ? `, ${HOURLY_COLUMNS.map((c) => `@${c}`).join(', ')}` : '';
+  // Column/placeholder fragments shared by insert + update, appending each optional group when present.
+  const optionalSet = (has, cols) => (has ? cols.map((c) => `${c}=@${c}`).join(', ') : '');
+  const HOURLY_SET = optionalSet(HAS_HOURLY_COLUMNS, HOURLY_COLUMNS);
+  const THERMAL_SET = optionalSet(HAS_THERMAL_COLUMNS, THERMAL_COLUMNS);
+  const OPTIONAL_COLUMNS = [
+    ...(HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS : []),
+    ...(HAS_THERMAL_COLUMNS ? THERMAL_COLUMNS : []),
+  ];
+  const HOURLY_INSERT_COLS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.join(', ')}` : '';
+  const HOURLY_INSERT_VALS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.map((c) => `@${c}`).join(', ')}` : '';
 
   function insert(payload) {
     const cols = columnsFromPayload(payload);
@@ -273,7 +295,7 @@ function createModel(database) {
     const propertyIds = normalizePropertyIds(payload);
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
-      const hourlySet = HOURLY_SET ? `, ${HOURLY_SET}` : '';
+      const hourlySet = [HOURLY_SET, THERMAL_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = HAS_RESOURCE_NAME_EN
         ? `UPDATE resources
            SET name=@name, nameEn=@nameEn, quantity=@quantity, price=@price, priceType=@priceType, note=@note,

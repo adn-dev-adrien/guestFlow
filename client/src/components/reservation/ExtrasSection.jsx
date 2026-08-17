@@ -324,22 +324,28 @@ export default function ExtrasSection() {
                               the option's occurrence checklist placement). */}
                           {enabled && (
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                              {isHourlyScheduled ? (
-                                <Box sx={{ flex: 1 }} />
-                              ) : (
-                                <QuantityField
-                                  size="small"
-                                  label={isPerHour ? 'Heures' : 'Qté'}
-                                  min={1}
-                                  max={isPerHour ? undefined : (resource.available || 0) * getQuantityMultiplier(resource.priceType)}
-                                  value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
-                                  onCommit={(v) => setResourceQuantity(resource.id, toBaseQuantity(v, resource.priceType))}
-                                  error={resourceConflict}
-                                  helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
-                                  disabled={isReservationLocked}
-                                  sx={{ width: { xs: '100%', sm: 200 } }}
-                                />
-                              )}
+                              {/* An hourly-scheduled resource keeps its « Heures » field: the hours are
+                                  what is SOLD here, and they get placed on real slots with the guest
+                                  during the arrival SAS. The field used to be hidden behind a spacer,
+                                  which left the Switch as the only control and the line worth nothing
+                                  until a session was typed in
+                                  (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4). */}
+                              <QuantityField
+                                size="small"
+                                label={isPerHour ? 'Heures' : 'Qté'}
+                                min={1}
+                                max={isPerHour ? undefined : (resource.available || 0) * getQuantityMultiplier(resource.priceType)}
+                                value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
+                                onCommit={(v) => setResourceQuantity(resource.id, toBaseQuantity(v, resource.priceType))}
+                                error={resourceConflict}
+                                helperText={
+                                  resourceConflict ? 'Ressource non dispo sur ces dates'
+                                    : isHourlyScheduled ? 'Heures vendues — planifiées au check-in.'
+                                      : isPerHour ? 'La quantité correspond au nombre d\'heures.' : ''
+                                }
+                                disabled={isReservationLocked}
+                                sx={{ width: { xs: '100%', sm: 200 } }}
+                              />
                               <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
                                 {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                     Small Switch + Tooltip pattern, mirrors the option block above. On

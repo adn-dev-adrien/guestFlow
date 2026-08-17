@@ -34,6 +34,8 @@ const emptyResource = {
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
   // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1).
   showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
+  // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3). 0 = not applicable.
+  heatUpMinutes: 0, heatRetentionMinutes: 0,
 };
 
 function ComplexResourceFields({ form, setForm, properties }) {
@@ -188,12 +190,39 @@ function ComplexResourceFields({ form, setForm, properties }) {
             size="small"
             value={form.turnoverMinutes || 0}
             onChange={(e) => setForm({ ...form, turnoverMinutes: Math.max(0, Number(e.target.value) || 0) })}
-            helperText="Ex: 15 min pour chauffer/remettre en état"
+            helperText="Entre deux passages, quand la ressource est déjà prête"
             fullWidth
             slotProps={{
               htmlInput: { min: 0, step: 5 }
             }}
           />
+          {/* Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11). Left
+              at 0 the resource behaves exactly as before: only the opening window, the capacity and
+              the turnover gate a slot. */}
+          {form.priceType === 'per_hour' && (
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+              <TextField
+                label="Montée en chauffe (min)"
+                type="number"
+                size="small"
+                value={form.heatUpMinutes || 0}
+                onChange={(e) => setForm({ ...form, heatUpMinutes: Math.max(0, Number(e.target.value) || 0) })}
+                helperText="Temps pour rendre la ressource utilisable à froid (bain nordique : 240)"
+                fullWidth
+                slotProps={{ htmlInput: { min: 0, step: 15 } }}
+              />
+              <TextField
+                label="Reste chaude (min)"
+                type="number"
+                size="small"
+                value={form.heatRetentionMinutes || 0}
+                onChange={(e) => setForm({ ...form, heatRetentionMinutes: Math.max(0, Number(e.target.value) || 0) })}
+                helperText="Durée d'utilisation sans réchauffer après un passage (bain nordique : 480)"
+                fullWidth
+                slotProps={{ htmlInput: { min: 0, step: 30 } }}
+              />
+            </Box>
+          )}
           <Box>
             <Typography variant="caption" color="text.secondary" gutterBottom display="block">Jours d'ouverture</Typography>
             <FormGroup row>
@@ -314,6 +343,10 @@ export function toResourcePayload(form) {
     hourlyEveningRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyEveningRate) || 0) : 0,
     hourlyExternalDayRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyExternalDayRate) || 0) : 0,
     hourlyExternalEveningRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
+    // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11) — per_hour
+    // only, cleared otherwise so switching priceType away cannot leave a stale warm-up in place.
+    heatUpMinutes: form.priceType === 'per_hour' ? Math.max(0, Number(form.heatUpMinutes) || 0) : 0,
+    heatRetentionMinutes: form.priceType === 'per_hour' ? Math.max(0, Number(form.heatRetentionMinutes) || 0) : 0,
   };
 }
 
@@ -362,6 +395,8 @@ export default function ResourcesPage({ barCenter }) {
           }
         })(),
         turnoverMinutes: Number(item.turnoverMinutes || 0),
+        heatUpMinutes: Number(item.heatUpMinutes || 0),
+        heatRetentionMinutes: Number(item.heatRetentionMinutes || 0),
         // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7).
         nameEn: item.nameEn || '',
       })}

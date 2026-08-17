@@ -35,4 +35,31 @@ describe('toResourcePayload — hourly scheduling fields', () => {
     expect(p.showsPlanningCard).toBe(0);
     expect(p.hourlyEveningRate).toBe(0);
   });
+
+  // specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11 — the thermal model.
+  describe('thermal settings', () => {
+    it('carries the warm-up and the retention window on a per_hour resource', () => {
+      const p = toResourcePayload({ ...base, heatUpMinutes: 240, heatRetentionMinutes: 480 });
+      expect(p.heatUpMinutes).toBe(240);
+      expect(p.heatRetentionMinutes).toBe(480);
+    });
+
+    it('defaults both to 0, which reproduces the pre-thermal availability', () => {
+      const p = toResourcePayload(base);
+      expect(p.heatUpMinutes).toBe(0);
+      expect(p.heatRetentionMinutes).toBe(0);
+    });
+
+    it('clamps negatives — a negative warm-up would open slots in the past', () => {
+      const p = toResourcePayload({ ...base, heatUpMinutes: -60, heatRetentionMinutes: -1 });
+      expect(p.heatUpMinutes).toBe(0);
+      expect(p.heatRetentionMinutes).toBe(0);
+    });
+
+    it('clears both when the resource is not per_hour', () => {
+      const p = toResourcePayload({ ...base, priceType: 'per_stay', heatUpMinutes: 240, heatRetentionMinutes: 480 });
+      expect(p.heatUpMinutes).toBe(0);
+      expect(p.heatRetentionMinutes).toBe(0);
+    });
+  });
 });

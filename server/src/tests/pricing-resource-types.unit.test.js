@@ -122,11 +122,30 @@ test('hourly-scheduled resource → free first hour deducted once (property free
   assert.equal(line.billedUnits, 1);
 });
 
-test('hourly-scheduled resource → no valid session drops the line', () => {
+test('hourly-scheduled resource → an unusable session falls back to quantity pricing, never to nothing', () => {
+  // A session below the minimum duration (a resource reconfigured under a saved booking, say) used to
+  // erase the line and its money. The hours it described were still sold, so they are billed as a
+  // bare quantity and re-placed during the arrival SAS
+  // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 2).
   const db = createDb();
   const quote = calculateReservationQuote({
     db, ...BASE,
     selectedResources: [{ resourceId: 14, sessions: [{ date: '2026-07-11', start: '19:00', end: '19:30' }] }], // < 1 h
   });
-  assert.equal(quote.resourceLines.find((l) => l.resourceId === 14), undefined);
+  const line = quote.resourceLines.find((l) => l.resourceId === 14);
+  assert.ok(line, 'the line must survive an unusable session');
+  assert.equal(line.quantity, 0.5);   // hours derived from the session it could not schedule
+  assert.equal(line.totalPrice, 15);  // 0,5 h × 30 €
+  assert.equal(line.sessions, undefined, 'nothing is presented as scheduled');
+});
+
+test('hourly-scheduled resource → an explicit quantity wins over unusable sessions', () => {
+  const db = createDb();
+  const quote = calculateReservationQuote({
+    db, ...BASE,
+    selectedResources: [{ resourceId: 14, quantity: 3, sessions: [{ date: '2026-07-11', start: '19:00', end: '19:30' }] }],
+  });
+  const line = quote.resourceLines.find((l) => l.resourceId === 14);
+  assert.equal(line.quantity, 3);
+  assert.equal(line.totalPrice, 90);
 });

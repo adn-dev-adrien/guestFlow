@@ -28,6 +28,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DialpadIcon from '@mui/icons-material/Dialpad';
 import SavingsIcon from '@mui/icons-material/Savings';
 import RoomServiceIcon from '@mui/icons-material/RoomService';
+import HotTubIcon from '@mui/icons-material/HotTub';
+import SasResourceSchedulingPage from './SasResourceSchedulingPage';
 import KingBedIcon from '@mui/icons-material/KingBed';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DryCleaningIcon from '@mui/icons-material/DryCleaning';
@@ -90,6 +92,7 @@ function stepMeta(key, mode) {
     case 'caution':
     case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
     case 'options': return { title: 'Prestations', Icon: RoomServiceIcon };
+    case 'resourceScheduling': return { title: 'Planifier', Icon: HotTubIcon };
     case 'breakfast': return { title: 'Petit déjeuner', Icon: FreeBreakfastIcon };
     case 'linen':
     case 'linenItems': return { title: 'Linge de lit', Icon: KingBedIcon };
@@ -202,6 +205,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [linenOk, setLinenOk] = useState(null);           // arrival linen verify: true | false
   const [missingBed, setMissingBed] = useState({});       // arrival: { itemId: qty }
   const [cleaningAdded, setCleaningAdded] = useState(false);
+  // Hours the operator placed on real slots during this run. In-memory only until the single commit
+  // at the recap (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 24).
+  const [resourceBlocks, setResourceBlocks] = useState([]);
   // specs/sas-bath-linen-upsell.md — arrival bath-linen upsell: add it or not. Settlement (incl. « en
   // fin de séjour ») is chosen once, for the whole complement, on the recap — never at option selection.
   const [bathLinenAdded, setBathLinenAdded] = useState(false);
@@ -382,6 +388,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         data.portalCode ? 'portal' : null,
         cautionStep ? 'caution' : null,
         hasOptions ? 'options' : null,
+        // Place the hours bought by the hour on real slots, right after the read-only prestations
+        // list (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 17). Skipped once
+        // everything is scheduled.
+        data.resourceScheduling?.applicable ? 'resourceScheduling' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
@@ -542,6 +552,20 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }, [mode, r]);
   const departureGrandTotal = Math.round((endOfStayTotal + recalledArrivalAmount) * 100) / 100;
 
+  // What the guest bought but nobody placed on a slot — the hours the server still owed, minus the
+  // ones placed during this run. Recalled on the recap so a skipped step never loses them.
+  const unplacedResourceHours = useMemo(() => (
+    (data?.resourceScheduling?.resources || [])
+      .map((resource) => {
+        const placedMinutes = resourceBlocks
+          .filter((b) => Number(b.resourceId) === Number(resource.resourceId))
+          .reduce((sum, b) => sum + Number(b.durationMinutes || 0), 0);
+        const hours = Math.max(0, Math.round((resource.hoursRemaining - placedMinutes / 60) * 100) / 100);
+        return { resourceId: resource.resourceId, name: resource.name, hours };
+      })
+      .filter((u) => u.hours > 0)
+  ), [data, resourceBlocks]);
+
   const commit = async () => {
     setCommitting(true); setError('');
     try {
@@ -563,6 +587,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // check-out (specs/recall-unpaid-arrival-complement-at-checkout.md).
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
+          // Hours placed on real slots. `undefined` when the step never ran, so a SAS that does not
+          // touch scheduling leaves the stored sessions exactly as they were
+          // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rules 23-24). The server
+          // re-validates every block and refuses the whole commit on a conflict.
+          resourceBlocks: activeKeys.includes('resourceScheduling')
+            ? resourceBlocks.map((b) => ({ resourceId: b.resourceId, date: b.date, start: b.start, end: b.end }))
+            : undefined,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
@@ -729,6 +760,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Stack>
         );
       }
+      case 'resourceScheduling':
+        return (
+          <SasResourceSchedulingPage
+            reservationId={r.id}
+            scheduling={data.resourceScheduling}
+            blocks={resourceBlocks}
+            onAdd={(block) => setResourceBlocks((prev) => [...prev, block])}
+            onRemove={(idx, block) => setResourceBlocks((prev) => prev.filter((b) => (
+              !(b.resourceId === block.resourceId && b.date === block.date && b.start === block.start)
+            )))}
+          />
+        );
       case 'breakfast':
         return (
           <Stack spacing={1.5}>
@@ -913,6 +956,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {/* Amounts never render in serif → bold sans body, not sectionHeader. */}
               <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>Total : {formatCurrency(total)}</Typography>
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
+              {/* Hours sold but never placed on a slot. The step is skippable on purpose, so the recap
+                  is what keeps them from being forgotten
+                  (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 23). */}
+              {unplacedResourceHours.map((u) => (
+                <Typography key={u.resourceId} variant="body2" color="warning.main">
+                  {u.name} : {u.hours} h non planifiée{u.hours > 1 ? 's' : ''}.
+                </Typography>
+              ))}
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
                 <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(arrivalAdded)}) manuellement.</Typography>
               )}
@@ -1010,6 +1061,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           />
         </>;
       case 'options': return <>{quit}{next()}</>;
+      // Not a yes/no safety question → neutral styling, like the ménage upsell. A check-in is never
+      // blocked by scheduling: « Planifier plus tard » moves on and the recap recalls what is left
+      // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 23).
+      case 'resourceScheduling':
+        return <>{quit}
+          <Button onClick={goNext} sx={{ color: 'text.secondary' }}>Planifier plus tard</Button>
+          <Button variant="contained" onClick={goNext}>Suivant</Button>
+        </>;
       case 'breakfast':
         return <>{quit}
           <Button variant="contained" onClick={() => { if (breakfastAnyMismatch) setBreakfastWarnOpen(true); else goNext(); }}>Suivant</Button>

@@ -481,6 +481,19 @@ export default function PricingSummary({
                 const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
                 const displayedOriginalTotal = isOffered ? originalTotal : total;
                 const resourceHint = hasFreeFirstHour ? '1ère heure offerte' : '';
+                // Hours sold vs hours actually placed on a slot — both counted server-side
+                // (`scheduledHours`, absent on a resource that cannot be scheduled). An hourly
+                // resource is normally sold unscheduled and planned with the guest during the arrival
+                // SAS, so « à planifier » is an ordinary state, not an alarm — but it must be visible,
+                // or the operator cannot tell a scheduled bath from one nobody booked a slot for
+                // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 5).
+                const hoursSold = Number(sr.quantity || 0);
+                const hoursPlaced = Number(sr.scheduledHours || 0);
+                const schedulingLabel = sr.scheduledHours === undefined || hoursSold <= 0 || hoursPlaced >= hoursSold
+                  ? ''
+                  : hoursPlaced <= 0
+                    ? 'à planifier'
+                    : `${hoursPlaced} h / ${hoursSold} h planifiées`;
                 const split = isOffered
                   ? { kind: 'simple', snapshot: displayedOriginalTotal, delta: 0 }
                   : getLineSplit(sr, total);
@@ -501,6 +514,14 @@ export default function PricingSummary({
                       {chip === 'on' && <ComplementChip active onClick={handleInComplementToggle} />}
                       {chip === 'off' && <ComplementChip active={false} onClick={handleInComplementToggle} />}
                       {chip === 'readonly' && <ComplementChip active readOnly />}
+                      {schedulingLabel && (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={schedulingLabel}
+                          sx={{ ml: 0.5, height: 18, fontSize: 10, color: 'text.secondary' }}
+                        />
+                      )}
                       {resourceHint && (
                         <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', width: '100%' }}>
                           {resourceHint}
