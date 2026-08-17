@@ -350,6 +350,65 @@ function createModel(database) {
     });
   }
 
+  // ---- replay the quote of a PERSISTED devis (specs/devis-pdf-total-parity.md §3.1) ----
+  // The engine input rebuilt from the stored devis graph, in the exact shape `create`/`update` send.
+  // Every field matters: dropping `offeredOptionIds` re-bills an offered option AND loses the
+  // `includedInRate` deduction on the tourist-tax base — which is how the PDF used to print a total
+  // 60 € above its own lines (§1). Routed through `computeQuote`, so the price lock and the
+  // engine-managed auto-option filtering come for free.
+  function engineInputFromPersistedDevis(full) {
+    const lines = full.options || [];
+    const catalogLines = lines.filter((line) => !line.isCustom);
+    return {
+      propertyId: full.propertyId,
+      startDate: full.startDate, endDate: full.endDate,
+      checkInTime: full.checkInTime, checkOutTime: full.checkOutTime,
+      adults: full.adults, children: full.children, teens: full.teens, babies: full.babies,
+      discountPercent: full.discountPercent,
+      customPrice: full.customPrice != null && full.customPrice !== '' ? Number(full.customPrice) : undefined,
+      selectedOptions: catalogLines.map((line) => ({
+        optionId: Number(line.optionId), quantity: Number(line.quantity || 1),
+        unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
+        cardOccurrences: line.cardOccurrences, inComplement: line.inComplement,
+      })),
+      customOptions: lines.filter((line) => line.isCustom).map((line) => ({
+        customKey: String(line.customOptionId || line.title || ''),
+        description: line.description || line.title || '',
+        // `totalPrice` is zeroed on an offered line — the engine wants the real amount + the flag.
+        amount: Number(line.originalTotalPrice ?? line.unitPrice ?? 0),
+        offered: Boolean(line.offered), inComplement: line.inComplement,
+      })),
+      selectedResources: (full.resources || []).map((line) => ({
+        resourceId: Number(line.resourceId), quantity: Number(line.quantity || 1),
+        unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
+        offered: Boolean(line.offered), sessions: line.sessions, inComplement: line.inComplement,
+      })),
+      offeredOptionIds: catalogLines
+        .filter((line) => Number(line.offered || 0) === 1)
+        .map((line) => Number(line.optionId)),
+      extraGuestSurchargeOffered: Boolean(full.extraGuestSurchargeOffered),
+      touristTaxInComplement: full.touristTaxInComplement,
+      platform: full.platform,
+      // A public (site) devis bills planning-card options by quantity — replay it or the lines drift.
+      planningCardAsQuantity: full.requestOrigin === 'public',
+    };
+  }
+
+  // The quote a persisted devis is worth today, replayed from its own sold state. THE way to re-run
+  // the engine on a stored devis: any other caller rebuilding its own input drifts from what the
+  // fiche shows. Returns null when the devis (or its property) is gone or the engine refuses — the
+  // caller then falls back to the stored row rather than serving a half-computed quote.
+  function recomputeQuote(id) {
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    if (!existing) return null;
+    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(existing.propertyId));
+    if (!property) return null;
+    try {
+      const quote = computeQuote(engineInputFromPersistedDevis(enrichDevis(existing)), existing, property);
+      return quote && quote.error ? null : quote;
+    } catch { return null; }
+  }
+
   // ---- persist lines (shared by create/update) — into the reservation_* children ----
   // Same store as a reservation's, so a devis line keeps everything a reservation line keeps:
   // scheduled occurrences, hourly sessions, Complément routing (§4.1). Amounts are rounded here,
@@ -741,6 +800,7 @@ function createModel(database) {
     resolvePaymentSchedule,
     list,
     findById,
+    recomputeQuote,
     getHistory,
     updateStatus,
     create,

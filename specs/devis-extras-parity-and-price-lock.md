@@ -136,6 +136,13 @@ guest was quoted holds for as long as the quote is valid.
     no snapshot and is priced at today's tariff, as expected.
     _Amended 2026-08-16 after the prod incident below._
 
+13ter. **The PDF is under the same lock as the fiche.** The devis PDF re-runs the engine to resolve its
+    tourist-tax breakdown, and until 2026-08-17 it built that engine input itself — without the locked
+    snapshot and without the offered lines — so it printed a re-tarified total next to the sold lines.
+    Any re-quote of a persisted devis now goes through `devisModel.recomputeQuote(id)`, which replays
+    the sold state through the very `computeQuote` used on save. See
+    [devis-pdf-total-parity.md](devis-pdf-total-parity.md).
+
 14. A devis whose `validUntil` is **past** — or a legacy devis with no `validUntil` — is **re-priced at the
     current tariffs**, on load and on save. Saving it re-issues a validity window
     (`min(today + quoteValidityDays, startDate − 2 days)`), so an expired quote that is worked on becomes a

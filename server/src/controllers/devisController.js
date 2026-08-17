@@ -9,8 +9,6 @@
 const { validateFinanceInputs } = require('../utils/financeValidation');
 const settingsModel = require('../models/settingsModel');
 const { generateDevisPdf } = require('../utils/devisPdf');
-const { calculateReservationQuote } = require('../utils/pricing');
-const db = require('../database');
 
 function financeError(body) {
   return validateFinanceInputs({
@@ -82,49 +80,11 @@ function createController(model, { googleCalendarSync = require('../utils/google
     if (!full) return res.status(404).json({ error: 'Devis non trouvé' });
     try {
       const settings = settingsModel.read();
-      // §3.4 rules 15–17 — re-run the pricing engine against the persisted devis state so
-      // the PDF can read the same breakdown PricingSummary shows on the live UI
-      // (touristTaxUnitAmount × touristTaxAdultsCount × touristTaxNights). Without this the
-      // PDF builds an incorrect detail string from `full.touristTaxRate`, which is the BASE
-      // rate (percentage or fixed) — meaningless when the tax is percentage-based.
-      const quote = (() => {
-        try {
-          return calculateReservationQuote({
-            db,
-            propertyId: Number(full.propertyId),
-            startDate: full.startDate,
-            endDate: full.endDate,
-            checkInTime: full.checkInTime,
-            checkOutTime: full.checkOutTime,
-            adults: Number(full.adults || 0),
-            children: Number(full.children || 0),
-            teens: Number(full.teens || 0),
-            babies: Number(full.babies || 0),
-            discountPercent: Number(full.discountPercent || 0),
-            customPrice: full.customPrice != null ? Number(full.customPrice) : undefined,
-            // The scheduled occurrences ride along: without them the engine treats a planning-card
-            // option as « not taken » and the PDF loses the line it is supposed to quote
-            // (specs/devis-extras-parity-and-price-lock.md §3 rule 6).
-            selectedOptions: (full.options || []).filter((o) => !o.isCustom).map((o) => ({
-              optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
-              unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
-              cardOccurrences: Array.isArray(o.cardOccurrences) ? o.cardOccurrences : [],
-            })),
-            customOptions: (full.options || []).filter((o) => o.isCustom).map((o) => ({
-              customKey: String(o.customOptionId || o.title || ''),
-              description: o.title || o.description || '',
-              amount: Number(o.amount ?? o.originalTotalPrice ?? o.totalPrice ?? 0),
-              offered: Boolean(o.offered),
-            })),
-            selectedResources: (full.resources || []).map((r) => ({
-              resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
-              unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
-              sessions: Array.isArray(r.sessions) ? r.sessions : [],
-            })),
-            platform: full.platform,
-          });
-        } catch { return null; /* engine failure is non-fatal — the PDF falls back to row values */ }
-      })();
+      // specs/devis-pdf-total-parity.md §3.1 rule 5 — the engine quote comes from the model's single
+      // replay of the sold state (offered lines, price lock, auto-options, Complément routing), so
+      // the PDF reads exactly what the fiche shows. Building the engine input here is what let the
+      // printed total drift from the printed lines (§1). `null` on any failure → row fallback.
+      const quote = model.recomputeQuote(req.params.id);
       const buf = await generateDevisPdf(full, settings, quote);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="devis-${full.devisNumber}.pdf"`);
