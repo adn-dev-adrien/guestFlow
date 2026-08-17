@@ -1672,6 +1672,10 @@ function calculateReservationQuote({
             unitPrice: priced.unitPrice,
             billedUnits: priced.billedHours,
             sessions: priced.validSessions,
+            // How many of the sold hours actually sit on a slot. The summary renders « à planifier »
+            // from it, and the arrival SAS reads it to know what is left to place — neither has to do
+            // time arithmetic (§3.1 rule 5, CLAUDE.md §6.0 « render, don't compute »).
+            scheduledHours: priced.totalHours,
             ...applyOfferedToLine(priced.totalPrice, offered),
             ...pickContribsAndForce(selected, lockedLine),
           };
@@ -1758,6 +1762,9 @@ function calculateReservationQuote({
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
+        // Sold by the hour, nothing placed on a slot yet: the arrival SAS is where these hours get
+        // scheduled. Only meaningful for a schedulable resource — 0 elsewhere is simply « n/a ».
+        ...(hourlyScheduled ? { scheduledHours: 0 } : {}),
         ...applyOfferedToLine(merged.totalPrice, offered),
         ...pickContribsAndForce(selected, lockedLine),
       };

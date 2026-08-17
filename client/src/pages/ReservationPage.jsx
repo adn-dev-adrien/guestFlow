@@ -1042,6 +1042,21 @@ export default function ReservationPage() {
     setAvailableResources(resources);
   };
 
+  // The availability used to refresh only at init and when the Logement select changed — so typing
+  // the dates on a blank fiche never triggered it, and « déjà réservée » / the remaining quantity
+  // stayed stale (specs/hourly-resource-quantity-and-sas-scheduling.md §3.2 rule 9). Until both dates
+  // are set the catalogue from the property context stands in, so the block is never empty.
+  useEffect(() => {
+    if (loading || !selectedProp || !form.startDate || !form.endDate) return;
+    loadResourcesAvailability(
+      form.startDate,
+      form.endDate,
+      selectedProp,
+      editingReservationId || excludeReservationIdForDevis || null,
+    ).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, selectedProp, form.startDate, form.endDate, editingReservationId, excludeReservationIdForDevis]);
+
   const loadBabyBedAvailability = async (startDate, endDate, propertyId, excludeReservationId = null) => {
     if (!propertyId || !startDate || !endDate) {
       setBabyBedAvailability({ totalQuantity: 0, reserved: 0, available: null });
