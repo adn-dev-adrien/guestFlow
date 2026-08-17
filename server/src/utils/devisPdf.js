@@ -47,6 +47,21 @@ function resolveLiveTaxTotals(full, quote, printedStayTtc) {
   };
 }
 
+// specs/devis-offered-resource-parity.md §3 rules 3-4 — what a line COSTS the client (`billed`, 0 € on
+// a geste commercial) vs what it is WORTH (`real`, struck through next to the « Offert » badge). A
+// legacy row stored `offered = 1` WITH its phantom price is billed 0 here too, so an old devis prints
+// right without waiting for a re-save — and never eats into the accommodation row, whose amount is
+// `finalPrice` minus these billed extras. Exported under `__test`.
+function lineAmounts(line) {
+  const offered = isLineOffered(line);
+  const stored = roundMoney(Number(line?.totalPrice || 0));
+  const units = Number(line?.billedUnits || line?.quantity || 0);
+  const real = roundMoney(Number(line?.originalTotalPrice || 0))
+    || roundMoney(Number(line?.unitPrice || 0) * units)
+    || stored;
+  return { offered, billed: offered ? 0 : stored, real };
+}
+
 function generateDevisPdf(full, settings, quote) {
   return new Promise((resolve, reject) => {
   // 2026-06-06 — bilingual rendering (specs/devis-english-language.md). The devis row
@@ -373,8 +388,8 @@ function generateDevisPdf(full, settings, quote) {
   // accommodation row at the manual amount (engine price struck through when it's a reduction) so the
   // HT/TTC subtotals reconcile with the grand total (finalPrice). Otherwise fall back to the per-night
   // breakdown or a flat row, applying any discount.
-  const optionsTotalTtc = (full.options || []).reduce((s, o) => s + Number(o.totalPrice || 0), 0);
-  const resourcesTotalTtc = (full.resources || []).reduce((s, r) => s + Number(r.totalPrice || 0), 0);
+  const optionsTotalTtc = (full.options || []).reduce((s, o) => s + lineAmounts(o).billed, 0);
+  const resourcesTotalTtc = (full.resources || []).reduce((s, r) => s + lineAmounts(r).billed, 0);
   const hasManualPrice = full.customPrice != null && full.customPrice !== '';
   // What the accommodation branches actually put on paper — the supplement fallback derives the
   // unexplained remainder from it.
@@ -420,7 +435,7 @@ function generateDevisPdf(full, settings, quote) {
     }
   } else {
     // Flat accommodation row
-    const accTotal = roundMoney((full.totalPrice || 0) - (full.options || []).reduce((s, o) => s + o.totalPrice, 0) - (full.resources || []).reduce((s, r) => s + r.totalPrice, 0));
+    const accTotal = roundMoney((full.totalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
     const accommodationFactor = Number(full.discountPercent || 0) > 0
       ? Math.max(0, 1 - (Number(full.discountPercent || 0) / 100))
       : 1;
@@ -477,24 +492,18 @@ function generateDevisPdf(full, settings, quote) {
         optionLabelText = `${optionLabelText} (${L.extraHoursSuffix(hoursLabel)})`;
       }
     }
-    const offered = isLineOffered(opt);
-    const originalTtc = offered
-      ? roundMoney(Number(opt.unitPrice || 0) * Number(opt.billedUnits || opt.quantity || 0))
-      : Number(opt.totalPrice || 0);
-    drawRow(optionLabelText, opt.billedUnits || opt.quantity || 1, Number(opt.totalPrice || 0), vatOptions, false, {
-      originalTtc,
+    const { offered, billed, real } = lineAmounts(opt);
+    drawRow(optionLabelText, opt.billedUnits || opt.quantity || 1, billed, vatOptions, false, {
+      originalTtc: offered ? real : billed,
       badgeText: offered ? L.offered : '',
     });
   }
 
   // Resources
   for (const rsc of full.resources || []) {
-    const offered = isLineOffered(rsc);
-    const originalTtc = offered
-      ? roundMoney(Number(rsc.unitPrice || 0) * Number(rsc.billedUnits || rsc.quantity || 0))
-      : Number(rsc.totalPrice || 0);
-    drawRow(resourceName(rsc), rsc.quantity || 1, Number(rsc.totalPrice || 0), vatResources, false, {
-      originalTtc,
+    const { offered, billed, real } = lineAmounts(rsc);
+    drawRow(resourceName(rsc), rsc.quantity || 1, billed, vatResources, false, {
+      originalTtc: offered ? real : billed,
       badgeText: offered ? L.offered : '',
     });
   }
@@ -710,6 +719,7 @@ module.exports = {
   generateDevisPdf,
   __test: {
     resolveLiveTaxTotals,
+    lineAmounts,
     resolveOptionTitle: __resolveOptionTitle,
     resolveResourceName: __resolveResourceName,
     resolveFooterText: __resolveFooterText,
