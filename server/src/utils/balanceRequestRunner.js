@@ -1,14 +1,26 @@
 /**
- * Balance-request daily pass (specs/public-online-deposit.md §3 rule 8). For every reservation whose
- * DEPOSIT was collected online (a paid `deposit` link on the devis it converted from) but whose SOLDE
- * is still due (balancePaid=0, balanceAmount>0, balanceDueDate ≤ today), create/reuse the `balance`
- * Qonto link and email the `balance_request` template. One send ever per reservation (email_log dedup);
+ * Balance-request daily pass (specs/public-online-deposit.md §3 rule 8, widened by
+ * specs/payment-schedule-and-cancellation.md §3.7 rule 38). For every DIRECT reservation whose SOLDE
+ * is due (balancePaid=0, balanceAmount>0, balanceDueDate ≤ today), create/reuse the `balance` Qonto
+ * link and email the `balance_request` template. One send ever per reservation (email_log dedup);
  * a failed send retries the next day. Pure orchestration — every dependency injected for unit tests.
+ *
+ * The pass used to require the acompte to have been paid ONLINE (a paid `deposit` payment link on the
+ * devis it converted from), which limited it to the public-website funnel: a booking taken by phone
+ * never got its solde request. The schedule is now a policy, not a funnel feature — every direct
+ * reservation owes its solde 30 days before arrival, whatever channel took the booking.
  *
  *   deps: { database, templatesModel, logModel, sendBalanceRequest(reservationId) → { httpStatus },
  *           today?: 'YYYY-MM-DD' }
  * Returns { checked, sent, skipped, failed, results }.
  */
+
+const { DIRECT_CHANNELS } = require('./platformNameFormat');
+
+// Bound as parameters (never interpolated values) so the direct-channel list stays a single source
+// of truth in platformNameFormat.js — adding one own channel there reaches this pass for free.
+const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
+const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
 
 function isoToday(now = new Date()) {
   const y = now.getFullYear();
@@ -26,16 +38,12 @@ function selectEligible(database, today) {
        AND r.balancePaid = 0
        AND r.balanceAmount > 0
        AND r.balanceDueDate IS NOT NULL
-       AND r.balanceDueDate <= @today
-       AND EXISTS (
-             SELECT 1 FROM payment_links pl
-              JOIN reservations d ON d.id = pl.reservationId
-             WHERE d.convertedReservationId = r.id
-               AND pl.type = 'deposit'
-               AND pl.status = 'paid'
-           )
+       AND r.balanceDueDate <= ?
+       -- Direct channels only: a platform booking is settled by the platform after the stay, so
+       -- there is no solde to ask the guest for (specs/payment-schedule-and-cancellation.md rule 1).
+       AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
      ORDER BY r.id
-  `).all({ today });
+  `).all(today, ...DIRECT_CHANNEL_LIST);
 }
 
 async function runBalanceRequestPass(deps) {

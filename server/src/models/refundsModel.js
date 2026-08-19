@@ -11,7 +11,7 @@
  */
 
 const db = require('../database');
-const { isOffBooks } = require('../utils/refunds');
+const { isOffBooks, isRetainedDeposit } = require('../utils/refunds');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -106,13 +106,16 @@ function createRefundsModel(database) {
 
     // `{ book, withCash }` — book money (virement + espèces) vs everything including the caisse
     // interne. The two readings mirror what `complementPaidCash` does at each aggregate
-    // (specs/reservation-refunds.md §3.3 rule 19).
+    // (specs/reservation-refunds.md §3.3 rule 19). A `retained` avoir counts in NEITHER: it reverses
+    // revenue in the journal but no money went back to the guest — we kept the acompte
+    // (specs/payment-schedule-and-cancellation.md §3.6).
     totalsByReservation(reservationId) {
       const rows = prep('SELECT method, totalTtc FROM reservation_refunds WHERE reservationId = ?')
         .all(reservationId);
       let book = 0;
       let withCash = 0;
       for (const row of rows) {
+        if (isRetainedDeposit(row.method)) continue;
         const amount = Number(row.totalTtc || 0);
         withCash += amount;
         if (!isOffBooks(row.method)) book += amount;
@@ -132,6 +135,7 @@ function createRefundsModel(database) {
         WHERE reservationId IN (${placeholders})
       `).all(...list);
       for (const row of rows) {
+        if (isRetainedDeposit(row.method)) continue;
         const entry = totals[row.reservationId] || (totals[row.reservationId] = { book: 0, withCash: 0 });
         const amount = Number(row.totalTtc || 0);
         entry.withCash = round2(entry.withCash + amount);
@@ -154,7 +158,10 @@ function createRefundsModel(database) {
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
         WHERE rf.method <> 'internal'
-          AND r.kind = 'reservation'
+          -- specs/payment-schedule-and-cancellation.md §3.6 rule 34 — a cancelled stay keeps its
+          -- booked money visible: its requalification avoir is precisely an entry of the cancellation
+          -- month, so accounting reads both kinds while every operational query keeps its filter.
+          AND r.kind IN ('reservation', 'cancelled')
           AND rf.refundDate >= ? AND rf.refundDate < ?
         ORDER BY rf.refundDate, rf.id
       `).all(from, nextMonth);

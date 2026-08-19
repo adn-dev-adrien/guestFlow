@@ -14,7 +14,8 @@
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { sentenceCase } = require('../utils/textFormatters');
-const { roundMoney, addDaysToIsoDate } = require('../utils/devisHelpers');
+const { roundMoney } = require('../utils/devisHelpers');
+const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
 const { buildHistoryRows } = require('../utils/reservationAudit');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
@@ -115,8 +116,18 @@ function createModel(database) {
     const depositPercent = Number(property?.depositPercent || 0);
     const depositAmount = roundMoney(totalStayPrice * (depositPercent / 100));
     const balanceAmount = roundMoney(totalStayPrice - depositAmount);
-    const depositDueDate = row.startDate ? addDaysToIsoDate(row.startDate, -Number(property?.depositDaysBefore || 0)) : null;
-    const balanceDueDate = row.startDate ? addDaysToIsoDate(row.startDate, -Number(property?.balanceDaysBefore || 0)) : null;
+    // specs/payment-schedule-and-cancellation.md §3.1 rule 5 — a devis promises its dates until its
+    // validity date: that IS its acompte deadline. The solde keeps the stay-relative derivation,
+    // clamped so it can never fall before the day the quote was issued.
+    const depositDueDate = resolveDepositDueDate({
+      kind: 'devis', hasDeposit: depositAmount > 0, validUntil: row.validUntil,
+    });
+    const balanceDueDate = resolveBalanceDueDate({
+      hasBalance: balanceAmount > 0,
+      startDate: row.startDate,
+      bookingDate: row.createdAt,
+      balanceDaysBefore: property?.balanceDaysBefore,
+    });
     return { depositAmount, balanceAmount, depositDueDate, balanceDueDate, totalStayPrice };
   }
 
@@ -156,7 +167,7 @@ function createModel(database) {
     for (const resource of resources) resource.sessions = parseJsonArray(resource.sessions);
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
-    const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
+    const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
     const schedule = resolvePaymentSchedule(row, property);
     // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
     // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
@@ -347,6 +358,11 @@ function createModel(database) {
       // Public/site devis: bill planning-card options by quantity (unschedulable on the site) —
       // specs/public-planning-options.md. Admin devis leave this falsy (occurrence-based).
       planningCardAsQuantity: Boolean(body.planningCardAsQuantity),
+      // specs/payment-schedule-and-cancellation.md §3.1 — a quote's acompte is due by its validity
+      // date; its solde stays stay-relative, clamped to the day the quote was issued.
+      kind: 'devis',
+      validUntil: body.validUntil || existing?.validUntil || null,
+      bookingDate: existing?.createdAt || null,
     });
   }
 

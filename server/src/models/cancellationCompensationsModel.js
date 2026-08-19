@@ -24,8 +24,15 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const COLUMNS = `id, cancellationAlertId, reservationId, propertyId, propertyName, platform,
                  clientFirstName, clientLastName, startDate, endDate, cancelledStayAmount,
-                 expectedAmount, expectedDate, receivedAmount, receivedDate, status, notes,
+                 expectedAmount, expectedDate, receivedAmount, receivedDate, status, origin, notes,
                  createdAt, updatedAt`;
+
+// Where the money comes from (specs/payment-schedule-and-cancellation.md §3.6 rule 33):
+//   'platform'         — the indemnity a platform owes us for a stay cancelled outside its free window;
+//   'retained_deposit' — an acompte we already hold, kept after cancelling for non-payment. Born
+//                        `received` (the money never moved), which is what tells the two apart in the UI.
+const ORIGINS = ['platform', 'retained_deposit'];
+const normalizeOrigin = (value) => (ORIGINS.includes(String(value)) ? String(value) : 'platform');
 
 // The DB row plus the two derived fields the UI renders. `overdue` is computed HERE (server side)
 // so no client ever re-derives "is this payment late" from a date.
@@ -36,6 +43,7 @@ function decorate(row) {
     ...row,
     cancelledStayAmount: row.cancelledStayAmount == null ? null : round2(row.cancelledStayAmount),
     expectedAmount: round2(row.expectedAmount),
+    origin: normalizeOrigin(row.origin),
     receivedAmount: row.receivedAmount == null ? null : round2(row.receivedAmount),
     overdue: status === 'pending' && Boolean(row.expectedDate) && String(row.expectedDate) < getTodayIsoDate(),
     clientName: `${String(row.clientFirstName || '').trim()} ${String(row.clientLastName || '').trim()}`.trim(),
@@ -53,11 +61,24 @@ function buildModel(database) {
     INSERT INTO cancellation_compensations
       (cancellationAlertId, reservationId, propertyId, propertyName, platform,
        clientFirstName, clientLastName, startDate, endDate, cancelledStayAmount,
-       expectedAmount, expectedDate, notes)
+       expectedAmount, expectedDate, origin, notes)
     VALUES
       (@cancellationAlertId, @reservationId, @propertyId, @propertyName, @platform,
        @clientFirstName, @clientLastName, @startDate, @endDate, @cancelledStayAmount,
-       @expectedAmount, @expectedDate, @notes)
+       @expectedAmount, @expectedDate, @origin, @notes)
+  `);
+
+  // A compensation that is banked the moment it is created: the retained acompte is already in the
+  // bank, so it skips `pending` entirely and books at `receivedDate` (spec §3.6 rule 30b).
+  const insertReceived = () => prep(`
+    INSERT INTO cancellation_compensations
+      (cancellationAlertId, reservationId, propertyId, propertyName, platform,
+       clientFirstName, clientLastName, startDate, endDate, cancelledStayAmount,
+       expectedAmount, expectedDate, receivedAmount, receivedDate, status, origin, notes)
+    VALUES
+      (@cancellationAlertId, @reservationId, @propertyId, @propertyName, @platform,
+       @clientFirstName, @clientLastName, @startDate, @endDate, @cancelledStayAmount,
+       @expectedAmount, @expectedDate, @receivedAmount, @receivedDate, 'received', @origin, @notes)
   `);
 
   // Every write path normalises through the same shape so a manual creation and an approval-time
@@ -77,6 +98,7 @@ function buildModel(database) {
       cancelledStayAmount: p.cancelledStayAmount == null ? null : round2(p.cancelledStayAmount),
       expectedAmount: round2(p.expectedAmount),
       expectedDate: p.expectedDate || null,
+      origin: normalizeOrigin(p.origin),
       notes: String(p.notes || '').trim(),
     };
   }
@@ -85,6 +107,22 @@ function buildModel(database) {
     // Returns the created row (decorated). The caller has already validated the payload.
     create(payload) {
       const info = insert().run(normalize(payload));
+      return model.getById(Number(info.lastInsertRowid));
+    },
+
+    // Create a compensation already banked — used by the cancellation-for-non-payment flow, where the
+    // money (the acompte) was collected long before the stay was cancelled. `receivedDate` is the
+    // cancellation day: that is when the sum stops being a séjour payment and becomes an indemnity.
+    createReceived(payload) {
+      const base = normalize(payload);
+      const amount = round2(payload.receivedAmount);
+      const info = insertReceived().run({
+        ...base,
+        expectedAmount: amount,
+        expectedDate: payload.receivedDate || null,
+        receivedAmount: amount,
+        receivedDate: payload.receivedDate || null,
+      });
       return model.getById(Number(info.lastInsertRowid));
     },
 
@@ -176,6 +214,6 @@ function buildModel(database) {
 const db = require('../database');
 const defaultModel = buildModel(db);
 defaultModel.buildModel = buildModel;
-defaultModel.__test = { decorate, round2 };
+defaultModel.__test = { decorate, round2, normalizeOrigin };
 
 module.exports = defaultModel;

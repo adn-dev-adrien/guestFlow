@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -30,6 +31,7 @@ import ReservationHistoryPanel from '../components/reservation/ReservationHistor
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
 import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
@@ -171,6 +173,9 @@ export default function ReservationPage() {
   const [clientDialogMode, setClientDialogMode] = useState('create');
   // specs/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
   const [emailSendOpen, setEmailSendOpen] = useState(false);
+  // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — « Annuler le séjour » from the bar.
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
   // specs/mid-stay-notes.md §3.5 rule 17 — l'état vit ICI et non dans FinanceSection : la fenêtre
   // s'ouvre depuis deux endroits, la barre d'actions collante (point d'entrée principal) et le bloc
   // « Encaissements en séjour » plus bas dans la carte Finance.
@@ -319,6 +324,10 @@ export default function ReservationPage() {
     // on first save; editable (overridable). '' for a new reservation until the first save returns it.
     reservationNumber: '',
     bookingConflictAt: null, // online-payment date conflict (specs/public-online-payment.md §6)
+    // specs/payment-schedule-and-cancellation.md §3.5 — set once the stay was cancelled for
+    // non-payment. The fiche then opens read-only: the dates are back on sale and the amounts are
+    // history the accounting still reads.
+    cancelledAt: null,
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
@@ -387,6 +396,9 @@ export default function ReservationPage() {
     ? [...platforms, form.platform]
     : platforms;
   const isPlatformReservation = Boolean(form.platform) && String(form.platform).toLowerCase() !== 'direct';
+  // A cancelled stay is read-only (specs/payment-schedule-and-cancellation.md §3.5 rule 25): the
+  // server refuses every write on it, so the fiche must not offer any.
+  const isCancelledReservation = Boolean(form.cancelledAt);
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
@@ -711,6 +723,7 @@ export default function ReservationPage() {
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
             bookingConflictAt: res.bookingConflictAt || null,
+            cancelledAt: res.cancelledAt || null,
             adults: res.adults || 1,
             children: res.children || 0,
             teens: res.teens || 0,
@@ -2312,6 +2325,29 @@ export default function ReservationPage() {
     }
   };
 
+  // specs/payment-schedule-and-cancellation.md §3.5 — cancelling for non-payment. Unlike a delete,
+  // the reservation survives: its dates go back on sale, its acompte is requalified into an
+  // indemnity, and the fiche stays readable. So we reload rather than navigate away.
+  const handleCancelReservation = async ({ reason, notifyClient }) => {
+    if (!reservationId) return;
+    setCancelBusy(true);
+    try {
+      const result = await api.cancelReservation(reservationId, { reason, notifyClient });
+      setCancelDialogOpen(false);
+      await alert({
+        title: 'Séjour annulé',
+        message: result?.retainedDepositAmount > 0
+          ? `Les dates sont remises à la vente. L'acompte de ${formatCurrency(result.retainedDepositAmount)} est conservé à titre d'indemnité (hors TVA).`
+          : 'Les dates sont remises à la vente. Aucun acompte n\'avait été encaissé : rien n\'est conservé.',
+      });
+      navigateBackWithFrom(navigate, from);
+    } catch (err) {
+      await alert({ title: 'Annulation impossible', message: err.message });
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
   const requestLeave = (action) => {
     if (!isDirty) {
       action();
@@ -2802,6 +2838,11 @@ export default function ReservationPage() {
   ];
 
   const actionBarAfter = [
+    // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — cancelling from the fiche, for the
+    // phone call that never turns into a payment. Direct channels only: a platform booking is
+    // cancelled through the iCal alert flow (specs/cancellation-compensation.md).
+    ...(!isDevisMode && reservationId && !isPlatformReservation && !isCancelledReservation
+      ? [{ icon: <EventBusyIcon />, tooltip: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked }] : []),
     ...(!isDevisMode && reservationId
       ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked }] : []),
     ...(isDevisMode && editingDevisId
@@ -2870,9 +2911,12 @@ export default function ReservationPage() {
       <PageActionBar
         title={computedTitle}
         onBack={goBackToOrigin}
-        subtitle={(useCurrentPricing || form.bookingConflictAt || devisValidityChip)
+        subtitle={(useCurrentPricing || form.bookingConflictAt || devisValidityChip || isCancelledReservation)
           ? (
             <>
+              {isCancelledReservation && (
+                <Chip size="small" color="error" label={`Annulée le ${displayDate(form.cancelledAt)}`} />
+              )}
               {useCurrentPricing && <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />}
               {devisValidityChip}
               <ReservationConflictBadge conflictAt={form.bookingConflictAt} />
@@ -2892,7 +2936,7 @@ export default function ReservationPage() {
           </>
         ) : null}
         actionsBefore={actionBarBefore}
-        onSave={handleSaveClick}
+        onSave={isCancelledReservation ? undefined : handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
         saveDisabled={saving}
         saveBusy={saving}
@@ -3114,6 +3158,25 @@ export default function ReservationPage() {
         reservationId={editingReservationId || null}
         reservationStartDate={form.startDate || null}
         onClose={() => setEmailSendOpen(false)}
+      />
+
+      <ReservationCancelDialog
+        open={cancelDialogOpen}
+        busy={cancelBusy}
+        row={{
+          reservationId: editingReservationId || null,
+          reservationNumber: form.reservationNumber || '',
+          clientName: `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim(),
+          clientEmail: selectedClient?.email || '',
+          propertyName: properties.find((p) => p.id === Number(form.propertyId))?.name || '',
+          startDate: form.startDate,
+          endDate: form.endDate,
+          // What the server would keep / write off, from the stored payment state.
+          retainedDepositAmount: form.depositPaid ? Number(pricingQuote?.depositAmount || 0) : 0,
+          balanceDue: form.balancePaid ? 0 : Number(pricingQuote?.balanceAmount || 0),
+        }}
+        onClose={() => setCancelDialogOpen(false)}
+        onConfirm={handleCancelReservation}
       />
     </Box>
   );

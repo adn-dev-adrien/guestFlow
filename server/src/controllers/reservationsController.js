@@ -26,6 +26,7 @@ const platformsModel = require('../models/platformsModel');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
+const { requestDepositOnBooking } = require('../utils/depositRequestOnBooking');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
@@ -53,6 +54,57 @@ function midStayQuoteInputs(reservationId) {
     // books, exactly like the cash complements it mirrors.
     refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
   };
+}
+
+// specs/payment-schedule-and-cancellation.md §3.1 — the booking context every engine call needs:
+// the day the stay was booked (anchor of the acompte deadline) and the deadline already promised,
+// which no recompute may move. No stored row (creation, public quote) → the booking happens today.
+function scheduleQuoteInputs(bookingId) {
+  const fallback = { bookingDate: getTodayIsoDate(), existingDepositDueDate: null, kind: 'reservation', validUntil: null };
+  if (!bookingId || bookingId <= 0) return fallback;
+  const row = db.prepare('SELECT kind, createdAt, depositDueDate, validUntil FROM reservations WHERE id = ?').get(Number(bookingId));
+  if (!row) return fallback;
+  return {
+    bookingDate: row.createdAt || fallback.bookingDate,
+    existingDepositDueDate: row.depositDueDate || null,
+    kind: row.kind || 'reservation',
+    validUntil: row.validUntil || null,
+  };
+}
+
+// specs/payment-schedule-and-cancellation.md §3.5 rule 25 — a cancelled stay is read-only. Its
+// amounts and échéances are history (accounting still reads them) and its dates are back on sale,
+// so any write would either rewrite the books or resurrect a booking nobody expects.
+function cancelledGuard(reservationId) {
+  const row = db.prepare('SELECT kind FROM reservations WHERE id = ?').get(Number(reservationId));
+  if (row && String(row.kind) === 'cancelled') {
+    return { status: 409, body: { error: 'Cette réservation est annulée et ne peut plus être modifiée.', code: 'RESERVATION_CANCELLED' } };
+  }
+  return null;
+}
+
+// specs/payment-schedule-and-cancellation.md §3.7 rule 36 — ask for the acompte the moment a direct
+// reservation is booked. Requires the payments controller lazily: it pulls the Qonto client, and a
+// module-level require would make the reservations controller depend on it at boot.
+function sendDepositRequestOnBooking(reservationId) {
+  Promise.resolve()
+    .then(() => requestDepositOnBooking({
+      getReservation: (id) => db.prepare(`
+        SELECT r.kind, r.platform, r.depositAmount, r.depositPaid, r.depositDisabled,
+               c.email AS clientEmail
+          FROM reservations r
+          LEFT JOIN clients c ON c.id = r.clientId
+         WHERE r.id = ?
+      `).get(id),
+      sendDepositRequest: (id) => require('./paymentsController').sendDepositRequestFor(id),
+      onError: (reason, err) => console.error('[deposit-request-on-booking]', reason, err && err.message),
+    }, reservationId))
+    .then((result) => {
+      if (!result.sent && result.reason !== 'platform-booking' && result.reason !== 'no-deposit') {
+        console.log(`[deposit-request-on-booking] reservation ${reservationId}: ${result.reason}`);
+      }
+    })
+    .catch((err) => console.error('[deposit-request-on-booking] unhandled:', err && err.message));
 }
 
 // specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
@@ -374,6 +426,9 @@ function calculatePrice(req, res) {
     frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(reservationId),
+    // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
+    // échéances shown on the fiche are the ones that will be stored.
+    ...scheduleQuoteInputs(reservationId > 0 ? reservationId : devisId),
     // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
     // returns the « total séjour − commission = net perçu » figures for the summary block.
     platformCommissionAmount: req.body.platformCommissionAmount,
@@ -492,6 +547,9 @@ function create(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
+    // specs/payment-schedule-and-cancellation.md §3.1 — booked today: the acompte is due
+    // `depositDueDays` from now, the solde 30 days before arrival at the earliest.
+    ...scheduleQuoteInputs(0),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -548,6 +606,10 @@ function create(req, res) {
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
   googleCalendarSync.schedulePush(reservationId);
+  // specs/payment-schedule-and-cancellation.md §3.7 rule 36 — the acompte is due from today, so the
+  // request leaves with the booking. Fire-and-forget for the same reason as the Google push: the
+  // response is already sent, and no SMTP/Qonto hiccup may turn a booked stay into a failed request.
+  sendDepositRequestOnBooking(reservationId);
 }
 
 function update(req, res) {
@@ -569,6 +631,9 @@ function update(req, res) {
   req.body.platform = normalisePlatform(req.body.platform);
 
   const id = Number(req.params.id);
+
+  const cancelled = cancelledGuard(id);
+  if (cancelled) return res.status(cancelled.status).json(cancelled.body);
 
   // Reservation number override collision guard (specs/reservation-number-and-search.md §3 rule 4) —
   // a blank value keeps the existing number (handled in the model), so only a non-empty duplicate fails.
@@ -677,6 +742,8 @@ function update(req, res) {
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     ...midStayQuoteInputs(id),
+    // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
+    ...scheduleQuoteInputs(id),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
@@ -843,6 +910,8 @@ function updatePayment(req, res) {
   if (financeError) return res.status(400).json({ error: financeError });
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
+  const cancelledPayment = cancelledGuard(Number(req.params.id));
+  if (cancelledPayment) return res.status(cancelledPayment.status).json(cancelledPayment.body);
 
   // specs/mid-stay-notes.md — settle / cancel a « note en séjour ». Runs FIRST: both actions are
   // transactional and self-contained, and a rejection must leave the whole PATCH without effect.

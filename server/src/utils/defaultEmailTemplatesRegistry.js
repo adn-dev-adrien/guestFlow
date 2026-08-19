@@ -310,22 +310,29 @@ const BALANCE_REQUEST_BODY_EN = [
 // Deposit reminder — MANUAL, anchored on the devis validity date (validUntil). Surfaces in the manual
 // pending queue for an open, deposit-unpaid devis; the host sends it by hand. Re-offers the existing
 // open deposit link, injected at send time as {{paymentLink}} (emailsController.buildPreview).
+// specs/payment-schedule-and-cancellation.md §3.7 rule 37 — the acompte reminder used to be scheduled
+// off the devis validity date; it now fires on the acompte's own due date, which is anchored on the
+// BOOKING day. The copy therefore speaks of a confirmed reservation whose acompte is due, not of a
+// quote about to expire.
 const DEPOSIT_REMINDER_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
-  'Votre devis pour le séjour {{propertyWithArticle}} arrive à expiration le {{validUntil}}. Pour confirmer votre réservation et bloquer vos dates, il vous suffit de régler l\'acompte.',
+  'Nous n\'avons pas encore reçu l\'acompte de votre séjour {{propertyWithArticle}}, dont l\'échéance était fixée au {{depositDueDate}}.',
   '',
   'Récapitulatif de votre séjour :',
-  '- Logement : {{propertyName}}',
+  '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
+  '{{/if}}- Logement : {{propertyName}}',
   '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
   '- Départ   : le {{endDate}} avant {{checkOutTime}}',
   '- Montant total du séjour : {{finalPrice}}',
   '',
   'Acompte à régler : {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Payer l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  '{{#if hasPaymentLink}}Régler l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
   '',
-  'Passé le {{validUntil}}, le devis ne sera plus valable et vos dates pourront être proposées à d\'autres clients.',
+  'Sans règlement de votre part, nous serons contraints de remettre vos dates à la vente.',
+  '',
+  'Si le règlement vient d\'être effectué, merci de ne pas tenir compte de ce message.',
   '',
   'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
   '',
@@ -336,10 +343,11 @@ const DEPOSIT_REMINDER_BODY = [
 const DEPOSIT_REMINDER_BODY_EN = [
   'Hello {{clientFirstName}},',
   '',
-  'Your quote for the stay at {{propertyWithArticle}} expires on {{validUntil}}. To confirm your reservation and secure your dates, simply pay the deposit.',
+  'We have not yet received the deposit for your stay at {{propertyWithArticle}}, which was due on {{depositDueDate}}.',
   '',
   'Summary of your stay:',
-  '- Property : {{propertyName}}',
+  '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
+  '{{/if}}- Property : {{propertyName}}',
   '- Arrival  : {{startDate}} from {{checkInTime}}',
   '- Departure: {{endDate}} before {{checkOutTime}}',
   '- Total stay amount: {{finalPrice}}',
@@ -348,11 +356,114 @@ const DEPOSIT_REMINDER_BODY_EN = [
   '',
   '{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
   '',
-  'After {{validUntil}}, the quote will no longer be valid and your dates may be offered to other guests.',
+  'Without your payment we will have to put your dates back on sale.',
+  '',
+  'If you have just paid, please disregard this message.',
   '',
   'For any question, simply reply to this email or call us at {{companyPhone}}.',
   '',
   'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
+
+// specs/payment-schedule-and-cancellation.md §3.7 rule 39 — the solde was requested at J-30 and has
+// not arrived. This is the last message before the stay is cancelled: it names the exact date and
+// says plainly what happens to the acompte.
+const BALANCE_REMINDER_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Le solde de votre séjour {{propertyWithArticle}} devait nous parvenir le {{balanceDueDate}} et nous ne l\'avons pas encore reçu.',
+  '',
+  'Récapitulatif de votre séjour :',
+  '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
+  '{{/if}}- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+  '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+  '- Montant total du séjour : {{finalPrice}}',
+  '',
+  'Solde à régler : {{balanceAmount}}',
+  '',
+  '{{#if hasPaymentLink}}Régler le solde en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  '',
+  'Sans règlement de votre part d\'ici le {{cancelOnDate}}, votre séjour sera annulé et l\'acompte déjà versé restera acquis à titre d\'indemnité.',
+  '',
+  'Si le règlement vient d\'être effectué, merci de ne pas tenir compte de ce message.',
+  '',
+  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  '',
+  'Bien à vous,',
+  '{{senderName}}',
+].join('\n');
+
+const BALANCE_REMINDER_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'The balance for your stay at {{propertyWithArticle}} was due on {{balanceDueDate}} and we have not received it yet.',
+  '',
+  'Summary of your stay:',
+  '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
+  '{{/if}}- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}} from {{checkInTime}}',
+  '- Departure: {{endDate}} before {{checkOutTime}}',
+  '- Total stay amount: {{finalPrice}}',
+  '',
+  'Balance to pay: {{balanceAmount}}',
+  '',
+  '{{#if hasPaymentLink}}Pay the balance online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
+  '',
+  'Without your payment by {{cancelOnDate}}, your stay will be cancelled and the deposit already paid will be retained as compensation.',
+  '',
+  'If you have just paid, please disregard this message.',
+  '',
+  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  '',
+  'Kind regards,',
+  '{{senderName}}',
+].join('\n');
+
+// specs/payment-schedule-and-cancellation.md §3.7 rule 40 — sent the moment the operator confirms the
+// cancellation. The retained-acompte block only renders when something was actually kept: cancelling
+// a reservation whose acompte never arrived keeps nothing (rule 27).
+const CANCELLATION_NOTICE_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Faute de règlement du solde, nous avons le regret de vous informer que votre séjour {{propertyWithArticle}} est annulé.',
+  '',
+  'Séjour annulé :',
+  '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
+  '{{/if}}- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}}',
+  '- Départ   : le {{endDate}}',
+  '',
+  '{{#if hasRetainedDeposit}}Conformément à nos conditions, l\'acompte de {{retainedDepositAmount}} déjà versé reste acquis à titre d\'indemnité. Aucune autre somme ne vous sera réclamée.',
+  '',
+  '{{/if}}Vos dates sont désormais remises à la vente.',
+  '',
+  'Si cette annulation résulte d\'une erreur ou si vous souhaitez reprogrammer votre séjour, contactez-nous : nous restons à votre disposition au {{companyPhone}}.',
+  '',
+  'Bien à vous,',
+  '{{senderName}}',
+].join('\n');
+
+const CANCELLATION_NOTICE_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'As the balance was not paid, we are sorry to inform you that your stay at {{propertyWithArticle}} has been cancelled.',
+  '',
+  'Cancelled stay:',
+  '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
+  '{{/if}}- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}}',
+  '- Departure: {{endDate}}',
+  '',
+  '{{#if hasRetainedDeposit}}In accordance with our terms, the deposit of {{retainedDepositAmount}} already paid is retained as compensation. No further amount will be claimed.',
+  '',
+  '{{/if}}Your dates are now back on sale.',
+  '',
+  'If this cancellation is a mistake, or if you would like to reschedule, please contact us at {{companyPhone}}.',
+  '',
+  'Kind regards,',
   '{{senderName}}',
 ].join('\n');
 
@@ -403,14 +514,37 @@ const DEFAULT_TEMPLATES = Object.freeze([
   }),
   Object.freeze({
     stableKey: 'deposit_reminder',
-    name:      'Relance acompte (avant expiration du devis)',
-    subject:   'Votre devis {{propertyWithArticle}} expire bientôt',
+    name:      "Relance acompte (à l'échéance)",
+    subject:   "Votre acompte {{propertyWithArticle}} n'a pas été reçu",
     body:      DEPOSIT_REMINDER_BODY,
-    subjectEn: 'Your quote for {{propertyWithArticle}} is about to expire',
+    subjectEn: 'Your deposit for {{propertyWithArticle}} has not been received',
     bodyEn:    DEPOSIT_REMINDER_BODY_EN,
-    anchor:    'validUntil', // scheduled off the devis validity date, not arrival (see emailLogModel.listPending)
-    dayOffset: -3,           // surfaces in the manual queue 3 days before the devis expires (editable)
-    sendMode:  'manual',     // MANUAL on purpose — the host sends it by hand from the pending queue
+    anchor:    'depositDueDate', // the acompte's own deadline, anchored on the booking day (spec §3.1)
+    dayOffset: 0,                // fires ON the due date
+    sendMode:  'auto',           // chasing money is a cron job, not a daily chore
+    enabled:   true,
+  }),
+  Object.freeze({
+    stableKey: 'balance_reminder',
+    name:      'Relance solde (avant annulation)',
+    subject:   'Solde en attente pour votre séjour {{propertyWithArticle}}',
+    body:      BALANCE_REMINDER_BODY,
+    subjectEn: 'Balance pending for your stay at {{propertyWithArticle}}',
+    bodyEn:    BALANCE_REMINDER_BODY_EN,
+    anchor:    'balanceDueDate',
+    dayOffset: 3,                // 3 days after the solde deadline, before the 7-day cancellation one
+    sendMode:  'auto',
+    enabled:   true,
+  }),
+  Object.freeze({
+    stableKey: 'cancellation_notice',
+    name:      "Avis d'annulation (acompte conservé)",
+    subject:   'Annulation de votre séjour {{propertyWithArticle}}',
+    body:      CANCELLATION_NOTICE_BODY,
+    subjectEn: 'Cancellation of your stay at {{propertyWithArticle}}',
+    bodyEn:    CANCELLATION_NOTICE_BODY_EN,
+    dayOffset: 0,          // sentinel — sent when the operator confirms the cancellation
+    sendMode:  'manual',   // excluded from the queue/cron (EVENT_TRIGGERED_STABLE_KEYS)
     enabled:   true,
   }),
   Object.freeze({
@@ -435,7 +569,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'cancellation_notice']);
 
 module.exports = {
   DEFAULT_TEMPLATES,

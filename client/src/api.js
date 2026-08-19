@@ -457,6 +457,13 @@ const api = {
   // Dashboard "pending site devis" — booking requests submitted from the public website that are
   // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
   getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),
+
+  // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4 / §3.5). Rows arrive
+  // ready to render — the client decides nothing about states, amounts or available actions.
+  getPaymentDeadlines: () => request('/dashboard/payment-deadlines'),
+  snoozePaymentDeadline: (id, days) => request(`/dashboard/payment-deadlines/${id}/snooze`, { method: 'POST', body: { days } }),
+  remindPaymentDeadline: (id, type) => request(`/dashboard/payment-deadlines/${id}/remind`, { method: 'POST', body: { type } }),
+  cancelReservation: (id, payload) => request(`/reservations/${id}/cancel`, { method: 'POST', body: payload }),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

@@ -34,7 +34,9 @@ export function formatCurrencyRounded(n) {
 
 export function displayDate(d) {
   if (!d) return '—';
-  const [y, m, day] = d.split('-');
+  // Some columns are datetimes (`cancelledAt`, `createdAt`), not plain days: keep the day part only,
+  // like displayDateShort does. Without this the time bled into the day cell (« 19 16:22:55/08/2026 »).
+  const [y, m, day] = String(d).slice(0, 10).split('-');
   return `${day}/${m}/${y}`;
 }
 

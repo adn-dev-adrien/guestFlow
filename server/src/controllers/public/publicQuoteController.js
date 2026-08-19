@@ -7,6 +7,7 @@
 
 const db = require('../../database');
 const { calculateReservationQuote } = require('../../utils/pricing');
+const { getTodayIsoDate } = require('../../utils/reservationHelpers');
 const optionsModel = require('../../models/optionsModel');
 const resourcesModel = require('../../models/resourcesModel');
 const { validateStayInput } = require('../../utils/publicInputValidation');
@@ -52,6 +53,10 @@ function buildEngineQuote(input) {
   return calculateReservationQuote({
     db,
     propertyId: input.propertyId,
+    // specs/payment-schedule-and-cancellation.md §3.1 — a public quote is a booking happening now:
+    // the acompte is due `depositDueDays` from today and the solde is clamped to today at the
+    // earliest, so the site shows the deadlines the reservation will actually carry.
+    bookingDate: getTodayIsoDate(),
     startDate: input.startDate,
     endDate: input.endDate,
     checkInTime: input.checkInTime,

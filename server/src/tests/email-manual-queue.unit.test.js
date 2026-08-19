@@ -33,7 +33,9 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
     checkInTime TEXT, checkOutTime TEXT, cautionAmount REAL, cautionReceived INTEGER, depositPaid INTEGER,
-    validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER
+    validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER,
+    depositAmount REAL DEFAULT 0, depositDueDate TEXT,
+    balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT, updatedAt TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT);

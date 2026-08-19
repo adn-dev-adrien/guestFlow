@@ -48,7 +48,7 @@ const PROPERTY = {
   maxGuests: 3, maxBabies: 1,
   basePriceIncludedGuests: 2, extraGuestPrice: 15,
   singleBeds: 1, doubleBeds: 2,
-  depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
+  depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   defaultCautionAmount: 500,
   touristTaxPerDayPerPerson: 0, touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0, touristTaxDepartmentPercentage: 0, touristTaxFixedAmount: 0,
@@ -81,6 +81,13 @@ test('existing property: loads via api.getProperty and populates the form', asyn
   expect(screen.getByLabelText(/Max bébés/)).toHaveValue(1);
   expect(screen.queryByLabelText(/Max adultes/)).toBeNull();
   expect(screen.queryByLabelText(/Max enfants/)).toBeNull();
+  // specs/payment-schedule-and-cancellation.md §3 — the schedule is driven by three per-property
+  // delays: the acompte counts from the BOOKING, the solde from the arrival, the cancellation from
+  // the solde deadline.
+  expect(screen.getByLabelText(/Acompte \(jours après réservation\)/)).toHaveValue(7);
+  expect(screen.getByLabelText(/Solde \(jours avant\)/)).toHaveValue(30);
+  expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
+  expect(screen.queryByLabelText(/Acompte \(jours avant\)/)).toBeNull();
   // Not dirty → Save/Cancel hidden; the destructive action is always available.
   expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Supprimer le logement' })).toBeInTheDocument();

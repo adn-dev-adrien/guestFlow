@@ -1257,6 +1257,51 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- PAYMENT SCHEDULE & CANCELLATION ----------
+// specs/payment-schedule-and-cancellation.md §5. The acompte stops being derived from the arrival
+// date (`depositDaysBefore`) and becomes due `depositDueDays` after the BOOKING; the solde moves to
+// 30 days before arrival; an unpaid solde may cost the stay `cancelAfterBalanceDueDays` later.
+// Reservations gain a cancellation state — `kind` walks 'reservation' → 'cancelled', which removes
+// the row from every operational read at once (they all filter kind = 'reservation') while keeping
+// its booked encaissements visible to accounting.
+{
+  const propCols = db.prepare('PRAGMA table_info(properties)').all().map((c) => c.name);
+  const tryAddProp = (col, sql) => { if (!propCols.includes(col)) db.exec(sql); };
+  tryAddProp('depositDueDays', 'ALTER TABLE properties ADD COLUMN depositDueDays INTEGER NOT NULL DEFAULT 7');
+  tryAddProp('cancelAfterBalanceDueDays', 'ALTER TABLE properties ADD COLUMN cancelAfterBalanceDueDays INTEGER NOT NULL DEFAULT 7');
+
+  const resCols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+  const tryAddRes = (col, sql) => { if (!resCols.includes(col)) db.exec(sql); };
+  tryAddRes('cancelledAt', 'ALTER TABLE reservations ADD COLUMN cancelledAt TEXT');
+  tryAddRes('cancellationReason', 'ALTER TABLE reservations ADD COLUMN cancellationReason TEXT');
+  tryAddRes('cancelledBy', 'ALTER TABLE reservations ADD COLUMN cancelledBy INTEGER');
+  tryAddRes('paymentAlertSnoozedUntil', 'ALTER TABLE reservations ADD COLUMN paymentAlertSnoozedUntil TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_cancelled ON reservations(cancelledAt)');
+
+  const compCols = db.prepare('PRAGMA table_info(cancellation_compensations)').all().map((c) => c.name);
+  if (!compCols.includes('origin')) {
+    db.exec("ALTER TABLE cancellation_compensations ADD COLUMN origin TEXT NOT NULL DEFAULT 'platform'");
+  }
+
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    // One-shot: raise the solde deadline to the new 30-day policy. Guarded by `migrations` so an
+    // operator who later chooses another value is never overwritten at the next boot.
+    const balanceMigration = 'balance_days_before_30_v1';
+    if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(balanceMigration)) {
+      const changed = db.prepare('UPDATE properties SET balanceDaysBefore = 30 WHERE balanceDaysBefore IS NULL OR balanceDaysBefore < 30').run().changes;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(balanceMigration);
+      if (changed > 0) console.log(`[migration:balance-days-before-30] updated ${changed} property/properties`);
+    }
+    // `depositDaysBefore` has no reader left (the acompte is anchored on the booking date now).
+    // Dropped inside a try/catch: an older SQLite without ALTER TABLE DROP COLUMN simply keeps a
+    // dead column, which nothing reads.
+    if (propCols.includes('depositDaysBefore')) {
+      try { db.exec('ALTER TABLE properties DROP COLUMN depositDaysBefore'); }
+      catch (err) { console.warn('[migration:deposit-days-before] column left in place:', err.message); }
+    }
+  }
+}
+
 // ---------- SAS ARRIVAL UPSELLS → CATALOGUE OPTION ----------
 // specs/sas-upsells-activate-catalogue-option.md §5. The arrival SAS used to write « Ménage » and
 // « Linge de toilette » as CUSTOM lines, which the laundry + linen-stock aggregators (they join
@@ -1824,6 +1869,24 @@ db.prepare(`
 // chain above so it has the final say; guarded by the `migrations` table so a later operator edit is never
 // clobbered again. specs/j2-email-coffee-and-sas-complement.md — bumped to `_v2` to re-propagate the new
 // coffee/capsule line + the now-synced English side to already-seeded rows.
+// specs/payment-schedule-and-cancellation.md §3.7 rule 37 — the acompte reminder changes SCHEDULING
+// ANCHOR (devis validity → the reservation's own acompte deadline). The seed is insert-only, so an
+// already-seeded row would keep firing off `validUntil` — NULL on a reservation, i.e. never again.
+// One-shot force-sync of the contract + the copy; `enabled` is preserved.
+{
+  const migrationName = 'deposit_reminder_anchor_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runDepositReminderAnchorMigration } = require('./utils/migrateDepositReminderAnchor');
+    const tx = db.transaction(() => {
+      const { action } = runDepositReminderAnchorMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:deposit-reminder-anchor] ${action}`);
+    });
+    tx();
+  }
+}
+
 {
   const migrationName = 'arrival_reminder_j2_overwrite_v2';
   const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);

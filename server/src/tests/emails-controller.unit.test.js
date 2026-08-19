@@ -32,7 +32,7 @@ const DDL = `
     adults INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, children INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
     singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER,
     finalPrice REAL, depositAmount REAL, depositDueDate TEXT,
-    balanceAmount REAL, balanceDueDate TEXT, cautionAmount REAL, depositPaid INTEGER,
+    balanceAmount REAL, balanceDueDate TEXT, cautionAmount REAL, depositPaid INTEGER, balancePaid INTEGER,
     validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER
   );
   CREATE TABLE clients (

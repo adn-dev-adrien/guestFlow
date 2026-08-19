@@ -70,13 +70,54 @@ function buildModel(database) {
   // (a J-2's send date stays in the window until startDate + 5 days). So such pairs are dropped
   // as soon as `startDate` is in the past. Post-stay emails (`dayOffset > 0`) are meant to fire
   // after arrival and are kept regardless.
+  // One UNION branch per payment anchor (specs/payment-schedule-and-cancellation.md §3.7 rule 41).
+  // The two are identical apart from the three column names, so they are generated rather than
+  // copy-pasted — a divergence between the acompte and the solde branch would be a silent bug.
+  // Column names are hard-coded call-site constants, never user input.
+  const paymentAnchorBranch = (anchor, amountColumn, paidColumn) => `
+      SELECT
+        t.id   AS templateId,
+        t.name AS templateName,
+        t.dayOffset AS dayOffset,
+        r.id   AS reservationId,
+        r.startDate AS startDate,
+        date(r.${anchor}, t.dayOffset || ' days') AS sendDate,
+        c.id AS clientId,
+        TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
+        COALESCE(c.email, '') AS clientEmail,
+        COALESCE(p.name, '')  AS propertyName
+      FROM email_templates t
+      JOIN reservations r
+        ON COALESCE(r.kind, 'reservation') = 'reservation'
+       AND r.${anchor} IS NOT NULL
+       AND COALESCE(r.${amountColumn}, 0) > 0
+       AND COALESCE(r.${paidColumn}, 0) != 1
+       AND date(r.${anchor}, t.dayOffset || ' days') BETWEEN date(?, '-' || ? || ' days') AND date(?)
+      LEFT JOIN clients    c ON c.id = r.clientId
+      LEFT JOIN properties p ON p.id = r.propertyId
+      WHERE t.enabled = 1
+        AND t.sendMode = 'manual'
+        AND COALESCE(t.anchor, 'start') = '${anchor}'
+        AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
+        AND NOT EXISTS (
+          SELECT 1 FROM email_log l
+          WHERE l.templateId = t.id AND l.reservationId = r.id
+            AND l.status IN ('sent', 'acknowledged-skip')
+        )`;
+
   function listPending({ today, lookbackDays = 7 }) {
     // Event-/action-triggered templates (confirmation on payment, deposit request on host action — see
     // utils/reservationEmailSender) are sent programmatically, never from this date-driven queue.
     const notEvent = EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ');
-    // Two scheduling anchors (specs/online-payments-qonto.md §3.8), UNION-ed so each stays readable:
-    //   • 'start'      → reservations, sendDate = startDate + dayOffset (legacy; past-arrival guard).
-    //   • 'validUntil' → open, deposit-unpaid devis, sendDate = validUntil + dayOffset (deposit reminder).
+    // Four scheduling anchors, UNION-ed so each stays readable:
+    //   • 'start'          → reservations, sendDate = startDate + dayOffset (legacy; past-arrival guard);
+    //   • 'validUntil'     → open, deposit-unpaid devis, sendDate = validUntil + dayOffset
+    //                        (specs/online-payments-qonto.md §3.8);
+    //   • 'depositDueDate' → reservations whose acompte is still unpaid, sendDate = that deadline
+    //                        + dayOffset (specs/payment-schedule-and-cancellation.md §3.7 rule 41);
+    //   • 'balanceDueDate' → reservations whose solde is still unpaid, same shape.
+    // The two payment anchors only ever match a reservation that still owes the money: a paid échéance
+    // drops out of the queue on its own, without relying on the email_log dedup.
     return database.prepare(`
       SELECT
         t.id   AS templateId,
@@ -139,9 +180,19 @@ function buildModel(database) {
             AND l.status IN ('sent', 'acknowledged-skip')
         )
 
+      UNION ALL
+
+      ${paymentAnchorBranch('depositDueDate', 'depositAmount', 'depositPaid')}
+
+      UNION ALL
+
+      ${paymentAnchorBranch('balanceDueDate', 'balanceAmount', 'balancePaid')}
+
       ORDER BY startDate ASC, dayOffset ASC
     `).all(
       String(today), Number(lookbackDays), String(today), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+      String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+      String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
     );
   }

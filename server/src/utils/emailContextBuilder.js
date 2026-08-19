@@ -13,6 +13,7 @@ const { formatDateLong, formatTimeShort } = require('./dateFr');
 const { formatCurrency } = require('./devisHelpers');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isCleaningOption } = require('./cleaningOption');
+const { resolveCancelOn } = require('./paymentSchedule');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -292,6 +293,15 @@ function buildContext({ reservation, client, property, options = [], resources =
   // until a dedicated cautionMethod column lands. Also suppressed once the caution has been
   // RECEIVED (`cautionReceived = 1`): if the operator already has the caution in hand, no arrival
   // email should ask the guest to bring it (2026-06-22 fix — was reminding on a received caution).
+  // specs/payment-schedule-and-cancellation.md §3.3 + §3.7 — the day an unpaid solde costs the stay,
+  // and the acompte that would then be kept as an indemnity. Both are derived from the property's own
+  // delay, here, so the dunning emails never do arithmetic of their own.
+  const cancelOnDate = resolveCancelOn({
+    balanceDueDate: r.balanceDueDate,
+    cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
+  });
+  const retainedDepositAmount = Number(r.depositPaid || 0) === 1 ? Number(r.depositAmount || 0) : 0;
+
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current
   // defaultCautionAmount until received, then frozen to the collected amount on the reservation.
@@ -362,6 +372,10 @@ function buildContext({ reservation, client, property, options = [], resources =
 
       balanceAmount:   formatCurrency(Number(r.balanceAmount || 0)),
       balanceDueDate:  formatDateLong(r.balanceDueDate, L),
+      // specs/payment-schedule-and-cancellation.md §3.7 rule 43 — the date an unpaid solde costs the
+      // stay, and what would then be kept. Both derived server-side so no email ever does date math.
+      cancelOnDate:    formatDateLong(cancelOnDate, L),
+      retainedDepositAmount: formatCurrency(retainedDepositAmount),
       cautionAmount:   formatCurrency(cautionAmountNum),
       complementAmount: formatCurrency(complementAmountNum),
       complementNotice,
@@ -388,6 +402,9 @@ function buildContext({ reservation, client, property, options = [], resources =
     },
     flags: {
       hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
+      // An acompte actually collected — the cancellation notice only mentions a retained sum when
+      // there is one (rule 27: an unpaid acompte keeps nothing).
+      hasRetainedDeposit: retainedDepositAmount > 0,
       hasBedLinenOption,
       hasCleaningOption,
       bedLinenProvidedByDefault: bedLinenProvided,

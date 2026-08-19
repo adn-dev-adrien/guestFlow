@@ -12,7 +12,8 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
-    reservationNumber TEXT, propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT
+    reservationNumber TEXT, propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT,
+    cancelledAt TEXT
   );
 `;
 
@@ -48,6 +49,7 @@ test('matches by reservation number (fragment)', () => {
   assert.deepEqual(rows[0], {
     id, reservationNumber: '2026-07-042', clientFullName: 'Jean Dupont',
     propertyName: 'Gîte du Lac', startDate: '2026-07-10', endDate: '2026-07-13',
+    cancelled: false, cancelledAt: null,
   });
 });
 
@@ -92,6 +94,18 @@ test('orders by startDate DESC and caps at 20', () => {
   for (let i = 1; i < rows.length; i += 1) {
     assert.ok(rows[i - 1].startDate >= rows[i].startDate, 'DESC by startDate');
   }
+});
+
+// specs/payment-schedule-and-cancellation.md §3.5 rule 26 — every list view drops a cancelled stay;
+// search is the one path that must still find it, flagged so the UI can badge it.
+test('finds a cancelled stay and flags it', () => {
+  const { db, model } = freshModel();
+  const id = addRes(db, { reservationNumber: '2026-07-077', clientId: 1 });
+  db.prepare("UPDATE reservations SET kind = 'cancelled', cancelledAt = '2026-06-30 10:00:00' WHERE id = ?").run(id);
+  const rows = model.search({ q: 'dupont' });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].cancelled, true);
+  assert.equal(rows[0].cancelledAt, '2026-06-30 10:00:00');
 });
 
 test('null reservationNumber is shaped as empty string', () => {

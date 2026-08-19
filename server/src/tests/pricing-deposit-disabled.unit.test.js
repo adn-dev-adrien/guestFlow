@@ -78,8 +78,23 @@ test('depositDisabled=0 (default): deposit follows property.depositPercent — r
   assert.equal(q.depositAmount, 90);
   assert.equal(q.balanceAmount, 210);
   assert.equal(q.depositAmount + q.balanceAmount, q.finalPrice);
-  // Default due-date derivation is unchanged: depositDaysBefore=30, balanceDaysBefore=7.
-  assert.notEqual(q.depositDueDate, null);
+  // specs/payment-schedule-and-cancellation.md §3.1 — the acompte deadline is anchored on the BOOKING
+  // day, which the engine never invents: without a `bookingDate` there is no deadline to state.
+  assert.equal(q.depositDueDate, null);
+  db.close();
+});
+
+test('with a bookingDate, the acompte is due depositDueDays later and never moves again', () => {
+  const db = freshDb({ depositPercent: 30 });
+  const q = calculateReservationQuote({ ...BASE_INPUTS, db, bookingDate: '2026-03-01' });
+  // The property DDL of this suite has no depositDueDays column → the 7-day policy default applies.
+  assert.equal(q.depositDueDate, '2026-03-08');
+  // Re-running the engine with the stored deadline keeps it, whatever the stay dates do (rule 4).
+  const again = calculateReservationQuote({
+    ...BASE_INPUTS, db, bookingDate: '2026-03-01', existingDepositDueDate: '2026-03-08',
+    startDate: '2026-09-01', endDate: '2026-09-05',
+  });
+  assert.equal(again.depositDueDate, '2026-03-08');
   db.close();
 });
 

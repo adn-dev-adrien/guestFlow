@@ -12,8 +12,9 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Card, CardContent, Stack, Typography, Button, TableCell, TableRow,
+  Box, Card, CardContent, Stack, Typography, Button, TableCell, TableRow, Link,
 } from '@mui/material';
+import { Link as RouterLink } from 'react-router';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -97,6 +98,22 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
   const pending = data?.pending || [];
 
   const clientCell = (c) => c.clientName || `Indemnité #${c.id}`;
+  // specs/payment-schedule-and-cancellation.md §3.6 rule 33 — an indemnity is either what a platform
+  // pays back, or an acompte we already held and kept after cancelling for non-payment. The two are
+  // the same accounting object but not the same story, so the card says which one it is and, for the
+  // retained acompte, links to the stay it came from.
+  const originBadge = (c) => (c.origin === 'retained_deposit'
+    ? (
+      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        <StatusBadge status="neutral" label="Acompte conservé" />
+        {c.reservationId ? (
+          <Link component={RouterLink} to={`/reservations/${c.reservationId}`} variant="caption">
+            voir le séjour
+          </Link>
+        ) : null}
+      </Stack>
+    )
+    : null);
   const stayCell = (c) => (c.startDate && c.endDate
     ? `${displayDateShort(c.startDate)} → ${displayDateShort(c.endDate)}`
     : '—');
@@ -111,8 +128,9 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
           <Box>
             <Typography variant="sectionHeader">Indemnités d&apos;annulation</Typography>
             <Typography variant="body2" color="text.secondary">
-              Ce qu&apos;une plateforme verse pour un séjour annulé. Comptabilisée au mois du versement,
-              modifiable tant qu&apos;elle n&apos;est pas encaissée.
+              Ce qu&apos;une plateforme verse pour un séjour annulé, ou l&apos;acompte conservé quand nous
+              annulons un séjour faute de règlement. Comptabilisée au mois du versement, modifiable tant
+              qu&apos;elle n&apos;est pas encaissée.
             </Typography>
           </Box>
           {canEdit && (
@@ -155,7 +173,10 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
                   <TableRow key={c.id}>
                     <TableCell>{displayDate(c.receivedDate)}</TableCell>
                     <TableCell>{c.propertyName || '—'}</TableCell>
-                    <TableCell>{clientCell(c)}</TableCell>
+                    <TableCell>
+                      {clientCell(c)}
+                      {originBadge(c)}
+                    </TableCell>
                     <TableCell><PlatformChip platform={c.platform} /></TableCell>
                     <TableCell sx={{ color: 'text.secondary' }}>{stayCell(c)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
@@ -173,6 +194,7 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
                 renderMobileCard={(c) => (
                   <Stack spacing={0.5}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{clientCell(c)}</Typography>
+                    {originBadge(c)}
                     <Typography variant="body2" color="text.secondary">
                       {displayDate(c.receivedDate)} · {c.propertyName || '—'} · {c.platform || '—'}
                     </Typography>

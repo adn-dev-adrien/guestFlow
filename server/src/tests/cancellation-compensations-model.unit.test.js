@@ -25,6 +25,7 @@ const DDL = `
     receivedAmount      REAL,
     receivedDate        TEXT,
     status              TEXT    NOT NULL DEFAULT 'pending',
+    origin              TEXT    NOT NULL DEFAULT 'platform',
     notes               TEXT    NOT NULL DEFAULT '',
     createdAt           TEXT    NOT NULL DEFAULT (datetime('now')),
     updatedAt           TEXT    NOT NULL DEFAULT (datetime('now'))
