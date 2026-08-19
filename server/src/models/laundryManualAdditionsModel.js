@@ -92,6 +92,16 @@ function createModel(database) {
       return normalized;
     },
 
+    /**
+     * Idempotent delete of the manual line of `date`. Used when an extra laundry trip is removed
+     * (specs/laundry-extra-trip.md §3.1 rule 6) so no manual line survives on a date that is no
+     * longer a trip. Returns true if a row was removed.
+     */
+    remove(date) {
+      assertIsoDate(date);
+      return deleteStmt.run(date).changes > 0;
+    },
+
     /** Map of `{ 'YYYY-MM-DD': { …counts } }` for every non-empty trip, sorted ASC. */
     listAll() {
       const out = {};

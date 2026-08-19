@@ -12,14 +12,12 @@ const settingsModel = require('../models/settingsModel');
 const linenInventoryModel = require('../models/linenInventoryModel');
 const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
 const laundryManualAdditionsModel = require('../models/laundryManualAdditionsModel');
+const laundryExtraTripsModel = require('../models/laundryExtraTripsModel');
 const breakfastModel = require('../models/breakfastModel');
 const planningOptionCardsModel = require('../models/planningOptionCardsModel');
 const planningResourceCardsModel = require('../models/planningResourceCardsModel');
-const {
-  findLaundryDaysInRange,
-  prevLaundryDay,
-  previousNonSkippedLaundryDay,
-} = require('../utils/laundryWindow');
+const { findLaundryDaysInRange, activeExtraDates } = require('../utils/laundryWindow');
+const { createTripLedger, makeBlockBuilders } = require('../utils/laundryTripLedger');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,18 +25,13 @@ function isIsoDate(value) {
   return typeof value === 'string' && ISO_DATE_RE.test(value);
 }
 
-const EMPTY_LAUNDRY_BLOCK = Object.freeze({
-  singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-  largeTowels: 0, mediumTowels: 0, smallTowels: 0,
-  bathMats: 0,
-});
-
 function buildController({
   laundryModel: injectedLaundryModel = laundryModel,
   settingsModel: injectedSettingsModel = settingsModel,
   linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
   laundryTripSkipsModel: injectedLaundryTripSkipsModel = laundryTripSkipsModel,
   laundryManualAdditionsModel: injectedLaundryManualAdditionsModel = laundryManualAdditionsModel,
+  laundryExtraTripsModel: injectedLaundryExtraTripsModel = laundryExtraTripsModel,
   breakfastModel: injectedBreakfastModel = breakfastModel,
   planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
   planningResourceCardsModel: injectedResourceCardsModel = planningResourceCardsModel,
@@ -48,9 +41,11 @@ function buildController({
      * GET /api/planning/laundry?from=YYYY-MM-DD[&to=YYYY-MM-DD]
      *
      * Returns the laundry summary for every occurrence of `laundryWeekday` (from settings)
-     * in the requested range. Drop-off counts sheets used by reservations whose endDate
-     * is in `(L-7d, L]`; pick-up is the previous laundry day's drop-off (which may itself
-     * be outside the requested range — we still compute it).
+     * in the requested range, plus every extra laundry trip in the range
+     * (specs/laundry-extra-trip.md). Drop-off counts sheets used by reservations whose endDate
+     * is in `(previous trip, T]`; pick-up is what sits at the laundry before T — with weekly
+     * trips only, exactly the previous laundry day's drop-off (which may itself be outside the
+     * requested range — we still compute it).
      *
      * `to` is OPTIONAL. When omitted the server defaults it to the inventory horizon
      * (= the last reservation's endDate, same business concept that drives the linen
@@ -95,70 +90,36 @@ function buildController({
         // The horizon fallback never trips this because horizon ≥ today by construction.
         return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
       }
-      const laundryDates = findLaundryDaysInRange(from, to, weekday);
-      // specs/skip-laundry-trip.md §3.1 rule 6 — the operator can mark a trip as not-made,
-      // and BOTH the drop-off and the pick-up of that trip carry over to the next non-skipped
-      // trip. Concretely: the half-open window of a non-skipped card extends backward through
-      // every skipped trip in between, so reservations from the in-between weeks finally land
-      // in "À apporter" / "À récupérer" instead of disappearing into the skipped card.
+      // specs/laundry-extra-trip.md §3.2 — the summary is a ledger over the TRIP SEQUENCE: every
+      // non-skipped regular laundry day plus every active extra trip, chronologically. A skipped
+      // trip (specs/skip-laundry-trip.md §3.1 rule 6) is simply absent from the sequence, so the
+      // next trip's drop-off window widens backward across it; an extra trip takes the dirty pile
+      // (and all or part of the pool) with it, so the next trip only carries what came after.
+      // The ledger's buildBlock merges bed + bathroom + bath-mat sums + the signed manual lines into
+      // one block per side (the client renders both under a unified "À apporter / À récupérer").
       //
-      // Before this wiring shipped, the "Disponible après ce dépôt" line (via
-      // `linenInventoryModel.simulate`) was already skip-aware (PR #126), but the À apporter
-      // / À récupérer counts were not — the next card showed its pre-skip values, which
-      // diverged from the inventory line on the same card. The fix makes the two paths agree.
+      // The "Disponible après ce dépôt" line (via `linenInventoryModel.simulate`) follows the same
+      // sequence — the two paths must agree (PR #126 hotfix 2026-06-05 taught us what happens when
+      // they don't).
       const skippedDates = new Set(injectedLaundryTripSkipsModel.listAll());
-      const widestPrev = (laundryDay) => (
-        previousNonSkippedLaundryDay(laundryDay, skippedDates) || prevLaundryDay(laundryDay)
-      );
-      // Each dropOff / pickUp block carries the bed-linen sums AND the bathroom-linen sums.
-      // The bathroom counts are spread into the same block (not a separate sibling) so the
-      // client renders both under a unified "À apporter / À récupérer" section without an
-      // extra plumbing layer.
-      // Reservation linen + the operator's manual additions for the laundry days in this window
-      // (specs/manual-laundry-additions.md §3 rules 2-3). sumForWindow uses the same half-open
-      // (startExclusive, endInclusive] boundary, so a skipped trip's widened window also picks up
-      // its deferred manual additions — consistent with the reservation carry-forward.
-      const buildBlock = (startExclusive, endInclusive) => {
-        const block = {
-          ...injectedLaundryModel.dropOffForWindow(startExclusive, endInclusive),
-          ...injectedLaundryModel.dropOffBathroomForWindow(startExclusive, endInclusive),
-          ...injectedLaundryModel.dropOffBathMatForWindow(startExclusive, endInclusive),
-        };
-        const manual = injectedLaundryManualAdditionsModel.sumForWindow(startExclusive, endInclusive);
-        // specs/laundry-manual-removals.md §3 rule 3 — the manual line is SIGNED: a negative value is
-        // linen the operator washed himself, so it leaves the trip. Floored at 0 per type: one cannot
-        // deposit (nor fetch) a negative pile of sheets.
-        for (const k of Object.keys(manual)) {
-          block[k] = Math.max(0, (Number(block[k]) || 0) + Number(manual[k] || 0));
-        }
-        return block;
-      };
-      // specs/laundry-counts-explicit-option-only.md §3.2 rule 8 — only the drop-off side carries the
-      // "declared linen, no quantity yet" list: the pick-up is a past batch, nothing left to fill in.
-      // Guarded so an older injected model (tests) without the method degrades to an empty list.
-      const incompleteFor = (startExclusive, endInclusive) => (
-        typeof injectedLaundryModel.incompleteBedConfigForWindow === 'function'
-          ? injectedLaundryModel.incompleteBedConfigForWindow(startExclusive, endInclusive)
-          : []
-      );
-      const laundryDays = laundryDates.map((date) => {
-        // A skipped trip's counts are masked on the client by the "Voyage non réalisé"
-        // caption (LaundryDayCard §3.3). We emit zeros for a uniform contract — the next
-        // non-skipped trip's widened window will absorb this batch.
-        if (skippedDates.has(date)) {
-          return { date, dropOff: { ...EMPTY_LAUNDRY_BLOCK, incomplete: [] }, pickUp: { ...EMPTY_LAUNDRY_BLOCK } };
-        }
-        const prev = widestPrev(date);
-        const prevPrev = widestPrev(prev);
-        return {
-          date,
-          dropOff: { ...buildBlock(prev, date), incomplete: incompleteFor(prev, date) },
-          // Pick-up(L) = Drop-off(prev). Same half-open semantics shifted by one non-skipped
-          // step, so the previous batch coming back from the laundry reflects what was
-          // actually deposited there.
-          pickUp: buildBlock(prevPrev, prev),
-        };
+      const extraTrips = injectedLaundryExtraTripsModel.listAll();
+      const ledger = createTripLedger({
+        weekday,
+        skippedDates,
+        extraTrips,
+        ...makeBlockBuilders({
+          laundryModel: injectedLaundryModel,
+          laundryManualAdditionsModel: injectedLaundryManualAdditionsModel,
+        }),
       });
+      const regularDates = findLaundryDaysInRange(from, to, weekday);
+      const extraDates = activeExtraDates(extraTrips.map((t) => t.date), weekday)
+        .filter((d) => d >= from && d <= to);
+      const tripDates = Array.from(new Set([...regularDates, ...extraDates])).sort();
+      // Each entry: { date, kind, dropOff (+ incomplete), pickUp } and, for an extra trip,
+      // { pickUpAll, leftAtLaundry }. A skipped regular trip emits zeros — the client masks them with
+      // the "Voyage non réalisé" caption.
+      const laundryDays = tripDates.map((date) => ledger.entryFor(date)).filter(Boolean);
       return res.json({ laundryWeekday: weekday, laundryDays });
     },
 
@@ -195,10 +156,12 @@ function buildController({
         for (const t of tracked) out[t] = clean[t];
         return out;
       };
+      // Keyed by every regular laundry day (skipped or not) AND every extra trip day
+      // (specs/laundry-extra-trip.md §3.3 rule 15), so the extra card shows its own line.
       const byLaundryDay = {};
       for (const day of result.days) {
         const isLaundryDay = (new Date(`${day.date}T00:00:00Z`).getUTCDay()) === laundryWeekday;
-        if (isLaundryDay) {
+        if (isLaundryDay || day.isTripDay) {
           byLaundryDay[day.date] = projectClean(day.clean);
         }
       }

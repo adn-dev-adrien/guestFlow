@@ -96,12 +96,56 @@ function previousNonSkippedLaundryDay(iso, skippedDates, maxLookbackDays = 28) {
   return null;
 }
 
+/**
+ * The most recent regular laundry day on-or-before `iso` (ignores skips). Returns the ISO date.
+ */
+function previousOrSameLaundryDay(iso, weekday) {
+  const wd = assertWeekday(weekday);
+  const delta = (weekdayOf(iso) - wd + 7) % 7;
+  return addDays(iso, -delta);
+}
+
+/**
+ * The last NON-SKIPPED regular laundry day strictly before `iso` — `iso` may be any date (a
+ * regular day, an extra-trip date, or a plain day). Starts at the regular day on/before `iso − 1`,
+ * then walks back in 7-day steps over skipped dates, with the same 4-candidate lookback + `null`
+ * semantics as `previousNonSkippedLaundryDay` — so for a regular `iso` the two helpers agree.
+ *
+ * specs/laundry-extra-trip.md §3.2 rule 7 — the trip sequence anchors on this regular trip (a
+ * regular trip always takes the whole pool back), then the extra trips in between are replayed.
+ */
+function previousNonSkippedRegularBefore(iso, weekday, skippedDates, maxLookbackDays = 28) {
+  let candidate = previousOrSameLaundryDay(addDays(iso, -1), weekday);
+  if (!skippedDates || skippedDates.size === 0) return candidate;
+  const maxSteps = Math.floor(maxLookbackDays / 7);
+  for (let i = 0; i < maxSteps; i += 1) {
+    if (!skippedDates.has(candidate)) return candidate;
+    candidate = addDays(candidate, -7);
+  }
+  return null;
+}
+
+/**
+ * Extra-trip dates that are ACTIVE for the given laundry weekday: a stored extra trip whose weekday
+ * is the regular laundry day is inert (specs/laundry-extra-trip.md §3.1 rule 2 — that day is already
+ * a trip; the regular rules apply). Returns a sorted array of ISO dates.
+ */
+function activeExtraDates(extraDates, weekday) {
+  const wd = assertWeekday(weekday);
+  return Array.from(extraDates || [])
+    .filter((d) => weekdayOf(d) !== wd)
+    .sort();
+}
+
 module.exports = {
   addDays,
   weekdayOf,
   findLaundryDaysInRange,
   prevLaundryDay,
   previousNonSkippedLaundryDay,
+  previousOrSameLaundryDay,
+  previousNonSkippedRegularBefore,
+  activeExtraDates,
   // exported for unit tests
   __test: { parseIso, toIso, assertWeekday },
 };
