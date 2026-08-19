@@ -6,12 +6,14 @@
  */
 
 const db = require('../../database');
-const { calculateReservationQuote } = require('../../utils/pricing');
+const {
+  calculateReservationQuote, computePercentOfStayAmount, getTypeMultiplier, roundMoney,
+} = require('../../utils/pricing');
 const { getTodayIsoDate } = require('../../utils/reservationHelpers');
 const optionsModel = require('../../models/optionsModel');
 const resourcesModel = require('../../models/resourcesModel');
 const { validateStayInput } = require('../../utils/publicInputValidation');
-const { toPublicQuote } = require('../../utils/publicProjections');
+const { toPublicQuote, toPublicCancellationInsurance } = require('../../utils/publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { resolvePublicPaymentMode } = require('../../utils/publicPaymentMode');
 const { mergePropertyDefaultsIntoPayload } = require('../../utils/propertyDefaultOptions');
@@ -75,6 +77,31 @@ function buildEngineQuote(input) {
   });
 }
 
+/**
+ * The cancellation-insurance block of the quote (specs/cancellation-insurance.md §3.3 rule 19).
+ *
+ * Priced for THIS stay whether or not the visitor selected it, so the site shows the real amount
+ * beside the Oui/Non choice. The amount comes from the very same engine helper + assiette
+ * (`cancellationInsuranceBase`) that prices the billed line, so the preview and the invoice cannot
+ * diverge. A fixed-price insurance (`per_stay`, `per_person`…) is priced through the engine's own
+ * multipliers instead.
+ */
+function buildCancellationInsurance(input, engineQuote) {
+  const option = optionsModel.getCancellationInsurance(Number(input.propertyId));
+  if (!option) return null;
+  const optionId = Number(option.id);
+  const selected = (input.options || []).some((o) => Number(o.optionId) === optionId);
+  // Already priced by the engine when selected — reuse that exact line rather than re-deriving it.
+  const line = (engineQuote.optionLines || []).find((l) => Number(l.optionId) === optionId);
+  const amount = line
+    ? Number(line.totalPrice || 0)
+    : (String(option.priceType) === 'percent_of_stay'
+      ? computePercentOfStayAmount(option.price, engineQuote.cancellationInsuranceBase)
+      : roundMoney(Number(option.price || 0)
+        * getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0))));
+  return toPublicCancellationInsurance(option, { amount, selected });
+}
+
 function quote(req, res) {
   const v = validateStayInput(req.body);
   if (!v.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Données de devis invalides.', v.errors);
@@ -99,6 +126,7 @@ function quote(req, res) {
 
   return ok(res, toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
+    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote),
   }));
 }
 

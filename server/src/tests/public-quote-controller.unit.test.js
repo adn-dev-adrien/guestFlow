@@ -39,7 +39,11 @@ function buildController({ captures, applicableOptionIds = [7], applicableResour
   return withMocks({
     '../../database': {},
     '../../utils/pricing': { calculateReservationQuote: (input) => { captures.engineInput = input; return minimalQuote(); } },
-    '../../models/optionsModel': { listForProperty: () => applicableOptionIds.map((id) => ({ id })) },
+    '../../models/optionsModel': {
+      listForProperty: () => applicableOptionIds.map((id) => ({ id })),
+      // specs/cancellation-insurance.md §3.3 — no insurance configured in these fixtures.
+      getCancellationInsurance: () => null,
+    },
     '../../models/resourcesModel': { list: () => applicableResourceIds.map((id) => ({ id })) },
     '../../models/propertyOptionDefaultsModel': { listForProperty: () => propertyDefaults },
     './publicCatalogController': { computeBlockedDates: () => [], rangeHasBlockedNight: () => false },

@@ -14,6 +14,7 @@ const { buildOccupiedDatesFromReservations } = require('../../utils/occupancy');
 const { validateAvailabilityQuery } = require('../../utils/publicInputValidation');
 const {
   toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
+  toPublicCancellationInsurance,
 } = require('../../utils/publicProjections');
 const { ok, fail } = require('./publicHttp');
 const { isClientVisibleOption } = require('../../utils/optionVisibility');
@@ -95,12 +96,22 @@ function listOptions(req, res) {
     // (specs/option-categories.md §3 rule 14).
     .filter(isClientVisibleOption)
     .map(toPublicOption);
+  // The cancellation insurance leaves the supplements lists entirely
+  // (specs/cancellation-insurance.md §3.3 rule 18): it gets its own block, with a mandatory
+  // Oui/Non choice, and must never also appear as one row among the extras. Picked out of the
+  // ALREADY filtered list, so an insurance the property offers for free, hides from clients or
+  // doesn't apply to simply isn't there.
+  const insuranceOption = visible.find((opt) => opt.isCancellationInsurance) || null;
+  const selectable = visible.filter((opt) => !opt.isCancellationInsurance);
   // Grouped, render-ready payload (specs/option-categories.md §4.4). Cheapest-first ordering is
   // preserved inside each bucket — the widget renders what it receives, in order.
-  const { ungrouped, groups } = groupOptionsByCategory(visible);
+  const { ungrouped, groups } = groupOptionsByCategory(selectable);
   return ok(res, {
     ungrouped: ungrouped.slice().sort(byPriceAsc),
     groups: groups.map((g) => ({ category: g.category, options: g.options.slice().sort(byPriceAsc) })),
+    // Null while unpriced (rule 15) — the projection enforces it: no block, and the site then has
+    // no mandatory question to ask.
+    cancellationInsurance: toPublicCancellationInsurance(insuranceOption),
   });
 }
 

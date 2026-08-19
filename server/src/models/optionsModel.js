@@ -104,6 +104,23 @@ function createOptionsModel(database) {
     database.prepare('UPDATE options SET alwaysVisible = ? WHERE id = ?')
       .run(payload.alwaysVisible ? 1 : 0, optionId);
   }
+  // THE cancellation insurance (specs/cancellation-insurance.md §3.2 rules 11-12). Same guarded
+  // write; `undefined` leaves it as-is so a caller unaware of the flag can't silently clear it.
+  // Setting it clears every other row: the flag is exclusive, and the public API resolves it by
+  // reading « the flagged option », not « a flagged option ».
+  const HAS_OPTION_CANCELLATION_INSURANCE = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'isCancellationInsurance'); }
+    catch { return false; }
+  })();
+  function persistCancellationInsurance(optionId, payload) {
+    if (!HAS_OPTION_CANCELLATION_INSURANCE || payload.isCancellationInsurance === undefined) return;
+    if (payload.isCancellationInsurance) {
+      database.prepare('UPDATE options SET isCancellationInsurance = 0 WHERE id != ?').run(optionId);
+      database.prepare('UPDATE options SET isCancellationInsurance = 1 WHERE id = ?').run(optionId);
+    } else {
+      database.prepare('UPDATE options SET isCancellationInsurance = 0 WHERE id = ?').run(optionId);
+    }
+  }
   // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
   // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_PLANNING_CARD = (() => {
@@ -290,6 +307,23 @@ function createOptionsModel(database) {
       });
     },
 
+    /**
+     * THE cancellation insurance for a property (specs/cancellation-insurance.md §3.2), or null.
+     *
+     * Built on `listForProperty` so it inherits applicability, the archived filter AND the
+     * effective per-property price (a percentage for a `percent_of_stay` insurance). Returns null
+     * when no option carries the flag, when it isn't applicable to that property, or when it is
+     * still unpriced — an insurance at 0 is not an offer (rule 15).
+     */
+    getCancellationInsurance(propertyId) {
+      if (!HAS_OPTION_CANCELLATION_INSURANCE) return null;
+      const found = this.listForProperty(propertyId)
+        .filter((o) => Number(o.isCancellationInsurance || 0) === 1)
+        .sort((a, b) => Number(a.id) - Number(b.id))[0] || null;
+      if (!found || Number(found.price || 0) <= 0) return null;
+      return found;
+    },
+
     create(payload = {}) {
       const insertOption = database.prepare(HAS_OPTION_TITLE_EN ? `
         INSERT INTO options (
@@ -353,6 +387,7 @@ function createOptionsModel(database) {
         persistDisplayToClient(id, payload);
         persistCategory(id, payload);
         persistAlwaysVisible(id, payload);
+        persistCancellationInsurance(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -421,6 +456,7 @@ function createOptionsModel(database) {
         persistDisplayToClient(id, payload);
         persistCategory(id, payload);
         persistAlwaysVisible(id, payload);
+        persistCancellationInsurance(id, payload);
       })();
       return { ok: true };
     },

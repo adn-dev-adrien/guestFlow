@@ -17,6 +17,9 @@ const OPTION_PRICE_TYPES = [
   { value: 'per_night', label: 'Par jour' },
   { value: 'per_person_per_night', label: 'Par personne / jour' },
   { value: 'per_participant_progressive', label: 'Degressif participants' },
+  // specs/cancellation-insurance.md §3.1 — `price` holds a PERCENTAGE for this type, applied to the
+  // accommodation of the stay. Generic: any option can use it, the insurance is just its first user.
+  { value: 'percent_of_stay', label: '% du montant du séjour' },
   { value: 'free', label: 'Gratuit' },
 ];
 
@@ -294,19 +297,19 @@ function PlanningCardSection({ form, setForm }) {
 // One price row — the SAME presentation for the single price ("Tous les logements") and each
 // per-property line: a label + a "Prix (EUR)" input. Module-level so the input keeps focus while
 // typing (a component defined inside a render would remount on every keystroke).
-function PriceInputRow({ label, value, placeholder, onChange }) {
+function PriceInputRow({ label, value, placeholder, onChange, percent = false }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}>
       <Typography variant="body2" sx={{ minWidth: { sm: 200 } }}>{label}</Typography>
       <TextField
-        label="Prix (EUR)"
+        label={percent ? 'Pourcentage (%)' : 'Prix (EUR)'}
         type="number"
         size="small"
         placeholder={placeholder}
         value={value}
         onChange={onChange}
         sx={{ width: { xs: '100%', sm: 240 } }}
-        slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
+        slotProps={{ htmlInput: percent ? { min: 0, max: 100, step: '0.5' } : { min: 0, step: '0.5' } }}
       />
     </Box>
   );
@@ -317,12 +320,15 @@ function PriceInputRow({ label, value, placeholder, onChange }) {
 // per applicable property — BOTH rendered with the same row presentation inside one box. Blank in a
 // per-property line = inherit the base price; explicit 0 = free. Hidden for `free`; progressive keeps
 // global tiers. The effective price is resolved server-side.
-function OptionPriceSection({ form, setForm, properties }) {
+export function OptionPriceSection({ form, setForm, properties }) {
   if (form.priceType === 'free') return null;
   if (form.priceType === 'per_participant_progressive') {
     return <ProgressivePricingFields form={form} setForm={setForm} />;
   }
 
+  // specs/cancellation-insurance.md §3.1 — this price type stores a percentage, so every price
+  // field (single and per-property) switches unit, bounds and helper text.
+  const percent = form.priceType === 'percent_of_stay';
   const on = Boolean(form.perPropertyPricing);
   // specs/option-property-scope.md: the applicable properties are exactly the selected ones (no
   // empty → all fallback). « Tous » stores every id, so this still covers all when « Tous » is picked.
@@ -355,23 +361,33 @@ function OptionPriceSection({ form, setForm, properties }) {
               label="Tous les logements"
               value={form.price ?? ''}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
+              percent={percent}
             />
+            {percent && (
+              <FormHelperText sx={{ m: 0 }}>
+                Pourcentage du montant hébergement du séjour (nuits + supplément voyageurs, hors
+                options, ressources et taxe de séjour) — 0 à 100.
+              </FormHelperText>
+            )}
           </Stack>
         ) : applicable.length === 0 ? (
           <FormHelperText sx={{ m: 0 }}>Sélectionnez au moins un logement pour définir un prix par logement.</FormHelperText>
         ) : (
           <>
             <FormHelperText sx={{ mt: 0, mb: 1 }}>
-              Laissez vide pour reprendre le prix de base ({base} €) ; mettez 0 pour le rendre gratuit.
+              {percent
+                ? `Laissez vide pour reprendre le pourcentage de base (${base} %) ; mettez 0 pour ne pas le proposer.`
+                : `Laissez vide pour reprendre le prix de base (${base} €) ; mettez 0 pour le rendre gratuit.`}
             </FormHelperText>
             <Stack spacing={1.5}>
               {applicable.map((p) => (
                 <PriceInputRow
                   key={p.id}
                   label={p.name}
-                  placeholder={`${base} (prix de base)`}
+                  placeholder={percent ? `${base} (pourcentage de base)` : `${base} (prix de base)`}
                   value={prices[p.id] ?? ''}
                   onChange={setPropPrice(p.id)}
+                  percent={percent}
                 />
               ))}
             </Stack>
@@ -536,17 +552,22 @@ export default function OptionsPage({ barCenter }) {
       // the base price, then one line per property that overrides it (« Logement : X € »).
       renderPriceCell={(item, properties) => {
         if (item.priceType === 'free') return 'Gratuit';
+        // specs/cancellation-insurance.md §3.1 — a `percent_of_stay` option stores a percentage,
+        // so the cell must not read it as euros.
+        const fmt = item.priceType === 'percent_of_stay'
+          ? (v) => `${Number(v) || 0} %`
+          : formatCurrency;
         const overrides = Object.entries(item.propertyPrices || {})
           .filter(([, v]) => v !== null && v !== undefined && v !== '');
-        if (overrides.length === 0) return formatCurrency(item.price);
+        if (overrides.length === 0) return fmt(item.price);
         return (
           <Box>
             <Typography variant="body2" sx={{ lineHeight: 1.35 }}>
-              {formatCurrency(item.price)} <Typography component="span" variant="caption" color="text.secondary">(base)</Typography>
+              {fmt(item.price)} <Typography component="span" variant="caption" color="text.secondary">(base)</Typography>
             </Typography>
             {overrides.map(([pid, price]) => (
               <Typography key={pid} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
-                {(properties.find((p) => Number(p.id) === Number(pid))?.name) || `#${pid}`} : {formatCurrency(price)}
+                {(properties.find((p) => Number(p.id) === Number(pid))?.name) || `#${pid}`} : {fmt(price)}
               </Typography>
             ))}
           </Box>
@@ -586,6 +607,9 @@ export default function OptionsPage({ barCenter }) {
         propertyBathMats: (item.propertyBathMats && typeof item.propertyBathMats === 'object') ? item.propertyBathMats : {},
         // Client-visibility (default true when the column/flag is absent — back-compat).
         displayToClient: item.displayToClient == null ? true : Boolean(item.displayToClient),
+        // Seed-managed marker (specs/cancellation-insurance.md §3.2) — round-tripped, never edited
+        // from the form: it drives the dedicated block in the website booking funnel.
+        isCancellationInsurance: Boolean(item.isCancellationInsurance),
         // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — title only.
         titleEn: item.titleEn || '',
         // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
@@ -672,11 +696,14 @@ export default function OptionsPage({ barCenter }) {
         // a whitespace-only value as ungrouped.
         category: form.category || '',
         alwaysVisible: Boolean(form.alwaysVisible),
+        // Seed-managed marker, sent back untouched so a save never demotes the insurance
+        // (specs/cancellation-insurance.md §3.2 rule 12).
+        isCancellationInsurance: Boolean(form.isCancellationInsurance),
       })}
       formNameKey="title"
       formDescriptionKey="description"
       showQuantity={false}
-      isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
+      isDeleteDisabled={(item) => Boolean(item.autoOptionType) || Boolean(item.isCancellationInsurance)}
       // specs/option-categories.md §6.2. Seeded catering articles stay deletable on purpose:
       // « supprimer » is a soft-delete here, and archiving is the only way to retire an article
       // (the boot seed honours `archivedAt` and never resurrects it) — see §3 rule 25.
@@ -702,6 +729,13 @@ export default function OptionsPage({ barCenter }) {
             multiline
             rows={2}
           />
+          {form.isCancellationInsurance && (
+            <FormHelperText sx={{ m: 0 }}>
+              Option d&apos;assurance annulation — proposée dans son propre encart, avec un choix
+              obligatoire, dans le tunnel de réservation du site. Tant que son tarif est à 0, elle
+              n&apos;est proposée nulle part.
+            </FormHelperText>
+          )}
           <CategoryField form={form} setForm={setForm} items={items} />
           <PropertiesMultiSelect
             properties={properties}

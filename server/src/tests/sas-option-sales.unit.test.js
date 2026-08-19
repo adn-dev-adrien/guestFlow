@@ -34,6 +34,14 @@ const BEER = {
   displayToClient: 1, autoEnabled: 0, showsPlanningCard: 0,
 };
 
+// specs/cancellation-insurance.md §3.2 rule 17 — miscategorised on purpose: the guard must not
+// depend on the operator filing it outside « Restauration ».
+const INSURANCE = {
+  id: 42, title: 'Assurance annulation', price: 4, priceType: 'percent_of_stay',
+  category: 'Restauration', displayToClient: 1, autoEnabled: 0, showsPlanningCard: 0,
+  isCancellationInsurance: 1,
+};
+
 function reservation(overrides = {}) {
   return {
     id: 1, propertyId: 7, adults: 2, teens: 1, children: 0, babies: 1,
@@ -338,4 +346,9 @@ test('history: the sold prestations are listed, ménage and linge de toilette ex
   const lines = model.listSasArrivalOptionLines(1);
   assert.deepEqual(lines.map((l) => l.label), ['Planche S']);
   assert.equal(lines[0].amount, 17);
+});
+
+test('offers: the cancellation insurance is never sold at check-in — the stay has started', () => {
+  const offers = buildSasSaleOffers({ reservation: reservation(), options: [BOARD, INSURANCE] });
+  assert.deepEqual(offers.catering.options.map((o) => o.optionId), [27], 'the board sells, the insurance does not');
 });

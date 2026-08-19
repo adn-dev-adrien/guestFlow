@@ -307,6 +307,30 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 }
 ```
   - **Excluded:** linen/towel inventory fields, `countsAsBedLinen`, internal auto-pricing config.
+- **Current shape (supersedes the example above).** Two later specs reshaped this payload; the
+  contract in force is:
+  - `{ ungrouped: [...], groups: [{ category, options: [...] }] }` — options are grouped
+    server-side ([option-categories.md](option-categories.md) §4.4), cheapest-first inside each
+    bucket, and applicability is « explicitly linked properties only »
+    ([option-property-scope.md](option-property-scope.md) §3.3 — the legacy « linked to nothing =
+    global » rule is gone). Each option's `price` is the **effective per-property** price
+    ([per-property-option-prices.md](per-property-option-prices.md)).
+  - `cancellationInsurance` — the flagged cancellation-insurance option, **removed from
+    `ungrouped`/`groups`** so a consumer cannot render it twice
+    ([cancellation-insurance.md](cancellation-insurance.md) §3.3 rule 18). `null` when none is
+    configured, when it does not apply to the property, when it is hidden from clients or offered by
+    default, or while its price/percentage is still 0:
+    ```json
+    "cancellationInsurance": {
+      "optionId": 42, "title": "Assurance annulation", "titleEn": "Cancellation insurance",
+      "description": "Garantie annulation : …",
+      "priceType": "percent_of_stay", "percent": 4, "price": 4,
+      "priceLabel": "4 % du montant du séjour",
+      "amount": null, "selected": false
+    }
+    ```
+    `amount` is `null` here (no stay to price yet) — the consumer renders `priceLabel` until it has
+    a quote.
 - **Errors:** `404 PROPERTY_NOT_FOUND`, `401`.
 
 ##### GET `/public/v1/properties/:id/availability`
@@ -370,10 +394,22 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     "totalStayPrice": 1066,
     "deposit": { "amount": 309.90, "dueDate": "2026-06-20" },
     "balance": { "amount": 723.10, "dueDate": "2026-07-13" },
-    "complementOnArrival": 0
+    "complementOnArrival": 0,
+    "cancellationInsurance": {
+      "optionId": 42, "title": "Assurance annulation", "description": "Garantie annulation : …",
+      "priceType": "percent_of_stay", "percent": 4, "price": 4,
+      "priceLabel": "4 % du montant du séjour",
+      "amount": 33.6, "selected": false
+    }
   }
 }
 ```
+  - `cancellationInsurance` ([cancellation-insurance.md](cancellation-insurance.md) §3.3 rule 19) is
+    **always priced for the requested stay**, selected or not, so the consumer can show a real amount
+    beside its mandatory Oui/Non choice; `selected` says whether it is in the quoted `options`. The
+    amount is produced by the same engine helper as the billed line, so preview and invoice cannot
+    diverge. `null` when no insurance is configured for the property. Taking it is a plain
+    `options: [{ optionId, quantity: 1 }]` entry — no dedicated field on the request side.
   - Mapped from `calculateReservationQuote` fields (`nights`, `nightlyBreakdown`,
     `totalPrice`/`baseAccommodationPrice`, `extraGuestSurcharge`, `optionLines`, `optionsTotal`,
     `touristTaxTotal`/`touristTaxLabel`/`touristTaxCollectedOnArrival`, `finalPrice` (tax-EXCLUSIVE),
