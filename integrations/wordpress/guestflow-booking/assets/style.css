@@ -53,6 +53,18 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-line-desc { font-size: .85rem; color: #475569; margin-top: .3rem; }
 .gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gf-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
 
+/* Cancellation insurance (specs/cancellation-insurance.md §6.3). Its own framed block just before
+   the price summary, with a mandatory Oui/Non choice — nothing is preselected, and the submit
+   button stays inert until the visitor answers. */
+.gf-insurance { border: 1px solid var(--gf-border); border-radius: 10px; padding: .9rem 1rem; background: #fbfcfa; }
+.gf-insurance .gf-line-sub { font-style: normal; margin-top: .2rem; }
+.gf-insurance-price { margin: .5rem 0 .1rem; font-size: 1.15rem; }
+.gf-insurance-price .gf-line-price { font-style: normal; color: inherit; font-weight: 700; white-space: normal; }
+.gf-choices { display: flex; gap: .6rem; margin-top: .6rem; }
+.gf-choice { flex: 1 1 0; min-height: 44px; padding: .6rem .9rem; border: 1px solid var(--gf-border); border-radius: 8px; background: #fff; font: inherit; cursor: pointer; }
+.gf-choice:hover { background: #f5f6f4; background: color-mix(in srgb, var(--gf-accent) 8%, #fff); }
+.gf-choice-on { border-color: var(--gf-accent); background: color-mix(in srgb, var(--gf-accent) 12%, #fff); font-weight: 700; }
+
 /* Collapsible option categories (specs/option-categories.md §6.3). Collapsed by default; the
    options the visitor already picked render above the fold and stay visible when closed. */
 .gf-group { border-top: 1px solid var(--gf-border); margin-top: .5rem; }
@@ -102,6 +114,8 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
   .gf-line-price { font-size: .85rem; white-space: normal; text-align: left; margin-right: auto; }
   .gf-step-btn { width: 40px; height: 40px; }
   .gf-step-val { min-width: 32px; }
+  /* The two insurance answers go full-width and stack — no cramped side-by-side on a phone. */
+  .gf-choices { flex-direction: column; }
   /* The category header stays a single ≥44px tappable row; the label truncates rather than wrapping. */
   .gf-group-head { padding: .55rem .35rem; }
   .gf-group-title { font-size: .95rem; }

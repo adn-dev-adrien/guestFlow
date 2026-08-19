@@ -768,6 +768,10 @@ function migrateOptionsColumns() {
     // Pins an option outside its category's collapse (specs/option-categories.md §3 rule 9bis).
     // Only meaningful inside a category — an ungrouped option is always visible anyway.
     ['alwaysVisible',           'INTEGER NOT NULL DEFAULT 0'],
+    // Marks THE cancellation insurance (specs/cancellation-insurance.md §3 rule 11). Exclusive:
+    // one option at most carries it. The public API and the website key on this flag, never on a
+    // title, so the operator can rename the article without breaking the booking funnel.
+    ['isCancellationInsurance', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
   const added = [];
@@ -1605,6 +1609,13 @@ db.ensureCleaningOptionTagged = ensureCleaningOptionTagged;
 const { ensureCateringOptions } = require('./utils/cateringSeed');
 ensureCateringOptions(db);
 db.ensureCateringOptions = ensureCateringOptions;
+
+// specs/cancellation-insurance.md §3.2 — the « Assurance annulation » article, seeded unpriced
+// (0 %) so it stays invisible to guests until Adrien sets its tariff. Same structural contract as
+// the catering seed: keyed by `seedKey`, linked to every property on each boot.
+const { ensureCancellationInsuranceOption } = require('./utils/cancellationInsuranceSeed');
+ensureCancellationInsuranceOption(db);
+db.ensureCancellationInsuranceOption = ensureCancellationInsuranceOption;
 
 // One-shot migration (specs/option-categories.md §5.3): file the options that pre-date the category
 // column into their group. The 5 « Animation… » rows and « Le repas des trappeurs » were created by

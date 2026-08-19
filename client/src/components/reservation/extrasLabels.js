@@ -15,5 +15,8 @@ export const PRICE_TYPE_LABELS = {
   per_night: 'par jour',
   per_person_per_night: 'par pers./jour',
   per_hour: 'par heure',
+  // specs/cancellation-insurance.md §3.1 — the unit price of such a line IS the amount, computed
+  // server-side from the accommodation of the stay.
+  percent_of_stay: 'du séjour',
   free: 'gratuit',
 };

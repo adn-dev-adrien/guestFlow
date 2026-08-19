@@ -170,6 +170,10 @@ function buildSasSaleOffers({ reservation, options = [], cateringCategory = 'Res
 
   const sellable = (option) => Number(option?.autoEnabled || 0) !== 1
     && Number(option?.displayToClient == null ? 1 : option.displayToClient) !== 0
+    // The cancellation insurance is never sold at check-in (specs/cancellation-insurance.md §3.2
+    // rule 17): the stay has started, there is nothing left to cancel. Guarded here rather than
+    // left to the category filter, so miscategorising it can't put it on the check-in screen.
+    && Number(option?.isCancellationInsurance || 0) !== 1
     && round2(option?.price) > 0;
 
   const breakfastOption = options.find((o) => o.autoOptionType === 'breakfast');

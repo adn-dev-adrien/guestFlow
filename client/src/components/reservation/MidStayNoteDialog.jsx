@@ -104,7 +104,9 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   // `{ ungrouped, groups: [{ category, options }] }`, with a flat fallback for older payloads.
   // Auto-timed options (early check-in / late check-out) are never a mid-stay sale.
   const catalogue = useMemo(() => {
-    const sellable = (list) => (list || []).filter((o) => !o.autoEnabled);
+    // The cancellation insurance is never sold during the stay (specs/cancellation-insurance.md
+    // §3.2 rule 17) — same reason as at check-in: there is nothing left to cancel.
+    const sellable = (list) => (list || []).filter((o) => !o.autoEnabled && !o.isCancellationInsurance);
     const groups = [
       { category: 'Prestations', options: sellable(propertyOptionGroups?.ungrouped || propertyOptions) },
       ...((propertyOptionGroups?.groups || []).map((g) => ({ category: g.category, options: sellable(g.options) }))),

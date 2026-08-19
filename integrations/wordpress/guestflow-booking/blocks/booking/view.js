@@ -128,6 +128,9 @@
       checkOutTime: detail.defaultCheckOut || '10:00',
       adults: 2, teens: 0, children: 0, babies: 0, babyBeds: 0,
       opt: {}, res: {},
+      // Cancellation insurance (specs/cancellation-insurance.md §3.4): null = not answered yet.
+      // Never pre-set — the visitor must choose, and the submit stays locked until they do.
+      insurance: null,
     };
 
     // The « Lit bébé » resource is couchage, not a supplement line: it feeds the devis `babyBeds`
@@ -153,6 +156,10 @@
     var optionGroups = (!Array.isArray(options) && options && options.groups ? options.groups : [])
       .map(function (g) { return { category: g.category, options: selectable(g.options) }; })
       .filter(function (g) { return g.options.length > 0; });
+    // The insurance travels in its own key, already excluded from ungrouped/groups server-side
+    // (specs/cancellation-insurance.md §3.3 rule 18). Absent (unconfigured, or a stale proxy cache
+    // from before the change) → no block and no mandatory question, the funnel behaves as before.
+    var insurance = (!Array.isArray(options) && options && options.cancellationInsurance) || null;
     // Which categories the visitor has unfolded. Collapsed by default (rule 15).
     var openGroups = {};
 
@@ -487,6 +494,42 @@
       optionGroups.forEach(function (g) { groupsHolder.appendChild(renderGroup(g)); });
     }
 
+    // ---- Assurance annulation — its own block, with a mandatory Oui/Non choice (spec §3.4) ----
+    // Rendered between the supplements and the price summary: the visitor sees what the stay costs
+    // to insure just before committing, and cannot submit without answering.
+    var insuranceAmount = GF.el('span', { class: 'gf-line-price' }, insurance ? insurance.priceLabel : '');
+    var insuranceNotice = GF.el('div', {});
+    var insuranceYes = null;
+    var insuranceNo = null;
+    var insuranceBox = null;
+    if (insurance) {
+      var paintInsurance = function () {
+        insuranceYes.className = 'gf-choice' + (state.insurance === true ? ' gf-choice-on' : '');
+        insuranceNo.className = 'gf-choice' + (state.insurance === false ? ' gf-choice-on' : '');
+        insuranceYes.setAttribute('aria-pressed', state.insurance === true ? 'true' : 'false');
+        insuranceNo.setAttribute('aria-pressed', state.insurance === false ? 'true' : 'false');
+      };
+      var answer = function (value) {
+        return function () {
+          if (state.insurance === value) return;
+          state.insurance = value;
+          insuranceNotice.innerHTML = '';
+          paintInsurance();
+          recompute();
+        };
+      };
+      insuranceYes = GF.el('button', { type: 'button', class: 'gf-choice', onClick: answer(true) }, GF.t('insuranceYes'));
+      insuranceNo = GF.el('button', { type: 'button', class: 'gf-choice', onClick: answer(false) }, GF.t('insuranceNo'));
+      insuranceBox = GF.el('div', { class: 'gf-section gf-insurance' },
+        GF.el('div', { class: 'gf-section-title' }, insurance.title || GF.t('insuranceTitle')),
+        insurance.description ? GF.el('div', { class: 'gf-line-sub' }, insurance.description) : null,
+        GF.el('div', { class: 'gf-insurance-price' }, insuranceAmount),
+        GF.el('div', { class: 'gf-choices' }, insuranceYes, insuranceNo),
+        insuranceNotice
+      );
+      paintInsurance();
+    }
+
     var summary = GF.el('div', { class: 'gf-summary' });
     var warn = GF.el('div', {});
 
@@ -517,7 +560,7 @@
 
     var form = GF.el('div', { class: 'gf-booking' },
       GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
-      calBox, datesRow, guestsBox, supplementsBox, summary, warn, contact, f.submit, feedback
+      calBox, datesRow, guestsBox, supplementsBox, insuranceBox, summary, warn, contact, f.submit, feedback
     );
     container.innerHTML = '';
     container.appendChild(form);
@@ -527,6 +570,10 @@
       Object.keys(state.opt).forEach(function (id) {
         if (state.opt[id] > 0) opts.push({ optionId: parseInt(id, 10), quantity: state.opt[id] });
       });
+      // « Oui » = one insurance line. The server prices it; the site never computes an amount.
+      if (insurance && state.insurance === true) {
+        opts.push({ optionId: insurance.optionId, quantity: 1 });
+      }
       var ress = [];
       Object.keys(state.res).forEach(function (id) {
         if (state.res[id] > 0) ress.push({ resourceId: parseInt(id, 10), quantity: state.res[id] });
@@ -618,6 +665,15 @@
       // Button reflects what the guest pays now (« Payer l'acompte » vs « Payer en ligne »).
       if (payOnline) f.submit.textContent = depositMode ? GF.t('payDeposit') : GF.t('payOnline');
 
+      // The insurance amount is priced by the server for THIS stay, taken or not (spec §3.3
+      // rule 19), so the visitor decides on a real amount rather than on a percentage.
+      if (insurance) {
+        var ins = q.cancellationInsurance;
+        insuranceAmount.textContent = (ins && ins.amount != null)
+          ? GF.euro(ins.amount)
+          : insurance.priceLabel;
+      }
+
       warn.innerHTML = '';
       var ok = true;
       if (q.available === false) { warn.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('datesUnavailable'))); ok = false; }
@@ -627,6 +683,15 @@
     function submit() {
       feedback.innerHTML = '';
       if (!lastQuote) return;
+      // The insurance answer is mandatory (spec §3.4 rule 23). Refused ON CLICK — the same way the
+      // required contact fields are — rather than by greying the button out: a disabled button
+      // never gets to say why it is inert.
+      if (insurance && state.insurance === null) {
+        insuranceNotice.innerHTML = '';
+        insuranceNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('insuranceRequired')));
+        if (insuranceBox && insuranceBox.scrollIntoView) insuranceBox.scrollIntoView({ block: 'center' });
+        return;
+      }
       var stay = gatherStay();
       var first = f.firstName.value.trim(), last = f.lastName.value.trim(), email = f.email.value.trim(), phone = f.phone.value.trim();
       if (!first || !last || !email || !phone) {
