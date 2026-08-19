@@ -23,6 +23,7 @@ import EmptyState from '../components/EmptyState';
 import LoadingState from '../components/LoadingState';
 import StatusBadge from '../components/StatusBadge';
 import PlatformChip from '../components/PlatformChip';
+import CancellationCompensationsSection from '../components/CancellationCompensationsSection';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
 // VAT (44571xxx) = blue, tourist-tax pass-through (46710000) = purple. Used to colour rows and
@@ -106,6 +107,15 @@ export default function AccountingPage() {
       .finally(() => { if (mounted) { setLoading(false); setSalesLoading(false); } });
     return () => { mounted = false; };
   }, [month, year, reloadNonce]);
+
+  // Banking or reopening a cancellation compensation adds/removes an entry in the month's journal.
+  // The compensations card is self-contained, so it announces the change and the journal + CSV
+  // preview reload from it — otherwise the card above would keep showing a stale écriture.
+  useEffect(() => {
+    const onCompensationsChanged = () => setReloadNonce((n) => n + 1);
+    window.addEventListener('guestflow:compensations-changed', onCompensationsChanged);
+    return () => window.removeEventListener('guestflow:compensations-changed', onCompensationsChanged);
+  }, []);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -198,6 +208,10 @@ export default function AccountingPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Indemnités d'annulation (specs/cancellation-compensation.md §6.3). Read-only for the
+            accountant role — the server refuses their writes anyway. */}
+        <CancellationCompensationsSection month={month} year={year} canEdit={canOpenReservation} />
 
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
@@ -300,6 +314,8 @@ const KIND_LABELS = {
   endOfStayComplement: 'Complément fin de séjour', midStayComplement: 'Prestations en séjour',
   // specs/reservation-refunds.md §3.4 rule 25 — an avoir: same journal, sides mirrored.
   refund: 'Remboursement',
+  // specs/cancellation-compensation.md §6.3 — money in, but for a stay that never happened.
+  compensation: "Indemnité d'annulation",
 };
 
 // Tight single-letter badge so the encaissements table can show the kind without eating a
@@ -308,6 +324,7 @@ const KIND_BADGE_STYLES = {
   deposit:    { letter: 'A', color: 'warning.contrastText', bgcolor: 'warning.main' },
   balance:    { letter: 'S', color: 'info.contrastText',    bgcolor: 'info.main' },
   complement: { letter: 'C', color: 'secondary.contrastText', bgcolor: 'secondary.main' },
+  compensation: { letter: 'I', color: 'success.contrastText', bgcolor: 'success.main' },
 };
 
 function KindBadge({ kind }) {
@@ -342,7 +359,10 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
   // An avoir reads « argent rendu » : warning-toned chip, an explicit minus on the amount, and no
   // « % du séjour » caption (a refund covers no share of it — the server sends `stayShare: null`).
   const isRefund = entry.direction === 'refund';
-  const clientNode = canOpenReservation ? (
+  // A compensation outlived its reservation (approving the cancellation deleted it), so the client
+  // name must NOT link to a reservation page that would 404.
+  const isCompensation = entry.direction === 'compensation';
+  const clientNode = canOpenReservation && !isCompensation ? (
     <Link
       component={RouterLink}
       to={`/reservations/${entry.reservationId}`}
@@ -373,20 +393,20 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           />
           <Chip
             size="small"
-            color={isRefund ? 'warning' : 'default'}
+            color={isRefund ? 'warning' : (isCompensation ? 'success' : 'default')}
             label={KIND_LABELS[entry.kind] || entry.kind}
           />
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
             {clientNode}
           </Stack>
-          {isPlatform && (
+          {(isPlatform || (isCompensation && entry.platformName)) && (
             <Chip
               size="small"
               color="info"
               variant="outlined"
               icon={<StorefrontIcon />}
-              label={entry.platform.platform}
+              label={isCompensation ? entry.platformName : entry.platform.platform}
             />
           )}
         </Stack>
@@ -399,9 +419,12 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
               </Typography>
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {isRefund
-                ? (entry.refundReason || 'Remboursement au client')
-                : `${Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour (${formatCurrency(entry.finalPrice)})`}
+              {isRefund && (entry.refundReason || 'Remboursement au client')}
+              {isCompensation && (entry.compensationStay?.startDate
+                ? `Séjour annulé du ${displayDate(entry.compensationStay.startDate)} au ${displayDate(entry.compensationStay.endDate)}`
+                : 'Séjour annulé')}
+              {!isRefund && !isCompensation
+                && `${Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour (${formatCurrency(entry.finalPrice)})`}
             </Typography>
           </Stack>
           <StatusBadge

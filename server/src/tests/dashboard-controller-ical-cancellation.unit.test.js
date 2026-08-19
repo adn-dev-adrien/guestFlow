@@ -8,12 +8,12 @@ const { buildController } = require('../controllers/dashboardController');
 // controller ←→ response shape is under test.
 
 function makeFake({ pending = [], approveResult = { ok: true, outcome: 'approved' }, rejectResult = { ok: true } } = {}) {
-  const calls = { listPending: 0, approve: [], reject: [] };
+  const calls = { listPending: 0, approve: [], approveCompensations: [], reject: [] };
   return {
     calls,
     icalCancellationModel: {
       listPending() { calls.listPending += 1; return pending; },
-      approve(id) { calls.approve.push(id); return approveResult; },
+      approve(id, compensation) { calls.approve.push(id); calls.approveCompensations.push(compensation); return approveResult; },
       reject(id) { calls.reject.push(id); return rejectResult; },
     },
   };
@@ -54,7 +54,7 @@ test('POST approve: forwards the parsed id and returns { ok: true, outcome: "app
   const res = fakeRes();
   c.approveIcalCancellation({ params: { id: '42' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { ok: true, outcome: 'approved' });
+  assert.deepEqual(res.body, { ok: true, outcome: 'approved', compensationId: null });
   assert.deepEqual(fakes.calls.approve, [42]);
 });
 
@@ -64,7 +64,7 @@ test('POST approve: idempotent shape when reservation already gone', () => {
   const res = fakeRes();
   c.approveIcalCancellation({ params: { id: '5' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { ok: true, outcome: 'reservation_gone' });
+  assert.deepEqual(res.body, { ok: true, outcome: 'reservation_gone', compensationId: null });
 });
 
 test('POST approve: fires the Google Calendar delete hook with the model-returned reservationId', () => {
@@ -77,7 +77,7 @@ test('POST approve: fires the Google Calendar delete hook with the model-returne
   const res = fakeRes();
   c.approveIcalCancellation({ params: { id: '42' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { ok: true, outcome: 'approved' });
+  assert.deepEqual(res.body, { ok: true, outcome: 'approved', compensationId: null });
   assert.deepEqual(deleted, [10]);
 });
 
@@ -134,4 +134,38 @@ test('POST reject: invalid id → 400', () => {
   c.rejectIcalCancellation({ params: { id: '0' } }, res);
   assert.equal(res.statusCode, 400);
   assert.deepEqual(res.body, { error: 'INVALID_ID' });
+});
+
+// specs/cancellation-compensation.md §3.2 — the optional compensation block of an approval.
+test('POST approve: no body → the model is called with a null compensation (legacy path)', () => {
+  const fakes = makeFake();
+  const c = buildController(fakes);
+  c.approveIcalCancellation({ params: { id: '42' } }, fakeRes());
+  assert.deepEqual(fakes.calls.approveCompensations, [null]);
+});
+
+test('POST approve: forwards the validated compensation and returns its id', () => {
+  const fakes = makeFake({ approveResult: { ok: true, outcome: 'approved', compensationId: 7 } });
+  const c = buildController(fakes);
+  const res = fakeRes();
+  c.approveIcalCancellation({
+    params: { id: '42' },
+    body: { compensation: { expectedAmount: '84.567', expectedDate: '2026-08-26', notes: '  Airbnb  ' } },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { ok: true, outcome: 'approved', compensationId: 7 });
+  // Rounded to the cent and trimmed by the pure validator before it ever reaches the model.
+  assert.deepEqual(fakes.calls.approveCompensations, [
+    { expectedAmount: 84.57, expectedDate: '2026-08-26', notes: 'Airbnb' },
+  ]);
+});
+
+test('POST approve: invalid compensation amount → 400, nothing deleted', () => {
+  const fakes = makeFake();
+  const c = buildController(fakes);
+  const res = fakeRes();
+  c.approveIcalCancellation({ params: { id: '42' }, body: { compensation: { expectedAmount: -5 } } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'INVALID_AMOUNT');
+  assert.deepEqual(fakes.calls.approve, [], 'the reservation must survive a rejected payload');
 });

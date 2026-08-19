@@ -12,6 +12,8 @@ import { vi } from 'vitest';
  *     success snackbar with the +N count (rule 2 + §6).
  *   - The vatRateCommission caption shows the active rate; admin sees a clickable
  *     "modifiable dans Réglages" link, accountant sees plain italic text.
+ *   - The cancellation-compensation account is editable and travels in the save payload; its VAT
+ *     rate is displayed read-only (specs/cancellation-compensation.md §3.3 rule 19).
  */
 
 import React from 'react';
@@ -44,6 +46,8 @@ function setAuth(user) {
 const SAMPLE_GET = {
   defaultAccount: '622600',
   vatRateCommission: 20,
+  cancellationCompensationAccount: '75880000',
+  vatRateCancellationCompensation: 0,
   platforms: [
     { id: 1, name: 'direct',         commissionAccountNumber: null,        hasVatOnCommission: false, isDirect: true },
     { id: 2, name: 'Airbnb',         commissionAccountNumber: null,        hasVatOnCommission: false, isDirect: false },
@@ -253,4 +257,28 @@ test('validation error from the server is surfaced under the bad row', async () 
   await user.type(airbnbAccount, '12');
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Compte doit comporter 6 à 8 chiffres.')).toBeInTheDocument();
+});
+
+test("the cancellation-compensation account is editable and its 0 % VAT is shown as « hors champ »", async () => {
+  const user = userEvent.setup();
+  api.savePlatformAccounts.mockResolvedValue(SAMPLE_GET);
+  renderPage();
+  const field = await screen.findByLabelText(/Compte indemnités d'annulation/i);
+  expect(field).toHaveValue('75880000');
+  expect(screen.getByText(/hors champ/i)).toBeInTheDocument();
+
+  await user.clear(field);
+  await user.type(field, '75880100');
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(api.savePlatformAccounts).toHaveBeenCalled());
+  expect(api.savePlatformAccounts.mock.calls[0][0].cancellationCompensationAccount).toBe('75880100');
+});
+
+test('the accountant may edit the compensation account (it is a chart-of-accounts setting)', async () => {
+  setAuth({ roles: ['accountant'] });
+  renderPage();
+  const field = await screen.findByLabelText(/Compte indemnités d'annulation/i);
+  expect(field).not.toBeDisabled();
+  // …but the VAT rate stays read-only for them.
+  expect(screen.getByText(/réservé à un administrateur/i)).toBeInTheDocument();
 });

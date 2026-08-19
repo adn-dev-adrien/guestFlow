@@ -25,6 +25,8 @@ const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = require('../utils/midStayExtras');
 const { createModel: createRefundsModel } = require('./refundsModel');
+const { buildModel: buildCompensationsModel } = require('./cancellationCompensationsModel');
+const { DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('../constants/accounting');
 
 function createAccountingModel(database) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
@@ -48,6 +50,9 @@ function createAccountingModel(database) {
   // Refunds live in their own tables, so the month filter is a plain range predicate (no LIKE scan
   // like the notes register needs). Bound to the same database so the test factory covers both.
   const refunds = createRefundsModel(database);
+  // Cancellation compensations (specs/cancellation-compensation.md §3.3): same lazy-statement
+  // discipline as the refunds model, so a minimal test schema without the table stays buildable.
+  const compensations = buildCompensationsModel(database);
   return {
     // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
     // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
@@ -145,6 +150,89 @@ function createAccountingModel(database) {
       const from = `${yyyy}-${mm}-01`;
       const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
       return refunds.listByMonth({ from, nextMonth }).map(buildRefundEntry).filter(Boolean);
+    },
+
+    // Indemnités d'annulation encaissées dans le mois (specs/cancellation-compensation.md §3.3
+    // rule 15): one entry per compensation whose `receivedDate` falls in the month. A `pending`
+    // compensation is NOT accounting — no money moved yet, so it never reaches this list.
+    // The account + VAT rate are read once here so `utils/accountingExport` stays pure.
+    compensationsByMonth({ month, year }) {
+      // A minimal test schema (several accounting suites build one by hand) has no compensations
+      // table; an export run there simply has no indemnity to report.
+      if (!hasTable(database, 'cancellation_compensations')) return [];
+      const mm = String(month).padStart(2, '0');
+      const yyyy = String(year);
+      const from = `${yyyy}-${mm}-01`;
+      const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
+      // Read from the INJECTED database, not the module-level settings model: an export run built
+      // on a test/replica DB must use that DB's chart of accounts, never production's.
+      const settings = readCompensationSettings(database);
+      const { account, vatRatePercent } = settings;
+      return compensations.listReceivedByMonth({ from, nextMonth })
+        .map((row) => buildCompensationEntry(row, { account, vatRatePercent }))
+        .filter(Boolean);
+    },
+  };
+}
+
+function hasTable(database, name) {
+  try {
+    return database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) != null;
+  } catch {
+    return false;
+  }
+}
+
+// Chart-of-accounts settings for compensations, straight from the given database. Falls back to the
+// shipped defaults (75880000 / 0 %) when the columns predate the migration.
+function readCompensationSettings(database) {
+  let row = null;
+  try {
+    row = database.prepare('SELECT cancellationCompensationAccount, vatRateCancellationCompensation FROM app_settings WHERE id = 1').get();
+  } catch {
+    row = null;
+  }
+  return {
+    account: (row && row.cancellationCompensationAccount) || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
+    vatRatePercent: row && row.vatRateCancellationCompensation != null ? Number(row.vatRateCancellationCompensation) : 0,
+  };
+}
+
+// One received compensation → one sale-shaped entry: the platform pays us, so the money moves in
+// the same direction as an encaissement. No commission (the amount saved IS the net wired), no
+// tourist tax (a cancelled stay generates none), no buckets (there is no séjour to split).
+function buildCompensationEntry(compensation, { account, vatRatePercent }) {
+  const ttc = round2(compensation.receivedAmount);
+  if (ttc <= 0) return null;
+  const rate = Number(vatRatePercent) || 0;
+  // At 0 % (the default: an indemnity is outside the scope of VAT) HT === TTC and the export emits
+  // a single credit line.
+  const ht = rate > 0 ? round2(ttc / (1 + rate / 100)) : ttc;
+  return {
+    compensationId: compensation.id,
+    reservationId: compensation.reservationId,
+    kind: 'compensation',
+    direction: 'compensation',
+    paidDate: compensation.receivedDate,
+    client: { firstName: compensation.clientFirstName || '', lastName: compensation.clientLastName || '' },
+    propertyName: compensation.propertyName || '',
+    platform: compensation.platform || '',
+    clientGrossAmount: null,
+    finalPrice: ttc,
+    encaissementTtc: ttc,
+    encaissementNetTtc: ttc,
+    commission: null,
+    taxTtc: 0,
+    fraction: 1,
+    buckets: [],
+    compensation: {
+      account,
+      ht,
+      vat: round2(ttc - ht),
+      ratePercent: rate,
+      expectedAmount: compensation.expectedAmount,
+      startDate: compensation.startDate || '',
+      endDate: compensation.endDate || '',
     },
   };
 }

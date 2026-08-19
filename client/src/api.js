@@ -334,6 +334,15 @@ const api = {
   // restart. Returns `{ defaultAccount, vatRateCommission, platforms, newCount }`.
   refreshPlatformAccounts: () => request('/accounting/platform-accounts/refresh', { method: 'POST' }),
 
+  // Cancellation compensations (specs/cancellation-compensation.md §4.3). The month filters only the
+  // received ones — a pending compensation has no accounting date, so it is always returned.
+  getCancellationCompensations: (month, year) => request(`/accounting/cancellation-compensations?month=${month}&year=${year}`),
+  createCancellationCompensation: (payload) => request('/accounting/cancellation-compensations', { method: 'POST', body: payload }),
+  updateCancellationCompensation: (id, payload) => request(`/accounting/cancellation-compensations/${id}`, { method: 'PUT', body: payload }),
+  receiveCancellationCompensation: (id, payload) => request(`/accounting/cancellation-compensations/${id}/receive`, { method: 'POST', body: payload }),
+  reopenCancellationCompensation: (id) => request(`/accounting/cancellation-compensations/${id}/reopen`, { method: 'POST' }),
+  deleteCancellationCompensation: (id) => request(`/accounting/cancellation-compensations/${id}`, { method: 'DELETE' }),
+
   // User management (admin-only). resetUserPassword no longer takes a password — the server
   // generates the temp password and emails it (specs/admin-account-management.md M2).
   listUsers: () => request('/users'),
@@ -427,7 +436,13 @@ const api = {
   // Dashboard iCal cancellation approvals — pending deletion proposals when a reservation's
   // UID has fallen out of every source feed (specs/ical-cancellation-approval.md §4.3).
   getIcalCancellationAlert: () => request('/dashboard/ical-cancellation'),
-  approveIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/approve`, { method: 'POST' }),
+  // `compensation` (optional) = { expectedAmount, expectedDate, notes } when the platform owes an
+  // indemnity for the cancelled stay (specs/cancellation-compensation.md §3.2). Omitted ⇒ the
+  // historical delete-only approval.
+  approveIcalCancellation: (id, compensation = null) => request(
+    `/dashboard/ical-cancellation/${id}/approve`,
+    { method: 'POST', body: compensation ? { compensation } : {} },
+  ),
   rejectIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/reject`, { method: 'POST' }),
   // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
   // iCal during the current day (specs/dashboard-ical-new-reservations.md).

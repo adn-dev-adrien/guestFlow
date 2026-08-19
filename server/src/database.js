@@ -1139,6 +1139,47 @@ try {
 tryAddAppSettingsCol('defaultCommissionAccountNumber', "ALTER TABLE app_settings ADD COLUMN defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600'");
 tryAddAppSettingsCol('vatRateCommission',              "ALTER TABLE app_settings ADD COLUMN vatRateCommission REAL NOT NULL DEFAULT 20");
 
+// Cancellation compensation — the money a platform pays back when a guest cancels outside the
+// free-cancellation window (specs/cancellation-compensation.md §5). Credited to a « produits divers »
+// account with no VAT by default: a sum kept after a désistement is an indemnity, outside the scope
+// of VAT (CJUE Société thermale d'Eugénie-les-Bains, C-277/05). Both are settings so the accountant
+// can overrule the default without a code change — the journal entry is built at read time.
+tryAddAppSettingsCol('cancellationCompensationAccount', "ALTER TABLE app_settings ADD COLUMN cancellationCompensationAccount TEXT NOT NULL DEFAULT '75880000'");
+tryAddAppSettingsCol('vatRateCancellationCompensation', "ALTER TABLE app_settings ADD COLUMN vatRateCancellationCompensation REAL NOT NULL DEFAULT 0");
+
+// specs/cancellation-compensation.md §5 — one row per compensation a platform owes (or has paid) us
+// for a cancelled stay. Standalone by design: approving an iCal cancellation DELETES the reservation,
+// so the row carries a frozen snapshot (property name, platform, client name, stay dates, lost stay
+// amount) instead of foreign keys — `reservationId` / `propertyId` are informational and deliberately
+// NOT declared as FKs, since the reservation is gone by the time the row is committed.
+// `status` walks 'pending' (editable, invisible to accounting) → 'received' (frozen, booked at
+// `receivedDate`). Additive table, starts empty, no backfill.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cancellation_compensations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    cancellationAlertId INTEGER UNIQUE,
+    reservationId       INTEGER,
+    propertyId          INTEGER,
+    propertyName        TEXT    NOT NULL DEFAULT '',
+    platform            TEXT    NOT NULL DEFAULT '',
+    clientFirstName     TEXT    NOT NULL DEFAULT '',
+    clientLastName      TEXT    NOT NULL DEFAULT '',
+    startDate           TEXT,
+    endDate             TEXT,
+    cancelledStayAmount REAL,
+    expectedAmount      REAL    NOT NULL DEFAULT 0,
+    expectedDate        TEXT,
+    receivedAmount      REAL,
+    receivedDate        TEXT,
+    status              TEXT    NOT NULL DEFAULT 'pending',
+    notes               TEXT    NOT NULL DEFAULT '',
+    createdAt           TEXT    NOT NULL DEFAULT (datetime('now')),
+    updatedAt           TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_cancellation_comp_status ON cancellation_compensations (status)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_cancellation_comp_received ON cancellation_compensations (receivedDate)');
+
 // Idempotency table for one-shot data migrations (= "schema_versions" by another name, kept
 // simple). Each one-shot migration inserts its name when it runs successfully.
 db.exec(`

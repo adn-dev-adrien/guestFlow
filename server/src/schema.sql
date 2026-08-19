@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     googleServiceAccountPrivateKey TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
-  , companyName TEXT DEFAULT '', companyAddress TEXT DEFAULT '', companySiret TEXT DEFAULT '', companyTva TEXT DEFAULT '', companyIban TEXT DEFAULT '', companyBic TEXT DEFAULT '', companyBankName TEXT DEFAULT '', quoteFooterText TEXT DEFAULT '', quoteValidityDays INTEGER DEFAULT 30, companyLogoPath TEXT DEFAULT '', companyEmail TEXT DEFAULT '', companyPhone TEXT DEFAULT '', smtpHost TEXT DEFAULT '', smtpPort INTEGER DEFAULT 587, smtpSecure INTEGER NOT NULL DEFAULT 0, smtpUsername TEXT DEFAULT '', smtpPasswordEncrypted TEXT DEFAULT '', smtpFromEmail TEXT DEFAULT '', smtpFromName TEXT DEFAULT 'GuestFlow', publicUrl TEXT DEFAULT '', allowEditPastReservations INTEGER NOT NULL DEFAULT 0, laundryWeekday INTEGER NOT NULL DEFAULT 2, bedLinenStockSingle INTEGER NOT NULL DEFAULT 0, bedLinenStockDouble INTEGER NOT NULL DEFAULT 0, bedLinenStockBaby   INTEGER NOT NULL DEFAULT 0, towelStockLarge     INTEGER NOT NULL DEFAULT 0, towelStockMedium    INTEGER NOT NULL DEFAULT 0, towelStockSmall     INTEGER NOT NULL DEFAULT 0, vatRate REAL NOT NULL DEFAULT 10, defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600', vatRateCommission REAL NOT NULL DEFAULT 20, quoteFooterTextEn TEXT DEFAULT '', notificationsEnabled INTEGER NOT NULL DEFAULT 1, notificationRecipientEmail TEXT DEFAULT '', paymentDepositReminderOffsets  TEXT DEFAULT '[-5,0]', paymentDepositAbandonOffset    INTEGER NOT NULL DEFAULT 1, paymentDepositLinkExpiryDays   INTEGER NOT NULL DEFAULT 1, paymentBalanceReminderOffsets  TEXT DEFAULT '[-10,-5,0]', paymentBalanceAbandonOffset    INTEGER NOT NULL DEFAULT 1, paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1, paymentLastMinuteDays          INTEGER NOT NULL DEFAULT 30, paymentFullPaymentDueDaysBefore INTEGER NOT NULL DEFAULT 7, qontoAccessTokenEncrypted  TEXT DEFAULT '', qontoRefreshTokenEncrypted TEXT DEFAULT '', qontoTokenExpiresAt        TEXT DEFAULT '', qontoConnectionId          TEXT DEFAULT '', qontoConnectionStatus      TEXT DEFAULT 'not_connected', qontoConnectedAt           TEXT DEFAULT '', portalCode TEXT DEFAULT '', notifyIcalReservationEnabled INTEGER NOT NULL DEFAULT 1, towelStockBathMat INTEGER NOT NULL DEFAULT 0, meteoFranceApiKeyEncrypted TEXT DEFAULT '', googleOAuthRefreshTokenEncrypted TEXT DEFAULT '', googleOAuthConnectedEmail TEXT DEFAULT '', googleOAuthConnectedAt TEXT DEFAULT '', googleCalendarSummary TEXT DEFAULT '', googleLastSyncAt TEXT DEFAULT '', googleLastSyncOk INTEGER DEFAULT NULL, googleLastSyncDetail TEXT DEFAULT '');
+  , companyName TEXT DEFAULT '', companyAddress TEXT DEFAULT '', companySiret TEXT DEFAULT '', companyTva TEXT DEFAULT '', companyIban TEXT DEFAULT '', companyBic TEXT DEFAULT '', companyBankName TEXT DEFAULT '', quoteFooterText TEXT DEFAULT '', quoteValidityDays INTEGER DEFAULT 30, companyLogoPath TEXT DEFAULT '', companyEmail TEXT DEFAULT '', companyPhone TEXT DEFAULT '', smtpHost TEXT DEFAULT '', smtpPort INTEGER DEFAULT 587, smtpSecure INTEGER NOT NULL DEFAULT 0, smtpUsername TEXT DEFAULT '', smtpPasswordEncrypted TEXT DEFAULT '', smtpFromEmail TEXT DEFAULT '', smtpFromName TEXT DEFAULT 'GuestFlow', publicUrl TEXT DEFAULT '', allowEditPastReservations INTEGER NOT NULL DEFAULT 0, laundryWeekday INTEGER NOT NULL DEFAULT 2, bedLinenStockSingle INTEGER NOT NULL DEFAULT 0, bedLinenStockDouble INTEGER NOT NULL DEFAULT 0, bedLinenStockBaby   INTEGER NOT NULL DEFAULT 0, towelStockLarge     INTEGER NOT NULL DEFAULT 0, towelStockMedium    INTEGER NOT NULL DEFAULT 0, towelStockSmall     INTEGER NOT NULL DEFAULT 0, vatRate REAL NOT NULL DEFAULT 10, defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600', vatRateCommission REAL NOT NULL DEFAULT 20, quoteFooterTextEn TEXT DEFAULT '', notificationsEnabled INTEGER NOT NULL DEFAULT 1, notificationRecipientEmail TEXT DEFAULT '', paymentDepositReminderOffsets  TEXT DEFAULT '[-5,0]', paymentDepositAbandonOffset    INTEGER NOT NULL DEFAULT 1, paymentDepositLinkExpiryDays   INTEGER NOT NULL DEFAULT 1, paymentBalanceReminderOffsets  TEXT DEFAULT '[-10,-5,0]', paymentBalanceAbandonOffset    INTEGER NOT NULL DEFAULT 1, paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1, paymentLastMinuteDays          INTEGER NOT NULL DEFAULT 30, paymentFullPaymentDueDaysBefore INTEGER NOT NULL DEFAULT 7, qontoAccessTokenEncrypted  TEXT DEFAULT '', qontoRefreshTokenEncrypted TEXT DEFAULT '', qontoTokenExpiresAt        TEXT DEFAULT '', qontoConnectionId          TEXT DEFAULT '', qontoConnectionStatus      TEXT DEFAULT 'not_connected', qontoConnectedAt           TEXT DEFAULT '', portalCode TEXT DEFAULT '', notifyIcalReservationEnabled INTEGER NOT NULL DEFAULT 1, towelStockBathMat INTEGER NOT NULL DEFAULT 0, meteoFranceApiKeyEncrypted TEXT DEFAULT '', googleOAuthRefreshTokenEncrypted TEXT DEFAULT '', googleOAuthConnectedEmail TEXT DEFAULT '', googleOAuthConnectedAt TEXT DEFAULT '', googleCalendarSummary TEXT DEFAULT '', googleLastSyncAt TEXT DEFAULT '', googleLastSyncOk INTEGER DEFAULT NULL, googleLastSyncDetail TEXT DEFAULT '', cancellationCompensationAccount TEXT NOT NULL DEFAULT '75880000', vatRateCancellationCompensation REAL NOT NULL DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS calendar_notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +105,31 @@ CREATE TABLE IF NOT EXISTS ical_cancellation_alerts (
     detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
     acknowledgedAt TEXT,
     outcome TEXT
+  );
+
+-- specs/cancellation-compensation.md §5 — what a platform owes (or has paid) for a cancelled stay.
+-- Standalone on purpose: approving the cancellation deletes the reservation, so the row holds a
+-- frozen snapshot instead of foreign keys.
+CREATE TABLE IF NOT EXISTS cancellation_compensations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    cancellationAlertId INTEGER UNIQUE,
+    reservationId       INTEGER,
+    propertyId          INTEGER,
+    propertyName        TEXT    NOT NULL DEFAULT '',
+    platform            TEXT    NOT NULL DEFAULT '',
+    clientFirstName     TEXT    NOT NULL DEFAULT '',
+    clientLastName      TEXT    NOT NULL DEFAULT '',
+    startDate           TEXT,
+    endDate             TEXT,
+    cancelledStayAmount REAL,
+    expectedAmount      REAL    NOT NULL DEFAULT 0,
+    expectedDate        TEXT,
+    receivedAmount      REAL,
+    receivedDate        TEXT,
+    status              TEXT    NOT NULL DEFAULT 'pending',
+    notes               TEXT    NOT NULL DEFAULT '',
+    createdAt           TEXT    NOT NULL DEFAULT (datetime('now')),
+    updatedAt           TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
 CREATE TABLE IF NOT EXISTS ical_date_drift_alerts (
@@ -591,6 +616,12 @@ CREATE INDEX IF NOT EXISTS idx_ical_cancel_unack_event
 CREATE INDEX IF NOT EXISTS idx_ical_cancel_unack_reservation
     ON ical_cancellation_alerts(reservationId)
     WHERE acknowledgedAt IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_cancellation_comp_status
+    ON cancellation_compensations(status);
+
+CREATE INDEX IF NOT EXISTS idx_cancellation_comp_received
+    ON cancellation_compensations(receivedDate);
 
 CREATE INDEX IF NOT EXISTS idx_ical_drift_unack
     ON ical_date_drift_alerts(acknowledgedAt)

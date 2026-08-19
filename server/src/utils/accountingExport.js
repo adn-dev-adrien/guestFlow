@@ -44,6 +44,11 @@
  * Refunds (specs/reservation-refunds.md) travel through the same pipe with `direction: 'refund'`:
  * one « avoir » = the mirror image of an encaissement (credit client / debit revenue + VAT), so the
  * CSV and the visual journal stay a single code path.
+ *
+ * Cancellation compensations (specs/cancellation-compensation.md) ride the same pipe with
+ * `direction: 'compensation'`: money comes IN like an encaissement, but against no séjour — one
+ * debit on the client account, one credit on the configured produit account (plus a VAT line only
+ * if the operator made the indemnity taxable).
  */
 
 const {
@@ -53,6 +58,7 @@ const {
   accountLabel,
   PASS_THROUGH_ACCOUNTS,
   SALES_JOURNAL_CODE,
+  DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
 } = require('../constants/accounting');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
@@ -90,6 +96,8 @@ function libelleFor(entry) {
   const last = String(entry.client?.lastName || '').trim();
   const joined = `${first} ${last}`.trim();
   if (joined) return joined.toUpperCase();
+  // A compensation outlives its reservation, so the id fallback names the compensation itself.
+  if (entry.direction === 'compensation') return `INDEMNITÉ ANNULATION #${entry.compensationId}`;
   return `RÉSERVATION #${entry.reservationId}`;
 }
 
@@ -114,6 +122,8 @@ function zerofyMoneyColumns(row) {
 function entryToRows(entry) {
   // Remboursements (specs/reservation-refunds.md §3.4): the very same money shape, sides swapped.
   if (entry && entry.direction === 'refund') return refundEntryToRows(entry);
+  // Indemnités d'annulation (specs/cancellation-compensation.md §3.3 rule 16).
+  if (entry && entry.direction === 'compensation') return compensationEntryToRows(entry);
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
   const clientAccount = buildClientAccount(entry.client.lastName);
@@ -318,6 +328,53 @@ function refundEntryToRows(entry) {
   return rows;
 }
 
+// Une indemnité d'annulation (specs/cancellation-compensation.md §3.3 rule 16): argent qui entre,
+// sans séjour en face.
+//   - 1 DÉBIT on the client auxiliary account for the amount actually wired (the bank movement);
+//   - 1 CRÉDIT on the configured produit account (75880000 by default) for the HT;
+//   - 1 CRÉDIT on the VAT account ONLY when the operator made the indemnity taxable (rate > 0).
+// No commission line (the amount recorded is already the net wired) and no tourist-tax line
+// (a cancelled stay generates none). The residue lands on the last credit so Σ = Σ, to the cent.
+function compensationEntryToRows(entry) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const libelle = libelleFor(entry);
+  const clientAccount = buildClientAccount(entry.client?.lastName);
+  const piece = '';
+  const config = entry.compensation || {};
+  const account = config.account || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT;
+  const debitTtc = round2(entry.encaissementTtc);
+
+  const credits = [];
+  const ht = round2(config.ht != null ? config.ht : debitTtc);
+  if (ht > 0) credits.push({ account, amount: ht });
+  const vat = round2(config.vat || 0);
+  if (vat > 0) credits.push({ account: vatAccountForRate(config.ratePercent), amount: vat });
+  if (credits.length > 0) {
+    const sum = round2(credits.reduce((a, l) => a + l.amount, 0));
+    const residue = round2(debitTtc - sum);
+    if (residue !== 0) credits[credits.length - 1].amount = round2(credits[credits.length - 1].amount + residue);
+  }
+
+  // The platform is worth reporting (it tells the accountant who paid); there is no guest-paid
+  // gross and no commission to put in the two other extension columns.
+  const platformLabel = entry.platform && entry.platform !== 'direct' ? entry.platform : '';
+
+  const rows = [zerofyMoneyColumns([
+    day, month, year,
+    SALES_JOURNAL_CODE, piece,
+    libelle,
+    clientAccount,
+    debitTtc, '',
+    platformLabel, '', '',
+  ])];
+  for (const line of credits) {
+    rows.push(zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, '', line.amount, '', '', '',
+    ]));
+  }
+  return rows;
+}
+
 function buildRows(entries) {
   const rows = [];
   for (const entry of entries || []) {
@@ -336,7 +393,8 @@ function entryToStructured(entry) {
   const [day, month, year] = rows[0];
 
   const isRefund = entry.direction === 'refund';
-  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund)
+  const isCompensation = entry.direction === 'compensation';
+  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation)
     ? {
         platform: entry.platform,
         gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
@@ -379,7 +437,8 @@ function entryToStructured(entry) {
   // multiplier (1 on the contrib path where buckets are absolute).
   const finalPrice = round2(entry.finalPrice);
   // A refund covers no « share of the séjour » — it gives part of it back (the caption is hidden).
-  const stayShare = (!isRefund && finalPrice > 0)
+  // A compensation has no séjour at all: the stay was cancelled (the caption is hidden too).
+  const stayShare = (!isRefund && !isCompensation && finalPrice > 0)
     ? Math.max(0, (round2(entry.encaissementTtc) - round2(entry.taxTtc || 0)) / finalPrice)
     : null;
 
@@ -387,7 +446,14 @@ function entryToStructured(entry) {
     reservationId: entry.reservationId,
     kind: entry.kind,
     // specs/reservation-refunds.md §3.4 rule 25 — the card renders as an « avoir » when set.
-    direction: isRefund ? 'refund' : 'sale',
+    // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
+    direction: isRefund ? 'refund' : (isCompensation ? 'compensation' : 'sale'),
+    compensationId: entry.compensationId != null ? entry.compensationId : null,
+    // The cancelled stay window, so the card can say WHICH séjour the indemnity replaces.
+    compensationStay: isCompensation
+      ? { startDate: entry.compensation?.startDate || '', endDate: entry.compensation?.endDate || '' }
+      : null,
+    platformName: isCompensation ? (entry.platform || '') : null,
     refundId: entry.refundId != null ? entry.refundId : null,
     refundReason: isRefund ? (entry.reason || '') : null,
     refundMethod: isRefund ? (entry.method || null) : null,
@@ -422,6 +488,9 @@ function classifyLine(compte) {
   if (s === PASS_THROUGH_ACCOUNTS.TOURIST_TAX) return 'tax_pass_through';
   if (s === '44566000') return 'commission_vat';
   if (s.startsWith('6226')) return 'commission_charge';
+  // Produits divers (75xxxx) — the cancellation-compensation account. Still a revenue credit for
+  // the reader, so it gets the same green treatment as the 70xxx lines.
+  if (s.startsWith('75')) return 'revenue';
   return 'other';
 }
 
@@ -435,5 +504,5 @@ module.exports = {
   buildRows,
   entryToStructured,
   buildStructuredEntries,
-  __test: { splitIsoDate, round2, classifyLine, libelleFor, zerofyMoneyColumns, refundEntryToRows },
+  __test: { splitIsoDate, round2, classifyLine, libelleFor, zerofyMoneyColumns, refundEntryToRows, compensationEntryToRows },
 };
