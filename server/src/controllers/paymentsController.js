@@ -209,6 +209,10 @@ function runDevisEngineQuote(id) {
     if (!full) return null;
     return calculateReservationQuote({
       db: database,
+      // A devis: its acompte deadline is the validity date (specs/payment-schedule-and-cancellation.md
+      // §3.1 rule 5). Only the amounts feed the payment link, but the engine stays fed consistently.
+      kind: 'devis',
+      validUntil: full.validUntil || null,
       propertyId: Number(full.propertyId),
       startDate: full.startDate, endDate: full.endDate,
       checkInTime: full.checkInTime, checkOutTime: full.checkOutTime,
@@ -307,6 +311,13 @@ function sendBalanceRequestFor(id) {
   return paymentRequestService.sendPaymentRequest(requestServiceDeps(), Number(id), 'balance');
 }
 
+// Same, for the acompte — fired automatically when a direct reservation is created
+// (specs/payment-schedule-and-cancellation.md §3.7 rule 36), and reusable by the dashboard's
+// « Relancer » action.
+function sendDepositRequestFor(id) {
+  return paymentRequestService.sendPaymentRequest(requestServiceDeps(), Number(id), 'deposit');
+}
+
 // Every payment link of a reservation/devis (newest first) — the status the UI renders.
 function listReservationPaymentLinks(req, res) {
   return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
@@ -346,5 +357,5 @@ module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  registerQontoWebhook, sendBalanceRequestFor,
+  registerQontoWebhook, sendBalanceRequestFor, sendDepositRequestFor,
 };

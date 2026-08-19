@@ -40,13 +40,32 @@ async function performAutoEmailPass(deps) {
     return { sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
   }
 
-  // 2. Reservations matching `startDate + dayOffset = today`. One query per template keeps
-  // the SQL simple and lets each template's offset stay independent.
+  // 2. Reservations matching `<anchor date> + dayOffset = today`. One query per anchor, picked per
+  // template, so each template's offset stays independent (specs/email-automation.md §3 rule 7 +
+  // specs/payment-schedule-and-cancellation.md §3.7 rule 41).
+  //   • 'start'          → the arrival date (legacy default);
+  //   • 'depositDueDate' → the acompte deadline, and only while the acompte is still unpaid;
+  //   • 'balanceDueDate' → the solde deadline, same guard.
+  // A payment anchor whose échéance gets paid stops matching immediately: the dunning email cannot
+  // chase money that has arrived, dedup or no dedup.
   const findReservationsStmt = database.prepare(`
     SELECT * FROM reservations
     WHERE COALESCE(kind, 'reservation') = 'reservation'
       AND date(startDate, ? || ' days') = ?
   `);
+  const paymentAnchorStmt = (anchor, amountColumn, paidColumn) => database.prepare(`
+    SELECT * FROM reservations
+    WHERE COALESCE(kind, 'reservation') = 'reservation'
+      AND ${anchor} IS NOT NULL
+      AND COALESCE(${amountColumn}, 0) > 0
+      AND COALESCE(${paidColumn}, 0) != 1
+      AND date(${anchor}, ? || ' days') = ?
+  `);
+  const statementsByAnchor = {
+    start: findReservationsStmt,
+    depositDueDate: paymentAnchorStmt('depositDueDate', 'depositAmount', 'depositPaid'),
+    balanceDueDate: paymentAnchorStmt('balanceDueDate', 'balanceAmount', 'balancePaid'),
+  };
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');
   const findProperty = database.prepare('SELECT * FROM properties WHERE id = ?');
   const findOptions  = database.prepare(`
@@ -87,7 +106,14 @@ async function performAutoEmailPass(deps) {
   let failedCount = 0;
 
   for (const template of templates) {
-    const reservations = findReservationsStmt.all(String(template.dayOffset), today);
+    // An unknown anchor (a 'validUntil' template flipped to `auto` by hand — the devis queue is
+    // manual by design) has no auto-send query: skip it rather than silently mailing the wrong set.
+    const statement = statementsByAnchor[template.anchor || 'start'];
+    if (!statement) {
+      results.push({ templateId: template.id, status: 'skipped-unsupported-anchor', anchor: template.anchor });
+      continue;
+    }
+    const reservations = statement.all(String(template.dayOffset), today);
     for (const reservation of reservations) {
       // Skip pairs we've already shipped.
       if (logModel.existsFor(template.id, reservation.id, ['sent'])) {

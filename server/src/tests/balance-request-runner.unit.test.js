@@ -1,5 +1,7 @@
-// Balance-request daily pass (specs/public-online-deposit.md §3 rule 8): selects reservations whose
-// online deposit is paid but whose solde is due, sends ONE balance_request each, deduped via email_log.
+// Balance-request daily pass (specs/public-online-deposit.md §3 rule 8, widened by
+// specs/payment-schedule-and-cancellation.md §3.7 rule 38): selects every DIRECT reservation whose
+// solde is due — whatever channel took the booking — and sends ONE balance_request each, deduped via
+// email_log. Platform bookings are settled by the platform after the stay and never selected.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,18 +13,17 @@ function seed() {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE reservations (id INTEGER PRIMARY KEY, kind TEXT DEFAULT 'reservation', balancePaid INTEGER DEFAULT 0,
-      balanceAmount REAL DEFAULT 0, balanceDueDate TEXT, convertedReservationId INTEGER);
+      balanceAmount REAL DEFAULT 0, balanceDueDate TEXT, convertedReservationId INTEGER,
+      platform TEXT DEFAULT 'direct');
     CREATE TABLE payment_links (id INTEGER PRIMARY KEY, reservationId INTEGER, type TEXT, status TEXT);
     CREATE TABLE email_log (id INTEGER PRIMARY KEY, templateId INTEGER, reservationId INTEGER, status TEXT);
   `);
   return db;
 }
 
-// A devis (kind='devis') with a PAID deposit link that converted into a reservation `resId`.
-function addDepositPaidReservation(db, { resId, devisId, balanceAmount = 150, balanceDueDate = '2026-07-01', balancePaid = 0 }) {
-  db.prepare("INSERT INTO reservations (id, kind, balancePaid, balanceAmount, balanceDueDate) VALUES (?, 'reservation', ?, ?, ?)").run(resId, balancePaid, balanceAmount, balanceDueDate);
-  db.prepare("INSERT INTO reservations (id, kind, convertedReservationId) VALUES (?, 'devis', ?)").run(devisId, resId);
-  db.prepare("INSERT INTO payment_links (reservationId, type, status) VALUES (?, 'deposit', 'paid')").run(devisId);
+function addReservation(db, { resId, balanceAmount = 150, balanceDueDate = '2026-07-01', balancePaid = 0, platform = 'direct' }) {
+  db.prepare("INSERT INTO reservations (id, kind, balancePaid, balanceAmount, balanceDueDate, platform) VALUES (?, 'reservation', ?, ?, ?, ?)")
+    .run(resId, balancePaid, balanceAmount, balanceDueDate, platform);
 }
 
 const template = { id: 7, enabled: true };
@@ -32,22 +33,26 @@ const logModel = (db) => ({
     Boolean(db.prepare(`SELECT 1 FROM email_log WHERE templateId=? AND reservationId=? AND status IN (${statuses.map(() => '?').join(',')}) LIMIT 1`).get(templateId, reservationId, ...statuses)),
 });
 
-test('selectEligible: only balance-due reservations with a paid deposit link', () => {
+test('selectEligible: every direct reservation whose solde is due, platforms excluded', () => {
   const db = seed();
-  addDepositPaidReservation(db, { resId: 100, devisId: 1 });               // eligible
-  addDepositPaidReservation(db, { resId: 101, devisId: 2, balancePaid: 1 }); // already paid → out
-  addDepositPaidReservation(db, { resId: 102, devisId: 3, balanceDueDate: '2999-01-01' }); // not due yet → out
-  // A reservation with NO paid deposit link (deposit paid offline) → out.
-  db.prepare("INSERT INTO reservations (id, kind, balancePaid, balanceAmount, balanceDueDate) VALUES (103, 'reservation', 0, 200, '2026-07-01')").run();
+  addReservation(db, { resId: 100 });                                  // eligible
+  addReservation(db, { resId: 101, balancePaid: 1 });                  // already paid → out
+  addReservation(db, { resId: 102, balanceDueDate: '2999-01-01' });    // not due yet → out
+  addReservation(db, { resId: 104, balanceAmount: 0 });                // nothing to collect → out
+  addReservation(db, { resId: 105, platform: 'Airbnb' });              // settled by the platform → out
+  // The booking engine on our own website is a direct channel (platformNameFormat.DIRECT_CHANNELS).
+  addReservation(db, { resId: 106, platform: 'Lodgify' });             // eligible
+  // A booking taken by phone: no online deposit link anywhere. Used to be excluded, now covered.
+  addReservation(db, { resId: 103, balanceAmount: 200 });
 
   const rows = selectEligible(db, '2026-07-02').map((r) => r.id);
-  assert.deepEqual(rows, [100]);
+  assert.deepEqual(rows, [100, 103, 106]);
 });
 
 test('sends one balance_request per eligible reservation and dedups on re-run', async () => {
   const db = seed();
-  addDepositPaidReservation(db, { resId: 100, devisId: 1 });
-  addDepositPaidReservation(db, { resId: 200, devisId: 2 });
+  addReservation(db, { resId: 100 });
+  addReservation(db, { resId: 200 });
 
   const sentTo = [];
   const sendBalanceRequest = async (id) => {
@@ -68,7 +73,7 @@ test('sends one balance_request per eligible reservation and dedups on re-run', 
 
 test('a failed send is not deduped → retried next run', async () => {
   const db = seed();
-  addDepositPaidReservation(db, { resId: 100, devisId: 1 });
+  addReservation(db, { resId: 100 });
   let attempts = 0;
   const sendBalanceRequest = async () => { attempts++; return { httpStatus: 502 }; }; // fails, logs nothing
   const deps = { database: db, templatesModel, logModel: logModel(db), sendBalanceRequest, today: '2026-07-02' };
@@ -82,7 +87,7 @@ test('a failed send is not deduped → retried next run', async () => {
 
 test('disabled/absent template → no-op', async () => {
   const db = seed();
-  addDepositPaidReservation(db, { resId: 100, devisId: 1 });
+  addReservation(db, { resId: 100 });
   const out = await runBalanceRequestPass({ database: db, templatesModel: { findByStableKey: () => ({ id: 7, enabled: false }) }, logModel: logModel(db), sendBalanceRequest: async () => ({ httpStatus: 200 }), today: '2026-07-02' });
   assert.equal(out.sent, 0);
   assert.equal(out.reason, 'template-disabled');

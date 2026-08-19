@@ -3,6 +3,7 @@ const controller = require('../controllers/reservationsController');
 const sasController = require('../controllers/sasController');
 const weatherController = require('../controllers/weatherController');
 const refundsController = require('../controllers/refundsController');
+const cancellationController = require('../controllers/reservationCancellationController');
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
@@ -25,6 +26,9 @@ router.get('/:id/weather-alerts', weatherController.getReservationAlerts);
 router.get('/:id/refunds', refundsController.list);
 router.post('/:id/refunds', refundsController.create);
 router.delete('/:id/refunds/:refundId', refundsController.remove);
+// Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
+// nothing in GuestFlow cancels a stay on its own.
+router.post('/:id/cancel', cancellationController.cancel);
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', controller.update);

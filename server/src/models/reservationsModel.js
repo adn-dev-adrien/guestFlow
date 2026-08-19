@@ -437,19 +437,21 @@ function createReservationsModel(database) {
     },
 
     // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3 rule 8-9).
-    // Matches kind='reservation' rows by number, firstName, lastName, "first last", "last first" or email
+    // Matches reservations by number, firstName, lastName, "first last", "last first" or email
     // (case-insensitive substring). Result is shaped + capped server-side (fat backend). Blank q → [].
+    // Cancelled stays are included and flagged (specs/payment-schedule-and-cancellation.md §3.5
+    // rule 26): search is the one path that must still find them — every list view drops them.
     search({ q } = {}) {
       const term = String(q || '').trim().toLowerCase();
       if (!term) return [];
       const like = `%${term}%`;
       const rows = database.prepare(`
-        SELECT r.id, r.reservationNumber, r.startDate, r.endDate,
+        SELECT r.id, r.reservationNumber, r.startDate, r.endDate, r.kind, r.cancelledAt,
                c.firstName, c.lastName, p.name AS propertyName
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND (
+        WHERE r.kind IN ('reservation', 'cancelled') AND (
           LOWER(COALESCE(r.reservationNumber, '')) LIKE ?
           OR LOWER(COALESCE(c.firstName, '')) LIKE ?
           OR LOWER(COALESCE(c.lastName, '')) LIKE ?
@@ -467,6 +469,8 @@ function createReservationsModel(database) {
         propertyName: row.propertyName || '',
         startDate: row.startDate || '',
         endDate: row.endDate || '',
+        cancelled: row.kind === 'cancelled',
+        cancelledAt: row.cancelledAt || null,
       }));
     },
 
@@ -546,7 +550,9 @@ function createReservationsModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.id = ? AND r.kind = 'reservation'
+        -- specs/payment-schedule-and-cancellation.md §3.5 rule 26 — a cancelled stay stays
+        -- reachable: its fiche opens read-only so the operator can see what was cancelled and why.
+        WHERE r.id = ? AND r.kind IN ('reservation', 'cancelled')
       `).get(id);
       if (!reservation) return null;
       // specs/caution-live-from-property.md §3: the caution amount is live from the property
@@ -1238,6 +1244,88 @@ function createReservationsModel(database) {
 
     remove(reservationId) {
       database.prepare('DELETE FROM reservations WHERE id = ?').run(reservationId);
+    },
+
+    // ── Payment deadlines & cancellation (specs/payment-schedule-and-cancellation.md) ──────────
+    // Everything the deadline card could possibly be about: a direct reservation with an unpaid
+    // acompte or solde. The state itself is decided by utils/paymentDeadlines (pure) — this read
+    // only narrows the set. Stays that ended more than 30 days ago drop off: after a month of daily
+    // alerts the operator has seen it, and the card must stay a to-do list, not an archive.
+    listPaymentDeadlineCandidates(today) {
+      return database.prepare(`
+        SELECT r.id, r.reservationNumber, r.platform, r.startDate, r.endDate,
+               r.depositAmount, r.depositPaid, r.depositDueDate,
+               r.balanceAmount, r.balancePaid, r.balanceDueDate,
+               r.paymentAlertSnoozedUntil,
+               c.firstName, c.lastName, c.email,
+               p.name AS propertyName, p.cancelAfterBalanceDueDays
+          FROM reservations r
+          JOIN clients c ON c.id = r.clientId
+          JOIN properties p ON p.id = r.propertyId
+         WHERE r.kind = 'reservation'
+           AND r.endDate >= date(@today, '-30 days')
+           AND ((r.depositAmount > 0 AND r.depositPaid = 0)
+             OR (r.balanceAmount > 0 AND r.balancePaid = 0))
+         ORDER BY r.startDate, r.id
+      `).all({ today });
+    },
+
+    // Hide one reservation's deadline row until `until`. The échéances themselves never move: the
+    // emails, the PDF and the cancellation date keep the dates the guest was promised (rule 18).
+    snoozePaymentAlert(reservationId, until) {
+      database.prepare("UPDATE reservations SET paymentAlertSnoozedUntil = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(until, Number(reservationId));
+    },
+
+    // The snapshot the cancellation needs: the reservation plus the client and property names that
+    // the indemnity card freezes. Accepts an already-cancelled row so the controller can answer 409
+    // rather than 404 on a double click.
+    getForCancellation(reservationId) {
+      return database.prepare(`
+        SELECT r.*, c.firstName, c.lastName, c.email, p.name AS propertyName
+          FROM reservations r
+          JOIN clients c ON c.id = r.clientId
+          JOIN properties p ON p.id = r.propertyId
+         WHERE r.id = ? AND r.kind IN ('reservation', 'cancelled')
+      `).get(Number(reservationId));
+    },
+
+    // The acompte's per-bucket contributions — the very shares accounting credited when it was
+    // cashed, so the requalification avoir can mirror that entry line for line. NULL when the
+    // reservation predates the contrib capture: the caller then books a single line.
+    depositContribBuckets(reservationId) {
+      const id = Number(reservationId);
+      const row = database.prepare(`
+        SELECT accommodationAcompteContribTtc AS accommodation, touristTaxAcompteContribTtc AS tax
+          FROM reservations WHERE id = ?
+      `).get(id);
+      if (!row || row.accommodation == null) return null;
+      const sumOf = (table) => Number(database.prepare(
+        `SELECT COALESCE(SUM(acompteContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?`,
+      ).get(id).total || 0);
+      return {
+        // Same reclass as the deposit entry: a legacy acompte that physically collected a share of
+        // the tourist tax keeps it inside its accommodation bucket (accountingModel §deposit).
+        accommodation: round2(Number(row.accommodation || 0) + Number(row.tax || 0)),
+        options: round2(sumOf('reservation_options') + sumOf('reservation_custom_options')),
+        resources: round2(sumOf('reservation_resources')),
+      };
+    },
+
+    // The cancellation write itself: `kind` leaves 'reservation', which is what frees the dates
+    // everywhere at once (every operational query filters on it). Amounts, échéances and paid flags
+    // are left exactly as they were — they are history now, and accounting still reads them.
+    markCancelled(reservationId, { reason = '', cancelledBy = null, cancelledAt = null } = {}) {
+      database.prepare(`
+        UPDATE reservations
+           SET kind = 'cancelled',
+               cancelledAt = COALESCE(?, datetime('now')),
+               cancellationReason = ?,
+               cancelledBy = ?,
+               paymentAlertSnoozedUntil = NULL,
+               updatedAt = datetime('now')
+         WHERE id = ? AND kind = 'reservation'
+      `).run(cancelledAt, String(reason || ''), cancelledBy == null ? null : Number(cancelledBy), Number(reservationId));
     },
 
     // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────

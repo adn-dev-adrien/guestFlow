@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import DialogProvider from '../DialogProvider';
 
 vi.mock('../../api', () => ({
@@ -46,7 +47,9 @@ beforeEach(() => {
 });
 
 const renderSection = (props = {}) => render(
-  <DialogProvider><CancellationCompensationsSection month={8} year={2026} canEdit {...props} /></DialogProvider>,
+  <MemoryRouter>
+    <DialogProvider><CancellationCompensationsSection month={8} year={2026} canEdit {...props} /></DialogProvider>
+  </MemoryRouter>,
 );
 
 test('lists what was banked this month and what is still expected, with both totals', async () => {
@@ -95,4 +98,19 @@ test('an empty month says so instead of rendering empty tables', async () => {
   renderSection();
   expect(await screen.findByText(/Aucune indemnité encaissée ce mois-ci/i)).toBeInTheDocument();
   expect(screen.getByText(/Aucune indemnité en attente/i)).toBeInTheDocument();
+});
+
+// specs/payment-schedule-and-cancellation.md §3.6 rule 33 — a retained acompte is the same accounting
+// object as a platform indemnity, but not the same story: the card says so and points at the stay.
+test('an indemnity born of a retained acompte is labelled and linked to its stay', async () => {
+  api.getCancellationCompensations.mockResolvedValue({
+    ...PAYLOAD,
+    received: [{
+      ...PAYLOAD.received[0], id: 3, origin: 'retained_deposit', reservationId: 77,
+      clientName: 'Marie Dupont', platform: 'direct',
+    }],
+  });
+  renderSection();
+  expect(await screen.findByText('Acompte conservé')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'voir le séjour' })).toHaveAttribute('href', '/reservations/77');
 });

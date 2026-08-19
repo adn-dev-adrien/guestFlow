@@ -6,6 +6,7 @@ const { isDirectChannel } = require('./platformNameFormat');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
+const { resolveDepositDueDate, resolveBalanceDueDate } = require('./paymentSchedule');
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -1225,6 +1226,17 @@ function calculateReservationQuote({
   // preview would file a collected complement under « fin de séjour ». The save passes the operator's
   // intent via `complementPaid`, which wins; the preview falls back to this stored value.
   complementCollected,
+  // specs/payment-schedule-and-cancellation.md §3.1 — the day the stay was BOOKED (the reservation's
+  // `createdAt`, or today for a creation). The engine has no clock, so the caller injects it: it
+  // anchors the acompte deadline and clamps the solde one. Absent → both fall back to a stay-relative
+  // derivation, which is what a stateless quote (public site preview) wants.
+  bookingDate = null,
+  // The acompte deadline ALREADY stored on the reservation. Present → it wins, always: the date was
+  // promised on the booking day and no later edit may push it around (rule 4).
+  existingDepositDueDate = null,
+  // 'reservation' (default) | 'devis'. A devis takes `validUntil` as its acompte deadline (rule 5).
+  kind: quoteKind = 'reservation',
+  validUntil = null,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1961,13 +1973,9 @@ function calculateReservationQuote({
   const totalVatAmount = roundMoney(accommodationVatAmount + optionsVatAmount + resourcesVatAmount);
   const totalNetPrice = roundMoney(accommodationNetPrice + optionsNetPrice + resourcesNetPrice);
 
-  // When `depositDisabled` is on, drop the deposit due date too — keeping a deadline for a
-  // €0 line would just confuse the UI. The balance due date stays at the standard derivation
-  // because the full pre-arrival total is now owed by that date instead.
-  const depositDueDate = depositDisabled
-    ? null
-    : addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
-  const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
+  // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
+  // exists at all depends on them — see the `resolveDepositDueDate` / `resolveBalanceDueDate` call
+  // near the end of this function (specs/payment-schedule-and-cancellation.md §3.1-§3.2).
 
   // The tourist-tax breakdown + platform-mode routing (collectsFromGuest / remitted-by-owner / offered)
   // and the reversed-tax-as-brut handling are resolved earlier, alongside the brut back-solve
@@ -2100,6 +2108,26 @@ function calculateReservationQuote({
     resolvedDepositAmount = clamped;
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - clamped));
   }
+
+  // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
+  // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
+  // is due `balanceDaysBefore` before arrival, clamped so it can never land before the booking day.
+  // A devis takes its validity date as the acompte deadline. Both are NULL when their bucket carries
+  // nothing to collect — a deadline on a €0 line would only confuse the UI and the emails.
+  const depositDueDate = resolveDepositDueDate({
+    kind: quoteKind,
+    hasDeposit: !depositDisabled && resolvedDepositAmount > 0,
+    bookingDate,
+    validUntil,
+    existingDepositDueDate,
+    depositDueDays: property.depositDueDays,
+  });
+  const balanceDueDate = resolveBalanceDueDate({
+    hasBalance: resolvedBalanceAmount > 0,
+    startDate,
+    bookingDate,
+    balanceDaysBefore: property.balanceDaysBefore,
+  });
 
   // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)
   // + auto-gap when the total stay TTC drifted past the frozen deposit+balance. The auto-gap

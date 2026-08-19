@@ -23,7 +23,16 @@ function buildModel(database) {
     catch { return false; }
   })();
   const EN_SELECT = HAS_EN_COLS ? ', subjectEn, bodyEn' : '';
-  const SELECT_COLS = `id, stableKey, name, subject, body${EN_SELECT}, dayOffset, sendMode, enabled, createdAt, updatedAt`;
+  // The scheduling anchor (specs/online-payments-qonto.md §3.8 + specs/payment-schedule-and-cancellation.md
+  // §3.7 rule 41) decides which date a template counts its offset from. It MUST travel with the row:
+  // the auto-send cron picks its query from it, and a missing value silently degrades every payment
+  // reminder back to an arrival-relative send. Optional in minimal/legacy schemas, like the EN columns.
+  const HAS_ANCHOR_COL = (() => {
+    try { return database.prepare('PRAGMA table_info(email_templates)').all().some((c) => c.name === 'anchor'); }
+    catch { return false; }
+  })();
+  const ANCHOR_SELECT = HAS_ANCHOR_COL ? ', anchor' : '';
+  const SELECT_COLS = `id, stableKey, name, subject, body${EN_SELECT}${ANCHOR_SELECT}, dayOffset, sendMode, enabled, createdAt, updatedAt`;
 
   const listStmt = database.prepare(
     `SELECT ${SELECT_COLS} FROM email_templates ORDER BY dayOffset ASC, name ASC`

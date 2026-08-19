@@ -17,7 +17,13 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 // Means of refund. `transfer` + `cash` are book money; `internal` (caisse interne) stays off the
 // books, exactly like the cash complements (specs/cash-complement-and-endofstay-finance.md).
-const REFUND_METHODS = ['transfer', 'cash', 'internal'];
+// `retained` is book money too, but no money moves: it is the requalification avoir written when a
+// stay is cancelled for non-payment and the acompte is kept as an indemnity
+// (specs/payment-schedule-and-cancellation.md §3.6 rule 32). It is never operator-selectable — only
+// the cancellation flow writes it — so it stays out of `SELECTABLE_REFUND_METHODS`.
+const REFUND_METHODS = ['transfer', 'cash', 'internal', 'retained'];
+const SELECTABLE_REFUND_METHODS = ['transfer', 'cash', 'internal'];
+const RETAINED_DEPOSIT_METHOD = 'retained';
 const OFF_BOOKS_METHOD = 'internal';
 
 // Revenue/pass-through buckets a refund line can land in. Mirrors the accounting buckets, plus the
@@ -32,6 +38,15 @@ const TOURIST_TAX_LABEL = 'Taxe de séjour';
 
 function isOffBooks(method) {
   return String(method) === OFF_BOOKS_METHOD;
+}
+
+// A `retained` avoir reverses revenue in the JOURNAL, but no money ever left our account: the acompte
+// stayed, requalified as an indemnity (specs/payment-schedule-and-cancellation.md §3.6). So every
+// reader that answers « how much did we give back to this guest » must skip it — otherwise a cancelled
+// stay reads as a refund on the fiche and in the finance aggregates, which is the exact opposite of
+// what happened. The monthly journal read (`listByMonth`) deliberately keeps it.
+function isRetainedDeposit(method) {
+  return String(method) === RETAINED_DEPOSIT_METHOD;
 }
 
 /**
@@ -212,8 +227,9 @@ function validateRefundPayload(payload, context) {
     return invalid('REFUND_INVALID_DATE', 'La date de remboursement ne peut pas être dans le futur');
   }
 
+  // Operator-facing methods only: `retained` is written by the cancellation flow, never requested.
   const method = String((payload && payload.method) || 'transfer');
-  if (!REFUND_METHODS.includes(method)) {
+  if (!SELECTABLE_REFUND_METHODS.includes(method)) {
     return invalid('REFUND_INVALID_METHOD', 'Moyen de remboursement inconnu');
   }
 
@@ -309,11 +325,14 @@ function validateRefundPayload(payload, context) {
 
 module.exports = {
   REFUND_METHODS,
+  SELECTABLE_REFUND_METHODS,
+  RETAINED_DEPOSIT_METHOD,
   REFUND_BUCKETS,
   OFF_BOOKS_METHOD,
   ACCOMMODATION_KEY,
   TOURIST_TAX_KEY,
   isOffBooks,
+  isRetainedDeposit,
   billedLineKey,
   refundedByKey,
   refundedTouristTax,

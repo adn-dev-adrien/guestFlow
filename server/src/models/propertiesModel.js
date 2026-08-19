@@ -43,6 +43,20 @@ function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
   return VALID_EXTRA_GUEST_UNITS.includes(value) ? value : fallback;
 }
 
+// specs/payment-schedule-and-cancellation.md §3 — the three delays that drive the payment schedule.
+// A blank / non-numeric / negative input falls back to the policy default rather than persisting a
+// value that would produce a nonsensical deadline. 0 is legitimate ("due the same day").
+function dayCountOr(value, fallback) {
+  // Absent (null / undefined / '') means "not provided" — `Number(null)` is 0, which would persist a
+  // same-day deadline on any payload that simply omits the field. A real 0 is kept.
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : fallback;
+}
+const depositDueDaysOf = (body) => dayCountOr(body.depositDueDays, 7);
+const balanceDaysBeforeOf = (body) => dayCountOr(body.balanceDaysBefore, 30);
+const cancelAfterBalanceDueDaysOf = (body) => dayCountOr(body.cancelAfterBalanceDueDays, 7);
+
 // `pricing_rules.extraGuestTiers` is a JSON TEXT column; a malformed value must degrade to "no
 // tiers" (the single price applies) rather than throw on a page load.
 function parseTiersColumn(value) {
@@ -413,8 +427,8 @@ function createPropertiesModel(database) {
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`
-        INSERT INTO properties (name, nameArticle, photo, maxGuests, maxBabies, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit, welcomePackCost, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, publicDepositEnabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO properties (name, nameArticle, photo, maxGuests, maxBabies, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit, welcomePackCost, singleBeds, doubleBeds, depositPercent, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, publicDepositEnabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         sentenceCase(body.name),
         normalizeNameArticle(body.nameArticle),
@@ -428,8 +442,11 @@ function createPropertiesModel(database) {
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
-        body.depositDaysBefore || 30,
-        body.balanceDaysBefore || 7,
+        // specs/payment-schedule-and-cancellation.md §3.1-§3.3 — acompte due N days after BOOKING,
+        // solde 30 days before arrival, cancellation 7 days after the solde deadline.
+        depositDueDaysOf(body),
+        balanceDaysBeforeOf(body),
+        cancelAfterBalanceDueDaysOf(body),
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
@@ -473,7 +490,7 @@ function createPropertiesModel(database) {
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
       database.prepare(`
-        UPDATE properties SET name=?, nameArticle=?, photo=?, maxGuests=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, publicDepositEnabled=?, updatedAt=datetime('now')
+        UPDATE properties SET name=?, nameArticle=?, photo=?, maxGuests=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDueDays=?, balanceDaysBefore=?, cancelAfterBalanceDueDays=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, publicDepositEnabled=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
         sentenceCase(body.name),
@@ -493,8 +510,9 @@ function createPropertiesModel(database) {
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
-        body.depositDaysBefore || 30,
-        body.balanceDaysBefore || 7,
+        depositDueDaysOf(body),
+        balanceDaysBeforeOf(body),
+        cancelAfterBalanceDueDaysOf(body),
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
