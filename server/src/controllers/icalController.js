@@ -2,8 +2,19 @@
 
 const model = require('../models/icalModel');
 
-function exportUrl(token) {
-  return `${process.env.BASE_URL || 'http://localhost:4000'}/api/ical/export/${token}`;
+// L'URL affichee a l'operateur est derivee de la REQUETE, pas d'un BASE_URL fige.
+// BASE_URL n'a jamais ete defini en production (ni sur le Pi, ni sur la VM) : l'interface
+// affichait donc `http://localhost:4000/...`, inutilisable tel quel. Bug de longue date,
+// revele lors de la migration du 2026-08-19.
+// Deriver de la requete est aussi ce qui convient pendant la transition
+// guestflow.domainesolio.com -> guestflow.adn-dev.fr : le lien affiche correspond toujours
+// au nom que l'operateur est en train de consulter.
+// `req.protocol` respecte X-Forwarded-Proto parce que `trust proxy` est desormais arme
+// derriere Caddy (TRUST_PROXY_HOPS) — sans quoi on afficherait `http://` au lieu de `https://`.
+// BASE_URL reste prioritaire, comme echappatoire explicite si l'URL publique differe.
+function exportUrl(req, token) {
+  const base = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  return `${base}/api/ical/export/${token}`;
 }
 
 function token(req, res) {
@@ -11,7 +22,7 @@ function token(req, res) {
   if (!model.propertyExists(propertyId)) return res.status(404).json({ error: 'Propriété introuvable' });
   try {
     const value = model.getOrCreateToken(propertyId);
-    res.json({ token: value, url: exportUrl(value) });
+    res.json({ token: value, url: exportUrl(req, value) });
   } catch (error) {
     // Don't leak the raw error to the client (it may include file paths or library internals).
     // Server-side log is the source of truth. Spotted in the 2026-06-01 security audit (M3).
@@ -42,7 +53,7 @@ function regenerate(req, res) {
   if (!model.propertyExists(propertyId)) return res.status(404).json({ error: 'Propriété introuvable' });
   try {
     const value = model.regenerateToken(propertyId);
-    res.json({ token: value, url: exportUrl(value) });
+    res.json({ token: value, url: exportUrl(req, value) });
   } catch (error) {
     // Don't leak the raw error to the client (it may include file paths or library internals).
     // Server-side log is the source of truth. Spotted in the 2026-06-01 security audit (M3).
