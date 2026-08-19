@@ -6,4 +6,4 @@
   proposée nulle part. Sur le site WordPress, elle sort de la liste « Options & suppléments » pour
   avoir **son propre encart, avec un choix Oui / Non obligatoire** avant validation : le montant réel
   du séjour y est affiché, calculé par le serveur. Prime figée une fois le séjour vendu, jamais
-  proposée au check-in. +35 tests serveur, +4 tests client, plugin WordPress 1.5.0.
+  proposée au check-in. +36 tests serveur, +4 tests client, plugin WordPress 1.5.0.

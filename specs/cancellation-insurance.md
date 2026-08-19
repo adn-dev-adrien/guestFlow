@@ -88,7 +88,9 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
    every option and resource line (including the insurance itself), the taxe de séjour, and the
    caution.
 4. **Amount** = `roundMoney(percent × base / 100)`, computed by the engine, exposed as the line's
-   `unitPrice` with `quantity = 1` and `billedUnits = 1`.
+   `unitPrice` with `quantity = 1` and `billedUnits = 1`. This path wins over the planning-card one:
+   an option that is *also* flagged « carte planning » is still priced from the stay, never from its
+   occurrences — otherwise its percentage would be read as a euro unit price.
 5. **Quantity is always 1.** A `percent_of_stay` option is a yes/no product: the engine clamps any
    quantity ≥ 1 to 1 and treats 0 as « not taken » (no line). The admin stepper and the site are
    capped at 1 accordingly.
@@ -384,13 +386,13 @@ is not a GuestFlow page and has no action bar.
 
 ## 7. Test plan
 
-### Server unit tests (35 new, suite at 3193 ✅)
+### Server unit tests (36 new, suite at 3194 ✅)
 
-- [x] `tests/cancellation-insurance-pricing.unit.test.js` (11) — rules 2-9: percentage → amount, the
+- [x] `tests/cancellation-insurance-pricing.unit.test.js` (12) — rules 2-9: percentage → amount, the
       base excludes options/resources/taxe de séjour, includes the extra-guest surcharge, follows
       `customPrice` and `discountPercent`, ignores the platform back-solve, quantity clamped to 1,
       per-property percentage wins, a sold line stays frozen, « offert » yields 0 with the real
-      amount preserved, a free stay yields 0 rather than a crash.
+      amount preserved, a free stay yields 0 rather than a crash, a planning-card flag cannot hijack the pricing.
 - [x] `tests/cancellation-insurance-seed.unit.test.js` (8) — rules 12-14: seeds once, second boot is
       a no-op that preserves the operator's tariff and wording, links a property created later,
       adopts a look-alike title instead of duplicating, never steals a row owned by another seed,

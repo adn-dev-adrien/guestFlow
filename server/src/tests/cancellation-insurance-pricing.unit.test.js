@@ -174,3 +174,11 @@ test('a free stay produces a 0 € premium rather than a crash', () => {
   assert.equal(insurance(q).totalPrice, 0);
   db.close();
 });
+
+test('a percentage option also flagged « carte planning » is still priced from the stay', () => {
+  const db = createDb();
+  db.prepare('UPDATE options SET showsPlanningCard = 1 WHERE id = 10').run();
+  const q = calculateReservationQuote({ ...BASE, db });
+  assert.equal(insurance(q).totalPrice, 12, 'the percentage is never read as a euro unit price');
+  db.close();
+});
