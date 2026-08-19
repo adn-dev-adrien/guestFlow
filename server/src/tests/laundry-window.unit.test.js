@@ -2,7 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  addDays, weekdayOf, findLaundryDaysInRange, prevLaundryDay, previousNonSkippedLaundryDay, __test,
+  addDays, weekdayOf, findLaundryDaysInRange, prevLaundryDay, previousNonSkippedLaundryDay,
+  previousOrSameLaundryDay, previousNonSkippedRegularBefore, activeExtraDates, __test,
 } = require('../utils/laundryWindow');
 
 // Pure ISO date math — no DB. Pinned cases for specs/weekly-bed-linen-tracking.md §3.3.
@@ -140,4 +141,33 @@ test('previousNonSkippedLaundryDay: longer lookback can find a candidate further
     previousNonSkippedLaundryDay('2026-06-16', skipped, 35),
     '2026-05-12'
   );
+});
+
+// --- specs/laundry-extra-trip.md §3.2 — helpers for the trip sequence ---
+
+test('previousOrSameLaundryDay: same day when iso is a laundry day, else the last one before', () => {
+  assert.equal(previousOrSameLaundryDay('2026-06-09', 2), '2026-06-09');
+  assert.equal(previousOrSameLaundryDay('2026-06-11', 2), '2026-06-09');   // Thursday → Tuesday
+  assert.equal(previousOrSameLaundryDay('2026-06-15', 2), '2026-06-09');   // Monday → previous Tuesday
+});
+
+test('previousNonSkippedRegularBefore: for a regular day it equals previousNonSkippedLaundryDay', () => {
+  assert.equal(previousNonSkippedRegularBefore('2026-06-09', 2, new Set()), '2026-06-02');
+  const skipped = new Set(['2026-06-02']);
+  assert.equal(previousNonSkippedRegularBefore('2026-06-09', 2, skipped), previousNonSkippedLaundryDay('2026-06-09', skipped));
+  const allSkipped = new Set(['2026-06-09', '2026-06-02', '2026-05-26', '2026-05-19']);
+  assert.equal(previousNonSkippedRegularBefore('2026-06-16', 2, allSkipped), null);
+});
+
+test('previousNonSkippedRegularBefore: for a free date, the last non-skipped regular day strictly before it', () => {
+  assert.equal(previousNonSkippedRegularBefore('2026-06-11', 2, new Set()), '2026-06-09');
+  assert.equal(previousNonSkippedRegularBefore('2026-06-11', 2, new Set(['2026-06-09'])), '2026-06-02');
+  // The day after a laundry day still anchors on that laundry day.
+  assert.equal(previousNonSkippedRegularBefore('2026-06-10', 2, new Set()), '2026-06-09');
+});
+
+test('activeExtraDates: drops the dates that fall on the laundry weekday and sorts the rest', () => {
+  assert.deepEqual(activeExtraDates(['2026-06-11', '2026-06-09', '2026-06-04'], 2), ['2026-06-04', '2026-06-11']);
+  assert.deepEqual(activeExtraDates(new Set(['2026-06-09']), 2), []);
+  assert.deepEqual(activeExtraDates([], 2), []);
 });

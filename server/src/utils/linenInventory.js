@@ -268,6 +268,12 @@ function simulateInventory({
   // of operator-entered extra linen per laundry trip. Washed like reservation linen (clean → laundry →
   // clean) on the trip's drop. Default empty Map keeps every pre-feature caller behaviour-identical.
   manualAdditionsByDate = new Map(),
+  // specs/laundry-extra-trip.md §3.3 — a Map<'YYYY-MM-DD', { pickUpAll, pickUp: {single,…,bathMat} }>
+  // of laundry trips on a FREE date (early pick-up). On such a day the engine takes the whole pool
+  // back (or the declared per-type quantities, capped at the pool) before the check-ins, then drops
+  // the whole dirty pile. A record stored on the laundry weekday is inert (that day is already a
+  // trip). Default empty Map keeps every pre-feature caller behaviour-identical.
+  extraTripsByDate = new Map(),
 }) {
   // --- Pre-compute per-reservation contracts (skips devis + zero contracts) ---
   const contractsByReservationId = buildContractsByReservationId({
@@ -304,28 +310,52 @@ function simulateInventory({
   // 7 days if intervening Tuesdays were skipped. Anything dropped on a skipped Tuesday
   // didn't happen → those reservations stay in `dirty` (handled below).
   const initLaundryDay = previousOrSameNonSkippedLaundryDay(from, laundryWeekday, skippedDates);
+  // specs/laundry-extra-trip.md §3.1 rule 2 — an extra trip stored on the laundry weekday is inert.
+  const activeExtraDates = Array.from(extraTripsByDate.keys())
+    .filter((d) => weekdayOf(d) !== laundryWeekday)
+    .sort();
+  const contractsEndingIn = (startExclusive, endInclusive) => {
+    const sum = zeroByType();
+    for (const r of activeReservations) {
+      if (r.endDate > startExclusive && r.endDate <= endInclusive) {
+        addInto(sum, contractsByReservationId.get(Number(r.id)));
+      }
+    }
+    return sum;
+  };
   const atLaundry = zeroByType();
   if (initLaundryDay && initLaundryDay > addDays(from, -7) && initLaundryDay <= from) {
     // Drops at initLaundryDay = sum of contracts of reservations whose endDate is in
     // (initLaundryDay - 7, initLaundryDay]. Bounded by 7-day lookback so atLaundry can be
-    // computed without loading the full reservation history.
-    const dropWindowStart = addDays(initLaundryDay, -7);
-    for (const r of activeReservations) {
-      if (r.endDate > dropWindowStart && r.endDate <= initLaundryDay) {
-        addInto(atLaundry, contractsByReservationId.get(Number(r.id)));
-      }
-    }
+    // computed without loading the full reservation history. An extra trip in that week already
+    // took the dirty pile with it, so the window starts at that extra trip instead
+    // (specs/laundry-extra-trip.md §3.3 rule 13).
+    const weekStart = addDays(initLaundryDay, -7);
+    const extraInWeek = activeExtraDates.filter((d) => d > weekStart && d < initLaundryDay).pop();
+    addInto(atLaundry, contractsEndingIn(extraInWeek || weekStart, initLaundryDay));
   }
-  // dirty = reservations whose endDate is in (lastSuccessfulLaundryDay, from], i.e. NOT yet
-  // dropped at the laundry. When intervening Tuesdays are skipped, this naturally
-  // accumulates the deferred batches because their endDate falls in the same window.
-  const dirty = zeroByType();
-  const dirtyWindowStart = initLaundryDay || addDays(from, -7);
-  for (const r of activeReservations) {
-    if (r.endDate > dirtyWindowStart && r.endDate <= from) {
-      addInto(dirty, contractsByReservationId.get(Number(r.id)));
+  // specs/laundry-extra-trip.md §3.3 rule 13 — replay the extra trips between the last regular trip
+  // and `from` (strictly before `from`; an extra trip ON `from` is executed by the loop below): each
+  // one takes the pool back (all of it, or the declared quantities capped at the pool) and drops the
+  // dirty pile accumulated since the previous trip. Reservation contracts only, like the seed above —
+  // past manual lines stay out of the initial state (pre-existing approximation). When the seed guard
+  // above did not fire (last regular trip more than a week back), the pool starts at 0, so a partial
+  // pick-up's remainder from before that trip is not tracked — same class of approximation as the
+  // guard itself.
+  let lastTripBefore = initLaundryDay || addDays(from, -7);
+  for (const extraDate of activeExtraDates.filter((d) => d > lastTripBefore && d < from)) {
+    const trip = extraTripsByDate.get(extraDate);
+    for (const t of ALL_TYPES) {
+      const declared = trip && trip.pickUpAll === false ? Math.max(0, Number(trip.pickUp && trip.pickUp[t]) || 0) : atLaundry[t];
+      atLaundry[t] -= Math.min(atLaundry[t], declared);
     }
+    addInto(atLaundry, contractsEndingIn(lastTripBefore, extraDate));
+    lastTripBefore = extraDate;
   }
+  // dirty = reservations whose endDate is in (lastTrip, from], i.e. NOT yet dropped at the
+  // laundry. When intervening Tuesdays are skipped, this naturally accumulates the deferred
+  // batches because their endDate falls in the same window.
+  const dirty = contractsEndingIn(lastTripBefore, from);
   // clean = stock - inCirculation - dirty - atLaundry  (may go negative on day 0 — that's a
   // real shortage and we surface it as such). Start from a zero-filled record so a partial
   // `stock` (e.g. a caller that omits a type) yields 0, not NaN, for the missing key.
@@ -339,11 +369,10 @@ function simulateInventory({
   const shortagesByType = {};
   for (const t of ALL_TYPES) shortagesByType[t] = { firstDate: null, maxMissing: 0, impactedReservationIds: new Set() };
 
-  // Track drops per laundry day so we know what to pick up 7 days later.
-  const dropsByLaundryDay = new Map();
-  if (initLaundryDay && initLaundryDay > addDays(from, -7) && initLaundryDay <= from) {
-    dropsByLaundryDay.set(initLaundryDay, cloneByType(atLaundry));
-  }
+  // When `from` is itself a non-skipped laundry day, the seed above IS today's drop (the previous
+  // batch is assumed collected already — it sits in `clean` by construction), so the day-`from`
+  // iteration must not take the pool back again. Only that first day is special.
+  const seedIsTodaysDrop = initLaundryDay === from;
 
   let cursor = from;
   // Guard against runaway loops on malformed inputs.
@@ -353,27 +382,30 @@ function simulateInventory({
   while (cursor <= to && iter < maxIter) {
     // specs/skip-laundry-trip.md §3.2 rules 5-7: a skipped laundry date performs NEITHER the
     // pick-up NOR the drop-off. The dirty stays dirty, the atLaundry stays at the laundry —
-    // both backlogs flow forward to the next non-skipped trip naturally because the maps
-    // `dirty` and `dropsByLaundryDay` aren't mutated on that day.
+    // both backlogs flow forward to the next non-skipped trip naturally because neither `dirty`
+    // nor the at-laundry pool is mutated on that day.
     const isLaundryDay = weekdayOf(cursor) === laundryWeekday;
     const isSkipped = isLaundryDay && skippedDates.has(cursor);
+    // specs/laundry-extra-trip.md §3.3 rule 11 — a trip day is a non-skipped regular laundry day OR
+    // an active extra trip (never on the laundry weekday: that record is inert).
+    const extraTrip = !isLaundryDay ? extraTripsByDate.get(cursor) : undefined;
+    const isTripDay = (isLaundryDay && !isSkipped) || Boolean(extraTrip);
 
-    // 1) Pick-ups happen BEFORE check-ins (rule 6) — only on laundry days, and only when the
-    // trip wasn't skipped. The lookup is `<= cursor - 7` (not strict `= cursor - 7`) so a
-    // batch deferred by a previous skip is finally collected on the next non-skipped trip,
-    // alongside the normal 7-days-ago batch. Without the `<=`, the deferred batch would loop
-    // forever in `dropsByLaundryDay` and the at-laundry stock would drift permanently.
-    if (isLaundryDay && !isSkipped) {
-      const pickupCutoff = addDays(cursor, -7);
-      const readyKeys = [];
-      for (const dropDate of dropsByLaundryDay.keys()) {
-        if (dropDate <= pickupCutoff) readyKeys.push(dropDate);
-      }
-      for (const dropDate of readyKeys) {
-        const returning = dropsByLaundryDay.get(dropDate);
-        subtractInto(atLaundry, returning);
-        addInto(clean, returning);
-        dropsByLaundryDay.delete(dropDate);
+    // 1) Pick-ups happen BEFORE check-ins (rule 6) — on every trip day. The at-laundry bucket is a
+    // per-type POOL: a regular trip takes the whole pool back (with weekly trips only, every batch
+    // in the pool is ≥ 7 days old by construction — same result as the former per-date ledger), an
+    // extra trip takes the whole pool when `pickUpAll`, else the declared quantities capped at the
+    // pool; what is left stays at the laundry for the next trip (specs/laundry-extra-trip.md §3.3
+    // rule 12). A batch deferred by a skipped trip is collected on the next non-skipped trip the
+    // same way, so the at-laundry stock can never drift permanently.
+    if (isTripDay && !(cursor === from && seedIsTodaysDrop)) {
+      for (const t of ALL_TYPES) {
+        const wanted = extraTrip && extraTrip.pickUpAll === false
+          ? Math.max(0, Number(extraTrip.pickUp && extraTrip.pickUp[t]) || 0)
+          : atLaundry[t];
+        const picked = Math.min(atLaundry[t], wanted);
+        atLaundry[t] -= picked;
+        clean[t] += picked;
       }
     }
 
@@ -395,7 +427,7 @@ function simulateInventory({
     // at-laundry batch and never comes back on the +7 j pick-up. Capped at the dirty pile of its type:
     // linen still in a guest's room — or already clean — cannot be « washed at home », and inventing it
     // here would break the conservation invariant.
-    if (isLaundryDay) {
+    if (isLaundryDay || extraTrip) {
       const manual = manualAdditionsByDate.get(cursor);
       if (manual) {
         const applied = zeroByType();
@@ -408,22 +440,11 @@ function simulateInventory({
       }
     }
 
-    // 3) Laundry-day drop: dirty → atLaundry, dirty resets to 0. Skipped trips don't drop.
-    if (isLaundryDay && !isSkipped) {
-      if (ALL_TYPES.some((t) => dirty[t] > 0)) {
-        const dropSnap = cloneByType(dirty);
-        addInto(atLaundry, dropSnap);
-        subtractInto(dirty, dropSnap);
-        // Merge into any batch already recorded for this day instead of overwriting it. When `from`
-        // itself is a laundry day, initLaundryDay === from and the initial at-laundry batch is seeded
-        // under this very key (see init above); a same-day drop (e.g. a manual addition entered for
-        // today) would otherwise replace that seed, stranding the initial batch « at laundry » forever
-        // — a phantom permanent shortage. Both batches were dropped on `cursor`, so they return together
-        // on the +7d pick-up.
-        const existingDrop = dropsByLaundryDay.get(cursor);
-        if (existingDrop) addInto(existingDrop, dropSnap);
-        else dropsByLaundryDay.set(cursor, dropSnap);
-      }
+    // 3) Trip-day drop: the whole dirty pile → atLaundry, dirty resets to 0. Skipped trips don't drop.
+    if (isTripDay) {
+      const dropSnap = cloneByType(dirty);
+      addInto(atLaundry, dropSnap);
+      subtractInto(dirty, dropSnap);
     }
 
     // 4) Detect shortages on this day's end-of-day state. `clean[t] < 0` ⇒ shortage of `-clean[t]`.
@@ -448,6 +469,7 @@ function simulateInventory({
       dirty: cloneByType(dirty),
       atLaundry: cloneByType(atLaundry),
       shortagesToday,
+      isTripDay,
     });
 
     // 5) Prepare for next day: tomorrow's check-outs leave inCirculation → dirty.

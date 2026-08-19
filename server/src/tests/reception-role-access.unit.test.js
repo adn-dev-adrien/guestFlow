@@ -45,6 +45,9 @@ const ALLOWED = [
   ['DELETE', '/laundry/skips/2026-07-22'],
   ['GET', '/laundry/manual-additions'],
   ['PUT', '/laundry/manual-additions/2026-07-22'],
+  // Extra laundry trips — READ only (specs/laundry-extra-trip.md §3.4 rule 16).
+  ['GET', '/laundry/extra-trips'],
+  ['GET', '/laundry/extra-trips/preview'],
   ['GET', '/resource-bookings/planning-events'],
   // Self endpoints — reachable by every role.
   ['GET', '/auth/me'],
@@ -78,6 +81,9 @@ const FORBIDDEN = [
   // A financial write disguised on an allowed-looking sibling.
   ['DELETE', '/properties/1'],
   ['POST', '/properties'],
+  // Extra laundry trips are admin-only to create / edit / delete (specs/laundry-extra-trip.md §3.4).
+  ['PUT', '/laundry/extra-trips/2026-08-21'],
+  ['DELETE', '/laundry/extra-trips/2026-08-21'],
 ];
 
 test('reception: every allowlisted method+path passes', () => {
