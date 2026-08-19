@@ -50,7 +50,7 @@ test('payload is { ungrouped, groups } with the categories in display order', ()
     { id: 3, title: 'Champagne', priceType: 'per_stay', price: 40, category: 'Boissons' },
     { id: 4, title: 'Balade nocturne', priceType: 'per_stay', price: 65, category: 'Animations' },
   ]);
-  assert.deepEqual(Object.keys(data).sort(), ['groups', 'ungrouped']);
+  assert.deepEqual(Object.keys(data).sort(), ['cancellationInsurance', 'groups', 'ungrouped']);
   assert.deepEqual(data.ungrouped.map((o) => o.title), ['Ménage']);
   assert.deepEqual(data.groups.map((g) => g.category), ['Animations', 'Boissons', 'Restauration']);
 });

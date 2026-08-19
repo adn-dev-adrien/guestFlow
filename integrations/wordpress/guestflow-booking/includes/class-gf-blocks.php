@@ -146,6 +146,12 @@ final class GF_Blocks
                 'checkInTime'     => __('Heure d’arrivée', 'guestflow-booking'),
                 'checkOutTime'    => __('Heure de départ', 'guestflow-booking'),
                 'participantsMax' => __('Nombre de participants', 'guestflow-booking'),
+                // Cancellation insurance block (specs/cancellation-insurance.md §6.3) — the title
+                // itself comes from the catalogue; this one is the fallback when it is empty.
+                'insuranceTitle'   => __('Assurance annulation', 'guestflow-booking'),
+                'insuranceYes'     => __('Oui, j’assure mon séjour', 'guestflow-booking'),
+                'insuranceNo'      => __('Non merci', 'guestflow-booking'),
+                'insuranceRequired' => __('Merci d’indiquer si vous souhaitez l’assurance annulation.', 'guestflow-booking'),
                 // Collapsible option categories (specs/option-categories.md §6.3)
                 'showCategory'    => __('Voir les %d options', 'guestflow-booking'),
                 'showOthers'      => __('Voir les %d autres', 'guestflow-booking'),

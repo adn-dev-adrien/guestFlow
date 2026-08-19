@@ -68,6 +68,9 @@ function optionPriceLabels(priceType, showsPlanningCard) {
     per_night: 'par nuit',
     per_stay: 'au séjour',
     per_participant_progressive: 'par participant',
+    // specs/cancellation-insurance.md §3.1 — `price` is a percentage for this type, so the unit
+    // label says what the percentage applies to.
+    percent_of_stay: 'du montant du séjour',
   };
   return { priceUnitLabel: MAP[pt] || null, quantityLabel: null };
 }
@@ -93,12 +96,55 @@ function toPublicOption(row) {
     category: String(row.category || '').trim(),
     // Pinned outside its category's collapse even when the visitor hasn't picked it (rule 9bis).
     alwaysVisible: Number(row.alwaysVisible || 0) === 1,
+    // THE cancellation insurance (specs/cancellation-insurance.md §3.2 rule 11). The site keys on
+    // this flag — never on a title — and renders it in its own block, not in the supplements list.
+    isCancellationInsurance: Number(row.isCancellationInsurance || 0) === 1,
   };
   if (row.autoOptionType) out.autoOptionType = row.autoOptionType;
   if (row.priceType === 'per_participant_progressive' && Array.isArray(row.optionProgressiveTiers) && row.optionProgressiveTiers.length) {
     out.progressiveTiers = row.optionProgressiveTiers;
   }
   return out;
+}
+
+// French money/percent formatting for the labels the site renders as-is. Kept here rather than in
+// the plugin so a price basis change never needs a WordPress release.
+function frNumber(value) {
+  const n = Number(value || 0);
+  const text = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return text.replace('.', ',');
+}
+
+/**
+ * The cancellation-insurance block the site renders in its own section
+ * (specs/cancellation-insurance.md §3.3 rules 18-19).
+ *
+ * `option` is the flagged option ALREADY resolved for the property (effective per-property price);
+ * `amount` is what it costs for the quoted stay, priced server-side — `null` when there is no stay
+ * yet (catalogue call), in which case the site falls back to `priceLabel`.
+ */
+function toPublicCancellationInsurance(option, { amount = null, selected = false } = {}) {
+  if (!option) return null;
+  const priceType = String(option.priceType || 'per_stay');
+  const isPercent = priceType === 'percent_of_stay';
+  const price = Number(option.price || 0);
+  if (price <= 0) return null;
+  const labels = optionPriceLabels(priceType, false);
+  const priceLabel = isPercent
+    ? `${frNumber(price)} % du montant du séjour`
+    : `${frNumber(price)} €${labels.priceUnitLabel ? ` ${labels.priceUnitLabel}` : ''}`;
+  return {
+    optionId: Number(option.id),
+    title: option.title,
+    titleEn: option.titleEn || null,
+    description: option.description || null,
+    priceType,
+    percent: isPercent ? price : null,
+    price,
+    priceLabel,
+    amount: amount == null ? null : Number(amount),
+    selected: Boolean(selected),
+  };
 }
 
 // Display labels for resources, mirroring optionPriceLabels: the site renders these strings as-is,
@@ -174,7 +220,7 @@ function toPublicAvailability({ propertyId, from, to, blockedDates }) {
  * (range vs blocked dates) and injected. EXCLUDES VAT net breakdowns, accounting buckets, override
  * flags, and resource lines.
  */
-function toPublicQuote(quote, { available, startDate, endDate, paymentMode = 'full' }) {
+function toPublicQuote(quote, { available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null }) {
   const base = {
     propertyId: Number(quote.property?.id ?? quote.propertyId),
     startDate,
@@ -220,6 +266,10 @@ function toPublicQuote(quote, { available, startDate, endDate, paymentMode = 'fu
     // Acompte/Solde lines that don't reflect how the guest actually pays.
     payment: { mode: paymentMode === 'deposit' ? 'deposit' : 'full' },
     complementOnArrival: Number(quote.complementAmount || 0),
+    // Cancellation insurance (specs/cancellation-insurance.md §3.3 rule 19) — ALWAYS priced for
+    // this stay, selected or not, so the site can show the real amount beside the Oui/Non choice.
+    // Null when no insurance is configured for the property: no block, no obligation to answer.
+    cancellationInsurance,
   };
   if (paymentMode === 'deposit') {
     base.deposit = { amount: Number(quote.depositAmount || 0), dueDate: quote.depositDueDate || null };
@@ -232,6 +282,7 @@ module.exports = {
   toPublicProperty,
   toPublicPropertyDetail,
   toPublicOption,
+  toPublicCancellationInsurance,
   toPublicResource,
   toPublicAvailability,
   toPublicQuote,

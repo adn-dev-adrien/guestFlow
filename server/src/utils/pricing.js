@@ -284,6 +284,23 @@ function getTypeMultiplier(priceType, persons, nights) {
   return 1;
 }
 
+/**
+ * Amount of a `percent_of_stay` option (specs/cancellation-insurance.md §3.1 rules 2-4).
+ *
+ * `percent` is what `options.price` holds for that price type (4 = 4 %), clamped to 0-100 so a
+ * corrupt row can never bill more than the stay itself. `base` is the assiette resolved by the
+ * engine (`cancellationInsuranceBase`) — the accommodation only.
+ *
+ * Single source of truth: the billed line AND the public preview shown beside the Oui/Non choice
+ * on the website both go through this function, so they cannot diverge.
+ */
+function computePercentOfStayAmount(percent, base) {
+  const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+  const amount = Math.max(0, Number(base) || 0);
+  if (pct <= 0 || amount <= 0) return 0;
+  return roundMoney((amount * pct) / 100);
+}
+
 // Option-driven planning cards (specs/option-planning-card.md §3.4). Parse the per-reservation
 // selected occurrences (the checked moments) into a clean [{ date, time }] array. Accepts a stored
 // JSON string or an array; drops entries without a valid ISO date. The length drives billedUnits.
@@ -1381,6 +1398,26 @@ function calculateReservationQuote({
   const extraGuestSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal;
   const totalPrice = roundMoney(baseAccommodationPrice);
 
+  // Price levers, normalised HERE rather than beside the totals below: a `percent_of_stay` option
+  // (specs/cancellation-insurance.md §3.1) is priced inside the option loop and needs them.
+  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
+  const customFinalPrice = customPrice === '' || customPrice === null || customPrice === undefined
+    ? null
+    : Number(customPrice);
+  // Assiette of a `percent_of_stay` option (rule 3): the ACCOMMODATION actually charged — the
+  // nights after a discount or a manual override, plus the extra-guest surcharge (a supplement on
+  // the nights, not an option). Options, resources, taxe de séjour and caution are excluded.
+  //
+  // Deliberately computed BEFORE the platform back-solve below (`platformGrossAmount` pins the
+  // accommodation FROM the extras): reading the pinned accommodation here would be circular —
+  // the option would depend on a total that depends on the option.
+  const cancellationInsuranceBase = roundMoney(
+    (Number.isFinite(customFinalPrice)
+      ? customFinalPrice
+      : roundMoney(totalPrice * (1 - normalizedDiscountPercent / 100)))
+    + extraGuestSurcharge,
+  );
+
   // Per-item routing (spec force-item-to-complement.md):
   //   `inComplement` flag → returned in each line so the client renders the chip and the
   //     accounting model attributes the line 100 % to the complément entry.
@@ -1429,7 +1466,10 @@ function calculateReservationQuote({
       // own, from the booking's snapshot (specs/devis-extras-parity-and-price-lock.md §3 rule 13bis).
       // Without it a tariff change re-priced the card options of reservations already sold and paid:
       // the raise landed in the mid-stay split as an end-of-stay complement nobody had agreed to.
-      if (option.showsPlanningCard) {
+      // A `percent_of_stay` option is priced from the stay, not from occurrences: even if the
+      // operator also ticked « carte planning » on it, the card path must not read its percentage
+      // as a euro unit price (specs/cancellation-insurance.md §3.1 rule 4).
+      if (option.showsPlanningCard && priceType !== 'percent_of_stay') {
         // PUBLIC/site flow (planningCardAsQuantity): the visitor can't schedule the slots, so the
         // selected QUANTITY stands in for the occurrence count — bill quantity × (perPerson ? persons :
         // 1) × unitPrice and leave the line UNSCHEDULED (empty cardOccurrences; the operator fixes the
@@ -1520,10 +1560,18 @@ function calculateReservationQuote({
         };
       }
 
+      // `percent_of_stay` (specs/cancellation-insurance.md §3.1 rules 4-5): the unit price IS the
+      // computed amount, and the quantity is forced to 1 — insuring the same stay twice is
+      // meaningless. The line then rejoins the generic path, so the locked snapshot (price freeze
+      // on a sold line), « offert » and the acompte/complément routing all keep working unchanged.
+      const isPercentOfStay = priceType === 'percent_of_stay';
+      const effectiveQuantity = isPercentOfStay ? 1 : quantity;
       const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
         ? Number(optionUnitOverrides[optionId])
-        : Number(option.price || 0);
-      const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+        : (isPercentOfStay
+          ? computePercentOfStayAmount(option.price, cancellationInsuranceBase)
+          : Number(option.price || 0));
+      const targetBilledUnits = roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights));
       const merged = mergeLineWithLockedSnapshot({
         lockedLine: reconstructLockedRealTotal(locked, unitBase),
         targetBilledUnits,
@@ -1536,7 +1584,7 @@ function calculateReservationQuote({
       return {
         optionId,
         title: option.title,
-        quantity,
+        quantity: effectiveQuantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         // What the guest does not pay for, and what it is worth — the summary strikes it through.
@@ -1816,10 +1864,6 @@ function calculateReservationQuote({
   const midStayRemainingTotal = roundMoney(midStayExtras.remainingTotal);
   const accommodationBaseTotal = roundMoney(Number(totalPrice || 0));
   const subtotal = roundMoney(accommodationBaseTotal + extraGuestSurcharge + optionsTotal + resourcesTotal);
-  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
-  const customFinalPrice = customPrice === '' || customPrice === null || customPrice === undefined
-    ? null
-    : Number(customPrice);
   // specs/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` PINS the
   // PLATFORM-PAID portion of the stay (the brut the guest paid the platform). It supersedes
   // `customPrice`/`discountPercent` (the brut is the single price lever for platforms). The accommodation
@@ -2296,6 +2340,9 @@ function calculateReservationQuote({
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
     accommodationPreArrival,
+    // Assiette of a `percent_of_stay` option (specs/cancellation-insurance.md §3.1 rule 3). Returned
+    // so the public quote can price the insurance PREVIEW with the same helper as the billed line.
+    cancellationInsuranceBase,
     totalStayPrice,
     // specs/fiche-total-sejour-net-of-commission.md — the « total du séjour » shown on the fiche
     // (and, later, in the finance displays) = net perçu + compléments. Net of the platform commission.
@@ -2355,6 +2402,7 @@ module.exports = {
   isPlatformCollectingTouristTax,
   isTouristTaxRemittedByOwner,
   getTypeMultiplier,
+  computePercentOfStayAmount,
 };
 
 module.exports.__test = {

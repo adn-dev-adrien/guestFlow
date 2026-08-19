@@ -189,6 +189,10 @@ export default function OptionRow({ opt }) {
   if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
   else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
   else if (opt.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
+  // specs/cancellation-insurance.md §3.1 rule 5 — a percentage of the stay is a yes/no product:
+  // no quantity to type, and the hint says what the percentage bites on.
+  else if (opt.priceType === 'percent_of_stay') factorHint = 'du montant hébergement';
+  const isPercentOfStay = opt.priceType === 'percent_of_stay';
 
   return (
     <Card
@@ -213,7 +217,7 @@ export default function OptionRow({ opt }) {
             <Typography variant="body2" color="text.secondary">
               {isAutoTimedOption
                 ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
-                : `${formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
+                : `${isPercentOfStay ? `${Number(opt.price) || 0} %` : formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
             </Typography>
           </Box>
           <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
@@ -235,7 +239,7 @@ export default function OptionRow({ opt }) {
             {/* Card-option (specs/option-planning-card.md §3.4): the occurrence
                 checklist below replaces the manual Qté — the selection drives the
                 billed quantity server-side. */}
-            {opt.showsPlanningCard ? (
+            {opt.showsPlanningCard || isPercentOfStay ? (
               <Box sx={{ flex: 1 }} />
             ) : (
               <QuantityField

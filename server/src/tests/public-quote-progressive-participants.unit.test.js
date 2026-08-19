@@ -96,7 +96,10 @@ function createDb() {
 function buildController(db) {
   return withMocks({
     '../../database': db,
-    '../../models/optionsModel': { listForProperty: () => [{ id: 15 }, { id: 11 }] },
+    '../../models/optionsModel': {
+      listForProperty: () => [{ id: 15 }, { id: 11 }],
+      getCancellationInsurance: () => null,
+    },
     '../../models/resourcesModel': { list: () => [] },
     './publicCatalogController': { computeBlockedDates: () => [], rangeHasBlockedNight: () => false },
   }, () => {
