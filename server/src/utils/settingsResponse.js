@@ -48,6 +48,7 @@ function shapeResponse(row) {
     vat: {
       rate: row.vatRate == null ? 10 : Number(row.vatRate),
       rateCommission: row.vatRateCommission == null ? 20 : Number(row.vatRateCommission),
+      rateCancellationCompensation: row.vatRateCancellationCompensation == null ? 0 : Number(row.vatRateCancellationCompensation),
     },
     // Accounting block (specs/fiscal-year-and-nights-sold.md §4.3). `fiscalYearEndMonth` is the month
     // the books are closed on; 12 (calendar year) when unset. Every annual window of the Suivi

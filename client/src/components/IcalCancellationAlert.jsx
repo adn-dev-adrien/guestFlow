@@ -4,12 +4,16 @@
  *
  * Self-contained: fetches its own list on mount + on every route change, then renders one
  * orange `<Alert>` listing every pending cancellation. Each card offers three actions:
- *   - "Supprimer" (color="error") → deletes the reservation server-side + ack.
+ *   - "Supprimer" (color="error") → asks whether the platform owes an indemnity for the cancelled
+ *                                   stay (specs/cancellation-compensation.md §3.2), then deletes
+ *                                   the reservation server-side + ack, recording the compensation
+ *                                   in the same transaction when one is declared.
  *   - "Voir la fiche"             → opens the reservation page without acknowledging.
  *   - ✕ (top-right)               → ignores the proposal; the reservation stays.
  *
- * Optimistic UI: clicking Approve or Reject removes the row immediately, then the POST
- * is fired. On server error the row is re-inserted at its original position.
+ * Optimistic UI: rejecting removes the row immediately, then the POST is fired; on server error the
+ * row is re-inserted at its original position. Approving waits for the dialog + the POST, because
+ * the compensation must be persisted before the card disappears.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -20,6 +24,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router';
 import api from '../api';
+import CancellationCompensationDialog from './CancellationCompensationDialog';
+import { useToast } from './DialogProvider';
 import { displayDateShort } from '../utils/formatters';
 
 // Coarse relative-time formatting (presentation only — no business rules). Mirrors
@@ -41,8 +47,11 @@ function relativeFromNow(iso) {
 
 export default function IcalCancellationAlert() {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  // The alert being approved, i.e. the one whose compensation question is on screen.
+  const [pendingApproval, setPendingApproval] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -55,19 +64,35 @@ export default function IcalCancellationAlert() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const handleApprove = useCallback(async (alert) => {
+  // Step 1 — open the « indemnité attendue ? » question. Nothing is deleted yet.
+  const handleApprove = useCallback((alert) => {
     if (!alert.reservationExists) return;
-    const previous = alerts;
+    setPendingApproval(alert);
+  }, []);
+
+  // Step 2 — the operator answered: `compensation` is null (no indemnity) or the declared block.
+  // The row leaves the list only once the server confirmed, since the compensation is created in
+  // the same transaction as the deletion.
+  const handleApprovalSubmit = useCallback(async (compensation) => {
+    const alert = pendingApproval;
+    if (!alert) return;
     setBusyId(alert.id);
-    setAlerts((rows) => rows.filter((r) => r.id !== alert.id));
     try {
-      await api.approveIcalCancellation(alert.id);
-    } catch {
-      setAlerts(previous);
+      await api.approveIcalCancellation(alert.id, compensation);
+      setAlerts((rows) => rows.filter((r) => r.id !== alert.id));
+      setPendingApproval(null);
+      showSuccess(compensation
+        ? 'Réservation supprimée — indemnité en attente de versement.'
+        : 'Réservation supprimée.');
+      // The pending-compensation alert lives in a sibling component; a single event keeps them in
+      // sync without lifting this self-contained state into the Dashboard.
+      if (compensation) window.dispatchEvent(new CustomEvent('guestflow:compensations-changed'));
+    } catch (err) {
+      showError(err.message || 'Suppression impossible.');
     } finally {
       setBusyId(null);
     }
-  }, [alerts]);
+  }, [pendingApproval, showSuccess, showError]);
 
   const handleReject = useCallback(async (alert) => {
     const previous = alerts;
@@ -85,6 +110,7 @@ export default function IcalCancellationAlert() {
   if (alerts.length === 0) return null;
 
   return (
+    <>
     <Alert
       severity="warning"
       variant="outlined"
@@ -151,5 +177,20 @@ export default function IcalCancellationAlert() {
         ))}
       </Stack>
     </Alert>
+    <CancellationCompensationDialog
+      open={Boolean(pendingApproval)}
+      mode="ask"
+      busy={busyId === (pendingApproval && pendingApproval.id)}
+      context={pendingApproval ? {
+        clientName: pendingApproval.clientName,
+        propertyName: pendingApproval.propertyName,
+        platform: pendingApproval.sourceName,
+        startDate: pendingApproval.startDate,
+        endDate: pendingApproval.endDate,
+      } : {}}
+      onClose={() => setPendingApproval(null)}
+      onSubmit={handleApprovalSubmit}
+    />
+    </>
   );
 }

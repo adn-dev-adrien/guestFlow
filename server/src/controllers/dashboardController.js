@@ -10,6 +10,7 @@ const reservationsModel = require('../models/reservationsModel');
 const icalDateDriftModel = require('../models/icalDateDriftModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
+const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
 
 const TYPE_LABELS = Object.freeze({
   single: 'Drap simple',
@@ -146,16 +147,25 @@ function buildController({
      * POST /api/dashboard/ical-cancellation/:id/approve
      *
      * Atomically deletes the reservation + its ical_import_events mappings + writes a
-     * history audit entry + flips the alert to outcome='approved'. Returns 200 with
+     * history audit entry + flips the alert to outcome='approved' — and, when the body carries
+     * `{ compensation: { expectedAmount, expectedDate?, notes? } }`, records the indemnity the
+     * platform owes for the cancelled stay in that same transaction. Returns 200 with
      * `outcome: 'reservation_gone'` (idempotent shape) when the reservation was already
      * manually deleted between the sync and the approve click.
      */
     approveIcalCancellation(req, res) {
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
-      const result = injectedIcalCancellationModel.approve(id);
+      // Optional compensation block (specs/cancellation-compensation.md §3.2): when the platform
+      // owes an indemnity for the cancelled stay, it is created in the SAME transaction as the
+      // deletion. Absent body ⇒ `null` ⇒ the historical delete-only behaviour, untouched.
+      const parsedCompensation = validateApprovalCompensation((req.body || {}).compensation);
+      if (!parsedCompensation.ok) {
+        return res.status(400).json({ error: parsedCompensation.error, field: parsedCompensation.field });
+      }
+      const result = injectedIcalCancellationModel.approve(id, parsedCompensation.value);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
-      res.json({ ok: true, outcome: result.outcome });
+      res.json({ ok: true, outcome: result.outcome, compensationId: result.compensationId ?? null });
       // Approved cancellation → fire-and-forget Google event delete, after the response
       // (spec rule 19-20). Also fired on 'reservation_gone': the event may still exist as
       // an orphan.

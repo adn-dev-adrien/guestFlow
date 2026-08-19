@@ -7,11 +7,14 @@
  *   - `rateCommission` (default 20) — VAT rate applied to platform commissions whose row on
  *     `/comptabilite/plateformes` carries `hasVatOnCommission = 1`. Spec:
  *     accounting-platform-commission-and-no-deposit.md §3.7 rule 17b.
+ *   - `rateCancellationCompensation` (default 0) — VAT rate applied to the indemnity a platform pays
+ *     for a cancelled stay. 0 = outside the scope of VAT, the shipped default. Spec:
+ *     cancellation-compensation.md §3.3 rule 16.
  *
  * Props:
- *   values:    { rate, rateCommission }
- *   errors:    { vatRate?, vatRateCommission? }
- *   onChange:  (key, value) => void   // key is 'rate' or 'rateCommission'
+ *   values:    { rate, rateCommission, rateCancellationCompensation }
+ *   errors:    { vatRate?, vatRateCommission?, vatRateCancellationCompensation? }
+ *   onChange:  (key, value) => void   // 'rate' | 'rateCommission' | 'rateCancellationCompensation'
  *   disabled:  boolean
  */
 import React from 'react';
@@ -61,6 +64,21 @@ export default function SettingsVatSection({
             disabled={disabled}
             error={Boolean(errors.vatRateCommission)}
             helperText={errors.vatRateCommission || "Taux appliqué aux commissions plateforme marquées 'TVA déductible' dans le Plan comptable."}
+            sx={{ maxWidth: { sm: 320 } }}
+            slotProps={{
+              htmlInput: { min: 0, max: 100, step: 0.5 }
+            }}
+          />
+
+          <TextField
+            label="TVA sur indemnités d'annulation (%)"
+            type="number"
+            value={v.rateCancellationCompensation ?? 0}
+            onChange={(e) => onChange('rateCancellationCompensation', e.target.value === '' ? '' : Number(e.target.value))}
+            fullWidth
+            disabled={disabled}
+            error={Boolean(errors.vatRateCancellationCompensation)}
+            helperText={errors.vatRateCancellationCompensation || "0 % = indemnité hors champ de TVA (recommandé). À changer seulement si votre comptable demande à la soumettre à TVA."}
             sx={{ maxWidth: { sm: 320 } }}
             slotProps={{
               htmlInput: { min: 0, max: 100, step: 0.5 }

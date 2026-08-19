@@ -18,6 +18,7 @@ import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
+import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
@@ -365,6 +366,10 @@ export default function Dashboard() {
           {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
               contained: renders nothing when no pending cancellation exists. */}
           <IcalCancellationAlert />
+          {/* Indemnités d'annulation en attente de versement (specs/cancellation-compensation.md
+              §3.4). Sits right under the cancellations that create them; renders nothing when no
+              compensation is pending. */}
+          <CancellationCompensationsPendingAlert />
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <IcalNewReservationsAlert />

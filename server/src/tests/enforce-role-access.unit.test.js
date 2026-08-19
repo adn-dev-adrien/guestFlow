@@ -55,6 +55,25 @@ test('accountant: POST or DELETE on accounting → 403 (read-only role)', () => 
   }
 });
 
+// specs/cancellation-compensation.md §3.3 rule 21 — the accountant reads the compensations like the
+// rest of `/accounting/*`, but never writes them: the whitelist stays limited to platform-accounts.
+test('accountant: GET the cancellation compensations → passes, every write → 403', () => {
+  assert.equal(call({ role: 'accountant', method: 'GET', path: '/accounting/cancellation-compensations' }).nextCalled, true);
+  const writes = [
+    ['POST', '/accounting/cancellation-compensations'],
+    ['PUT', '/accounting/cancellation-compensations/3'],
+    ['POST', '/accounting/cancellation-compensations/3/receive'],
+    ['POST', '/accounting/cancellation-compensations/3/reopen'],
+    ['DELETE', '/accounting/cancellation-compensations/3'],
+  ];
+  for (const [method, path] of writes) {
+    const { res, nextCalled } = call({ role: 'accountant', method, path });
+    assert.equal(nextCalled, false, `${method} ${path}`);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.body.error, 'FORBIDDEN_ROLE');
+  }
+});
+
 test('accountant: any non-accounting / non-self route → 403', () => {
   for (const path of ['/reservations', '/clients', '/settings', '/finance', '/properties/1']) {
     const { res, nextCalled } = call({ role: 'accountant', method: 'GET', path });

@@ -4,6 +4,8 @@
  * Single source of truth for the per-platform commission config on the dedicated page
  * `/comptabilite/plateformes`. Reads + writes:
  *   - `app_settings.defaultCommissionAccountNumber` (global fallback account)
+ *   - `app_settings.cancellationCompensationAccount` (produit account for cancellation
+ *     compensations, specs/cancellation-compensation.md §3.3 rule 19)
  *   - `platforms.*` per-platform rows (one per unique iCal platform + the always-present
  *     `'direct'` row whose fields are server-side ignored, spec rule 18)
  *
@@ -19,7 +21,7 @@
 const db = require('../database');
 const platformsModel = require('./platformsModel');
 const settingsModel = require('./settingsModel');
-const { DEFAULT_COMMISSION_ACCOUNT } = require('../constants/accounting');
+const { DEFAULT_COMMISSION_ACCOUNT, DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('../constants/accounting');
 
 // Validates a French chart-of-accounts code. We accept 6 to 8 digits:
 //   - 6 digits = generic bucket account (`622600` is the default).
@@ -50,7 +52,22 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
         hasVatOnCommission: Number(p.hasVatOnCommission) === 1,
         isDirect: String(p.name).toLowerCase() === 'direct',
       }));
-      return { defaultAccount, vatRateCommission, platforms: decoratedPlatforms };
+      // specs/cancellation-compensation.md §3.3 rule 19 — the produit account credited when a
+      // platform pays an indemnity for a cancelled stay. Editable here (it IS a chart-of-accounts
+      // setting); its VAT rate is read-only on this page like `vatRateCommission`, because rates
+      // live in Settings → Général → Taux de TVA.
+      const cancellationCompensationAccount = (settingsRow && settingsRow.cancellationCompensationAccount)
+        || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT;
+      const vatRateCancellationCompensation = settingsRow && settingsRow.vatRateCancellationCompensation != null
+        ? Number(settingsRow.vatRateCancellationCompensation)
+        : 0;
+      return {
+        defaultAccount,
+        vatRateCommission,
+        cancellationCompensationAccount,
+        vatRateCancellationCompensation,
+        platforms: decoratedPlatforms,
+      };
     },
 
     saveAll(payload) {
@@ -58,6 +75,13 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
       const errors = {};
       const defaultErr = validateAccountNumber(body.defaultAccount, { required: true });
       if (defaultErr) errors.defaultAccount = defaultErr;
+      // Absent key ⇒ untouched (a caller that doesn't know about the field must not blank it);
+      // present key ⇒ must be a real account number.
+      const editsCompensationAccount = Object.prototype.hasOwnProperty.call(body, 'cancellationCompensationAccount');
+      if (editsCompensationAccount) {
+        const compensationErr = validateAccountNumber(body.cancellationCompensationAccount, { required: true });
+        if (compensationErr) errors.cancellationCompensationAccount = compensationErr;
+      }
       const platformList = Array.isArray(body.platforms) ? body.platforms : [];
       const perPlatformErrors = [];
       for (const p of platformList) {
@@ -71,8 +95,13 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
         return { error: errors, status: 400 };
       }
       const tx = database.transaction(() => {
-        // 1) Default account → app_settings.
-        settings.upsert({ defaultCommissionAccountNumber: String(body.defaultAccount).trim() });
+        // 1) Global accounts → app_settings.
+        settings.upsert({
+          defaultCommissionAccountNumber: String(body.defaultAccount).trim(),
+          ...(editsCompensationAccount
+            ? { cancellationCompensationAccount: String(body.cancellationCompensationAccount).trim() }
+            : {}),
+        });
         // 2) Per-platform rows. Direct row writes are silently ignored by platformsModel.update.
         for (const p of platformList) {
           platforms.update({
