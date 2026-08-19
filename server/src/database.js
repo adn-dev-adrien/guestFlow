@@ -17,7 +17,33 @@ db.pragma('foreign_keys = ON');
 // schema.sql reproduces the production schema exactly and is the single source of truth for a
 // fresh DB. Executed first so it is authoritative; the guarded seeds/migrations below are then
 // no-ops on an up-to-date database (specs/migrations-baseline.md).
-db.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+//
+// ⚠ Sur une base EXISTANTE, le baseline peut legitimement echouer en cours de route, et ce
+// n'est pas une anomalie : `CREATE TABLE IF NOT EXISTS` est un no-op sur une table deja
+// presente, donc une colonne ajoutee par l'une des migrations gardees plus bas est encore
+// absente quand schema.sql atteint l'index qui la reference. exec() interrompt alors TOUT le
+// script — et les migrations qui auraient ajoute la colonne ne s'executent jamais.
+//
+// Constate en production le 2026-08-19 : `CREATE INDEX idx_reservations_cancelled ON
+// reservations(cancelledAt)` (schema.sql) s'executait ~1250 lignes AVANT
+// `ALTER TABLE reservations ADD COLUMN cancelledAt` (ce fichier). Tout deploiement sur une
+// base existante mourait la. Comme le workflow arrete PM2 *avant* les migrations,
+// l'application restait a terre jusqu'a ce que quelqu'un ajoute les colonnes a la main.
+//
+// Correctif : tolerer un baseline partiel ici, laisser tourner les migrations gardees, puis
+// REJOUER le baseline en fin de fichier — chaque instruction de schema.sql etant
+// `IF NOT EXISTS`, le rejeu est idempotent et cree exactement ce que la premiere passe n'a
+// pas pu creer. Si le rejeu echoue encore, l'erreur est reelle et remonte.
+const SCHEMA_SQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+let baselineDeferredError = null;
+try {
+  db.exec(SCHEMA_SQL);
+} catch (err) {
+  baselineDeferredError = err;
+  console.warn(
+    `[schema] baseline applique partiellement (${err.message}) — rejeu prevu apres les migrations gardees.`
+  );
+}
 
 // ---------- CALENDAR NOTES ----------
 db.exec(`
@@ -2162,6 +2188,18 @@ db.exec(`
       console.log(`[migration:frozen-complement] corrected the collected complement on reservation(s) ${repaired.join(', ')}`);
     }
   }
+}
+
+// ---------- REJEU DU BASELINE ----------
+// Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
+// une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes
+// manquantes, donc rejouer le baseline cree maintenant ce qu'il n'avait pas pu creer. Chaque
+// instruction etant `IF NOT EXISTS`, c'est un no-op dans le cas nominal. Un echec ici est un
+// vrai probleme de schema : on le laisse remonter plutot que de demarrer le serveur sur une
+// base a moitie migree.
+if (baselineDeferredError) {
+  db.exec(SCHEMA_SQL);
+  console.log('[schema] baseline rejoue avec succes apres les migrations gardees.');
 }
 
 // ---------- DB HYGIENE — Bloc 0 ----------
