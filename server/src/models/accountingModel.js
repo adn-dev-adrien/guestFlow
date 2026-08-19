@@ -9,7 +9,9 @@
  * this shape and produces the balanced journal lines (see utils/accountingExport.js).
  *
  * Scope (spec §3.4):
- * - Only `kind='reservation'` rows (devis never exported).
+ * - Reservations only, devis never exported — including the ones cancelled for non-payment
+ *   (`kind='cancelled'`), whose already-booked encaissements must keep their original month
+ *   (specs/payment-schedule-and-cancellation.md §3.6 rule 34).
  * - Caution is excluded entirely (handled by ignoring `caution*` fields).
  * - Tourist tax never hits a revenue account: it rides the 46710000 pass-through line, entirely
  *   on the solde entry (specs/tourist-tax-on-solde.md) — or on the complement when the routing
@@ -85,7 +87,12 @@ function createAccountingModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation'
+        -- specs/payment-schedule-and-cancellation.md §3.6 rule 34 — a stay cancelled for non-payment
+        -- keeps kind = 'cancelled', which drops it from every operational read at once. Accounting
+        -- is the one deliberate exception: the acompte it collected was booked in a month that may
+        -- already be at the accountant's, and that month must never change. The requalification is
+        -- booked in the cancellation month instead (avoir + indemnité).
+        WHERE r.kind IN ('reservation', 'cancelled')
           AND (
             (r.depositPaid = 1 AND r.depositPaidDate >= ? AND r.depositPaidDate < ?)
             OR

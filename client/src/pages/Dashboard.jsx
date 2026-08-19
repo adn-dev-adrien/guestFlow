@@ -16,6 +16,7 @@ import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import LinenShortageAlert from '../components/LinenShortageAlert';
+import PaymentDeadlinesAlert from '../components/PaymentDeadlinesAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
@@ -360,6 +361,10 @@ export default function Dashboard() {
           {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
               contained: renders nothing when no shortage is projected. */}
           <LinenShortageAlert />
+          {/* Échéances de paiement dépassées (specs/payment-schedule-and-cancellation.md §3.4).
+              Sits high: it is the only surface that says an acompte or un solde is late, and the
+              only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
+          <PaymentDeadlinesAlert />
           {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
               Self-contained: renders nothing when no pending drift exists. */}
           <IcalDateDriftAlert />

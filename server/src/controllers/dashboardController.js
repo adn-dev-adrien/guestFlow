@@ -11,6 +11,9 @@ const icalDateDriftModel = require('../models/icalDateDriftModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
+const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
+const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const TYPE_LABELS = Object.freeze({
   single: 'Drap simple',
@@ -27,7 +30,13 @@ function buildController({
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
   googleCalendarSync: injectedGoogleCalendarSync = googleCalendarSync,
+  // Injected so the deadline endpoints stay testable without Qonto/SMTP: production wires the real
+  // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
+  sendDepositRequest = (id) => require('./paymentsController').sendDepositRequestFor(id),
+  sendBalanceRequest = (id) => require('./paymentsController').sendBalanceRequestFor(id),
+  today: injectedToday = null,
 } = {}) {
+  const resolveToday = () => injectedToday || getTodayIsoDate();
   return {
     /**
      * GET /api/dashboard/linen-shortage
@@ -198,6 +207,59 @@ function buildController({
     icalNewReservationsToday(req, res) {
       const alerts = injectedReservationsModel.listNewIcalReservationsToday();
       return res.json({ alerts });
+    },
+
+    /**
+     * GET /api/dashboard/payment-deadlines
+     *
+     * Every direct reservation with a missed payment deadline (specs/payment-schedule-and-cancellation.md
+     * §3.4). Rows arrive ready to render: state, severity, amounts, days late, and which actions apply.
+     * Empty `rows: []` when nothing is late — the card then draws nothing.
+     */
+    paymentDeadlines(req, res) {
+      const today = resolveToday();
+      const rows = buildPaymentDeadlineRows(
+        injectedReservationsModel.listPaymentDeadlineCandidates(today),
+        today,
+      );
+      return res.json({ rows });
+    },
+
+    /**
+     * POST /api/dashboard/payment-deadlines/:id/snooze — { days? }
+     *
+     * Hides one row for a while. The échéances themselves never move (rule 18): what the guest was
+     * promised — and the date the stay may be cancelled — is unchanged.
+     */
+    snoozePaymentDeadline(req, res) {
+      const id = Number(req.params.id);
+      const requested = Number(req.body && req.body.days);
+      const days = Number.isFinite(requested) && requested > 0 ? Math.min(Math.round(requested), 60) : 7;
+      const snoozedUntil = addDaysToIsoDate(resolveToday(), days);
+      injectedReservationsModel.snoozePaymentAlert(id, snoozedUntil);
+      return res.json({ ok: true, snoozedUntil });
+    },
+
+    /**
+     * POST /api/dashboard/payment-deadlines/:id/remind — { type: 'deposit' | 'balance' }
+     *
+     * Re-sends the matching payment request (fresh Qonto link + templated email), relaying the
+     * payment service's own status and error shape verbatim.
+     */
+    async remindPaymentDeadline(req, res) {
+      const id = Number(req.params.id);
+      const type = String((req.body && req.body.type) || 'balance');
+      if (type !== 'deposit' && type !== 'balance') {
+        return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de relance invalide (deposit/balance).' });
+      }
+      try {
+        const { httpStatus, body } = type === 'deposit'
+          ? await sendDepositRequest(id)
+          : await sendBalanceRequest(id);
+        return res.status(httpStatus).json(body);
+      } catch (err) {
+        return res.status(502).json({ error: 'REMINDER_FAILED', message: String((err && err.message) || err) });
+      }
     },
 
     /**

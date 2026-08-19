@@ -58,7 +58,7 @@ const NEW_DEFAULTS = {
   extraGuestPrice: 0,
   extraGuestPriceUnit: 'per_stay',
   singleBeds: 0, doubleBeds: 0,
-  depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
+  depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   publicDepositEnabled: false,
   defaultCautionAmount: 500,
   touristTaxPerDayPerPerson: 0,
@@ -183,7 +183,8 @@ export default function PropertyDetail() {
       extraGuestPrice: p.extraGuestPrice ?? 0,
       extraGuestPriceUnit: p.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
-      depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
+      depositPercent: p.depositPercent, depositDueDays: p.depositDueDays,
+      balanceDaysBefore: p.balanceDaysBefore, cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
       publicDepositEnabled: Boolean(p.publicDepositEnabled),
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
@@ -940,8 +941,22 @@ export default function PropertyDetail() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                  {/* specs/payment-schedule-and-cancellation.md §3.1 — the acompte is due from the
+                      BOOKING, not from the arrival: this is a delay after the reservation is taken. */}
+                  <TextField label="Acompte (jours après réservation)" type="number" value={form.depositDueDays ?? 7} onChange={(e) => updateField('depositDueDays', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 30} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                </Box>
+                <Box>
+                  <TextField
+                    label="Annulation (jours après échéance du solde)"
+                    type="number"
+                    value={form.cancelAfterBalanceDueDays ?? 7}
+                    onChange={(e) => updateField('cancelAfterBalanceDueDays', e.target.value)}
+                    onFocus={handleZeroFocus}
+                    fullWidth
+                    size="small"
+                    helperText="Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre d'indemnité."
+                  />
                 </Box>
                 <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
                   htmlInput: { step: 50 }
