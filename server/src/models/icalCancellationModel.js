@@ -11,10 +11,14 @@
  *     every sync; if the platform un-cancels a booking the alert disappears silently.
  *
  * Write paths called from the Dashboard controller:
- *   - `approve(id)` — atomic transaction: history entry → DELETE FROM reservations →
- *     DELETE child ical_import_events mappings → flip the row to `outcome='approved'`.
- *     Returns 410-shaped error when the reservation is already gone, mapped by the
- *     controller to a 200 idempotent shape (user already got what they wanted).
+ *   - `approve(id, compensation)` — atomic transaction: snapshot the reservation → history
+ *     entry → DELETE FROM reservations → DELETE child ical_import_events mappings → flip the
+ *     row to `outcome='approved'`. When `compensation` is given (the platform owes an
+ *     indemnity for the cancelled stay, specs/cancellation-compensation.md §3.2), the
+ *     compensation row is written in the SAME transaction, from a snapshot read BEFORE the
+ *     delete — otherwise there would be nothing left to describe it. Returns 410-shaped error
+ *     when the reservation is already gone, mapped by the controller to a 200 idempotent shape
+ *     (user already got what they wanted).
  *   - `reject(id)` — flips the row to `outcome='rejected'` without touching the
  *     reservation. The dropped mappings were already removed during the sync that
  *     raised the alert — they are NOT restored on reject (see spec §8).
@@ -28,6 +32,9 @@
  */
 
 function buildModel(database) {
+  // Bound to the SAME database so a test factory gets a matching pair. Its statements are
+  // prepared lazily, so this stays a no-op on a schema without the compensations table.
+  const compensations = require('./cancellationCompensationsModel').buildModel(database);
   const selectPending = database.prepare(`
     SELECT id FROM ical_cancellation_alerts
      WHERE reservationId = ? AND acknowledgedAt IS NULL
@@ -125,6 +132,25 @@ function buildModel(database) {
      WHERE id = ?
   `);
   const reservationExists = database.prepare('SELECT id FROM reservations WHERE id = ?');
+  // Everything a cancellation compensation needs to survive the reservation it came from
+  // (specs/cancellation-compensation.md §3.1 rule 1). Read INSIDE the approve transaction, before
+  // the DELETE — after it there is nothing left to snapshot. Prepared LAZILY: it reaches for columns
+  // (finalPrice, platform) that the cancellation unit tests' minimal schema doesn't define, and
+  // merely building the model there must not throw — only actually asking for a snapshot may.
+  let snapshotStmt = null;
+  const selectReservationSnapshot = () => {
+    if (!snapshotStmt) {
+      snapshotStmt = database.prepare(`
+        SELECT r.id, r.propertyId, r.startDate, r.endDate, r.finalPrice, r.platform,
+               p.name AS propertyName, c.firstName, c.lastName
+          FROM reservations r
+          LEFT JOIN properties p ON p.id = r.propertyId
+          LEFT JOIN clients c ON c.id = r.clientId
+         WHERE r.id = ?
+      `);
+    }
+    return snapshotStmt;
+  };
   const insertHistoryStmt = database.prepare(`
     INSERT INTO reservation_history (reservationId, eventType, changedFields)
     VALUES (?, 'delete', ?)
@@ -153,7 +179,7 @@ function buildModel(database) {
     { field: 'icalCancellationApproved', label: 'Origine', from: null, to: 'Suppression iCal approuvée' },
   ]);
 
-  const approveTx = database.transaction((id) => {
+  const approveTx = database.transaction((id, compensation) => {
     const cancellation = getCancellationById.get(id);
     if (!cancellation) return { error: 'INTROUVABLE', status: 404 };
     if (cancellation.acknowledgedAt) return { error: 'DEJA_TRAITE', status: 409 };
@@ -163,18 +189,45 @@ function buildModel(database) {
       // ack the row with a distinct outcome so the audit trail records what happened.
       // reservationId still returned so the Google event (if any) gets cleaned up too.
       ackReservationGone.run(id);
-      return { ok: true, outcome: 'reservation_gone', reservationId: cancellation.reservationId };
+      return { ok: true, outcome: 'reservation_gone', reservationId: cancellation.reservationId, compensationId: null };
     }
+    // Snapshot BEFORE delete — same reason as the history row below.
+    const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;
     // History BEFORE delete so the reservationId FK is still resolvable.
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
     deleteImportEvents.run(cancellation.reservationId);
     deleteReservation.run(cancellation.reservationId);
     ackApproved.run(id);
-    return { ok: true, outcome: 'approved', reservationId: cancellation.reservationId };
+    let compensationId = null;
+    if (compensation) {
+      const created = compensations.create({
+        cancellationAlertId: id,
+        reservationId: cancellation.reservationId,
+        propertyId: snapshot ? snapshot.propertyId : null,
+        propertyName: snapshot ? snapshot.propertyName : '',
+        platform: snapshot ? snapshot.platform : '',
+        clientFirstName: snapshot ? snapshot.firstName : '',
+        clientLastName: snapshot ? snapshot.lastName : '',
+        startDate: snapshot ? snapshot.startDate : null,
+        endDate: snapshot ? snapshot.endDate : null,
+        cancelledStayAmount: snapshot ? snapshot.finalPrice : null,
+        expectedAmount: compensation.expectedAmount,
+        expectedDate: compensation.expectedDate,
+        notes: compensation.notes,
+      });
+      compensationId = created ? created.id : null;
+    }
+    return { ok: true, outcome: 'approved', reservationId: cancellation.reservationId, compensationId };
   });
 
-  function approve(id) {
-    return approveTx(id);
+  /**
+   * @param {number} id                    the pending cancellation alert
+   * @param {object|null} compensation     `{ expectedAmount, expectedDate, notes }` when the platform
+   *                                       owes an indemnity; omit for the plain "just delete it" path,
+   *                                       whose behaviour is unchanged.
+   */
+  function approve(id, compensation = null) {
+    return approveTx(id, compensation || null);
   }
 
   function reject(id) {

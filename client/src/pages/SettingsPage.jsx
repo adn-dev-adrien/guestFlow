@@ -27,7 +27,7 @@ const EMPTY_FORM = {
     logoPath: '',
   },
   quote: { footerText: '', footerTextEn: '', validityDays: 30 },
-  vat: { rate: 10, rateCommission: 20 },
+  vat: { rate: 10, rateCommission: 20, rateCancellationCompensation: 0 },
   // Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). 12 = calendar year.
   accounting: { fiscalYearEndMonth: 12 },
   smtp: {
@@ -462,6 +462,8 @@ function mapClientKeyToErrorKey(group, key) {
   if (group === 'vat') {
     return ({
       rate: 'vatRate',
+      rateCommission: 'vatRateCommission',
+      rateCancellationCompensation: 'vatRateCancellationCompensation',
     })[key];
   }
   if (group === 'smtp') {

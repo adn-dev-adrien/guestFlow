@@ -29,8 +29,10 @@ import { userHasRole, ADMIN } from '../constants/roles';
  * Settings; accountants see plain text (they can't reach Settings server-side either).
  *
  * Driven by:
- *   - GET /api/accounting/platform-accounts → { defaultAccount, vatRateCommission, platforms }
- *   - PUT /api/accounting/platform-accounts → saves defaultAccount + per-platform rows
+ *   - GET /api/accounting/platform-accounts → { defaultAccount, vatRateCommission,
+ *       cancellationCompensationAccount, vatRateCancellationCompensation, platforms }
+ *   - PUT /api/accounting/platform-accounts → saves defaultAccount + the cancellation-compensation
+ *       account + per-platform rows
  *
  * Spec: accounting-platform-commission-and-no-deposit.md §3.7 + §6.
  */
@@ -55,6 +57,12 @@ export default function PlatformAccountsPage() {
   const { showSuccess, showError } = useToast();
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
   const [vatRateCommission, setVatRateCommission] = useState(20);
+  // specs/cancellation-compensation.md §3.3 rule 19 — the produit account for a platform indemnity.
+  // Editable here (it is a chart-of-accounts setting); its VAT rate is read-only, like the
+  // commission one, because rates live in Réglages → Général.
+  const [savedCompensationAccount, setSavedCompensationAccount] = useState('75880000');
+  const [compensationAccount, setCompensationAccount] = useState('75880000');
+  const [vatRateCompensation, setVatRateCompensation] = useState(0);
   const [savedPlatforms, setSavedPlatforms] = useState([]);
   const [defaultAccount, setDefaultAccount] = useState('622600');
   const [platforms, setPlatforms] = useState([]);
@@ -68,6 +76,9 @@ export default function PlatformAccountsPage() {
         setSavedDefaultAccount(data.defaultAccount || '622600');
         setDefaultAccount(data.defaultAccount || '622600');
         setVatRateCommission(Number(data.vatRateCommission ?? 20));
+        setSavedCompensationAccount(data.cancellationCompensationAccount || '75880000');
+        setCompensationAccount(data.cancellationCompensationAccount || '75880000');
+        setVatRateCompensation(Number(data.vatRateCancellationCompensation ?? 0));
         const sortedPlatforms = (data.platforms || []).map((p) => ({
           ...p,
           commissionAccountNumber: p.commissionAccountNumber || '',
@@ -85,13 +96,14 @@ export default function PlatformAccountsPage() {
 
   // Same fields the old manual comparator watched — projected so the guard's deep-equal doesn't
   // trip on unrelated platform metadata (specs/ds-sweep-settings.md §3.7).
-  const dirtyProjection = (account, list) => ({
+  const dirtyProjection = (account, compensation, list) => ({
     account,
+    compensation,
     rows: (list || []).map((x) => ({ id: x.id, c: x.commissionAccountNumber || '', v: Boolean(x.hasVatOnCommission) })),
   });
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: dirtyProjection(defaultAccount, platforms),
-    saved: dirtyProjection(savedDefaultAccount, savedPlatforms),
+    draft: dirtyProjection(defaultAccount, compensationAccount, platforms),
+    saved: dirtyProjection(savedDefaultAccount, savedCompensationAccount, savedPlatforms),
     navigate,
   });
 
@@ -99,6 +111,13 @@ export default function PlatformAccountsPage() {
     setDefaultAccount(normalizeAccount(value));
     if (errors.defaultAccount) {
       setErrors((prev) => { const next = { ...prev }; delete next.defaultAccount; return next; });
+    }
+  }
+
+  function handleCompensationAccountChange(value) {
+    setCompensationAccount(normalizeAccount(value));
+    if (errors.compensationAccount) {
+      setErrors((prev) => { const next = { ...prev }; delete next.compensationAccount; return next; });
     }
   }
 
@@ -115,6 +134,7 @@ export default function PlatformAccountsPage() {
     try {
       const payload = {
         defaultAccount,
+        cancellationCompensationAccount: compensationAccount,
         platforms: platforms
           .filter((p) => !p.isDirect)
           .map((p) => ({
@@ -126,6 +146,8 @@ export default function PlatformAccountsPage() {
       const result = await api.savePlatformAccounts(payload);
       setSavedDefaultAccount(result.defaultAccount);
       setDefaultAccount(result.defaultAccount);
+      setSavedCompensationAccount(result.cancellationCompensationAccount);
+      setCompensationAccount(result.cancellationCompensationAccount);
       const sortedPlatforms = (result.platforms || []).map((p) => ({
         ...p,
         commissionAccountNumber: p.commissionAccountNumber || '',
@@ -138,6 +160,7 @@ export default function PlatformAccountsPage() {
       if (apiErrors) {
         const next = {};
         if (apiErrors.defaultAccount) next.defaultAccount = apiErrors.defaultAccount;
+        if (apiErrors.cancellationCompensationAccount) next.compensationAccount = apiErrors.cancellationCompensationAccount;
         if (Array.isArray(apiErrors.platforms)) {
           for (const row of apiErrors.platforms) {
             if (row.account) next[`platform-${row.id}-account`] = row.account;
@@ -155,6 +178,7 @@ export default function PlatformAccountsPage() {
 
   function handleCancel() {
     setDefaultAccount(savedDefaultAccount);
+    setCompensationAccount(savedCompensationAccount);
     setPlatforms(savedPlatforms);
     setErrors({});
   }
@@ -233,6 +257,36 @@ export default function PlatformAccountsPage() {
                   slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
                   disabled={saving}
                 />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined">
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="sectionHeader">Indemnités d'annulation</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Compte crédité quand une plateforme verse une indemnité pour un séjour annulé.
+                  </Typography>
+                </Box>
+                <TextField
+                  label="Compte indemnités d'annulation"
+                  value={compensationAccount}
+                  onChange={(e) => handleCompensationAccountChange(e.target.value)}
+                  error={Boolean(errors.compensationAccount)}
+                  helperText={errors.compensationAccount || '6 à 8 chiffres (ex. 75880000, produits divers de gestion courante).'}
+                  sx={{ maxWidth: { sm: 320 } }}
+                  slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
+                  disabled={saving}
+                />
+                <Typography variant="body2" color="text.secondary">
+                  TVA appliquée aux indemnités : <strong>{vatRateCompensation} %</strong>
+                  {vatRateCompensation === 0 ? ' (hors champ)' : ''}
+                  {isAdmin
+                    ? <>{' '}(<MuiLink component="button" type="button" onClick={() => navigate('/settings')} sx={{ verticalAlign: 'baseline' }}>ouvrir les Réglages</MuiLink>)</>
+                    : <em> &nbsp;(réservé à un administrateur)</em>}
+                </Typography>
               </Stack>
             </CardContent>
           </Card>

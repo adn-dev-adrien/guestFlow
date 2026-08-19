@@ -31,6 +31,8 @@ vi.mock('../../api', () => ({
     getAccountingPlatforms: vi.fn(),
     getAccountingSales: vi.fn(),
     downloadAccountingSalesCsv: vi.fn(),
+    // specs/cancellation-compensation.md §6.3 — the page now mounts the compensations card.
+    getCancellationCompensations: vi.fn(() => Promise.resolve({ pending: [], received: [], totals: { pendingExpected: 0, receivedInMonth: 0 } })),
   },
 }));
 vi.mock('../../hooks/useAuth', () => ({

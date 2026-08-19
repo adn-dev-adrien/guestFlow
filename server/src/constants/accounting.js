@@ -38,6 +38,12 @@ const DEFAULT_COMMISSION_ACCOUNT = '622600';
 // le taux (default 20 %) est configuré globalement dans Settings (vatRateCommission).
 const VAT_DEDUCTIBLE_COMMISSION_ACCOUNT = '44566000';
 
+// specs/cancellation-compensation.md §3.3 rule 16. Compte crédité quand une plateforme verse une
+// indemnité pour un séjour annulé : un produit divers de gestion courante, PAS du chiffre d'affaires
+// hébergement (aucune nuitée n'a été vendue). Fallback quand le réglage global est vide; le taux de
+// TVA associé (0 % par défaut = hors champ) vit dans app_settings.vatRateCancellationCompensation.
+const DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT = '75880000';
+
 // Well-known commission accounts the accountant uses. Adrien's accountant gave these by
 // email 2026-06-04; new platforms get a generic `622600` fallback until the operator
 // configures the right number on `/comptabilite/plateformes`.
@@ -66,6 +72,7 @@ const ACCOUNT_LABELS = {
   [VAT_ACCOUNTS.STANDARD_20]: 'TVA 20 %',
   [PASS_THROUGH_ACCOUNTS.TOURIST_TAX]: 'Taxe de séjour',
   [VAT_DEDUCTIBLE_COMMISSION_ACCOUNT]: 'TVA déductible commission',
+  [DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT]: "Indemnité d'annulation",
 };
 
 function accountLabel(account) {
@@ -73,6 +80,8 @@ function accountLabel(account) {
   if (String(account || '').startsWith('C')) return 'Compte client';
   // Dynamic commission accounts (any 6226xx beyond the well-known map).
   if (String(account || '').startsWith('6226')) return commissionAccountLabel(account);
+  // Any 75xxxx the operator configures for cancellation compensations (75880000 is only the default).
+  if (String(account || '').startsWith('75')) return "Indemnité d'annulation";
   return '';
 }
 
@@ -131,6 +140,7 @@ module.exports = {
   COMMISSION_ACCOUNT_LABELS,
   DEFAULT_COMMISSION_ACCOUNT,
   VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
+  DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   BUCKET_TO_ACCOUNT,
   REFUND_BUCKET_TO_ACCOUNT,
   vatAccountForRate,

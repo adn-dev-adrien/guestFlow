@@ -16,12 +16,16 @@ function parseMonthYear(query) {
   return { month, year };
 }
 
-// Sales + refunds of the month, in one chronological stream. A refund is not an encaissement, but
-// it belongs to the same journal at its own date (specs/reservation-refunds.md §3.4 rule 21).
+// Sales + refunds + cancellation compensations of the month, in one chronological stream. Neither a
+// refund nor a compensation is an encaissement, but both belong to the same journal at their own
+// date (specs/reservation-refunds.md §3.4 rule 21, specs/cancellation-compensation.md §3.3 rule 15).
+// Building the stream here means the CSV and the JSON preview can never drift apart.
 function monthEntries(accountingModel, params) {
   const sales = accountingModel.encaissementsByMonth(params);
   const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
-  return [...sales, ...refunds].sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
+  const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
+  return [...sales, ...refunds, ...compensations]
+    .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 
 function createAccountingController(accountingModel) {

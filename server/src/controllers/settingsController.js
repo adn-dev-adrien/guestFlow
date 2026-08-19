@@ -54,6 +54,9 @@ const VAT_FIELDS = [
   // accounting-platform-commission-and-no-deposit.md §3.7 rule 17b — sits alongside the
   // existing single VAT rate in the same Settings card.
   { input: 'rateCommission', column: 'vatRateCommission', validator: validation.validateVatRate },
+  // specs/cancellation-compensation.md §3.3 rule 16 — 0 % by default: an indemnity paid after a
+  // désistement is outside the scope of VAT. Same card, same validator as the other two rates.
+  { input: 'rateCancellationCompensation', column: 'vatRateCancellationCompensation', validator: validation.validateVatRate },
 ];
 
 // SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask
