@@ -131,7 +131,18 @@ jobs:
           
           if [ -f "$PERSISTENT_DB" ]; then
             BACKUP="$PERSISTENT_DB_DIR/backup-$(date +%Y%m%d-%H%M%S).db"
-            cp "$PERSISTENT_DB" "$BACKUP"
+            # `cp` NE SUFFIT PAS : la base tourne en journal_mode=WAL, et les dernieres
+            # transactions vivent dans le fichier `-wal` tant qu'aucun checkpoint n'a eu lieu.
+            # Un `cp` du seul fichier principal produit une sauvegarde SILENCIEUSEMENT EN
+            # RETARD. Constate le 2026-08-19 : une suppression validee par l'utilisateur etait
+            # absente de la sauvegarde prise juste apres, ce qui a fait croire a une perte de
+            # donnees. `.backup` prend un instantane coherent, WAL compris.
+            if command -v sqlite3 >/dev/null 2>&1; then
+              sqlite3 "$PERSISTENT_DB" ".backup '$BACKUP'"
+            else
+              echo "::warning::sqlite3 absent — repli sur cp : la sauvegarde peut manquer les dernieres transactions (WAL)"
+              cp "$PERSISTENT_DB" "$BACKUP"
+            fi
             echo "✓ Pre-deploy backup saved"
             # Keep only last 5 backups
             ls -1t "$PERSISTENT_DB_DIR"/backup-*.db 2>/dev/null | tail -n +6 | xargs rm -f || true
@@ -404,15 +415,22 @@ jobs:
           echo "✓ Database verified at: $PERSISTENT_DB"
           echo "✓ Service symlink verified"
           
-          # Start service with explicit DB_PATH + TLS material paths (persistent across deploys).
-          # HTTPS_ENABLED=true → Node serves directly on :4000 over TLS using the self-signed cert
-          # provisioned by the previous step. The browser warns once per device that the cert isn't
-          # signed by a known CA (expected for a LAN-only deploy); after the user accepts, HSTS
-          # makes HTTPS sticky from then on. See README §HTTPS for the cert-trust workflow.
+          # Depuis la migration vers Proxmox (2026-08-19), l'application vit derriere **Caddy**
+          # (LXC `edge`, 192.168.0.22), qui termine le TLS avec un vrai certificat Let's Encrypt
+          # et relaie en clair sur le LAN. Elle ne doit donc plus servir son propre TLS :
+          # HTTPS_ENABLED=true la fait REFUSER DE DEMARRER faute de certificat sur la VM
+          # (httpsBootstrap.js leve une erreur dure plutot que de retomber silencieusement en
+          # HTTP — comportement voulu, mais il faut donc lui passer la bonne valeur).
+          #
+          # TRUST_PROXY_HOPS=1 est le pendant indispensable : sans lui, index.js laisse
+          # `trust proxy` a false, l'application voit l'IP de Caddy pour TOUS les clients et les
+          # limiteurs de debit par IP deviennent inoperants (cf. le commentaire de index.js).
+          #
+          # Les deux restent surchargeables par l'environnement du runner, pour qu'un
+          # deploiement en exposition directe (ancien montage du Pi) reste possible.
           NODE_ENV=production \
-          HTTPS_ENABLED=true \
-          TLS_CERT_PATH="$HOME/guestflow/certs/server.crt" \
-          TLS_KEY_PATH="$HOME/guestflow/certs/server.key" \
+          HTTPS_ENABLED="${HTTPS_ENABLED:-false}" \
+          TRUST_PROXY_HOPS="${TRUST_PROXY_HOPS:-1}" \
           DB_PATH="$PERSISTENT_DB" \
           SKIP_MIGRATIONS=false \
           APP_COMMIT_SHA="${GITHUB_SHA}" \
