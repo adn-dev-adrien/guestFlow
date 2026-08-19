@@ -17,7 +17,12 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted  # Runner self-hosted sur le Raspberry Pi 5
+    # Runner self-hosted enregistre AU NIVEAU DU DEPOT sur la VM `guestflow`
+    # (Proxmox, 192.168.0.24) depuis la migration du 2026-08-19.
+    # Le label est indispensable : sans lui, plusieurs runners self-hosted se
+    # disputent les jobs au hasard. Un runner d'ORGANISATION serait par ailleurs
+    # utilisable par tous les depots de adn-dev-adrien, y compris les publics.
+    runs-on: [self-hosted, guestflow]
     
     steps:
       - name: 📥 Checkout code
@@ -312,6 +317,26 @@ jobs:
             npm install --omit=dev
           fi
           echo "✓ Server dependencies installed"
+
+          # ── Garde-fou ABI / allowScripts ────────────────────────────────────
+          # npm >= 11.17 bloque les scripts d'installation par defaut. Quand
+          # `better-sqlite3` n'est pas couvert par le bloc `allowScripts` de
+          # package.json, `npm ci` se termine EN SUCCES mais le module natif
+          # n'est jamais compile — et l'application plante seulement au premier
+          # acces a la base, apres que PM2 l'a declaree demarree.
+          # Le bloc `allowScripts` est EPINGLE SUR UNE VERSION : une montee de
+          # `better-sqlite3` le rendra caduc et re-bloquera la compilation.
+          # C'est voulu (on veut re-examiner un script d'install a chaque
+          # version), mais ca doit echouer BRUYAMMENT, ici, et pas en production.
+          if ! node -e "require('better-sqlite3')" 2>/dev/null; then
+            echo "::error::better-sqlite3 ne se charge pas : module natif non compile ou ABI incompatible."
+            echo "  → verifier le bloc \"allowScripts\" de server/package.json (la version epinglee"
+            echo "    doit correspondre a celle reellement installee), puis :"
+            echo "    npm approve-scripts better-sqlite3 && npm rebuild better-sqlite3"
+            node -e "require('better-sqlite3')" || true
+            exit 1
+          fi
+          echo "✓ better-sqlite3 charge (ABI NODE_MODULE_VERSION $(node -p 'process.versions.modules'))"
 
       - name: 🔧 Force-rebuild native modules against the runtime Node
         # Defense in depth: even with the right `node-version` pin above, npm sometimes pulls
