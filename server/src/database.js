@@ -132,6 +132,25 @@ db.exec(`
   )
 `);
 
+// specs/laundry-extra-trip.md §5 — global extra laundry trips on a free date (early pick-up). One
+// row per date: `pickUpAll` (default 1) or the seven per-type quantities actually taken back when the
+// pick-up is partial. The summary ledger + the inventory engine read it. Additive, starts empty.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS laundry_extra_trips (
+    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
+    pickUpAll    INTEGER NOT NULL DEFAULT 1,
+    singleBeds   INTEGER NOT NULL DEFAULT 0,
+    doubleBeds   INTEGER NOT NULL DEFAULT 0,
+    babyBeds     INTEGER NOT NULL DEFAULT 0,
+    largeTowels  INTEGER NOT NULL DEFAULT 0,
+    mediumTowels INTEGER NOT NULL DEFAULT 0,
+    smallTowels  INTEGER NOT NULL DEFAULT 0,
+    bathMats     INTEGER NOT NULL DEFAULT 0,
+    createdAt    TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // ---------- APP SETTINGS ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS app_settings (

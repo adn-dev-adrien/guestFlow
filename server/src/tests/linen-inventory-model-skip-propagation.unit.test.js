@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 const linenInventoryModel = require('../models/linenInventoryModel');
 const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
+const laundryExtraTripsModel = require('../models/laundryExtraTripsModel');
 
 // specs/skip-laundry-trip.md §4.1 — wiring test that pins the propagation chain:
 // `laundry_trip_skips` DB rows → `laundryTripSkipsModel.listAll()` →
@@ -46,6 +47,14 @@ const DDL = `
     singleBeds INTEGER NOT NULL DEFAULT 0, doubleBeds INTEGER NOT NULL DEFAULT 0, babyBeds INTEGER NOT NULL DEFAULT 0,
     largeTowels INTEGER NOT NULL DEFAULT 0, mediumTowels INTEGER NOT NULL DEFAULT 0, smallTowels INTEGER NOT NULL DEFAULT 0,
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE laundry_extra_trips (
+    tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
+    pickUpAll INTEGER NOT NULL DEFAULT 1,
+    singleBeds INTEGER NOT NULL DEFAULT 0, doubleBeds INTEGER NOT NULL DEFAULT 0, babyBeds INTEGER NOT NULL DEFAULT 0,
+    largeTowels INTEGER NOT NULL DEFAULT 0, mediumTowels INTEGER NOT NULL DEFAULT 0, smallTowels INTEGER NOT NULL DEFAULT 0,
+    bathMats INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')), updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `;
 
@@ -150,4 +159,21 @@ test('skipping a Tuesday pushes the shortage threshold forward by a week — `sh
   const withSkip = model.simulate({ today: '2026-06-01' });
   assert.ok(withSkip.shortagesByType.single.maxMissing > 0,
     'skip on 06-16 prevents the linen from being clean on 06-17 → shortage surfaces');
+});
+
+// specs/laundry-extra-trip.md §4.1 — the extra-trip chain: `laundry_extra_trips` row →
+// `laundryExtraTripsModel.listAll()` → `linenInventoryModel.simulate()` → `simulateInventory({
+// extraTripsByDate })` → the pool comes back on the extra day.
+test('an extra trip row propagates through the model: pool back on the Thursday, not the next Tuesday', () => {
+  const { db, model, today } = freshScenario({ today: '2026-06-09' });
+  // Without the row: A (2 singles) dropped 06-09, back 06-16.
+  const before = model.simulate({ today });
+  assert.equal(before.days.find((d) => d.date === '2026-06-11').atLaundry.single, 2);
+  // With the row (stored through the dedicated model, read through the default factory binding).
+  laundryExtraTripsModel.create(db).set('2026-06-11', { pickUpAll: true });
+  const after = model.simulate({ today });
+  const d0611 = after.days.find((d) => d.date === '2026-06-11');
+  assert.equal(d0611.isTripDay, true);
+  assert.equal(d0611.atLaundry.single, 0);
+  assert.equal(d0611.clean.single, 10);
 });

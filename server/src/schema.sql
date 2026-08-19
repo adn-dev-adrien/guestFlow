@@ -160,6 +160,20 @@ CREATE TABLE IF NOT EXISTS ical_tokens (
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
   );
 
+CREATE TABLE IF NOT EXISTS laundry_extra_trips (
+    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
+    pickUpAll    INTEGER NOT NULL DEFAULT 1,
+    singleBeds   INTEGER NOT NULL DEFAULT 0,
+    doubleBeds   INTEGER NOT NULL DEFAULT 0,
+    babyBeds     INTEGER NOT NULL DEFAULT 0,
+    largeTowels  INTEGER NOT NULL DEFAULT 0,
+    mediumTowels INTEGER NOT NULL DEFAULT 0,
+    smallTowels  INTEGER NOT NULL DEFAULT 0,
+    bathMats     INTEGER NOT NULL DEFAULT 0,
+    createdAt    TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
 CREATE TABLE IF NOT EXISTS laundry_trip_manual_additions (
     tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
     singleBeds   INTEGER NOT NULL DEFAULT 0,

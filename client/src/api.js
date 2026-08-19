@@ -419,6 +419,13 @@ const api = {
   // trip's six per-type counts (all-zero deletes). Spec specs/manual-laundry-additions.md §4.3.
   getLaundryManualAdditions: () => request('/laundry/manual-additions'),
   setLaundryManualAddition: (date, counts) => request(`/laundry/manual-additions/${date}`, { method: 'PUT', body: counts }),
+  // Extra laundry trips on a free date (early pick-up) — `{ trips: [{ date, pickUpAll, pickUp }] }`.
+  // PUT upserts `{ pickUpAll, pickUp? }` (admin only), DELETE removes (admin only), the preview tells
+  // what a trip on `date` would drop + what is at the laundry. Spec specs/laundry-extra-trip.md §4.3.
+  getLaundryExtraTrips: () => request('/laundry/extra-trips'),
+  previewLaundryExtraTrip: (date) => request(`/laundry/extra-trips/preview?date=${encodeURIComponent(date)}`),
+  setLaundryExtraTrip: (date, payload) => request(`/laundry/extra-trips/${date}`, { method: 'PUT', body: payload }),
+  deleteLaundryExtraTrip: (date) => request(`/laundry/extra-trips/${date}`, { method: 'DELETE' }),
   // Dashboard iCal date-drift approvals — pending date-change proposals on locked iCal
   // reservations (specs/ical-sync-override-locked-dates.md §4.3).
   getIcalDateDriftAlert: () => request('/dashboard/ical-date-drift'),

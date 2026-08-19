@@ -24,6 +24,15 @@ function buildModel(database, deps = {}) {
   // to THIS database (same rationale as the skips model above).
   const laundryManualAdditionsModel = deps.laundryManualAdditionsModel
     || require('./laundryManualAdditionsModel').create(database);
+  // specs/laundry-extra-trip.md §4.1 — extra laundry trips on a free date. The table is brand-new, so
+  // the guard wraps the MODEL CONSTRUCTION (its prepared statements would throw on a schema without
+  // the table): minimal test schemas and partially-migrated DBs degrade to "no extra trips".
+  const HAS_EXTRA_TRIPS_TABLE = (() => {
+    try { database.prepare('SELECT 1 FROM laundry_extra_trips LIMIT 1').get(); return true; }
+    catch { return false; }
+  })();
+  const laundryExtraTripsModel = deps.laundryExtraTripsModel
+    || (HAS_EXTRA_TRIPS_TABLE ? require('./laundryExtraTripsModel').create(database) : { listAll: () => [] });
 
   // Bath mat (specs/laundry-bath-mat.md) is a brand-new column/table; guard so minimal test
   // schemas (and partially-migrated DBs) degrade to "no bath mats" instead of throwing at build.
@@ -100,11 +109,15 @@ function buildModel(database, deps = {}) {
     };
     const laundryWeekday = Number(settingsRow.laundryWeekday == null ? 2 : settingsRow.laundryWeekday);
 
-    // We pull reservations whose endDate >= today − 7 so the initial atLaundry state can be
-    // computed (it looks back up to the previous laundry day, which is ≤ 7 days before today).
+    // We pull reservations whose endDate >= today − 35 so the initial state can be computed: the
+    // seed batch of the last regular trip reaches back a week before that trip (up to 13 days before
+    // today), the dirty window widens across skipped trips (up to 4 weeks), and the extra trips
+    // between the last regular trip and today are replayed on their own windows
+    // (specs/laundry-extra-trip.md §3.3 rule 14). The former 7-day fetch silently treated linen
+    // from stays ending 8-13 days ago as clean for the week after a trip.
     const lookbackFrom = (() => {
       const d = new Date(`${today}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() - 7);
+      d.setUTCDate(d.getUTCDate() - 35);
       return d.toISOString().slice(0, 10);
     })();
     const reservations = fetchReservationsStmt.all(lookbackFrom);
@@ -132,10 +145,23 @@ function buildModel(database, deps = {}) {
       });
     }
 
+    // Extra trips (stored with singleBeds/…/bathMats keys) mapped onto the engine's byType keys.
+    const extraTripsByDate = new Map();
+    for (const trip of laundryExtraTripsModel.listAll()) {
+      const c = trip.pickUp || {};
+      extraTripsByDate.set(trip.date, {
+        pickUpAll: trip.pickUpAll !== false,
+        pickUp: {
+          single: c.singleBeds, double: c.doubleBeds, baby: c.babyBeds,
+          large: c.largeTowels, medium: c.mediumTowels, small: c.smallTowels, bathMat: c.bathMats,
+        },
+      });
+    }
+
     const result = simulateInventory({
       stock, reservations, options, reservationOptions, propertyDefaults,
       laundryWeekday, from: today, to: horizon, skippedDates, manualAdditionsByDate,
-      bathMatByProperty,
+      bathMatByProperty, extraTripsByDate,
     });
 
     return { horizon, ...result };
