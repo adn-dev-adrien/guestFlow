@@ -17,6 +17,7 @@ import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
 import SettingsWeatherSection from '../components/SettingsWeatherSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
+import SettingsSystemUpdateSection from '../components/SettingsSystemUpdateSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -419,6 +420,12 @@ export default function SettingsPage() {
           {/* Push notifications (per-user, self-contained — not part of the global settings form). */}
           <Box sx={{ breakInside: 'avoid' }}>
             <SettingsPushNotificationsSection />
+          </Box>
+
+          {/* Version installée + mise à jour (specs/self-update-and-releases.md §6.4). Self-contained
+              and admin-only — not part of the global settings form, nothing to save here. */}
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsSystemUpdateSection />
           </Box>
         </Box>
       </Box>

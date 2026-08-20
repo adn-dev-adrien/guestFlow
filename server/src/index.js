@@ -188,6 +188,9 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 // specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
 app.use('/api/emails',          require('./routes/emails'));
+// specs/self-update-and-releases.md — version probe + self-update control. Admin-only: the role
+// guard above is deny-by-default for every non-admin role, so no allowlist entry is needed.
+app.use('/api/system', require('./routes/system'));
 
 app.get('/api/version', (req, res) => {
   res.json({
@@ -263,6 +266,11 @@ const server = serverHandle.listen(PORT, () => {
   const commitSuffix = commitShaShort ? `, commit=${commitShaShort}` : '';
   console.log(`[boot] GuestFlow API on ${serverProtocol}://localhost:${PORT} (NODE_ENV=${env}, DB=${db.dbPath}${commitSuffix})`);
   logErrorMarker(`=== SERVER BOOT COMPLETE (${serverProtocol}, port ${PORT}) ===`);
+
+  // specs/self-update-and-releases.md §3.E rule 30 — stamp which version actually came up (the swap
+  // helper reads this back to prove the update took effect), close out a finished update and prune
+  // old releases. Must run before the scheduled tasks so the first version check sees clean state.
+  require('./controllers/systemController').initOnBoot();
 
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
