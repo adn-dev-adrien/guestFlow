@@ -44,9 +44,21 @@ function buildEngineQuote(input) {
   // Apply the property's DEFAULT options (paid → added, offered → free) the SAME way the booking-request
   // devis does, so the live preview matches the price the guest will actually be charged. The offered
   // ids come ONLY from the server-side defaults — never from client input (no price manipulation).
+  // Engine-managed auto-options (early/late check, baby-bed supplement) are DERIVED from the stay
+  // itself and must never arrive as a client-chosen line: the engine drops its own line when the id
+  // is already selected, so honouring the payload would let a visitor set the quantity — and the
+  // price — of a supplement they don't get to choose. Same filter as `devisModel.computeQuote`, so
+  // the live quote and the devis the request creates agree (specs/baby-bed-supplement.md §3.5 rule 18).
+  const engineManagedAutoIds = new Set(
+    optionsModel.listForProperty(Number(input.propertyId))
+      .filter((o) => o.autoOptionType && Number(o.autoEnabled || 0) === 1)
+      .map((o) => Number(o.id)),
+  );
   const merged = mergePropertyDefaultsIntoPayload(
     {
-      selectedOptions: input.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
+      selectedOptions: input.options
+        .filter((o) => !engineManagedAutoIds.has(Number(o.optionId)))
+        .map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
       offeredOptionIds: [],
     },
     Number(input.propertyId),
@@ -67,6 +79,9 @@ function buildEngineQuote(input) {
     children: input.children,
     teens: input.teens,
     babies: input.babies,
+    // specs/baby-bed-supplement.md §3.5 — the site bills the cot like the fiche does. No `bookingId`:
+    // a public quote is always a booking that does not exist yet.
+    babyBeds: input.babyBeds,
     selectedOptions: merged.selectedOptions,
     offeredOptionIds: merged.offeredOptionIds,
     selectedResources: (input.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),

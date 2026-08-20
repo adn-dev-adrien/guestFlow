@@ -145,7 +145,10 @@
     // Hide ONLY the time-derived auto-options (arrival/departure are driven by the date/time
     // fields, not a quantity). Paid add-ons (bed/bathroom linen, breakfast, …) stay selectable.
     // See specs/wordpress-plugin.md.
-    var HIDDEN_AUTO = { early_check_in: 1, late_check_out: 1 };
+    // `baby_bed` joins them (specs/baby-bed-supplement.md §3.5 rule 18): the cot supplement is
+    // derived from the baby-beds stepper below, so offering it as a tickable line would let the
+    // visitor order it twice.
+    var HIDDEN_AUTO = { early_check_in: 1, late_check_out: 1, baby_bed: 1 };
     function selectable(list) {
       return (list || []).filter(function (o) { return !HIDDEN_AUTO[o.autoOptionType]; });
     }
@@ -305,11 +308,28 @@
     }
 
     // ---- Voyageurs (spec §3.6) ----
+    // The cot supplement's unit price, straight from the catalogue the API serves — the plugin never
+    // hardcodes an amount (specs/baby-bed-supplement.md §3.5 rule 17). 0 / absent = this logement
+    // does not charge for cots, and the row keeps its « selon disponibilité » wording.
+    var babyBedPrice = (function () {
+      var all = Array.isArray(options) ? options : [].concat(
+        (options && options.ungrouped) || [],
+        ((options && options.groups) || []).reduce(function (acc, g) { return acc.concat(g.options || []); }, [])
+      );
+      for (var i = 0; i < all.length; i++) {
+        if (all[i] && all[i].autoOptionType === 'baby_bed') return Number(all[i].price || 0);
+      }
+      return 0;
+    })();
+    var babyBedsSub = babyBedPrice > 0
+      ? GF.t('babyBedsSubPriced', GF.euro(babyBedPrice))
+      : GF.t('babyBedsSub');
+
     var babyBedsHolder = GF.el('div', {});
     function renderBabyBeds() {
       babyBedsHolder.innerHTML = '';
       if (state.babies > 0 && babyRes) {
-        babyBedsHolder.appendChild(line(GF.t('babyBedsLabel'), GF.t('babyBedsSub'), null,
+        babyBedsHolder.appendChild(line(GF.t('babyBedsLabel'), babyBedsSub, null,
           stepper(function () { return state.babyBeds; }, function (v) { state.babyBeds = Math.min(v, state.babies); }, 0, function () { return state.babies; })));
       } else {
         state.babyBeds = 0;

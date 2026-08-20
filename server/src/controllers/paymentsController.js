@@ -218,6 +218,9 @@ function runDevisEngineQuote(id) {
       checkInTime: full.checkInTime, checkOutTime: full.checkOutTime,
       adults: Number(full.adults || 0), children: Number(full.children || 0),
       teens: Number(full.teens || 0), babies: Number(full.babies || 0),
+      // specs/baby-bed-supplement.md — a payment link must charge exactly what the devis shows, so
+      // the cots and the devis id (the exemption verdict) both travel with the rest.
+      babyBeds: Number(full.babyBeds || 0), bookingId: Number(full.id || id),
       discountPercent: Number(full.discountPercent || 0),
       customPrice: full.customPrice != null ? Number(full.customPrice) : undefined,
       selectedOptions: (full.options || []).filter((o) => !o.isCustom).map((o) => ({

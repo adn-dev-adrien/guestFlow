@@ -1643,6 +1643,13 @@ const { ensureCancellationInsuranceOption } = require('./utils/cancellationInsur
 ensureCancellationInsuranceOption(db);
 db.ensureCancellationInsuranceOption = ensureCancellationInsuranceOption;
 
+// specs/baby-bed-supplement.md §5 — the « Lit bébé » supplement (5 € per cot, for the stay). Same
+// structural contract: keyed by `seedKey`, linked to every property on each boot. Engine-managed
+// (`autoOptionType = 'baby_bed'`), so it is derived from the reservation's cot count, never ticked.
+const { ensureBabyBedSupplementOption } = require('./utils/babyBedSupplementSeed');
+ensureBabyBedSupplementOption(db);
+db.ensureBabyBedSupplementOption = ensureBabyBedSupplementOption;
+
 // One-shot migration (specs/option-categories.md §5.3): file the options that pre-date the category
 // column into their group. The 5 « Animation… » rows and « Le repas des trappeurs » were created by
 // hand, so they carry no seedKey and the catering seed above will never touch them — this backfill

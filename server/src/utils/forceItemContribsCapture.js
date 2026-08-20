@@ -80,6 +80,10 @@ function buildEngineInput(db, reservation) {
     children: reservation.children,
     teens: reservation.teens,
     babies: reservation.babies,
+    // specs/baby-bed-supplement.md — this quote must reprice IDENTICALLY to the fiche or the
+    // conservation invariant below fails, so the cots and the booking id travel with the rest.
+    babyBeds: reservation.babyBeds,
+    bookingId: reservation.id,
     discountPercent: reservation.discountPercent,
     customPrice: reservation.customPrice,
     selectedOptions: optionRows.map((r) => ({

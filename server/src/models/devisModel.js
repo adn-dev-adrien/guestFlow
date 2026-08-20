@@ -343,6 +343,11 @@ function createModel(database) {
       children: Number(body.children ?? existing?.children ?? 0),
       teens: Number(body.teens ?? existing?.teens ?? 0),
       babies: Number(body.babies ?? existing?.babies ?? 0),
+      // specs/baby-bed-supplement.md — the cots drive their own derived line. `bookingId` is the
+      // devis being edited (absent on creation), so a quote sent before the supplement existed keeps
+      // the total the guest was shown.
+      babyBeds: Number(body.babyBeds ?? existing?.babyBeds ?? 0),
+      bookingId: existing?.id != null ? Number(existing.id) : undefined,
       discountPercent: Number(body.discountPercent ?? existing?.discountPercent ?? 0),
       selectedOptions, customOptions, selectedResources,
       extraGuestSurchargeOffered: Boolean(body.extraGuestSurchargeOffered),
