@@ -195,6 +195,14 @@ test('stageRelease downloads, verifies, extracts, installs and promotes', async 
   assert.equal(fs.existsSync(path.join(finalDir, 'server', 'src', 'index.js')), true);
   assert.equal(fs.existsSync(path.join(finalDir, 'client', 'build', 'index.html')), true);
   assert.equal(installedIn, path.join(paths.releasesDir, `${fixture.version}.partial`));
+  // The staged tree must already point at the persistent secrets and uploads: an archive carries
+  // code only, and booting a release without its `.env.local` silently rotates every secret.
+  assert.equal(fs.lstatSync(path.join(finalDir, 'server', '.env.local')).isSymbolicLink(), true);
+  assert.equal(fs.lstatSync(path.join(finalDir, 'server', 'uploads')).isSymbolicLink(), true);
+  assert.equal(
+    fs.realpathSync(path.join(finalDir, 'server', 'uploads')),
+    fs.realpathSync(path.join(paths.dataDir, 'uploads')),
+  );
   // The temporary archive is always cleaned up.
   assert.equal(fs.existsSync(path.join(paths.tmpDir, `guestflow-${fixture.version}.tar.gz`)), false);
 

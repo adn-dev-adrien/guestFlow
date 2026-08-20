@@ -339,9 +339,11 @@ What the engine does, in order — the first half with the current version still
 1. downloads the archive from the GitHub release (HTTPS, GitHub hosts only, 200 MB cap),
 2. refuses to go on unless its SHA-256 matches the one published in `SHA256SUMS`,
 3. extracts it, refusing any symlink, absolute path or `..` traversal in the archive,
-4. runs `npm ci --omit=dev`, rebuilds `better-sqlite3` from source and checks that it loads,
-5. takes a **WAL-safe** database snapshot into `data/backups/` (keeps the 5 most recent),
-6. then hands over to a detached helper: repoint `current`, `pm2 startOrRestart`, and verify that
+4. links the new tree to the persistent `.env.local`, `uploads/` and `certs/` — a release archive
+   is code only, and booting one without its secrets file silently rotates every secret,
+5. runs `npm ci --omit=dev`, rebuilds `better-sqlite3` from source and checks that it loads,
+6. takes a **WAL-safe** database snapshot into `data/backups/` (keeps the 5 most recent),
+7. then hands over to a detached helper: repoint `current`, `pm2 startOrRestart`, and verify that
    the new version actually answers within 120 s — **on failure it rolls the symlink back and
    restarts the previous version**.
 
@@ -384,9 +386,16 @@ openrsync, which lacks `--mkpath`; the release workflow runs on Ubuntu).
 Installing one manually, if the in-app path is ever unavailable:
 
 ```bash
-tar -xzf guestflow-1.2.0.tar.gz -C ~/guestflow/releases --strip-components=0
+tar -xzf guestflow-1.2.0.tar.gz -C ~/guestflow/releases
 mv ~/guestflow/releases/guestflow-1.2.0 ~/guestflow/releases/1.2.0
-cd ~/guestflow/releases/1.2.0/server && npm ci --omit=dev
+cd ~/guestflow/releases/1.2.0/server
+# Point the release at what must survive the swap. Skipping this boots a version with no
+# .env.local: it regenerates the session secret AND the AES key, logging everyone out and making
+# every encrypted credential (Google, SMTP, Qonto, Météo) unreadable. The in-app updater does this
+# step for you.
+ln -sfn ~/guestflow/data/.env.local .env.local
+ln -sfn ~/guestflow/data/uploads uploads
+npm ci --omit=dev
 env npm_config_build_from_source=true npm rebuild better-sqlite3
 ln -sfn ~/guestflow/releases/1.2.0 ~/guestflow/current
 pm2 startOrRestart ~/guestflow/ecosystem.config.js --update-env

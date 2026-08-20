@@ -157,6 +157,15 @@ signed-off releases over HTTPS, when the operator asks for it.
     load smoke-test (`require('better-sqlite3')`). This is the exact ABI foot-gun that has already
     taken production down; it must fail here, while the current version is still serving, and
     never after the swap.
+25b. **Wire the release to what must outlive it.** A release archive is code only, so three paths
+    inside the extracted `server/` become links into the persistent locations before the tree can
+    ever be booted: `.env.local` → `data/.env.local`, `uploads/` → `data/uploads/`, and `certs/` →
+    `<root>/certs` when the host keeps any. Losing the first is the quietest failure this engine
+    could produce: the new version boots perfectly, generates a fresh session secret and a fresh AES
+    key, logs everyone out and can no longer decrypt the Google, SMTP, Qonto and Météo-France
+    credentials stored at rest — while every health check passes and nothing rolls back. Files the
+    archive did ship at those paths are folded into the persistent copy rather than deleted, and the
+    persistent copy wins on conflict.
 26. Backup: a **WAL-safe** snapshot of the database (better-sqlite3's `backup()` API, not a file
     copy — a `cp` silently loses everything still sitting in the `-wal` file, as observed
     2026-08-19) into `data/backups/guestflow-pre-vX.Y.Z-<timestamp>.db`. A failed backup aborts
@@ -244,7 +253,8 @@ signed-off releases over HTTPS, when the operator asks for it.
 | `utils/` | `deploymentPaths.js` | C | Resolves the on-disk layout and answers whether this deployment can update itself, with a reason |
 | `utils/` | `semver.js` | C | Pure `parseVersion` / `isNewerVersion` / `isValidVersion` — unit-tested |
 | `utils/` | `releaseClient.js` | C | GitHub Releases API client: latest release, asset lookup, `SHA256SUMS` parsing, changelog-body → structured sections. Injectable `fetch` for tests |
-| `utils/` | `updateStaging.js` | C | Download (host allowlist on every redirect hop + size cap) → SHA-256 verify → hardened extract → `npm ci` + native rebuild + smoke test → promote staging dir; release pruning |
+| `utils/` | `updateStaging.js` | C | Download (host allowlist on every redirect hop + size cap) → SHA-256 verify → hardened extract → persistent links → `npm ci` + native rebuild + smoke test → promote staging dir; release pruning |
+| `utils/` | `releaseLinks.js` | C | Points a staged release at the secrets, uploads and certificates that must survive the swap (rule 25b) |
 | `utils/` | `updateHelper.js` | C | Builds the helper command line and spawns it detached; pure builder exported for tests |
 | `utils/` | `dbBackup.js` | C | WAL-safe `better-sqlite3` `.backup()` + rotation (keep 5) — reused by the pre-update backup |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Registers the update check (boot + 60 min) |
@@ -333,12 +343,15 @@ Steps, each with a check, mirroring `sowel-release`:
 ~/guestflow/
   current -> releases/1.3.0          # atomic symlink swap
   releases/1.3.0/{server,client,package.json}
+      server/.env.local -> ../../../data/.env.local   # linked at staging (rule 25b)
+      server/uploads    -> ../../../data/uploads
   releases/1.2.1/…                   # kept: last 3
   ecosystem.config.js                # PM2 process definition (env lives here, persistent)
   data/
     guestflow.db  .env.local         # unchanged, already persistent
+    uploads/                         # moved out of the release by bootstrap-vm.sh
     backups/guestflow-pre-v1.3.0-<ts>.db
-    update-status.json  update.lock  runtime-state.json
+    update-state.json  update-status.json  update.lock  runtime-state.json
   logs/update-1.3.0-<ts>.log
 ```
 
@@ -457,6 +470,11 @@ save flow.
 - [x] `tests/self-update-state.unit.test.js` — lock acquire/release, staleness, corrupted state read
       as empty, history cap, and the boot reconciliation recording a finished update exactly once
       (rules 32, 36, 38).
+- [x] `tests/self-update-release-links.unit.test.js` — the staged release reads the *same*
+      `.env.local`, a first install links a file that does not exist yet so generated secrets land
+      in `data/`, uploads survive, archive-shipped files are folded in rather than dropped, the
+      persistent copy wins on conflict, certificates are linked only where they exist, and relinking
+      is idempotent (rule 25b).
 - [x] `tests/self-update-db-backup.unit.test.js` — the WAL-safe snapshot captures rows a plain `cp`
       misses, a failed backup propagates, rotation keeps 5 and leaves foreign files alone (rule 26).
 - [x] `tests/self-update-controller.unit.test.js` — the version and status payloads, the dev-tree

@@ -73,14 +73,44 @@ else
   exit 1
 fi
 
-# ── 2. Le lien .env.local et la base restent dans data/ ──────────────────────────────────────
-# Ils y sont déjà (le workflow de déploiement les y avait mis) ; on ne fait que rétablir les liens
-# dans la release courante, au cas où le déplacement les aurait laissés en fichiers réguliers.
+# ── 2. Ce qui doit SURVIVRE aux bascules vit dans data/, la release ne fait que le pointer ───
+# Une archive de release ne contient que du code. Trois chemins de `server/` n'en sont pas :
+#   .env.local  secret de session + clé de chiffrement AES. Le perdre est la panne la plus
+#               silencieuse : la nouvelle version démarre très bien, régénère des secrets, déconnecte
+#               tout le monde et ne sait plus déchiffrer les identifiants Google / SMTP / Qonto.
+#   uploads/    logo et documents téléversés.
+#   certs/      matériel TLS, si l'hôte sert lui-même l'HTTPS (déjà hors release ici).
+# Le moteur de mise à jour recrée ces liens à chaque staging ; ce script fait la première fois.
 RELEASE_DIR="$(readlink -f "$ROOT/current")"
-if [ -f "$ROOT/data/.env.local" ]; then
+
+if [ -f "$ROOT/data/.env.local" ] || [ -L "$RELEASE_DIR/server/.env.local" ]; then
   ln -sfn "$ROOT/data/.env.local" "$RELEASE_DIR/server/.env.local"
   say "✓ .env.local lié depuis data/"
+elif [ -f "$RELEASE_DIR/server/.env.local" ]; then
+  mv "$RELEASE_DIR/server/.env.local" "$ROOT/data/.env.local"
+  chmod 600 "$ROOT/data/.env.local"
+  ln -sfn "$ROOT/data/.env.local" "$RELEASE_DIR/server/.env.local"
+  say "✓ .env.local déplacé vers data/ puis lié"
+else
+  ln -sfn "$ROOT/data/.env.local" "$RELEASE_DIR/server/.env.local"
+  say "✓ .env.local lié (sera créé au premier démarrage)"
 fi
+
+# uploads : déplacer le contenu réel vers data/uploads, puis lier.
+mkdir -p "$ROOT/data/uploads"
+if [ -d "$RELEASE_DIR/server/uploads" ] && [ ! -L "$RELEASE_DIR/server/uploads" ]; then
+  cp -Rn "$RELEASE_DIR/server/uploads/." "$ROOT/data/uploads/" 2>/dev/null || true
+  rm -rf "$RELEASE_DIR/server/uploads"
+  say "✓ uploads déplacés vers data/uploads"
+fi
+ln -sfn "$ROOT/data/uploads" "$RELEASE_DIR/server/uploads"
+say "✓ uploads liés depuis data/"
+
+if [ -d "$ROOT/certs" ]; then
+  ln -sfn "$ROOT/certs" "$RELEASE_DIR/server/certs"
+  say "✓ certs liés depuis la racine du déploiement"
+fi
+
 if [ -f "$ROOT/data/guestflow.db" ]; then
   ln -sfn "$ROOT/data/guestflow.db" "$RELEASE_DIR/server/guestflow.db"
   say "✓ base liée depuis data/"

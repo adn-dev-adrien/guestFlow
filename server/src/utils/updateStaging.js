@@ -17,6 +17,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { isAllowedDownloadUrl, parseSha256Sums } = require('./releaseClient');
 const { isValidVersion } = require('./semver');
+const { linkPersistentPaths } = require('./releaseLinks');
 
 const execFileAsync = promisify(execFile);
 
@@ -214,6 +215,10 @@ async function stageRelease({
     await extractArchive({ archiveFile: tmpArchive, destDir: partialDir, expectedRoot });
     assertReleaseLayout(partialDir, version);
 
+    // An archive carries code only. Point the new tree at the secrets, uploads and certificates
+    // that must survive the swap — before it can ever be booted without them.
+    linkPersistentPaths({ releaseDir: partialDir, paths });
+
     onPhase('installing');
     await installImpl({ releaseDir: partialDir });
 
@@ -266,6 +271,7 @@ module.exports = {
   assertNoLinkMembers,
   extractArchive,
   assertReleaseLayout,
+  linkPersistentPaths,
   installDependencies,
   stageRelease,
   pruneReleases,
