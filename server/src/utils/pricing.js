@@ -1960,31 +1960,22 @@ function calculateReservationQuote({
   const preArrivalOptionsResources = roundMoney(
     optionsTotal + resourcesTotal - complementOptionsResourcesTotal - midStayUnforced,
   );
-  // Accommodation implied by the brut BEFORE removing any reversed tax. This is the base the tourist
-  // tax has always been computed on, so resolving the tax here (rather than further down) keeps every
-  // existing tax AMOUNT byte-identical.
-  const pinnedAccommodationInclTax = platformGrossPin != null
-    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources))
-    : null;
-  // specs/tariff-recipes/spec.md §3.8 rules 48-49 — services structurally included in the nightly rate
-  // (property-default « offered » options, tagged `includedInRate`) are NOT accommodation: their real
-  // value is deducted from the tourist-tax base, floored at 0. A one-off commercial gesture (manually
-  // offered, not a default) is NOT deducted. Deduction only — the sale, instalments, VAT and
-  // accounting are untouched; the `freezeTouristTax` branch below still wins for past reservations.
-  const touristTaxIncludedInRateDeduction = roundMoney(
-    finalOptionLines.reduce(
-      (sum, line) => sum + (line && line.includedInRate ? Number(line.originalTotalPrice || 0) : 0),
-      0,
-    )
-  );
-  const taxBaseBeforeDeduction = roundMoney(
-    pinnedAccommodationInclTax != null
-      ? pinnedAccommodationInclTax
-      : (Number.isFinite(customFinalPrice)
-        ? customFinalPrice
-        : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100))
-  );
-  const taxBaseAccommodation = roundMoney(Math.max(0, taxBaseBeforeDeduction - touristTaxIncludedInRateDeduction));
+  // specs/tourist-tax-base-accommodation-only.md rules 1-4 — the tax base is the ACCOMMODATION
+  // CHARGED, and nothing else: the manual « Prix hébergement ajusté » when there is one, otherwise
+  // the tariff nights after the discount. Neither the platform brut nor a single option, resource or
+  // Complément routing may move it. Two earlier behaviours are gone on purpose:
+  //   - the base was back-solved from `platformGrossAmount` (brut − supplément − options hors
+  //     Complément), so flipping a line into Complément changed the declared tax;
+  //   - services included in the rate were deducted (former rule 48), so ticking « Ménage » or a
+  //     per-person linen line shrank the base — the more guests, the smaller the base.
+  // The routing (offered / reversed / on arrival) and the `freezeTouristTax` branch below are
+  // untouched: only the magnitude is defined here.
+  const taxBaseAccommodation = roundMoney(Math.max(
+    0,
+    Number.isFinite(customFinalPrice)
+      ? customFinalPrice
+      : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100),
+  ));
 
   // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
   // Resolved HERE (before the brut back-solve) so the reversed tax can be treated as part of the brut.
@@ -2405,12 +2396,9 @@ function calculateReservationQuote({
           .map((line) => [String(line.optionId), Number(line.freeUnits)]),
       ),
     },
-    // specs/tariff-recipes/spec.md §3.8 — the tax base after deducting the included-in-rate services,
-    // the base BEFORE it, and the deduction, so the summary renders « Base : X − Y de prestations
-    // comprises » without adding two numbers back together (wrong whenever the base was floored at 0).
+    // specs/tourist-tax-base-accommodation-only.md — the accommodation the tax is computed on, so a
+    // reader can check the declared amount without re-deriving it from the nights.
     touristTaxBaseAccommodation: taxBaseAccommodation,
-    touristTaxBaseBeforeDeduction: taxBaseBeforeDeduction,
-    touristTaxIncludedInRateDeduction,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     touristTaxRemittedByOwner: isTouristTaxRemittedByOwnerFlag,
     touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,

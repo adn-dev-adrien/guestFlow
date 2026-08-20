@@ -124,7 +124,7 @@ function printedRowsTtc(devis) {
 
 // ── Part A — the replay reproduces the sold devis ──────────────────────────────────────
 
-test('offered property-default option: the replay keeps it at 0 € AND keeps its tourist-tax deduction', () => {
+test('offered property-default option: the replay keeps it at 0 € AND re-quotes the same tax', () => {
   const { model } = freshModel();
   const devis = model.create(BASE).data;
 
@@ -142,9 +142,10 @@ test('offered property-default option: the replay keeps it at 0 € AND keeps it
   assert.equal(replayedLinen.includedInRate, true);
 });
 
-test('REGRESSION: an input that drops offeredOptionIds re-bills the option and inflates the tax', () => {
+test('REGRESSION: an input that drops offeredOptionIds re-bills the option', () => {
   // What the PDF controller used to build. Kept as an executable description of the bug: the offered
-  // 60 € comes back into the total AND out of the tourist-tax base, exactly the user's report.
+  // 60 € comes back into the total. The tourist tax no longer reacts to it at all — the base is the
+  // accommodation and nothing else (specs/tourist-tax-base-accommodation-only.md).
   const { model, db } = freshModel();
   const devis = model.create(BASE).data;
   const naive = calculateReservationQuote({
@@ -157,7 +158,7 @@ test('REGRESSION: an input that drops offeredOptionIds re-bills the option and i
   });
 
   assert.equal(naive.finalPrice, devis.finalPrice + 60);
-  assert.ok(naive.touristTaxTotal > devis.touristTaxTotal);
+  assert.equal(naive.touristTaxTotal, devis.touristTaxTotal);
   // …and the fixed replay does neither.
   assert.equal(model.recomputeQuote(devis.id).finalPrice, devis.finalPrice);
 });

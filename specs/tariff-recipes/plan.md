@@ -64,14 +64,13 @@ chosen so the riskiest, most-tested piece lands first with its regression net al
     configured tier, list the reservations whose re-quote would move and report them. This is the one
     place where the change can shift an existing number.
 
-### Step 5 — Tourist-tax base deduction (rules 48, 49)
+### Step 5 — Tourist-tax base deduction (rules 48, 49) — **reverted 2026-08-20**
 
-14. `pricing.js`: `includedInRateValue` subtracted from `taxBaseAccommodation`, floored at 0; both new
-    quote fields exposed.
-15. `tests/tourist-tax-included-in-rate.unit.test.js`: deduction applies to a property-default offered
-    option, not to a one-off gesture; base floors at 0; a frozen past tax is untouched; a flat
-    per-adult property is unaffected.
-16. `PricingSummary.jsx`: the muted « Base : … − … de prestations comprises » line, only when non-zero.
+Shipped as planned, then repealed by
+[tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md). Steps 14 to 16 no
+longer describe the code: the deduction, both extra quote fields and the « Base : … − … de prestations
+comprises » caption are gone, and `tests/tourist-tax-included-in-rate.unit.test.js` became
+`tests/tourist-tax-base-accommodation-only.unit.test.js`.
 
 ### Step 6 — Platform grid (rules 31 to 34)
 
