@@ -9,12 +9,21 @@
 
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
-const { formatPlatformName } = require('../utils/platformNameFormat');
+const { formatPlatformName, DIRECT_CHANNELS } = require('../utils/platformNameFormat');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
+
+// Own channels, bound as NAMED parameters (the deadline read already uses `@today`, and better-sqlite3
+// refuses a mix of named and positional binds). Single-sourced from platformNameFormat so adding a
+// channel there reaches this read for free.
+const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
+const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map((_, i) => `@directChannel${i}`).join(', ');
+const DIRECT_CHANNEL_PARAMS = Object.fromEntries(
+  DIRECT_CHANNEL_LIST.map((channel, i) => [`directChannel${i}`, channel]),
+);
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
 const { isCleaningOption } = require('../utils/cleaningOption');
@@ -1259,7 +1268,7 @@ function createReservationsModel(database) {
     // nine days of visibility.
     listPaymentDeadlineCandidates(today) {
       return database.prepare(`
-        SELECT r.id, r.reservationNumber, r.platform, r.startDate, r.endDate,
+        SELECT r.id, r.reservationNumber, r.platform, r.startDate, r.endDate, r.finalPrice,
                r.depositAmount, r.depositPaid, r.depositDueDate,
                r.balanceAmount, r.balancePaid, r.balanceDueDate,
                r.paymentAlertSnoozedUntil,
@@ -1269,11 +1278,22 @@ function createReservationsModel(database) {
           JOIN clients c ON c.id = r.clientId
           JOIN properties p ON p.id = r.propertyId
          WHERE r.kind = 'reservation'
-           AND r.endDate >= date(@today, '-60 days')
-           AND ((r.depositAmount > 0 AND r.depositPaid = 0)
-             OR (r.balanceAmount > 0 AND r.balancePaid = 0))
+           AND (
+             -- Money outstanding on an échéance.
+             (r.endDate >= date(@today, '-60 days')
+              AND ((r.depositAmount > 0 AND r.depositPaid = 0)
+                OR (r.balanceAmount > 0 AND r.balancePaid = 0)))
+             -- specs/platform-payout-due-date.md §3.2bis — a platform booking carrying NO figures at
+             -- all. The clause above cannot see it (every amount is 0), which is exactly why an
+             -- import whose price was never entered went unnoticed for good. No date floor here: an
+             -- amount missing from the books does not become acceptable by ageing (rule 29).
+             OR (COALESCE(r.finalPrice, 0) = 0
+                 AND COALESCE(r.depositAmount, 0) = 0
+                 AND COALESCE(r.balanceAmount, 0) = 0
+                 AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) NOT IN (${DIRECT_CHANNEL_PLACEHOLDERS}))
+           )
          ORDER BY r.startDate, r.id
-      `).all({ today });
+      `).all({ today, ...DIRECT_CHANNEL_PARAMS });
     },
 
     // The booking channel alone — all the dunning guard needs to know before sending anything

@@ -171,25 +171,57 @@ that deadline passes with the money still not in.
     The candidates read widens to `endDate >= date(@today, '-60 days')` so both rules have their rows
     to work on; the drop itself is decided in `paymentDeadlines.js` and unit-tested there.
 
+### 3.2bis Dashboard alert — the booking whose amount was never entered
+
+27. A **sixth** state, `platform_amount_missing`, fires on the **same deadline** as the payout
+    (`endDate + payoutDueDays`) when the reservation carries **no figures at all**: `finalPrice = 0`
+    **and** `depositAmount = 0` **and** `balanceAmount = 0`. That is the state an iCal import is born
+    in — the sync writes the dates and the deadline, never a price
+    ([platform-payment-entry.md](platform-payment-entry.md): the operator types the platform's
+    figures afterwards). Chasing a payout is meaningless here: we cannot say how much is owed. The row
+    names what is actually missing — the data entry.
+28. Until that deadline, **not having typed the amounts yet is not an oversight**: a booking is
+    routinely priced days after it lands, and during the stay itself there is nothing to reproach.
+    Sharing the payout deadline also keeps one rule in the operator's head — *by the time the money
+    should have arrived, the booking must be complete.*
+29. **This is the one state with no expiry.** Every other row leaves the card after 30 days
+    (rule 21) because the operator has seen it and the money is visible elsewhere. An amount that was
+    never entered is *not* visible elsewhere — the booking is simply absent from the books, and it
+    does not become acceptable by ageing. The row stays until the figures are entered. The candidates
+    read therefore carries **no date floor** for this case (measured on the real data on 2026-08-20:
+    zero past platform bookings without an amount, so no backlog is dumped on the card).
+30. Copy and actions mirror the payout row: badge « **Montant manquant** », the platform named on the
+    row, « Reporter » alone (`canRemind: false`, `remindType: null`, `canCancel: false`). All three
+    amounts are 0, and the card renders **no amount line at all** rather than « Solde 0,00 € ».
+31. Own channels are out of scope here as everywhere (rule 1): a direct booking with no price is a
+    devis-shaped mistake, not a platform import that slipped through.
+32. `platform_amount_missing` ranks **last**, after `platform_payout_overdue`.
+
+**Edge cases:**
+- **Priced, but nothing left on the solde** (an offered stay, or a total collected entirely at the
+  door) → not « missing »: the books know the money. Only a booking with *no* figure anywhere qualifies.
+- **Amount entered while the row is showing** → the row becomes a normal payout row (or disappears if
+  the payout is not due, or was received).
+
 ### 3.3 No dunning email ever leaves for a platform reservation
 
-22. The auto-send cron's payment anchors (`depositDueDate`, `balanceDueDate`) gain the **same
+33. The auto-send cron's payment anchors (`depositDueDate`, `balanceDueDate`) gain the **same
     direct-channel filter** as [balanceRequestRunner.js:41](../server/src/utils/balanceRequestRunner.js#L41),
     bound from `DIRECT_CHANNELS` so the list stays single-sourced. The `start` anchor is untouched:
     arrival-related emails (welcome, check-in instructions, J-1 …) are legitimate on a platform
     booking — it is the *money* templates that must not go out.
-23. This closes the pre-existing leak described in §1 (`balance_reminder` reaching OTA guests at
+34. This closes the pre-existing leak described in §1 (`balance_reminder` reaching OTA guests at
     `startDate − 27`) and prevents the new deadline from re-creating it at `endDate + 13`.
 
 ### 3.4 Settings — where the delay is edited
 
-24. The per-platform card of the logement page ([PropertyDetail.jsx](../client/src/pages/PropertyDetail.jsx),
+35. The per-platform card of the logement page ([PropertyDetail.jsx](../client/src/pages/PropertyDetail.jsx),
     the iCal/platform rows) gains a numeric field « **Virement reçu sous (jours)** » next to the
     existing « Taxe de séjour » and « Acompte » selects, editable in the same inline edit mode and
     saved by the same « Enregistrer » of that row.
-25. Like its two neighbours the value is **global to the platform**, not per logement — the row's
+36. Like its two neighbours the value is **global to the platform**, not per logement — the row's
     helper text says so, exactly as the existing ones do.
-26. The field is **hidden for own channels** (`direct`, `Lodgify`): they have no payout to wait for.
+37. The field is **hidden for own channels** (`direct`, `Lodgify`): they have no payout to wait for.
     The per-property payload gains an `isDirectChannel` boolean for that test — the existing `isDirect`
     flag means `slug === 'direct'` only and would wrongly show the field on Lodgify.
 
@@ -237,13 +269,13 @@ that deadline passes with the money still not in.
 | `controllers/` | `public/publicQuoteController.js` | — | (none — the public funnel pins `platform: 'direct'`) |
 | `models/` | `platformsModel.js` | T | `getPayoutDueDays(name)` / `setPayoutDueDays(name, days)`; `payoutDueDays` + `isDirectChannel` in the `listForProperty` payload |
 | `models/` | `propertyIcalModel.js` | T | INSERT writes `balanceDueDate = endDate + payoutDueDays`; the date-drift UPDATE re-derives it. The platforms model is rebound to the **injected** database (lazily, so a minimal test schema degrades to the default) like the drift/cancellation/closure models |
-| `models/` | `reservationsModel.js` | T | Candidates read widened to `endDate >= date(@today, '-60 days')`; new `getPlatform(id)` for the dunning guard |
+| `models/` | `reservationsModel.js` | T | Candidates read widened to `endDate >= date(@today, '-60 days')`, plus an unbounded OR branch for a platform booking carrying no figures at all (§3.2bis, own channels excluded via named binds); selects `finalPrice`; new `getPlatform(id)` for the dunning guard |
 | `models/` | `devisModel.js` | — | (none — rule 3 neutralises the platform on a devis inside the engine) |
 | `middleware/` | — | — | (none) |
 | `utils/` | `paymentSchedule.js` | T | `resolveBalanceDueDate` gains `platform` / `endDate` / `platformPayoutDueDays`: non-direct → `endDate + N`, direct → unchanged |
-| `utils/` | `paymentDeadlines.js` | T | The `platform_payout_overdue` branch, its actions, the per-channel visibility window |
+| `utils/` | `paymentDeadlines.js` | T | The `platform_payout_overdue` and `platform_amount_missing` branches, their actions, the per-channel visibility windows |
 | `utils/` | `pricing.js` | T | New `platformPayoutDueDays` input, forwarded with `endDate` + `platform` to `resolveBalanceDueDate` |
-| `utils/` | `emailAutoSendRunner.js` | T | Direct-channel filter on the two payment anchors (rule 22) |
+| `utils/` | `emailAutoSendRunner.js` | T | Direct-channel filter on the two payment anchors (rule 33) |
 | `utils/` | `platformSlugDedupMigration.js` | T | Carries `payoutDueDays` through a dedup (its default is 10, not 0, so `isCustomScalar` needs its own branch) |
 | `utils/` | `platformPayout.js` | C | **Pure**: the default (10), the max (365), `normalizePayoutDueDays` (storage-side, falls back) and `parsePayoutDueDaysInput` (API-side, rejects) |
 | `utils/` | `forceItemContribsCapture.js` | — | (none — it recomputes for the contrib buckets and never persists a due date) |
@@ -283,7 +315,7 @@ that deadline passes with the money still not in.
 |---|---|---|---|---|
 | PUT | `/api/platforms/:key/payout-due-days` | `{ days: 10 }` | `{ name, payoutDueDays }` | Auth required. `:key` = platform label/name, url-encoded. Integer 0-365; anything else → **400 `INVALID_DAYS`**. An own channel (`direct`, `Lodgify`) → **400 `DIRECT_CHANNEL`**. Upserts the platform row by canonical name, like `setDepositMode`. |
 | GET | `/api/properties/:id/platforms` | — | rows `+ payoutDueDays, isDirectChannel` | Existing endpoint, two fields added. |
-| GET | `/api/dashboard/payment-deadlines` | — | `{ rows: [...] }` | Existing endpoint. Rows may now carry `state: 'platform_payout_overdue'`, `platformLabel`, `remindType: null`. |
+| GET | `/api/dashboard/payment-deadlines` | — | `{ rows: [...] }` | Existing endpoint. Rows may now carry `state: 'platform_payout_overdue'` or `'platform_amount_missing'`, `platformLabel`, `remindType: null`. |
 | POST | `/api/dashboard/payment-deadlines/:id/remind` | `{ type }` | `{ ok }` | **400 `PLATFORM_RESERVATION`** on a non-direct reservation (rule 20). |
 
 ---
@@ -358,7 +390,7 @@ Réglage global à la plateforme (s'applique à tous les logements).
 
 Numeric `TextField`, `size="small"`, `type="number"`, `inputProps={{ min: 0, max: 365 }}`, same
 `onFocus={handleZeroFocus}` treatment as the other numeric settings on the page. Hidden entirely on
-own-channel rows (rule 26). Saved with the row's existing « Enregistrer », through the new endpoint,
+own-channel rows (rule 37). Saved with the row's existing « Enregistrer », through the new endpoint,
 alongside the tourist-tax and acompte writes already performed there.
 
 ### 6.3 Responsive behaviour
@@ -375,13 +407,23 @@ alongside the tourist-tax and acompte writes already performed there.
 
 ## 7. Test plan
 
-### Server unit tests — **3 222 pass, 0 fail** (`cd server && npm test`)
+### Server unit tests — **3 229 pass, 0 fail** (`cd server && npm test`)
+
+> Counted on this branch alone, in a detached worktree. Two environment traps cost time here: a live
+> `npm run dev` writes to the same `guestflow.db` and makes the count drift run to run (it can even
+> fail DB-reading tests), and an unrelated feature's work-in-progress sitting in the tree inflates the
+> total. Neither is a code issue — but neither is worth chasing twice.
 
 - [x] `tests/payment-schedule.unit.test.js` (T, +4) — non-direct → `endDate + payoutDueDays`; `Lodgify`
       and `direct` → unchanged `startDate − balanceDaysBefore` clamped at the booking day; missing /
       NULL / non-finite / out-of-range `payoutDueDays` → 10; `payoutDueDays = 0` → the departure day
       itself; no departure or `hasBalance = false` → `null` (rules 2, 4, 7).
-- [x] `tests/payment-deadlines.unit.test.js` (T, +7) — a non-direct row past its deadline yields
+- [x] `tests/payment-deadlines.unit.test.js` (T, +14) — **`platform_amount_missing`**: a booking with
+      no figures at all yields it with zero amounts and no actions; it only fires once the payout
+      deadline has passed (not before the departure, not on the deadline itself); a priced booking
+      stays a payout row; the row never expires (still there a year later, when the payout row is long
+      gone); it can be snoozed; it ranks last; an own channel is never flagged. And for
+      `platform_payout_overdue` — a non-direct row past its deadline yields
       `platform_payout_overdue` with `canRemind: false`, `remindType: null`, `canCancel: false`,
       `depositDue: 0`, `platformLabel` set; it ranks after `deposit_overdue`; the deadline is derived,
       not read from the stored column (rule 12bis, with the exact legacy case found in the browser);
@@ -390,21 +432,23 @@ alongside the tourist-tax and acompte writes already performed there.
       a direct row drops 31 days after the departure, a platform row 31 days after its deadline.
 - [x] `tests/payment-dunning-emails.unit.test.js` (T, +2) — a `balanceDueDate` / `depositDueDate`
       anchor never selects a platform booking; `direct` and `Lodgify` still are; a blank platform reads
-      as direct (rules 22-23).
+      as direct (rules 33-34).
 - [x] `tests/property-ical-sync.unit.test.js` (T, +4) — an imported event writes
       `balanceDueDate = endDate + 10`, and `endDate + 3` when the catalogue configures it; a date drift
       on a pristine reservation re-derives it; a locked reservation moves neither dates nor deadline
       (rules 8-9).
 - [x] `tests/platforms-model.unit.test.js` (T, +4) — `get/setPayoutDueDays` round-trip, 0 accepted,
       slug matching (`gites-de-france` finds `GitesDeFrance`), own channels and unknown platforms fall
-      back to 10 and can never be configured, a never-synced platform is upserted (rules 6-7bis, 26).
+      back to 10 and can never be configured, a never-synced platform is upserted (rules 6-7bis, 37).
 - [x] `tests/pricing-platform-payout-due-date.unit.test.js` (C, 6) — end-to-end through the engine:
       platform → departure + delay, own channels unchanged, the deadline follows a moved departure, a
       devis stays on the guest-facing schedule, nothing to collect → no deadline.
 
-### Client tests — **1 015 pass, 0 fail** (`cd client && npx vitest run`)
+### Client tests — **1 016 pass, 0 fail** (`cd client && npx vitest run`)
 
-- [x] `PaymentDeadlinesAlert.test.jsx` (T, +2) — a `platform_payout_overdue` row renders its badge, the
+- [x] `PaymentDeadlinesAlert.test.jsx` (T, +3) — an amount-missing row renders its badge, the platform
+      name and the « ouvrez la fiche » wording, prints **no** amount line (not « Solde 0,00 € ») and
+      offers « Reporter » alone. And — a `platform_payout_overdue` row renders its badge, the
       headline and the platform name, with **no** « Relancer » and no « Annuler le séjour »; a direct
       row alongside it keeps its own « Relancer ».
 - [x] `PropertyDetail.test.jsx` (T, +3) — the delay shows per platform and is absent on own channels;
@@ -431,13 +475,15 @@ alongside the tourist-tax and acompte writes already performed there.
 - [x] Mobile (375 px): platform rows read with the badge, the platform name and a full-width
       « Reporter »; the logement row shows « Virement reçu sous : 10 j »; `document.body.scrollWidth`
       360 ≤ 375, no horizontal scroll.
+- [x] §3.2bis: a temporary unpriced Airbnb booking (departed 05/07, deadline 15/07) surfaced as
+      « Montant manquant » 36 days late — past the 30-day window that retires a payout row, which is
+      the no-expiry rule doing its job — with no amount line and « Reporter » alone, ranked last. The
+      temporary row was deleted afterwards and the card returned to its six real rows.
 
 ## 8. Out of scope
 
 - **Retroactive migration** of existing platform reservations' `balanceDueDate` (explicitly declined
   on 2026-08-20; they re-derive on their next save).
-- **Alerting on an imported reservation whose platform amount was never entered** (`balanceAmount = 0`)
-  — see §9.
 - **Automatic reconciliation of the payout** (matching a Qonto bank movement to a reservation and
   marking the solde paid on its own). The operator still marks it.
 - **Per-platform acompte deadline.** Rule 5 keeps the existing derivation.
@@ -450,10 +496,11 @@ alongside the tourist-tax and acompte writes already performed there.
 
 - **Q: An iCal booking whose platform amount is never entered has `balanceAmount = 0` and will
   therefore never alert — even a year after the stay. Is that the last hole to close?**
-  A: (open) It is a *different* alert — « réservation plateforme sans montant saisi », which is about
-  data entry, not about a late payout, and would belong either to this card as a sixth state or to the
-  existing iCal-import card. Deliberately left out of this spec so the payout rule ships clean. To be
-  decided with Adrien.
+  A: **Resolved 2026-08-20 — yes, as a sixth state on this card** (§3.2bis). Adrien asked for it
+  directly. It fires on the **payout deadline** (his choice over « from the departure » and « from the
+  import »): by the time the money should have arrived, the booking must be complete. It is the only
+  state with **no expiry** — measured on the real data the same day, there are zero past platform
+  bookings without an amount, so nothing floods the card, and a genuine omission must not fade away.
 - **Q: should the payout delay be per property rather than per platform?**
   A: **Resolved 2026-08-20 — per platform.** Airbnb transfers within days, Booking invoices at the
   month's end: the delay belongs to the channel, not to the logement.

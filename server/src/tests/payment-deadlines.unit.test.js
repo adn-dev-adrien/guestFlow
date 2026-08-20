@@ -95,6 +95,7 @@ function platformRow(overrides = {}) {
     depositAmount: 0,
     depositPaid: 0,
     depositDueDate: null,
+    finalPrice: 640,
     payoutDueDays: 10,
     balanceDueDate: '2026-08-01', // the stored cache; the row derives departure + payoutDueDays
     ...overrides,
@@ -140,7 +141,8 @@ test('a platform payout is not late before the deadline — nor before the guest
   assert.equal(buildPaymentDeadlineRow(platformRow({ endDate: '2026-08-09' }), TODAY), null);
   // Already settled.
   assert.equal(buildPaymentDeadlineRow(platformRow({ balancePaid: 1 }), TODAY), null);
-  // Imported but never priced: no amount to claim, so nothing to alert about.
+  // Priced, but nothing left on the solde (an offered stay, or everything collected at the door):
+  // the books know the money. A booking never priced AT ALL is a different state — see below.
   assert.equal(buildPaymentDeadlineRow(platformRow({ balanceAmount: 0 }), TODAY), null);
   // The stay is still ahead → nothing can be late yet, whatever the stored column says.
   const future = platformRow({ startDate: '2026-09-18', endDate: '2026-09-25', balanceDueDate: '2026-08-09' });
@@ -231,4 +233,72 @@ test('rows are ordered by severity, then by how late they are', () => {
     row({ id: 4, balanceDueDate: '2026-08-14' }),                // cancel_due, 5 days late
   ], TODAY);
   assert.deepEqual(rows.map((r) => r.reservationId), [3, 2, 4, 1]);
+});
+
+// ── Montant plateforme jamais saisi (specs/platform-payout-due-date.md §3.2bis) ───────────────
+
+// An iCal import that was never priced: no total, no buckets, nothing.
+function unpricedRow(overrides = {}) {
+  return platformRow({ finalPrice: 0, balanceAmount: 0, depositAmount: 0, ...overrides });
+}
+
+test('a platform booking with no figures at all asks for the amount, not for the money', () => {
+  const out = buildPaymentDeadlineRow(unpricedRow(), TODAY);
+  assert.equal(out.state, 'platform_amount_missing');
+  assert.equal(out.severity, 'warning');
+  assert.equal(out.platformLabel, 'Airbnb');
+  assert.equal(out.dueDate, '2026-08-01', 'the payout deadline is what makes the omission certain');
+  assert.equal(out.daysLate, 18);
+  // Nothing to print, nothing to chase, nothing to cancel.
+  assert.equal(out.balanceDue, 0);
+  assert.equal(out.depositDue, 0);
+  assert.equal(out.totalDue, 0);
+  assert.equal(out.canRemind, false);
+  assert.equal(out.remindType, null);
+  assert.equal(out.canCancel, false);
+});
+
+test('the amount is only « missing » once the payout deadline has passed (rule 27)', () => {
+  // Before the departure: not having typed the figures yet is not an oversight.
+  assert.equal(buildPaymentDeadlineRow(unpricedRow({ endDate: '2026-09-30' }), TODAY), null);
+  // Departed, but the payout is not due yet → still nothing to say.
+  assert.equal(buildPaymentDeadlineRow(unpricedRow({ endDate: '2026-08-12' }), TODAY), null);
+  // On the deadline itself: due, not missed.
+  assert.equal(buildPaymentDeadlineRow(unpricedRow({ endDate: '2026-08-09' }), TODAY), null);
+});
+
+test('a booking whose amount IS known stays a payout row, never an amount-missing one', () => {
+  const priced = buildPaymentDeadlineRow(platformRow({ finalPrice: 640 }), TODAY);
+  assert.equal(priced.state, 'platform_payout_overdue');
+  // Priced and already settled → no row at all.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ finalPrice: 640, balancePaid: 1 }), TODAY), null);
+  // Priced, but the whole stay is collected at the door (complement) → the books know the money.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ finalPrice: 640, balanceAmount: 0 }), TODAY), null);
+});
+
+test('an amount-missing row never expires — unlike every other state (rule 29)', () => {
+  const ancient = unpricedRow({ startDate: '2025-07-15', endDate: '2025-07-22' });
+  const out = buildPaymentDeadlineRow(ancient, TODAY);
+  assert.equal(out.state, 'platform_amount_missing');
+  assert.equal(out.daysLate, 383, 'a year later it is still a hole in the books');
+  // The payout row, by contrast, is long gone by then.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ startDate: '2025-07-15', endDate: '2025-07-22' }), TODAY), null);
+});
+
+test('an amount-missing row can be snoozed like any other', () => {
+  assert.equal(buildPaymentDeadlineRow(unpricedRow({ paymentAlertSnoozedUntil: '2026-08-26' }), TODAY), null);
+});
+
+test('amount-missing ranks last, after the late payouts', () => {
+  const rows = buildPaymentDeadlineRows([
+    { ...unpricedRow(), id: 5 },
+    { ...platformRow(), id: 4 },
+    { ...row(), id: 1 },
+  ], TODAY);
+  assert.deepEqual(rows.map((r) => r.state), ['cancel_due', 'platform_payout_overdue', 'platform_amount_missing']);
+});
+
+test('an own channel with no figures is never flagged — this is about platform imports', () => {
+  assert.equal(buildPaymentDeadlineRow(unpricedRow({ platform: 'direct' }), TODAY), null);
+  assert.equal(buildPaymentDeadlineRow(unpricedRow({ platform: 'Lodgify' }), TODAY), null);
 });

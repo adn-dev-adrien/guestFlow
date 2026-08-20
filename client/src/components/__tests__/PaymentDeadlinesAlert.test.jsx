@@ -85,6 +85,19 @@ const PLATFORM_PAYOUT = {
   remindType: null,
 };
 
+// specs/platform-payout-due-date.md §3.2bis — imported from a platform, amount never entered.
+const AMOUNT_MISSING = {
+  ...PLATFORM_PAYOUT,
+  reservationId: 13,
+  reservationNumber: '2026-07-021',
+  state: 'platform_amount_missing',
+  clientName: 'Karim Belaid',
+  platformLabel: 'Abracadaroom',
+  depositDue: 0,
+  balanceDue: 0,
+  totalDue: 0,
+};
+
 const renderCard = () => render(
   <DialogProvider>
     <PaymentDeadlinesAlert />
@@ -179,4 +192,18 @@ test('a direct row keeps its « Relancer » button alongside a platform one', as
   await screen.findByText(/Virement plateforme en retard/);
   expect(screen.getAllByRole('button', { name: 'Relancer' })).toHaveLength(1);
   expect(screen.getAllByRole('button', { name: 'Reporter' })).toHaveLength(2);
+});
+
+test('a booking whose amount was never entered asks for the data, and prints no figure', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [AMOUNT_MISSING] });
+  renderCard();
+  expect(await screen.findByText(/Montant de la plateforme jamais saisi/)).toBeInTheDocument();
+  expect(screen.getByText(/Karim Belaid · Le Lodge · Abracadaroom/)).toBeInTheDocument();
+  // No amount exists, so no amount line is rendered — not « Solde 0,00 € ».
+  expect(screen.queryByText(/Solde/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/0,00/)).not.toBeInTheDocument();
+  // Nothing to chase, nothing to cancel; « Reporter » remains.
+  expect(screen.queryByRole('button', { name: 'Relancer' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Annuler le séjour' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Reporter' })).toBeInTheDocument();
 });

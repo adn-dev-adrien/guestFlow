@@ -14,7 +14,10 @@
  *   `deposit_overdue`   — the acompte is late;
  *   `platform_payout_overdue` — an OTA has not settled `payoutDueDays` after the guest left
  *                         (specs/platform-payout-due-date.md §3.2). Money owed by a PLATFORM, not by
- *                         a guest: nothing to email, nothing to cancel — the stay already happened.
+ *                         a guest: nothing to email, nothing to cancel — the stay already happened;
+ *   `platform_amount_missing` — same deadline, but the booking carries no figures at all: the amount
+ *                         was never entered, so there is nothing to chase and something to type
+ *                         (§3.2bis). The one state with no expiry — it is a hole in the books.
  * A reservation late on both échéances yields ONE row, in its most severe state, listing both amounts.
  *
  * Pure: rows in, ready-to-render rows out. Everything the client needs to draw the card — the state,
@@ -37,12 +40,15 @@ const SEVERITY_BY_STATE = {
   // the whole card red for it would blunt the red signal again — the very failure
   // specs/dashboard-collection-alert.md was written to fix.
   platform_payout_overdue: 'warning',
+  // A booking with no figures at all is a data-entry to-do, not a debt: same tone.
+  platform_amount_missing: 'warning',
 };
 // Render order: the two red states first, then the late solde, then the late acompte, and last the
 // platform payout — money owed by a platform arrives eventually; money owed by a guest about to walk
 // in does not (specs/platform-payout-due-date.md rule 13).
 const STATE_RANK = [
   'unpaid_at_arrival', 'cancel_due', 'balance_overdue', 'deposit_overdue', 'platform_payout_overdue',
+  'platform_amount_missing',
 ];
 
 // How long a row keeps its place on the card, per channel (rule 21). The card is a to-do list, not an
@@ -64,11 +70,6 @@ const clientNameOf = (row) => `${String(row.firstName || '').trim()} ${String(ro
  * @returns {object|null} the row, or null when nothing is owed / the deadline has not passed
  */
 function buildPlatformPayoutRow(row, today) {
-  const balanceAmount = round2(row.balanceAmount);
-  // No amount yet — an iCal import carries the deadline but a 0 € solde until the operator enters the
-  // platform's figures. There is nothing to claim, so there is nothing to alert about.
-  if (!(balanceAmount > 0) || Number(row.balancePaid)) return null;
-
   // A payout cannot be late before the guest has left.
   const endDate = toIsoDay(row.endDate);
   if (!endDate || endDate >= today) return null;
@@ -83,15 +84,20 @@ function buildPlatformPayoutRow(row, today) {
   if (!balanceDueDate || balanceDueDate >= today) return null;
 
   const daysLate = Math.max(0, daysBetween(balanceDueDate, today) || 0);
-  // Rule 21 — measured from the payout deadline, not from the departure: the row only becomes late
-  // after the stay, so a window counted from `endDate` would barely leave it time to be seen.
-  if (daysLate > MAX_DAYS_LATE_PLATFORM) return null;
 
-  return {
+  // specs/platform-payout-due-date.md §3.2bis — the booking carries NO money at all: an iCal import
+  // writes `finalPrice = 0` and empty buckets, and the operator never entered the platform's figures.
+  // Chasing a payout is meaningless here — we cannot even say how much is owed — so the row says what
+  // is actually missing: the data entry. Same deadline as the payout (rule 27): until then, not
+  // having typed the amounts yet is not an oversight.
+  const balanceAmount = round2(row.balanceAmount);
+  const nothingRecorded = !(round2(row.finalPrice) > 0)
+    && !(balanceAmount > 0)
+    && !(round2(row.depositAmount) > 0);
+
+  const base = {
     reservationId: Number(row.id),
     reservationNumber: row.reservationNumber || null,
-    state: 'platform_payout_overdue',
-    severity: SEVERITY_BY_STATE.platform_payout_overdue,
     clientName: clientNameOf(row),
     clientEmail: row.email || '',
     propertyName: row.propertyName || '',
@@ -99,9 +105,6 @@ function buildPlatformPayoutRow(row, today) {
     platformLabel: formatPlatformName(row.platform) || String(row.platform || '').trim() || null,
     startDate: toIsoDay(row.startDate),
     endDate,
-    depositDue: 0,
-    balanceDue: balanceAmount,
-    totalDue: balanceAmount,
     dueDate: balanceDueDate,
     daysLate,
     cancelOn: null,
@@ -112,6 +115,36 @@ function buildPlatformPayoutRow(row, today) {
     // paid the platform (rule 16); chasing the platform happens in the platform's back-office.
     canRemind: false,
     remindType: null,
+  };
+
+  if (nothingRecorded) {
+    return {
+      ...base,
+      state: 'platform_amount_missing',
+      severity: SEVERITY_BY_STATE.platform_amount_missing,
+      // No window (rule 29): a booking whose amount was never entered is missing from the books, and
+      // an unpaid to-do does not become acceptable by ageing. It leaves the card the day the operator
+      // enters the figures, and only then.
+      depositDue: 0,
+      balanceDue: 0,
+      totalDue: 0,
+    };
+  }
+
+  // Nothing left to claim (settled, or an amount that legitimately nets to zero) → no row.
+  if (!(balanceAmount > 0) || Number(row.balancePaid)) return null;
+
+  // Rule 21 — measured from the payout deadline, not from the departure: the row only becomes late
+  // after the stay, so a window counted from `endDate` would barely leave it time to be seen.
+  if (daysLate > MAX_DAYS_LATE_PLATFORM) return null;
+
+  return {
+    ...base,
+    state: 'platform_payout_overdue',
+    severity: SEVERITY_BY_STATE.platform_payout_overdue,
+    depositDue: 0,
+    balanceDue: balanceAmount,
+    totalDue: balanceAmount,
   };
 }
 
