@@ -15,6 +15,7 @@ import SettingsReservationLockSection from '../components/SettingsReservationLoc
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
+import SettingsEmailAutomationSection from '../components/SettingsEmailAutomationSection';
 import SettingsWeatherSection from '../components/SettingsWeatherSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
 import SettingsSystemUpdateSection from '../components/SettingsSystemUpdateSection';
@@ -53,6 +54,11 @@ const EMPTY_FORM = {
     enabled: true,
     icalReservationEnabled: true,
     recipientEmail: '',
+  },
+  // Automatic guest email (specs/no-automatic-email-without-approval.md). OFF by default: a guest
+  // email leaves GuestFlow only on the operator's click unless this is turned on.
+  emails: {
+    autoSendEnabled: false,
   },
   // Weather alerts (specs/checkin-weather-alerts.md). The Météo-France key is a masked secret; the
   // server returns only `apiKeySet`. apiKeyDraft: same 3-way semantics as smtp.passwordDraft.
@@ -115,6 +121,10 @@ function buildPayloadFromDraft(draft, saved) {
   const notificationsDirty = diffFields(draft.notifications, saved.notifications);
   if (Object.keys(notificationsDirty).length > 0) payload.notifications = notificationsDirty;
 
+  // Automatic sending — single boolean, same per-field diff.
+  const emailsDirty = diffFields(draft.emails, saved.emails);
+  if (Object.keys(emailsDirty).length > 0) payload.emails = emailsDirty;
+
   // Weather — masked API key, 3-way like the SMTP password (only sent when touched).
   if (draft.weather.apiKeyDraft !== undefined) {
     payload.weather = { apiKey: draft.weather.apiKeyDraft };
@@ -146,6 +156,10 @@ function fromServer(settings) {
     notifications: {
       ...EMPTY_FORM.notifications,
       ...(settings.notifications || {}),
+    },
+    emails: {
+      ...EMPTY_FORM.emails,
+      ...(settings.emails || {}),
     },
     weather: {
       ...EMPTY_FORM.weather,
@@ -406,6 +420,14 @@ export default function SettingsPage() {
               values={draft.notifications}
               errors={errors}
               onChange={updateGroup('notifications')}
+              disabled={loading || saving}
+            />
+          </Box>
+
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsEmailAutomationSection
+              values={draft.emails}
+              onChange={updateGroup('emails')}
               disabled={loading || saving}
             />
           </Box>

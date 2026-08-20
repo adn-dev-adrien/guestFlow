@@ -215,6 +215,88 @@ test('listPending: event/action-triggered templates (deposit_request, reservatio
   assert.ok(keys.includes('J-7'), 'a normal manual reminder still surfaces');
 });
 
+// ---- listPending × the automatic-send master switch ----
+// specs/no-automatic-email-without-approval.md §3 rule 3: when the operator has not authorised
+// automatic sending, the 08:00 cron sends nothing — so the `auto` templates it would have handled
+// must be PROPOSED here instead of silently going nowhere.
+
+test('listPending: includeAutoTemplates surfaces the auto templates the cron would have sent', () => {
+  const { db, model } = fresh();
+  seedFixture(db);
+  const today = '2026-06-10';
+
+  // Default (automatic sending allowed): template 11 is the cron's business, not the queue's.
+  const withoutAuto = model.listPending({ today });
+  assert.ok(!withoutAuto.some((r) => r.templateId === 11));
+
+  // Switch off → the same template is proposed for every matching reservation, alongside the
+  // manual one. Nothing else changes: the manual rows are still there, the devis still excluded.
+  const withAuto = model.listPending({ today, includeAutoTemplates: true });
+  const pairs = withAuto.map((r) => `${r.templateId}/${r.reservationId}`).sort();
+  assert.deepEqual(pairs, ['10/100', '10/101', '10/102', '11/100', '11/101', '11/102']);
+});
+
+test('listPending: an auto template already sent or acknowledged is not re-proposed', () => {
+  // The dedup must apply to the widened set too — otherwise flipping the switch off would re-offer
+  // mail the cron already sent while it was on.
+  const { db, model } = fresh();
+  seedFixture(db);
+  model.insert({ templateId: 11, reservationId: 100, status: 'sent',              renderedSubject: 'S', renderedBody: 'B' });
+  model.insert({ templateId: 11, reservationId: 101, status: 'acknowledged-skip', renderedSubject: 'S', renderedBody: 'B' });
+
+  const rows = model.listPending({ today: '2026-06-10', includeAutoTemplates: true });
+  const autoPairs = rows.filter((r) => r.templateId === 11).map((r) => r.reservationId);
+  assert.deepEqual(autoPairs, [102]);
+});
+
+test('listPending: a DISABLED auto template stays out, switch or no switch', () => {
+  // « Automatique » + « désactivé » is still « désactivé ». The switch widens the mode filter, never
+  // the enabled filter.
+  const { db, model } = fresh();
+  seedFixture(db);
+  db.prepare("UPDATE email_templates SET enabled = 0 WHERE id = 11").run();
+  const rows = model.listPending({ today: '2026-06-10', includeAutoTemplates: true });
+  assert.ok(!rows.some((r) => r.templateId === 11));
+});
+
+test('listPending: the widened filter reaches the payment anchors too', () => {
+  // The deposit/balance branches are built by a shared helper — this guards against the predicate
+  // being threaded into some branches and forgotten in others.
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Léa', 'Roy', 'lea@r.fr')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  // An auto template on each payment anchor, offset 0 → due on the deadline itself.
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (50, NULL, 'AutoAcompte', 'S', 'B', 0, 'auto', 1, 'depositDueDate')").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (51, NULL, 'AutoSolde',   'S', 'B', 0, 'auto', 1, 'balanceDueDate')").run();
+  // The request that unlocks each reminder must have gone out first (rule 40bis).
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (52, 'deposit_request', 'Demande acompte', 'S', 'B', 0, 'manual', 1)").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (53, 'balance_request', 'Demande solde',   'S', 'B', 0, 'manual', 1)").run();
+  db.prepare("INSERT INTO reservations (id, kind, platform, clientId, propertyId, startDate, endDate, depositAmount, depositPaid, depositDueDate, balanceAmount, balancePaid, balanceDueDate) VALUES (500, 'reservation', 'direct', 1, 1, '2026-08-10', '2026-08-12', 300, 0, '2026-06-10', 700, 0, '2026-06-10')").run();
+  model.insert({ templateId: 52, reservationId: 500, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
+  model.insert({ templateId: 53, reservationId: 500, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
+
+  const today = '2026-06-10';
+  assert.equal(model.listPending({ today }).filter((r) => [50, 51].includes(r.templateId)).length, 0);
+  const widened = model.listPending({ today, includeAutoTemplates: true })
+    .filter((r) => [50, 51].includes(r.templateId))
+    .map((r) => r.templateId)
+    .sort();
+  assert.deepEqual(widened, [50, 51]);
+});
+
+test('listPending: the widened filter reaches the validUntil anchor too', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Léa', 'Roy', 'lea@r.fr')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (60, NULL, 'AutoDevis', 'S', 'B', -3, 'auto', 1, 'validUntil')").run();
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus, depositPaid) VALUES (600, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent', 0)").run();
+
+  const today = '2026-07-04';
+  assert.equal(model.listPending({ today, lookbackDays: 7 }).length, 0);
+  const widened = model.listPending({ today, lookbackDays: 7, includeAutoTemplates: true });
+  assert.deepEqual(widened.map((r) => r.templateId), [60]);
+});
+
 // ---- history ----
 
 test('history: paginated, joined with template + client + property + reservation dates', () => {

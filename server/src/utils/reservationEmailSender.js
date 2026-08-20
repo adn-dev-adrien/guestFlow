@@ -11,6 +11,7 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+const { autoSendAllowed } = require('./autoSendPolicy');
 
 async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
   const template = templatesModel.findByStableKey(stableKey);
@@ -81,4 +82,39 @@ function buildConfirmationSender({ database, templatesModel, logModel, settingsM
   });
 }
 
-module.exports = { sendReservationTemplateEmail, buildConfirmationSender };
+/**
+ * Same confirmation sender, gated by the master switch
+ * (specs/no-automatic-email-without-approval.md §3 rule 4).
+ *
+ * A confirmed online payment is not an operator action — nobody read that email before it left. So:
+ *   switch ON  → send immediately, as before;
+ *   switch OFF → send nothing and queue the (template, reservation) pair, which puts the
+ *                confirmation in « Emails à envoyer » for the operator to review and send.
+ *
+ * `queueModel.add` is idempotent (INSERT OR IGNORE), so the webhook and the poll cron racing on the
+ * same payment propose it once. Never throws: an email must not break a payment flow.
+ */
+function buildGatedConfirmationSender({
+  database, templatesModel, logModel, settingsModel, emailServiceFactory, queueModel,
+  stableKey = 'reservation_confirmation', onQueueError,
+}) {
+  const send = buildConfirmationSender({
+    database, templatesModel, logModel, settingsModel, emailServiceFactory, stableKey,
+  });
+  return async (reservationId) => {
+    if (autoSendAllowed(settingsModel)) return send(reservationId);
+    try {
+      const template = templatesModel.findByStableKey(stableKey);
+      // No template, or the operator disabled it → nothing to propose. Mirrors the `no-template`
+      // early return of the sender: a disabled template is a deliberate « don't send this ».
+      if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
+      queueModel.add(template.id, Number(reservationId));
+      return { sent: false, reason: 'auto-send-disabled', queued: true };
+    } catch (err) {
+      if (onQueueError) onQueueError(err);
+      return { sent: false, reason: 'queue-failed' };
+    }
+  };
+}
+
+module.exports = { sendReservationTemplateEmail, buildConfirmationSender, buildGatedConfirmationSender };
