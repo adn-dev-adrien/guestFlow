@@ -513,3 +513,62 @@ test('create: a non-offered property default lands on the iCal reservation as no
   assert.ok(opt);
   assert.equal(opt.offered, 0);
 });
+
+// ── Platform payout deadline (specs/platform-payout-due-date.md §3.1 rules 8-9) ───────────────
+
+test('create: the import stamps the platform payout deadline — departure + 10 by default', () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  return model.syncSource(source).then(() => {
+    const row = db.prepare('SELECT endDate, balanceDueDate, balanceAmount FROM reservations').get();
+    assert.equal(row.endDate, '2026-07-13');
+    assert.equal(row.balanceDueDate, '2026-07-23');
+    // Rule 9: the deadline is written even though the amount is only known later, when the operator
+    // enters the platform's figures.
+    assert.equal(row.balanceAmount, 0);
+  });
+});
+
+test('create: the platform\'s own delay is used when the catalogue has one', () => {
+  const { db, model, source } = freshModel();
+  // The catalogue as the platforms model expects it (it prepares its statements eagerly, so a
+  // half-shaped table degrades to the default delay instead of being read).
+  db.exec(`CREATE TABLE platforms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
+    commissionAccountNumber TEXT, hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
+    commissionPercent REAL NOT NULL DEFAULT 0, color TEXT,
+    payoutDueDays INTEGER NOT NULL DEFAULT 10
+  )`);
+  db.prepare("INSERT INTO platforms (name, payoutDueDays) VALUES ('Airbnb', 3)").run();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  return model.syncSource(source).then(() => {
+    assert.equal(db.prepare('SELECT balanceDueDate FROM reservations').get().balanceDueDate, '2026-07-16');
+  });
+});
+
+test('update: a date drift on a pristine reservation moves the payout deadline with the departure', () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  return model.syncSource(source).then(() => {
+    stubFetch([{ uid: 'E1', start: '20260710', end: '20260718', summary: 'Jean Dupont' }]);
+    return model.syncSource(source);
+  }).then(() => {
+    const row = db.prepare('SELECT endDate, balanceDueDate FROM reservations').get();
+    assert.equal(row.endDate, '2026-07-18');
+    assert.equal(row.balanceDueDate, '2026-07-28', 'the deadline follows the new departure (rule 8)');
+  });
+});
+
+test('locked: a drift the operator has not approved moves neither the dates nor the deadline', () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  return model.syncSource(source).then(() => {
+    db.prepare('UPDATE reservations SET icalSyncLocked = 1').run();
+    stubFetch([{ uid: 'E1', start: '20260710', end: '20260718', summary: 'Jean Dupont' }]);
+    return model.syncSource(source);
+  }).then(() => {
+    const row = db.prepare('SELECT endDate, balanceDueDate FROM reservations').get();
+    assert.equal(row.endDate, '2026-07-13');
+    assert.equal(row.balanceDueDate, '2026-07-23');
+  });
+});

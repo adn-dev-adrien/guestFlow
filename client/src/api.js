@@ -80,6 +80,8 @@ const api = {
   setPlatformTouristTax: (platformKey, touristTaxCollection) => request(`/platforms/${encodeURIComponent(platformKey)}/tourist-tax`, { method: 'PUT', body: { touristTaxCollection } }),
   // specs/platform-deposit-toggle.md — global per-platform « acompte » flag (applies to every property).
   setPlatformDepositMode: (platformKey, takesDeposit) => request(`/platforms/${encodeURIComponent(platformKey)}/deposit-mode`, { method: 'PUT', body: { takesDeposit } }),
+  // specs/platform-payout-due-date.md — days after departure before the platform's transfer is late.
+  setPlatformPayoutDueDays: (platformKey, days) => request(`/platforms/${encodeURIComponent(platformKey)}/payout-due-days`, { method: 'PUT', body: { days } }),
   getPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources`),
   createPropertyIcalSource: (propId, data) => request(`/properties/${propId}/ical-sources`, { method: 'POST', body: data }),
   updatePropertyIcalSource: (propId, sourceId, data) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'PUT', body: data }),

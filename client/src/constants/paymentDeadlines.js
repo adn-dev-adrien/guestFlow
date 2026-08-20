@@ -10,6 +10,8 @@ export const DEADLINE_STATE_LABELS = {
   balance_overdue: 'Solde en retard',
   cancel_due: 'Solde impayé',
   unpaid_at_arrival: 'Arrivée non réglée',
+  // specs/platform-payout-due-date.md — the platform's transfer, not the guest's money.
+  platform_payout_overdue: 'Virement plateforme',
 };
 
 export const DEADLINE_STATE_BADGE = {
@@ -17,6 +19,7 @@ export const DEADLINE_STATE_BADGE = {
   balance_overdue: 'warning',
   cancel_due: 'error',
   unpaid_at_arrival: 'error',
+  platform_payout_overdue: 'warning',
 };
 
 /** The one-line explanation under the client name — what is late, and by how much. */
@@ -30,6 +33,10 @@ export function deadlineHeadline(row) {
       return 'Le séjour commence et le règlement n’est pas complet';
     case 'balance_overdue':
       return `Solde en retard — ${late}`;
+    case 'platform_payout_overdue':
+      return days <= 0
+        ? 'Virement plateforme attendu aujourd’hui'
+        : `Virement plateforme en retard de ${days} jour${days > 1 ? 's' : ''}`;
     default:
       return `Acompte en retard — ${late}`;
   }

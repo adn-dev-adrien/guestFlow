@@ -62,6 +62,29 @@ const DEPOSIT_OVERDUE = {
   remindType: 'deposit',
 };
 
+// specs/platform-payout-due-date.md §3.2 — the platform's transfer is late.
+const PLATFORM_PAYOUT = {
+  ...CANCEL_DUE,
+  reservationId: 12,
+  reservationNumber: '2026-07-018',
+  state: 'platform_payout_overdue',
+  severity: 'warning',
+  clientName: 'Sophie Bernard',
+  platformLabel: 'Airbnb',
+  startDate: '2026-07-15',
+  endDate: '2026-07-22',
+  depositDue: 0,
+  balanceDue: 612,
+  totalDue: 612,
+  dueDate: '2026-08-01',
+  daysLate: 18,
+  cancelOn: null,
+  canCancel: false,
+  retainedDepositAmount: 0,
+  canRemind: false,
+  remindType: null,
+};
+
 const renderCard = () => render(
   <DialogProvider>
     <PaymentDeadlinesAlert />
@@ -135,4 +158,25 @@ test('cancelling goes through the confirmation dialog and its recap', async () =
   await waitFor(() => expect(api.cancelReservation).toHaveBeenCalledWith(10, {
     reason: 'Sans nouvelles', notifyClient: true,
   }));
+});
+
+test('a late platform payout names the platform and offers no dunning, no cancellation', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [PLATFORM_PAYOUT] });
+  renderCard();
+  expect(await screen.findByText(/Virement plateforme en retard de 18 jours/)).toBeInTheDocument();
+  expect(screen.getByText(/Sophie Bernard · Le Lodge · Airbnb/)).toBeInTheDocument();
+  expect(screen.getByText(/612,00/)).toBeInTheDocument();
+  // Never a « Relancer » towards an OTA guest: they already paid the platform.
+  expect(screen.queryByRole('button', { name: 'Relancer' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Annuler le séjour' })).not.toBeInTheDocument();
+  // Reporting it for a week is the one action that makes sense.
+  expect(screen.getByRole('button', { name: 'Reporter' })).toBeInTheDocument();
+});
+
+test('a direct row keeps its « Relancer » button alongside a platform one', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [DEPOSIT_OVERDUE, PLATFORM_PAYOUT] });
+  renderCard();
+  await screen.findByText(/Virement plateforme en retard/);
+  expect(screen.getAllByRole('button', { name: 'Relancer' })).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Reporter' })).toHaveLength(2);
 });

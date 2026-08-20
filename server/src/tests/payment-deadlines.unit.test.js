@@ -85,11 +85,123 @@ test('from the arrival day on, the row warns but never offers to cancel (rule 13
   assert.equal(out.canCancel, false);
 });
 
-test('platform bookings never surface (rule 1)', () => {
-  assert.equal(buildPaymentDeadlineRow(row({ platform: 'Airbnb' }), TODAY), null);
-  assert.equal(buildPaymentDeadlineRow(row({ platform: 'Booking.com' }), TODAY), null);
-  // The booking engine on our own site is a direct channel.
-  assert.ok(buildPaymentDeadlineRow(row({ platform: 'Lodgify' }), TODAY));
+// specs/platform-payout-due-date.md — a platform booking that ended, whose payout deadline
+// (departure + payoutDueDays) has passed with the solde still unpaid.
+function platformRow(overrides = {}) {
+  return row({
+    platform: 'Airbnb',
+    startDate: '2026-07-15',
+    endDate: '2026-07-22',
+    depositAmount: 0,
+    depositPaid: 0,
+    depositDueDate: null,
+    payoutDueDays: 10,
+    balanceDueDate: '2026-08-01', // the stored cache; the row derives departure + payoutDueDays
+    ...overrides,
+  });
+}
+
+test('platform bookings never surface in a GUEST-facing state (rule 15)', () => {
+  // A platform booking still in the future can never be « arrivée non réglée » nor « à annuler »:
+  // its solde is the platform's payout, and it is not late until the guest has left.
+  for (const state of [{}, { startDate: '2026-08-01' }, { startDate: TODAY }]) {
+    const out = buildPaymentDeadlineRow(row({ platform: 'Airbnb', ...state }), TODAY);
+    assert.equal(out, null);
+  }
+  // The booking engine on our own site is a direct channel — unchanged behaviour (rule 2).
+  const lodgify = buildPaymentDeadlineRow(row({ platform: 'Lodgify' }), TODAY);
+  assert.equal(lodgify.state, 'cancel_due');
+  assert.equal(lodgify.platformLabel, null);
+});
+
+test('a late platform payout gets its own state, with no dunning and no cancellation', () => {
+  const out = buildPaymentDeadlineRow(platformRow(), TODAY);
+  assert.equal(out.state, 'platform_payout_overdue');
+  assert.equal(out.severity, 'warning');
+  assert.equal(out.platformLabel, 'Airbnb');
+  assert.equal(out.daysLate, 18);
+  assert.equal(out.dueDate, '2026-08-01');
+  assert.equal(out.balanceDue, 640);
+  assert.equal(out.totalDue, 640);
+  assert.equal(out.depositDue, 0, 'the acompte never drives a platform row (rule 14)');
+  // Never email an OTA guest about money they already paid the platform (rule 16), and never offer
+  // to cancel a stay that already happened (rule 17).
+  assert.equal(out.canRemind, false);
+  assert.equal(out.remindType, null);
+  assert.equal(out.canCancel, false);
+  assert.equal(out.cancelOn, null);
+  assert.equal(out.retainedDepositAmount, 0);
+});
+
+test('a platform payout is not late before the deadline — nor before the guest has left', () => {
+  // Departure + 10 still ahead.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ endDate: '2026-08-12' }), TODAY), null);
+  // Deadline on the day itself: due, not late.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ endDate: '2026-08-09' }), TODAY), null);
+  // Already settled.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ balancePaid: 1 }), TODAY), null);
+  // Imported but never priced: no amount to claim, so nothing to alert about.
+  assert.equal(buildPaymentDeadlineRow(platformRow({ balanceAmount: 0 }), TODAY), null);
+  // The stay is still ahead → nothing can be late yet, whatever the stored column says.
+  const future = platformRow({ startDate: '2026-09-18', endDate: '2026-09-25', balanceDueDate: '2026-08-09' });
+  assert.equal(buildPaymentDeadlineRow(future, TODAY), null);
+});
+
+test('the deadline is derived from the departure, never read from the stored column (rule 12bis)', () => {
+  // A reservation created BEFORE this change still carries the old guest-facing date (arrival − 30
+  // or − 7). Trusting it would announce « en retard de 26 jours » for a payout that is not due yet —
+  // exactly what shipping without a migration would otherwise cost.
+  const legacy = platformRow({ startDate: '2026-08-01', endDate: '2026-08-15', balanceDueDate: '2026-07-25' });
+  assert.equal(buildPaymentDeadlineRow(legacy, TODAY), null, 'departure + 10 = 2026-08-25, not late yet');
+  // Same row a week later: late by the real rule, and by the right number of days.
+  const later = buildPaymentDeadlineRow(legacy, '2026-08-28');
+  assert.equal(later.dueDate, '2026-08-25');
+  assert.equal(later.daysLate, 3);
+});
+
+test('the platform\'s own delay drives the row', () => {
+  // Booking invoices monthly: the same stay is not late on the day Airbnb would be.
+  const slow = platformRow({ payoutDueDays: 45 });
+  assert.equal(buildPaymentDeadlineRow(slow, TODAY), null);
+  const fast = buildPaymentDeadlineRow(platformRow({ payoutDueDays: 3 }), TODAY);
+  assert.equal(fast.dueDate, '2026-07-25');
+  assert.equal(fast.daysLate, 25);
+  // An absent setting falls back to 10, never to 0.
+  const fallback = buildPaymentDeadlineRow(platformRow({ payoutDueDays: undefined }), TODAY);
+  assert.equal(fallback.dueDate, '2026-08-01');
+});
+
+test('an unpaid acompte on a platform that takes one never raises a row (rule 14)', () => {
+  const out = buildPaymentDeadlineRow(platformRow({
+    depositAmount: 200, depositPaid: 0, depositDueDate: '2026-06-01',
+    balanceAmount: 0,
+  }), TODAY);
+  assert.equal(out, null);
+});
+
+test('a snoozed platform row is hidden too (rule 18)', () => {
+  assert.equal(buildPaymentDeadlineRow(platformRow({ paymentAlertSnoozedUntil: '2026-08-26' }), TODAY), null);
+  assert.ok(buildPaymentDeadlineRow(platformRow({ paymentAlertSnoozedUntil: '2026-08-18' }), TODAY));
+});
+
+test('rows leave the card on their own clock — departure for a guest, deadline for a platform (rule 21)', () => {
+  // Own channel: 30 days after the DEPARTURE.
+  const stayEnded = { startDate: '2026-06-20', endDate: '2026-07-20', balanceDueDate: '2026-06-01' };
+  assert.ok(buildPaymentDeadlineRow(row(stayEnded), '2026-08-19'), 'still visible 30 days after the stay');
+  assert.equal(buildPaymentDeadlineRow(row(stayEnded), '2026-08-20'), null, 'gone on day 31');
+  // Platform: 30 days after the PAYOUT DEADLINE (departure + 10 = 2026-08-01), itself after the stay.
+  const payout = platformRow();
+  assert.ok(buildPaymentDeadlineRow(payout, '2026-08-31'), 'still visible 30 days late');
+  assert.equal(buildPaymentDeadlineRow(payout, '2026-09-01'), null, 'gone on day 31');
+});
+
+test('a late payout ranks after every guest-facing state', () => {
+  const rows = buildPaymentDeadlineRows([
+    { ...platformRow(), id: 4 },
+    { ...row(), id: 1 },                                        // cancel_due
+    { ...row({ balanceDueDate: '2026-08-18', startDate: '2026-09-18' }), id: 2 }, // balance_overdue
+  ], TODAY);
+  assert.deepEqual(rows.map((r) => r.state), ['cancel_due', 'balance_overdue', 'platform_payout_overdue']);
 });
 
 test('nothing outstanding → no row', () => {

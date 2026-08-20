@@ -1247,10 +1247,16 @@ function createReservationsModel(database) {
     },
 
     // ── Payment deadlines & cancellation (specs/payment-schedule-and-cancellation.md) ──────────
-    // Everything the deadline card could possibly be about: a direct reservation with an unpaid
-    // acompte or solde. The state itself is decided by utils/paymentDeadlines (pure) — this read
-    // only narrows the set. Stays that ended more than 30 days ago drop off: after a month of daily
-    // alerts the operator has seen it, and the card must stay a to-do list, not an archive.
+    // Everything the deadline card could possibly be about: a reservation with an unpaid acompte or
+    // solde — platform bookings included since specs/platform-payout-due-date.md, whose payout
+    // deadline falls AFTER the stay. The state itself is decided by utils/paymentDeadlines (pure) —
+    // this read only narrows the set.
+    //
+    // The 60-day floor is a coarse pre-filter, not the visibility rule: the real windows (30 days
+    // after the departure for an own channel, 30 days after the payout deadline for a platform) are
+    // applied in the pure layer, which is the only place that knows a row's channel and its driving
+    // échéance (rule 21). It used to be 30 days here, which would have cut a platform row down to
+    // nine days of visibility.
     listPaymentDeadlineCandidates(today) {
       return database.prepare(`
         SELECT r.id, r.reservationNumber, r.platform, r.startDate, r.endDate,
@@ -1263,11 +1269,18 @@ function createReservationsModel(database) {
           JOIN clients c ON c.id = r.clientId
           JOIN properties p ON p.id = r.propertyId
          WHERE r.kind = 'reservation'
-           AND r.endDate >= date(@today, '-30 days')
+           AND r.endDate >= date(@today, '-60 days')
            AND ((r.depositAmount > 0 AND r.depositPaid = 0)
              OR (r.balanceAmount > 0 AND r.balancePaid = 0))
          ORDER BY r.startDate, r.id
       `).all({ today });
+    },
+
+    // The booking channel alone — all the dunning guard needs to know before sending anything
+    // (specs/platform-payout-due-date.md rule 20). Returns null when the reservation is gone.
+    getPlatform(reservationId) {
+      const row = database.prepare('SELECT platform FROM reservations WHERE id = ?').get(Number(reservationId));
+      return row ? row.platform : null;
     },
 
     // Hide one reservation's deadline row until `until`. The échéances themselves never move: the
