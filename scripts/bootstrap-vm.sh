@@ -121,6 +121,14 @@ fi
 # simple `startOrRestart` après bascule lance bien la NOUVELLE version.
 if [ -f "$ROOT/ecosystem.config.js" ]; then
   say "✓ ecosystem.config.js déjà présent (laissé tel quel)"
+  # On ne réécrit pas un fichier que l'opérateur a peut-être ajusté. On vérifie seulement qu'il dit
+  # bien où vit la base : sans DB_PATH, l'application retombe sur `current/server/guestflow.db`, ce
+  # qui marche (le lien symbolique pointe vers data/) mais laisse la configuration implicite.
+  if ! grep -q "DB_PATH" "$ROOT/ecosystem.config.js"; then
+    say "ℹ DB_PATH n'est pas déclaré dans ecosystem.config.js."
+    say "  Le moteur suit le lien symbolique de la base, donc rien n'est cassé, mais l'explicite"
+    say "  vaut mieux : ajoute dans le bloc env —  DB_PATH: '${ROOT}/data/guestflow.db',"
+  fi
 else
   cat > "$ROOT/ecosystem.config.js" <<ECOSYSTEM
 // GuestFlow — définition du process PM2 (specs/self-update-and-releases.md §4.6).

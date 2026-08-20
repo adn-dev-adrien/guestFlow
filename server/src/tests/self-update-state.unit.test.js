@@ -148,3 +148,36 @@ test('dismissVersion is remembered across reads', () => {
   assert.equal(model.readState().dismissedVersion, '1.2.0');
   cleanup();
 });
+
+// specs/self-update-and-releases.md §4.6 — a deployment may leave DB_PATH unset and rely on the
+// historical wiring instead: `current/server/guestflow.db` symlinked into `~/guestflow/data/`. That
+// is how the production host was set up. Taking the link at face value would put the data directory
+// inside the release, where the update state would be destroyed by the very swap it must survive.
+
+test('the data directory follows the database symlink out of the release', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-layout-'));
+  const dataDir = path.join(root, 'data');
+  const serverDir = path.join(root, 'releases', '1.0.0', 'server');
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.mkdirSync(serverDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'guestflow.db'), 'SQLite format 3');
+  const linked = path.join(serverDir, 'guestflow.db');
+  fs.symlinkSync(path.join(dataDir, 'guestflow.db'), linked);
+
+  const { resolvePaths: resolve } = require('../utils/deploymentPaths');
+  const paths = resolve({ DB_PATH: linked });
+
+  assert.equal(fs.realpathSync(paths.dataDir), fs.realpathSync(dataDir), 'data/ must be outside the release');
+  assert.equal(fs.realpathSync(paths.deployRoot), fs.realpathSync(root));
+  assert.equal(path.basename(paths.releasesDir), 'releases');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a plain database file keeps its own directory as the data directory', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-layout-'));
+  const dbPath = path.join(root, 'guestflow.db');
+  fs.writeFileSync(dbPath, 'SQLite format 3');
+  const { resolvePaths: resolve } = require('../utils/deploymentPaths');
+  assert.equal(fs.realpathSync(resolve({ DB_PATH: dbPath }).dataDir), fs.realpathSync(root));
+  fs.rmSync(root, { recursive: true, force: true });
+});
