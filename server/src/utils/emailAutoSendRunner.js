@@ -15,6 +15,13 @@ const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
+const { DIRECT_CHANNELS } = require('./platformNameFormat');
+
+// Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
+// platformNameFormat.js — adding a channel there reaches this pass for free. Same pattern as
+// balanceRequestRunner.
+const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
+const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
 
 function isoToday(now = new Date()) {
   // Use the server's local date — same locale the cron fires at 08:00 of.
@@ -53,6 +60,12 @@ async function performAutoEmailPass(deps) {
     WHERE COALESCE(kind, 'reservation') = 'reservation'
       AND date(startDate, ? || ' days') = ?
   `);
+  // specs/platform-payout-due-date.md §3.3 rules 22-23 — a MONEY template never leaves for a platform
+  // booking. Its acompte and solde are the platform's, not the guest's: asking an Airbnb guest for a
+  // solde they already paid Airbnb is wrong whatever the date. This mirrors the filter
+  // `balanceRequestRunner.selectEligible` has always had; without it the `balance_reminder` template
+  // (auto, enabled, offset +3) reached OTA guests. The `start` anchor is deliberately NOT filtered:
+  // arrival emails (welcome, check-in instructions…) are legitimate on any channel.
   const paymentAnchorStmt = (anchor, amountColumn, paidColumn) => database.prepare(`
     SELECT * FROM reservations
     WHERE COALESCE(kind, 'reservation') = 'reservation'
@@ -60,11 +73,19 @@ async function performAutoEmailPass(deps) {
       AND COALESCE(${amountColumn}, 0) > 0
       AND COALESCE(${paidColumn}, 0) != 1
       AND date(${anchor}, ? || ' days') = ?
+      AND LOWER(COALESCE(NULLIF(TRIM(platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
   `);
+  // Each anchor carries the extra bound parameters ITS query needs, after the shared (offset, today).
   const statementsByAnchor = {
-    start: findReservationsStmt,
-    depositDueDate: paymentAnchorStmt('depositDueDate', 'depositAmount', 'depositPaid'),
-    balanceDueDate: paymentAnchorStmt('balanceDueDate', 'balanceAmount', 'balancePaid'),
+    start: { statement: findReservationsStmt, extraParams: [] },
+    depositDueDate: {
+      statement: paymentAnchorStmt('depositDueDate', 'depositAmount', 'depositPaid'),
+      extraParams: DIRECT_CHANNEL_LIST,
+    },
+    balanceDueDate: {
+      statement: paymentAnchorStmt('balanceDueDate', 'balanceAmount', 'balancePaid'),
+      extraParams: DIRECT_CHANNEL_LIST,
+    },
   };
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');
   const findProperty = database.prepare('SELECT * FROM properties WHERE id = ?');
@@ -108,12 +129,12 @@ async function performAutoEmailPass(deps) {
   for (const template of templates) {
     // An unknown anchor (a 'validUntil' template flipped to `auto` by hand — the devis queue is
     // manual by design) has no auto-send query: skip it rather than silently mailing the wrong set.
-    const statement = statementsByAnchor[template.anchor || 'start'];
-    if (!statement) {
+    const anchorQuery = statementsByAnchor[template.anchor || 'start'];
+    if (!anchorQuery) {
       results.push({ templateId: template.id, status: 'skipped-unsupported-anchor', anchor: template.anchor });
       continue;
     }
-    const reservations = statement.all(String(template.dayOffset), today);
+    const reservations = anchorQuery.statement.all(String(template.dayOffset), today, ...anchorQuery.extraParams);
     for (const reservation of reservations) {
       // Skip pairs we've already shipped.
       if (logModel.existsFor(template.id, reservation.id, ['sent'])) {

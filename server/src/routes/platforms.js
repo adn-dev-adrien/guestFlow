@@ -20,5 +20,8 @@ router.put('/:key/color', controller.setColor);
 router.put('/:key/tourist-tax', controller.setTouristTax);
 // specs/platform-deposit-toggle.md — set a platform's GLOBAL acompte flag (applies to every property).
 router.put('/:key/deposit-mode', controller.setDepositMode);
+// specs/platform-payout-due-date.md — set a platform's GLOBAL payout delay (days after departure).
+// `:key` is the platform label/name (url-encoded); drives the solde deadline of its reservations.
+router.put('/:key/payout-due-days', controller.setPayoutDueDays);
 
 module.exports = router;

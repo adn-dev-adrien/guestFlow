@@ -71,3 +71,48 @@ test('daysBetween counts whole days, negative into the future', () => {
   assert.equal(daysBetween('2026-07-09', '2026-07-02'), -7);
   assert.equal(daysBetween(null, '2026-07-02'), null);
 });
+
+// ── Platform payout (specs/platform-payout-due-date.md §3.1) ──────────────────────────────────
+
+test('solde on a platform: due payoutDueDays AFTER the departure, not before the arrival (rule 4)', () => {
+  const stay = { startDate: '2026-07-02', endDate: '2026-07-09', bookingDate: '2026-05-01' };
+  assert.equal(
+    resolveBalanceDueDate({ ...stay, platform: 'Airbnb' }),
+    '2026-07-19',
+    'default 10 days after the guest leaves',
+  );
+  assert.equal(
+    resolveBalanceDueDate({ ...stay, platform: 'Booking', platformPayoutDueDays: 45 }),
+    '2026-08-23',
+    'a platform invoicing monthly can be given its own delay',
+  );
+  assert.equal(
+    resolveBalanceDueDate({ ...stay, platform: 'Airbnb', platformPayoutDueDays: 0 }),
+    '2026-07-09',
+    '0 is a legitimate setting: paid on the departure day itself',
+  );
+});
+
+test('own channels keep the guest-facing schedule — Lodgify included (rule 2)', () => {
+  const stay = { startDate: '2026-08-01', endDate: '2026-08-08', bookingDate: '2026-02-01', balanceDaysBefore: 30 };
+  assert.equal(resolveBalanceDueDate({ ...stay, platform: 'direct' }), '2026-07-02');
+  assert.equal(resolveBalanceDueDate({ ...stay, platform: 'Lodgify' }), '2026-07-02');
+  assert.equal(resolveBalanceDueDate({ ...stay, platform: 'lodgify' }), '2026-07-02');
+  assert.equal(resolveBalanceDueDate(stay), '2026-07-02', 'no platform at all → unchanged behaviour');
+});
+
+test('an unusable payout delay falls back to 10, never to 0 (rule 7)', () => {
+  const stay = { startDate: '2026-07-02', endDate: '2026-07-09', platform: 'Airbnb' };
+  for (const bad of [null, undefined, '', 'abcd', NaN, -3, 900]) {
+    assert.equal(
+      resolveBalanceDueDate({ ...stay, platformPayoutDueDays: bad }),
+      '2026-07-19',
+      `payoutDueDays=${String(bad)} must fall back to the default`,
+    );
+  }
+});
+
+test('a platform stay with no departure date, or nothing to collect, has no deadline', () => {
+  assert.equal(resolveBalanceDueDate({ startDate: '2026-07-02', endDate: null, platform: 'Airbnb' }), null);
+  assert.equal(resolveBalanceDueDate({ endDate: '2026-07-09', platform: 'Airbnb', hasBalance: false }), null);
+});

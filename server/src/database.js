@@ -1093,6 +1093,14 @@ db.exec(`
   if (!platformCols.includes('platformTakesDeposit')) {
     db.exec('ALTER TABLE platforms ADD COLUMN platformTakesDeposit INTEGER NOT NULL DEFAULT 0');
   }
+  // specs/platform-payout-due-date.md §3.1 rule 6 — how many days after the guest leaves the platform
+  // is expected to settle. Drives `balanceDueDate = endDate + payoutDueDays` on every non-direct
+  // reservation, and therefore the dashboard's « Virement plateforme en retard » alert. GLOBAL per
+  // platform (Airbnb pays within days, Booking invoices at the month's end). DEFAULT 10 is the
+  // intended value for every existing row — no backfill, and no reservation row is rewritten.
+  if (!platformCols.includes('payoutDueDays')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN payoutDueDays INTEGER NOT NULL DEFAULT 10');
+  }
 }
 // specs/platforms-and-ical-rework.md §3 rule 10 — per (property, platform) "hidden from this
 // property's reservation views" flag. Independent of `isActive` (sync inclusion); a disabled

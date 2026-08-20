@@ -16,7 +16,8 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT,
-    hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0, color TEXT
+    hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0, color TEXT,
+    payoutDueDays INTEGER NOT NULL DEFAULT 10
   );
 `;
 
@@ -124,4 +125,42 @@ test('rescan unions ical_sources + reservations.platform (idempotent, returns in
 
   // Re-run: idempotent, returns 0.
   assert.equal(model.rescan(), 0);
+});
+
+// ── Payout delay (specs/platform-payout-due-date.md §3.1 rules 6-7) ───────────────────────────
+
+test('payout delay: set and read back, per platform', () => {
+  const { model } = freshModel({ seedIcal: ['Airbnb', 'Booking'] });
+  assert.equal(model.getPayoutDueDays('Airbnb'), 10, 'the column default is the intended value');
+  assert.deepEqual(model.setPayoutDueDays('Airbnb', 3), { id: 2, name: 'Airbnb', payoutDueDays: 3 });
+  assert.equal(model.getPayoutDueDays('Airbnb'), 3);
+  assert.equal(model.getPayoutDueDays('Booking'), 10, 'the other platform is untouched');
+  assert.equal(model.setPayoutDueDays('Airbnb', 0).payoutDueDays, 0, '0 is a legitimate setting');
+});
+
+test('payout delay: matched by SLUG, so an iCal platformKey finds its catalogue row', () => {
+  const { model } = freshModel({ seedIcal: ['GitesDeFrance'] });
+  model.setPayoutDueDays('GitesDeFrance', 21);
+  // What a reservation imported from iCal actually stores in `reservations.platform`.
+  assert.equal(model.getPayoutDueDays('gites-de-france'), 21);
+  assert.equal(model.getPayoutDueDays('GITESDEFRANCE'), 21);
+});
+
+test('payout delay: own channels and unknown platforms fall back to the default', () => {
+  const { model } = freshModel({ seedIcal: ['Airbnb'] });
+  assert.equal(model.getPayoutDueDays('direct'), 10);
+  assert.equal(model.getPayoutDueDays('Lodgify'), 10, 'the guest pays us — no payout to wait for');
+  assert.equal(model.getPayoutDueDays('NeverHeardOf'), 10);
+  assert.equal(model.getPayoutDueDays(''), 10);
+  assert.equal(model.getPayoutDueDays(null), 10);
+  // …and an own channel can never be configured.
+  assert.equal(model.setPayoutDueDays('direct', 5), null);
+  assert.equal(model.setPayoutDueDays('Lodgify', 5), null);
+});
+
+test('payout delay: a never-synced platform is upserted on first configuration', () => {
+  const { model, db } = freshModel();
+  const out = model.setPayoutDueDays('Abritel', 14);
+  assert.equal(out.name, 'Abritel');
+  assert.equal(db.prepare("SELECT payoutDueDays FROM platforms WHERE name = 'Abritel'").get().payoutDueDays, 14);
 });

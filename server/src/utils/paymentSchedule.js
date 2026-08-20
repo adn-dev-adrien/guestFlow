@@ -7,6 +7,9 @@
  *              later edit (dates moved, price changed, engine recompute) may push it around.
  *   solde    → due `property.balanceDaysBefore` days before arrival (30), clamped so it can
  *              never fall before the booking date — a stay booked 3 days out owes both at once.
+ *              On a PLATFORM booking the solde is the platform's payout, not the guest's money:
+ *              it falls `payoutDueDays` (10) AFTER the departure instead
+ *              (specs/platform-payout-due-date.md).
  *   annulation → `balanceDueDate + property.cancelAfterBalanceDueDays` (7). Computed on read,
  *              never stored: it is a consequence of the solde deadline, not a separate promise.
  *
@@ -15,6 +18,8 @@
  */
 
 const { addDaysToIsoDate } = require('./devisHelpers');
+const { isDirectChannel } = require('./platformNameFormat');
+const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('./platformPayout');
 
 const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
@@ -65,15 +70,36 @@ function resolveDepositDueDate({
 }
 
 /**
- * Solde due date (rules 7-10): `startDate − balanceDaysBefore`, never before the booking day.
+ * Solde due date.
+ *
+ * Two regimes, decided by who owes the money:
+ *
+ *   • **own channel** (`direct`, `Lodgify` — the guest pays US): rules 7-10 —
+ *     `startDate − balanceDaysBefore`, never before the booking day.
+ *   • **platform** (specs/platform-payout-due-date.md §3.1 rule 4): `endDate + payoutDueDays`. An OTA
+ *     settles AFTER the stay, so a deadline placed before the arrival described nothing real and
+ *     could never be chased. The clamp on the booking date does not apply — a payout is by
+ *     construction later than the booking.
+ *
+ * The platform regime is derived from the departure date on every recompute (rule 8), so a stay
+ * whose dates move — an iCal drift, an operator edit — keeps a deadline that matches the real
+ * departure. Passing no `platform` keeps the own-channel behaviour, so existing callers are unchanged.
  */
 function resolveBalanceDueDate({
   hasBalance = true,
   startDate = null,
+  endDate = null,
   bookingDate = null,
   balanceDaysBefore = 30,
+  platform = null,
+  platformPayoutDueDays = DEFAULT_PAYOUT_DUE_DAYS,
 } = {}) {
   if (!hasBalance) return null;
+  if (!isDirectChannel(platform)) {
+    const end = toIsoDay(endDate);
+    if (!end) return null;
+    return addDaysToIsoDate(end, normalizePayoutDueDays(platformPayoutDueDays));
+  }
   const start = toIsoDay(startDate);
   if (!start) return null;
   const derived = addDaysToIsoDate(start, -positiveDays(balanceDaysBefore, 30));

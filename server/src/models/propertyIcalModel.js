@@ -20,6 +20,8 @@ const {
 } = require('../utils/icalParser');
 const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
+const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { formatPlatformName } = require('../utils/platformNameFormat');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
@@ -346,8 +348,24 @@ function createPropertyIcalModel(database) {
             balanceAmount, balanceDueDate, balancePaid,
             sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
             notes, cautionAmount, icalOriginalSummary
-          ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, ?, 0, 'ical', ?, ?, ?, 0, ?, ?, ?)
         `);
+        // specs/platform-payout-due-date.md §3.1 rule 9 — the platform's payout deadline, known the
+        // moment the booking lands: `endDate + payoutDueDays`. Written even though the imported row
+        // carries `balanceAmount = 0` (the amount arrives later, when the operator enters the
+        // platform's figures) — the deadline is a fact about the booking, not about the amount.
+        // Resolved from the SOURCE's platform label, which is what the catalogue row is named after.
+        // Bound to the INJECTED database, like the drift/cancellation/closure models above — a unit
+        // test syncing against `:memory:` must read that DB's platforms, not the production one.
+        // Built lazily inside the guard: `createPlatformsModel` prepares its statements eagerly, so a
+        // minimal schema with no `platforms` table throws here and falls back to the default delay.
+        const payoutDueDays = (() => {
+          try {
+            return platformsModel.create(database)
+              .getPayoutDueDays(source.platformLabel || source.name || source.platformKey);
+          } catch (_) { return DEFAULT_PAYOUT_DUE_DAYS; }
+        })();
+        const payoutDueDateFor = (endDate) => addDaysToIsoDate(endDate, payoutDueDays);
         // Apply the property's default options to a freshly-created iCal reservation so a bed-linen
         // (or any) default option appears immediately on the booking, marked `offered` per the
         // property setting (specs/bed-config-in-linen-card.md §10 follow-up). Paid defaults are PRICED
@@ -456,7 +474,8 @@ function createPropertyIcalModel(database) {
         } catch { /* minimal test schema without these tables — skip defaults / reprice */ }
         const updateReservation = database.prepare(`
           UPDATE reservations
-          SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?, updatedAt = datetime('now')
+          SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?,
+              balanceDueDate = ?, updatedAt = datetime('now')
           WHERE id = ?
         `);
 
@@ -586,6 +605,7 @@ function createPropertyIcalModel(database) {
                 property.defaultCheckIn || '15:00',
                 property.defaultCheckOut || '10:00',
                 source.platformKey,
+                payoutDueDateFor(event.endDate),
                 source.platformKey,
                 source.id,
                 event.uid,
@@ -621,6 +641,7 @@ function createPropertyIcalModel(database) {
                 property.defaultCheckIn || '15:00',
                 property.defaultCheckOut || '10:00',
                 source.platformKey,
+                payoutDueDateFor(event.endDate),
                 source.platformKey,
                 source.id,
                 event.uid,
@@ -690,6 +711,10 @@ function createPropertyIcalModel(database) {
               property.defaultCheckOut || '10:00',
               source.platformKey,
               event.uid,
+              // Rule 8 — the payout deadline is derived from the departure, so a drift moves it too.
+              // Only pristine (never-edited) reservations reach this path; a locked one is diverted
+              // to the drift-approval flow and keeps its dates, hence its deadline.
+              payoutDueDateFor(event.endDate),
               mapping.reservationId,
             );
             // Keep the (pristine) reservation's option amounts in sync with the new stay — a per_night
