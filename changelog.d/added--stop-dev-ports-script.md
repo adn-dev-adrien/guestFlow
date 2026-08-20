@@ -1,1 +1,0 @@
-- Ajout de `npm run stop` : libère les ports de dev de l'application (client :3000 + API :4000) en arrêtant les serveurs qui y écoutent, utile quand un serveur de test est resté en route. Idempotent, sans dépendance (Node + `lsof`).

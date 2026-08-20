@@ -1,1 +1,0 @@
-- Réservations plateforme : les extras (options, options personnalisées, ressources) restent **placés en paiement complémentaire par défaut**, mais le bouton « Compl. » est désormais disponible par ligne pour les **retirer du complémentaire** si besoin. Les options automatiques (early/late check-in/out) restent gérées par l'algorithme.

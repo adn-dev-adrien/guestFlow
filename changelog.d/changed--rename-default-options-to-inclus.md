@@ -1,1 +1,0 @@
-- Les « options ajoutées par défaut » d'un logement sont renommées « Options incluses » (interrupteur « Inclure ») ; sur la fiche réservation, le libellé « Inclus par défaut » devient « Inclus ». Comportement inchangé : activer une option incluse n'impacte que les nouvelles réservations (les réservations déjà créées ne sont pas modifiées).

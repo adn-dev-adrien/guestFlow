@@ -1,1 +1,0 @@
-- iCal import: a client created automatically by a sync no longer gets the "créé automatiquement lors de l'import iCal" mention in its note — the field stays empty for the operator's own text.

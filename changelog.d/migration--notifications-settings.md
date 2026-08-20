@@ -1,1 +1,0 @@
-- `app_settings`: two new non-secret columns `notificationsEnabled` (INTEGER, default `1` = ON) and `notificationRecipientEmail` (TEXT, default `''`). Added idempotently on startup; safe defaults mean existing installs get notifications ON with the recipient falling back to the SMTP sender. No data backfill.

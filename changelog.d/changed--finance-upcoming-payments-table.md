@@ -1,2 +1,0 @@
-- Suivi financier → Suivi opérationnel : l'onglet « Réservations à venir » est désormais présenté comme le tableau de « Paiements en attente » (Acompte, Solde, Complément, Reste à payer, Total de séjour) — en lecture seule et sans la colonne « Compl. fin de séjour » — avec un bandeau « En attente de paiement » (Σ reste à payer).
-- L'onglet « Réservations période » affiche la période (du/au) dans un bandeau en haut à droite du tableau.

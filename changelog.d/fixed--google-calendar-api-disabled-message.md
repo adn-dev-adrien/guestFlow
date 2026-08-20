@@ -1,1 +1,0 @@
-- Google Calendar : quand l'API Calendar n'est pas activée dans le projet Google Cloud, le message d'erreur nomme désormais la vraie cause (projet + où l'activer) au lieu du générique « pas la permission d'écrire dans cet agenda ».

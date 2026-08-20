@@ -1,1 +1,0 @@
-- Tourist-tax extraction page: the « Dates réservation » column now shows the reservation's real stay dates (arrival → departure, like the fiche réservation) instead of subtracting a day — a 1-night stay 20/06 → 21/06 no longer renders as « 20/06 au 20/06 » (specs/tourist-tax-declared-checkbox.md).

@@ -1,1 +1,0 @@
-- Online-payments groundwork: a secure **Qonto** bank connection (OAuth2) for issuing payment links, the encrypted token storage + auto-refresh, the `payment_links` data model, and fully operator-configurable payment reminder/deadline durations. First step of the online-payment feature (deposit / balance) — not yet operator-facing.

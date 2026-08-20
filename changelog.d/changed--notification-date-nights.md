@@ -1,1 +1,0 @@
-- Notification de nouvelle réservation (iCal) : le push affiche désormais les dates du séjour et le nombre de nuits (« — du JJ/MM/AAAA au JJ/MM/AAAA · N nuit(s) »), et l'email correspondant ajoute le nombre de nuits à sa ligne « Séjour ».

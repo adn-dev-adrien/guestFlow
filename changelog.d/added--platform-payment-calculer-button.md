@@ -1,1 +1,0 @@
-- Fiche de réservation, partie « Paiement plateforme » : nouveau bouton « Calculer la commission » qui déduit la commission solde des montants saisis (montant client − virement, moins une éventuelle commission acompte), de sorte que le net perçu se réconcilie avec le virement. Le calcul ne se déclenche qu'au clic et la valeur reste librement modifiable.

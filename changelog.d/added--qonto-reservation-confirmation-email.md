@@ -1,1 +1,0 @@
-- Online payments: a **reservation-confirmation email** (montant du séjour + dates + options) is now sent to the guest automatically the moment an online payment confirms the stay — when the deposit is paid (devis flow) or the full stay is paid (website flow). New editable `reservation_confirmation` template (FR + EN); the send is best-effort and never blocks the payment flow.

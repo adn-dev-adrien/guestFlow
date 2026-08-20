@@ -1,1 +1,0 @@
-- SAS wizard: on an installed iOS PWA, the answer buttons could become unresponsive after the phone went to sleep and woke up mid-SAS. The dialog now relaxes its focus trap (`disableEnforceFocus` / `disableRestoreFocus`) so it stays interactive after the page resumes.

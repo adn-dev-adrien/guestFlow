@@ -1,1 +1,0 @@
-- iCal : les réservations importées arrivent désormais avec une note vide (plus de bloc « Import iCal / UID / Résumé » parasite), et une synchronisation ne réécrit plus la note — celle que vous saisissez à la main est conservée.

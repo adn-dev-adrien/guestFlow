@@ -1,1 +1,0 @@
-- README : la section « Configuring Google Calendar Integration » devient la procédure complète validée en production (2026-07-21) — pièges signalés (API et client OAuth dans le même projet, type « Application Web » obligatoire, secret affiché une seule fois, URL publique = origine sans chemin) + table de dépannage symptôme → cause → remède.
