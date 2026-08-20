@@ -193,25 +193,15 @@ every subsequent night. With no tier provided at all, the legacy defaults still 
 This moves numbers for any existing `progressive` season whose stays exceed its last configured tier —
 a bug fix, but a visible one. The plan checks production before merge.
 
-### 2.6 `pricing.js` — tourist-tax base deduction (spec rules 48, 49)
+### 2.6 `pricing.js` — tourist-tax base deduction (spec rules 48, 49) — **removed 2026-08-20**
 
-`finalOptionLines` already carries the `includedInRate` tag from
-[line 1387](../../server/src/utils/pricing.js#L1387), and it is built before
-[`taxBaseAccommodation`](../../server/src/utils/pricing.js#L1578), so the deduction slots in with no
-reordering:
-
-```js
-const includedInRateValue = roundMoney(
-  finalOptionLines.reduce((s, l) => s + (l.includedInRate ? Number(l.originalTotalPrice || 0) : 0), 0),
-);
-const taxBaseAccommodation = roundMoney(Math.max(0, rawTaxBase - includedInRateValue));
-```
-
-`originalTotalPrice` holds the real price of an offered line, guaranteed non-zero by
-[`applyOfferedToLine`](../../server/src/utils/pricing.js#L683) and the lost-unit-price fallback of
-[pricing-engine-thin-client.md](../pricing-engine-thin-client.md) rule 14. The `freezeTouristTax` branch
-sits after this and keeps winning for past reservations. The quote exposes
-`touristTaxIncludedInRateDeduction` and `touristTaxBaseAccommodation`.
+This section described the deduction of `includedInRate` lines from `taxBaseAccommodation`. Rule 48 was
+repealed by [tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md): the tax
+base is the accommodation charged — the manual « Prix hébergement ajusté » when set, otherwise the
+tariff nights after the discount — and no option, resource, Complément routing or platform brut may move
+it. The `includedInRate` tag survives, but only to render « Comprise » at 0 €. The quote exposes
+`touristTaxBaseAccommodation` alone; `touristTaxIncludedInRateDeduction` and
+`touristTaxBaseBeforeDeduction` are gone.
 
 ### 2.7 `pricing.js` — `grossFromNet` (spec rules 31 to 33)
 

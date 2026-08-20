@@ -115,8 +115,6 @@ export default function PricingSummary({
   const touristTaxUnitAmount = Number(quote?.touristTaxUnitAmount || 0);
   const touristTaxAdultsCount = Number(quote?.touristTaxAdultsCount || 0);
   const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
-  const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
-  const touristTaxBaseBeforeDeduction = Number(quote?.touristTaxBaseBeforeDeduction || 0);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
   const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -651,13 +649,6 @@ export default function PricingSummary({
                   <Typography variant="caption" color="text.secondary">
                     Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
-                  {/* specs/tariff-recipes/spec.md §3.8 rule 48 — services structurally included in
-                      the rate are not accommodation: their value leaves the declared base. */}
-                  {touristTaxIncludedDeduction > 0 && (
-                    <Typography variant="caption" color="text.secondary">
-                      Base : {formatCurrency(touristTaxBaseBeforeDeduction)} − {formatCurrency(touristTaxIncludedDeduction)} de prestations comprises
-                    </Typography>
-                  )}
                 </Box>
               )}
 
