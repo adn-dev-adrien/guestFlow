@@ -1,1 +1,0 @@
-- Documented email deliverability setup (SPF / DKIM / DMARC on the Google Workspace sending domain) in the README, fixing Yahoo/Gmail `550 5.7.9` rejections caused by unsigned mail (DKIM never enabled in DNS).

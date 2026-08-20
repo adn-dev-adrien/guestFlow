@@ -1,1 +1,0 @@
-- Paiement en ligne (site) : le montant réglé inclut désormais la **taxe de séjour** (montant = hébergement + options + ressources + taxe), sauf si la taxe est configurée « perçue à l'arrivée ». Le montant est recalculé par le moteur depuis le devis enregistré (jamais fourni par le client), avec repli sur le total stocké en cas d'erreur.

@@ -1,1 +1,0 @@
-- Le numéro de réservation auto-généré n'a plus de tirets : format `AAAAMM###` (ex. `202606001`) au lieu de `2026-06-001`.

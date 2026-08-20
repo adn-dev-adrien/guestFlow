@@ -1,1 +1,0 @@
-- Public `/quote` now returns `totalStayPrice` — the stay grand total **including** the tourist tax (the existing `finalPrice` stays tax-exclusive). Public consumers should display `totalStayPrice` as the headline "Total du séjour".

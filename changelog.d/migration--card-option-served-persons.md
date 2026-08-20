@@ -1,1 +1,0 @@
-- `reservation_options` gagne `cardPersons` (REAL, nullable — ALTER gardé) : le nombre de personnes servies sur chaque moment d'une option à carte facturée par personne. `NULL` = toute la tablée, c'est-à-dire le comportement de toutes les lignes existantes — aucun backfill, aucune réservation ni aucun devis re-tarifé.

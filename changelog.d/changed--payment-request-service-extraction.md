@@ -1,1 +1,0 @@
-- Refactored the payment-request orchestration (create/reuse a Qonto link + email it) into an injectable `paymentRequestService`, with full unit-test coverage of the link reuse, amount/type validation and error-to-HTTP mapping. No change to the API contract.

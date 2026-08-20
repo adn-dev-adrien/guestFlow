@@ -1,1 +1,0 @@
-- Le tableau de bord affiche désormais le même calendrier cumulé (tous logements, barres par plateforme, défilement infini) que la page Calendrier — le même composant, donc un fonctionnement identique. La case du jour est encadrée.

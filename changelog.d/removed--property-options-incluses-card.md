@@ -1,1 +1,0 @@
-- Logements : retrait de la carte « Options incluses » de la fiche logement (Paramètres → Logements). Les options incluses par défaut se configurent désormais uniquement depuis la page Options.

@@ -1,1 +1,0 @@
-- SAS : à l'étape ménage, quand le ménage n'est pas inclus, le bouton mis en avant par défaut est désormais « Non merci » (le ménage est l'exception, pas la règle) ; « Ajouter le ménage » reste disponible en second.
