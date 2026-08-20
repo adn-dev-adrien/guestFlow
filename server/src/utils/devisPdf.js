@@ -62,6 +62,31 @@ function lineAmounts(line) {
   return { offered, billed: offered ? 0 : stored, real };
 }
 
+// specs/devis-pdf-row-layout.md §3 — pure geometry of one pricing-table row. Fed the measured
+// heights of what the row actually prints, it answers how tall the row is and where each piece goes
+// (offsets from the row's top edge). Row heights used to be a fixed 20 / 28 px, so a designation that
+// wrapped bled over the next row's band and the « Offert » badge landed on the label. Exported under
+// `__test`: PDFKit encodes text as glyph indexes, so the geometry can only be proven here.
+const ROW_PAD_TOP = 7;
+const ROW_PAD_BOTTOM = 6;
+const ROW_BADGE_GAP = 4;
+
+function resolveRowGeometry({
+  descHeight = 0, badgeHeight = 0, moneyLineHeight = 0, struckLineHeight = 0, showOriginal = false,
+} = {}) {
+  // The badge owns the line above the label, and takes the whole row down with it.
+  const badgeBlock = badgeHeight > 0 ? badgeHeight + ROW_BADGE_GAP : 0;
+  // The money column prints two lines when it strikes an original: the "was" price, then the billed one.
+  const moneyHeight = showOriginal ? struckLineHeight + moneyLineHeight : moneyLineHeight;
+  const lineY = ROW_PAD_TOP + badgeBlock;
+  return {
+    rowH: Math.ceil(ROW_PAD_TOP + badgeBlock + Math.max(descHeight, moneyHeight) + ROW_PAD_BOTTOM),
+    badgeY: ROW_PAD_TOP,
+    lineY,
+    amountY: showOriginal ? lineY + struckLineHeight : lineY,
+  };
+}
+
 function generateDevisPdf(full, settings, quote) {
   return new Promise((resolve, reject) => {
   // 2026-06-06 — bilingual rendering (specs/devis-english-language.md). The devis row
@@ -322,6 +347,19 @@ function generateDevisPdf(full, settings, quote) {
   let subtotalHt = 0;
   let subtotalTtcFromRows = 0;
 
+  // A row is exactly as tall as what it prints (specs/devis-pdf-row-layout.md §3): the designation is
+  // measured, so a long option label simply wraps and the row grows with it.
+  const DESC_W = PAGE_W * 0.48;
+
+  // A struck-through "was" amount, right-aligned in its column, on the label's line.
+  function drawStruckAmount(text, colX, colW, y) {
+    doc.fontSize(7.5).fillColor('#8a8a8a').font('Helvetica')
+      .text(text, colX, y, { width: colW, align: 'right' });
+    const w = doc.widthOfString(text);
+    const x = colX + colW - w;
+    doc.moveTo(x, y + 4).lineTo(x + w, y + 4).strokeColor('#8a8a8a').lineWidth(0.6).stroke();
+  }
+
   function drawRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
     const originalTtc = Number(meta.originalTtc || 0);
     // By default the original is struck only when it's higher (a reduction). `forceOriginal` strikes it
@@ -330,7 +368,21 @@ function generateDevisPdf(full, settings, quote) {
       ? originalTtc > 0 && Math.abs(originalTtc - Number(totalTtc || 0)) > 0.009
       : originalTtc > Number(totalTtc || 0) + 0.009;
     const hasBadge = Boolean(meta.badgeText);
-    const rowH = showOriginal || hasBadge ? 28 : 20;
+    const descText = String(desc == null ? '' : desc);
+    const badgeText = hasBadge ? String(meta.badgeText) : '';
+
+    // Measure everything before drawing anything, then let the geometry resolver place it.
+    doc.fontSize(9).font(italic ? 'Helvetica-Oblique' : 'Helvetica');
+    const descHeight = doc.heightOfString(descText, { width: DESC_W });
+    doc.font('Helvetica');
+    const moneyLineHeight = doc.heightOfString('0', { width: DESC_W });
+    doc.fontSize(7.5).font('Helvetica-Bold');
+    const badgeHeight = hasBadge ? doc.heightOfString(badgeText, { width: DESC_W }) : 0;
+    const struckLineHeight = doc.heightOfString('0', { width: DESC_W });
+    const { rowH, badgeY, lineY: lineOffsetY, amountY: amountOffsetY } = resolveRowGeometry({
+      descHeight, badgeHeight, moneyLineHeight, struckLineHeight, showOriginal,
+    });
+
     rowY = checkBreak(rowY, rowH);
     if (rowIdx % 2 === 0) doc.rect(LEFT, rowY, PAGE_W, rowH).fill(LIGHT_GRAY);
     const rate = Number(vatRate || 0);
@@ -338,47 +390,31 @@ function generateDevisPdf(full, settings, quote) {
     subtotalHt += ht;
     subtotalTtcFromRows += Number(totalTtc || 0);
 
+    // The badge owns the line above the label; every other column aligns with the label's first line.
+    if (hasBadge) {
+      doc.fontSize(7.5).font('Helvetica-Bold').fillColor('#2e7d32')
+        .text(badgeText, COL_DESC + 4, rowY + badgeY, { width: DESC_W });
+    }
+    const lineY = rowY + lineOffsetY;
+
     doc.fontSize(9).fillColor(TEXT_DARK);
     if (italic) doc.font('Helvetica-Oblique'); else doc.font('Helvetica');
-    const descY = showOriginal ? rowY + 10 : rowY + 6;
-    doc.text(desc, COL_DESC + 4, descY, { width: PAGE_W * 0.48 });
-    if (hasBadge) {
-      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#2e7d32')
-        .text(meta.badgeText, COL_DESC + 4, rowY + 3, { width: PAGE_W * 0.48 });
-    }
-    doc.font('Helvetica').text(String(qty), COL_QTY, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
+    doc.text(descText, COL_DESC + 4, lineY, { width: DESC_W });
+    doc.font('Helvetica').text(String(qty), COL_QTY, lineY, { width: PAGE_W * 0.1, align: 'center' });
+    doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, lineY, { width: PAGE_W * 0.1, align: 'center' });
+
     if (showOriginal) {
       const originalHt = rate > 0
         ? roundMoney(originalTtc / (1 + (rate / 100)))
         : roundMoney(originalTtc);
-      const originalHtText = formatCurrency(originalHt);
-      doc.fontSize(7.5).fillColor('#8a8a8a').font('Helvetica')
-        .text(originalHtText, COL_HT, rowY + 3, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
-      const oldHtWidth = doc.widthOfString(originalHtText);
-      const oldHtX = COL_HT + (PAGE_W * 0.16 - RIGHT_PAD) - oldHtWidth;
-      const oldHtY = rowY + 7;
-      doc.moveTo(oldHtX, oldHtY).lineTo(oldHtX + oldHtWidth, oldHtY).strokeColor('#8a8a8a').lineWidth(0.6).stroke();
-      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica')
-        .text(formatCurrency(ht), COL_HT, rowY + 14, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
-    } else {
-      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica')
-        .text(formatCurrency(ht), COL_HT, rowY + 6, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+      drawStruckAmount(formatCurrency(originalHt), COL_HT, PAGE_W * 0.16 - RIGHT_PAD, lineY);
+      drawStruckAmount(formatCurrency(originalTtc), COL_TOTAL, PAGE_W * 0.14 - RIGHT_PAD, lineY);
     }
-    doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
-    if (showOriginal) {
-      const originalTtcText = formatCurrency(originalTtc);
-      doc.fontSize(7.5).fillColor('#8a8a8a').font('Helvetica')
-        .text(originalTtcText, COL_TOTAL, rowY + 3, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
-      const oldTtcWidth = doc.widthOfString(originalTtcText);
-      const oldTtcX = COL_TOTAL + (PAGE_W * 0.14 - RIGHT_PAD) - oldTtcWidth;
-      const oldTtcY = rowY + 7;
-      doc.moveTo(oldTtcX, oldTtcY).lineTo(oldTtcX + oldTtcWidth, oldTtcY).strokeColor('#8a8a8a').lineWidth(0.6).stroke();
-      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica-Bold')
-        .text(formatCurrency(totalTtc), COL_TOTAL, rowY + 14, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
-    } else {
-      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica-Bold')
-        .text(formatCurrency(totalTtc), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
-    }
+    const amountY = rowY + amountOffsetY;
+    doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica')
+      .text(formatCurrency(ht), COL_HT, amountY, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    doc.font('Helvetica-Bold')
+      .text(formatCurrency(totalTtc), COL_TOTAL, amountY, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
     rowY += rowH;
     rowIdx++;
   }
@@ -720,6 +756,7 @@ module.exports = {
   __test: {
     resolveLiveTaxTotals,
     lineAmounts,
+    resolveRowGeometry,
     resolveOptionTitle: __resolveOptionTitle,
     resolveResourceName: __resolveResourceName,
     resolveFooterText: __resolveFooterText,
