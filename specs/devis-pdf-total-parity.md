@@ -90,6 +90,11 @@ and the TOTAL TTC always agree with the lines printed just above them, for the l
 5. `devisController.pdf` calls `model.recomputeQuote(req.params.id)` and passes the result to
    `generateDevisPdf`. The inline engine-input mapping (and the controller's direct `db` +
    `calculateReservationQuote` imports) disappears.
+   5.bis **The payment links read the same replay** (added 2026-08-20,
+   [payment-link-quote-parity.md](payment-link-quote-parity.md) §3.1): `paymentsController` kept a
+   copy of the very mapping this rule deleted, and it decided how many euros a Qonto page asks for —
+   a devis carrying a planning-card option was invoiced without it. Any new consumer that needs a
+   persisted devis's quote calls `recomputeQuote`; rebuilding an engine input is the bug.
 
 ### 3.2 The document must agree with itself
 

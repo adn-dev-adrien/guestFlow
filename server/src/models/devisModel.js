@@ -114,8 +114,21 @@ function createModel(database) {
   function resolvePaymentSchedule(row, property) {
     const totalStayPrice = roundMoney(Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0));
     const depositPercent = Number(property?.depositPercent || 0);
-    const depositAmount = roundMoney(totalStayPrice * (depositPercent / 100));
-    const balanceAmount = roundMoney(totalStayPrice - depositAmount);
+    // The acompte/solde SPLIT belongs to the pricing engine (specs/tourist-tax-on-solde.md rule 1: the
+    // acompte is computed on the accommodation alone, the whole tourist tax rides on the solde), and
+    // `create`/`update` already store what it decided. Re-deriving it here from the tax-INCLUSIVE total
+    // made the devis screen and its PDF show an acompte a tax-share ABOVE the stored row, the guest's
+    // email and the Qonto payment page — and above what the same stay owes once converted into a
+    // reservation (specs/payment-link-quote-parity.md §3.2).
+    // A legacy row with no stored split at all (NULL — never 0, which is a legitimate « no acompte »
+    // on a last-minute stay) keeps the historic derivation rather than displaying nothing.
+    const hasStoredSplit = row.depositAmount != null && row.balanceAmount != null;
+    const depositAmount = hasStoredSplit
+      ? roundMoney(Number(row.depositAmount))
+      : roundMoney(totalStayPrice * (depositPercent / 100));
+    const balanceAmount = hasStoredSplit
+      ? roundMoney(Number(row.balanceAmount))
+      : roundMoney(totalStayPrice - depositAmount);
     // specs/payment-schedule-and-cancellation.md §3.1 rule 5 — a devis promises its dates until its
     // validity date: that IS its acompte deadline. The solde keeps the stay-relative derivation,
     // clamped so it can never fall before the day the quote was issued.
