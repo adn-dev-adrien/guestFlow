@@ -80,6 +80,14 @@ rsync -av --mkpath client/dist/ "$RELEASE_DIR/client/build/"
 # Copy root files
 cp package.json "$RELEASE_DIR/"
 
+# Ship the root `scripts/` directory.
+#
+# `scripts/bootstrap-vm.sh` is the one-time host migration, and the README tells the operator to run
+# it as `~/guestflow/current/scripts/bootstrap-vm.sh` — a path that only exists if the archive
+# carries it. Without this, the very script that makes a host self-updatable has to be copied over
+# by hand (which is exactly what had to be done for the first 2.0.0 install).
+rsync -a --exclude='__pycache__' scripts "$RELEASE_DIR/"
+
 # Create the archive.
 #
 # tar.gz rather than zip: the updater refuses any member that is a symlink, an absolute path or a

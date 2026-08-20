@@ -569,10 +569,15 @@ Still open, to settle during implementation:
 
 - Q: Does the production VM still have the build toolchain (`python3`, `make`, `g++`) needed for
   the `better-sqlite3` from-source rebuild once the runner is gone?
-  - A: to verify on the VM before implementing; if not, `bootstrap-vm.sh` installs it.
+  - A (2026-08-20): **yes** — `python3`, `make`, `g++` and `cc` are all present. The 2.0.0 install
+    rebuilt `better-sqlite3` from source on the host and it loads (ABI 137, Node 24.19).
 - Q: Which system user owns `~/guestflow` and the PM2 daemon on the new Proxmox VM?
-  - A: to confirm over SSH; the helper and the app must be that same user (no `sudo` anywhere in
-    the update path).
+  - A (2026-08-20): **`adrien`**, on hostname `guestflow` (192.168.0.24). The app, PM2 and the whole
+    update path run as that user; no `sudo` anywhere in it.
+- Q: Does the release archive carry `scripts/`, which the README tells the operator to run from
+  `~/guestflow/current/scripts/bootstrap-vm.sh`?
+  - A (2026-08-20): it did not — the first install needed the script copied over by hand. Fixed in
+    `release.sh`; the path is real from the next release on.
 
 ---
 
@@ -587,9 +592,14 @@ Still open, to settle during implementation:
 | 5 | Helper `apply-update.sh`: swap, restart, verify, rollback + `bootstrap-vm.sh` | ✅ |
 | 6 | UI: dashboard alert, dialog, overlay, settings section | ✅ |
 | 7 | Removal: `deploy.yml` deleted, `release` branch retired | ✅ |
-| 7b | On the host: `bootstrap-vm.sh` run, runner uninstalled, GitHub token revoked | ☐ **operator** |
+| 7b | On the host: `bootstrap-vm.sh` run, runner uninstalled and deregistered | ✅ 2026-08-20 |
 
-**What is left, and it is not code:** the layout migration and the runner removal happen on the
-production machine, once, with `scripts/bootstrap-vm.sh`. Until then the app reports
-`selfUpdateSupported: false` with the reason, and shows the version without offering to install
-anything — which is the correct behaviour for a host that is not ready, not a bug.
+**Done in production on 2026-08-20**, in this order, with a verified off-host backup taken first:
+layout migrated (`current/` → `releases/1.0.0` + symlink, uploads moved to `data/uploads`), the app
+checked still serving on the old version, then v2.0.0 downloaded, SHA-256 verified, installed and
+swapped in. The host now reports `selfUpdateSupported: true`, `data/` resolves to `~/guestflow/data`,
+and the hourly check has run against the real GitHub API — seeing 2.0.0 published, parsing its notes
+into five sections, and correctly offering no update since it matches the installed version.
+
+The GitHub Actions runner was stopped, uninstalled and deregistered the same day: **0 runners on the
+repository, 0 systemd units, credentials removed from disk.**
