@@ -402,21 +402,21 @@ all-inclusive pricing as the first such recipe.
     property defaults marked « offered », which the engine already tags `includedInRate` and the summary
     already renders « Comprise » at 0 € ([pricing.js:1387](../../server/src/utils/pricing.js#L1387)).
     They are never billed on top of the nightly rate, on any channel.
-48. **Their reference value is deducted from the tourist-tax base.** Every `includedInRate` line's real
-    value (`originalTotalPrice`) is subtracted from the accommodation amount before the percentage-mode
-    tax is computed, floored at 0. Nothing else moves: the sale, the instalments, the VAT and the
-    accounting are untouched — this is a tax-base adjustment only.
+48. ~~**Their reference value is deducted from the tourist-tax base.**~~ **Repealed 2026-08-20** by
+    [tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md). An
+    `includedInRate` line no longer touches the tax base. The deduction was scaled `per_person` for the
+    linen lines, so the declared base shrank as the party grew, and it only applied once the operator
+    had actually ticked the line — two identical stays could declare different amounts. The base is now
+    the accommodation charged, and nothing else.
 48bis. **The tourist-tax configuration itself is never written by this work.** Rate, mode and
     departmental share are already set in production and correct (the Lodge is in
-    `percentage_accommodation`, so rule 48's deduction does bite for it). The recipe schema has no
-    tourist-tax field and `configure-aventura-lodge-2026.mjs` does not list one in `PROPERTY_FIELDS` —
-    the deduction changes the computed base, never the parameters. Every price this spec quotes —
-    nightly rates, net targets, the channel grid — is **exclusive of tourist tax**, which GuestFlow
-    adds on top at quote time.
-49. **A one-off commercial gesture is not an inclusion.** Manually offering an option that is not a
-    property default stays « Offert » and is **not** deducted: only a structural inclusion is a
-    non-accommodation service in the eyes of the declaration. The distinction already exists in the
-    engine and is preserved.
+    `percentage_accommodation`). The recipe schema has no tourist-tax field and
+    `configure-aventura-lodge-2026.mjs` does not list one in `PROPERTY_FIELDS`. Every price this spec
+    quotes — nightly rates, net targets, the channel grid — is **exclusive of tourist tax**, which
+    GuestFlow adds on top at quote time.
+49. **A one-off commercial gesture is still not an inclusion.** Manually offering an option that is not
+    a property default stays « Offert » rather than « Comprise ». The distinction survives rule 48's
+    repeal — it drives the wording and the price lock, no longer the tax.
 50. **The laundry contract is unaffected.** The options remain ticked on the reservation, so the bed-
     and bath-linen counters keep working exactly as today.
 
@@ -709,10 +709,14 @@ _None. All three are answered below._
   the nightly rate and follows the new seasonal prices with no maintenance. The 1-night plancha price
   is moot — the plancha is not a GuestFlow object and stays a manual gesture (§8). ✅
 
+**Amended (2026-08-20):** rule 48 is repealed — see
+[tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md). The tax base is
+the accommodation charged; no deduction, and no derivation from the platform brut either.
+
 **Resolved (2026-08-12) — tourist tax, both questions closed by the owner:**
 - **Q1 — Satillieu's rate and mode.** Already configured in production, working, and **not to be
-  touched**. The Lodge is in `percentage_accommodation` mode, so rule 48's deduction is live for it
-  rather than inert. Nothing in this work writes the parameters (rule 48bis). ✅
+  touched**. The Lodge is in `percentage_accommodation` mode. Nothing in this work writes the
+  parameters (rule 48bis). ✅
 - **Q2 — Extra-guest supplement in the tax base.** **No.** The declaration works as it stands; the
   supplement stays out of `taxBaseAccommodation`. Reopening it would change amounts that are correct
   today, which is exactly what the owner ruled out. ✅
