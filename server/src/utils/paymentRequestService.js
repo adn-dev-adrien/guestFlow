@@ -14,8 +14,21 @@ const { buildVatItems } = require('./paymentLinkItems');
 
 const LINK_TYPES   = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
 const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour' };
-// Template per request type. Deposit (use case 1) + balance (online-deposit solde, specs/public-online-deposit.md).
-const REQUEST_TEMPLATES = { deposit: 'deposit_request', balance: 'balance_request' };
+// Template per request type. Deposit (use case 1), balance (online-deposit solde,
+// specs/public-online-deposit.md) and full (a last-minute stay owes one payment,
+// specs/deposit-blocks-the-dates.md rule 11).
+const REQUEST_TEMPLATES = { deposit: 'deposit_request', balance: 'balance_request', full: 'full_request' };
+
+// specs/deposit-blocks-the-dates.md rule 10 — the SERVER decides what a payment request asks for: the
+// acompte when the record carries one, the whole stay when it does not (a last-minute quote never had
+// an acompte, and a 0 € link would only be refused). An explicit caller type always wins.
+function resolveRequestType(row, requested = null) {
+  const asked = String(requested || '').trim().toLowerCase();
+  // An explicit type is honoured — and an explicit UNKNOWN one is refused (null → 400) rather than
+  // silently turned into a request for something else.
+  if (asked) return LINK_TYPES[asked] ? asked : null;
+  return Number((row && row.depositAmount) || 0) > 0 ? 'deposit' : 'full';
+}
 
 // Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
 //   deps: { database, paymentLinksModel, resolveAmountCents, createLink({ title, amountCents, items?, expectedTotalCents? }),
@@ -69,24 +82,30 @@ async function ensurePaymentLink(deps, id, type) {
 }
 
 // Create/reuse the link AND email the matching `<type>_request` template to the guest.
-//   deps: ensurePaymentLink deps + { sendTemplate({ reservationId, stableKey, paymentLink }) → senderResult }
-async function sendPaymentRequest(deps, id, type) {
+//   deps: ensurePaymentLink deps + { sendTemplate({ reservationId, stableKey, paymentLink, amountCents }) → senderResult }
+// `requestedType` may be omitted: the type is then resolved from the record (rule 10). The resolved
+// type travels back in the body so the UI can name what it actually sent.
+async function sendPaymentRequest(deps, id, requestedType) {
+  const row = deps.database.prepare('SELECT id, depositAmount FROM reservations WHERE id = ?').get(id);
+  if (!row) return { httpStatus: 404, body: { error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' } };
+
+  const type = resolveRequestType(row, requestedType);
   const stableKey = REQUEST_TEMPLATES[type];
-  if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit/balance).' } };
+  if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit/balance/full).' } };
 
   const link = await ensurePaymentLink(deps, id, type); // {httpStatus} throw bubbles to the controller
-  const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url });
+  const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url, amountCents: link.amountCents });
 
   if (!result.sent) {
     const map = {
       'no-email':       { s: 400, m: "Le client n'a pas d'adresse email." },
       'no-reservation': { s: 404, m: 'Réservation introuvable.' },
-      'no-template':    { s: 500, m: 'Template « deposit_request » manquant.' },
+      'no-template':    { s: 500, m: `Template « ${stableKey} » manquant.` },
     };
     const e = map[result.reason] || { s: 502, m: `Envoi du mail impossible : ${result.reason}` };
-    return { httpStatus: e.s, body: { error: 'EMAIL_NOT_SENT', reason: result.reason, message: e.m, url: link.url, amountCents: link.amountCents } };
+    return { httpStatus: e.s, body: { error: 'EMAIL_NOT_SENT', reason: result.reason, message: e.m, type, url: link.url, amountCents: link.amountCents } };
   }
-  return { httpStatus: 200, body: { sent: true, url: link.url, amountCents: link.amountCents, emailLogId: result.emailLogId, recipientEmail: result.recipientEmail } };
+  return { httpStatus: 200, body: { sent: true, type, url: link.url, amountCents: link.amountCents, emailLogId: result.emailLogId, recipientEmail: result.recipientEmail } };
 }
 
-module.exports = { ensurePaymentLink, sendPaymentRequest, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES };
+module.exports = { ensurePaymentLink, sendPaymentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES };

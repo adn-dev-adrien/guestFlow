@@ -292,7 +292,9 @@ const api = {
   // Payment links on a reservation/devis + manual poll (specs/online-payments-qonto.md §3.4/§7).
   createReservationPaymentLink: (id, type = 'deposit') => request(`/payments/reservations/${id}/payment-links`, { method: 'POST', body: { type } }),
   getReservationPaymentLinks: (id) => request(`/payments/reservations/${id}/payment-links`),
-  sendDepositRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'deposit' } }),
+  // specs/deposit-blocks-the-dates.md rule 10 — no type: the server asks for the acompte when there
+  // is one, for the whole stay otherwise, and says which in its response.
+  sendPaymentRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: {} }),
   sendBalanceRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'balance' } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   registerQontoWebhook: () => request('/payments/qonto/webhook/register', { method: 'POST' }),

@@ -6,7 +6,7 @@ const { isDirectChannel } = require('./platformNameFormat');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
-const { resolveDepositDueDate, resolveBalanceDueDate } = require('./paymentSchedule');
+const { resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay } = require('./paymentSchedule');
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
@@ -2219,6 +2219,13 @@ function calculateReservationQuote({
       : autoDepositAmount;
     resolvedDepositAmount = clamped;
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - clamped));
+  } else if (isLastMinuteStay({ bookingDate, startDate, balanceDaysBefore: property.balanceDaysBefore })) {
+    // specs/deposit-blocks-the-dates.md rules 4-6 (implementing specs/online-payments-qonto.md §3.7) —
+    // the stay starts inside the solde window, so an acompte would be due at the same time as the solde
+    // it is supposed to precede. The guest owes ONE payment: the whole pre-arrival total. Last in the
+    // chain on purpose — a paid, disabled or hand-set acompte above states an intent this must not undo.
+    resolvedDepositAmount = 0;
+    resolvedBalanceAmount = roundMoney(preArrivalAmount);
   }
 
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
@@ -2247,6 +2254,11 @@ function calculateReservationQuote({
     // does not exist yet.
     platform: String(quoteKind) === 'devis' ? null : platform,
     platformPayoutDueDays,
+    // specs/deposit-blocks-the-dates.md rule 7 — with no acompte, a DIRECT devis owes its single
+    // payment on its validity date, not on the issue day the clamp would produce. A devis carrying an
+    // OTA name never had an acompte to lose, so it keeps the guest-facing derivation (rule 3 above).
+    dueOnValidUntil: String(quoteKind) === 'devis' && !platformIsNonDirect && resolvedDepositAmount === 0,
+    validUntil,
   });
 
   // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)
