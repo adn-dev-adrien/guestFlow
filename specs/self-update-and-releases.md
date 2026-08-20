@@ -138,6 +138,13 @@ signed-off releases over HTTPS, when the operator asks for it.
 20. "Plus tard" dismisses the offer **for that version only**; the alert comes back when a newer
     version appears. The dismissal is stored server-side (it is an operator decision, not a
     browser preference).
+20b. The **installed version is displayed permanently in the top bar**, on every page, and an update
+    icon appears beside it as soon as a newer release exists — opening the same release-notes
+    dialog. That icon deliberately **ignores the rule-20 dismissal**: "Plus tard" is about not being
+    nagged on the dashboard, not about losing the way back to the notes. It does step aside while an
+    update is running, since the progress overlay already owns the screen. Non-admins see no version
+    at all — the running version stays behind the admin gate for the same reason rule 30 keeps it
+    out of the public probe.
 
 ### D. Update engine — staging phase (application still serving)
 
@@ -273,6 +280,8 @@ argument-array spawning (never a shell string), and every interpolated value is 
 |---|---|---|---|
 | `pages/` | `Dashboard.jsx` | T | Renders `<UpdateAvailableAlert />` in the existing alert stack |
 | `pages/` | `SettingsPage.jsx` | T | Renders `<SettingsSystemUpdateSection />` |
+| `App.jsx` (shell) | `App.jsx` | T | Renders `<AppVersionBadge />` at the right end of the top bar, in place of the former `prod <sha>` pill |
+| `components/` | `AppVersionBadge.jsx` | C | Top-bar installed version + update icon opening `UpdateDialog` |
 | `components/` | `UpdateAvailableAlert.jsx` | C | Admin-only dashboard alert: "GuestFlow X.Y.Z est disponible" + actions |
 | `components/` | `UpdateDialog.jsx` | C | Release notes + confirm; starts the update |
 | `components/` | `UpdateProgressOverlay.jsx` | C | Full-screen progress, polls the status, reloads on `done`, shows `failed`/`rolled_back` |
@@ -287,7 +296,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 |---|---|---|
 | **Consumed (existing generic)** | `StatusCard`, `SummaryItem`, `StatusBadge`, `ConfirmDialog`, `FormDialog`, `ErrorAlert`, `LoadingState`, `CollapsibleSection` | The settings card is a `StatusCard` + `SummaryItem` lines; the confirm is `ConfirmDialog`. |
 | **Created (new generic)** | — | Nothing here is reusable beyond the feature. |
-| **Specific (kept feature-local)** | `UpdateAvailableAlert`, `UpdateDialog`, `UpdateProgressOverlay`, `SettingsSystemUpdateSection` | The alert follows the established `<Feature>Alert` family of the dashboard (`EmailPendingAlert`, `IcalNewReservationsAlert`, …) and the section follows the `Settings<Feature>Section` family. The overlay is a one-of-a-kind full-screen blocker tied to the restart lifecycle. |
+| **Specific (kept feature-local)** | `UpdateAvailableAlert`, `UpdateDialog`, `UpdateProgressOverlay`, `SettingsSystemUpdateSection`, `AppVersionBadge` | The alert follows the established `<Feature>Alert` family of the dashboard (`EmailPendingAlert`, `IcalNewReservationsAlert`, …) and the section follows the `Settings<Feature>Section` family. The overlay is a one-of-a-kind full-screen blocker tied to the restart lifecycle. |
 
 ### 4.3 API contract
 
@@ -443,14 +452,36 @@ Actions: `Vérifier maintenant` (with a spinner and the 10 s throttle surfaced a
 state), `Installer la mise à jour` (hidden when nothing to install or unsupported).
 Below, a collapsible **Historique des mises à jour** (last 5).
 
-### 6.5 Responsive
+### 6.5 Barre du haut — `AppVersionBadge`
+
+Right end of the application's `AppBar`, on every page, admin only:
+
+> `v2.1.0`  ⬆️
+
+The version is plain monospace caption text, not a control — nothing to click when there is nothing
+to do. When a newer release exists, an `IconButton` (`SystemUpdateAltIcon`, `primary`) joins it,
+tooltip *« GuestFlow 2.2.0 est disponible »*, and opens `UpdateDialog` — the same release notes and
+the same "Installer maintenant" as the dashboard alert, reachable from wherever the operator
+happens to be.
+
+This replaces the former `prod <commit-sha>` pill. A commit SHA answered "which build" only for
+someone able to map it back to a commit; the release version is the identifier the changelog, the
+GitHub release and the update dialog all speak in — and the one the operator quotes when something
+looks wrong.
+
+Per rule 20b: the icon survives a "Plus tard" (the alert is what goes quiet, not the way back), and
+disappears while an update runs.
+
+### 6.6 Responsive
 
 - `xs` — alert text wraps to two lines, actions stack full-width; dialog `fullScreen`; overlay
-  padding reduced, steps stay on one column; settings card actions stack vertically.
+  padding reduced, steps stay on one column; settings card actions stack vertically. The top-bar
+  badge stays visible (version + icon fit next to the search magnifier), and is hidden only while
+  the mobile search field is expanded over the whole bar.
 - `md` — alert on one line with trailing actions; dialog standard.
 - `lg` — unchanged from `md`; the settings card sits in the existing single-column settings flow.
 
-### 6.6 `PageActionBar`
+### 6.7 `PageActionBar`
 
 No new page is created. `SettingsPage` keeps its existing bar (Enregistrer / Annuler); the update
 actions live inside the section card, not in the bar, because they are not part of the settings
@@ -489,7 +520,7 @@ save flow.
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
       check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
 
-### Client tests (21 new, `cd client && npm test` → 1063 green)
+### Client tests (28 new, `cd client && npm test` → 1073 green)
 
 - [x] `UpdateAvailableAlert.test.jsx` — silent for a non-admin (and no admin call made at all),
       silent when up to date / postponed / already updating, "Plus tard" postpones that exact
@@ -499,6 +530,10 @@ save flow.
       and shows the rollback with its log tail.
 - [x] `SettingsSystemUpdateSection.test.jsx` — up-to-date / available / in-progress / unsupported
       states, the throttled check surfacing the server's message, and the history rendering.
+- [x] `AppVersionBadge.test.jsx` — the top bar shows the installed version and nothing to click when
+      up to date, no version and no admin call at all for a non-admin, the icon opening the notes
+      before anything installs, the icon surviving a « Plus tard » (rule 20b) and stepping aside
+      while an update runs.
 
 ### Manual verification
 
@@ -519,7 +554,12 @@ Done before merge (2026-08-20):
 - [x] **The release workflow's shell logic** — the CHANGELOG grep accepts the matching section and
       refuses a missing one; the `awk` extraction returns exactly the section body that becomes the
       release notes.
-- [x] **Regression** — dashboard alert stack, settings page, full E2E suite.
+- [x] **The top-bar badge, desktop (1512px) and mobile (390px)** (2026-08-20) — up to date it reads
+      `v2.1.0` alone; with a 2.2.0 simulated in `update-state.json` the icon appears beside it and
+      opens the notes dialog from the dashboard, which on the dev tree correctly refuses to install
+      (« current » symlink absent). At 390px version and icon still fit next to the search
+      magnifier, and the dialog goes full-screen.
+- [x] **Regression** — dashboard alert stack, settings page, full E2E suite (65 passed, 1 skipped).
 
 Only possible on the production host, after `bootstrap-vm.sh` (see §10):
 
@@ -593,6 +633,7 @@ Still open, to settle during implementation:
 | 6 | UI: dashboard alert, dialog, overlay, settings section | ✅ |
 | 7 | Removal: `deploy.yml` deleted, `release` branch retired | ✅ |
 | 7b | On the host: `bootstrap-vm.sh` run, runner uninstalled and deregistered | ✅ 2026-08-20 |
+| 8 | Top-bar version badge replacing the `prod <sha>` pill (§6.5, rule 20b) | ✅ 2026-08-20 |
 
 **Done in production on 2026-08-20**, in this order, with a verified off-host backup taken first:
 layout migrated (`current/` → `releases/1.0.0` + symlink, uploads moved to `data/uploads`), the app
