@@ -4,6 +4,72 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-20
+
+### Added
+- **No guest email leaves without your approval.** Two mechanisms could write to a guest with nobody
+  having read the message first: the daily 08:00 pass, which sent every template set to
+  « Automatique », and the booking confirmation, dispatched as soon as an online payment cleared. A
+  setting — *Réglages → Envoi automatique des emails* — now decides whether GuestFlow is allowed to
+  do that, and it is **off** by default. While it is off, those emails are no longer sent: they are
+  **proposed** in « Emails à envoyer », where you read them over and send them with one click.
+  Nothing is lost on the way — an « Automatique » template that comes due joins the queue instead of
+  vanishing, and a paid booking's confirmation waits for you there. The Emails page says so plainly:
+  a banner explains the situation, and the templates concerned carry « Auto désactivé » instead of
+  « Auto ». Your own booking notifications and the account emails (forgotten password) are not
+  concerned: they keep their behaviour and their own dedicated setting.
+  (specs/no-automatic-email-without-approval.md, +35 server tests, +16 client tests.)
+
+### Changed
+- **The top bar names the installed version, and the update is one click away.** In place of the old
+  `prod <sha>` badge — a build identifier nobody could tie to an actual change — the application now
+  displays its version number, the same one quoted by the changelog, the GitHub release and the
+  update dialog. When a new version is published, a download icon appears beside it and opens the
+  release notes from any page, with the « Installer maintenant » button. The icon survives a
+  « Plus tard » on the dashboard (postponing means not being asked again, not losing the way there)
+  and disappears while an update is running. Admins only, like the rest of `/api/system/*`.
+  (specs/self-update-and-releases.md §6.5 rule 20b, +7 client tests.)
+- **Cancellation insurance is priced by the night.** An amount in euros, set in Réglages → Options
+  and per property when needed, replaces the percentage of the stay, and the option now reads right
+  after « Départ tardif » in the list — on the reservation fiche as on the Réglages → Options
+  screen. The percentage of the stay stays available for whoever prefers it.
+- Cancellation insurance no longer carries a « Qté » field on the fiche: it covers the whole stay,
+  whatever its price type, and the server bills the rate × the number of nights.
+
+### Fixed
+- **A finished update now says so.** Installing 2.1.0 worked — new version swapped in, healthy, data
+  intact — but the progress overlay never closed, and reloading the page brought it straight back.
+  The process that performs the swap was being killed by the very restart it triggers: PM2 stops an
+  application together with all of its descendants, and that process was one of them. It is now
+  started outside the application's process tree, so it survives the restart and reports the outcome
+  as it was always meant to. As a second line of defence, GuestFlow also concludes an update by
+  itself at startup — if the version that came up is the one that was being installed, the update is
+  recorded as finished rather than left spinning. The same defect meant the automatic return to the
+  previous version could not run at all: had 2.1.0 failed to start, nothing would have put 2.0.0
+  back. That safety net works again. (specs/self-update-and-releases.md rules 28 and 30b, +8 server
+  tests.)
+- **The tourist tax is based on the accommodation, and nothing else.** On percentage-based properties
+  such as the Lodge, the base is now the accommodation amount alone — the nights from the tariff
+  grid, after a discount or a « Prix hébergement ajusté ». Adding an option or a resource, offering
+  it, or moving it into « Complément » no longer shifts the tax by a cent.
+  (specs/tourist-tax-base-accommodation-only.md)
+- Two behaviours are repealed along the way: the base is no longer derived from the **platform
+  gross** — moving a line into « Complément » used to change the tax you declare — and the
+  **services included in the rate** (cleaning, linen) are no longer subtracted from it; that
+  deduction was pro-rated on the number of guests and only applied once the line had been ticked.
+- Stays already past keep their amount: the freeze on past taxes is unchanged, and only ongoing or
+  future reservations and quotes recompute, on their next save.
+
+### Migration
+- Cancellation insurance: at startup, an insurance that is still **unpriced** (0 % and no per-property
+  price) switches automatically from « % du montant du séjour » to « Par jour ». A percentage already
+  entered is never touched.
+- **New column `app_settings.emailAutoSendEnabled`** (integer 0/1, default `0`), added automatically
+  at startup. No existing data is modified. **Behaviour change on update:** automatic sending is off
+  on existing installations as well as on new ones. If templates were set to « Automatique », they
+  stop leaving on their own and are proposed in « Emails à envoyer » instead; to get automatic
+  sending back, switch the setting on in *Réglages → Envoi automatique des emails*.
+
 ## [2.1.0] - 2026-08-20
 
 ### Added
