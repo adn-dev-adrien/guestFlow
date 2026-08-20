@@ -196,6 +196,7 @@ function makeDb() {
       quantity REAL DEFAULT 1, unitPrice REAL NOT NULL DEFAULT 0, billedUnits REAL NOT NULL DEFAULT 0,
       priceType TEXT NOT NULL DEFAULT 'per_stay', totalPrice REAL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0,
       inComplement INTEGER NOT NULL DEFAULT 0, sasArrivalOrigin INTEGER NOT NULL DEFAULT 0, cardOccurrences TEXT,
+      cardPersons REAL,
       PRIMARY KEY (reservationId, optionId)
     );
     CREATE TABLE reservation_custom_options (
@@ -206,9 +207,9 @@ function makeDb() {
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
     CREATE TABLE reservation_nights (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, date TEXT);
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
-    CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
+    CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0, maxGuests INTEGER DEFAULT 0);
   `);
-  db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
+  db.prepare('INSERT INTO properties (id, defaultCautionAmount, maxGuests) VALUES (7, 500, 6)').run();
   db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, checkInTime, checkOutTime, adults, teens, babies, complementAmount)
               VALUES (1, 7, '2026-08-18', '2026-08-21', '15:00', '10:00', 2, 1, 1, 30)`).run();
   for (const date of ['2026-08-18', '2026-08-19', '2026-08-20']) {
@@ -351,4 +352,142 @@ test('history: the sold prestations are listed, ménage and linge de toilette ex
 test('offers: the cancellation insurance is never sold at check-in — the stay has started', () => {
   const offers = buildSasSaleOffers({ reservation: reservation(), options: [BOARD, INSURANCE] });
   assert.deepEqual(offers.catering.options.map((o) => o.optionId), [27], 'the board sells, the insurance does not');
+});
+
+// ---- served persons (specs/card-option-served-persons.md) ----
+// A meal or a breakfast is not always taken by the whole table: the children often skip it.
+
+test('offers: a card option announces the party, the capacity and what this SAS sold', () => {
+  const offers = buildSasSaleOffers({ reservation: reservation(), options: [BREAKFAST, MEAL], maxPersons: 6 });
+  assert.equal(offers.breakfast.defaultPersons, 3);
+  assert.equal(offers.breakfast.maxPersons, 6, 'a friend can join for dinner');
+  assert.equal(offers.breakfast.selectedPersons, 3, 'pre-filled with the party');
+  assert.deepEqual(offers.breakfast.compositionPerPerson, {
+    coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 1, cereals: 0, bread: 0.5,
+  });
+  const meal = offers.catering.options.find((o) => o.optionId === 16);
+  assert.equal(meal.maxPersons, 6);
+});
+
+test('offers: re-opening a SAS pre-fills the covers it sold, not the party', () => {
+  const offers = buildSasSaleOffers({
+    reservation: reservation({
+      options: [{
+        optionId: 16, sasArrivalOrigin: 1, cardPersons: 2,
+        cardOccurrences: [{ date: '2026-08-19', time: '19:30' }],
+      }],
+    }),
+    options: [MEAL],
+    maxPersons: 6,
+  });
+  const meal = offers.catering.options.find((o) => o.optionId === 16);
+  assert.equal(meal.selectedPersons, 2);
+  assert.equal(meal.defaultPersons, 3);
+});
+
+test('offers: the capacity never drops below the party actually staying', () => {
+  const offers = buildSasSaleOffers({ reservation: reservation(), options: [MEAL], maxPersons: 2 });
+  assert.equal(offers.catering.options[0].maxPersons, 3);
+});
+
+test('price: a card option is billed moments × covers, and stores only a deliberate number', () => {
+  const twoSlots = [{ date: '2026-08-19', time: '19:30' }, { date: '2026-08-20', time: '19:30' }];
+  const reduced = priceOptionSale(MEAL, {
+    unitPrice: 25, persons: 3, nights: 3, stay: STAY, occurrences: twoSlots, servedPersons: 2, maxPersons: 6,
+  });
+  assert.equal(reduced.billedUnits, 4, '2 moments × 2 covers');
+  assert.equal(reduced.totalPrice, 100);
+  assert.equal(reduced.cardPersons, 2);
+
+  const wholeTable = priceOptionSale(MEAL, {
+    unitPrice: 25, persons: 3, nights: 3, stay: STAY, occurrences: twoSlots, servedPersons: 3, maxPersons: 6,
+  });
+  assert.equal(wholeTable.billedUnits, 6);
+  assert.equal(wholeTable.cardPersons, null, 'equal to the party → keeps following it');
+
+  const raised = priceOptionSale(MEAL, {
+    unitPrice: 25, persons: 3, nights: 3, stay: STAY, occurrences: twoSlots, servedPersons: 99, maxPersons: 6,
+  });
+  assert.equal(raised.cardPersons, 6, 'clamped to the capacity');
+  assert.equal(raised.billedUnits, 12);
+
+  const absent = priceOptionSale(MEAL, {
+    unitPrice: 25, persons: 3, nights: 3, stay: STAY, occurrences: twoSlots, maxPersons: 6,
+  });
+  assert.equal(absent.billedUnits, 6, 'no intent → the whole party');
+  assert.equal(absent.cardPersons, null);
+});
+
+test('price: a fixed-price option ignores the covers', () => {
+  const line = priceOptionSale(BOARD, { unitPrice: 17, persons: 3, nights: 3, units: 1, servedPersons: 2 });
+  assert.equal(line.billedUnits, 1);
+  assert.equal(line.cardPersons, null);
+});
+
+test('commit: the covers are stored and drive the complement', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const complement = model.commitArrivalSas(1, {
+    soldOptions: [{ optionId: 16, occurrences: [{ date: '2026-08-19', time: '19:30' }], persons: 2 }],
+  });
+  const line = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = 16').get();
+  assert.equal(line.cardPersons, 2);
+  assert.equal(line.billedUnits, 2, '1 moment × 2 covers');
+  assert.equal(line.totalPrice, 50);
+  assert.equal(line.inComplement, 1);
+  assert.equal(line.sasArrivalOrigin, 1);
+  assert.equal(complement, 80, '30 € already due + 50 €');
+});
+
+test('commit: re-running the SAS with fewer covers re-prices instead of stacking', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const moment = [{ date: '2026-08-19', time: '19:30' }];
+  model.commitArrivalSas(1, { soldOptions: [{ optionId: 16, occurrences: moment }] });
+  assert.equal(db.prepare('SELECT complementAmount AS a FROM reservations WHERE id = 1').get().a, 105); // 30 + 3 × 25
+  const complement = model.commitArrivalSas(1, { soldOptions: [{ optionId: 16, occurrences: moment, persons: 2 }] });
+  const rows = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = 16').all();
+  assert.equal(rows.length, 1, 'one line, re-priced');
+  assert.equal(rows[0].cardPersons, 2);
+  assert.equal(rows[0].totalPrice, 50);
+  assert.equal(complement, 80);
+});
+
+test('commit: raising the covers back to the party clears the stored number', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const moment = [{ date: '2026-08-19', time: '19:30' }];
+  model.commitArrivalSas(1, { soldOptions: [{ optionId: 16, occurrences: moment, persons: 2 }] });
+  model.commitArrivalSas(1, { soldOptions: [{ optionId: 16, occurrences: moment, persons: 3 }] });
+  const line = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = 16').get();
+  assert.equal(line.cardPersons, null);
+  assert.equal(line.totalPrice, 75);
+});
+
+test('commit: the covers are capped by the capacity of the logement', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, {
+    soldOptions: [{ optionId: 16, occurrences: [{ date: '2026-08-19', time: '19:30' }], persons: 20 }],
+  });
+  const line = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = 16').get();
+  assert.equal(line.cardPersons, 6, 'the property seats 6');
+  assert.equal(line.totalPrice, 150);
+});
+
+test('history: a reduced number of covers is spelled out', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, {
+    soldOptions: [{ optionId: 16, occurrences: [{ date: '2026-08-19', time: '19:30' }], persons: 2 }],
+  });
+  const lines = model.listSasArrivalOptionLines(1);
+  assert.deepEqual(lines.map((l) => l.detail), ['1 × 2 pers. servies']);
+});
+
+test('history: a prestation served to the whole table carries no detail', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { soldOptions: [{ optionId: 27, units: 1 }] });
+  assert.equal(model.listSasArrivalOptionLines(1)[0].detail, undefined);
 });

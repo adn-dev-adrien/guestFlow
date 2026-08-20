@@ -1351,6 +1351,12 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!roCols.includes('sasArrivalOrigin')) {
     db.exec('ALTER TABLE reservation_options ADD COLUMN sasArrivalOrigin INTEGER NOT NULL DEFAULT 0');
   }
+  // How many people a per-person card option actually serves on each of its moments
+  // (specs/card-option-served-persons.md §5). NULL = the whole party, which is what every line
+  // written before this column means — hence no default and no backfill.
+  if (!roCols.includes('cardPersons')) {
+    db.exec('ALTER TABLE reservation_options ADD COLUMN cardPersons REAL');
+  }
 }
 // One-shot data migration: move the existing SAS-origin custom lines onto their catalogue option, at
 // the SAME amount (a past stay is never re-quoted). A reservation already carrying the option is

@@ -97,9 +97,16 @@ label + the client + the property. Clicking the card opens the reservation fiche
     - a fixed-price occurrence option ⇒ **1 × (selected count)**.
     For a card-option this **replaces** the automatic nights/days computation (the operator's selection is
     authoritative). Price = `billedUnits × unitPrice`, as today.
+10.bis **The guest count of a per-person card option is editable** since 2026-08-20
+    ([card-option-served-persons.md](card-option-served-persons.md)): the line carries
+    `reservation_options.cardPersons` — how many people each of its moments actually serves — and the
+    formula reads `billedUnits = moments × (cardPersons ?? guest count)`. `NULL` (the default, and every
+    line written before that date) means « the whole party », so rule 10 above is unchanged for them.
+    The fiche shows a « Personnes servies » field where the « Qté » field is hidden, the arrival SAS shows
+    the same stepper on its sale pages, and the ceiling is the property's capacity (`properties.maxGuests`).
 11. Checking/unchecking or editing an occurrence on the fiche updates the quantity + price **live** (client
     preview) and is **recomputed server-side on save** (the authority). The reservation's total + the
-    devis/PDF follow.
+    devis/PDF follow. The « Personnes servies » field behaves exactly the same way.
 11.bis **`unitPrice` is the one the booking was sold at, not today's**
     (`specs/devis-extras-parity-and-price-lock.md` §3 rule 13bis, added 2026-08-16). Only `billedUnits`
     follows the selection; the price per unit is replayed from `reservation_options.unitPrice` for as long

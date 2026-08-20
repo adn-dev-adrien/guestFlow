@@ -25,7 +25,11 @@ function OptionCardOccurrences({ opt }) {
   const selected = form.selectedOptions.find((so) => Number(so.optionId) === Number(opt.id));
   const grid = Array.isArray(selected?.cardOccurrences) ? selected.cardOccurrences : [];
   const perPerson = String(opt.priceType || '').includes('per_person');
-  const personFactor = perPerson ? Math.max(1, Number(quantityPersons) || 1) : 1;
+  // Covers actually served on each moment (specs/card-option-served-persons.md §3.2 rule 8): the
+  // whole party unless the operator lowered it in the « Personnes servies » field above.
+  const personFactor = perPerson
+    ? Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1)
+    : 1;
   const checkedCount = grid.filter((o) => o.checked).length;
   const billedUnits = checkedCount * personFactor;
 
@@ -59,7 +63,7 @@ function OptionCardOccurrences({ opt }) {
       quantityText={(
         <>
           Quantité&nbsp;: <strong>{billedUnits}</strong>
-          {perPerson ? ` (${checkedCount} × ${personFactor} pers.)` : ''}
+          {perPerson ? ` (${checkedCount} × ${personFactor} pers. servies)` : ''}
         </>
       )}
     />
@@ -152,6 +156,7 @@ export default function OptionRow({ opt }) {
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, isReservationLocked,
     setOptionInComplement, setAutoOptionInComplement,
+    setOptionCardPersons, maxGuestsAllowed,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds,
     isDevisMode,
   } = useReservationForm();
@@ -197,6 +202,15 @@ export default function OptionRow({ opt }) {
   // no quantity to type, and the hint says what the percentage bites on.
   else if (opt.priceType === 'percent_of_stay') factorHint = 'du montant hébergement';
   const isPercentOfStay = opt.priceType === 'percent_of_stay';
+  // specs/card-option-served-persons.md §3.2 — a per-person card option (a meal, the breakfast) is
+  // not always taken by the whole table: the field says how many covers each of its moments serves.
+  // It replaces the « Qté » field, which a card option deliberately hides (the moments are the
+  // quantity). Fixed-price card options don't get it — the covers wouldn't bite.
+  const hasServedPersons = Boolean(opt.showsPlanningCard)
+    && !isPercentOfStay
+    && String(opt.priceType || '').includes('per_person');
+  const servedPersons = Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1);
+  const servedPersonsMax = Math.max(servedPersons, Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1);
 
   return (
     <Card
@@ -245,7 +259,19 @@ export default function OptionRow({ opt }) {
             {/* Card-option (specs/option-planning-card.md §3.4): the occurrence
                 checklist below replaces the manual Qté — the selection drives the
                 billed quantity server-side. */}
-            {opt.showsPlanningCard || isPercentOfStay ? (
+            {hasServedPersons ? (
+              <QuantityField
+                size="small"
+                label="Personnes servies"
+                min={1}
+                max={servedPersonsMax}
+                value={servedPersons}
+                onCommit={(v) => setOptionCardPersons(opt.id, v)}
+                disabled={isReservationLocked}
+                helperText="Par défaut toute la tablée — baissez-la si tout le monde ne mange pas."
+                sx={{ width: { xs: '100%', sm: 240 } }}
+              />
+            ) : opt.showsPlanningCard || isPercentOfStay ? (
               <Box sx={{ flex: 1 }} />
             ) : (
               <QuantityField

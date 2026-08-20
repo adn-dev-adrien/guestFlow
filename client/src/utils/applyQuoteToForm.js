@@ -74,6 +74,12 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         ...(prevLine && Array.isArray(prevLine.cardOccurrences)
           ? { cardOccurrences: prevLine.cardOccurrences }
           : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
+        // specs/card-option-served-persons.md §3.2 rule 9 — the served count is the operator's too:
+        // the form value wins over the quote echo, and a `null` echo (« follows the party ») must not
+        // wipe a number the operator is in the middle of typing.
+        ...(prevLine && prevLine.cardPersons != null
+          ? { cardPersons: Number(prevLine.cardPersons) }
+          : (line.cardPersons != null ? { cardPersons: Number(line.cardPersons) } : {})),
         // specs/welcome-pack-auto-options.md §3.4 — same reason as `cardOccurrences`: the pack tag is
         // form-local (the engine knows nothing about it), so rebuilding the line from the quote would
         // erase it, and with it the form's ability to take back what it added on a platform change.

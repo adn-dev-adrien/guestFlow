@@ -143,6 +143,9 @@ function getSas(req, res) {
         reservation,
         options: optionsModel.listForProperty(reservation.propertyId),
         cateringCategory: CATERING_CATEGORY,
+        // Ceiling of the « personnes servies » stepper: the capacity of the logement, so a friend
+        // invited to dinner can be served (specs/card-option-served-persons.md §3.1 rule 3).
+        maxPersons: reservation.propertyMaxGuests,
       }),
     // « Planifier les ressources » step (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4):
     // the hours still owed per hourly resource + every slot of the stay, already classified

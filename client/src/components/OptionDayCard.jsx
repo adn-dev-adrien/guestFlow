@@ -12,6 +12,7 @@
  * Props:
  *   data — { items: [{ reservationId, optionId, title, clientName, propertyName, date, time, done,
  *            adults?, children?, teens?, babies?,          // generic option family chips
+ *            servedPersons?,                               // covers actually sold, when < the party
  *            breakfastPersons?, coffee?, tea?, chocolate?, milk?, pastries?, cereals?, note? }] }   // breakfast extras
  *   onItemClick   — `(reservationId, item) => void`. The detail block is clickable; option/
  *                   resource cards open the fiche, the breakfast card opens the prep popup.
@@ -43,6 +44,7 @@ const THEMES = {
 };
 
 function pluralBreakfasts(n) { return n > 1 ? 'petits déjeuners' : 'petit déjeuner'; }
+function pluralCovers(n) { return n > 1 ? 'couverts' : 'couvert'; }
 
 function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   const clickable = typeof onItemClick === 'function';
@@ -52,6 +54,9 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   const teens = Number(item.teens || 0);
   const babies = Number(item.babies || 0);
   const hasFamily = adults + children + teens + babies > 0;
+  // specs/card-option-served-persons.md §3.4 rule 18 — how many covers were actually sold. Absent
+  // (`null`) = the whole party, and the card reads exactly as it always did.
+  const servedPersons = Number(item.servedPersons) > 0 ? Math.floor(Number(item.servedPersons)) : null;
   const chipSx = { height: 22, fontSize: 12 };
   const stop = (e) => e.stopPropagation();
   // The full item rides along as 2nd argument so breakfast-themed callers can open the
@@ -136,6 +141,13 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
             <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.clientName}</Typography>
+            {/* The cook must read the number of plates to prepare, not the size of the party. */}
+            {servedPersons != null && (
+              <Chip
+                label={`${servedPersons} ${pluralCovers(servedPersons)}`}
+                size="small" sx={{ ...chipSx, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.6)' }}
+              />
+            )}
             {/* Breakfast: show the morning headcount (= reservation persons). */}
             {item.breakfastPersons != null && (
               <Chip

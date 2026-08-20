@@ -37,6 +37,9 @@ export function hydrateSelectedOptions(options, stay, catalogue, buildCardGrid) 
       acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
       soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
       ...(cardOccurrences ? { cardOccurrences } : {}),
+      // specs/card-option-served-persons.md §3.2 — the served count is the operator's decision, so it
+      // must come back on the form line: without it the next save re-bills the whole party.
+      ...(o.cardPersons != null ? { cardPersons: Number(o.cardPersons) } : {}),
     };
   });
 }

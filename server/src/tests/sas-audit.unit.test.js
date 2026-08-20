@@ -86,3 +86,24 @@ test('a removed upsell reads « pris → non pris » (the SAS undo is traceable 
   const line = changes.find((c) => c.field === 'bathLinenOption');
   assert.deepEqual([line.fromText, line.toText], ['pris', 'non pris']);
 });
+
+// specs/card-option-served-persons.md §3.3 rule 15 — a prestation sold to part of the table only must
+// say so in the history: the quantity alone («  ×2 ») doesn't tell 1 moment × 2 covers from 2 moments.
+test('a sold prestation names its covers when they are not the whole table', () => {
+  const changes = computeSasChanges(
+    snap(),
+    snap({}, { soldOptionLines: [{ label: 'Le repas des trappeurs', qty: 2, amount: 50, detail: '1 × 2 pers. servies' }] }),
+  );
+  const byField = Object.fromEntries(changes.map((c) => [c.field, c]));
+  assert.equal(byField.soldOptions.label, 'Prestations vendues au check-in');
+  assert.equal(byField.soldOptions.toText, 'Le repas des trappeurs ×2 — 1 × 2 pers. servies (50 €)');
+});
+
+test('a prestation served to the whole table keeps the plain text', () => {
+  const changes = computeSasChanges(
+    snap(),
+    snap({}, { soldOptionLines: [{ label: 'Planche S', qty: 1, amount: 17 }] }),
+  );
+  const byField = Object.fromEntries(changes.map((c) => [c.field, c]));
+  assert.equal(byField.soldOptions.toText, 'Planche S (17 €)');
+});

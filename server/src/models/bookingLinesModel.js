@@ -54,6 +54,8 @@ function createBookingLinesModel(database) {
   const HAS_CARD_OCCURRENCES = hasColumn('reservation_options', 'cardOccurrences');
   // « This option row was added by the arrival SAS » (specs/sas-upsells-activate-catalogue-option.md §3.2).
   const HAS_SAS_ARRIVAL_ORIGIN = hasColumn('reservation_options', 'sasArrivalOrigin');
+  // Served persons of a per-person card option (specs/card-option-served-persons.md §5).
+  const HAS_CARD_PERSONS = hasColumn('reservation_options', 'cardPersons');
   // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored as JSON.
   const HAS_RESOURCE_SESSIONS = hasColumn('reservation_resources', 'sessions');
   // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11).
@@ -110,6 +112,10 @@ function createBookingLinesModel(database) {
           acompteContribTtc: forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null),
           ...(HAS_CARD_OCCURRENCES ? { cardOccurrences: serializeCardOccurrences(opt) } : {}),
+          // How many covers each moment of a per-person card option serves
+          // (specs/card-option-served-persons.md §3.1). NULL = the whole party; the engine resolves it
+          // and echoes it back, so a fiche re-save can never silently re-inflate a reduced count.
+          ...(HAS_CARD_PERSONS ? { cardPersons: opt.cardPersons != null ? Number(opt.cardPersons) : null } : {}),
           ...(sasOriginSet.size > 0 ? { sasArrivalOrigin: sasOriginSet.has(Number(opt.optionId)) ? 1 : 0 } : {}),
         });
       }

@@ -307,6 +307,9 @@ function createModel(database) {
       optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
       unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
       ...(o.cardOccurrences !== undefined ? { cardOccurrences: o.cardOccurrences } : {}),
+      // Served persons of a card option (specs/card-option-served-persons.md §3.2 rule 10): same
+      // reason as the moments — dropping it would re-bill the whole party on every recompute.
+      ...(o.cardPersons !== undefined ? { cardPersons: o.cardPersons } : {}),
       inComplement: routing(o.inComplement),
     })).filter((line) => !isEngineManagedAuto(line.optionId));
     const customOptions = (body.customOptions || []).map((line, index) => ({
@@ -390,7 +393,8 @@ function createModel(database) {
       selectedOptions: catalogLines.map((line) => ({
         optionId: Number(line.optionId), quantity: Number(line.quantity || 1),
         unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
-        cardOccurrences: line.cardOccurrences, inComplement: line.inComplement,
+        cardOccurrences: line.cardOccurrences, cardPersons: line.cardPersons,
+        inComplement: line.inComplement,
       })),
       customOptions: lines.filter((line) => line.isCustom).map((line) => ({
         customKey: String(line.customOptionId || line.title || ''),
