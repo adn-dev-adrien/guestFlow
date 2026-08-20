@@ -6,7 +6,7 @@
 | **Branch** | `fix/devis-pdf-row-layout` |
 | **Created** | 2026-08-20 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#463](https://github.com/adn-dev-adrien/guestFlow/pull/463) |
 
 ---
 
