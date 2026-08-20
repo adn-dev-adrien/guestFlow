@@ -521,7 +521,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    DEPOSIT_REMINDER_BODY_EN,
     anchor:    'depositDueDate', // the acompte's own deadline, anchored on the booking day (spec §3.1)
     dayOffset: 0,                // fires ON the due date
-    sendMode:  'auto',           // chasing money is a cron job, not a daily chore
+    sendMode:  'manual',         // rule 44 — money is never chased by a cron; it lands in the queue
     enabled:   true,
   }),
   Object.freeze({
@@ -533,7 +533,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    BALANCE_REMINDER_BODY_EN,
     anchor:    'balanceDueDate',
     dayOffset: 3,                // 3 days after the solde deadline, before the 7-day cancellation one
-    sendMode:  'auto',
+    sendMode:  'manual',         // rule 44 — same: proposed in the queue, sent by the operator
     enabled:   true,
   }),
   Object.freeze({
@@ -571,9 +571,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // the model's exclusion and the senders stay in sync.
 const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'cancellation_notice']);
 
+// Every template that asks a guest for money (specs/payment-schedule-and-cancellation.md §1 amendment,
+// rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the
+// server cannot judge — it cannot know the acompte arrived by transfer this morning or that a delay was
+// agreed by phone. A request leaves on an operator click (dashboard card / reservation page); a reminder
+// waits in the manual queue. A new money template joins this list, and the seed test enforces the rule.
+const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder']);
+
 module.exports = {
   DEFAULT_TEMPLATES,
   EVENT_TRIGGERED_STABLE_KEYS,
+  PAYMENT_STABLE_KEYS,
   // Exposed verbatim for tests that need the same body string the seed inserts.
   ARRIVAL_REMINDER_7D_BODY,
   ARRIVAL_REMINDER_1D_BODY,

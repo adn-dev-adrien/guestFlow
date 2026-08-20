@@ -1286,7 +1286,16 @@ function createReservationsModel(database) {
                r.balanceAmount, r.balancePaid, r.balanceDueDate,
                r.paymentAlertSnoozedUntil,
                c.firstName, c.lastName, c.email,
-               p.name AS propertyName, p.cancelAfterBalanceDueDays
+               p.name AS propertyName, p.cancelAfterBalanceDueDays,
+               -- Has the guest ever actually been ASKED for this money? (rule 15) The pure layer needs
+               -- it to tell « à demander » from « en retard », and to refuse to propose a cancellation
+               -- over a solde nobody ever claimed (rule 12bis).
+               EXISTS (SELECT 1 FROM email_log l JOIN email_templates t ON t.id = l.templateId
+                        WHERE l.reservationId = r.id AND t.stableKey = 'deposit_request'
+                          AND l.status = 'sent') AS depositRequestSent,
+               EXISTS (SELECT 1 FROM email_log l JOIN email_templates t ON t.id = l.templateId
+                        WHERE l.reservationId = r.id AND t.stableKey = 'balance_request'
+                          AND l.status = 'sent') AS balanceRequestSent
           FROM reservations r
           JOIN clients c ON c.id = r.clientId
           JOIN properties p ON p.id = r.propertyId

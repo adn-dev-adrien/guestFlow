@@ -1945,6 +1945,23 @@ db.prepare(`
   }
 }
 
+// specs/payment-schedule-and-cancellation.md rule 45 — the seeded dunning rows still carry
+// `sendMode = 'auto'` and would keep mailing guests after deploy. Force them to `manual`; nothing else
+// on the row is touched.
+{
+  const migrationName = 'payment_templates_manual_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runPaymentTemplatesToManualMigration } = require('./utils/migratePaymentTemplatesToManual');
+    const tx = db.transaction(() => {
+      const { action, changed } = runPaymentTemplatesToManualMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:payment-templates-manual] ${action} (${changed})`);
+    });
+    tx();
+  }
+}
+
 {
   const migrationName = 'arrival_reminder_j2_overwrite_v2';
   const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);

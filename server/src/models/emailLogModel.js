@@ -14,6 +14,15 @@
  */
 
 const { EVENT_TRIGGERED_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
+const { DIRECT_CHANNELS } = require('../utils/platformNameFormat');
+
+// Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
+// platformNameFormat.js — same pattern as emailAutoSendRunner.
+const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
+const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
+
+// The request whose departure unlocks each anchor's reminder (rule 40bis).
+const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDate: 'balance_request' };
 
 // specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
 // today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
@@ -74,6 +83,13 @@ function buildModel(database) {
   // The two are identical apart from the three column names, so they are generated rather than
   // copy-pasted — a divergence between the acompte and the solde branch would be a silent bug.
   // Column names are hard-coded call-site constants, never user input.
+  // specs/payment-schedule-and-cancellation.md §3.7 rules 40bis + 40ter. Two guards the `start` anchor
+  // does not need:
+  //   • own channels only — an Airbnb guest owes their solde to Airbnb, not to us. The auto pass has
+  //     had this filter since PR #458; the queue never needed it while both reminders were `auto`, and
+  //     would have inherited the bug the day they became `manual`.
+  //   • the matching request must actually have left — a reminder renders the payment link its request
+  //     minted, so queuing one for a guest who was never asked would send a link that does not exist.
   const paymentAnchorBranch = (anchor, amountColumn, paidColumn) => `
       SELECT
         t.id   AS templateId,
@@ -99,6 +115,12 @@ function buildModel(database) {
         AND t.sendMode = 'manual'
         AND COALESCE(t.anchor, 'start') = '${anchor}'
         AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
+        AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
+        AND EXISTS (
+          SELECT 1 FROM email_log rl
+            JOIN email_templates rt ON rt.id = rl.templateId
+          WHERE rl.reservationId = r.id AND rt.stableKey = ? AND rl.status = 'sent'
+        )
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id AND l.reservationId = r.id
@@ -190,10 +212,14 @@ function buildModel(database) {
 
       ORDER BY startDate ASC, dayOffset ASC
     `).all(
+      // 'start' branch (the extra `today` is its past-arrival guard), then 'validUntil'…
       String(today), Number(lookbackDays), String(today), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+      // …then the two payment anchors, each followed by its channel list and its request key.
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+      ...DIRECT_CHANNEL_LIST, REQUEST_KEY_BY_ANCHOR.depositDueDate,
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+      ...DIRECT_CHANNEL_LIST, REQUEST_KEY_BY_ANCHOR.balanceDueDate,
     );
   }
 

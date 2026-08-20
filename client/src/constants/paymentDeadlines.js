@@ -6,6 +6,10 @@
  */
 
 export const DEADLINE_STATE_LABELS = {
+  // Nobody has asked the guest yet — the row is a to-do, not a debt
+  // (specs/payment-schedule-and-cancellation.md §1 amendment).
+  deposit_to_request: 'Acompte à demander',
+  balance_to_request: 'Solde à demander',
   deposit_overdue: 'Acompte en retard',
   balance_overdue: 'Solde en retard',
   cancel_due: 'Solde impayé',
@@ -17,6 +21,8 @@ export const DEADLINE_STATE_LABELS = {
 };
 
 export const DEADLINE_STATE_BADGE = {
+  deposit_to_request: 'info',
+  balance_to_request: 'warning',
   deposit_overdue: 'warning',
   balance_overdue: 'warning',
   cancel_due: 'error',
@@ -29,7 +35,14 @@ export const DEADLINE_STATE_BADGE = {
 export function deadlineHeadline(row) {
   const days = Number(row.daysLate || 0);
   const late = days <= 0 ? "aujourd'hui" : `${days} jour${days > 1 ? 's' : ''} de retard`;
+  // A « à demander » row keeps showing after its deadline: the to-do is still to ask, so it says how
+  // long the asking has been waiting rather than pretending the guest is late.
+  const overdueSuffix = days > 0 ? ` — échéance dépassée de ${days} jour${days > 1 ? 's' : ''}` : '';
   switch (row.state) {
+    case 'deposit_to_request':
+      return `Acompte jamais demandé${overdueSuffix}`;
+    case 'balance_to_request':
+      return `Solde jamais demandé${overdueSuffix}`;
     case 'cancel_due':
       return `Solde impayé — ${late}, annulation possible`;
     case 'unpaid_at_arrival':

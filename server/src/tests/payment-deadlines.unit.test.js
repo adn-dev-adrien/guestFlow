@@ -8,10 +8,14 @@ const { buildPaymentDeadlineRow, buildPaymentDeadlineRows } = require('../utils/
 
 const TODAY = '2026-08-19';
 
-// A direct booking, arriving in a month, acompte paid, solde due 10 days ago.
+// A direct booking, arriving in a month, acompte paid, solde due 10 days ago. Both requests have
+// already left: since the 2026-08-20 amendment a row whose money was never claimed is a `*_to_request`
+// to-do, not a late payment, so a fixture about LATENESS has to say the guest was asked.
 function row(overrides = {}) {
   return {
     id: 1,
+    depositRequestSent: 1,
+    balanceRequestSent: 1,
     reservationNumber: '2026-09-004',
     platform: 'direct',
     startDate: '2026-09-18',
@@ -63,7 +67,10 @@ test('a late acompte surfaces on its own', () => {
   assert.equal(out.dueDate, '2026-08-15');
   assert.equal(out.daysLate, 4);
   assert.equal(out.retainedDepositAmount, 0, 'an unpaid acompte keeps nothing (rule 27)');
-  assert.equal(out.remindType, 'balance', 'the solde is still unpaid too — chase the bigger one');
+  assert.equal(
+    out.remindType, 'deposit',
+    'the button must ask for what the row is about: this said « Acompte en retard » and sent a SOLDE request',
+  );
 });
 
 test('late on both échéances yields ONE row, in the more severe state (rule 16)', () => {
@@ -301,4 +308,72 @@ test('amount-missing ranks last, after the late payouts', () => {
 test('an own channel with no figures is never flagged — this is about platform imports', () => {
   assert.equal(buildPaymentDeadlineRow(unpricedRow({ platform: 'direct' }), TODAY), null);
   assert.equal(buildPaymentDeadlineRow(unpricedRow({ platform: 'Lodgify' }), TODAY), null);
+});
+
+
+// ── 2026-08-20 amendment: nothing is sent automatically, so the card carries the to-dos ────────────
+
+test('a fresh booking whose acompte was never requested is a to-do, not a late payment', () => {
+  const out = buildPaymentDeadlineRow(
+    row({ depositPaid: 0, depositRequestSent: 0, depositDueDate: '2026-08-26', balanceDueDate: '2026-09-01' }),
+    TODAY,
+  );
+  assert.equal(out.state, 'deposit_to_request');
+  assert.equal(out.severity, 'info', 'every new booking passes here — it must not paint the card yellow');
+  assert.equal(out.requestSent, false);
+  assert.equal(out.remindType, 'deposit');
+  assert.equal(out.daysLate, 0, 'nothing is late: the deadline has not passed');
+  assert.equal(out.canCancel, false);
+});
+
+test('an acompte never requested stays a to-do after its deadline (the to-do is still to ASK)', () => {
+  const out = buildPaymentDeadlineRow(
+    row({ depositPaid: 0, depositRequestSent: 0, depositDueDate: '2026-08-15', balanceDueDate: '2026-09-01' }),
+    TODAY,
+  );
+  assert.equal(out.state, 'deposit_to_request');
+  assert.equal(out.daysLate, 4, 'the client appends « échéance dépassée de 4 jours »');
+});
+
+test('sending the request flips the row to its overdue twin', () => {
+  const asked = row({ depositPaid: 0, depositRequestSent: 1, depositDueDate: '2026-08-15', balanceDueDate: '2026-09-01' });
+  assert.equal(buildPaymentDeadlineRow(asked, TODAY).state, 'deposit_overdue');
+  assert.equal(buildPaymentDeadlineRow({ ...asked, depositRequestSent: 0 }, TODAY).state, 'deposit_to_request');
+});
+
+test('a solde becomes « à demander » ON its due date, the day the deleted cron used to mail it', () => {
+  const base = row({ balanceRequestSent: 0, balanceDueDate: TODAY });
+  const out = buildPaymentDeadlineRow(base, TODAY);
+  assert.equal(out.state, 'balance_to_request');
+  assert.equal(out.remindType, 'balance');
+  assert.equal(out.requestSent, false);
+  assert.equal(
+    buildPaymentDeadlineRow({ ...base, balanceDueDate: '2026-08-20' }, TODAY), null,
+    'the day before its deadline there is nothing to ask for yet',
+  );
+});
+
+test('a solde nobody ever asked for never proposes a cancellation (rule 12bis)', () => {
+  const out = buildPaymentDeadlineRow(row({ balanceRequestSent: 0 }), TODAY);
+  assert.equal(out.state, 'balance_to_request', 'past cancelOn, but the guest was never asked');
+  assert.equal(out.canCancel, false);
+  assert.equal(buildPaymentDeadlineRow(row(), TODAY).canCancel, true, 'asked → the cancellation is offered');
+});
+
+test('« à demander » outranks « en retard » but stays under the two red states', () => {
+  const rows = buildPaymentDeadlineRows([
+    { ...row({ id: 1, depositPaid: 0, depositRequestSent: 0, depositDueDate: '2026-08-01', balanceAmount: 0 }) },
+    { ...row({ id: 2, balanceRequestSent: 0 }) },
+    { ...row({ id: 3, startDate: '2026-08-18' }) },
+  ], TODAY);
+  assert.deepEqual(rows.map((r) => r.state), ['unpaid_at_arrival', 'balance_to_request', 'deposit_to_request']);
+});
+
+test('a platform booking never produces a « à demander » row — its solde is the platform\'s', () => {
+  const out = buildPaymentDeadlineRow(
+    row({ platform: 'airbnb', balanceRequestSent: 0, depositRequestSent: 0, payoutDueDays: 10 }),
+    TODAY,
+  );
+  assert.notEqual(out && out.state, 'balance_to_request');
+  assert.notEqual(out && out.state, 'deposit_to_request');
 });

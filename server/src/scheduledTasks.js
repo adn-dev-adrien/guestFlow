@@ -29,9 +29,6 @@ const { buildQontoClient } = require('./utils/qontoClient');
 const { getValidQontoAccessToken } = require('./utils/qontoAuth');
 const { runPaymentPoll } = require('./utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
-// Balance-request daily pass (specs/public-online-deposit.md §3 rule 8).
-const { runBalanceRequestPass } = require('./utils/balanceRequestRunner');
-const paymentsController = require('./controllers/paymentsController');
 
 // Google Calendar reconcile pass (specs/google-calendar-oauth-rework.md §3 rule 22).
 const googleCalendarSync = require('./utils/googleCalendarSync');
@@ -47,9 +44,6 @@ let arrivalDeparturePushFirstRun = true;
 let lastEmailAutoSendDate = null;
 // Same once-per-day guard for the email-history rolling-window purge.
 let lastEmailHistoryPurgeDate = null;
-// Once-per-day guard for the balance-request pass (online-deposit solde).
-let lastBalanceRequestDate = null;
-let balanceRequestInProgress = false;
 
 async function performAutoSync() {
   if (syncInProgress) {
@@ -235,37 +229,10 @@ async function runPaymentPollPass(reason = 'cron') {
   }
 }
 
-// Balance-request daily pass: create/reuse the balance link + email the balance_request template for
-// reservations whose deposit was collected online but whose solde is now due. Skips silently when Qonto
-// isn't connected (the sender can't mint links) — retried the next day.
-async function runBalanceRequestJob(reason = 'daily') {
-  if (balanceRequestInProgress) return;
-  if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
-  balanceRequestInProgress = true;
-  try {
-    const summary = await runBalanceRequestPass({
-      database: db,
-      templatesModel: emailTemplatesModel,
-      logModel: emailLogModel,
-      sendBalanceRequest: (id) => paymentsController.sendBalanceRequestFor(id),
-    });
-    if (summary.sent > 0) console.log(`[balance-request] ${reason}: ${summary.sent} sent / ${summary.checked} eligible`);
-  } catch (err) {
-    console.error('[balance-request] pass error:', err && err.message ? err.message : err);
-  } finally {
-    balanceRequestInProgress = false;
-  }
-}
-
-// Per-minute tick, gated ≥ 08:00 local, once per local day (same shape as the auto-email tick).
-function tickBalanceRequest() {
-  const now = new Date();
-  if (now.getHours() < 8) return;
-  const today = isoToday(now);
-  if (lastBalanceRequestDate === today) return;
-  lastBalanceRequestDate = today;
-  runBalanceRequestJob('daily 08:00 pass').catch((err) => console.error('[balance-request] unhandled:', err));
-}
+// No money pass here, on purpose (specs/payment-schedule-and-cancellation.md §1 amendment, rule 44).
+// A daily job used to mint the solde link and mail the request at J-30; the operator now sends every
+// money email himself from the dashboard's « Échéances de paiement » card, which lists the same
+// reservations. The passes that remain send stay information, never a euro request.
 
 // Google Calendar reconcile: overlap-guarded inside the sync engine (runReconcileGuarded);
 // silent no-op until the operator connects a Google account + picks a calendar.
@@ -384,11 +351,6 @@ function startScheduledTasks() {
   setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
   setTimeout(() => runPaymentPollPass('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
 
-  // Balance-request daily pass: per-minute tick gated ≥ 08:00 + once-per-day guard (online-deposit solde).
-  const BALANCE_REQUEST_TICK = 60 * 1000;
-  setInterval(tickBalanceRequest, BALANCE_REQUEST_TICK);
-  setTimeout(tickBalanceRequest, 120 * 1000);
-
   // Google Calendar reconcile: every 15 min (immediate pushes cover the realtime path; this
   // pass catches missed hooks + purges orphans — specs/google-calendar-oauth-rework.md §3 rule 22).
   const GOOGLE_SYNC_TICK = 15 * 60 * 1000;
@@ -417,9 +379,6 @@ module.exports = {
   runArrivalDeparturePushPass,
   // Breakfast push — exposed for tests + ops trigger.
   runBreakfastPushPass,
-  // Balance-request pass — exposed for tests + ops trigger.
-  runBalanceRequestJob,
-  tickBalanceRequest,
   // Google Calendar reconcile pass — exposed for tests + ops trigger.
   runGoogleSyncPass,
 };

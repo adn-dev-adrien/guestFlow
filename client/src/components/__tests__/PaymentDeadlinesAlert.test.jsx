@@ -43,6 +43,9 @@ const CANCEL_DUE = {
   retainedDepositAmount: 274,
   canRemind: true,
   remindType: 'balance',
+  // Late implies asked: since the 2026-08-20 amendment a row whose money was never claimed is a
+  // `*_to_request` to-do, and its button reads « Envoyer la demande » instead.
+  requestSent: true,
 };
 
 const DEPOSIT_OVERDUE = {
@@ -206,4 +209,54 @@ test('a booking whose amount was never entered asks for the data, and prints no 
   expect(screen.queryByRole('button', { name: 'Relancer' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Annuler le séjour' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Reporter' })).toBeInTheDocument();
+});
+
+// ── 2026-08-20 amendment: the card is the to-do list, since no cron sends money any more ──────────
+
+const DEPOSIT_TO_REQUEST = {
+  ...DEPOSIT_OVERDUE,
+  reservationId: 12,
+  reservationNumber: '2026-11-007',
+  state: 'deposit_to_request',
+  severity: 'info',
+  clientName: 'Alice Bernard',
+  dueDate: '2026-08-26',
+  daysLate: 0,
+  remindType: 'deposit',
+  requestSent: false,
+};
+
+test('a never-requested acompte reads as a to-do and offers « Envoyer la demande »', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [DEPOSIT_TO_REQUEST] });
+  renderCard();
+
+  expect(await screen.findByText('Acompte à demander')).toBeInTheDocument();
+  expect(screen.getByText(/Acompte jamais demandé/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Envoyer la demande' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Relancer' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Annuler le séjour' })).not.toBeInTheDocument();
+});
+
+test('« Envoyer la demande » posts the type the server named', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [DEPOSIT_TO_REQUEST] });
+  api.remindPaymentDeadline.mockResolvedValue({ sent: true });
+  renderCard();
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Envoyer la demande' }));
+
+  await waitFor(() => expect(api.remindPaymentDeadline).toHaveBeenCalledWith(12, 'deposit'));
+});
+
+test('a to-do past its deadline says how long the asking has waited, not that the guest is late', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [{ ...DEPOSIT_TO_REQUEST, daysLate: 4 }] });
+  renderCard();
+
+  expect(await screen.findByText(/Acompte jamais demandé — échéance dépassée de 4 jours/)).toBeInTheDocument();
+});
+
+test('the title counts the late rows and the to-dos separately', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE, DEPOSIT_TO_REQUEST] });
+  renderCard();
+
+  expect(await screen.findByText(/Échéances de paiement — 1 en retard · 1 à demander/)).toBeInTheDocument();
 });

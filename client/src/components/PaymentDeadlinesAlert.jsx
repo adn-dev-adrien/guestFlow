@@ -3,9 +3,11 @@
  * (specs/payment-schedule-and-cancellation.md §3.4 / §6).
  *
  * Self-contained like the iCal alerts: fetches its own rows, renders nothing when there are none.
- * Each row offers « Relancer » (re-send the request + payment link), « Reporter » (hide it for a
- * week without moving any échéance) and, once the cancellation deadline is passed, « Annuler le
- * séjour ». A late PLATFORM payout (specs/platform-payout-due-date.md) offers « Reporter » alone:
+ * Each row offers « Envoyer la demande » / « Relancer » (mint the payment link and send the request —
+ * the label depends on whether the guest was already asked), « Reporter » (hide it for a week without
+ * moving any échéance) and, once the cancellation deadline is passed, « Annuler le séjour ». Since the
+ * 2026-08-20 amendment no cron sends a money email, so this card is the ONLY thing that makes one
+ * leave: a row left unattended is a guest who was never asked. A late PLATFORM payout (specs/platform-payout-due-date.md) offers « Reporter » alone:
  * the money is owed by the platform, so there is no guest to chase and no stay left to cancel — and a
  * platform booking whose amount was never entered carries no figure to print at all, only the row's
  * link to the fiche where the operator types it.
@@ -46,9 +48,10 @@ export default function PaymentDeadlinesAlert() {
     setBusyId(row.reservationId);
     try {
       await api.remindPaymentDeadline(row.reservationId, row.remindType);
-      showSuccess(row.remindType === 'deposit' ? "Demande d'acompte renvoyée." : 'Demande de solde renvoyée.');
+      const noun = row.remindType === 'deposit' ? "Demande d'acompte" : 'Demande de solde';
+      showSuccess(row.requestSent ? `${noun} renvoyée.` : `${noun} envoyée.`);
     } catch (err) {
-      showError(err.message || "Relance impossible.");
+      showError(err.message || "Envoi impossible.");
     } finally {
       setBusyId(null);
     }
@@ -87,13 +90,21 @@ export default function PaymentDeadlinesAlert() {
 
   if (rows.length === 0) return null;
 
-  const severity = rows.some((row) => row.severity === 'error') ? 'error' : 'warning';
+  // The worst of the rows: a card holding only « à demander » to-dos must not shout like one holding
+  // a stay about to be cancelled.
+  const severity = ['error', 'warning', 'info'].find((level) => rows.some((row) => row.severity === level))
+    || 'warning';
+  const lateCount = rows.filter((row) => !String(row.state).endsWith('_to_request')).length;
+  const toRequestCount = rows.length - lateCount;
 
   return (
     <>
       <Alert severity={severity} variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }} icon={false}>
         <AlertTitle sx={{ fontWeight: 700 }}>
-          Échéances de paiement — {rows.length} en retard
+          Échéances de paiement — {[
+            lateCount > 0 ? `${lateCount} en retard` : null,
+            toRequestCount > 0 ? `${toRequestCount} à demander` : null,
+          ].filter(Boolean).join(' · ')}
         </AlertTitle>
         <Stack divider={<Divider flexItem />} spacing={1.5} sx={{ mt: 1 }}>
           {rows.map((row) => (
@@ -133,7 +144,7 @@ export default function PaymentDeadlinesAlert() {
                     onClick={() => handleRemind(row)}
                     disabled={busyId === row.reservationId || !row.canRemind}
                   >
-                    Relancer
+                    {row.requestSent ? 'Relancer' : 'Envoyer la demande'}
                   </Button>
                 ) : null}
                 <Button

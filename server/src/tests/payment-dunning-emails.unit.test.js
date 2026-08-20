@@ -58,7 +58,20 @@ function fixture({ sendMode = 'auto' } = {}) {
               VALUES (10, 'deposit_reminder', 'Relance acompte', 'S', 'B', 'depositDueDate', 0, ?)`).run(sendMode);
   db.prepare(`INSERT INTO email_templates (id, stableKey, name, subject, body, anchor, dayOffset, sendMode)
               VALUES (11, 'balance_reminder', 'Relance solde', 'S', 'B', 'balanceDueDate', 3, ?)`).run(sendMode);
+  // The two REQUESTS. They never surface themselves (EVENT_TRIGGERED_STABLE_KEYS), but a reminder is
+  // only queued once its request has actually left (rule 40bis), so tests need them to exist.
+  db.prepare(`INSERT INTO email_templates (id, stableKey, name, subject, body, anchor, dayOffset, sendMode)
+              VALUES (20, 'deposit_request', 'Demande acompte', 'S', 'B', 'start', 0, 'manual')`).run();
+  db.prepare(`INSERT INTO email_templates (id, stableKey, name, subject, body, anchor, dayOffset, sendMode)
+              VALUES (21, 'balance_request', 'Demande solde', 'S', 'B', 'start', 0, 'manual')`).run();
   return db;
+}
+
+// Record that the operator actually asked this reservation for that money.
+function markRequestSent(db, reservationId, type) {
+  db.prepare(`INSERT INTO email_log (templateId, reservationId, status, renderedSubject, renderedBody)
+              VALUES (?, ?, 'sent', 'S', 'B')`)
+    .run(type === 'deposit' ? 20 : 21, reservationId);
 }
 
 function addReservation(db, { id, depositDueDate = null, depositPaid = 0, depositAmount = 274,
@@ -160,10 +173,41 @@ test('manual mode: the same anchors drive the pending queue', () => {
   addReservation(db, { id: 100, depositDueDate: TODAY });
   addReservation(db, { id: 101, balanceDueDate: '2026-08-16' });
   addReservation(db, { id: 102, depositDueDate: TODAY, depositPaid: 1 }); // paid → out
+  markRequestSent(db, 100, 'deposit');
+  markRequestSent(db, 101, 'balance');
+  markRequestSent(db, 102, 'deposit');
   const pending = buildLogModel(db).listPending({ today: TODAY });
   assert.deepEqual(
     pending.map((p) => [p.reservationId, p.templateId]).sort((a, b) => a[0] - b[0]),
     [[100, 10], [101, 11]],
+  );
+  db.close();
+});
+
+// ── 2026-08-20 amendment: money is proposed, never sent by a cron ─────────────────────────────
+
+test('a reminder is not queued until its own request has actually left (rule 40bis)', () => {
+  const db = fixture({ sendMode: 'manual' });
+  addReservation(db, { id: 100, depositDueDate: TODAY });
+  const logModel = buildLogModel(db);
+  assert.deepEqual(
+    logModel.listPending({ today: TODAY }), [],
+    'the guest was never asked — the reminder would render a payment link that does not exist',
+  );
+  markRequestSent(db, 100, 'deposit');
+  assert.deepEqual(logModel.listPending({ today: TODAY }).map((p) => p.reservationId), [100]);
+  db.close();
+});
+
+test('a platform booking never enters the queue on a payment anchor (rule 40ter)', () => {
+  const db = fixture({ sendMode: 'manual' });
+  addReservation(db, { id: 100, balanceDueDate: '2026-08-16', platform: 'Airbnb' });
+  addReservation(db, { id: 101, depositDueDate: TODAY, platform: 'Booking' });
+  addReservation(db, { id: 102, balanceDueDate: '2026-08-16', platform: 'Lodgify' }); // own channel
+  [100, 101, 102].forEach((id) => { markRequestSent(db, id, 'deposit'); markRequestSent(db, id, 'balance'); });
+  assert.deepEqual(
+    buildLogModel(db).listPending({ today: TODAY }).map((p) => p.reservationId), [102],
+    'the cron has filtered the channel since PR #458; going manual must not reopen that door',
   );
   db.close();
 });

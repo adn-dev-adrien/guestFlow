@@ -7,10 +7,17 @@
  * without ever saying it is late. An unpaid direct booking could therefore reach its arrival date
  * without a single alert. This is the missing surface.
  *
- * Five states, most severe first:
+ * Since the 2026-08-20 amendment (§1) the card is also the operator's TO-DO LIST: no cron asks a guest
+ * for money any more, so a payment that was never requested has to be visible here or it never leaves.
+ * Hence the two `*_to_request` states — « nobody has asked yet » — which always win over their
+ * `*_overdue` twin: one cannot be late on a request that was never made.
+ *
+ * Seven states, most severe first:
  *   `unpaid_at_arrival` — the guest is arriving (or has) and the pre-arrival money is not in;
  *   `cancel_due`        — the solde is late enough that the stay may be cancelled and the acompte kept;
+ *   `balance_to_request`— the solde is due and the guest has never been asked for it;
  *   `balance_overdue`   — the solde is late, the cancellation deadline is not reached yet;
+ *   `deposit_to_request`— the acompte has never been asked for (from the booking day on);
  *   `deposit_overdue`   — the acompte is late;
  *   `platform_payout_overdue` — an OTA has not settled `payoutDueDays` after the guest left
  *                         (specs/platform-payout-due-date.md §3.2). Money owed by a PLATFORM, not by
@@ -34,7 +41,11 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const SEVERITY_BY_STATE = {
   unpaid_at_arrival: 'error',
   cancel_due: 'error',
+  balance_to_request: 'warning',
   balance_overdue: 'warning',
+  // An acompte to ask for is a to-do on a brand-new booking, not a problem: every direct reservation
+  // passes through this state, so making it yellow would leave the card permanently warning.
+  deposit_to_request: 'info',
   deposit_overdue: 'warning',
   // Deliberately NOT 'error' (rule §9): an OTA payout running a few days late is routine, and turning
   // the whole card red for it would blunt the red signal again — the very failure
@@ -47,8 +58,8 @@ const SEVERITY_BY_STATE = {
 // platform payout — money owed by a platform arrives eventually; money owed by a guest about to walk
 // in does not (specs/platform-payout-due-date.md rule 13).
 const STATE_RANK = [
-  'unpaid_at_arrival', 'cancel_due', 'balance_overdue', 'deposit_overdue', 'platform_payout_overdue',
-  'platform_amount_missing',
+  'unpaid_at_arrival', 'cancel_due', 'balance_to_request', 'balance_overdue',
+  'deposit_to_request', 'deposit_overdue', 'platform_payout_overdue', 'platform_amount_missing',
 ];
 
 // How long a row keeps its place on the card, per channel (rule 21). The card is a to-do list, not an
@@ -177,6 +188,15 @@ function buildPaymentDeadlineRow(row = {}, today) {
   const depositLate = depositUnpaid && Boolean(depositDueDate) && depositDueDate < today;
   const balanceLate = balanceUnpaid && Boolean(balanceDueDate) && balanceDueDate < today;
 
+  // Was the guest ever asked? (rule 15) An unasked acompte is a to-do from the booking day on; an
+  // unasked solde becomes one the day it falls due — `<=`, which is exactly the condition the deleted
+  // balance-request cron used to mail on.
+  const depositRequestSent = Boolean(Number(row.depositRequestSent));
+  const balanceRequestSent = Boolean(Number(row.balanceRequestSent));
+  const depositToRequest = depositUnpaid && !depositRequestSent;
+  const balanceToRequest = balanceUnpaid && !balanceRequestSent
+    && Boolean(balanceDueDate) && balanceDueDate <= today;
+
   const startDate = toIsoDay(row.startDate);
   const arrived = Boolean(startDate) && startDate <= today;
   const cancelOn = resolveCancelOn({
@@ -186,8 +206,12 @@ function buildPaymentDeadlineRow(row = {}, today) {
 
   let state = null;
   if (arrived) state = 'unpaid_at_arrival';
-  else if (balanceLate && cancelOn && cancelOn <= today) state = 'cancel_due';
+  // Rule 12bis — a stay is never proposed for cancellation over money that was never claimed. Without
+  // the guard, deleting the automatic solde request would turn « we forgot to ask » into « cancel it ».
+  else if (balanceLate && cancelOn && cancelOn <= today && balanceRequestSent) state = 'cancel_due';
+  else if (balanceToRequest) state = 'balance_to_request';
   else if (balanceLate) state = 'balance_overdue';
+  else if (depositToRequest) state = 'deposit_to_request';
   else if (depositLate) state = 'deposit_overdue';
   if (!state) return null;
 
@@ -197,8 +221,12 @@ function buildPaymentDeadlineRow(row = {}, today) {
   const endDate = toIsoDay(row.endDate);
   if (endDate && (daysBetween(endDate, today) || 0) > MAX_DAYS_AFTER_STAY) return null;
 
-  // The deadline the row is really about — the solde as soon as it is late, else the acompte.
-  const drivingDueDate = balanceLate ? balanceDueDate : (depositLate ? depositDueDate : (balanceDueDate || depositDueDate));
+  // The deadline the row is really about — the solde as soon as it drives the state, else the acompte.
+  const balanceDriven = state === 'balance_to_request' || state === 'balance_overdue' || state === 'cancel_due'
+    || (state === 'unpaid_at_arrival' && balanceUnpaid);
+  const drivingDueDate = balanceDriven
+    ? (balanceDueDate || depositDueDate)
+    : (depositDueDate || balanceDueDate);
   const daysLate = drivingDueDate ? Math.max(0, daysBetween(drivingDueDate, today) || 0) : 0;
 
   return {
@@ -226,7 +254,14 @@ function buildPaymentDeadlineRow(row = {}, today) {
     // an unpaid acompte keeps nothing).
     retainedDepositAmount: Number(row.depositPaid) ? depositAmount : 0,
     canRemind: Boolean(row.email),
-    remindType: balanceUnpaid ? 'balance' : 'deposit',
+    // Follows the state, not merely « is the solde unpaid ». It used to read `balanceUnpaid ? …`,
+    // which mislabelled every « Acompte en retard » row whose solde was simply not due yet: the button
+    // said acompte and sent a solde request. Harmless while such rows were rare; systematic now that a
+    // deposit_to_request row exists for every fresh booking, whose solde is always still ahead.
+    remindType: balanceDriven ? 'balance' : 'deposit',
+    // Whether the échéance this row is about has already been claimed once — the client turns it into
+    // « Envoyer la demande » vs « Relancer » (rule 17). Both go through the same endpoint.
+    requestSent: balanceDriven ? balanceRequestSent : depositRequestSent,
   };
 }
 

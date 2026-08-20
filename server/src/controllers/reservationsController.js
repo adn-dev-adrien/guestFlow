@@ -27,7 +27,6 @@ const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
-const { requestDepositOnBooking } = require('../utils/depositRequestOnBooking');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
@@ -82,30 +81,6 @@ function cancelledGuard(reservationId) {
     return { status: 409, body: { error: 'Cette réservation est annulée et ne peut plus être modifiée.', code: 'RESERVATION_CANCELLED' } };
   }
   return null;
-}
-
-// specs/payment-schedule-and-cancellation.md §3.7 rule 36 — ask for the acompte the moment a direct
-// reservation is booked. Requires the payments controller lazily: it pulls the Qonto client, and a
-// module-level require would make the reservations controller depend on it at boot.
-function sendDepositRequestOnBooking(reservationId) {
-  Promise.resolve()
-    .then(() => requestDepositOnBooking({
-      getReservation: (id) => db.prepare(`
-        SELECT r.kind, r.platform, r.depositAmount, r.depositPaid, r.depositDisabled,
-               c.email AS clientEmail
-          FROM reservations r
-          LEFT JOIN clients c ON c.id = r.clientId
-         WHERE r.id = ?
-      `).get(id),
-      sendDepositRequest: (id) => require('./paymentsController').sendDepositRequestFor(id),
-      onError: (reason, err) => console.error('[deposit-request-on-booking]', reason, err && err.message),
-    }, reservationId))
-    .then((result) => {
-      if (!result.sent && result.reason !== 'platform-booking' && result.reason !== 'no-deposit') {
-        console.log(`[deposit-request-on-booking] reservation ${reservationId}: ${result.reason}`);
-      }
-    })
-    .catch((err) => console.error('[deposit-request-on-booking] unhandled:', err && err.message));
 }
 
 // specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
@@ -627,10 +602,8 @@ function create(req, res) {
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
   googleCalendarSync.schedulePush(reservationId);
-  // specs/payment-schedule-and-cancellation.md §3.7 rule 36 — the acompte is due from today, so the
-  // request leaves with the booking. Fire-and-forget for the same reason as the Google push: the
-  // response is already sent, and no SMTP/Qonto hiccup may turn a booked stay into a failed request.
-  sendDepositRequestOnBooking(reservationId);
+  // No acompte request leaves here (specs/payment-schedule-and-cancellation.md §1 amendment, rule 36):
+  // the booking raises a `deposit_to_request` row on the dashboard instead, and the operator sends it.
 }
 
 function update(req, res) {
