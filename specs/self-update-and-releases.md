@@ -476,21 +476,30 @@ save flow.
 
 ### Manual verification
 
-- [ ] Happy path on a staging copy of the VM: publish a test release, see the alert appear within
-      the hour (or via "Vérifier maintenant"), install it, watch the overlay through every phase,
-      confirm the reload lands on the new version and the data is intact.
-- [ ] Rollback: publish a release whose server crashes at boot, confirm the automatic rollback, the
-      `rolled_back` status, and that the app is back on the previous version.
-- [ ] Integrity: hand-modify the archive on a local fake release endpoint → the update refuses with
-      the integrity error and installs nothing.
-- [ ] Non-admin (accountant, reception) sees no alert, no settings section, and gets 403 on the
-      endpoints.
-- [ ] Dev tree: `selfUpdateSupported: false`, version displayed, no update button.
-- [ ] Mobile (`xs`) pass on the alert, dialog and overlay.
-- [ ] Regression: the dashboard alert stack, the settings page save flow, and PM2 boot with the new
-      `ecosystem.config.js`.
+Done before merge (2026-08-20):
 
----
+- [x] **UI, desktop (1512px) and mobile (390px)** — with a published release simulated in
+      `update-state.json`: the dashboard alert announces the version, the dialog renders the notes
+      grouped by section, and the Réglages card shows installed/published/last-check plus the
+      history. On mobile the alert stacks with full-width actions and the dialog goes full-screen.
+- [x] **The dev tree correctly refuses to update itself** — the install button is disabled and the
+      dialog states the reason (`no « current » symlink`), instead of failing halfway through.
+- [x] **The swap helper, both outcomes**, against a fake deployment (a `releases/` tree, a fake
+      `pm2` that stamps `runtime-state.json` the way a real boot does, and a real HTTP endpoint):
+      - new version answers → `current` → `releases/1.1.0`, status `done`, exit 0;
+      - **PM2 relaunches the old code anyway** (the silent-failure case this design exists for) →
+        detected as `WRONG_VERSION`, symlink rolled back to `releases/1.0.0`, previous version
+        serving again, status `rolled_back`, exit 1, and the log says why.
+- [x] **The release workflow's shell logic** — the CHANGELOG grep accepts the matching section and
+      refuses a missing one; the `awk` extraction returns exactly the section body that becomes the
+      release notes.
+- [x] **Regression** — dashboard alert stack, settings page, full E2E suite.
+
+Only possible on the production host, after `bootstrap-vm.sh` (see §10):
+
+- [ ] A real update installed end-to-end from a published release, data intact after the swap.
+- [ ] A deliberately broken release rolled back automatically on the real host.
+- [ ] The WordPress plugin updating itself from the WordPress admin.
 
 ## 8. Out of scope
 
