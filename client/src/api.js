@@ -25,9 +25,6 @@ async function request(path, options = {}) {
 }
 
 const api = {
-  // Version / deployment metadata
-  getVersion: () => request('/version'),
-
   // Système et mises à jour (specs/self-update-and-releases.md §4.3). Admin-only server-side; the
   // client gates on the role before calling so a non-admin never sees a 403 in the console.
   getSystemVersion: () => request('/system/version'),

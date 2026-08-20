@@ -81,6 +81,7 @@ import EmailHistoryPage from './pages/EmailHistoryPage';
 import DesignPage from './pages/DesignPage';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
+import AppVersionBadge from './components/AppVersionBadge';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import EmptyState from './components/EmptyState';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
@@ -690,7 +691,6 @@ function AppShell() {
   const { user } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [versionInfo, setVersionInfo] = useState(null);
   // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
   // On mobile it collapses behind a magnifier that expands into a full-width field.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -767,23 +767,6 @@ function AppShell() {
     };
   }, []);
 
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') return undefined;
-    let isMounted = true;
-    api.getVersion()
-      .then((data) => {
-        if (!isMounted) return;
-        setVersionInfo(data || null);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        setVersionInfo(null);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const handleNavItemClick = (event, targetPath) => {
     const currentPathWithSearch = `${location.pathname}${location.search || ''}`;
     const isExactSameTarget = targetPath === currentPathWithSearch || (targetPath === location.pathname && !location.search);
@@ -845,11 +828,8 @@ function AppShell() {
                   <SearchIcon />
                 </IconButton>
               )}
-              {process.env.NODE_ENV === 'production' && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                  {versionInfo?.commitShaShort ? `prod ${versionInfo.commitShaShort}` : 'prod'}
-                </Typography>
-              )}
+              {/* Version installée + point d'entrée mise à jour (specs/self-update-and-releases.md §6.5). */}
+              <AppVersionBadge />
             </>
           )}
         </Toolbar>
