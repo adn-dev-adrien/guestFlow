@@ -4,6 +4,44 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-20
+
+### Added
+- **The quote now says what the payment buys.** On a direct-channel quote, the « Acompte » row carries
+  the sentence the deposit-request email already used — *« Le règlement de l'acompte bloque vos dates :
+  tant qu'il n'est pas payé, elles restent disponibles et peuvent être réservées par un autre client »*
+  — in French and in English. A guest used to read a deadline without ever being told what it was for.
+  Platform quotes are untouched: there, the platform holds the dates. (specs/deposit-blocks-the-dates.md)
+- **Full-payment requests.** A new email template « Demande de paiement intégral (lien de paiement) »
+  (FR/EN), and the devis action renamed « Envoyer la demande de paiement »: the server decides what to
+  ask for — the acompte when there is one, the whole stay otherwise — and the email quotes, to the cent,
+  what the Qonto link charges. A last-minute quote used to hit a dead end there, since asking for a 0 €
+  acompte is refused. (specs/deposit-blocks-the-dates.md)
+
+### Changed
+- **A stay starting within 30 days no longer carries an acompte — it is paid once.** When a direct
+  quote or reservation is created while the stay already falls inside the property's « solde X jours
+  avant » window (30 days), the deposit drops to 0 and the whole stay is due in a single payment, on
+  the quote's own validity date. Until now such a quote asked for an acompte due on its validity date
+  *and* a solde due the day it was written — two contradictory deadlines. The switch is decided on the
+  booking day, so a quote never changes its terms as it ages, and it yields, in this order, to a
+  deposit already collected, a deposit explicitly disabled, and a deposit you set by hand. Platforms
+  are not concerned. No existing record is rewritten: the rule applies to creations and recomputes.
+  (specs/deposit-blocks-the-dates.md, implementing specs/online-payments-qonto.md §3.7)
+
+### Fixed
+- Devis PDF: the security-deposit amount no longer overprints its own label. On an English quote,
+  « Security deposit: » came out as « Security deposi500,00 € ». Every row of the payment-terms block
+  now opens its amount column after its own label, whatever the language.
+- Devis PDF: an option label too long for one line no longer overflows onto the row below it — each
+  pricing-table row is now as tall as what it prints (`specs/devis-pdf-row-layout.md`).
+- Devis PDF: on an offered line, the « Offert » badge now sits on its own line above the label
+  instead of touching it.
+- The release archive now carries the repository's `scripts/` directory, so
+  `~/guestflow/current/scripts/bootstrap-vm.sh` — the path the README tells an operator to run —
+  actually exists on an installed host. The first 2.0.0 install needed that script copied over by
+  hand.
+
 ## [2.0.0] - 2026-08-20
 
 ### Added
