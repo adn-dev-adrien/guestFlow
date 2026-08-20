@@ -6,7 +6,7 @@
 | **Branch** | `fix/tourist-tax-base-accommodation-only` |
 | **Created** | 2026-08-20 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#470](https://github.com/adn-dev-adrien/guestFlow/pull/470) |
 
 ---
 
