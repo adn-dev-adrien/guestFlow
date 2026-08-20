@@ -115,7 +115,7 @@ function ResourceSessions({ resource }) {
 export default function ExtrasSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, propertyOptions, propertyOptionGroups, displayableResources,
+    form, propertyOptions, propertyOptionGroups, displayableResources, pricingQuote,
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
@@ -136,12 +136,25 @@ export default function ExtrasSection() {
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
   // never shown as selectable extras on the fiche — they're managed globally and counted in the
   // laundry/stock only. `displayToClient` absent → visible (back-compat).
+  // specs/baby-bed-supplement.md §6 — the cot supplement is engine-derived and read-only, so the only
+  // honest reason to show its row is that the engine actually billed it. Keying on the quote rather
+  // than on the « Lits bébé » counter keeps the row and the récapitulatif in lockstep in every case
+  // the SERVER decides alone: no cot, a logement that doesn't charge for cots, and above all a
+  // booking taken before the supplement existed (§3.3) — announcing a price it will never bill.
+  const babyBedOptionId = (propertyOptions || []).find((o) => o.autoOptionType === 'baby_bed')?.id;
+  const babyBedBilled = babyBedOptionId != null
+    && (pricingQuote?.optionLines || []).some((l) => !l.isCustom && Number(l.optionId) === Number(babyBedOptionId));
+  const isDormantBabyBedOption = (o) => o?.autoOptionType === 'baby_bed' && !babyBedBilled;
   const visiblePropertyOptions = (propertyOptions || [])
-    .filter((o) => Number(o.displayToClient == null ? 1 : o.displayToClient) !== 0);
+    .filter((o) => Number(o.displayToClient == null ? 1 : o.displayToClient) !== 0)
+    .filter((o) => !isDormantBabyBedOption(o));
   // Server-computed grouping (specs/option-categories.md §3 rule 4). Falls back to the flat list
   // when the payload predates the feature, so an older cached property detail still renders.
-  const ungroupedOptions = propertyOptionGroups?.ungrouped || visiblePropertyOptions;
-  const optionGroups = propertyOptionGroups?.groups || [];
+  const ungroupedOptions = (propertyOptionGroups?.ungrouped || visiblePropertyOptions)
+    .filter((o) => !isDormantBabyBedOption(o));
+  const optionGroups = (propertyOptionGroups?.groups || [])
+    .map((group) => ({ ...group, options: (group.options || []).filter((o) => !isDormantBabyBedOption(o)) }))
+    .filter((group) => group.options.length > 0);
   // "Enabled" here mirrors OptionRow's own rule: an explicit quantity, or a bed-linen option forced
   // on by a property default (specs/bed-config-in-linen-card.md §3 rule 4.bis).
   const isOptionEnabled = (opt) => {

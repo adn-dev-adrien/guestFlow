@@ -427,6 +427,9 @@ export default function ReservationPage() {
     adults: Number(form.adults || 0),
     children: Number(form.children || 0),
     teens: Number(form.teens || 0),
+    // specs/baby-bed-supplement.md — the cot count is a PRICING input (5 € per cot for the stay), so
+    // the live quote must re-fire on it like it does on the guest counts.
+    babyBeds: Number(form.babyBeds || 0),
     extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
     discountPercent: Number(form.discountPercent || 0),
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
@@ -492,7 +495,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-freeze-past-with-refresh.md — `freezeTouristTax` MUST be a dependency: the
     // « Recalculer » button flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
@@ -1144,6 +1147,7 @@ export default function ReservationPage() {
           adults: form.adults,
           children: form.children,
           teens: form.teens,
+          babyBeds: Number(form.babyBeds || 0),
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           discountPercent: form.discountPercent,
           customPrice: form.customPrice,
@@ -1737,6 +1741,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        babyBeds: Number(form.babyBeds || 0),
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         offeredOptionIds: Array.from(offeredOptionIds),
         platform: form.platform,
@@ -1860,6 +1865,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        babyBeds: Number(form.babyBeds || 0),
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
         depositPaid: form.depositPaid,
@@ -1990,6 +1996,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        babyBeds: Number(form.babyBeds || 0),
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
         customPrice: form.customPrice,

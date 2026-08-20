@@ -397,6 +397,10 @@ function calculatePrice(req, res) {
     adults: req.body.adults,
     children: req.body.children,
     teens: req.body.teens,
+    babyBeds: req.body.babyBeds,
+    // specs/baby-bed-supplement.md §3.3 rule 14 — the SAVED booking, whatever the state of its price
+    // lock (an expired devis still keeps its cots free), so this preview shows what the save stores.
+    bookingId: reservationId > 0 ? reservationId : devisId,
     discountPercent: req.body.discountPercent,
     customPrice: req.body.customPrice,
     selectedOptions: req.body.selectedOptions,
@@ -522,6 +526,9 @@ function create(req, res) {
     propertyId: Number(propertyId),
     startDate, endDate, checkInTime, checkOutTime,
     adults, children, teens, babies,
+    // specs/baby-bed-supplement.md — no `bookingId`: the reservation does not exist yet, so it can
+    // never be grandfathered and every cot is billed.
+    babyBeds: effectiveBabyBeds,
     discountPercent: req.body.discountPercent,
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
@@ -710,6 +717,10 @@ function update(req, res) {
     propertyId: Number(propertyId),
     startDate, endDate, checkInTime, checkOutTime,
     adults, children, teens, babies,
+    babyBeds: effectiveBabyBeds,
+    // specs/baby-bed-supplement.md §3.3 — the stored row still holds the PRE-update cot count here,
+    // which is exactly what decides the exemption: a reservation sold with cots keeps them free.
+    bookingId: id,
     discountPercent: req.body.discountPercent,
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,

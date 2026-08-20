@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Card, CardContent, Typography, Stack, TextField } from '@mui/material';
 import QuantityField from '../QuantityField';
+import { formatCurrency } from '../../utils/formatters';
 import { useReservationForm } from './ReservationFormContext';
 
 /**
@@ -30,9 +31,19 @@ export default function GuestsBedsSection() {
     guestsCount,
     maxBabyBedsByRule, remainingBabyBeds,
     isReservationLocked,
+    propertyOptions,
   } = useReservationForm();
 
   const showBabyBed = Number(form.babies || 0) > 0;
+  // specs/baby-bed-supplement.md §6 — a cot is billed per unit for the whole stay, and this counter
+  // is the only place the operator decides it. Saying the price here is what stops the line from
+  // appearing « out of nowhere » in the récapitulatif. The amount comes from the catalogue option the
+  // engine bills (0 / absent = this logement does not charge for cots → nothing to announce).
+  const babyBedUnitPrice = Number(
+    (propertyOptions || []).find((o) => o.autoOptionType === 'baby_bed' && Number(o.autoEnabled || 0) === 1)?.price || 0,
+  );
+  const babyBedHelper = `Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`
+    + (babyBedUnitPrice > 0 ? ` · ${formatCurrency(babyBedUnitPrice)} / lit` : '');
   const capacityHint = maxGuestsAllowed
     ? `Capacité : ${maxGuestsAllowed} voyageur${maxGuestsAllowed > 1 ? 's' : ''}${maxBabiesAllowed ? ` · ${maxBabiesAllowed} bébé${maxBabiesAllowed > 1 ? 's' : ''}` : ''}`
     : null;
@@ -112,7 +123,7 @@ export default function GuestsBedsSection() {
                 value={form.babyBeds}
                 onCommit={(v) => updateForm({ babyBeds: v })}
                 fullWidth
-                helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
+                helperText={babyBedHelper}
                 disabled={isReservationLocked}
               />
             </Box>
