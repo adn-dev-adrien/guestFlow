@@ -224,10 +224,12 @@ PDF only (no screen touched). The totals block keeps its exact layout:
 ### Server unit tests
 
 - [x] `tests/devis-pdf-quote-parity.unit.test.js` (new, 8 tests) — real engine, in-memory DB:
-  - [x] offered property-default option → `recomputeQuote` keeps it at 0 € **and** keeps the
-        `includedInRate` tourist-tax deduction; the replay equals the persisted devis (rules 1-2).
-  - [x] executable description of the bug: the old naive input re-bills the 60 € **and** raises the
-        tax, the replay does neither.
+  - [x] offered property-default option → `recomputeQuote` keeps it at 0 € **and** re-quotes the same
+        tourist tax; the replay equals the persisted devis (rules 1-2).
+  - [x] executable description of the bug: the old naive input re-bills the 60 €, the replay does not.
+        _(Until 2026-08-20 it also raised the tourist tax; since
+        [tourist-tax-base-accommodation-only.md](tourist-tax-base-accommodation-only.md) repealed the
+        `includedInRate` deduction, the test asserts the tax is **unchanged**.)_
   - [x] tariff raised after the devis was saved, quote still valid → `recomputeQuote` replays the sold
         price (rule 3).
   - [x] an engine-managed auto-option persisted as a line is not double-counted (rule 3).

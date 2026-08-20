@@ -627,9 +627,13 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
       configured tier still matches the legacy weekly model (rule 39).
 - [ ] `tests/discount-monotonicity.unit.test.js` — marginal night prices non-increasing and total
       discount never above 30 % up to 60 nights (rules 36, 37).
-- [ ] `tests/tourist-tax-included-in-rate.unit.test.js` — `includedInRate` lines reduce the base by
-      their real value; a one-off gesture does not; base floors at 0; a frozen tax is untouched; a flat
-      per-adult property is unaffected (rules 48, 49).
+- [x] `tests/tourist-tax-base-accommodation-only.unit.test.js` — **replaces**
+      `tests/tourist-tax-included-in-rate.unit.test.js` since rule 48 was repealed on 2026-08-20
+      ([tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md)): the base
+      is the accommodation charged and seven extra variations — paid, offered, `includedInRate`, in
+      Complément, custom option, resource — all yield the identical tax; the platform brut no longer
+      derives it; `customPrice` and the discount do; a frozen tax is untouched; a flat per-adult
+      property is unaffected (rule 49).
 - [ ] `tests/platform-price-from-commission.unit.test.js` (extended) — `grossFromNet` ceils to the whole
       euro; the fixed-cost add-on gives 179 / 216 / 247 €; the grid carries the direct row and the
       extra-guest column with 32 / 30 / 30 / 30 / 29 / 27 / 25 € (rules 31 to 34).
