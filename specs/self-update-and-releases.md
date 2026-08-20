@@ -5,6 +5,7 @@
 | **Status** | Implemented |
 | **Branch** | `feature/self-update-and-releases` |
 | **Created** | 2026-08-20 |
+| **Amended** | 2026-08-20 — rules 28 / 30b, after the first real self-update in production |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
@@ -182,9 +183,25 @@ signed-off releases over HTTPS, when the operator asks for it.
 
 ### E. Update engine — swap phase (helper, survives the restart)
 
-28. The swap is performed by a **detached child process** (`setsid`, `stdio: ignore`, `unref`) so
-    it outlives the PM2 restart that kills its parent. This is the PM2 transposition of sowel's
-    helper container (sowel spec 060 FR1: a process cannot orchestrate its own replacement).
+28. The swap is performed by a **child process that has left the application's process tree**, so
+    it outlives the PM2 restart it triggers. This is the PM2 transposition of sowel's helper
+    container (sowel spec 060 FR1: a process cannot orchestrate its own replacement).
+
+    A new *session* is not enough, and assuming it was cost the first real update in production
+    (2026-08-20, 2.0.0 → 2.1.0). PM2 stops a process with `treekill` — its default — which walks the
+    **descendants** of the process it is killing, by PPID, and signals every one of them. Node's
+    `detached: true` calls `setsid(2)`: it changes the session and the process group, and leaves the
+    parent alone. The helper was therefore still a child of the application PM2 was restarting, and
+    was killed in the middle of the restart it had just requested — its log stopping mid-sentence at
+    `[PM2] Applying action restartProcessId`.
+
+    The helper is therefore launched through **`setsid --fork`**: `setsid` forks, the intermediate
+    process exits immediately, and the shell running the swap is re-parented to PID 1 before PM2
+    ever enumerates the tree. `--fork` is not optional — without it `setsid` only forks when it
+    already leads its process group, and the whole rollback path would rest on that coincidence.
+    Hosts with no `setsid` (util-linux; a macOS dev machine has none) fall back to the plain
+    detached spawn, which is degraded but no worse than the previous behaviour. The command is still
+    built as an argv array, never a shell string.
 29. The helper, in order: repoint `current` → `releases/X.Y.Z` (atomic `ln -sfn`), restart the app
     (`pm2 startOrRestart ecosystem.config.js --update-env`), then **verify**.
 30. Verification succeeds when, within **120 s**, the existing public probe `GET /api/version`
@@ -193,6 +210,23 @@ signed-off releases over HTTPS, when the operator asks for it.
     lesson). No new public endpoint is added, and the running version stays behind authentication:
     the liveness probe says "alive", the version file says "which one", and only the second is
     sensitive.
+30b. **The application concludes what the helper could not.** A killed helper leaves the status on
+    a non-terminal phase, and a non-terminal phase is exactly what the client overlay waits on —
+    it never stops spinning, and reloading the page brings it straight back, because nothing in the
+    UI can outvote the status file. So at boot, when the status sits on `swapping` or `restarting`,
+    the version that actually came up settles the run: the **target** version with no error recorded
+    means the swap succeeded (`done`); the version we were coming **from**, with a failure already
+    written by the helper, means the rollback succeeded (`rolled_back`). Anything else — a staging
+    phase, a terminal phase, the old version back with no failure recorded (the helper may simply
+    still be working) — is left untouched. This is a safety net, not a replacement for rule 28: only
+    the helper can *perform* a rollback, so a helper that cannot survive is still a broken rollback.
+
+    When the helper *did* survive, both write the same verdict and the run keeps a single history
+    line. The one visible seam is a helper that outlives us and then judges the new version
+    unhealthy: the boot has already published `done`, so the operator may see the update close
+    before the rollback restarts the app. The history is corrected when it does — the run's line is
+    replaced, never doubled (§5).
+
 31. On verification failure the helper **rolls back**: `current` → previous release, restart, wait
     for health again, and record the status `rolled_back` with the last 50 log lines. The database
     is **not** auto-restored — migrations are additive-only (CLAUDE.md §8), so the previous code
@@ -231,6 +265,9 @@ signed-off releases over HTTPS, when the operator asks for it.
   automatic rollback → the UI shows `rolled_back` with the reason.
 - Rollback itself fails (previous release deleted by hand) → status `failed`, log explains the
   manual recovery command. This is the only path where GuestFlow can stay down.
+- The helper is killed before it can report (PM2 `treekill`, an OOM kill, the host rebooting mid-swap)
+  → the next boot reads the swap phase and the running version and concludes the run itself (rule
+  30b). The update finishes in the UI instead of hanging on a spinner forever.
 - User closes the browser mid-update → the update continues; the status file lets any later client
   see the outcome.
 - Two admins click at the same time → second one gets 409 "Une mise à jour est déjà en cours".
@@ -398,6 +435,14 @@ leave a half-written state to be read back as garbage.
 `update-state.json` and `update-status.json` are also the reason the settings table needed no new
 column: none of this is user configuration, it is deployment state.
 
+**One history line per update run.** Each history entry carries the run's `startedAt` — the same
+value the status file holds and the helper receives as `--started-at` — and that is what makes an
+entry unique, not the `historyRecorded` flag. The flag alone cannot do the job: `apply-update.sh`
+rewrites the whole status document when it finishes, resetting the flag, so a run already concluded
+at boot (rule 30b) would be logged twice. A later boot reporting a *different* outcome for the same
+run replaces the line rather than adding one — a rollback must never leave a stale `done` standing
+beside it.
+
 **Data impact:** none on existing records. The pre-update backup adds a file per update under
 `data/backups/` (rotated, 5 kept). The VM layout migration (`bootstrap-vm.sh`) moves directories
 around `~/guestflow/` but never touches `data/`.
@@ -491,7 +536,7 @@ save flow.
 
 ## 7. Test plan
 
-### Server unit tests (48 new, `cd server && npm test` → 3375 green)
+### Server unit tests (56 new, `cd server && npm test` → 3455 green)
 
 - [x] `tests/self-update-semver.unit.test.js` — strict parsing, numeric (not lexicographic) ordering,
       and "no update" for every unparseable or rolled-back input (rules 2, 13).
@@ -505,10 +550,13 @@ save flow.
       nothing (rules 22-25, 27).
 - [x] `tests/self-update-helper.unit.test.js` — the argv builder refuses every version string that
       could break out of the shell helper's status JSON or its command line; the child is spawned
-      detached with an argv array (rule 28).
+      through `setsid --fork` with an argv array, and falls back to a plain detached bash on a host
+      with no `setsid` (rule 28).
 - [x] `tests/self-update-state.unit.test.js` — lock acquire/release, staleness, corrupted state read
       as empty, history cap, and the boot reconciliation recording a finished update exactly once
-      (rules 32, 36, 38).
+      (rules 32, 36, 38); a boot on the target version concluding a swap the helper never reported,
+      the symmetric case for a rollback, everything `concludeAbandonedSwap` refuses to guess, and
+      one history line per run whether the boot, the helper, or both conclude it (rule 30b).
 - [x] `tests/self-update-release-links.unit.test.js` — the staged release reads the *same*
       `.env.local`, a first install links a file that does not exist yet so generated secrets land
       in `data/`, uploads survive, archive-shipped files are folded in rather than dropped, the
@@ -520,7 +568,7 @@ save flow.
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
       check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
 
-### Client tests (28 new, `cd client && npm test` → 1073 green)
+### Client tests (28 new, `cd client && npm test` → 1076 green)
 
 - [x] `UpdateAvailableAlert.test.jsx` — silent for a non-admin (and no admin call made at all),
       silent when up to date / postponed / already updating, "Plus tard" postpones that exact
@@ -563,8 +611,15 @@ Done before merge (2026-08-20):
 
 Only possible on the production host, after `bootstrap-vm.sh` (see §10):
 
-- [ ] A real update installed end-to-end from a published release, data intact after the swap.
-- [ ] A deliberately broken release rolled back automatically on the real host.
+- [x] **A real update installed end-to-end from a published release, data intact after the swap** —
+      2.0.0 → 2.1.0 on 2026-08-20. The archive verified against its `SHA256SUMS`, `current` repointed
+      to `releases/2.1.0`, PM2 back online on 2.1.0, and `.env.local`, `uploads/` and the database
+      still linked into `data/` (rule 25b held: no session was lost and no secret regenerated). The
+      run also **exposed the rule 28 defect**: the helper was tree-killed at the restart and never
+      wrote `done`, so the status stayed on `restarting` and the operator's overlay never closed.
+- [ ] A deliberately broken release rolled back automatically on the real host. **Blocked until the
+      rule 28 fix ships**: on the version installed today the helper does not survive the restart,
+      so there is nothing left alive to roll anything back.
 - [ ] The WordPress plugin updating itself from the WordPress admin.
 
 ## 8. Out of scope
@@ -633,7 +688,8 @@ Still open, to settle during implementation:
 | 6 | UI: dashboard alert, dialog, overlay, settings section | ✅ |
 | 7 | Removal: `deploy.yml` deleted, `release` branch retired | ✅ |
 | 7b | On the host: `bootstrap-vm.sh` run, runner uninstalled and deregistered | ✅ 2026-08-20 |
-| 8 | Top-bar version badge replacing the `prod <sha>` pill (§6.5, rule 20b) | ✅ 2026-08-20 |
+| 8 | Rules 28 / 30b: the helper leaves the PM2 process tree, and a boot concludes an abandoned swap | ✅ 2026-08-20 |
+| 9 | Top-bar version badge replacing the `prod <sha>` pill (§6.5, rule 20b) | ✅ 2026-08-20 |
 
 **Done in production on 2026-08-20**, in this order, with a verified off-host backup taken first:
 layout migrated (`current/` → `releases/1.0.0` + symlink, uploads moved to `data/uploads`), the app
@@ -644,3 +700,22 @@ into five sections, and correctly offering no update since it matches the instal
 
 The GitHub Actions runner was stopped, uninstalled and deregistered the same day: **0 runners on the
 repository, 0 systemd units, credentials removed from disk.**
+
+### Amendment — 2026-08-20, after the first real update
+
+`2.0.0 → 2.1.0` was the maiden voyage of this engine and it did the hard part correctly: verified
+archive, wired persistent paths, swapped release, healthy boot on the new version. It then hung, and
+the operator was left staring at a progress overlay that could not be dismissed or reloaded away.
+
+The cause was a single wrong assumption in rule 28 — that a detached child *is* a child no longer.
+PM2's `treekill` follows PPIDs, `setsid(2)` does not change the PPID, and the helper was killed by
+the very restart it had asked for, one line into it. Two changes came out of it: the helper now
+leaves the tree for real (`setsid --fork`, rule 28), and the application no longer depends on the
+helper being alive to reach a terminal status (rule 30b).
+
+Worth stating plainly, because it is the part that was not visible on screen: for as long as the
+helper died at every restart, **rule 31's automatic rollback did not exist on this host**. The 2.1.0
+update looked fine only because the new version booted. Had it not, nothing would have put 2.0.0
+back. Per rule 35 the engine that runs is the one already installed, so this fix protects the update
+*after* the one that ships it — 2.1.0 → next is still run by 2.1.0's helper, and its outcome is
+concluded by 30b in the version that boots.
