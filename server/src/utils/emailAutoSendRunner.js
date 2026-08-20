@@ -8,7 +8,8 @@
  *
  * Returns `{ sentCount, skippedCount, failedCount, results: [{ templateId, reservationId,
  * status, errorMessage? }] }` so the caller can log a one-line summary + the test can
- * assert behaviour.
+ * assert behaviour. Adds `blocked: true` when the operator has not authorised automatic sending
+ * (specs/no-automatic-email-without-approval.md §3 rule 2) — the pass then does nothing at all.
  */
 
 const { renderTemplate } = require('./emailTemplateRenderer');
@@ -16,6 +17,7 @@ const { buildContext }   = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { DIRECT_CHANNELS } = require('./platformNameFormat');
+const { autoSendAllowed } = require('./autoSendPolicy');
 
 // Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
 // platformNameFormat.js — adding a channel there reaches this pass for free. Same pattern as
@@ -38,6 +40,15 @@ function isoToday(now = new Date()) {
 async function performAutoEmailPass(deps) {
   const { database, templatesModel, logModel, settingsModel, emailServiceFactory } = deps;
   const today = deps.today || isoToday();
+
+  // 0. The master switch (specs/no-automatic-email-without-approval.md §3 rule 2). OFF → this pass is
+  // a no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
+  // row is written. The day's due templates are not lost — `emailLogModel.listPending` surfaces them
+  // in the « à valider » queue instead, where one click sends them.
+  if (!autoSendAllowed(settingsModel)) {
+    return { blocked: true, sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
+  }
+
   const settings = settingsModel.read();
 
   // 1. List every enabled auto template once. Manual templates are out of the cron's scope —

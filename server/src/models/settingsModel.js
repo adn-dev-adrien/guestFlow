@@ -121,6 +121,11 @@ const COLUMNS = [
   // helper casts to boolean for the controller, but read() returns the raw integer for the
   // API payload — consistent with smtpSecure (no surprise cast at the boundary).
   'allowEditPastReservations',
+  // Master switch for automatic guest email (specs/no-automatic-email-without-approval.md §3 rule 1).
+  // INTEGER 0/1, default 0 — read through `emailAutoSendEnabled()`, never inspected column-side by
+  // a caller: `utils/autoSendPolicy` is the single place that decides whether an automatic send may
+  // happen at all.
+  'emailAutoSendEnabled',
   // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sun .. 6=Sat, default
   // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
   // (400 INVALID_WEEKDAY).
@@ -168,6 +173,7 @@ const NUMERIC_DEFAULTS = {
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,
   allowEditPastReservations: 0,
+  emailAutoSendEnabled: 0,
   laundryWeekday: 2,
   bedLinenStockSingle: 0,
   bedLinenStockDouble: 0,
@@ -332,6 +338,14 @@ function createSettingsModel(databaseInstance) {
     // DEFAULT 0 (see database.js migration). See specs/admin-unlock-past-reservations.md.
     allowEditPastReservations() {
       return Number(readRaw().allowEditPastReservations) === 1;
+    },
+
+    // Is GuestFlow allowed to send a guest email with nobody in the loop? OFF unless the operator
+    // turned it on (specs/no-automatic-email-without-approval.md §3 rule 1). A missing column — a
+    // partially-migrated database — reads as OFF: the safe default is « ask me ». Consumed through
+    // `utils/autoSendPolicy.autoSendAllowed`, not directly.
+    emailAutoSendEnabled() {
+      return Number(readRaw().emailAutoSendEnabled) === 1;
     },
 
     // Single source of truth for every payment reminder/deadline duration (no caller hard-codes a

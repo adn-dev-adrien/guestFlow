@@ -9,9 +9,15 @@
  *   - `enabled` accepts boolean / 0 / 1 / 'true' / 'false'.
  *   - `stableKey` in the payload is ALWAYS ignored (set only by the registry seed).
  *
+ * `list()` decorates every row with `autoSendBlocked`: true when the template is enabled, set to
+ * `auto`, and the operator has not authorised automatic sending
+ * (specs/no-automatic-email-without-approval.md §3 rule 8).
+ *
  * Exports a default controller bound to the production model + a `buildController(model)`
  * factory for tests.
  */
+
+const { autoSendAllowed } = require('../utils/autoSendPolicy');
 
 const DAY_OFFSET_MIN = -90;
 const DAY_OFFSET_MAX = 90;
@@ -51,9 +57,18 @@ function validateForUpdate(payload) {
   return errors;
 }
 
-function buildController(model) {
+function buildController(model, settingsModel) {
+  // « This template says Automatique, but nothing will leave on its own. » Computed here rather than
+  // recombined in React from two payloads (specs/no-automatic-email-without-approval.md §3 rule 8).
+  function decorate(row) {
+    const blocked = Boolean(row.enabled)
+      && String(row.sendMode) === 'auto'
+      && !autoSendAllowed(settingsModel);
+    return { ...row, autoSendBlocked: blocked };
+  }
+
   function list(req, res) {
-    return res.json(model.list());
+    return res.json(model.list().map(decorate));
   }
 
   function getOne(req, res) {
@@ -108,7 +123,7 @@ function buildController(model) {
 
 const defaultController = (() => {
   try {
-    return buildController(require('../models/emailTemplatesModel'));
+    return buildController(require('../models/emailTemplatesModel'), require('../models/settingsModel'));
   } catch {
     return null;
   }

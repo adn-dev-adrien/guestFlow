@@ -43,7 +43,7 @@ const DDL = `
   CREATE TABLE reservation_custom_options (reservationId INTEGER, description TEXT, amount REAL, inComplement INTEGER DEFAULT 0, offered INTEGER DEFAULT 0, sortOrder INTEGER);
 `;
 
-function fixture() {
+function fixture({ autoSendEnabled = true } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
 
@@ -67,6 +67,9 @@ function fixture() {
     templatesModel: buildTemplatesModel(db),
     logModel:       buildLogModel(db),
     settingsModel:  {
+      // Master switch (specs/no-automatic-email-without-approval.md §3 rule 1). ON by default in
+      // this fixture: most tests here describe what the pass does once it is allowed to run.
+      emailAutoSendEnabled() { return autoSendEnabled; },
       read() { return { companyName: 'Demo', companyPhone: '01', companyEmail: 'd@x' }; },
       decryptedSmtpSettings() { return { host: 'smtp', port: 587, secure: false, user: 'u', password: 'p', fromEmail: 'f@x', fromName: 'Demo' }; },
     },
@@ -190,4 +193,70 @@ test('runner: EMAIL_NOT_CONFIGURED bubbles through with the right errorMessage m
   });
   const row = f.db.prepare("SELECT errorMessage FROM email_log WHERE reservationId = 100").get();
   assert.equal(row.errorMessage, 'EMAIL_NOT_CONFIGURED');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Master switch — specs/no-automatic-email-without-approval.md §3 rule 2.
+// The pass must not merely refrain from sending: it must not render, not connect, not log. What it
+// leaves behind is what the operator will find in « Emails à envoyer ».
+// ---------------------------------------------------------------------------------------------
+
+test('switch OFF: the pass does nothing at all', async () => {
+  const f = fixture({ autoSendEnabled: false });
+  let serviceBuilt = false;
+  const res = await performAutoEmailPass({
+    database: f.db, templatesModel: f.templatesModel, logModel: f.logModel,
+    settingsModel: f.settingsModel,
+    emailServiceFactory: () => { serviceBuilt = true; return { isConfigured: true, send: async () => {} }; },
+    today: '2026-07-03',
+  });
+
+  assert.equal(res.blocked, true);
+  assert.equal(res.sentCount, 0);
+  assert.equal(res.failedCount, 0);
+  assert.equal(res.skippedCount, 0);
+  assert.deepEqual(res.results, []);
+  // No SMTP transport was ever built — the pass returned before touching the mail layer.
+  assert.equal(serviceBuilt, false);
+  // And no trace in the history: nothing was attempted, so there is nothing to report as failed.
+  // This is what keeps « Historique » an honest record of send attempts.
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n, 0);
+});
+
+test('switch OFF then ON: the same fixture sends once allowed', async () => {
+  // Same data, same day — only the operator's authorisation changes. Guards against a guard that
+  // accidentally depends on something else (a template flag, a date, a dedup row).
+  const blocked = fixture({ autoSendEnabled: false });
+  const first = await performAutoEmailPass({
+    database: blocked.db, templatesModel: blocked.templatesModel, logModel: blocked.logModel,
+    settingsModel: blocked.settingsModel,
+    emailServiceFactory: fakeEmailServiceFactory(),
+    today: '2026-07-03',
+  });
+  assert.equal(first.sentCount, 0);
+
+  const allowed = fixture({ autoSendEnabled: true });
+  const sent = [];
+  const second = await performAutoEmailPass({
+    database: allowed.db, templatesModel: allowed.templatesModel, logModel: allowed.logModel,
+    settingsModel: allowed.settingsModel,
+    emailServiceFactory: fakeEmailServiceFactory({ sendImpl: async (msg) => { sent.push(msg); } }),
+    today: '2026-07-03',
+  });
+  assert.equal(second.blocked, undefined);
+  assert.equal(second.sentCount, 1);
+  assert.equal(sent.length, 1);
+});
+
+test('switch missing entirely: a settings model that never heard of it sends nothing', async () => {
+  // A settings model built before the column existed (or a stub in a future test) must fail closed.
+  const f = fixture();
+  const res = await performAutoEmailPass({
+    database: f.db, templatesModel: f.templatesModel, logModel: f.logModel,
+    settingsModel: { read: () => ({ companyName: 'Demo' }), decryptedSmtpSettings: () => ({}) },
+    emailServiceFactory: fakeEmailServiceFactory(),
+    today: '2026-07-03',
+  });
+  assert.equal(res.blocked, true);
+  assert.equal(res.sentCount, 0);
 });

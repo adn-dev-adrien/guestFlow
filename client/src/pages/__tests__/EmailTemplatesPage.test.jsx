@@ -185,3 +185,52 @@ test('clicking the queue client name navigates to the reservation', async () => 
   await user.click(await screen.findByText('Jane S.'));
   expect(navigate).toHaveBeenCalledWith('/reservations/100');
 });
+
+// ---- the automatic-send master switch (specs/no-automatic-email-without-approval.md §3 rule 8) ----
+// `autoSendBlocked` is computed server-side, per template. The page's job is to stop calling such a
+// template « Auto » as if it were going to leave on its own.
+
+const BLOCKED_AUTO_ROW = { ...CUSTOM_ROW, autoSendBlocked: true };
+
+test('a blocked auto template is labelled « Auto désactivé », not « Auto »', async () => {
+  api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, BLOCKED_AUTO_ROW]);
+  renderPage();
+  expect(await screen.findByText('Auto désactivé')).toBeInTheDocument();
+  expect(screen.queryByText(/^Auto$/)).not.toBeInTheDocument();
+  // The manual template is untouched.
+  expect(screen.getByText('Manuel')).toBeInTheDocument();
+});
+
+test('the warning banner appears only while an auto template is actually blocked', async () => {
+  const { unmount } = renderPage();
+  await screen.findByText('Bienvenue');
+  expect(screen.queryByText(/L'envoi automatique est désactivé/)).not.toBeInTheDocument();
+  unmount();
+
+  api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, BLOCKED_AUTO_ROW]);
+  renderPage();
+  expect(await screen.findByText(/L'envoi automatique est désactivé/)).toBeInTheDocument();
+});
+
+test('the banner offers a way to the setting that causes it', async () => {
+  const user = userEvent.setup();
+  api.getEmailTemplates.mockResolvedValue([BLOCKED_AUTO_ROW]);
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: 'Modifier ce réglage' }));
+  expect(navigate).toHaveBeenCalledWith('/settings');
+});
+
+test('the queue caption explains why auto templates are being proposed', async () => {
+  api.getEmailTemplates.mockResolvedValue([BLOCKED_AUTO_ROW]);
+  api.getPendingEmails.mockResolvedValue([PENDING_ROW]);
+  renderPage();
+  expect(await screen.findByText(/les modèles « Automatique » sont proposés ici/)).toBeInTheDocument();
+});
+
+test('the edit dialog warns that an « Automatique » template will only be proposed', async () => {
+  const user = userEvent.setup();
+  api.getEmailTemplates.mockResolvedValue([BLOCKED_AUTO_ROW]);
+  renderPage();
+  await user.click(await screen.findByText('Bienvenue'));
+  expect(await screen.findByText(/cet email sera proposé, pas envoyé/)).toBeInTheDocument();
+});

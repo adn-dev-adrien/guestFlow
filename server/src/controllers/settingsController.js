@@ -87,6 +87,13 @@ const NOTIFICATIONS_FIELDS = [
   { input: 'recipientEmail', column: 'notificationRecipientEmail', validator: validation.validateEmail },
 ];
 
+// Automatic guest email (specs/no-automatic-email-without-approval.md §4.3). Single master switch
+// (BOOL int). OFF means GuestFlow only ever PROPOSES a guest email — the 08:00 cron sends nothing and
+// the payment confirmation is queued for review instead of being mailed.
+const EMAILS_FIELDS = [
+  { input: 'autoSendEnabled', column: 'emailAutoSendEnabled' },
+];
+
 // Laundry group (specs/weekly-bed-linen-tracking.md). Single field: weekday index.
 const LAUNDRY_FIELDS = [
   { input: 'weekday', column: 'laundryWeekday', validator: validation.validateLaundryWeekday },
@@ -112,7 +119,7 @@ const ACCOUNTING_FIELDS = [
 
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
-const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
+const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled', 'notifyIcalReservationEnabled', 'emailAutoSendEnabled']);
 
 // Columns that must be coerced to a non-negative integer floor at the boundary (defensive
 // against the form sending strings or decimals). The validator already rejects out-of-range
@@ -151,6 +158,7 @@ function updateSettings(req, res) {
   const laundry = pickGroup(body, 'laundry');
   const linenStock = pickGroup(body, 'linenStock');
   const notifications = pickGroup(body, 'notifications');
+  const emails = pickGroup(body, 'emails');
   const weather = pickGroup(body, 'weather');
 
   const payload = {};
@@ -193,6 +201,7 @@ function updateSettings(req, res) {
   applyGroup(laundry, LAUNDRY_FIELDS);
   applyGroup(linenStock, LINEN_STOCK_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
+  applyGroup(emails, EMAILS_FIELDS);
   applyGroup(accounting, ACCOUNTING_FIELDS);
 
   // `fiscalYearEndMonth` is NOT NULL: an empty/null value (a Select cleared client-side) must

@@ -16,6 +16,7 @@ const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
+const { autoSendAllowed } = require('../utils/autoSendPolicy');
 
 // specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows
 // (options + resources + 3-way tourist-tax-in-complement + remainder, summing to the full amount).
@@ -261,7 +262,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function pending(req, res) {
     const today = (req.query && req.query.today) || new Date().toISOString().slice(0, 10);
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
-    const dateDriven = logModel.listPending({ today, lookbackDays });
+    // Automatic sending off → the cron sends nothing, so the day's `auto` templates are proposed
+    // here instead of vanishing (specs/no-automatic-email-without-approval.md §3 rule 3).
+    const dateDriven = logModel.listPending({
+      today, lookbackDays, includeAutoTemplates: !autoSendAllowed(settingsModel),
+    });
     // Manually-queued pairs are shown unconditionally (they bypass the sent/ack filter — that is
     // what allows a deliberate resend, specs/manual-email-from-template.md §3 rule 6). Merge +
     // dedup by (templateId, reservationId): the manual flag wins so the UI can badge the row.
