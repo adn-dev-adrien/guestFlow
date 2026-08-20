@@ -26,6 +26,28 @@ const { isTerminal } = require('../constants/updatePhases');
 const LOCK_STALE_MS = 30 * 60 * 1000;
 const HISTORY_MAX = 5;
 
+// Phases where the swap has physically happened and only its *outcome* is still unwritten.
+const SWAP_PHASES = new Set(['swapping', 'restarting']);
+
+/**
+ * The verdict the swap helper would have written, had it lived long enough — or null when the
+ * status is not one it abandoned.
+ *
+ * PM2 tree-kills every descendant of the process it restarts, and the helper was one of them, so a
+ * helper that dies mid-restart is not a freak event: it is what happened on every update installed
+ * by a version that spawns it without `setsid --fork` (§3.E rule 28). Left alone, the status file
+ * stays non-terminal forever, and the client overlay spins on it — through reloads — with no way
+ * out. The version that actually came up settles it: the target means the swap worked; the version
+ * we were coming *from*, with a failure already recorded, means the rollback worked.
+ */
+function concludeAbandonedSwap(status, runningVersion) {
+  if (!status || isTerminal(status.phase) || !SWAP_PHASES.has(status.phase)) return null;
+  if (!runningVersion) return null;
+  if (!status.errorCode && status.targetVersion === runningVersion) return 'done';
+  if (status.errorCode && status.fromVersion === runningVersion) return 'rolled_back';
+  return null;
+}
+
 const EMPTY_STATE = {
   latestVersion: null,
   latestPublishedAt: null,
@@ -87,11 +109,24 @@ function createUpdateStateModel(paths = resolvePaths()) {
     return writeState({ dismissedVersion: version });
   }
 
-  /** Newest first, capped at HISTORY_MAX. */
+  /**
+   * Newest first, capped at HISTORY_MAX. Returns the entry when it changed the history, else null.
+   *
+   * One line per update *run*, keyed on its `startedAt`. The flag in the status file cannot carry
+   * that on its own: the helper rewrites the whole document when it finishes, `historyRecorded`
+   * included, so a boot that already concluded the update would otherwise log it a second time. A
+   * later boot reporting a *different* outcome for the same run replaces the line rather than
+   * adding one — a rollback must never leave a stale "done" standing next to it.
+   */
   function recordHistory(entry) {
     const state = readState();
-    const history = [entry, ...state.history].slice(0, HISTORY_MAX);
-    return writeState({ history });
+    const sameRun = entry.startedAt
+      ? state.history.find((e) => e.startedAt === entry.startedAt)
+      : null;
+    if (sameRun && sameRun.result === entry.result) return null;
+    const rest = sameRun ? state.history.filter((e) => e !== sameRun) : state.history;
+    writeState({ history: [entry, ...rest].slice(0, HISTORY_MAX) });
+    return entry;
   }
 
   // ---- live status -----------------------------------------------------------------------------
@@ -111,13 +146,15 @@ function createUpdateStateModel(paths = resolvePaths()) {
     return next;
   }
 
-  function startStatus({ fromVersion, targetVersion, logFile }) {
+  // `startedAt` identifies the run: the caller passes the same value to the helper, so the status
+  // file and `apply-update.sh` agree on it and the history can be keyed on it.
+  function startStatus({ fromVersion, targetVersion, logFile, startedAt }) {
     const next = {
       phase: 'checking',
       fromVersion,
       targetVersion,
       logFile: logFile || null,
-      startedAt: new Date().toISOString(),
+      startedAt: startedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       errorCode: null,
       errorMessage: null,
@@ -176,11 +213,16 @@ function createUpdateStateModel(paths = resolvePaths()) {
   }
 
   /**
-   * Called once at boot: turn a finished update into a history entry, exactly once, and drop the
-   * lock the dead process could not release itself.
+   * Called once at boot: conclude a swap the helper never reported, turn a finished update into a
+   * history entry exactly once, and drop the lock the dead process could not release itself.
    */
   function reconcileOnBoot(runningVersion, now = new Date()) {
-    const status = readStatus();
+    let status = readStatus();
+
+    // We are the proof the helper was waiting for. If it never got to write the outcome, write it.
+    const verdict = concludeAbandonedSwap(status, runningVersion);
+    if (verdict) status = writeStatus({ phase: verdict });
+
     if (!isTerminal(status.phase) || status.phase === 'idle') {
       // A non-terminal phase at boot means the process died mid-update: the helper is either still
       // working (it will overwrite this) or it died too. Either way the lock must not outlive us.
@@ -194,12 +236,13 @@ function createUpdateStateModel(paths = resolvePaths()) {
       to: status.targetVersion || null,
       result: status.phase,
       at: status.updatedAt || now.toISOString(),
+      startedAt: status.startedAt || null,
       errorCode: status.errorCode || null,
       runningVersion,
     };
-    recordHistory(entry);
+    const recorded = recordHistory(entry);
     writeStatus({ historyRecorded: true });
-    return entry;
+    return recorded;
   }
 
   /** Last lines of the helper log, for the failure card in the UI. */
@@ -237,3 +280,5 @@ function createUpdateStateModel(paths = resolvePaths()) {
 
 module.exports = createUpdateStateModel();
 module.exports.createUpdateStateModel = createUpdateStateModel;
+module.exports.concludeAbandonedSwap = concludeAbandonedSwap;
+module.exports.SWAP_PHASES = SWAP_PHASES;

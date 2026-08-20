@@ -83,6 +83,7 @@ function finishInProcess(model, phase, errorCode, message) {
     to: status.targetVersion || null,
     result: phase,
     at: new Date().toISOString(),
+    startedAt: status.startedAt || null,
     errorCode: errorCode || null,
     runningVersion: getAppVersion(),
   });
@@ -206,7 +207,7 @@ async function startUpdate(req, res) {
 
   const startedAt = new Date().toISOString();
   const logFile = path.join(paths.logsDir, `update-${targetVersion}-${startedAt.replace(/[:.]/g, '-')}.log`);
-  model.startStatus({ fromVersion: current, targetVersion, logFile });
+  model.startStatus({ fromVersion: current, targetVersion, logFile, startedAt });
 
   // Answer immediately; the work continues in the background and is followed through the status
   // endpoint — the response would not survive the restart anyway.
