@@ -28,6 +28,14 @@ const api = {
   // Version / deployment metadata
   getVersion: () => request('/version'),
 
+  // Système et mises à jour (specs/self-update-and-releases.md §4.3). Admin-only server-side; the
+  // client gates on the role before calling so a non-admin never sees a 403 in the console.
+  getSystemVersion: () => request('/system/version'),
+  checkSystemVersion: () => request('/system/version/check', { method: 'POST' }),
+  getUpdateStatus: () => request('/system/update/status'),
+  startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
+  dismissUpdate: (version) => request('/system/update/dismiss', { method: 'POST', body: { version } }),
+
   // Auth
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   logout: () => request('/auth/logout', { method: 'POST' }),

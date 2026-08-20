@@ -144,6 +144,13 @@ vite.config.ts.timestamp-*
 *.db-wal
 *.bak
 server/uploads/
+
+# Self-update engine state (specs/self-update-and-releases.md §5). In production these live in
+# ~/guestflow/data/; in a dev tree the data directory IS server/, so they land here.
+server/update-state.json
+server/update-status.json
+server/update.lock
+server/runtime-state.json
 client/build/
 client/dist/
 .env

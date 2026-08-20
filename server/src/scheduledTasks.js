@@ -33,6 +33,9 @@ const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
 // Google Calendar reconcile pass (specs/google-calendar-oauth-rework.md §3 rule 22).
 const googleCalendarSync = require('./utils/googleCalendarSync');
 
+// Self-update version check (specs/self-update-and-releases.md §3.B rule 12).
+const systemController = require('./controllers/systemController');
+
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
 let emailAutoSendInProgress = false;
@@ -363,6 +366,13 @@ function startScheduledTasks() {
   const TARIFF_RECIPE_TICK = 24 * 60 * 60 * 1000;
   setInterval(() => { try { runTariffRecipeHorizonPass('cron'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, TARIFF_RECIPE_TICK);
   setTimeout(() => { try { runTariffRecipeHorizonPass('boot'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, 140 * 1000);
+
+  // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
+  // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
+  // `runVersionCheck` never rejects — an unreachable GitHub leaves the last known state in place.
+  const UPDATE_CHECK_TICK = 60 * 60 * 1000;
+  setInterval(() => { systemController.runVersionCheck().catch(() => {}); }, UPDATE_CHECK_TICK);
+  setTimeout(() => { systemController.runVersionCheck().catch(() => {}); }, 60 * 1000);
 }
 
 module.exports = {

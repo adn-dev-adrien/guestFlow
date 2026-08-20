@@ -24,6 +24,7 @@ import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
+import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -358,6 +359,9 @@ export default function Dashboard() {
           like iCal approvals, the manual email queue, and website booking requests). */}
       {!receptionMode && (
         <>
+          {/* New GuestFlow version published (specs/self-update-and-releases.md §6.1). Admin-only,
+              self-contained: renders nothing when up to date, postponed, or already updating. */}
+          <UpdateAvailableAlert />
           {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
               contained: renders nothing when no shortage is projected. */}
           <LinenShortageAlert />

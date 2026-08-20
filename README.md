@@ -287,63 +287,110 @@ sourcemaps (`build.sourcemap = false` in `client/vite.config.js`) so the CSP can
 `script-src 'self'`.
 
 ## Production Deployment
-## Release Packaging
 
-### 1. Generate a release (full archive)
+GuestFlow ships as **versioned releases that the running application installs itself**, on an
+operator's click. Nothing deploys automatically, and no GitHub agent runs on the production machine
+— see [`specs/self-update-and-releases.md`](specs/self-update-and-releases.md) for the full model
+and its rationale.
 
-A script is provided to create an archive containing everything needed (client build, server, uploads, etc.).
-
-**Prerequisites:**
-- Build the client (`cd client && npm run build`)
-- Install all dependencies (`npm install && npm run install:all`)
-
-**Release generation:**
-
-```bash
-# From the project root
-./release.sh guestflow-1.0.0
-# This creates guestflow-1.0.0.zip
+```
+  tag vX.Y.Z on master
+          │
+          ▼
+  .github/workflows/release.yml      (GitHub-hosted runner — never the production host)
+     verify → tests + e2e → package → publish
+          │
+          ▼
+  GitHub Release vX.Y.Z
+     guestflow-X.Y.Z.tar.gz + SHA256SUMS + guestflow-booking-<v>.zip
+          │
+          ▼  (outbound HTTPS only, hourly poll)
+  GuestFlow in production
+     « GuestFlow X.Y.Z est disponible » → the operator clicks → download, SHA-256 check,
+     install, database backup, symlink swap, PM2 restart, health check, rollback on failure
 ```
 
-The script includes:
-- The server (without node_modules or temporary files)
-- The client build (client/build)
-- The uploads folder (photos, documents)
-- The root package.json
+### Cutting a release
 
-### 2. Install the release on the target (e.g. Raspberry Pi)
+Use the `/guestflow-release` skill — it runs the pre-flight suites, folds `changelog.d/` into a
+`CHANGELOG.md` section, bumps the three `package.json` files, opens the release PR, and tags master
+once you have squash-merged it. By hand, the same steps in order:
 
-1. **Transfer the archive** vadky9-jabmib-zazZij  vqrdky(6
+```bash
+node scripts/build-changelog.mjs --release X.Y.Z   # fold the fragments, then proof-read the section
+# bump "version" in package.json, server/package.json, client/package.json
+git checkout -b release/vX.Y.Z && git commit -am "release: vX.Y.Z" && git push -u origin release/vX.Y.Z
+gh pr create --base master --title "release: vX.Y.Z"
+# … squash-merge the PR, then:
+git checkout master && git pull && git tag vX.Y.Z && git push origin vX.Y.Z
+```
 
-   ```bash
-   scp guestflow-1.0.0.zip pi@raspberrypi:~/guestflow/
-   ```
+The `verify` job refuses to publish when the tag, the three `package.json` versions and the
+`CHANGELOG.md` section do not all agree — before anything is built.
 
-2. **Unzip and install dependencies**
+### Installing a release in production
 
-   ```bash
-   unzip guestflow-1.0.0.zip
-   cd guestflow-1.0.0/server
-   npm install --production
-   cd ../client/build # (nothing to install here, these are static files)
-   cd ../..
-   ```
+In the app: **Réglages → Système et mises à jour**. The card shows the installed version, the
+published one, and a **Vérifier maintenant** button (the app polls GitHub hourly on its own). A
+published version also raises a card on the dashboard.
 
-3. **Start the server**
+What the engine does, in order — the first half with the current version still serving requests:
 
-   ```bash
-   cd server
-   NODE_ENV=production node src/index.js
-   ```
+1. downloads the archive from the GitHub release (HTTPS, GitHub hosts only, 200 MB cap),
+2. refuses to go on unless its SHA-256 matches the one published in `SHA256SUMS`,
+3. extracts it, refusing any symlink, absolute path or `..` traversal in the archive,
+4. runs `npm ci --omit=dev`, rebuilds `better-sqlite3` from source and checks that it loads,
+5. takes a **WAL-safe** database snapshot into `data/backups/` (keeps the 5 most recent),
+6. then hands over to a detached helper: repoint `current`, `pm2 startOrRestart`, and verify that
+   the new version actually answers within 120 s — **on failure it rolls the symlink back and
+   restarts the previous version**.
 
-   Or with PM2 to run as a background service:
+The browser shows a progress overlay throughout and reloads itself when the new version is up.
 
-   ```bash
-   npm install -g pm2
-   pm2 start src/index.js --name guestflow
-   pm2 save
-   pm2 startup
-   ```
+### Preparing a host (once)
+
+```bash
+ssh <user>@<host>
+bash ~/guestflow/current/scripts/bootstrap-vm.sh
+```
+
+The script converts `~/guestflow/current/` from a directory into `releases/<version>/` + a `current`
+symlink, writes `ecosystem.config.js` (the PM2 definition, with the environment that used to live in
+the deploy workflow), and re-registers the PM2 process. It never touches `data/`. It also prints the
+commands to uninstall the GitHub Actions runner, which is the point of the whole exercise.
+
+Resulting layout:
+
+```
+~/guestflow/
+  current -> releases/1.3.0
+  releases/<version>/{server,client,package.json}
+  ecosystem.config.js
+  data/{guestflow.db, .env.local, backups/, update-*.json}
+  logs/update-<version>-<timestamp>.log
+```
+
+### Building an archive by hand
+
+```bash
+cd client && npm run build && cd ..
+./release.sh guestflow-1.2.0      # → guestflow-1.2.0.tar.gz + .sha256
+```
+
+The archive holds the server sources, the built client under `client/build/` and the root
+`package.json` — no `node_modules`, no database, no uploads. Requires GNU `rsync` (macOS ships
+openrsync, which lacks `--mkpath`; the release workflow runs on Ubuntu).
+
+Installing one manually, if the in-app path is ever unavailable:
+
+```bash
+tar -xzf guestflow-1.2.0.tar.gz -C ~/guestflow/releases --strip-components=0
+mv ~/guestflow/releases/guestflow-1.2.0 ~/guestflow/releases/1.2.0
+cd ~/guestflow/releases/1.2.0/server && npm ci --omit=dev
+env npm_config_build_from_source=true npm rebuild better-sqlite3
+ln -sfn ~/guestflow/releases/1.2.0 ~/guestflow/current
+pm2 startOrRestart ~/guestflow/ecosystem.config.js --update-env
+```
 
 The application will be available on port 4000 by default.
 
@@ -845,46 +892,27 @@ pm2 save
 pm2 startup
 ```
 
-## Deployment using GitHub runner
+## No CI runner on the production host
 
-On GitHub side there is a runner enabled.
-In the project I have created .github/workflows/deploy.yml to handle automatic deployment in case of pushing new commit on release branch.
+**There is no GitHub Actions runner on the production machine, and there must never be one again.**
 
-The `deploy` job is `runs-on: self-hosted`, so it only ever runs on that one runner. Its service is
-`actions.runner.adn-dev-adrien.Pi5-Runner` (the older `actions.runner.computingify-*` units are
-leftovers from before the repo moved account — they are dead on purpose, do not look at them).
+Until August 2026, a push on the `release` branch ran `.github/workflows/deploy.yml` on a
+self-hosted runner installed on the production host: a long-lived agent executing code from a
+**public** repository, on the machine that holds the guest database, the AES encryption key, the
+session secret and the TLS material. One misconfigured trigger away from arbitrary code execution
+inside the LAN, as the user owning all of it.
 
-### See runner log
-```bash
-systemctl status actions.runner.adn-dev-adrien.Pi5-Runner.service
-sudo journalctl -u actions.runner.adn-dev-adrien.Pi5-Runner.service -n 50 --no-pager
-```
+That workflow, that branch and that runner are gone. Production now only makes **outbound** calls to
+`api.github.com`, and installs a release when its operator asks for it. If you ever find yourself
+adding `runs-on: self-hosted` to this repository, read
+[`specs/self-update-and-releases.md`](specs/self-update-and-releases.md) §1.2 first.
 
-### A deploy that stays « queued » forever
-
-`runs-on: self-hosted` has no fallback: if the runner is down, the job waits in the queue instead of
-failing, so **nothing on the GitHub side reports an error** — the deploy simply never happens.
+Removing the runner from a host that still has one:
 
 ```bash
-gh run list --workflow "Deploy to Raspberry Pi"   # a run stuck in `queued` = runner down
-ssh pi@<pi-host> 'systemctl is-active actions.runner.adn-dev-adrien.Pi5-Runner.service'
-ssh pi@<pi-host> 'sudo systemctl start actions.runner.adn-dev-adrien.Pi5-Runner.service'
+cd ~/actions-runner && sudo ./svc.sh stop && sudo ./svc.sh uninstall && ./config.sh remove
+# then GitHub → Settings → Actions → Runners → remove the entry
 ```
-
-The runner picks the queued job back up within seconds of reconnecting — no need to re-dispatch.
-
-Happened on 2026-08-14: the runner self-updated (2.335.1 → 2.336.0), lost its session
-(`Failed to create a session … no retry needed`) and exited. The unit generated by GitHub's `svc.sh`
-carries **no `Restart=` directive**, so systemd left it dead for two days. A drop-in now covers that:
-
-```bash
-# /etc/systemd/system/actions.runner.adn-dev-adrien.Pi5-Runner.service.d/restart.conf
-[Service]
-Restart=always
-RestartSec=30
-```
-
-A drop-in rather than an edit of the unit itself: `svc.sh` regenerates that file on every re-install.
 
 ### See application logs
 As the application GuestFlow is managed by PM2, all logs are inside PM2:
