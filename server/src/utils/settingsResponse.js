@@ -83,6 +83,12 @@ function shapeResponse(row) {
     reservations: {
       allowEditPastReservations: Number(row.allowEditPastReservations) === 1,
     },
+    // Automatic guest email (specs/no-automatic-email-without-approval.md §4.3). The master switch
+    // that decides whether the 08:00 cron and the payment-confirmation path may mail a guest without
+    // the operator. OFF unless explicitly turned on — a missing column reads as OFF.
+    emails: {
+      autoSendEnabled: Number(row.emailAutoSendEnabled) === 1,
+    },
     // Weather alerts block (specs/checkin-weather-alerts.md). The key itself is never returned; the
     // row comes from settingsModel.read() which substitutes the encrypted blob with the boolean flag.
     weather: {

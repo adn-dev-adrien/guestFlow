@@ -13,8 +13,19 @@ const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const settingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
-const { buildConfirmationSender } = require('./reservationEmailSender');
+const { buildGatedConfirmationSender } = require('./reservationEmailSender');
+const emailManualQueueModel = require('../models/emailManualQueueModel');
 const notificationService = require('./notificationService');
+
+// Confirmation email for a just-paid reservation. Gated by the master switch: when automatic
+// sending is off it is queued for the operator instead of mailed
+// (specs/no-automatic-email-without-approval.md §3 rule 4).
+const sendConfirmation = buildGatedConfirmationSender({
+  database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
+  settingsModel, emailServiceFactory: createEmailService,
+  queueModel: emailManualQueueModel,
+  onQueueError: (err) => console.error('[payments] could not queue the confirmation email:', err && err.message ? err.message : err),
+});
 
 // Dates no longer free for a just-confirmed reservation? Re-uses the authoritative availability check,
 // excluding the reservation itself; `allowPastDates` so only the OVERLAP rule (not the past guard) flags.
@@ -32,10 +43,7 @@ function buildPaymentEffectDeps() {
     database,
     devisModel,
     paymentLinksModel,
-    sendConfirmation: buildConfirmationSender({
-      database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
-      settingsModel, emailServiceFactory: createEmailService,
-    }),
+    sendConfirmation,
     checkConflict,
     notifyConflict: (reservationId) => notificationService.notifyBookingConflict(reservationId),
   };

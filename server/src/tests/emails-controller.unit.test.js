@@ -51,9 +51,13 @@ const DDL = `
 `;
 
 function fakeSettings(extra = {}) {
+  const { autoSendEnabled = true, ...rest } = extra;
   return {
+    // Master switch (specs/no-automatic-email-without-approval.md §3 rule 1). Default ON here so the
+    // queue keeps its historical shape unless a test says otherwise.
+    emailAutoSendEnabled() { return autoSendEnabled; },
     read() {
-      return { companyName: 'Demo', companyPhone: '01', companyEmail: 'd@x', smtpHost: 'smtp.x', smtpFromEmail: 'from@x', ...extra };
+      return { companyName: 'Demo', companyPhone: '01', companyEmail: 'd@x', smtpHost: 'smtp.x', smtpFromEmail: 'from@x', ...rest };
     },
     smtpConfigured() { return Boolean(this.read().smtpHost && this.read().smtpFromEmail); },
     decryptedSmtpSettings() { return { host: 'smtp.x', port: 587, secure: false, user: 'u', password: 'p', fromEmail: 'from@x', fromName: 'Demo' }; },
@@ -309,6 +313,46 @@ test('pending: routes through logModel.listPending', () => {
   assert.equal(r.body.length, 1);
   assert.equal(r.body[0].templateId, 10);
   assert.equal(r.body[0].reservationId, 100);
+});
+
+test('pending: with automatic sending off, the auto templates join the review queue', () => {
+  // specs/no-automatic-email-without-approval.md §3 rule 3 — the cron sends nothing, so its due
+  // templates must surface here instead of disappearing.
+  const { db, templatesModel, logModel, settingsModel } = makeFixture({ settings: { autoSendEnabled: false } });
+  db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'S', 'B', -7, 'auto', 1)").run();
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
+
+  const r = res();
+  ctl.pending({ query: { today: isoOffset(0) } }, r);
+  assert.deepEqual(r.body.map((row) => row.templateId).sort(), [10, 11]);
+});
+
+test('pending: with automatic sending on, the auto templates stay the cron\'s business', () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture({ settings: { autoSendEnabled: true } });
+  db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'S', 'B', -7, 'auto', 1)").run();
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
+
+  const r = res();
+  ctl.pending({ query: { today: isoOffset(0) } }, r);
+  assert.deepEqual(r.body.map((row) => row.templateId), [10], 'no double proposal');
+});
+
+test('send: an auto template proposed in the queue still sends on the operator\'s click', () => {
+  // Rule 6 — an explicit click IS the approval, whatever the master switch says.
+  const { db, templatesModel, logModel, settingsModel } = makeFixture({ settings: { autoSendEnabled: false } });
+  db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'Sujet {{clientFirstName}}', 'Hello', -7, 'auto', 1)").run();
+  const sent = [];
+  const ctl = buildController({
+    database: db, templatesModel, logModel, settingsModel,
+    emailServiceFactory: fakeEmailService({ sendImpl: async (msg) => { sent.push(msg); } }),
+  });
+
+  const r = res();
+  return ctl.send({ body: { reservationId: 100, templateId: 11 } }, r).then(() => {
+    assert.equal(r.body.ok, true);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, 'jean@dupont.fr');
+  });
 });
 
 test('history: paginated reply', () => {

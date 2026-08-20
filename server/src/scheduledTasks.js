@@ -126,16 +126,22 @@ async function runEmailAutoSendPass(reason = 'cron') {
   if (emailAutoSendInProgress) return;
   emailAutoSendInProgress = true;
   try {
-    const { sentCount, skippedCount, failedCount } = await performAutoEmailPass({
+    const result = await performAutoEmailPass({
       database: db,
       templatesModel: emailTemplatesModel,
       logModel: emailLogModel,
       settingsModel,
       emailServiceFactory: createEmailService,
     });
-    if (sentCount > 0 || failedCount > 0) {
+    const { blocked, sentCount, skippedCount, failedCount } = result;
+    if (blocked) {
+      // specs/no-automatic-email-without-approval.md §3 rule 2 — one line, not per-template noise:
+      // the operator sees the day's mail waiting in « Emails à envoyer », not in the logs.
+      console.log(`[email-auto-send] ${reason}: envoi automatique désactivé dans les réglages — rien envoyé`);
+    } else if (sentCount > 0 || failedCount > 0) {
       console.log(`[email-auto-send] ${reason}: ${sentCount} sent, ${skippedCount} skipped, ${failedCount} failed`);
     }
+    return result;
   } catch (err) {
     console.error('[email-auto-send] unexpected error:', err);
   } finally {
@@ -152,8 +158,15 @@ function tickEmailAutoSend() {
   if (hour < 8) return;
   const today = isoToday(now);
   if (lastEmailAutoSendDate === today) return;
+  const previous = lastEmailAutoSendDate;
+  // Claim the day's slot up-front so a slow pass can't be started twice by the next tick.
   lastEmailAutoSendDate = today;
-  runEmailAutoSendPass('daily 08:00 pass').catch((err) => console.error('[email-auto-send] unhandled:', err));
+  runEmailAutoSendPass('daily 08:00 pass')
+    // A pass blocked by the settings switch must NOT consume the slot: if the operator authorises
+    // automatic sending later the same day, the next tick runs the real pass instead of waiting for
+    // tomorrow 08:00 — by which time today's due templates no longer match their send date.
+    .then((result) => { if (result && result.blocked) lastEmailAutoSendDate = previous; })
+    .catch((err) => console.error('[email-auto-send] unhandled:', err));
 }
 
 // Email-history rolling-window purge (specs/email-history-rolling-window.md §3 rule 3). Deletes log rows

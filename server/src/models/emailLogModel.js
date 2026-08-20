@@ -9,7 +9,10 @@
  *   insert({ templateId, reservationId, status, errorMessage?, renderedSubject,
  *            renderedBody, recipientEmail }) → created row
  *   existsFor(templateId, reservationId, statuses[]) → boolean
- *   listPending({ from, to })   → manual-mode candidates not yet acted on (joins reservation + client + property)
+ *   listPending({ today, lookbackDays, includeAutoTemplates })
+ *                               → candidates not yet acted on (joins reservation + client + property).
+ *                                 `includeAutoTemplates` also proposes the `auto` templates, for when
+ *                                 automatic sending is switched off and the cron sends nothing.
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
@@ -23,6 +26,13 @@ const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', '
 
 // The request whose departure unlocks each anchor's reminder (rule 40bis).
 const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDate: 'balance_request' };
+
+// Which templates the review queue proposes (specs/no-automatic-email-without-approval.md §3 rule 3).
+// Normally the `manual` ones — the `auto` ones are the 08:00 cron's business. But when automatic
+// sending is switched off the cron sends nothing, so the `auto` templates would silently vanish;
+// they are proposed here instead. Literal constants, never user input: no injection surface.
+const SEND_MODE_MANUAL_ONLY = "t.sendMode = 'manual'";
+const SEND_MODE_MANUAL_AND_AUTO = "t.sendMode IN ('manual', 'auto')";
 
 // specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
 // today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
@@ -90,7 +100,7 @@ function buildModel(database) {
   //     would have inherited the bug the day they became `manual`.
   //   • the matching request must actually have left — a reminder renders the payment link its request
   //     minted, so queuing one for a guest who was never asked would send a link that does not exist.
-  const paymentAnchorBranch = (anchor, amountColumn, paidColumn) => `
+  const paymentAnchorBranch = (anchor, amountColumn, paidColumn, sendModePredicate) => `
       SELECT
         t.id   AS templateId,
         t.name AS templateName,
@@ -112,7 +122,7 @@ function buildModel(database) {
       LEFT JOIN clients    c ON c.id = r.clientId
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
-        AND t.sendMode = 'manual'
+        AND ${sendModePredicate}
         AND COALESCE(t.anchor, 'start') = '${anchor}'
         AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
         AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
@@ -127,7 +137,11 @@ function buildModel(database) {
             AND l.status IN ('sent', 'acknowledged-skip')
         )`;
 
-  function listPending({ today, lookbackDays = 7 }) {
+  function listPending({ today, lookbackDays = 7, includeAutoTemplates = false }) {
+    // `includeAutoTemplates` mirrors the master switch: OFF → the cron sends nothing, so its due
+    // templates are proposed here for the operator to send by hand
+    // (specs/no-automatic-email-without-approval.md §3 rule 3).
+    const sendModePredicate = includeAutoTemplates ? SEND_MODE_MANUAL_AND_AUTO : SEND_MODE_MANUAL_ONLY;
     // Event-/action-triggered templates (confirmation on payment, deposit request on host action — see
     // utils/reservationEmailSender) are sent programmatically, never from this date-driven queue.
     const notEvent = EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ');
@@ -160,7 +174,7 @@ function buildModel(database) {
       LEFT JOIN clients    c ON c.id = r.clientId
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
-        AND t.sendMode = 'manual'
+        AND ${sendModePredicate}
         AND COALESCE(t.anchor, 'start') = 'start'
         AND COALESCE(t.stableKey, '') NOT IN (${notEvent})
         AND NOT EXISTS (
@@ -193,7 +207,7 @@ function buildModel(database) {
       LEFT JOIN clients    c ON c.id = r.clientId
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
-        AND t.sendMode = 'manual'
+        AND ${sendModePredicate}
         AND COALESCE(t.anchor, 'start') = 'validUntil'
         AND COALESCE(t.stableKey, '') NOT IN (${notEvent})
         AND NOT EXISTS (
@@ -204,11 +218,11 @@ function buildModel(database) {
 
       UNION ALL
 
-      ${paymentAnchorBranch('depositDueDate', 'depositAmount', 'depositPaid')}
+      ${paymentAnchorBranch('depositDueDate', 'depositAmount', 'depositPaid', sendModePredicate)}
 
       UNION ALL
 
-      ${paymentAnchorBranch('balanceDueDate', 'balanceAmount', 'balancePaid')}
+      ${paymentAnchorBranch('balanceDueDate', 'balanceAmount', 'balancePaid', sendModePredicate)}
 
       ORDER BY startDate ASC, dayOffset ASC
     `).all(

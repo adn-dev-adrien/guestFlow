@@ -133,3 +133,42 @@ test('GET: 404 on unknown id', () => {
   ctl.getOne({ params: { id: 999 } }, r);
   assert.equal(r.statusCode, 404);
 });
+
+// ---- autoSendBlocked (specs/no-automatic-email-without-approval.md §3 rule 8) ----
+// The Emails page must be able to say « this one says Automatique but nothing will leave ». The
+// server computes it; React only renders it.
+
+const settingsWith = (allowed) => ({ emailAutoSendEnabled: () => allowed });
+
+test('GET list: an enabled auto template is flagged blocked while the switch is off', () => {
+  const model = fakeModel([
+    { name: 'Auto on',  subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto',   enabled: true },
+    { name: 'Auto off', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto',   enabled: false },
+    { name: 'Manuel',   subject: 'S', body: 'B', dayOffset: -7, sendMode: 'manual', enabled: true },
+  ]);
+  const r = res();
+  buildController(model, settingsWith(false)).list({}, r);
+
+  assert.deepEqual(r.body.map((t) => t.autoSendBlocked), [true, false, false]);
+  // The rows are otherwise untouched — the flag is additive.
+  assert.equal(r.body[0].name, 'Auto on');
+  assert.equal(r.body[0].sendMode, 'auto');
+});
+
+test('GET list: nothing is flagged once automatic sending is authorised', () => {
+  const model = fakeModel([
+    { name: 'Auto on', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto', enabled: true },
+  ]);
+  const r = res();
+  buildController(model, settingsWith(true)).list({}, r);
+  assert.equal(r.body[0].autoSendBlocked, false);
+});
+
+test('GET list: no settings model at all → treated as blocked, never as authorised', () => {
+  const model = fakeModel([
+    { name: 'Auto on', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto', enabled: true },
+  ]);
+  const r = res();
+  buildController(model).list({}, r);
+  assert.equal(r.body[0].autoSendBlocked, true);
+});

@@ -416,6 +416,10 @@ db.prepare("UPDATE app_settings SET googleCalendarId = '', googleCalendarSummary
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
 tryAddAppSettingsCol('allowEditPastReservations', "ALTER TABLE app_settings ADD COLUMN allowEditPastReservations INTEGER NOT NULL DEFAULT 0");
+// Master switch for every AUTOMATIC guest email (specs/no-automatic-email-without-approval.md §5).
+// OFF by default — on fresh installs AND on upgrade: a guest email leaves GuestFlow only when the
+// operator sends it, unless this is explicitly turned on in Réglages.
+tryAddAppSettingsCol('emailAutoSendEnabled', "ALTER TABLE app_settings ADD COLUMN emailAutoSendEnabled INTEGER NOT NULL DEFAULT 0");
 if (!appSettingsCols.includes('vatRateAccommodation')) {
   const propColsNow = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
   let acc = 10;
