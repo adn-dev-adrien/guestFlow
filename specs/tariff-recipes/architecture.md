@@ -18,7 +18,6 @@ server/src/
 ├── utils/seasonPlan.js ............. NEW · pure derivation of a year's ranges
 ├── utils/changeover.js ............. NEW · pure arrival/departure weekday validation
 ├── utils/pricing.js ................ extra-guest per night · tier carry-forward
-│                                     · includedInRate deduction on the tax base
 │                                     · changeover breach in the quote
 │                                     · grossFromNet: ceil-to-euro & fixed-cost add-on
 ├── models/tariffRecipeModel.js ..... NEW · diff + transactional apply
@@ -442,7 +441,7 @@ comprises ».
 | POST | `/properties/:id/tariff-recipe/apply` | `{ recipeId }` | `{ applied, seasons, closures, warnings }` | Transactional; `409` when `blocking`. |
 | PUT | `/properties/:id` | **+** `tariffRecipeId`, `extraGuestPriceUnit`, `welcomePackCost` | unchanged | All optional. |
 | GET | `/properties/:id/platform-prices` | — | **+** `isDirect`, `extraGuestByPlatform`, `extraGuestNet`, `extraGuestPriceUnit` | Additive. |
-| POST | `/reservations/calculate-price` | unchanged | **+** `changeoverBreached`, `requiredArrivalWeekday`, `requiredDepartureWeekday`, `extraGuestPriceUnit`, `extraGuestNightlyRatioTotal`, `touristTaxBaseAccommodation`, `touristTaxIncludedInRateDeduction` | Additive; every existing key keeps its meaning and value for unconfigured properties. |
+| POST | `/reservations/calculate-price` | unchanged | **+** `changeoverBreached`, `requiredArrivalWeekday`, `requiredDepartureWeekday`, `extraGuestPriceUnit`, `extraGuestNightlyRatioTotal`, `touristTaxBaseAccommodation` | Additive; every existing key keeps its meaning and value for unconfigured properties. |
 | POST/PUT | `/reservations` | **+** `forceChangeover` | **+** `409 { code: 'CHANGEOVER', … }` | Mirrors `forceMinNights` / `MIN_NIGHTS` exactly. |
 
 All routes sit behind the existing auth middleware. Apply is admin-only, like the other tariff writes.
