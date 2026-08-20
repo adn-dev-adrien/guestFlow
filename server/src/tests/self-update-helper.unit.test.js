@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { buildHelperArgs, spawnHelper, HELPER_SCRIPT, DEFAULT_TIMEOUT_SECONDS } = require('../utils/updateHelper');
+const {
+  buildHelperArgs, buildSpawnCommand, resolveSetsid, spawnHelper, HELPER_SCRIPT, DEFAULT_TIMEOUT_SECONDS,
+} = require('../utils/updateHelper');
 
 // specs/self-update-and-releases.md §3.E rule 28 + §4.1. This is the boundary where a version string
 // stops being data and becomes part of a command line, so it is where the validation has to be.
@@ -70,23 +72,57 @@ test('buildHelperArgs refuses to run without PM2 or with an absurd timeout', () 
   }
 });
 
-test('spawnHelper detaches the child so it survives the restart that kills us', () => {
+function recordingSpawn() {
   const calls = [];
   const fakeChild = { unref() { calls.push('unref'); } };
-  const spawnImpl = (cmd, argv, options) => {
-    calls.push({ cmd, argv, options });
-    return fakeChild;
-  };
-  spawnHelper(['--target', '1.1.0'], { spawnImpl });
+  return { calls, spawnImpl: (cmd, argv, options) => { calls.push({ cmd, argv, options }); return fakeChild; } };
+}
+
+// The production incident of 2026-08-20: PM2 stops a process with `treekill`, which walks the
+// DESCENDANTS of the process it kills. `detached: true` only changes the session — the helper stayed
+// a child of the app PM2 was restarting and was killed mid-swap, leaving the status on `restarting`
+// forever and, worse, leaving nothing behind to roll back a version that failed to boot.
+test('spawnHelper leaves the PM2 process tree through setsid --fork', () => {
+  const { calls, spawnImpl } = recordingSpawn();
+  spawnHelper(['--target', '1.1.0'], { spawnImpl, setsidPath: '/usr/bin/setsid' });
 
   const [call] = calls;
-  assert.equal(call.cmd, 'bash');
-  assert.equal(call.options.detached, true, 'detached: own session, immune to the group signal');
+  assert.equal(call.cmd, '/usr/bin/setsid');
+  assert.equal(call.argv[0], '--fork', 'without --fork the re-parenting is not guaranteed');
+  assert.equal(call.argv[1], 'bash');
+  assert.equal(call.argv[2], fs.realpathSync(HELPER_SCRIPT));
+  assert.deepEqual(call.argv.slice(3), ['--target', '1.1.0']);
+  assert.equal(call.options.detached, true);
   assert.equal(call.options.stdio, 'ignore');
   assert.equal(calls[1], 'unref');
   // argv array, never a shell string — nothing here is interpolated by a shell.
   assert.ok(Array.isArray(call.argv));
+});
+
+test('spawnHelper falls back to a plain detached bash when the host has no setsid', () => {
+  const { calls, spawnImpl } = recordingSpawn();
+  spawnHelper(['--target', '1.1.0'], { spawnImpl, setsidPath: null });
+
+  const [call] = calls;
+  assert.equal(call.cmd, 'bash');
   assert.equal(call.argv[0], fs.realpathSync(HELPER_SCRIPT));
+  assert.equal(call.options.detached, true, 'detached: own session, immune to the group signal');
+  assert.equal(call.options.stdio, 'ignore');
+  assert.equal(calls[1], 'unref');
+});
+
+test('buildSpawnCommand never interpolates the arguments into a shell string', () => {
+  const args = ['--target', '1.1.0', '--log', '/var/log/a b.log'];
+  for (const setsidPath of ['/bin/setsid', null]) {
+    const { command, argv } = buildSpawnCommand({ script: '/opt/apply-update.sh', args, setsidPath });
+    assert.ok(!command.includes(' '));
+    assert.deepEqual(argv.slice(-4), args, 'the arguments travel as their own argv entries');
+  }
+});
+
+test('resolveSetsid takes the first candidate that exists, and null when none does', () => {
+  assert.equal(resolveSetsid(['/a/setsid', '/b/setsid'], (p) => p === '/b/setsid'), '/b/setsid');
+  assert.equal(resolveSetsid(['/a/setsid'], () => false), null);
 });
 
 test('the helper script ships with the server and is executable', () => {

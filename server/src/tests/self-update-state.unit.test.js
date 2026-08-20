@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { createUpdateStateModel } = require('../models/updateStateModel');
+const { createUpdateStateModel, concludeAbandonedSwap } = require('../models/updateStateModel');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
 // specs/self-update-and-releases.md §3.F + §5. This state is the only thing that survives the
@@ -118,6 +118,82 @@ test('reconcileOnBoot on a half-finished update drops the lock without inventing
   assert.equal(model.reconcileOnBoot('1.0.0'), null);
   assert.equal(model.isLocked(), false);
   assert.deepEqual(model.readState().history, []);
+  cleanup();
+});
+
+// specs/self-update-and-releases.md §3.E rules 28 + 30b — the 2026-08-20 production incident. PM2
+// tree-kills the descendants of the process it restarts, and the swap helper is one of them: it died
+// the instant it asked for the restart, leaving `restarting` in the status file forever. The overlay
+// spun on that through every reload. The version that came up is the verdict the helper never wrote.
+
+test('a boot on the target version concludes a swap the helper never reported', () => {
+  const { model, cleanup } = freshModel();
+  model.startStatus({ fromVersion: '2.0.0', targetVersion: '2.1.0', logFile: null });
+  model.acquireLock('2.1.0');
+  model.writeStatus({ phase: 'restarting' });
+
+  const entry = model.reconcileOnBoot('2.1.0');
+  assert.equal(model.readStatus().phase, 'done', 'a stuck status is what keeps the overlay spinning');
+  assert.equal(entry.result, 'done');
+  assert.equal(entry.to, '2.1.0');
+  assert.equal(model.isLocked(), false);
+  cleanup();
+});
+
+test('a boot on the previous version, after a recorded failure, concludes the rollback', () => {
+  const { model, cleanup } = freshModel();
+  model.startStatus({ fromVersion: '2.0.0', targetVersion: '2.1.0', logFile: null });
+  model.writeStatus({ phase: 'swapping', errorCode: 'HEALTHCHECK_TIMEOUT' });
+
+  const entry = model.reconcileOnBoot('2.0.0');
+  assert.equal(model.readStatus().phase, 'rolled_back');
+  assert.equal(entry.result, 'rolled_back');
+  assert.equal(entry.errorCode, 'HEALTHCHECK_TIMEOUT');
+  cleanup();
+});
+
+test('concludeAbandonedSwap stays silent on everything it cannot prove', () => {
+  const base = { phase: 'restarting', fromVersion: '2.0.0', targetVersion: '2.1.0', errorCode: null };
+  // The old version came back up with no failure recorded: the helper may still be mid-restart.
+  assert.equal(concludeAbandonedSwap(base, '2.0.0'), null);
+  // Staging phases never swapped anything.
+  assert.equal(concludeAbandonedSwap({ ...base, phase: 'installing' }, '2.1.0'), null);
+  // Already terminal: nothing to conclude, and no overwriting of a verdict already given.
+  assert.equal(concludeAbandonedSwap({ ...base, phase: 'rolled_back' }, '2.1.0'), null);
+  // A failure was recorded, so the target booting is NOT a success to declare.
+  assert.equal(concludeAbandonedSwap({ ...base, phase: 'swapping', errorCode: 'PM2_FAILED' }, '2.1.0'), null);
+  assert.equal(concludeAbandonedSwap(base, null), null);
+  assert.equal(concludeAbandonedSwap(null, '2.1.0'), null);
+});
+
+// The helper rewrites the whole status document when it finishes, `historyRecorded` included. Once
+// the boot above has already concluded the same run, that reset must not produce a second line.
+test('one history entry per update run, even when boot and helper both conclude it', () => {
+  const { model, cleanup } = freshModel();
+  model.startStatus({ fromVersion: '2.0.0', targetVersion: '2.1.0', logFile: null, startedAt: '2026-08-20T14:35:32.496Z' });
+  model.writeStatus({ phase: 'restarting' });
+  assert.ok(model.reconcileOnBoot('2.1.0'));
+
+  // What `apply-update.sh` writes when it survives: same run, same verdict, flag back to false.
+  model.writeStatus({ phase: 'done', historyRecorded: false });
+  assert.equal(model.reconcileOnBoot('2.1.0'), null, 'nothing new to report');
+  assert.equal(model.readState().history.length, 1);
+  cleanup();
+});
+
+test('a run that ends up rolled back replaces the success a boot had already logged', () => {
+  const { model, cleanup } = freshModel();
+  model.startStatus({ fromVersion: '2.0.0', targetVersion: '2.1.0', logFile: null, startedAt: '2026-08-20T14:35:32.496Z' });
+  model.writeStatus({ phase: 'restarting' });
+  model.reconcileOnBoot('2.1.0');
+
+  // The helper outlived us after all, judged the new version unhealthy and rolled back.
+  model.writeStatus({ phase: 'rolled_back', errorCode: 'HEALTHCHECK_TIMEOUT', historyRecorded: false });
+  const entry = model.reconcileOnBoot('2.0.0');
+  const { history } = model.readState();
+  assert.equal(history.length, 1, 'one run, one line');
+  assert.equal(history[0].result, 'rolled_back');
+  assert.equal(entry.result, 'rolled_back');
   cleanup();
 });
 
