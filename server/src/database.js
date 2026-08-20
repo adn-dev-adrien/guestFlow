@@ -1650,9 +1650,9 @@ const { ensureCateringOptions } = require('./utils/cateringSeed');
 ensureCateringOptions(db);
 db.ensureCateringOptions = ensureCateringOptions;
 
-// specs/cancellation-insurance.md §3.2 — the « Assurance annulation » article, seeded unpriced
-// (0 %) so it stays invisible to guests until Adrien sets its tariff. Same structural contract as
-// the catering seed: keyed by `seedKey`, linked to every property on each boot.
+// specs/cancellation-insurance.md §3.2 — the « Assurance annulation » article, seeded « par nuit »
+// and unpriced (0 €) so it stays invisible to guests until Adrien sets its tariff. Same structural
+// contract as the catering seed: keyed by `seedKey`, linked to every property on each boot.
 const { ensureCancellationInsuranceOption } = require('./utils/cancellationInsuranceSeed');
 ensureCancellationInsuranceOption(db);
 db.ensureCancellationInsuranceOption = ensureCancellationInsuranceOption;

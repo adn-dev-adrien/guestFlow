@@ -41,7 +41,7 @@ test('first boot seeds one unpriced insurance, linked to every property', () => 
   const row = seeded(db);
   assert.equal(row.title, 'Assurance annulation');
   assert.equal(row.titleEn, 'Cancellation insurance');
-  assert.equal(row.priceType, 'percent_of_stay');
+  assert.equal(row.priceType, 'per_night', 'the insurance is sold by the night by default');
   assert.equal(row.price, 0, 'unpriced = proposed nowhere until Adrien sets a tariff');
   assert.equal(row.isCancellationInsurance, 1);
   assert.equal(row.displayToClient, 1);
@@ -131,5 +131,59 @@ test('a schema without the column is skipped silently — the next boot catches 
   const db = new Database(':memory:');
   db.exec('CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT); CREATE TABLE properties (id INTEGER PRIMARY KEY)');
   assert.equal(ensureCancellationInsuranceOption(db, SILENT).action, 'skipped-schema');
+  db.close();
+});
+
+// Rule 13bis — the per-night default reaches the databases seeded before it, but only where the
+// operator never priced the insurance: a percentage he set is HIS, and 4 % must never quietly
+// become 4 € a night.
+
+test('an insurance seeded as an unpriced percentage is switched to « par nuit »', () => {
+  const db = freshDb();
+  ensureCancellationInsuranceOption(db, SILENT);
+  db.prepare("UPDATE options SET priceType = 'percent_of_stay', price = 0 WHERE seedKey = ?").run(SEED_KEY);
+
+  const res = ensureCancellationInsuranceOption(db, SILENT);
+  assert.equal(res.retyped, true);
+  assert.equal(seeded(db).priceType, 'per_night');
+  assert.equal(seeded(db).price, 0, 'still unpriced — retyping is not pricing');
+  db.close();
+});
+
+test('a percentage the operator actually priced is left alone', () => {
+  const db = freshDb();
+  ensureCancellationInsuranceOption(db, SILENT);
+  db.prepare("UPDATE options SET priceType = 'percent_of_stay', price = 4 WHERE seedKey = ?").run(SEED_KEY);
+
+  const res = ensureCancellationInsuranceOption(db, SILENT);
+  assert.equal(res.retyped, false);
+  assert.equal(seeded(db).priceType, 'percent_of_stay');
+  assert.equal(seeded(db).price, 4);
+  db.close();
+});
+
+test('a per-property percentage blocks the retype too', () => {
+  const db = freshDb();
+  db.exec('CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId))');
+  ensureCancellationInsuranceOption(db, SILENT);
+  const id = seeded(db).id;
+  db.prepare("UPDATE options SET priceType = 'percent_of_stay', price = 0 WHERE id = ?").run(id);
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, ?, 5)').run(id);
+
+  const res = ensureCancellationInsuranceOption(db, SILENT);
+  assert.equal(res.retyped, false, 'the 5 here is a percentage — it must not become 5 €/nuit');
+  assert.equal(seeded(db).priceType, 'percent_of_stay');
+  db.close();
+});
+
+test('a per-night insurance is never retyped back and forth', () => {
+  const db = freshDb();
+  ensureCancellationInsuranceOption(db, SILENT);
+  db.prepare("UPDATE options SET price = 3 WHERE seedKey = ?").run(SEED_KEY);
+
+  const res = ensureCancellationInsuranceOption(db, SILENT);
+  assert.equal(res.retyped, false);
+  assert.equal(seeded(db).priceType, 'per_night');
+  assert.equal(seeded(db).price, 3);
   db.close();
 });

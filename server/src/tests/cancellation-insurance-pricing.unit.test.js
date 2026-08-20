@@ -182,3 +182,66 @@ test('a percentage option also flagged « carte planning » is still priced from
   assert.equal(insurance(q).totalPrice, 12, 'the percentage is never read as a euro unit price');
   db.close();
 });
+
+// specs/cancellation-insurance.md §3.1 rule 5bis — the insurance is sold BY THE NIGHT by default:
+// the operator sets a euro amount per night in Réglages → Options and the engine bills it for
+// every night of the stay, as one yes/no line.
+
+const perNight = (db, price = 3) => db
+  .prepare("UPDATE options SET priceType = 'per_night', price = ? WHERE id = 10").run(price);
+
+test('a per-night insurance bills its amount for every night of the stay', () => {
+  const db = createDb();
+  perNight(db);
+  const q = calculateReservationQuote({ ...BASE, db });
+  const line = insurance(q);
+  assert.equal(line.unitPrice, 3);
+  assert.equal(line.billedUnits, 3, '3 nights');
+  assert.equal(line.totalPrice, 9);
+  db.close();
+});
+
+test('a per-night insurance ignores a quantity — a half-insured stay does not exist', () => {
+  const db = createDb();
+  perNight(db);
+  const q = calculateReservationQuote({ ...BASE, db, selectedOptions: [{ optionId: 10, quantity: 5 }] });
+  const line = insurance(q);
+  assert.equal(line.quantity, 1);
+  assert.equal(line.totalPrice, 9, 'still 3 € × the 3 nights of the stay');
+  db.close();
+});
+
+test('a per-night insurance follows the length of the stay', () => {
+  const db = createDb();
+  perNight(db);
+  const q = calculateReservationQuote({ ...BASE, db, endDate: '2026-05-08' }); // 7 nights
+  assert.equal(insurance(q).totalPrice, 21);
+  db.close();
+});
+
+test('a per-night insurance takes its per-property price', () => {
+  const db = createDb();
+  perNight(db);
+  db.prepare('INSERT OR REPLACE INTO property_option_prices (propertyId, optionId, price) VALUES (1, 10, 5)').run();
+  const q = calculateReservationQuote({ ...BASE, db });
+  assert.equal(insurance(q).totalPrice, 15, '5 € × 3 nights');
+  db.close();
+});
+
+test('a per-night insurance flagged « carte planning » is still billed per night, not per slot', () => {
+  const db = createDb();
+  perNight(db);
+  db.prepare('UPDATE options SET showsPlanningCard = 1 WHERE id = 10').run();
+  const q = calculateReservationQuote({ ...BASE, db });
+  assert.equal(insurance(q).totalPrice, 9, 'the card path never gets to price the insurance');
+  db.close();
+});
+
+test('a per-night insurance never bites on the stay percentage assiette', () => {
+  const db = createDb();
+  perNight(db);
+  const q = calculateReservationQuote({ ...BASE, db, selectedOptions: [{ optionId: 10, quantity: 1 }, { optionId: 20, quantity: 1 }] });
+  assert.equal(q.cancellationInsuranceBase, 300, 'the assiette stays the accommodation, options excluded');
+  assert.equal(insurance(q).totalPrice, 9);
+  db.close();
+});

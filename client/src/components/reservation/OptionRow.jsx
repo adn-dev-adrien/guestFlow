@@ -202,12 +202,16 @@ export default function OptionRow({ opt }) {
   // no quantity to type, and the hint says what the percentage bites on.
   else if (opt.priceType === 'percent_of_stay') factorHint = 'du montant hébergement';
   const isPercentOfStay = opt.priceType === 'percent_of_stay';
+  // specs/cancellation-insurance.md §3.1 rule 5bis — the insurance is a yes/no product whatever its
+  // price type: the engine bills 1 × (its multiplier), so there is no quantity to type. A per-night
+  // insurance still shows its « ×N j. » hint above, which is exactly what it will be billed.
+  const hasNoQuantity = isPercentOfStay || Boolean(opt.isCancellationInsurance);
   // specs/card-option-served-persons.md §3.2 — a per-person card option (a meal, the breakfast) is
   // not always taken by the whole table: the field says how many covers each of its moments serves.
   // It replaces the « Qté » field, which a card option deliberately hides (the moments are the
   // quantity). Fixed-price card options don't get it — the covers wouldn't bite.
   const hasServedPersons = Boolean(opt.showsPlanningCard)
-    && !isPercentOfStay
+    && !hasNoQuantity
     && String(opt.priceType || '').includes('per_person');
   const servedPersons = Math.max(1, Number(selected?.cardPersons) || Number(quantityPersons) || 1);
   const servedPersonsMax = Math.max(servedPersons, Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1);
@@ -271,7 +275,7 @@ export default function OptionRow({ opt }) {
                 helperText="Par défaut toute la tablée — baissez-la si tout le monde ne mange pas."
                 sx={{ width: { xs: '100%', sm: 240 } }}
               />
-            ) : opt.showsPlanningCard || isPercentOfStay ? (
+            ) : opt.showsPlanningCard || hasNoQuantity ? (
               <Box sx={{ flex: 1 }} />
             ) : (
               <QuantityField

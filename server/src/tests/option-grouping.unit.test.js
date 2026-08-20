@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { normalizeCategory, groupOptionsByCategory, listCategories, isPinnedOption } = require('../utils/optionGrouping');
+const { normalizeCategory, groupOptionsByCategory, listCategories, isPinnedOption, pinCancellationInsurance } = require('../utils/optionGrouping');
 
 const opt = (id, title, category = '') => ({ id, title, category });
 
@@ -134,4 +134,71 @@ test('listCategories returns the distinct labels in display order', () => {
     opt(4, 'd', ''),
   ]), ['Boissons', 'Restauration']);
   assert.deepEqual(listCategories([]), []);
+});
+
+// specs/cancellation-insurance.md §3.4 rule 28 — the insurance is read after the stay's own
+// conditions, so it leaves the alphabet and sits right after « Départ tardif ».
+
+const lateCheckout = (id, category = '') => ({ id, title: 'Départ tardif', category, autoOptionType: 'late_check_out' });
+const insurance = (id, category = '') => ({ id, title: 'Assurance annulation', category, isCancellationInsurance: 1 });
+
+test('the cancellation insurance is pinned just after « Départ tardif »', () => {
+  const { ungrouped } = groupOptionsByCategory([
+    opt(1, 'Ménage'),
+    insurance(2),
+    opt(3, 'Arrivée anticipée'),
+    lateCheckout(4),
+    opt(5, 'Linge de lit'),
+  ]);
+  assert.deepEqual(ungrouped.map((o) => o.title), [
+    'Arrivée anticipée', 'Départ tardif', 'Assurance annulation', 'Linge de lit', 'Ménage',
+  ]);
+});
+
+test('with several « Départ tardif » rows the insurance lands after the last one', () => {
+  // One late-checkout option per property scope is a normal catalogue — the insurance must not
+  // wedge itself between two identical lines.
+  const list = pinCancellationInsurance([
+    opt(1, 'Arrivée anticipée'),
+    insurance(2),
+    lateCheckout(3),
+    lateCheckout(4),
+    opt(5, 'Ménage'),
+  ]);
+  assert.deepEqual(list.map((o) => o.id), [1, 3, 4, 2, 5]);
+});
+
+test('no « Départ tardif » in the block → the insurance keeps its alphabetical place', () => {
+  const { ungrouped } = groupOptionsByCategory([
+    opt(1, 'Ménage'),
+    insurance(2),
+    opt(3, 'Arrivée anticipée'),
+  ]);
+  assert.deepEqual(ungrouped.map((o) => o.title), ['Arrivée anticipée', 'Assurance annulation', 'Ménage']);
+});
+
+test('the pin never crosses a category boundary', () => {
+  // « juste après Départ tardif » means nothing when the two live in different sections.
+  const { ungrouped, groups } = groupOptionsByCategory([
+    lateCheckout(1),
+    insurance(2, 'Assurances'),
+    opt(3, 'Assiette de charcuterie', 'Assurances'),
+  ]);
+  assert.deepEqual(ungrouped.map((o) => o.id), [1]);
+  assert.deepEqual(groups[0].options.map((o) => o.title), ['Assiette de charcuterie', 'Assurance annulation']);
+});
+
+test('an insurance categorised WITH its late checkout is pinned inside that category', () => {
+  const { groups } = groupOptionsByCategory([
+    lateCheckout(1, 'Séjour'),
+    insurance(2, 'Séjour'),
+    opt(3, 'Zzz', 'Séjour'),
+  ]);
+  assert.deepEqual(groups[0].options.map((o) => o.id), [1, 2, 3]);
+});
+
+test('a catalogue without any insurance is returned untouched', () => {
+  const list = [opt(1, 'a'), opt(2, 'b')];
+  assert.deepEqual(pinCancellationInsurance(list).map((o) => o.id), [1, 2]);
+  assert.deepEqual(pinCancellationInsurance([]), []);
 });

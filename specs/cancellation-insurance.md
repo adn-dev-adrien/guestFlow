@@ -59,10 +59,18 @@ booking funnel: an insurance nobody noticed is an insurance nobody bought.
 | Percentage base | **Accommodation only** — the nights actually charged (+ the extra-guest surcharge, which is part of the same nights bill). Options, resources and taxe de séjour are excluded. |
 | Website presentation | **Dedicated block with an explicit Oui / Non choice** before validating — nothing pre-ticked, and the visitor cannot submit without answering. |
 
+**Amendment 2026-08-20 (Adrien, questionnaire)** — after using the feature:
+
+| Subject | Decision |
+|---|---|
+| Default tariff | **Per night.** The insurance is sold as a euro amount **per night of the stay**, set in Réglages → Options like any other option. `percent_of_stay` stays available (for the insurance as for any option) but is no longer the seeded default. |
+| Quantity | **Always the whole stay.** Whatever the price type, the insurance is a yes/no product: no « Qté » field on the fiche, and a quantity sent by a client is clamped to 1 × the type multiplier. |
+| Display order | The insurance is read **just after « Départ tardif »**, not under « A » in the alphabet — on the reservation fiche as in Réglages → Options. |
+
 ## 2. Goal
 
-Sell a « Assurance annulation » to the guest: Adrien sets its tariff once (a fixed amount **or** a
-percentage of the stay, per property if he wants), and every direct booking — on the WordPress site
+Sell a « Assurance annulation » to the guest: Adrien sets its tariff once (a euro amount **per
+night**, or a fixed amount, or a percentage of the stay, per property if he wants), and every direct booking — on the WordPress site
 as on the admin fiche — offers it, prices it automatically and bills it like any other extra. On the
 site the visitor must say **oui** or **non** before paying: the choice can no longer be missed.
 
@@ -94,14 +102,22 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
 5. **Quantity is always 1.** A `percent_of_stay` option is a yes/no product: the engine clamps any
    quantity ≥ 1 to 1 and treats 0 as « not taken » (no line). The admin stepper and the site are
    capped at 1 accordingly.
+
+5bis. **The cancellation insurance is a yes/no product whatever its price type** (2026-08-20). The
+   same clamp applies to the flagged option even when it is `per_night`, `per_person` or `per_stay`:
+   the engine forces quantity `1` and lets the type multiplier do the rest — a `per_night` insurance
+   bills `price × nights of the stay`. Half a stay cannot be insured, so the fiche shows **no « Qté »
+   field** for it and a quantity posted by any client is ignored rather than rejected. The
+   planning-card path is bypassed for the insurance too: it is priced from the stay, never per
+   scheduled slot.
 6. **Never circular.** The base is read from the engine's own accommodation price, computed
    **before** the platform back-solve of [platform-payment-entry.md](platform-payment-entry.md)
    (`platformGrossAmount` pins the accommodation *from* the extras, which would be circular). A
    percent option on a platform reservation therefore prices off the engine's tariff, not off the
    pinned brut.
-7. **Per-property percentage.** `property_option_prices` already overrides `options.price` per
-   property — for a `percent_of_stay` option it overrides the **percentage**. Nothing to add, the
-   semantics follow the type.
+7. **Per-property price.** `property_option_prices` already overrides `options.price` per property —
+   for a `percent_of_stay` option it overrides the **percentage**, for a `per_night` one the **euro
+   amount per night**. Nothing to add, the semantics follow the type.
 8. **Price lock unchanged.** Once the line is sold (devis accepted / reservation), the existing
    locked-snapshot merge freezes the amount: a later tariff change, or a change of the stay price,
    never re-prices an insurance already agreed and paid.
@@ -126,7 +142,7 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
     | `description` | « Garantie annulation : en cas d'annulation de votre séjour pour un motif couvert, les sommes déjà versées vous sont remboursées. » |
     | `seedKey` | `cancellation_insurance` |
     | `isCancellationInsurance` | `1` |
-    | `priceType` | `percent_of_stay` |
+    | `priceType` | `per_night` — the insurance is sold by the night (2026-08-20) |
     | `price` | `0` → **not configured**, proposed nowhere until Adrien sets it |
     | `category` | `''` (ungrouped — it gets its own block on the site) |
     | `displayToClient` | `1` |
@@ -134,8 +150,16 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
     A pre-existing hand-made option whose title matches a known alias (« assurance annulation »,
     « assurance annulation de séjour », « garantie annulation ») is **promoted** (flag + `seedKey`
     set) instead of duplicated.
+13bis. **Retyped once, while it is worth nothing** (2026-08-20). A database seeded before the
+    per-night default holds an insurance at `percent_of_stay`; the boot seed switches it to
+    `per_night` **only** when it is still unpriced — base `price ≤ 0` **and** no positive
+    `property_option_prices` row. A percentage Adrien actually set is his: `4 %` must never silently
+    become `4 € la nuit`. The switch is logged once and is idempotent (a `per_night` row is never
+    retyped back).
 14. **Not deletable** from the Options screen (same rule as the typed seeds), but fully editable:
-    title, description, price type, price, per-property prices, applicability, EN title.
+    title, description, price type, price, per-property prices, applicability, EN title. Réglages →
+    Options is the single place where its tariff is set: type (« Par jour » by default), amount,
+    and per-property amounts.
 15. **Unconfigured = invisible to the guest.** While the effective price/percentage for a property is
     `≤ 0`, the insurance is **not** returned by the public API and its block is **not** rendered on
     the site, so no choice is required. It stays visible in the admin catalogue so Adrien can price
@@ -151,6 +175,20 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
       category filter, so miscategorising the insurance cannot put it on the check-in screen;
     - the mid-stay note dialog ([complement-buckets-by-moment.md](complement-buckets-by-moment.md)) —
       filtered out of its « Ajouter une prestation » catalogue on the same flag.
+
+17bis. **Read just after « Départ tardif »** (2026-08-20). In the catalogue lists — the
+    « Options » block of the reservation fiche and the Réglages → Options table — the insurance
+    leaves the alphabetical order and is pinned **immediately after the late-checkout auto-option**:
+    it closes the conditions of the stay (arrival, departure, then « et si vous deviez annuler ? »)
+    instead of opening the list under « A ». Server-side rule, shared by both surfaces
+    (`pinCancellationInsurance`), so nothing is re-sorted in React. Details:
+    - the pin only applies **inside one category block** — « juste après Départ tardif » means
+      nothing across a section boundary. An insurance the operator categorises stays alphabetical in
+      its category, unless the late-checkout option shares that category;
+    - with several « Départ tardif » rows (one per property scope) it lands after the **last** one;
+    - no late-checkout option in the block → the insurance keeps its alphabetical place;
+    - on the public site nothing changes: the insurance is already pulled out of the lists and
+      rendered in its own block (rule 18).
 
 ### 3.3 Public API
 
@@ -245,9 +283,10 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `database.js` | `database.js` | T | Adds `isCancellationInsurance` to the idempotent `migrateOptionsColumns()` list; calls the new seed at boot beside `ensureDefaultBreakfastOption`. |
-| `utils/` | `cancellationInsuranceSeed.js` | C | Idempotent, non-destructive boot seed + title-alias promotion + exclusivity repair (rule 12). Returns an `{ action }` tag like the breakfast seed. |
-| `utils/` | `pricing.js` | T | `percent_of_stay` branch in the option-line loop (quantity clamp, amount from the shared helper); exports `computePercentOfStayAmount(percent, base)` and `computeStayInsuranceBase(...)` as pure functions; returns `cancellationInsuranceBase` in the quote result. |
-| `models/` | `optionsModel.js` | T | Reads/writes `isCancellationInsurance` (guarded-write pattern, like `category` / `alwaysVisible`); enforces exclusivity in a transaction; `getCancellationInsurance(propertyId)` → the flagged option with its **effective** per-property price, or `null`. |
+| `utils/` | `cancellationInsuranceSeed.js` | C | Idempotent, non-destructive boot seed (`per_night`, price 0) + title-alias promotion + exclusivity repair (rule 12) + the guarded retype of an unpriced `percent_of_stay` row (rule 13bis). Returns an `{ action, linked, deduped, retyped }` tag. |
+| `utils/` | `pricing.js` | T | `percent_of_stay` branch in the option-line loop (quantity clamp, amount from the shared helper); the same clamp + planning-card bypass for the flagged insurance whatever its price type (rule 5bis); exports `computePercentOfStayAmount(percent, base)` and `computeStayInsuranceBase(...)` as pure functions; returns `cancellationInsuranceBase` in the quote result. |
+| `models/` | `optionsModel.js` | T | Reads/writes `isCancellationInsurance` (guarded-write pattern, like `category` / `alwaysVisible`); enforces exclusivity in a transaction; `getCancellationInsurance(propertyId)` → the flagged option with its **effective** per-property price, or `null`; `list()` applies the display-order pin (rule 17bis) so Réglages → Options reads like the fiche. |
+| `utils/` | `optionGrouping.js` | T | New pure `pinCancellationInsurance(options)` — moves the flagged option right after the last `late_check_out` option of the **same** category block (rule 17bis). Applied to the `ungrouped` list and to each group, so the fiche payload arrives already ordered. |
 | `controllers/` | `optionsController.js` | T | Validates `percent_of_stay` (0 ≤ price ≤ 100) and passes `isCancellationInsurance` through create/update. |
 | `routes/` | `options.js` | — | Stays thin — nothing to add. |
 | `utils/` | `publicProjections.js` | T | `optionPriceLabels` gains `percent_of_stay` → « du montant du séjour »; `toPublicOption` emits `isCancellationInsurance`; new `toPublicCancellationInsurance(option, { amount, selected })`; `toPublicQuote` emits the `cancellationInsurance` block. |
@@ -309,19 +348,24 @@ session auth. No idempotency concern (no new write endpoint).
 ALTER TABLE options ADD COLUMN isCancellationInsurance INTEGER NOT NULL DEFAULT 0;
 ```
 
-- **No new table.** The percentage lives in the existing `options.price`; the per-property
-  percentage lives in the existing `property_option_prices.price`.
+- **No new table.** The tariff lives in the existing `options.price` — a euro amount per night for
+  the default `per_night` type, a percentage for `percent_of_stay`; the per-property tariff lives in
+  the existing `property_option_prices.price`.
 - **Default for existing rows:** `0` — no option is the insurance until the seed inserts (or
   promotes) one.
-- **Backfill:** the boot seed inserts the « Assurance annulation » row at `price = 0`
-  (unconfigured), or promotes an existing look-alike option instead of duplicating it.
+- **Backfill:** the boot seed inserts the « Assurance annulation » row at `priceType = 'per_night'`,
+  `price = 0` (unconfigured), or promotes an existing look-alike option instead of duplicating it.
+- **Retype (2026-08-20):** a row already seeded as `percent_of_stay` and **still unpriced** (base
+  `price ≤ 0` and no positive per-property override) is switched to `per_night` at boot. A priced
+  percentage is never touched — see rule 13bis.
 
 **Data impact:** none on existing records. No column is dropped, no value rewritten; a promoted
 look-alike keeps its price, its applicability and its history — it only gains the flag and the
 `seedKey`. Reservations and devis already sold are untouched (no `percent_of_stay` line exists yet).
 
 **Migration note for `CHANGELOG.md`:** new `options.isCancellationInsurance` column + one seeded
-catalogue row, priced at 0 (invisible to guests until configured).
+catalogue row, priced at 0 (invisible to guests until configured). 2026-08-20: the seeded row
+defaults to « Par jour » and an unpriced `percent_of_stay` insurance is retyped to it at boot.
 
 ## 6. UI / UX
 
@@ -332,14 +376,20 @@ catalogue row, priced at 0 (invisible to guests until configured).
   options, ressources et taxe de séjour) — 0 à 100 ». The per-property price lines swap the same way.
 - The « Assurance annulation » row shows the usual seeded-option treatment: the delete action is
   disabled, and the form shows a read-only caption « Option d'assurance annulation — proposée dans le
-  tunnel de réservation du site. »
+  tunnel de réservation du site. » Its tariff is set here and nowhere else: type « Par jour » by
+  default + a euro amount per night (per property if wanted).
+- The row is listed **just after « Départ tardif »** rather than alphabetically (rule 17bis).
 - **Responsive:** unchanged — the Options page already stacks its form fields on `xs`; the `%`
   adornment costs no width.
 
 ### 6.2 Reservation fiche / devis (admin)
 
-- The insurance appears in the extras list like any other option, with the unit label « du séjour »
-  and its computed amount. Its stepper is capped at 1.
+- The insurance appears in the extras list like any other option, **placed just after « Départ
+  tardif »** (rule 17bis) rather than under « A ».
+- A per-night insurance reads « 3,00 € par jour • ×7 j. » and carries **no « Qté » field** — it
+  covers the stay, and the server bills `3 € × 7` (rule 5bis). A `percent_of_stay` one keeps its
+  « 4 % du séjour • du montant hébergement » line, also without a quantity.
+- The « Compl. » toggle, the « offert » path and the Total chip are unchanged.
 - No layout change; nothing to restyle.
 
 ### 6.3 WordPress booking funnel
@@ -386,21 +436,34 @@ is not a GuestFlow page and has no action bar.
 
 ## 7. Test plan
 
-### Server unit tests (36 new, suite at 3194 ✅)
+### Server unit tests (36 + 14 new, suite at 3447 ✅)
 
 - [x] `tests/cancellation-insurance-pricing.unit.test.js` (12) — rules 2-9: percentage → amount, the
       base excludes options/resources/taxe de séjour, includes the extra-guest surcharge, follows
       `customPrice` and `discountPercent`, ignores the platform back-solve, quantity clamped to 1,
       per-property percentage wins, a sold line stays frozen, « offert » yields 0 with the real
       amount preserved, a free stay yields 0 rather than a crash, a planning-card flag cannot hijack the pricing.
+- [x] `tests/cancellation-insurance-pricing.unit.test.js` (+6, 2026-08-20) — rule 5bis: a per-night
+      insurance bills `price × nights`, ignores a posted quantity, follows the length of the stay and
+      the per-property amount, is never priced per planning slot, and never enters its own assiette.
 - [x] `tests/cancellation-insurance-seed.unit.test.js` (8) — rules 12-14: seeds once, second boot is
       a no-op that preserves the operator's tariff and wording, links a property created later,
       adopts a look-alike title instead of duplicating, never steals a row owned by another seed,
       collapses a multi-flag database onto the lowest id, treats an archived row as present.
+- [x] `tests/cancellation-insurance-seed.unit.test.js` (+4, 2026-08-20) — rules 13/13bis: the seed
+      inserts a `per_night` row; an unpriced percentage is retyped; a priced percentage and a
+      per-property percentage both block the retype; a per-night row is never retyped back.
 - [x] `tests/public-cancellation-insurance.unit.test.js` (9) — rules 15, 18-20: absent from
       `ungrouped`/`groups`, null while unpriced / hidden / offered by default, euro label for a flat
       premium, priced preview in `/quote` whether or not selected, `selected` reflects the payload,
       **preview amount === billed amount** (real engine + real model over an in-memory DB).
+- [x] `tests/public-cancellation-insurance.unit.test.js` (+3, 2026-08-20) — the per-night label
+      « 3 € par nuit », a preview equal to the billed nights, and a quantity posted by a visitor that
+      cannot inflate the premium.
+- [x] `tests/option-grouping.unit.test.js` (+6, 2026-08-20) — rule 17bis: pinned after « Départ
+      tardif », after the LAST one when several exist, alphabetical again when there is none, never
+      across a category boundary, pinned inside a shared category, and a no-op on a catalogue without
+      an insurance.
 - [x] `tests/cancellation-insurance-option-crud.unit.test.js` (6) — flag exclusivity, `undefined`
       preserves it, `getCancellationInsurance` resolves the effective per-property percentage and
       returns null when unpriced/inapplicable, and the controller rejects a percentage outside 0-100.
@@ -410,14 +473,19 @@ is not a GuestFlow page and has no action bar.
       (`public-options-grouped`, `public-projections`, `public-quote-controller`,
       `public-quote-progressive-participants`).
 
-### Client tests (4 new, suite at 1010 ✅)
+### Client tests (4 + 3 new, suite at 1069 ✅)
 
 - [x] `client/src/pages/__tests__/OptionsPage.percent.test.jsx` — the percentage field, its 0-100
       cap, the assiette helper and the per-property percentage rows; other price types keep the
       uncapped euro field.
-- [x] `cd client && npx vitest run` — 1010 tests green.
+- [x] `client/src/components/reservation/__tests__/ExtrasSection.cancellation-insurance.test.jsx`
+      (2026-08-20) — rule 5bis: an enabled per-night insurance shows « 3,00 € par jour • ×4 j. » and
+      no « Qté » field, an ordinary per-night option keeps its own, and the insurance keeps its
+      « Compl. » toggle and its Total chip.
+- [x] `cd client && npx vitest run` — 1069 tests green (2026-08-20).
 - [x] `npm run test:e2e` — 65 passed / 1 skipped (no funnel change inside the React app; guards
-      against a regression on the Options page).
+      against a regression on the Options page). Re-run green on 2026-08-20 after the per-night
+      amendment.
 
 ### Manual UI verification (2026-08-19, `npm run dev`)
 
@@ -439,6 +507,23 @@ is not a GuestFlow page and has no action bar.
       horizontal scroll. **Not verified:** the plugin running inside real WordPress (block editor
       registration, `wp_localize_script` i18n wiring, REST proxy nonce) — unchanged code paths, but
       untested here.
+
+### Manual UI verification (2026-08-20, `npm run dev`, amendment)
+
+- [x] **Boot:** the dev database, seeded at `percent_of_stay` / 0, came back up as `per_night` / 0
+      with the `[seed:cancellation-insurance] unpriced insurance switched…` line; re-running the seed
+      on a copy is a no-op (rule 13bis).
+- [x] **Réglages → Options:** the « Assurance annulation » row is listed **after both « Départ
+      tardif » rows** (one per property scope), reads « 0,00 € — Par jour », and pricing it at 3 €
+      from its dialog (type « Par jour » + « Prix (EUR) ») lists it as « 3,00 € — Par jour ». The
+      insurance caption and the disabled delete action are unchanged.
+- [x] **Reservation fiche** (Aventura lodge, 7 nights): the options block reads « Arrivée anticipée,
+      Départ tardif, **Assurance annulation**, Linge de lit, Linge de toilette, Ménage… »; the
+      insurance card shows « 3,00 € par jour • ×7 j. », **no « Qté » field**, its « Compl. » toggle
+      and « Total : 21,00 € »; the récapitulatif bills the same 21,00 €.
+- [x] **Mobile 390 px:** the insurance card stacks like the others, no horizontal scroll.
+- [x] The dev tariff was set back to 0 afterwards — the insurance stays unconfigured until Adrien
+      prices it for real.
 
 ## 8. Out of scope
 
