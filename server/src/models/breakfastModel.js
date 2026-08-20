@@ -89,17 +89,27 @@ function buildModel(database) {
   })();
   const cardDrivenExpr = HAS_SHOWS_PLANNING_CARD ? 'COALESCE(o.showsPlanningCard, 0)' : '0';
 
+  // How many breakfasts are served each morning when the guests did not all take it
+  // (specs/card-option-served-persons.md §3.4 rule 16). NULL = the whole party. Guarded like the
+  // rest: a minimal schema without the column simply keeps serving the party.
+  const HAS_CARD_PERSONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
+    catch { return false; }
+  })();
+  const cardPersonsExpr = HAS_CARD_PERSONS ? 'ro.cardPersons' : 'NULL';
+
   // Eligibility sub-query, shared by the windowed and the single-reservation statements: source 1 =
   // explicit reservation_options entry, source 2 = property default fallback when no explicit row
   // exists. `qtySum` collapses to the explicit value when present (source 2 is suppressed by NOT
   // EXISTS) and to 1.0 otherwise; `cardDriven` flags the occurrence-driven regime (never set by the
   // property-default fallback, which has no scheduled mornings).
   const eligibilitySubQuery = `
-    SELECT reservationId, SUM(qtySum) AS qtySum, MAX(cardDriven) AS cardDriven
+    SELECT reservationId, SUM(qtySum) AS qtySum, MAX(cardDriven) AS cardDriven, MAX(cardPersons) AS cardPersons
     FROM (
       SELECT ro.reservationId,
              COALESCE(ro.quantity, 0) AS qtySum,
-             ${cardDrivenExpr} AS cardDriven
+             ${cardDrivenExpr} AS cardDriven,
+             ${cardPersonsExpr} AS cardPersons
         FROM reservation_options ro
         JOIN options o ON o.id = ro.optionId
        WHERE o.autoOptionType = 'breakfast'
@@ -108,7 +118,8 @@ function buildModel(database) {
 
       SELECT res2.id AS reservationId,
              1.0 AS qtySum,
-             0 AS cardDriven
+             0 AS cardDriven,
+             NULL AS cardPersons
         FROM reservations res2
         JOIN property_option_defaults pod ON pod.propertyId = res2.propertyId
         JOIN options o ON o.id = pod.optionId
@@ -124,9 +135,15 @@ function buildModel(database) {
 
   // People served EACH morning (rule 5). `quantity` is a morning COUNT on an occurrence-driven
   // option and a sub-occupation FACTOR on a legacy one — only the latter multiplies the party.
+  // On the occurrence-driven regime the number of breakfasts is the operator's own
+  // (`cardPersons`, specs/card-option-served-persons.md §3.4 rule 16) when they said the children
+  // don't have breakfast, and the party otherwise.
   function morningPersons(row) {
     const personsBase = (Number(row.adults) || 0) + (Number(row.teens) || 0) + (Number(row.children) || 0);
-    if (Number(row.cardDriven || 0) === 1) return Math.max(0, personsBase);
+    if (Number(row.cardDriven || 0) === 1) {
+      const served = Number(row.cardPersons);
+      return Math.max(0, served > 0 ? Math.floor(served) : personsBase);
+    }
     return Math.max(0, Math.round(personsBase * (Number(row.qtySum) || 0)));
   }
 
@@ -151,7 +168,8 @@ function buildModel(database) {
       res.breakfastNotifiedDate AS notifiedDate,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum,
-      sub.cardDriven AS cardDriven
+      sub.cardDriven AS cardDriven,
+      sub.cardPersons AS cardPersons
       ${occSelect}
     FROM reservations res
     JOIN (${eligibilitySubQuery}
@@ -182,7 +200,8 @@ function buildModel(database) {
       res.arrivalSasDoneAt AS arrivalSasDoneAt,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum,
-      sub.cardDriven AS cardDriven
+      sub.cardDriven AS cardDriven,
+      sub.cardPersons AS cardPersons
       ${occSelect}
     FROM reservations res
     JOIN (${eligibilitySubQuery}

@@ -246,6 +246,16 @@ function createReservationsModel(database) {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardOccurrences'); }
     catch { return false; }
   })();
+  // Served persons of a per-person card option (specs/card-option-served-persons.md §5), and the
+  // property capacity that bounds it. Guarded like every other optional column.
+  const HAS_RO_CARD_PERSONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
+    catch { return false; }
+  })();
+  const HAS_PROPERTY_MAX_GUESTS = (() => {
+    try { return database.prepare('PRAGMA table_info(properties)').all().some((c) => c.name === 'maxGuests'); }
+    catch { return false; }
+  })();
   // Hours placed on real slots (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4). Same guard
   // rationale: a minimal test schema without the column just never writes a session.
   const HAS_RR_SESSIONS = (() => {
@@ -546,7 +556,10 @@ function createReservationsModel(database) {
     getByIdWithDetails(id) {
       const reservation = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName, p.photo as propertyPhoto,
-          p.defaultCautionAmount as propertyDefaultCautionAmount
+          p.defaultCautionAmount as propertyDefaultCautionAmount,
+          -- Capacity of the logement: the ceiling of the « personnes servies » stepper the arrival SAS
+          -- shows on a card option (specs/card-option-served-persons.md §3.1 rule 3).
+          p.maxGuests as propertyMaxGuests
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
@@ -1394,11 +1407,18 @@ function createReservationsModel(database) {
       const excluded = new Set([upsells.cleaning.optionId, upsells.bathLinen.optionId]
         .filter((id) => id != null).map(Number));
       return database.prepare(`
-        SELECT ro.optionId AS optionId, o.title AS label, ro.billedUnits AS qty, ro.totalPrice AS amount
+        SELECT ro.optionId AS optionId, o.title AS label, ro.billedUnits AS qty, ro.totalPrice AS amount,
+               ro.quantity AS moments${HAS_RO_CARD_PERSONS ? ', ro.cardPersons AS cardPersons' : ', NULL AS cardPersons'}
           FROM reservation_options ro JOIN options o ON o.id = ro.optionId
          WHERE ro.reservationId = ? AND COALESCE(ro.sasArrivalOrigin, 0) = 1
          ORDER BY o.title
-      `).all(reservationId).filter((row) => !excluded.has(Number(row.optionId)));
+      `).all(reservationId)
+        .filter((row) => !excluded.has(Number(row.optionId)))
+        // « 1 moment × 2 pers. servies » — a reduced number of covers is a decision worth reading back
+        // in the history (specs/card-option-served-persons.md §3.3 rule 15).
+        .map(({ moments, cardPersons, ...row }) => (Number(cardPersons) > 0
+          ? { ...row, detail: `${Number(moments) || 1} × ${Number(cardPersons)} pers. servies` }
+          : row));
     },
 
     // « Is the cleaning already sold on this reservation? » — single source of truth for both SAS
@@ -1486,10 +1506,13 @@ function createReservationsModel(database) {
     resolveSasOptionSales(reservationId, sales) {
       if (!Array.isArray(sales) || sales.length === 0) return [];
       const res = database.prepare(`
-        SELECT id, propertyId, adults, teens, children, startDate, endDate,
+        SELECT reservations.id AS id, propertyId, adults, teens, children, startDate, endDate,
                ${HAS_RESERVATION_CHECK_TIMES ? 'checkInTime, checkOutTime,' : "'15:00' AS checkInTime, '10:00' AS checkOutTime,"}
+               ${HAS_PROPERTY_MAX_GUESTS ? 'COALESCE(p.maxGuests, 0)' : '0'} AS maxGuests,
                (SELECT COUNT(*) FROM reservation_nights rn WHERE rn.reservationId = reservations.id) AS nights
-          FROM reservations WHERE id = ?
+          FROM reservations
+          ${HAS_PROPERTY_MAX_GUESTS ? 'LEFT JOIN properties p ON p.id = reservations.propertyId' : ''}
+         WHERE reservations.id = ?
       `).get(reservationId);
       if (!res) return [];
       const persons = billablePersons(res);
@@ -1524,6 +1547,9 @@ function createReservationsModel(database) {
           stay,
           occurrences: sale?.occurrences,
           units: sale?.units,
+          // How many covers each moment serves (specs/card-option-served-persons.md §3.3 rule 12).
+          servedPersons: sale?.persons,
+          maxPersons: Number(res.maxGuests) || 0,
         });
         if (!line) continue;
         seen.add(optionId);
@@ -1933,18 +1959,22 @@ function createReservationsModel(database) {
             if (!keep.has(id) && !upsellOptionIds.has(id)) drop.run(reservationId, id);
           }
           const occColumn = HAS_RO_CARD_OCCURRENCES;
+          const perColumn = HAS_RO_CARD_PERSONS;
           const upsert = database.prepare(`
             INSERT INTO reservation_options
-              (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''})
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''})
+              (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''}${perColumn ? ', cardPersons' : ''})
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''}${perColumn ? ', ?' : ''})
             ON CONFLICT(reservationId, optionId) DO UPDATE SET
               quantity = excluded.quantity, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
               priceType = excluded.priceType, totalPrice = excluded.totalPrice,
-              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = excluded.cardOccurrences' : ''}
+              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = excluded.cardOccurrences' : ''}${perColumn ? ', cardPersons = excluded.cardPersons' : ''}
           `);
           for (const l of lines) {
             const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
             if (occColumn) params.push(l.cardOccurrences && l.cardOccurrences.length ? JSON.stringify(l.cardOccurrences) : null);
+            // Only a deliberately reduced (or raised) number of covers is stored; NULL keeps the line
+            // following the party (specs/card-option-served-persons.md §3.1 rule 4).
+            if (perColumn) params.push(l.cardPersons != null ? Number(l.cardPersons) : null);
             upsert.run(...params);
           }
         };

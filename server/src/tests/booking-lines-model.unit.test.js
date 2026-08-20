@@ -21,7 +21,7 @@ const FULL_DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, optionId INTEGER, quantity REAL, unitPrice REAL,
     billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0,
     inComplement INTEGER DEFAULT 0, acompteContribTtc REAL, soldeContribTtc REAL,
-    cardOccurrences TEXT, sasArrivalOrigin INTEGER DEFAULT 0
+    cardOccurrences TEXT, cardPersons REAL, sasArrivalOrigin INTEGER DEFAULT 0
   );
   CREATE TABLE reservation_custom_options (
     id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL,
@@ -169,4 +169,36 @@ test('getPricingSnapshot returns the engine-shaped locked lines', () => {
   assert.equal(snapshot.lockedResourceLines[0].unitPrice, 30);
   assert.equal(snapshot.lockedNightlyBreakdown[0].price, 100);
   assert.deepEqual(snapshot.lockedTariff, { recipeId: 'lodge-2026' });
+});
+
+// specs/card-option-served-persons.md §5 — the served count of a card option is money: a writer that
+// forgets it silently re-bills the whole party at the next save.
+
+test('cardPersons is written and survives a re-save of the fiche', () => {
+  const { db, store } = fresh(FULL_DDL);
+  store.replaceOptions(1, [{ ...OPTION_LINES[0], cardPersons: 2, billedUnits: 2, totalPrice: 16 }]);
+  assert.equal(db.prepare('SELECT cardPersons FROM reservation_options WHERE reservationId = 1').get().cardPersons, 2);
+
+  // A fiche save is a DELETE + INSERT: the engine echoes the count back on the line it re-prices.
+  store.replaceOptions(1, [{ ...OPTION_LINES[0], cardPersons: 2, billedUnits: 2, totalPrice: 16 }]);
+  assert.equal(db.prepare('SELECT cardPersons FROM reservation_options WHERE reservationId = 1').get().cardPersons, 2);
+});
+
+test('a line that follows the party stores cardPersons = NULL', () => {
+  const { db, store } = fresh(FULL_DDL);
+  store.replaceOptions(1, OPTION_LINES);
+  assert.equal(db.prepare('SELECT cardPersons FROM reservation_options WHERE reservationId = 1').get().cardPersons, null);
+});
+
+test('copyLineGraph carries cardPersons (devis → réservation)', () => {
+  const { db, store } = fresh(FULL_DDL);
+  store.replaceOptions(1, [{ ...OPTION_LINES[0], cardPersons: 3 }]);
+  store.copyLineGraph(1, 2);
+  assert.equal(db.prepare('SELECT cardPersons FROM reservation_options WHERE reservationId = 2').get().cardPersons, 3);
+});
+
+test('cardPersons degrades on a minimal schema instead of throwing', () => {
+  const { db, store } = fresh(MINIMAL_DDL);
+  store.replaceOptions(1, [{ ...OPTION_LINES[0], cardPersons: 2 }]);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_options WHERE reservationId = 1').get().c, 1);
 });
