@@ -22,6 +22,8 @@ const { assignReservationNumberIfMissing } = require('../utils/reservationNumber
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 const bookingLinesModel = require('./bookingLinesModel');
 const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
+const { isDirectChannel } = require('../utils/platformNameFormat');
+const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
@@ -140,6 +142,10 @@ function createModel(database) {
       startDate: row.startDate,
       bookingDate: row.createdAt,
       balanceDaysBefore: property?.balanceDaysBefore,
+      // specs/deposit-blocks-the-dates.md rule 7 — a direct devis with no acompte owes a single payment,
+      // due on its validity date; the fiche and its PDF must read the same date as the engine.
+      dueOnValidUntil: depositAmount === 0 && isDirectChannel(row.platform),
+      validUntil: row.validUntil,
     });
     return { depositAmount, balanceAmount, depositDueDate, balanceDueDate, totalStayPrice };
   }
@@ -382,8 +388,20 @@ function createModel(database) {
       // specs/payment-schedule-and-cancellation.md §3.1 — a quote's acompte is due by its validity
       // date; its solde stays stay-relative, clamped to the day the quote was issued.
       kind: 'devis',
-      validUntil: body.validUntil || existing?.validUntil || null,
-      bookingDate: existing?.createdAt || null,
+      // A creation has no stored validity date yet — `create` computes it only after this call — so it
+      // is derived here with the same rule. Without it the engine falls back to the clamped derivation
+      // and a last-minute quote comes out due on its issue day while the document says it stands until
+      // its validity date (specs/deposit-blocks-the-dates.md rule 7).
+      validUntil: body.validUntil || existing?.validUntil || computeValidUntil({
+        createdAtIsoDate: String(existing?.createdAt || sqliteNow()).slice(0, 10),
+        startDateIso: body.startDate || existing?.startDate,
+        quoteValidityDays: readQuoteValidityDays(),
+      }) || null,
+      // A devis being CREATED has no `createdAt` yet, but it is being booked today — and the engine has
+      // no clock. Passing null used to persist a schedule computed as if the booking day were unknown:
+      // a solde deadline free to land in the past, and (specs/deposit-blocks-the-dates.md rule 5) an
+      // acompte on a stay too close to collect one, contradicting the fiche's own live recompute.
+      bookingDate: existing?.createdAt || getTodayIsoDate(),
     });
   }
 

@@ -93,6 +93,8 @@ function resolveBalanceDueDate({
   balanceDaysBefore = 30,
   platform = null,
   platformPayoutDueDays = DEFAULT_PAYOUT_DUE_DAYS,
+  dueOnValidUntil = false,
+  validUntil = null,
 } = {}) {
   if (!hasBalance) return null;
   if (!isDirectChannel(platform)) {
@@ -100,12 +102,36 @@ function resolveBalanceDueDate({
     if (!end) return null;
     return addDaysToIsoDate(end, normalizePayoutDueDays(platformPayoutDueDays));
   }
+  // specs/deposit-blocks-the-dates.md rule 7 — a direct devis with no acompte owes ONE payment, and a
+  // devis promises its dates until its validity date: that date IS the deadline. The derivation below
+  // would clamp to the issue day and contradict the « Valable jusqu'au » pill printed on the same page.
+  // The caller decides (a devis carrying an OTA name never had an acompte and keeps the derivation).
+  if (dueOnValidUntil) {
+    const until = toIsoDay(validUntil);
+    if (until) return until;
+  }
   const start = toIsoDay(startDate);
   if (!start) return null;
   const derived = addDaysToIsoDate(start, -positiveDays(balanceDaysBefore, 30));
   if (!derived) return null;
   const booked = toIsoDay(bookingDate);
   return booked && derived < booked ? booked : derived;
+}
+
+/**
+ * Is the stay too close for an acompte to mean anything? (specs/deposit-blocks-the-dates.md rule 4)
+ *
+ * True when the stay starts within the property's solde window counted from the BOOKING day — the
+ * case where the solde would fall on (or before) the day the stay was booked, leaving an acompte and
+ * a solde due at once. The threshold is INCLUSIVE: a stay booked exactly `balanceDaysBefore` days out
+ * is last-minute (specs/online-payments-qonto.md §3.7 edge case).
+ *
+ * Either date missing → false: with nothing to compare, the historic acompte/solde split stands.
+ */
+function isLastMinuteStay({ bookingDate = null, startDate = null, balanceDaysBefore = 30 } = {}) {
+  const days = daysBetween(bookingDate, startDate);
+  if (days === null) return false;
+  return days <= positiveDays(balanceDaysBefore, 30);
 }
 
 /**
@@ -129,6 +155,7 @@ function daysBetween(from, to) {
 module.exports = {
   resolveDepositDueDate,
   resolveBalanceDueDate,
+  isLastMinuteStay,
   resolveCancelOn,
   daysBetween,
   toIsoDay,
