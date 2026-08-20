@@ -383,6 +383,12 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
   The **client is emailed** on every missed-deadline / abandonment (deposit and balance). • The
   deposit/balance reminder/deadline values are **configurable** in the dedicated Paiements settings page.
 
+**Corrected 2026-08-20** ([payment-link-quote-parity.md](payment-link-quote-parity.md)): « all amounts
+always from the engine » was true of the call, not of its input — `paymentsController` fed the engine a
+hand-rolled payload that dropped a card option's moments, an hourly resource's sessions, the offered
+lines and the price lock. The amounts now come from `devisModel.recomputeQuote`, the replay the devis
+screen and the PDF already used.
+
 **Resolved 2026-06-11 (round 2):**
 - The **deposit/balance** reminder/deadline durations are configurable on the Paiements page — read via
   `settingsModel.paymentTimings()`, nothing hard-coded.

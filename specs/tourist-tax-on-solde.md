@@ -40,6 +40,12 @@ Applies to direct **and** platform reservations with an acompte.
    that. The **solde = (accommodationPreArrival − acompte) + taxInPreArrival** (the whole pre-arrival tax).
 2. **No acompte (deposit = 0 / depositDisabled / no-acompte platform):** solde = `accommodationPreArrival +
    taxInPreArrival` = the current `preArrivalAmount` — **unchanged**.
+   1.bis **A devis obeys rule 1 too** (fixed 2026-08-20,
+   [payment-link-quote-parity.md](payment-link-quote-parity.md) §3.2). `devisModel` stored the engine's
+   split from the start but `enrichDevis` re-derived its own from the tax-INCLUSIVE total, so the devis
+   screen and its PDF displayed an acompte a tax-share above the stored row, the guest's email, the
+   Qonto page and the same stay once converted. The read-time derivation is gone; a devis stored before
+   this rule shipped keeps its promised split until it is re-saved.
 3. **Tax routed to complement** (collected on arrival / `touristTaxInComplement`): unchanged — the tax is
    already out of the acompte/solde (it's in the complement).
 4. **Frozen once paid:** a reservation whose acompte/solde are already paid keeps its stored split (the
