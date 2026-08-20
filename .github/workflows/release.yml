@@ -1,0 +1,277 @@
+name: Release
+
+# specs/self-update-and-releases.md §3.A + §4.4.
+#
+# Builds and publishes a GuestFlow release. Runs entirely on GitHub-hosted runners: nothing in this
+# workflow — and nothing in this repository — executes on the production machine any more. The VM
+# only ever pulls a published archive over HTTPS, when the operator clicks "Installer" in the app.
+#
+# Triggered by pushing the tag `vX.Y.Z` on master (the `/guestflow-release` skill does it). The
+# `workflow_dispatch` path builds and checks everything but never publishes: it is there to rehearse
+# the packaging without burning a version number.
+#
+# Job order: verify → (tests ‖ e2e) → package → publish. `verify` is first and everything depends on
+# it, so a release whose version bumps or changelog entry are missing fails in ~20 s, before a single
+# dependency is installed and long before an artefact could exist.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Release hygiene, checked before anything is built ────────────────────────────────────────
+  verify:
+    name: verify (version + changelog)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      plugin_version: ${{ steps.resolve.outputs.plugin_version }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+
+      - name: 🔢 Resolve the version being released
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            VERSION="$(node -p "require('./package.json').version")"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Dry run — packaging $VERSION without publishing a release."
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$VERSION' is not a MAJOR.MINOR.PATCH version."
+            exit 1
+          fi
+          PLUGIN_VERSION="$(sed -n "s/^define('GF_BOOKING_VERSION', '\([0-9.]*\)');.*/\1/p" \
+            integrations/wordpress/guestflow-booking/guestflow-booking.php | head -1)"
+          if [ -z "$PLUGIN_VERSION" ]; then
+            echo "::error::Could not read GF_BOOKING_VERSION from the WordPress plugin."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "plugin_version=$PLUGIN_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing GuestFlow $VERSION (WordPress plugin $PLUGIN_VERSION)"
+
+      - name: 🔗 The three package.json versions must match the tag
+        # The running application reads its version from the root package.json (server/src/utils/
+        # appVersion.js). A tag that disagrees with it would make the updater compare the wrong
+        # number and either miss an update or offer one that installs the same code.
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.resolve.outputs.version }}"
+          fail=0
+          for f in package.json server/package.json client/package.json; do
+            found="$(node -p "require('./$f').version")"
+            if [ "$found" != "$VERSION" ]; then
+              echo "::error file=$f::version is $found, expected $VERSION"
+              fail=1
+            fi
+          done
+          [ "$fail" = "0" ] || { echo "Run the /guestflow-release skill instead of bumping by hand."; exit 1; }
+          echo "✓ package.json versions agree on $VERSION"
+
+      - name: 📝 The CHANGELOG must have a section for this version
+        # The release body — and therefore what the operator reads in the update dialog before
+        # clicking "Installer" — IS this section. No section, no release: an update nobody can read
+        # is an update nobody should be asked to trust.
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.resolve.outputs.version }}"
+          if ! grep -qE "^## \[${VERSION//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::Missing section '## [$VERSION] - YYYY-MM-DD'."
+            echo "Fold the pending fragments with: node scripts/build-changelog.mjs --release $VERSION"
+            exit 1
+          fi
+          leftovers="$(find changelog.d -name '*.md' ! -iname 'readme.md' | wc -l | tr -d ' ')"
+          if [ "$leftovers" != "0" ]; then
+            echo "::error::$leftovers changelog fragment(s) were not folded into the $VERSION section:"
+            find changelog.d -name '*.md' ! -iname 'readme.md'
+            exit 1
+          fi
+          echo "✓ CHANGELOG section present and every fragment folded"
+
+  # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
+  tests:
+    name: tests (server + client)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # No `check-latest` here, unlike unit-tests.yml: a release build wants a reproducible
+          # toolchain, not the freshest patch (same reasoning the deploy workflow used).
+          node-version: '24'
+
+      - name: 📚 Install deps
+        run: |
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        run: cd server && env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🧪 Server unit suite
+        run: cd server && npm test
+
+      - name: 🧪 Client unit suite
+        run: cd client && npm test
+
+      - name: 🏗️ Client production build
+        run: cd client && npm run build
+
+  # ── End-to-end suite ─────────────────────────────────────────────────────────────────────────
+  # A release installs itself in production on one click. It does not get a lighter gate than a PR.
+  e2e:
+    name: e2e (playwright)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: 📚 Install root + client + server deps
+        run: |
+          npm ci
+          cd client && npm ci
+          cd ../server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        run: cd server && env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🎭 Install Playwright browsers (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Run the E2E smoke suite
+        env:
+          CI: 'true'
+        run: npm run test:e2e
+
+      - name: 📤 Upload Playwright HTML report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ── Build the artefacts the updater will download ────────────────────────────────────────────
+  package:
+    name: package
+    needs: [verify, tests, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: ⚛️ Build the React client
+        run: cd client && npm ci && npm run build
+
+      - name: 📦 Create the release archive
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          chmod +x ./release.sh
+          ./release.sh "guestflow-${VERSION}"
+          mkdir -p dist-release
+          mv "guestflow-${VERSION}.tar.gz" dist-release/
+
+      - name: 🔌 Package the WordPress plugin
+        # The plugin updates itself from WordPress admin against this asset
+        # (specs/wordpress-plugin-self-update.md). Its archive root must be the plugin folder name,
+        # because that is the directory WordPress replaces on update.
+        env:
+          PLUGIN_VERSION: ${{ needs.verify.outputs.plugin_version }}
+        run: |
+          set -euo pipefail
+          cd integrations/wordpress
+          zip -rq "guestflow-booking-${PLUGIN_VERSION}.zip" guestflow-booking \
+            -x '*/.DS_Store' -x '*/node_modules/*'
+          mv "guestflow-booking-${PLUGIN_VERSION}.zip" "${GITHUB_WORKSPACE}/dist-release/"
+
+      - name: 🔐 Publish the checksums
+        # The in-app updater refuses to install an archive whose SHA-256 does not match this file
+        # (§3.D rule 23). Bare filenames, one per line — the format `sha256sum` produces and
+        # server/src/utils/releaseClient.js parses.
+        run: |
+          set -euo pipefail
+          cd dist-release
+          sha256sum ./* | sed 's| \./| |' > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: 📤 Upload the artefacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-artifacts
+          path: dist-release/
+          retention-days: 7
+
+  # ── Publish the GitHub release (tag pushes only) ─────────────────────────────────────────────
+  publish:
+    name: publish
+    needs: [verify, package]
+    if: needs.verify.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 📥 Download the artefacts
+        uses: actions/download-artifact@v7
+        with:
+          name: release-artifacts
+          path: dist-release
+
+      - name: 📝 Extract the release notes from the CHANGELOG
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v ver="## [${VERSION}]" '
+            index($0, ver) == 1 { flag = 1; next }
+            flag && /^## \[/     { exit }
+            flag                 { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::The CHANGELOG section for $VERSION is empty."
+            exit 1
+          fi
+          cat release-notes.md
+
+      - name: 🚀 Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "v${VERSION}" \
+            --title "GuestFlow ${VERSION}" \
+            --notes-file release-notes.md \
+            dist-release/*
+          echo "::notice::Published https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${VERSION}"
+
+      - name: ℹ️ Reminder
+        run: |
+          echo "Publishing a release does NOT deploy it."
+          echo "The operator installs it from GuestFlow: Réglages → Système et mises à jour."

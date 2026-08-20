@@ -33,8 +33,13 @@ require_once GF_BOOKING_DIR . 'includes/class-gf-api-client.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-rest-proxy.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-blocks.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-plugin.php';
+// specs/wordpress-plugin-self-update.md — native WordPress updates against the GuestFlow manifest.
+require_once GF_BOOKING_DIR . 'includes/class-gf-updater.php';
 
 add_action('plugins_loaded', static function () {
     load_plugin_textdomain('guestflow-booking', false, dirname(plugin_basename(__FILE__)) . '/languages');
     GF_Plugin::instance();
+    // Native WordPress updates: the plugin asks its own GuestFlow which build is the newest and
+    // lets the stock updater install it (specs/wordpress-plugin-self-update.md).
+    GF_Updater::instance()->register();
 });

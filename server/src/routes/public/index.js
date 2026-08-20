@@ -17,5 +17,6 @@ router.use(requirePublicApiKey);
 router.use('/', require('./properties'));
 router.use('/quote', require('./quote'));
 router.use('/booking-requests', require('./bookingRequests'));
+router.use('/', require('./pluginUpdate'));
 
 module.exports = router;

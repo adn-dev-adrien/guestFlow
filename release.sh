@@ -1,7 +1,12 @@
 #!/bin/bash
 # guestFlow release packaging script
 # Usage: ./release.sh <release-name>
-# Example: ./release.sh guestflow-1.0.0
+# Example: ./release.sh guestflow-1.2.0
+#
+# Produces `<release-name>.tar.gz` plus its SHA-256. The archive is what the in-app updater
+# downloads, verifies and installs (specs/self-update-and-releases.md §3.A rule 7), so its layout is
+# a contract: a single top-level directory named after the archive, containing `server/`,
+# `client/build/` and the root `package.json` — nothing else, no node_modules, no database.
 #
 # Environment variables:
 #   REBUILD_CLIENT=true   Force a fresh `cd client && npm run build` even if `client/dist`
@@ -14,11 +19,11 @@ set -e
 RELEASE_NAME=${1:-guestflow-release}
 RELEASE_DIR="$RELEASE_NAME"
 
-echo "Creating release archive: ${RELEASE_NAME}.zip"
+echo "Creating release archive: ${RELEASE_NAME}.tar.gz"
 echo "Release directory: ${RELEASE_DIR}"
 
 # Clean up any previous release
-rm -rf "$RELEASE_DIR" "$RELEASE_NAME.zip"
+rm -rf "$RELEASE_DIR" "$RELEASE_NAME.tar.gz" "$RELEASE_NAME.tar.gz.sha256"
 
 # Create release directory structure
 mkdir -p "$RELEASE_DIR"
@@ -75,10 +80,24 @@ rsync -av --mkpath client/dist/ "$RELEASE_DIR/client/build/"
 # Copy root files
 cp package.json "$RELEASE_DIR/"
 
-# Create the zip archive
-zip -r "$RELEASE_NAME.zip" "$RELEASE_DIR"
+# Create the archive.
+#
+# tar.gz rather than zip: the updater refuses any member that is a symlink, an absolute path or a
+# `..` traversal, and `tar -tzf` / `tar -tvzf` give it the two listings it checks. `--no-same-owner`
+# on extraction keeps the files owned by whoever installs them.
+tar -czf "$RELEASE_NAME.tar.gz" "$RELEASE_DIR"
+
+# Publish the checksum next to the archive: the in-app updater refuses to install an archive whose
+# SHA-256 does not match the one published in the release (§3.D rule 23).
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum "$RELEASE_NAME.tar.gz" > "$RELEASE_NAME.tar.gz.sha256"
+else
+  # macOS ships shasum, not sha256sum. Same output format.
+  shasum -a 256 "$RELEASE_NAME.tar.gz" > "$RELEASE_NAME.tar.gz.sha256"
+fi
 
 # Cleanup
 rm -rf "$RELEASE_DIR"
 
-echo "Release archive created: $RELEASE_NAME.zip"
+echo "Release archive created: $RELEASE_NAME.tar.gz"
+cat "$RELEASE_NAME.tar.gz.sha256"

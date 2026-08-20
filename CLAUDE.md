@@ -12,7 +12,7 @@ This file is loaded into Claude's context for every session in this repo.
 - **Frontend:** React 18, Material UI 5, Recharts, React Router 6
 - **Backend:** Node.js, Express 4
 - **Database:** SQLite (better-sqlite3), auto-migrated on startup
-- **Deploy:** PM2 on Raspberry Pi via GitHub Actions (push on `release` branch)
+- **Deploy:** versioned releases published by GitHub Actions on a tag; the running app installs them itself on the operator's click (`specs/self-update-and-releases.md`)
 
 See `README.md` for setup, dev, and deployment details.
 
@@ -133,7 +133,7 @@ For every spec retro-implementation:
 - Push to `master` directly.
 - Force-push anywhere.
 - **Merge** PRs (the user squash-merges via the web UI). Claude may create PRs with `gh pr create` and read PR status, but never `gh pr merge`.
-- Push to the `release` branch (that branch triggers GitHub Actions / PM2 deploy — user-controlled).
+- Cut a release, tag, or install one in production without being asked (see §5.6).
 - Skip hooks (`--no-verify`), bypass signing, or amend pushed commits.
 - Run destructive commands (`reset --hard`, `clean -f`, branch deletion) without explicit user instruction.
 
@@ -142,7 +142,7 @@ For every spec retro-implementation:
 - **Branches:** `feature/<short-kebab-name>` for features, `fix/<short-kebab-name>` for bug fixes.
 - **Target branch:** `master`.
 - **Merge strategy:** **squash merge** (user-enforced in the GitHub UI). Keeps `master` history one-commit-per-feature.
-- **Deployment branch:** `release` — push there triggers GitHub Actions / PM2 deploy. **User-only.**
+- **Release trigger:** the tag `vX.Y.Z` on `master` (see §5.6). There is no deployment branch any more.
 
 ### 5.4 Conflict / safety rules
 
@@ -167,6 +167,31 @@ For every spec retro-implementation:
 3. **Find the squash commit** by feature name / PR number in the linear history: `git log origin/master --oneline | grep -i "<feature-or-#NN>"`.
 
 **Rule:** before claiming a branch is merged — or before deleting/recreating one — `git fetch origin` first, then confirm by **content (steps 2–3)**, never by ancestry. If the branch is gone from the remote **but** its content is absent from `master`, treat it as **lost work (closed-without-merge or accidental deletion)** and surface it to the user — do not silently assume it shipped.
+
+---
+
+### 5.6 Releases and production updates
+
+Production runs **published releases**, never a branch. The full model lives in
+`specs/self-update-and-releases.md`; the operating rules:
+
+- A release is cut with the **`/guestflow-release` skill**: pre-flight suites → fold `changelog.d/`
+  into a `CHANGELOG.md` section → bump the three `package.json` files → `release/vX.Y.Z` PR → the
+  user squash-merges → Claude tags `vX.Y.Z` on `master` → `.github/workflows/release.yml` publishes
+  the archive, its `SHA256SUMS` and the WordPress plugin.
+- **The release notes are mandatory.** The GitHub release body IS the `CHANGELOG.md` section, and
+  that section is what the operator reads in the update dialog before clicking "Installer". The
+  `verify` job fails the release when it is missing, when the three versions disagree with the tag,
+  or when a `changelog.d/` fragment was left unfolded. Never bypass that job.
+- **Publishing is not deploying.** GuestFlow polls GitHub hourly and offers the version; the
+  operator installs it from Réglages → Système et mises à jour. Claude never triggers an install,
+  and never SSHes into production to "finish" a release.
+- **Never re-introduce a self-hosted CI runner.** The repository is public and the production host
+  holds the guest database, the encryption key and the session secret; a runner there is arbitrary
+  code execution from GitHub into the LAN. Production makes outbound calls only. Any PR adding
+  `runs-on: self-hosted` to this repository is a security regression, whatever it automates.
+- The only sanctioned force-push in this repository is `git push --force origin vX.Y.Z` to re-point
+  a **tag** after a failed `verify`. §5.2's ban on force-pushing branches stands.
 
 ---
 
@@ -506,4 +531,7 @@ Use markdown links so they're clickable in VSCode:
 | Reset DB | `rm server/guestflow.db` |
 | Stop dev servers (free ports 3000/4000) | `npm run stop` |
 | Prod logs | `pm2 logs guestflow` |
+| Cut a release | `/guestflow-release X.Y.Z` (skill) |
+| Preview the changelog | `node scripts/build-changelog.mjs` |
+| Update log (prod) | `~/guestflow/logs/update-<version>-<ts>.log` |
 | Prod status | `pm2 status` / `pm2 describe guestflow` |

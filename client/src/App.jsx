@@ -80,6 +80,7 @@ import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import EmailHistoryPage from './pages/EmailHistoryPage';
 import DesignPage from './pages/DesignPage';
 import ScrollToTop from './components/ScrollToTop';
+import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import EmptyState from './components/EmptyState';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
@@ -877,6 +878,9 @@ function AppShell() {
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />
+        {/* Self-update progress (specs/self-update-and-releases.md §6.3). Mounted at app level so it
+            takes over wherever the update was triggered from, and survives a reload mid-update. */}
+        <UpdateProgressOverlay />
         {/* Render-crash guard + catch-all 404 (specs/ds-components.md §3.4) — a component throw or
             an unknown URL used to leave the main area blank. */}
         <RouteErrorBoundary>
