@@ -141,6 +141,14 @@ responsive — it is WordPress's own admin.
     (Extensions → Ajouter → Téléverser), and the release publishes exactly that zip — a shell script
     would only re-create the `docker exec` coupling this spec removes.
 
-Verified in production: **not yet**. The path only becomes live with the first release that
-publishes a plugin asset; until then the plugin polls, gets `404 NO_PLUGIN_RELEASE`, and reports no
-update — which is the correct behaviour.
+Verified in production **2026-08-20**, with the v2.0.0 release: from inside the WordPress
+container, `GET /public/v1/plugin-update` returns 200 and announces version 1.7.0, and the plugin
+reads it through its own API client. Plugin 1.7.0 was installed once by hand — unavoidable, since
+the update mechanism ships *inside* it — and every version after this one updates from the
+WordPress admin.
+
+Two things that install turned up, both predating this spec: the site was still running plugin
+**1.4.0** (three versions behind — the `docker exec` sync had been failing silently), and its
+configured GuestFlow address still pointed at the decommissioned Raspberry Pi, so the booking funnel
+had been down since the Proxmox migration. Repointing it at `https://guestflow.domainesolio.com`
+restored it and allowed TLS verification to be turned back on.
