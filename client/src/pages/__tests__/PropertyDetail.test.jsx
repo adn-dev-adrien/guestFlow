@@ -26,6 +26,7 @@ vi.mock('../../api', () => ({
     getProperty: vi.fn(), getOptions: vi.fn(),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
     getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(), setPlatformTouristTax: vi.fn(),
+    setPlatformPayoutDueDays: vi.fn(),
     createPropertyIcalSource: vi.fn(), updatePropertyIcalSource: vi.fn(),
     deletePropertyIcalSource: vi.fn(), syncPropertyIcalSource: vi.fn(), syncAllPropertyIcalSources: vi.fn(),
     createOption: vi.fn(), updateOption: vi.fn(),
@@ -35,8 +36,8 @@ vi.mock('../../api', () => ({
 
 // specs/platforms-and-ical-rework.md — the merged per-property platform list that drives the section.
 const PLATFORMS = [
-  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
-  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, isDirectChannel: true, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', payoutDueDays: 10, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isDirectChannel: false, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', payoutDueDays: 10, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
 ];
 
 import DialogProvider from '../../components/DialogProvider';
@@ -227,4 +228,40 @@ test('Plateformes & iCal: a configured DEFAULT platform cannot be deleted; a cus
   // Exactly one delete affordance — the custom platform's. The built-in (Airbnb), though configured, has none.
   const deletes = screen.queryAllByRole('button', { name: 'Réinitialiser la configuration' });
   expect(deletes).toHaveLength(1);
+});
+
+// ── Délai de virement plateforme (specs/platform-payout-due-date.md §3.4) ─────────────────────
+
+test('Plateformes & iCal: the payout delay is shown per platform and hidden on own channels', async () => {
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  await screen.findByDisplayValue('Le Moulin');
+  await screen.findByText('Airbnb');
+  // Airbnb carries a delay; « Direct » has no payout to wait for.
+  expect(screen.getByText('10 j')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Virement reçu sous (jours)')).toBeNull();
+});
+
+test('Plateformes & iCal: editing the payout delay persists it GLOBALLY for the platform', async () => {
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  await screen.findByDisplayValue('Le Moulin');
+  await screen.findByText('Airbnb');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+  fireEvent.change(screen.getByLabelText('Virement reçu sous (jours)'), { target: { value: '3' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+  await waitFor(() => expect(api.setPlatformPayoutDueDays).toHaveBeenCalledTimes(1));
+  expect(api.setPlatformPayoutDueDays).toHaveBeenCalledWith('Airbnb', 3);
+});
+
+test('Plateformes & iCal: an unchanged payout delay is not re-sent on save', async () => {
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  await screen.findByDisplayValue('Le Moulin');
+  await screen.findByText('Airbnb');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+  await waitFor(() => expect(api.createPropertyIcalSource).toHaveBeenCalled());
+  expect(api.setPlatformPayoutDueDays).not.toHaveBeenCalled();
 });

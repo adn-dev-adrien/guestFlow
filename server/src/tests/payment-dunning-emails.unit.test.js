@@ -34,7 +34,8 @@ const DDL = `
     singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER,
     finalPrice REAL, depositAmount REAL, depositDueDate TEXT, depositPaid INTEGER DEFAULT 0,
     balanceAmount REAL, balanceDueDate TEXT, balancePaid INTEGER DEFAULT 0,
-    cautionAmount REAL, validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER
+    cautionAmount REAL, validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER,
+    platform TEXT NOT NULL DEFAULT 'direct'
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT);
@@ -61,12 +62,12 @@ function fixture({ sendMode = 'auto' } = {}) {
 }
 
 function addReservation(db, { id, depositDueDate = null, depositPaid = 0, depositAmount = 274,
-  balanceDueDate = null, balancePaid = 0, balanceAmount = 640, kind = 'reservation' }) {
+  balanceDueDate = null, balancePaid = 0, balanceAmount = 640, kind = 'reservation', platform = 'direct' }) {
   db.prepare(`INSERT INTO reservations
     (id, kind, clientId, propertyId, startDate, endDate, finalPrice,
-     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid)
-    VALUES (?, ?, 1, 1, '2026-09-18', '2026-09-25', 914, ?, ?, ?, ?, ?, ?)`)
-    .run(id, kind, depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid);
+     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, platform)
+    VALUES (?, ?, 1, 1, '2026-09-18', '2026-09-25', 914, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, kind, depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, platform);
 }
 
 const emailServiceFactory = (sent) => () => ({
@@ -173,5 +174,32 @@ test('a reservation with no deadline on the anchor is never scheduled', async ()
   const sent = [];
   assert.equal((await runPass(db, sent)).sentCount, 0);
   assert.equal(buildLogModel(db).listPending({ today: TODAY }).length, 0);
+  db.close();
+});
+
+// ── Channel filter (specs/platform-payout-due-date.md §3.3 rules 22-23) ───────────────────────
+
+test('a money template never leaves for a platform booking — its solde is the platform\'s', async () => {
+  const db = fixture();
+  addReservation(db, { id: 100, balanceDueDate: '2026-08-16', platform: 'Airbnb' });
+  addReservation(db, { id: 101, depositDueDate: TODAY, platform: 'Booking' });
+  // Same deadlines on our own channels: those DO get chased.
+  addReservation(db, { id: 102, balanceDueDate: '2026-08-16', platform: 'direct' });
+  addReservation(db, { id: 103, balanceDueDate: '2026-08-16', platform: 'Lodgify' });
+  const sent = [];
+  const out = await runPass(db, sent);
+  assert.equal(out.sentCount, 2);
+  const chased = db.prepare("SELECT reservationId FROM email_log WHERE status = 'sent' ORDER BY reservationId").all();
+  assert.deepEqual(chased.map((r) => r.reservationId), [102, 103]);
+  db.close();
+});
+
+test('an empty platform reads as direct, and is chased like one', async () => {
+  const db = fixture();
+  addReservation(db, { id: 100, balanceDueDate: '2026-08-16', platform: '' });
+  addReservation(db, { id: 101, balanceDueDate: '2026-08-16', platform: '   ' });
+  const sent = [];
+  const out = await runPass(db, sent);
+  assert.equal(out.sentCount, 2, 'a blank channel is a direct booking, not a platform one');
   db.close();
 });

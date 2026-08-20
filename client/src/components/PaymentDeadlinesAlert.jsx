@@ -5,7 +5,10 @@
  * Self-contained like the iCal alerts: fetches its own rows, renders nothing when there are none.
  * Each row offers « Relancer » (re-send the request + payment link), « Reporter » (hide it for a
  * week without moving any échéance) and, once the cancellation deadline is passed, « Annuler le
- * séjour ».
+ * séjour ». A late PLATFORM payout (specs/platform-payout-due-date.md) offers « Reporter » alone:
+ * the money is owed by the platform, so there is no guest to chase and no stay left to cancel — and a
+ * platform booking whose amount was never entered carries no figure to print at all, only the row's
+ * link to the fiche where the operator types it.
  *
  * No business rule here: the state, the amounts, the days late, whether cancelling is offered — all
  * of it arrives ready to render from the server.
@@ -100,6 +103,7 @@ export default function PaymentDeadlinesAlert() {
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   {row.clientName}
                   {row.propertyName ? ` · ${row.propertyName}` : ''}
+                  {row.platformLabel ? ` · ${row.platformLabel}` : ''}
                 </Typography>
               </Stack>
               <Typography variant="body2" color="text.secondary">
@@ -110,24 +114,28 @@ export default function PaymentDeadlinesAlert() {
                 {deadlineHeadline(row)}
                 {row.dueDate ? ` · échéance ${displayDateShort(row.dueDate)}` : ''}
               </Typography>
-              <Typography variant="body2">
-                {row.balanceDue > 0 ? <>Solde <strong>{formatCurrency(row.balanceDue)}</strong></> : null}
-                {row.balanceDue > 0 && row.depositDue > 0 ? ' · ' : ''}
-                {row.depositDue > 0 ? <>Acompte <strong>{formatCurrency(row.depositDue)}</strong></> : null}
-                {row.canCancel && row.retainedDepositAmount > 0
-                  ? <> · acompte conservé si annulation : <strong>{formatCurrency(row.retainedDepositAmount)}</strong></>
-                  : null}
-              </Typography>
+              {row.balanceDue > 0 || row.depositDue > 0 ? (
+                <Typography variant="body2">
+                  {row.balanceDue > 0 ? <>Solde <strong>{formatCurrency(row.balanceDue)}</strong></> : null}
+                  {row.balanceDue > 0 && row.depositDue > 0 ? ' · ' : ''}
+                  {row.depositDue > 0 ? <>Acompte <strong>{formatCurrency(row.depositDue)}</strong></> : null}
+                  {row.canCancel && row.retainedDepositAmount > 0
+                    ? <> · acompte conservé si annulation : <strong>{formatCurrency(row.retainedDepositAmount)}</strong></>
+                    : null}
+                </Typography>
+              ) : null}
               <Box sx={{ mt: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<SendIcon />}
-                  onClick={() => handleRemind(row)}
-                  disabled={busyId === row.reservationId || !row.canRemind}
-                >
-                  Relancer
-                </Button>
+                {row.remindType ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SendIcon />}
+                    onClick={() => handleRemind(row)}
+                    disabled={busyId === row.reservationId || !row.canRemind}
+                  >
+                    Relancer
+                  </Button>
+                ) : null}
                 <Button
                   size="small"
                   variant="outlined"

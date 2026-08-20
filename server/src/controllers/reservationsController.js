@@ -23,6 +23,7 @@ const refundsModel = require('../models/refundsModel');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const platformsModel = require('../models/platformsModel');
+const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
@@ -130,6 +131,13 @@ function applyMidStayNoteActions(reservationId, body) {
 function resolvePlatformTakesDeposit(platform) {
   if (platform == null || String(platform).trim() === '' || String(platform).toLowerCase() === 'direct') return 0;
   try { return platformsModel.getDepositMode(platform); } catch (_) { return 0; }
+}
+
+// specs/platform-payout-due-date.md rule 6 — resolve the GLOBAL per-platform payout delay from the
+// platform name, to feed the pricing engine. Own channels and unknown platforms fall back to the
+// default; the engine ignores the value entirely on a direct booking.
+function resolvePlatformPayoutDueDays(platform) {
+  try { return platformsModel.getPayoutDueDays(platform); } catch (_) { return DEFAULT_PAYOUT_DUE_DAYS; }
 }
 
 const model = reservationsModel;
@@ -443,6 +451,9 @@ function calculatePrice(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
+    // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
+    // at `endDate + N` instead of the guest-facing J-30.
+    platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -554,6 +565,9 @@ function create(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
+    // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
+    // at `endDate + N` instead of the guest-facing J-30.
+    platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
     // specs/payment-schedule-and-cancellation.md §3.1 — booked today: the acompte is due
     // `depositDueDays` from now, the solde 30 days before arrival at the earliest.
     ...scheduleQuoteInputs(0),
@@ -752,6 +766,9 @@ function update(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
+    // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
+    // at `endDate + N` instead of the guest-facing J-30.
+    platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
     ...midStayQuoteInputs(id),
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(id),

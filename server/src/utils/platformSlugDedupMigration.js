@@ -18,10 +18,18 @@
  */
 
 const { formatPlatformName } = require('./platformNameFormat');
+const { DEFAULT_PAYOUT_DUE_DAYS } = require('./platformPayout');
 
 const OPTIONAL_COLS = [
   'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent',
   'color', 'collectsTouristTax', 'touristTaxRemittedByPlatform', 'platformTakesDeposit',
+  'payoutDueDays',
+];
+
+// Columns merged by `isCustomScalar`, in the order they are applied to the surviving row.
+const MERGED_SCALAR_COLS = [
+  'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent', 'color',
+  'platformTakesDeposit', 'payoutDueDays',
 ];
 
 function tableExists(database, name) {
@@ -38,7 +46,10 @@ function isCustomTax(row) {
 // A scalar setting is "customised" when it differs from its column default (0 / NULL / '').
 function isCustomScalar(col, val) {
   if (col === 'color' || col === 'commissionAccountNumber') return val != null && String(val).trim() !== '';
-  return Number(val) !== 0; // hasVatOnCommission, commissionPercent
+  // specs/platform-payout-due-date.md — this one's default is 10, not 0: a platform genuinely set to
+  // 0 days ("pays on the departure day") is a customisation and must survive a dedup.
+  if (col === 'payoutDueDays') return val != null && Number(val) !== DEFAULT_PAYOUT_DUE_DAYS;
+  return Number(val) !== 0; // hasVatOnCommission, commissionPercent, platformTakesDeposit
 }
 
 function runPlatformSlugDedup(database) {
@@ -88,7 +99,7 @@ function runPlatformSlugDedup(database) {
       finalVals.collectsTouristTax = src.collectsTouristTax;
       if (present.includes('touristTaxRemittedByPlatform')) finalVals.touristTaxRemittedByPlatform = src.touristTaxRemittedByPlatform;
     }
-    for (const col of ['commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent', 'color', 'platformTakesDeposit']) {
+    for (const col of MERGED_SCALAR_COLS) {
       if (!present.includes(col)) continue;
       if (isCustomScalar(col, winner[col])) { finalVals[col] = winner[col]; continue; }
       const donor = [...losers].filter((l) => isCustomScalar(col, l[col])).sort((a, b) => b.id - a.id)[0];

@@ -12,6 +12,9 @@ const icalCancellationModel = require('../models/icalCancellationModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
 const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
+const { isDirectChannel } = require('../utils/platformNameFormat');
+const platformsModel = require('../models/platformsModel');
+const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
@@ -218,10 +221,19 @@ function buildController({
      */
     paymentDeadlines(req, res) {
       const today = resolveToday();
-      const rows = buildPaymentDeadlineRows(
-        injectedReservationsModel.listPaymentDeadlineCandidates(today),
-        today,
-      );
+      // specs/platform-payout-due-date.md rule 12bis — the payout deadline is derived from the
+      // departure and the PLATFORM's delay, so each candidate carries its platform's setting. Resolved
+      // here (one lookup per distinct channel) to keep `paymentDeadlines` pure and clock-free.
+      const payoutDaysByPlatform = new Map();
+      const candidates = injectedReservationsModel.listPaymentDeadlineCandidates(today).map((row) => {
+        const key = String(row.platform || 'direct').toLowerCase();
+        if (!payoutDaysByPlatform.has(key)) {
+          try { payoutDaysByPlatform.set(key, platformsModel.getPayoutDueDays(row.platform)); }
+          catch (_) { payoutDaysByPlatform.set(key, DEFAULT_PAYOUT_DUE_DAYS); }
+        }
+        return { ...row, payoutDueDays: payoutDaysByPlatform.get(key) };
+      });
+      const rows = buildPaymentDeadlineRows(candidates, today);
       return res.json({ rows });
     },
 
@@ -251,6 +263,16 @@ function buildController({
       const type = String((req.body && req.body.type) || 'balance');
       if (type !== 'deposit' && type !== 'balance') {
         return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de relance invalide (deposit/balance).' });
+      }
+      // specs/platform-payout-due-date.md rule 20 — a platform booking is paid by the platform, never
+      // by the guest. The card already hides the button; refusing here means the email cannot be sent
+      // by hand either, whatever a stale client or a direct API call asks for.
+      const platform = injectedReservationsModel.getPlatform(id);
+      if (platform !== null && !isDirectChannel(platform)) {
+        return res.status(400).json({
+          error: 'PLATFORM_RESERVATION',
+          message: "Cette réservation est réglée par la plateforme : aucune relance n'est envoyée au client.",
+        });
       }
       try {
         const { httpStatus, body } = type === 'deposit'

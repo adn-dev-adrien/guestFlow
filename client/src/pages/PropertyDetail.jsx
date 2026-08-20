@@ -151,7 +151,7 @@ export default function PropertyDetail() {
   // this property's source config + global colour) drives the whole section.
   const [platformRows, setPlatformRows] = useState([]);
   const [editingKey, setEditingKey] = useState(null);
-  const [editDraft, setEditDraft] = useState({ url: '', touristTaxCollection: 'platform', platformTakesDeposit: 0 });
+  const [editDraft, setEditDraft] = useState({ url: '', touristTaxCollection: 'platform', platformTakesDeposit: 0, payoutDueDays: 10 });
   const [savingKey, setSavingKey] = useState(null);
   const [busyKey, setBusyKey] = useState(null);     // tax/disable toggle or single sync in flight
   const [syncingAll, setSyncingAll] = useState(false);
@@ -547,7 +547,12 @@ export default function PropertyDetail() {
 
   const startEditPlatform = (row) => {
     setEditingKey(row.platformKey);
-    setEditDraft({ url: row.url || '', touristTaxCollection: row.touristTaxCollection || 'platform', platformTakesDeposit: row.platformTakesDeposit ? 1 : 0 });
+    setEditDraft({
+      url: row.url || '',
+      touristTaxCollection: row.touristTaxCollection || 'platform',
+      platformTakesDeposit: row.platformTakesDeposit ? 1 : 0,
+      payoutDueDays: row.payoutDueDays ?? 10,
+    });
   };
 
   const cancelEditPlatform = () => setEditingKey(null);
@@ -565,6 +570,14 @@ export default function PropertyDetail() {
       // The acompte flag is GLOBAL too — persist when changed.
       if (!row.isDirect && (editDraft.platformTakesDeposit ? 1 : 0) !== (row.platformTakesDeposit ? 1 : 0)) {
         await api.setPlatformDepositMode(row.platformLabel, Boolean(editDraft.platformTakesDeposit));
+      }
+      // The payout delay is GLOBAL too. Only an integer in range is sent; anything else leaves the
+      // stored value alone (the server validates authoritatively either way).
+      const payoutDraft = Number(editDraft.payoutDueDays);
+      if (!row.isDirectChannel
+        && Number.isInteger(payoutDraft) && payoutDraft >= 0 && payoutDraft <= 365
+        && payoutDraft !== (row.payoutDueDays ?? 10)) {
+        await api.setPlatformPayoutDueDays(row.platformLabel, payoutDraft);
       }
       await upsertPlatformSource(row, { url });
       await loadPlatforms();
@@ -680,6 +693,32 @@ export default function PropertyDetail() {
           <MenuItem value={1}>Oui</MenuItem>
         </Select>
       </FormControl>
+    );
+  };
+
+  // Virement (specs/platform-payout-due-date.md §3.4): how many days after the guest leaves the
+  // platform is expected to pay. Drives the solde deadline of that platform's reservations and,
+  // past it, the dashboard's « Virement plateforme en retard » alert. GLOBAL per platform.
+  // Own channels (direct, Lodgify) are paid by the guest → no payout to wait for → "—".
+  // Read mode shows the value; unlike the two Selects beside it a free-typed number has no discrete
+  // "changed" moment, so it is edited in the row's edit mode and saved with it.
+  const renderPayoutControl = (row, editing) => {
+    if (row.isDirectChannel) return <Typography variant="caption" color="text.secondary">—</Typography>;
+    const stored = row.payoutDueDays ?? 10;
+    if (!editing) {
+      return <Typography variant="body2" sx={{ color: 'text.secondary' }}>{`${stored} j`}</Typography>;
+    }
+    return (
+      <TextField
+        size="small"
+        type="number"
+        value={editDraft.payoutDueDays ?? stored}
+        onChange={(e) => setEditDraft((d) => ({ ...d, payoutDueDays: e.target.value }))}
+        onFocus={handleZeroFocus}
+        disabled={!canManageExtras}
+        slotProps={{ htmlInput: { min: 0, max: 365, 'aria-label': 'Virement reçu sous (jours)' } }}
+        sx={{ width: 96 }}
+      />
     );
   };
 
@@ -1368,6 +1407,12 @@ export default function PropertyDetail() {
                               {renderDepositControl(row, isEditing)}
                             </Box>
                           )}
+                          {!row.isDirectChannel && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="caption" color="text.secondary">Virement reçu sous :</Typography>
+                              {renderPayoutControl(row, isEditing)}
+                            </Box>
+                          )}
                           {hasUrl && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                               {renderSyncStatus(row)}
@@ -1391,6 +1436,7 @@ export default function PropertyDetail() {
                         <TableCell>URL iCal</TableCell>
                         <TableCell>Taxe de séjour</TableCell>
                         <TableCell>Acompte</TableCell>
+                        <TableCell>Virement sous</TableCell>
                         <TableCell>Dernière synchro</TableCell>
                         <TableCell>État</TableCell>
                         <TableCell align="right">Actions</TableCell>
@@ -1422,6 +1468,7 @@ export default function PropertyDetail() {
                               </TableCell>
                               <TableCell>{renderTaxControl(row, isEditing)}</TableCell>
                               <TableCell>{renderDepositControl(row, isEditing)}</TableCell>
+                              <TableCell>{renderPayoutControl(row, isEditing)}</TableCell>
                               <TableCell>
                                 <Typography variant="caption" sx={{ color: textColor }}>
                                   {hasUrl ? (row.lastSyncAt ? displayDate(row.lastSyncAt.slice(0, 10)) : '—') : ''}
@@ -1432,7 +1479,7 @@ export default function PropertyDetail() {
                             </TableRow>
                             {editingUrl && (
                               <TableRow sx={{ opacity: muted ? 0.75 : 1 }}>
-                                <TableCell colSpan={7} sx={{ pt: 0 }}>
+                                <TableCell colSpan={8} sx={{ pt: 0 }}>
                                   <TextField
                                     size="small"
                                     fullWidth

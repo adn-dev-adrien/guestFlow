@@ -1212,6 +1212,11 @@ function calculateReservationQuote({
   // single-payment behaviour (deposit=0, all in the solde). Truthy → the platform's reservations use the
   // normal acompte/solde split of the GROSS pre-arrival.
   platformTakesDeposit,
+  // specs/platform-payout-due-date.md — GLOBAL per-platform payout delay in days (the controller
+  // resolves it from the platforms table by name, same as the flag above). Drives the solde deadline
+  // of a NON-direct reservation: `balanceDueDate = endDate + platformPayoutDueDays`. Ignored on an
+  // own channel (direct / Lodgify), which keeps the J-30 rule.
+  platformPayoutDueDays,
   // specs/platform-payment-entry.md — the gross the guest paid the platform. When set on a non-direct
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
   // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
@@ -2195,11 +2200,19 @@ function calculateReservationQuote({
     existingDepositDueDate,
     depositDueDays: property.depositDueDays,
   });
+  // specs/platform-payout-due-date.md §3.1 — on a NON-direct reservation the solde is the platform's
+  // payout, due `payoutDueDays` after the guest leaves; own channels keep the J-30 rule above.
   const balanceDueDate = resolveBalanceDueDate({
     hasBalance: resolvedBalanceAmount > 0,
     startDate,
+    endDate,
     bookingDate,
     balanceDaysBefore: property.balanceDaysBefore,
+    // Rule 3 — the payout regime is for reservations only. A devis is a promise made to a guest; even
+    // one carrying a platform name owes its solde on the quote's own schedule, not on a payout that
+    // does not exist yet.
+    platform: String(quoteKind) === 'devis' ? null : platform,
+    platformPayoutDueDays,
   });
 
   // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)

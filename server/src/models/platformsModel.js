@@ -12,8 +12,9 @@
  */
 
 const db = require('../database');
-const { formatPlatformName } = require('../utils/platformNameFormat');
+const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
+const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 
 const DIRECT_NAME = 'direct';
 
@@ -289,6 +290,45 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, platformTakesDeposit: value };
     },
 
+    // specs/platform-payout-due-date.md — GLOBAL per-platform payout delay, in days after the guest
+    // leaves. Read defensively (column absent on minimal/pre-migration test DBs → the default), and
+    // never for an own channel: `direct` and `Lodgify` are paid by the guest, not by a platform.
+    // Matched by SLUG, not by `name COLLATE NOCASE`: an iCal-imported reservation stores the source's
+    // platformKey (`gites-de-france`) while the catalogue row is named `GitesDeFrance`. A name-based
+    // lookup would miss it and silently hand back the default — i.e. the per-platform setting would
+    // never reach the very reservations it exists for.
+    getPayoutDueDays(name) {
+      if (isDirectChannel(name)) return DEFAULT_PAYOUT_DUE_DAYS;
+      const slug = platformSlug(name);
+      if (!slug) return DEFAULT_PAYOUT_DUE_DAYS;
+      try {
+        const row = database.prepare('SELECT name, payoutDueDays AS d FROM platforms').all()
+          .find((p) => platformSlug(p.name) === slug);
+        return normalizePayoutDueDays(row && row.d);
+      } catch (_) {
+        return DEFAULT_PAYOUT_DUE_DAYS;
+      }
+    },
+
+    // Set the platform's GLOBAL payout delay. Upserts by canonical name (mirrors setDepositMode) so a
+    // never-synced built-in can be configured. Own channels are rejected: they have no payout to wait
+    // for. `days` must already be a validated integer — the controller owns the boundary check.
+    setPayoutDueDays(name, days) {
+      const slug = platformSlug(name);
+      if (!slug || isDirectChannel(name)) return null;
+      let row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      if (!row) {
+        const canonical = formatPlatformName(name) || String(name).trim();
+        if (!canonical) return null;
+        stmts.upsert.run(canonical);
+        row = stmts.findByName.get(canonical);
+        if (!row) return null;
+      }
+      const value = normalizePayoutDueDays(days);
+      database.prepare('UPDATE platforms SET payoutDueDays = ? WHERE id = ?').run(value, row.id);
+      return { id: row.id, name: row.name, payoutDueDays: value };
+    },
+
     // Custom colour OVERRIDES only (platforms with a non-NULL `color`), keyed by slug. Consumed by the
     // calendar colour endpoint as `customColors` (the client already knows the built-in defaults).
     colorMap() {
@@ -326,6 +366,14 @@ function createPlatformsModel(database) {
           depositBySlug.set(platformSlug(r.name), Number(r.d) === 1 ? 1 : 0);
         }
       } catch (_) { /* column missing → every platform falls back to 0 (no acompte) */ }
+      // specs/platform-payout-due-date.md — GLOBAL per-platform payout delay. Same defensive read:
+      // a DB predating the column falls back to the default for every platform.
+      const payoutBySlug = new Map();
+      try {
+        for (const r of database.prepare('SELECT name, payoutDueDays AS d FROM platforms').all()) {
+          payoutBySlug.set(platformSlug(r.name), normalizePayoutDueDays(r.d));
+        }
+      } catch (_) { /* column missing → every platform falls back to the default delay */ }
       // Prepared lazily: this model is constructed on minimal test DBs that have no `ical_sources`
       // table; only this per-property merge actually needs it.
       const sources = database.prepare(`
@@ -352,6 +400,11 @@ function createPlatformsModel(database) {
           platformLabel: name,
           color: resolveColor(name, colorBySlug.get(slug)),
           isDirect: slug === DIRECT_NAME,
+          // specs/platform-payout-due-date.md rule 26 — `isDirect` above means « the Direct row »;
+          // this one means « an OWN channel », which also covers Lodgify (the guest pays us, through
+          // Lodgify). Everything that must not apply to an own channel — the payout delay, the
+          // payout-overdue alert — tests THIS flag, never `isDirect`.
+          isDirectChannel: isDirectChannel(name),
           // Built-in (default) platform — present out of the box, can't be removed from the list. Only
           // custom-added platforms expose the "réinitialiser la configuration" (delete) action.
           isBuiltIn: Boolean(KNOWN_PLATFORM_COLORS[slug]),
@@ -369,6 +422,8 @@ function createPlatformsModel(database) {
           })(),
           // specs/platform-deposit-toggle.md — GLOBAL per-platform acompte flag (0 = no acompte, default).
           platformTakesDeposit: slug === DIRECT_NAME ? 0 : (depositBySlug.get(slug) || 0),
+          // specs/platform-payout-due-date.md — days after departure the platform is expected to pay.
+          payoutDueDays: payoutBySlug.has(slug) ? payoutBySlug.get(slug) : DEFAULT_PAYOUT_DUE_DAYS,
           disabled: source ? Number(source.disabled) : 0,
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,

@@ -5,6 +5,8 @@
  */
 
 const platformsModel = require('../models/platformsModel');
+const { isDirectChannel } = require('../utils/platformNameFormat');
+const { parsePayoutDueDaysInput } = require('../utils/platformPayout');
 
 function listNames(req, res) {
   res.json({ platforms: platformsModel.listNames() });
@@ -55,4 +57,21 @@ function setDepositMode(req, res) {
   return res.json({ name: updated.name, platformTakesDeposit: updated.platformTakesDeposit });
 }
 
-module.exports = { listNames, listWithCommission, setCommission, setColor, setTouristTax, setDepositMode };
+// specs/platform-payout-due-date.md §4.3 — set a platform's GLOBAL payout delay (days after the
+// guest leaves before the transfer is considered late). `:key` is the platform label/name.
+// Body `{ days: 0..365 }`. Own channels (`direct`, `Lodgify`) have no payout to wait for.
+function setPayoutDueDays(req, res) {
+  const key = decodeURIComponent(req.params.key || '');
+  if (!key.trim()) return res.status(400).json({ error: 'PLATFORM_REQUIRED' });
+  if (isDirectChannel(key)) return res.status(400).json({ error: 'DIRECT_CHANNEL' });
+  const days = parsePayoutDueDaysInput(req.body && req.body.days);
+  if (days === null) return res.status(400).json({ error: 'INVALID_DAYS' });
+  const updated = platformsModel.setPayoutDueDays(key, days);
+  if (!updated) return res.status(400).json({ error: 'PLATFORM_REQUIRED' });
+  return res.json({ name: updated.name, payoutDueDays: updated.payoutDueDays });
+}
+
+module.exports = {
+  listNames, listWithCommission, setCommission, setColor, setTouristTax, setDepositMode,
+  setPayoutDueDays,
+};
