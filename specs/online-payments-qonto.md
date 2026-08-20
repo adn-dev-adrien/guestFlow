@@ -327,9 +327,15 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 - [ ] `qontoClient` — link creation payload (amount in cents, reference = reservation id), token
       refresh, payment-status parsing; all against a mocked HTTP layer.
 - [ ] `paymentLinksModel` — create/listOpen/markPaid idempotency.
-- [ ] **Last-minute engine rule (`pricing.js`)** — a stay starting within the window → deposit = 0,
-      full total due (depositDisabled), like iCal; outside the window → normal deposit/balance split;
-      threshold is the configurable window.
+- [x] **Last-minute engine rule (`pricing.js`)** — a stay starting within the window → deposit = 0,
+      full total due; outside the window → normal deposit/balance split; the threshold is the
+      property's `balanceDaysBefore`. _(Shipped 2026-08-20 by
+      [deposit-blocks-the-dates.md](deposit-blocks-the-dates.md) §3.2, which also gives the quote the
+      « Paiement intégral » wording and the `full_request` email this rule needed to be collectable.
+      Two refinements to §3.7 rule 18 there: the switch is decided on the BOOKING day, not on today, so
+      a quote never changes its terms as time passes; and it applies to the DIRECT channel only — a
+      platform booking never had an acompte to drop. `depositDisabled` stays the operator's own
+      opt-out, untouched.)_
 - [x] Polling pass — open link paid → marks paid + converts devis + posts dashboard msg + queues
       emails; already-paid link skipped; API error doesn't throw. _(payment-poll-runner unit tests)_
 - [x] **Confirmation email** — a paid **deposit**/**full** link triggers `sendConfirmation` with the
@@ -359,7 +365,9 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 ### Manual verification
 - [x] End-to-end on a Qonto **test/sandbox**: deposit link → pay → polling converts devis. _(confirmation
       email send requires SMTP configured; the conversion + send wiring is unit-tested.)_
-- [ ] Last-minute devis (≤ 30 j) → no deposit on the fiche, single full-payment email + link.
+- [x] Last-minute devis (≤ 30 j) → no deposit on the fiche, single full-payment email + link.
+      _(2026-08-20 — engine, PDF and `full_request` email covered by unit tests; the sandbox card run
+      rides along with the next prod payment test.)_
 - [ ] Deposit unpaid past deadline → devis abandoned + client email + unpaid page.
 - [ ] Balance J-10 email + link; pay → confirmation; overdue J+1 → client email + dashboard cancel → unpaid page.
 - [ ] Manual fallback (mark received) still works with polling off.

@@ -26,6 +26,14 @@ test('mode = deposit only when the property opted in AND the deposit is positive
   assert.equal(resolvePublicPaymentMode(seed({ enabled: 1 }), 1, 0), 'full', 'zero deposit → full even if opted in');
 });
 
+// specs/deposit-blocks-the-dates.md rule 16 — the last-minute switch reaches the website for free: with
+// no acompte on the devis, the mode falls back to `full`, so the site charges the stay once instead of
+// displaying an Acompte/Solde plan that no longer means anything. No plugin change, hence this anchor.
+test('a last-minute devis (no acompte) makes the website ask for the whole stay', () => {
+  const db = seed({ enabled: 1, depositAmount: 0 });
+  assert.equal(resolvePublicPaymentMode(db, 1, depositPaymentCents(db, 10)), 'full');
+});
+
 test('mode is defensive: a missing column / unknown property → full (never throws)', () => {
   const db = new Database(':memory:');
   db.exec('CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT)'); // no publicDepositEnabled column

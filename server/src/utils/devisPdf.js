@@ -12,6 +12,7 @@ const {
   resolveExtraGuestPdfRow, timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
+const { isDirectChannel } = require("./platformNameFormat");
 
 // specs/devis-pdf-total-parity.md §3.2 rules 6–10 — single source of truth for the tax + grand-total
 // numbers the PDF renders. Two principles, in order:
@@ -640,43 +641,71 @@ function generateDevisPdf(full, settings, quote) {
   const payTextColor = TEXT_DARK;
   const depositAmt = Number(full.depositAmount || 0);
   const balanceAmt = Number(full.balanceAmount || 0);
+  const { securesDates, isFullPayment } = __resolvePaymentBlock({
+    platform: full.platform, depositAmount: depositAmt, balanceAmount: balanceAmt,
+  });
+
+  // One geometry for both schedule rows, plus the mention that explains them. Two rules bought here:
+  //   • the amount column opens after the label instead of at a fixed offset, so a long label
+  //     (« Paiement intégral : », « Security deposit: ») can't run into the figure it introduces;
+  //   • a row and its mention are measured and reserved TOGETHER, so a page break can never leave the
+  //     sentence stranded at the top of the next page, away from the amount it qualifies.
+  const drawScheduleRow = ({ label, amount, dueDate, fill, boxH, step, note = null, amountSuffix = '', labelColor = TEXT_LIGHT }) => {
+    let noteH = 0;
+    if (note) {
+      doc.fontSize(8).font('Helvetica-Oblique');
+      noteH = doc.heightOfString(note, { width: PAGE_W - 16 }) + 6;
+    }
+    py = checkBreak(py, step + noteH);
+
+    doc.rect(LEFT, py, PAGE_W, boxH).fill(fill);
+    doc.fontSize(9).font('Helvetica').fillColor(labelColor).text(label, LEFT + 8, py + 7);
+    const amountX = LEFT + 8 + Math.max(62, doc.widthOfString(label) + 8);
+    const amountText = `${formatCurrency(amount)}${amountSuffix}`;
+    doc.font('Helvetica-Bold').fillColor(payTextColor).text(amountText, amountX, py + 7);
+    if (dueDate) {
+      const dateX = Math.max(LEFT + 170, amountX + doc.widthOfString(amountText) + 12);
+      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(`${L.payBefore}${fmtDate(dueDate)}`, dateX, py + 7);
+    }
+    py += step;
+
+    if (note) {
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor(TEXT_LIGHT)
+        .text(note, LEFT + 8, py, { width: PAGE_W - 16 });
+      py += noteH;
+    }
+  };
 
   // Acompte (même logique que le résumé de réservation : montant + échéance)
   if (depositAmt > 0) {
-    py = checkBreak(py, 34);
-    doc.rect(LEFT, py, PAGE_W, 28).fill('#fff8e1');
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(L.depositLabel, LEFT + 8, py + 7);
-    doc.font('Helvetica-Bold').fillColor(payTextColor)
-      .text(formatCurrency(depositAmt), LEFT + 70, py + 7);
-    if (full.depositDueDate) {
-      doc.font('Helvetica').fillColor(TEXT_LIGHT)
-        .text(`${L.payBefore}${fmtDate(full.depositDueDate)}`, LEFT + 170, py + 7);
-    }
-    py += 34;
+    drawScheduleRow({
+      label: L.depositLabel, amount: depositAmt, dueDate: full.depositDueDate,
+      fill: '#fff8e1', boxH: 28, step: 34,
+      note: securesDates ? L.depositSecuresDates : null,
+    });
   }
 
-  // Solde (même logique que le résumé de réservation : montant + échéance)
+  // Solde — or, on a direct quote with no acompte, the single full payment (rule 8).
   if (balanceAmt > 0) {
-    py = checkBreak(py, 30);
-    doc.rect(LEFT, py, PAGE_W, 24).fill(LIGHT_GRAY);
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(L.balanceLabel, LEFT + 8, py + 7);
-    doc.font('Helvetica-Bold').fillColor(payTextColor)
-      .text(formatCurrency(balanceAmt), LEFT + 70, py + 7);
-    if (full.balanceDueDate) {
-      doc.font('Helvetica').fillColor(TEXT_LIGHT)
-        .text(`${L.payBefore}${fmtDate(full.balanceDueDate)}`, LEFT + 170, py + 7);
-    }
-    py += 30;
+    drawScheduleRow({
+      label: isFullPayment ? L.fullPaymentLabel : L.balanceLabel,
+      amount: balanceAmt,
+      dueDate: full.balanceDueDate,
+      fill: isFullPayment ? '#fff8e1' : LIGHT_GRAY,
+      boxH: isFullPayment ? 28 : 24,
+      step: isFullPayment ? 34 : 30,
+      note: isFullPayment ? L.fullPaymentSecuresDates : null,
+    });
   }
 
-  // Caution
+  // Caution — same column rule as the rows above: « Security deposit: » is longer than « Caution : »
+  // and used to be overprinted by its own amount on the English quote.
   if (Number(full.cautionAmount || 0) > 0) {
-    py = checkBreak(py, 30);
-    doc.rect(LEFT, py, PAGE_W, 24).fill('#e8f5e9');
-    doc.fontSize(9).fillColor('#2e7d32').font('Helvetica').text(L.cautionLabel, LEFT + 8, py + 7);
-    doc.font('Helvetica-Bold').fillColor(payTextColor)
-      .text(`${formatCurrency(full.cautionAmount)}${L.cautionOnArrival}`, LEFT + 70, py + 7);
-    py += 30;
+    drawScheduleRow({
+      label: L.cautionLabel, amount: full.cautionAmount, dueDate: null,
+      fill: '#e8f5e9', boxH: 24, step: 30,
+      amountSuffix: L.cautionOnArrival, labelColor: '#2e7d32',
+    });
   }
 
   // ── Custom footer text ────────────────────────────────────────────────────
@@ -744,6 +773,20 @@ function __resolveResourceName(rsc, language) {
   return rsc && rsc.name ? rsc.name : `Resource #${rsc?.resourceId}`;
 }
 
+// specs/deposit-blocks-the-dates.md rules 1, 3 and 8 — who the payment block speaks to and what it
+// calls the money:
+//   • `securesDates` — only a DIRECT channel promises to hold the dates against a payment we collect;
+//     a platform booking is settled by the platform, so its block stays mention-free.
+//   • `isFullPayment` — a direct quote with no acompte owes ONE payment; calling 100 % of a stay a
+//     « solde » would name something that never existed.
+function __resolvePaymentBlock({ platform, depositAmount, balanceAmount } = {}) {
+  const securesDates = isDirectChannel(platform);
+  return {
+    securesDates,
+    isFullPayment: securesDates && Number(depositAmount || 0) <= 0 && Number(balanceAmount || 0) > 0,
+  };
+}
+
 function __resolveFooterText(settings, language, defaultEn, defaultFr) {
   const lang = String(language || 'fr').toLowerCase();
   const custom = lang === 'en' ? settings?.quoteFooterTextEn : settings?.quoteFooterText;
@@ -760,5 +803,6 @@ module.exports = {
     resolveOptionTitle: __resolveOptionTitle,
     resolveResourceName: __resolveResourceName,
     resolveFooterText: __resolveFooterText,
+    resolvePaymentBlock: __resolvePaymentBlock,
   },
 };

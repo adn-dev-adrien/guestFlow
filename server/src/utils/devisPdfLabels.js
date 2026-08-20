@@ -87,6 +87,11 @@ const FR = Object.freeze({
   depositLabel:    'Acompte :',
   balanceLabel:    'Solde :',
   payBefore:       'À payer avant le ',
+  // specs/deposit-blocks-the-dates.md rules 1 + 8 — what the payment actually buys. Wording is the one
+  // the `deposit_request` email already uses, so the guest reads the same sentence twice.
+  depositSecuresDates:     'Le règlement de l\'acompte bloque vos dates : tant qu\'il n\'est pas payé, elles restent disponibles et peuvent être réservées par un autre client.',
+  fullPaymentLabel:        'Paiement intégral :',
+  fullPaymentSecuresDates: 'Le règlement du séjour bloque vos dates : tant qu\'il n\'est pas payé, elles restent disponibles et peuvent être réservées par un autre client.',
   cautionLabel:    'Caution :',
   cautionOnArrival: ' — à remettre le jour de votre arrivée',
 
@@ -172,6 +177,9 @@ const EN = Object.freeze({
   depositLabel:    'Deposit:',
   balanceLabel:    'Balance:',
   payBefore:       'Due before ',
+  depositSecuresDates:     'Paying the deposit secures your dates: until it is paid, they remain available and may be booked by another guest.',
+  fullPaymentLabel:        'Full payment:',
+  fullPaymentSecuresDates: 'Paying for the stay secures your dates: until it is paid, they remain available and may be booked by another guest.',
   cautionLabel:    'Security deposit:',
   cautionOnArrival: ' — payable on arrival',
 

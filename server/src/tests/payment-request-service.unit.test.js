@@ -117,7 +117,9 @@ test('sendPaymentRequest: unsupported type → 400 INVALID_TYPE (no link created
   const { db, devisId } = seed();
   let createCalls = 0;
   const deps = baseDeps(db, { createLink: async () => { createCalls++; return {}; } });
-  const { httpStatus, body } = await sendPaymentRequest(deps, devisId, 'full'); // no full_request template
+  // An explicit type nobody supports is refused, never quietly turned into another request
+  // (specs/deposit-blocks-the-dates.md rule 10).
+  const { httpStatus, body } = await sendPaymentRequest(deps, devisId, 'tip');
   assert.equal(httpStatus, 400);
   assert.equal(body.error, 'INVALID_TYPE');
   assert.equal(createCalls, 0);

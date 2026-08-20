@@ -467,6 +467,57 @@ const CANCELLATION_NOTICE_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// Full-payment request — a last-minute stay owes ONE payment, so there is no acompte to ask for
+// (specs/deposit-blocks-the-dates.md rules 8 + 11). `{{paymentAmount}}` is the amount the Qonto link
+// actually charges, injected per-send like `{{paymentLink}}`.
+const FULL_REQUEST_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Votre séjour {{propertyWithArticle}} approche : il se règle en une seule fois, en ligne.',
+  '',
+  'Récapitulatif de votre séjour :',
+  '- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+  '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+  '{{#if hasReservedOptions}}- Option(s) : {{reservedOptionsList}}',
+  '{{/if}}{{#if hasResources}}- Équipements : {{resourcesList}}',
+  '{{/if}}',
+  'Montant à régler : {{paymentAmount}}',
+  '',
+  'Payer en ligne : {{paymentLink}}',
+  '',
+  'Important : le règlement bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
+  '',
+  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const FULL_REQUEST_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'Your stay at {{propertyWithArticle}} is coming up: it is settled in a single online payment.',
+  '',
+  'Summary of your stay:',
+  '- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}} from {{checkInTime}}',
+  '- Departure: {{endDate}} before {{checkOutTime}}',
+  '{{#if hasReservedOptions}}- Option(s): {{reservedOptionsList}}',
+  '{{/if}}{{#if hasResources}}- Equipment: {{resourcesList}}',
+  '{{/if}}',
+  'Amount to pay: {{paymentAmount}}',
+  '',
+  'Pay online: {{paymentLink}}',
+  '',
+  'Important: paying secures your dates. Until it is paid, they remain available and may be booked by another guest.',
+  '',
+  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 const DEFAULT_TEMPLATES = Object.freeze([
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
@@ -558,6 +609,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual',   // excluded from the manual queue/auto cron (EVENT_TRIGGERED_STABLE_KEYS)
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'full_request',
+    name:      'Demande de paiement intégral (lien de paiement)',
+    subject:   'Réglez votre séjour {{propertyWithArticle}} pour confirmer vos dates',
+    body:      FULL_REQUEST_BODY,
+    subjectEn: 'Pay for your stay at {{propertyWithArticle}} to confirm your dates',
+    bodyEn:    FULL_REQUEST_BODY_EN,
+    dayOffset: 0,          // sentinel — action-triggered (host « Envoyer la demande de paiement »)
+    sendMode:  'manual',   // rule 11 — a request for money is never sent by a cron
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -569,14 +631,14 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'cancellation_notice']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'cancellation_notice']);
 
 // Every template that asks a guest for money (specs/payment-schedule-and-cancellation.md §1 amendment,
 // rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the
 // server cannot judge — it cannot know the acompte arrived by transfer this morning or that a delay was
 // agreed by phone. A request leaves on an operator click (dashboard card / reservation page); a reminder
 // waits in the manual queue. A new money template joins this list, and the seed test enforces the rule.
-const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder']);
+const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder', 'full_request']);
 
 module.exports = {
   DEFAULT_TEMPLATES,

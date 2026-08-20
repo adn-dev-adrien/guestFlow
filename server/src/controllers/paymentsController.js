@@ -26,6 +26,7 @@ const emailLogModel = require('../models/emailLogModel');
 const { createEmailService } = require('../utils/emailService');
 const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimingsValidation');
 const { validateProviderConnection } = require('../utils/paymentProviderValidation');
+const { formatCurrency } = require('../utils/devisHelpers');
 
 const CALLBACK_PATH = '/api/payments/qonto/callback';
 
@@ -191,11 +192,16 @@ function requestServiceDeps() {
     resolveItems: (id, type) => resolveVatComponents(id, type),
     createLink: ({ title, amountCents, items, expectedTotalCents }) =>
       withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents })),
-    sendTemplate: ({ reservationId, stableKey, paymentLink }) => sendReservationTemplateEmail({
+    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
       reservationId, stableKey,
-      extraContext: { vars: { paymentLink }, flags: { hasPaymentLink: true } },
+      // specs/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
+      // charges: the amount travels with the link rather than being re-derived from the row.
+      extraContext: {
+        vars: { paymentLink, paymentAmount: formatCurrency(Number(amountCents || 0) / 100) },
+        flags: { hasPaymentLink: true },
+      },
     }),
   };
 }
@@ -272,7 +278,9 @@ async function createReservationPaymentLink(req, res) {
 // the link AND emails the matching `<type>_request` template to the guest with the link injected.
 async function sendPaymentRequestEmail(req, res) {
   const id = Number(req.params.id);
-  const type = String((req.body && req.body.type) || 'deposit');
+  // specs/deposit-blocks-the-dates.md rule 10 — an omitted type is resolved from the record by the
+  // service (acompte when there is one, full payment otherwise); it is no longer assumed to be a deposit.
+  const type = req.body && req.body.type ? String(req.body.type) : null;
   try {
     const { httpStatus, body } = await paymentRequestService.sendPaymentRequest(requestServiceDeps(), id, type);
     return res.status(httpStatus).json(body);

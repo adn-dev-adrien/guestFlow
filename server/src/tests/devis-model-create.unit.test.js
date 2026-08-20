@@ -92,6 +92,45 @@ test('create honours a manual accommodation price (override 300 → final 350)',
   assert.equal(result.data.customPrice, 300);
 });
 
+// specs/deposit-blocks-the-dates.md rules 4-5 + 7 — a devis being created is booked TODAY. The engine
+// has no clock, so the model injects the day; passing null (as it did) persisted a schedule computed as
+// if the booking day were unknown — an acompte on a stay too close to collect one, and a solde deadline
+// free to land in the past — while the fiche's live recompute, which does inject today, showed the
+// right thing. Found on the dev server: the screen said « Acompte 0,00 € », the stored row said 130,25 €.
+function daysFromToday(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+test('a devis created for a stay inside the solde window persists NO acompte', () => {
+  const { model, db } = freshModel();
+  db.prepare('UPDATE properties SET balanceDaysBefore = 30 WHERE id = 1').run();
+  const full = model.create({
+    ...BASE, startDate: daysFromToday(10), endDate: daysFromToday(13),
+  }).data;
+
+  const row = db.prepare('SELECT depositAmount, balanceAmount, depositDueDate, balanceDueDate, validUntil FROM reservations WHERE id = ?').get(full.id);
+  assert.equal(row.depositAmount, 0, 'stored: no acompte on a last-minute quote');
+  assert.equal(row.balanceAmount, 360, 'the whole stay rides the single payment');
+  assert.equal(row.depositDueDate, null);
+  assert.equal(row.balanceDueDate, row.validUntil, 'due on the day the quote stops promising the dates');
+  assert.ok(row.balanceDueDate >= daysFromToday(0), 'a deadline in the past would be unchaseable');
+  assert.equal(full.depositAmount, 0, 'and the fiche reads the same thing as the row');
+});
+
+test('a devis created well ahead keeps its acompte', () => {
+  const { model, db } = freshModel();
+  db.prepare('UPDATE properties SET balanceDaysBefore = 30 WHERE id = 1').run();
+  const full = model.create({
+    ...BASE, startDate: daysFromToday(90), endDate: daysFromToday(93),
+  }).data;
+
+  const row = db.prepare('SELECT depositAmount, balanceAmount FROM reservations WHERE id = ?').get(full.id);
+  assert.equal(row.depositAmount, 108, '30 % of 360');
+  assert.equal(row.balanceAmount, 252);
+});
+
 test('create validates required fields and property existence', () => {
   const { model } = freshModel();
   assert.equal(model.create({ clientId: 1, startDate: 'a', endDate: 'b' }).status, 400); // no propertyId

@@ -2608,31 +2608,34 @@ export default function ReservationPage() {
     updateForm({ status: nextStatus });
   };
 
-  // Online payments (specs/online-payments-qonto.md §3.4): create + open the deposit payment link for
-  // this devis, then offer to poll for the payment (which converts the devis on success).
-  const handleSendDepositRequest = async () => {
+  // Online payments (specs/online-payments-qonto.md §3.4): create + open the payment link for this
+  // devis, then offer to poll for the payment (which converts the devis on success). What is asked
+  // for — acompte or paiement intégral — is decided by the server and echoed back
+  // (specs/deposit-blocks-the-dates.md rules 10 + 12).
+  const handleSendPaymentRequest = async () => {
     if (!editingDevisId) {
-      await alert({ title: 'Enregistre d’abord', message: 'Enregistre le devis avant de générer une demande d’acompte.' });
+      await alert({ title: 'Enregistre d’abord', message: 'Enregistre le devis avant de générer une demande de paiement.' });
       return;
     }
     try {
-      // Persist current edits first so the link amount matches the acompte shown on the fiche
+      // Persist current edits first so the link amount matches what the fiche shows
       // (the server recomputes from the SAVED devis).
       const saved = await handleSaveReservation(() => {});
       if (!saved) return;
-      // The server creates/reuses the Qonto deposit link AND emails it to the client in one action.
-      const r = await api.sendDepositRequestEmail(editingDevisId);
+      // The server creates/reuses the Qonto link AND emails it to the client in one action.
+      const r = await api.sendPaymentRequestEmail(editingDevisId);
       const euros = formatCurrency(Number(r.amountCents || 0) / 100);
+      const isDeposit = r.type === 'deposit';
       const check = await confirm({
-        title: 'Demande d’acompte envoyée ✓',
-        message: `Un email avec le lien de paiement de l’acompte (${euros}) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé, clique « Vérifier le paiement ».`,
+        title: isDeposit ? 'Demande d’acompte envoyée ✓' : 'Demande de paiement envoyée ✓',
+        message: `Un email avec le lien de paiement ${isDeposit ? 'de l’acompte' : 'du séjour'} (${euros}) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé, clique « Vérifier le paiement ».`,
         confirmLabel: 'Vérifier le paiement',
         cancelLabel: 'Fermer',
         confirmColor: 'primary',
       });
       if (check) await handleCheckDepositPayment();
     } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande d’acompte (Qonto connecté ? email client renseigné ?).' });
+      await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande de paiement (Qonto connecté ? email client renseigné ?).' });
     }
   };
 
@@ -2656,11 +2659,14 @@ export default function ReservationPage() {
     try {
       const summary = await api.pollPayments();
       const conv = (summary.results || []).find((x) => Number(x.reservationId) === Number(editingDevisId) && x.status === 'paid');
+      // The link type says what was actually collected — an acompte, or the whole stay on a
+      // last-minute devis (specs/deposit-blocks-the-dates.md rule 12).
+      const paidTitle = conv && conv.type === 'deposit' ? 'Acompte reçu ✓' : 'Paiement reçu ✓';
       if (conv && (conv.effect === 'converted' || conv.effect === 'already-converted')) {
-        await alert({ title: 'Acompte reçu ✓', message: 'Le devis a été converti en réservation (dates bloquées).' });
+        await alert({ title: paidTitle, message: 'Le devis a été converti en réservation (dates bloquées).' });
         navigate(`/reservations/${conv.reservationId}?from=${encodeURIComponent('/calendar')}`);
       } else if (conv) {
-        await alert({ title: 'Acompte reçu ✓', message: 'Le paiement de l’acompte est enregistré.' });
+        await alert({ title: paidTitle, message: 'Le paiement est enregistré.' });
       } else {
         await alert({ title: 'Pas encore payé', message: 'Aucun paiement détecté pour ce devis. Réessaie après avoir réglé le lien.' });
       }
@@ -2858,7 +2864,7 @@ export default function ReservationPage() {
       ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
     // specs/online-payments-qonto.md §3.4 — generate + send the Qonto deposit payment link for this devis.
     ...(isDevisMode && editingDevisId
-      ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande d\'acompte', onClick: handleSendDepositRequest, color: 'success' }] : []),
+      ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande de paiement', onClick: handleSendPaymentRequest, color: 'success' }] : []),
     // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
     // collected online but the solde is still due (reservation, positive balance, not yet paid).
     // Réservation PLATEFORME exclue : le solde est encaissé par la plateforme et nous est reversé,
