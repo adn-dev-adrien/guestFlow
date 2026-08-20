@@ -76,6 +76,12 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
    exactement le **nombre de nuits** : c'est le contrôle demandé, il est structurel.
    À l'ouverture, **tous les matins sont cochés** (l'upsell naturel est « le séjour entier ») ;
    décocher est libre, et n'en garder aucun annule la vente (message explicite).
+   4.bis **Le nombre de petits déjeuners par matin est réglable** (2026-08-20,
+   [card-option-served-persons.md](card-option-served-persons.md)) : un pas-à-pas « Personnes servies »
+   sous la grille, pré-rempli avec la tablée (ou avec ce que ce SAS a vendu en ré-ouverture) et plafonné
+   à la capacité du logement. La légende devient « Quantité : 6 (2 × 3 pers. servies) », et le montant
+   suit. La composition enchaînée (rule 5) est pré-remplie **à partir du nombre servi**, pas de la
+   tablée : 3 servis → 3 viennoiseries et 1,5 baguette.
 5. **La composition enchaîne la vente** : la page « Petit déjeuner » existante (café / thé / chocolat /
    lait, viennoiseries / céréales / pain) s'ouvre juste après, **pré-remplie** avec l'heure de l'option
    et les défauts d'un check-in jamais validé (viennoiseries = nb de personnes, ½ baguette/pers. —
@@ -92,8 +98,11 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
 7. **Page catalogue** : une ligne par option, avec son prix et son type de prix, et le contrôle qui
    correspond à sa nature — **le même système que la fiche** :
    - option à carte (*Le repas des trappeurs*) → la **grille des moments** (jour × créneau) ; la
-     quantité facturée est `moments × personnes`, affichée comme sur la fiche. Rien n'est pré-coché :
-     un repas se prend moment par moment (divergence assumée avec la fiche, qui pré-coche tout).
+     quantité facturée est `moments × personnes servies`, affichée comme sur la fiche. Rien n'est
+     pré-coché : un repas se prend moment par moment (divergence assumée avec la fiche, qui pré-coche
+     tout). Dès qu'un moment est coché, le pas-à-pas **« Personnes servies »** apparaît (2026-08-20,
+     [card-option-served-persons.md](card-option-served-persons.md)) : la tablée par défaut, baissée
+     quand les enfants ne mangent pas, plafonnée à la capacité du logement.
    - option simple (planches) → un **interrupteur** qui remplit tout seul la quantité par défaut (le
      multiplicateur du type de prix : `per_person` → la tablée, `per_stay` → 1), puis un pas-à-pas
      pour l'ajuster.
@@ -109,12 +118,14 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
    du petit déjeuner et le comptage habituel des prestations, exactement comme si la prestation avait
    été prise avant le check-in.
 10. **Le client envoie l'intention, jamais un prix** (CLAUDE.md §6.0) : `soldOptions` =
-    `[{ optionId, occurrences }]` (option à carte) ou `[{ optionId, units }]` (les unités facturées, ce
-    que la fiche appelle « Qté »). Le serveur résout l'option, le **prix par logement**
-    (`property_option_prices` sinon `options.price`) et l'arithmétique du moteur :
-    `billedUnits = occurrences × personnes` / `units`, `quantity = occurrences` /
-    `units ÷ multiplicateur`, `totalPrice = prix × billedUnits`. Un moment que le client ne peut pas
-    honorer (hors présence) est refusé côté serveur.
+    `[{ optionId, occurrences, persons }]` (option à carte — `persons` = les couverts, 2026-08-20) ou
+    `[{ optionId, units }]` (les unités facturées, ce que la fiche appelle « Qté »). Le serveur résout
+    l'option, le **prix par logement** (`property_option_prices` sinon `options.price`) et
+    l'arithmétique du moteur : `billedUnits = occurrences × personnes servies` / `units`,
+    `quantity = occurrences` / `units ÷ multiplicateur`, `totalPrice = prix × billedUnits`. Un moment
+    que le client ne peut pas honorer (hors présence) est refusé côté serveur, et `persons` est borné à
+    la capacité du logement puis persisté dans `reservation_options.cardPersons` (`NULL` = toute la
+    tablée).
 11. **Remplacement, jamais empilement** ([reopen-completed-sas.md](reopen-completed-sas.md) §4 rule 4) :
     le tableau `soldOptions` est la sélection complète du run. Toute option `sasArrivalOrigin = 1`
     absente du tableau est supprimée (sauf le ménage et le linge de toilette, qui gardent leurs propres
@@ -143,7 +154,8 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
 ### 3.5 Traces
 
 14. L'historique de la fiche gagne une ligne **« Prestations vendues au check-in »** (titre × unités et
-    montant), à côté des lignes ménage / linge de toilette existantes
+    montant, plus « — 1 × 2 pers. servies » quand les couverts ne sont pas toute la tablée), à côté des
+    lignes ménage / linge de toilette existantes
     ([arrival-departure-sas.md](arrival-departure-sas.md) §3.7).
 
 **Edge cases:**
@@ -200,8 +212,8 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
 
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/reservations/:id/sas?mode=arrival` | — | ajoute `sasSales: { persons, nights, breakfast: { available, optionId, title, unitPrice, priceType, perPerson, showsPlanningCard, mornings[], selected[], defaultUnits, defaultComposition, sasOrigin }, catering: { available, options: [{ optionId, title, description, unitPrice, priceType, perPerson, showsPlanningCard, occurrences[], selectedOccurrences[], selectedUnits, defaultUnits, multiplier }] } }` | Le serveur décide de ce qui est vendable et à quel prix. `mode=departure` → tout vide. |
-| POST | `/api/reservations/:id/sas/arrival` | `soldOptions: [{ optionId, occurrences: [{date,time}] } \| { optionId, units }]` — sélection complète, `undefined` si les étapes n'ont pas tourné | `{ ok, complementAmount }` | Le serveur tarife, remplace les lignes du SAS et route l'argent (complément d'arrivée, ou fin de séjour si le complément est gelé). |
+| GET | `/api/reservations/:id/sas?mode=arrival` | — | ajoute `sasSales: { persons, nights, breakfast: { available, optionId, title, unitPrice, priceType, perPerson, showsPlanningCard, mornings[], selected[], defaultUnits, defaultPersons, maxPersons, selectedPersons, compositionPerPerson, sasOrigin }, catering: { available, options: [{ optionId, title, description, unitPrice, priceType, perPerson, showsPlanningCard, occurrences[], selectedOccurrences[], selectedUnits, defaultUnits, multiplier, defaultPersons, maxPersons, selectedPersons }] } }` | Le serveur décide de ce qui est vendable, à quel prix et pour combien de couverts au maximum. `mode=departure` → tout vide. `compositionPerPerson` remplace `defaultComposition` (2026-08-20) : la règle par personne servie, que l'assistant multiplie par le nombre vendu. |
+| POST | `/api/reservations/:id/sas/arrival` | `soldOptions: [{ optionId, occurrences: [{date,time}], persons } \| { optionId, units }]` — sélection complète, `undefined` si les étapes n'ont pas tourné | `{ ok, complementAmount }` | Le serveur tarife, remplace les lignes du SAS et route l'argent (complément d'arrivée, ou fin de séjour si le complément est gelé). `persons` (les couverts) est borné à la capacité du logement. |
 
 ---
 
@@ -276,6 +288,10 @@ recalculée.
 - [x] Mobile (`xs`) : pages plein écran, chips et lignes empilés, boutons pleine largeur.
 
 ## 8. Out of scope
+
+> **Amendé le 2026-08-20** par [card-option-served-persons.md](card-option-served-persons.md) : le
+> nombre de couverts d'une option à carte facturée par personne est désormais réglable au check-in
+> (et sur la fiche). Le reste de cette section tient toujours.
 
 - Ajouter des matins à un petit déjeuner **déjà réservé** (décision 2026-08-17 : ça passe par la fiche).
 - Vendre au **check-out** (le SAS de départ ne vend rien).

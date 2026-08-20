@@ -234,7 +234,10 @@ confirmation — records the caution status and the complement(s) on the reserva
     restituée, ménage et linge de toilette pris ou retirés, éléments de linge facturés, complément à
     percevoir + encaissement + report en fin de séjour, complément de fin de séjour + son détail,
     composition et heure du petit déjeuner, note pour le départ, état de l'extincteur à l'arrivée et au
-    départ. Only fields that actually moved appear — a step the operator skipped writes nothing.
+    départ, **prestations vendues au check-in** (titre × unités, montant, et « — 1 × 2 pers. servies »
+    quand les couverts d'une option à carte ne sont pas toute la tablée —
+    [card-option-served-persons.md](card-option-served-persons.md) §3.3 rule 15).
+    Only fields that actually moved appear — a step the operator skipped writes nothing.
 26. **Never blocks the commit.** The history is written after the money is committed and inside a
     try/catch: a failure there is logged, never surfaced as a failed check-in.
 27. **A commit that changed nothing writes no entry** (same contract as the fiche's `update`).

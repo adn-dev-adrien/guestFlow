@@ -20,7 +20,7 @@ const DDL = `
   CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, showsPlanningCard INTEGER DEFAULT 0);
   CREATE TABLE reservation_options (
     reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL,
-    cardOccurrences TEXT, PRIMARY KEY (reservationId, optionId)
+    cardOccurrences TEXT, cardPersons REAL, PRIMARY KEY (reservationId, optionId)
   );
 `;
 
@@ -145,4 +145,24 @@ test('setOccurrenceDone returns an error for an unknown occurrence', () => {
   assert.equal(model.setOccurrenceDone({ reservationId: 1, optionId: 10, date: '2026-07-30', time: '12:00', done: true }).error, 'OCCURRENCE_NOT_FOUND');
   assert.equal(model.setOccurrenceDone({ reservationId: 999, optionId: 10, date: '2026-07-11', time: '12:00', done: true }).error, 'NOT_FOUND');
   db.close();
+});
+
+// specs/card-option-served-persons.md §3.4 rule 18 — the cook must read the covers actually sold.
+
+test('a reduced number of covers rides on the card', () => {
+  const db = freshDb();
+  addReservation(db, { id: 1 });
+  addOption(db, 1, 10, [{ date: '2026-07-10', time: '19:30' }]);
+  db.prepare('UPDATE reservation_options SET cardPersons = 2 WHERE reservationId = 1 AND optionId = 10').run();
+  const item = buildModel(db).cardsInRange({ from: '2026-07-10', to: '2026-07-10' })['2026-07-10'].items[0];
+  assert.equal(item.servedPersons, 2);
+  assert.equal(item.adults, 2, 'the party still rides along as context');
+});
+
+test('a prestation served to the whole party carries no cover count', () => {
+  const db = freshDb();
+  addReservation(db, { id: 1 });
+  addOption(db, 1, 10, [{ date: '2026-07-10', time: '19:30' }]);
+  const item = buildModel(db).cardsInRange({ from: '2026-07-10', to: '2026-07-10' })['2026-07-10'].items[0];
+  assert.equal(item.servedPersons, null);
 });

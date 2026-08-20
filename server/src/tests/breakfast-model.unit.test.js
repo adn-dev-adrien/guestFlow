@@ -59,6 +59,7 @@ const DDL = `
     optionId INTEGER NOT NULL,
     quantity REAL DEFAULT 1,
     cardOccurrences TEXT,
+    cardPersons REAL,
     PRIMARY KEY (reservationId, optionId)
   );
   CREATE TABLE property_option_defaults (
@@ -470,4 +471,39 @@ test('legacy (no planning card): quantity keeps its sub-occupation meaning', () 
   linkOption(db, 1, 1, 0.6667);        // 2 of 3 want breakfast
 
   assert.equal(buildModel(db).getForReservation(1).persons, 2);
+});
+
+// specs/card-option-served-persons.md §3.4 rules 16-17 — the children do not always have breakfast:
+// the kitchen must prepare the number sold, not the party.
+
+test('a card-driven breakfast serves the covers sold, not the whole party', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Famille', 'Dupont');
+  insertReservation(db, {
+    id: 1, propertyId: 10, clientId: 100,
+    startDate: '2026-06-09', endDate: '2026-06-11',
+    adults: 2, teens: 0, children: 2, babies: 0,
+  });
+  linkScheduledBreakfast(db, 1, ['2026-06-10', '2026-06-11']);
+  db.prepare('UPDATE reservation_options SET cardPersons = 2 WHERE reservationId = 1 AND optionId = 1').run();
+
+  const model = buildModel(db);
+  assert.equal(model.getForReservation(1).persons, 2, 'the SAS breakfast page');
+  const days = model.breakfastByDate({ from: '2026-06-10', to: '2026-06-11' });
+  assert.equal(days['2026-06-10'].items[0].persons, 2, 'the planning card');
+  assert.equal(days['2026-06-10'].totalPersons, 2);
+});
+
+test('a card-driven breakfast with no explicit covers still serves the whole party', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Famille', 'Dupont');
+  insertReservation(db, {
+    id: 1, propertyId: 10, clientId: 100,
+    startDate: '2026-06-09', endDate: '2026-06-11',
+    adults: 2, teens: 0, children: 2, babies: 0,
+  });
+  linkScheduledBreakfast(db, 1, ['2026-06-10']);
+  assert.equal(buildModel(db).getForReservation(1).persons, 4);
 });

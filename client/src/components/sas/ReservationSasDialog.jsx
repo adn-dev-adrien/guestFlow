@@ -8,7 +8,7 @@
  * Props: { open, reservationId, mode: 'arrival'|'departure', onClose, onCommitted }
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
@@ -69,8 +69,11 @@ function formatStepperValue(value) {
 // (integer counts); bread uses 0.5 (half-baguette steps — spec sas-breakfast-bread-and-push.md).
 // Module-level so it keeps a stable identity across parent re-renders (an inline component
 // would remount on every keystroke/click and detach its DOM nodes mid-interaction).
-function CountStepper({ icon, label, value, onChange, step = 1 }) {
-  const snap = (v) => Math.max(0, Math.round((Number(v) || 0) / step) * step);
+function CountStepper({ icon, label, value, onChange, step = 1, min = 0, max = null }) {
+  const snap = (v) => {
+    const snapped = Math.max(min, Math.round((Number(v) || 0) / step) * step);
+    return max != null ? Math.min(max, snapped) : snapped;
+  };
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
@@ -78,9 +81,9 @@ function CountStepper({ icon, label, value, onChange, step = 1 }) {
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
       </Stack>
       <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-        <Button size="small" variant="outlined" onClick={() => onChange(snap(value - step))} disabled={value <= 0} sx={{ minWidth: 36 }}>−</Button>
+        <Button size="small" variant="outlined" onClick={() => onChange(snap(value - step))} disabled={value <= min} sx={{ minWidth: 36 }}>−</Button>
         <TextField value={formatStepperValue(value)} onChange={(e) => onChange(snap(String(e.target.value).replace(',', '.')))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
-        <Button size="small" variant="outlined" onClick={() => onChange(snap(value + step))} sx={{ minWidth: 36 }}>+</Button>
+        <Button size="small" variant="outlined" onClick={() => onChange(snap(value + step))} disabled={max != null && value >= max} sx={{ minWidth: 36 }}>+</Button>
       </Stack>
     </Stack>
   );
@@ -245,6 +248,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [breakfastMornings, setBreakfastMornings] = useState([]); // [{ date, time, slot, checked }]
   const [cateringWanted, setCateringWanted] = useState(null);     // true | false | null
   const [cateringUnits, setCateringUnits] = useState({});         // { [optionId]: billed units }
+  // specs/card-option-served-persons.md §3.3 — covers served on each moment of a card option: the
+  // whole party unless the operator says the children aren't eating.
+  const [breakfastServed, setBreakfastServed] = useState(0);      // 0 until the offer is loaded
+  const autoSeededFoodRef = useRef(null);                         // pre-fill still owned by the wizard
+  const [cateringServed, setCateringServed] = useState({});       // { [optionId]: persons }
   const [cateringGrids, setCateringGrids] = useState({});         // { [optionId]: [{ date, time, slot, checked }] }
   // Re-edit (specs/reopen-completed-sas.md): complement lines from a PRIOR commit whose label no
   // longer maps to a priced item (renamed / deleted since) — carried verbatim into the re-commit so
@@ -311,6 +319,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (sales?.breakfast?.available) {
           const sold = sales.breakfast.selected || [];
           setBreakfastSold(sold.length > 0);
+          setBreakfastServed(Number(sales.breakfast.selectedPersons) || Number(sales.breakfast.defaultPersons) || 0);
           setBreakfastMornings((sales.breakfast.mornings || []).map((m) => ({
             ...m,
             slot: m.slot ?? 0,
@@ -318,8 +327,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           })));
         }
         if (sales?.catering?.available) {
-          const units = {}; const grids = {}; let anySold = false;
+          const units = {}; const grids = {}; const served = {}; let anySold = false;
           for (const opt of (sales.catering.options || [])) {
+            served[opt.optionId] = Number(opt.selectedPersons) || Number(opt.defaultPersons) || 0;
             if (opt.showsPlanningCard) {
               const sold = opt.selectedOccurrences || [];
               if (sold.length > 0) anySold = true;
@@ -334,7 +344,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               units[opt.optionId] = sold;
             }
           }
-          setCateringUnits(units); setCateringGrids(grids);
+          setCateringUnits(units); setCateringGrids(grids); setCateringServed(served);
           setCateringWanted(anySold ? true : null);
         }
         // specs/sas-offer-complement-lines.md §3.4 rule 13 — the gestes commerciaux already recorded on
@@ -609,6 +619,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // line authoritatively at commit, from the option and its per-property price.
   const salesOffer = data?.sasSales || null;
   const salesPersons = Number(salesOffer?.persons || 0);
+  // Covers of one card option: the operator's number, falling back to the party the server announced
+  // (specs/card-option-served-persons.md §3.3 rule 11).
+  const servedFor = (offer, picked) => Math.max(1, Number(picked) || Number(offer?.defaultPersons) || salesPersons || 1);
   const soldSelections = useMemo(() => {
     if (mode !== 'arrival' || !salesOffer) return [];
     const out = [];
@@ -616,7 +629,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (bf?.available && breakfastSold) {
       const occurrences = breakfastMornings.filter((m) => m.checked).map(({ date, time }) => ({ date, time }));
       if (occurrences.length > 0) {
-        out.push({ offer: bf, occurrences, units: occurrences.length * (bf.perPerson ? salesPersons : 1) });
+        const persons = servedFor(bf, breakfastServed);
+        out.push({ offer: bf, occurrences, persons, units: occurrences.length * (bf.perPerson ? persons : 1) });
       }
     }
     if (salesOffer.catering?.available && cateringWanted === true) {
@@ -624,16 +638,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (opt.showsPlanningCard) {
           const occurrences = (cateringGrids[opt.optionId] || []).filter((o) => o.checked).map(({ date, time }) => ({ date, time }));
           if (occurrences.length > 0) {
-            out.push({ offer: opt, occurrences, units: occurrences.length * (opt.perPerson ? salesPersons : 1) });
+            const persons = servedFor(opt, cateringServed[opt.optionId]);
+            out.push({ offer: opt, occurrences, persons, units: occurrences.length * (opt.perPerson ? persons : 1) });
           }
         } else {
           const units = Number(cateringUnits[opt.optionId]) || 0;
-          if (units > 0) out.push({ offer: opt, occurrences: null, units });
+          if (units > 0) out.push({ offer: opt, occurrences: null, persons: null, units });
         }
       }
     }
     return out;
-  }, [mode, salesOffer, salesPersons, breakfastSold, breakfastMornings, cateringWanted, cateringGrids, cateringUnits]);
+  }, [mode, salesOffer, salesPersons, breakfastSold, breakfastMornings, breakfastServed,
+    cateringWanted, cateringGrids, cateringUnits, cateringServed]);
   // No `offerKey` here, deliberately: « Offrir » (specs/sas-offer-complement-lines.md) can only zero a
   // line the server knows how to store at 0 €, and `writeSoldOptions` inserts every sold prestation
   // with `offered = 0`. Offering a freshly-sold breakfast would need a server-side flag that does not
@@ -835,16 +851,41 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // operator is about to fill in: the option's serving hour and the defaults a never-committed
   // check-in gets (one viennoiserie per person, half a baguette each). Without it the commit would
   // store zeros and the kitchen would prepare nothing. An already-filled composition is left alone.
+  // The server hands the rule PER PERSON SERVED (1 viennoiserie, ½ baguette); the number of
+  // breakfasts sold turns it into the pre-fill (specs/card-option-served-persons.md §3.4 rule 17).
+  const breakfastFoodFor = useCallback((served) => {
+    const perPerson = data?.sasSales?.breakfast?.compositionPerPerson || {};
+    const forServed = (key) => round2((Number(perPerson[key]) || 0) * Math.max(0, Number(served) || 0));
+    return { pastries: forServed('pastries'), cereals: forServed('cereals'), bread: forServed('bread') };
+  }, [data]);
   const sellBreakfast = () => {
     setBreakfastSold(true);
     const bf = data?.sasSales?.breakfast;
     if (!bf || data?.breakfast?.applicable) return;
-    const def = bf.defaultComposition || {};
-    setBreakfastFood((f) => ((f.pastries || f.cereals || f.bread) ? f : {
-      pastries: Number(def.pastries) || 0, cereals: Number(def.cereals) || 0, bread: Number(def.bread) || 0,
-    }));
+    const seeded = breakfastFoodFor(servedFor(bf, breakfastServed));
+    setBreakfastFood((f) => {
+      if (f.pastries || f.cereals || f.bread) return f;
+      autoSeededFoodRef.current = seeded;
+      return seeded;
+    });
     setBreakfastTime((t) => t || String((bf.mornings || [])[0]?.time || ''));
   };
+  // Lowering the covers on the mornings page must move the pre-fill with it — the operator sets the
+  // number of breakfasts AFTER accepting the sale. Only an untouched pre-fill is re-seeded: as soon as
+  // the operator types their own counts, they own them.
+  useEffect(() => {
+    const bf = data?.sasSales?.breakfast;
+    if (!breakfastSold || !bf || data?.breakfast?.applicable) return;
+    const seeded = autoSeededFoodRef.current;
+    if (!seeded) return;
+    setBreakfastFood((f) => {
+      if (Object.keys(seeded).some((k) => Number(f[k]) !== Number(seeded[k]))) return f;
+      const next = breakfastFoodFor(servedFor(bf, breakfastServed));
+      autoSeededFoodRef.current = next;
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breakfastServed, breakfastSold, breakfastFoodFor]);
   // specs/sas-offer-complement-lines.md §4.3 — the offered keys `kind:id` become the refs the commit
   // sends; a line with no ref (tax, remainder) can never be in the set.
   const offeredRefsOf = (lines) => lines
@@ -891,7 +932,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // a re-run is simply absent and the server removes it. `undefined` = neither sale step ran.
           soldOptions: (activeKeys.includes('breakfastSale') || activeKeys.includes('cateringAsk'))
             ? soldSelections.map((s) => (s.occurrences
-              ? { optionId: s.offer.optionId, occurrences: s.occurrences }
+              ? { optionId: s.offer.optionId, occurrences: s.occurrences, persons: s.persons }
               : { optionId: s.offer.optionId, units: s.units }))
             : undefined,
           // « Offrir » on an upsell keeps its option activated (laundry + linen stock) but bills 0 €.
@@ -995,7 +1036,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const breakfastFoodTotal = Number(breakfastFood.pastries) + Number(breakfastFood.cereals);
   // The morning head count: the server-resolved one for a booked breakfast, the party of the sale for
   // one just sold at check-in (the `breakfast` payload block is not applicable yet on that run).
-  const breakfastPersons = Number(data?.breakfast?.applicable ? data.breakfast.persons : salesPersons) || 0;
+  // Who the composition is for: the mornings already booked serve the count the server resolved
+  // (which honours `cardPersons` too), a breakfast sold right here serves the covers the operator
+  // picked (specs/card-option-served-persons.md §3.4 rules 16-17) — so the coherence warning compares
+  // against the number of breakfasts, never against a table half of which isn't having any.
+  const breakfastPersons = Number(data?.breakfast?.applicable
+    ? data.breakfast.persons
+    : (breakfastSold ? servedFor(salesOffer?.breakfast, breakfastServed) : salesPersons)) || 0;
   const breakfastMismatch = breakfastTotal !== breakfastPersons;
   const breakfastFoodMismatch = breakfastFoodTotal !== breakfastPersons;
   const breakfastAnyMismatch = breakfastMismatch || breakfastFoodMismatch;
@@ -1224,7 +1271,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'breakfastMornings': {
         const bf = salesOffer.breakfast;
         const chosen = breakfastMornings.filter((m) => m.checked).length;
-        const units = chosen * (bf.perPerson ? salesPersons : 1);
+        const served = servedFor(bf, breakfastServed);
+        const units = chosen * (bf.perPerson ? served : 1);
         return (
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Quels matins ?</Typography>
@@ -1236,10 +1284,22 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               quantityText={(
                 <>
                   Quantité&nbsp;: <strong>{units}</strong>
-                  {bf.perPerson ? ` (${chosen} × ${salesPersons} pers.)` : ''}
+                  {bf.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''}
                 </>
               )}
             />
+            {/* specs/card-option-served-persons.md §3.3 — tout le monde ne prend pas le petit
+                déjeuner : les enfants souvent pas. */}
+            {bf.perPerson && (
+              <CountStepper
+                icon={<PeopleIcon color="action" />}
+                label="Personnes servies"
+                value={served}
+                min={1}
+                max={Number(bf.maxPersons) || undefined}
+                onChange={setBreakfastServed}
+              />
+            )}
             <Divider />
             <Typography variant="body2" sx={{ fontWeight: 700 }}>
               {units} petit{units > 1 ? 's' : ''} déjeuner{units > 1 ? 's' : ''} — {formatCurrency(Math.round(Number(bf.unitPrice) * units * 100) / 100)}
@@ -1269,8 +1329,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {options.map((o) => {
               const grid = cateringGrids[o.optionId] || [];
               const chosen = grid.filter((x) => x.checked).length;
+              const served = servedFor(o, cateringServed[o.optionId]);
               const units = o.showsPlanningCard
-                ? chosen * (o.perPerson ? salesPersons : 1)
+                ? chosen * (o.perPerson ? served : 1)
                 : Number(cateringUnits[o.optionId]) || 0;
               const amount = Math.round(Number(o.unitPrice) * units * 100) / 100;
               return (
@@ -1295,21 +1356,35 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                     )}
                   </Stack>
                   {o.showsPlanningCard ? (
-                    <OccurrenceGrid
-                      grid={grid}
-                      onToggle={(date, slot, checked) => setCateringGrids((prev) => ({
-                        ...prev,
-                        [o.optionId]: (prev[o.optionId] || []).map((x) => (
-                          x.date === date && (x.slot ?? 0) === slot ? { ...x, checked } : x
-                        )),
-                      }))}
-                      quantityText={units > 0 ? (
-                        <>
-                          Quantité&nbsp;: <strong>{units}</strong>
-                          {o.perPerson ? ` (${chosen} × ${salesPersons} pers.)` : ''} = {formatCurrency(amount)}
-                        </>
-                      ) : null}
-                    />
+                    <>
+                      <OccurrenceGrid
+                        grid={grid}
+                        onToggle={(date, slot, checked) => setCateringGrids((prev) => ({
+                          ...prev,
+                          [o.optionId]: (prev[o.optionId] || []).map((x) => (
+                            x.date === date && (x.slot ?? 0) === slot ? { ...x, checked } : x
+                          )),
+                        }))}
+                        quantityText={units > 0 ? (
+                          <>
+                            Quantité&nbsp;: <strong>{units}</strong>
+                            {o.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''} = {formatCurrency(amount)}
+                          </>
+                        ) : null}
+                      />
+                      {/* specs/card-option-served-persons.md §3.3 — le nombre de couverts, quand les
+                          enfants ne mangent pas. Affiché dès qu'un moment est coché. */}
+                      {o.perPerson && chosen > 0 && (
+                        <CountStepper
+                          icon={<PeopleIcon color="action" />}
+                          label="Personnes servies"
+                          value={served}
+                          min={1}
+                          max={Number(o.maxPersons) || undefined}
+                          onChange={(v) => setCateringServed((prev) => ({ ...prev, [o.optionId]: v }))}
+                        />
+                      )}
+                    </>
                   ) : units > 0 && (
                     <CountStepper
                       icon={<RestaurantIcon color="action" />}

@@ -16,7 +16,8 @@ function createDb() {
       defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00',
       touristTaxPerDayPerPerson REAL DEFAULT 0, touristTaxMode TEXT DEFAULT 'per_day_per_person',
       touristTaxPercentage REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0,
-      basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0
+      basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0,
+      maxGuests INTEGER DEFAULT 0
     );
     CREATE TABLE pricing_rules (
       id INTEGER PRIMARY KEY, propertyId INTEGER NOT NULL, label TEXT DEFAULT 'Standard',
@@ -194,5 +195,124 @@ test('a card option added to an existing booking is priced at today’s tariff',
   const line = q.optionLines.find((l) => l.optionId === 21);
   assert.equal(line.unitPrice, 8);
   assert.equal(line.totalPrice, 64);
+  db.close();
+});
+
+// specs/card-option-served-persons.md §3.1 — a per-person card option is not always taken by the
+// whole party (the children skip the meal): `cardPersons` says how many covers each moment serves.
+
+test('cardPersons lowers the covers: 2 moments × 2 served instead of × 4 guests', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: 2, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.billedUnits, 4, '2 occurrences × 2 served');
+  assert.equal(line.totalPrice, 20); // 4 × 5
+  assert.equal(line.cardPersons, 2, 'persisted as the operator decision');
+  db.close();
+});
+
+test('cardPersons equal to the party is stored as NULL (the line keeps following the party)', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: 4, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.billedUnits, 8, 'billed like the whole party');
+  assert.equal(line.cardPersons, null);
+  db.close();
+});
+
+test('no cardPersons → the whole party, exactly as before', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.billedUnits, 8);
+  assert.equal(line.cardPersons, null);
+  db.close();
+});
+
+test('cardPersons above the party is allowed up to the property capacity', () => {
+  const db = createDb();
+  db.prepare('UPDATE properties SET maxGuests = 6 WHERE id = 1').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: 6, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.billedUnits, 12, '2 occurrences × 6 served (a friend joined for dinner)');
+  assert.equal(line.cardPersons, 6);
+  db.close();
+});
+
+test('cardPersons above the capacity is clamped to it', () => {
+  const db = createDb();
+  db.prepare('UPDATE properties SET maxGuests = 6 WHERE id = 1').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: 99, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.cardPersons, 6);
+  assert.equal(line.billedUnits, 12);
+  db.close();
+});
+
+test('capacity not configured (maxGuests = 0) → the ceiling is the party', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: 99, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.billedUnits, 8, 'clamped back to the 4 guests');
+  assert.equal(line.cardPersons, null);
+  db.close();
+});
+
+test('cardPersons 0 or negative falls back to the party (a prestation is removed by unticking)', () => {
+  const db = createDb();
+  for (const bogus of [0, -3]) {
+    const q = calculateReservationQuote({
+      ...BASE, db,
+      selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: bogus, cardOccurrences: TWO_MORNINGS }],
+    });
+    const line = q.optionLines.find((l) => l.optionId === 21);
+    assert.equal(line.billedUnits, 8, `cardPersons ${bogus} → the party`);
+    assert.equal(line.cardPersons, null);
+  }
+  db.close();
+});
+
+test('a fixed-price card option ignores cardPersons (the covers do not bite)', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 20, quantity: 1, cardPersons: 2, cardOccurrences: TWO_MORNINGS }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 20);
+  assert.equal(line.billedUnits, 2, '2 occurrences × 1');
+  assert.equal(line.totalPrice, 20);
+  assert.equal(line.cardPersons, null);
+  db.close();
+});
+
+test('lowering the covers on a SOLD card option keeps the sold unit price', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 21, 8)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 21, quantity: 1, cardPersons: 2, cardOccurrences: TWO_MORNINGS }],
+    lockedOptionLines: [{ optionId: 21, quantity: 2, unitPrice: 5, billedUnits: 8, priceType: 'per_person', totalPrice: 40, offered: 0 }],
+  });
+  const line = q.optionLines.find((l) => l.optionId === 21);
+  assert.equal(line.unitPrice, 5, 'still the sold price');
+  assert.equal(line.totalPrice, 20, '4 units × 5 €');
   db.close();
 });

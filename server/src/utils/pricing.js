@@ -318,6 +318,34 @@ function normalizeCardOccurrences(raw) {
     .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date));
 }
 
+/**
+ * How many people a per-person card option serves, and what to store for it
+ * (specs/card-option-served-persons.md §3.1). A meal or a breakfast is not always taken by the whole
+ * party — the children often skip it — so the operator can lower (or raise, up to the property's
+ * capacity) the number of covers of one prestation.
+ *
+ * `served` is what the money is computed from; `stored` is what goes to
+ * `reservation_options.cardPersons`, and it is NULL whenever the number equals the current party:
+ * such a line keeps FOLLOWING the party, so editing « adultes / enfants » still re-prices it (rule 4).
+ * A deliberately different number is persisted and then stays put.
+ *
+ * @param {{cardPersons?: number|null, persons?: number, maxGuests?: number}} params
+ * @returns {{served: number, stored: number|null}}
+ */
+function resolveServedPersons({ cardPersons, persons, maxGuests } = {}) {
+  const party = Math.max(0, Number(persons) || 0);
+  // Never below the party actually staying: everyone present can always be served, whatever the
+  // configured capacity says.
+  const ceiling = Math.max(1, party, Number(maxGuests) > 0 ? Math.floor(Number(maxGuests)) : 0);
+  const wanted = Number(cardPersons);
+  // Absent / unparsable / ≤ 0 → the party. Serving 0 person is not how a prestation is removed:
+  // untick its moments instead (rule 3).
+  const served = Number.isFinite(wanted) && wanted > 0
+    ? Math.min(Math.max(1, wanted), ceiling)
+    : party;
+  return { served, stored: served === party ? null : served };
+}
+
 function normalizeOptionProgressiveTiers(rawTiers) {
   const parsed = parseJsonArray(rawTiers);
   const byParticipant = new Map();
@@ -1516,7 +1544,12 @@ function calculateReservationQuote({
         }
         const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
         if (occurrences.length === 0) return null;
-        const billedUnits = roundMoney(occurrences.length * (perPerson ? persons : 1));
+        // How many covers on each moment (specs/card-option-served-persons.md §3.1 rule 2): the
+        // party unless the operator said otherwise, capped by the property's capacity.
+        const covers = resolveServedPersons({
+          cardPersons: selected?.cardPersons, persons, maxGuests: property.maxGuests,
+        });
+        const billedUnits = roundMoney(occurrences.length * (perPerson ? covers.served : 1));
         const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
         return {
           optionId,
@@ -1529,6 +1562,7 @@ function calculateReservationQuote({
           chargedUnits: free.chargedUnits,
           priceType,
           cardOccurrences: occurrences,
+          cardPersons: perPerson ? covers.stored : null,
           ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
           ...pickContribsAndForce(selected, locked),
         };
@@ -2445,6 +2479,7 @@ module.exports = {
   isTouristTaxRemittedByOwner,
   getTypeMultiplier,
   computePercentOfStayAmount,
+  resolveServedPersons,
 };
 
 module.exports.__test = {

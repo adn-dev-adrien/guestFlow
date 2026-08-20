@@ -51,6 +51,12 @@ while its **planning rendering remains the rich BreakfastDayCard**, now fed by t
    multiply the party by it: the people served each morning are the party itself. This bit us in
    `breakfastModel` (2 guests × 2 nights announced as « 4 personnes » on the SAS, the planning card and
    the push) — see [breakfast-option-and-planning-card.md](breakfast-option-and-planning-card.md) rule 5.
+   3.ter **The people served each morning are no longer necessarily the party (added 2026-08-20).**
+   `reservation_options.cardPersons` carries how many breakfasts a morning serves when the children don't
+   have any ([card-option-served-persons.md](card-option-served-persons.md)): `billedUnits = mornings ×
+   (cardPersons ?? party)`, and `breakfastModel.morningPersons` reads the same value, so the prep counts,
+   the SAS page, the planning card and the push all announce the number sold. `NULL` = the party, which is
+   what rule 3.bis describes and what every line written before that date means.
 4. **Planning**: the **BreakfastDayCard** is built from the breakfast option's **`cardOccurrences`** — one
    entry per checked occurrence whose date ∈ window, at the occurrence's hour, carrying persons + drinks +
    note. If a reservation has the breakfast option but **no** `cardOccurrences` (legacy/edge), fall back to

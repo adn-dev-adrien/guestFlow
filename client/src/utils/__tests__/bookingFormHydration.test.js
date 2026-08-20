@@ -31,6 +31,25 @@ describe('hydrateSelectedOptions', () => {
     expect(line.cardOccurrences).toEqual([{ date: '2027-03-09', time: '08:30', checked: true }]);
   });
 
+  // specs/card-option-served-persons.md §3.2 — without this the next save re-bills the whole party.
+  test('carries the served-persons count of a card option', () => {
+    const [line] = hydrateSelectedOptions(
+      [{ optionId: 6, quantity: 3, cardPersons: 2, cardOccurrences: [{ date: '2027-03-09', time: '08:30' }] }],
+      STAY, CATALOGUE, buildCardGrid,
+    );
+
+    expect(line.cardPersons).toBe(2);
+  });
+
+  test('a line that follows the party carries no served-persons count', () => {
+    const [line] = hydrateSelectedOptions(
+      [{ optionId: 6, quantity: 3, cardOccurrences: [{ date: '2027-03-09', time: '08:30' }] }],
+      STAY, CATALOGUE, buildCardGrid,
+    );
+
+    expect(line.cardPersons).toBeUndefined();
+  });
+
   test('leaves a plain option without a grid', () => {
     const [line] = hydrateSelectedOptions([{ optionId: 7, quantity: 1, totalPrice: 80 }], STAY, CATALOGUE, buildCardGrid);
 

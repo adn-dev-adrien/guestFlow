@@ -406,7 +406,7 @@ CREATE TABLE IF NOT EXISTS reservation_options (
     unitPrice REAL NOT NULL DEFAULT 0,
     billedUnits REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
-    totalPrice REAL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0, inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL DEFAULT NULL, soldeContribTtc REAL DEFAULT NULL, cardOccurrences TEXT,
+    totalPrice REAL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0, inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL DEFAULT NULL, soldeContribTtc REAL DEFAULT NULL, cardOccurrences TEXT, cardPersons REAL,
     PRIMARY KEY (reservationId, optionId),
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE

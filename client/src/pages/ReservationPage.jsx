@@ -464,6 +464,8 @@ export default function ReservationPage() {
         const line = { optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0) };
         // Include the checked occurrences so the live preview re-fetches when the selection changes.
         if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
+        // …and how many covers they serve (specs/card-option-served-persons.md §3.2 rule 9).
+        if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
         return line;
       })
       .sort((a, b) => a.optionId - b.optionId),
@@ -1395,6 +1397,25 @@ export default function ReservationPage() {
     if (didReleasePack) releaseFromWelcomePack(optionId);
   };
 
+  // How many people a per-person card option actually serves (specs/card-option-served-persons.md
+  // §3.2 rule 7). Same welcome-pack release as the occurrence grid: adjusting the covers is an
+  // operator act, so the line leaves the pack's hands. The server clamps the value and decides what
+  // to persist — this only carries the intent.
+  const setOptionCardPersons = (optionId, persons) => {
+    let didReleasePack = false;
+    setForm((prev) => {
+      const selected = releaseWelcomePackLine(prev.selectedOptions || [], optionId);
+      if (selected !== (prev.selectedOptions || [])) didReleasePack = true;
+      const value = Math.max(1, Number(persons) || 1);
+      const exists = selected.some((so) => Number(so.optionId) === Number(optionId));
+      const next = exists
+        ? selected.map((so) => (Number(so.optionId) === Number(optionId) ? { ...so, cardPersons: value } : so))
+        : [...selected, { optionId: Number(optionId), quantity: 1, totalPrice: 0, cardPersons: value }];
+      return { ...prev, selectedOptions: next };
+    });
+    if (didReleasePack) releaseFromWelcomePack(optionId);
+  };
+
   const setOptionEnabled = (optionId, enabled) => {
     const existing = form.selectedOptions.find((so) => so.optionId === optionId);
     const catalogOpt = (propertyOptions || []).find((o) => Number(o.id) === Number(optionId));
@@ -1642,6 +1663,9 @@ export default function ReservationPage() {
         // Option-driven planning cards (specs/option-planning-card.md §3.4): send the CHECKED
         // occurrences ({date,time}). The server derives billedUnits from them (authoritative).
         if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
+        // Served persons of that card option (specs/card-option-served-persons.md §3.2 rule 9): an
+        // intent, never a price — the engine clamps it and decides whether to persist it.
+        if (item.cardPersons != null) line.cardPersons = Number(item.cardPersons);
         return line;
       });
   };
@@ -2893,6 +2917,8 @@ export default function ReservationPage() {
     setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
     // Option-driven planning cards (specs/option-planning-card.md §3.2) — occurrence checklist.
     setOptionCardOccurrences,
+    // specs/card-option-served-persons.md §3.2 — « Personnes servies » on a per-person card option.
+    setOptionCardPersons,
     // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2).
     setResourceSessions,
     // finance

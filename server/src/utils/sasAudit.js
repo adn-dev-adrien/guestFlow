@@ -71,8 +71,11 @@ function itemsText(lines) {
     .map((l) => {
       const label = String((l && (l.label ?? l.description)) || '').trim();
       const qty = Number(l && l.qty) > 1 ? ` ×${Number(l.qty)}` : '';
+      // How the quantity was reached, when it is not obvious — « 1 × 2 pers. servies » for a card
+      // option sold to part of the table only (specs/card-option-served-persons.md §3.3 rule 15).
+      const detail = (l && typeof l.detail === 'string' && l.detail.trim()) ? ` — ${l.detail.trim()}` : '';
       const value = Number(l && l.offered) === 1 ? 'offert' : money(l && l.amount);
-      return label ? `${label}${qty} (${value})` : '';
+      return label ? `${label}${qty}${detail} (${value})` : '';
     })
     .filter(Boolean);
   return list.length > 0 ? list.join(', ') : 'aucun';

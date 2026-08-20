@@ -28,6 +28,13 @@ function buildModel(database) {
     catch { return false; }
   })();
   const EXCLUDE_BREAKFAST = hasAutoOptionType ? "AND (o.autoOptionType IS NULL OR o.autoOptionType != 'breakfast')" : '';
+  // Covers actually served on each moment, when the operator reduced them
+  // (specs/card-option-served-persons.md §3.4 rule 18): the cook must read the real number, not the
+  // party. Guarded like every other optional column.
+  const HAS_CARD_PERSONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardPersons'); }
+    catch { return false; }
+  })();
   const stmt = (() => {
     try {
       return database.prepare(`
@@ -35,6 +42,7 @@ function buildModel(database) {
           ro.reservationId AS reservationId,
           ro.optionId AS optionId,
           ro.cardOccurrences AS cardOccurrences,
+          ${HAS_CARD_PERSONS ? 'ro.cardPersons' : 'NULL'} AS cardPersons,
           o.title AS title,
           COALESCE(cli.firstName, '') AS firstName,
           COALESCE(cli.lastName,  '') AS lastName,
@@ -125,6 +133,8 @@ function buildModel(database) {
             children: Number(r.children) || 0,
             teens: Number(r.teens) || 0,
             babies: Number(r.babies) || 0,
+            // `null` = served to the whole party (the card then reads as it always did).
+            servedPersons: Number(r.cardPersons) > 0 ? Math.floor(Number(r.cardPersons)) : null,
             date: occ.date,
             time: occ.time,
             done: Boolean(occ.done),
