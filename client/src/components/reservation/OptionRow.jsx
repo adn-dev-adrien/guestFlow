@@ -185,6 +185,10 @@ export default function OptionRow({ opt }) {
   // autoEnabled=0; they're undeletable in the catalog but manually toggled per
   // reservation). Using autoOptionType here would wrongly disable the Switch.
   const isAutoTimedOption = Number(opt.autoEnabled || 0) === 1;
+  // specs/baby-bed-supplement.md §3.1 — the third engine-derived family: not a timed option, so it
+  // has no « seuil nuit complète » to show. Its driver is the « Lits bébé » counter of the
+  // Voyageurs card, and its price is per cot, for the whole stay.
+  const isBabyBedOption = isAutoTimedOption && opt.autoOptionType === 'baby_bed';
   let factorHint = '';
   if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
   else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
@@ -215,9 +219,11 @@ export default function OptionRow({ opt }) {
               )}
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              {isAutoTimedOption
-                ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
-                : `${isPercentOfStay ? `${Number(opt.price) || 0} %` : formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
+              {isBabyBedOption
+                ? `${formatCurrency(opt.price)} par lit bébé, pour le séjour`
+                : isAutoTimedOption
+                  ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
+                  : `${isPercentOfStay ? `${Number(opt.price) || 0} %` : formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
             </Typography>
           </Box>
           <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>

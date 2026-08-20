@@ -7,6 +7,9 @@ const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
 const { resolveDepositDueDate, resolveBalanceDueDate } = require('./paymentSchedule');
+const {
+  findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
+} = require('./babyBedSupplement');
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -1141,6 +1144,13 @@ function calculateReservationQuote({
   children,
   teens,
   babies,
+  // specs/baby-bed-supplement.md — the cots entered on the booking. They are NOT guests (babies are
+  // already counted apart) : they drive one derived option line, `price × babyBeds` for the stay.
+  babyBeds,
+  // The SAVED booking this quote is for (a reservation OR a devis — same table), absent on a booking
+  // that does not exist yet. Read by the baby-bed rule only, to leave every booking taken before the
+  // supplement existed strictly untouched (specs/baby-bed-supplement.md §3.3).
+  bookingId,
   discountPercent,
   customPrice,
   selectedOptions,
@@ -1629,21 +1639,39 @@ function calculateReservationQuote({
     .filter(Boolean);
 
   const selectedOptionIds = new Set(optionLines.map((line) => Number(line.optionId)));
+  // specs/baby-bed-supplement.md §3.3 — resolved ONCE, from the database: a booking already stored
+  // with cots and no supplement line was sold before the supplement existed and bills 0 cot forever.
+  const babyBedOption = findBabyBedOption(Array.from(optionsById.values()));
+  const billableBabyBeds = resolveBillableBabyBeds({
+    database: db, bookingId, option: babyBedOption, babyBeds,
+  });
   const autoOptionLines = Array.from(optionsById.values())
     .filter((option) => Number(option.autoEnabled || 0) === 1)
-    .map((option) => computeAutoTimedOptionContext({
-      option,
-      checkInTime,
-      checkOutTime,
-      defaultCheckIn: property.defaultCheckIn || '15:00',
-      defaultCheckOut: property.defaultCheckOut || '10:00',
-      nightlyBreakdown,
-      lateCheckoutNextNightPrice: getLateCheckoutNextNightReferencePrice({
-        rules,
-        endDate,
-        stayNights: nights,
-      }),
-    }))
+    .map((option) => (
+      // Two families of engine-derived options: the timed ones, priced against a reference night from
+      // the actual check-in/out hour, and the baby-bed supplement, priced per cot for the stay.
+      isBabyBedOption(option)
+        ? buildBabyBedSupplementLine({
+          option,
+          babyBeds: billableBabyBeds,
+          // A saved booking keeps the price it was sold at; the QUANTITY still follows the current
+          // cot count (§3.4 rule 15 + §3.3 rule 12).
+          unitPrice: lockedUnitPriceOr(lockedOptionsById.get(Number(option.id)), Number(option.price || 0)),
+        })
+        : computeAutoTimedOptionContext({
+          option,
+          checkInTime,
+          checkOutTime,
+          defaultCheckIn: property.defaultCheckIn || '15:00',
+          defaultCheckOut: property.defaultCheckOut || '10:00',
+          nightlyBreakdown,
+          lateCheckoutNextNightPrice: getLateCheckoutNextNightReferencePrice({
+            rules,
+            endDate,
+            stayNights: nights,
+          }),
+        })
+    ))
     .filter(Boolean)
     .map((line) => {
       const optionId = Number(line.optionId);
@@ -1655,7 +1683,8 @@ function calculateReservationQuote({
       // even on an already-saved reservation. (Freezing it through the locked option snapshot was
       // the bug: the amount never moved when the operator changed the time; cf.
       // specs/timed-options-proportional-pricing.md §3 rule 6.) Only the routing flags fall back
-      // to the locked snapshot.
+      // to the locked snapshot. The baby-bed line resolved its own frozen unit price above, and
+      // joins here to inherit the very same offered / Complément / contribs handling.
       // Auto-options can be flipped to Complément too (a common case: Adrien sometimes wants the
       // surcharge to land in the post-arrival bucket because it's collected on site). The override
       // list wins; falls back to the locked snapshot for already-saved reservations.

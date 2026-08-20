@@ -141,7 +141,11 @@ final class GF_Blocks
                 'childrenAges'    => __('2 à 12 ans', 'guestflow-booking'),
                 'babiesAges'      => __('0 à 2 ans', 'guestflow-booking'),
                 'babyBedsLabel'   => __('Lit(s) bébé souhaité(s) ?', 'guestflow-booking'),
-                'babyBedsSub'     => __('Gratuit, selon disponibilité', 'guestflow-booking'),
+                // specs/baby-bed-supplement.md §3.5 rule 17 — the cot is billed now. `babyBedsSub`
+                // stays as the fallback for a logement that does not charge for it; when the API
+                // serves a price, `babyBedsSubPriced` is filled with it (never a hardcoded amount).
+                'babyBedsSub'     => __('Selon disponibilité', 'guestflow-booking'),
+                'babyBedsSubPriced' => __('%s par lit, pour le séjour', 'guestflow-booking'),
                 'offered'         => __('Offert', 'guestflow-booking'),
                 'checkInTime'     => __('Heure d’arrivée', 'guestflow-booking'),
                 'checkOutTime'    => __('Heure de départ', 'guestflow-booking'),

@@ -28,9 +28,15 @@ function ctx(overrides = {}) {
     exceedsGuestsCapacity: false, exceedsBabiesCapacity: false,
     guestsCount: 2,
     maxBabyBedsByRule: 0, remainingBabyBeds: null,
+    propertyOptions: [],
     ...overrides,
   };
 }
+
+// specs/baby-bed-supplement.md §6 — the counter is the only place the cot is decided, so it says
+// what a cot costs. The amount comes from the catalogue option the engine bills, never from a
+// constant in the client.
+const COT_OPTION = { id: 30, title: 'Lit bébé', price: 5, autoOptionType: 'baby_bed', autoEnabled: 1 };
 
 test('babies > 0 → the Lits bébé field is shown with the remaining availability', () => {
   renderWithContext(ctx({
@@ -69,4 +75,31 @@ test('typing above the available count clamps the value to maxBabyBedsByRule on 
   fireEvent.change(input, { target: { value: '5' } });
   fireEvent.blur(input);
   expect(updateForm).toHaveBeenCalledWith({ babyBeds: 1 }); // clamped to the 1 available
+});
+
+test('the cot price is shown beside the availability when the logement charges for it', () => {
+  renderWithContext(ctx({
+    form: { adults: 2, children: 0, teens: 0, babies: 1, babyBeds: 0 },
+    maxBabyBedsByRule: 2, remainingBabyBeds: 2,
+    propertyOptions: [COT_OPTION],
+  }));
+  expect(screen.getByText(/Dispo restante: 2 · 5,00\s?€ \/ lit/)).toBeInTheDocument();
+});
+
+test('no cot option for the logement → availability only, no price invented', () => {
+  renderWithContext(ctx({
+    form: { adults: 2, children: 0, teens: 0, babies: 1, babyBeds: 0 },
+    maxBabyBedsByRule: 2, remainingBabyBeds: 2,
+    propertyOptions: [{ id: 9, title: 'Ménage', price: 80 }],
+  }));
+  expect(screen.getByText(/Dispo restante: 2$/)).toBeInTheDocument();
+});
+
+test('a free cot (price 0) announces nothing', () => {
+  renderWithContext(ctx({
+    form: { adults: 2, children: 0, teens: 0, babies: 1, babyBeds: 0 },
+    maxBabyBedsByRule: 2, remainingBabyBeds: 2,
+    propertyOptions: [{ ...COT_OPTION, price: 0 }],
+  }));
+  expect(screen.getByText(/Dispo restante: 2$/)).toBeInTheDocument();
 });
