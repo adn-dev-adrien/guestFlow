@@ -1509,10 +1509,12 @@ function calculateReservationQuote({
       // own, from the booking's snapshot (specs/devis-extras-parity-and-price-lock.md §3 rule 13bis).
       // Without it a tariff change re-priced the card options of reservations already sold and paid:
       // the raise landed in the mid-stay split as an end-of-stay complement nobody had agreed to.
-      // A `percent_of_stay` option is priced from the stay, not from occurrences: even if the
+      // The cancellation insurance is priced from the stay, not from occurrences: even if the
       // operator also ticked « carte planning » on it, the card path must not read its percentage
-      // as a euro unit price (specs/cancellation-insurance.md §3.1 rule 4).
-      if (option.showsPlanningCard && priceType !== 'percent_of_stay') {
+      // as a euro unit price, nor bill it per scheduled slot
+      // (specs/cancellation-insurance.md §3.1 rules 4 + 5bis).
+      const isCancellationInsurance = Number(option.isCancellationInsurance || 0) === 1;
+      if (option.showsPlanningCard && priceType !== 'percent_of_stay' && !isCancellationInsurance) {
         // PUBLIC/site flow (planningCardAsQuantity): the visitor can't schedule the slots, so the
         // selected QUANTITY stands in for the occurrence count — bill quantity × (perPerson ? persons :
         // 1) × unitPrice and leave the line UNSCHEDULED (empty cardOccurrences; the operator fixes the
@@ -1613,8 +1615,13 @@ function calculateReservationQuote({
       // computed amount, and the quantity is forced to 1 — insuring the same stay twice is
       // meaningless. The line then rejoins the generic path, so the locked snapshot (price freeze
       // on a sold line), « offert » and the acompte/complément routing all keep working unchanged.
+      //
+      // The SAME clamp holds for the cancellation insurance whatever its price type (rule 5bis):
+      // a `per_night` insurance is quantity 1 × the nights of the stay — it covers the stay, and
+      // half a stay cannot be insured. The type multiplier below does the ×nights.
       const isPercentOfStay = priceType === 'percent_of_stay';
-      const effectiveQuantity = isPercentOfStay ? 1 : quantity;
+      const isStayWideYesNo = isPercentOfStay || isCancellationInsurance;
+      const effectiveQuantity = isStayWideYesNo ? 1 : quantity;
       const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
         ? Number(optionUnitOverrides[optionId])
         : (isPercentOfStay

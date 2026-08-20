@@ -4,7 +4,7 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatTimeShort } = require('../utils/dateFr');
-const { normalizeCategory } = require('../utils/optionGrouping');
+const { normalizeCategory, pinCancellationInsurance } = require('../utils/optionGrouping');
 
 function normalizeProgressiveOptionTiers(raw) {
   let parsed = [];
@@ -254,7 +254,10 @@ function createOptionsModel(database) {
       // Ungrouped options ('') come first, then the categories alphabetically — the same reading
       // order the fiche and the public widget render (specs/option-categories.md §3 rule 3).
       const order = HAS_OPTION_CATEGORY ? 'ORDER BY category, title' : 'ORDER BY title';
-      return database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}${order}`).all().map((o) => decoratePlanningCard({
+      const rows = database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}${order}`).all();
+      // Same reading order as the fiche: the cancellation insurance sits just after « Départ
+      // tardif » instead of under « A » (specs/cancellation-insurance.md §3.2 rule 17bis).
+      return pinCancellationInsurance(rows).map((o) => decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),

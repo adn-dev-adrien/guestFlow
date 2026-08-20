@@ -31,6 +31,34 @@ function byTitle(a, b) {
 }
 
 /**
+ * The cancellation insurance reads as the closing line of the stay's own conditions, not as an
+ * « A » article at the top of the list: the operator sells it right after « Départ tardif », once
+ * arrival and departure are settled (specs/cancellation-insurance.md §3.2 rule 17bis).
+ *
+ * So it is pulled out of the alphabetical order and pinned immediately after the late-checkout
+ * auto-option — but only when both sit in the SAME category block, since « just after Départ
+ * tardif » means nothing across a category boundary. Everything else keeps its title order.
+ *
+ * Works on any already-sorted array (the ungrouped list of a fiche, the flat catalogue of the
+ * Options screen), so both surfaces read the same.
+ */
+function pinCancellationInsurance(options) {
+  const list = Array.isArray(options) ? options.slice() : [];
+  const insuranceIndex = list.findIndex((o) => Number(o?.isCancellationInsurance || 0) === 1);
+  if (insuranceIndex < 0) return list;
+  const [insurance] = list.splice(insuranceIndex, 1);
+  const category = normalizeCategory(insurance.category);
+  // The LAST late-checkout row wins: a catalogue can hold one per property scope, and they sort
+  // next to each other — landing between two « Départ tardif » lines would read as a mistake.
+  let anchorIndex = -1;
+  list.forEach((o, i) => {
+    if (o?.autoOptionType === 'late_check_out' && normalizeCategory(o?.category) === category) anchorIndex = i;
+  });
+  list.splice(anchorIndex < 0 ? insuranceIndex : anchorIndex + 1, 0, insurance);
+  return list;
+}
+
+/**
  * An option renders OUTSIDE its category's collapse when it is selected on the reservation, or
  * when it carries `alwaysVisible` (specs/option-categories.md §3 rules 9 + 9bis). The second case
  * is how the breakfast option keeps showing on every fiche now that it lives under
@@ -71,11 +99,12 @@ function groupOptionsByCategory(options, enabledIds = []) {
   }
 
   ungrouped.sort(byTitle);
+  const orderedUngrouped = pinCancellationInsurance(ungrouped);
 
   const groups = Array.from(byCategory.entries())
     .sort((a, b) => collator.compare(a[0], b[0]))
     .map(([category, list]) => {
-      const sorted = list.slice().sort(byTitle);
+      const sorted = pinCancellationInsurance(list.slice().sort(byTitle));
       return {
         category,
         options: sorted,
@@ -85,7 +114,7 @@ function groupOptionsByCategory(options, enabledIds = []) {
       };
     });
 
-  return { ungrouped, groups };
+  return { ungrouped: orderedUngrouped, groups };
 }
 
 /** Distinct category labels present in a catalogue, in display order — feeds the admin autocomplete. */
@@ -98,4 +127,4 @@ function listCategories(options) {
   return Array.from(seen).sort((a, b) => collator.compare(a, b));
 }
 
-module.exports = { normalizeCategory, groupOptionsByCategory, listCategories, isPinnedOption };
+module.exports = { normalizeCategory, groupOptionsByCategory, listCategories, isPinnedOption, pinCancellationInsurance };

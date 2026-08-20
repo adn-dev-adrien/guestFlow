@@ -185,3 +185,33 @@ test('no insurance configured → no block in the quote either', () => {
   assert.equal(res.body.data.cancellationInsurance, null);
   db.close();
 });
+
+// The default tariff is per-night (specs/cancellation-insurance.md §3.2 rule 13): the site must
+// announce « 3 € par nuit » and preview the same amount the engine will bill.
+
+test('a per-night insurance is announced by the night', () => {
+  const data = listOptions([{ ...INSURANCE, priceType: 'per_night', price: 3 }]);
+  assert.equal(data.cancellationInsurance.priceLabel, '3 € par nuit');
+  assert.equal(data.cancellationInsurance.percent, null);
+  assert.equal(data.cancellationInsurance.amount, null, 'no stay yet → the label stands in');
+});
+
+test('a per-night insurance previews and bills the same nights', () => {
+  const db = quoteDb();
+  db.prepare("UPDATE options SET priceType = 'per_night', price = 3 WHERE id = 42").run();
+  const preview = publicQuote(db, { ...STAY, options: [] }).body.data.cancellationInsurance;
+  assert.equal(preview.amount, 9, '3 € × the 3 nights');
+  const taken = publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 1 }] }).body.data;
+  assert.equal(taken.cancellationInsurance.amount, 9);
+  assert.equal(taken.optionsTotal, 9);
+  assert.equal(taken.totalStayPrice, 309);
+  db.close();
+});
+
+test('a visitor cannot inflate a per-night insurance with a quantity', () => {
+  const db = quoteDb();
+  db.prepare("UPDATE options SET priceType = 'per_night', price = 3 WHERE id = 42").run();
+  const taken = publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 9 }] }).body.data;
+  assert.equal(taken.optionsTotal, 9, 'the engine clamps the yes/no line to the stay');
+  db.close();
+});
