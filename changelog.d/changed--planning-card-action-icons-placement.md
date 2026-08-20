@@ -1,1 +1,0 @@
-- Planning : les deux boutons des cartes (arrivée/départ) utilisent de nouvelles icônes — Document pour ouvrir la réservation, Check-list pour ouvrir le SAS (✓ quand le SAS est déjà fait). Sur mobile, ils passent sur une ligne dédiée en bas de la carte (alignés à droite) pour ne plus déborder quand le badge « Prêt » / « Effectué » est affiché.

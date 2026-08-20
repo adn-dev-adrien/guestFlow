@@ -1,1 +1,0 @@
-- Historique des emails : bouton « Renvoyer » sur chaque ligne (envoyé, échec ou ignoré) pour ré-expédier un email déjà traité — le contenu est régénéré à partir du modèle et reste éditable avant l'envoi.

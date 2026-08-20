@@ -1,1 +1,0 @@
-- Fiche de réservation : le nom du client est mis en valeur dans un cadre coloré, et le logement et le numéro de réservation s'affichent sur la même ligne sur écran large.

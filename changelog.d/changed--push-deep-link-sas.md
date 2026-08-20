@@ -1,1 +1,0 @@
-- Notifications push : un clic sur la notification d'**arrivée** ou de **départ** ouvre désormais directement le **SAS** correspondant (au lieu de la fiche réservation). La notification de **nouvelle réservation** ouvre la réservation concernée (une notification par réservation). Toutes les notifications affichent le **nom du voyageur + le logement**.

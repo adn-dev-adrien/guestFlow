@@ -1,1 +1,0 @@
-- Réservations plateforme : modifier une réservation ne déclenche plus l'erreur « GROSS_BELOW_NET » lorsque le solde recalculé dépasse un « prix payé client » saisi auparavant et non modifié dans cette édition. La sauvegarde est autorisée si le prix payé n'a pas changé ; une valeur trop basse saisie volontairement reste refusée.

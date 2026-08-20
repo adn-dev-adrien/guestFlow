@@ -1,1 +1,0 @@
-- New **Paramètres → Paiements** page: connect the Qonto bank account (OAuth + payment-links provider) and configure the payment reminder/deadline durations (deposit & balance reminders, abandonment delays, link expiries). Part of the online-payment feature.

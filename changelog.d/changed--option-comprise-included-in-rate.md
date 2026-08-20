@@ -1,1 +1,0 @@
-- Fiche réservation : une option **incluse par défaut sur le logement et paramétrée « offerte »** s'affiche désormais comme **« Comprise »** (« incluse dans le tarif ») à **0,00 €**, au lieu de « Offert » avec le prix barré — pour bien montrer qu'elle est comprise dans le prix de la nuit. Une option offerte ponctuellement (geste commercial) garde « ✓ Offert ».

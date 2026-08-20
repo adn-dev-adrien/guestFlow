@@ -1,1 +1,0 @@
-- Réglages → Ressources : activer « Planification par séances + tarif horaire » (et saisir les tarifs jour/soir/extérieurs + l'heure de bascule) est désormais bien enregistré. Auparavant ces champs étaient ignorés à la sauvegarde, donc la fiche de réservation continuait d'afficher la simple quantité au lieu de l'éditeur de séances.

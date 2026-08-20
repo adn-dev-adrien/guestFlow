@@ -1,1 +1,0 @@
-- A property's **default options** are now always applicable to that property, so the Gîte's offered bed-linen default finally shows on the reservation page (with its bed-configuration card) — for new and existing reservations alike. The included option stays hidden from the public booking form. Previously the bed-config card never appeared on any Gîte reservation.

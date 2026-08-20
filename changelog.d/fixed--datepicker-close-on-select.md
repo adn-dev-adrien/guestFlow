@@ -1,1 +1,0 @@
-- Reservation page: the date pickers (échéances acompte/solde, « payé le » de chaque paiement, dates de caution, arrivée/départ) now **close as soon as a day is selected** — via a new shared `DateField` component that blurs the native input on change.

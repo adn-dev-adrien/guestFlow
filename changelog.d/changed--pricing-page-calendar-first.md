@@ -1,1 +1,0 @@
-- Page « Gestion tarifaire » : le planning annuel est désormais affiché en premier, au-dessus de la recette tarifaire et du tableau des saisons.

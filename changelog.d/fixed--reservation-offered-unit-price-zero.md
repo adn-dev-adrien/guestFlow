@@ -1,1 +1,0 @@
-- Un-offering an option/resource on a saved reservation whose stored unit price had been lost (legacy data persisted at `0`) now restores the real amount from the current catalog price instead of staying at `0` €. Offered lines also expose the catalog price as their struck-through original price again.

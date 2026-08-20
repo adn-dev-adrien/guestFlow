@@ -1,1 +1,0 @@
-- Completing an arrival SAS now validates the planning arrival coche and the dashboard « Prêt » + « Arrivé » for that reservation; completing a departure SAS validates the planning departure coche / dashboard « Parti ». The flags are set on commit and never auto-unticked, so a manual tick/untick stays authoritative between SAS runs (specs/arrival-departure-sas.md §3.6).

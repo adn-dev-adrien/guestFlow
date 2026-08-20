@@ -1,1 +1,0 @@
-- On the reservation page, when a client is attached, « Changer le client » and « + créer un nouveau client » now sit on the same line under the client name.

@@ -1,1 +1,0 @@
-- Mail « Rappel arrivée — J-2 » : quand un complément d'arrivée est dû, la ligne décrit désormais à quoi il correspond exactement comme le SAS d'arrivée (options + ressources + taxe de séjour perçue à l'arrivée + reste éventuel), la liste couvrant toujours le montant total — au lieu d'une description partielle qui pouvait laisser un montant sans détail.

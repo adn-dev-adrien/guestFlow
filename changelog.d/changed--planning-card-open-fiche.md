@@ -1,1 +1,0 @@
-- Planning : cliquer sur une carte d'arrivée ou de départ ouvre désormais la fiche de réservation (comme les autres cartes). Le logo de check-in/check-out (SAS) est nettement agrandi pour être plus facile à toucher sur mobile, et l'ancienne petite icône « ouvrir la fiche » est supprimée.

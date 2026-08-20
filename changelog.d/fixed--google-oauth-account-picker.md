@@ -1,1 +1,0 @@
-- The « Connecter mon compte Google » flow now always shows Google's account picker (`prompt=select_account`) — on a multi-account browser it used to silently take the active account, which an Internal app then rejects.

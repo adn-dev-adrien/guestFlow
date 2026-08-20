@@ -1,1 +1,0 @@
-- Réservations : sur une réservation déjà créée, changer l'heure d'arrivée ou de départ recalcule maintenant le tarif de l'arrivée anticipée / du départ tardif (au prorata) — il restait figé sur l'ancien montant. Le cas « offert » met aussi à jour sa valeur sous-jacente. Le tarif de la nuit, lui, reste verrouillé comme avant.

@@ -1,2 +1,0 @@
-- New `email_manual_queue` table (idempotent `CREATE TABLE IF NOT EXISTS`, FK cascade to `email_templates` + `reservations`) for on-demand queued emails. Purely additive.
-- Boot seed tags the existing **"Ménage"** option with `autoOptionType = 'cleaning'` (idempotent, untyped rows only) so the J-1 reminder can detect whether cleaning was booked. Side effect: the tagged option becomes non-deletable in Paramètres → Options (like the linen/breakfast options).

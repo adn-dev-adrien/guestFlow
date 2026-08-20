@@ -27,9 +27,29 @@ function resolveDbPath(env = process.env) {
   return env.DB_PATH || env.PERSISTENT_DB || DEFAULT_DB_FILE;
 }
 
+/**
+ * The directory the live database actually lives in — following the symlink when there is one.
+ *
+ * `DB_PATH` is the explicit answer, but a deployment can perfectly well leave it unset and rely on
+ * the historical wiring instead: `current/server/guestflow.db` symlinked into `~/guestflow/data/`.
+ * That is how the production host was set up, and taking the link at face value would put the data
+ * directory *inside* the release — where the update state would be wiped by the very swap it is
+ * supposed to survive, and where `selfUpdateSupported()` would go looking for `releases/` and
+ * `ecosystem.config.js` that are one level up. Resolving the link answers the question the caller
+ * is really asking: where does the data that outlives this release live?
+ */
+function resolveDataDir(dbPath) {
+  try {
+    return path.dirname(fs.realpathSync(dbPath));
+  } catch {
+    // The file may not exist yet (first boot); the declared path is then the best answer.
+    return path.dirname(dbPath);
+  }
+}
+
 function resolvePaths(env = process.env) {
   const dbPath = resolveDbPath(env);
-  const dataDir = path.dirname(dbPath);
+  const dataDir = resolveDataDir(dbPath);
   // The deploy root is `data/`'s parent — unless the operator pins it (ecosystem.config.js does).
   const deployRoot = env.GUESTFLOW_DEPLOY_ROOT || path.dirname(dataDir);
   return {
@@ -131,6 +151,7 @@ function freeBytes(target) {
 
 module.exports = {
   resolveDbPath,
+  resolveDataDir,
   resolvePaths,
   resolvePm2Binary,
   selfUpdateSupported,

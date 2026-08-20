@@ -1,1 +1,0 @@
-- Grille « Prix plateformes » : la ligne Direct utilise le même séparateur que les autres lignes (le trait sous Direct était deux fois plus épais).

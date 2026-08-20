@@ -1,1 +1,0 @@
-- Mini planning strip (reservation page): reservation colors no longer bleed under the day-cell border — on a day with a departure followed by another arrival, the departure color showed as a rim along the bottom/right edges and the arrival color along the top/left ones.

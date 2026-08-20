@@ -1,1 +1,0 @@
-- SAS (récap) : les cases « encaissé » / « caisse interne » deviennent des **boutons** — **CB / Chèque**, **Payé en liquide** (caisse interne) et, à l'arrivée uniquement, **En fin de séjour** (reporte le complément au check-out). Le récap de check-out a les deux mêmes boutons sans « En fin de séjour ».

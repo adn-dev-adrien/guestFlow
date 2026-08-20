@@ -1,1 +1,0 @@
-- Mobile lodging calendar: swapped arrival/departure arrows so they read intuitively — arrival now points down (`↓`, guest coming in), departure points up (`↑`, guest leaving).

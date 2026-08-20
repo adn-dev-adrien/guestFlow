@@ -1,1 +1,0 @@
-- La langue des emails se choisit désormais sur la **fiche client** (et non plus sur la réservation) : toutes les communications de ce client suivent cette langue. Les emails en anglais affichent aussi les **noms d'options et de ressources en anglais** (repli sur le français si la traduction est absente).

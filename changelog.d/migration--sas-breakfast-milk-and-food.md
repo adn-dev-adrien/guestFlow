@@ -1,1 +1,0 @@
-- `reservations` gains `breakfastMilk`, `breakfastPastries`, `breakfastCereals` (INTEGER NOT NULL DEFAULT 0) — guarded ALTERs, default 0 for every existing row, no data impact.

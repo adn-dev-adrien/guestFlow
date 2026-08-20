@@ -1,1 +1,0 @@
-- `email_log` gains a `channel` column (`TEXT NOT NULL DEFAULT 'smtp'`, idempotent `ADD COLUMN`) recording how a logged email left: `'smtp'` (sent by GuestFlow) or `'manual'` (marked sent by the operator). Historical rows default to `'smtp'`. No status CHECK change.

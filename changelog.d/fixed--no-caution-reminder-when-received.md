@@ -1,1 +1,0 @@
-- E-mails d'arrivée (J-7 / J-2) : lorsque la **caution est marquée « reçue »** dans la fiche, le rappel « pensez à prévoir un chèque de caution » ne s'affiche plus. Avant, une caution déjà reçue était quand même demandée par le mail J-7 (le signal `cautionNotBanked` se basait uniquement sur l'acompte).

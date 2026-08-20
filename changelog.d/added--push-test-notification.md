@@ -1,1 +1,0 @@
-- Push settings: a « Envoyer une notification de test » button sends a test push to all of your devices, so you can verify notifications work without waiting for a real reservation or arrival/departure.

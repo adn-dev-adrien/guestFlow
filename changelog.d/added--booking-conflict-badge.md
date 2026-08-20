@@ -1,1 +1,0 @@
-- Réservations : si un paiement en ligne est encaissé alors que les dates sont devenues indisponibles, la réservation est créée mais **signalée en conflit** — un email avertit l'admin et un badge « Conflit de dates » apparaît sur la fiche et le calendrier.

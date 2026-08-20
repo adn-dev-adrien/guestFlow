@@ -1,1 +1,0 @@
-- Calendrier cumulatif sur mobile : les réservations de l'agenda sont désormais **rangées par ordre d'arrivée** (date de check-in croissante), au lieu d'être groupées par logement.

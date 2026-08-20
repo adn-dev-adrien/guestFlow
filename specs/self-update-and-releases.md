@@ -359,6 +359,14 @@ Steps, each with a check, mirroring `sowel-release`:
 `SKIP_MIGRATIONS` — the values `deploy.yml` used to pass inline — so a restart never depends on a
 workflow's environment again.
 
+**Finding `data/` when `DB_PATH` is not declared.** A host can legitimately leave it unset and rely
+on the historical wiring instead — `current/server/guestflow.db` symlinked into `data/` — which is
+exactly how the production VM was set up. The data directory is therefore resolved through
+`realpath` on the database file, not from the declared path: taking the link at face value would
+place `data/` *inside* the release, where the update state would be destroyed by the very swap it
+has to survive, and where `selfUpdateSupported()` would look for `releases/` and
+`ecosystem.config.js` one level too deep.
+
 ---
 
 ## 5. Data model
