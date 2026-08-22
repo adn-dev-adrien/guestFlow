@@ -1284,6 +1284,7 @@ function calculateReservationQuote({
   // Σ of the end-of-stay detail lines the departure SAS owns (ménage, linge manquant, extincteur…),
   // i.e. the stored complement MINUS the mid-stay lines. Added back to expose the end-of-stay total.
   endOfStaySasAmount,
+  endOfStaySasAmountAuto,
   // Once the end-of-stay complement is collected its amount is frozen: the mid-stay split stops
   // moving and the STORED lines are used instead of a fresh computation, so what was collected is
   // still carved out of the other buckets but never re-priced (§3.5).
@@ -2328,6 +2329,11 @@ function calculateReservationQuote({
   // due of the mid-stay sales (specs/mid-stay-notes.md §3.3 rule 10 — the notes already collected
   // are out). Exposed so the fiche shows the sale live, before the save persists it.
   const endOfStayComplementTotal = roundMoney(Number(endOfStaySasAmount || 0) + midStayRemainingTotal);
+  // Le même total sans l'ajustement de l'opérateur : ce que la fiche affiche en « Calcul auto (X €) »
+  // sous le champ du complément de fin de séjour (specs/adjustable-complement-amounts.md §6.1).
+  const endOfStayComplementAutoTotal = roundMoney(
+    Number(endOfStaySasAmountAuto != null ? endOfStaySasAmountAuto : endOfStaySasAmount || 0) + midStayRemainingTotal,
+  );
 
   // specs/complement-buckets-by-moment.md — the same three amounts, filed under the MOMENT they are
   // collected rather than the column that stores them: an arrival complement left unsettled once the
@@ -2418,6 +2424,7 @@ function calculateReservationQuote({
     // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
     // over the postes the auto complement is actually made of.
     complementAmountAuto: autoComplementAmount,
+    endOfStayComplementAutoTotal,
     depositDueDate,
     balanceDueDate,
     baseAccommodationAdjustedPrice,

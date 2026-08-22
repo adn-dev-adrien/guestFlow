@@ -371,6 +371,14 @@ réécriture au démarrage.
 
 ### 6.1 Carte d'un complément (arrivée, fin de séjour, fusionnée)
 
+> **La carte de fin de séjour rend le devis LIVE** (2026-08-22). Elle lisait le montant stocké, donc
+> une prestation vendue sur un complément d'arrivée encaissé — que le moteur route immédiatement vers
+> la fin de séjour ([mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md)
+> §3.1 rule 3bis) — n'apparaissait nulle part avant l'enregistrement : l'opérateur cochait une option
+> et la voyait disparaître de l'écran. Le montant vient de `quote.endOfStayComplementTotal`, les
+> lignes des lignes stockées hors ventes en séjour + `quote.midStayExtrasLines`, et l'aide « Calcul
+> auto » de `quote.endOfStayComplementAutoTotal` — soit exactement ce que l'enregistrement écrira.
+
 Le champ se glisse **dans la carte**, entre les lignes de détail et le bouton « Marquer complément
 payé » — donc dans le même bloc que la date de paiement et « Caisse interne ». Sur le complément
 d'arrivée, la ventilation obtenue s'affiche juste en dessous : l'opérateur voit ce qui partira en

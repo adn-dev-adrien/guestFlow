@@ -135,6 +135,24 @@ test('§3.3 règle 15 — un complément encaissé reste reportable, après conf
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
+// specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — une prestation vendue sur un
+// complément d'arrivée encaissé part au complément de fin de séjour, et la carte doit le montrer
+// AVANT l'enregistrement : sinon l'opérateur voit son option disparaître de l'écran.
+test('la carte de fin de séjour rend le devis live, pas seulement le montant stocké', () => {
+  renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: {
+      complementAmount: 24, complementAmountAuto: 24,
+      endOfStayComplementTotal: 30, endOfStayComplementAutoTotal: 30,
+      midStayExtrasLines: [{ label: 'Petit déjeuner', qty: 3, unitPrice: 10, amount: 30, source: 'midStayExtra', key: 'opt:6' }],
+    },
+    form: { ...FUTURE, complementPaid: true, endOfStayComplementAmount: 0, endOfStayComplementAmountAuto: 0 },
+  });
+  expect(screen.getByText('Complément de fin de séjour')).toBeInTheDocument();
+  expect(screen.getByText(/Petit déjeuner : 30,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Calcul auto \(30,00 €\)/)).toBeInTheDocument();
+});
+
 test('§6.5 — les deux compléments sont rendus dans la même grille, chacun sur une demi-largeur', () => {
   renderFinance({
     editingReservationId: 7, reservationId: 7,

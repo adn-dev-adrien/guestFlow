@@ -14,7 +14,7 @@ const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
-const { sasDetailAmount, storedMidStayLines } = require('../utils/midStayExtras');
+const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const reservationsModel = require('../models/reservationsModel');
@@ -41,6 +41,8 @@ function midStayQuoteInputs(reservationId) {
   return {
     arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId), getTodayIsoDate()),
     endOfStaySasAmount: sasDetailAmount(row.endOfStayComplementDetail),
+    // …et le même total sans la ligne d'ajustement, pour l'aide « Calcul auto » du champ.
+    endOfStaySasAmountAuto: sasDetailAmountAuto(row.endOfStayComplementDetail),
     endOfStayComplementSettled: Number(row.endOfStayComplementPaid || 0) === 1
       || Number(row.endOfStayComplementPaidCash || 0) === 1,
     frozenMidStayLines: storedMidStayLines(row.endOfStayComplementDetail),
@@ -1065,6 +1067,11 @@ function updatePayment(req, res) {
       "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
       paid, date, cash, id,
     );
+    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 (élargi le 2026-08-22) —
+    // encaisser le complément d'arrivée le CLÔT : on fige ici l'état des extras, pour que tout ce qui
+    // sera vendu ensuite parte au complément de fin de séjour au lieu de se perdre entre les
+    // échéances. Idempotent : une base déjà posée n'est jamais réécrite.
+    if (paid) model.captureArrivalExtrasBaseline(Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
     // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate

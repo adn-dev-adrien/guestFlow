@@ -211,7 +211,23 @@ export default function FinanceSection() {
   const arrivalAdjusted = form.complementAmountOverride !== '' && form.complementAmountOverride != null;
   const endOfStayAdjusted = form.endOfStayComplementAmountOverride !== '' && form.endOfStayComplementAmountOverride != null;
   const arrivalAutoAmount = Number(pricingQuote?.complementAmountAuto || 0);
-  const endOfStayAmountNow = Number(form.endOfStayComplementAmount || 0);
+  // Le complément de fin de séjour se lit sur le devis LIVE, pas sur le montant stocké : une
+  // prestation vendue sur un complément d'arrivée déjà encaissé y part immédiatement (le moteur la
+  // route, specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3), et la carte doit le
+  // montrer avant l'enregistrement — sinon l'opérateur voit son option disparaître de l'écran.
+  const endOfStayLiveTotal = pricingQuote?.endOfStayComplementTotal;
+  const endOfStayAmountNow = endOfStayLiveTotal != null
+    ? Number(endOfStayLiveTotal)
+    : Number(form.endOfStayComplementAmount || 0);
+  // Mêmes lignes que ce que l'enregistrement écrira : celles que le SAS départ possède (et la ligne
+  // d'ajustement), plus les ventes en séjour telles que le moteur vient de les recalculer.
+  const storedEndOfStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail);
+  const endOfStayLines = pricingQuote?.midStayExtrasLines
+    ? [
+      ...storedEndOfStayLines.filter((l) => l && l.source !== 'midStayExtra'),
+      ...pricingQuote.midStayExtrasLines,
+    ]
+    : storedEndOfStayLines;
   // §3.6 règle 34 — un complément fait uniquement d'hébergement n'a rien à ventiler : le réduire est
   // une remise sur le séjour, qui a son propre champ.
   const arrivalAdjustDisabledReason = (!arrivalAdjusted
@@ -892,14 +908,16 @@ export default function FinanceSection() {
                       <Grid size={{ xs: 12, md: 6 }}>
                         <ComplementCard
                           title={COMPLEMENT_LABELS.endOfStay}
-                          amount={form.endOfStayComplementAmount}
-                          lines={parseEndOfStayDetail(form.endOfStayComplementDetail)}
+                          amount={endOfStayAmountNow}
+                          lines={endOfStayLines}
                           paid={form.endOfStayComplementPaid}
                           paidCash={form.endOfStayComplementPaidCash}
                           paidDate={form.endOfStayComplementPaidDate}
                           overrideValue={form.endOfStayComplementAmountOverride}
                           onOverrideCommit={(v) => updateForm({ endOfStayComplementAmountOverride: v })}
-                          autoAmount={form.endOfStayComplementAmountAuto}
+                          autoAmount={pricingQuote?.endOfStayComplementAutoTotal != null
+                            ? pricingQuote.endOfStayComplementAutoTotal
+                            : form.endOfStayComplementAmountAuto}
                           onTogglePaid={async (next) => {
                             const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
                             if (editingReservationId) {

@@ -74,7 +74,9 @@ ait été réglé ou non.
 
 1. La réservation porte une **base de référence** `arrivalExtrasBaseline` : un instantané JSON
    `{ clé de ligne → montant TTC }` des extras (options + ressources + lignes personnalisées) tels
-   qu'ils étaient **au moment où le séjour a commencé**. `NULL` tant que le séjour n'a pas commencé.
+   qu'ils étaient **au moment où le complément d'arrivée s'est fermé** — c'est-à-dire au début du
+   séjour, **ou à l'encaissement du complément d'arrivée si celui-ci vient en premier** (élargi le
+   2026-08-22, voir la règle 3bis). `NULL` tant qu'aucun des deux n'est arrivé.
 2. **Clé de ligne** : `opt:<optionId>`, `res:<resourceId>`, `custom:<libellé normalisé>` (trim +
    minuscules + espaces compactés). Deux lignes personnalisées de même libellé sont agrégées sur la
    même clé, de façon identique côté base et côté état courant.
@@ -85,6 +87,23 @@ ait été réglé ou non.
    - à la **première sauvegarde** de la fiche à partir de `startDate` alors que la base est `NULL` →
      base = l'état des extras **avant** cette sauvegarde. Une option ajoutée dans cette même
      sauvegarde est donc bien détectée comme vendue en cours de séjour.
+3bis. **Un complément d'arrivée encaissé ferme le bucket, quelle que soit la date.** La capture était
+   gardée par le seul calendrier, et il manquait le cas qui perd de l'argent : le moteur **gèle** un
+   complément encaissé, donc une prestation vendue après ne peut plus y entrer — et sans base de
+   référence elle n'entrait nulle part non plus. Constaté en production le 2026-08-22 sur une
+   réservation à venir dont le complément avait été encaissé : ajouter une option de 30 € montait le
+   « total du séjour » de 30 € pendant que la somme des échéances restait inchangée. Trente euros
+   vendus que personne n'aurait réclamés.
+
+   La base est donc écrite aussi :
+   - **à l'encaissement** du complément d'arrivée (`complementPaid` ou `complementPaidCash` passant à
+     1, depuis la fiche comme depuis la réception) → base = les extras du moment ;
+   - et le même élargissement vaut pour la **résolution paresseuse** du devis live, sans quoi l'aperçu
+     perdrait l'argent jusqu'au prochain enregistrement.
+
+   Corollaire opérateur, demandé explicitement : « si le complément d'arrivée est payé et que j'ajoute
+   une option, elle doit aller dans un complément de fin de séjour ». C'est exactement ce que produit
+   la règle.
 4. **Le SAS d'arrivée alimente la base**, il ne la remplace pas : les lignes que
    `commitArrivalSas` écrit (linge manquant, ménage / linge de toilette activés au SAS — toutes
    taguées `sasArrivalOrigin`) sont, à la fin du commit, **reportées dans la base à leur montant
@@ -205,7 +224,7 @@ ait été réglé ou non.
 | `utils/` | `midStayExtras.js` | **C** | Fonctions pures : `extraLineKey`, `buildExtrasBaseline`, `splitMidStayExtras(lines, baseline)` → `{ total, forced, unforced, byKey, lines[] }`, `splitFromStoredLines` (variante gelée §3.5), `resolveMidStaySplit` (la décision « base ou lignes stockées », partagée par le moteur et la compta), `mergeMidStayIntoDetail`, `sasDetailAmount`, `storedMidStayLines`. Seul endroit où vivent les règles §3.1–§3.2 et §3.4 rules 11-12. |
 | `utils/` | `pricing.js` | T | Nouvelles entrées `arrivalExtrasBaseline`, `endOfStaySasAmount`, `endOfStayComplementSettled`, `frozenMidStayLines`. Applique le routage §3.3 (retrait de `midStayUnforced` du pré-arrivée, de `midStayForced` du complément forcé, de `midStayTotal` de l'auto-gap) et expose `midStayExtrasTotal` / `midStayExtrasLines` / `endOfStayComplementTotal`. `sejourNetTotal` intègre `endOfStayComplementTotal` (§3.4 rule 15). |
 | `controllers/` | `reservationsController.js` | T | `midStayQuoteInputs(reservationId)` : charge base + état du complément de fin de séjour et les passe au moteur (`calculate-price` en lecture seule, `update` après capture). `create`/`update` capturent la base (§3.1 rule 3) ; `update` appelle la resynchronisation après l'écriture des lignes. Routes inchangées. |
-| `models/` | `reservationsModel.js` | T | `readExtraLines`, `getArrivalExtrasBaseline`, `captureArrivalExtrasBaselineIfDue` (idempotente), `addKeysToArrivalExtrasBaseline`, `syncMidStayComplement` (fusion du détail + total, gelée quand le complément est encaissé). `commitArrivalSas` reporte ses propres lignes `sasArrivalOrigin` dans la base (§3.1 rule 4). Colonne gardée par `HAS_ARRIVAL_EXTRAS_BASELINE` (schémas de test minimaux). |
+| `models/` | `reservationsModel.js` | T | `arrivalExtrasBaselineIsDue(row, today)` — le prédicat partagé « séjour commencé **ou** complément d'arrivée encaissé » (§3.1 rule 3bis) ; `readExtraLines`, `getArrivalExtrasBaseline`, `captureArrivalExtrasBaselineIfDue` (idempotente), `addKeysToArrivalExtrasBaseline`, `syncMidStayComplement` (fusion du détail + total, gelée quand le complément est encaissé). `commitArrivalSas` reporte ses propres lignes `sasArrivalOrigin` dans la base (§3.1 rule 4). Colonne gardée par `HAS_ARRIVAL_EXTRAS_BASELINE` (schémas de test minimaux). |
 | `models/` | `accountingModel.js` | T | `sumComplementContribution` retranche la part « en cours de séjour » de chaque ligne — déduction **consommée** par clé pour que deux lignes personnalisées de même libellé se la partagent (§3.4 rule 16). La requête sélectionne `arrivalExtrasBaseline` + `endOfStayComplementDetail`, colonnes gardées par un `PRAGMA table_info`. `buildEndOfStayEntry` inchangé. |
 | `models/` | `financeModel.js` | — | Aucun changement : `totalSejour` / `comptaCollected` somment déjà les quatre buckets. |
 | `utils/` | `reservationSettlement.js` | — | Aucun changement : `remainingToPay` / `isSettled` idem. |
