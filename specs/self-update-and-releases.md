@@ -143,12 +143,14 @@ signed-off releases over HTTPS, when the operator asks for it.
     version appears. The dismissal is stored server-side (it is an operator decision, not a
     browser preference).
 20b. The **installed version is displayed permanently in the top bar**, on every page, and an update
-    icon appears beside it as soon as a newer release exists — opening the same release-notes
-    dialog. That icon deliberately **ignores the rule-20 dismissal**: "Plus tard" is about not being
-    nagged on the dashboard, not about losing the way back to the notes. It does step aside while an
-    update is running, since the progress overlay already owns the screen. Non-admins see no version
-    at all — the running version stays behind the admin gate for the same reason rule 30 keeps it
-    out of the public probe.
+    **pill** appears beside it as soon as a newer release exists — opening the same release-notes
+    dialog. The pill is tinted and carries a count (`HeaderPill`), not a bare icon button: an
+    icon-only control in a white bar is found only by an operator already looking for it, which is
+    the opposite of what an offer in the shell of every page is for. The pill deliberately
+    **ignores the rule-20 dismissal**: "Plus tard" is about not being nagged on the dashboard, not
+    about losing the way back to the notes. It does step aside while an update is running, since the
+    progress overlay already owns the screen. Non-admins see no version at all — the running version
+    stays behind the admin gate for the same reason rule 30 keeps it out of the public probe.
 
 ### D. Update engine — staging phase (application still serving)
 
@@ -321,7 +323,8 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | `pages/` | `Dashboard.jsx` | T | Renders `<UpdateAvailableAlert />` in the existing alert stack |
 | `pages/` | `SettingsPage.jsx` | T | Renders `<SettingsSystemUpdateSection />` |
 | `App.jsx` (shell) | `App.jsx` | T | Renders `<AppVersionBadge />` at the right end of the top bar, in place of the former `prod <sha>` pill |
-| `components/` | `AppVersionBadge.jsx` | C | Top-bar installed version + update icon opening `UpdateDialog` |
+| `components/` | `AppVersionBadge.jsx` | C | Top-bar installed version + update pill opening `UpdateDialog` |
+| `components/` | `HeaderPill.jsx` | C | Generic tinted, tappable top-bar indicator: icon + optional count/label, semantic tone, French tooltip |
 | `components/` | `UpdateAvailableAlert.jsx` | C | Admin-only dashboard alert: "GuestFlow X.Y.Z est disponible" + actions |
 | `components/` | `UpdateDialog.jsx` | C | The operator digest + confirm, with the full changelog behind a « Tout le changelog » toggle (rule 20c); starts the update |
 | `components/` | `UpdateProgressOverlay.jsx` | C | Full-screen progress, polls the status, reloads on `done`, shows `failed`/`rolled_back` |
@@ -335,7 +338,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `StatusCard`, `SummaryItem`, `StatusBadge`, `ConfirmDialog`, `FormDialog`, `ErrorAlert`, `LoadingState`, `CollapsibleSection` | The settings card is a `StatusCard` + `SummaryItem` lines; the confirm is `ConfirmDialog`. |
-| **Created (new generic)** | — | Nothing here is reusable beyond the feature. |
+| **Created (new generic)** | `HeaderPill` | The top bar had no indicator grammar of its own. `HeaderPill` is the one: it knows nothing about updates, only about being a tinted, tappable pill in the `AppBar` (icon + optional count/label + tone + tooltip), so the next thing worth surfacing there reuses it instead of hand-rolling another `IconButton`. |
 | **Specific (kept feature-local)** | `UpdateAvailableAlert`, `UpdateDialog`, `UpdateProgressOverlay`, `SettingsSystemUpdateSection`, `AppVersionBadge` | The alert follows the established `<Feature>Alert` family of the dashboard (`EmailPendingAlert`, `IcalNewReservationsAlert`, …) and the section follows the `Settings<Feature>Section` family. The overlay is a one-of-a-kind full-screen blocker tied to the restart lifecycle. |
 
 ### 4.3 API contract
@@ -534,32 +537,48 @@ Actions: `Vérifier maintenant` (with a spinner and the 10 s throttle surfaced a
 state), `Installer la mise à jour` (hidden when nothing to install or unsupported).
 Below, a collapsible **Historique des mises à jour** (last 5).
 
-### 6.5 Barre du haut — `AppVersionBadge`
+### 6.5 Barre du haut — `AppVersionBadge` + `HeaderPill`
 
 Right end of the application's `AppBar`, on every page, admin only:
 
-> `v2.1.0`  ⬆️
+> `v2.1.0`  ( ⬆ 1 )
 
 The version is plain monospace caption text, not a control — nothing to click when there is nothing
-to do. When a newer release exists, an `IconButton` (`SystemUpdateAltIcon`, `primary`) joins it,
-tooltip *« GuestFlow 2.2.0 est disponible »*, and opens `UpdateDialog` — the same release notes and
-the same "Installer maintenant" as the dashboard alert, reachable from wherever the operator
-happens to be.
+to do. When a newer release exists, a **`HeaderPill`** joins it: fully rounded, primary-green
+`SystemUpdateAltIcon` on a 10 %-alpha primary background (20 % on hover), followed by the count of
+pending updates — one, today, since GuestFlow updates as a single unit. Tooltip *« GuestFlow 2.2.0
+est disponible »*, `aria-label` *« … — voir les nouveautés »*, and a click opens `UpdateDialog` — the
+same release notes and the same "Installer maintenant" as the dashboard alert, reachable from
+wherever the operator happens to be.
 
-This replaces the former `prod <commit-sha>` pill. A commit SHA answered "which build" only for
-someone able to map it back to a commit; the release version is the identifier the changelog, the
-GitHub release and the update dialog all speak in — and the one the operator quotes when something
-looks wrong.
+The pill shape is borrowed from Sowel's header indicators, which solve the same problem in the same
+place: an affordance living in the shell of every page has to be visible without being hunted for.
+The `IconButton` this replaces was correct and invisible. The colour is GuestFlow's, though —
+primary fir-green rather than Sowel's red — because a published release is an opportunity, not an
+incident, and the « Maison » palette reserves red for things that are wrong.
 
-Per rule 20b: the icon survives a "Plus tard" (the alert is what goes quiet, not the way back), and
+The `HeaderPill` itself carries no update knowledge: icon, tone, optional count, optional label
+(hidden on `xs`), tooltip, click. It is the top-bar sibling of `StatusBadge` — same soft-background
+grammar, sized for the bar and clickable — so the next indicator that has to live up there
+(pending emails, iCal conflicts) does not reinvent one.
+
+This whole area replaces the former `prod <commit-sha>` pill. A commit SHA answered "which build"
+only for someone able to map it back to a commit; the release version is the identifier the
+changelog, the GitHub release and the update dialog all speak in — and the one the operator quotes
+when something looks wrong.
+
+Per rule 20b: the pill survives a "Plus tard" (the alert is what goes quiet, not the way back), and
 disappears while an update runs.
 
 ### 6.6 Responsive
 
 - `xs` — alert text wraps to two lines, actions stack full-width; dialog `fullScreen`; overlay
   padding reduced, steps stay on one column; settings card actions stack vertically. The top-bar
-  badge stays visible (version + icon fit next to the search magnifier), and is hidden only while
-  the mobile search field is expanded over the whole bar.
+  badge stays visible (version + pill fit next to the search magnifier), and is hidden only while
+  the mobile search field is expanded over the whole bar. The pill stays visually compact in the
+  56 px bar but its touch target reaches the 44 px floor through a transparent overlay, so the
+  shape does not have to grow to be tappable; a `label`, if one is ever passed, drops off below
+  `sm`.
 - `md` — alert on one line with trailing actions; dialog standard.
 - `lg` — unchanged from `md`; the settings card sits in the existing single-column settings flow.
 
@@ -611,7 +630,7 @@ save flow.
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
       check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
 
-### Client tests (34 new, `cd client && npm test` → 1098 green)
+### Client tests (37 new, `cd client && npm test` → 1105 green)
 
 - [x] `UpdateDialog.test.jsx` (rule 20c) — the digest is what is shown and the sections are absent
       until « Tout le changelog » is clicked, the detail folds back, a release without a digest shows
@@ -626,9 +645,12 @@ save flow.
 - [x] `SettingsSystemUpdateSection.test.jsx` — up-to-date / available / in-progress / unsupported
       states, the throttled check surfacing the server's message, and the history rendering.
 - [x] `AppVersionBadge.test.jsx` — the top bar shows the installed version and nothing to click when
-      up to date, no version and no admin call at all for a non-admin, the icon opening the notes
-      before anything installs, the icon surviving a « Plus tard » (rule 20b) and stepping aside
-      while an update runs.
+      up to date, no version and no admin call at all for a non-admin, the counted pill opening the
+      notes before anything installs, the pill surviving a « Plus tard » (rule 20b) and stepping
+      aside while an update runs.
+- [x] `HeaderPill.test.jsx` — a counted, labelled pill is a button that calls back on click, an
+      icon-only pill still names itself for screen readers (and shows no stray count), and the
+      neutral tone renders muted rather than not at all.
 
 ### Manual verification
 
@@ -654,7 +676,13 @@ Done before merge (2026-08-20):
       opens the notes dialog from the dashboard, which on the dev tree correctly refuses to install
       (« current » symlink absent). At 390px version and icon still fit next to the search
       magnifier, and the dialog goes full-screen.
-- [x] **Regression** — dashboard alert stack, settings page, full E2E suite (65 passed, 1 skipped).
+- [x] **The top-bar pill, desktop (1512px) and mobile (390px)** (2026-08-22) — with a 2.4.0 simulated
+      in `update-state.json`: the green pill sits right of `v2.3.0`, hover darkens it and shows
+      « GuestFlow 2.4.0 est disponible », and a click opens « Mise à jour vers GuestFlow 2.4.0 ». At
+      390px the burger, the wordmark, the search magnifier, the version and the pill all still fit on
+      one line with no horizontal scroll.
+- [x] **Regression** — dashboard alert stack, settings page, full E2E suite (65 passed, 1 skipped;
+      re-run on 2026-08-22 for the pill: 65 passed, 1 skipped).
 
 Only possible on the production host, after `bootstrap-vm.sh` (see §10):
 
@@ -737,6 +765,7 @@ Still open, to settle during implementation:
 | 7b | On the host: `bootstrap-vm.sh` run, runner uninstalled and deregistered | ✅ 2026-08-20 |
 | 8 | Rules 28 / 30b: the helper leaves the PM2 process tree, and a boot concludes an abandoned swap | ✅ 2026-08-20 |
 | 9 | Top-bar version badge replacing the `prod <sha>` pill (§6.5, rule 20b) | ✅ 2026-08-20 |
+| 10 | The update offer becomes a visible `HeaderPill` in the bar (§6.5, rule 20b) | ✅ 2026-08-22 |
 
 **Done in production on 2026-08-20**, in this order, with a verified off-host backup taken first:
 layout migrated (`current/` → `releases/1.0.0` + symlink, uploads moved to `data/uploads`), the app
@@ -782,3 +811,20 @@ update looked fine only because the new version booted. Had it not, nothing woul
 back. Per rule 35 the engine that runs is the one already installed, so this fix protects the update
 *after* the one that ships it — 2.1.0 → next is still run by 2.1.0's helper, and its outcome is
 concluded by 30b in the version that boots.
+
+### Amendment — 2026-08-22, the offer nobody could see
+
+The top-bar affordance shipped on 2026-08-20 was an `IconButton`: a primary-tinted glyph next to the
+version, no background, no count. Tested, documented, and — reported by the operator two releases
+later — effectively invisible. Not hidden by a bug: hidden by weight. A bare icon in a white bar
+next to a wordmark, a search field and a magnifier is read as chrome, and chrome does not get
+clicked.
+
+The fix is a shape, not a mechanism: the same click, the same dialog, the same rule-20b behaviour,
+rendered as a tinted counted pill (§6.5). It is Sowel's header grammar, ported deliberately — its
+update indicator solves this exact problem in this exact position — with the colour changed, because
+in the « Maison » palette red means something went wrong and a published release is not that.
+
+The pill lives in a generic `HeaderPill` rather than inside `AppVersionBadge`, so the second top-bar
+indicator, whenever it comes, is a props call and not a second opinion on what a bar indicator
+looks like.

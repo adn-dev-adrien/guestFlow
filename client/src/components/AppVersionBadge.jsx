@@ -10,14 +10,18 @@
  * Admin-only, like every `/api/system/*` endpoint — a non-admin session makes no call at all rather
  * than collecting 403s, and simply gets no badge.
  *
- * Unlike the dashboard alert, the update icon here **ignores « Plus tard »**: postponing is about
+ * Unlike the dashboard alert, the update pill here **ignores « Plus tard »**: postponing is about
  * not being nagged on the dashboard, not about losing the way back to the release notes. It does
  * step aside while an update is running — `UpdateProgressOverlay` owns the screen at that point.
+ *
+ * The offer is a `HeaderPill`, not a bare icon button: a tinted, counted pill is seen without being
+ * looked for, which is the whole point of putting the affordance in the bar of every page.
  */
 import React, { useState } from 'react';
-import { Box, IconButton, Tooltip, Typography } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import useAppUpdate from '../hooks/useAppUpdate';
+import HeaderPill from './HeaderPill';
 import UpdateDialog from './UpdateDialog';
 
 export default function AppVersionBadge() {
@@ -29,7 +33,7 @@ export default function AppVersionBadge() {
   const showUpdate = Boolean(info.updateAvailable) && !info.updateInProgress;
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       <Tooltip title="Version installée">
         <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
           v{info.current}
@@ -37,16 +41,14 @@ export default function AppVersionBadge() {
       </Tooltip>
 
       {showUpdate && (
-        <Tooltip title={`GuestFlow ${info.latest} est disponible`}>
-          <IconButton
-            size="small"
-            color="primary"
-            onClick={() => setDialogOpen(true)}
-            aria-label={`GuestFlow ${info.latest} est disponible — voir les nouveautés`}
-          >
-            <SystemUpdateAltIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <HeaderPill
+          icon={<SystemUpdateAltIcon />}
+          tone="primary"
+          count={1}
+          title={`GuestFlow ${info.latest} est disponible`}
+          ariaLabel={`GuestFlow ${info.latest} est disponible — voir les nouveautés`}
+          onClick={() => setDialogOpen(true)}
+        />
       )}
 
       <UpdateDialog
