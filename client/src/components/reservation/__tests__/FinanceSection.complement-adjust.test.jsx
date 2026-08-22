@@ -97,28 +97,42 @@ test('règle 9 — une carte ajustée à 0 € reste affichée', () => {
   expect(screen.getByText("Complément d'arrivée")).toBeInTheDocument();
 });
 
-test('§3.3 — l\'interrupteur « Percevoir en fin de séjour » pose le marqueur et recharge', async () => {
+test('§3.3 — « Percevoir en fin de séjour » pose le marqueur et recharge', async () => {
   const user = userEvent.setup();
   const ctx = renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { ...FUTURE },
   });
-  await user.click(screen.getByRole('switch', { name: /Percevoir en fin de séjour/i }));
+  await user.click(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i }));
   expect(ctx.updateForm).toHaveBeenCalledWith({ complementDeferredToCheckout: true });
   await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { complementDeferredToCheckout: true }));
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
-test('§3.3 règle 15 — séjour commencé : l\'interrupteur est coché et figé', () => {
+test('§3.3 règle 15 — le séjour commencé ne verrouille plus le report', () => {
   renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { startDate: '2020-01-01', endDate: '2020-01-05' },
   });
-  const toggle = screen.getByRole('switch', { name: /Percevoir en fin de séjour/i });
-  expect(toggle).toBeChecked();
-  expect(toggle).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i })).toBeEnabled();
+});
+
+test('§3.3 règle 15 — un complément encaissé reste reportable, après confirmation', async () => {
+  const user = userEvent.setup();
+  const ctx = renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
+    form: { ...FUTURE, complementPaid: true, complementPaidDate: '2099-06-01' },
+  });
+  await user.click(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i }));
+  expect(await screen.findByText(/Il est marqué encaissé/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /^Confirmer$|^Oui$/i }));
+  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, {
+    complementDeferredToCheckout: true, complementPaid: false, complementPaidCash: false,
+  }));
+  expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
 test('§6.5 — les deux compléments sont rendus dans la même grille, chacun sur une demi-largeur', () => {

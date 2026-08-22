@@ -47,9 +47,6 @@ function midStayQuoteInputs(reservationId) {
     // specs/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
     // of the frozen pre-arrival buckets.
     midStaySettledNotes: row.midStaySettledNotes || null,
-    // specs/complement-buckets-by-moment.md §3 rule 5 — resolved here (not in the engine, which has no
-    // clock) so the live preview and the save file a complement under the same heading.
-    stayStarted: Boolean(row.startDate) && String(row.startDate) <= getTodayIsoDate(),
     complementCollected: Number(row.complementPaid || 0) === 1,
     // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
     // the door reads under « fin de séjour » straight away, without waiting for the stay to start.

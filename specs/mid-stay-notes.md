@@ -146,7 +146,9 @@ becomes **the remainder** — collected at check-out exactly as today.
       `PointOfSale`, vert), **en tête de `actionsBefore`** ;
     - depuis le **bloc « Encaissements en séjour »** (FinanceSection, entre le complément d'arrivée
       et celui de fin de séjour) : total courant des notes encaissées, bouton « + Nouvelle note » et
-      **historique** dépliable (date, mode CB / Caisse interne, total, lignes, ✕ annuler avec
+      **historique** dépliable (date, mode CB / Caisse interne, total, lignes, ✎ modifier et
+      « Reporter au départ » — ex-✕ « annuler », renommé le 2026-08-22, voir
+      [adjustable-complement-amounts.md](adjustable-complement-amounts.md) §3.4 règle 24 — avec
       confirmation).
 
     La règle d'affichage est **partagée** par les deux via `utils/midStayNoteAccess.js` (pure, testée)
@@ -311,8 +313,10 @@ every step. No backfill, no loss.
   left for check-out is a no-op). Cancel rolls back any catalogue addition.
 - **Copy (FR):** « Encaissements en séjour », « Nouvelle note », « À percevoir »,
   « Ajouter une prestation », « Total de la note », « En fin de séjour », « payé le {date} (CB) » /
-  « (Caisse interne) », cancel confirm « Annuler cet encaissement ? Les prestations redeviennent à
-  percevoir en fin de séjour. », accounting label « Prestations en séjour ».
+  « (Caisse interne) », confirmation du report « Reporter cette note au départ ? Ses prestations
+  rejoignent le complément de fin de séjour, à encaisser en une seule fois. La note disparaît du
+  registre. » (ex-« Annuler cet encaissement ? Les prestations redeviennent à percevoir en fin de
+  séjour. »), accounting label « Prestations en séjour ».
 - **States:** button disabled + tooltip while the end-of-stay complement is globally collected;
   settle/cancel errors surface through the existing fiche error path; actions disabled while a PATCH
   is in flight; empty history → the block shows only the button (total hidden at 0 €).
@@ -373,7 +377,7 @@ every step. No backfill, no loss.
       « 06/08 — 24,00 € — CB » avec sa ligne et le ✕.
 - [x] Cascade : 459,40 → − 24,00 (perçus sur place) → 435,40 soumis à commission → versement 435,40
       → + 24,00 encaissements en séjour → **Total perçu 459,40**. Équilibrée.
-- [x] Annulation : confirmation « Les prestations redeviennent à percevoir en fin de séjour. » →
+- [x] Report au départ (ex-annulation) : confirmation « Ses prestations rejoignent le complément de fin de séjour… » →
       la note disparaît, les 24 € reviennent en ligne `midStayExtra` du complément de fin de séjour.
 - [ ] Départ SAS « Déjà réglé en séjour » : non rejoué à la main (couvert par le rendu conditionnel
       + les tests unitaires) — le récap du SAS avait été vérifié sur la spec précédente.

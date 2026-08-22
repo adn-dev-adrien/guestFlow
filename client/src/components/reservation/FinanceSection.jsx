@@ -198,12 +198,11 @@ export default function FinanceSection() {
   // (`checkoutComplement`: total + arrival & end-of-stay lines + paid state); the fiche just renders
   // it in place of the two separate cards.
   const checkoutComplement = form.checkoutComplement || null;
-  // specs/complement-buckets-by-moment.md §3 rule 4 — the merged card is now driven by the SPLIT, not
-  // by the deferral flag alone: an arrival complement left unsettled once the guest is in is collected
-  // at the door too, whether or not the operator answered « En fin de séjour » at check-in. The server
-  // has already moved it, so `split.arrival === 0` is exactly the « one collection left » case.
-  const complementSplit = pricingQuote?.complementSplit || null;
-  const complementDeferred = Boolean(checkoutComplement?.deferred || (complementSplit && complementSplit.arrival === 0))
+  // specs/complement-buckets-by-moment.md §3 rule 4 (révisée 2026-08-22) — une seule chose fusionne
+  // les cartes : le marqueur posé par l'opérateur. La fiche déduisait aussi le report du calendrier
+  // (« le séjour a commencé et personne n'a encaissé »), ce qui déplaçait l'argent tout seul le jour
+  // de l'arrivée, sans moyen de revenir en arrière.
+  const complementDeferred = Boolean(checkoutComplement?.deferred)
     && Number(checkoutComplement?.amount || 0) > 0;
 
   // specs/adjustable-complement-amounts.md §3.6 — le plancher et la ventilation prête à rendre sont
@@ -238,38 +237,56 @@ export default function FinanceSection() {
     : '';
 
   // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour » depuis la
-  // fiche : même marqueur que le récap du SAS arrivée, effet immédiat, réversible.
+  // fiche : même marqueur que le récap du SAS arrivée, effet immédiat, réversible, disponible à tout
+  // moment. Rendu comme un bouton pleine largeur, dans la même langue visuelle que « Marquer
+  // complément payé » et « Caisse interne » : en interrupteur MUI discret, l'opérateur ne le voyait
+  // pas (retour d'Adrien, 2026-08-22).
   const deferAccess = complementDeferralAccess({
     editingReservationId,
     isDevisMode,
-    startDate: form.startDate,
     complementAmount: Number(pricingQuote?.complementAmount || 0),
     complementPaid: Boolean(form.complementPaid) || Boolean(form.complementPaidCash),
     deferred: Boolean(form.complementDeferredToCheckout),
     locked: Boolean(isReservationLocked),
-    today: todayStr(),
   });
   const onToggleDefer = async (next) => {
-    updateForm({ complementDeferredToCheckout: next });
-    await api.markPayment(editingReservationId, { complementDeferredToCheckout: next });
+    // Reporter un complément déjà marqué encaissé le remet à percevoir : ça se confirme.
+    if (next && deferAccess.needsConfirm) {
+      const ok = await confirm({
+        title: 'Reporter ce complément au départ ?',
+        message: 'Il est marqué encaissé. Le reporter le remet à percevoir, avec le complément de fin de séjour, en une seule collecte.',
+      });
+      if (!ok) return;
+    }
+    updateForm({
+      complementDeferredToCheckout: next,
+      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
+    });
+    await api.markPayment(editingReservationId, {
+      complementDeferredToCheckout: next,
+      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false } : {}),
+    });
     await reloadReservationFinance();
   };
-  const deferSwitch = deferAccess.visible ? (
+  const deferButton = deferAccess.visible ? (
     <Tooltip
-      title={deferAccess.reason || 'Le complément d\'arrivée sera encaissé au départ, avec le complément de fin de séjour.'}
+      title={deferAccess.reason
+        || (deferAccess.checked
+          ? 'Le complément d\'arrivée est encaissé au départ, avec le complément de fin de séjour — une seule collecte.'
+          : 'Regrouper ce complément avec celui de fin de séjour : une seule ligne, un seul encaissement.')}
     >
-      <span>
-        <FormControlLabel
-          control={(
-            <Switch
-              checked={deferAccess.checked}
-              disabled={deferAccess.disabled}
-              onChange={(e) => onToggleDefer(e.target.checked)}
-            />
-          )}
-          label={<Typography variant="body2">Percevoir en fin de séjour</Typography>}
-          sx={{ mt: 1 }}
-        />
+      <span style={{ display: 'block' }}>
+        <Button
+          fullWidth
+          size="small"
+          variant={deferAccess.checked ? 'contained' : 'outlined'}
+          color={deferAccess.checked ? 'info' : 'inherit'}
+          disabled={deferAccess.disabled}
+          onClick={() => onToggleDefer(!deferAccess.checked)}
+          sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
+        >
+          {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
+        </Button>
       </span>
     </Tooltip>
   ) : null;
@@ -319,10 +336,13 @@ export default function FinanceSection() {
     await reloadReservationFinance();
   };
 
+  // §3.4 — reporter une note au départ. Mécaniquement c'est l'annulation de l'encaissement : les
+  // prestations de la note repartent dans ce qui reste à percevoir à la porte, et la note quitte le
+  // registre. Le libellé dit l'intention (regrouper la collecte) plutôt que le mécanisme.
   const onCancelNote = async (note) => {
     const ok = await confirm({
-      title: 'Annuler cet encaissement ?',
-      message: 'Les prestations redeviennent à percevoir en fin de séjour.',
+      title: 'Reporter cette note au départ ?',
+      message: 'Ses prestations rejoignent le complément de fin de séjour, à encaisser en une seule fois. La note disparaît du registre.',
     });
     if (!ok) return;
     await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
@@ -767,8 +787,9 @@ export default function FinanceSection() {
             )}
 
             {/* Les compléments, dans une seule grille : deux cartes par ligne sur ordinateur, empilées
-                sur mobile (specs/adjustable-complement-amounts.md §6.5). L'ordre est celui de la
-                collecte : arrivée → durant le séjour → fin de séjour. */}
+                sur mobile (specs/adjustable-complement-amounts.md §6.5). Arrivée et fin de séjour
+                d'abord, côte à côte — ce sont les deux qu'on compare, et le report bascule de l'une à
+                l'autre. « Durant le séjour », qui est un registre et pas une collecte à venir, suit. */}
             {(complementDeferred || showArrivalComplement || showMidStayNotes || showEndOfStayComplement) && (
               <>
                 <Divider />
@@ -786,7 +807,7 @@ export default function FinanceSection() {
                           paid={form.complementPaid}
                           paidCash={form.complementPaidCash}
                           paidDate={form.complementPaidDate}
-                          extra={deferSwitch}
+                          extra={deferButton}
                           overrideValue={mergedOverrideValue}
                           onOverrideCommit={commitArrivalOverride}
                           autoAmount={mergedAutoAmount}
@@ -834,7 +855,7 @@ export default function FinanceSection() {
                           paid={form.complementPaid}
                           paidCash={form.complementPaidCash}
                           paidDate={form.complementPaidDate}
-                          extra={deferSwitch}
+                          extra={deferButton}
                           overrideValue={form.complementAmountOverride}
                           onOverrideCommit={commitArrivalOverride}
                           autoAmount={arrivalAutoAmount}
@@ -867,6 +888,43 @@ export default function FinanceSection() {
                       </Grid>
                     )}
 
+                    {showEndOfStayComplement && (
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <ComplementCard
+                          title={COMPLEMENT_LABELS.endOfStay}
+                          amount={form.endOfStayComplementAmount}
+                          lines={parseEndOfStayDetail(form.endOfStayComplementDetail)}
+                          paid={form.endOfStayComplementPaid}
+                          paidCash={form.endOfStayComplementPaidCash}
+                          paidDate={form.endOfStayComplementPaidDate}
+                          overrideValue={form.endOfStayComplementAmountOverride}
+                          onOverrideCommit={(v) => updateForm({ endOfStayComplementAmountOverride: v })}
+                          autoAmount={form.endOfStayComplementAmountAuto}
+                          onTogglePaid={async (next) => {
+                            const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: next, endOfStayComplementPaidDate: date || null });
+                            }
+                            updateForm({ endOfStayComplementPaid: next, endOfStayComplementPaidDate: date, ...(next ? {} : { endOfStayComplementPaidCash: false }) });
+                          }}
+                          onDateChange={async (v) => {
+                            updateForm({ endOfStayComplementPaidDate: v });
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: v || null });
+                            }
+                          }}
+                          onToggleCash={async (next) => {
+                            const date = form.endOfStayComplementPaidDate || todayStr();
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaidCash: next });
+                            }
+                            updateForm(next
+                              ? { endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date }
+                              : { endOfStayComplementPaidCash: false });
+                          }}
+                        />
+                      </Grid>
+                    )}
                     {/* Complément durant le séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
                         settled notes + the « Nouvelle note » entry point + a browsable history. Placed
                         between the two complements, in collection order. */}
@@ -916,43 +974,6 @@ export default function FinanceSection() {
                       </Grid>
                     )}
 
-                    {showEndOfStayComplement && (
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <ComplementCard
-                          title={COMPLEMENT_LABELS.endOfStay}
-                          amount={form.endOfStayComplementAmount}
-                          lines={parseEndOfStayDetail(form.endOfStayComplementDetail)}
-                          paid={form.endOfStayComplementPaid}
-                          paidCash={form.endOfStayComplementPaidCash}
-                          paidDate={form.endOfStayComplementPaidDate}
-                          overrideValue={form.endOfStayComplementAmountOverride}
-                          onOverrideCommit={(v) => updateForm({ endOfStayComplementAmountOverride: v })}
-                          autoAmount={form.endOfStayComplementAmountAuto}
-                          onTogglePaid={async (next) => {
-                            const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: next, endOfStayComplementPaidDate: date || null });
-                            }
-                            updateForm({ endOfStayComplementPaid: next, endOfStayComplementPaidDate: date, ...(next ? {} : { endOfStayComplementPaidCash: false }) });
-                          }}
-                          onDateChange={async (v) => {
-                            updateForm({ endOfStayComplementPaidDate: v });
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: v || null });
-                            }
-                          }}
-                          onToggleCash={async (next) => {
-                            const date = form.endOfStayComplementPaidDate || todayStr();
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { endOfStayComplementPaidCash: next });
-                            }
-                            updateForm(next
-                              ? { endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date }
-                              : { endOfStayComplementPaidCash: false });
-                          }}
-                        />
-                      </Grid>
-                    )}
                   </Grid>
                 </Box>
                 {showMidStayNotes && (

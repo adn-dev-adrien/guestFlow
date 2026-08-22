@@ -1297,10 +1297,6 @@ function calculateReservationQuote({
   // only subtracts it from the displayed « total de séjour »: the sale, the échéances and the buckets
   // are deliberately untouched by a refund.
   refundsTotal = 0,
-  // specs/complement-buckets-by-moment.md §3 rule 5 — `startDate <= today`, resolved by the caller
-  // (the engine has no clock). Absent → not started: a devis or a public quote files everything under
-  // the arrival complement, as before.
-  stayStarted = false,
   // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — the operator moved the arrival
   // complement to the door. Files it under « fin de séjour » in the split even before the stay starts.
   complementDeferredToCheckout = false,
@@ -2342,7 +2338,6 @@ function calculateReservationQuote({
     complementPaid: complementPaid !== undefined ? complementPaid : complementCollected,
     midStaySettledTotal,
     endOfStayComplementTotal,
-    stayStarted,
     deferred: Boolean(complementDeferredToCheckout),
   });
 

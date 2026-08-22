@@ -8,15 +8,15 @@
  * guest, someone has to say which of those postes absorbs the difference — and that someone is the
  * fiche, never the accounting export (rule 31: the export only ever splits a TTC into HT + VAT).
  *
- * Two postes are untouchable (rule 32):
- *   - the **tourist tax**, which is a debt to the commune, not revenue — moving it would desync the
- *     `46710000` line from the tax declaration;
- *   - the **accommodation** share: reducing the price of the stay is what « Prix hébergement ajusté »
- *     is for, not a complement adjustment.
+ * One poste is untouchable (rule 32): the **tourist tax**. It is a debt to the commune, not revenue,
+ * and moving it would desync the `46710000` line from what the tax declaration sends to the council.
+ * It is therefore the floor, and that floor also guarantees the export's tax clamp never bites.
  *
- * So the adjustment lands on the prestations — options, custom options and resources — pro rata of
- * what they currently weigh. Their floor is therefore `accommodation + tax` (rule 33), which also
- * guarantees the export's tax clamp never bites.
+ * Everything else absorbs, in a deliberate order (arbitré avec Adrien le 2026-08-22): the
+ * **prestations first** — options, custom options and resources, pro rata of what they weigh — and
+ * the **accommodation share only once the prestations are exhausted**. Reducing the price of the stay
+ * is what « Prix hébergement ajusté » is for, so the complement adjustment reaches it last, never
+ * first.
  *
  * Pure: no DB, no clock. Unit-tested in tests/complement-allocation.unit.test.js.
  */
@@ -68,29 +68,35 @@ function splitComplementByPoste(detailLines, autoAmount) {
  *            floor:number, floored:boolean, total:number}}
  */
 function allocateComplementAdjustment({ target, accommodation = 0, options = 0, resources = 0, tax = 0 } = {}) {
-  const keptAccommodation = Math.max(0, round2(accommodation));
+  const baseAccommodation = Math.max(0, round2(accommodation));
   const keptTax = Math.max(0, round2(tax));
-  const floor = round2(keptAccommodation + keptTax);
+  const floor = keptTax;
   const asked = Math.max(0, round2(target));
   const floored = asked < floor;
   const total = floored ? floor : asked;
+  // What the revenue postes have to weigh together once the tax is served.
   const adjustable = round2(total - floor);
 
   const baseOptions = Math.max(0, round2(options));
   const baseResources = Math.max(0, round2(resources));
   const base = round2(baseOptions + baseResources);
 
+  // The accommodation share stays whole as long as the prestations can absorb the move on their own;
+  // below that it gives way in turn, down to zero (rule 33).
+  const nextAccommodation = round2(Math.min(baseAccommodation, adjustable));
+  const forPrestations = round2(adjustable - nextAccommodation);
+
   let nextOptions;
   let nextResources;
   if (base <= 0) {
     // Nothing to spread over: an extra collected on site is a « prestation complémentaire » (rule 35).
-    nextOptions = adjustable;
+    nextOptions = forPrestations;
     nextResources = 0;
   } else {
-    nextOptions = round2((adjustable * baseOptions) / base);
-    nextResources = round2((adjustable * baseResources) / base);
+    nextOptions = round2((forPrestations * baseOptions) / base);
+    nextResources = round2((forPrestations * baseResources) / base);
     // The cent of rounding goes to the heavier poste so Σ postes == the announced amount exactly.
-    const residue = round2(adjustable - nextOptions - nextResources);
+    const residue = round2(forPrestations - nextOptions - nextResources);
     if (residue !== 0) {
       if (baseOptions >= baseResources) nextOptions = round2(nextOptions + residue);
       else nextResources = round2(nextResources + residue);
@@ -98,7 +104,7 @@ function allocateComplementAdjustment({ target, accommodation = 0, options = 0, 
   }
 
   return {
-    accommodation: keptAccommodation,
+    accommodation: nextAccommodation,
     options: nextOptions,
     resources: nextResources,
     tax: keptTax,

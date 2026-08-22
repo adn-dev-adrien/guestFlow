@@ -150,20 +150,31 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     souverain au check-in (encaisser sur place efface le marqueur, règle 5).
 14. **Effet immédiat**, comme les boutons « payé » / « caisse interne » voisins : `PATCH /payment`,
     sans attendre l'enregistrement de la fiche. En création de réservation et sur un devis (pas
-    d'`id`), l'interrupteur est masqué — il n'y a pas encore de séjour à reporter.
-15. **L'interrupteur ne sert qu'avant le check-in.** Une fois le séjour commencé, un complément non
-    encaissé est de toute façon perçu à la porte
-    ([complement-buckets-by-moment.md](complement-buckets-by-moment.md) règle 4) : l'interrupteur est
-    alors affiché **actif et désactivé**, avec le motif en infobulle (« le séjour a commencé : un
-    complément non encaissé se perçoit au départ »). Pas de commande morte.
-16. **Le marqueur entre dans le split.** `splitComplementBuckets` ne connaît aujourd'hui que
-    `stayStarted` et `complementPaid` ([complementBuckets.js](../server/src/utils/complementBuckets.js)).
-    Un report posé **avant** l'arrivée donnerait une carte fusionnée « fin de séjour » à gauche et une
-    ligne « Complément d'arrivée » dans le panneau de droite
-    ([PricingSummary.jsx:774](../client/src/components/PricingSummary.jsx#L774)) — exactement
-    l'incohérence que `complement-buckets-by-moment` avait supprimée. Le split reçoit donc le marqueur :
-    `arrival = 0` dès que `complementDeferredToCheckout = 1` et que le complément n'est pas encaissé,
-    séjour commencé ou non. L'invariant « la somme ne bouge jamais » est préservé.
+    d'`id`), le contrôle est masqué — il n'y a pas encore de séjour à reporter.
+15. **Disponible à tout moment** (révisé le 2026-08-22, après essai en production). Il ne se verrouille
+    pas au début du séjour et ne disparaît pas une fois le complément encaissé : un encaissement se
+    corrige, et regrouper la collecte au départ est précisément la correction qu'on veut pouvoir
+    faire. Deux conséquences :
+    - reporter un complément **marqué encaissé** le remet à percevoir — donc on le **confirme** avant
+      (« Il est marqué encaissé. Le reporter le remet à percevoir, avec le complément de fin de
+      séjour, en une seule collecte. ») ;
+    - le contrôle ne s'efface que lorsqu'il n'y a matériellement rien à déplacer : pas de réservation
+      enregistrée, ou pas de complément d'arrivée.
+
+    La version précédente affichait l'interrupteur **coché et grisé** dès le jour d'arrivée, au motif
+    qu'un complément non encaissé se perçoit de toute façon à la porte. C'était vrai et inutilisable :
+    l'opérateur ne pouvait plus rien décider au moment où il en avait justement besoin.
+16. **Le marqueur EST le split.** `splitComplementBuckets` ne regarde plus que lui (et l'encaissement,
+    qui l'emporte) : `arrival = 0` dès que `complementDeferredToCheckout = 1` et que le complément
+    n'est pas encaissé. La déduction par le calendrier est retirée du split
+    ([complement-buckets-by-moment.md](complement-buckets-by-moment.md) règle 4 révisée), si bien que
+    la carte de la fiche, le panneau de droite et le marqueur disent tous la même chose, décidée au
+    même endroit. L'invariant « la somme ne bouge jamais » est préservé.
+16bis. **Le contrôle est un bouton, pas un interrupteur.** Un `Switch` MUI glissé entre le champ de
+    montant et les boutons de paiement est passé inaperçu de l'opérateur — le retour du 2026-08-22 est
+    littéralement « il n'y a pas de bouton percevoir en fin de séjour », alors qu'il était à l'écran.
+    Il prend donc la même forme que ses voisins : bouton pleine largeur, bordé quand inactif, plein
+    quand actif (« Perçu en fin de séjour ✓ »).
 17. **Les emails suivent.** `emailContextBuilder` écrit aujourd'hui « à régler directement sur place à
     **votre arrivée** » sans regarder le marqueur
     ([emailContextBuilder.js:286](../server/src/utils/emailContextBuilder.js#L286)). Sur une
@@ -187,14 +198,16 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
 
 **Edge cases (Part C) :**
 
-- Complément d'arrivée **déjà encaissé** → interrupteur masqué : il n'y a plus rien à reporter, et
-  `buildCheckoutComplement` retombe déjà à `deferred = false` dans ce cas.
-- Complément d'arrivée à **0 €** → pas de carte, donc pas d'interrupteur.
+- Complément d'arrivée **déjà encaissé** → contrôle affiché quand même ; l'activer le remet à
+  percevoir, après confirmation (règle 15).
+- Complément d'arrivée à **0 €** → pas de carte, donc pas de contrôle.
 - Report posé sur la fiche, puis SAS arrivée encaissé en CB → le marqueur retombe à 0 (règle 5) :
   l'argent a bien été perçu à l'arrivée, l'événement le plus récent gagne.
 - Report posé, puis le complément grossit (option ajoutée) → rien de spécial, la carte fusionnée
   affiche le nouveau total ; le marqueur est indépendant du montant.
 - Report posé, puis la réservation est annulée → lecture seule, le marqueur reste tel quel.
+- Séjour déjà commencé, complément impayé, aucun marqueur → il reste sous « arrivée » et le contrôle
+  est là pour le déplacer. C'est le changement de la règle 16 : plus rien ne bouge tout seul.
 
 ---
 
@@ -327,25 +340,33 @@ endroit que les autres décisions d'encaissement.
 │  Bain nordique     : 60,00 €                    │
 │  Taxe de séjour    :  9,60 €                    │
 │                                                 │
-│  ( ) Percevoir en fin de séjour                 │
+│  Montant ajusté (€)  [              ]           │
+│  Calcul auto (93,60 €)                          │
 │                                                 │
+│  [ Percevoir en fin de séjour               ]   │
 │  [ Marquer complément payé                  ]   │
 │  [ Caisse interne                           ]   │
 └─────────────────────────────────────────────────┘
 ```
 
+Trois boutons pleine largeur qui se lisent d'un coup d'œil, dans l'ordre des décisions : *où* on
+encaisse, *si* c'est encaissé, *comment*. Une fois le report actif, le bouton devient plein et lit
+« Perçu en fin de séjour ✓ ».
+
 Une fois basculé, les deux cartes fusionnent en une seule « Complément de fin de séjour » (règle 6) et
 l'interrupteur réapparaît **dedans**, en position active, pour pouvoir revenir en arrière.
 
 Copie française :
-- Label : **« Percevoir en fin de séjour »**
-- Infobulle : **« Le complément d'arrivée sera encaissé au départ, avec le complément de fin de
-  séjour. »**
-- Infobulle, désactivé après le début du séjour : **« Le séjour a commencé : un complément non encaissé
-  se perçoit au départ. »**
+- Bouton inactif : **« Percevoir en fin de séjour »**, infobulle **« Regrouper ce complément avec
+  celui de fin de séjour : une seule ligne, un seul encaissement. »**
+- Bouton actif : **« Perçu en fin de séjour ✓ »**, infobulle **« Le complément d'arrivée est encaissé
+  au départ, avec le complément de fin de séjour — une seule collecte. »**
+- Confirmation sur un complément encaissé : titre **« Reporter ce complément au départ ? »**, corps
+  **« Il est marqué encaissé. Le reporter le remet à percevoir, avec le complément de fin de séjour,
+  en une seule collecte. »**
 
-Responsive : un `Switch` MUI dans la carte, qui suit la colonne (`xs: 12` / `md: 6`) — rien de
-spécifique à `xs`. Cible tactile ≥ 44 × 44 px.
+Responsive : un bouton pleine largeur dans la carte, qui suit la colonne (`xs: 12` / `md: 6`) — rien
+de spécifique à `xs`. Cible tactile ≥ 44 px de haut.
 
 ## 7. Test plan
 
@@ -405,8 +426,11 @@ spécifique à `xs`. Cible tactile ≥ 44 × 44 px.
       montant (rule 18).
 
 **Client tests (vitest)**
-- [x] L'interrupteur est masqué sans `id`, sur un complément encaissé, sur un complément à 0 €.
-- [x] Séjour commencé → affiché actif et désactivé, infobulle du motif (rule 15).
+- [x] Le contrôle est masqué sans `id` et sur un complément à 0 € ; il reste affiché sur un complément
+      encaissé (rule 15).
+- [x] Séjour commencé → toujours actif et modifiable (rule 15 révisée).
+- [x] Reporter un complément encaissé demande confirmation, puis envoie le marqueur ET la remise à
+      percevoir dans le même PATCH (rule 15).
 - [x] Le basculer appelle `markPayment` puis fait apparaître la carte fusionnée (rules 12-14).
 
 **Manual UI verification**
@@ -417,6 +441,10 @@ spécifique à `xs`. Cible tactile ≥ 44 × 44 px.
 - [ ] Réception + planning : plus d'alerte à l'arrivée, alerte au départ. **Non rejoué à la main** —
       il faudrait une arrivée du jour ; `buildOperationalCollection` n'est pas modifié par cette part
       et garde ses tests (`operational-collection.unit.test.js`).
+- [x] Sur la réservation qui a motivé la révision (compl. d'arrivée encaissé 153,05 € + bain nordique
+      30 €) : le bouton est visible, le report demande confirmation, la fiche tombe à **une seule
+      carte à 187,01 €** listant toutes les lignes, le montant s'ajuste à 150 € et l'aller-retour
+      rétablit les deux cartes.
 - [x] Mobile `xs` (390 px) : la carte et son interrupteur tiennent, aucun scroll horizontal.
 
 ## 8. Out of scope
