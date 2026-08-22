@@ -175,6 +175,12 @@ For every spec retro-implementation:
 Production runs **published releases**, never a branch. The full model lives in
 `specs/self-update-and-releases.md`; the operating rules:
 
+- **`X.Y.Z` has a defined meaning** (`specs/self-update-and-releases.md` §3.A rule 2), and the skill
+  derives the number from it: **X** = a structural change or a contract lost for a consumer outside
+  this repository (`/public/v1/**` for the WordPress plugin, the iCal export feeds) — never derived,
+  always the user's explicit call; **Y** = an improvement, the ordinary case; **Z** = bug fixes and
+  nothing else. A change to `/api/**` is not an X: client and server ship in one archive and install
+  together, so no consumer can lag behind them.
 - A release is cut with the **`/guestflow-release` skill**: pre-flight suites → fold `changelog.d/`
   into a `CHANGELOG.md` section → write the operator digest → bump the three `package.json` files →
   `release/vX.Y.Z` PR → the user squash-merges → Claude tags `vX.Y.Z` on `master` →

@@ -83,13 +83,29 @@ signed-off releases over HTTPS, when the operator asks for it.
 1. The **single source of truth for the version** is the root `package.json` `version` field.
    `server/package.json` and `client/package.json` carry the same value, bumped together.
 2. Versions are `MAJOR.MINOR.PATCH` (no pre-release, no build metadata). Anything else is
-   rejected by the tooling and by the update engine.
+   rejected by the tooling and by the update engine. Each digit has a **defined meaning**, and the
+   release skill derives the number from it rather than from habit:
+
+   | Digit | Bumped for | Examples |
+   |---|---|---|
+   | **MAJOR** | A structural change, or the **loss or break of a contract something outside this repository depends on**. | Dropping or renaming a `/public/v1/**` endpoint the WordPress plugin calls; changing the shape of an iCal export feed a booking platform reads; breaking the plugin-update endpoint. |
+   | **MINOR** | An **improvement** — the ordinary case. A new feature, a changed behaviour, a schema migration, a removal that costs no outside consumer anything. | Everything 2.1.0 through 2.3.0 shipped. |
+   | **PATCH** | **Bug fixes only.** If one item in the lot is not a fix, the release is not a PATCH. | 2.1.1-shaped releases: a wrong total, a log flood, a mislabelled column. |
+
+   What is *not* a MAJOR: a change to `/api/**`. The client and the server ship inside one archive
+   and are installed together, so an internal endpoint has no independent consumer to break — which
+   is precisely why the externally-consumed surfaces are named explicitly above. The compatibility
+   question is « who updates on a different schedule than us? », not « did a signature change? ».
+
+   MAJOR is **never derived**: it is the user's explicit call, because deciding that something is a
+   break is a judgement about consumers the repository cannot see.
 3. A release is cut through a **`release/vX.Y.Z` branch → PR on `master` → squash-merge by the
    user → tag `vX.Y.Z` pushed on `master`**. The release commit contains: the three version
    bumps + the `CHANGELOG.md` section produced by `node scripts/build-changelog.mjs --release X.Y.Z`
    + the deletion of the consumed `changelog.d/` fragments.
 4. Claude never merges the release PR and never pushes to `master` (CLAUDE.md §5.2 is unchanged).
-   Claude creates the branch, the PR, and — after the user confirms the merge — pushes the tag.
+   Claude creates the branch and the PR, **watches for the merge itself** rather than waiting to be
+   told, and then pushes the tag. The squash-merge is the only step the user performs.
 5. Pushing the tag `vX.Y.Z` triggers `.github/workflows/release.yml` on a **GitHub-hosted runner**
    (`ubuntu-latest`). No self-hosted runner is involved in any workflow.
 6. The workflow **refuses to publish** (before building anything) when:
