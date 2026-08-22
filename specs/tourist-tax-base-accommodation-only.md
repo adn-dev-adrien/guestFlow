@@ -71,13 +71,17 @@ to the end-of-stay complement, or nowhere — never changes the tax by a cent.
 2. **The platform brut no longer feeds the tax.** `platformGrossAmount` stops deriving the tax base
    on every platform (Lodgify, Abracadaroom, Airbnb, Booking, Greengo, GitesDeFrance…). The tax base
    is the tariff accommodation, exactly as on a direct booking.
-3. **The « prestations comprises » deduction is removed.** Rule 48 of `tariff-recipes/spec.md` is
-   repealed: an `includedInRate` line no longer reduces the tax base. The tag itself stays — it is
-   what makes the summary render « Comprise » at 0 € instead of « Offert » — only its effect on the
-   tax disappears.
+3. ~~**The « prestations comprises » deduction is removed.**~~ **Amended 2026-08-22** by
+   [tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md). Removing
+   it went too far: a service sold INSIDE the night rate is not the dry night, and leaving it in the
+   base over-declares the tax. The deduction is back — but as a **per-stay forfait** whose person
+   factor is `basePriceIncludedGuests`, not the real party, and on lines the operator can no longer
+   untick. That answers the two defects listed in §1 without taxing the cleaning and the linen.
 4. **Extras are inert, all of them.** Options, custom options, resources, auto-options, baby-bed
    supplements, mid-stay sales and end-of-stay complements have no effect on the tax base, whatever
-   their `inComplement` routing and whatever their `offered` state.
+   their `inComplement` routing and whatever their `offered` state. **Amended 2026-08-22:** with one
+   exception — a line tagged `includedInRate` is deducted (rule 3). Every other extra, including a
+   one-off commercial gesture, is still inert.
 5. **The extra-guest surcharge stays out of the base.** Unchanged — the decision of 2026-08-12
    (`tariff-recipes/spec.md` §9, Q2) stands.
 6. **The routing of the tax is untouched.** The three-way per-platform model
@@ -164,6 +168,11 @@ No endpoint signature changes. The quote payload returned by every pricing route
 Both removed fields are read only by `PricingSummary.jsx`, updated in the same session
 (CLAUDE.md §6.1 no-breaking-change rule).
 
+> **Amended 2026-08-22** — both fields are **restored** by
+> [tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md) §4.3, and
+> `touristTaxBaseAccommodation` is again the base NET of the deduction. The summary caption
+> « Base : X − Y de prestations comprises » comes back with them (§6 below).
+
 ---
 
 ## 5. Data model
@@ -190,7 +199,8 @@ two mechanisms removed; none of them is a stay already declared.
 ## 6. UI / UX
 
 - **Récapitulatif tarifaire** (`PricingSummary`, fiche réservation and fiche devis): the caption
-  « Base : 359,79 € − 60,00 € de prestations comprises » disappears. The two remaining captions —
+  « Base : 359,79 € − 60,00 € de prestations comprises » disappears. **Amended 2026-08-22: it is
+  back** — see `tourist-tax-included-services-deduction.md` rule 13. The two remaining captions —
   the engine label (« (109,03 € HT/nuit ÷ 2 occupants) × 5,00 % + 10,00 % dep = 3,00 €/adulte/nuit »)
   and « Base : 3,00 € × 2 adultes × 3 nuits » — are unchanged and now tell the whole story.
 - No new string, no new control, no new state.
@@ -278,6 +288,10 @@ Avant le correctif, la première ligne valait 15,00 €, la deuxième 16,50 € 
   - A: **No.** It is the only thing that moved the tax on direct bookings and devis, it scaled with
     the number of guests, and it depended on whether the operator had ticked the line. The base is
     the accommodation, full stop.
+  - **Reversed 2026-08-22 (Adrien):** the answer was right about the two defects and wrong about the
+    remedy. The deduction returns in a form that has neither: a per-stay forfait computed on the
+    guests the rate includes, on lines that can no longer be unticked. See
+    [tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md).
 - Q: What happens to bookings already recorded?
   - A: **Automatic re-price on the next save, past stays excluded** by the existing freeze. No
     migration.

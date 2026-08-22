@@ -30,7 +30,7 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 // Property default-options merge — shared with the public live quote so preview == devis (the function
 // moved to utils/propertyDefaultOptions; re-exported via __test for the existing devis tests).
-const { mergePropertyDefaultsIntoPayload } = require('../utils/propertyDefaultOptions');
+const { mergePropertyDefaultsIntoPayload, carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
 
 /**
  * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -643,7 +643,32 @@ function createModel(database) {
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
 
-    const quote = computeQuote(payload, existing, property);
+    // specs/tourist-tax-included-services-deduction.md rules 4-5 — a service included in the rate
+    // cannot be dropped from a devis any more than from a reservation: the fiche locks its Switch ON
+    // and the model makes it a guarantee, so the quoted tourist tax never depends on a keystroke.
+    // Bounded by what the devis ALREADY carries — nothing is ever added to an existing devis.
+    const restoredIncludedOptionIds = carriedOfferedDefaultsToRestore({
+      propertyId: Number(payload.propertyId || existing.propertyId),
+      carriedOptionIds: database
+        .prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?')
+        .all(numId)
+        .map((r) => Number(r.optionId)),
+      submittedOptionIds: (payload.selectedOptions || []).map((o) => Number(o.optionId)),
+      defaultsModel: propertyOptionDefaultsModel.buildModel(database),
+    });
+    const payloadWithIncluded = restoredIncludedOptionIds.length === 0 ? payload : {
+      ...payload,
+      selectedOptions: [
+        ...(payload.selectedOptions || []),
+        ...restoredIncludedOptionIds.map((optionId) => ({ optionId, quantity: 1 })),
+      ],
+      offeredOptionIds: Array.from(new Set([
+        ...((payload.offeredOptionIds || []).map((optId) => Number(optId))),
+        ...restoredIncludedOptionIds,
+      ])),
+    };
+
+    const quote = computeQuote(payloadWithIncluded, existing, property);
     // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
     const beforeSnapshot = snapshotFromDb(numId);
     // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and the payload

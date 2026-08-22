@@ -5,9 +5,10 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
 // specs/tourist-tax-base-accommodation-only.md — in percentage mode the tax base is the
-// ACCOMMODATION CHARGED and nothing else. Extras, their Complément routing, the « services included
-// in the rate » tag and the platform brut are all inert; only the tariff nights, the discount and
-// the manual « Prix hébergement ajusté » move it.
+// ACCOMMODATION CHARGED. Extras, their Complément routing and the platform brut are all inert; only
+// the tariff nights, the discount and the manual « Prix hébergement ajusté » move it — plus, since
+// specs/tourist-tax-included-services-deduction.md, the services included in that rate, which are
+// deducted from it (they are sold inside the night, so they are not the dry night).
 
 function createDb({ mode = 'percentage_accommodation', defaultOffered = true, optionPrice = 34.09 } = {}) {
   const db = new Database(':memory:');
@@ -65,17 +66,13 @@ test('the base is the accommodation charged — 200 €, not the total', () => {
   db.close();
 });
 
-test('no extra moves the tax — paid, offered, included in the rate, or routed to Complément', () => {
+test('no BILLED extra moves the tax — paid, custom, resource, routed to Complément or not', () => {
   const db = createDb();
   const reference = calculateReservationQuote({ ...BASE, db });
 
   const variants = {
     'paid option': { selectedOptions: [{ optionId: 10, quantity: 1 }] },
     'paid option in Complément': { selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 1 }] },
-    'included in the rate': INCLUDED_IN_RATE,
-    'included in the rate, in Complément': {
-      selectedOptions: [{ optionId: 10, quantity: 1, offered: 1, inComplement: 1 }], offeredOptionIds: [10],
-    },
     'custom option': { customOptions: [{ title: 'Panier', price: 40, priceType: 'per_stay', quantity: 1 }] },
     'resource': { selectedResources: [{ resourceId: 20, quantity: 1 }] },
     'resource in Complément': { selectedResources: [{ resourceId: 20, quantity: 1, inComplement: 1 }] },
@@ -89,20 +86,38 @@ test('no extra moves the tax — paid, offered, included in the rate, or routed 
   db.close();
 });
 
-test('an includedInRate line is still tagged « Comprise » — it just no longer touches the base', () => {
+// specs/tourist-tax-included-services-deduction.md rule 7 — the Complément routing is not a price
+// lever: an included service leaves the base by the same amount wherever it is collected.
+test('an included service leaves the base, and its Complément routing changes nothing', () => {
+  const db = createDb();
+  const inPreArrival = calculateReservationQuote({ ...BASE, ...INCLUDED_IN_RATE, db });
+  const inComplement = calculateReservationQuote({
+    ...BASE, db,
+    selectedOptions: [{ optionId: 10, quantity: 1, offered: 1, inComplement: 1 }], offeredOptionIds: [10],
+  });
+
+  assert.equal(inPreArrival.touristTaxBaseAccommodation, 165.91); // 200 − 34,09
+  assert.equal(inComplement.touristTaxBaseAccommodation, 165.91);
+  assert.equal(inComplement.touristTaxTotal, inPreArrival.touristTaxTotal);
+  db.close();
+});
+
+test('an includedInRate line is tagged « Comprise », billed 0 €, and deducted from the base', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, ...INCLUDED_IN_RATE, db });
   assert.equal(q.optionLines[0].includedInRate, true);
   assert.equal(q.optionLines[0].totalPrice, 0);
-  assert.equal(q.touristTaxBaseAccommodation, 200);
+  assert.equal(q.touristTaxBaseBeforeDeduction, 200);
+  assert.equal(q.touristTaxIncludedInRateDeduction, 34.09);
+  assert.equal(q.touristTaxBaseAccommodation, 165.91);
   db.close();
 });
 
-test('an included value larger than the accommodation no longer floors the base at 0', () => {
+test('an included value larger than the accommodation floors the base at 0', () => {
   const db = createDb({ optionPrice: 500 });
   const q = calculateReservationQuote({ ...BASE, ...INCLUDED_IN_RATE, db });
-  assert.equal(q.touristTaxBaseAccommodation, 200);
-  assert.ok(q.touristTaxTotal > 0);
+  assert.equal(q.touristTaxBaseAccommodation, 0);
+  assert.equal(q.touristTaxTotal, 0);
   db.close();
 });
 

@@ -120,7 +120,7 @@ export default function ExtrasSection() {
     setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
     setResourceInComplement,
-    bedLinenForcedOptionIds,
+    bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode,
   } = useReservationForm();
   // specs/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
@@ -155,11 +155,14 @@ export default function ExtrasSection() {
   const optionGroups = (propertyOptionGroups?.groups || [])
     .map((group) => ({ ...group, options: (group.options || []).filter((o) => !isDormantBabyBedOption(o)) }))
     .filter((group) => group.options.length > 0);
-  // "Enabled" here mirrors OptionRow's own rule: an explicit quantity, or a bed-linen option forced
-  // on by a property default (specs/bed-config-in-linen-card.md §3 rule 4.bis).
+  // "Enabled" here mirrors OptionRow's own rule: an explicit quantity, a bed-linen option forced on
+  // by a property default (specs/bed-config-in-linen-card.md §3 rule 4.bis), or a service included in
+  // the rate (specs/tourist-tax-included-services-deduction.md rule 4).
   const isOptionEnabled = (opt) => {
     const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
-    return Boolean(selected && Number(selected.quantity) > 0) || Boolean(bedLinenForcedOptionIds?.has(opt.id));
+    return Boolean(selected && Number(selected.quantity) > 0)
+      || Boolean(bedLinenForcedOptionIds?.has(opt.id))
+      || Boolean(lockedIncludedOptionIds?.has(opt.id));
   };
   // Rendered outside the collapse: what's selected, plus the options flagged `alwaysVisible`
   // (specs/option-categories.md §3 rule 9bis) — that's how « Petit déjeuner » keeps showing on every

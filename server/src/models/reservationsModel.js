@@ -743,6 +743,15 @@ function createReservationsModel(database) {
       return bookingLines.getPricingSnapshot(reservationId);
     },
 
+    // specs/tourist-tax-included-services-deduction.md rule 5 — the option ids the booking already
+    // carries. An update uses them to put back an included service the payload dropped, WITHOUT ever
+    // adding one the booking never had (specs/reservation-option-immutability.md rule 3).
+    listCarriedOptionIds(reservationId) {
+      return database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?')
+        .all(reservationId)
+        .map((r) => Number(r.optionId));
+    },
+
     getAuditSnapshotFromDb(reservationId) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
