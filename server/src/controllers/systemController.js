@@ -12,7 +12,7 @@
 const path = require('path');
 const { getAppVersion } = require('../utils/appVersion');
 const { isNewerVersion, isValidVersion } = require('../utils/semver');
-const { fetchLatestRelease } = require('../utils/releaseClient');
+const { fetchLatestRelease, splitSummary } = require('../utils/releaseClient');
 const { resolvePaths, selfUpdateSupported, resolvePm2Binary, currentReleaseDir, freeBytes } = require('../utils/deploymentPaths');
 const { stageRelease, pruneReleases } = require('../utils/updateStaging');
 const { buildHelperArgs, spawnHelper } = require('../utils/updateHelper');
@@ -38,12 +38,18 @@ function buildVersionInfo(model = updateStateModel) {
   const state = model.readState();
   const support = selfUpdateSupported();
   const latest = state.latestVersion;
+  // The digest the dialog shows, and the detail it keeps folded (§6.2 rule 20c). Split here rather
+  // than in React: which part of a release an operator is shown is a decision, not a rendering.
+  // A release published before the convention has an empty digest — `details` is then everything,
+  // exactly what those releases have always displayed.
+  const { summary, details } = splitSummary(state.latestNotes || []);
   return {
     current,
     latest,
     updateAvailable: Boolean(latest) && isNewerVersion(latest, current),
     publishedAt: state.latestPublishedAt,
-    notes: state.latestNotes || [],
+    summary,
+    notes: details,
     lastCheckAt: state.lastCheckAt,
     dismissedVersion: state.dismissedVersion,
     selfUpdateSupported: support.supported,

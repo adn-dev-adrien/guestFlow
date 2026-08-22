@@ -96,7 +96,10 @@ signed-off releases over HTTPS, when the operator asks for it.
    - the tag does not match the root `package.json` version, or the three `package.json` versions
      disagree;
    - `CHANGELOG.md` has no `## [X.Y.Z] - YYYY-MM-DD` section;
-   - `changelog.d/` still contains fragments (they must have been folded into the section).
+   - `changelog.d/` still contains fragments (they must have been folded into the section);
+   - that section carries no written `### Summary` block — the operator digest of rule 20c. The job
+     runs `node scripts/build-changelog.mjs --check-digest X.Y.Z`, so the rule has one implementation
+     shared by the workflow, the skill and the unit tests.
 7. On success the workflow publishes a **GitHub Release** `vX.Y.Z` whose body is the CHANGELOG
    section for that version, with these assets:
    - `guestflow-X.Y.Z.tar.gz` — the deployable archive (server sources + built client + root
@@ -296,7 +299,7 @@ signed-off releases over HTTPS, when the operator asks for it.
 | `utils/` | `appVersion.js` | C | Reads the deployed root `package.json` once; memoised, `0.0.0-dev` fallback |
 | `utils/` | `deploymentPaths.js` | C | Resolves the on-disk layout and answers whether this deployment can update itself, with a reason |
 | `utils/` | `semver.js` | C | Pure `parseVersion` / `isNewerVersion` / `isValidVersion` — unit-tested |
-| `utils/` | `releaseClient.js` | C | GitHub Releases API client: latest release, asset lookup, `SHA256SUMS` parsing, changelog-body → structured sections. Injectable `fetch` for tests |
+| `utils/` | `releaseClient.js` | C | GitHub Releases API client: latest release, asset lookup, `SHA256SUMS` parsing, changelog-body → structured sections keyed by canonical heading, and `splitSummary` — the operator digest on one side, the rest on the other (rule 20c). Injectable `fetch` for tests |
 | `utils/` | `updateStaging.js` | C | Download (host allowlist on every redirect hop + size cap) → SHA-256 verify → hardened extract → persistent links → `npm ci` + native rebuild + smoke test → promote staging dir; release pruning |
 | `utils/` | `releaseLinks.js` | C | Points a staged release at the secrets, uploads and certificates that must survive the swap (rule 25b) |
 | `utils/` | `updateHelper.js` | C | Builds the helper command line and spawns it detached; pure builder exported for tests |
@@ -320,7 +323,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | `App.jsx` (shell) | `App.jsx` | T | Renders `<AppVersionBadge />` at the right end of the top bar, in place of the former `prod <sha>` pill |
 | `components/` | `AppVersionBadge.jsx` | C | Top-bar installed version + update icon opening `UpdateDialog` |
 | `components/` | `UpdateAvailableAlert.jsx` | C | Admin-only dashboard alert: "GuestFlow X.Y.Z est disponible" + actions |
-| `components/` | `UpdateDialog.jsx` | C | Release notes + confirm; starts the update |
+| `components/` | `UpdateDialog.jsx` | C | The operator digest + confirm, with the full changelog behind a « Tout le changelog » toggle (rule 20c); starts the update |
 | `components/` | `UpdateProgressOverlay.jsx` | C | Full-screen progress, polls the status, reloads on `done`, shows `failed`/`rolled_back` |
 | `components/` | `SettingsSystemUpdateSection.jsx` | C | Settings card: version, last check, "Vérifier maintenant", update action, history |
 | `hooks/` | `useAppUpdate.js` | C | Single source of update state for the client: fetch status, poll while active, expose actions |
@@ -340,7 +343,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | Method | Endpoint | Auth | Request | Response |
 |---|---|---|---|---|
 | GET | `/api/version` | none | — | **unchanged** — the pre-existing liveness probe (`env`, `commitSha`), reused by the swap helper. No app version is added to it: that would publish which release a public deployment runs |
-| GET | `/api/system/version` | admin | — | `{ current, latest, updateAvailable, publishedAt, notes[], lastCheckAt, dismissedVersion, selfUpdateSupported, selfUpdateReason, updateInProgress, history[] }` |
+| GET | `/api/system/version` | admin | — | `{ current, latest, updateAvailable, publishedAt, summary[], notes[], lastCheckAt, dismissedVersion, selfUpdateSupported, selfUpdateReason, updateInProgress, history[] }` |
 | GET | `/api/system/update/status` | admin | — | `{ phase, label, terminal, fromVersion, targetVersion, startedAt, updatedAt, errorCode, error, logTail[] }` |
 | POST | `/api/system/version/check` | admin | — | same shape as `GET /system/version`; `429` with `Retry-After` when called within 10 s |
 | POST | `/api/system/update/start` | admin | `{ targetVersion }` | `202 { started: true, targetVersion }`; `409` update in progress; `400` version mismatch / unknown target; `412` `selfUpdateSupported: false`; `507` insufficient disk |
@@ -349,6 +352,11 @@ argument-array spawning (never a shell string), and every interpolated value is 
 The release notes travel **inside the version payload** rather than behind a dedicated endpoint: the
 hourly check already fetched and parsed them, so the dialog needs no second round-trip. The update
 history travels there too, for the settings card.
+
+`summary[]` is the operator digest (rule 20c) as plain strings; `notes[]` is every *other* section,
+`[{ key, title, items[] }]`. The split is the server's: which part of a release an operator is shown
+is a decision, not a rendering. A release with no digest sends `summary: []` and all its sections in
+`notes[]`, which is exactly what the client already knew how to display.
 
 Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages in French.
 
@@ -359,7 +367,7 @@ Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages
 | `.github/workflows/release.yml` | C | Tag-triggered, GitHub-hosted: `verify` → `test` → `package` → `publish` |
 | `.github/workflows/deploy.yml` | **D** | Deleted with the self-hosted runner |
 | `release.sh` | T | Produces `guestflow-X.Y.Z.tar.gz` (was `.zip`), plus the SHA-256; drops the CRA-era `dist`→`build` rename? **no** — keeps it (the PM2 layout still expects `client/build`) |
-| `scripts/build-changelog.mjs` | — | Unchanged, called by the skill with `--release X.Y.Z` |
+| `scripts/build-changelog.mjs` | T | `--release X.Y.Z` now scaffolds the `### Summary` digest as a TODO; the new `--check-digest X.Y.Z` judges it (present, non-empty, no leftover TODO, at most 6 lines of at most 160 characters) and is what the workflow's verify job runs |
 | `scripts/bootstrap-vm.sh` | C | One-shot VM migration: `current/` directory → `releases/<v>` + `current` symlink, writes `ecosystem.config.js`, keeps `data/` untouched |
 | `.claude/skills/guestflow-release/SKILL.md` | C | The release workflow for Claude (see §4.5) |
 | `README.md` | T | Deployment section rewritten: no runner, release + in-app update, manual recovery commands |
@@ -367,21 +375,30 @@ Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages
 
 ### 4.5 The `/guestflow-release` skill
 
-Steps, each with a check, mirroring `sowel-release`:
+**The squash-merge is the only human step.** Everything before it and everything after it is the
+skill's: the operator asks for a release and next hears from it when the release is published, or
+when something genuinely needs them. Each step carries a check.
 
-1. Validate the version argument (semver; suggest the next patch/minor from `package.json`).
-2. Pre-flight: on `master`, up to date, clean tree, `npm --prefix server test`, client Vitest,
-   client build, `npm run test:e2e` green.
-3. `node scripts/build-changelog.mjs --release X.Y.Z` — and **refuse to release with an empty
-   section** (a release with no changelog entry is a release nobody can read).
-4. Bump the three `package.json` files.
-5. Branch `release/vX.Y.Z`, commit `release: vX.Y.Z` with the explicit file list, push, `gh pr create`.
-6. Hand the PR URL over and **stop**. The user squash-merges.
-7. After confirmation: `git checkout master && git pull`, verify HEAD is the release commit, tag
-   `vX.Y.Z`, push the tag.
-8. Monitor the release workflow, report the Release URL and the asset list.
-9. Explicitly state that publishing a release does **not** deploy it — the operator installs it
-   from the app when they choose to.
+1. **Derive** the version from the pending fragment categories — `added`/`changed`/`migration` → minor,
+   `fixed` only → patch — and state it rather than asking. A major is the user's explicit call only.
+2. **Pre-flight**: on `master`, up to date, tree clean of *tracked* changes, then server suite,
+   client Vitest, client build and `npm run test:e2e`, all green. Untracked files are reported, not
+   treated as a blocker; a tracked modification stops the release (CLAUDE.md §5.4).
+3. **Changelog**: `node scripts/build-changelog.mjs --release X.Y.Z`, then rewrite the folded section
+   into operator-facing English prose, and **write the `### Summary` digest in French** (rule 20c).
+   `--check-digest X.Y.Z` must pass. An empty section means there is nothing to release.
+4. Bump the three `package.json` files; bump the WordPress plugin only if it changed since the
+   previous tag.
+5. Branch `release/vX.Y.Z`, commit with the explicit file list, push, `gh pr create`, **wait for the
+   PR's own CI to go green**, then hand the URL over.
+6. **Poll for the merge** (`gh pr view --json state`) instead of waiting to be told. On merge, verify
+   by *content* that master carries the release — never by ancestry, which a squash-merge breaks
+   (CLAUDE.md §5.5).
+7. Tag `vX.Y.Z` on the master commit, push the tag.
+8. Watch the release workflow to completion; on a `verify` failure, fix through a normal PR and
+   re-point the tag (the one sanctioned force-push).
+9. Report the Release URL, the asset list, the digest as the operator will read it, and state
+   explicitly that publishing does **not** deploy — the operator installs it when they choose to.
 
 ### 4.6 Target layout on the VM
 
@@ -466,12 +483,32 @@ When `selfUpdateSupported` is false the alert still informs, but the primary act
 ### 6.2 `UpdateDialog`
 
 Title `Mise à jour vers GuestFlow 1.3.0`, subtitle `Publiée le 20 août 2026`.
-Body: the release notes, grouped by section (Ajouts / Modifications / Corrections / Migration),
-as a plain list — no markdown renderer on the client, the server sends the structure.
+
+**Rule 20c — the digest leads, the changelog waits.** The body opens with the release's `### Summary`
+block and nothing else: at most six short lines, each saying what changes for the operator. Every
+other section (Ajouts / Modifications / Corrections / Migration) sits behind a « Tout le changelog »
+toggle, collapsed by default and reversible via « Masquer le détail ».
+
+The reason is the moment: this dialog is read by someone deciding whether to replace the software
+running their business, and 2.2.0 answered that question with roughly a hundred lines of prose. The
+detail is not deleted — it is published, and one click away — but it is no longer the price of
+reaching the button.
+
+A release published before this convention carries no digest. The dialog then shows its sections
+exactly as it always did, with no toggle: the fallback is the old behaviour, not an empty dialog.
+
+The server sends `summary` (the digest lines) and `notes` (the remaining sections) already split, so
+the client renders and never decides. No markdown renderer on the client.
+
 Footer caption: *« Une sauvegarde de la base est faite avant l'installation. L'application sera
 indisponible environ une minute. »*
 Actions: `Installer maintenant` (primary) / `Plus tard`.
 `fullScreen` on `xs`.
+
+**The digest is written in French**, unlike the rest of `CHANGELOG.md` and unlike every other
+document in this repository (CLAUDE.md §2). It is the one block whose entire purpose is to be read
+inside the application, under a French heading, by a French operator — the same reason the UI strings
+are French. The heading stays `### Summary` so the parser keys off a stable, language-free token.
 
 ### 6.3 `UpdateProgressOverlay`
 
@@ -536,13 +573,19 @@ save flow.
 
 ## 7. Test plan
 
-### Server unit tests (56 new, `cd server && npm test` → 3455 green)
+### Server unit tests (62 new, `cd server && npm test` → 3499 green)
 
 - [x] `tests/self-update-semver.unit.test.js` — strict parsing, numeric (not lexicographic) ordering,
       and "no update" for every unparseable or rolled-back input (rules 2, 13).
 - [x] `tests/self-update-release-client.unit.test.js` — host allowlist (lookalike hosts, plain HTTP,
       a real GitHub host that is not an allowed one), CHANGELOG headings → French sections, wrapped
       bullets, `SHA256SUMS` parsing, and every way a release payload can be refused as untrustworthy.
+- [x] `tests/release-notes-digest.unit.test.js` (rule 20c) — headings carry their canonical key,
+      `splitSummary` hands the digest to the dialog and folds the rest, a pre-convention release
+      falls back to showing everything, and a null/garbage state file yields empty rather than
+      throwing. Then `checkDigest`/`sectionFor`, imported from `scripts/build-changelog.mjs` so the
+      release workflow's gate and this suite are provably the same rule: missing block, leftover
+      TODO, empty block, seven lines, a 161-character line, and cutting one version out of a file.
 - [x] `tests/self-update-staging.unit.test.js` — archive members: symlinks and hardlinks in **both**
       tar dialects, absolute paths, `..` traversal, foreign roots; a redirect that leaves the
       allowlist; the size cap on both the declared and the actual length; the layout and version
@@ -568,8 +611,12 @@ save flow.
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
       check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
 
-### Client tests (28 new, `cd client && npm test` → 1076 green)
+### Client tests (34 new, `cd client && npm test` → 1098 green)
 
+- [x] `UpdateDialog.test.jsx` (rule 20c) — the digest is what is shown and the sections are absent
+      until « Tout le changelog » is clicked, the detail folds back, a release without a digest shows
+      its sections with no toggle at all, a digest with no sections offers no toggle either, a
+      release with neither says so, and the install button never waits on any of it.
 - [x] `UpdateAvailableAlert.test.jsx` — silent for a non-admin (and no admin call made at all),
       silent when up to date / postponed / already updating, "Plus tard" postpones that exact
       version, and the install button opens the notes dialog before anything is triggered.
@@ -700,6 +747,22 @@ into five sections, and correctly offering no update since it matches the instal
 
 The GitHub Actions runner was stopped, uninstalled and deregistered the same day: **0 runners on the
 repository, 0 systemd units, credentials removed from disk.**
+
+### Amendment — 2026-08-22, the release note nobody could read
+
+2.2.0 shipped a CHANGELOG section of roughly a hundred lines — accurate, well argued, and the wrong
+artefact for the moment it is read in. The update dialog puts it between the operator and the
+« Installer » button, and prose at that length is not read: it is skipped, which is worse than a
+short text, because a skipped migration warning is indistinguishable from an absent one.
+
+Rule 20c is the answer: the release carries a `### Summary` block of at most six short lines, written
+in French at release time, and the dialog shows that and folds everything else behind a toggle. The
+detail is not lost — it is one click away, and it is still the release body on GitHub.
+
+Two things make the rule hold rather than drift. The digest is **scaffolded as a TODO** by
+`--release`, so a release that forgets it fails loudly instead of quietly shipping nothing; and it is
+**checked by the same function** in the workflow, in the skill and in the unit suite, so the three
+cannot disagree about what « short enough » means.
 
 ### Amendment — 2026-08-20, after the first real update
 
