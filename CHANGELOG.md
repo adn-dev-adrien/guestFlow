@@ -4,6 +4,79 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-08-22
+
+### Summary
+- Le complément d'arrivée se bascule en fin de séjour depuis la fiche, sans attendre le check-in.
+- Chaque complément accepte un montant ajusté — celui annoncé au client — même après encaissement.
+- Un complément ajusté est comptabilisé au montant annoncé : la taxe de séjour ne dérive plus.
+- La fenêtre de mise à jour liste toutes les versions sautées, plus seulement celle qu'on installe.
+- L'offre de mise à jour devient une pastille lisible dans la barre du haut, au lieu d'une icône nue.
+- Rien ne tourne plus en arrière-plan pour l'envoi automatique des emails tant qu'il est désactivé.
+
+### Added
+- **The fiche can now move the arrival complement to check-out, and set what any complement is worth**
+  (specs/defer-arrival-complement-to-checkout.md §3.3 + specs/adjustable-complement-amounts.md). A
+  « Percevoir en fin de séjour » switch on the arrival complement card writes the same marker the
+  arrival SAS recap writes, so the decision no longer has to wait for check-in: the fiche merges the
+  two cards, the summary panel files the money under « fin de séjour », the day-of-operations views
+  drop the arrival alert, and the J-2 / J-1 emails announce « à votre départ » instead of « à votre
+  arrivée ». Reversible until the guest is in.
+- **Every complement carries an adjustable amount** (specs/adjustable-complement-amounts.md §3). A
+  complement is announced to the guest before it is collected, and the announced amount is the one
+  that changes hands — so the arrival complement, the end-of-stay complement and each settled
+  mid-stay note can be frozen at what was said, **including after collection**, which used to need a
+  hand-written SQL statement in production. An empty field hands the bucket back to the engine.
+  The arrival SAS no longer overwrites an adjusted amount when it commits.
+
+### Changed
+- **The complement blocks of the fiche sit two per row on a desktop**
+  (specs/adjustable-complement-amounts.md §6.5). Each card used to build its own single-column grid,
+  so « Complément d'arrivée », « Complément durant le séjour » and « Complément de fin de séjour »
+  stacked down the left half of the screen with the right half empty. They now share one grid: two
+  per row from `md`, still stacked full-width on mobile.
+- **Nothing runs in the background for automatic sending until it is switched on**
+  (specs/no-automatic-email-without-approval.md §3 rule 2b). The Réglages switch ships off, but the
+  daily 08:00 pass stayed scheduled all the same: every minute from 08:00 to midnight it opened,
+  re-read the setting and left again — some 960 empty passes a day. The timer is now registered only
+  while automatic sending is authorised. Turning the switch on starts it **and** runs the day's pass
+  immediately, without restarting the application; turning it off stops it at once. The guard that
+  refused to send stays where it was, inside the pass. (+5 server tests, net.)
+- **The "update available" offer is now visible in the top bar**
+  (specs/self-update-and-releases.md §6.5, rule 20b). Next to the installed version, a bare
+  primary-tinted icon announced a published release — and read as chrome, so it went unclicked. It
+  becomes a rounded pill: soft fir-green background, update icon, a count, tooltip
+  « GuestFlow X.Y.Z est disponible ». Same click, same release notes, same behaviour on « Plus tard »
+  and while an update runs. The shape lives in a new generic `HeaderPill` component, so the next
+  top-bar indicator does not hand-roll its own. (+3 client tests.)
+- **The update dialog now shows every version between the one installed and the one on offer**
+  (specs/self-update-and-releases.md rules 12b + 20d). It used to show the release notes of the
+  target and nothing else, which told the whole story only when no release had been skipped — an
+  operator who postponed once, or whose host was offline for a day, jumped 2.1.0 → 2.3.0 and was
+  never told, anywhere in the application, what 2.2.0 changed. The hourly check now reads the
+  release *list* instead of `/releases/latest` (same single HTTP call) and the dialog lists each
+  version's digest under its own heading, with a « 3 versions depuis la 2.0.0 » caption and every
+  version's full changelog behind the existing toggle. A single-version update looks exactly as it
+  did. The target is still chosen exactly as before — newest published release, archive and
+  `SHA256SUMS` included — so a broken publish still offers nothing rather than falling back to an
+  older version. (+10 server tests, +5 client tests.)
+
+### Fixed
+- **An adjusted complement is booked at the amount that was announced, poste by poste**
+  (specs/adjustable-complement-amounts.md §3.6). The fiche decides and stores the ventilation
+  (`70600000` / `70600010` / `70601000`, tourist tax and accommodation untouched) and the export only
+  splits TTC into HT + VAT. Three mechanisms would otherwise have silently corrupted the entry: the
+  export's residue nudge, which lands on the **last** credit line — the `46710000` tourist tax (a
+  93,60 € complement announced at 85 € would have declared 1,00 € of tourist tax); the re-derived tax
+  share; and the gross-up ratio, which took the complement into its denominator and therefore
+  re-inflated both the complement entry and the acompte / solde entries of the same reservation.
+
+### Migration
+- `reservations` gains `complementAmountOverride` and `endOfStayComplementAmountOverride` (REAL, NULL
+  = automatic, i.e. today's behaviour) plus `complementAllocation` (TEXT, JSON, NULL = the accounting
+  postes are derived exactly as before). Nothing is rewritten at boot: existing reservations keep
+  their amounts and their accounting entries to the cent.
+
 ## [2.3.0] - 2026-08-22
 
 ### Summary
