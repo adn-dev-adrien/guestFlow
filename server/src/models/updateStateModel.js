@@ -25,6 +25,10 @@ const { isTerminal } = require('../constants/updatePhases');
 
 const LOCK_STALE_MS = 30 * 60 * 1000;
 const HISTORY_MAX = 5;
+// The poll's window of release notes (specs/self-update-and-releases.md rules 12b, 20d): enough to
+// cover any realistic gap between the installed version and the one on offer, small enough that the
+// state file stays a few tens of kilobytes.
+const RELEASES_MAX = 30;
 
 // Phases where the swap has physically happened and only its *outcome* is still unwritten.
 const SWAP_PHASES = new Set(['swapping', 'restarting']);
@@ -48,10 +52,24 @@ function concludeAbandonedSwap(status, runningVersion) {
   return null;
 }
 
+/**
+ * The parsed sections of one known version, from a state read (rule 20d). Consumers that need a
+ * single version's changelog — the WordPress plugin manifest, a test — ask for it by version rather
+ * than reaching into the window and assuming an order.
+ */
+function notesForVersion(state, version) {
+  const entry = (state && Array.isArray(state.releases) ? state.releases : [])
+    .find((item) => item && item.version === version);
+  return entry ? entry.notes : null;
+}
+
 const EMPTY_STATE = {
   latestVersion: null,
   latestPublishedAt: null,
-  latestNotes: null,
+  // Every published version in the poll's window, newest first, notes only: the span the dialog
+  // reads to tell the operator what the installed version is about to cross (rule 20d).
+  releases: [],
+  releasesTruncated: false,
   // The WordPress plugin asset published alongside that release — the plugin polls for it through
   // the public API (specs/wordpress-plugin-self-update.md).
   latestPlugin: null,
@@ -84,6 +102,7 @@ function createUpdateStateModel(paths = resolvePaths()) {
     return {
       ...EMPTY_STATE,
       ...raw,
+      releases: Array.isArray(raw.releases) ? raw.releases.slice(0, RELEASES_MAX) : [],
       history: Array.isArray(raw.history) ? raw.history.slice(0, HISTORY_MAX) : [],
     };
   }
@@ -94,14 +113,20 @@ function createUpdateStateModel(paths = resolvePaths()) {
     return next;
   }
 
-  /** Store the result of a successful poll. `release` is a normalised release, or null. */
-  function recordCheck(release, now = new Date()) {
+  /**
+   * Store the result of a successful poll. `feed` is what `fetchReleaseFeed` returned: the target
+   * release (or null when the newest publish is unusable) plus the notes of every version in the
+   * window.
+   */
+  function recordCheck(feed, now = new Date()) {
+    const release = feed ? feed.release : null;
     return writeState({
       lastCheckAt: now.toISOString(),
       latestVersion: release ? release.version : null,
       latestPublishedAt: release ? release.publishedAt : null,
-      latestNotes: release ? release.notes : null,
       latestPlugin: release ? release.plugin : null,
+      releases: feed && Array.isArray(feed.releases) ? feed.releases.slice(0, RELEASES_MAX) : [],
+      releasesTruncated: Boolean(feed && feed.truncated),
     });
   }
 
@@ -275,10 +300,12 @@ function createUpdateStateModel(paths = resolvePaths()) {
     readLogTail,
     HISTORY_MAX,
     LOCK_STALE_MS,
+    RELEASES_MAX,
   };
 }
 
 module.exports = createUpdateStateModel();
 module.exports.createUpdateStateModel = createUpdateStateModel;
 module.exports.concludeAbandonedSwap = concludeAbandonedSwap;
+module.exports.notesForVersion = notesForVersion;
 module.exports.SWAP_PHASES = SWAP_PHASES;

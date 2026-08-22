@@ -121,8 +121,15 @@ signed-off releases over HTTPS, when the operator asks for it.
 
 11. The server exposes its running version, read once at boot from the deployed root
     `package.json`. It falls back to `0.0.0-dev` when the file is missing (dev tree).
-12. The server polls `https://api.github.com/repos/adn-dev-adrien/guestFlow/releases/latest`
+12. The server polls `https://api.github.com/repos/adn-dev-adrien/guestFlow/releases`
     **60 s after boot and every hour**, unauthenticated (public repo, 60 req/h/IP is ample).
+12b. That single call reads the **release list**, not only the newest release, because the offer has
+    to cover the versions the operator skipped (rule 20d). The window is the API's first page,
+    `?per_page=30`; drafts and pre-releases are ignored. The **target** is what `/releases/latest`
+    used to return — the newest remaining release, and only if it carries its archive *and* its
+    `SHA256SUMS`. A newest release with broken assets still offers nothing, exactly as before: the
+    updater never falls back to advertising an older version. The other releases are kept for their
+    **notes only**, so a missing asset on an intermediate version costs its changelog nothing.
 13. A release is "newer" only if its version compares strictly greater, component by component.
     A rolled-back or malformed remote version never advertises an update.
 14. Failures (offline, rate limit, malformed payload) are logged at debug level, keep the last
@@ -151,6 +158,16 @@ signed-off releases over HTTPS, when the operator asks for it.
     about losing the way back to the notes. It does step aside while an update is running, since the
     progress overlay already owns the screen. Non-admins see no version at all — the running version
     stays behind the admin gate for the same reason rule 30 keeps it out of the public probe.
+20d. **The offer covers every version between the installed one and the target, not just the target.**
+    Rule 19 shows "the release notes of the target version", which is the whole story only when no
+    release was skipped. An operator who postponed once, or whose host was offline for a day, jumps
+    2.1.0 → 2.3.0 and is never told, anywhere in the application, what 2.2.0 changed — those notes
+    exist on GitHub and nowhere the operator will look. The dialog therefore lists **every published
+    version strictly newer than the installed one and not newer than the target**, newest first,
+    each with its own digest. There is no cap: six lines per version is a price worth paying to
+    know what is about to be installed. The set is bounded only by the poll's fetch window
+    (rule 12b); when the window does not reach back to the installed version, the dialog says so
+    rather than presenting a partial list as complete.
 
 ### D. Update engine — staging phase (application still serving)
 
@@ -294,14 +311,14 @@ signed-off releases over HTTPS, when the operator asks for it.
 |---|---|---|---|
 | `routes/` | `system.js` | C | Thin `/api/system` router: version, update status/check/start/dismiss |
 | `index.js` (entry) | `index.js` | T | Mounts `/api/system`; calls `initOnBoot()` in the listen callback |
-| `controllers/` | `systemController.js` | C | Orchestrates: eligibility, check-now, start update (staging → spawn helper), status assembly, history, boot hook |
+| `controllers/` | `systemController.js` | C | Orchestrates: eligibility, check-now, start update (staging → spawn helper), status assembly, history, boot hook, and the **installed → target span** the dialog reads (rule 20d) |
 | `models/` | `updateStateModel.js` | C | Reads/writes the four state files (state, status, lock, runtime); history ring buffer |
 | `middleware/` | `enforceRoleAccess.js` | — | **(none)** — `/api/system/*` inherits the deny-by-default guard, so the whole surface is admin-only without touching the security middleware |
 | `constants/` | `updatePhases.js` | C | Phase → French label, terminal phases, helper error code → French message |
 | `utils/` | `appVersion.js` | C | Reads the deployed root `package.json` once; memoised, `0.0.0-dev` fallback |
 | `utils/` | `deploymentPaths.js` | C | Resolves the on-disk layout and answers whether this deployment can update itself, with a reason |
 | `utils/` | `semver.js` | C | Pure `parseVersion` / `isNewerVersion` / `isValidVersion` — unit-tested |
-| `utils/` | `releaseClient.js` | C | GitHub Releases API client: latest release, asset lookup, `SHA256SUMS` parsing, changelog-body → structured sections keyed by canonical heading, and `splitSummary` — the operator digest on one side, the rest on the other (rule 20c). Injectable `fetch` for tests |
+| `utils/` | `releaseClient.js` | C | GitHub Releases API client: **release list** → target release + the notes of every other published version (rules 12b, 20d), asset lookup, `SHA256SUMS` parsing, changelog-body → structured sections keyed by canonical heading, and `splitSummary` — the operator digest on one side, the rest on the other (rule 20c). Injectable `fetch` for tests |
 | `utils/` | `updateStaging.js` | C | Download (host allowlist on every redirect hop + size cap) → SHA-256 verify → hardened extract → persistent links → `npm ci` + native rebuild + smoke test → promote staging dir; release pruning |
 | `utils/` | `releaseLinks.js` | C | Points a staged release at the secrets, uploads and certificates that must survive the swap (rule 25b) |
 | `utils/` | `updateHelper.js` | C | Builds the helper command line and spawns it detached; pure builder exported for tests |
@@ -326,7 +343,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | `components/` | `AppVersionBadge.jsx` | C | Top-bar installed version + update pill opening `UpdateDialog` |
 | `components/` | `HeaderPill.jsx` | C | Generic tinted, tappable top-bar indicator: icon + optional count/label, semantic tone, French tooltip |
 | `components/` | `UpdateAvailableAlert.jsx` | C | Admin-only dashboard alert: "GuestFlow X.Y.Z est disponible" + actions |
-| `components/` | `UpdateDialog.jsx` | C | The operator digest + confirm, with the full changelog behind a « Tout le changelog » toggle (rule 20c); starts the update |
+| `components/` | `UpdateDialog.jsx` | C | One digest **per version crossed** (rule 20d) + confirm, with every version's full changelog behind a « Tout le changelog » toggle (rule 20c); starts the update |
 | `components/` | `UpdateProgressOverlay.jsx` | C | Full-screen progress, polls the status, reloads on `done`, shows `failed`/`rolled_back` |
 | `components/` | `SettingsSystemUpdateSection.jsx` | C | Settings card: version, last check, "Vérifier maintenant", update action, history |
 | `hooks/` | `useAppUpdate.js` | C | Single source of update state for the client: fetch status, poll while active, expose actions |
@@ -346,7 +363,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | Method | Endpoint | Auth | Request | Response |
 |---|---|---|---|---|
 | GET | `/api/version` | none | — | **unchanged** — the pre-existing liveness probe (`env`, `commitSha`), reused by the swap helper. No app version is added to it: that would publish which release a public deployment runs |
-| GET | `/api/system/version` | admin | — | `{ current, latest, updateAvailable, publishedAt, summary[], notes[], lastCheckAt, dismissedVersion, selfUpdateSupported, selfUpdateReason, updateInProgress, history[] }` |
+| GET | `/api/system/version` | admin | — | `{ current, latest, updateAvailable, publishedAt, versions[], versionsTruncated, lastCheckAt, dismissedVersion, selfUpdateSupported, selfUpdateReason, updateInProgress, history[] }` |
 | GET | `/api/system/update/status` | admin | — | `{ phase, label, terminal, fromVersion, targetVersion, startedAt, updatedAt, errorCode, error, logTail[] }` |
 | POST | `/api/system/version/check` | admin | — | same shape as `GET /system/version`; `429` with `Retry-After` when called within 10 s |
 | POST | `/api/system/update/start` | admin | `{ targetVersion }` | `202 { started: true, targetVersion }`; `409` update in progress; `400` version mismatch / unknown target; `412` `selfUpdateSupported: false`; `507` insufficient disk |
@@ -356,10 +373,19 @@ The release notes travel **inside the version payload** rather than behind a ded
 hourly check already fetched and parsed them, so the dialog needs no second round-trip. The update
 history travels there too, for the settings card.
 
-`summary[]` is the operator digest (rule 20c) as plain strings; `notes[]` is every *other* section,
-`[{ key, title, items[] }]`. The split is the server's: which part of a release an operator is shown
-is a decision, not a rendering. A release with no digest sends `summary: []` and all its sections in
-`notes[]`, which is exactly what the client already knew how to display.
+`versions[]` is the span the operator is about to cross (rule 20d), **newest first**:
+`[{ version, publishedAt, summary[], notes[] }]`, one entry per published version strictly newer
+than `current` and not newer than `latest`. Within an entry, `summary[]` is the operator digest
+(rule 20c) as plain strings and `notes[]` is every *other* section, `[{ key, title, items[] }]`.
+Both splits are the server's: which part of a release an operator is shown, and which releases make
+up "what is about to be installed", are decisions, not renderings. A release with no digest sends
+`summary: []` and all its sections in `notes[]`, which is exactly what the client already knew how
+to display. `versions[]` is empty when nothing is known — the dialog then says the version does not
+detail its changes, as it always did.
+
+`versionsTruncated` is true when the poll's fetch window (rule 12b) did not reach back to the
+installed version, so the dialog can admit that older versions exist rather than imply the list is
+the whole span.
 
 Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages in French.
 
@@ -441,7 +467,7 @@ has to survive, and where `selfUpdateSupported()` would look for `releases/` and
 
 | File | Writer | Content |
 |---|---|---|
-| `data/update-state.json` | the app | Last release seen on GitHub (version, date, parsed notes), `lastCheckAt`, `dismissedVersion`, and the 5-entry history ring buffer |
+| `data/update-state.json` | the app | Last release seen on GitHub (version, date, plugin asset), the **parsed notes of each published version in the poll's window** (`releases[]`, capped at 30, newest first — rule 12b), `lastCheckAt`, `dismissedVersion`, and the 5-entry history ring buffer |
 | `data/update-status.json` | the app during staging, then `apply-update.sh` during the swap | Current phase — the only channel that survives the process being replaced |
 | `data/update.lock` | the app | `{ pid, targetVersion, startedAt }` — concurrency guard, stale after 30 min |
 | `data/runtime-state.json` | the app at boot | `{ version, pid, bootedAt }` — how the helper proves the *right* version came back |
@@ -491,6 +517,26 @@ Title `Mise à jour vers GuestFlow 1.3.0`, subtitle `Publiée le 20 août 2026`.
 block and nothing else: at most six short lines, each saying what changes for the operator. Every
 other section (Ajouts / Modifications / Corrections / Migration) sits behind a « Tout le changelog »
 toggle, collapsed by default and reversible via « Masquer le détail ».
+
+**Rule 20d — one block per version crossed.** When the installed version is more than one release
+behind, the body lists every version between the two, newest first. A caption under the title counts
+them — *« 3 versions depuis la 2.0.0 »* — and each block is headed by its own version and date
+(`2.3.0 — 22 août 2026`, `subtitle2`, muted) followed by that version's digest. « Tout le changelog »
+unfolds the remaining sections of **every** listed version, in the same order, each still under its
+version heading. When the span is exactly one version — the usual case — nothing changes visually:
+no caption, no version heading, since the dialog title and subtitle already name that version and
+that date. Repeating them would be noise on the screen the operator sees ninety-nine times out of a
+hundred.
+
+A version published **before the digest convention** carries none. On its own it still shows its
+sections in place, with no toggle — the rule-20c fallback, unchanged. Inside a span it does not:
+one version deballing its whole changelog buries the digests of the versions around it, which is the
+problem rule 20c exists to solve. It shows *« Pas de résumé pour cette version. »* and its detail
+waits behind the toggle with everyone else's.
+
+When `versionsTruncated` is set, a last muted line admits the horizon:
+*« Les versions antérieures à 1.9.0 ne sont pas listées. »* An operator that far behind is better
+served by an honest gap than by a list that looks complete.
 
 The reason is the moment: this dialog is read by someone deciding whether to replace the software
 running their business, and 2.2.0 answered that question with roughly a hundred lines of prose. The
@@ -626,6 +672,14 @@ save flow.
       is idempotent (rule 25b).
 - [x] `tests/self-update-db-backup.unit.test.js` — the WAL-safe snapshot captures rows a plain `cp`
       misses, a failed backup propagates, rotation keeps 5 and leaves foreign files alone (rule 26).
+- [x] `tests/self-update-release-span.unit.test.js` (rules 12b, 20d) — a release *list* yields the
+      target and the notes of the versions behind it; the order is by version, not by the order
+      GitHub answered in; drafts, pre-releases and foreign tags are ignored; a newest release with a
+      broken asset offers nothing rather than advertising the one below it, yet keeps its own
+      changelog; the span is filtered to `current < v <= latest`, ordered newest first and split per
+      version; a full first page that still does not reach the installed version reports
+      `versionsTruncated`, and one whose oldest entries are already installed does not; and a state
+      file written by the previous shape reads as an empty span rather than throwing.
 - [x] `tests/self-update-controller.unit.test.js` — the version and status payloads, the dev-tree
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
       check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
@@ -636,6 +690,11 @@ save flow.
       until « Tout le changelog » is clicked, the detail folds back, a release without a digest shows
       its sections with no toggle at all, a digest with no sections offers no toggle either, a
       release with neither says so, and the install button never waits on any of it.
+- [x] `UpdateDialog.test.jsx` (rule 20d) — two skipped versions render two digests under their own
+      version headings with the count caption, « Tout le changelog » unfolds every version's
+      sections in the same order, a single-version span shows neither caption nor version heading,
+      a digest-less version inside a span says so and keeps its detail folded, and a truncated span
+      admits the versions it is not listing.
 - [x] `UpdateAvailableAlert.test.jsx` — silent for a non-admin (and no admin call made at all),
       silent when up to date / postponed / already updating, "Plus tard" postpones that exact
       version, and the install button opens the notes dialog before anything is triggered.
@@ -681,6 +740,13 @@ Done before merge (2026-08-20):
       « GuestFlow 2.4.0 est disponible », and a click opens « Mise à jour vers GuestFlow 2.4.0 ». At
       390px the burger, the wordmark, the search magnifier, the version and the pill all still fit on
       one line with no horizontal scroll.
+- [x] **The installed → target span, desktop (1512px) and mobile (390px)** (2026-08-22, rule 20d) —
+      an isolated instance pinned to 2.0.0, polling the **real** GitHub releases: the dialog offers
+      2.3.0, captions « 3 versions depuis la 2.0.0 », and lists 2.3.0's six-line digest then 2.2.0
+      and 2.1.0, which predate the convention, as « Pas de résumé pour cette version. » with their
+      changelogs behind the toggle. Unfolding shows all three under their own version headings. With
+      the window trimmed back to a single version the dialog is byte-for-byte what it was before this
+      change: no caption, no version heading. Full-screen on 390px in both states.
 - [x] **Regression** — dashboard alert stack, settings page, full E2E suite (65 passed, 1 skipped;
       re-run on 2026-08-22 for the pill: 65 passed, 1 skipped).
 
@@ -766,6 +832,7 @@ Still open, to settle during implementation:
 | 8 | Rules 28 / 30b: the helper leaves the PM2 process tree, and a boot concludes an abandoned swap | ✅ 2026-08-20 |
 | 9 | Top-bar version badge replacing the `prod <sha>` pill (§6.5, rule 20b) | ✅ 2026-08-20 |
 | 10 | The update offer becomes a visible `HeaderPill` in the bar (§6.5, rule 20b) | ✅ 2026-08-22 |
+| 11 | The dialog shows the whole installed → target span, not just the target (rules 12b, 20d) | ✅ 2026-08-22 |
 
 **Done in production on 2026-08-20**, in this order, with a verified off-host backup taken first:
 layout migrated (`current/` → `releases/1.0.0` + symlink, uploads moved to `data/uploads`), the app
@@ -828,3 +895,22 @@ in the « Maison » palette red means something went wrong and a published relea
 The pill lives in a generic `HeaderPill` rather than inside `AppVersionBadge`, so the second top-bar
 indicator, whenever it comes, is a props call and not a second opinion on what a bar indicator
 looks like.
+
+### Amendment — 2026-08-22, the versions nobody was told about
+
+The dialog answered « what changes for me? » with the notes of the target release, and only those.
+That is the right answer exactly when no release was skipped. It was already wrong in production:
+2.1.0 and 2.2.0 went out four hours apart on 2026-08-20, and an operator who postponed the first one
+was offered 2.2.0 with 2.1.0's changelog nowhere in the application — published on GitHub, which is
+precisely where an operator does not go before clicking « Installer ».
+
+Rules 12b and 20d fix the shape of the question rather than the wording of the answer: the poll reads
+the release *list* instead of `/releases/latest`, and the payload carries the whole span between the
+installed version and the target. The extra HTTP cost is zero — it is the same single call, one page
+instead of one object — and the target is still chosen exactly as `/releases/latest` chose it, assets
+included, so a broken publish still offers nothing rather than falling back to an older version.
+
+No cap on the number of versions listed: a digest is at most six lines, and an operator four releases
+behind is the one who most needs to read all four. What is bounded is the *fetch* window, and when it
+does not reach back far enough the dialog says so — a list that silently starts in the middle is
+worse than one that admits where it stops.

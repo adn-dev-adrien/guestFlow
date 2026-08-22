@@ -14,7 +14,7 @@ function state(overrides = {}) {
   return {
     latestVersion: '1.1.0',
     latestPublishedAt: '2026-08-20T10:00:00Z',
-    latestNotes: [{ title: 'Corrections', items: ['Un correctif'] }],
+    releases: [{ version: '1.1.0', publishedAt: '2026-08-20T10:00:00Z', notes: [{ title: 'Corrections', items: ['Un correctif'] }] }],
     latestPlugin: { name: 'guestflow-booking-1.5.0.zip', url: ASSET_URL, version: '1.5.0' },
     ...overrides,
   };
@@ -58,5 +58,5 @@ test('the changelog HTML escapes what it renders', () => {
 test('no release notes yields an empty changelog rather than broken markup', () => {
   assert.equal(notesToHtml(null), '');
   assert.equal(notesToHtml([]), '');
-  assert.equal(buildManifest(state({ latestNotes: null })).sections.changelog, '');
+  assert.equal(buildManifest(state({ releases: [] })).sections.changelog, '');
 });

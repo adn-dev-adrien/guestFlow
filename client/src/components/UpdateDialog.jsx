@@ -5,14 +5,16 @@
  * operator is about to replace the software running their business, and the one moment they need
  * that information is this one.
  *
- * What it shows first is the digest the release carries (`info.summary`): a handful of short lines
- * that answer « what does this change for me? ». The full sections (`info.notes`) stay one click
- * away — an operator who wants the detail can have it, without having to read it to reach the
- * button. Releases published before the digest convention carry none, and fall back to the full
- * list (§6.2 rule 20c).
+ * What it shows is one digest per version the update crosses (`info.versions`, rule 20d): a handful
+ * of short lines each, answering « what does this change for me? ». A version the operator skipped
+ * is a version whose changelog they were never shown anywhere else, so the span — not just the
+ * target — is what the dialog lists. The full sections stay one click away, for every listed
+ * version at once: an operator who wants the detail can have it, without having to read it to reach
+ * the button. Releases published before the digest convention carry none, and fall back to their
+ * full list (rule 20c).
  *
- * Both arrive already parsed and already split by the server, so there is no markdown renderer here
- * and no decision to make — just a list.
+ * Everything arrives already parsed, already split and already ordered by the server, so there is
+ * no markdown renderer here and no decision to make — just a list.
  */
 import React from 'react';
 import {
@@ -55,6 +57,21 @@ function formatDate(iso) {
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/**
+ * The heading a version carries inside the body. Only when the span holds more than one: on the
+ * usual single-version update the dialog title and subtitle already name that version and that
+ * date, and repeating them is noise on the screen the operator sees ninety-nine times out of a
+ * hundred.
+ */
+function VersionHeading({ version, publishedAt }) {
+  const published = formatDate(publishedAt);
+  return (
+    <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700, mt: 1 }}>
+      {version}{published ? ` — ${published}` : ''}
+    </Typography>
+  );
+}
+
 export default function UpdateDialog({ open, info, starting, onClose, onConfirm }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -62,8 +79,15 @@ export default function UpdateDialog({ open, info, starting, onClose, onConfirm 
   if (!info) return null;
 
   const publishedAt = formatDate(info.publishedAt);
-  const notes = Array.isArray(info.notes) ? info.notes : [];
-  const summary = Array.isArray(info.summary) ? info.summary : [];
+  const versions = Array.isArray(info.versions) ? info.versions : [];
+  const multiple = versions.length > 1;
+  // A version published before the digest convention has no summary. On its own it shows its
+  // sections in place, exactly as those releases always did. Inside a span it does not: one version
+  // deballing its whole changelog would bury the digests of the versions around it, which is the
+  // problem rule 20c was written to solve in the first place. It says it has no digest, and its
+  // detail waits behind the toggle with everyone else's.
+  const inlineSectionsOf = (entry) => (!multiple && !entry.summary.length ? entry.notes : []);
+  const foldedSections = versions.filter((entry) => entry.notes.length && (multiple || entry.summary.length));
   const canInstall = info.selfUpdateSupported && !starting;
 
   return (
@@ -73,18 +97,42 @@ export default function UpdateDialog({ open, info, starting, onClose, onConfirm 
         {publishedAt && (
           <Typography variant="body2" color="text.secondary">Publiée le {publishedAt}</Typography>
         )}
+        {multiple && (
+          <Typography variant="body2" color="text.secondary">
+            {versions.length} versions depuis la {info.current}
+          </Typography>
+        )}
       </DialogTitle>
 
       <DialogContent dividers>
-        {summary.length === 0 && notes.length === 0 && (
+        {versions.length === 0 && (
           <Typography variant="body2" color="text.secondary">
             Cette version ne détaille pas ses changements.
           </Typography>
         )}
 
-        {summary.length > 0 && <NoteList items={summary} dense={false} />}
+        {versions.map((entry) => (
+          <Box key={entry.version} sx={{ mb: multiple ? 2 : 0 }}>
+            {multiple && <VersionHeading version={entry.version} publishedAt={entry.publishedAt} />}
+            {entry.summary.length > 0 && <NoteList items={entry.summary} dense={false} />}
+            {multiple && entry.summary.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+                Pas de résumé pour cette version.
+              </Typography>
+            )}
+            {inlineSectionsOf(entry).length > 0 && (
+              <Box sx={{ mt: 1 }}><NoteSections sections={inlineSectionsOf(entry)} /></Box>
+            )}
+          </Box>
+        ))}
 
-        {summary.length > 0 && notes.length > 0 && (
+        {info.versionsTruncated && versions.length > 0 && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Les versions antérieures à {versions[versions.length - 1].version} ne sont pas listées.
+          </Typography>
+        )}
+
+        {foldedSections.length > 0 && (
           <>
             <Button
               size="small"
@@ -96,12 +144,17 @@ export default function UpdateDialog({ open, info, starting, onClose, onConfirm 
               {detailsOpen ? 'Masquer le détail' : 'Tout le changelog'}
             </Button>
             <Collapse in={detailsOpen} unmountOnExit>
-              <Box sx={{ mt: 1 }}><NoteSections sections={notes} /></Box>
+              <Box sx={{ mt: 1 }}>
+                {foldedSections.map((entry) => (
+                  <Box key={entry.version}>
+                    {multiple && <VersionHeading version={entry.version} publishedAt={entry.publishedAt} />}
+                    <NoteSections sections={entry.notes} />
+                  </Box>
+                ))}
+              </Box>
             </Collapse>
           </>
         )}
-
-        {summary.length === 0 && notes.length > 0 && <NoteSections sections={notes} />}
 
         {info.selfUpdateSupported ? (
           <Alert severity="info" sx={{ mt: 1 }}>

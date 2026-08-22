@@ -12,7 +12,7 @@
 const path = require('path');
 const { getAppVersion } = require('../utils/appVersion');
 const { isNewerVersion, isValidVersion } = require('../utils/semver');
-const { fetchLatestRelease, splitSummary } = require('../utils/releaseClient');
+const { fetchReleaseFeed, splitSummary } = require('../utils/releaseClient');
 const { resolvePaths, selfUpdateSupported, resolvePm2Binary, currentReleaseDir, freeBytes } = require('../utils/deploymentPaths');
 const { stageRelease, pruneReleases } = require('../utils/updateStaging');
 const { buildHelperArgs, spawnHelper } = require('../utils/updateHelper');
@@ -32,24 +32,49 @@ function healthUrl(env = process.env) {
   return `${protocol}://127.0.0.1:${env.PORT || 4000}/api/version`;
 }
 
+/**
+ * The versions the operator is about to cross: everything published strictly after the installed
+ * version and no later than the target, newest first (rule 20d).
+ *
+ * Each entry is split into the digest the dialog leads with and the detail it keeps folded (rule
+ * 20c). Both decisions are the server's — which releases make up "what is about to be installed",
+ * and which part of each one is shown, are not renderings. A release published before the digest
+ * convention has an empty `summary` and everything in `notes`, exactly what those releases have
+ * always displayed.
+ */
+function buildVersionSpan(state, current, latest) {
+  if (!latest) return [];
+  return state.releases
+    .filter((entry) => entry
+      && isNewerVersion(entry.version, current)
+      && !isNewerVersion(entry.version, latest))
+    .map((entry) => {
+      const { summary, details } = splitSummary(entry.notes || []);
+      return {
+        version: entry.version,
+        publishedAt: entry.publishedAt || null,
+        summary,
+        notes: details,
+      };
+    });
+}
+
 /** The `GET /api/system/version` payload, built from local state only (no network call). */
 function buildVersionInfo(model = updateStateModel) {
   const current = getAppVersion();
   const state = model.readState();
   const support = selfUpdateSupported();
   const latest = state.latestVersion;
-  // The digest the dialog shows, and the detail it keeps folded (§6.2 rule 20c). Split here rather
-  // than in React: which part of a release an operator is shown is a decision, not a rendering.
-  // A release published before the convention has an empty digest — `details` is then everything,
-  // exactly what those releases have always displayed.
-  const { summary, details } = splitSummary(state.latestNotes || []);
+  const versions = buildVersionSpan(state, current, latest);
   return {
     current,
     latest,
     updateAvailable: Boolean(latest) && isNewerVersion(latest, current),
     publishedAt: state.latestPublishedAt,
-    summary,
-    notes: details,
+    versions,
+    // The window stopped above the installed version: older versions exist and are not listed, and
+    // the dialog says so rather than passing a partial list off as the whole span (rule 12b).
+    versionsTruncated: Boolean(state.releasesTruncated) && versions.length === state.releases.length,
     lastCheckAt: state.lastCheckAt,
     dismissedVersion: state.dismissedVersion,
     selfUpdateSupported: support.supported,
@@ -99,16 +124,22 @@ function finishInProcess(model, phase, errorCode, message) {
 /**
  * Poll GitHub and store the result. Never throws: an unreachable GitHub leaves the last known state
  * in place (rule 14). Returns the normalised release, or null.
+ *
+ * A page that came back without a usable target — the newest publish missing an asset — counts as
+ * a failed check, not as "there is nothing published any more". Wiping the known offer because the
+ * next release was published badly would take the update away from an operator who could still
+ * install the one they were already being offered.
  */
 async function runVersionCheck({ model = updateStateModel, fetchImpl = fetch } = {}) {
-  const release = await fetchLatestRelease({ fetchImpl });
+  const feed = await fetchReleaseFeed({ fetchImpl });
   const previous = model.readState().latestVersion;
-  if (!release) {
+  if (!feed || !feed.release) {
     // Keep the previous answer; only stamp that we tried when we have never succeeded.
     if (!previous) model.writeState({ lastCheckAt: new Date().toISOString() });
     return null;
   }
-  model.recordCheck(release);
+  const { release } = feed;
+  model.recordCheck(feed);
   if (release.version !== previous && isNewerVersion(release.version, getAppVersion())) {
     console.log(`[update] nouvelle version disponible : ${getAppVersion()} → ${release.version}`);
   }
@@ -231,7 +262,8 @@ async function runUpdate({ model, paths, current, targetVersion, startedAt, logF
   try {
     // Re-fetch: the cached notes are for display, but the asset URLs must be fresh.
     model.writeStatus({ phase: 'checking' });
-    const release = await fetchLatestRelease({});
+    const feed = await fetchReleaseFeed({});
+    const release = feed ? feed.release : null;
     if (!release || release.version !== targetVersion) {
       finishInProcess(model, 'failed', 'RELEASE_UNAVAILABLE', "La release demandée n'est plus disponible sur GitHub.");
       return;

@@ -6,7 +6,7 @@ const {
   parseReleaseNotes,
   parseSha256Sums,
   normaliseRelease,
-  fetchLatestRelease,
+  fetchReleaseFeed,
 } = require('../utils/releaseClient');
 
 // specs/self-update-and-releases.md §3.B + §3.D rule 22.
@@ -101,22 +101,23 @@ test('normaliseRelease refuses anything it cannot fully trust', () => {
   assert.equal(normaliseRelease(null), null);
 });
 
-test('fetchLatestRelease swallows every failure mode and returns null', async () => {
+test('fetchReleaseFeed swallows every failure mode and returns null', async () => {
   const cases = [
     async () => ({ ok: false, status: 404 }),
-    async () => ({ ok: true, json: async () => ({ tag_name: 'garbage' }) }),
+    async () => ({ ok: true, json: async () => ({ message: 'rate limited' }) }),
     async () => { throw new Error('offline'); },
   ];
   for (const fetchImpl of cases) {
-    assert.equal(await fetchLatestRelease({ fetchImpl }), null);
+    assert.equal(await fetchReleaseFeed({ fetchImpl }), null);
   }
 });
 
-test('fetchLatestRelease returns the normalised release on success', async () => {
+test('fetchReleaseFeed returns the normalised target on success', async () => {
   const fetchImpl = async (url) => {
-    assert.equal(url, 'https://api.github.com/repos/adn-dev-adrien/guestFlow/releases/latest');
-    return { ok: true, json: async () => releasePayload() };
+    assert.equal(url, 'https://api.github.com/repos/adn-dev-adrien/guestFlow/releases?per_page=30');
+    return { ok: true, json: async () => [releasePayload()] };
   };
-  const release = await fetchLatestRelease({ fetchImpl });
-  assert.equal(release.version, '1.1.0');
+  const feed = await fetchReleaseFeed({ fetchImpl });
+  assert.equal(feed.release.version, '1.1.0');
+  assert.equal(feed.truncated, false);
 });
