@@ -31,21 +31,47 @@ operator installs it from Réglages → Système et mises à jour. Never SSH int
 
 If `$ARGUMENTS` carries a strict semver (`1.2.0`, `1.1.1` — no `v`, no suffix), use it.
 
-Otherwise **derive it and say which one you took** — do not ask:
+Otherwise **derive it and say which one you took** — do not ask.
 
 ```bash
 ls changelog.d/*.md | grep -v README        # the pending fragments
 node -p "require('./package.json').version" # the current version
 ```
 
-- any `added--`, `changed--`, `removed--` or `migration--` fragment → **minor**;
-- `fixed--` only → **patch**;
-- **major** only when the user explicitly calls for one.
+### What each digit means
 
-Ask via `AskUserQuestion` only if the fragments genuinely contradict the rule — for instance a
-`fixed--` lot that nonetheless changes behaviour on existing installations.
+`X.Y.Z` is not three counters. Each digit answers a different question
+(specs/self-update-and-releases.md §3.A rule 2):
 
-> **CHECK**: the version is strict semver and strictly greater than the current one.
+| | Meaning | Derived from |
+|---|---|---|
+| **X** — major | A structural change, or a **contract lost or broken for someone outside this repository**. | **Never derived — the user's explicit call.** |
+| **Y** — minor | An **improvement**: a feature, a behaviour change, a migration, a removal nobody outside depends on. | Any `added--`, `changed--`, `removed--` or `migration--` fragment. |
+| **Z** — patch | **Bug fixes only.** One non-fix in the lot and it is not a patch. | `fixed--` fragments, and nothing else. |
+
+So: `fixed--` only → bump **Z**. Anything else in the lot → bump **Y**. Never bump **X** on your own.
+
+### The one check the fragment categories cannot make
+
+A category tells you what a change *is*, not who it *breaks*. Before settling on Y, ask whether the
+lot removes or reshapes a surface that something outside this repository calls on its own schedule:
+
+- `server/src/routes/public/**` (`/public/v1/…`) — the **WordPress plugin** calls these;
+- the **iCal export** feeds — the booking platforms read these;
+- `/public/v1/plugin-update` — the plugin's own updater polls it.
+
+If it does, that is an **X**, whatever the fragment says, and X is the user's call: stop and ask via
+`AskUserQuestion`.
+
+`/api/**` is *not* such a surface. The client and the server ship in one archive and install
+together, so an internal endpoint has no consumer that can lag behind it. The question is never « did
+a signature change? » but « who updates on a different schedule than we do? ».
+
+Ask as well when the fragments genuinely contradict the rule — a `fixed--` lot that nonetheless
+changes behaviour on existing installations is a Y wearing a Z's clothes.
+
+> **CHECK**: the version is strict semver, strictly greater than the current one, and its digit
+> matches the table above.
 
 ---
 
@@ -273,6 +299,7 @@ Only these. Everything else you decide and report.
 | Tracked modifications in the working tree | They are someone's unfinished work — possibly another session's |
 | A suite is red at step 2 | A release is not the moment to debug; the user chooses to fix or defer |
 | The fragments contradict the version rule | A behaviour change hiding in a `fixed--` lot is a judgement call |
+| The lot breaks or drops a `/public/v1/**` endpoint, an iCal feed or the plugin contract | That is a major, and a major is never derived |
 | The WordPress plugin changed | Its version is independent; the user picks it |
 | The PR closes without merging | The user declined |
 | `verify` fails for a reason a normal PR cannot fix | Re-pointing a tag past a structural problem hides it |
