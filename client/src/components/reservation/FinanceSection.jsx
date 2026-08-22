@@ -6,11 +6,13 @@ import ArithmeticTextField from '../ArithmeticTextField';
 import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
+import MidStayNoteRow from './MidStayNoteRow';
 import RefundDialog from './RefundDialog';
 import { useAppDialogs } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
 import { formatCurrency, displayDate } from '../../utils/formatters';
 import { COMPLEMENT_LABELS } from '../../constants/complements';
+import { complementDeferralAccess } from '../../utils/complementDeferralAccess';
 
 // Means of refund, French labels for the history rows (specs/reservation-refunds.md §3.1 rule 4).
 const REFUND_METHOD_LABELS = {
@@ -42,84 +44,129 @@ function parseEndOfStayDetail(detail) {
 }
 
 /**
- * One collectible complement: title + amount, optional itemised lines, « payé » / « caisse interne »
- * toggles and the payment date. Shared by the arrival complement, the end-of-stay complement and the
- * merged « complément de fin de séjour » of a deferred reservation
+ * One collectible complement: title + amount, optional itemised lines, the operator's adjusted amount,
+ * « payé » / « caisse interne » toggles and the payment date. Shared by the arrival complement, the
+ * end-of-stay complement and the merged « complément de fin de séjour » of a deferred reservation
  * (specs/defer-arrival-complement-to-checkout.md §3.2), so the three can never drift apart visually.
  *
+ * Renders the CARD ONLY: the parent owns the grid, so two complements sit side by side on a desktop
+ * (specs/adjustable-complement-amounts.md §6.5).
+ *
  * Props: `title`, `amount`, `lines` ([{ label, amount }], optional), `paid`, `paidCash`, `paidDate`,
- * `sectionGridSx`, and the three handlers `onTogglePaid(next)` / `onToggleCash(next)` / `onDateChange(v)`.
+ * the three handlers `onTogglePaid(next)` / `onToggleCash(next)` / `onDateChange(v)`, the adjustment
+ * (`overrideValue`, `onOverrideCommit`, `autoAmount`, `allocation`, `floor`, `adjustDisabledReason`)
+ * and an optional `extra` node rendered above the actions (the « fin de séjour » switch).
  */
-function ComplementCard({ title, amount, lines = [], paid, paidCash, paidDate, sectionGridSx, onTogglePaid, onToggleCash, onDateChange }) {
+function ComplementCard({
+  title, amount, lines = [], paid, paidCash, paidDate, onTogglePaid, onToggleCash, onDateChange,
+  overrideValue, onOverrideCommit, autoAmount, allocation = null, floor = null, adjustDisabledReason = '',
+  extra = null,
+}) {
+  const adjusted = overrideValue !== '' && overrideValue != null;
+  const adjustable = typeof onOverrideCommit === 'function';
+  const atFloor = adjusted && floor != null && Number(floor) > 0
+    && Number(overrideValue) <= Number(floor) + 0.005;
+  const helper = adjustDisabledReason
+    || (atFloor
+      ? `Minimum ${formatCurrency(floor)} : taxe de séjour et hébergement ne sont pas ajustables.`
+      : adjusted
+        ? "Montant figé — l'écart est absorbé par le total du séjour."
+        : `Calcul auto (${formatCurrency(autoAmount)})`);
   return (
-    <>
-      <Divider />
-      <Box>
-        <Grid container spacing={2} sx={sectionGridSx}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            {/* Red border tant qu'impayé pour signaler le reste à percevoir ; bascule en visuel
-                neutre (= Acompte/Solde payé) une fois le complément encaissé. */}
-            <Box
-              sx={{
-                border: paid ? 'none' : '1px solid',
-                borderColor: paid ? 'transparent' : 'error.main',
-                borderRadius: 1,
-                p: paid ? 0 : 1.5,
-              }}
-            >
-              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: lines.length ? 1 : 2 }}>
-                {title}
-                <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-                  ({formatCurrency(amount)})
-                </Typography>
-              </Typography>
-              {lines.map((line, i) => (
-                <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
-                  {line.label} : {formatCurrency(line.amount || 0)}
-                </Typography>
-              ))}
-              <Button
-                fullWidth
-                variant={paid ? 'contained' : 'outlined'}
-                color={paid ? 'success' : 'inherit'}
-                onClick={() => onTogglePaid(!paid)}
-                sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: lines.length ? 1.5 : 0 }}
-              >
-                {paid ? 'Complément payé' : 'Marquer complément payé'}
-              </Button>
-              {paid && (
-                <DateField
-                  label="Payé le"
-                  type="date"
-                  value={paidDate || ''}
-                  onChange={(e) => onDateChange(e.target.value)}
-                  fullWidth
-                  sx={{ mt: 1.5 }}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-              )}
-              {/* « Caisse interne » : compté dans le suivi financier, exclu de la compta
-                  (specs/cash-complement-and-endofstay-finance.md §3.2). Implique « payé ». */}
-              <Button
+    <Box
+      sx={{
+        height: '100%',
+        border: paid ? 'none' : '1px solid',
+        borderColor: paid ? 'transparent' : 'error.main',
+        borderRadius: 1,
+        p: paid ? 0 : 1.5,
+      }}
+    >
+      {/* Red border tant qu'impayé pour signaler le reste à percevoir ; bascule en visuel
+          neutre (= Acompte/Solde payé) une fois le complément encaissé. */}
+      <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: lines.length ? 1 : 2 }}>
+        {title}
+        <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
+          ({formatCurrency(amount)})
+        </Typography>
+      </Typography>
+      {lines.map((line, i) => (
+        <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
+          {line.label} : {formatCurrency(line.amount || 0)}
+        </Typography>
+      ))}
+      {adjustable && (
+        <Box sx={{ mt: lines.length ? 1.5 : 0 }}>
+          {/* specs/adjustable-complement-amounts.md §3.1 — le montant annoncé au client l'emporte sur
+              le calcul, même après encaissement. Vider le champ rend la main au moteur. */}
+          <Tooltip title={adjustDisabledReason} disableHoverListener={!adjustDisabledReason}>
+            <span>
+              <ArithmeticTextField
+                label="Montant ajusté (€)"
+                value={overrideValue == null ? '' : overrideValue}
+                onCommit={(v) => onOverrideCommit(v)}
+                disabled={Boolean(adjustDisabledReason)}
                 fullWidth
                 size="small"
-                variant={paidCash ? 'contained' : 'outlined'}
-                color={paidCash ? 'success' : 'inherit'}
-                onClick={() => onToggleCash(!paidCash)}
-                sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
-              >
-                {paidCash ? 'Caisse interne ✓' : 'Caisse interne'}
-              </Button>
-              {paidCash && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                  Compté dans le suivi financier, hors compta.
+                helperText={helper}
+              />
+            </span>
+          </Tooltip>
+          {/* §3.6 — ce qui partira en comptabilité, poste par poste : la fiche décide, la compta
+              ne recalcule rien. */}
+          {adjusted && allocation && (
+            <Box sx={{ mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                Ventilation comptable
+              </Typography>
+              {allocation.map((poste) => (
+                <Typography key={poste.label} variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  {poste.label} : {formatCurrency(poste.amount)}{poste.locked ? ' (inchangé)' : ''}
                 </Typography>
-              )}
+              ))}
             </Box>
-          </Grid>
-        </Grid>
-      </Box>
-    </>
+          )}
+        </Box>
+      )}
+      {extra}
+      <Button
+        fullWidth
+        variant={paid ? 'contained' : 'outlined'}
+        color={paid ? 'success' : 'inherit'}
+        onClick={() => onTogglePaid(!paid)}
+        sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: (lines.length || adjustable || extra) ? 1.5 : 0 }}
+      >
+        {paid ? 'Complément payé' : 'Marquer complément payé'}
+      </Button>
+      {paid && (
+        <DateField
+          label="Payé le"
+          type="date"
+          value={paidDate || ''}
+          onChange={(e) => onDateChange(e.target.value)}
+          fullWidth
+          sx={{ mt: 1.5 }}
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+      )}
+      {/* « Caisse interne » : compté dans le suivi financier, exclu de la compta
+          (specs/cash-complement-and-endofstay-finance.md §3.2). Implique « payé ». */}
+      <Button
+        fullWidth
+        size="small"
+        variant={paidCash ? 'contained' : 'outlined'}
+        color={paidCash ? 'success' : 'inherit'}
+        onClick={() => onToggleCash(!paidCash)}
+        sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
+      >
+        {paidCash ? 'Caisse interne ✓' : 'Caisse interne'}
+      </Button>
+      {paidCash && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          Compté dans le suivi financier, hors compta.
+        </Typography>
+      )}
+    </Box>
   );
 }
 
@@ -159,6 +206,74 @@ export default function FinanceSection() {
   const complementDeferred = Boolean(checkoutComplement?.deferred || (complementSplit && complementSplit.arrival === 0))
     && Number(checkoutComplement?.amount || 0) > 0;
 
+  // specs/adjustable-complement-amounts.md §3.6 — le plancher et la ventilation prête à rendre sont
+  // décidés par le serveur ; la carte ne fait que les afficher.
+  const complementAdjustment = form.complementAdjustment || { floor: 0, accommodation: 0, tax: 0, allocation: null };
+  const arrivalAdjusted = form.complementAmountOverride !== '' && form.complementAmountOverride != null;
+  const endOfStayAdjusted = form.endOfStayComplementAmountOverride !== '' && form.endOfStayComplementAmountOverride != null;
+  const arrivalAutoAmount = Number(pricingQuote?.complementAmountAuto || 0);
+  const endOfStayAmountNow = Number(form.endOfStayComplementAmount || 0);
+  // §3.6 règle 34 — un complément fait uniquement d'hébergement n'a rien à ventiler : le réduire est
+  // une remise sur le séjour, qui a son propre champ.
+  const arrivalAdjustDisabledReason = (!arrivalAdjusted
+    && arrivalAutoAmount > 0
+    && Number(complementAdjustment.tax || 0) === 0
+    && Number(complementAdjustment.floor || 0) >= arrivalAutoAmount - 0.005)
+    ? 'Ce complément ne contient que de l\'hébergement. Pour le réduire, utilisez « Prix hébergement ajusté ».'
+    : '';
+  // §3.5 règles 29-30 — sur la carte fusionnée l'opérateur saisit le TOTAL ; l'ajustement stocké reste
+  // celui du complément d'ARRIVÉE, le complément de fin de séjour gardant ses propres lignes. Le
+  // décalage est un affichage, pas une règle : le serveur valide et stocke la part arrivée.
+  const mergedAutoAmount = Math.round((arrivalAutoAmount + endOfStayAmountNow) * 100) / 100;
+  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + endOfStayAmountNow) * 100) / 100;
+  const commitArrivalOverride = (v) => {
+    if (v === '' || v == null) { updateForm({ complementAmountOverride: '' }); return; }
+    const floor = complementDeferred ? mergedFloor : Number(complementAdjustment.floor || 0);
+    const target = Math.max(floor, Number(v));
+    const stored = complementDeferred ? Math.max(0, Math.round((target - endOfStayAmountNow) * 100) / 100) : target;
+    updateForm({ complementAmountOverride: stored });
+  };
+  const mergedOverrideValue = arrivalAdjusted
+    ? Math.round((Number(form.complementAmountOverride) + endOfStayAmountNow) * 100) / 100
+    : '';
+
+  // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour » depuis la
+  // fiche : même marqueur que le récap du SAS arrivée, effet immédiat, réversible.
+  const deferAccess = complementDeferralAccess({
+    editingReservationId,
+    isDevisMode,
+    startDate: form.startDate,
+    complementAmount: Number(pricingQuote?.complementAmount || 0),
+    complementPaid: Boolean(form.complementPaid) || Boolean(form.complementPaidCash),
+    deferred: Boolean(form.complementDeferredToCheckout),
+    locked: Boolean(isReservationLocked),
+    today: todayStr(),
+  });
+  const onToggleDefer = async (next) => {
+    updateForm({ complementDeferredToCheckout: next });
+    await api.markPayment(editingReservationId, { complementDeferredToCheckout: next });
+    await reloadReservationFinance();
+  };
+  const deferSwitch = deferAccess.visible ? (
+    <Tooltip
+      title={deferAccess.reason || 'Le complément d\'arrivée sera encaissé au départ, avec le complément de fin de séjour.'}
+    >
+      <span>
+        <FormControlLabel
+          control={(
+            <Switch
+              checked={deferAccess.checked}
+              disabled={deferAccess.disabled}
+              onChange={(e) => onToggleDefer(e.target.checked)}
+            />
+          )}
+          label={<Typography variant="body2">Percevoir en fin de séjour</Typography>}
+          sx={{ mt: 1 }}
+        />
+      </span>
+    </Tooltip>
+  ) : null;
+
   // specs/platform-payment-entry.md — on a platform reservation the brut is the single price lever, so
   // « Prix hébergement ajusté » / « Réduction » are hidden (they'd conflict with the brut pin).
   const isPlatform = String(form.platform || 'direct').toLowerCase() !== 'direct';
@@ -188,6 +303,20 @@ export default function FinanceSection() {
     });
     if (!ok) return;
     await deleteRefund(refund.id);
+  };
+
+  // §3.1 règle 9 — une carte dont le montant tombe à 0 À CAUSE d'un ajustement reste affichée : sinon
+  // l'opérateur n'aurait plus aucun moyen d'effacer l'ajustement. À 0 sans ajustement, elle disparaît.
+  const showArrivalComplement = !complementDeferred
+    && (Number(pricingQuote?.complementAmount || 0) > 0 || arrivalAdjusted);
+  const showEndOfStayComplement = !complementDeferred
+    && (endOfStayAmountNow > 0 || endOfStayAdjusted);
+
+  // §3.4 — modifier une note en place. L'erreur serveur (montant supérieur au reste à percevoir,
+  // complément déjà encaissé) remonte à la ligne, qui l'affiche sans se refermer.
+  const onAdjustNote = async (note, patch) => {
+    await api.markPayment(editingReservationId, { adjustMidStayNote: { id: note.id, ...patch } });
+    await reloadReservationFinance();
   };
 
   const onCancelNote = async (note) => {
@@ -637,199 +766,212 @@ export default function FinanceSection() {
               </>
             )}
 
-            {/* Deferred to check-out (specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-8):
-                ONE card for ONE collection — the arrival lines and the end-of-stay lines together,
-                one total, one « payé » action (the server settles both buckets). */}
-            {complementDeferred && (
-              <ComplementCard
-                title={COMPLEMENT_LABELS.endOfStay}
-                amount={checkoutComplement.amount}
-                lines={checkoutComplement.lines || []}
-                paid={form.complementPaid}
-                paidCash={form.complementPaidCash}
-                paidDate={form.complementPaidDate}
-                sectionGridSx={sectionGridSx}
-                onTogglePaid={async (next) => {
-                  const date = next ? (form.complementPaidDate || todayStr()) : '';
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
-                  }
-                  updateForm({
-                    complementPaid: next, complementPaidDate: date,
-                    endOfStayComplementPaid: next, endOfStayComplementPaidDate: date,
-                    ...(next ? {} : { complementPaidCash: false, endOfStayComplementPaidCash: false }),
-                  });
-                }}
-                onDateChange={async (v) => {
-                  updateForm({ complementPaidDate: v, endOfStayComplementPaidDate: v });
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
-                  }
-                }}
-                onToggleCash={async (next) => {
-                  const date = form.complementPaidDate || todayStr();
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { complementPaidCash: next });
-                  }
-                  updateForm(next
-                    ? {
-                      complementPaidCash: true, complementPaid: true, complementPaidDate: date,
-                      endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date,
-                    }
-                    : { complementPaidCash: false, endOfStayComplementPaidCash: false });
-                }}
-              />
-            )}
-
-            {!complementDeferred && Number(pricingQuote?.complementAmount || 0) > 0 && (
-              <ComplementCard
-                title={COMPLEMENT_LABELS.arrival}
-                amount={pricingQuote.complementAmount}
-                paid={form.complementPaid}
-                paidCash={form.complementPaidCash}
-                paidDate={form.complementPaidDate}
-                sectionGridSx={sectionGridSx}
-                onTogglePaid={async (next) => {
-                  const date = next ? (form.complementPaidDate || todayStr()) : '';
-                  if (isReservationLocked && editingReservationId) {
-                    await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
-                  }
-                  updateForm({ complementPaid: next, complementPaidDate: date });
-                }}
-                onDateChange={async (v) => {
-                  updateForm({ complementPaidDate: v });
-                  if (isReservationLocked && editingReservationId) {
-                    await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
-                  }
-                }}
-                onToggleCash={async (next) => {
-                  const date = form.complementPaidDate || todayStr();
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { complementPaidCash: next });
-                  }
-                  updateForm(next
-                    ? { complementPaidCash: true, complementPaid: true, complementPaidDate: date }
-                    : { complementPaidCash: false });
-                }}
-              />
-            )}
-
-            {/* Complément durant le séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
-                settled notes + the « Nouvelle note » entry point + a browsable history. Placed
-                between the two complements, in collection order. */}
-            {showMidStayNotes && (
+            {/* Les compléments, dans une seule grille : deux cartes par ligne sur ordinateur, empilées
+                sur mobile (specs/adjustable-complement-amounts.md §6.5). L'ordre est celui de la
+                collecte : arrivée → durant le séjour → fin de séjour. */}
+            {(complementDeferred || showArrivalComplement || showMidStayNotes || showEndOfStayComplement) && (
               <>
                 <Divider />
                 <Box>
-                  <Grid container spacing={2} sx={sectionGridSx}>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
-                        {COMPLEMENT_LABELS.duringStay}
-                        {midStayNotesTotal > 0 && (
-                          <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-                            ({formatCurrency(midStayNotesTotal)})
-                          </Typography>
+                  <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'stretch' }}>
+                    {/* Deferred to check-out (specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-8):
+                        ONE card for ONE collection — the arrival lines and the end-of-stay lines together,
+                        one total, one « payé » action (the server settles both buckets). */}
+                    {complementDeferred && (
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <ComplementCard
+                          title={COMPLEMENT_LABELS.endOfStay}
+                          amount={checkoutComplement.amount}
+                          lines={checkoutComplement.lines || []}
+                          paid={form.complementPaid}
+                          paidCash={form.complementPaidCash}
+                          paidDate={form.complementPaidDate}
+                          extra={deferSwitch}
+                          overrideValue={mergedOverrideValue}
+                          onOverrideCommit={commitArrivalOverride}
+                          autoAmount={mergedAutoAmount}
+                          allocation={complementAdjustment.allocation}
+                          floor={mergedFloor}
+                          adjustDisabledReason={arrivalAdjustDisabledReason}
+                          onTogglePaid={async (next) => {
+                            const date = next ? (form.complementPaidDate || todayStr()) : '';
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
+                            }
+                            updateForm({
+                              complementPaid: next, complementPaidDate: date,
+                              endOfStayComplementPaid: next, endOfStayComplementPaidDate: date,
+                              ...(next ? {} : { complementPaidCash: false, endOfStayComplementPaidCash: false }),
+                            });
+                          }}
+                          onDateChange={async (v) => {
+                            updateForm({ complementPaidDate: v, endOfStayComplementPaidDate: v });
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
+                            }
+                          }}
+                          onToggleCash={async (next) => {
+                            const date = form.complementPaidDate || todayStr();
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaidCash: next });
+                            }
+                            updateForm(next
+                              ? {
+                                complementPaidCash: true, complementPaid: true, complementPaidDate: date,
+                                endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date,
+                              }
+                              : { complementPaidCash: false, endOfStayComplementPaidCash: false });
+                          }}
+                        />
+                      </Grid>
+                    )}
+
+                    {showArrivalComplement && (
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <ComplementCard
+                          title={COMPLEMENT_LABELS.arrival}
+                          amount={pricingQuote?.complementAmount || 0}
+                          paid={form.complementPaid}
+                          paidCash={form.complementPaidCash}
+                          paidDate={form.complementPaidDate}
+                          extra={deferSwitch}
+                          overrideValue={form.complementAmountOverride}
+                          onOverrideCommit={commitArrivalOverride}
+                          autoAmount={arrivalAutoAmount}
+                          allocation={complementAdjustment.allocation}
+                          floor={complementAdjustment.floor}
+                          adjustDisabledReason={arrivalAdjustDisabledReason}
+                          onTogglePaid={async (next) => {
+                            const date = next ? (form.complementPaidDate || todayStr()) : '';
+                            if (isReservationLocked && editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
+                            }
+                            updateForm({ complementPaid: next, complementPaidDate: date });
+                          }}
+                          onDateChange={async (v) => {
+                            updateForm({ complementPaidDate: v });
+                            if (isReservationLocked && editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
+                            }
+                          }}
+                          onToggleCash={async (next) => {
+                            const date = form.complementPaidDate || todayStr();
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaidCash: next });
+                            }
+                            updateForm(next
+                              ? { complementPaidCash: true, complementPaid: true, complementPaidDate: date }
+                              : { complementPaidCash: false });
+                          }}
+                        />
+                      </Grid>
+                    )}
+
+                    {/* Complément durant le séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
+                        settled notes + the « Nouvelle note » entry point + a browsable history. Placed
+                        between the two complements, in collection order. */}
+                    {showMidStayNotes && (
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
+                          {COMPLEMENT_LABELS.duringStay}
+                          {midStayNotesTotal > 0 && (
+                            <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
+                              ({formatCurrency(midStayNotesTotal)})
+                            </Typography>
+                          )}
+                        </Typography>
+                        <Tooltip title={midStayNote?.reason || ''}>
+                          <span>
+                            <Button
+                              fullWidth
+                              variant="outlined"
+                              disabled={Boolean(midStayNote?.disabled)}
+                              onClick={() => setMidStayNoteOpen(true)}
+                              sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                            >
+                              + Nouvelle note
+                            </Button>
+                          </span>
+                        </Tooltip>
+                        {midStayNotes.length > 0 && (
+                          <>
+                            <Button
+                              size="small"
+                              onClick={() => setHistoryOpen((v) => !v)}
+                              sx={{ textTransform: 'none', mt: 1 }}
+                            >
+                              {historyOpen ? 'Masquer l\'historique' : `Voir l'historique (${midStayNotes.length} note${midStayNotes.length > 1 ? 's' : ''})`}
+                            </Button>
+                            {historyOpen && midStayNotes.map((note) => (
+                              <MidStayNoteRow
+                                key={note.id}
+                                note={note}
+                                settled={endOfStaySettled}
+                                onCancel={() => onCancelNote(note)}
+                                onAdjust={(patch) => onAdjustNote(note, patch)}
+                              />
+                            ))}
+                          </>
                         )}
-                      </Typography>
-                      <Tooltip title={midStayNote?.reason || ''}>
-                        <span>
-                          <Button
-                            fullWidth
-                            variant="outlined"
-                            disabled={Boolean(midStayNote?.disabled)}
-                            onClick={() => setMidStayNoteOpen(true)}
-                            sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                          >
-                            + Nouvelle note
-                          </Button>
-                        </span>
-                      </Tooltip>
-                      {midStayNotes.length > 0 && (
-                        <>
-                          <Button
-                            size="small"
-                            onClick={() => setHistoryOpen((v) => !v)}
-                            sx={{ textTransform: 'none', mt: 1 }}
-                          >
-                            {historyOpen ? 'Masquer l\'historique' : `Voir l'historique (${midStayNotes.length} note${midStayNotes.length > 1 ? 's' : ''})`}
-                          </Button>
-                          {historyOpen && midStayNotes.map((note) => (
-                            <Box key={note.id} sx={{ mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                  {displayNoteDate(note.paidDate)} — {formatCurrency(note.total)} — {note.paidCash ? 'Caisse interne' : 'CB'}
-                                </Typography>
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  disabled={endOfStaySettled}
-                                  onClick={() => onCancelNote(note)}
-                                  sx={{ textTransform: 'none', minWidth: 0 }}
-                                >
-                                  ✕
-                                </Button>
-                              </Box>
-                              {(note.lines || []).map((line, i) => (
-                                <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
-                                  {line.label} : {formatCurrency(line.amount || 0)}
-                                </Typography>
-                              ))}
-                            </Box>
-                          ))}
-                        </>
-                      )}
-                    </Grid>
+                      </Grid>
+                    )}
+
+                    {showEndOfStayComplement && (
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <ComplementCard
+                          title={COMPLEMENT_LABELS.endOfStay}
+                          amount={form.endOfStayComplementAmount}
+                          lines={parseEndOfStayDetail(form.endOfStayComplementDetail)}
+                          paid={form.endOfStayComplementPaid}
+                          paidCash={form.endOfStayComplementPaidCash}
+                          paidDate={form.endOfStayComplementPaidDate}
+                          overrideValue={form.endOfStayComplementAmountOverride}
+                          onOverrideCommit={(v) => updateForm({ endOfStayComplementAmountOverride: v })}
+                          autoAmount={form.endOfStayComplementAmountAuto}
+                          onTogglePaid={async (next) => {
+                            const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: next, endOfStayComplementPaidDate: date || null });
+                            }
+                            updateForm({ endOfStayComplementPaid: next, endOfStayComplementPaidDate: date, ...(next ? {} : { endOfStayComplementPaidCash: false }) });
+                          }}
+                          onDateChange={async (v) => {
+                            updateForm({ endOfStayComplementPaidDate: v });
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: v || null });
+                            }
+                          }}
+                          onToggleCash={async (next) => {
+                            const date = form.endOfStayComplementPaidDate || todayStr();
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaidCash: next });
+                            }
+                            updateForm(next
+                              ? { endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date }
+                              : { endOfStayComplementPaidCash: false });
+                          }}
+                        />
+                      </Grid>
+                    )}
                   </Grid>
                 </Box>
-                <MidStayNoteDialog
-                  open={Boolean(midStayNoteOpen)}
-                  onClose={() => setMidStayNoteOpen(false)}
-                  pendingLines={pendingMidStayLines}
-                  // A catalogue addition is a normal sale: it rides the STANDARD save pipeline, then
-                  // the note is settled against the freshly stored remainder.
-                  onSettle={(items, cash) => saveThenRun(async () => {
-                    await api.markPayment(editingReservationId, {
-                      settleMidStayNote: { items: items.map(({ key, amount }) => ({ key, amount })), cash },
-                    });
-                    await reloadReservationFinance();
-                  })}
-                  onSellOnly={() => saveThenRun(reloadReservationFinance)}
-                />
+                {showMidStayNotes && (
+                  <MidStayNoteDialog
+                    open={Boolean(midStayNoteOpen)}
+                    onClose={() => setMidStayNoteOpen(false)}
+                    pendingLines={pendingMidStayLines}
+                    // A catalogue addition is a normal sale: it rides the STANDARD save pipeline, then
+                    // the note is settled against the freshly stored remainder.
+                    onSettle={(items, cash) => saveThenRun(async () => {
+                      await api.markPayment(editingReservationId, {
+                        settleMidStayNote: { items: items.map(({ key, amount }) => ({ key, amount })), cash },
+                      });
+                      await reloadReservationFinance();
+                    })}
+                    onSellOnly={() => saveThenRun(reloadReservationFinance)}
+                  />
+                )}
               </>
-            )}
-
-            {!complementDeferred && Number(form.endOfStayComplementAmount || 0) > 0 && (
-              <ComplementCard
-                title={COMPLEMENT_LABELS.endOfStay}
-                amount={form.endOfStayComplementAmount}
-                lines={parseEndOfStayDetail(form.endOfStayComplementDetail)}
-                paid={form.endOfStayComplementPaid}
-                paidCash={form.endOfStayComplementPaidCash}
-                paidDate={form.endOfStayComplementPaidDate}
-                sectionGridSx={sectionGridSx}
-                onTogglePaid={async (next) => {
-                  const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { endOfStayComplementPaid: next, endOfStayComplementPaidDate: date || null });
-                  }
-                  updateForm({ endOfStayComplementPaid: next, endOfStayComplementPaidDate: date, ...(next ? {} : { endOfStayComplementPaidCash: false }) });
-                }}
-                onDateChange={async (v) => {
-                  updateForm({ endOfStayComplementPaidDate: v });
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: v || null });
-                  }
-                }}
-                onToggleCash={async (next) => {
-                  const date = form.endOfStayComplementPaidDate || todayStr();
-                  if (editingReservationId) {
-                    await api.markPayment(editingReservationId, { endOfStayComplementPaidCash: next });
-                  }
-                  updateForm(next
-                    ? { endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date }
-                    : { endOfStayComplementPaidCash: false });
-                }}
-              />
             )}
 
             {/* Remboursements (specs/reservation-refunds.md §6): what was given back to the guest

@@ -20,6 +20,7 @@ function makeDb() {
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,
       complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0,
+      complementAmountOverride REAL, endOfStayComplementAmountOverride REAL,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
@@ -115,6 +116,33 @@ test('commitArrivalSas: caution marked received + items added inComplement + com
   const customs = db.prepare("SELECT description, amount, inComplement, offered FROM reservation_custom_options WHERE reservationId = 1 ORDER BY sortOrder").all();
   assert.equal(customs.length, 2);
   assert.ok(customs.every((c) => c.inComplement === 1 && c.offered === 0));
+});
+
+// specs/adjustable-complement-amounts.md §3.1 rule 4 + §3.2 — le SAS écrit `complementAmount` EN
+// DIRECT, hors moteur de prix. Sans rappel de l'ajustement, un passage au SAS effacerait
+// silencieusement le montant annoncé au client jusqu'au prochain enregistrement de la fiche.
+test('commitArrivalSas: un montant de complément ajusté survit au commit', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  db.prepare('UPDATE reservations SET complementAmountOverride = 50 WHERE id = 1').run();
+
+  model.commitArrivalSas(1, {
+    complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }, { label: 'Ménage', amount: 40 }],
+  });
+
+  const r = db.prepare('SELECT complementAmount, complementAmountOverride FROM reservations WHERE id = 1').get();
+  assert.equal(r.complementAmount, 50, 'le montant annoncé a le dernier mot, pas la somme des lignes du SAS');
+  assert.equal(r.complementAmountOverride, 50);
+  // (La ventilation comptable qui suit ce rappel a son propre schéma de test : elle demande la
+  // réservation détaillée, que ce schéma minimal ne porte pas — colonne `complementAllocation` absente
+  // ici, donc la synchro se désactive d'elle-même comme sur une base de test réduite.)
+});
+
+test('commitArrivalSas: sans ajustement, le commit est strictement inchangé', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { complementItems: [{ label: 'Ménage', amount: 40 }] });
+  assert.equal(db.prepare('SELECT complementAmount FROM reservations WHERE id = 1').get().complementAmount, 70);
 });
 
 test('commitArrivalSas re-commit: REPLACES the SAS-origin complement (no double-charge)', () => {

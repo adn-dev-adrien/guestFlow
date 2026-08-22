@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented (Part C ajoutée et implémentée le 2026-08-22) |
 | **Branch** | `fix/defer-arrival-complement-to-checkout` _(user-managed)_ |
 | **Created** | 2026-08-03 |
 | **Author** | Adrien |
@@ -134,6 +134,70 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 
 ---
 
+### 3.3 Part C — la fiche décide aussi (2026-08-22)
+
+Le marqueur n'a aujourd'hui qu'un seul point d'écriture : le récap du SAS arrivée
+([reservationsModel.js:2148](../server/src/models/reservationsModel.js#L2148)). La fiche le **lit**
+([ReservationPage.jsx:795](../client/src/pages/ReservationPage.jsx#L795)) sans jamais pouvoir l'écrire.
+Le trou est donc précis : **avant le check-in, l'opérateur ne peut rien décider depuis la fiche** —
+alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au client.
+
+12. **La fiche porte l'interrupteur.** Sur la carte « Complément d'arrivée », un interrupteur
+    **« Percevoir en fin de séjour »** écrit le même `complementDeferredToCheckout` que le récap du SAS
+    arrivée. Même colonne, même contrat de fusion : les règles 6 à 11 s'appliquent telles quelles.
+13. **Bidirectionnel.** Le remettre à « arrivée » repasse le marqueur à 0 et la fiche ré-affiche les
+    deux cartes. Fiche et SAS écrivent la même colonne : **le dernier geste gagne**, et le SAS reste
+    souverain au check-in (encaisser sur place efface le marqueur, règle 5).
+14. **Effet immédiat**, comme les boutons « payé » / « caisse interne » voisins : `PATCH /payment`,
+    sans attendre l'enregistrement de la fiche. En création de réservation et sur un devis (pas
+    d'`id`), l'interrupteur est masqué — il n'y a pas encore de séjour à reporter.
+15. **L'interrupteur ne sert qu'avant le check-in.** Une fois le séjour commencé, un complément non
+    encaissé est de toute façon perçu à la porte
+    ([complement-buckets-by-moment.md](complement-buckets-by-moment.md) règle 4) : l'interrupteur est
+    alors affiché **actif et désactivé**, avec le motif en infobulle (« le séjour a commencé : un
+    complément non encaissé se perçoit au départ »). Pas de commande morte.
+16. **Le marqueur entre dans le split.** `splitComplementBuckets` ne connaît aujourd'hui que
+    `stayStarted` et `complementPaid` ([complementBuckets.js](../server/src/utils/complementBuckets.js)).
+    Un report posé **avant** l'arrivée donnerait une carte fusionnée « fin de séjour » à gauche et une
+    ligne « Complément d'arrivée » dans le panneau de droite
+    ([PricingSummary.jsx:774](../client/src/components/PricingSummary.jsx#L774)) — exactement
+    l'incohérence que `complement-buckets-by-moment` avait supprimée. Le split reçoit donc le marqueur :
+    `arrival = 0` dès que `complementDeferredToCheckout = 1` et que le complément n'est pas encaissé,
+    séjour commencé ou non. L'invariant « la somme ne bouge jamais » est préservé.
+17. **Les emails suivent.** `emailContextBuilder` écrit aujourd'hui « à régler directement sur place à
+    **votre arrivée** » sans regarder le marqueur
+    ([emailContextBuilder.js:286](../server/src/utils/emailContextBuilder.js#L286)). Sur une
+    réservation reportée, le J-2 et le J-1 disent « **à votre départ** » — même liste de prestations,
+    même total, seul le moment change ; en anglais « on departure ». Les tokens de template ne bougent
+    pas (`{{complementNotice}}`, `{{#if complementToCollect}}`), donc aucun template à ré-éditer.
+18. **Aucun montant comptable ne bouge.** Exigence Adrien du 2026-08-22, et c'est déjà la promesse de
+    la règle 9 : le report est un **marqueur de collecte**, pas un déplacement d'argent. Les deux
+    colonnes restent séparées, la taxe de séjour garde son `46710000`, les prestations leur
+    `70600010` / `70601000`, et l'écriture porte la date d'encaissement réelle. **La comptabilité d'une
+    réservation reportée est strictement identique à celle de la même réservation non reportée**, au
+    jour d'encaissement près. C'est ce qui disqualifie l'autre modèle envisagé — déplacer réellement
+    les lignes dans `endOfStayComplementDetail` re-bookerait la taxe de séjour en produit `70600010` au
+    taux de TVA général.
+19. **Traçabilité.** Le basculement depuis la fiche est écrit dans `reservation_history`
+    (« Complément reporté en fin de séjour » / « Complément perçu à l'arrivée ») — c'est une décision
+    d'argent, elle doit se relire. Le libellé existe déjà côté SAS
+    ([sasAudit.js:25](../server/src/utils/sasAudit.js#L25)).
+20. **Réservation annulée ou passée verrouillée** : interrupteur en lecture seule, mêmes gardes que le
+    reste de la carte.
+
+**Edge cases (Part C) :**
+
+- Complément d'arrivée **déjà encaissé** → interrupteur masqué : il n'y a plus rien à reporter, et
+  `buildCheckoutComplement` retombe déjà à `deferred = false` dans ce cas.
+- Complément d'arrivée à **0 €** → pas de carte, donc pas d'interrupteur.
+- Report posé sur la fiche, puis SAS arrivée encaissé en CB → le marqueur retombe à 0 (règle 5) :
+  l'argent a bien été perçu à l'arrivée, l'événement le plus récent gagne.
+- Report posé, puis le complément grossit (option ajoutée) → rien de spécial, la carte fusionnée
+  affiche le nouveau total ; le marqueur est indépendant du montant.
+- Report posé, puis la réservation est annulée → lecture seule, le marqueur reste tel quel.
+
+---
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The deferral marker, the merged block (amount + detail lines + paid
@@ -153,6 +217,11 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 | `utils/` | `utils/checkoutComplement.js` | C | Pure builder: `buildCheckoutComplement(reservation, arrivalDetailLines, endOfStayDetailLines)` → the merged block (amount, lines with `origin`, paid state). Unit-tested. |
 | `utils/` | `utils/cleaningOption.js` | REUSE | Single source of truth for « is the cleaning already sold? » — reused by the departure guard. |
 | `utils/` | `utils/receptionView.js` | T | Pass the marker through so the reception view labels the complement correctly. |
+| `controllers/` | `controllers/reservationsController.js` | T | **Part C** — `markPayment` accepts `complementDeferredToCheckout` (boolean) and writes it through the model, with the cancelled / locked guards and a `reservation_history` entry (rules 12-14, 19-20). |
+| `utils/` | `utils/complementBuckets.js` | T | **Part C** — `splitComplementBuckets` gains a `deferred` input: `arrival = 0` when the marker is on and the complement is unpaid, whatever `stayStarted` says (rule 16). |
+| `utils/` | `utils/pricing.js` | T | **Part C** — passes the marker to `splitComplementBuckets` (it already resolves `stayStarted` and `complementPaid`). |
+| `utils/` | `utils/emailContextBuilder.js` | T | **Part C** — the complement notice reads « à votre départ » / « on departure » when the marker is on; wording only, same lines, same total (rule 17). |
+| `utils/` | `utils/reservationAudit.js` | T | **Part C** — history label for the fiche-side toggle (rule 19). |
 | `database.js` | `database.js` | T | Idempotent migration: `complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0` + one-shot backfill (see §5). |
 | `tests/` | `tests/sas-commit.unit.test.js`, `tests/checkout-complement.unit.test.js` (C) | T/C | Rules 1-8 (see §7). |
 
@@ -166,7 +235,8 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 | `components/` | `components/OperationalPaymentsTable.js` | T | Deferred → the « Complément » row is relabelled « Complément (fin de séjour) » (rule 10; amounts and checkboxes unchanged). |
 | `components/` | `components/ReservationCard.js` | T | Deferred → the chip reads « Complément (fin de séjour) ». |
 | `pages/` | `pages/ReservationPage.js` | T | Carry `complementDeferredToCheckout` + `checkoutComplement` in the form state so the fiche re-renders after a SAS commit. |
-| `services/` | `services/api.js` | — | No new call; `markPayment` payload gains no new field (the server decides from the marker). |
+| `components/` | `components/reservation/FinanceSection.jsx` | T | **Part C** — « Percevoir en fin de séjour » switch on the arrival complement card: posts `markPayment`, flips the local form flag, reloads the finance block so the merged card appears at once. Hidden without an `id` / with a settled or empty complement; shown ON and disabled once the stay started (rules 12-15). |
+| `services/` | `services/api.js` | T | **Part C** — `markPayment` payload gains `complementDeferredToCheckout`. Otherwise unchanged. |
 
 **Component reuse declaration (mandatory):**
 
@@ -184,6 +254,7 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
 | POST | `/api/reservations/:id/sas/arrival` | `complementSettled` (existing) | `{ ok, complementAmount }` | `false` now also sets the deferral marker. |
 | POST | `/api/reservations/:id/sas/departure` | `endOfStayComplementDetail` (existing) | `{ ok }` | Server drops a « Ménage de fin de séjour » line when the cleaning is already sold. |
 | PATCH | `/api/reservations/:id/payment` | `{ complementPaid, complementPaidDate }` / `{ complementPaidCash }` | `{ ok }` | When the marker is set, marks both buckets (rule 8). |
+| PATCH | `/api/reservations/:id/payment` | `{ complementDeferredToCheckout: boolean }` | `{ ok }` | **Part C** — sets/clears the marker from the fiche (rules 12-14). 409 on a cancelled or locked reservation, like the other payment actions. |
 
 ---
 
@@ -244,6 +315,38 @@ mobile and simply loses one page. Verified at `xs` / `md` / `lg`.
 
 **Sticky action bar:** no page-level action added; `ReservationPage` keeps its existing `PageActionBar`.
 
+### Part C — l'interrupteur sur la fiche
+
+Il vit **dans** la carte « Complément d'arrivée », sous les lignes de détail et au-dessus de
+« Marquer complément payé » — le même bloc que la date de paiement et « Caisse interne », donc au même
+endroit que les autres décisions d'encaissement.
+
+```
+┌─ Complément d'arrivée  (93,60 €) ───────────────┐
+│  Linge de toilette : 24,00 €                    │
+│  Bain nordique     : 60,00 €                    │
+│  Taxe de séjour    :  9,60 €                    │
+│                                                 │
+│  ( ) Percevoir en fin de séjour                 │
+│                                                 │
+│  [ Marquer complément payé                  ]   │
+│  [ Caisse interne                           ]   │
+└─────────────────────────────────────────────────┘
+```
+
+Une fois basculé, les deux cartes fusionnent en une seule « Complément de fin de séjour » (règle 6) et
+l'interrupteur réapparaît **dedans**, en position active, pour pouvoir revenir en arrière.
+
+Copie française :
+- Label : **« Percevoir en fin de séjour »**
+- Infobulle : **« Le complément d'arrivée sera encaissé au départ, avec le complément de fin de
+  séjour. »**
+- Infobulle, désactivé après le début du séjour : **« Le séjour a commencé : un complément non encaissé
+  se perçoit au départ. »**
+
+Responsive : un `Switch` MUI dans la carte, qui suit la colonne (`xs: 12` / `md: 6`) — rien de
+spécifique à `xs`. Cible tactile ≥ 44 × 44 px.
+
 ## 7. Test plan
 
 ### Server unit tests (`sas-commit.unit.test.js`, `checkout-complement.unit.test.js`)
@@ -286,7 +389,41 @@ mobile and simply loses one page. Verified at `xs` / `md` / `lg`.
       page does scroll horizontally — **pre-existing**, caused by the « Résumé tarifaire » side panel
       (reproduced identically on an untouched reservation), not by this change.
 
+### Part C
+
+**Server unit tests**
+- [x] `complementBuckets` : marqueur ON + complément impayé + séjour **non commencé** → `arrival = 0`,
+      `endOfStay = arrivée + fin de séjour` ; la somme des trois buckets ne change pas (rule 16).
+- [x] `complementBuckets` : marqueur ON mais complément **encaissé** → `arrival` reprend le montant
+      (rule 2 de complement-buckets-by-moment, non-régression).
+- [x] `markPayment` : `complementDeferredToCheckout: true/false` écrit la colonne, trace l'historique,
+      et n'écrit rien quand la valeur ne change pas (rules 12-14, 19). Le refus sur réservation annulée
+      vient du `cancelledGuard` existant du PATCH, couvert par ses propres tests.
+- [x] `emailContextBuilder` : marqueur ON → « à votre départ » / « on departure », mêmes lignes, même
+      total ; marqueur OFF → texte actuel mot pour mot (rule 17).
+- [x] Comptabilité : la même réservation, reportée ou non, produit **les mêmes écritures** au même
+      montant (rule 18).
+
+**Client tests (vitest)**
+- [x] L'interrupteur est masqué sans `id`, sur un complément encaissé, sur un complément à 0 €.
+- [x] Séjour commencé → affiché actif et désactivé, infobulle du motif (rule 15).
+- [x] Le basculer appelle `markPayment` puis fait apparaître la carte fusionnée (rules 12-14).
+
+**Manual UI verification**
+- [x] Réservation à venir avec complément d'arrivée : basculer depuis la fiche → une seule carte
+      « Complément de fin de séjour », panneau de droite d'accord avec elle (rule 16).
+- [x] Rebasculer → les deux cartes reviennent.
+- [x] Aperçu du J-2 sur cette réservation : le texte annonce le départ (rule 17).
+- [ ] Réception + planning : plus d'alerte à l'arrivée, alerte au départ. **Non rejoué à la main** —
+      il faudrait une arrivée du jour ; `buildOperationalCollection` n'est pas modifié par cette part
+      et garde ses tests (`operational-collection.unit.test.js`).
+- [x] Mobile `xs` (390 px) : la carte et son interrupteur tiennent, aucun scroll horizontal.
+
 ## 8. Out of scope
+
+- **Part C** — ajuster le *montant* d'un complément : c'est
+  [adjustable-complement-amounts.md](adjustable-complement-amounts.md). Cette spec-ci ne déplace que le
+  *moment* de la collecte.
 
 - Merging the two columns in the DB, or changing the accounting routing of either bucket (rule 9).
 - Recalling anything other than the arrival complement at check-out (acompte / solde impayés).

@@ -51,6 +51,9 @@ function midStayQuoteInputs(reservationId) {
     // clock) so the live preview and the save file a complement under the same heading.
     stayStarted: Boolean(row.startDate) && String(row.startDate) <= getTodayIsoDate(),
     complementCollected: Number(row.complementPaid || 0) === 1,
+    // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
+    // the door reads under « fin de séjour » straight away, without waiting for the stay to start.
+    complementDeferredToCheckout: Number(row.complementDeferredToCheckout || 0) === 1,
     // specs/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
     // books, exactly like the cash complements it mirrors.
     refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
@@ -90,10 +93,18 @@ function cancelledGuard(reservationId) {
 function applyMidStayNoteActions(reservationId, body) {
   const settle = body.settleMidStayNote;
   const cancel = body.cancelMidStayNote;
-  if (!settle && !cancel) return null;
+  // specs/adjustable-complement-amounts.md §3.4 — editing a note in place: same transactional
+  // contract, same error codes.
+  const adjust = body.adjustMidStayNote;
+  if (!settle && !cancel && !adjust) return null;
   try {
     if (settle) model.settleMidStayNote(reservationId, { items: settle.items, cash: Boolean(settle.cash) });
     if (cancel) model.cancelMidStayNote(reservationId, cancel.id);
+    if (adjust) {
+      model.adjustMidStayNote(reservationId, {
+        id: adjust.id, total: adjust.total, paidDate: adjust.paidDate, cash: adjust.cash,
+      });
+    }
     return null;
   } catch (err) {
     if (err && err.code === 'NOTE_NOT_FOUND') return { status: 404, body: { error: err.message, code: err.code } };
@@ -333,6 +344,10 @@ function calculatePrice(req, res) {
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
+    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
+    // money validator: finite, ≥ 0, '' meaning « not provided ».
+    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
+    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
@@ -400,6 +415,9 @@ function calculatePrice(req, res) {
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
+    // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
+    // other branch, so it corrects even a frozen complement.
+    complementAmountOverride: req.body.complementAmountOverride,
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     lockedOptionUnits: req.body.lockedOptionUnits,
@@ -445,6 +463,10 @@ function create(req, res) {
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
+    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
+    // money validator: finite, ≥ 0, '' meaning « not provided ».
+    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
+    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
@@ -529,6 +551,9 @@ function create(req, res) {
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
+    // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
+    // other branch, so it corrects even a frozen complement.
+    complementAmountOverride: req.body.complementAmountOverride,
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds,
     depositDisabled: depositDisabledFlag,
@@ -605,6 +630,10 @@ function create(req, res) {
   // baseline: nothing it was created with counts as sold mid-stay.
   model.captureArrivalExtrasBaselineIfDue(reservationId, getTodayIsoDate());
 
+  // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
+  // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
+  model.syncComplementAllocation(reservationId, { autoAmount: quote.complementAmountAuto });
+
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
   googleCalendarSync.schedulePush(reservationId);
@@ -617,6 +646,10 @@ function update(req, res) {
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
+    // specs/adjustable-complement-amounts.md §3.1 rule 7 — the operator's complement amounts share the
+    // money validator: finite, ≥ 0, '' meaning « not provided ».
+    complementAmountOverride: { value: req.body.complementAmountOverride, kind: 'money' },
+    endOfStayComplementAmountOverride: { value: req.body.endOfStayComplementAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
@@ -745,6 +778,9 @@ function update(req, res) {
     complementPaid: req.body.complementPaid,
     depositAmount: req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
+    // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
+    // other branch, so it corrects even a frozen complement.
+    complementAmountOverride: req.body.complementAmountOverride,
     balanceAmount: req.body.balanceAmount,
     complementAmount: frozenComplementAmount,
     offeredOptionIds: updateOfferedOptionIds,
@@ -890,6 +926,10 @@ function update(req, res) {
   // lines are preserved, the amount is re-totalled). Frozen once that complement is collected.
   model.syncMidStayComplement(id, quote.midStayExtrasLines);
 
+  // specs/adjustable-complement-amounts.md §3.6 rule 36 — same ventilation, recomputed at every save
+  // so a new option or a re-priced line moves the postes, never the announced total.
+  model.syncComplementAllocation(id, { autoAmount: quote.complementAmountAuto });
+
   const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
   if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {
     changes.push({ field: 'icalSyncLocked', label: 'Synchronisation iCal', from: 'Active', to: 'Verrouillée après modification manuelle' });
@@ -947,6 +987,7 @@ function updatePayment(req, res) {
 
   const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
     complementPaid, complementPaidDate, complementPaidCash,
+    complementDeferredToCheckout,
     endOfStayComplementPaid, endOfStayComplementPaidDate, endOfStayComplementPaidCash,
     cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
@@ -996,6 +1037,21 @@ function updatePayment(req, res) {
       })();
     } catch (err) {
       return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
+    }
+  }
+  // specs/defer-arrival-complement-to-checkout.md §3.3 rules 12-14 — « Percevoir en fin de séjour »
+  // from the fiche. It writes the SAME column the arrival SAS recap writes: one marker, two entry
+  // points, the last gesture wins. Traced in the history (rule 19): it is a money decision.
+  if (complementDeferredToCheckout !== undefined) {
+    const beforeDefer = model.getRow(Number(id));
+    const was = Number(beforeDefer?.complementDeferredToCheckout || 0) === 1;
+    const next = Boolean(complementDeferredToCheckout);
+    if (was !== next) {
+      const label = (v) => (v ? 'Perçu en fin de séjour' : 'Perçu à l\'arrivée');
+      model.setComplementDeferredToCheckout(Number(id), next);
+      model.addHistoryEntry(Number(id), 'update', [
+        { field: 'complementDeferredToCheckout', label: 'Complément d\'arrivée', from: label(was), to: label(next) },
+      ]);
     }
   }
   if (complementPaid !== undefined || complementPaidCash !== undefined) {

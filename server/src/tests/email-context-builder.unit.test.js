@@ -193,6 +193,36 @@ test('complementNotice renders the arrival-SAS detail as an itemised list (« co
   assert.match(vars.complementNotice, /Total : 70,00 €/);
 });
 
+// specs/defer-arrival-complement-to-checkout.md §3.3 rule 17 — un complément reporté au départ ne
+// doit pas être annoncé « à votre arrivée » : mêmes lignes, même total, seul le moment change.
+test('complementNotice — complément reporté : le J-2 / J-1 annonce le DÉPART', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 70, complementPaid: 0, complementDeferredToCheckout: 1 },
+    arrivalComplementDetail: { amount: 70, paid: 0, detail: [
+      { kind: 'option', label: 'Ménage', qty: 1, unitPrice: 50, amount: 50 },
+      { kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: 20, amount: 20 },
+    ] },
+  }));
+  assert.match(vars.complementNotice, /à régler directement sur place à votre départ :/);
+  assert.match(vars.complementNotice, /- Ménage : 50,00 €/);
+  assert.match(vars.complementNotice, /Total : 70,00 €/);
+});
+
+test('complementNotice — complément reporté sans prestation identifiable : la phrase simple suit aussi', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 40, complementPaid: 0, complementDeferredToCheckout: 1 },
+  }));
+  assert.match(vars.complementNotice, /Un complément de 40,00 € est à régler directement sur place à votre départ\./);
+});
+
+test('complementNotice — en anglais, reporté → « on departure »', () => {
+  const { vars } = buildContext({
+    ...baseInput({ reservation: { complementAmount: 40, complementPaid: 0, complementDeferredToCheckout: 1 } }),
+    lang: 'en',
+  });
+  assert.match(vars.complementNotice, /payable directly on site on departure\./);
+});
+
 test('complementNotice renders « label : qté × prix = total » for a multi-quantity line', () => {
   const { vars } = buildContext(baseInput({
     reservation: { complementAmount: 46, complementPaid: 0 },

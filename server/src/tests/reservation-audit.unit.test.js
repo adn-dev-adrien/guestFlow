@@ -46,6 +46,23 @@ test('computeAuditChanges treats empty-string and null as equal (no spurious cha
   assert.equal(computeAuditChanges({ finalPrice: 100.001 }, { finalPrice: 100.004 }).length, 0);
 });
 
+// specs/adjustable-complement-amounts.md §3.1 rule 11 — un complément ajusté est de l'argent déplacé
+// à la main : il doit se relire dans l'historique comme n'importe quelle autre modification.
+test('les deux ajustements de complément apparaissent dans le diff d\'historique', () => {
+  const arrival = computeAuditChanges({ complementAmountOverride: null }, { complementAmountOverride: 85 });
+  assert.equal(arrival.length, 1);
+  assert.equal(arrival[0].label, "Complément d'arrivée ajusté");
+  assert.equal(arrival[0].from, null);
+  assert.equal(arrival[0].to, 85);
+
+  const endOfStay = computeAuditChanges(
+    { endOfStayComplementAmountOverride: 45 }, { endOfStayComplementAmountOverride: null },
+  );
+  assert.equal(endOfStay.length, 1);
+  assert.equal(endOfStay[0].label, 'Complément de fin de séjour ajusté');
+  assert.equal(endOfStay[0].to, null, 'vider le champ se relit aussi');
+});
+
 // ---- human-readable history (names + money) ----
 // The row-building read side lives in reservation-history-rows.unit.test.js.
 

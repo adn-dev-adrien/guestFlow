@@ -1225,6 +1225,10 @@ function calculateReservationQuote({
   // change grows the solde, never the acompte. Direct + non-disabled + not-yet-paid only; the
   // platform / depositDisabled / paid branches keep precedence over it.
   depositAmountOverride,
+  // Operator-set complement (specs/adjustable-complement-amounts.md §3.2). NULL/''/undefined =
+  // automatic. A value wins over EVERY branch below, frozen bucket included: the whole point is to
+  // correct an amount that was announced — and therefore collected — wrong.
+  complementAmountOverride,
   // Per-item routing to Complément (spec force-item-to-complement.md). When 1, the tax bypasses
   // the auto deposit/balance split and lands 100 % in the complément bucket. `selectedOptions[i]
   // .inComplement` / `selectedResources[i].inComplement` / `customOptions[i].inComplement` drive
@@ -1297,6 +1301,9 @@ function calculateReservationQuote({
   // (the engine has no clock). Absent → not started: a devis or a public quote files everything under
   // the arrival complement, as before.
   stayStarted = false,
+  // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — the operator moved the arrival
+  // complement to the door. Files it under « fin de séjour » in the split even before the stay starts.
+  complementDeferredToCheckout = false,
   // Whether the arrival complement is collected, FOR THE SPLIT ONLY. `complementPaid` cannot serve
   // here: the live-preview handler deliberately omits it (passing it would freeze the amount), so the
   // preview would file a collected complement under « fin de séjour ». The save passes the operator's
@@ -1360,6 +1367,7 @@ function calculateReservationQuote({
       depositAmount: 0,
       balanceAmount: 0,
       complementAmount: 0,
+      complementAmountAuto: 0,
       depositDueDate: null,
       balanceDueDate: null,
       touristTaxRate: Number(property.touristTaxPerDayPerPerson || 0),
@@ -2309,6 +2317,17 @@ function calculateReservationQuote({
   } else {
     resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
+  // What the engine would collect on its own — the « Calcul auto (X €) » the fiche shows under the
+  // adjustment field, and the base the accounting ventilation is spread over (§3.6 rule 36).
+  const autoComplementAmount = roundMoney(resolvedComplementAmount);
+  // specs/adjustable-complement-amounts.md §3.2 rule 13 — the operator's amount is applied LAST, after
+  // the frozen / forced / auto-gap branches above. That ordering is what lets it correct a complement
+  // that is already collected (rule 6), while rule 14 stands: the COMPUTED `complementAmount` a
+  // browser sends is still ignored on a frozen bucket (specs/frozen-complement-trusts-client.md).
+  if (complementAmountOverride !== null && complementAmountOverride !== undefined && complementAmountOverride !== '') {
+    const overrideRaw = Number(complementAmountOverride);
+    if (Number.isFinite(overrideRaw)) resolvedComplementAmount = roundMoney(Math.max(0, overrideRaw));
+  }
   // The end-of-stay complement as it will be stored: what the departure SAS bills + what is STILL
   // due of the mid-stay sales (specs/mid-stay-notes.md §3.3 rule 10 — the notes already collected
   // are out). Exposed so the fiche shows the sale live, before the save persists it.
@@ -2324,6 +2343,7 @@ function calculateReservationQuote({
     midStaySettledTotal,
     endOfStayComplementTotal,
     stayStarted,
+    deferred: Boolean(complementDeferredToCheckout),
   });
 
   // specs/fiche-total-sejour-net-of-commission.md — the displayed « total du séjour » = what the
@@ -2399,6 +2419,10 @@ function calculateReservationQuote({
     depositAmount: resolvedDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     complementAmount: resolvedComplementAmount,
+    // specs/adjustable-complement-amounts.md §3.6 — what the engine produces on its own, so the fiche
+    // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
+    // over the postes the auto complement is actually made of.
+    complementAmountAuto: autoComplementAmount,
     depositDueDate,
     balanceDueDate,
     baseAccommodationAdjustedPrice,
