@@ -4,6 +4,78 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-22
+
+### Summary
+- Taxe de séjour : l'assiette redevient la nuit sèche, nette du ménage et du linge compris dans le tarif.
+- Un bébé compte comme occupant dans l'aperçu de la fiche, comme il l'a toujours fait à l'enregistrement.
+- Le suivi de taxe de séjour déclare désormais à la commune exactement le montant que la fiche affiche.
+- La fenêtre de mise à jour ne montre plus que ce résumé ; le changelog complet reste à un clic.
+- Le passage email de 08:00 n'inonde plus le journal quand l'envoi automatique est désactivé.
+- Réglages : la page « Design system » disparaît. Aucun écran que vous utilisez ne change.
+
+### Added
+- **Tourist-tax tracking — the pre-tax night per occupant, and the same amount as the fiche**
+  (specs/tourist-tax-included-services-deduction.md §3 rules 14-16). The declaration table gains a
+  « Nuit HT / occupant » column: the base percentage-rate tax forms ask for, taken as-is from the
+  reservation fiche (« — » on a property charging a fixed rate per adult per night). More
+  importantly, the page used to **recompute** its tax without the included-services deduction: a stay
+  could be confirmed at 13,05 € on the fiche and declared to the council at 14,85 €. Both figures now
+  come from the same function, and « Montant hébergement HT » is net of the services included in the
+  rate.
+
+### Changed
+- **Tourist-tax tracking declares exactly what the fiche shows**
+  (specs/tourist-tax-included-services-deduction.md §3 rule 14). The page no longer does its own
+  price arithmetic: it **replays the tariff engine** over each stay, from the stored reservation, the
+  freeze on past stays included. Its home-grown maths had drifted from the fiche's — a stay could be
+  confirmed at 13,05 € and declared at 14,85 €, and eight of the Lodge's eleven August stays were off
+  by anything from a few cents to two euros. What stays the page's own: **which** stays it lists
+  (attribution month, settlement, platform mode) and the pro-rata of refunded nights.
+- **The update dialog gets to the point.** It used to render the whole changelog — for 2.2.0, about a
+  hundred lines of prose standing between the operator and the « Installer » button, which is prose
+  nobody reads and a migration warning nobody sees. Every release now publishes a short digest,
+  written in French, and that is all the dialog shows; the full detail stays one click away behind
+  « Tout le changelog ». Releases published before this change carry no digest and display exactly as
+  they used to, with no toggle. The guard rail sits on the publishing side: a version whose digest is
+  missing, still a TODO, or longer than six lines cannot be released at all.
+  (specs/self-update-and-releases.md rule 20c, +6 server tests, +6 client tests.)
+- **The welcome pack's covered value moves to the amounts column** (specs/welcome-pack-auto-options.md
+  §6). On a pack line, the struck-through price of the units covered by the rate sat under the
+  « + compl. » chip, where it read as a label; it now sits on the right, in grey and smaller, just
+  above the 0,00 € it explains. The « dont N inclus dans le tarif » count stays on the left.
+
+### Fixed
+- **Tourist tax — the base is the dry night, net of the services included in the rate**
+  (specs/tourist-tax-included-services-deduction.md). At the Lodge, cleaning and linen are billed
+  *inside* the night: their reference value is once again taken off the accommodation price before it
+  is divided by the number of nights (18,00 € → 15,00 € on a 3-night stay at 359,79 €). The deduction
+  2.2.0 removed comes back without its two defects: it is a **flat amount per stay**, computed on the
+  guests included in the rate (2 at the Lodge), so it no longer shrinks as the party grows, and
+  « Comprise » lines can no longer be unticked or lost on save — on the fiche as on the server, for
+  reservations and for quotes. The platform gross stays out of the calculation, paid extras stay
+  inert, and past stays stay frozen. The summary reads « Base : 359,79 € − 60,00 € de prestations
+  comprises » again. (+14 server tests, +3 client tests.)
+- **A baby is an occupant in the fiche's live preview too**
+  (specs/tourist-tax-included-services-deduction.md §3 rule 16). The tax divides the night by the
+  occupants, babies included. Saving always did that; the fiche's live preview did not — neither the
+  form nor `calculatePrice` passed `babies` along, so a stay with a cot displayed a tax divided by one
+  head fewer than the one it saved (16,38 € on screen, 13,05 € declared, on a Lodge booking). Preview,
+  save and declaration now agree.
+- The daily 08:00 email pass no longer floods the server log while automatic sending is off. Because
+  a blocked pass deliberately gives the day's slot back — so that authorising automatic sending at
+  14:00 takes effect at 14:01 rather than tomorrow — it was retried, and logged, every minute from
+  08:00 to midnight: around 960 identical lines a day, in the setting's default state. The retry
+  stays; the line is now printed once a day. (specs/no-automatic-email-without-approval.md rule 9,
+  +4 server tests.)
+
+### Removed
+- **Réglages → « Design system » is gone.** The `/design` page — swatches, type specimens and a
+  catalogue of the shared components — showed how the application is built, not anything you could act
+  on, and it took a slot in an already crowded Réglages menu. The design system stays where it belongs:
+  a written reference (`specs/design-system-reference.md`) read when the code is written. No screen you
+  use changes.
+
 ## [2.2.0] - 2026-08-20
 
 ### Added
