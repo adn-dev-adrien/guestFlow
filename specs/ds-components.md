@@ -11,6 +11,13 @@
 
 ---
 
+> **Superseded on 2026-08-22:** the `/design` showcase page this phase shipped has been removed
+> (route, Réglages entry, `pages/DesignPage.jsx`) — the design system is an internal contract, not an
+> operator-facing screen. Everything else below still stands; see
+> [design-system.md](design-system.md) §3.8. `specs/design-system-reference.md` is the living reference.
+
+---
+
 ## 1. Context
 
 Phase 1 shipped the « Maison » theme (PR #329). Phase 2 builds the **component layer** the sweeps
