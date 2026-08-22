@@ -10,11 +10,16 @@
  * updater somewhere else, whatever it contains.
  */
 
-const { isValidVersion, stripLeadingV } = require('./semver');
+const { isValidVersion, stripLeadingV, compareVersions } = require('./semver');
 
 const GITHUB_REPO = 'adn-dev-adrien/guestFlow';
 const GITHUB_API_ORIGIN = 'https://api.github.com';
-const LATEST_RELEASE_URL = `${GITHUB_API_ORIGIN}/repos/${GITHUB_REPO}/releases/latest`;
+
+// One page of releases rather than `/releases/latest`: the offer has to cover the versions the
+// operator skipped (specs/self-update-and-releases.md rules 12b, 20d), and that is the same single
+// HTTP call — one page instead of one object.
+const RELEASES_PER_PAGE = 30;
+const RELEASES_URL = `${GITHUB_API_ORIGIN}/repos/${GITHUB_REPO}/releases?per_page=${RELEASES_PER_PAGE}`;
 
 // Hosts an update artefact may legitimately come from: the API itself, the release page host, and
 // the two storage hosts GitHub redirects asset downloads to.
@@ -181,29 +186,78 @@ function normaliseRelease(raw) {
 }
 
 /**
- * Fetch the latest published release. Returns null on any failure — an unreachable GitHub, a rate
- * limit or a malformed payload must leave the caller on its last known state, never throw at it.
+ * A raw release → `{ version, publishedAt, notes }`, or null when the tag is not a GuestFlow
+ * version. Assets are deliberately not looked at: this is what a version *says it changed*, and a
+ * broken publish two releases back must not cost that version its changelog (rule 12b).
  */
-async function fetchLatestRelease({ fetchImpl = fetch, timeoutMs = 10_000 } = {}) {
+function toNotesEntry(raw) {
+  const version = stripLeadingV(String(raw?.tag_name || ''));
+  if (!isValidVersion(version)) return null;
+  return {
+    version,
+    publishedAt: raw.published_at || null,
+    notes: parseReleaseNotes(raw.body),
+  };
+}
+
+/**
+ * One page of published releases → what the updater needs (specs/self-update-and-releases.md
+ * rules 12b, 20d):
+ *
+ * - `release` — the target, normalised exactly as `/releases/latest` used to be: the newest
+ *   published version, and only if it carries its archive *and* its `SHA256SUMS`. A newest release
+ *   with broken assets yields null here, so the updater offers nothing rather than falling back to
+ *   advertising an older version.
+ * - `releases` — every published version in the window, newest first, notes only. This is the span
+ *   the dialog reads: what changed between the version the operator runs and the one on offer.
+ * - `truncated` — the page came back full, so releases older than the window exist and are not
+ *   carried. The dialog admits the gap rather than presenting a partial list as complete.
+ *
+ * Returns null on any failure — an unreachable GitHub, a rate limit or a malformed payload must
+ * leave the caller on its last known state, never throw at it.
+ */
+async function fetchReleaseFeed({ fetchImpl = fetch, timeoutMs = 10_000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let payload;
   try {
-    const res = await fetchImpl(LATEST_RELEASE_URL, {
+    const res = await fetchImpl(RELEASES_URL, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'guestflow-updater' },
       signal: controller.signal,
     });
     if (!res || !res.ok) return null;
-    return normaliseRelease(await res.json());
+    payload = await res.json();
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+
+  if (!Array.isArray(payload)) return null;
+
+  // Drafts and pre-releases are not offers: `/releases/latest` never returned one, and neither does
+  // the span behind it.
+  const published = payload.filter((raw) => raw && !raw.draft && !raw.prerelease);
+  const releases = published
+    .map(toNotesEntry)
+    .filter(Boolean)
+    .sort((a, b) => compareVersions(b.version, a.version) || 0);
+
+  const newest = releases.length
+    ? published.find((raw) => stripLeadingV(String(raw.tag_name || '')) === releases[0].version)
+    : null;
+
+  return {
+    release: normaliseRelease(newest),
+    releases,
+    truncated: payload.length >= RELEASES_PER_PAGE,
+  };
 }
 
 module.exports = {
   GITHUB_REPO,
-  LATEST_RELEASE_URL,
+  RELEASES_URL,
+  RELEASES_PER_PAGE,
   ALLOWED_DOWNLOAD_HOSTS,
   CHECKSUMS_ASSET_NAME,
   isAllowedDownloadUrl,
@@ -211,6 +265,6 @@ module.exports = {
   splitSummary,
   parseSha256Sums,
   normaliseRelease,
-  fetchLatestRelease,
+  fetchReleaseFeed,
   __test: { stripMarkdown, ARCHIVE_ASSET_RE, PLUGIN_ASSET_RE },
 };
