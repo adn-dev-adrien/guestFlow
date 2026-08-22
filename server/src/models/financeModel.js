@@ -2,7 +2,7 @@
 // renders only. Payment figures come from the shared computePaymentStatus authority.
 
 const db = require('../database');
-const { computeTouristTaxBreakdown } = require('../utils/pricing');
+const { computeTouristTaxBreakdown, sumIncludedServicesDeduction } = require('../utils/pricing');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const {
   getMonthBounds,
@@ -719,6 +719,34 @@ function createFinanceModel(database) {
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
       `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
 
+      // specs/tourist-tax-included-services-deduction.md rule 14 — this page recomputes the tax
+      // instead of reading the stored one, so it has to apply the same deduction as the fiche or the
+      // commune is declared a different amount than the operator validated. The lines are the ones
+      // the booking CARRIES and that are a property default marked « offerte » today — the exact
+      // `includedInRate` test the engine makes. Guarded: a minimal schema without
+      // `property_option_defaults` simply deducts nothing.
+      const includedLinesByReservation = (() => {
+        const map = new Map();
+        if (rows.length === 0) return map;
+        try {
+          const placeholders = rows.map(() => '?').join(', ');
+          const lines = database.prepare(`
+            SELECT ro.reservationId, ro.quantity, ro.unitPrice, ro.priceType
+            FROM reservation_options ro
+            JOIN reservations res ON res.id = ro.reservationId
+            JOIN property_option_defaults pod
+              ON pod.optionId = ro.optionId AND pod.propertyId = res.propertyId AND pod.offered = 1
+            WHERE ro.reservationId IN (${placeholders}) AND COALESCE(ro.offered, 0) = 1
+          `).all(...rows.map((row) => row.reservationId));
+          for (const line of lines) {
+            const key = Number(line.reservationId);
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(line);
+          }
+        } catch { return new Map(); }
+        return map;
+      })();
+
       const reservations = rows
         .map((row) => {
           const nightsCount = Number(row.nightsCount || 0);
@@ -744,7 +772,20 @@ function createFinanceModel(database) {
           const hasNightlyBreakdown = Number(row.nightlyBreakdownCount || 0) > 0;
           const surchargeToExcludeFromReference = hasNightlyBreakdown ? 0 : extraGuestSurcharge;
 
-          const accommodationReferenceTtc = round2(Math.max(0, accommodationMeta.accommodationTtcAmount - surchargeToExcludeFromReference));
+          // The deduction only means something where the base is a base: in `per_day_per_person` the
+          // tax is a flat rate per adult per night and no price can move it, so the Gîte's declared
+          // accommodation stays exactly what it is today.
+          const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
+          const includedServicesDeduction = isPercentageMode
+            ? sumIncludedServicesDeduction(includedLinesByReservation.get(Number(row.reservationId)) || [], {
+              referencePersons: includedGuests > 0 ? includedGuests : surchargePersonCount,
+              nights: nightsCount,
+            })
+            : 0;
+          const accommodationReferenceTtc = round2(Math.max(
+            0,
+            accommodationMeta.accommodationTtcAmount - surchargeToExcludeFromReference - includedServicesDeduction,
+          ));
           const touristTaxBreakdown = computeTouristTaxBreakdown({
             touristTaxMode: row.touristTaxMode,
             touristTaxPerDayPerPerson: row.propertyTaxRate,
@@ -806,7 +847,18 @@ function createFinanceModel(database) {
             refundedTaxAmount,
             accommodationRawAmount: accommodationMeta.accommodationRawAmount,
             reductionAmount: accommodationMeta.reductionAmount,
-            accommodationAmount: accommodationMeta.accommodationAmount,
+            // In percentage mode this column IS the tax base (specs/reservation-refunds.md §6 already
+            // called it that), so it reads net of the services included in the rate — the same figure
+            // the fiche divides by the nights.
+            accommodationAmount: isPercentageMode
+              ? round2(touristTaxBreakdown.touristTaxPricePerNightHt * nightsCount)
+              : accommodationMeta.accommodationAmount,
+            includedServicesDeduction: round2(includedServicesDeduction),
+            // What the commune's percentage form asks for: the cost of one night, per occupant, HT.
+            // Null outside percentage mode, where no price enters the tax at all.
+            nightPricePerOccupantHt: isPercentageMode
+              ? round2(touristTaxBreakdown.touristTaxPerOccupantNightPriceHt)
+              : null,
           };
         })
         // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night

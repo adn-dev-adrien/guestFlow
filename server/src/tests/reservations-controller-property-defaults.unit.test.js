@@ -203,3 +203,24 @@ test('update leaves a BILLED default removable — only an included service is l
   const ids = (captures.lastQuoteArgs.selectedOptions || []).map((o) => Number(o.optionId));
   assert.deepEqual(ids, [], 'a paid default is an ordinary option the operator may remove');
 });
+
+// ── the live preview quotes the same party as the save ──────────────────────────────────
+// specs/tourist-tax-included-services-deduction.md rule 16. A baby pays nothing but occupies the
+// lodging, and the tourist tax divides the night by the OCCUPANTS. `create`/`update` have always
+// forwarded `babies`; `calculatePrice` did not, so a stay with a cot showed one tax on the fiche and
+// stored another (Lodge #22275: 16,38 € on screen, 13,05 € declared).
+test('calculatePrice forwards babies to the engine, like create and update do', () => {
+  const captures = {};
+  const controller = buildController([], captures);
+  controller.calculatePrice({
+    body: {
+      propertyId: 1, startDate: '2099-09-10', endDate: '2099-09-13',
+      adults: 3, children: 1, teens: 0, babies: 1, babyBeds: 1,
+      checkInTime: '15:00', checkOutTime: '10:00', options: [],
+    },
+  }, fakeRes());
+
+  assert.equal(captures.lastQuoteArgs.babies, 1, 'the cot occupant reaches the tourist-tax divisor');
+  assert.equal(captures.lastQuoteArgs.adults, 3);
+  assert.equal(captures.lastQuoteArgs.children, 1);
+});

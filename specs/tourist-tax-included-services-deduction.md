@@ -135,6 +135,24 @@ the same amount.
 
 13. **The summary says the subtraction out loud.** `PricingSummary` renders again, under the tourist
     tax line and only when a deduction applies: « Base : 359,79 € − 60,00 € de prestations comprises ».
+14. **The declaration declares what the fiche validated (2026-08-22).** *Suivi financier → Taxe de
+    séjour* does not read the stored tax: it **recomputes** it from the stay
+    ([financeModel.js](../server/src/models/financeModel.js), `getTouristTaxExtraction`). It therefore
+    applies the very same deduction, from the very same helper (`sumIncludedServicesDeduction`), on
+    the lines the booking carries that are a property default marked « offerte » today. One stay, one
+    amount — on the fiche and on the form sent to the commune. « Montant hébergement HT » follows: in
+    percentage mode it is the taxable accommodation, net of the inclusions. `per_day_per_person`
+    properties are untouched — no price enters their tax, so nothing is deducted there.
+15. **The declaration reports the assiette, not just the amount.** A new column **« Nuit HT /
+    occupant »** carries the figure the commune's percentage form asks for — the cost of one night
+    per occupant, HT — i.e. the fiche's own `(132,26 € HT/nuit ÷ 5 occupants)` divided out. It reads
+    « — » on a `per_day_per_person` property, where no price enters the tax.
+16. **A baby is an occupant (2026-08-22).** The tourist tax divides the night by the **occupants** —
+    adults + children + teens + **babies**. `create` and `update` always passed `babies` to the
+    engine; the live-preview path did not, neither in the fiche's payload nor in
+    `reservationsController.calculatePrice`. A stay with a cot therefore displayed a tax computed on
+    one head too few and stored another: Lodge #22275 showed **16,38 €** and declared **13,05 €**.
+    Both ends now forward it, so the preview, the save and the declaration agree.
 
 **Edge cases:**
 - `basePriceIncludedGuests = 0` (a property where every guest is an extra) → the person factor falls
@@ -147,6 +165,11 @@ the same amount.
   pass-through figure in `touristTaxOriginalTotal` changes.
 - `percent_of_stay` inclusion (an insurance configured as an offered default) → deducted at its
   computed amount like any other line; it is a theoretical case, not a Lodge one.
+- A booking whose included line was configured as a default **after** it was issued → the declaration
+  deducts nothing for it (it does not carry the line), exactly like the fiche.
+- A stay declared in a month whose tax was already remitted → untouched; rule 14 changes what the
+  page computes, never which stays it lists (`tourist-tax-declaration-month-stay-end.md` still owns
+  the attribution).
 
 ---
 
@@ -161,10 +184,10 @@ the same amount.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | — | — | (none) |
-| `controllers/` | `reservationsController.js` | T | Rule 5 — on update, re-injects into `selectedOptions` / `offeredOptionIds` a property default `offered = 1` that the stored reservation carries and the payload dropped |
-| `models/` | — | — | (none) |
+| `controllers/` | `reservationsController.js` | T | Rule 5 — on update, re-injects into `selectedOptions` / `offeredOptionIds` a property default `offered = 1` that the stored reservation carries and the payload dropped. Rule 16 — `calculatePrice` forwards `babies` to the engine |
+| `models/` | `financeModel.js` | T | Rules 14-15 — `getTouristTaxExtraction` deducts the included services from its recomputed base and exposes `nightPricePerOccupantHt` + `includedServicesDeduction` |
 | `middleware/` | — | — | (none) |
-| `utils/` | `pricing.js` | T | Rules 1-3 — computes `touristTaxIncludedInRateDeduction` from the `includedInRate` lines with the party-independent factor, and subtracts it from `taxBaseAccommodation`; re-exposes `touristTaxBaseBeforeDeduction` |
+| `utils/` | `pricing.js` | T | Rules 1-3 — `sumIncludedServicesDeduction` (exported, shared with `financeModel` per rule 14) computes the forfait; `taxBaseAccommodation` = the accommodation charged minus it; re-exposes `touristTaxBaseBeforeDeduction` |
 | `scheduledTasks.js` | — | — | (none) |
 | `database.js` | — | — | (none) |
 
@@ -187,7 +210,8 @@ the same amount.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `ReservationPage.jsx` | T | Computes the set of options locked ON (offered property defaults; in edit mode, restricted to those the reservation carries) and passes it through the form context |
+| `pages/` | `ReservationPage.jsx` | T | Computes the set of options locked ON (offered property defaults; in edit mode, restricted to those the reservation carries) and passes it through the form context. Rule 16 — sends `babies` in the live-quote payload and in its memo signature |
+| `pages/` | `TouristTaxPage.jsx` | T | Rule 15 — new « Nuit HT / occupant » column (table + mobile card), `minWidth` 980 → 1080 |
 | `components/` | `reservation/OptionRow.jsx` | T | Disables the Switch + shows « Inclus » for a locked-included option (today: bed-linen defaults on creation only) |
 | `components/` | `PricingSummary.jsx` | T | Rule 13 — renders the « Base : X − Y de prestations comprises » caption again |
 | `hooks/` | — | — | (none) |
@@ -215,6 +239,16 @@ No endpoint signature changes. The quote payload returned by every pricing route
 | `touristTaxBaseAccommodation` | the accommodation charged **net of the inclusions** — the amount actually divided by the nights |
 | `touristTaxBaseBeforeDeduction` | **restored** — the accommodation charged, before the deduction |
 | `touristTaxIncludedInRateDeduction` | **restored** — Σ of the included lines' reference values |
+
+`GET /api/finance/tourist-tax` — each reservation row gains two fields (rules 14-15):
+
+| Field | Meaning |
+|---|---|
+| `nightPricePerOccupantHt` | the cost of one night per occupant, HT — `null` outside percentage mode |
+| `includedServicesDeduction` | what the rate already covers, deducted from the declared base (0 outside percentage mode) |
+
+`accommodationAmount` keeps its name and, in percentage mode, becomes the **taxable** accommodation
+HT (net of the inclusions) — which is what `specs/reservation-refunds.md` §6 already called it.
 
 Both restored fields are consumed by `PricingSummary` only. They are surfaced separately (rather than
 re-added client-side) because the base is floored at 0: `before − deduction` is not always the base.
@@ -250,6 +284,12 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
 - **Récapitulatif tarifaire.** Under « Taxe de séjour », a third caption returns after the
   « Base : 2,50 € × 2 adultes × 3 nuits » line:
   « Base : 359,79 € − 60,00 € de prestations comprises ». Hidden when the deduction is 0.
+- **Suivi financier → Taxe de séjour (rule 15).** A new right-aligned column **« Nuit HT / occupant »**
+  sits between « Enfants » and « Taxe séjour (client) », so the row reads left to right as the
+  calculation does: nuits, adultes, enfants, **assiette**, taxe, hébergement. A
+  `per_day_per_person` property prints « — ». On mobile the `ResponsiveTable` card gains one
+  « Nuit HT / occupant » line, hidden when there is nothing to show; the table's `minWidth` goes
+  980 → 1080 px so the extra column scrolls inside its container rather than widening the page.
 - **Récapitulatif tarifaire — pack de bienvenue (feedback 2026-08-22).** On a welcome-pack line, the
   value of the units the rate covers moves **out of the left column** (where it sat inline after
   « dont 1 inclus dans le tarif », under the « + compl. » chip, reading as a label rather than a
@@ -284,7 +324,15 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
       `devisModel.update`, so both surfaces share the contract.
 - [x] `tests/devis-pdf-quote-parity.unit.test.js` — the « drops offeredOptionIds » regression asserts
       again that the lost deduction inflates the tax (it is the bug the file describes).
-- [x] `cd server && npm test` → **3511 passed, 0 failed**.
+- [x] `tests/tourist-tax-declaration-included-services.unit.test.js` (**new**) — 5 tests on
+      `getTouristTaxExtraction`: the deduction lands (18,00 € → 15,00 €); `nightPricePerOccupantHt` is
+      45,43 € and « Montant hébergement HT » 272,55 €, so the operator can re-derive one from the
+      other; the forfait does not follow the party (linen sold for four, deducted for two); a one-off
+      gesture is not deducted; a `per_day_per_person` property keeps its 7,20 € and its unchanged
+      accommodation, with a `null` night price.
+- [x] `tests/reservations-controller-property-defaults.unit.test.js` — rule 16: `calculatePrice`
+      forwards `babies` to the engine, like `create` and `update`.
+- [x] `cd server && npm test` → **3517 passed, 0 failed**.
 
 ### Client tests
 - [x] `PricingSummary.included-in-rate.test.jsx` — the deduction caption renders when
@@ -293,7 +341,9 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
 - [x] `ExtrasSection.included-services.test.jsx` (**new**) — an included service renders `role=switch`
       checked + disabled with « Inclus »; an ordinary option stays editable and still calls
       `setOptionEnabled`.
-- [x] `cd client && npx vitest run` → **1097 passed / 140 files**.
+- [x] `TouristTaxPage.test.jsx` — the « Nuit HT / occupant » column renders the percentage-mode base
+      and « — » without one.
+- [x] `cd client && npx vitest run` → **1098 passed / 140 files**.
 
 ### E2E
 - [x] `npm run test:e2e` → **65 passed, 1 skipped**.
@@ -313,6 +363,15 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
 - [ ] Mobile 390 px — not replayed; no layout change beyond one extra caption in a column stack that
       already wraps, and one Switch that renders disabled.
 
+### Manual verification — Suivi financier → Taxe de séjour (rules 14-16)
+- [x] Août 2026, Lodge: la ligne Julie Carpier (#22275, 19→22/08, 3 adultes + 1 enfant + 1 bébé) lit
+      **26,45 € de nuit HT/occupant, 13,05 € de taxe, 396,78 € d'hébergement HT**.
+- [x] La fiche de cette même réservation lit **13,05 €** et
+      « (132.26EUR HT/nuit ÷ 5 occupants) x 5.00% + 10.00% dep = 1.45EUR/adulte/nuit ». Avant le
+      correctif de la règle 16 elle affichait 16,38 € et « ÷ 4 occupants ».
+- [x] Juillet 2026: les lignes sans prestation comprise sont inchangées et l'arithmétique se relit
+      dans le tableau (23,88 € × 5 % + 10 % dep × 2 adultes × 2 nuits = 5,24 €).
+
 ### Spec sync (CLAUDE.md §4.1)
 - [x] `specs/tourist-tax-base-accommodation-only.md` — rules 3 and 4 amended (the deduction returns, in
       its party-independent form), §4.3, §6 and §9 updated.
@@ -324,8 +383,9 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
 - [x] `specs/per-property-default-options.md` — new rule 10, « Comprise » is mandatory.
 - [x] `specs/devis-pdf-total-parity.md` — the `offeredOptionIds` row states the tax effect again.
 - [x] `specs/welcome-pack-auto-options.md` §6 — where the covered value reads (feedback 2026-08-22).
-- [x] `changelog.d/fixed--tourist-tax-included-services-deduction.md` and
-      `changelog.d/changed--welcome-pack-covered-value-placement.md`.
+- [x] `changelog.d/fixed--tourist-tax-included-services-deduction.md`,
+      `changelog.d/changed--welcome-pack-covered-value-placement.md` and
+      `changelog.d/added--tourist-tax-night-base-column.md`.
 
 ## 8. Out of scope
 
@@ -349,3 +409,16 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
   - A: **A per-stay forfait, independent of the party** — computed on the guests included in the base
     rate (2 at the Lodge), so the declared base no longer shrinks as the party grows. This answers the
     main objection #470 raised against the former rule 48.
+
+**Resolved 2026-08-22 (Adrien), second round — the declaration page:**
+- Q: Which figure should the declaration table carry?
+  - A: **The night cost per occupant, HT** — the assiette the commune's percentage form asks for, not
+    the whole-night price.
+- Q: The « Suivi taxe de séjour » page recomputes its own tax and ignored the deduction (14,85 €
+  against the fiche's 13,05 €). Fix it, or only add the column?
+  - A: **Align the declaration on the fiche.** One stay, one amount; what is declared to the commune
+    changes accordingly.
+- Q (raised by the verification, not asked): the fiche's live preview divided by the occupants
+  *without the babies*, so a stay with a cot showed a tax its own save contradicted.
+  - A: Fixed as rule 16 — the preview forwards `babies` like `create` and `update` always did. Not a
+    scope choice: it is the same « one stay, one amount » invariant, one layer up.

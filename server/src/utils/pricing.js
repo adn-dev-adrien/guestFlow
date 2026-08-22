@@ -405,6 +405,23 @@ function calculateProgressiveParticipantOptionTotal(quantity, tiers, fallbackUni
   };
 }
 
+// specs/tourist-tax-included-services-deduction.md rule 3 — the reference value of the services the
+// night rate already covers, which leaves the tourist-tax base. `referencePersons` is the guests the
+// RATE includes (`basePriceIncludedGuests`), never the real party: that is what makes the deduction a
+// per-stay FORFAIT, so the declared base no longer shrinks as the group grows.
+//
+// Shared on purpose (rule 14): `calculateReservationQuote` feeds it the engine's `includedInRate`
+// lines, `financeModel` feeds it the stored lines of an offered property default, and the fiche and
+// the « Suivi taxe de séjour » declaration therefore compute the same base. Lines are
+// `{ unitPrice, quantity, priceType }` — the caller owns the filtering.
+function sumIncludedServicesDeduction(lines, { referencePersons, nights }) {
+  return roundMoney((lines || []).reduce((sum, line) => {
+    if (!line) return sum;
+    const units = Number(line.quantity || 0) * getTypeMultiplier(line.priceType, referencePersons, nights);
+    return sum + (Number(line.unitPrice || 0) * units);
+  }, 0));
+}
+
 function computeTouristTaxBreakdown({
   touristTaxMode,
   touristTaxPerDayPerPerson,
@@ -1977,12 +1994,9 @@ function calculateReservationQuote({
   // Only `includedInRate` lines count (property default + offered): a one-off commercial gesture and
   // a custom option are never tagged, so neither is ever deducted (rule 2).
   const taxReferencePersons = includedGuests > 0 ? includedGuests : persons;
-  const touristTaxIncludedInRateDeduction = roundMoney(
-    finalOptionLines.reduce((sum, line) => {
-      if (!line || !line.includedInRate) return sum;
-      const units = Number(line.quantity || 0) * getTypeMultiplier(line.priceType, taxReferencePersons, nights);
-      return sum + (Number(line.unitPrice || 0) * units);
-    }, 0),
+  const touristTaxIncludedInRateDeduction = sumIncludedServicesDeduction(
+    finalOptionLines.filter((line) => line && line.includedInRate),
+    { referencePersons: taxReferencePersons, nights },
   );
   const taxBaseAccommodation = roundMoney(Math.max(0, taxBaseBeforeDeduction - touristTaxIncludedInRateDeduction));
 
@@ -2486,6 +2500,7 @@ module.exports = {
   normalizeOptionProgressiveTiers,
   calculateProgressiveParticipantOptionTotal,
   computeTouristTaxBreakdown,
+  sumIncludedServicesDeduction,
   normalizeDateRanges,
   getBoundsFromDateRanges,
   parseRuleDateRanges,

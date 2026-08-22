@@ -381,6 +381,11 @@ function calculatePrice(req, res) {
     adults: req.body.adults,
     children: req.body.children,
     teens: req.body.teens,
+    // specs/tourist-tax-included-services-deduction.md rule 16 — a baby pays nothing but occupies the
+    // lodging, and the tourist tax divides the night by the OCCUPANTS. `create`/`update` have always
+    // passed it; this preview did not, so a stay with a cot showed one tax on screen and stored
+    // another — and the « Suivi taxe de séjour » declaration sided with the save.
+    babies: req.body.babies,
     babyBeds: req.body.babyBeds,
     // specs/baby-bed-supplement.md §3.3 rule 14 — the SAVED booking, whatever the state of its price
     // lock (an expired devis still keeps its cots free), so this preview shows what the save stores.
