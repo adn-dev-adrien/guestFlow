@@ -77,12 +77,16 @@ test('renders nothing rather than an error when the version cannot be read', asy
   await waitFor(() => expect(container.firstChild).toBeNull());
 });
 
-test('a published version adds an icon that opens the notes before anything installs', async () => {
+test('a published version adds a counted pill that opens the notes before anything installs', async () => {
   const user = userEvent.setup();
   api.getSystemVersion.mockResolvedValue(versionInfo());
   render(<AppVersionBadge />);
 
-  await user.click(await screen.findByRole('button', { name: UPDATE_BUTTON }));
+  const pill = await screen.findByRole('button', { name: UPDATE_BUTTON });
+  // Sowel's header grammar: the offer is a tinted pill carrying a count, not a bare icon.
+  expect(pill).toHaveTextContent('1');
+
+  await user.click(pill);
 
   expect(await screen.findByText('Mise à jour vers GuestFlow 1.1.0')).toBeInTheDocument();
   expect(screen.getByText('Une nouveauté')).toBeInTheDocument();
@@ -98,7 +102,7 @@ test('postponing the dashboard alert does not take the way back with it', async 
   expect(await screen.findByRole('button', { name: UPDATE_BUTTON })).toBeInTheDocument();
 });
 
-test('an update already running hides the icon — the overlay owns the screen', async () => {
+test('an update already running hides the pill — the overlay owns the screen', async () => {
   api.getSystemVersion.mockResolvedValue(versionInfo({ updateInProgress: true }));
   render(<AppVersionBadge />);
   await screen.findByText('v1.0.0');
