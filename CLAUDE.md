@@ -132,7 +132,7 @@ For every spec retro-implementation:
 
 - Push to `master` directly.
 - Force-push anywhere.
-- **Merge** PRs (the user squash-merges via the web UI). Claude may create PRs with `gh pr create` and read PR status, but never `gh pr merge`.
+- **Merge** PRs — with **one exception, the release PR** (see §5.6). Everywhere else Claude may create PRs with `gh pr create` and read PR status, but never `gh pr merge`.
 - Cut a release, tag, or install one in production without being asked (see §5.6).
 - Skip hooks (`--no-verify`), bypass signing, or amend pushed commits.
 - Run destructive commands (`reset --hard`, `clean -f`, branch deletion) without explicit user instruction.
@@ -181,12 +181,19 @@ Production runs **published releases**, never a branch. The full model lives in
   always the user's explicit call; **Y** = an improvement, the ordinary case; **Z** = bug fixes and
   nothing else. A change to `/api/**` is not an X: client and server ship in one archive and install
   together, so no consumer can lag behind them.
+- **Claude squash-merges the release PR, and only the release PR** (granted 2026-08-22). The
+  authorisation is narrow on purpose: it covers a `release: vX.Y.Z` PR that the release skill itself
+  opened in the current run, on a `release/vX.Y.Z` branch, containing nothing but the three version
+  bumps and the changelog fold. Every other PR in this repository stays the user's to merge. The
+  merge is **squash**, and it happens **only once every check reports `pass`** — re-read immediately
+  before merging, never trusted from an earlier look. `--admin` is forbidden: bypassing a pending or
+  failing check is exactly what this authorisation is not.
 - A release is cut with the **`/guestflow-release` skill**: pre-flight suites → fold `changelog.d/`
   into a `CHANGELOG.md` section → write the operator digest → bump the three `package.json` files →
   `release/vX.Y.Z` PR → the user squash-merges → Claude tags `vX.Y.Z` on `master` →
   `.github/workflows/release.yml` publishes the archive, its `SHA256SUMS` and the WordPress plugin.
-  **The squash-merge is the only step the user performs**; the skill waits for it and carries on by
-  itself, so never end a release turn asking to be told the PR was merged.
+  Since 2026-08-22 the skill merges that PR itself once the CI is green, so a release runs end to
+  end from a single request; never end a release turn asking to be told the PR was merged.
 - **The release notes are mandatory.** The GitHub release body IS the `CHANGELOG.md` section, and
   that section is what the operator reads in the update dialog before clicking "Installer". The
   `verify` job fails the release when it is missing, when the three versions disagree with the tag,

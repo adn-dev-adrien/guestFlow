@@ -103,9 +103,19 @@ signed-off releases over HTTPS, when the operator asks for it.
    user → tag `vX.Y.Z` pushed on `master`**. The release commit contains: the three version
    bumps + the `CHANGELOG.md` section produced by `node scripts/build-changelog.mjs --release X.Y.Z`
    + the deletion of the consumed `changelog.d/` fragments.
-4. Claude never merges the release PR and never pushes to `master` (CLAUDE.md §5.2 is unchanged).
-   Claude creates the branch and the PR, **watches for the merge itself** rather than waiting to be
-   told, and then pushes the tag. The squash-merge is the only step the user performs.
+4. Claude never pushes to `master` (CLAUDE.md §5.2). It creates the branch and the PR, and — since
+   2026-08-22 — **squash-merges that PR itself once every check reports `pass`**, then pushes the
+   tag. A release therefore runs end to end from a single request.
+
+   The authorisation is deliberately narrow: it covers the `release: vX.Y.Z` PR of the run in
+   progress, on its `release/vX.Y.Z` branch, carrying nothing but the three version bumps and the
+   changelog fold. Every other PR in the repository stays the user's to merge, and `--admin` is
+   forbidden — the point of the exception is that the CI gate decides, so bypassing branch
+   protection would empty it of its meaning.
+
+   The PR is not ceremony once nobody has to click it: it is what runs the CI on the exact commit
+   that will be tagged, and it is the reviewable record of what a version contained. Pushing the
+   bump straight to `master` would lose both.
 5. Pushing the tag `vX.Y.Z` triggers `.github/workflows/release.yml` on a **GitHub-hosted runner**
    (`ubuntu-latest`). No self-hosted runner is involved in any workflow.
 6. The workflow **refuses to publish** (before building anything) when:
@@ -420,9 +430,9 @@ Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages
 
 ### 4.5 The `/guestflow-release` skill
 
-**The squash-merge is the only human step.** Everything before it and everything after it is the
-skill's: the operator asks for a release and next hears from it when the release is published, or
-when something genuinely needs them. Each step carries a check.
+**A release runs end to end from one request.** The operator asks, and next hears from the skill when
+the release is published — the merge included, under the narrow authorisation of rule 4 — or when
+something genuinely needs them. Each step carries a check.
 
 1. **Derive** the version from the pending fragment categories — `added`/`changed`/`migration` → minor,
    `fixed` only → patch — and state it rather than asking. A major is the user's explicit call only.
@@ -435,10 +445,10 @@ when something genuinely needs them. Each step carries a check.
 4. Bump the three `package.json` files; bump the WordPress plugin only if it changed since the
    previous tag.
 5. Branch `release/vX.Y.Z`, commit with the explicit file list, push, `gh pr create`, **wait for the
-   PR's own CI to go green**, then hand the URL over.
-6. **Poll for the merge** (`gh pr view --json state`) instead of waiting to be told. On merge, verify
-   by *content* that master carries the release — never by ancestry, which a squash-merge breaks
-   (CLAUDE.md §5.5).
+   PR's own CI to go green**, then hand the URL over for information.
+6. **Squash-merge it** (rule 4), after re-reading the checks immediately before — a green result from
+   step 5 is a memory, not a fact. Then verify by *content* that master carries the release: never by
+   ancestry, which a squash-merge breaks (CLAUDE.md §5.5).
 7. Tag `vX.Y.Z` on the master commit, push the tag.
 8. Watch the release workflow to completion; on a `verify` failure, fix through a normal PR and
    re-point the tag (the one sanctioned force-push).

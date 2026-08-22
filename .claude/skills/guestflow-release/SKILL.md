@@ -13,10 +13,13 @@ argument-hint: "[version] (e.g. 1.2.0 — omit it and the skill derives it)"
 
 Release version: $ARGUMENTS
 
-**The squash-merge is the only human step.** The user asks for a release, validates one PR, and next
-hears from you when the release is published. Everything else — version number, suites, changelog,
-digest, tag, workflow — is yours. Do not stop to ask for confirmation between steps; §11 lists the
-only situations that justify stopping.
+**A release runs end to end from one request.** The user asks, and next hears from you when the
+release is published. Version number, suites, changelog, digest, PR, **merge**, tag, workflow: all
+yours. Do not stop to ask for confirmation between steps; §11 lists the only situations that justify
+stopping.
+
+**The merge authorisation is narrow, and step 6 is where it is spent.** It covers the release PR of
+the run you are in, and nothing else in this repository — read §6 before using it.
 
 `master` is the release branch, so a release is a **PR merge followed by a tag on master**. Never
 push the version bump straight to master (CLAUDE.md §5.2).
@@ -187,29 +190,46 @@ Then wait for the PR's own CI before handing it over — a PR you know is red is
 gh pr checks <n> --watch --interval 20
 ```
 
-Give the user the URL, tell them the merge is the only thing you need from them, and say that you
-will take it from there without being called back.
+Give the user the URL so they can read what is about to ship — for information, not for action: you
+merge it yourself at step 6. Say so, and say the release will carry on without them.
 
 > **CHECK**: PR created, its checks green, URL handed over.
 
 ---
 
-## Step 6 — Wait for the merge, on your own
+## Step 6 — Merge it yourself, green first
 
-Do **not** end your turn here waiting to be told. Arm a background watcher that exits when the PR
-stops being open, and let the notification bring you back:
+CLAUDE.md §5.2 forbids merging PRs. §5.6 carves out exactly one exception, granted 2026-08-22, and
+this step is it.
+
+**What the authorisation covers**, and nothing beyond:
+
+- the `release: vX.Y.Z` PR **this run** opened, on its `release/vX.Y.Z` branch,
+- containing nothing but the three version bumps and the changelog fold,
+- merged with `--squash`,
+- **only once every check reports `pass`**.
+
+Any other PR in this repository — including a fix you had to make to unblock this release — is still
+the user's to merge. If you find yourself reaching for `gh pr merge` on anything else, stop.
+
+**Re-read the checks immediately before merging.** A green result from step 5 is a memory, not a
+fact: a check can be re-run, a branch can be updated, a required check can be added. Ask again.
 
 ```bash
-until [ "$(gh pr view <n> --json state -q .state)" != "OPEN" ]; do sleep 30; done
-gh pr view <n> --json state,mergedAt,mergeCommit -q '.state'
+gh pr checks <n> --json bucket -q '[.[] | select(.bucket != "pass")] | length'   # must print 0
+gh pr view <n> --json state,mergeable,mergeStateStatus \
+  -q '.state + " " + .mergeable + " " + .mergeStateStatus'                        # OPEN MERGEABLE CLEAN
+gh pr merge <n> --squash --delete-branch
 ```
 
-Run it with `run_in_background: true` — one notification when it exits. While it runs, you are free;
-do not poll it yourself.
+`--admin` is **forbidden**. It bypasses branch protection, which is to say it bypasses the one
+condition this authorisation was given under. A check that is pending is not a check that passed: if
+the count is anything but `0`, wait for it, and if it is red, stop and tell the user (§11).
 
-If it comes back `CLOSED` rather than `MERGED`, the user declined the release: say so and stop.
+If the PR is already `CLOSED` when you get here, the user declined the release: say so and stop.
 
-> **CHECK**: the PR reads `MERGED`.
+> **CHECK**: `gh pr view <n> --json state` reads `MERGED`, and every check was `pass` before you
+> ran the merge.
 
 ---
 
@@ -301,6 +321,8 @@ Only these. Everything else you decide and report.
 | The fragments contradict the version rule | A behaviour change hiding in a `fixed--` lot is a judgement call |
 | The lot breaks or drops a `/public/v1/**` endpoint, an iCal feed or the plugin contract | That is a major, and a major is never derived |
 | The WordPress plugin changed | Its version is independent; the user picks it |
-| The PR closes without merging | The user declined |
+| The release PR's CI is not green | The merge authorisation is granted on a green CI and on nothing else |
+| The release PR was closed before you merged it | The user declined |
+| Any PR that is not this run's release PR needs merging | The authorisation is that narrow (CLAUDE.md §5.2) |
 | `verify` fails for a reason a normal PR cannot fix | Re-pointing a tag past a structural problem hides it |
 | A major version | Always the user's explicit call |
