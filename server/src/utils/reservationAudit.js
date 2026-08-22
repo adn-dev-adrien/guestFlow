@@ -47,6 +47,10 @@ const HISTORY_FIELD_LABELS = {
   extraGuestSurchargeOffered: 'Surcoût voyageurs offert',
   depositDisabled: 'Acompte désactivé',
   touristTaxInComplement: 'Taxe en complément',
+  // specs/adjustable-complement-amounts.md §3.1 rule 11 — an adjusted complement is money moved by
+  // hand: it has to be re-readable in the history like any other field edit.
+  complementAmountOverride: "Complément d'arrivée ajusté",
+  endOfStayComplementAmountOverride: 'Complément de fin de séjour ajusté',
   optionsSignature: 'Options',
   resourcesSignature: 'Ressources',
 };
@@ -122,6 +126,11 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     depositDisabled: payload.depositDisabled ? 1 : 0,
     // Per-item routing of the tourist tax to Complément (specs/force-item-to-complement.md).
     touristTaxInComplement: payload.touristTaxInComplement ? 1 : 0,
+    // specs/adjustable-complement-amounts.md §3.1 rule 11 — NULL when the bucket is on automatic.
+    complementAmountOverride: payload.complementAmountOverride === undefined || payload.complementAmountOverride === null || payload.complementAmountOverride === ''
+      ? null : Number(payload.complementAmountOverride),
+    endOfStayComplementAmountOverride: payload.endOfStayComplementAmountOverride === undefined || payload.endOfStayComplementAmountOverride === null || payload.endOfStayComplementAmountOverride === ''
+      ? null : Number(payload.endOfStayComplementAmountOverride),
     optionsSignature: getOptionsSignature((quote.optionLines || []).map((line, idx) => ({
       optionId: line.optionId != null ? Number(line.optionId) : (2000000 + idx),
       quantity: Number(line.quantity || 1),
@@ -174,6 +183,8 @@ const HISTORY_FIELD_FORMATS = {
   extraGuestSurchargeOffered: 'boolean',
   depositDisabled: 'boolean',
   touristTaxInComplement: 'boolean',
+  complementAmountOverride: 'money',
+  endOfStayComplementAmountOverride: 'money',
 };
 
 // Fields the pricing engine recomputes on its own: they move on almost every edit and would bury the

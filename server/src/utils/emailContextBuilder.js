@@ -214,6 +214,11 @@ function buildContext({ reservation, client, property, options = [], resources =
   // the total (the complement can also carry an accommodation auto-gap), hence "comprend notamment".
   const complementAmountNum = Number(r.complementAmount || 0);
   const complementToCollect = complementAmountNum > 0 && Number(r.complementPaid || 0) !== 1;
+  // specs/defer-arrival-complement-to-checkout.md §3.3 rule 17 — the operator moved this collection to
+  // the door (from the arrival SAS recap or from the fiche). Same lines, same total: only the moment
+  // the guest is told about changes. Without this the J-2 and J-1 announce an arrival collection the
+  // operator has already decided not to make.
+  const complementAtCheckout = Number(r.complementDeferredToCheckout || 0) === 1;
   const inComplementItems = [];
   for (const o of (options || [])) {
     if (Number(o.inComplement || 0) === 1 && Number(o.offered || 0) !== 1) {
@@ -275,18 +280,20 @@ function buildContext({ reservation, client, property, options = [], resources =
   // is also what the SAS recap shows (no line items then).
   const hasRealItems = noticeLines.some((l) => l.kind !== 'remainder');
   let complementNotice = '';
+  const whenEn = complementAtCheckout ? 'on departure' : 'on arrival';
+  const whenFr = complementAtCheckout ? 'à votre départ' : 'à votre arrivée';
   if (complementToCollect && hasRealItems) {
     const intro = isEn
-      ? 'A balance is payable directly on site on arrival:'
-      : 'Un complément est à régler directement sur place à votre arrivée :';
+      ? `A balance is payable directly on site ${whenEn}:`
+      : `Un complément est à régler directement sur place ${whenFr} :`;
     const totalLine = isEn
       ? `Total: ${formatCurrency(complementAmountNum)}`
       : `Total : ${formatCurrency(complementAmountNum)}`;
     complementNotice = [intro, ...noticeLines.map(complementLineText), totalLine].join('\n');
   } else if (complementToCollect) {
     complementNotice = isEn
-      ? `A balance of ${formatCurrency(complementAmountNum)} is payable directly on site on arrival.`
-      : `Un complément de ${formatCurrency(complementAmountNum)} est à régler directement sur place à votre arrivée.`;
+      ? `A balance of ${formatCurrency(complementAmountNum)} is payable directly on site ${whenEn}.`
+      : `Un complément de ${formatCurrency(complementAmountNum)} est à régler directement sur place ${whenFr}.`;
   }
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy

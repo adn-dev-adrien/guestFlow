@@ -29,6 +29,7 @@ const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = re
 const { createModel: createRefundsModel } = require('./refundsModel');
 const { buildModel: buildCompensationsModel } = require('./cancellationCompensationsModel');
 const { DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('../constants/accounting');
+const { parseComplementAllocation } = require('../utils/complementAllocation');
 
 function createAccountingModel(database) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
@@ -42,6 +43,9 @@ function createAccountingModel(database) {
     hasReservationColumn('endOfStayComplementDetail') ? 'r.endOfStayComplementDetail' : "NULL AS endOfStayComplementDetail",
     hasReservationColumn('arrivalExtrasBaseline') ? 'r.arrivalExtrasBaseline' : 'NULL AS arrivalExtrasBaseline',
     hasReservationColumn('midStaySettledNotes') ? 'r.midStaySettledNotes' : 'NULL AS midStaySettledNotes',
+    // specs/adjustable-complement-amounts.md §3.6 — the ventilation the fiche stored for an adjusted
+    // complement. Absent (or NULL) → the postes are derived exactly as before.
+    hasReservationColumn('complementAllocation') ? 'r.complementAllocation' : 'NULL AS complementAllocation',
   ].join(', ');
   // A stay whose ONLY collection of the month is a « note en séjour » must still be selected — its
   // buckets may all be paid in another month, or not at all yet (specs/mid-stay-notes.md §3.4).
@@ -454,6 +458,12 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   //   - LEGACY fallback (no entered commission but a stored `clientGrossAmount` > net): keep the old
   //     gross-based recognition so already-booked platform reservations are unchanged.
   // Direct → gross === net (= finalPrice), no commission.
+  // specs/adjustable-complement-amounts.md §3.6 — the ventilation the fiche stored for an adjusted
+  // arrival complement, read (never re-derived) further down, and used right below to keep the
+  // gross-up ratio from reacting to the adjustment.
+  const storedAllocation = parseComplementAllocation(row.complementAllocation);
+  const adjustedComplementAuto = storedAllocation ? storedAllocation.auto : null;
+
   const platformIsNonDirect = String(row.platform || 'direct').toLowerCase() !== 'direct';
   // specs/platform-per-echeance-commission.md — per-échéance platform commission: the acompte commission
   // books on the deposit entry, the solde commission (`platformCommissionAmount`) on the balance entry.
@@ -474,7 +484,15 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
     // commission, e.g. prod #7) keep a ratio > 1 and gross up to the guest-paid total, as before.
     commissionTtcTotal = enteredCommissionTtc;
     effectiveGross = finalPriceTtc;
-    const storedSum = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0) + (Number(row.complementAmount) || 0));
+    // specs/adjustable-complement-amounts.md §3.6 rule 37 — the gross-up exists to repair two
+    // HISTORICAL schedule shapes, not to react to an operator decision. An adjusted complement is a
+    // deliberate deviation from the schedule, so the denominator keeps the complement the engine
+    // produced: without this, lowering a complement would re-inflate its own entry AND the acompte
+    // and solde entries of the same reservation.
+    const scheduledComplement = adjustedComplementAuto != null
+      ? adjustedComplementAuto
+      : (Number(row.complementAmount) || 0);
+    const storedSum = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0) + scheduledComplement);
     grossRatio = storedSum > 0 ? (finalPriceTtc + touristTaxTotal) / storedSum : 1;
   } else {
     // LEGACY fallback: commission derived from the stored `clientGrossAmount` (> net); the stored amounts
@@ -498,6 +516,12 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
     balance:    round2(commissionTtcTotal - acompteCommissionTtc),
     complement: 0,
   };
+  // §3.6 rule 37 — on the adjusted complement itself the announced amount IS the money: it is booked
+  // verbatim, never scaled. The acompte and the solde keep the ratio computed above (on the
+  // un-adjusted schedule), so their entries are strictly unchanged by an adjustment.
+  const complementIsAdjusted = kind === 'complement' && Boolean(storedAllocation);
+  if (complementIsAdjusted) grossRatio = 1;
+
   const commissionTtcEntry = platformIsNonDirect ? (platformCommissionByKind[kind] || 0) : 0;
   // Resolve compte commission + hasVat from the global config snapshot.
   const commissionResolved = commissionTtcEntry > 0
@@ -529,7 +553,11 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   const encaissementTtc = round2(storedAmountTtc * grossRatio);
   // Tourist tax carried by this échéance — part of the CA (the guest paid it) but credited to
   // the 46710000 pass-through, never a 70xxx revenue line.
-  const taxTtc = computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc);
+  // The tourist-tax share of an adjusted complement is the one the FICHE ventilated against — the
+  // floor guarantees the complement covers it, so the credits close on the announced amount.
+  const taxTtc = complementIsAdjusted && storedAllocation.tax != null
+    ? round2(storedAllocation.tax)
+    : computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc);
   const encaissementNetTtc = round2(encaissementTtc - (commissionLine ? commissionLine.ttc : 0));
   // Single global sales VAT rate (specs/single-vat-rate.md) — same one the quote carried.
   const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate))
@@ -549,6 +577,27 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
     commission: commissionLine,
     taxTtc: round2(taxTtc),
   };
+
+  // specs/adjustable-complement-amounts.md §3.6 rules 31 + 36 — an ADJUSTED arrival complement carries
+  // the ventilation the FICHE decided and stored. The export reads it verbatim: it never re-derives
+  // the postes, and the only arithmetic left here is the TTC → HT + VAT split. That is what keeps
+  // Σ credits equal to the adjusted debit by construction, instead of letting the difference fall on
+  // the last credit line — which happens to be the 46710000 tourist tax (rule 37).
+  if (complementIsAdjusted) {
+    const allocated = [
+      bucketFromTtc('accommodation', storedAllocation.accommodation, vatRate),
+      bucketFromTtc('options',       storedAllocation.options,       vatRate),
+      bucketFromTtc('resources',     storedAllocation.resources,     vatRate),
+    ].filter((b) => b.ht > 0 || b.vat > 0);
+    // Nothing to credit at all (an adjustment to 0 with no tax) → no entry, like every other bucket.
+    if (allocated.length === 0 && round2(taxTtc) === 0) return null;
+    return {
+      ...common,
+      clientGrossAmount: round2(effectiveGross),
+      fraction: 1,
+      buckets: allocated,
+    };
+  }
 
   // `perLineData` is optional: when omitted (legacy callers / unit tests that don't model the
   // contrib columns) the fallback path runs with empty line totals.
