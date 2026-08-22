@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { createUpdateStateModel, concludeAbandonedSwap } = require('../models/updateStateModel');
+const { createUpdateStateModel, concludeAbandonedSwap, notesForVersion } = require('../models/updateStateModel');
 const { resolvePaths } = require('../utils/deploymentPaths');
 
 // specs/self-update-and-releases.md §3.F + §5. This state is the only thing that survives the
@@ -35,17 +35,39 @@ test('a corrupted state file reads as empty rather than throwing', () => {
   cleanup();
 });
 
-test('recordCheck stores the release and clears it again when GitHub reports none', () => {
+test('recordCheck stores the release, its window, and clears both when GitHub reports none', () => {
   const { model, cleanup } = freshModel();
-  model.recordCheck({ version: '1.2.0', publishedAt: '2026-08-20T10:00:00Z', notes: [{ title: 'Ajouts', items: ['x'] }] });
+  const notes = [{ title: 'Ajouts', items: ['x'] }];
+  model.recordCheck({
+    release: { version: '1.2.0', publishedAt: '2026-08-20T10:00:00Z', notes },
+    releases: [
+      { version: '1.2.0', publishedAt: '2026-08-20T10:00:00Z', notes },
+      { version: '1.1.0', publishedAt: '2026-08-19T10:00:00Z', notes: [{ title: 'Corrections', items: ['y'] }] },
+    ],
+    truncated: true,
+  });
   let state = model.readState();
   assert.equal(state.latestVersion, '1.2.0');
-  assert.equal(state.latestNotes[0].items[0], 'x');
+  assert.deepEqual(state.releases.map((entry) => entry.version), ['1.2.0', '1.1.0']);
+  assert.equal(notesForVersion(state, '1.1.0')[0].items[0], 'y');
+  assert.equal(state.releasesTruncated, true);
   assert.ok(state.lastCheckAt);
 
   model.recordCheck(null);
   state = model.readState();
   assert.equal(state.latestVersion, null);
+  assert.deepEqual(state.releases, []);
+  assert.equal(state.releasesTruncated, false);
+  cleanup();
+});
+
+test('the window is capped, so a long-lived state file cannot grow without bound', () => {
+  const { model, cleanup } = freshModel();
+  const releases = Array.from({ length: model.RELEASES_MAX + 5 }, (unused, index) => ({
+    version: `1.${index}.0`, publishedAt: null, notes: [],
+  }));
+  model.recordCheck({ release: null, releases, truncated: true });
+  assert.equal(model.readState().releases.length, model.RELEASES_MAX);
   cleanup();
 });
 

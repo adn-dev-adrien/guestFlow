@@ -53,7 +53,7 @@ function buildManifest(state) {
     tested: TESTED_WP,
     last_updated: state.latestPublishedAt || null,
     sections: {
-      changelog: notesToHtml(state.latestNotes),
+      changelog: notesToHtml(updateStateModel.notesForVersion(state, state.latestVersion)),
     },
   };
 }

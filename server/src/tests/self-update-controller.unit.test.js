@@ -21,6 +21,16 @@ function freshModel() {
   return { model, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
+/** What a successful poll hands the model: a target release plus the window it came from. */
+function feed(release, extras = {}) {
+  return {
+    release,
+    releases: release ? [{ version: release.version, publishedAt: release.publishedAt, notes: release.notes || [] }] : [],
+    truncated: false,
+    ...extras,
+  };
+}
+
 /** A version strictly newer than whatever this tree currently is. */
 function newerThanCurrent() {
   const [major, minor, patch] = getAppVersion().split('.').map(Number);
@@ -40,29 +50,30 @@ test('buildVersionInfo answers "no update" when nothing has been published yet',
   assert.equal(info.current, getAppVersion());
   assert.equal(info.latest, null);
   assert.equal(info.updateAvailable, false);
-  assert.deepEqual(info.notes, []);
+  assert.deepEqual(info.versions, []);
   cleanup();
 });
 
 test('buildVersionInfo flags an update and carries the notes the dialog renders', () => {
   const { model, cleanup } = freshModel();
   const latest = newerThanCurrent();
-  model.recordCheck({
+  model.recordCheck(feed({
     version: latest,
     publishedAt: '2026-08-20T10:00:00Z',
     notes: [{ title: 'Ajouts', items: ['Une nouveauté'] }],
-  });
+  }));
   const info = buildVersionInfo(model);
   assert.equal(info.latest, latest);
   assert.equal(info.updateAvailable, true);
   assert.equal(info.publishedAt, '2026-08-20T10:00:00Z');
-  assert.equal(info.notes[0].items[0], 'Une nouveauté');
+  assert.equal(info.versions[0].version, latest);
+  assert.equal(info.versions[0].notes[0].items[0], 'Une nouveauté');
   cleanup();
 });
 
 test('buildVersionInfo never advertises an older published version as an update', () => {
   const { model, cleanup } = freshModel();
-  model.recordCheck({ version: olderThanCurrent(), publishedAt: null, notes: [] });
+  model.recordCheck(feed({ version: olderThanCurrent(), publishedAt: null, notes: [] }));
   assert.equal(buildVersionInfo(model).updateAvailable, false);
   cleanup();
 });
@@ -70,7 +81,7 @@ test('buildVersionInfo never advertises an older published version as an update'
 test('buildVersionInfo reports the dismissal and the in-progress flag', () => {
   const { model, cleanup } = freshModel();
   const latest = newerThanCurrent();
-  model.recordCheck({ version: latest, publishedAt: null, notes: [] });
+  model.recordCheck(feed({ version: latest, publishedAt: null, notes: [] }));
   model.dismissVersion(latest);
   let info = buildVersionInfo(model);
   assert.equal(info.dismissedVersion, latest);
@@ -157,7 +168,7 @@ test('runVersionCheck stores what GitHub published', async () => {
   const latest = newerThanCurrent();
   const fetchImpl = async () => ({
     ok: true,
-    json: async () => ({
+    json: async () => ([{
       tag_name: `v${latest}`,
       published_at: '2026-08-20T10:00:00Z',
       body: '### Fixed\n- Un correctif',
@@ -165,20 +176,20 @@ test('runVersionCheck stores what GitHub published', async () => {
         { name: `guestflow-${latest}.tar.gz`, browser_download_url: `https://github.com/adn-dev-adrien/guestFlow/releases/download/v${latest}/guestflow-${latest}.tar.gz` },
         { name: 'SHA256SUMS', browser_download_url: `https://github.com/adn-dev-adrien/guestFlow/releases/download/v${latest}/SHA256SUMS` },
       ],
-    }),
+    }]),
   });
 
   const release = await controller.runVersionCheck({ model, fetchImpl });
   assert.equal(release.version, latest);
   assert.equal(model.readState().latestVersion, latest);
-  assert.equal(model.readState().latestNotes[0].title, 'Corrections');
+  assert.equal(model.readState().releases[0].notes[0].title, 'Corrections');
   cleanup();
 });
 
 test('runVersionCheck keeps the last known answer when GitHub is unreachable', async () => {
   const { model, cleanup } = freshModel();
   const latest = newerThanCurrent();
-  model.recordCheck({ version: latest, publishedAt: null, notes: [] });
+  model.recordCheck(feed({ version: latest, publishedAt: null, notes: [] }));
 
   const result = await controller.runVersionCheck({ model, fetchImpl: async () => { throw new Error('offline'); } });
   assert.equal(result, null);
