@@ -23,6 +23,7 @@ const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
+const emailAutoSendScheduler = require('../utils/emailAutoSendScheduler');
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
@@ -235,6 +236,15 @@ function updateSettings(req, res) {
   }
 
   settingsModel.upsert(payload);
+
+  // The 08:00 auto-send pass is scheduled only while the switch is on, so flipping it here is what
+  // starts or stops the timer — no restart (specs/no-automatic-email-without-approval.md §3 rule 2b).
+  // Turning it on also runs the day's pass straight away: the operator authorised the automation to
+  // have today's mail leave today, not tomorrow.
+  if (Object.prototype.hasOwnProperty.call(payload, 'emailAutoSendEnabled')) {
+    emailAutoSendScheduler.syncWithSettings();
+  }
+
   const row = settingsModel.read();
   return res.json(shapeResponse(row));
 }

@@ -7,12 +7,13 @@ const propertyIcalModel = require('./models/propertyIcalModel');
 const schoolHolidaysModel = require('./models/schoolHolidaysModel');
 const { runSync: runSchoolHolidaysSync } = require('./utils/schoolHolidaysSync');
 
-// Email automation auto-send (specs/email-automation.md §3 rule 7).
-const emailTemplatesModel = require('./models/emailTemplatesModel');
+// Email automation (specs/email-automation.md §3 rule 7). The 08:00 auto-send pass owns its own
+// timer, registered only while automatic sending is authorised
+// (specs/no-automatic-email-without-approval.md §3 rule 2b).
+const emailAutoSendScheduler = require('./utils/emailAutoSendScheduler');
 const emailLogModel       = require('./models/emailLogModel');
 const settingsModel       = require('./models/settingsModel');
-const { createEmailService } = require('./utils/emailService');
-const { performAutoEmailPass, isoToday } = require('./utils/emailAutoSendRunner');
+const { isoToday } = require('./utils/emailAutoSendRunner');
 
 // Arrival/departure push (specs/pwa-push-notifications.md §3.3).
 const reservationsModel = require('./models/reservationsModel');
@@ -38,17 +39,10 @@ const systemController = require('./controllers/systemController');
 
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
-let emailAutoSendInProgress = false;
 let arrivalDeparturePushInProgress = false;
 // First pass after boot stamps already-due events WITHOUT sending (no restart flood — rule 12).
 let arrivalDeparturePushFirstRun = true;
-// Track the local-date YYYY-MM-DD of the last successful auto-email run so the per-minute
-// tick doesn't fire the pass more than once per day.
-let lastEmailAutoSendDate = null;
-// A blocked pass deliberately gives the day's slot back (see tickEmailAutoSend), so the tick retries
-// it every minute until midnight. Its log line is announced once per local day, not once per retry.
-let lastEmailAutoSendBlockedLogDate = null;
-// Same once-per-day guard for the email-history rolling-window purge.
+// Once-per-day guard for the email-history rolling-window purge.
 let lastEmailHistoryPurgeDate = null;
 
 async function performAutoSync() {
@@ -123,62 +117,6 @@ function tickSchoolHolidaysSync(reason) {
   if (shouldSyncSchoolHolidays()) {
     performSchoolHolidaysSync(reason).catch(err => console.error('[Vacances scolaires] Erreur non gérée:', err));
   }
-}
-
-async function runEmailAutoSendPass(reason = 'cron') {
-  if (emailAutoSendInProgress) return;
-  emailAutoSendInProgress = true;
-  try {
-    const result = await performAutoEmailPass({
-      database: db,
-      templatesModel: emailTemplatesModel,
-      logModel: emailLogModel,
-      settingsModel,
-      emailServiceFactory: createEmailService,
-    });
-    const { blocked, sentCount, skippedCount, failedCount } = result;
-    // A blocked pass is NOT logged here: it repeats every minute by design, and only the caller knows
-    // whether this one is the day's first. It is reported through `result.blocked` instead
-    // (specs/no-automatic-email-without-approval.md §3 rule 2).
-    if (!blocked && (sentCount > 0 || failedCount > 0)) {
-      console.log(`[email-auto-send] ${reason}: ${sentCount} sent, ${skippedCount} skipped, ${failedCount} failed`);
-    }
-    return result;
-  } catch (err) {
-    console.error('[email-auto-send] unexpected error:', err);
-  } finally {
-    emailAutoSendInProgress = false;
-  }
-}
-
-// Per-minute tick. Fires the auto-send pass at the first tick on/after 08:00 local time,
-// once per local day. Catches up if the server was down at 08:00 (any later tick on the
-// same day triggers the pass as long as it hasn't already run).
-function tickEmailAutoSend(deps = {}) {
-  const now = deps.now || new Date();
-  const run = deps.run || runEmailAutoSendPass;
-  const hour = now.getHours();
-  if (hour < 8) return;
-  const today = isoToday(now);
-  if (lastEmailAutoSendDate === today) return;
-  const previous = lastEmailAutoSendDate;
-  // Claim the day's slot up-front so a slow pass can't be started twice by the next tick.
-  lastEmailAutoSendDate = today;
-  return run('daily 08:00 pass')
-    .then((result) => {
-      if (!result || !result.blocked) return;
-      // A pass blocked by the settings switch must NOT consume the slot: if the operator authorises
-      // automatic sending later the same day, the next tick runs the real pass instead of waiting for
-      // tomorrow 08:00 — by which time today's due templates no longer match their send date.
-      lastEmailAutoSendDate = previous;
-      // …but giving the slot back means retrying every minute until midnight, and the operator does
-      // not need to read that ~960 times a day. One line per local day says it (rule 9); the state
-      // itself is visible in Réglages and on the Emails page, not in the log.
-      if (lastEmailAutoSendBlockedLogDate === today) return;
-      lastEmailAutoSendBlockedLogDate = today;
-      console.log('[email-auto-send] daily 08:00 pass: envoi automatique désactivé dans les réglages — rien envoyé');
-    })
-    .catch((err) => console.error('[email-auto-send] unhandled:', err));
 }
 
 // Email-history rolling-window purge (specs/email-history-rolling-window.md §3 rule 3). Deletes log rows
@@ -351,11 +289,10 @@ function startScheduledTasks() {
   setInterval(() => tickSchoolHolidaysSync('hourly tick'), SCHOOL_HOLIDAYS_TICK);
   setTimeout(() => tickSchoolHolidaysSync('boot'), 60 * 1000);
 
-  // Email automation: per-minute tick gated on local-hour >= 8 + once-per-day guard.
-  // First tick scheduled 90 s after boot so the cron is hot for the first day-of-server-restart.
-  const EMAIL_AUTO_SEND_TICK = 60 * 1000;
-  setInterval(tickEmailAutoSend, EMAIL_AUTO_SEND_TICK);
-  setTimeout(tickEmailAutoSend, 90 * 1000);
+  // Email auto-send: no timer at all unless the operator authorised automatic sending. Turning the
+  // switch on in Réglages starts it (and runs the day's pass) without a restart — the scheduler is
+  // re-synced by settingsController on every write.
+  emailAutoSendScheduler.syncWithSettings({ boot: true });
 
   // Email-history purge: hourly tick (once-per-day guard) + a boot pass 100 s after start, so the rolling
   // window is trimmed without waiting a full day after a restart.
@@ -407,9 +344,6 @@ module.exports = {
   shouldSyncSchoolHolidays,
   // Tariff-recipe horizon — exposed for tests + ops trigger.
   runTariffRecipeHorizonPass,
-  // Email automation — exposed for tests + ops trigger.
-  runEmailAutoSendPass,
-  tickEmailAutoSend,
   // Arrival/departure push — exposed for tests + ops trigger.
   runArrivalDeparturePushPass,
   // Breakfast push — exposed for tests + ops trigger.
