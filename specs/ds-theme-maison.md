@@ -11,6 +11,13 @@
 
 ---
 
+> **Superseded on 2026-08-22:** the `/design` showcase page this phase shipped has been removed
+> (route, Réglages entry, `pages/DesignPage.jsx`) — the design system is an internal contract, not an
+> operator-facing screen. Everything else below still stands; see
+> [design-system.md](design-system.md) §3.8. `specs/design-system-reference.md` is the living reference.
+
+---
+
 ## 1. Context
 
 Phase 1 of the [design-system program](design-system.md): make the « Maison » direction live app-wide

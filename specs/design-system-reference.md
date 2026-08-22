@@ -1,10 +1,10 @@
 # GuestFlow Design System — « Maison » reference
 
-> The living version of this document is the admin-only **`/design`** page, which renders every
-> token and component from the real theme. This file is the written contract; the umbrella program
-> spec is [design-system.md](design-system.md). (Named `-reference` because macOS's case-insensitive
-> filesystem forbids `DESIGN-SYSTEM.md` next to `design-system.md`.) Last updated with phase 2
-> (2026-07-15).
+> This file is the design system: the contract every page in GuestFlow follows, read when writing or
+> editing client code — there is no in-app showcase (the `/design` page was removed on 2026-08-22, see
+> [design-system.md](design-system.md) §3.8). The umbrella program spec is
+> [design-system.md](design-system.md). (Named `-reference` because macOS's case-insensitive filesystem
+> forbids `DESIGN-SYSTEM.md` next to `design-system.md`.) Last updated 2026-08-22.
 
 ---
 
@@ -17,7 +17,7 @@
 | `background.default` | `#F8F5EF` | Fond papier de l'app. |
 | `background.paper` | `#FFFFFF` | Cartes. |
 | `text.primary` / `text.secondary` | `#27251F` / `#6E6A5E` | Encre chaude / atténuée. |
-| `success/warning/error/info` `.main` + **`.soft`** | see `/design` | `.soft` = fond des puces de statut. |
+| `success/warning/error/info` `.main` + **`.soft`** | see `theme.js` | `.soft` = fond des puces de statut. |
 | `divider` | `rgba(60,54,36,0.1)` | Filets chauds. |
 | `shape.borderRadius` | `14` | Global. |
 | Card/Paper shadow | `0 3px 16px rgba(60,54,36,0.09)` | Ombre chaude. |

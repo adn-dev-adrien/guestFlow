@@ -48,6 +48,11 @@ unknown URL = blank screen); `ForcedPasswordChange` (App.js:874) missing from in
 - *2026-07-03* — Scope = **full, phased** (tokens/theme → components → page migration). Reference =
   **versioned doc + `/design` showcase page** (admin). Migration = **dedicated sweep PRs by blocks**.
   Ambition = **visual refresh at the same time** (not just harmonization).
+- *2026-08-22* — The `/design` showcase page is **removed** (route, sidebar entry under Réglages, and
+  `pages/DesignPage.jsx`). The design system is an internal contract Claude follows when it builds or
+  edits a page, not a feature the operator uses: nothing on that page was actionable for them, and it
+  cost a menu slot in an already dense Réglages. `specs/design-system-reference.md` becomes the single
+  living reference, and the drift it used to expose is caught by the theme + component tests instead.
 - *2026-07-06* — Visual direction = **C · « Maison »** (hospitality identity) from the
   [3-direction mockup](https://claude.ai/code/artifact/479a7c6b-e311-4c76-8b8e-537108490580): deep fir-green
   primary, warm paper background, humanist-serif titles, radius 14, generous whitespace — chosen over
@@ -57,7 +62,7 @@ unknown URL = blank screen); `ForcedPasswordChange` (App.js:874) missing from in
 
 Every GuestFlow page looks and behaves like the same product: one token source (theme), one component
 per role (header bar, states, feedback, badges, dialogs, tables), one visual identity (« Maison »), and a
-`/design` page + versioned doc that keep it that way. Migration proceeds block by block until all 28 pages
+versioned reference doc that keeps it that way. Migration proceeds block by block until all 28 pages
 + the app shell comply.
 
 ## 3. Functional rules
@@ -134,7 +139,7 @@ enforced by the sweeps):
 
 - **Order:** `[Back] [Title + subtitle] … [center] … [actionsBefore (page-specific)] [Save — filled primary]
   [Cancel — bordered neutral] [actionsAfter — destructive zone, error-colored]`.
-- **One icon per role, app-wide** (catalogued in DESIGN-SYSTEM.md + `/design`): Save `SaveIcon`, Cancel
+- **One icon per role, app-wide** (catalogued in `design-system-reference.md`): Save `SaveIcon`, Cancel
   `CloseIcon`, Delete `DeleteIcon` (error), Sync `SyncIcon` (info), PDF `DescriptionIcon` (info). A sweep may
   not invent a new icon for an existing role.
 - Icon-only buttons with **mandatory French tooltip + aria-label**, ≥44×44 touch target, `saveDisabled =
@@ -174,9 +179,10 @@ backend unchanged); this is pure presentational formatting.
 - **`specs/design-system-reference.md`** — the versioned reference: tokens table, typography roles,
   spacing scale, component catalogue with usage rules, do/don't. (Named `-reference`: macOS's
   case-insensitive filesystem forbids `DESIGN-SYSTEM.md` next to this file.) CLAUDE.md §7 points at it.
-- **`/design` page** (admin-only route) — live showcase: token swatches, type specimens, every generic
-  component in its states (loading/empty/error/toast/chips/dialogs/table). The page consumes the real theme
-  and real components — drift becomes visible immediately.
+- ~~**`/design` page** (admin-only route) — live showcase of tokens, type specimens and every generic
+  component in its states.~~ **Shipped in phases 1–2, removed on 2026-08-22** (see §1 Decisions): the design
+  system is an internal contract for whoever writes the code, not an operator-facing screen. The reference
+  doc above is now the only deliverable; token drift is guarded by the theme and component tests.
 
 ### 3.9 Phased delivery (one spec + one PR per phase)
 
@@ -208,8 +214,7 @@ the bar visible (§3.6)** · `useDirtyFormGuard` on save-flow pages.
 ## 4. Architecture
 
 > **Fat backend, thin frontend — unaffected.** This program is 100 % client-side presentation. No endpoint,
-> no payload, no business logic changes. The only server-adjacent note: `/design` is a client route gated by
-> the existing admin role (client-side gating is acceptable — it exposes no data, only component specimens).
+> no payload, no business logic changes.
 
 ### 4.1 Server side (`server/src/`)
 
@@ -226,12 +231,11 @@ the bar visible (§3.6)** · `useDirtyFormGuard` on save-flow pages.
 | `utils/` | `formatters.js` | 1 | `formatCurrency`, `displayDate` as the only formatters. |
 | `constants/` | `schoolHolidayZoneColors.js`, `calendarVisuals.js` | 1 | Resolve the ZONE_COLORS conflict (constants file wins). |
 | `components/` | `LoadingState`, `EmptyState`, `ErrorAlert`, `UnsavedChangesDialog`, `PlatformChip`, `ResponsiveTable`; fixes to `FormDialog`, `ConfirmDialog`, `DialogProvider` (+`useToast`), `DataPageScaffold`, `StatusBadge`; delete 4 dead files | 2 | The consolidated library. |
-| `pages/` | `DesignPage.js` (`/design`) | 1–2 | Living showcase. |
 | `App.js` | shell | 1, 2, 5 | ScrollToTop on route change (1); ErrorBoundary + NotFound (2); AppBar/Drawer tokens (5). |
 | `pages/*` | all 28 + Login + ForcedPasswordChange | 3–6 | Block sweeps per §3.9. |
 
 **Component reuse declaration:** phases 3-6 consume only phase-1/2 generics; any new generic discovered
-mid-sweep is added to the library + `/design` + DESIGN-SYSTEM.md in the same PR.
+mid-sweep is added to the library + `design-system-reference.md` in the same PR.
 
 ### 4.3 API contract
 
@@ -253,8 +257,8 @@ section C) — tokens in §3.1/§3.2. Key UX rules:
   the dense calendar surfaces the audit flagged as unverified).
 - French copy conventions unified during sweeps: save verb = « Enregistrer », add = « Ajouter » (+ noun),
   the two unsaved-changes wordings merge (§3.3).
-- `/design`: sections Tokens · Typographie · Couleurs sémantiques · Composants (each with its states) ·
-  Formats (monnaie, dates). Admin-only nav entry under Réglages.
+- Réglages carries no design-system entry: the reference lives in `specs/design-system-reference.md`,
+  read by whoever writes the code, never by the operator.
 
 ## 7. Test plan
 
