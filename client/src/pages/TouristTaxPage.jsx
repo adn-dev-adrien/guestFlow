@@ -181,7 +181,7 @@ export default function TouristTaxPage() {
                     <ResponsiveTable
                       items={property.reservations}
                       getKey={(row) => row.reservationId}
-                      minWidth={980}
+                      minWidth={1080}
                       emptyText="Aucune réservation directe sur ce logement pour le mois sélectionné."
                       head={(
                         <TableRow>
@@ -191,6 +191,9 @@ export default function TouristTaxPage() {
                           <TableCell sx={{ fontWeight: 600 }} align="right">Nuits</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Adultes</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Enfants</TableCell>
+                          {/* specs/tourist-tax-included-services-deduction.md rule 15 — the assiette the
+                              commune's percentage form asks for, straight from the fiche's own caption. */}
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Nuit HT / occupant</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Taxe séjour (client)</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Montant hébergement HT</TableCell>
                         </TableRow>
@@ -217,6 +220,9 @@ export default function TouristTaxPage() {
                           <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>
                           <TableCell align="right" sx={TABULAR}>{row.adults}</TableCell>
                           <TableCell align="right" sx={TABULAR}>{row.children ?? 0}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>
+                            {row.nightPricePerOccupantHt == null ? '—' : formatCurrency(row.nightPricePerOccupantHt)}
+                          </TableCell>
                           <TableCell align="right" sx={TABULAR}>{formatCurrency(row.taxAmount)}</TableCell>
                           <TableCell align="right" sx={TABULAR}>{formatCurrency(row.accommodationAmount)}</TableCell>
                         </TableRow>
@@ -234,6 +240,12 @@ export default function TouristTaxPage() {
                             <Typography variant="caption" sx={{ color: 'warning.main' }}>
                               {refundedTaxCaption(row)}
                             </Typography>
+                          )}
+                          {row.nightPricePerOccupantHt != null && (
+                            <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                              <Typography variant="caption" color="text.secondary">Nuit HT / occupant</Typography>
+                              <Typography variant="body2" sx={{ ...TABULAR }}>{formatCurrency(row.nightPricePerOccupantHt)}</Typography>
+                            </Stack>
                           )}
                           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
                             <Typography variant="caption" color="text.secondary">Taxe séjour (client)</Typography>

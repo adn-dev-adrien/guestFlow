@@ -89,3 +89,48 @@ test('create propagates the `offered` flag on default options into reservation_o
   const row = db.prepare('SELECT offered FROM reservation_options WHERE reservationId = ? AND optionId = 10').get(result.data.id);
   assert.equal(Number(row.offered), 1, '`offered` default = included in the price');
 });
+
+// ── update: an included service cannot be dropped ───────────────────────────────────────
+// specs/tourist-tax-included-services-deduction.md rules 4-5 — the devis has the same contract as
+// the fiche réservation: a property default marked « offerte » is included and mandatory, so a
+// payload that omits it is corrected rather than obeyed. Still bounded by what the devis carries
+// (specs/reservation-option-immutability.md rule 3).
+
+const UPDATE_BASE = { ...BASE, startDate: '2030-08-10', endDate: '2030-08-12' };
+
+test('update puts back an offered default the payload dropped', () => {
+  const { model, db } = freshModel();
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 10, 1)').run();
+  const devis = model.create({ ...UPDATE_BASE, selectedOptions: [] }).data;
+
+  model.update(devis.id, { ...UPDATE_BASE, selectedOptions: [{ optionId: 12, quantity: 1 }], offeredOptionIds: [] });
+
+  const rows = db.prepare('SELECT optionId, offered, totalPrice FROM reservation_options WHERE reservationId = ? ORDER BY optionId').all(devis.id);
+  assert.deepEqual(rows.map((r) => Number(r.optionId)), [10, 12]);
+  const included = rows.find((r) => Number(r.optionId) === 10);
+  assert.equal(Number(included.offered), 1, 'it comes back as « comprise », not billed');
+  assert.equal(Number(included.totalPrice), 0);
+});
+
+test('update does not add an offered default the devis never carried', () => {
+  const { model, db } = freshModel();
+  const devis = model.create({ ...UPDATE_BASE, selectedOptions: [{ optionId: 12, quantity: 1 }] }).data;
+  // The operator configures the default AFTER the devis was issued: it must not reach this one.
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 10, 1)').run();
+
+  model.update(devis.id, { ...UPDATE_BASE, selectedOptions: [{ optionId: 12, quantity: 1 }], offeredOptionIds: [] });
+
+  const ids = db.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?').all(devis.id).map((r) => Number(r.optionId));
+  assert.deepEqual(ids, [12]);
+});
+
+test('update leaves a BILLED default removable', () => {
+  const { model, db } = freshModel();
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 10, 0)').run();
+  const devis = model.create({ ...UPDATE_BASE, selectedOptions: [] }).data;
+
+  model.update(devis.id, { ...UPDATE_BASE, selectedOptions: [], offeredOptionIds: [] });
+
+  const ids = db.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?').all(devis.id).map((r) => Number(r.optionId));
+  assert.deepEqual(ids, [], 'a paid default is an ordinary option the operator may remove');
+});

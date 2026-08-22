@@ -22,6 +22,7 @@ const settingsModel = require('../models/settingsModel');
 const refundsModel = require('../models/refundsModel');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
+const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
 const platformsModel = require('../models/platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly } = require('../constants/roles');
@@ -380,6 +381,11 @@ function calculatePrice(req, res) {
     adults: req.body.adults,
     children: req.body.children,
     teens: req.body.teens,
+    // specs/tourist-tax-included-services-deduction.md rule 16 — a baby pays nothing but occupies the
+    // lodging, and the tourist tax divides the night by the OCCUPANTS. `create`/`update` have always
+    // passed it; this preview did not, so a stay with a cot showed one tax on screen and stored
+    // another — and the « Suivi taxe de séjour » declaration sided with the save.
+    babies: req.body.babies,
     babyBeds: req.body.babyBeds,
     // specs/baby-bed-supplement.md §3.3 rule 14 — the SAVED booking, whatever the state of its price
     // lock (an expired devis still keeps its cots free), so this preview shows what the save stores.
@@ -646,7 +652,27 @@ function update(req, res) {
   // re-merged here (they apply on CREATE only, see the create path above), so editing a
   // reservation never adds an option it did not already carry. Options the reservation does
   // carry are present in `rawUpdateOptions` and thus preserved.
-  const reservationOptions = rawUpdateOptions || [];
+  //
+  // specs/tourist-tax-included-services-deduction.md rules 4-5 — with ONE exception: a service
+  // included in the rate (a property default marked « offerte ») that the reservation carries
+  // cannot be dropped. The fiche locks its Switch ON; the server makes that a guarantee rather than
+  // a UI convention, so the declared tourist-tax base can never depend on a keystroke. Still bounded
+  // by what the reservation already carries — rule 3 above is untouched.
+  const restoredIncludedOptionIds = propertyId
+    ? carriedOfferedDefaultsToRestore({
+      propertyId,
+      carriedOptionIds: model.listCarriedOptionIds(id),
+      submittedOptionIds: (rawUpdateOptions || []).map((o) => Number(o.optionId)),
+      defaultsModel: propertyOptionDefaultsModel,
+    })
+    : [];
+  const reservationOptions = restoredIncludedOptionIds.length > 0
+    ? [...(rawUpdateOptions || []), ...restoredIncludedOptionIds.map((optionId) => ({ optionId, quantity: 1 }))]
+    : (rawUpdateOptions || []);
+  const updateOfferedOptionIds = Array.from(new Set([
+    ...((req.body.offeredOptionIds || []).map((optId) => Number(optId))),
+    ...restoredIncludedOptionIds,
+  ]));
   // Keep `req.body.options` in sync so the model layer downstream (which reads from req.body)
   // persists the submitted list.
   req.body.options = reservationOptions;
@@ -721,7 +747,7 @@ function update(req, res) {
     depositAmountOverride: req.body.depositAmountOverride,
     balanceAmount: req.body.balanceAmount,
     complementAmount: frozenComplementAmount,
-    offeredOptionIds: req.body.offeredOptionIds,
+    offeredOptionIds: updateOfferedOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
     // specs/tariff-recipes/spec.md §3.2 rule 12bis — replay the tariff the reservation was SOLD
     // under. « Utiliser les tarifs actuels » (refreshPricingToCurrent) drops it with the rest of the

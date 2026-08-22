@@ -111,3 +111,20 @@ test('sans remboursement de taxe, aucune mention ne s’affiche', async () => {
   expect(await screen.findByText('Jean Dupont')).toBeInTheDocument();
   expect(screen.queryByText(/remboursée/)).not.toBeInTheDocument();
 });
+
+// specs/tourist-tax-included-services-deduction.md rule 15 — the declaration reports the assiette the
+// commune's percentage form asks for, straight from the fiche. A per-day-per-person property has no
+// price in its tax at all, so the cell reads « — » rather than a misleading 0,00 €.
+test('« Nuit HT / occupant » renders the percentage-mode base, and « — » without one', async () => {
+  api.getTouristTaxExtraction.mockResolvedValue({
+    ...DATA,
+    reservations: [
+      { ...DATA.reservations[0], nightPricePerOccupantHt: 45.43 },
+      { ...DATA.reservations[1], nightPricePerOccupantHt: null },
+    ],
+  });
+  renderPage();
+  expect(await screen.findByRole('columnheader', { name: 'Nuit HT / occupant' })).toBeInTheDocument();
+  expect(screen.getByText('45,43 €')).toBeInTheDocument();
+  expect(screen.getByText('—')).toBeInTheDocument();
+});

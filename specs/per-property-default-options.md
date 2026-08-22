@@ -64,6 +64,12 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
    then renders it as **« Comprise »** with the hint *« incluse dans le tarif »* at **0,00 €**, instead of
    the green **« ✓ Offert »** + struck-through original price (which stays for a manually-offered line). If
    the operator un-offers the line (to bill it), it loses `includedInRate` and shows its real price.
+10. **« Comprise » is mandatory (2026-08-22).** Because such a line is part of the night rate — and,
+   since [tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md),
+   because its reference value leaves the declared tourist-tax base — it **cannot be removed from a
+   booking**: its Switch renders checked + disabled with the « Inclus » caption, and a save that omits
+   it is corrected server-side. Scoped to bookings that already carry it (an older reservation never
+   gains one) and to `offered = 1` defaults: a *billed* default stays an ordinary, removable option.
 
 **Edge cases:**
 - Removing a property from the option's applicable list (`propertyIds`) → its default row is cleared too

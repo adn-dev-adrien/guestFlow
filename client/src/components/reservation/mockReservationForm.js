@@ -75,6 +75,7 @@ export function makeMockContext(overrides = {}) {
     // by default. Tests that exercise the bed-linen card override these explicitly.
     firstEnabledBedLinenOptionId: null, bedLinenOptionEnabled: false,
     bedLinenForcedOptionIds: new Set(),
+    lockedIncludedOptionIds: new Set(),
     // finance
     isDevisMode: false, reservationId: null,
     refreshToCurrentPricing: vi.fn(),

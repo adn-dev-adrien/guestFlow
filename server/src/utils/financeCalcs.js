@@ -1,5 +1,9 @@
 // Pure finance calculation helpers, extracted verbatim from routes/finance.js.
-// Month assignment + accommodation-after-discount + tourist-tax glue. No DB, no req/res.
+// Month assignment + tourist-tax glue. No DB, no req/res.
+//
+// `computeAccommodationAmountAfterDiscount` used to live here: the « Suivi taxe de séjour » page
+// re-derived its own accommodation from SQL with it. It now replays the pricing engine instead
+// (specs/tourist-tax-included-services-deduction.md rule 14), so the helper had no caller left.
 
 const { computeTouristTaxBreakdown } = require('./pricing');
 
@@ -31,42 +35,6 @@ function isReservationAssignedToMonth({ endDate, monthBounds }) {
   return lastNightDate >= monthBounds.start && lastNightDate < monthBounds.endExclusive;
 }
 
-function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optionsTotal, resourcesTotal, finalPrice, accommodationVatRate, discountPercent = 0 }) {
-  const raw = Math.max(0, Number(accommodationRawAmount || 0));
-  const options = Math.max(0, Number(optionsTotal || 0));
-  const resources = Math.max(0, Number(resourcesTotal || 0));
-  const final = Math.max(0, Number(finalPrice || 0));
-  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
-  const vatRate = Math.max(0, Number(accommodationVatRate || 0));
-  const extras = options + resources;
-
-  // Finance adjustments act only on the accommodation base.
-  // If a discount is recorded, apply it to the accommodation raw amount.
-  // For historical rows without an explicit discount, keep the raw amount unless the final total
-  // looks like a recent accommodation+extras total (close to the raw amount after removing extras).
-  let resolvedAccommodationTtc = raw;
-  if (normalizedDiscountPercent > 0) {
-    resolvedAccommodationTtc = round2(raw * (1 - normalizedDiscountPercent / 100));
-  } else if (final > raw && final > 0 && extras > 0) {
-    const candidate = Math.max(0, final - extras);
-    const relativeFinal = raw > 0 ? final / raw : Infinity;
-    if (candidate > 0 && relativeFinal <= 1.5) {
-      resolvedAccommodationTtc = candidate;
-    }
-  }
-
-  const accommodationTtcAmount = round2(Math.max(0, resolvedAccommodationTtc));
-  const reductionAmount = round2(Math.max(0, raw - accommodationTtcAmount));
-  const vatDivisor = 1 + (vatRate / 100);
-  const accommodationHtAmount = round2(vatDivisor > 0 ? (accommodationTtcAmount / vatDivisor) : accommodationTtcAmount);
-  return {
-    accommodationRawAmount: round2(raw),
-    reductionAmount,
-    accommodationTtcAmount,
-    accommodationAmount: accommodationHtAmount,
-  };
-}
-
 function computeTouristTaxAmount({ nightsCount, adults, taxRate }) {
   const breakdown = computeTouristTaxBreakdown({
     touristTaxMode: 'per_day_per_person',
@@ -89,6 +57,5 @@ module.exports = {
   getMonthBounds,
   getLastNightDate,
   isReservationAssignedToMonth,
-  computeAccommodationAmountAfterDiscount,
   computeTouristTaxAmount,
 };

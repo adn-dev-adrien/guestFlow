@@ -2,12 +2,10 @@
 // renders only. Payment figures come from the shared computePaymentStatus authority.
 
 const db = require('../database');
-const { computeTouristTaxBreakdown } = require('../utils/pricing');
+const { calculateReservationQuote } = require('../utils/pricing');
+const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
-const {
-  getMonthBounds,
-  computeAccommodationAmountAfterDiscount,
-} = require('../utils/financeCalcs');
+const { getMonthBounds } = require('../utils/financeCalcs');
 const {
   isSettled, remainingToPay, platformCommission, midStayNotesTotal, refundsBook, comptaCollected,
 } = require('../utils/reservationSettlement');
@@ -719,44 +717,40 @@ function createFinanceModel(database) {
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
       `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
 
+      // specs/tourist-tax-included-services-deduction.md rule 14 — this page does NOT re-derive the
+      // tax from SQL any more: it REPLAYS THE PRICING ENGINE on each stay, from the very inputs the
+      // fiche replays (`buildReservationEngineInput`). It used to keep its own arithmetic —
+      // accommodation after discount, its own surcharge handling, its own base — and that arithmetic
+      // drifted: the same stay could be validated at 13,05 € on its fiche and declared 14,85 € here.
+      // One stay, one amount, one engine. What stays this page's own business is WHICH stays it lists
+      // (the attribution month, the payment gate, the platform mode) and the refunded-nights prorata.
+      const storedById = new Map(
+        (rows.length === 0 ? [] : database
+          .prepare(`SELECT * FROM reservations WHERE id IN (${rows.map(() => '?').join(', ')})`)
+          .all(...rows.map((row) => row.reservationId)))
+          .map((r) => [Number(r.id), r]),
+      );
+      // specs/tourist-tax-freeze-past-with-refresh.md — the fiche freezes the tax of a stay whose last
+      // night falls before the 1st of the current month and shows the stored amount. Same rule here,
+      // or the declaration of a past month would drift away from the fiches it declares.
+      const firstOfCurrentMonth = `${currentMonth}-01`;
+
       const reservations = rows
         .map((row) => {
+          const stored = storedById.get(Number(row.reservationId));
+          if (!stored) return null;
           const nightsCount = Number(row.nightsCount || 0);
           const adults = Number(row.adults || 0);
           const children = Number(row.children || 0);
           const teens = Number(row.teens || 0);
-          const babies = Number(row.babies || 0);
-          const accommodationMeta = computeAccommodationAmountAfterDiscount({
-            accommodationRawAmount: row.accommodationRawAmount,
-            optionsTotal: row.optionsTotal,
-            resourcesTotal: row.resourcesTotal,
-            finalPrice: row.finalPrice,
-            accommodationVatRate: row.accommodationVatRate,
-            discountPercent: row.discountPercent,
+          const isPastStay = String(row.lastNightDate || '') < firstOfCurrentMonth;
+          const quote = calculateReservationQuote({
+            ...buildReservationEngineInput(database, stored),
+            freezeTouristTax: isPastStay,
+            frozenTouristTaxTotal: stored.touristTaxTotal,
+            frozenTouristTaxRate: stored.touristTaxRate,
           });
-          const surchargePersonCount = adults + children + teens;
-          const includedGuests = Math.max(0, Number(row.basePriceIncludedGuests || 0));
-          const extraGuestCount = Math.max(0, surchargePersonCount - includedGuests);
-          const extraGuestUnitPrice = Math.max(0, Number(row.extraGuestPrice || 0));
-          const extraGuestSurcharge = Number(row.extraGuestSurchargeOffered || 0) === 1
-            ? 0
-            : round2(extraGuestCount * extraGuestUnitPrice);
-          const hasNightlyBreakdown = Number(row.nightlyBreakdownCount || 0) > 0;
-          const surchargeToExcludeFromReference = hasNightlyBreakdown ? 0 : extraGuestSurcharge;
-
-          const accommodationReferenceTtc = round2(Math.max(0, accommodationMeta.accommodationTtcAmount - surchargeToExcludeFromReference));
-          const touristTaxBreakdown = computeTouristTaxBreakdown({
-            touristTaxMode: row.touristTaxMode,
-            touristTaxPerDayPerPerson: row.propertyTaxRate,
-            touristTaxPercentage: row.touristTaxPercentage,
-            touristTaxDepartmentPercentage: row.touristTaxDepartmentPercentage,
-            touristTaxFixedAmount: row.touristTaxFixedAmount,
-            nights: nightsCount,
-            adults,
-            occupants: adults + children + teens + babies,
-            accommodationAmountTtc: accommodationReferenceTtc,
-            accommodationVatRate: row.accommodationVatRate,
-          });
+          const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
 
           // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
           // did not spend: that night leaves the declaration, and with it its taxable person-nights and
@@ -772,9 +766,11 @@ function createFinanceModel(database) {
           const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
           const declaredAdultNights = Math.max(
             0,
-            touristTaxBreakdown.touristTaxAdultsCount * Math.max(0, touristTaxBreakdown.touristTaxNights - refundedTaxNights),
+            Number(quote.touristTaxAdultsCount || 0) * Math.max(0, Number(quote.touristTaxNights || 0) - refundedTaxNights),
           );
-          const grossTaxAmount = round2(touristTaxBreakdown.touristTaxTotal);
+          // The tax the fiche shows: frozen on a past stay, recomputed live otherwise.
+          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0));
+          const grossAdultNights = Number(quote.touristTaxAdultsCount || 0) * Number(quote.touristTaxNights || 0);
           // Pro-rated on the nights: exact for the per-night modes, the natural share for the
           // percentage ones (where the tax isn't night-linear).
           const declaredTaxAmount = nightsCount > 0
@@ -799,16 +795,37 @@ function createFinanceModel(database) {
             // Net of the refunded nights — these are the figures to declare.
             nightsCount: declaredNights,
             adultNights: declaredAdultNights,
-            taxRate: touristTaxBreakdown.touristTaxUnitAmount,
+            // The per-adult-per-night rate the amount above actually reflects. Derived rather than
+            // read from the quote because a FROZEN stay pins `touristTaxUnitAmount` to the stored
+            // `touristTaxRate`, which on a percentage property holds the PERCENTAGE (5), not a rate
+            // in euros. Identical to the engine's value in every live case.
+            taxRate: grossAdultNights > 0
+              ? round2(grossTaxAmount / grossAdultNights)
+              : round2(Number(quote.touristTaxUnitAmount || 0)),
             taxAmount: declaredTaxAmount,
             // …and what was taken out, so the row can say why (spec §6, « ligne annotée »).
             refundedTaxNights,
             refundedTaxAmount,
-            accommodationRawAmount: accommodationMeta.accommodationRawAmount,
-            reductionAmount: accommodationMeta.reductionAmount,
-            accommodationAmount: accommodationMeta.accommodationAmount,
+            // In percentage mode this column IS the tax base (specs/reservation-refunds.md §6 already
+            // called it that): the accommodation the fiche divides by the nights, net of the services
+            // included in the rate, HT. Elsewhere no price enters the tax, so it stays the plain
+            // accommodation the guest was charged, HT.
+            accommodationAmount: isPercentageMode
+              ? round2(Number(quote.touristTaxPricePerNightHt || 0) * nightsCount)
+              : round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),
+            // What the rate covered and therefore left the BASE. Zero outside percentage mode, where
+            // there is no base for it to leave: the engine still computes it, it just plays no part.
+            includedServicesDeduction: isPercentageMode
+              ? round2(Number(quote.touristTaxIncludedInRateDeduction || 0))
+              : 0,
+            // What the commune's percentage form asks for: the cost of one night, per occupant, HT.
+            // Null outside percentage mode, where no price enters the tax at all.
+            nightPricePerOccupantHt: isPercentageMode
+              ? round2(Number(quote.touristTaxPerOccupantNightPriceHt || 0))
+              : null,
           };
         })
+        .filter(Boolean)
         // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
         // until nothing is left simply leaves the declaration — there is nothing to remit for it
         // (specs/reservation-refunds.md §3.5 rule 31).

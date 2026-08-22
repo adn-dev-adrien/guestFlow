@@ -115,6 +115,8 @@ export default function PricingSummary({
   const touristTaxUnitAmount = Number(quote?.touristTaxUnitAmount || 0);
   const touristTaxAdultsCount = Number(quote?.touristTaxAdultsCount || 0);
   const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
+  const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
+  const touristTaxBaseBeforeDeduction = Number(quote?.touristTaxBaseBeforeDeduction || 0);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
   const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -386,15 +388,10 @@ export default function PricingSummary({
                         </Typography>
                       )}
                       {/* specs/tariff-recipes/spec.md §3.9 rule 52bis — the first N units are covered
-                          by the rate: say how many, and what they are worth. */}
+                          by the rate: say how many here, what they are worth in the amount column. */}
                       {freeUnits > 0 && (
                         <Typography variant="caption" color="text.secondary" sx={{ width: '100%' }}>
-                          dont {freeUnits} inclus dans le tarif 
-                          {freeUnitsAmount > 0 && (
-                            <Box component="span" sx={{ textDecoration: 'line-through', ml: 0.5 }}>
-                              {formatCurrency(freeUnitsAmount)}
-                            </Box>
-                          )}
+                          dont {freeUnits} inclus dans le tarif
                         </Typography>
                       )}
                     </Box>
@@ -418,19 +415,32 @@ export default function PricingSummary({
                           {isIncludedInRate ? 'Comprise' : (isOffered ? '✓ Offert' : 'Offrir')}
                         </Button>
                       )}
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
-                          // Offered and included-in-rate alike: the real price, struck through.
-                          textDecoration: isOffered ? 'line-through' : 'none',
-                          opacity: isOffered ? 0.6 : 1,
-                          color: isOffered ? 'text.secondary' : 'inherit',
-                        }}
-                      >
-                        {formatCurrency(amount)}
-                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        {/* specs/welcome-pack-auto-options.md §6 — what the rate covers reads in the
+                            amount column, greyed and smaller, right above the 0,00 € it explains. */}
+                        {freeUnits > 0 && freeUnitsAmount > 0 && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ textDecoration: 'line-through', whiteSpace: 'nowrap', lineHeight: 1.2 }}
+                          >
+                            {formatCurrency(freeUnitsAmount)}
+                          </Typography>
+                        )}
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            // Offered and included-in-rate alike: the real price, struck through.
+                            textDecoration: isOffered ? 'line-through' : 'none',
+                            opacity: isOffered ? 0.6 : 1,
+                            color: isOffered ? 'text.secondary' : 'inherit',
+                          }}
+                        >
+                          {formatCurrency(amount)}
+                        </Typography>
+                      </Box>
                     </Box>
                   </Box>
                 );
@@ -649,6 +659,14 @@ export default function PricingSummary({
                   <Typography variant="caption" color="text.secondary">
                     Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
+                  {/* specs/tourist-tax-included-services-deduction.md rule 13 — the services sold
+                      inside the night rate are not the dry night: their reference value leaves the
+                      declared base. */}
+                  {touristTaxIncludedDeduction > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      Base : {formatCurrency(touristTaxBaseBeforeDeduction)} − {formatCurrency(touristTaxIncludedDeduction)} de prestations comprises
+                    </Typography>
+                  )}
                 </Box>
               )}
 
