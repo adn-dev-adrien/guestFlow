@@ -70,7 +70,7 @@ test('annuler une note : confirmation puis PATCH cancelMidStayNote + rechargemen
   const user = userEvent.setup();
   const ctx = renderFinance({ form: { midStaySettledNotes: NOTES } });
   await user.click(screen.getByRole('button', { name: /Voir l'historique/i }));
-  await user.click(screen.getAllByRole('button', { name: '✕' })[0]);
+  await user.click(screen.getAllByRole('button', { name: /Annuler l'encaissement/i })[0]);
 
   expect(await screen.findByText(/Les prestations redeviennent à percevoir/i)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /^Confirmer$|^Oui$|^Supprimer$/i }));

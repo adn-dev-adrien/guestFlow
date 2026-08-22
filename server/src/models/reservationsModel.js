@@ -33,6 +33,8 @@ const {
   buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, MID_STAY_SOURCE,
 } = require('../utils/midStayExtras');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
+const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
+const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 const bookingLinesModel = require('./bookingLinesModel');
 
@@ -201,6 +203,48 @@ function createReservationsModel(database) {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementDeferredToCheckout'); }
     catch { return false; }
   })();
+  // specs/adjustable-complement-amounts.md §3.1 rule 3 — '' / null = « no adjustment », i.e. the bucket
+  // keeps whatever the engine (or the sum of the lines) produces. `undefined` means « the caller
+  // didn't say », so the stored value is left alone; an explicit '' clears it.
+  const toOverride = (v) => (v === undefined ? undefined
+    : (v === null || v === '' || !Number.isFinite(Number(v)) ? null : Math.max(0, Number(v))));
+  function persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride } = {}) {
+    if (!HAS_COMPLEMENT_OVERRIDES) return;
+    const arrival = toOverride(complementAmountOverride);
+    const endOfStay = toOverride(endOfStayComplementAmountOverride);
+    if (arrival !== undefined) {
+      database.prepare("UPDATE reservations SET complementAmountOverride = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(arrival, reservationId);
+    }
+    if (endOfStay !== undefined) {
+      database.prepare("UPDATE reservations SET endOfStayComplementAmountOverride = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(endOfStay, reservationId);
+      // The adjustment materialises as a detail line, so the stored amount has to be rebuilt right
+      // away — and NOT through `syncMidStayComplement`, whose « already collected » guard would skip
+      // a correction made precisely because the money was collected wrong (§3.3 rule 22).
+      model.applyEndOfStayAdjustment(reservationId);
+    }
+  }
+
+  // specs/adjustable-complement-amounts.md §3.1 rule 4 + §3.2 — le montant annoncé a le dernier mot.
+  // Les SAS déplacent `complementAmount` EN DIRECT, hors moteur de prix (le commit du SAS arrivée qui
+  // ajoute ses lignes, « Offrir » qui en passe une à 0) : sans ce rappel, un passage au SAS effacerait
+  // silencieusement l'ajustement jusqu'au prochain enregistrement de la fiche, et la ventilation
+  // comptable stockée resterait accrochée à un montant qui n'existe plus.
+  // `autoAmount` = ce que le SAS vient d'écrire, c'est-à-dire le montant du moteur sans l'ajustement :
+  // c'est la base sur laquelle la ventilation se recalcule.
+  function reapplyComplementOverride(reservationId, autoAmount) {
+    if (!HAS_COMPLEMENT_OVERRIDES) return;
+    const row = database.prepare('SELECT complementAmount, complementAmountOverride FROM reservations WHERE id = ?').get(reservationId);
+    if (!row || row.complementAmountOverride == null) return;
+    const target = Math.max(0, round2(row.complementAmountOverride));
+    if (round2(row.complementAmount) !== target) {
+      database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(target, reservationId);
+    }
+    model.syncComplementAllocation(reservationId, { autoAmount });
+  }
+
   function persistComplementDeferred(reservationId, deferred) {
     if (!HAS_COMPLEMENT_DEFERRED) return;
     database.prepare("UPDATE reservations SET complementDeferredToCheckout = ?, updatedAt = datetime('now') WHERE id = ?")
@@ -284,22 +328,49 @@ function createReservationsModel(database) {
     catch { return false; }
   })();
 
+  // specs/adjustable-complement-amounts.md §3.3 — the operator's amount for the end-of-stay
+  // complement. Guarded like every other late column so minimal test schemas simply see « no
+  // adjustment » and behave exactly as before.
+  const HAS_COMPLEMENT_OVERRIDES = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+      return cols.includes('complementAmountOverride') && cols.includes('endOfStayComplementAmountOverride');
+    } catch { return false; }
+  })();
+  const HAS_COMPLEMENT_ALLOCATION = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementAllocation'); }
+    catch { return false; }
+  })();
+  function readEndOfStayOverride(reservationId) {
+    if (!HAS_COMPLEMENT_OVERRIDES) return null;
+    const row = database.prepare('SELECT endOfStayComplementAmountOverride FROM reservations WHERE id = ?').get(reservationId);
+    return row && row.endOfStayComplementAmountOverride != null ? Number(row.endOfStayComplementAmountOverride) : null;
+  }
+
   // Single write point for « the end-of-stay complement + its register »: the detail, the re-summed
   // amount and the notes always move together, so the remainder + register invariant can't drift.
   const writeEndOfStayDetail = (reservationId, detailLines, notes) => {
     // An OFFERED line (specs/sas-offer-complement-lines.md §3.3) is worth 0 € but must survive every
     // rewrite: it is the trace of the geste commercial and the only way to un-offer it on a re-open.
-    const lines = (detailLines || []).filter((l) => l && (round2(l.amount) > 0 || Number(l.offered || 0) === 1));
-    const amount = round2(lines.reduce((s, l) => s + Number(l.amount || 0), 0));
+    // The « Ajustement » line is filtered out here on purpose: it is not a real line, it is recomputed
+    // just below from whatever the real ones now weigh.
+    const real = (detailLines || [])
+      .filter((l) => l && !isAdjustmentLine(l))
+      .filter((l) => round2(l.amount) > 0 || Number(l.offered || 0) === 1);
+    // specs/adjustable-complement-amounts.md §3.3 rule 20 — every path that rewrites the detail goes
+    // through here, so the operator's adjustment is re-applied by all of them: the mid-stay sync of a
+    // fiche save, settling or cancelling a note, offering a line, a departure-SAS re-run.
+    const { lines, amount } = reconcileEndOfStayLines({ lines: real, override: readEndOfStayOverride(reservationId) });
     const detailJson = lines.length ? JSON.stringify(lines) : null;
     if (!HAS_MID_STAY_NOTES) {
       database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(amount, detailJson, reservationId);
-      return;
+      return amount;
     }
     database.prepare(`UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?,
                              midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?`)
       .run(amount, detailJson, (notes && notes.length) ? JSON.stringify(notes) : null, reservationId);
+    return amount;
   };
   // Resources live in their own pair of tables, absent from the minimal SAS test schemas — guarded so
   // an offer run there simply has no resource line to look at.
@@ -389,6 +460,9 @@ function createReservationsModel(database) {
     if (delta === 0) return;
     const next = Math.max(0, round2(Number(frozen.complementAmount || 0) + delta));
     database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
+    // Offrir une ligne change la COMPOSITION du complément, pas le montant annoncé : l'ajustement
+    // reprend la main, et sa ventilation se recalcule sur les lignes qui restent.
+    reapplyComplementOverride(reservationId, next);
   };
 
   // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11). Guarded
@@ -671,6 +745,20 @@ function createReservationsModel(database) {
       reservation.complementAmount = Number(reservation.complementAmount || 0);
       reservation.complementPaid = Number(reservation.complementPaid || 0);
       reservation.complementPaidDate = reservation.complementPaidDate || null;
+      // specs/adjustable-complement-amounts.md §3.1 — '' when the bucket is on automatic, a number when
+      // the operator froze it; mirrors `depositAmountOverride` so the form fields repopulate on load.
+      reservation.complementAmountOverride = reservation.complementAmountOverride == null
+        ? '' : Number(reservation.complementAmountOverride);
+      reservation.endOfStayComplementAmountOverride = reservation.endOfStayComplementAmountOverride == null
+        ? '' : Number(reservation.endOfStayComplementAmountOverride);
+      // What the end-of-stay complement is worth WITHOUT the adjustment — the « Calcul auto (X €) »
+      // hint. Its arrival twin comes from the live quote (`complementAmountAuto`), which the fiche
+      // already refreshes on every keystroke.
+      reservation.endOfStayComplementAmountAuto = round2(
+        parseDetailLines(reservation.endOfStayComplementDetail)
+          .filter((l) => !isAdjustmentLine(l))
+          .reduce((sum, l) => sum + Number(l.amount || 0), 0),
+      );
       const payment = computePaymentStatus(reservation);
       reservation.remainingDue = payment.remainingDue;
       reservation.paymentComplete = payment.paymentComplete;
@@ -705,10 +793,28 @@ function createReservationsModel(database) {
       // specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-7 — the single « complément de fin
       // de séjour » the fiche renders when the operator deferred the arrival complement to check-out.
       // Server-built (amount + detail lines + paid state) so the client only renders it.
-      reservation.checkoutComplement = buildCheckoutComplement(
-        reservation,
-        arrivalComplementDetailFromReservation(reservation),
-      );
+      const arrivalDetail = arrivalComplementDetailFromReservation(reservation);
+      reservation.checkoutComplement = buildCheckoutComplement(reservation, arrivalDetail);
+      // specs/adjustable-complement-amounts.md §3.6 — everything the fiche needs to render the
+      // adjustment field: the floor it may not go under (the tourist tax + the accommodation auto-gap,
+      // neither of which an adjustment ever touches) and the ventilation the accounting will book,
+      // ready to display. Decided here, rendered there.
+      const storedAllocation = parseComplementAllocation(reservation.complementAllocation);
+      const posteBase = splitComplementByPoste(arrivalDetail.detail, reservation.complementAmount);
+      const accommodationShare = storedAllocation ? storedAllocation.accommodation : posteBase.accommodation;
+      reservation.complementAdjustment = {
+        floor: round2(accommodationShare + posteBase.tax),
+        accommodation: accommodationShare,
+        tax: posteBase.tax,
+        allocation: storedAllocation
+          ? [
+            { label: 'Hébergement', amount: storedAllocation.accommodation, locked: true },
+            { label: 'Prestations', amount: storedAllocation.options },
+            { label: 'Activités', amount: storedAllocation.resources },
+            { label: 'Taxe de séjour', amount: posteBase.tax, locked: true },
+          ].filter((poste) => poste.amount > 0)
+          : null,
+      };
       // specs/dashboard-collection-alert.md §4.3 — the day-of-operations « what's left to collect at
       // the door » block the Dashboard rows render. Deliberately NOT in the reception payload: the
       // receptionView whitelist drops it (it carries the acompte/solde states).
@@ -1084,7 +1190,8 @@ function createReservationsModel(database) {
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
         clientGrossAmount, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
-        depositDisabled, touristTaxInComplement, depositAmountOverride } = payload;
+        depositDisabled, touristTaxInComplement, depositAmountOverride,
+        complementAmountOverride, endOfStayComplementAmountOverride } = payload;
       // specs/normalize-platform-names.md §3.2 rule 9 — `reservations.platform` is normalized
       // to UpperCamelCase here so direct DB queries (`SELECT DISTINCT platform`) yield a
       // case-uniform set. The 'direct' enum stays lowercase (formatPlatformName preserves it).
@@ -1152,6 +1259,7 @@ function createReservationsModel(database) {
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistReservationNumber(result.lastInsertRowid, payload);
       persistEmailLanguage(result.lastInsertRowid, payload);
+      persistComplementOverrides(result.lastInsertRowid, { complementAmountOverride, endOfStayComplementAmountOverride });
       return result.lastInsertRowid;
     },
 
@@ -1162,7 +1270,8 @@ function createReservationsModel(database) {
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
         extraGuestSurchargeOffered, clientGrossAmount, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
         complementPaid, complementPaidDate,
-        depositDisabled, touristTaxInComplement, depositAmountOverride } = payload;
+        depositDisabled, touristTaxInComplement, depositAmountOverride,
+        complementAmountOverride, endOfStayComplementAmountOverride } = payload;
       // specs/normalize-platform-names.md §3.2 rule 9 — same canonicalization as insertReservation.
       const platformNormalized = formatPlatformName(platform) || 'direct';
       const platformIsNonDirect = String(platformNormalized).toLowerCase() !== 'direct';
@@ -1225,6 +1334,7 @@ function createReservationsModel(database) {
       persistBreakfastTime(reservationId, payload);
       persistReservationNumber(reservationId, payload);
       persistEmailLanguage(reservationId, payload);
+      persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
     },
 
     // `inComplement` is carried on every write, authoritative as resolved by the pricing engine
@@ -1518,8 +1628,7 @@ function createReservationsModel(database) {
       if (!row) return false;
       const cleaned = dropBathLinenGhost(row.endOfStayComplementDetail);
       if (!cleaned) return false;
-      database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
-        .run(cleaned.amount, cleaned.detail.length ? JSON.stringify(cleaned.detail) : null, reservationId);
+      writeEndOfStayDetail(reservationId, cleaned.detail, model.getMidStaySettledNotes(reservationId));
       return true;
     },
 
@@ -1858,6 +1967,165 @@ function createReservationsModel(database) {
       return tx();
     },
 
+    /**
+     * specs/adjustable-complement-amounts.md §3.4 — edit a note of the mid-stay register in place:
+     * its amount, its payment date, its CB / caisse-interne mode.
+     *
+     * The bucket « durant le séjour » is not an amount but a register, so the adjustable unit is the
+     * NOTE: `Σ notes` must keep matching what the card shows. Lowering a note therefore does not
+     * destroy money — it hands it back to what is still to collect at check-out, exactly the move
+     * « annuler la note » already makes. The prestations themselves are never un-sold (rule 26): to
+     * really write the money off, the operator offers the line in the departure SAS.
+     *
+     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED
+     */
+    adjustMidStayNote(reservationId, { id, total, paidDate, cash } = {}) {
+      if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+      const tx = database.transaction(() => {
+        const row = database.prepare(`SELECT endOfStayComplementDetail, endOfStayComplementPaid,
+                                             endOfStayComplementPaidCash, midStaySettledNotes
+                                        FROM reservations WHERE id = ?`).get(reservationId);
+        if (!row) throw midStayError('NOTE_NOT_FOUND', 'Réservation introuvable.');
+        if (Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1) {
+          throw midStayError('END_OF_STAY_SETTLED', 'Le complément de fin de séjour est déjà encaissé.');
+        }
+        const notes = parseNotes(row.midStaySettledNotes);
+        const note = notes.find((n) => Number(n.id) === Number(id));
+        if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+
+        if (paidDate !== undefined) note.paidDate = paidDate || note.paidDate;
+        if (cash !== undefined) note.paidCash = cash ? 1 : 0;
+
+        // Date / mode only: nothing moves between the note and the remainder.
+        if (total === undefined || total === null || total === '') {
+          writeEndOfStayDetail(reservationId, parseDetailLines(row.endOfStayComplementDetail), notes);
+          return note;
+        }
+
+        const nextTotal = round2(total);
+        if (!Number.isFinite(nextTotal) || nextTotal <= 0) {
+          throw midStayError('NOTE_AMOUNT_INVALID', 'Montant de note invalide. Pour annuler l\'encaissement, supprimez la note.');
+        }
+
+        const detail = parseDetailLines(row.endOfStayComplementDetail);
+        const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);
+        // Remaining amount per key, aggregated — same shape `cancelMidStayNote` builds.
+        const midByKey = new Map();
+        const give = (line) => {
+          const key = line.key || extraLineKey(line);
+          const prev = midByKey.get(key);
+          midByKey.set(key, {
+            label: (prev && prev.label) || line.label,
+            unitPrice: Number((prev && prev.unitPrice) || line.unitPrice || 0),
+            amount: round2((prev ? prev.amount : 0) + Number(line.amount || 0)),
+            key,
+          });
+        };
+        for (const line of detail.filter((l) => l.source === MID_STAY_SOURCE)) give(line);
+        // Hand the note's own lines back first: raising a note may legitimately re-take them.
+        const noteKeys = [];
+        for (const line of (note.lines || [])) {
+          const key = line.key || extraLineKey(line);
+          if (!noteKeys.includes(key)) noteKeys.push(key);
+          give(line);
+        }
+
+        const available = round2(noteKeys.reduce((sum, key) => sum + Number((midByKey.get(key) || {}).amount || 0), 0));
+        if (nextTotal > round2(available + 0.005)) {
+          throw midStayError('NOTE_AMOUNT_INVALID', `Montant supérieur au reste à percevoir sur ces prestations (${available} €).`);
+        }
+
+        // Re-consume the new total over the note's own keys, in their original order.
+        const noteLines = [];
+        let left = nextTotal;
+        for (const key of noteKeys) {
+          if (left <= 0) break;
+          const pool = midByKey.get(key);
+          if (!pool || pool.amount <= 0) continue;
+          const part = round2(Math.min(pool.amount, left));
+          pool.amount = round2(pool.amount - part);
+          left = round2(left - part);
+          const { source, ...noteLine } = buildMidStayLine({ label: pool.label, unitPrice: pool.unitPrice, amount: part, key });
+          noteLines.push(noteLine);
+        }
+        note.lines = noteLines;
+        note.total = round2(noteLines.reduce((sum, l) => sum + Number(l.amount || 0), 0));
+
+        const nextMidLines = [...midByKey.values()]
+          .filter((l) => round2(l.amount) > 0)
+          .map((l) => buildMidStayLine(l));
+        writeEndOfStayDetail(reservationId, [...sasLines, ...nextMidLines], notes);
+        return note;
+      });
+      return tx();
+    },
+
+    // specs/defer-arrival-complement-to-checkout.md §3.3 rules 12-14 — the fiche writes the very same
+    // marker the arrival SAS recap writes. One column, two entry points, last gesture wins.
+    setComplementDeferredToCheckout(reservationId, deferred) {
+      persistComplementDeferred(reservationId, deferred);
+    },
+
+    // specs/adjustable-complement-amounts.md §3.3 rule 22 — re-run the single write point on the
+    // CURRENT lines so the « Ajustement » line is rebuilt. Deliberately without `syncMidStayComplement`'s
+    // « already collected » guard: adjusting an amount that was collected wrong is the main use case.
+    applyEndOfStayAdjustment(reservationId) {
+      const row = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return;
+      writeEndOfStayDetail(reservationId, parseDetailLines(row.endOfStayComplementDetail), model.getMidStaySettledNotes(reservationId));
+    },
+
+    // specs/adjustable-complement-amounts.md §3.6 rule 36 — the accounting ventilation of an ADJUSTED
+    // arrival complement, decided here (by the fiche, at save time) and stored, so the export reads it
+    // verbatim instead of deriving it. `autoAmount` is the complement the engine produced BEFORE the
+    // adjustment: the postes are those of the auto complement, only their weights move.
+    // No adjustment → the column is cleared and the export derives as it always has.
+    syncComplementAllocation(reservationId, { autoAmount } = {}) {
+      if (!HAS_COMPLEMENT_ALLOCATION || !HAS_COMPLEMENT_OVERRIDES) return null;
+      const row = database.prepare('SELECT complementAmountOverride, complementAmount FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+      if (row.complementAmountOverride == null) {
+        database.prepare('UPDATE reservations SET complementAllocation = NULL WHERE id = ?').run(reservationId);
+        return null;
+      }
+      const reservation = model.getByIdWithDetails(reservationId);
+      if (!reservation) return null;
+      const auto = autoAmount != null ? Number(autoAmount) : Number(row.complementAmount || 0);
+      const base = splitComplementByPoste(arrivalComplementDetailFromReservation(reservation).detail, auto);
+      const allocation = allocateComplementAdjustment({ target: Number(row.complementAmount || 0), ...base });
+      // §3.6 règle 33 — le plancher est une règle serveur, pas une politesse du champ : un ajustement
+      // sous `hébergement + taxe` est remonté au plancher AVANT d'être stocké. Sans ça, la somme des
+      // postes (bornée, elle) dépasserait le montant stocké et l'écart repartirait dans la ligne de
+      // résidu de l'export — précisément ce que la règle 37 interdit.
+      if (allocation.floored) {
+        database.prepare("UPDATE reservations SET complementAmount = ?, complementAmountOverride = ?, updatedAt = datetime('now') WHERE id = ?")
+          .run(allocation.total, allocation.total, reservationId);
+      }
+      const stored = {
+        accommodation: allocation.accommodation,
+        options: allocation.options,
+        resources: allocation.resources,
+        tax: allocation.tax,
+        // Le montant que le moteur produisait avant l'ajustement : l'export s'en sert comme
+        // dénominateur de son gross-up, pour ne pas re-gonfler une baisse volontaire (§3.6 règle 37).
+        auto: round2(auto),
+      };
+      database.prepare('UPDATE reservations SET complementAllocation = ? WHERE id = ?')
+        .run(JSON.stringify(stored), reservationId);
+      return allocation;
+    },
+
+    // The floor an arrival-complement adjustment may not go under: the tourist tax + the accommodation
+    // auto-gap, neither of which an adjustment ever touches (§3.6 rules 32-34). Returned to the client
+    // so the field can refuse the value with a reason instead of silently clamping it.
+    complementAdjustmentFloor(reservationId, autoAmount) {
+      const reservation = model.getByIdWithDetails(reservationId);
+      if (!reservation) return null;
+      const auto = autoAmount != null ? Number(autoAmount) : Number(reservation.complementAmount || 0);
+      const base = splitComplementByPoste(arrivalComplementDetailFromReservation(reservation).detail, auto);
+      return { ...base, floor: round2(base.accommodation + base.tax) };
+    },
+
     // Rewrite the mid-stay lines of the end-of-stay complement and re-total it. Frozen once that
     // complement is collected (§3.5 rule 18): an amount already in the till is never re-priced.
     // `midStayLines` = the REMAINDER computed by the engine (what the notes have not collected).
@@ -2095,6 +2363,8 @@ function createReservationsModel(database) {
 
           const next = Math.max(0, Math.round((Number(compRow.complementAmount || 0) - priorSum + added) * 100) / 100);
           database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
+          // Le SAS a écrit son montant hors moteur : rendre la main à l'ajustement de l'opérateur.
+          reapplyComplementOverride(reservationId, next);
         } else if (compRow && sales) {
           // The arrival complement is already collected, and a collected complement never moves again
           // (specs/frozen-complement-trusts-client.md). Selling now is therefore a sale made DURING the
@@ -2250,11 +2520,9 @@ function createReservationsModel(database) {
               : { repairKey, label: row.label, qty, amount: lineAmount });
           }
         }
-        const detail = [...baseDetail, ...extinguisherLines]
-          .filter((l) => l && (round2(l.amount) > 0 || Number(l.offered || 0) === 1));
-        const amount = Math.max(0, Math.round(detail.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 100) / 100);
-        database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
-          .run(amount, detail.length ? JSON.stringify(detail) : null, reservationId);
+        // specs/adjustable-complement-amounts.md §3.3 rule 20 — through the single write point, so a
+        // re-run of the departure SAS re-applies the operator's adjustment instead of erasing it.
+        const amount = writeEndOfStayDetail(reservationId, [...baseDetail, ...extinguisherLines], model.getMidStaySettledNotes(reservationId));
 
         // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rules 4-5 — « Compléments encaissés »
         // confirmation on the departure recap. Tri-state (same contract as the caution). When ON, mark

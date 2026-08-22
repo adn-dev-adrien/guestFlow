@@ -184,8 +184,9 @@ export default function ReservationPage() {
   // the operator's editable draft), it is replaced wholesale by whatever the API returns.
   const [refundRegister, setRefundRegister] = useState(EMPTY_REFUND_REGISTER);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
-  // Bumped after a refund mutation so the live-quote effect re-runs and the « total de séjour »
-  // (net of refunds, computed server-side) refreshes.
+  // Bumped after any server-side finance mutation the live quote depends on — un remboursement, une
+  // note en séjour, le report du complément en fin de séjour — pour que l'effet de devis re-tourne et
+  // que le « total de séjour » et le split des compléments suivent.
   const [refundsVersion, setRefundsVersion] = useState(0);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
@@ -335,6 +336,12 @@ export default function ReservationPage() {
     // Manual deposit override (specs/editable-deposit-amount.md). '' = automatic (percentage);
     // a number freezes the deposit and lets the solde absorb tariff changes.
     depositAmountOverride: '',
+    // Operator-set complement amounts (specs/adjustable-complement-amounts.md §3.1). '' = automatic;
+    // a number freezes the bucket at what was announced to the guest.
+    complementAmountOverride: '',
+    endOfStayComplementAmountOverride: '',
+    endOfStayComplementAmountAuto: 0,
+    complementAdjustment: null,
     depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
@@ -451,6 +458,9 @@ export default function ReservationPage() {
     complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
     // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
     depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+    // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+    // every save, so the preview, the fiche total and the stored amount can never disagree.
+    complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
     depositDisabled: Boolean(form.depositDisabled),
     // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
     // extras line is routed to the Complément server-side at save. We mirror that bit here
@@ -501,7 +511,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-freeze-past-with-refresh.md — `freezeTouristTax` MUST be a dependency: the
     // « Recalculer » button flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
@@ -794,6 +804,12 @@ export default function ReservationPage() {
             // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
             complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
             checkoutComplement: res.checkoutComplement || null,
+            // specs/adjustable-complement-amounts.md §3.1 — '' when the bucket is on automatic.
+            complementAmountOverride: res.complementAmountOverride == null ? '' : res.complementAmountOverride,
+            endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,
+            endOfStayComplementAmountAuto: Number(res.endOfStayComplementAmountAuto || 0),
+            // specs/adjustable-complement-amounts.md §3.6 — plancher + ventilation prêts à rendre.
+            complementAdjustment: res.complementAdjustment || null,
             platformCommissionAmount: res.platformCommissionAmount == null || res.platformCommissionAmount === '' ? '' : res.platformCommissionAmount,
             acompteCommissionAmount: res.acompteCommissionAmount == null || res.acompteCommissionAmount === '' ? '' : res.acompteCommissionAmount,
             platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
@@ -906,6 +922,10 @@ export default function ReservationPage() {
             midStaySettledNotes: null,
             complementDeferredToCheckout: false,
             checkoutComplement: null,
+            complementAmountOverride: '',
+            endOfStayComplementAmountOverride: '',
+            endOfStayComplementAmountAuto: 0,
+            complementAdjustment: null,
             platformCommissionAmount: '',
             acompteCommissionAmount: '',
             platformGrossAmount: '',
@@ -1025,6 +1045,10 @@ export default function ReservationPage() {
             midStaySettledNotes: null,
             complementDeferredToCheckout: false,
             checkoutComplement: null,
+            complementAmountOverride: '',
+            endOfStayComplementAmountOverride: '',
+            endOfStayComplementAmountAuto: 0,
+            complementAdjustment: null,
             platformCommissionAmount: '',
             acompteCommissionAmount: '',
             platformGrossAmount: '',
@@ -1166,6 +1190,9 @@ export default function ReservationPage() {
           complementPaid: form.complementPaid,
           depositAmount: form.depositAmount,
           depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+          // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+          // every save, so the preview, the fiche total and the stored amount can never disagree.
+          complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
           balanceAmount: form.balanceAmount,
           depositDisabled: Boolean(form.depositDisabled),
           selectedOptions: buildSelectedOptionsPayload(),
@@ -1916,6 +1943,9 @@ export default function ReservationPage() {
         complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
         depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+        // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+        // every save, so the preview, the fiche total and the stored amount can never disagree.
+        complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
         balanceAmount: form.balanceAmount,
         depositDisabled: Boolean(form.depositDisabled),
         selectedOptions: buildSelectedOptionsPayload(),
@@ -2048,6 +2078,9 @@ export default function ReservationPage() {
         complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
         depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+        // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+        // every save, so the preview, the fiche total and the stored amount can never disagree.
+        complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
         balanceAmount: form.balanceAmount,
         depositDisabled: Boolean(form.depositDisabled),
         selectedOptions: buildSelectedOptionsPayload(),
@@ -2209,6 +2242,10 @@ export default function ReservationPage() {
           depositDueDate: quote.depositDueDate,
           // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
           depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+          // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+          // every save, so the preview, the fiche total and the stored amount can never disagree.
+          complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
+          endOfStayComplementAmountOverride: form.endOfStayComplementAmountOverride === '' ? null : Number(form.endOfStayComplementAmountOverride),
           // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
           // When ON, depositPaid + depositPaidDate are force-zeroed both client-side here
           // and server-side in reservationsController.update.
@@ -2280,6 +2317,10 @@ export default function ReservationPage() {
           depositDueDate: quote.depositDueDate,
           // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
           depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
+          // specs/adjustable-complement-amounts.md §3.2 — the operator's complement rides every quote and
+          // every save, so the preview, the fiche total and the stored amount can never disagree.
+          complementAmountOverride: form.complementAmountOverride === '' ? null : Number(form.complementAmountOverride),
+          endOfStayComplementAmountOverride: form.endOfStayComplementAmountOverride === '' ? null : Number(form.endOfStayComplementAmountOverride),
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
@@ -2453,7 +2494,16 @@ export default function ReservationPage() {
       endOfStayComplementDetail: res.endOfStayComplementDetail || null,
       midStaySettledNotes: res.midStaySettledNotes || null,
       checkoutComplement: res.checkoutComplement || null,
+      complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
+      endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,
+      endOfStayComplementAmountAuto: Number(res.endOfStayComplementAmountAuto || 0),
+      complementAdjustment: res.complementAdjustment || null,
     }));
+    // Le devis live dépend de l'état serveur qu'on vient de changer (report du complément, note
+    // encaissée / ajustée) : sans ce rafraîchissement, le panneau de droite garderait l'ancien split
+    // pendant que la carte affiche déjà le nouveau (specs/defer-arrival-complement-to-checkout.md
+    // §3.3 rule 16).
+    setRefundsVersion((v) => v + 1);
   }, [editingReservationId]);
 
   // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the

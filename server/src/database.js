@@ -2092,6 +2092,18 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
                AND COALESCE(complementAmount, 0) > 0
                AND COALESCE(complementPaid, 0) = 0`);
   }
+  // Operator-set complement amounts (specs/adjustable-complement-amounts.md §3.2/§3.3). NULL = the
+  // engine (or the sum of the detail lines) decides, i.e. today's behaviour. A value freezes the
+  // bucket at what was ANNOUNCED to the guest, even after collection — the whole point of the
+  // feature: once the word is given, that is the money that changes hands.
+  if (!rcols.includes('complementAmountOverride')) db.exec("ALTER TABLE reservations ADD COLUMN complementAmountOverride REAL");
+  if (!rcols.includes('endOfStayComplementAmountOverride')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementAmountOverride REAL");
+  // Accounting ventilation of an ADJUSTED arrival complement (§3.6 rule 36): JSON
+  // `{"accommodation":0,"options":19.54,"resources":55.86}`, TTC per poste, decided by the fiche at
+  // save time. The export reads it verbatim instead of deriving it, so the credits sum to the
+  // adjusted debit by construction. NULL → derived as before, i.e. nothing changes for every
+  // reservation nobody adjusts.
+  if (!rcols.includes('complementAllocation')) db.exec("ALTER TABLE reservations ADD COLUMN complementAllocation TEXT");
   // Extras as they stood when the STAY STARTED (specs/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1): JSON `{ "opt:9": 24, "res:3": 30, "custom:linge manquant": 18 }`. Whatever exceeds this
   // baseline was sold during the stay and is billed in the end-of-stay complement instead of the
