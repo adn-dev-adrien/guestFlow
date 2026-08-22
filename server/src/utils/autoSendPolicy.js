@@ -2,8 +2,9 @@
  * Automatic-send policy — the single place that answers « may GuestFlow mail a guest with nobody in
  * the loop? » (specs/no-automatic-email-without-approval.md §3 rule 1).
  *
- * Three callers ask, and none of them re-reads the setting themselves:
- *   - `utils/emailAutoSendRunner`   — the daily 08:00 pass;
+ * Four callers ask, and none of them re-reads the setting themselves:
+ *   - `utils/emailAutoSendScheduler` — decides whether the daily 08:00 pass is scheduled at all;
+ *   - `utils/emailAutoSendRunner`   — the pass itself, guarding again on the way in;
  *   - `utils/paymentEffectDeps`     — the confirmation email fired by a confirmed online payment;
  *   - `controllers/emailsController` + `controllers/emailTemplatesController` — which flip the
  *     pending queue and the templates list to their « proposed, not sent » shape.

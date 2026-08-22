@@ -1,6 +1,7 @@
 /**
- * Email auto-send runner — invoked by the daily 08:00 cron (specs/email-automation.md
- * §3 rule 7). Iterates every enabled `auto` template + every matching reservation;
+ * Email auto-send runner — invoked by the daily 08:00 pass that `utils/emailAutoSendScheduler`
+ * schedules (specs/email-automation.md §3 rule 7). Iterates every enabled `auto` template + every
+ * matching reservation;
  * skips pairs that already produced a `sent` row in `email_log`; renders + sends + logs.
  *
  * Pure orchestration — DB, SMTP and renderer all injected so the test harness can swap
@@ -45,6 +46,9 @@ async function performAutoEmailPass(deps) {
   // a no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
   // row is written. The day's due templates are not lost — `emailLogModel.listPending` surfaces them
   // in the « à valider » queue instead, where one click sends them.
+  // Defence in depth since rule 2b: the scheduler does not register a timer while the switch is off,
+  // so nothing should reach this guard. It stays because a pass that mails guests must decide for
+  // itself, whatever scheduled it — and the caller shuts the timer down on `blocked`.
   if (!autoSendAllowed(settingsModel)) {
     return { blocked: true, sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
   }

@@ -7,6 +7,7 @@
 | **Created** | 2026-08-20 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+| **Amended** | 2026-08-22 — `feature/email-auto-send-scheduler`: rule 2b, no timer at all while the switch is off |
 
 ---
 
@@ -14,7 +15,8 @@
 
 GuestFlow can currently mail a guest with nobody in the loop. Two code paths do it:
 
-1. **The 08:00 cron.** `scheduledTasks.tickEmailAutoSend` → `utils/emailAutoSendRunner.performAutoEmailPass`
+1. **The 08:00 cron.** The per-minute tick in `scheduledTasks` (since the 2026-08-22 amendment:
+   `utils/emailAutoSendScheduler`) → `utils/emailAutoSendRunner.performAutoEmailPass`
    iterates every **enabled** template whose `sendMode = 'auto'`, matches it against the day's
    reservations (anchors `start`, `depositDueDate`, `balanceDueDate`), renders it and ships it over SMTP.
    There is **no global gate**: the pass runs on every install, every day.
@@ -50,6 +52,13 @@ in one click.
 2. When the flag is **OFF**, the 08:00 cron sends nothing: `performAutoEmailPass` returns immediately
    with `{ blocked: true, sentCount: 0, skippedCount: 0, failedCount: 0, results: [] }`. No template
    is rendered, no SMTP connection is opened, no `email_log` row is written.
+2b. When the flag is **OFF**, that pass is **not scheduled at all**. No `setInterval`, no boot timer,
+   no per-minute settings read, no log line — a feature nobody authorised must not tick.
+   `utils/emailAutoSendScheduler` registers the timer only while the flag is ON, and
+   `settingsController` re-syncs it on every write of the switch: authorising automatic sending takes
+   effect immediately, without a restart, and revoking it clears the timer just as promptly. Rule 2's
+   guard inside `performAutoEmailPass` stays, as defence in depth — a pass that mails guests decides
+   for itself, whatever scheduled it.
 3. When the flag is **OFF**, an enabled `auto` template whose send date has come surfaces in the
    pending « à valider » list (dashboard widget + Emails page) exactly like a `manual` one: same
    preview, same one-click send, same acknowledge/mark-sent actions. Nothing is lost, nothing is sent.
@@ -74,17 +83,18 @@ in one click.
    banner explains that automatic sending is disabled, and every enabled template in « Automatique »
    mode carries a warning chip. The mode itself stays selectable — turning the flag back on must not
    require re-editing templates.
-9. A blocked pass does **not** consume the day's cron slot. The 08:00 pass runs once per local day;
-   if it was blocked, the guard is released so that authorising automatic sending later the same day
-   lets the next tick run the real pass — rather than waiting for tomorrow, by which point today's
+9. Authorising automatic sending part-way through a day takes effect **that day**. The pass runs once
+   per local day, on the first tick at or after 08:00, and a server that was down at 08:00 catches up
+   on any later tick. When the operator turns the switch on at 14:00, the scheduler starts *and* runs
+   the day's pass straight away: waiting for tomorrow 08:00 would be wrong, because by then today's
    due templates no longer match their send date.
-   Releasing the slot means the pass is retried on **every per-minute tick** from 08:00 to midnight
-   for as long as the flag is OFF. That retry is silent: the blocked pass is announced in the log
-   **once per local day**, not once per retry. The flag ships OFF, so the per-retry line was ~960
-   identical entries a day on a default installation — enough to bury everything else in
-   `pm2 logs`. The state belongs on screen (rule 8), not in the log. `performAutoEmailPass` reports
-   `blocked` to its caller and logs nothing itself; `tickEmailAutoSend` owns the repetition, so it owns
-   the decision of whether this pass is the day's first.
+   The first design of this rule kept the timer running while the flag was OFF and had every tick
+   retry the blocked pass, so a mid-day authorisation would be noticed within a minute. On a default
+   installation — the flag ships OFF — that was ~960 no-op passes and settings reads a day, and it
+   needed a once-per-day log guard just to keep `pm2 logs` readable. The ON transition is the better
+   trigger, and it takes the retry loop, the released day-slot and the blocked-pass log line with it.
+   Should a pass still find the flag OFF — scheduler and setting out of step — it gives the day's slot
+   back and stops the timer, so re-authorising later the same day still runs today's pass.
 10. A blocked email produces **no** `email_log` row. `email_log` is the record of send *attempts*;
    nothing was attempted. The queue is the record of what is waiting.
 
@@ -119,7 +129,7 @@ in one click.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `emails.js` | — | (none — controller wiring already passes `settingsModel`) |
-| `controllers/` | `settingsController.js` | T | New `emails` group (`autoSendEnabled` → `emailAutoSendEnabled`); adds the column to `BOOLEAN_INT_COLUMNS` |
+| `controllers/` | `settingsController.js` | T | New `emails` group (`autoSendEnabled` → `emailAutoSendEnabled`); adds the column to `BOOLEAN_INT_COLUMNS`; re-syncs the scheduler whenever that column is written, so the switch needs no restart (rule 2b) |
 | `controllers/` | `emailsController.js` | T | `pending()` passes `includeAutoTemplates: !autoSendAllowed()` to the model and returns `autoSendEnabled` in the payload |
 | `controllers/` | `emailTemplatesController.js` | T | `list()` decorates each row with `autoSendBlocked` (enabled + `sendMode = 'auto'` + flag OFF) |
 | `models/` | `settingsModel.js` | T | New non-secret column + default `0` + `emailAutoSendEnabled()` accessor + `autoSendEnabled` in the `emails` group of `read()` |
@@ -128,14 +138,19 @@ in one click.
 | `utils/` | `autoSendPolicy.js` | C | Single source of truth: `autoSendAllowed(settingsModel)`. Pure, injectable, unit-tested |
 | `utils/` | `settingsResponse.js` | T | New `emails: { autoSendEnabled }` block in the settings payload |
 | `utils/` | `emailAutoSendRunner.js` | T | Guard at the top of `performAutoEmailPass` → `{ blocked: true, … }` when the flag is OFF |
+| `utils/` | `emailAutoSendScheduler.js` | C | Owns the 08:00 timer and its whole lifecycle (`syncWithSettings` / `start` / `stop` / `tick` / `runPass`). The timer exists only while the flag is ON (rule 2b) |
 | `utils/` | `reservationEmailSender.js` | T | New `buildGatedConfirmationSender` — sends or queues depending on the flag. Lives here, next to `buildConfirmationSender`, because this module injects every dependency and is therefore unit-testable |
 | `utils/` | `paymentEffectDeps.js` | T | Wires the real models into the gated sender (no logic of its own) |
-| `scheduledTasks.js` | `scheduledTasks.js` | T | Releases the once-per-day guard so a mid-day authorisation takes effect, and announces the blocked pass once per local day however many times the tick retries it (rule 9). `tickEmailAutoSend({ now, run })` takes both by injection so the cadence is unit-testable |
+| `scheduledTasks.js` | `scheduledTasks.js` | T | Hands the 08:00 pass to `emailAutoSendScheduler`: a single `syncWithSettings({ boot: true })` replaces the unconditional `setInterval`, and the pass, its day-guard and its in-progress lock move out with it |
 | `database.js` | `database.js` | T | Idempotent `tryAddAppSettingsCol('emailAutoSendEnabled', … NOT NULL DEFAULT 0)` |
 
 **Notes:**
 - `autoSendPolicy` is deliberately one small module rather than an inline `settings.emailAutoSendEnabled`
-  check at three call sites: the rule « what counts as an automatic send » must have exactly one home.
+  check at four call sites: the rule « what counts as an automatic send » must have exactly one home.
+- `emailAutoSendScheduler` is a module and not a flag inside `scheduledTasks` because a timer that
+  starts and stops needs an owner: something has to hold the handle, and `settingsController` has to
+  reach it without reaching into the whole scheduled-tasks bundle. Injectable (`settingsModel`, `now`,
+  `run`) so its lifecycle is unit-testable without registering a real interval.
 - No new dependency.
 
 ### 4.2 Client side (`client/src/`)
@@ -253,16 +268,20 @@ modèle » + « Historique »). No change to either bar.
 
 ## 7. Test plan
 
-### Server unit tests (39 added, suite at 3497)
+### Server unit tests (39 added, suite at 3497 — +5 net by the 2026-08-22 amendment, suite at 3528)
 
 - [x] `tests/auto-send-policy.unit.test.js` (C) — accessor ON/OFF, raw-column fallback, missing
       column, a settings model that throws: everything short of an explicit yes reads as no.
 - [x] `tests/email-auto-send-runner.unit.test.js` (T) — flag OFF → `{ blocked: true }`, zero sends,
       zero `email_log` rows, SMTP transport never even built; same fixture sends once allowed; a
       settings model that never heard of the switch sends nothing.
-- [x] `tests/email-auto-send-blocked-log.unit.test.js` (T) — rule 9's log cadence: five ticks on one
-      blocked day run the pass five times but print one line; the next day prints again; an
-      authorised pass consumes the slot and prints no blocked line; before 08:00 nothing runs.
+- [x] `tests/email-auto-send-scheduler.unit.test.js` (C) — rule 2b's lifecycle: nothing is scheduled
+      while the flag is OFF; booting with it ON registers the timer but staggers the first pass;
+      authorising mid-day starts it and runs today's pass at once; a second sync neither duplicates
+      the timer nor re-runs the pass; revoking clears it; the pass runs once per local day and never
+      before 08:00; a blocked pass gives the day back and shuts the scheduler down.
+      *(Replaces `email-auto-send-blocked-log.unit.test.js`, which tested the retry cadence rule 9 no
+      longer has.)*
 - [x] `tests/email-log-model.unit.test.js` (T) — `includeAutoTemplates` surfaces due `auto`
       templates across all four anchors (`start`, `validUntil`, `depositDueDate`, `balanceDueDate`),
       keeps the sent/acknowledged dedup, and never resurrects a disabled template.
@@ -276,7 +295,8 @@ modèle » + « Historique »). No change to either bar.
 - [x] `tests/settings-email-auto-send.unit.test.js` (C) — default OFF on a fresh DB *and* on one that
       predates the column; upsert round-trip; other settings untouched.
 - [x] `tests/settings-controller-email-auto-send.unit.test.js` (C) — the `emails` group coerces to
-      0/1 at the HTTP boundary; partial saves never rewrite the column.
+      0/1 at the HTTP boundary; partial saves never rewrite the column; writing the switch re-syncs
+      the scheduler, and saving any other section leaves it alone.
 - [x] `tests/payment-dunning-emails.unit.test.js` (T) — its fake settings now authorise the cron
       explicitly, since that suite describes what the pass does once allowed.
 
@@ -329,3 +349,8 @@ modèle » + « Historique »). No change to either bar.
 - Q: Keep the « Automatique (envoi à 08:00) » mode in the templates UI?
   - A (2026-08-20): Yes, kept and selectable, but flagged with a visible warning while the global
     flag is OFF.
+- Q: While automatic sending is off, should the 08:00 pass still be scheduled and simply do nothing?
+  - A (2026-08-22): **No** — rule 2b. OFF means nothing is scheduled at all. That decision covers the
+    cron and only the cron: the « à valider » queue keeps proposing due `auto` templates (rule 3), a
+    confirmed payment keeps queueing its confirmation (rule 4) and the Emails page keeps its banner
+    (rule 8). Those propose — they never send, and they only ever run on a request the operator made.
