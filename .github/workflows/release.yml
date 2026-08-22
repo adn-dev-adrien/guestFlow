@@ -101,6 +101,15 @@ jobs:
           fi
           echo "✓ CHANGELOG section present and every fragment folded"
 
+      - name: 🗒️ The section must carry the operator digest
+        # specs/self-update-and-releases.md §6.2 rule 20c. The update dialog shows this block and
+        # folds everything else away, so a release without it offers the operator a wall of prose —
+        # or nothing at all — at the one moment they have to decide whether to install it. The rule
+        # lives in the script, not in this YAML, so the skill and a unit test apply the same one.
+        run: |
+          set -euo pipefail
+          node scripts/build-changelog.mjs --check-digest "${{ steps.resolve.outputs.version }}"
+
   # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
   tests:
     name: tests (server + client)

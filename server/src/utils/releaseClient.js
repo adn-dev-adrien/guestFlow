@@ -31,6 +31,9 @@ const PLUGIN_ASSET_RE = /^guestflow-booking-(\d+\.\d+\.\d+)\.zip$/;
 
 // CHANGELOG headings (Keep a Changelog + our `Migration` addition) → the French titles the UI shows.
 const SECTION_TITLES_FR = {
+  // The operator digest a release must carry (specs/self-update-and-releases.md §6.2 rule 20c). It
+  // is what the update dialog shows; every other section sits behind « Tout le changelog ».
+  summary: 'En bref',
   added: 'Ajouts',
   changed: 'Modifications',
   fixed: 'Corrections',
@@ -60,7 +63,10 @@ function stripMarkdown(text) {
 }
 
 /**
- * A release body (the CHANGELOG section for that version) → `[{ title, items[] }]`.
+ * A release body (the CHANGELOG section for that version) → `[{ key, title, items[] }]`.
+ *
+ * `key` is the canonical heading (`summary`, `added`, `fixed`…) when the heading is one we know,
+ * `null` for anything else — so a consumer can find the digest without matching a French label.
  *
  * Bullets that wrap over several lines are re-joined. Text sitting before any `###` heading lands in
  * an untitled leading group rather than being dropped.
@@ -68,8 +74,8 @@ function stripMarkdown(text) {
 function parseReleaseNotes(body) {
   const sections = [];
   let current = null;
-  const openSection = (title) => {
-    current = { title, items: [] };
+  const openSection = (title, key = null) => {
+    current = { key, title, items: [] };
     sections.push(current);
   };
 
@@ -78,7 +84,7 @@ function parseReleaseNotes(body) {
     const heading = line.match(/^#{2,4}\s+(.+?)\s*$/);
     if (heading) {
       const key = heading[1].trim().toLowerCase();
-      openSection(SECTION_TITLES_FR[key] || stripMarkdown(heading[1]));
+      openSection(SECTION_TITLES_FR[key] || stripMarkdown(heading[1]), SECTION_TITLES_FR[key] ? key : null);
       continue;
     }
     const bullet = line.match(/^\s*[-*]\s+(.*)$/);
@@ -94,6 +100,25 @@ function parseReleaseNotes(body) {
   }
 
   return sections.filter((section) => section.items.length > 0);
+}
+
+/**
+ * Parsed sections → `{ summary, details }` (specs/self-update-and-releases.md §6.2 rule 20c).
+ *
+ * The update dialog asks one question — « what does this change for me? » — and a fourteen-line
+ * paragraph does not answer it. The release therefore carries a `### Summary` block of short lines,
+ * and that block alone is what the operator is shown; the detail waits behind « Tout le changelog ».
+ *
+ * A release published before the convention existed has no such block: `summary` comes back empty
+ * and the caller falls back to showing everything, which is what those releases always did.
+ */
+function splitSummary(sections) {
+  const list = Array.isArray(sections) ? sections : [];
+  const digest = list.find((section) => section && section.key === 'summary');
+  return {
+    summary: digest ? [...digest.items] : [],
+    details: list.filter((section) => section !== digest),
+  };
 }
 
 /**
@@ -183,6 +208,7 @@ module.exports = {
   CHECKSUMS_ASSET_NAME,
   isAllowedDownloadUrl,
   parseReleaseNotes,
+  splitSummary,
   parseSha256Sums,
   normaliseRelease,
   fetchLatestRelease,

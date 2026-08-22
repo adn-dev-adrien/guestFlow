@@ -50,13 +50,13 @@ test('isAllowedDownloadUrl allows only https on the GitHub hosts', () => {
 test('parseReleaseNotes maps CHANGELOG headings to French sections and rejoins wrapped bullets', () => {
   const sections = parseReleaseNotes('### Added\n- **Gras** et [lien](https://x)\n  suite\n\n### Migration\n- Une colonne');
   assert.deepEqual(sections, [
-    { title: 'Ajouts', items: ['Gras et lien suite'] },
-    { title: 'Migration', items: ['Une colonne'] },
+    { key: 'added', title: 'Ajouts', items: ['Gras et lien suite'] },
+    { key: 'migration', title: 'Migration', items: ['Une colonne'] },
   ]);
 });
 
 test('parseReleaseNotes drops empty sections and survives an empty body', () => {
-  assert.deepEqual(parseReleaseNotes('### Added\n\n### Fixed\n- x'), [{ title: 'Corrections', items: ['x'] }]);
+  assert.deepEqual(parseReleaseNotes('### Added\n\n### Fixed\n- x'), [{ key: 'fixed', title: 'Corrections', items: ['x'] }]);
   assert.deepEqual(parseReleaseNotes(''), []);
   assert.deepEqual(parseReleaseNotes(null), []);
 });

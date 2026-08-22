@@ -176,13 +176,21 @@ Production runs **published releases**, never a branch. The full model lives in
 `specs/self-update-and-releases.md`; the operating rules:
 
 - A release is cut with the **`/guestflow-release` skill**: pre-flight suites → fold `changelog.d/`
-  into a `CHANGELOG.md` section → bump the three `package.json` files → `release/vX.Y.Z` PR → the
-  user squash-merges → Claude tags `vX.Y.Z` on `master` → `.github/workflows/release.yml` publishes
-  the archive, its `SHA256SUMS` and the WordPress plugin.
+  into a `CHANGELOG.md` section → write the operator digest → bump the three `package.json` files →
+  `release/vX.Y.Z` PR → the user squash-merges → Claude tags `vX.Y.Z` on `master` →
+  `.github/workflows/release.yml` publishes the archive, its `SHA256SUMS` and the WordPress plugin.
+  **The squash-merge is the only step the user performs**; the skill waits for it and carries on by
+  itself, so never end a release turn asking to be told the PR was merged.
 - **The release notes are mandatory.** The GitHub release body IS the `CHANGELOG.md` section, and
   that section is what the operator reads in the update dialog before clicking "Installer". The
   `verify` job fails the release when it is missing, when the three versions disagree with the tag,
   or when a `changelog.d/` fragment was left unfolded. Never bypass that job.
+- **Every section opens with its operator digest** — a `### Summary` block of at most 6 lines of at
+  most 160 characters, and it is the *only* thing the update dialog shows; the rest is folded behind
+  « Tout le changelog » (`specs/self-update-and-releases.md` rule 20c). It is written **in French**,
+  the single exception to §2 in this repository, because it exists to be read inside the application
+  by a French operator. `node scripts/build-changelog.mjs --check-digest X.Y.Z` judges it, and the
+  `verify` job runs that same command.
 - **Publishing is not deploying.** GuestFlow polls GitHub hourly and offers the version; the
   operator installs it from Réglages → Système et mises à jour. Claude never triggers an install,
   and never SSHes into production to "finish" a release.
@@ -483,6 +491,10 @@ changelog.d/<category>--<branch-unique-slug>.md   # content = the markdown bulle
 full convention. Preview with `node scripts/build-changelog.mjs`; at release,
 `node scripts/build-changelog.mjs --release X.Y.Z` folds all fragments **and** any leftover
 `## [Unreleased]` bullets into a dated section and deletes the fragments.
+
+There is no `summary` fragment category: the operator digest (§5.6) is written once at release time,
+looking at the whole set of changes, which is the only moment anyone can say what a release *means*
+rather than what each commit did. `--release` scaffolds it as a TODO that `--check-digest` refuses.
 
 > The pre-2026-06-08 entries still sitting under `## [Unreleased]` are folded in automatically at the
 > next release — no manual migration. New entries: fragments only.
