@@ -410,10 +410,9 @@ function calculateProgressiveParticipantOptionTotal(quantity, tiers, fallbackUni
 // RATE includes (`basePriceIncludedGuests`), never the real party: that is what makes the deduction a
 // per-stay FORFAIT, so the declared base no longer shrinks as the group grows.
 //
-// Shared on purpose (rule 14): `calculateReservationQuote` feeds it the engine's `includedInRate`
-// lines, `financeModel` feeds it the stored lines of an offered property default, and the fiche and
-// the « Suivi taxe de séjour » declaration therefore compute the same base. Lines are
-// `{ unitPrice, quantity, priceType }` — the caller owns the filtering.
+// Named rather than inlined because it is the rule, not a detail: the « Suivi taxe de séjour » page
+// declares the very same figure by replaying this whole engine (rule 14), so this formula has exactly
+// one home. Lines are `{ unitPrice, quantity, priceType }` — the caller owns the filtering.
 function sumIncludedServicesDeduction(lines, { referencePersons, nights }) {
   return roundMoney((lines || []).reduce((sum, line) => {
     if (!line) return sum;
@@ -2500,7 +2499,6 @@ module.exports = {
   normalizeOptionProgressiveTiers,
   calculateProgressiveParticipantOptionTotal,
   computeTouristTaxBreakdown,
-  sumIncludedServicesDeduction,
   normalizeDateRanges,
   getBoundsFromDateRanges,
   parseRuleDateRanges,

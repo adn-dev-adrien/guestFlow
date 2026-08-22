@@ -135,14 +135,19 @@ the same amount.
 
 13. **The summary says the subtraction out loud.** `PricingSummary` renders again, under the tourist
     tax line and only when a deduction applies: « Base : 359,79 € − 60,00 € de prestations comprises ».
-14. **The declaration declares what the fiche validated (2026-08-22).** *Suivi financier → Taxe de
-    séjour* does not read the stored tax: it **recomputes** it from the stay
-    ([financeModel.js](../server/src/models/financeModel.js), `getTouristTaxExtraction`). It therefore
-    applies the very same deduction, from the very same helper (`sumIncludedServicesDeduction`), on
-    the lines the booking carries that are a property default marked « offerte » today. One stay, one
-    amount — on the fiche and on the form sent to the commune. « Montant hébergement HT » follows: in
-    percentage mode it is the taxable accommodation, net of the inclusions. `per_day_per_person`
-    properties are untouched — no price enters their tax, so nothing is deducted there.
+14. **The declaration declares what the fiche shows — to the cent (2026-08-22).** *Suivi financier →
+    Taxe de séjour* does not read the stored tax: it re-prices the stay. It used to do so with **its
+    own arithmetic** — accommodation after discount rebuilt from SQL, its own surcharge handling, its
+    own base — and that arithmetic had drifted from the engine's: the same stay could be validated at
+    13,05 € on its fiche and declared 14,85 € to the commune, and eight of the Lodge's eleven August
+    stays differed by a few cents to a couple of euros for reasons that had nothing to do with this
+    spec. The page now **replays the pricing engine** on each stay, from the persisted booking
+    (`buildReservationEngineInput` → `calculateReservationQuote`), including the freeze of a past stay
+    (`tourist-tax-freeze-past-with-refresh.md`): one stay, one amount, one engine. What remains the
+    page's own business is **which** stays it lists (the attribution month, the payment gate, the
+    platform mode) and the refunded-nights prorata. « Montant hébergement HT » follows: in percentage
+    mode it is the taxable accommodation, net of the inclusions; elsewhere the accommodation charged,
+    HT. `per_day_per_person` properties keep a 0 deduction — no price enters their tax.
 15. **The declaration reports the assiette, not just the amount.** A new column **« Nuit HT /
     occupant »** carries the figure the commune's percentage form asks for — the cost of one night
     per occupant, HT — i.e. the fiche's own `(132,26 € HT/nuit ÷ 5 occupants)` divided out. It reads
@@ -185,7 +190,9 @@ the same amount.
 |---|---|---|---|
 | `routes/` | — | — | (none) |
 | `controllers/` | `reservationsController.js` | T | Rule 5 — on update, re-injects into `selectedOptions` / `offeredOptionIds` a property default `offered = 1` that the stored reservation carries and the payload dropped. Rule 16 — `calculatePrice` forwards `babies` to the engine |
-| `models/` | `financeModel.js` | T | Rules 14-15 — `getTouristTaxExtraction` deducts the included services from its recomputed base and exposes `nightPricePerOccupantHt` + `includedServicesDeduction` |
+| `models/` | `financeModel.js` | T | Rules 14-15 — `getTouristTaxExtraction` drops its own pricing arithmetic and replays the engine per stay (freeze included); exposes `nightPricePerOccupantHt` + `includedServicesDeduction` |
+| `utils/` | `reservationEngineInput.js` | C | `buildReservationEngineInput` — the persisted booking in the shape the engine expects. Moved out of `forceItemContribsCapture.js`, which now imports it: two callers, one replay |
+| `utils/` | `financeCalcs.js` | T | `computeAccommodationAmountAfterDiscount` **removed** — the declaration was its only caller and it is the arithmetic rule 14 replaces (CLAUDE.md §7, no dead code) |
 | `middleware/` | — | — | (none) |
 | `utils/` | `pricing.js` | T | Rules 1-3 — `sumIncludedServicesDeduction` (exported, shared with `financeModel` per rule 14) computes the forfait; `taxBaseAccommodation` = the accommodation charged minus it; re-exposes `touristTaxBaseBeforeDeduction` |
 | `scheduledTasks.js` | — | — | (none) |
@@ -249,6 +256,10 @@ No endpoint signature changes. The quote payload returned by every pricing route
 
 `accommodationAmount` keeps its name and, in percentage mode, becomes the **taxable** accommodation
 HT (net of the inclusions) — which is what `specs/reservation-refunds.md` §6 already called it.
+`accommodationRawAmount` and `reductionAmount` are **removed**: they were artefacts of the SQL
+arithmetic rule 14 deletes, and no client or export read them. `taxRate` stays, now derived as
+`taxe ÷ (adultes × nuits)` — a frozen stay pins the engine's `touristTaxUnitAmount` to the stored
+`touristTaxRate`, which on a percentage property holds the percentage (5), not a rate in euros.
 
 Both restored fields are consumed by `PricingSummary` only. They are surfaced separately (rather than
 re-added client-side) because the base is floored at 0: `before − deduction` is not always the base.
@@ -324,12 +335,12 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
       `devisModel.update`, so both surfaces share the contract.
 - [x] `tests/devis-pdf-quote-parity.unit.test.js` — the « drops offeredOptionIds » regression asserts
       again that the lost deduction inflates the tax (it is the bug the file describes).
-- [x] `tests/tourist-tax-declaration-included-services.unit.test.js` (**new**) — 5 tests on
+- [x] `tests/tourist-tax-declaration-included-services.unit.test.js` (**new**) — 6 tests on
       `getTouristTaxExtraction`: the deduction lands (18,00 € → 15,00 €); `nightPricePerOccupantHt` is
       45,43 € and « Montant hébergement HT » 272,55 €, so the operator can re-derive one from the
       other; the forfait does not follow the party (linen sold for four, deducted for two); a one-off
-      gesture is not deducted; a `per_day_per_person` property keeps its 7,20 € and its unchanged
-      accommodation, with a `null` night price.
+      gesture is not deducted; a `per_day_per_person` property keeps its 7,20 €, a 0 deduction and a
+      `null` night price; and a **past** stay declares its frozen stored amount, like its fiche.
 - [x] `tests/reservations-controller-property-defaults.unit.test.js` — rule 16: `calculatePrice`
       forwards `babies` to the engine, like `create` and `update`.
 - [x] `cd server && npm test` → **3517 passed, 0 failed**.
@@ -369,8 +380,17 @@ declared to the commune. The reference stay of §1 (3 nuits, 2 adultes, 359,79 �
 - [x] La fiche de cette même réservation lit **13,05 €** et
       « (132.26EUR HT/nuit ÷ 5 occupants) x 5.00% + 10.00% dep = 1.45EUR/adulte/nuit ». Avant le
       correctif de la règle 16 elle affichait 16,38 € et « ÷ 4 occupants ».
-- [x] Juillet 2026: les lignes sans prestation comprise sont inchangées et l'arithmétique se relit
-      dans le tableau (23,88 € × 5 % + 10 % dep × 2 adultes × 2 nuits = 5,24 €).
+- [x] **Parité fiche ↔ suivi, relevée dans le navigateur** après le passage au moteur :
+
+      | Résa | Fiche | Suivi | Cas |
+      |---|---|---|---|
+      | 22275 | 13,05 € | 13,05 € | mois courant, avec 60 € de prestations comprises |
+      | 22209 | 12,56 € | 12,56 € | mois courant, sans prestation comprise |
+      | 22269 | 20,40 € | 20,40 € | mois courant, 5 adultes |
+      | 22229 | 5,40 € | 5,40 € | juillet — séjour **gelé**, montant stocké des deux côtés |
+
+- [x] Juillet 2026: l'arithmétique se relit dans le tableau (24,43 € × 5 % + 10 % dep × 2 adultes ×
+      2 nuits = 5,40 €).
 
 ### Spec sync (CLAUDE.md §4.1)
 - [x] `specs/tourist-tax-base-accommodation-only.md` — rules 3 and 4 amended (the deduction returns, in

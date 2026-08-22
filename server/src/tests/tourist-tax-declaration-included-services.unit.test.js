@@ -15,6 +15,15 @@ const financeModel = require('../models/financeModel');
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const pad2 = (n) => String(n).padStart(2, '0');
 
+// The CURRENT month on purpose: a stay whose last night falls before the 1st of it is frozen
+// (specs/tourist-tax-freeze-past-with-refresh.md) and declares its stored amount — which is exactly
+// what its fiche shows, and what the last test below pins. Everything else here exercises the live
+// recompute, i.e. the fiche of a stay that is not frozen yet.
+function currentMonth() {
+  const now = new Date();
+  return { month: `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`, year: now.getFullYear(), m: now.getMonth() + 1 };
+}
+
 function previousMonth() {
   const now = new Date();
   const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -72,7 +81,7 @@ function insertInclusions(db, { persons = 2 } = {}) {
 
 test('the declaration deducts the services included in the rate, exactly like the fiche', () => {
   const { db, model } = seedDb();
-  const { month, year, m } = previousMonth();
+  const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
 
   const before = model.getTouristTaxExtraction({ month }).data.reservations[0];
@@ -87,7 +96,7 @@ test('the declaration deducts the services included in the rate, exactly like th
 
 test('the declaration reports the night cost per occupant, HT', () => {
   const { db, model } = seedDb();
-  const { month, year, m } = previousMonth();
+  const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
   insertInclusions(db);
 
@@ -101,7 +110,7 @@ test('the declaration reports the night cost per occupant, HT', () => {
 // Rule 3 again, this time through the declaration: the forfait does not follow the party.
 test('the deduction does not grow with the party — the linen is sold for four, deducted for two', () => {
   const { db, model } = seedDb();
-  const { month, year, m } = previousMonth();
+  const { month, year, m } = currentMonth();
   insertStay(db, { year, m, persons: 4 });
   insertInclusions(db, { persons: 4 });               // 7 × 4 and 8 × 4 are SOLD
 
@@ -111,7 +120,7 @@ test('the deduction does not grow with the party — the linen is sold for four,
 
 test('a one-off commercial gesture is not deducted from the declaration either', () => {
   const { db, model } = seedDb();
-  const { month, year, m } = previousMonth();
+  const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
   // Offered, but not a property default → « Offert », not « Comprise ».
   db.prepare(`INSERT INTO reservation_options
@@ -125,7 +134,7 @@ test('a one-off commercial gesture is not deducted from the declaration either',
 
 test('a per-day-per-person property is untouched — no deduction, no night price to report', () => {
   const { db, model } = seedDb({ mode: 'per_day_per_person' });
-  const { month, year, m } = previousMonth();
+  const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
   insertInclusions(db);
 
@@ -134,4 +143,20 @@ test('a per-day-per-person property is untouched — no deduction, no night pric
   assert.equal(row.includedServicesDeduction, 0);
   assert.equal(row.nightPricePerOccupantHt, null);    // the table prints « — »
   assert.equal(row.accommodationAmount, 327.08);      // 359,79 € HT — unchanged by the inclusions
+});
+
+// The other half of « exactly what the fiche shows »: a PAST stay is frozen on the fiche and declares
+// the amount stored at its last save, whatever a live recompute would say today
+// (specs/tourist-tax-freeze-past-with-refresh.md, unchanged by this spec).
+test('a past stay declares its frozen amount, like its fiche', () => {
+  const { db, model } = seedDb();
+  const { month, year, m } = previousMonth();
+  insertStay(db, { year, m });
+  insertInclusions(db);
+  db.prepare('UPDATE reservations SET touristTaxTotal = 12.34, touristTaxRate = 5 WHERE id = 1').run();
+
+  const row = model.getTouristTaxExtraction({ month }).data.reservations[0];
+  assert.equal(row.taxAmount, 12.34, 'the stored amount wins over any recompute');
+  // The base columns still describe the stay, so the declaration form can be filled in.
+  assert.equal(row.nightPricePerOccupantHt, 45.43);
 });
