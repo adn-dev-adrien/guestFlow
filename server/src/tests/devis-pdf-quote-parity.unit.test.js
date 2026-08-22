@@ -142,10 +142,11 @@ test('offered property-default option: the replay keeps it at 0 € AND re-quote
   assert.equal(replayedLinen.includedInRate, true);
 });
 
-test('REGRESSION: an input that drops offeredOptionIds re-bills the option', () => {
+test('REGRESSION: an input that drops offeredOptionIds re-bills the option AND inflates the tax', () => {
   // What the PDF controller used to build. Kept as an executable description of the bug: the offered
-  // 60 € comes back into the total. The tourist tax no longer reacts to it at all — the base is the
-  // accommodation and nothing else (specs/tourist-tax-base-accommodation-only.md).
+  // 60 € comes back into the total, and the line — no longer « comprise » — stops leaving the tourist
+  // tax base, so the declared tax inflates too (specs/tourist-tax-included-services-deduction.md
+  // rule 2: only a line tagged `includedInRate` is deducted).
   const { model, db } = freshModel();
   const devis = model.create(BASE).data;
   const naive = calculateReservationQuote({
@@ -158,7 +159,7 @@ test('REGRESSION: an input that drops offeredOptionIds re-bills the option', () 
   });
 
   assert.equal(naive.finalPrice, devis.finalPrice + 60);
-  assert.equal(naive.touristTaxTotal, devis.touristTaxTotal);
+  assert.ok(naive.touristTaxTotal > devis.touristTaxTotal, 'the lost deduction inflates the declared tax');
   // …and the fixed replay does neither.
   assert.equal(model.recomputeQuote(devis.id).finalPrice, devis.finalPrice);
 });

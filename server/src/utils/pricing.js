@@ -1960,22 +1960,31 @@ function calculateReservationQuote({
   const preArrivalOptionsResources = roundMoney(
     optionsTotal + resourcesTotal - complementOptionsResourcesTotal - midStayUnforced,
   );
-  // specs/tourist-tax-base-accommodation-only.md rules 1-4 — the tax base is the ACCOMMODATION
-  // CHARGED, and nothing else: the manual « Prix hébergement ajusté » when there is one, otherwise
-  // the tariff nights after the discount. Neither the platform brut nor a single option, resource or
-  // Complément routing may move it. Two earlier behaviours are gone on purpose:
-  //   - the base was back-solved from `platformGrossAmount` (brut − supplément − options hors
-  //     Complément), so flipping a line into Complément changed the declared tax;
-  //   - services included in the rate were deducted (former rule 48), so ticking « Ménage » or a
-  //     per-person linen line shrank the base — the more guests, the smaller the base.
-  // The routing (offered / reversed / on arrival) and the `freezeTouristTax` branch below are
-  // untouched: only the magnitude is defined here.
-  const taxBaseAccommodation = roundMoney(Math.max(
-    0,
+  // specs/tourist-tax-included-services-deduction.md rules 1-3 — the tax base is the DRY NIGHT: the
+  // accommodation charged (the manual « Prix hébergement ajusté » when there is one, otherwise the
+  // tariff nights after the discount), minus the reference value of the services structurally
+  // included in that rate. The platform brut still does not derive it — that back-solve stays
+  // removed (rule 6), which is what keeps the tax out of the brut → finalPrice circle.
+  const taxBaseBeforeDeduction = roundMoney(
     Number.isFinite(customFinalPrice)
       ? customFinalPrice
       : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100),
-  ));
+  );
+  // Rule 3 — the deducted value is a PER-STAY FORFAIT: the person factor is the guests the rate
+  // includes, never the real party. That is the whole difference with the former rule 48, whose
+  // `per_person` linen deductions made the declared base shrink as the party grew. `includedGuests`
+  // already resolves the locked tariff (rule 12bis), so a sold reservation keeps the factor it had.
+  // Only `includedInRate` lines count (property default + offered): a one-off commercial gesture and
+  // a custom option are never tagged, so neither is ever deducted (rule 2).
+  const taxReferencePersons = includedGuests > 0 ? includedGuests : persons;
+  const touristTaxIncludedInRateDeduction = roundMoney(
+    finalOptionLines.reduce((sum, line) => {
+      if (!line || !line.includedInRate) return sum;
+      const units = Number(line.quantity || 0) * getTypeMultiplier(line.priceType, taxReferencePersons, nights);
+      return sum + (Number(line.unitPrice || 0) * units);
+    }, 0),
+  );
+  const taxBaseAccommodation = roundMoney(Math.max(0, taxBaseBeforeDeduction - touristTaxIncludedInRateDeduction));
 
   // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
   // Resolved HERE (before the brut back-solve) so the reversed tax can be treated as part of the brut.
@@ -2396,9 +2405,12 @@ function calculateReservationQuote({
           .map((line) => [String(line.optionId), Number(line.freeUnits)]),
       ),
     },
-    // specs/tourist-tax-base-accommodation-only.md — the accommodation the tax is computed on, so a
-    // reader can check the declared amount without re-deriving it from the nights.
+    // specs/tourist-tax-included-services-deduction.md §4.3 — the accommodation the tax is computed
+    // on, plus the two halves it comes from, so the summary can render « Base : X − Y de prestations
+    // comprises » without subtracting them back (wrong whenever the base was floored at 0).
     touristTaxBaseAccommodation: taxBaseAccommodation,
+    touristTaxBaseBeforeDeduction: taxBaseBeforeDeduction,
+    touristTaxIncludedInRateDeduction,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     touristTaxRemittedByOwner: isTouristTaxRemittedByOwnerFlag,
     touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,

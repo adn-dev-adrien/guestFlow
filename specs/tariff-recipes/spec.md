@@ -403,11 +403,18 @@ all-inclusive pricing as the first such recipe.
     already renders « Comprise » at 0 € ([pricing.js:1387](../../server/src/utils/pricing.js#L1387)).
     They are never billed on top of the nightly rate, on any channel.
 48. ~~**Their reference value is deducted from the tourist-tax base.**~~ **Repealed 2026-08-20** by
-    [tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md). An
-    `includedInRate` line no longer touches the tax base. The deduction was scaled `per_person` for the
-    linen lines, so the declared base shrank as the party grew, and it only applied once the operator
-    had actually ticked the line — two identical stays could declare different amounts. The base is now
-    the accommodation charged, and nothing else.
+    [tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md), then
+    **reinstated in a new form 2026-08-22** — see 48ter. The original rule was scaled `per_person` for
+    the linen lines, so the declared base shrank as the party grew, and it only applied once the
+    operator had actually ticked the line: two identical stays could declare different amounts.
+48ter. **Their reference value leaves the tourist-tax base, as a per-stay forfait**
+    ([tourist-tax-included-services-deduction.md](../tourist-tax-included-services-deduction.md)).
+    Cleaning and linen are sold INSIDE the night rate, so the dry night the commune taxes is the
+    accommodation charged minus what the rate already covers. Two guards make it stable, which is what
+    48 lacked: the person factor is `basePriceIncludedGuests` (2 on the Lodge) and **never** the real
+    party, and an included line can no longer be unticked on the fiche or dropped by a save. On the
+    Lodge the deduction is a flat 60 € — Ménage 30 + Linge de lit 7 × 2 + Linge de toilette 8 × 2 — for
+    a couple as for six.
 48bis. **The tourist-tax configuration itself is never written by this work.** Rate, mode and
     departmental share are already set in production and correct (the Lodge is in
     `percentage_accommodation`). The recipe schema has no tourist-tax field and
@@ -415,8 +422,8 @@ all-inclusive pricing as the first such recipe.
     quotes — nightly rates, net targets, the channel grid — is **exclusive of tourist tax**, which
     GuestFlow adds on top at quote time.
 49. **A one-off commercial gesture is still not an inclusion.** Manually offering an option that is not
-    a property default stays « Offert » rather than « Comprise ». The distinction survives rule 48's
-    repeal — it drives the wording and the price lock, no longer the tax.
+    a property default stays « Offert » rather than « Comprise ». The distinction drives the wording,
+    the price lock **and, since 48ter, the tax again**: only a « Comprise » line leaves the base.
 50. **The laundry contract is unaffected.** The options remain ticked on the reservation, so the bed-
     and bath-linen counters keep working exactly as today.
 
@@ -712,6 +719,10 @@ _None. All three are answered below._
 - **Q3 — early check-in.** Left as it is: an auto-option priced **proportionally**, so it derives from
   the nightly rate and follows the new seasonal prices with no maintenance. The 1-night plancha price
   is moot — the plancha is not a GuestFlow object and stays a manual gesture (§8). ✅
+
+**Amended (2026-08-22):** rule 48 is reinstated as **48ter**, in a party-independent form the
+operator cannot untick — see
+[tourist-tax-included-services-deduction.md](../tourist-tax-included-services-deduction.md).
 
 **Amended (2026-08-20):** rule 48 is repealed — see
 [tourist-tax-base-accommodation-only.md](../tourist-tax-base-accommodation-only.md). The tax base is

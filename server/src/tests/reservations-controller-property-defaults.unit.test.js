@@ -32,7 +32,7 @@ function fakeRes() {
   };
 }
 
-function buildController(defaults, captures) {
+function buildController(defaults, captures, carriedOptionIds = []) {
   // Light mocks for every module the controller pulls in.
   const propertyOptionDefaultsModel = {
     listForProperty(propertyId) {
@@ -73,6 +73,9 @@ function buildController(defaults, captures) {
       if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: 99 });
       if (k === 'validateAvailability') return () => null;
       if (k === 'insertReservation') return (...args) => { captures.insertedReservation = args; return 1; };
+      // specs/tourist-tax-included-services-deduction.md rule 5 — what the stored reservation carries.
+      if (k === 'listCarriedOptionIds') return () => carriedOptionIds;
+      if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [], lockedTariff: null });
       if (k === 'replaceOptions') return () => null;
       if (k === 'replaceCustomOptions') return () => null;
       if (k === 'insertCustomOptions') return () => null;
@@ -161,4 +164,42 @@ test('create propagates the offered=true default into offeredOptionIds (rule 11)
   const offered = (captures.lastQuoteArgs.offeredOptionIds || []).map(Number).sort((a, b) => a - b);
   assert.ok(offered.includes(7), 'offered=true default is in offeredOptionIds');
   assert.ok(!offered.includes(42), 'offered=false default is NOT in offeredOptionIds');
+});
+
+
+// ── update: a service included in the rate cannot be dropped ────────────────────────────
+// specs/tourist-tax-included-services-deduction.md rules 4-5. The fiche locks the Switch ON; the
+// server makes it a guarantee, so the declared tourist-tax base never depends on a keystroke.
+// Bounded by what the reservation ALREADY carries — specs/reservation-option-immutability.md rule 3.
+
+function updateReq(body) {
+  return { params: { id: 1 }, body: { propertyId: 1, clientId: 1, startDate: '2099-09-10', endDate: '2099-09-12', adults: 2, children: 0, teens: 0, babies: 0, checkInTime: '15:00', checkOutTime: '10:00', ...body } };
+}
+
+test('update restores an offered default the payload dropped when the reservation carries it', () => {
+  const captures = {};
+  const controller = buildController([{ optionId: 7, offered: true }], captures, [7]);
+  controller.update(updateReq({ options: [{ optionId: 99, quantity: 1 }], offeredOptionIds: [] }), fakeRes());
+
+  const ids = (captures.lastQuoteArgs.selectedOptions || []).map((o) => Number(o.optionId)).sort((a, b) => a - b);
+  assert.deepEqual(ids, [7, 99], 'the included service is put back');
+  assert.ok((captures.lastQuoteArgs.offeredOptionIds || []).map(Number).includes(7), 'and stays offered');
+});
+
+test('update does not add an offered default the reservation never carried', () => {
+  const captures = {};
+  const controller = buildController([{ optionId: 7, offered: true }], captures, []);
+  controller.update(updateReq({ options: [{ optionId: 99, quantity: 1 }], offeredOptionIds: [] }), fakeRes());
+
+  const ids = (captures.lastQuoteArgs.selectedOptions || []).map((o) => Number(o.optionId));
+  assert.deepEqual(ids, [99], 'immutability wins: an absent default stays absent');
+});
+
+test('update leaves a BILLED default removable — only an included service is locked', () => {
+  const captures = {};
+  const controller = buildController([{ optionId: 42, offered: false }], captures, [42]);
+  controller.update(updateReq({ options: [], offeredOptionIds: [] }), fakeRes());
+
+  const ids = (captures.lastQuoteArgs.selectedOptions || []).map((o) => Number(o.optionId));
+  assert.deepEqual(ids, [], 'a paid default is an ordinary option the operator may remove');
 });

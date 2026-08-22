@@ -206,6 +206,18 @@ never rewritten (rule 4).
 - The lines appear ticked with a `Chip size="small"` labelled **« Pack de bienvenue »** next to the
   option title. No new copy anywhere else: the pricing summary already prints « dont 2 inclus dans le
   tarif » ([`PricingSummary.jsx`](../client/src/components/PricingSummary.jsx#L392)).
+- **Where the covered value reads (amended 2026-08-22).** The summary line splits the information in
+  two: the COUNT stays on the left, under the title and the « + compl. » chip (« dont 2 inclus dans le
+  tarif »), and the VALUE reads in the **amount column** — `variant="caption"`, `text.secondary`,
+  struck through, directly **above** the `0,00 €` it explains:
+
+  ```
+   Jus de pomme 1L  [+ compl.]              [Offrir]   5,00 €   ← barré, gris, plus petit
+   dont 1 inclus dans le tarif                          0,00 €
+  ```
+
+  It used to sit inline after the count, under the chip, where a price read as a second label rather
+  than as an amount. Nothing else moves: the count, the chip and the « Offrir » button are unchanged.
 - Switching the platform to a commissioned one makes the lines disappear the same way the operator
   would have unticked them — no dialog, no toast. Reverting the platform brings them back.
 - **Loading:** the pack lands with the rest of the form init; there is no spinner and no layout jump

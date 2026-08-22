@@ -40,7 +40,7 @@ with what `devisModel.computeQuote` uses on save, it drops:
 
 | Missing input | Consequence on the PDF |
 |---|---|
-| `offeredOptionIds` | Every **offered** option is re-billed at full price and loses its `includedInRate` tag, so the PDF prints a total the guest never agreed to. _(Since [tourist-tax-base-accommodation-only.md](tourist-tax-base-accommodation-only.md), 2026-08-20, the tourist tax is no longer affected — only the total is.)_ |
+| `offeredOptionIds` | Every **offered** option is re-billed at full price and loses its `includedInRate` tag, so the PDF prints a total the guest never agreed to — **and a tourist tax above the quoted one**, the untagged line no longer leaving the tax base ([tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md) rule 2, which reinstated that deduction on 2026-08-22). |
 | `lockedNightlyBreakdown` / `lockedOptionLines` / `lockedResourceLines` / `lockedTariff` | The stay is re-priced at **today's** tariff instead of the one it was quoted under (price lock, [devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md) §3 rule 13) |
 | engine-managed auto-option filtering | Auto-options persisted as lines are fed back as `selectedOptions` while the engine re-adds them |
 | `extraGuestSurchargeOffered` | An offered extra-guest surcharge is re-billed |

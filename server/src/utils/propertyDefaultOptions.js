@@ -27,4 +27,25 @@ function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel) {
   };
 }
 
-module.exports = { mergePropertyDefaultsIntoPayload };
+/**
+ * The option ids an update must put back: property defaults marked « offered » (the services
+ * included in the rate) that the booking ALREADY carries and whose payload dropped them.
+ *
+ * specs/tourist-tax-included-services-deduction.md rules 4-5 — an included service is not optional:
+ * the fiche locks its Switch ON and the server refuses to drop it, so two identical stays always
+ * declare the same tourist-tax base. Restricted to what the booking already carries on purpose: an
+ * existing reservation must never GAIN an option it did not have
+ * (specs/reservation-option-immutability.md rules 3-4). Pure: the caller injects `defaultsModel`
+ * (with `listForProperty(propertyId)` → [{ optionId, offered }]) and the two id lists.
+ */
+function carriedOfferedDefaultsToRestore({ propertyId, carriedOptionIds, submittedOptionIds, defaultsModel }) {
+  const defaults = defaultsModel.listForProperty(Number(propertyId));
+  if (!defaults || defaults.length === 0) return [];
+  const carried = new Set((carriedOptionIds || []).map((id) => Number(id)));
+  const submitted = new Set((submittedOptionIds || []).map((id) => Number(id)));
+  return defaults
+    .filter((d) => d.offered && carried.has(Number(d.optionId)) && !submitted.has(Number(d.optionId)))
+    .map((d) => Number(d.optionId));
+}
+
+module.exports = { mergePropertyDefaultsIntoPayload, carriedOfferedDefaultsToRestore };

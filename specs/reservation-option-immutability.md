@@ -64,11 +64,22 @@ defaults are still configured from the Options page.
 3. **Change — update re-merge removed.** Editing an existing reservation must NOT add a
    property-default option the reservation does not already carry. The `countsAsBedLinen` re-merge in
    the update controller is removed. Options the reservation *does* carry are preserved (they are in
-   the submitted payload).
+   the submitted payload). **Amended 2026-08-22:** they are preserved *even if the payload drops
+   them*, for offered defaults only — the update re-injects a carried « Comprise » line before
+   pricing (`carriedOfferedDefaultsToRestore`). This adds nothing new to the reservation; it only
+   refuses to remove what the rate includes.
 4. **Change — client forcing limited to creation.** The "forced ON / *Inclus*" property-default
    display applies **only when creating a new reservation**. In edit mode, options render exactly as
    the reservation carries them — an option the reservation lacks renders as a normal *off* switch,
    never as a disabled "Inclus".
+   **Amended 2026-08-22** ([tourist-tax-included-services-deduction.md](tourist-tax-included-services-deduction.md)
+   rules 4-5): a property default marked **« offerte »** — a service included in the rate, which now
+   leaves the tourist-tax base — renders forced ON *and disabled in edit mode too*, **but only when
+   the reservation already carries it**. The half of this rule that matters is untouched: an option
+   the reservation lacks still renders as a normal off switch and is never force-added. A *billed*
+   default (offered = 0) keeps the create-only behaviour and stays removable.
+   The server enforces the same bound (rule 3 below): an update restores a carried offered default the
+   payload dropped, and adds nothing else.
 5. **Kept — new reservations still receive property defaults.** The create-time merge
    ([reservationsController.js create path](../server/src/controllers/reservationsController.js#L281-L294))
    and the devis merge ([devisModel.js](../server/src/models/devisModel.js#L30-L49)) are unchanged.

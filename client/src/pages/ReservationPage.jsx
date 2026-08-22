@@ -1275,6 +1275,20 @@ export default function ReservationPage() {
   // does not already have. (This reverses the former rule 4.bis, which forced the option on every
   // reservation of the property, including pre-default-era ones.)
   const propertyDefaultOptionIds = new Set(propertyOptionDefaults.map((d) => Number(d.optionId)));
+  // specs/tourist-tax-included-services-deduction.md rule 4 — a service INCLUDED IN THE RATE (a
+  // property default marked « offerte ») is not optional: it is sold inside the night, it leaves the
+  // tourist-tax base, and its Switch reads ON and disabled. In EDIT mode the lock is limited to the
+  // lines the reservation actually carries — one it never had stays a normal off Switch, or the
+  // fiche would force an option onto a booking that predates the default
+  // (specs/reservation-option-immutability.md rules 3-4, unchanged).
+  const lockedIncludedOptionIds = (() => {
+    const offeredDefaults = propertyOptionDefaults
+      .filter((d) => d.offered)
+      .map((d) => Number(d.optionId));
+    if (!editingReservationId) return new Set(offeredDefaults);
+    const carried = new Set((form.selectedOptions || []).map((so) => Number(so.optionId)));
+    return new Set(offeredDefaults.filter((id) => carried.has(id)));
+  })();
   const bedLinenForcedOptionIds = editingReservationId
     ? new Set()
     : new Set(
@@ -2916,6 +2930,9 @@ export default function ReservationPage() {
     // §3 rule 4.bis (hotfix follow-up) — bed-linen-flagged option IDs that are property
     // defaults. ExtrasSection forces the Switch ON + disabled for these.
     bedLinenForcedOptionIds,
+    // specs/tourist-tax-included-services-deduction.md rule 4 — the services included in the rate,
+    // locked ON so they cannot be removed from the booking.
+    lockedIncludedOptionIds,
     // extras
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,

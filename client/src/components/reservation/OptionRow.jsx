@@ -157,7 +157,7 @@ export default function OptionRow({ opt }) {
     setOptionEnabled, setOptionQuantity, isReservationLocked,
     setOptionInComplement, setAutoOptionInComplement,
     setOptionCardPersons, maxGuestsAllowed,
-    firstEnabledBedLinenOptionId, bedLinenForcedOptionIds,
+    firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode,
   } = useReservationForm();
 
@@ -181,7 +181,12 @@ export default function OptionRow({ opt }) {
   // option that's a property default is FORCED ON, even when it's not (yet)
   // in form.selectedOptions. The Switch shows checked + disabled. The server
   // re-merges the same default at save time so the option lands in the DB.
-  const isForcedByPropertyDefault = bedLinenForcedOptionIds?.has(opt.id) || false;
+  // specs/tourist-tax-included-services-deduction.md rule 4 — same rendering for every service
+  // included in the rate, on a new booking as on an existing one that carries it: it is sold inside
+  // the night, so removing it would misprice the stay AND the declared tourist tax.
+  const isForcedByPropertyDefault = bedLinenForcedOptionIds?.has(opt.id)
+    || lockedIncludedOptionIds?.has(opt.id)
+    || false;
   const enabled = explicitlyEnabled || isForcedByPropertyDefault;
   // "Auto-timed" = the option is derived by the pricing engine itself (early
   // check-in / late check-out). The right discriminator is `autoEnabled === 1`,
