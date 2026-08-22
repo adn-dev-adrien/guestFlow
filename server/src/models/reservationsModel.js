@@ -30,7 +30,7 @@ const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
 const {
   buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
-  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, MID_STAY_SOURCE,
+  buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE,
 } = require('../utils/midStayExtras');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
@@ -97,10 +97,54 @@ function deriveCommissionAmount(row) {
 // listed too, at `amount: 0` with their real price in `originalAmount`, so a gesture can be undone; the
 // listed detail still sums to `complementAmount`. Every other consumer (J-2 email, recall display) keeps
 // the billed-lines-only view.
+// Les extras d'une réservation détaillée, dans la forme que `midStayExtras` sait découper
+// (`readExtraLines` fait le même travail depuis SQL ; ici la réservation est déjà chargée).
+function readExtraLinesFromDetailed(r) {
+  const num = (v) => Math.round((Number(v) || 0) * 100) / 100;
+  return [
+    ...(r.options || []).map((o) => (Number(o.isCustom || 0) === 1
+      ? {
+        isCustom: true, title: o.description || o.title,
+        totalPrice: Number(o.offered || 0) === 1 ? 0 : num(o.totalPrice != null ? o.totalPrice : o.amount),
+        offered: Number(o.offered || 0), inComplement: Number(o.inComplement || 0),
+      }
+      : {
+        optionId: Number(o.optionId),
+        totalPrice: Number(o.offered || 0) === 1 ? 0 : num(o.totalPrice),
+        offered: Number(o.offered || 0), inComplement: Number(o.inComplement || 0),
+      })),
+    ...(r.resources || []).map((res) => ({
+      resourceId: Number(res.resourceId),
+      totalPrice: Number(res.offered || 0) === 1 ? 0 : num(res.totalPrice),
+      offered: Number(res.offered || 0), inComplement: Number(res.inComplement || 0),
+    })),
+  ];
+}
+
 function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const lines = [];
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2 — une ligne « en complément » peut avoir
+  // déjà quitté le complément d'ARRIVÉE : la part vendue en cours de séjour est facturée en fin de
+  // séjour. La lister ici à son prix plein la faisait apparaître DEUX FOIS sur la carte fusionnée
+  // (une fois côté arrivée, une fois côté fin de séjour) et rompait l'invariant de cette fonction —
+  // « le détail somme au montant du complément » (Adrien, 2026-08-22). On retire donc la part
+  // déplacée, clé par clé, avec le même découpage que le moteur et la comptabilité.
+  const midStayByKey = { ...(resolveMidStaySplit(readExtraLinesFromDetailed(r), {
+    baseline: r.arrivalExtrasBaseline,
+    settled: Number(r.endOfStayComplementPaid || 0) === 1 || Number(r.endOfStayComplementPaidCash || 0) === 1,
+    storedLines: storedMidStayLines(r.endOfStayComplementDetail),
+    notes: r.midStaySettledNotes,
+  }).byKey || {}) };
+  // Consommée au fur et à mesure : deux lignes personnalisées de même libellé partagent une clé.
+  const withoutMidStay = (line, real) => {
+    const key = extraLineKey(line);
+    const moved = Math.min(real, round2(midStayByKey[key] || 0));
+    if (moved <= 0) return real;
+    midStayByKey[key] = round2(midStayByKey[key] - moved);
+    return round2(real - moved);
+  };
   // `qty`/`unitPrice`/`kind` (specs/j2-email-coffee-and-sas-complement.md) are additive: they let the
   // J-2 email render the same « label : qté × prix = total » lines as the SAS recap, and localise the
   // system labels (tax / remainder) per language. Existing consumers reading `label`/`amount` are
@@ -109,11 +153,15 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
     if (Number(o.inComplement || 0) !== 1) continue;
     const offered = Number(o.offered || 0) === 1;
     if (offered && !includeOffered) continue;
-    const real = round2(offered
+    const isCustom = Number(o.isCustom || 0) === 1;
+    const full = round2(offered
       ? (o.originalTotalPrice != null ? o.originalTotalPrice : o.totalPrice)
       : (o.totalPrice != null ? o.totalPrice : o.originalTotalPrice));
+    const real = offered ? full : withoutMidStay(
+      isCustom ? { isCustom: true, title: o.description || o.title } : { optionId: Number(o.optionId) },
+      full,
+    );
     if (real <= 0) continue;
-    const isCustom = Number(o.isCustom || 0) === 1;
     lines.push({
       kind: 'option', label: String(o.title || o.description || 'Extra').trim(),
       qty: Number(o.billedUnits || o.quantity || 1), unitPrice: round2(o.unitPrice),
@@ -126,9 +174,10 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
     if (Number(res.inComplement || 0) !== 1) continue;
     const offered = Number(res.offered || 0) === 1;
     if (offered && !includeOffered) continue;
-    const real = round2(offered
+    const full = round2(offered
       ? (res.originalTotalPrice != null ? res.originalTotalPrice : res.totalPrice)
       : (res.totalPrice != null ? res.totalPrice : res.originalTotalPrice));
+    const real = offered ? full : withoutMidStay({ resourceId: Number(res.resourceId) }, full);
     if (real <= 0) continue;
     lines.push({
       kind: 'resource', label: String(res.name || 'Ressource').trim(),

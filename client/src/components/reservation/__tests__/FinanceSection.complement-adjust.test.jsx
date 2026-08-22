@@ -153,6 +153,22 @@ test('la carte de fin de séjour rend le devis live, pas seulement le montant st
   expect(screen.getByText(/Calcul auto \(30,00 €\)/)).toBeInTheDocument();
 });
 
+// Le bouton « Complément payé » de la carte d'arrivée n'écrivait en base que sur une réservation
+// VERROUILLÉE : ailleurs il n'y avait que le formulaire, et le serveur — qui décide de la fusion des
+// cartes — continuait de croire le complément encaissé. Dé-marquer puis reporter ne fusionnait rien.
+test('dé-marquer l\'encaissement part immédiatement au serveur', async () => {
+  const user = userEvent.setup();
+  const ctx = renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
+    form: { ...FUTURE, complementPaid: true, complementPaidDate: '2099-06-01' },
+  });
+  await user.click(screen.getByRole('button', { name: /^Complément payé$/i }));
+  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { complementPaid: false, complementPaidDate: null }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ complementPaid: false, complementPaidDate: '' });
+  expect(ctx.reloadReservationFinance).toHaveBeenCalled();
+});
+
 test('§6.5 — les deux compléments sont rendus dans la même grille, chacun sur une demi-largeur', () => {
   renderFinance({
     editingReservationId: 7, reservationId: 7,

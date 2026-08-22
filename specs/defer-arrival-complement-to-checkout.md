@@ -170,6 +170,15 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     ([complement-buckets-by-moment.md](complement-buckets-by-moment.md) règle 4 révisée), si bien que
     la carte de la fiche, le panneau de droite et le marqueur disent tous la même chose, décidée au
     même endroit. L'invariant « la somme ne bouge jamais » est préservé.
+16ter. **Les boutons d'encaissement de la carte écrivent tous immédiatement.** « Marquer complément
+    payé » n'appelait le serveur que sur une réservation **verrouillée** ; ailleurs il ne changeait que
+    le formulaire, en attendant un « Enregistrer » — alors que ses voisins (« Caisse interne », le
+    bouton de la carte de fin de séjour, le report lui-même) écrivaient tout de suite. Le formulaire
+    et la base divergeaient donc, et c'est la base qui décide de la fusion : **dé-marquer un
+    encaissement puis reporter ne fusionnait rien** (constaté par Adrien le 2026-08-22, et c'est aussi
+    l'explication de l'écran « impossible » de sa première capture — contrôle visible côté formulaire,
+    deux cartes côté serveur). Le rechargement financier relit désormais l'état d'encaissement, pour
+    que les deux ne puissent plus se contredire.
 16bis. **Le contrôle est un bouton, pas un interrupteur.** Un `Switch` MUI glissé entre le champ de
     montant et les boutons de paiement est passé inaperçu de l'opérateur — le retour du 2026-08-22 est
     littéralement « il n'y a pas de bouton percevoir en fin de séjour », alors qu'il était à l'écran.
@@ -441,6 +450,9 @@ de spécifique à `xs`. Cible tactile ≥ 44 px de haut.
 - [ ] Réception + planning : plus d'alerte à l'arrivée, alerte au départ. **Non rejoué à la main** —
       il faudrait une arrivée du jour ; `buildOperationalCollection` n'est pas modifié par cette part
       et garde ses tests (`operational-collection.unit.test.js`).
+- [x] Séquence de correction complète : complément d'arrivée encaissé + une option déjà partie en fin
+      de séjour → dé-marquer l'encaissement → « Percevoir en fin de séjour » → **une seule carte à
+      34,30 €** (2,16 d'arrivée + 30 de fin de séjour), détail sans doublon (règle 16ter).
 - [x] Sur la réservation qui a motivé la révision (compl. d'arrivée encaissé 153,05 € + bain nordique
       30 €) : le bouton est visible, le report demande confirmation, la fiche tombe à **une seule
       carte à 187,01 €** listant toutes les lignes, le montant s'ajuste à 150 € et l'aller-retour

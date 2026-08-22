@@ -14,7 +14,10 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
-const { create: createReservationsModel } = require('../models/reservationsModel');
+const {
+  create: createReservationsModel,
+  __test: { arrivalComplementDetailFromReservation },
+} = require('../models/reservationsModel');
 
 function pricingDb() {
   const db = new Database(':memory:');
@@ -112,4 +115,43 @@ test('séjour à venir mais complément ENCAISSÉ → la base existe, le bucket 
 test('séjour commencé → la base existe comme avant, encaissé ou non', () => {
   const model = createReservationsModel(modelDb({ startDate: '2026-08-01' }));
   assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 24 });
+});
+
+// ── le détail du complément d'arrivée ne compte pas deux fois ───────────────
+// Une ligne « en complément » dont une part est partie en fin de séjour était listée à son prix
+// PLEIN côté arrivée : sur la carte fusionnée elle apparaissait deux fois, et le détail ne sommait
+// plus au montant du complément — l'invariant que cette fonction promet (Adrien, 2026-08-22).
+
+const detailed = (over = {}) => ({
+  complementAmount: 24, complementPaid: 0,
+  touristTaxInComplementAmount: 0,
+  arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 24 }),
+  endOfStayComplementDetail: null, midStaySettledNotes: null,
+  options: [
+    { optionId: 9, title: 'Linge', totalPrice: 24, offered: 0, inComplement: 1, quantity: 1, unitPrice: 24 },
+    { optionId: 12, title: 'Bain nordique', totalPrice: 30, offered: 0, inComplement: 1, quantity: 1, unitPrice: 30 },
+  ],
+  resources: [],
+  ...over,
+});
+
+test('le détail retire la part déjà partie en fin de séjour, et somme au complément', () => {
+  const out = arrivalComplementDetailFromReservation(detailed());
+  assert.deepEqual(out.detail.map((l) => [l.label, l.amount]), [['Linge', 24]]);
+  assert.equal(out.detail.reduce((s, l) => s + l.amount, 0), out.amount);
+});
+
+test('sans base de référence, rien ne bouge : les deux lignes restent côté arrivée', () => {
+  const out = arrivalComplementDetailFromReservation(detailed({ arrivalExtrasBaseline: null, complementAmount: 54 }));
+  assert.deepEqual(out.detail.map((l) => [l.label, l.amount]), [['Linge', 24], ['Bain nordique', 30]]);
+  assert.equal(out.detail.reduce((s, l) => s + l.amount, 0), out.amount);
+});
+
+test('une part seulement : la ligne est listée à ce qui reste côté arrivée', () => {
+  // 30 € vendus, 18 € étaient là à l'arrivée → 12 € sont partis en fin de séjour.
+  const out = arrivalComplementDetailFromReservation(detailed({
+    arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 24, 'opt:12': 18 }), complementAmount: 42,
+  }));
+  assert.deepEqual(out.detail.map((l) => [l.label, l.amount]), [['Linge', 24], ['Bain nordique', 18]]);
+  assert.equal(out.detail.reduce((s, l) => s + l.amount, 0), out.amount);
 });

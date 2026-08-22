@@ -878,16 +878,23 @@ export default function FinanceSection() {
                           allocation={complementAdjustment.allocation}
                           floor={complementAdjustment.floor}
                           adjustDisabledReason={arrivalAdjustDisabledReason}
+                          // L'encaissement est un acte, pas un brouillon : il part tout de suite, comme
+                          // « Caisse interne » et comme le bouton de la carte de fin de séjour. Il
+                          // n'écrivait qu'en base sur une réservation VERROUILLÉE et attendait un
+                          // « Enregistrer » sinon — le formulaire disait « non encaissé » pendant que le
+                          // serveur disait l'inverse, et c'est le serveur qui décide de la fusion des
+                          // cartes : dé-marquer puis reporter ne fusionnait rien (Adrien, 2026-08-22).
                           onTogglePaid={async (next) => {
                             const date = next ? (form.complementPaidDate || todayStr()) : '';
-                            if (isReservationLocked && editingReservationId) {
+                            if (editingReservationId) {
                               await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
                             }
                             updateForm({ complementPaid: next, complementPaidDate: date });
+                            if (editingReservationId) await reloadReservationFinance();
                           }}
                           onDateChange={async (v) => {
                             updateForm({ complementPaidDate: v });
-                            if (isReservationLocked && editingReservationId) {
+                            if (editingReservationId) {
                               await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
                             }
                           }}

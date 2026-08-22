@@ -110,6 +110,13 @@ ait été réglé ou non.
    courant**. Elles appartiennent au complément d'**arrivée** par construction et ne doivent jamais
    basculer en fin de séjour, y compris lorsque le SAS est ré-ouvert et re-commité plus tard.
 5. Une ligne **offerte** (`offered = 1`, montant 0) ne participe ni à la base ni au calcul.
+5bis. **Le détail du complément d'arrivée retire la part déjà partie en fin de séjour.**
+   `arrivalComplementDetailFromReservation` listait chaque ligne « en complément » à son prix PLEIN,
+   y compris quand une partie était facturée en fin de séjour : sur la carte fusionnée la prestation
+   apparaissait **deux fois** (une fois côté arrivée, une fois côté fin de séjour) et le détail ne
+   sommait plus au montant du complément — l'invariant que la fonction promet pourtant en tête. Elle
+   applique donc le même découpage que le moteur et la comptabilité, clé par clé, et la ligne
+   disparaît quand sa part arrivée tombe à zéro (2026-08-22).
 
 ### 3.2 Part « vendue en cours de séjour »
 
