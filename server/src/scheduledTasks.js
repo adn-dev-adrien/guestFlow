@@ -45,6 +45,9 @@ let arrivalDeparturePushFirstRun = true;
 // Track the local-date YYYY-MM-DD of the last successful auto-email run so the per-minute
 // tick doesn't fire the pass more than once per day.
 let lastEmailAutoSendDate = null;
+// A blocked pass deliberately gives the day's slot back (see tickEmailAutoSend), so the tick retries
+// it every minute until midnight. Its log line is announced once per local day, not once per retry.
+let lastEmailAutoSendBlockedLogDate = null;
 // Same once-per-day guard for the email-history rolling-window purge.
 let lastEmailHistoryPurgeDate = null;
 
@@ -134,11 +137,10 @@ async function runEmailAutoSendPass(reason = 'cron') {
       emailServiceFactory: createEmailService,
     });
     const { blocked, sentCount, skippedCount, failedCount } = result;
-    if (blocked) {
-      // specs/no-automatic-email-without-approval.md §3 rule 2 — one line, not per-template noise:
-      // the operator sees the day's mail waiting in « Emails à envoyer », not in the logs.
-      console.log(`[email-auto-send] ${reason}: envoi automatique désactivé dans les réglages — rien envoyé`);
-    } else if (sentCount > 0 || failedCount > 0) {
+    // A blocked pass is NOT logged here: it repeats every minute by design, and only the caller knows
+    // whether this one is the day's first. It is reported through `result.blocked` instead
+    // (specs/no-automatic-email-without-approval.md §3 rule 2).
+    if (!blocked && (sentCount > 0 || failedCount > 0)) {
       console.log(`[email-auto-send] ${reason}: ${sentCount} sent, ${skippedCount} skipped, ${failedCount} failed`);
     }
     return result;
@@ -152,8 +154,9 @@ async function runEmailAutoSendPass(reason = 'cron') {
 // Per-minute tick. Fires the auto-send pass at the first tick on/after 08:00 local time,
 // once per local day. Catches up if the server was down at 08:00 (any later tick on the
 // same day triggers the pass as long as it hasn't already run).
-function tickEmailAutoSend() {
-  const now = new Date();
+function tickEmailAutoSend(deps = {}) {
+  const now = deps.now || new Date();
+  const run = deps.run || runEmailAutoSendPass;
   const hour = now.getHours();
   if (hour < 8) return;
   const today = isoToday(now);
@@ -161,11 +164,20 @@ function tickEmailAutoSend() {
   const previous = lastEmailAutoSendDate;
   // Claim the day's slot up-front so a slow pass can't be started twice by the next tick.
   lastEmailAutoSendDate = today;
-  runEmailAutoSendPass('daily 08:00 pass')
-    // A pass blocked by the settings switch must NOT consume the slot: if the operator authorises
-    // automatic sending later the same day, the next tick runs the real pass instead of waiting for
-    // tomorrow 08:00 — by which time today's due templates no longer match their send date.
-    .then((result) => { if (result && result.blocked) lastEmailAutoSendDate = previous; })
+  return run('daily 08:00 pass')
+    .then((result) => {
+      if (!result || !result.blocked) return;
+      // A pass blocked by the settings switch must NOT consume the slot: if the operator authorises
+      // automatic sending later the same day, the next tick runs the real pass instead of waiting for
+      // tomorrow 08:00 — by which time today's due templates no longer match their send date.
+      lastEmailAutoSendDate = previous;
+      // …but giving the slot back means retrying every minute until midnight, and the operator does
+      // not need to read that ~960 times a day. One line per local day says it (rule 9); the state
+      // itself is visible in Réglages and on the Emails page, not in the log.
+      if (lastEmailAutoSendBlockedLogDate === today) return;
+      lastEmailAutoSendBlockedLogDate = today;
+      console.log('[email-auto-send] daily 08:00 pass: envoi automatique désactivé dans les réglages — rien envoyé');
+    })
     .catch((err) => console.error('[email-auto-send] unhandled:', err));
 }
 

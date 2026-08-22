@@ -78,6 +78,13 @@ in one click.
    if it was blocked, the guard is released so that authorising automatic sending later the same day
    lets the next tick run the real pass — rather than waiting for tomorrow, by which point today's
    due templates no longer match their send date.
+   Releasing the slot means the pass is retried on **every per-minute tick** from 08:00 to midnight
+   for as long as the flag is OFF. That retry is silent: the blocked pass is announced in the log
+   **once per local day**, not once per retry. The flag ships OFF, so the per-retry line was ~960
+   identical entries a day on a default installation — enough to bury everything else in
+   `pm2 logs`. The state belongs on screen (rule 8), not in the log. `performAutoEmailPass` reports
+   `blocked` to its caller and logs nothing itself; `tickEmailAutoSend` owns the repetition, so it owns
+   the decision of whether this pass is the day's first.
 10. A blocked email produces **no** `email_log` row. `email_log` is the record of send *attempts*;
    nothing was attempted. The queue is the record of what is waiting.
 
@@ -123,7 +130,7 @@ in one click.
 | `utils/` | `emailAutoSendRunner.js` | T | Guard at the top of `performAutoEmailPass` → `{ blocked: true, … }` when the flag is OFF |
 | `utils/` | `reservationEmailSender.js` | T | New `buildGatedConfirmationSender` — sends or queues depending on the flag. Lives here, next to `buildConfirmationSender`, because this module injects every dependency and is therefore unit-testable |
 | `utils/` | `paymentEffectDeps.js` | T | Wires the real models into the gated sender (no logic of its own) |
-| `scheduledTasks.js` | `scheduledTasks.js` | T | Logs the blocked pass in one line, and releases the once-per-day guard so a mid-day authorisation takes effect (rule 9) |
+| `scheduledTasks.js` | `scheduledTasks.js` | T | Releases the once-per-day guard so a mid-day authorisation takes effect, and announces the blocked pass once per local day however many times the tick retries it (rule 9). `tickEmailAutoSend({ now, run })` takes both by injection so the cadence is unit-testable |
 | `database.js` | `database.js` | T | Idempotent `tryAddAppSettingsCol('emailAutoSendEnabled', … NOT NULL DEFAULT 0)` |
 
 **Notes:**
@@ -246,13 +253,16 @@ modèle » + « Historique »). No change to either bar.
 
 ## 7. Test plan
 
-### Server unit tests (35 added, suite at 3471)
+### Server unit tests (39 added, suite at 3497)
 
 - [x] `tests/auto-send-policy.unit.test.js` (C) — accessor ON/OFF, raw-column fallback, missing
       column, a settings model that throws: everything short of an explicit yes reads as no.
 - [x] `tests/email-auto-send-runner.unit.test.js` (T) — flag OFF → `{ blocked: true }`, zero sends,
       zero `email_log` rows, SMTP transport never even built; same fixture sends once allowed; a
       settings model that never heard of the switch sends nothing.
+- [x] `tests/email-auto-send-blocked-log.unit.test.js` (T) — rule 9's log cadence: five ticks on one
+      blocked day run the pass five times but print one line; the next day prints again; an
+      authorised pass consumes the slot and prints no blocked line; before 08:00 nothing runs.
 - [x] `tests/email-log-model.unit.test.js` (T) — `includeAutoTemplates` surfaces due `auto`
       templates across all four anchors (`start`, `validUntil`, `depositDueDate`, `balanceDueDate`),
       keeps the sent/acknowledged dedup, and never resurrects a disabled template.
