@@ -1,5 +1,5 @@
 const { priceSessions, toMinutes } = require('./resourceHourlyPricing');
-const { resolveMidStaySplit } = require('./midStayExtras');
+const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
@@ -2325,6 +2325,43 @@ function calculateReservationQuote({
     const overrideRaw = Number(complementAmountOverride);
     if (Number.isFinite(overrideRaw)) resolvedComplementAmount = roundMoney(Math.max(0, overrideRaw));
   }
+
+  // Itemisation LIVE du complément d'arrivée (specs/defer-arrival-complement-to-checkout.md §3.2
+  // rule 7bis) — la carte fusionnée rend la fiche telle qu'elle est en cours d'édition, donc son
+  // détail doit sortir du moteur, pas de la ligne stockée du dernier enregistrement. Même contrat que
+  // `buildArrivalComplementDetail` : chaque ligne « en complément » à sa part ARRIVÉE (la part vendue
+  // en séjour est facturée au départ, on la retire clé par clé), la taxe quand elle est routée ici,
+  // et un reliquat qui referme l'écart avec le montant résolu.
+  const complementDetailLines = [];
+  {
+    const midStayLeft = { ...(midStayExtras.byKey || {}) };
+    for (const line of [...finalOptionLines, ...resourceLines]) {
+      if (!Number(line.inComplement || 0)) continue;
+      if (Number(line.offered || 0) === 1 || line.offered === true) continue;
+      const full = roundMoney(line.totalPrice);
+      if (full <= 0) continue;
+      const key = extraLineKey(line);
+      const moved = key ? Math.min(full, roundMoney(Number(midStayLeft[key] || 0))) : 0;
+      if (moved > 0) midStayLeft[key] = roundMoney(midStayLeft[key] - moved);
+      const amount = roundMoney(full - moved);
+      if (amount <= 0) continue;
+      complementDetailLines.push({
+        kind: line.resourceId != null ? 'resource' : 'option',
+        label: String(line.title || line.name || 'Extra').trim(),
+        qty: Number(line.billedUnits || line.quantity || 1),
+        unitPrice: roundMoney(line.unitPrice),
+        amount,
+      });
+    }
+    if (taxInComplement > 0) {
+      complementDetailLines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: roundMoney(taxInComplement), amount: roundMoney(taxInComplement) });
+    }
+    const listed = roundMoney(complementDetailLines.reduce((sum, l) => sum + l.amount, 0));
+    const rem = roundMoney(resolvedComplementAmount - listed);
+    if (rem > 0.01) {
+      complementDetailLines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: rem, amount: rem });
+    }
+  }
   // The end-of-stay complement as it will be stored: what the departure SAS bills + what is STILL
   // due of the mid-stay sales (specs/mid-stay-notes.md §3.3 rule 10 — the notes already collected
   // are out). Exposed so the fiche shows the sale live, before the save persists it.
@@ -2424,6 +2461,7 @@ function calculateReservationQuote({
     // can print « Calcul auto (X €) » under the adjustment field and ventilate the adjusted amount
     // over the postes the auto complement is actually made of.
     complementAmountAuto: autoComplementAmount,
+    complementDetailLines,
     endOfStayComplementAutoTotal,
     depositDueDate,
     balanceDueDate,

@@ -169,6 +169,40 @@ test('dé-marquer l\'encaissement part immédiatement au serveur', async () => {
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
+// §3.2 rule 7bis — la carte fusionnée suit le devis LIVE : le bloc stocké date du dernier
+// enregistrement et gardait les anciennes lignes pendant que le résumé suivait déjà le moteur.
+test('la carte fusionnée préfère le bloc live du devis au bloc stocké', () => {
+  renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: {
+      complementAmount: 128.05, complementAmountAuto: 128.05,
+      endOfStayComplementTotal: 30, endOfStayComplementAutoTotal: 30,
+      checkoutComplement: {
+        deferred: true, amount: 158.05, arrivalAmount: 128.05, endOfStayAmount: 30,
+        paid: false, paidCash: false, paidDate: null,
+        lines: [
+          { label: 'Le repas des trappeurs', amount: 75, origin: 'arrival' },
+          { label: 'Bain nordique', amount: 30, origin: 'endOfStay' },
+        ],
+      },
+    },
+    form: {
+      ...FUTURE,
+      complementDeferredToCheckout: true,
+      // Bloc stocké périmé : l'ancien total et l'ancien repas à 100 €.
+      checkoutComplement: {
+        deferred: true, amount: 183.05, arrivalAmount: 153.05, endOfStayAmount: 30,
+        paid: false, paidCash: false, paidDate: null,
+        lines: [{ label: 'Le repas des trappeurs', amount: 100, origin: 'arrival' }],
+      },
+    },
+  });
+  expect(screen.getByText('(158,05 €)')).toBeInTheDocument();
+  expect(screen.getByText(/Le repas des trappeurs : 75,00 €/)).toBeInTheDocument();
+  expect(screen.queryByText('(183,05 €)')).not.toBeInTheDocument();
+  expect(screen.queryByText(/Le repas des trappeurs : 100,00 €/)).not.toBeInTheDocument();
+});
+
 test('§6.5 — les deux compléments sont rendus dans la même grille, chacun sur une demi-largeur', () => {
   renderFinance({
     editingReservationId: 7, reservationId: 7,

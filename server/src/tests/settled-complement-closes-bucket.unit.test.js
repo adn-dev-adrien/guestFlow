@@ -155,3 +155,60 @@ test('une part seulement : la ligne est listée à ce qui reste côté arrivée'
   assert.deepEqual(out.detail.map((l) => [l.label, l.amount]), [['Linge', 24], ['Bain nordique', 18]]);
   assert.equal(out.detail.reduce((s, l) => s + l.amount, 0), out.amount);
 });
+
+// ── le bloc fusionné LIVE suit chaque édition ───────────────────────────────
+// specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — le bloc stocké date du dernier
+// enregistrement ; pendant l'édition la carte fusionnée doit suivre le moteur (retirer un repas des
+// trappeurs laissait la carte à 183,05 € pendant que le résumé affichait déjà 158,05 € — 2026-08-23).
+
+const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
+
+test('le moteur émet le détail live du complément d\'arrivée, part vendue en séjour déduite', () => {
+  const q = calculateReservationQuote({
+    ...BASE, db: pricingDb(), arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 24 }),
+  });
+  // Le bain (30 €) est parti en fin de séjour : seule la part arrivée du linge est listée.
+  assert.deepEqual(q.complementDetailLines.map((l) => [l.label, l.amount]), [['Linge', 24]]);
+  assert.equal(
+    Math.round(q.complementDetailLines.reduce((sum, l) => sum + l.amount, 0) * 100) / 100,
+    q.complementAmount,
+    'le détail live somme au montant résolu',
+  );
+});
+
+test('buildLiveCheckoutComplement — montants et lignes du devis, drapeaux de la ligne stockée', () => {
+  const q = calculateReservationQuote({
+    ...BASE, db: pricingDb(), arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 24 }),
+  });
+  const row = {
+    complementPaid: 0, complementPaidCash: 0, complementPaidDate: null,
+    complementDeferredToCheckout: 1,
+    endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0, endOfStayComplementPaidDate: null,
+    // Ligne stockée périmée (le repas au prix d'avant l'édition) : elle ne doit PAS survivre.
+    endOfStayComplementDetail: JSON.stringify([{ label: 'Bain nordique', amount: 99, source: 'midStayExtra', key: 'opt:12' }]),
+  };
+  const block = buildLiveCheckoutComplement({ row, quote: q });
+  assert.equal(block.deferred, true);
+  assert.equal(block.amount, Math.round((q.complementAmount + q.endOfStayComplementTotal) * 100) / 100);
+  assert.deepEqual(
+    block.lines.map((l) => [l.label, l.amount, l.origin]),
+    [['Linge', 24, 'arrival'], ['Bain nordique', 30, 'endOfStay']],
+    'les lignes viennent du devis, pas du stocké — aucun doublon, aucun montant périmé',
+  );
+});
+
+test('buildLiveCheckoutComplement — un complément encaissé n\'est pas fusionné, marqueur ou pas', () => {
+  const q = calculateReservationQuote({
+    ...BASE, db: pricingDb(), arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 24 }),
+  });
+  const block = buildLiveCheckoutComplement({
+    row: {
+      complementPaid: 1, complementPaidCash: 0, complementPaidDate: '2026-08-22',
+      complementDeferredToCheckout: 1,
+      endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0, endOfStayComplementPaidDate: null,
+      endOfStayComplementDetail: null,
+    },
+    quote: q,
+  });
+  assert.equal(block.deferred, false);
+});

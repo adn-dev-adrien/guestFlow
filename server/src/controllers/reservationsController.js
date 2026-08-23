@@ -29,6 +29,7 @@ const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
+const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -454,6 +455,15 @@ function calculatePrice(req, res) {
     platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — the merged « complément de fin de
+  // séjour » block, rebuilt from THIS quote so the card follows every edit live instead of showing
+  // the last save. Payment flags and the deferral marker come from the stored row: the fiche's
+  // buttons persist them immediately, so the row is always current.
+  if (reservationId > 0) {
+    const row = model.getRow(reservationId);
+    if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
+  }
+
   res.json(quote);
 }
 

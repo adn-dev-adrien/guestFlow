@@ -197,7 +197,10 @@ export default function FinanceSection() {
   // recap: there is only ONE collection left, at the door. The server ships the merged block
   // (`checkoutComplement`: total + arrival & end-of-stay lines + paid state); the fiche just renders
   // it in place of the two separate cards.
-  const checkoutComplement = form.checkoutComplement || null;
+  // Le bloc fusionné vit sur le devis LIVE dès qu'il est disponible : le bloc stocké date du dernier
+  // enregistrement, et une option modifiée pendant l'édition laissait la carte afficher les anciennes
+  // lignes pendant que le panneau de droite suivait déjà le moteur (Adrien, 2026-08-23).
+  const checkoutComplement = pricingQuote?.checkoutComplement || form.checkoutComplement || null;
   // specs/complement-buckets-by-moment.md §3 rule 4 (révisée 2026-08-22) — une seule chose fusionne
   // les cartes : le marqueur posé par l'opérateur. La fiche déduisait aussi le report du calendrier
   // (« le séjour a commencé et personne n'a encaissé »), ce qui déplaçait l'argent tout seul le jour

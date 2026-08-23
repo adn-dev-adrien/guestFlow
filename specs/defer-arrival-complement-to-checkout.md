@@ -92,6 +92,15 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
    `checkoutComplement: { deferred, amount, arrivalAmount, endOfStayAmount, paid, paidCash, paidDate,
    lines: [{ label, qty, unitPrice, amount, origin: 'arrival' | 'endOfStay' }] }`. The client renders it
    as-is — no client-side merge, no client-side sum (CLAUDE.md §6.0).
+7bis. **The merged block follows the LIVE quote** (2026-08-23). The stored block is a snapshot of the
+   last save: while the operator edits — removing a repas, unticking an option — the summary panel
+   followed the engine but the merged card kept the old lines and the old total (183,05 € shown under
+   a live 158,05 €), with only its « Calcul auto » helper up to date. `calculate-price` now returns a
+   `checkoutComplement` rebuilt from the fresh quote — arrival detail emitted by the engine itself
+   (`complementDetailLines`, mid-stay share deducted key by key), end-of-stay lines = stored SAS-owned
+   lines + the engine's recomputed mid-stay lines, payment flags from the row (the fiche's buttons
+   persist them immediately, rule 16ter) — and the fiche prefers it over the stored block. Card and
+   summary read the same quote and can no longer disagree.
 8. **One « payé » action.** In the merged state, marking the complement paid (or « Caisse interne »)
    from the fiche marks **both** buckets — `complementPaid` + `endOfStayComplementPaid` (and the two
    `*PaidCash` flags) — with the same date. Un-marking clears both. This mirrors what the departure SAS
@@ -273,6 +282,7 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/reservations/:id` | — | adds `complementDeferredToCheckout` + `checkoutComplement: { deferred, amount, arrivalAmount, endOfStayAmount, paid, paidCash, paidDate, lines[] }` | Server-computed; client renders as-is. |
+| POST | `/api/reservations/calculate-price` | `{ …, reservationId }` | adds the same `checkoutComplement`, rebuilt from THIS quote | **Rule 7bis** — the merged card follows every edit live. |
 | POST | `/api/reservations/:id/sas/arrival` | `complementSettled` (existing) | `{ ok, complementAmount }` | `false` now also sets the deferral marker. |
 | POST | `/api/reservations/:id/sas/departure` | `endOfStayComplementDetail` (existing) | `{ ok }` | Server drops a « Ménage de fin de séjour » line when the cleaning is already sold. |
 | PATCH | `/api/reservations/:id/payment` | `{ complementPaid, complementPaidDate }` / `{ complementPaidCash }` | `{ ok }` | When the marker is set, marks both buckets (rule 8). |
