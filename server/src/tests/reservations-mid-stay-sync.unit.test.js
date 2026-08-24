@@ -10,7 +10,9 @@ const { MID_STAY_SOURCE } = require('../utils/midStayExtras');
 
 const TODAY = '2026-07-11';
 
-function makeDb({ startDate = '2026-07-10' } = {}) {
+// `checkedIn` — specs/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
+// SAS d'arrivée), et non la date du calendrier, qui ouvre la fenêtre « vendu en cours de séjour ».
+function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE reservations (
@@ -64,8 +66,8 @@ function makeDb({ startDate = '2026-07-10' } = {}) {
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
   `);
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
-  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, adults, complementAmount) VALUES (1, 7, ?, '2026-07-15', 2, 30)")
-    .run(startDate);
+  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, adults, complementAmount, checkInDone) VALUES (1, 7, ?, '2026-07-15', 2, 30, ?)")
+    .run(startDate, checkedIn ? 1 : 0);
   db.prepare("INSERT INTO options (id, title, price) VALUES (9, 'Petit-déjeuner', 12)").run();
   db.prepare("INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, totalPrice) VALUES (1, 9, 1, 12, 1, 12)").run();
   return db;
@@ -83,26 +85,34 @@ test('readExtraLines: options + ressources + lignes personnalisées, une offerte
   assert.deepEqual(lines.map((l) => l.totalPrice), [12, 30, 60, 0]);
 });
 
-test('capture — séjour non commencé → aucune base (comportement inchangé)', () => {
-  const db = makeDb({ startDate: '2026-08-01' });
-  assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1, TODAY), null);
+test('capture — client pas encore arrivé → aucune base (comportement inchangé)', () => {
+  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
   assert.equal(baselineOf(db), null);
+});
+
+// specs/arrival-moment-is-the-check-in.md rule 1 — le bug remonté par Adrien : le jour de l'arrivée,
+// avant tout check-in, une option ajoutée à la main partait au complément de fin de séjour.
+test('capture — jour d\'arrivée atteint mais check-in pas fait → toujours aucune base', () => {
+  const db = makeDb({ startDate: TODAY, checkedIn: false });
+  assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
+  assert.equal(baselineOf(db), null, "rien n'est « vendu en cours de séjour » tant que le client n'est pas là");
 });
 
 test('capture — séjour commencé → la base fige les extras du moment', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
-  model.captureArrivalExtrasBaselineIfDue(1, TODAY);
+  model.captureArrivalExtrasBaselineIfDue(1);
   assert.deepEqual(JSON.parse(baselineOf(db)), { 'opt:9': 12 });
 });
 
 test('capture — idempotente : une base existante n\'est jamais réécrite', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
-  model.captureArrivalExtrasBaselineIfDue(1, TODAY);
+  model.captureArrivalExtrasBaselineIfDue(1);
   // Le client prend un 2e petit-déjeuner : la base ne doit PAS l'avaler.
   db.prepare('UPDATE reservation_options SET quantity = 2, totalPrice = 24 WHERE reservationId = 1').run();
-  model.captureArrivalExtrasBaselineIfDue(1, TODAY);
+  model.captureArrivalExtrasBaselineIfDue(1);
   assert.deepEqual(JSON.parse(baselineOf(db)), { 'opt:9': 12 });
 });
 
@@ -146,7 +156,7 @@ test('sync — gelé dès que le complément de fin de séjour est encaissé (§
 test('SAS d\'arrivée — ses propres lignes rejoignent la base (jamais du « vendu en cours de séjour »)', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
-  model.captureArrivalExtrasBaselineIfDue(1, TODAY); // base capturée AVANT le SAS
+  model.captureArrivalExtrasBaselineIfDue(1); // base capturée AVANT le SAS
   model.commitArrivalSas(1, { complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }] });
   assert.deepEqual(JSON.parse(baselineOf(db)), { 'opt:9': 12, 'custom:taie d\'oreiller': 5 });
   assert.equal(db.prepare('SELECT complementAmount FROM reservations WHERE id = 1').get().complementAmount, 35);
@@ -155,7 +165,7 @@ test('SAS d\'arrivée — ses propres lignes rejoignent la base (jamais du « ve
 test('SAS d\'arrivée re-commité — la base suit le nouveau montant, sans avaler les ventes du séjour', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
-  model.captureArrivalExtrasBaselineIfDue(1, TODAY);
+  model.captureArrivalExtrasBaselineIfDue(1);
   model.commitArrivalSas(1, { complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }] });
   // Le client prend un 2e petit-déjeuner pendant le séjour…
   db.prepare('UPDATE reservation_options SET quantity = 2, totalPrice = 24 WHERE reservationId = 1').run();
@@ -275,16 +285,24 @@ test('resolveArrivalExtrasBaseline — base synthétisée pour l\'aperçu tant q
   // Séjour commencé, jamais re-sauvegardé : la base n'existe pas encore en base de données…
   assert.equal(baselineOf(db), null);
   // …mais l'aperçu doit déjà voir ce que la prochaine sauvegarde figera.
-  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 12 });
+  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1)), { 'opt:9': 12 });
   assert.equal(baselineOf(db), null, 'le chemin de lecture n\'écrit jamais');
 
   // Une fois capturée, c'est elle qui fait foi (même si les extras ont bougé depuis).
-  model.captureArrivalExtrasBaselineIfDue(1, TODAY);
+  model.captureArrivalExtrasBaselineIfDue(1);
   db.prepare('UPDATE reservation_options SET quantity = 3, totalPrice = 36 WHERE reservationId = 1').run();
-  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 12 });
+  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1)), { 'opt:9': 12 });
 });
 
-test('resolveArrivalExtrasBaseline — séjour à venir → aucune base (aperçu inchangé)', () => {
-  const db = makeDb({ startDate: '2026-08-01' });
-  assert.equal(createReservationsModel(db).resolveArrivalExtrasBaseline(1, TODAY), null);
+test('resolveArrivalExtrasBaseline — client pas encore arrivé → aucune base (aperçu inchangé)', () => {
+  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  assert.equal(createReservationsModel(db).resolveArrivalExtrasBaseline(1), null);
+});
+
+// Le filet de sécurité (rule 2) : un complément d'arrivée déjà encaissé est figé, donc une vente
+// ultérieure doit avoir une base sur laquelle s'appuyer — sans quoi son montant n'atteint aucun bucket.
+test('resolveArrivalExtrasBaseline — complément déjà encaissé → base synthétisée même sans check-in', () => {
+  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  assert.deepEqual(JSON.parse(createReservationsModel(db).resolveArrivalExtrasBaseline(1)), { 'opt:9': 12 });
 });
