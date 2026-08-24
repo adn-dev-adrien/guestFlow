@@ -2244,6 +2244,29 @@ db.exec(`
   }
 }
 
+// Data repair (specs/arrival-moment-is-the-check-in.md rule 5): drop the arrival-extras baselines that
+// were pinned by the mere arrival DATE, on stays where nobody has checked in and nothing has been
+// collected yet. Those stays are still pre-arrival, so an extra added to them belongs to the arrival
+// complement — with a stale baseline in place it was billed at check-out instead, and listed twice.
+// Naturally idempotent (a filter on « no arrival signal at all »), and money-safe by construction: a
+// stay that collected any complement is excluded, so nothing frozen can lose its reference point.
+{
+  const cleared = db.prepare(`
+    UPDATE reservations SET arrivalExtrasBaseline = NULL
+    WHERE arrivalExtrasBaseline IS NOT NULL
+      AND COALESCE(checkInDone, 0) = 0
+      AND arrivalSasDoneAt IS NULL
+      AND COALESCE(complementPaid, 0) = 0
+      AND COALESCE(complementPaidCash, 0) = 0
+      AND COALESCE(endOfStayComplementPaid, 0) = 0
+      AND COALESCE(endOfStayComplementPaidCash, 0) = 0
+      AND COALESCE(midStaySettledNotes, '') IN ('', '[]')
+  `).run();
+  if (cleared.changes > 0) {
+    console.log(`[migration:arrival-baseline] cleared ${cleared.changes} baseline(s) pinned before any check-in`);
+  }
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

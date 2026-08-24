@@ -36,6 +36,7 @@ const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
+const { hasGuestArrived } = require('../utils/arrivalMoment');
 const bookingLinesModel = require('./bookingLinesModel');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
@@ -397,17 +398,23 @@ function createReservationsModel(database) {
   }
 
   // Quand la base de référence des extras doit-elle exister ? — specs/mid-stay-extras-to-end-of-stay-complement.md
-  // §3.1 rule 3, élargi le 2026-08-22.
+  // §3.1 rule 3, élargi le 2026-08-22 puis corrigé le 2026-08-24.
   //
-  // Elle marquait « le séjour a commencé », par le calendrier. Il manquait le cas qui perd de
-  // l'argent : **un complément d'arrivée déjà encaissé est clos**. Ce qu'on vend après, séjour
-  // commencé ou non, ne peut plus y entrer — le moteur le gèle — et sans base de référence il
-  // n'entrait nulle part non plus : une option de 30 € ajoutée sur un complément encaissé montait le
-  // total du séjour sans qu'aucune échéance ne la réclame (constaté en production le 2026-08-22).
-  // L'encaissement ferme donc le bucket, exactement comme le début du séjour.
-  const arrivalExtrasBaselineIsDue = (row, todayIso) => {
+  // Elle marquait « le séjour a commencé », par le calendrier. Deux corrections successives :
+  //
+  // 1. Il manquait le cas qui perd de l'argent : **un complément d'arrivée déjà encaissé est clos**.
+  //    Ce qu'on vend après, séjour commencé ou non, ne peut plus y entrer — le moteur le gèle — et
+  //    sans base de référence il n'entrait nulle part non plus : une option de 30 € ajoutée sur un
+  //    complément encaissé montait le total du séjour sans qu'aucune échéance ne la réclame
+  //    (constaté en production le 2026-08-22). L'encaissement ferme donc le bucket.
+  // 2. Le calendrier répondait à une AUTRE question que « le client est-il là ? »
+  //    (specs/arrival-moment-is-the-check-in.md). Le jour de l'arrivée, avant tout check-in, la base
+  //    était déjà posée : une option ajoutée à la main passait donc pour « vendue en cours de séjour »
+  //    et partait au complément de fin de séjour. L'arrivée est un acte de l'opérateur — le check-in
+  //    ou le SAS d'arrivée —, jamais une date.
+  const arrivalExtrasBaselineIsDue = (row) => {
     if (Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return true;
-    return Boolean(row.startDate) && String(row.startDate) <= String(todayIso);
+    return hasGuestArrived(row);
   };
 
   // Single write point for « the end-of-stay complement + its register »: the detail, the re-summed
@@ -1823,12 +1830,12 @@ function createReservationsModel(database) {
     // would then show a mid-stay sale as nothing at all. Synthesize the very baseline the next save
     // WOULD store (the extras currently stored), so the preview matches the post-save reality
     // without the read path ever writing (specs/mid-stay-notes.md §4.1).
-    resolveArrivalExtrasBaseline(reservationId, todayIso) {
+    resolveArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT startDate, arrivalExtrasBaseline, complementPaid, complementPaidCash FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
-      if (!arrivalExtrasBaselineIsDue(row, todayIso)) return null;
+      if (!arrivalExtrasBaselineIsDue(row)) return null;
       return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
     },
 
@@ -1840,12 +1847,12 @@ function createReservationsModel(database) {
 
     // Capture the baseline once, from the CURRENT lines, when the stay has started. Idempotent: an
     // already-captured baseline is never overwritten (that would swallow the mid-stay sales).
-    captureArrivalExtrasBaselineIfDue(reservationId, todayIso) {
+    captureArrivalExtrasBaselineIfDue(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT startDate, arrivalExtrasBaseline, complementPaid, complementPaidCash FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
-      if (!arrivalExtrasBaselineIsDue(row, todayIso)) return null;
+      if (!arrivalExtrasBaselineIsDue(row)) return null;
       const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
       database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(baseline, reservationId);

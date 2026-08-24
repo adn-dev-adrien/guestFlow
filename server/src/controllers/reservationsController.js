@@ -40,7 +40,7 @@ function midStayQuoteInputs(reservationId) {
   const row = model.getRow(Number(reservationId));
   if (!row) return {};
   return {
-    arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId), getTodayIsoDate()),
+    arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId)),
     endOfStaySasAmount: sasDetailAmount(row.endOfStayComplementDetail),
     // …et le même total sans la ligne d'ajustement, pour l'aide « Calcul auto » du champ.
     endOfStaySasAmountAuto: sasDetailAmountAuto(row.endOfStayComplementDetail),
@@ -637,7 +637,7 @@ function create(req, res) {
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
   // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
   // baseline: nothing it was created with counts as sold mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(reservationId, getTodayIsoDate());
+  model.captureArrivalExtrasBaselineIfDue(reservationId);
 
   // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
   // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
@@ -757,7 +757,7 @@ function update(req, res) {
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
   // lines are replaced: the state the reservation had entering this save is exactly « what was sold
   // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(id, getTodayIsoDate());
+  model.captureArrivalExtrasBaselineIfDue(id);
 
   // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:

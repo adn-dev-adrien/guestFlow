@@ -77,7 +77,7 @@ test('avec la base figée à l\'encaissement, les 30 € partent au complément 
 
 // ── la base est-elle posée au bon moment ? (couche modèle) ──────────────────
 
-function modelDb({ complementPaid = 0, startDate = '2026-10-10' } = {}) {
+function modelDb({ complementPaid = 0, startDate = '2026-10-10', checkedIn = false } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE reservations (
@@ -87,14 +87,15 @@ function modelDb({ complementPaid = 0, startDate = '2026-10-10' } = {}) {
       complementPaidCash INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
       arrivalExtrasBaseline TEXT DEFAULT NULL, midStaySettledNotes TEXT DEFAULT NULL,
+      checkInDone INTEGER DEFAULT 0, arrivalSasDoneAt TEXT,
       updatedAt TEXT
     );
     CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
     CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL DEFAULT 0, offered INTEGER DEFAULT 0);
   `);
-  db.prepare("INSERT INTO reservations (id, startDate, endDate, complementPaid) VALUES (1, ?, '2026-10-12', ?)")
-    .run(startDate, complementPaid);
+  db.prepare("INSERT INTO reservations (id, startDate, endDate, complementPaid, checkInDone) VALUES (1, ?, '2026-10-12', ?, ?)")
+    .run(startDate, complementPaid, checkedIn ? 1 : 0);
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, totalPrice) VALUES (1, 9, 24)').run();
   return db;
 }
@@ -102,19 +103,35 @@ const TODAY = '2026-08-22';
 
 test('séjour à venir, complément NON encaissé → toujours pas de base (comportement inchangé)', () => {
   const model = createReservationsModel(modelDb());
-  assert.equal(model.resolveArrivalExtrasBaseline(1, TODAY), null);
-  assert.equal(model.captureArrivalExtrasBaselineIfDue(1, TODAY), null);
+  assert.equal(model.resolveArrivalExtrasBaseline(1), null);
+  assert.equal(model.captureArrivalExtrasBaselineIfDue(1), null);
 });
 
 test('séjour à venir mais complément ENCAISSÉ → la base existe, le bucket est clos', () => {
   const model = createReservationsModel(modelDb({ complementPaid: 1 }));
-  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 24 });
-  assert.deepEqual(JSON.parse(model.captureArrivalExtrasBaselineIfDue(1, TODAY)), { 'opt:9': 24 });
+  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1)), { 'opt:9': 24 });
+  assert.deepEqual(JSON.parse(model.captureArrivalExtrasBaselineIfDue(1)), { 'opt:9': 24 });
 });
 
-test('séjour commencé → la base existe comme avant, encaissé ou non', () => {
-  const model = createReservationsModel(modelDb({ startDate: '2026-08-01' }));
-  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 24 });
+// specs/arrival-moment-is-the-check-in.md — l'arrivée est un acte de l'opérateur, pas une date : ce
+// qui ouvre la fenêtre « vendu en cours de séjour », c'est le check-in (ou le SAS d'arrivée).
+test('client arrivé → la base existe comme avant, encaissé ou non', () => {
+  const model = createReservationsModel(modelDb({ startDate: '2026-08-01', checkedIn: true }));
+  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1)), { 'opt:9': 24 });
+});
+
+// Le bug remonté sur la prod le 2026-08-24 : une option ajoutée à la main le jour de l'arrivée, avant
+// tout check-in, partait au complément de fin de séjour.
+test('jour d\'arrivée atteint mais check-in pas fait → toujours pas de base', () => {
+  const model = createReservationsModel(modelDb({ startDate: TODAY }));
+  assert.equal(model.resolveArrivalExtrasBaseline(1), null);
+  assert.equal(model.captureArrivalExtrasBaselineIfDue(1), null);
+});
+
+test('SAS d\'arrivée commité (sans la case check-in) → la base existe aussi', () => {
+  const db = modelDb({ startDate: '2026-08-01' });
+  db.prepare("UPDATE reservations SET arrivalSasDoneAt = '2026-08-01 16:10:00' WHERE id = 1").run();
+  assert.deepEqual(JSON.parse(createReservationsModel(db).resolveArrivalExtrasBaseline(1)), { 'opt:9': 24 });
 });
 
 // ── le détail du complément d'arrivée ne compte pas deux fois ───────────────
