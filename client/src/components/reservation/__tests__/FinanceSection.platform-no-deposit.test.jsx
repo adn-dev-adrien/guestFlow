@@ -163,28 +163,49 @@ test('« Calculer la commission »: subtracts an already-entered acompte commiss
   expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 70 });
 });
 
-// specs/platform-commission-minus-offered-tax.md — when the platform COLLECTS the tourist tax AND
-// remits it to the commune itself (« platform » case, touristTaxOfferedByPlatform), the brut includes
-// that tax and the platform withholds it from the virement on top of its commission. The commission
-// = montant client − virement − commission acompte − taxe ; otherwise the commission (and the figure
-// booked in compta) is over-stated by the tourist tax.
-test('« Calculer la commission »: subtracts the tourist tax when the platform collects + remits it to the commune', () => {
+// specs/platform-brut-excludes-offered-tourist-tax.md rule 3 — the tourist tax is NEVER subtracted,
+// whatever the platform's tax mode. When the platform collects and remits it itself, the amount typed
+// above excludes the tax (it is the stay total the platform bills us) and so does the virement; when
+// the platform reverses the tax to us, both carry it. Deducting our own estimate under-stated every
+// Gîtes de France commission — the accountant's 2026-08-24 report.
+test('« Calculer la commission »: never subtracts the tax when the platform collects + remits it to the commune', () => {
   const ctx = renderFinance({
     form: { platform: 'Airbnb', platformGrossAmount: 600, platformPayoutAmount: 520 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 12 },
   });
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  // 600 − 520 − 0 − 12 (tax → commune) = 68
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 68 });
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 }); // 600 − 520, tax untouched
 });
 
-test('« Calculer la commission »: does NOT subtract the tax when it is not offered (reversed / owner / direct)', () => {
+test('« Calculer la commission »: same formula when the tax is reversed to us (reversed / owner / direct)', () => {
   const ctx = renderFinance({
     form: { platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520 },
     pricingQuote: { touristTaxOfferedByPlatform: false, touristTaxOriginalTotal: 12 },
   });
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
   expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 }); // 600 − 520, tax not subtracted
+});
+
+test('the Grimaud case: 733 facturé − 668 viré → commission 65 (was 50,60 with the tax deducted)', () => {
+  const ctx = renderFinance({
+    form: { platform: 'GitesDeFrance', platformGrossAmount: 733, platformPayoutAmount: 668 },
+    pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.4 },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 65 });
+});
+
+// Rule 7 — which number to copy off the statement depends on the platform's tax mode, so the field says it.
+test('brut field: the platform collects + remits the tax → « Total séjour facturé », hors taxe', () => {
+  renderFinance({ form: { platform: 'GitesDeFrance' }, pricingQuote: { touristTaxOfferedByPlatform: true } });
+  expect(screen.getByLabelText('Total séjour facturé par la plateforme')).toBeInTheDocument();
+  expect(screen.getByText(/hors taxe de séjour et hors frais de dossier/i)).toBeInTheDocument();
+});
+
+test('brut field: the platform reverses the tax to us → « Montant total payé », taxe comprise', () => {
+  renderFinance({ form: { platform: 'Lodgify' }, pricingQuote: { touristTaxReversedByPlatform: true } });
+  expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
+  expect(screen.getByText(/la plateforme vous la reverse avec le virement/i)).toBeInTheDocument();
 });
 
 test('owner-collect platform, no commission: the on-arrival tax is excluded → no écart (regression)', () => {

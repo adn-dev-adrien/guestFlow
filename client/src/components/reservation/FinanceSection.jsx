@@ -448,14 +448,12 @@ export default function FinanceSection() {
               // minus an already-entered acompte commission (so the books reconcile: net perçu = virement).
               // Nothing is automatic; the computed value stays freely editable. Enabled only once both the
               // montant client (brut) and the virement reçu are filled.
-              // When the platform COLLECTS the tourist tax AND remits it to the commune itself
-              // (`touristTaxOfferedByPlatform`, case « platform »), the brut the guest paid includes that
-              // tax and the platform withholds it from the virement on top of its commission. Subtract it
-              // here, otherwise the computed commission is over-stated by the tourist tax — and so is the
-              // commission booked in compta (specs/platform-commission-minus-offered-tax.md).
-              const offeredTouristTax = Boolean(pricingQuote?.touristTaxOfferedByPlatform)
-                ? Number(pricingQuote?.touristTaxOriginalTotal || 0)
-                : 0;
+              // No tourist tax is ever subtracted here (specs/platform-brut-excludes-offered-tourist-tax.md):
+              // whatever the platform's tax mode, the amount typed above and the virement are on the same
+              // footing — either both carry the tax (the platform reverses it to us) or neither does (the
+              // platform collects and remits it itself). Deducting our OWN tax estimate under-stated the
+              // commission by that estimate, which is never the platform's figure anyway (Booking bills
+              // 4,4 % of the stay where we compute a per-person nightly rate).
               const platformGrossFilled = form.platformGrossAmount !== '' && form.platformGrossAmount != null;
               const platformPayoutFilled = form.platformPayoutAmount !== '' && form.platformPayoutAmount != null;
               const canComputeCommission = platformGrossFilled && platformPayoutFilled && !isReservationLocked;
@@ -464,9 +462,22 @@ export default function FinanceSection() {
                 const payoutNum = Number(form.platformPayoutAmount);
                 if (!Number.isFinite(grossNum) || !Number.isFinite(payoutNum)) return;
                 const acompteComm = Number(form.acompteCommissionAmount) || 0;
-                const soldeComm = Math.max(0, Math.round((grossNum - payoutNum - acompteComm - offeredTouristTax) * 100) / 100);
+                const soldeComm = Math.max(0, Math.round((grossNum - payoutNum - acompteComm) * 100) / 100);
                 updateForm({ platformCommissionAmount: soldeComm });
               };
+              // Which number to copy off the platform's statement depends on its tourist-tax mode, so the
+              // field says it (specs/platform-brut-excludes-offered-tourist-tax.md §6). Getting this wrong
+              // is what under-stated the commission on every Gîtes de France booking.
+              const taxOfferedByPlatform = Boolean(pricingQuote?.touristTaxOfferedByPlatform);
+              const taxReversedByPlatform = Boolean(pricingQuote?.touristTaxReversedByPlatform);
+              const grossLabel = taxOfferedByPlatform
+                ? 'Total séjour facturé par la plateforme'
+                : 'Montant total payé par le client';
+              const grossHelper = taxOfferedByPlatform
+                ? "Hébergement + options, hors taxe de séjour et hors frais de dossier — l'hébergement s'ajuste automatiquement."
+                : taxReversedByPlatform
+                  ? 'Taxe de séjour comprise — la plateforme vous la reverse avec le virement.'
+                  : "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
               return (
                 <>
                   <Divider />
@@ -475,12 +486,12 @@ export default function FinanceSection() {
                     <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'flex-start' }}>
                       <Grid size={{ xs: 12, md: 6 }}>
                         <ArithmeticTextField
-                          label="Montant total payé par le client"
+                          label={grossLabel}
                           value={form.platformGrossAmount ?? ''}
                           onCommit={(v) => updateForm({ platformGrossAmount: v })}
                           fullWidth
                           size="small"
-                          helperText="Le brut facturé par la plateforme — l'hébergement s'ajuste automatiquement (brut − options)."
+                          helperText={grossHelper}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }}>
@@ -495,7 +506,7 @@ export default function FinanceSection() {
                       </Grid>
                     </Grid>
                     <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Tooltip title={canComputeCommission ? 'Commission solde = montant client − virement (− commission acompte éventuelle)' : 'Renseignez le montant client et le virement reçu'}>
+                      <Tooltip title={canComputeCommission ? 'Commission solde = total facturé − virement (− commission acompte éventuelle)' : 'Renseignez le total facturé et le virement reçu'}>
                         <span>
                           <Button size="small" variant="outlined" onClick={computeCommissionFromPayout} disabled={!canComputeCommission}>
                             Calculer la commission

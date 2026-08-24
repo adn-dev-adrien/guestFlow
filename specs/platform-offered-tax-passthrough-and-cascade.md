@@ -30,6 +30,10 @@ ending on « ce que vous percevez » = versement plateforme + compléments perç
 Resolved decisions (AskUserQuestion 2026-06-26): unified model — **engine separates the offered tax
 from the brut** (accommodation = 200) **and** **compta books it as a 46710000 pass-through** (visible,
 never CA). Commission button already subtracts the offered tax (shipped earlier on this branch).
+> **2026-08-24 — both halves of that decision are reversed** by
+> `specs/platform-brut-excludes-offered-tourist-tax.md`: neither the engine nor the commission button
+> subtracts the offered tax any more, because the brut never contained it. Only the cascade (§3.7)
+> and the « no compta change » conclusion (§3.4-3.6) survive from this spec.
 
 ## 2. Goal
 
@@ -40,13 +44,20 @@ ending on what the operator actually earns.
 ## 3. Functional rules
 
 ### Engine (`pricing.js`)
-1. When a brut is pinned **and** the tax is offered-by-platform (`touristTaxOfferedByPlatform`), the
+1. ~~When a brut is pinned **and** the tax is offered-by-platform (`touristTaxOfferedByPlatform`), the
    brut→accommodation back-solve subtracts the **original** tourist tax (the pre-zeroing
    `touristTaxBreakdown.touristTaxTotal`), exactly like the reversed term added by PR #300:
-   `accommodation = max(0, brut − extra-guest − pre-arrival options/resources − reversedTax − offeredTax)`.
-2. Consequence: `finalPrice` = real accommodation (200), `totalStayPrice` = 200 (offered tax stays 0),
-   net perçu = 200 − commission. `platformGrossAmount` (the brut, 204.80) and `touristTaxOriginalTotal`
-   (4.80) are already exposed for the cascade.
+   `accommodation = max(0, brut − extra-guest − pre-arrival options/resources − reversedTax − offeredTax)`.~~
+   **SUPERSEDED 2026-08-24 by `specs/platform-brut-excludes-offered-tourist-tax.md` rule 2.** The
+   premise below — « the brut the guest paid includes the tax » — is false: the number the operator
+   copies off the statement is what the platform **bills us**, and Gîtes de France, Booking and Airbnb
+   all print it tourist-tax-excluded. Subtracting our own estimate under-stated the CA *and* the
+   commission by that estimate (accountant's report, réservation #22225), and the estimate is never
+   the platform's figure anyway (Booking bills 4,4 % of the stay where we compute a nightly per-person
+   rate). The back-solve now keeps only the `reversedTax` term.
+2. ~~Consequence: `finalPrice` = real accommodation (200), `totalStayPrice` = 200 (offered tax stays 0),
+   net perçu = 200 − commission.~~ **SUPERSEDED with rule 1** — `finalPrice` is now the whole brut.
+   `platformGrossAmount` and `touristTaxOriginalTotal` are still exposed for the cascade.
 3. **No change** to direct, reversed (case 1, already handled), owner (case 3), or any booking without
    a brut. The offered tax **amount** is unchanged (still 0 in `touristTaxTotal`, original kept).
 
