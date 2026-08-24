@@ -97,28 +97,110 @@ test('règle 9 — une carte ajustée à 0 € reste affichée', () => {
   expect(screen.getByText("Complément d'arrivée")).toBeInTheDocument();
 });
 
-test('§3.3 — l\'interrupteur « Percevoir en fin de séjour » pose le marqueur et recharge', async () => {
+test('§3.3 — « Percevoir en fin de séjour » pose le marqueur et recharge', async () => {
   const user = userEvent.setup();
   const ctx = renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { ...FUTURE },
   });
-  await user.click(screen.getByRole('switch', { name: /Percevoir en fin de séjour/i }));
+  await user.click(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i }));
   expect(ctx.updateForm).toHaveBeenCalledWith({ complementDeferredToCheckout: true });
   await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { complementDeferredToCheckout: true }));
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();
 });
 
-test('§3.3 règle 15 — séjour commencé : l\'interrupteur est coché et figé', () => {
+test('§3.3 règle 15 — le séjour commencé ne verrouille plus le report', () => {
   renderFinance({
     editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
     form: { startDate: '2020-01-01', endDate: '2020-01-05' },
   });
-  const toggle = screen.getByRole('switch', { name: /Percevoir en fin de séjour/i });
-  expect(toggle).toBeChecked();
-  expect(toggle).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i })).toBeEnabled();
+});
+
+test('§3.3 règle 15 — un complément encaissé reste reportable, après confirmation', async () => {
+  const user = userEvent.setup();
+  const ctx = renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
+    form: { ...FUTURE, complementPaid: true, complementPaidDate: '2099-06-01' },
+  });
+  await user.click(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i }));
+  expect(await screen.findByText(/Il est marqué encaissé/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /^Confirmer$|^Oui$/i }));
+  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, {
+    complementDeferredToCheckout: true, complementPaid: false, complementPaidCash: false,
+  }));
+  expect(ctx.reloadReservationFinance).toHaveBeenCalled();
+});
+
+// specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — une prestation vendue sur un
+// complément d'arrivée encaissé part au complément de fin de séjour, et la carte doit le montrer
+// AVANT l'enregistrement : sinon l'opérateur voit son option disparaître de l'écran.
+test('la carte de fin de séjour rend le devis live, pas seulement le montant stocké', () => {
+  renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: {
+      complementAmount: 24, complementAmountAuto: 24,
+      endOfStayComplementTotal: 30, endOfStayComplementAutoTotal: 30,
+      midStayExtrasLines: [{ label: 'Petit déjeuner', qty: 3, unitPrice: 10, amount: 30, source: 'midStayExtra', key: 'opt:6' }],
+    },
+    form: { ...FUTURE, complementPaid: true, endOfStayComplementAmount: 0, endOfStayComplementAmountAuto: 0 },
+  });
+  expect(screen.getByText('Complément de fin de séjour')).toBeInTheDocument();
+  expect(screen.getByText(/Petit déjeuner : 30,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Calcul auto \(30,00 €\)/)).toBeInTheDocument();
+});
+
+// Le bouton « Complément payé » de la carte d'arrivée n'écrivait en base que sur une réservation
+// VERROUILLÉE : ailleurs il n'y avait que le formulaire, et le serveur — qui décide de la fusion des
+// cartes — continuait de croire le complément encaissé. Dé-marquer puis reporter ne fusionnait rien.
+test('dé-marquer l\'encaissement part immédiatement au serveur', async () => {
+  const user = userEvent.setup();
+  const ctx = renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: { complementAmount: 24, complementAmountAuto: 24 },
+    form: { ...FUTURE, complementPaid: true, complementPaidDate: '2099-06-01' },
+  });
+  await user.click(screen.getByRole('button', { name: /^Complément payé$/i }));
+  await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { complementPaid: false, complementPaidDate: null }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ complementPaid: false, complementPaidDate: '' });
+  expect(ctx.reloadReservationFinance).toHaveBeenCalled();
+});
+
+// §3.2 rule 7bis — la carte fusionnée suit le devis LIVE : le bloc stocké date du dernier
+// enregistrement et gardait les anciennes lignes pendant que le résumé suivait déjà le moteur.
+test('la carte fusionnée préfère le bloc live du devis au bloc stocké', () => {
+  renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    pricingQuote: {
+      complementAmount: 128.05, complementAmountAuto: 128.05,
+      endOfStayComplementTotal: 30, endOfStayComplementAutoTotal: 30,
+      checkoutComplement: {
+        deferred: true, amount: 158.05, arrivalAmount: 128.05, endOfStayAmount: 30,
+        paid: false, paidCash: false, paidDate: null,
+        lines: [
+          { label: 'Le repas des trappeurs', amount: 75, origin: 'arrival' },
+          { label: 'Bain nordique', amount: 30, origin: 'endOfStay' },
+        ],
+      },
+    },
+    form: {
+      ...FUTURE,
+      complementDeferredToCheckout: true,
+      // Bloc stocké périmé : l'ancien total et l'ancien repas à 100 €.
+      checkoutComplement: {
+        deferred: true, amount: 183.05, arrivalAmount: 153.05, endOfStayAmount: 30,
+        paid: false, paidCash: false, paidDate: null,
+        lines: [{ label: 'Le repas des trappeurs', amount: 100, origin: 'arrival' }],
+      },
+    },
+  });
+  expect(screen.getByText('(158,05 €)')).toBeInTheDocument();
+  expect(screen.getByText(/Le repas des trappeurs : 75,00 €/)).toBeInTheDocument();
+  expect(screen.queryByText('(183,05 €)')).not.toBeInTheDocument();
+  expect(screen.queryByText(/Le repas des trappeurs : 100,00 €/)).not.toBeInTheDocument();
 });
 
 test('§6.5 — les deux compléments sont rendus dans la même grille, chacun sur une demi-largeur', () => {

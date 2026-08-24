@@ -1,5 +1,7 @@
 /**
- * specs/complement-buckets-by-moment.md — a complement is filed under the moment it is collected.
+ * specs/complement-buckets-by-moment.md — a complement is filed under the moment it is collected,
+ * and that moment is the operator's « Percevoir en fin de séjour » marker, never an inference from
+ * the calendar (§3 rule 4, revised 2026-08-22).
  * Every case also checks rule 6: the split never changes a total.
  */
 
@@ -30,38 +32,47 @@ function splitAndCheck(input) {
 
 test('stay not started: the arrival complement is a forecast, filed under arrival', () => {
   assert.deepEqual(
-    splitAndCheck({ complementAmount: 40, complementPaid: 0, stayStarted: false }),
+    splitAndCheck({ complementAmount: 40, complementPaid: 0 }),
     { arrival: 40, duringStay: 0, endOfStay: 0 },
   );
 });
 
 test('stay started and collected at check-in: stays under arrival', () => {
   assert.deepEqual(
-    splitAndCheck({ complementAmount: 40, complementPaid: 1, stayStarted: true }),
+    splitAndCheck({ complementAmount: 40, complementPaid: 1 }),
     { arrival: 40, duringStay: 0, endOfStay: 0 },
   );
 });
 
-test('stay started and NOT collected: moves to the end-of-stay bucket', () => {
+test('marked « en fin de séjour » and NOT collected: moves to the end-of-stay bucket', () => {
   assert.deepEqual(
-    splitAndCheck({ complementAmount: 40, complementPaid: 0, stayStarted: true }),
+    splitAndCheck({ complementAmount: 40, complementPaid: 0, deferred: true }),
     { arrival: 0, duringStay: 0, endOfStay: 40 },
   );
 });
 
-test('stay started, not collected, on top of an existing end-of-stay complement: the two add up', () => {
+test('marked, not collected, on top of an existing end-of-stay complement: the two add up', () => {
   assert.deepEqual(
     splitAndCheck({
-      complementAmount: 40, complementPaid: 0, stayStarted: true, endOfStayComplementTotal: 30,
+      complementAmount: 40, complementPaid: 0, deferred: true, endOfStayComplementTotal: 30,
     }),
     { arrival: 0, duringStay: 0, endOfStay: 70 },
+  );
+});
+
+// Le calendrier ne décide plus rien (règle 4 révisée) : un complément oublié reste sous « arrivée »
+// tant que l'opérateur ne l'a pas déplacé lui-même.
+test('the stay having started moves nothing on its own', () => {
+  assert.deepEqual(
+    splitAndCheck({ complementAmount: 40, complementPaid: 0, endOfStayComplementTotal: 30 }),
+    { arrival: 40, duringStay: 0, endOfStay: 30 },
   );
 });
 
 test('sales collected during the stay have their own bucket, whatever the arrival state', () => {
   assert.deepEqual(
     splitAndCheck({
-      complementAmount: 24, complementPaid: 1, stayStarted: true,
+      complementAmount: 24, complementPaid: 1,
       midStaySettledTotal: 17, endOfStayComplementTotal: 6.5,
     }),
     { arrival: 24, duringStay: 17, endOfStay: 6.5 },
@@ -71,7 +82,7 @@ test('sales collected during the stay have their own bucket, whatever the arriva
 test('deferred AND collected → arrival: it WAS collected (rule 2 beats the deferral flag)', () => {
   assert.deepEqual(
     splitAndCheck({
-      complementAmount: 40, complementPaid: 1, stayStarted: true, endOfStayComplementTotal: 12,
+      complementAmount: 40, complementPaid: 1, endOfStayComplementTotal: 12,
     }),
     { arrival: 40, duringStay: 0, endOfStay: 12 },
   );
@@ -88,7 +99,7 @@ test('no reservation (devis / public quote): not started → everything under ar
 
 test('each amount is rounded to cents before the buckets are summed', () => {
   const out = splitAndCheck({
-    complementAmount: 10.014, complementPaid: 0, stayStarted: true, endOfStayComplementTotal: 6.674,
+    complementAmount: 10.014, complementPaid: 0, deferred: true, endOfStayComplementTotal: 6.674,
   });
   assert.equal(out.endOfStay, 16.68); // 10.01 + 6.67, not 16.688
   assert.equal(out.arrival, 0);

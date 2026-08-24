@@ -66,13 +66,13 @@ test('le total cumulé des notes est affiché, l\'historique se déplie avec dat
   expect(screen.getByText('Petit-déjeuner : 24,00 €')).toBeInTheDocument();
 });
 
-test('annuler une note : confirmation puis PATCH cancelMidStayNote + rechargement', async () => {
+test('reporter une note au départ : confirmation puis PATCH cancelMidStayNote + rechargement', async () => {
   const user = userEvent.setup();
   const ctx = renderFinance({ form: { midStaySettledNotes: NOTES } });
   await user.click(screen.getByRole('button', { name: /Voir l'historique/i }));
-  await user.click(screen.getAllByRole('button', { name: /Annuler l'encaissement/i })[0]);
+  await user.click(screen.getAllByRole('button', { name: /Reporter au départ/i })[0]);
 
-  expect(await screen.findByText(/Les prestations redeviennent à percevoir/i)).toBeInTheDocument();
+  expect(await screen.findByText(/rejoignent le complément de fin de séjour/i)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /^Confirmer$|^Oui$|^Supprimer$/i }));
 
   await waitFor(() => expect(api.markPayment).toHaveBeenCalledWith(7, { cancelMidStayNote: { id: 1 } }));

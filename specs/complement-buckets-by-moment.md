@@ -56,10 +56,22 @@ the same way in the summary panel and in the Finance cards.
    (`complementPaid = 1`). Otherwise 0.
 3. `duringStay` = the mid-stay sales already collected through a note (`midStaySettledTotal`).
 4. `endOfStay` = the end-of-stay complement (SAS lines + mid-stay remainder) **plus** the arrival
-   complement when the stay has started and it is not collected — whether it was explicitly deferred
-   at check-in or simply left unsettled.
-5. « The stay has started » is `startDate <= today` (server date). A reservation with no `startDate`
-   (devis, public quote) counts as not started.
+   complement when the operator has marked it « Percevoir en fin de séjour »
+   ([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.3) and it is
+   not collected.
+
+   > **Révision du 2026-08-22.** Cette règle disait initialement « … plus le complément d'arrivée
+   > quand le séjour a commencé et qu'il n'est pas encaissé, qu'il ait été explicitement reporté ou
+   > simplement laissé impayé ». L'inférence par le calendrier avait raison dans le cas courant et
+   > tort dans tous les autres : elle déplaçait l'argent d'elle-même le jour de l'arrivée, verrouillait
+   > le report, et ne laissait aucun moyen de revenir en arrière. **Le moment de collecte est une
+   > décision d'opérateur, pas une déduction** : seul le marqueur le fixe désormais.
+   >
+   > Ce qui ne change pas : les alertes du jour (tableau de bord, réception) continuent de lire
+   > « ce qui reste à encaisser aujourd'hui » depuis l'état réel des buckets
+   > ([operationalCollection.js](../server/src/utils/operationalCollection.js)) — là, c'est bien un
+   > fait, pas une intention.
+5. _(retirée le 2026-08-22 — la définition de « le séjour a commencé » n'entre plus dans le split.)_
 6. **Invariant:** `arrival + duringStay + endOfStay` equals the total collected on site
    (`complementAmount + midStaySettledTotal + endOfStayComplementTotal`) in every case. The split
    moves money between headings, never changes a total.
@@ -73,6 +85,9 @@ the same way in the summary panel and in the Finance cards.
 - A complement collected **during** the stay rather than at check-in (`complementPaidDate > startDate`)
   is still filed under « Complément d'arrivée ». Accepted simplification: the arrival SAS is what
   settles it in practice, and a late-recorded check-in must not jump heading. Revisit if it misleads.
+- An arrival complement forgotten on a past stay stays under « Complément d'arrivée » until someone
+  moves it (revision of rule 4). The departure SAS still recalls it, and the reception still lists it
+  as due — the split is a heading, not an alert.
 - Stay not started but an end-of-stay complement already exists (departure SAS lines cannot exist yet;
   a mid-stay line cannot either) → `endOfStay` keeps whatever is stored, no special case.
 - Deferred **and** collected (`complementDeferredToCheckout = 1` and `complementPaid = 1`) → `arrival`,
