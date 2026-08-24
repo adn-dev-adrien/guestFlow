@@ -1,1 +1,0 @@
-- Une option ajoutée à la main avant le check-in rejoint désormais le **complément d'arrivée**, et non plus celui de fin de séjour : c'est l'arrivée constatée — la case check-in ou le SAS d'arrivée — qui ouvre la fenêtre « vendu en cours de séjour », plus la simple date du calendrier.
