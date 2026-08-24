@@ -125,6 +125,22 @@ describe('CumulativeMonthCalendar (infinite scroll)', () => {
     await waitFor(() => expect(container.textContent).toMatch(/Jean Dupont/));
   });
 
+  // Reported 2026-08-24: « Abracadaroom » and « abracadaroom » sat side by side in the legend.
+  // Case is not identity — one platform, one entry, one leading capital.
+  it('lists a platform once in the legend whatever the stored casing', async () => {
+    const d = todayIso();
+    const end = `${d.slice(0, 8)}${String(Number(d.slice(8, 10)) + 1).padStart(2, '0')}`;
+    api.getReservations.mockResolvedValue([
+      { id: 1, startDate: d, endDate: end, platform: 'Abracadaroom', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
+      { id: 2, startDate: d, endDate: end, platform: 'abracadaroom', propertyName: 'Lodge', firstName: 'Marie', lastName: 'Martin' },
+    ]);
+    api.getEstablishmentClosures.mockResolvedValue([]);
+    render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
+    await waitFor(() => expect(screen.getAllByText('Abracadaroom').length).toBeGreaterThan(0));
+    // One legend swatch + one chip per reservation bar — never two differently-cased legend entries.
+    expect(screen.queryByText('abracadaroom')).not.toBeInTheDocument();
+  });
+
   it('shows the « Aujourd\'hui » control and the scroll hint (no month buttons)', async () => {
     api.getReservations.mockResolvedValue([]);
     api.getEstablishmentClosures.mockResolvedValue([]);

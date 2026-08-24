@@ -82,7 +82,8 @@ describe('StatusBadge (soft « Maison » restyle)', () => {
 describe('PlatformChip', () => {
   test('renders the platform label with its canonical color', () => {
     withTheme(<PlatformChip platform="airbnb" />);
-    const chip = screen.getByText('airbnb').closest('.MuiChip-root');
+    // A drifted lowercase spelling still reads with its leading capital.
+    const chip = screen.getByText('Airbnb').closest('.MuiChip-root');
     // #FF5A5F-style hex resolves to an rgb() computed background.
     expect(window.getComputedStyle(chip).backgroundColor).toBe(hexToRgb(PLATFORM_COLORS.airbnb));
   });

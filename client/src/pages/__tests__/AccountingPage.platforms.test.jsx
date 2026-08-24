@@ -208,8 +208,9 @@ describe('AccountingPage — platforms commission table', () => {
     renderPage();
 
     expect(await screen.findByText('Alice Direct')).toBeInTheDocument();
-    // The row exists with the platform = "direct" label visible.
-    expect(screen.getByText('direct')).toBeInTheDocument();
+    // The row exists with the platform label visible — PlatformChip renders the stored `direct`
+    // enum through formatPlatformLabel, so the operator reads « Direct ».
+    expect(screen.getByText('Direct')).toBeInTheDocument();
     // Two `—` placeholders: one for gross, one for commission. Use getAllByText to count.
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });

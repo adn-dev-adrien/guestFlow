@@ -366,6 +366,15 @@ function createPropertyIcalModel(database) {
           } catch (_) { return DEFAULT_PAYOUT_DUE_DAYS; }
         })();
         const payoutDueDateFor = (endDate) => addDaysToIsoDate(endDate, payoutDueDays);
+        // specs/normalize-platform-names.md §3.2 rule 8bis — the value that lands in
+        // `reservations.platform` is the CANONICAL platform name, never the slug. Writing
+        // `source.platformKey` here (as this sync used to) stored `abracadaroom` /
+        // `gites-de-france` next to the `Abracadaroom` / `GitesDeFrance` of manually-created
+        // reservations, so the same platform showed up twice — a fresh drift re-created at every
+        // sync between two boots, which is what the operator saw in the calendar legend.
+        // `sourcePlatformKey` keeps the slug: it identifies the FEED, not the platform label.
+        const platformName = formatPlatformName(source.platformLabel || source.name || source.platformKey)
+          || source.platformKey;
         // Apply the property's default options to a freshly-created iCal reservation so a bed-linen
         // (or any) default option appears immediately on the booking, marked `offered` per the
         // property setting (specs/bed-config-in-linen-card.md §10 follow-up). Paid defaults are PRICED
@@ -604,7 +613,7 @@ function createPropertyIcalModel(database) {
                 event.adults,
                 property.defaultCheckIn || '15:00',
                 property.defaultCheckOut || '10:00',
-                source.platformKey,
+                platformName,
                 payoutDueDateFor(event.endDate),
                 source.platformKey,
                 source.id,
@@ -640,7 +649,7 @@ function createPropertyIcalModel(database) {
                 event.adults,
                 property.defaultCheckIn || '15:00',
                 property.defaultCheckOut || '10:00',
-                source.platformKey,
+                platformName,
                 payoutDueDateFor(event.endDate),
                 source.platformKey,
                 source.id,
@@ -709,7 +718,7 @@ function createPropertyIcalModel(database) {
               event.adults,
               property.defaultCheckIn || '15:00',
               property.defaultCheckOut || '10:00',
-              source.platformKey,
+              platformName,
               event.uid,
               // Rule 8 — the payout deadline is derived from the departure, so a drift moves it too.
               // Only pristine (never-edited) reservations reach this path; a locked one is diverted
