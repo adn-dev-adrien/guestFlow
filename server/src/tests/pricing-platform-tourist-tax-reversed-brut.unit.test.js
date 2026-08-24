@@ -107,10 +107,11 @@ test('guard — the SAME platform_reversed booking WITHOUT a brut is unchanged (
   db.close();
 });
 
-test('offered tax (case 2) with a brut: the offered tax is taken OUT of the brut (CA not over-stated)', () => {
-  // specs/platform-offered-tax-passthrough-and-cascade.md — the platform collects the tax AND remits it
-  // to the commune; the brut the guest paid includes it, so the engine subtracts the original tax
-  // (4.80 = 2 nights × 2 adults × 1.20) from the back-solved accommodation. finalPrice/CA = 200 − 4.80.
+test('offered tax (case 2) with a brut: the brut is ALREADY net of the tax → nothing is subtracted', () => {
+  // specs/platform-brut-excludes-offered-tourist-tax.md rule 2 — the platform collects the tax AND remits
+  // it to the commune itself, so the amount it bills us (its statement's « prix location + options »)
+  // never contains the tax. Subtracting our own estimate (4.80 = 2 nights × 2 adults × 1.20) used to
+  // under-state the CA and the commission by exactly that estimate — the accountant's 2026-08-24 report.
   const db = createDb([{ platformKey: 'airbnb', collects: 1, remitted: 1 }]); // platform (offered)
   const BRUT = 200;
   const TAX = 4.80;
@@ -119,11 +120,34 @@ test('offered tax (case 2) with a brut: the offered tax is taken OUT of the brut
     platformGrossAmount: BRUT, platformCommissionAmount: 20,
   });
   assert.equal(q.touristTaxTotal, 0);                    // offered → zeroed in our books
-  assert.equal(q.touristTaxOriginalTotal, TAX);          // the real tax is kept (for the cascade + compta)
+  assert.equal(q.touristTaxOriginalTotal, TAX);          // the real tax is kept (for the cascade)
   assert.equal(q.touristTaxReversedByPlatform, false);
-  assert.equal(q.finalPrice, BRUT - TAX);                // 195.20 — tax taken out, CA not over-stated
-  assert.equal(q.totalStayPrice, BRUT - TAX);            // 195.20
-  assert.equal(q.platformNetReceivedAmount, BRUT - TAX - 20); // 175.20 = accom − commission
+  assert.equal(q.finalPrice, BRUT);                      // 200 — the whole brut is revenue
+  assert.equal(q.totalStayPrice, BRUT);                  // 200
+  assert.equal(q.platformNetReceivedAmount, BRUT - 20);  // 180 = brut − commission
+  db.close();
+});
+
+test('Gîtes de France (the accountant’s Grimaud case): the whole brut is revenue, commission intact', () => {
+  // specs/platform-brut-excludes-offered-tourist-tax.md §1 — verbatim from the GdF contract n°9290:
+  // prix location 653 + forfait ménage 80 = 733 billed to us, taxe de séjour 14,40 collected AND
+  // remitted by the centrale, montant net propriétaire 668. Before the fix the engine subtracted its own
+  // 14,40 estimate from the brut, so the books showed 718,60 of CA and a 50,60 commission instead of 65.
+  const db = createDb([{ platformKey: 'gitesdefrance', platformLabel: 'GitesDeFrance', collects: 1, remitted: 1 }]);
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Ménage', 'per_stay', 80)").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10)').run();
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db, platform: 'GitesDeFrance',
+    startDate: '2026-06-26', endDate: '2026-06-28', adults: 6, children: 2,
+    selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
+    platformGrossAmount: 733, platformCommissionAmount: 65,
+  });
+  assert.equal(q.touristTaxOriginalTotal, 14.40);      // 2 nuits × 6 adultes × 1,20 — the centrale's line
+  assert.equal(q.touristTaxTotal, 0);                  // collected + remitted by the centrale → not ours
+  assert.equal(q.finalPrice, 733);                     // the CA the accountant expects (was 718,60)
+  assert.equal(q.baseAccommodationAdjustedPrice, 653); // = 733 − 80, the contract's « prix location »
+  assert.equal(q.optionsTotal, 80);
+  assert.equal(q.platformNetReceivedAmount, 668);      // the contract's « montant net propriétaire »
   db.close();
 });
 
