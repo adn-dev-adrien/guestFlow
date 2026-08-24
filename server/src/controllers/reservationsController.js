@@ -28,6 +28,7 @@ const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
+const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
@@ -39,7 +40,7 @@ function midStayQuoteInputs(reservationId) {
   const row = model.getRow(Number(reservationId));
   if (!row) return {};
   return {
-    arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId), getTodayIsoDate()),
+    arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId)),
     endOfStaySasAmount: sasDetailAmount(row.endOfStayComplementDetail),
     endOfStayComplementSettled: Number(row.endOfStayComplementPaid || 0) === 1
       || Number(row.endOfStayComplementPaidCash || 0) === 1,
@@ -47,9 +48,12 @@ function midStayQuoteInputs(reservationId) {
     // specs/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
     // of the frozen pre-arrival buckets.
     midStaySettledNotes: row.midStaySettledNotes || null,
-    // specs/complement-buckets-by-moment.md §3 rule 5 — resolved here (not in the engine, which has no
-    // clock) so the live preview and the save file a complement under the same heading.
-    stayStarted: Boolean(row.startDate) && String(row.startDate) <= getTodayIsoDate(),
+    // specs/complement-buckets-by-moment.md §3 rule 5 — resolved here (not in the engine) so the live
+    // preview and the save file a complement under the same heading. « Le client est là » is the
+    // check-in, not the calendar (specs/arrival-moment-is-the-check-in.md rule 3): on the arrival day,
+    // before anyone checked in, the complement still reads under « arrivée » — it is what will be
+    // collected when the guest walks in.
+    stayStarted: hasGuestArrived(row),
     complementCollected: Number(row.complementPaid || 0) === 1,
     // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
     // the door reads under « fin de séjour » straight away, without waiting for the stay to start.
@@ -628,7 +632,7 @@ function create(req, res) {
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
   // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
   // baseline: nothing it was created with counts as sold mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(reservationId, getTodayIsoDate());
+  model.captureArrivalExtrasBaselineIfDue(reservationId);
 
   // specs/adjustable-complement-amounts.md §3.6 rule 36 — the fiche decides how an adjusted complement
   // splits across the accounting postes, and stores it. Runs after the lines: it reads them.
@@ -748,7 +752,7 @@ function update(req, res) {
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
   // lines are replaced: the state the reservation had entering this save is exactly « what was sold
   // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
-  model.captureArrivalExtrasBaselineIfDue(id, getTodayIsoDate());
+  model.captureArrivalExtrasBaselineIfDue(id);
 
   // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:

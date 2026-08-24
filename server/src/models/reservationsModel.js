@@ -31,7 +31,9 @@ const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../util
 const {
   buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
   buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, MID_STAY_SOURCE,
+  resolveMidStaySplit,
 } = require('../utils/midStayExtras');
+const { arrivalBaselineDue } = require('../utils/arrivalMoment');
 const { priceOptionSale, billablePersons } = require('../utils/sasOptionSale');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
@@ -97,10 +99,39 @@ function deriveCommissionAmount(row) {
 // listed too, at `amount: 0` with their real price in `originalAmount`, so a gesture can be undone; the
 // listed detail still sums to `complementAmount`. Every other consumer (J-2 email, recall display) keeps
 // the billed-lines-only view.
+// `{ key → TTC sold during the stay }` for one reservation-with-details, using the very same resolver
+// the pricing engine and the accounting export use — so the three never disagree about what leaves the
+// arrival complement. No baseline (nobody has arrived yet) → `{}`, i.e. nothing is carved out.
+function arrivalDetailMidStaySplit(r) {
+  if (!r || !r.arrivalExtrasBaseline) return {};
+  const lines = [
+    ...(r.options || []).map((o) => (Number(o.isCustom || 0) === 1 ? { ...o, isCustom: true } : o)),
+    ...(r.resources || []),
+  ];
+  return resolveMidStaySplit(lines, {
+    baseline: r.arrivalExtrasBaseline,
+    settled: Number(r.endOfStayComplementPaid || 0) === 1 || Number(r.endOfStayComplementPaidCash || 0) === 1,
+    storedLines: storedMidStayLines(r.endOfStayComplementDetail),
+    notes: r.midStaySettledNotes || null,
+  }).byKey || {};
+}
+
 function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const lines = [];
+  // specs/arrival-moment-is-the-check-in.md rule 4 — the part of a line sold DURING the stay is billed
+  // by the end-of-stay complement, and `complementAmount` already excludes it. Listing the line at its
+  // full price here showed it twice — once under « arrivée », once under « fin de séjour » — with a
+  // detail that no longer added up to its own header. Deduct that share, line by line.
+  const midStayByKey = arrivalDetailMidStaySplit(r);
+  const remainingMidStay = { ...midStayByKey };
+  const arrivalShare = (line, full) => {
+    const key = extraLineKey(line);
+    const carved = key ? Math.min(round2(remainingMidStay[key]), full) : 0;
+    if (key && carved > 0) remainingMidStay[key] = round2(remainingMidStay[key] - carved);
+    return round2(Math.max(0, full - carved));
+  };
   // `qty`/`unitPrice`/`kind` (specs/j2-email-coffee-and-sas-complement.md) are additive: they let the
   // J-2 email render the same « label : qté × prix = total » lines as the SAS recap, and localise the
   // system labels (tax / remainder) per language. Existing consumers reading `label`/`amount` are
@@ -109,9 +140,11 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
     if (Number(o.inComplement || 0) !== 1) continue;
     const offered = Number(o.offered || 0) === 1;
     if (offered && !includeOffered) continue;
-    const real = round2(offered
+    const full = round2(offered
       ? (o.originalTotalPrice != null ? o.originalTotalPrice : o.totalPrice)
       : (o.totalPrice != null ? o.totalPrice : o.originalTotalPrice));
+    // An offered line is worth 0, so nothing of it can be sold mid-stay: it keeps its full display value.
+    const real = offered ? full : arrivalShare(o, full);
     if (real <= 0) continue;
     const isCustom = Number(o.isCustom || 0) === 1;
     lines.push({
@@ -126,9 +159,10 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
     if (Number(res.inComplement || 0) !== 1) continue;
     const offered = Number(res.offered || 0) === 1;
     if (offered && !includeOffered) continue;
-    const real = round2(offered
+    const full = round2(offered
       ? (res.originalTotalPrice != null ? res.originalTotalPrice : res.totalPrice)
       : (res.totalPrice != null ? res.totalPrice : res.originalTotalPrice));
+    const real = offered ? full : arrivalShare(res, full);
     if (real <= 0) continue;
     lines.push({
       kind: 'resource', label: String(res.name || 'Ressource').trim(),
@@ -1755,17 +1789,17 @@ function createReservationsModel(database) {
       ];
     },
 
-    // The baseline the ENGINE should use right now. It is captured lazily, on the first save at/after
-    // `startDate`, so a stay that started but was never re-saved has none yet — and the live preview
+    // The baseline the ENGINE should use right now. It is captured lazily, on the first save after the
+    // guest arrived, so a stay in progress that was never re-saved has none yet — and the live preview
     // would then show a mid-stay sale as nothing at all. Synthesize the very baseline the next save
     // WOULD store (the extras currently stored), so the preview matches the post-save reality
     // without the read path ever writing (specs/mid-stay-notes.md §4.1).
-    resolveArrivalExtrasBaseline(reservationId, todayIso) {
+    resolveArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT startDate, arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
-      if (!row.startDate || String(row.startDate) > String(todayIso)) return null;
+      if (!arrivalBaselineDue(row)) return null;
       return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
     },
 
@@ -1775,14 +1809,15 @@ function createReservationsModel(database) {
       return (row && row.arrivalExtrasBaseline) || null;
     },
 
-    // Capture the baseline once, from the CURRENT lines, when the stay has started. Idempotent: an
-    // already-captured baseline is never overwritten (that would swallow the mid-stay sales).
-    captureArrivalExtrasBaselineIfDue(reservationId, todayIso) {
+    // Capture the baseline once, from the CURRENT lines, when the guest has arrived (or the arrival
+    // complement is already collected — specs/arrival-moment-is-the-check-in.md rules 1-2). Idempotent:
+    // an already-captured baseline is never overwritten (that would swallow the mid-stay sales).
+    captureArrivalExtrasBaselineIfDue(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
-      const row = database.prepare('SELECT startDate, arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
-      if (!row.startDate || String(row.startDate) > String(todayIso)) return null;
+      if (!arrivalBaselineDue(row)) return null;
       const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
       database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(baseline, reservationId);
