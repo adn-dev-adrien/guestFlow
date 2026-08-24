@@ -216,14 +216,19 @@ test('owner-collect non-direct — complement with tax + extras → emit BOTH re
   // Full encaissement TTC; the tax portion rides on `46710000` in the export.
   assert.equal(c.encaissementTtc, 24.80);
   assert.equal(c.taxTtc, 4.80);
-  // Revenue fraction (used for the 70xxx pro-rata in the legacy path) = 20 / finalPrice (200) = 0.10.
-  assert.equal(round4(c.fraction), 0.10);
+  // specs/accounting-books-the-money-collected.md rule 10 — the 20 € of extras collected at arrival are
+  // credited as a PRESTATION, at their own amount. They used to be booked as a 10 % pro-rata of the
+  // whole accommodation (same 20 €, but on the « location gîte » account).
+  assert.equal(c.fraction, 1);
+  assert.deepEqual(c.buckets.map((b) => b.name), ['options']);
+  assert.equal(round2(c.buckets[0].ht + c.buckets[0].vat), 20);
 });
 
 test('direct complement (legacy options-added-late) — pure revenue, no tax (tax stays on the solde)', () => {
   // specs/tourist-tax-on-solde.md — the whole tourist tax is booked on the solde, so a direct
-  // complement (extras added after the balance was paid) carries NO tax and pro-rates against
-  // finalPrice: 50 / 200 = 0.25.
+  // complement (extras added after the balance was paid) carries NO tax. Its 50 € are credited as a
+  // prestation at their own amount (specs/accounting-books-the-money-collected.md rule 10), where the
+  // former model credited the same 50 € as a 25 % pro-rata of the accommodation.
   const row = makeRow({
     platform: 'direct',
     depositAmount: 60, balanceAmount: 144.80,
@@ -235,7 +240,9 @@ test('direct complement (legacy options-added-late) — pure revenue, no tax (ta
   assert.ok(c);
   assert.equal(c.encaissementTtc, 50);
   assert.equal(c.taxTtc, 0, 'the tax is on the solde, never the complement, for a direct booking');
-  assert.equal(round4(c.fraction), 0.25);          // 50 / 200
+  assert.equal(c.fraction, 1);
+  assert.deepEqual(c.buckets.map((b) => b.name), ['options']);
+  assert.equal(round2(c.buckets[0].ht + c.buckets[0].vat), 50);
 });
 
 test('owner-collect non-direct + complement = pure tax — Σ emitted encaissements equals totalStayTtc', () => {
@@ -258,3 +265,4 @@ test('owner-collect non-direct + complement = pure tax — Σ emitted encaisseme
 });
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
+function round2(n) { return Math.round(n * 100) / 100; }
