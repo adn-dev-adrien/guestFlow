@@ -196,13 +196,34 @@ belongs here.
 
 **It cannot be turned on as things stand.** `public_holiday_bridge` caps the raise at the *highest*
 rank, which on the Lodge is high season and on the Gîte is **Très haute, 538 €/night — a full-August
-price**. Switched on unchanged it prices 25 December and 1 January at 538 €, and shatters the calendar
-into 24 ranges. Derived and inspected; not a hypothesis.
+price**. Switched on unchanged it prices 25 December and 1 January at 538 €, and shatters the
+calendar into 24 ranges. Derived and inspected; not a hypothesis.
 
-The missing piece is one optional field, `capSeason`, on the modifier — 4 lines in
-[`seasonPlan.js`](../../server/src/utils/seasonPlan.js) (`Math.min(capRank, currentRank + amount)`), a
-validation line, and a test. Default = the highest rank = today's behaviour, so the Lodge is
-untouched. Deliberately **not** written tonight: it is an engine change, and turning ponts on re-prices
+The missing piece is one optional field, `capSeason`, on the modifier. **And its arithmetic has a
+trap**, found by simulating it: the obvious `Math.min(capRank, currentRank + amount)` does not merely
+stop a raise, it **lowers** every night already above the cap — 14 juillet and 15 août sit in Très
+haute, and the naive cap would demote them, costing 624 € over 2026 alone. It has to be
+`Math.max(currentRank, Math.min(capRank, currentRank + amount))`: a cap that never moves a night
+down. With that, plus a validation line and a test, it is about 4 lines in
+[`seasonPlan.js`](../../server/src/utils/seasonPlan.js); the default (no `capSeason`) stays the
+highest rank, so the Lodge is untouched.
+
+**What it would do**, simulated against the shipped recipe with `capSeason: "high"`:
+
+| Year | Nights raised | Blocks | Extra date ranges on the tariff page |
+|---|---|---|---|
+| 2026 | 13 | 6 | +13 |
+| 2027 | 14 | 8 | +12 |
+| 2028 | 12 | 6 | +17 |
+
+2027 in detail: 2 janvier · 27–28 mars (Pâques) · 1er mai · 6–8 mai (Ascension, absorbing Victoire)
+· 15–16 mai (Pentecôte) · 30–31 octobre (Toussaint) · 11–13 novembre. 14 juillet and 15 août keep
+their Très haute price and gain only the block's minimum stay, which is the Lodge's rule 16ter.
+
+**On the 24 stays already on the books for 2026**, it would add **+452,80 €** (+1,9 %) across 6 of
+them — the two May long weekends at +112 € each being the clearest case that the rule is right.
+
+Deliberately **not** written tonight: it is an engine change, and turning ponts on re-prices
 already-open dates — both decisions rather than transcriptions.
 
 ### Q2 — The Gîtes de France commission

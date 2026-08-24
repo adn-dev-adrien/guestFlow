@@ -239,7 +239,13 @@ shows the diff before writing. Both screens already exist and are already respon
   the block's own length as a minimum stay, and the Gîte's May long weekends visibly sell above base.
   Blocked on a rank cap: without one, `public_holiday_bridge` prices 25 December at 538 €. The fix is
   an optional `capSeason` on the modifier — about 4 lines in `seasonPlan.js`, a validation line and a
-  test, defaulting to today's behaviour. Turning it on re-prices already-open dates.
+  test, defaulting to today's behaviour. **Its arithmetic has a trap**: the obvious
+  `Math.min(capRank, currentRank + amount)` *lowers* every night already above the cap (14 juillet
+  and 15 août lose 624 € over 2026), so it must be
+  `Math.max(currentRank, Math.min(capRank, currentRank + amount))`. Simulated with
+  `capSeason: "high"`: 13 nights raised in 2026, 14 in 2027, 12 in 2028, and **+452,80 € (+1,9 %)**
+  over the 24 stays already on the books — at the cost of 12 to 17 extra date ranges a year on the
+  tariff page. Turning it on re-prices already-open dates.
   - A: …
 - **Q2 — What is the Gîtes de France commission?** Stored as 0 % while the channel carries 15 of the
   Gîte's 24 bookings and 84 % of its gross. Observed on the seven bookings that record one: 14,02 %
