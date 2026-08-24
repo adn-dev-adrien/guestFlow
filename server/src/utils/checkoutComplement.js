@@ -75,4 +75,36 @@ function buildCheckoutComplement(reservation, arrivalDetail) {
   };
 }
 
-module.exports = { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL };
+/**
+ * Same block, built from the LIVE quote instead of the stored row —
+ * specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis.
+ *
+ * The stored block goes stale the moment the operator edits an option: the summary panel follows the
+ * quote while the merged card kept showing the last save (« repas : 100 € » under a live total of
+ * 158,05 € — Adrien, 2026-08-23). The controller therefore rebuilds the block from the fresh quote on
+ * every calculate-price: amounts and arrival detail from the engine, end-of-stay lines from the
+ * SAS-owned stored lines plus the engine's recomputed mid-stay lines, payment flags from the row
+ * (they are persisted immediately by the fiche's buttons, so the row is current).
+ *
+ * @param {object} params.row   stored reservation row (payment flags + deferral marker + stored detail).
+ * @param {object} params.quote fresh engine quote (`complementAmount`, `complementDetailLines`,
+ *                              `endOfStayComplementTotal`, `midStayExtrasLines`).
+ */
+function buildLiveCheckoutComplement({ row, quote } = {}) {
+  const r = row || {};
+  const q = quote || {};
+  const endOfStayLines = [
+    ...parseDetail(r.endOfStayComplementDetail).filter((l) => l && l.source !== 'midStayExtra'),
+    ...(q.midStayExtrasLines || []),
+  ];
+  return buildCheckoutComplement(
+    {
+      ...r,
+      endOfStayComplementAmount: q.endOfStayComplementTotal,
+      endOfStayComplementDetail: endOfStayLines,
+    },
+    { amount: q.complementAmount, paid: r.complementPaid, detail: q.complementDetailLines || [] },
+  );
+}
+
+module.exports = { buildCheckoutComplement, buildLiveCheckoutComplement, END_OF_STAY_CLEANING_LABEL };

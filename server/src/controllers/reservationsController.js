@@ -14,7 +14,7 @@ const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
-const { sasDetailAmount, storedMidStayLines } = require('../utils/midStayExtras');
+const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const reservationsModel = require('../models/reservationsModel');
@@ -28,8 +28,8 @@ const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
-const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
+const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -42,18 +42,14 @@ function midStayQuoteInputs(reservationId) {
   return {
     arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId)),
     endOfStaySasAmount: sasDetailAmount(row.endOfStayComplementDetail),
+    // …et le même total sans la ligne d'ajustement, pour l'aide « Calcul auto » du champ.
+    endOfStaySasAmountAuto: sasDetailAmountAuto(row.endOfStayComplementDetail),
     endOfStayComplementSettled: Number(row.endOfStayComplementPaid || 0) === 1
       || Number(row.endOfStayComplementPaidCash || 0) === 1,
     frozenMidStayLines: storedMidStayLines(row.endOfStayComplementDetail),
     // specs/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
     // of the frozen pre-arrival buckets.
     midStaySettledNotes: row.midStaySettledNotes || null,
-    // specs/complement-buckets-by-moment.md §3 rule 5 — resolved here (not in the engine) so the live
-    // preview and the save file a complement under the same heading. « Le client est là » is the
-    // check-in, not the calendar (specs/arrival-moment-is-the-check-in.md rule 3): on the arrival day,
-    // before anyone checked in, the complement still reads under « arrivée » — it is what will be
-    // collected when the guest walks in.
-    stayStarted: hasGuestArrived(row),
     complementCollected: Number(row.complementPaid || 0) === 1,
     // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — a complement the operator moved to
     // the door reads under « fin de séjour » straight away, without waiting for the stay to start.
@@ -459,6 +455,15 @@ function calculatePrice(req, res) {
     platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — the merged « complément de fin de
+  // séjour » block, rebuilt from THIS quote so the card follows every edit live instead of showing
+  // the last save. Payment flags and the deferral marker come from the stored row: the fiche's
+  // buttons persist them immediately, so the row is always current.
+  if (reservationId > 0) {
+    const row = model.getRow(reservationId);
+    if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
+  }
+
   res.json(quote);
 }
 
@@ -1072,6 +1077,11 @@ function updatePayment(req, res) {
       "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
       paid, date, cash, id,
     );
+    // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 (élargi le 2026-08-22) —
+    // encaisser le complément d'arrivée le CLÔT : on fige ici l'état des extras, pour que tout ce qui
+    // sera vendu ensuite parte au complément de fin de séjour au lieu de se perdre entre les
+    // échéances. Idempotent : une base déjà posée n'est jamais réécrite.
+    if (paid) model.captureArrivalExtrasBaseline(Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
     // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate

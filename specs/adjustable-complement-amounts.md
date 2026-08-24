@@ -5,7 +5,7 @@
 | **Status** | Implemented |
 | **Branch** | `feature/complement-defer-and-adjust` |
 | **Created** | 2026-08-21 |
-| **Updated** | 2026-08-22 — ventilation comptable (§3.6), cartes côte à côte (§6.5), implémentée |
+| **Updated** | 2026-08-22 — ventilation comptable (§3.6), cartes côte à côte (§6.5), implémentée ; puis plancher ramené à la seule taxe de séjour et notes reportables au départ, après essai en production |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
@@ -130,7 +130,11 @@ ajusté, sans écriture compensatoire.
     paiement et son mode (CB / caisse interne). L'unité ajustable est donc **la note**, pas le total du
     bucket : `Σ notes` doit continuer à égaler le montant affiché.
 24. Chaque note de l'historique est modifiable sur place : **montant**, **date de paiement**, **CB /
-    caisse interne**.
+    caisse interne**. Elle porte aussi une action **« Reporter au départ »** : ses prestations
+    rejoignent le complément de fin de séjour et la note quitte le registre. Mécaniquement c'est
+    l'annulation d'encaissement de [mid-stay-notes.md](mid-stay-notes.md), renommée le 2026-08-22
+    parce que l'intention réelle de l'opérateur n'est pas d'effacer une erreur mais de **regrouper la
+    collecte au départ** — le libellé « Annuler l'encaissement » cachait la seule façon de le faire.
 25. Changer le montant d'une note déplace l'écart entre la note et le **reste à percevoir en fin de
     séjour**, dans une seule transaction — exactement le mouvement que font déjà « encaisser une note »
     et « annuler une note ». Les prestations vendues ne sont jamais dé-vendues
@@ -190,18 +194,21 @@ ajusté, sans écriture compensatoire.
     Exemple : linge 24 € + bain nordique 60 € + taxe 9,60 € = 93,60 € → quatre crédits
     (21,82 + 54,55 + 7,63 de TVA + 9,60).
 
-32. **L'ajustement se ventile sur les seules prestations** — options, prestations personnalisées et
-    ressources — au prorata de leur montant courant. **L'hébergement n'est jamais touché**, **la taxe
-    de séjour non plus.**
-33. **Plancher = part hébergement + taxe de séjour.** Le champ refuse d'aller en dessous, avec un texte
-    d'aide qui nomme le plancher et sa composition — et **le serveur remonte la valeur au plancher
-    avant de la stocker**, parce que la borne n'est pas une politesse d'interface : la somme des
-    postes est bornée elle aussi, donc un montant stocké plus bas ferait dépasser les crédits et
-    l'écart repartirait dans la ligne de résidu (règle 37).
-34. Corollaire : un complément fait **uniquement** d'un auto-gap hébergement — aucune prestation, pas
-    de taxe — n'est pas ajustable, son plancher égale son montant. Baisser cet argent-là est une remise
-    sur le séjour : elle se fait dans « Prix hébergement ajusté » / « Réduction ». Le champ est alors
-    désactivé, ce motif en infobulle.
+32. **L'ajustement se ventile d'abord sur les prestations** — options, prestations personnalisées et
+    ressources — au prorata de leur montant courant. **La taxe de séjour n'est jamais touchée.**
+    **L'hébergement ne cède qu'en dernier**, une fois les prestations tombées à zéro : réduire le prix
+    du séjour reste le métier de « Prix hébergement ajusté », mais ce n'est plus une porte fermée
+    (révisé le 2026-08-22 — le plancher précédent, `hébergement + taxe`, empêchait en pratique
+    d'ajuster les compléments à forte part hébergement, ce qui est le cas des réservations
+    plateforme).
+33. **Plancher = la taxe de séjour, et elle seule.** Le champ refuse d'aller en dessous, avec un texte
+    d'aide qui le nomme — et **le serveur remonte la valeur au plancher avant de la stocker**, parce
+    que la borne n'est pas une politesse d'interface : la somme des postes est bornée elle aussi, donc
+    un montant stocké plus bas ferait dépasser les crédits et l'écart repartirait dans la ligne de
+    résidu (règle 37). Sans taxe de séjour dans le complément, le plancher vaut 0 €.
+34. Corollaire : un complément fait **uniquement** d'un auto-gap hébergement est ajustable jusqu'à 0 €.
+    C'est un choix assumé de souplesse : l'opérateur sait ce qu'il annonce, et le total du séjour de la
+    fiche absorbe l'écart comme pour n'importe quel autre ajustement.
 35. Ajustement **à la hausse** sans aucune prestation à proratiser → le surplus va sur `70600010`, le
     poste naturel d'un extra vendu sur place.
 36. La ventilation est **calculée à l'enregistrement de la fiche et stockée** (§5). L'export la lit
@@ -364,6 +371,14 @@ réécriture au démarrage.
 
 ### 6.1 Carte d'un complément (arrivée, fin de séjour, fusionnée)
 
+> **La carte de fin de séjour rend le devis LIVE** (2026-08-22). Elle lisait le montant stocké, donc
+> une prestation vendue sur un complément d'arrivée encaissé — que le moteur route immédiatement vers
+> la fin de séjour ([mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md)
+> §3.1 rule 3bis) — n'apparaissait nulle part avant l'enregistrement : l'opérateur cochait une option
+> et la voyait disparaître de l'écran. Le montant vient de `quote.endOfStayComplementTotal`, les
+> lignes des lignes stockées hors ventes en séjour + `quote.midStayExtrasLines`, et l'aide « Calcul
+> auto » de `quote.endOfStayComplementAutoTotal` — soit exactement ce que l'enregistrement écrira.
+
 Le champ se glisse **dans la carte**, entre les lignes de détail et le bouton « Marquer complément
 payé » — donc dans le même bloc que la date de paiement et « Caisse interne ». Sur le complément
 d'arrivée, la ventilation obtenue s'affiche juste en dessous : l'opérateur voit ce qui partira en
@@ -393,10 +408,7 @@ Copie française :
 - Label : **« Montant ajusté (€) »**
 - Aide, champ vide : **« Calcul auto (93,60 €) »** — le montant que le moteur produirait.
 - Aide, champ rempli : **« Montant figé — l'écart est absorbé par le total du séjour. »**
-- Aide, plancher atteint : **« Minimum X,XX € : taxe de séjour Y,YY € + hébergement Z,ZZ €, que
-  l'ajustement ne touche pas. »**
-- Infobulle, champ désactivé (règle 34) : **« Ce complément ne contient que de l'hébergement. Pour le
-  réduire, utilisez « Prix hébergement ajusté ». »**
+- Aide, plancher atteint : **« Minimum X,XX € : la taxe de séjour n'est pas ajustable. »**
 - Aide, carte fusionnée bornée à 0 : **« Plancher atteint : le complément de fin de séjour vaut déjà
   X,XX €. »**
 - Titre du bloc de ventilation : **« Ventilation comptable »**, en `caption`, replié par défaut sur
@@ -449,6 +461,13 @@ l'ajustement d'arrivée s'y voit en direct pendant la frappe.
 - Vérification aux trois points de rupture : `xs` ≤ 600 px, `md` ~900 px, `lg` ≥ 1200 px.
 
 ### 6.5 Les cartes de complément côte à côte (desktop)
+
+> **Ordre revu le 2026-08-22.** Les blocs étaient rangés dans l'ordre de collecte — arrivée, durant le
+> séjour, fin de séjour — si bien que « durant le séjour », qui n'est souvent qu'un bouton
+> « + Nouvelle note », occupait la place de droite et repoussait « fin de séjour » à la ligne
+> suivante. Or les deux cartes qu'on lit ensemble sont **arrivée et fin de séjour** : c'est entre
+> elles que l'argent se déplace. Elles passent donc en premier, côte à côte ; le registre des notes
+> suit.
 
 Demande Adrien 2026-08-22. Aujourd'hui chaque `ComplementCard` fabrique son propre `<Divider>` **et**
 son propre `<Grid container>` à une seule colonne `md: 6`

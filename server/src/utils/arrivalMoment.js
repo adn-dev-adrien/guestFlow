@@ -17,16 +17,4 @@ function hasGuestArrived(reservation) {
   return Number(r.checkInDone || 0) === 1 || Boolean(r.arrivalSasDoneAt);
 }
 
-/**
- * Should the arrival extras baseline be pinned now? — the arrival, plus one safety valve: once the
- * arrival complement is COLLECTED its amount is frozen, so a later sale can no longer join it. Without
- * a baseline to stand above, that sale would reach no bucket at all and its money would vanish
- * (specs/sas-breakfast-and-catering-upsell.md §3.4). Pinning on collection keeps that impossible even
- * when the operator never marked the check-in.
- */
-function arrivalBaselineDue(reservation) {
-  const r = reservation || {};
-  return hasGuestArrived(r) || Number(r.complementPaid || 0) === 1;
-}
-
-module.exports = { hasGuestArrived, arrivalBaselineDue };
+module.exports = { hasGuestArrived };
