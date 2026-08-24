@@ -1,0 +1,94 @@
+{
+  "id": "gite-2027",
+  "version": "1.0.0",
+  "label": "Gîte — grille automatique 2027",
+  "description": "La grille actuelle du Gîte, redite en règles : cinq saisons, un calendrier dérivé chaque année (épaules de juillet et d'août autour du cœur d'été, avril en basse, fêtes de fin d'année en haute), la dégressivité « la semaine vaut quatre nuits », et le pivot net après les 5 % du moteur Lodgify. Prix inchangés, sauf la courbe de la Très haute saison, incohérente en base, qui est rétablie.",
+  "horizonYears": 2,
+
+  "_comment_pivot": "Le prix affiché est celui déjà pratiqué sur le canal propre (moteur Lodgify) ; le net cible en est déduit en retirant les 5 % du moteur — netTargetPerNight = pricePerNight × 0,95, à l'euro près et sans arrondi supplémentaire. L'identité tient dans les deux sens : ceil(net / 0,95) redonne exactement le prix affiché, ce qui est le seul contrôle qui prouve que le net a bien été enregistré (piège n° 15 du skill). Les autres canaux sont regrossis depuis ce net, jamais depuis le prix affiché — sinon la marge du direct serait commissionnée une seconde fois.",
+
+  "_comment_lengthOfStayDiscounts": "La grille du Gîte tient en une phrase : la semaine vaut quatre nuits. Nuits 1 et 2 au prix plein, puis la 3e à la 7e interpolent linéairement du double (2 nuits) au quadruple (une semaine), et au-delà chaque nuit vaut un septième de semaine. Les pourcentages ci-dessous sont exactement cela : 1 − (2 + 0,4 × (n − 2)) / n de 3 à 7 nuits, puis 1 − 4/7 = 42,857142857142854 % à partir de 7. La ligne à 8 nuits n'est pas une redite : sans elle le report du dernier palier facturerait la 8e nuit au prix marginal de la 7e (100,80 € en Très basse) au lieu du septième de semaine (144 €), et un séjour de deux semaines perdrait 15 %. Un seul jeu de pourcentages pour les cinq saisons — c'est déjà le cas aujourd'hui.",
+  "lengthOfStayDiscounts": [
+    { "nights": 2, "discountPct": 0 },
+    { "nights": 3, "discountPct": 20 },
+    { "nights": 4, "discountPct": 30 },
+    { "nights": 5, "discountPct": 36 },
+    { "nights": 6, "discountPct": 40 },
+    { "nights": 7, "discountPct": 42.857142857142854 },
+    { "nights": 8, "discountPct": 42.857142857142854 }
+  ],
+
+  "_comment_seasons": "Libellés et couleurs repris à l'identique de la fiche tarifaire du Gîte : la première application ADOPTE une saison manuelle de même libellé au lieu de buter dessus (règle 9bis). Prix affichés inchangés, sauf la Très haute portée de 537,50 € à 538 € — la grille par canal s'arrondit à l'euro supérieur, un demi-euro de base empêcherait la ligne « direct » de redonner son propre prix. Aucun plafond de durée (des séjours de 14 nuits se vendent), minimum 2 nuits partout comme aujourd'hui, et aucun jour d'arrivée imposé : deux des trois semaines de plein été 2026 sont parties un dimanche et un lundi, un samedi-samedi les aurait refusées.",
+  "seasons": [
+    {
+      "key": "very-low", "label": "Très basse", "rank": 1, "color": "#669c35",
+      "pricePerNight": 252, "netTargetPerNight": 239.4,
+      "pricingMode": "progressive",
+      "minNights": 2, "maxNights": null, "changeover": null
+    },
+    {
+      "key": "low", "label": "Basse", "rank": 2, "color": "#0042aa",
+      "pricePerNight": 303, "netTargetPerNight": 287.85,
+      "pricingMode": "progressive",
+      "minNights": 2, "maxNights": null, "changeover": null
+    },
+    {
+      "key": "mid", "label": "Moyenne", "rank": 3, "color": "#942192",
+      "pricePerNight": 326, "netTargetPerNight": 309.7,
+      "pricingMode": "progressive",
+      "minNights": 2, "maxNights": null, "changeover": null
+    },
+    {
+      "key": "high", "label": "Haute", "rank": 4, "color": "#ff9300",
+      "pricePerNight": 382, "netTargetPerNight": 362.9,
+      "pricingMode": "progressive",
+      "minNights": 2, "maxNights": null, "changeover": null
+    },
+    {
+      "key": "peak", "label": "Très haute", "rank": 5, "color": "#ff2600",
+      "pricePerNight": 538, "netTargetPerNight": 511.1,
+      "pricingMode": "progressive",
+      "minNights": 2, "maxNights": null, "changeover": null
+    }
+  ],
+
+  "_comment_calendar": "Les bornes peintes à la main pour 2026 tombent toutes un vendredi soir / samedi matin : le Gîte se découpe en semaines qui changent le samedi. Les quatre périodes d'été le disent en règle plutôt qu'en dates — mêmes ancrages que la Lodge, un cran de saisons en plus. Les périodes se peignent dans l'ordre, la dernière écriture gagne : « shoulder » couvre mai→octobre en Moyenne, puis les épaules de juillet et d'août la percent en Haute, puis le cœur d'été entre les deux en Très haute.",
+  "calendar": {
+    "baseSeason": "very-low",
+    "periods": [
+      {
+        "id": "spring", "season": "low",
+        "anchor": { "type": "fixed_dates", "from": "04-01", "to": "04-30" }
+      },
+      {
+        "id": "shoulder", "season": "mid",
+        "anchor": { "type": "fixed_dates", "from": "05-01", "to": "10-30" }
+      },
+      {
+        "id": "july-shoulder", "season": "high",
+        "anchor": { "type": "nth_weekday_of_month", "month": 7, "weekday": 6, "occurrence": 1 },
+        "nights": 7
+      },
+      {
+        "id": "august-shoulder", "season": "high",
+        "anchor": { "type": "last_full_week_of_month", "month": 8, "weekday": 6 },
+        "nights": 7
+      },
+      {
+        "id": "summer-core", "season": "peak",
+        "anchor": { "type": "between", "after": "july-shoulder", "before": "august-shoulder" }
+      },
+      {
+        "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles, le 1er janvier reste en Haute. Dates fixes et non ancrées sur un samedi — la demande de Noël suit le calendrier des fêtes, pas celui des changements de semaine.",
+        "id": "year-end", "season": "high",
+        "anchor": { "type": "fixed_dates", "from": "12-19", "to": "01-01" }
+      }
+    ],
+
+    "_comment_modifiers": "Aucun modificateur de pont dans cette première version, à la différence de la Lodge — voir specs/tariff-recipe-gite/spec.md §9 Q1. Le rang le plus haut du Gîte est la Très haute saison (538 €, un prix de plein août) : sans plafond, `public_holiday_bridge` monterait le 25 décembre et le 1er janvier à ce tarif-là. La règle n'est pas rejetée, elle attend un plafond de rang dans le moteur.",
+    "modifiers": []
+  },
+
+  "_comment_closures": "Le Gîte est ouvert toute l'année — aucune fermeture récurrente, contrairement à la Lodge.",
+  "closures": []
+}
