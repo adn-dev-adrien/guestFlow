@@ -4,6 +4,110 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-08-24
+
+### Summary
+- Comptabilité : chaque écriture reprend l'argent réellement encaissé, ventilé là où il l'a été.
+- Réservations plateforme : le brut n'est plus amputé de la taxe de séjour quand la plateforme la reverse.
+- C'est vous qui décidez quand un complément est perçu, par un bouton, à n'importe quel moment du séjour.
+- Ce qui est vendu après un complément d'arrivée encaissé part au départ, au lieu de disparaître.
+- Une option ajoutée avant le check-in rejoint le complément d'arrivée ; les séjours touchés sont corrigés au démarrage.
+- Le calendrier n'affiche plus qu'une entrée par plateforme, quelle que soit la casse enregistrée.
+
+### Changed
+- **The moment a complement is collected is now the operator's call, not an inference**
+  (specs/complement-buckets-by-moment.md §3 rule 4, revised + specs/defer-arrival-complement-to-checkout.md §3.3).
+  The fiche used to decide on its own: from the arrival day, an uncollected arrival complement moved
+  under « fin de séjour », merged the cards and **locked** the control that would have put it back.
+  It is now the « Percevoir en fin de séjour » decision, and only it, that merges the two cards — and
+  that decision is available at any moment, before, during and after the stay, including on a
+  complement already marked collected (deferring one asks for confirmation and puts the money back to
+  collect). The day-of-operations alerts keep reading the real bucket states, because « what is still
+  to collect today » is a fact rather than an intention.
+- **That control is a button, not a discreet switch.** A MUI switch tucked between the amount field
+  and the payment buttons went unseen — the report was literally « there is no *percevoir en fin de
+  séjour* button », about a screen that had one. It now looks like its neighbours: full width,
+  bordered when off, filled and reading « Perçu en fin de séjour ✓ » when on.
+- **Arrival and end-of-stay complements sit side by side.** They were ordered by moment of collection,
+  so « Complément durant le séjour » — often just a « + Nouvelle note » button — took the right-hand
+  slot and pushed « fin de séjour » onto the next row. The two cards money actually moves between now
+  come first, together; the note register follows.
+- **A settled mid-stay note can be moved to the departure collection**, through an action that says so
+  — « Reporter au départ » replaces « Annuler l'encaissement ». Same mechanics (its prestations go
+  back to what is due at check-out), a name that matches why an operator does it.
+
+### Fixed
+- **Accounting books the money actually collected, where it was collected.** A stay selling a
+  prestation mid-stay had every one of its entries inflated — on a real case, the client account was
+  debited 599,24 € for a 573,77 € transfer. A complement settled in the internal till was fed back
+  into the balance, and every collection was credited a pro-rata share of *all* the reservation's
+  options and resources, including those collected at another moment. Prestations and activities now
+  land on their own account, at the real amount.
+- **A platform's gross is no longer cut by the tourist tax it collects itself.** When the platform
+  levies and remits the tax (Gîtes de France, Booking, Airbnb), the amount typed into « Paiement
+  plateforme » was reduced by it, and so were both the commission and the revenue — on the booking
+  the accountant flagged, a 65,00 € commission was booked as 50,60 € and 733,00 € of revenue as
+  718,60 €. The field now states which amount to copy across, according to the platform's tax mode.
+- **Money sold on a settled arrival complement no longer disappears**
+  (specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3bis). On a reservation whose arrival
+  complement was already collected, adding a 30 € option raised the « total du séjour » by 30 € while
+  the échéances stayed put: the engine freezes a collected complement, so the sale could not go
+  there — and the mid-stay routing that would have sent it to the departure was gated on the stay
+  having started, so it went nowhere at all. Collecting the arrival complement now **closes** it, at
+  any date, exactly like the start of the stay does: whatever is sold afterwards lands in the
+  end-of-stay complement, and every euro of the stay is claimed by an échéance again.
+- **The end-of-stay complement card shows the sale immediately.** It rendered the stored amount, so
+  an option added on a settled complement vanished from the screen until the next save. It now renders
+  the live quote — same amount, same lines, same « Calcul auto » hint as what the save will write.
+- **An option added by hand before the check-in joins the arrival complement**, not the end-of-stay
+  one. What opens the « sold mid-stay » window is now the arrival as observed — the check-in box or
+  the arrival SAS — rather than the calendar date alone.
+- **A complement can be adjusted right down to its tourist tax** (specs/adjustable-complement-amounts.md
+  §3.6 rules 32-34). The floor was `accommodation + tourist tax`, which in practice blocked the
+  platform bookings the feature was built for — their complement is mostly an accommodation auto-gap,
+  so the field refused almost every value. Prestations still absorb first, pro rata; the accommodation
+  share now gives way once they are exhausted; the tourist tax alone stays untouchable, so the
+  accounting entry and the tax declaration can never disagree.
+- **Un-marking a collected arrival complement now takes effect immediately**
+  (specs/defer-arrival-complement-to-checkout.md §3.3 rule 16ter). « Marquer complément payé » only
+  called the server on a *locked* reservation; everywhere else it changed the form and waited for a
+  « Enregistrer », while every neighbouring button — « Caisse interne », the end-of-stay card, the
+  check-out switch — wrote straight away. Form and database then disagreed, and the database is what
+  decides whether the two cards merge: un-marking a payment and then deferring merged nothing. That
+  mismatch also explains the « impossible » screen reported earlier — the control visible (form) next
+  to two separate cards (server).
+- **A prestation is no longer listed twice on the merged card.** A line routed to the end-of-stay
+  complement mid-stay was still listed at full price on the arrival side, so the merged card showed it
+  once per side and its lines no longer summed to the total. The arrival detail now deducts the part
+  that moved, exactly as the engine and the accounting do.
+- **The merged « complément de fin de séjour » card follows the quote live**
+  (specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis). It rendered the block stored at the
+  last save: remove a repas des trappeurs and the summary panel dropped by 25 € while the card kept
+  the old line and the old total — two figures for the same money on one screen, with only the card's
+  « Calcul auto » helper up to date. The live quote now ships the merged block itself (arrival detail
+  emitted by the engine, mid-stay share deducted; end-of-stay lines recomputed), so the card and the
+  summary read the same numbers by construction.
+- **A platform is listed once in the calendar, whatever its stored casing**
+  (specs/normalize-platform-names.md, addendum 2026-08-24). The legend showed « Abracadaroom » **and**
+  « abracadaroom », two swatches for one channel. The cause was at the write site: the iCal sync stored
+  the feed *slug* (`abracadaroom`, `gites-de-france`) as the reservation's platform, where a manually
+  created booking carried the canonical name. Every restart healed the drift and every sync re-created
+  it — and production runs for weeks between restarts. The sync now writes the canonical name (the slug
+  stays in the column that identifies the feed), and the boot cleanup additionally normalises
+  reservations whose spelling matches no catalogue row, adopting the catalogue's spelling rather than
+  inventing a variant of it.
+- **The rule holds for every platform: case is not identity.** The legend merges the variants of one
+  name and sorts them alphabetically — so it no longer reshuffles as months load — and each name reads
+  with a leading capital, inner capitals untouched (« GitesDeFrance » stays as it is, « BOOKING »
+  becomes « Booking »). The platform chips elsewhere in the app (accounting, finance, clients,
+  payments) read that same label, so they can no longer contradict the legend.
+
+### Migration
+- Automatic cleanup at startup: the « arrival extras baseline » that had been set from the arrival
+  date alone is cleared on stays with no check-in, no arrival SAS and no collected complement.
+  Without it, the reservations already affected would keep sending their options to the end-of-stay
+  complement. No stay that has already collected anything is touched.
+
 ## [2.4.0] - 2026-08-22
 
 ### Summary
