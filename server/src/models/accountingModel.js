@@ -378,7 +378,43 @@ function buildPerLineData(database, row) {
     midStayByKey: midStay.byKey,
     optionsTtc: round2(optionsCurrentTotal),
     resourcesTtc: round2(resourcesCurrentTotal),
+    destinations: splitByDestination({ optionLines, customOptionLines, resourceLines }, midStay.byKey),
   };
+}
+
+// Where each billed line is COLLECTED (specs/accounting-books-the-money-collected.md rule 5). One line
+// belongs to exactly one encaissement: pre-arrival (acompte + solde), arrival complement, or — for the
+// share sold during the stay — the flat end-of-stay complement, which bills it separately.
+//
+// This is what lets an entry credit the extras it actually carries instead of a pro-rata slice of every
+// line on the reservation. Offered lines (0 €) are skipped: they can never be billed anywhere.
+function splitByDestination({ optionLines, customOptionLines, resourceLines }, midStayByKey) {
+  const remainingMidStay = { ...(midStayByKey || {}) };
+  const totals = { preArrivalOptions: 0, preArrivalResources: 0, complementOptions: 0, complementResources: 0 };
+
+  const classify = (lines, { isCustom = false, isResource = false } = {}) => {
+    for (const line of (lines || [])) {
+      if (Number(line.offered || 0) === 1) continue;
+      const lineTotal = Math.max(0, nz(line.totalPrice));
+      if (lineTotal === 0) continue;
+      // The mid-stay share is consumed as it is deducted, so two lines sharing a key split it.
+      const key = extraLineKey(isCustom ? { ...line, isCustom: true } : line);
+      const midStay = key ? Math.min(nz(remainingMidStay[key]), lineTotal) : 0;
+      if (key && midStay > 0) remainingMidStay[key] = round2(nz(remainingMidStay[key]) - midStay);
+      const collectedHere = round2(lineTotal - midStay);
+      if (collectedHere <= 0) continue; // sold entirely mid-stay → billed by the end-of-stay entry
+      const inComplement = Number(line.inComplement || 0) === 1;
+      const bucket = inComplement
+        ? (isResource ? 'complementResources' : 'complementOptions')
+        : (isResource ? 'preArrivalResources' : 'preArrivalOptions');
+      totals[bucket] = round2(totals[bucket] + collectedHere);
+    }
+  };
+
+  classify(optionLines);
+  classify(customOptionLines, { isCustom: true });
+  classify(resourceLines, { isResource: true });
+  return totals;
 }
 
 // Shape an entry the export engine consumes.
@@ -492,8 +528,21 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
     const scheduledComplement = adjustedComplementAuto != null
       ? adjustedComplementAuto
       : (Number(row.complementAmount) || 0);
-    const storedSum = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0) + scheduledComplement);
-    grossRatio = storedSum > 0 ? (finalPriceTtc + touristTaxTotal) / storedSum : 1;
+    // specs/accounting-books-the-money-collected.md rules 1-2 — the end-of-stay complement is scheduled
+    // money too. Leaving it out made the denominator short by whatever was sold mid-stay, so every entry
+    // of such a stay was grossed up by that amount (Carpier #22275: +29,42 € of CA, +25,47 € on the
+    // client's debit) and cash-settled complements leaked back into the books through the same ratio.
+    const scheduledTotal = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0)
+      + scheduledComplement + (Number(row.endOfStayComplementAmount) || 0));
+    const expectedTotal = round2(finalPriceTtc + touristTaxTotal);
+    // The ratio grosses amounts up in ONE case only: the legacy « solde = net » shape, where the stored
+    // schedule is the total minus the commission (réservation #7 books 994 € of CA against a 903 €
+    // transfer). A schedule that already sums to the total is booked verbatim, and so is a DRIFTED one
+    // — a fiche/total inconsistency is never resolved by inventing revenue.
+    const isLegacyNetSchedule = scheduledTotal > 0
+      && Math.abs(scheduledTotal - expectedTotal) > 0.02
+      && Math.abs(round2(scheduledTotal + commissionTtcTotal) - expectedTotal) <= 0.02;
+    grossRatio = isLegacyNetSchedule ? expectedTotal / scheduledTotal : 1;
   } else {
     // LEGACY fallback: commission derived from the stored `clientGrossAmount` (> net); the stored amounts
     // summed to finalPrice (not reduced), so the ratio grosses them up to the gross.
@@ -630,31 +679,55 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   }
 
   // ── Stored-money fallback (no per-line contribs) ────────────────────────
-  // Full-reservation buckets from the PERSISTED line totals (offered lines are stored at 0);
-  // the export engine multiplies each bucket by `fraction` = the échéance's effective share of
-  // the séjour (spec rules 6–8). Immune to pricing-rule drift by construction — the former
-  // quote-recompute buckets are gone.
+  // specs/accounting-books-the-money-collected.md rules 5-7 — each encaissement credits ONLY the postes
+  // it actually covers, pro-rated within that destination. The former model scaled the WHOLE
+  // reservation's buckets by `revenue / finalPrice`, so a solde that collected pure accommodation still
+  // credited a slice of every option and resource on the fiche — including extras collected at arrival,
+  // at checkout, or settled in caisse interne.
   const optionsTtc = perLineData ? Number(perLineData.optionsTtc || 0) : 0;
   const resourcesTtc = perLineData ? Number(perLineData.resourcesTtc || 0) : 0;
   const accommodationTtc = Math.max(0, round2(finalPriceTtc - optionsTtc - resourcesTtc));
   const revenueTtc = Math.max(0, round2(encaissementTtc - taxTtc));
+  const destinations = (perLineData && perLineData.destinations) || null;
+
+  // Fallback for callers that don't model the line destinations (legacy unit tests): the whole
+  // reservation is treated as one destination, i.e. the previous behaviour.
+  const collectedHere = kind === 'complement'
+    ? {
+      accommodation: 0,
+      options:   destinations ? destinations.complementOptions   : optionsTtc,
+      resources: destinations ? destinations.complementResources : resourcesTtc,
+    }
+    : {
+      accommodation: accommodationTtc,
+      options:   destinations ? destinations.preArrivalOptions   : optionsTtc,
+      resources: destinations ? destinations.preArrivalResources : resourcesTtc,
+    };
+  const collectedTotal = round2(collectedHere.accommodation + collectedHere.options + collectedHere.resources);
 
   let fraction;
   let buckets;
-  if (finalPriceTtc > 0) {
-    // Effective percent: deposit = depositAmount / finalPrice (= the property's depositPercent
-    // whenever the deposit was automatic); balance = (balance − tax) / finalPrice; etc.
-    fraction = revenueTtc / finalPriceTtc;
+  if (collectedTotal > 0) {
+    // Effective percent WITHIN the destination: an acompte of 30 % of the pre-arrival credits 30 % of
+    // the accommodation and of the pre-arrival extras, and nothing else.
+    fraction = revenueTtc / collectedTotal;
     buckets = [
-      bucketFromTtc('accommodation', accommodationTtc, vatRate),
-      bucketFromTtc('options',       optionsTtc,       vatRate),
-      bucketFromTtc('resources',     resourcesTtc,     vatRate),
+      bucketFromTtc('accommodation', collectedHere.accommodation, vatRate),
+      bucketFromTtc('options',       collectedHere.options,       vatRate),
+      bucketFromTtc('resources',     collectedHere.resources,     vatRate),
     ].filter((b) => b.ht > 0 || b.vat > 0);
-  } else {
-    // Defensive: blank-price row (iCal import never priced) with real money paid — book the
-    // whole revenue share as accommodation so the entry still balances.
+  } else if (revenueTtc > 0) {
+    // Money collected with nothing to attach it to: a blank-price row (iCal import never priced) books
+    // it as accommodation; an arrival complement beyond its tourist tax books it as a prestation
+    // (rule 10) rather than letting the residue swell the 46710000 pass-through.
     fraction = 1;
-    buckets = [bucketFromTtc('accommodation', revenueTtc, vatRate)].filter((b) => b.ht > 0 || b.vat > 0);
+    buckets = [kind === 'complement'
+      ? bucketFromTtc('options', revenueTtc, vatRate)
+      : bucketFromTtc('accommodation', revenueTtc, vatRate)].filter((b) => b.ht > 0 || b.vat > 0);
+  } else {
+    // Nothing but tourist tax (an owner-collect complement that carries only the tax).
+    fraction = 1;
+    buckets = [];
   }
 
   return {
@@ -665,15 +738,22 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   };
 }
 
-// End-of-stay complement (departure SAS): a flat TTC amount (ménage + linge manquant) outside the
-// pricing engine. Booked as a single « prestation complémentaire » revenue line (account 70600010)
-// at the app general VAT rate — parity with how the arrival complement's cleaning/linen is booked
-// (specs/cash-complement-and-endofstay-finance.md §3.1 + Q1). Collected on-site by the owner: no
-// platform commission, no tourist tax. Returns null when there's nothing to book.
+// End-of-stay complement (departure SAS): a flat TTC amount outside the pricing engine — the SAS's own
+// lines (ménage, linge manquant) plus whatever was sold DURING the stay. Booked at the app general VAT
+// rate, collected on-site by the owner: no platform commission, no tourist tax
+// (specs/cash-complement-and-endofstay-finance.md §3.1 + Q1). Returns null when there's nothing to book.
+//
+// specs/accounting-books-the-money-collected.md rule 8 — ventilated by stored detail line: a `res:*` key
+// is a resource (70601000), everything else a prestation (70600010). Carpier's bain nordique, sold
+// mid-stay, was landing on the prestations account.
 function buildEndOfStayEntry(row, vatRate) {
   const ttc = round2(Number(row.endOfStayComplementAmount || 0));
   if (ttc <= 0) return null;
-  const b = bucketFromTtc('options', ttc, Number(vatRate || 0));
+  const { options, resources } = splitEndOfStayDetail(row.endOfStayComplementDetail, ttc);
+  const buckets = [
+    bucketFromTtc('options',   options,   Number(vatRate || 0)),
+    bucketFromTtc('resources', resources, Number(vatRate || 0)),
+  ];
   return {
     reservationId: row.id,
     kind: 'endOfStayComplement',
@@ -688,8 +768,25 @@ function buildEndOfStayEntry(row, vatRate) {
     commission: null,
     taxTtc: 0,
     fraction: 1,
-    buckets: [b].filter((x) => x.ht > 0 || x.vat > 0),
+    buckets: buckets.filter((x) => x.ht > 0 || x.vat > 0),
   };
+}
+
+// Split an end-of-stay complement between the two revenue natures, from its stored detail lines. The
+// amount is authoritative: when the detail is missing, unparsable, or doesn't add up to it (an operator
+// override, a legacy row), the unattributed remainder stays on the prestations account — the historical
+// behaviour, so no entry can lose money to a detail mismatch.
+function splitEndOfStayDetail(detailRaw, ttc) {
+  let lines = [];
+  if (Array.isArray(detailRaw)) lines = detailRaw;
+  else if (detailRaw) { try { const p = JSON.parse(detailRaw); if (Array.isArray(p)) lines = p; } catch { lines = []; } }
+  let resources = 0;
+  for (const line of lines) {
+    if (!line || !String(line.key || '').startsWith('res:')) continue;
+    resources = round2(resources + Math.max(0, nz(line.amount)));
+  }
+  resources = Math.min(resources, ttc);
+  return { options: round2(ttc - resources), resources };
 }
 
 // « Note en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one punctual collection during the
@@ -832,4 +929,4 @@ const defaultModel = createAccountingModel(db);
 defaultModel.create = createAccountingModel;
 
 module.exports = defaultModel;
-module.exports.__test = { buildEntry };
+module.exports.__test = { buildEntry, buildEndOfStayEntry, splitByDestination };
