@@ -98,3 +98,49 @@ test('leaves distinct slugs alone (no over-merge of a typo platform)', () => {
   assert.equal(mergedCount, 0);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM platforms').get().c, 2);
 });
+
+// specs/normalize-platform-names.md §3.3 rule 16 — the second pass. Until 2026-08-24 the iCal sync
+// wrote the feed SLUG into `reservations.platform` (`abracadaroom`, `gites-de-france`), so a synced
+// booking carried a spelling no `platforms` row named. The dedup loop above only re-points values
+// that equal a duplicate row's name, so those references survived every boot and the calendar
+// legend listed the same platform twice.
+
+test('normalises a reservation platform that no platforms row is named after', () => {
+  const db = freshDb();
+  db.prepare("INSERT INTO platforms (id, name) VALUES (6, 'Abracadaroom')").run();
+  db.prepare("INSERT INTO reservations (platform) VALUES ('abracadaroom'), ('Abracadaroom'), ('direct')").run();
+  const { mergedCount, normalisedRefs } = runPlatformSlugDedup(db);
+  assert.equal(mergedCount, 0); // the catalogue was already clean — only the reference drifted
+  assert.equal(normalisedRefs, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM reservations WHERE platform = 'Abracadaroom'").get().c, 2);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM reservations WHERE platform = 'direct'").get().c, 1);
+});
+
+test("adopts the catalogue's spelling for a feed slug rather than inventing a second one", () => {
+  const db = freshDb();
+  db.prepare("INSERT INTO platforms (id, name) VALUES (2010, 'GitesDeFrance')").run();
+  db.prepare("INSERT INTO reservations (platform) VALUES ('gites-de-france')").run();
+  db.prepare("INSERT INTO ical_sources (platformLabel) VALUES ('gites-de-france')").run();
+  const { normalisedRefs } = runPlatformSlugDedup(db);
+  assert.equal(normalisedRefs, 2);
+  assert.equal(db.prepare('SELECT platform FROM reservations').get().platform, 'GitesDeFrance');
+  assert.equal(db.prepare('SELECT platformLabel FROM ical_sources').get().platformLabel, 'GitesDeFrance');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM platforms').get().c, 1); // no second spelling created
+});
+
+test('the second pass is idempotent too', () => {
+  const db = freshDb();
+  db.prepare("INSERT INTO platforms (id, name) VALUES (6, 'Abracadaroom')").run();
+  db.prepare("INSERT INTO reservations (platform) VALUES ('abracadaroom')").run();
+  runPlatformSlugDedup(db);
+  assert.equal(runPlatformSlugDedup(db).normalisedRefs, 0);
+});
+
+test('leaves `direct` alone — it is an enum value, not a platform label', () => {
+  const db = freshDb();
+  db.prepare("INSERT INTO platforms (id, name) VALUES (1, 'direct')").run();
+  db.prepare("INSERT INTO reservations (platform) VALUES ('direct'), ('Direct')").run();
+  runPlatformSlugDedup(db);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM reservations WHERE platform = 'direct'").get().c, 2);
+  assert.equal(db.prepare('SELECT name FROM platforms').get().name, 'direct');
+});

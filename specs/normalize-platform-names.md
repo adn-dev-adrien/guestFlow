@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/normalize-platform-names` _(user-managed)_ |
 | **Created** | 2026-06-04 |
 | **Author** | Adrien |
@@ -380,3 +380,86 @@ Distinct slugs (e.g. the typo `Logify` vs `Lodgify`) are **never** merged — on
 
 Tests: `tests/platformSlugDedup.unit.test.js` (7). Manual: changing the « Taxe de séjour » mode for a
 previously-duplicated platform (Lodgify) now persists across reload.
+
+---
+
+## Addendum — the iCal sync wrote the slug, and the calendar showed it (2026-08-24)
+
+**Symptom reported.** The calendar legend listed « Abracadaroom » **and** « abracadaroom », two
+swatches for one platform. Adrien's rule, stated once and valid for every platform: *case is not
+identity — one platform, one entry, displayed with a leading capital.*
+
+**Root cause.** §3.2 hooked the three write sites it knew about, but missed a fourth: the iCal sync
+in `models/propertyIcalModel.js` writes `reservations.platform` directly, and it was passing
+`source.platformKey` — the **feed slug** (`abracadaroom`, `gites-de-france`), not the platform name.
+So every synced booking carried a lowercase spelling while every manually-created one carried the
+canonical `Abracadaroom`. The drift healed itself at the *next boot* (the seeding re-created an
+`abracadaroom` catalogue row, and the slug-dedup addendum above merged it away), then the next sync
+re-created it. Production runs for weeks between restarts, so what the operator actually saw was the
+mixed state, permanently.
+
+Two structural holes made it survivable:
+
+- the dedup's re-pointing only touches a value that **exactly equals a duplicate row's name**, so a
+  reference spelled like nothing in the catalogue is invisible to it;
+- the client legend keyed its `Map` on the raw stored string, so any drift became a visible duplicate.
+
+### Rules added
+
+18. **Rule 8bis — the iCal sync write site.** `reservations.platform` receives
+    `formatPlatformName(source.platformLabel || source.name || source.platformKey)` on both the
+    INSERT and the date-drift UPDATE. `reservations.sourcePlatformKey` keeps the slug unchanged: it
+    identifies the **feed**, not the platform label. All the SQL that joins a reservation to its
+    source compares `lower(s.platformLabel) = lower(r.platform)` as well as the key, so the canonical
+    value matches on both sides (`reservationsModel` line ~563, `financeModel` lines ~47 / ~713).
+19. **The boot dedup gets a second pass.** `runPlatformSlugDedup` now finishes by normalising every
+    distinct `reservations.platform` and `ical_sources.platformLabel` value to its canonical form,
+    **whether or not a `platforms` row carries the drifted spelling** — the case the first pass
+    structurally cannot see. The target is the **catalogue's** spelling when a row shares the value's
+    slug (`gites-de-france` → the existing `GitesDeFrance`, never a second spelling of it), and the
+    canonical form otherwise. Returns `normalisedRefs` alongside `mergedCount` / `renamedCount`; the
+    boot line logs all three. `direct` is untouched (rule 1).
+20. **Display rule — one platform, one entry, one leading capital.** `formatPlatformLabel` capitalises
+    the first character of any stored value; a mixed-case name keeps its inner capitals
+    (`GitesDeFrance` stays), an all-caps one has its tail lowercased (`BOOKING` → `Booking`).
+    `mergePlatformVariants(platforms)` groups raw values by slug and returns one
+    `{ platform, label, color }` per platform, preferring the canonical mixed-case spelling and
+    sorted by label so the legend does not reshuffle as more months load.
+
+### Architecture — files touched
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `models/` | `models/propertyIcalModel.js` | T | Derives `platformName` once per source; the 2 INSERT branches + the drift UPDATE write it (rule 18). |
+| `utils/` | `utils/platformSlugDedupMigration.js` | T | Second pass normalising name-based references, catalogue spelling preferred (rule 19). |
+| `database.js` | `database.js` | T | Boot log carries the new `normalisedRefs` counter. |
+| `constants/` | `client/src/constants/platforms.js` | T | `formatPlatformLabel` capitalises; NEW `mergePlatformVariants` (rule 20). |
+| `components/` | `client/src/components/CumulativeMonthCalendar.jsx` | T | The legend consumes `mergePlatformVariants` instead of a raw-string `Map`. |
+| `components/` | `client/src/components/PlatformChip.jsx` | T | Renders its label through `formatPlatformLabel`, so the badge cannot contradict the legend. |
+
+### UI / UX
+
+The calendar legend (`CumulativeMonthCalendar`, desktop and mobile alike — one shared legend above
+the scroller) lists each platform once, alphabetically, with its brand colour. Reservation bar chips
+and every `PlatformChip` (accounting, finance, clients, compensations, operational payments) read the
+same capitalised label; a `direct` booking already displayed as « Direct » and still does.
+
+### Test plan
+
+| Test file | Cases added | Pins |
+|---|---|---|
+| `tests/property-ical-sync.unit.test.js` (S) | 2 — a synced reservation carries `GitesDeFrance` while `sourcePlatformKey` stays `gites-de-france`; a date-drift re-sync keeps the canonical name. | Rule 18. |
+| `tests/platformSlugDedup.unit.test.js` (S) | 4 — normalises a reference no catalogue row is named after; adopts the catalogue's spelling for a feed slug without inventing a second one; idempotent; leaves `direct` alone. | Rule 19. |
+| `constants/__tests__/platforms.test.js` (C) | 8 — the label capitalises a drifted spelling and an all-caps one without touching inner capitals; the merge collapses case variants, prefers the canonical spelling, holds for every platform, sorts by label, tolerates empty input. | Rule 20. |
+| `components/__tests__/CumulativeMonthCalendar.test.jsx` (C) | 1 — two reservations, `Abracadaroom` + `abracadaroom`, produce a single legend entry. | Rule 20. |
+
+Suites after the fix: server **3 616 / 3 616**, client Vitest **1 144 / 1 144**, Playwright
+**65 passed / 1 skipped**. One pre-existing client assertion was updated:
+`AccountingPage.platforms.test.jsx` expected the raw `direct` in a `PlatformChip` and now expects
+« Direct ».
+
+### Not fixed here
+
+The typo-correction exclusion of §3.4 stands: `Gitedefrance` and `GitesDeFrance` are distinct slugs
+and stay two platforms. Rule 19 deliberately prefers the catalogue's spelling precisely so that
+normalising a reference never *creates* such a split.
