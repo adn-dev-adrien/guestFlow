@@ -1,14 +1,18 @@
 /**
  * Une ligne de l'historique des « notes en séjour » — specs/adjustable-complement-amounts.md §3.4.
  *
- * Deux états : lecture (date — montant — mode, avec ✎ et ✕) et édition en place (montant, date,
- * CB / caisse interne). Extrait de `FinanceSection` parce que la ligne porte désormais son propre
- * état local et que le bloc Finance dépasse déjà les mille lignes.
+ * Deux états : lecture (date — montant — mode, avec ✎ et « Reporter au départ ») et édition en place
+ * (montant, date, CB / caisse interne). Extrait de `FinanceSection` parce que la ligne porte son
+ * propre état local et que le bloc Finance dépasse déjà les mille lignes.
+ *
+ * « Reporter au départ » a remplacé « Annuler l'encaissement » (Adrien, 2026-08-22) : l'opération est
+ * la même — les prestations de la note repartent dans ce qui reste à percevoir au départ — mais le
+ * nom dit enfin l'intention réelle, qui est de regrouper la collecte, pas d'effacer une erreur.
  *
  * Props :
  *   - note        `{ id, paidDate, paidCash, total, lines[] }`
  *   - settled     le complément de fin de séjour est encaissé → plus rien ne bouge
- *   - onCancel()  supprimer l'encaissement (les prestations redeviennent à percevoir)
+ *   - onCancel()  reporter la note au départ (les prestations redeviennent à percevoir)
  *   - onAdjust({ total?, paidDate?, cash? })  → Promise ; rejette avec le message serveur
  */
 import React, { useState } from 'react';
@@ -76,17 +80,16 @@ export default function MidStayNoteRow({ note, settled = false, onCancel, onAdju
                   </Button>
                 </span>
               </Tooltip>
-              <Tooltip title={disabledReason || "Annuler l'encaissement"}>
+              <Tooltip title={disabledReason || 'Remettre ces prestations dans la collecte de fin de séjour'}>
                 <span>
                   <Button
                     size="small"
-                    color="error"
                     disabled={settled}
                     onClick={onCancel}
-                    aria-label="Annuler l'encaissement"
-                    sx={{ textTransform: 'none', minWidth: 44, minHeight: 44 }}
+                    aria-label="Reporter au départ"
+                    sx={{ textTransform: 'none', minHeight: 44 }}
                   >
-                    ✕
+                    Reporter au départ
                   </Button>
                 </span>
               </Tooltip>

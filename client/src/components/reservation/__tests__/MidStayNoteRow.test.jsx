@@ -48,10 +48,18 @@ test('une erreur serveur s\'affiche sous le champ sans refermer l\'édition', as
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument();
 });
 
-test('règle 28 — complément de fin de séjour encaissé : ✎ et ✕ désactivés', () => {
+test('règle 28 — complément de fin de séjour encaissé : les deux actions sont désactivées', () => {
   render(<MidStayNoteRow note={NOTE} settled onCancel={vi.fn()} onAdjust={vi.fn()} />);
   expect(screen.getByRole('button', { name: /Modifier la note/i })).toBeDisabled();
-  expect(screen.getByRole('button', { name: /Annuler l'encaissement/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /Reporter au départ/i })).toBeDisabled();
+});
+
+test('« Reporter au départ » remonte l\'action au parent', async () => {
+  const user = userEvent.setup();
+  const onCancel = vi.fn();
+  render(<MidStayNoteRow note={NOTE} onCancel={onCancel} onAdjust={vi.fn()} />);
+  await user.click(screen.getByRole('button', { name: /Reporter au départ/i }));
+  expect(onCancel).toHaveBeenCalled();
 });
 
 test('Annuler referme l\'édition sans rien envoyer', async () => {

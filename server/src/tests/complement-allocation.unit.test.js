@@ -50,7 +50,7 @@ test('règle 32 — l\'ajustement se ventile sur les seules prestations, au pror
   assert.equal(sum(out), 85, 'Σ postes == le montant annoncé, au centime');
 });
 
-test('règle 32 — l\'hébergement ne bouge pas non plus : seules les prestations absorbent', () => {
+test('règle 32 — les prestations absorbent en premier, l\'hébergement reste intact', () => {
   const base = splitComplementByPoste(DETAIL, 120); // 26,40 € d'auto-gap hébergement
   const out = allocateComplementAdjustment({ target: 100, ...base });
   assert.equal(out.accommodation, 26.4);
@@ -59,23 +59,39 @@ test('règle 32 — l\'hébergement ne bouge pas non plus : seules les prestatio
   assert.equal(sum(out), 100);
 });
 
-test('règle 33 — sous le plancher (taxe + hébergement), la cible est ramenée au plancher', () => {
+test('règle 33 — le plancher est la taxe de séjour, et elle seule', () => {
   const out = allocateComplementAdjustment({ target: 5, ...splitComplementByPoste(DETAIL, 93.6) });
   assert.equal(out.floor, 9.6);
   assert.equal(out.floored, true);
   assert.equal(out.total, 9.6);
   assert.equal(out.options, 0);
   assert.equal(out.resources, 0);
+  assert.equal(out.accommodation, 0);
   assert.equal(sum(out), 9.6);
 });
 
-test('règle 34 — complément 100 % hébergement : le plancher vaut le montant, rien à ventiler', () => {
+test('règle 33 — l\'hébergement ne cède qu\'une fois les prestations épuisées', () => {
+  const base = splitComplementByPoste(DETAIL, 120); // 26,40 € d'hébergement + 84 € de prestations
+  // Tant que les prestations suffisent, l'hébergement ne bouge pas d'un centime.
+  const light = allocateComplementAdjustment({ target: 100, ...base });
+  assert.equal(light.accommodation, 26.4);
+  assert.equal(round2(light.options + light.resources), 64);
+  // En dessous, les prestations tombent à 0 et l'hébergement prend le relais.
+  const deep = allocateComplementAdjustment({ target: 30, ...base });
+  assert.equal(deep.options, 0);
+  assert.equal(deep.resources, 0);
+  assert.equal(deep.accommodation, 20.4);
+  assert.equal(sum(deep), 30);
+});
+
+test('règle 34 — complément 100 % hébergement : ajustable jusqu\'à 0, il n\'y a pas de taxe à protéger', () => {
   const base = splitComplementByPoste([], 40);
   assert.deepEqual(base, { accommodation: 40, options: 0, resources: 0, tax: 0 });
   const out = allocateComplementAdjustment({ target: 30, ...base });
-  assert.equal(out.floor, 40);
-  assert.equal(out.floored, true);
-  assert.equal(out.total, 40);
+  assert.equal(out.floor, 0);
+  assert.equal(out.floored, false);
+  assert.equal(out.accommodation, 30);
+  assert.equal(sum(out), 30);
 });
 
 test('règle 35 — à la hausse sans prestation à proratiser, le surplus va aux prestations', () => {

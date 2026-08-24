@@ -269,6 +269,15 @@ function sasDetailAmount(detailRaw) {
     .reduce((s, l) => s + (Number(l.amount) || 0), 0));
 }
 
+// Same sum, without the « Ajustement » line (specs/adjustable-complement-amounts.md §3.3) — c'est le
+// complément de fin de séjour AVANT l'ajustement de l'opérateur, celui que la fiche affiche sous le
+// champ en « Calcul auto (X €) ».
+function sasDetailAmountAuto(detailRaw) {
+  return round2(parseDetail(detailRaw)
+    .filter((l) => l && l.source !== MID_STAY_SOURCE && l.source !== 'adjustment')
+    .reduce((s, l) => s + (Number(l.amount) || 0), 0));
+}
+
 // The mid-stay lines already stored in the detail — the frozen set used once the end-of-stay
 // complement has been collected (§3.5 rule 18).
 function storedMidStayLines(detailRaw) {
@@ -303,6 +312,7 @@ module.exports = {
   nextNoteId,
   mergeMidStayIntoDetail,
   sasDetailAmount,
+  sasDetailAmountAuto,
   storedMidStayLines,
   parseBaseline,
 };

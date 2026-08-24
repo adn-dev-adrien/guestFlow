@@ -2487,6 +2487,12 @@ export default function ReservationPage() {
     const res = await api.getReservation(editingReservationId);
     setForm((prev) => ({
       ...prev,
+      // L'état d'encaissement du complément d'arrivée est écrit par le serveur (les boutons de la
+      // carte le PATCHent immédiatement) : le relire ici évite que le formulaire et la base ne
+      // divergent, ce qui faisait échouer la fusion des cartes après un dé-marquage.
+      complementPaid: Boolean(res.complementPaid),
+      complementPaidDate: res.complementPaidDate || '',
+      complementPaidCash: Boolean(res.complementPaidCash),
       endOfStayComplementAmount: Number(res.endOfStayComplementAmount || 0),
       endOfStayComplementPaid: Boolean(res.endOfStayComplementPaid),
       endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
