@@ -14,7 +14,7 @@ import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Box, Typography, Button, Stack, Tooltip, CircularProgress, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import api from '../api';
-import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
+import { getPlatformColor, formatPlatformLabel, mergePlatformVariants } from '../constants/platforms';
 import { formatDate, shiftDate, getDaysInMonth } from '../utils/calendarVisuals';
 import useInfiniteMonthScroll from '../hooks/useInfiniteMonthScroll';
 
@@ -385,11 +385,12 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
 
   const goToday = useCallback(() => { const n = new Date(); focusOnMonth(n.getFullYear(), n.getMonth(), { resetNavLocks: true }); }, [focusOnMonth]);
 
-  const platformsInView = useMemo(() => {
-    const set = new Map();
-    for (const r of Object.values(reservationsById)) { if (r.platform && !set.has(r.platform)) set.set(r.platform, getPlatformColor(r.platform)); }
-    return [...set.entries()];
-  }, [reservationsById]);
+  // The legend lists each platform ONCE: variants that differ only by case or punctuation
+  // ('Abracadaroom' / 'abracadaroom') are the same platform and merge into one canonical entry.
+  const platformsInView = useMemo(
+    () => mergePlatformVariants(Object.values(reservationsById).map((r) => r.platform)),
+    [reservationsById],
+  );
   const hasClosures = Object.keys(closuresById).length > 0;
 
   return (
@@ -401,10 +402,10 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
           {loading && <CircularProgress size={18} />}
         </Stack>
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-          {platformsInView.map(([platform, color]) => (
+          {platformsInView.map(({ platform, label, color }) => (
             <Stack key={platform} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: color }} />
-              <Typography variant="caption" color="text.secondary">{formatPlatformLabel(platform)}</Typography>
+              <Typography variant="caption" color="text.secondary">{label}</Typography>
             </Stack>
           ))}
           {hasClosures && (

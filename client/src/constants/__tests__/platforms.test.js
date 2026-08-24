@@ -8,6 +8,7 @@ import {
   getPlatformColor,
   isKnownPlatformKey,
   formatPlatformLabel,
+  mergePlatformVariants,
 } from '../platforms';
 
 // Regression coverage for the bug reported on 2026-06-05: after the
@@ -147,5 +148,49 @@ describe('formatPlatformLabel', () => {
     expect(formatPlatformLabel('')).toBe('');
     expect(formatPlatformLabel(null)).toBe('');
     expect(formatPlatformLabel(undefined)).toBe('');
+  });
+
+  test('capitalises a spelling that drifted to lowercase, without touching inner capitals', () => {
+    expect(formatPlatformLabel('abracadaroom')).toBe('Abracadaroom');
+    expect(formatPlatformLabel('lodgify')).toBe('Lodgify');
+    expect(formatPlatformLabel('GitesDeFrance')).toBe('GitesDeFrance');
+    // All-caps carries no word boundary to preserve → the tail is lowercased, not shouted.
+    expect(formatPlatformLabel('BOOKING')).toBe('Booking');
+  });
+});
+
+// Reported 2026-08-24: the calendar legend listed « Abracadaroom » AND « abracadaroom ». The stored
+// value can drift between two boots, and the operator must never see one platform twice — case and
+// punctuation are not identity.
+describe('mergePlatformVariants', () => {
+  test('merges case variants of the same platform into one capitalised entry', () => {
+    const merged = mergePlatformVariants(['Abracadaroom', 'abracadaroom', 'abracadaroom']);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].label).toBe('Abracadaroom');
+    expect(merged[0].color).toBe(PLATFORM_COLORS.abracadaroom);
+  });
+
+  test('keeps the canonical spelling even when the drifted one is seen first', () => {
+    expect(mergePlatformVariants(['gites-de-france', 'GitesDeFrance'])[0].label).toBe('GitesDeFrance');
+    expect(mergePlatformVariants(['GITESDEFRANCE', 'GitesDeFrance'])[0].label).toBe('GitesDeFrance');
+  });
+
+  test('capitalises the label when no variant is canonical', () => {
+    expect(mergePlatformVariants(['abracadaroom'])[0].label).toBe('Abracadaroom');
+  });
+
+  test('the rule holds for every platform, not just Abracadaroom', () => {
+    const merged = mergePlatformVariants(['airbnb', 'Airbnb', 'booking', 'BOOKING', 'direct', 'Direct']);
+    expect(merged.map((p) => p.label)).toEqual(['Airbnb', 'Booking', 'Direct']);
+  });
+
+  test('sorted by label so the legend does not reshuffle as months load', () => {
+    expect(mergePlatformVariants(['Pitchup', 'Airbnb', 'booking']).map((p) => p.label))
+      .toEqual(['Airbnb', 'Booking', 'Pitchup']);
+  });
+
+  test('drops empty / nullish values and tolerates a missing list', () => {
+    expect(mergePlatformVariants(['', null, undefined, '   '])).toEqual([]);
+    expect(mergePlatformVariants(null)).toEqual([]);
   });
 });

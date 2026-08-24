@@ -14,7 +14,11 @@
  * operator-customised settings (tourist-tax mode, colour, commission account/%/VAT) from the duplicates
  * into the surviving row, so a setting that landed on a soon-to-be-deleted duplicate is preserved.
  *
- * Caller wraps it in `db.transaction()`. Returns `{ mergedCount, renamedCount }`.
+ * A second pass then normalises every remaining name-based reference (`reservations.platform`,
+ * `ical_sources.platformLabel`) to its canonical form, even when no `platforms` row carries the
+ * drifted spelling — the case the first pass structurally cannot see.
+ *
+ * Caller wraps it in `db.transaction()`. Returns `{ mergedCount, renamedCount, normalisedRefs }`.
  */
 
 const { formatPlatformName } = require('./platformNameFormat');
@@ -126,7 +130,43 @@ function runPlatformSlugDedup(database) {
     database.prepare(`UPDATE platforms SET ${setParts.join(', ')} WHERE id = @id`).run(params);
   }
 
-  return { mergedCount, renamedCount };
+  // Step 2 — normalise the NAME-BASED references that no `platforms` row points at any more.
+  // The loop above only re-points a value that exactly equals a duplicate row's name; a
+  // `reservations.platform` holding a slug (`abracadaroom`, `gites-de-france` — what the iCal sync
+  // used to write) has no matching row once the catalogue is clean, so it used to survive forever
+  // and showed the same platform twice in the calendar legend. Normalising every distinct value to
+  // its canonical form is the invariant, stated once and re-asserted at every boot.
+  //
+  // The target name is the CATALOGUE's spelling when a row shares the value's slug, so a reference
+  // never gets rewritten into a name no `platforms` row carries: the feed slug `gites-de-france`
+  // becomes the catalogue's `GitesDeFrance` rather than a second spelling of it. With no matching
+  // row, the canonical form is the target and the boot seeding creates the row.
+  const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const catalogue = new Map();
+  for (const r of database.prepare('SELECT name FROM platforms').all()) {
+    const key = slug(r.name);
+    if (key && !catalogue.has(key)) catalogue.set(key, r.name);
+  }
+  const renameRefs = (table, column) => {
+    let changed = 0;
+    const values = database
+      .prepare(`SELECT DISTINCT ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`)
+      .all()
+      .map((r) => r.v);
+    const update = database.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?`);
+    for (const value of values) {
+      const canonical = formatPlatformName(value);
+      if (!canonical) continue;
+      const target = catalogue.get(slug(value)) || canonical;
+      if (target === value) continue;
+      changed += update.run(target, value).changes;
+    }
+    return changed;
+  };
+  let normalisedRefs = renameRefs('reservations', 'platform');
+  if (hasIcal) normalisedRefs += renameRefs('ical_sources', 'platformLabel');
+
+  return { mergedCount, renamedCount, normalisedRefs };
 }
 
 module.exports = { runPlatformSlugDedup };

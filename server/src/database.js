@@ -1474,10 +1474,10 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
     const { runPlatformSlugDedup } = require('./utils/platformSlugDedupMigration');
     const tx = db.transaction(() => runPlatformSlugDedup(db));
-    const { mergedCount, renamedCount } = tx();
-    if (mergedCount || renamedCount) {
+    const { mergedCount, renamedCount, normalisedRefs } = tx();
+    if (mergedCount || renamedCount || normalisedRefs) {
       // eslint-disable-next-line no-console
-      console.log(`[platform-slug-dedup] merged ${mergedCount} duplicate(s), renamed ${renamedCount} row(s)`);
+      console.log(`[platform-slug-dedup] merged ${mergedCount} duplicate(s), renamed ${renamedCount} row(s), normalised ${normalisedRefs} reference(s)`);
     }
   } catch (e) {
     console.error('[platform-slug-dedup] failed (non-fatal):', e && e.message);

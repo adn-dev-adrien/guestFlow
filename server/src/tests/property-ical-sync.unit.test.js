@@ -572,3 +572,31 @@ test('locked: a drift the operator has not approved moves neither the dates nor 
     assert.equal(row.balanceDueDate, '2026-07-23');
   });
 });
+
+// specs/normalize-platform-names.md §3.2 rule 8bis — the sync stores the platform's CANONICAL name
+// in `reservations.platform`, not the feed slug. Writing the slug (`abracadaroom`, `gites-de-france`)
+// put a second spelling next to the `Abracadaroom` of manually-created reservations, and the calendar
+// legend listed the platform twice until the next boot healed it. `sourcePlatformKey` keeps the slug:
+// it identifies the feed, not the platform.
+test('platform name: a synced reservation carries the canonical name, the slug stays in sourcePlatformKey', async () => {
+  const { db, model } = freshModel();
+  db.prepare("UPDATE ical_sources SET name = 'GitesDeFrance', platformKey = 'gites-de-france', platformLabel = 'GitesDeFrance' WHERE id = 1").run();
+  const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'gites-de-france', platformLabel: 'GitesDeFrance', name: 'GitesDeFrance' };
+  stubFetch([{ uid: 'G1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  const row = db.prepare('SELECT platform, sourcePlatformKey FROM reservations').get();
+  assert.equal(row.platform, 'GitesDeFrance');
+  assert.equal(row.sourcePlatformKey, 'gites-de-france');
+});
+
+test('platform name: a date drift re-sync keeps the canonical name', async () => {
+  const { db, model } = freshModel();
+  const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'abracadaroom', platformLabel: 'Abracadaroom', name: 'Abracadaroom' };
+  stubFetch([{ uid: 'A1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  stubFetch([{ uid: 'A1', start: '20260711', end: '20260714', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  const row = db.prepare('SELECT platform, startDate FROM reservations').get();
+  assert.equal(row.startDate, '2026-07-11');
+  assert.equal(row.platform, 'Abracadaroom');
+});
