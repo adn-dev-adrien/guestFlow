@@ -59,6 +59,7 @@ than dates, the whole year is four statements:
 | The **first Saturday-to-Saturday week of July** and the **last whole week of August** are high | 04/07 → 10/07 · 22/08 → 28/08 | 03/07 → 09/07 · 21/08 → 27/08 |
 | Everything **between the two** is peak | 11/07 → 21/08 | 10/07 → 20/08 |
 | 19 December → 1 January is high | 19/12 → 01/01 | 19/12 → 01/01 |
+| 30 → 31 December is the réveillon, carved out of it _(added 2026-08-25)_ | 30/12 → 31/12 | 30/12 → 31/12 |
 | Everything else is very low | 02/01 → 31/03 · 31/10 → 18/12 | 02/01 → 31/03 · 31/10 → 18/12 |
 
 The July and August rules paint over the May-to-October one; the last write wins, which is the only
@@ -140,6 +141,7 @@ grossed up from a price that already contained the margin). Asserted per season 
 | Moyenne | 326 € | 309,70 € |
 | Haute | 382 € | 362,90 € |
 | Très haute | **538 €** | 511,10 € |
+| Nouvel An | **1 200 € — provisional** | 1 140 € |
 
 Très haute is the one displayed price that moves — 537,50 € → 538 €. The channel grid rounds up to
 the whole euro, so a half-euro base makes the direct row unable to reproduce its own price. The move
@@ -147,14 +149,16 @@ is +0,50 €/night.
 
 **Resulting grid**, computed with the commissions currently stored in `platforms`:
 
-| Channel | Commission | Très basse | Basse | Moyenne | Haute | Très haute |
-|---|---|---|---|---|---|---|
-| Abracadaroom | 20 % | 300 € | 360 € | 388 € | 454 € | 639 € |
-| Airbnb | 15,5 % | 284 € | 341 € | 367 € | 430 € | 605 € |
-| Booking | 15 % | 282 € | 339 € | 365 € | 427 € | 602 € |
-| Greengo | 14,5 % | 280 € | 337 € | 363 € | 425 € | 598 € |
-| **Direct / Lodgify** | 5 % | **252 €** | **303 €** | **326 €** | **382 €** | **538 €** |
-| Gîtes de France | **0 %** | 240 € | 288 € | 310 € | 363 € | 512 € |
+| Channel | Commission | Très basse | Basse | Moyenne | Haute | Très haute | Nouvel An* |
+|---|---|---|---|---|---|---|---|
+| Abracadaroom | 20 % | 300 € | 360 € | 388 € | 454 € | 639 € | 1 425 € |
+| Airbnb | 15,5 % | 284 € | 341 € | 367 € | 430 € | 605 € | 1 350 € |
+| Booking | 15 % | 282 € | 339 € | 365 € | 427 € | 602 € | 1 342 € |
+| Greengo | 14,5 % | 280 € | 337 € | 363 € | 425 € | 598 € | 1 334 € |
+| **Direct / Lodgify** | 5 % | **252 €** | **303 €** | **326 €** | **382 €** | **538 €** | **1 200 €** |
+| Gîtes de France | **0 %** | 240 € | 288 € | 310 € | 363 € | 512 € | 1 140 € |
+
+\* The Nouvel An column is derived from a **placeholder** rate (§5 Q6) and is not to be published.
 
 > **That last row is wrong, and it is the Gîte's main channel.** `platforms.GitesDeFrance.commissionPercent`
 > is 0 in GuestFlow. The seven Gîtes-de-France bookings that carry a recorded commission total
@@ -171,44 +175,43 @@ The 24 stays of 2026, re-priced by the recipe and compared with what the current
 
 | Stay | Nights | Current grid | New grid | Delta |
 |---|---|---|---|---|
-| 18 of the 24 stays | | | | **identical to the cent** |
-| 01/01/2026 | 2 | 504,00 € | 634,00 € | +130,00 € — New Year's Day joins the year-end block |
-| 03/04/2026 | 3 | 676,20 € | 727,20 € | +51,00 € — April in low season from the 1st |
+| 15 of the 24 stays | | | | **identical to the cent** |
+| 01/01/2026 | 2 | 504,00 € | 685,00 € | +181,00 € — New Year's Day joins the year-end block, and the 1ᵉʳ janvier « pont » raises the two nights after it |
+| 03/04/2026 | 3 | 676,20 € | 759,40 € | +83,20 € — April in low season from the 1st, plus the Easter block |
+| 01/05/2026 | 2 | 652,00 € | 764,00 € | +112,00 € — Fête du Travail, one rank up |
+| 08/05/2026 | 2 | 652,00 € | 764,00 € | +112,00 € — Victoire 1945, one rank up |
+| 13/05/2026 | 4 | 912,80 € | 1 013,60 € | +100,80 € — Ascension |
+| 21/05/2026 | 4 | 912,80 € | 957,60 € | +44,80 € — Pentecôte |
 | 17/07/2026 | 2 | 1 074,50 € | 1 076,00 € | +1,50 € — the 537,50 → 538 rounding |
 | 19/07/2026 | 7 | 1 794,75 € | 2 152,00 € | +357,25 € — Très haute repaired |
 | 01/08/2026 | 14 | 3 595,36 € | 4 304,01 € | +708,65 € — Très haute repaired |
 | 17/08/2026 | 7 | 1 896,10 € | 2 027,20 € | +131,10 € — Très haute repaired |
-| **Total** | | **22 349,31 €** | **23 728,81 €** | **+1 379,50 € (+6,2 %)** |
+| **Total** | | **22 349,31 €** | **24 181,61 €** | **+1 832,30 € (+8,2 %)** |
 
-**87 % of the difference (+1 197 €) is the repair of one broken season.** The rest is 4 calendar days
-and half a euro. Nothing in the recipe raises a price on purpose.
-
----
+Three causes, and only three: **+1 197 €** the repair of one broken season, **+452,80 €** the holiday
+bridges the owner asked for on 2026-08-25, and **+182,50 €** four calendar days and half a euro.
+Nothing else in the recipe raises a price. No stay of 2026 falls in the réveillon, so the placeholder
+rate does not appear in this table.
 
 ## 5. Arbitrations the recipe could not take alone
 
-### Q1 — Public-holiday long weekends
+### Q1 — Public-holiday long weekends — **answered 2026-08-25: yes, capped at Haute**
 
 The Lodge raises every « pont » one rank and imposes the block's own length as a minimum stay. The
-Gîte has no such rule, and its May long weekends visibly sell above the base rate (1–3 May 2026 at
-687 €, 8–10 May at 733 € on Gîtes de France, against a 652 € mid-season 2-night rate). The rule
-belongs here.
+Gîte's May long weekends visibly sell above the base rate (1–3 May 2026 at 687 €, 8–10 May at 733 €
+on Gîtes de France, against a 652 € mid-season 2-night rate), so the rule belongs here.
 
-**It cannot be turned on as things stand.** `public_holiday_bridge` caps the raise at the *highest*
-rank, which on the Lodge is high season and on the Gîte is **Très haute, 538 €/night — a full-August
-price**. Switched on unchanged it prices 25 December and 1 January at 538 €, and shatters the
-calendar into 24 ranges. Derived and inspected; not a hypothesis.
+It could not be turned on as the engine stood: `public_holiday_bridge` capped the raise at the
+*highest* rank, and the Gîte's highest rank is a peak price. The modifier gained an optional
+`capSeason`, defaulting to the old behaviour so the Lodge is untouched.
 
-The missing piece is one optional field, `capSeason`, on the modifier. **And its arithmetic has a
-trap**, found by simulating it: the obvious `Math.min(capRank, currentRank + amount)` does not merely
-stop a raise, it **lowers** every night already above the cap — 14 juillet and 15 août sit in Très
-haute, and the naive cap would demote them, costing 624 € over 2026 alone. It has to be
-`Math.max(currentRank, Math.min(capRank, currentRank + amount))`: a cap that never moves a night
-down. With that, plus a validation line and a test, it is about 4 lines in
-[`seasonPlan.js`](../../server/src/utils/seasonPlan.js); the default (no `capSeason`) stays the
-highest rank, so the Lodge is untouched.
+**The trap, found by simulating it before writing it:** the obvious
+`Math.min(capRank, currentRank + amount)` does not merely stop a raise, it **lowers** every night
+already above the cap — 14 juillet and 15 août sit in Très haute, and the naive cap would demote
+them for 624 € over 2026 alone. The night's own rank has to be a floor:
+`Math.max(currentRank, Math.min(capRank, currentRank + amount))`.
 
-**What it would do**, simulated against the shipped recipe with `capSeason: "high"`:
+**What it does**, on the shipped recipe with `capSeason: "high"`:
 
 | Year | Nights raised | Blocks | Extra date ranges on the tariff page |
 |---|---|---|---|
@@ -218,13 +221,21 @@ highest rank, so the Lodge is untouched.
 
 2027 in detail: 2 janvier · 27–28 mars (Pâques) · 1er mai · 6–8 mai (Ascension, absorbing Victoire)
 · 15–16 mai (Pentecôte) · 30–31 octobre (Toussaint) · 11–13 novembre. 14 juillet and 15 août keep
-their Très haute price and gain only the block's minimum stay, which is the Lodge's rule 16ter.
+their Très haute price and gain only the block's minimum stay.
 
-**On the 24 stays already on the books for 2026**, it would add **+452,80 €** (+1,9 %) across 6 of
-them — the two May long weekends at +112 € each being the clearest case that the rule is right.
+**On the 24 stays already on the books for 2026: +452,80 €** (+1,9 %) across 6 of them.
 
-Deliberately **not** written tonight: it is an engine change, and turning ponts on re-prices
-already-open dates — both decisions rather than transcriptions.
+### Q1bis — The Nouvel An season — **added 2026-08-25, rate still pending**
+
+The owner asked for a season of its own for the réveillon, priced above high season, covering « la
+veille du jour de l'an et le jour, bref le 30 et le 31 » — i.e. the **nights of 30 and 31 December**,
+a stay arriving on the 30th and leaving on 1 January. It is carved out of the year-end block by being
+declared after it; 1 January stays in Haute, being a departure morning rather than a réveillon night.
+The rest of the block — 19 → 29 December, Christmas included — is unchanged.
+
+**Its rate is not decided.** 1 200 €/night is a placeholder (« pour le moment tu mets 1200 € la
+nuit »). Replacing it is a two-number edit plus a version bump and a re-apply. Until then those two
+nights are not to be published on any channel.
 
 ### Q2 — The Gîtes de France commission
 
@@ -232,7 +243,7 @@ See §3. Until the contractual rate is entered, the channel grid cannot be deriv
 Gîte's bookings, and the Gîte's accounting attributes 0 € of commission to them. This is not part of
 the recipe (commissions are global per platform) but it gates the rollout.
 
-### Q3 — Whole-house price, or base + extra guest?
+### Q3 — Whole-house price, or base + extra guest? — **answered 2026-08-25: whole house, unchanged**
 
 The Lodge sells "2 people included, then 15 € the first night and 8 € after". The Gîte sells the
 house, and its two per-person costs sit outside the rate: bath linen at 8 €/person and, when the
@@ -248,7 +259,9 @@ Three coherent models, none derivable from the data:
 3. **Base + extra guest**: an included-guest threshold (6?) and a per-night supplement above it,
    carrying the per-person costs. The closest to the Lodge, and the biggest change.
 
-### Q4 — The 8th night costs more than the 7th
+The owner chose the first: the house fills anyway, and the supplements stay outside the rate.
+
+### Q4 — The 8th night costs more than the 7th — **answered 2026-08-25: kept**
 
 A consequence of the week-is-four-nights model, kept as is: nights 3 to 7 are billed 100,80 € in
 Très basse, and the 8th 144 €. Totals never decrease, so nothing is broken, but the Lodge explicitly

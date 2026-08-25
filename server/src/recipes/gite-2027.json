@@ -1,8 +1,8 @@
 {
   "id": "gite-2027",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "label": "Gîte — grille automatique 2027",
-  "description": "La grille actuelle du Gîte, redite en règles : cinq saisons, un calendrier dérivé chaque année (épaules de juillet et d'août autour du cœur d'été, avril en basse, fêtes de fin d'année en haute), la dégressivité « la semaine vaut quatre nuits », et le pivot net après les 5 % du moteur Lodgify. Prix inchangés, sauf la courbe de la Très haute saison, incohérente en base, qui est rétablie.",
+  "description": "La grille du Gîte, redite en règles : six saisons, un calendrier dérivé chaque année (épaules de juillet et d'août autour du cœur d'été, avril en basse, fêtes de fin d'année en haute, réveillon du Nouvel An à part), les ponts fériés montés d'un cran sans dépasser la Haute, la dégressivité « la semaine vaut quatre nuits », et le pivot net après les 5 % du moteur Lodgify. Prix inchangés, sauf la courbe de la Très haute saison, incohérente en base, qui est rétablie — et le tarif du Nouvel An, encore provisoire.",
   "horizonYears": 2,
 
   "_comment_pivot": "Le prix affiché est celui déjà pratiqué sur le canal propre (moteur Lodgify) ; le net cible en est déduit en retirant les 5 % du moteur — netTargetPerNight = pricePerNight × 0,95, à l'euro près et sans arrondi supplémentaire. L'identité tient dans les deux sens : ceil(net / 0,95) redonne exactement le prix affiché, ce qui est le seul contrôle qui prouve que le net a bien été enregistré (piège n° 15 du skill). Les autres canaux sont regrossis depuis ce net, jamais depuis le prix affiché — sinon la marge du direct serait commissionnée une seconde fois.",
@@ -18,7 +18,7 @@
     { "nights": 8, "discountPct": 42.857142857142854 }
   ],
 
-  "_comment_seasons": "Libellés et couleurs repris à l'identique de la fiche tarifaire du Gîte : la première application ADOPTE une saison manuelle de même libellé au lieu de buter dessus (règle 9bis). Prix affichés inchangés, sauf la Très haute portée de 537,50 € à 538 € — la grille par canal s'arrondit à l'euro supérieur, un demi-euro de base empêcherait la ligne « direct » de redonner son propre prix. Aucun plafond de durée (des séjours de 14 nuits se vendent), minimum 2 nuits partout comme aujourd'hui, et aucun jour d'arrivée imposé : deux des trois semaines de plein été 2026 sont parties un dimanche et un lundi, un samedi-samedi les aurait refusées.",
+  "_comment_seasons": "Libellés et couleurs des cinq premières saisons repris à l'identique de la fiche tarifaire du Gîte : la première application ADOPTE une saison manuelle de même libellé au lieu de buter dessus (règle 9bis). Prix affichés inchangés, sauf la Très haute portée de 537,50 € à 538 € — la grille par canal s'arrondit à l'euro supérieur, un demi-euro de base empêcherait la ligne « direct » de redonner son propre prix. Aucun plafond de durée (des séjours de 14 nuits se vendent), minimum 2 nuits partout comme aujourd'hui, et aucun jour d'arrivée imposé : deux des trois semaines de plein été 2026 sont parties un dimanche et un lundi, un samedi-samedi les aurait refusées.",
   "seasons": [
     {
       "key": "very-low", "label": "Très basse", "rank": 1, "color": "#669c35",
@@ -47,6 +47,13 @@
     {
       "key": "peak", "label": "Très haute", "rank": 5, "color": "#ff2600",
       "pricePerNight": 538, "netTargetPerNight": 511.1,
+      "pricingMode": "progressive",
+      "minNights": 2, "maxNights": null, "changeover": null
+    },
+    {
+      "_comment": "TARIF PROVISOIRE — 1 200 €/nuit est une valeur d'attente posée par Adrien le 2026-08-25 (« pour le moment tu mets 1200 € la nuit »), pas un prix arbitré. Le vrai tarif arrive ; jusque-là ces deux nuits ne sont pas à publier sur un canal. Le net suit la même règle que les autres saisons (× 0,95) et l'identité ceil(net / 0,95) = 1200 tient, donc le remplacement se fera par un simple couple prix/net et un bump de version.",
+      "key": "new-year", "label": "Nouvel An", "rank": 6, "color": "#d4af37",
+      "pricePerNight": 1200, "netTargetPerNight": 1140,
       "pricingMode": "progressive",
       "minNights": 2, "maxNights": null, "changeover": null
     }
@@ -79,14 +86,21 @@
         "anchor": { "type": "between", "after": "july-shoulder", "before": "august-shoulder" }
       },
       {
-        "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles, le 1er janvier reste en Haute. Dates fixes et non ancrées sur un samedi — la demande de Noël suit le calendrier des fêtes, pas celui des changements de semaine.",
+        "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles, le 1er janvier reste en Haute. Dates fixes et non ancrées sur un samedi — la demande de Noël suit le calendrier des fêtes, pas celui des changements de semaine. Noël (23, 24, 25) est dedans, comme tout le reste du bloc.",
         "id": "year-end", "season": "high",
         "anchor": { "type": "fixed_dates", "from": "12-19", "to": "01-01" }
+      },
+      {
+        "_comment": "Le réveillon, découpé DANS le bloc des fêtes : déclaré après lui, il le repeint. Les deux nuits sont celles d'un séjour qui arrive le 30 et repart le 1er janvier — « la veille du jour de l'an et le jour » (Adrien, 2026-08-25). Le 1er janvier reste en Haute : c'est une nuit de départ, pas une nuit de réveillon.",
+        "id": "new-year", "season": "new-year",
+        "anchor": { "type": "fixed_dates", "from": "12-30", "to": "12-31" }
       }
     ],
 
-    "_comment_modifiers": "Aucun modificateur de pont dans cette première version, à la différence de la Lodge — voir specs/tariff-recipe-gite/spec.md §9 Q1. Le rang le plus haut du Gîte est la Très haute saison (538 €, un prix de plein août) : sans plafond, `public_holiday_bridge` monterait le 25 décembre et le 1er janvier à ce tarif-là. La règle n'est pas rejetée, elle attend un plafond de rang dans le moteur.",
-    "modifiers": []
+    "_comment_modifiers": "Les ponts fériés montent d'un cran et portent la longueur de leur bloc en minimum de séjour, comme sur la Lodge — mais plafonnés à la Haute saison. Sans `capSeason`, le plafond serait le rang le plus haut, soit le Nouvel An à 1 200 € : un 25 décembre à ce tarif. Le plafond ne descend jamais une nuit déjà au-dessus : le 14 juillet et le 15 août gardent leur prix de Très haute et ne prennent que le minimum de séjour du bloc.",
+    "modifiers": [
+      { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1, "capSeason": "high", "minNights": "block" }
+    ]
   },
 
   "_comment_closures": "Le Gîte est ouvert toute l'année — aucune fermeture récurrente, contrairement à la Lodge.",

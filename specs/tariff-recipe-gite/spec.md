@@ -2,9 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented — **except the Nouvel An rate**, provisional at 1 200 €/night (§9 Q6) |
 | **Branch** | `feature/tariff-recipe-gite` |
 | **Created** | 2026-08-24 |
+| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4 answered by the owner; Q2, Q5, Q6 still open) |
 | **Author** | Adrien |
 | **Companion** | [etude.md](etude.md) — the analysis this spec rests on |
 | **Builds on** | [tariff-recipes](../tariff-recipes/spec.md) (the recipe engine), [platform-price-from-commission](../platform-price-from-commission.md) (the channel grid) |
@@ -97,6 +98,7 @@ a calendar.
    | 4 | the last whole Saturday-to-Saturday week of August (7 nights) | Haute |
    | 5 | everything between rules 3 and 4 | Très haute |
    | 6 | 19 December → 1 January | Haute |
+   | 7 | 30 → 31 December | Nouvel An |
 
 10. **The year-end block straddles 31 December**, so 1 January belongs to the *previous* year's
     block and stays in high season.
@@ -106,9 +108,23 @@ a calendar.
     the first Saturday.
 12. **Horizon: two calendar years**, the current one and the next — the Lodge's value, and the
     scheduled task generates the following year when the horizon moves.
-13. **No public-holiday modifier in this version.** `public_holiday_bridge` caps its raise at the
-    highest rank, which on the Gîte is Très haute (a full-August price): switched on unchanged it
-    prices 25 December and 1 January at 538 € and splits the calendar into 24 ranges. _(See §9 Q1.)_
+13. **Public-holiday long weekends go up one rank, capped at Haute.** Each « pont » is raised by one
+    rank and carries the block's own length as a minimum stay, exactly as on the Lodge. The cap is
+    what makes the rule usable here: the Gîte's highest rank is the Nouvel An season, and an uncapped
+    raise would sell 25 December at its rate. Declared as `capSeason: "high"`, which the engine gained
+    for this recipe ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)).
+    _(Owner's call, 2026-08-25.)_
+13bis. **A night already above the cap is not raised, but still carries its minimum.** 14 juillet and
+    15 août sit inside the summer core: they keep their Très haute price and take only the block's
+    minimum stay — the behaviour rule 16ter already defined for a night at the ceiling.
+13ter. **The réveillon is its own season, above every other.** « Nouvel An » covers the **nights of
+    30 and 31 December** — a stay arriving on the 30th and leaving on 1 January, which is what
+    « la veille du jour de l'an et le jour » means in nights. It is carved out of the year-end block
+    by being declared after it. 1 January stays in Haute: it is a departure morning, not a réveillon
+    night. **Its rate, 1 200 €/night, is a placeholder** the owner set on 2026-08-25 pending the real
+    figure (§9 Q6) — the two nights are not to be published on any channel until it is replaced.
+13quater. **The rest of the year-end block is unchanged.** 19 → 29 December stays Haute, Christmas
+    included; the recipe adds the réveillon on top rather than redrawing the fêtes.
 14. **No recurring closure.** The Gîte is open all year, unlike the Lodge.
 
 ### 3.4 Stay constraints
@@ -157,13 +173,17 @@ a calendar.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `recipes/` | `gite-2027.json` | C | The Gîte's whole tariff model: 5 seasons with displayed price + net target, the shared discount table, the 6 calendar rules, no closure, no modifier. |
-| `utils/` | `tariffRecipe.js` | — | Unchanged — loads and validates the new file like any other. |
-| `utils/` | `seasonPlan.js` | — | Unchanged — the four anchors the recipe uses already exist. |
+| `utils/` | `tariffRecipe.js` | T | Validates the modifier's new `capSeason` against the declared season keys. |
+| `utils/` | `seasonPlan.js` | T | Caps the holiday raise at `capSeason`'s rank, with the night's own rank as a floor so a cap never demotes. |
+| `tests/` | `season-plan-generator.unit.test.js` | T | 4 tests on the cap: it stops the raise, it never demotes, an unknown key is refused, and its absence keeps the old ceiling. |
+| `tests/` | `shipped-recipes-guard.unit.test.js` | T | Bounds its reachability reach by the cap. |
 | `models/` | `tariffRecipeModel.js` | — | Unchanged — the apply writes the seasons, ranges and net targets. |
 | `tests/` | `gite-recipe-end-to-end.unit.test.js` | C | The shipped file, end to end: validation, the two arithmetic identities, the 2026/2027 calendars to the day, full-year coverage, and 8 priced control cases through `calculateReservationQuote`. |
 
-**Notes:** no new dependency, no migration, no route, no controller. The recipe is picked up on the
-next server restart and applied by the operator from the property's tariff page.
+**Notes:** no new dependency, no migration, no route, no controller. The one engine change is
+additive and defaults to today's behaviour, so the Lodge's recipe derives byte-identically. The
+recipe is picked up on the next server restart and applied by the operator from the property's
+tariff page.
 
 ### 4.2 Client side (`client/src/`)
 
@@ -190,8 +210,9 @@ No schema change. Applying the recipe writes existing columns on `pricing_rules`
 their prices through the locked tariff snapshot; unsold dates re-price. The five existing seasons are
 **adopted** rather than replaced, because the recipe declares their exact labels.
 
-Re-priced dates, measured over the 24 stays of 2026: 18 identical to the cent, 6 changed for
-+1 379,50 € in total, of which +1 197 € is the repair of Très haute ([etude.md §4](etude.md)).
+Re-priced dates, measured over the 24 stays of 2026: **15 identical to the cent, 9 changed for
++1 832,30 € in total** — of which +1 197 € is the repair of Très haute and +452,80 € the holiday
+bridges ([etude.md §4](etude.md)).
 
 ## 6. UI / UX
 
@@ -211,8 +232,13 @@ shows the diff before writing. Both screens already exist and are already respon
       (rules 1-3).
 - [x] — the 2026 and 2027 calendars are derived to the day (rules 9-11).
 - [x] — 2026, 2027 and 2028 are covered day for day, with no gap and no double-paint (365/366 days).
-- [x] — applied to a property, 8 control cases quote to the cent, including a stay straddling the
-      peak/high boundary and one running into 1 January; minimum 2 nights, no ceiling (rules 15-17).
+- [x] — a holiday raise stops at Haute and never demotes a night above it: 25 December stays Haute
+      with its 2-night minimum, the 14 juillet block keeps its Très haute price (rules 13, 13bis).
+- [x] — applied to a property, 10 control cases quote to the cent, including a « pont », Christmas,
+      the réveillon, a stay straddling the peak/high boundary and the 2027 peak week; minimum
+      2 nights, 3 on the 14 juillet block, no ceiling (rules 15-17).
+- [x] `tests/season-plan-generator.unit.test.js` — the cap itself, on a synthetic five-rank grid
+      ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)).
 
 ### Manual UI verification
 - [ ] **Not done — needs the operator.** Applying the recipe to the production Gîte re-prices unsold
@@ -227,7 +253,6 @@ shows the diff before writing. Both screens already exist and are already respon
 - **Rolling the grid out to the channels.** No booking engine was touched, no quote was taken,
   nothing was published. That is the `platform-tariff-rollout` skill's job and it starts once §9 is
   answered.
-- **`public_holiday_bridge` and its missing rank cap** (§9 Q1) — an engine change.
 - **The Gîtes de France commission** (§9 Q2) — a global platform setting, not recipe-owned.
 - **Any change to what is included in the rate**, to the extra-guest model, or to the tourist tax.
 - **Declaring the change in the tariff journal** (`tariff_change_events`) — written by the apply
@@ -235,31 +260,32 @@ shows the diff before writing. Both screens already exist and are already respon
 
 ## 9. Open questions
 
-- **Q1 — Turn the public-holiday long weekends on?** The Lodge raises every « pont » one rank with
-  the block's own length as a minimum stay, and the Gîte's May long weekends visibly sell above base.
-  Blocked on a rank cap: without one, `public_holiday_bridge` prices 25 December at 538 €. The fix is
-  an optional `capSeason` on the modifier — about 4 lines in `seasonPlan.js`, a validation line and a
-  test, defaulting to today's behaviour. **Its arithmetic has a trap**: the obvious
-  `Math.min(capRank, currentRank + amount)` *lowers* every night already above the cap (14 juillet
-  and 15 août lose 624 € over 2026), so it must be
-  `Math.max(currentRank, Math.min(capRank, currentRank + amount))`. Simulated with
-  `capSeason: "high"`: 13 nights raised in 2026, 14 in 2027, 12 in 2028, and **+452,80 € (+1,9 %)**
-  over the 24 stays already on the books — at the cost of 12 to 17 extra date ranges a year on the
-  tariff page. Turning it on re-prices already-open dates.
-  - A: …
+- **Q1 — Turn the public-holiday long weekends on?**
+  - **A (2026-08-25): yes, capped at Haute.** The engine gained `capSeason` for it
+    ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)), including the half that is
+    easy to get wrong: a cap must never move a night down, or 14 juillet and 15 août lose 624 € over
+    2026. Effect: 13 nights raised in 2026, 14 in 2027, 12 in 2028, **+452,80 €** over the 24 stays
+    already on the books.
 - **Q2 — What is the Gîtes de France commission?** Stored as 0 % while the channel carries 15 of the
   Gîte's 24 bookings and 84 % of its gross. Observed on the seven bookings that record one: 14,02 %
   overall, individual rates from 6,90 % to 19,58 %. The grid cannot be derived for the main channel
-  until the contractual rate is known.
+  until the contractual rate is known. **Still open** — it is a global platform setting, not
+  recipe-owned, and it gates the channel rollout rather than this spec.
   - A: …
-- **Q3 — Whole-house price, or base + extra guest?** The Gîte's per-person costs (bath linen 8 €/pers,
-  cleaning 80 €/stay) sit outside the rate, so a full house adds 160 € to a 504 € weekend. Three
-  models in [etude.md §5 Q3](etude.md); the recipe keeps the first.
-  - A: …
-- **Q4 — Smooth the week boundary?** Nights 3 to 7 cost 100,80 € in Très basse, the 8th 144 €.
-  Extending the 7th night's marginal price instead would cut a 14-night peak stay by 15 % (about
-  645 € on the one 14-night booking of 2026).
-  - A: …
+- **Q3 — Whole-house price, or base + extra guest?**
+  - **A (2026-08-25): whole house, unchanged.** No included-guest threshold, no extra-guest
+    supplement; cleaning (80 €/stay) and bath linen (8 €/person) stay billed on top.
+- **Q4 — Smooth the week boundary?**
+  - **A (2026-08-25): no, the week model is kept.** Nights 3 to 7 cost 100,80 € in Très basse and
+    the 8th 144 €. Totals never decrease; only the marginal price steps back up once, at the week
+    boundary. Smoothing it would have cut a 14-night peak stay by 15 %.
 - **Q5 — Keep five seasons?** Basse exists for April alone, 20 % above Très basse and 7 % below
-  Moyenne — one more rank to configure on every channel for 30 nights a year.
+  Moyenne — one more rank to configure on every channel for 30 nights a year. **Still open**; the
+  recipe now carries six ranks, Nouvel An included.
+  - A: …
+- **Q6 — What is the Nouvel An rate?** **Blocking for publication.** 1 200 €/night is a placeholder
+  the owner set on 2026-08-25 (« pour le moment tu mets 1200 € la nuit »), pending the real figure.
+  Replacing it is a two-number edit — `pricePerNight` and `netTargetPerNight = price × 0,95` — plus a
+  version bump and a re-apply. Until then the nights of 30 and 31 December must not be published on
+  any channel.
   - A: …
