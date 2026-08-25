@@ -267,7 +267,9 @@ const ETAPES = [
   ['Ce qui s’ajoute', `La taxe de séjour (${eur(IN.propriete.touristTaxPerDayPerPerson)} par personne et par nuit), et les services restés hors du tarif : ${IN.services.filter((s) => !s.inclus).map((s) => `${s.nom.toLowerCase()} ${eur0(s.prix)}${s.unite === 'per_person' ? ' par personne' : ''}`).join(', ')}. Le ${IN.services.filter((s) => s.inclus).map((s) => s.nom.toLowerCase()).join(' et le ')}, lui, est compris dans le tarif.`],
 ];
 
-const html = `<title>${esc(IN.titre)}</title>
+// The <title> names the page in a browser tab and in the Artifact gallery, where it sits beside
+// every other report: a short name, not the headline. `titre` stays the h1.
+const html = `<title>${esc(IN.titrePage || IN.titre)}</title>
 <style>
   ${ff('Source Serif 4', serif600, 600)}
   ${ff('InterVf', sans400, 400)}
