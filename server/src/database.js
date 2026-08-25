@@ -2267,6 +2267,35 @@ db.exec(`
   }
 }
 
+// Data repair (specs/legacy-net-solde-schedule-repair.md): reservations from the « solde = net » era
+// stored the échéance NET of the platform commission while also carrying that commission, so every
+// reader that nets it out deducted it twice — the fiche read « encaissé 812 € » where the bank and
+// the journal both said 903 €. Each bucket gets its own commission added back, which makes the
+// schedule sum to `finalPrice + taxe` again; the accounting export's gross-up branch then stops
+// firing on those rows and produces exactly the same journal as before.
+// ONE-SHOT — guarded by the `migrations` table: the correction adds, and the shape it keys on is a
+// fingerprint, not an invariant. The write path has stored gross échéances since
+// specs/platform-per-echeance-commission.md, so no new row can take this shape.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'legacy_net_solde_schedule_repair_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runLegacyNetSoldeRepair } = require('./utils/legacyNetSoldeRepair');
+    const tx = db.transaction(() => {
+      const { ids, skipped } = runLegacyNetSoldeRepair(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return { ids, skipped };
+    });
+    const { ids, skipped } = tx();
+    if (ids.length > 0) {
+      console.log(`[migration:legacy-net-solde] regrossed the schedule of reservation(s) ${ids.join(', ')}`);
+    }
+    if (skipped.length > 0) {
+      console.log(`[migration:legacy-net-solde] left reservation(s) ${skipped.join(', ')} untouched (commission with no bucket to ride on)`);
+    }
+  }
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes
