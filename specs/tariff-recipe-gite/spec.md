@@ -240,12 +240,21 @@ shows the diff before writing. Both screens already exist and are already respon
 - [x] `tests/season-plan-generator.unit.test.js` — the cap itself, on a synthetic five-rank grid
       ([tariff-recipes §3.3 rules 15bis-15ter](../tariff-recipes/spec.md)).
 
+### Applied against a copy of the production data
+- [x] **The first apply adopts all five existing seasons and creates only Nouvel An** — no obstacle,
+      no conflict, no warning. This is the day-one wall rule 22 exists to avoid, and it holds.
+- [x] The property ends up with `tariffRecipeId = gite-2027`, six ranked seasons carrying their net
+      targets, 2026 **and** 2027 generated, and one line in the tariff-change journal.
+- [x] **Re-applying writes nothing** and adds no journal line (rule 11). It did not, at first — see
+      the label-casing fix in [tariff-recipes §3.2 rule 11bis](../tariff-recipes/spec.md), found here.
+
 ### Manual UI verification
-- [ ] **Not done — needs the operator.** Applying the recipe to the production Gîte re-prices unsold
-      2026 dates (§5) and is a commercial act, so the apply is deliberately left to Adrien. To be
-      checked when it runs: the diff dialog shows the five seasons **adopted** (not created), the
-      four days of §3.3 rule 11 as the only 2026 range change, and 2027 generated in full.
-- [ ] Tariff page, mobile and desktop: the seasons table and the calendar render the generated 2027.
+- [ ] **Not done — needs the operator.** The apply above ran against a *copy* of the database, never
+      against production, which re-prices unsold 2026 dates and is a commercial act. To be checked
+      when it runs for real: the diff dialog lists the five seasons as **adopted**, Nouvel An as
+      created, and no obstacle.
+- [ ] Tariff page, mobile and desktop: the seasons table and the calendar render the generated 2027,
+      with the « pont » minimums visible on the May blocks.
 - [ ] Platform grid: the **Direct** row reproduces 252 / 303 / 326 / 382 / 538 € exactly.
 
 ## 8. Out of scope
