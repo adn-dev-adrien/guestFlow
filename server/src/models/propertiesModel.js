@@ -123,6 +123,15 @@ function subtractClosuresFromRanges(ranges, closures) {
 
 // A per-range `minNights` is only stored when it OVERRIDES the season default; a value equal to the
 // season-level `minNights` is dropped so the range simply inherits (specs/pricing-min-nights-per-range.md).
+// A season label typed by the operator is tidied; one declared by a tariff recipe is left alone.
+// `sentenceCase` would lower-case « Nouvel An » to « Nouvel an », and the recipe apply — which
+// compares what it wrote against what it declares — would then diff for ever.
+function seasonLabel(body, label) {
+  const raw = String(label ?? '').trim();
+  if (body.labelFromRecipe) return raw || 'Standard';
+  return sentenceCase(label || 'Standard');
+}
+
 function stripRangeMinEqualToDefault(ranges, seasonMinNights) {
   const seasonMin = Math.max(1, Number(seasonMinNights || 1));
   return (ranges || []).map((range) => {
@@ -660,7 +669,7 @@ function createPropertiesModel(database) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId,
-        sentenceCase(label || 'Standard'),
+        seasonLabel(body, label),
         Number(pricePerNight || 0),
         pricingMode || 'fixed',
         JSON.stringify(normalizedProgressiveTiers),
@@ -709,7 +718,7 @@ function createPropertiesModel(database) {
           extraGuestTiers=?
         WHERE id=? AND propertyId=?
       `).run(
-        sentenceCase(label || 'Standard'),
+        seasonLabel(body, label),
         Number(pricePerNight || 0),
         pricingMode || 'fixed',
         JSON.stringify(normalizedProgressiveTiers),

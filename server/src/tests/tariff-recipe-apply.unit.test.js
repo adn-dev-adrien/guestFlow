@@ -244,3 +244,39 @@ test('a recipe declaring no welcome pack clears the cost — it never lingers fr
   assert.equal(db.prepare('SELECT welcomePackCost FROM properties WHERE id = 1').get().welcomePackCost, 0);
   db.close();
 });
+
+test('a recipe label keeps its own casing, so the apply stays idempotent (rule 11)', () => {
+  // `sentenceCase` tidies what an operator types into the season dialog; a recipe label is authored
+  // and reviewed. Lower-casing « Nouvel An » to « Nouvel an » on write made the NEXT preview see a
+  // label change it could never satisfy: every apply rewrote every season and stamped a line in the
+  // tariff journal — the very data a tariff change is measured against.
+  const db = createDb();
+  const recipe = validateRecipe({
+    id: 'casing-test', version: '1.0.0', label: 'Casing', horizonYears: 1,
+    seasons: [
+      { key: 'base', label: 'Très basse', rank: 1, color: '#111', pricePerNight: 252 },
+      { key: 'new-year', label: 'Nouvel An', rank: 2, color: '#d4af37', pricePerNight: 1200 },
+    ],
+    calendar: {
+      baseSeason: 'base',
+      periods: [{ id: 'reveillon', season: 'new-year', anchor: { type: 'fixed_dates', from: '12-30', to: '12-31' } }],
+      modifiers: [],
+    },
+  }).recipe;
+  const model = createTariffRecipeModel(db, { getRecipe: (id) => (id === recipe.id ? recipe : null) });
+
+  assert.equal(model.apply(1, 'casing-test').applied, true);
+  const labels = db.prepare('SELECT label FROM pricing_rules WHERE propertyId = 1 ORDER BY seasonRank').all().map((r) => r.label);
+  assert.deepEqual(labels, ['Très basse', 'Nouvel An'], 'the internal capital survives the write');
+  assert.equal(model.apply(1, 'casing-test').applied, false, 're-applying an unchanged property writes nothing');
+});
+
+test('a label typed by the operator is still tidied — the recipe flag is the only exemption', () => {
+  const db = createDb();
+  const properties = require('../models/propertiesModel').buildModel(db);
+  properties.addPricingRule(1, {
+    label: 'très BASSE saison', pricePerNight: 100,
+    dateRanges: [{ startDate: '2026-01-01', endDate: '2026-01-31' }],
+  });
+  assert.equal(db.prepare('SELECT label FROM pricing_rules WHERE propertyId = 1').get().label, 'Très basse saison');
+});
