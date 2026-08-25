@@ -210,7 +210,7 @@ No schema change. Applying the recipe writes existing columns on `pricing_rules`
 their prices through the locked tariff snapshot; unsold dates re-price. The five existing seasons are
 **adopted** rather than replaced, because the recipe declares their exact labels.
 
-Re-priced dates, measured over the 24 stays of 2026: **15 identical to the cent, 9 changed for
+Re-priced dates, measured over the 24 stays of 2026: **14 identical to the cent, 10 changed for
 +1 832,30 € in total** — of which +1 197 € is the repair of Très haute and +452,80 € the holiday
 bridges ([etude.md §4](etude.md)).
 

@@ -175,7 +175,7 @@ The 24 stays of 2026, re-priced by the recipe and compared with what the current
 
 | Stay | Nights | Current grid | New grid | Delta |
 |---|---|---|---|---|
-| 15 of the 24 stays | | | | **identical to the cent** |
+| 14 of the 24 stays | | | | **identical to the cent** |
 | 01/01/2026 | 2 | 504,00 € | 685,00 € | +181,00 € — New Year's Day joins the year-end block, and the 1ᵉʳ janvier « pont » raises the two nights after it |
 | 03/04/2026 | 3 | 676,20 € | 759,40 € | +83,20 € — April in low season from the 1st, plus the Easter block |
 | 01/05/2026 | 2 | 652,00 € | 764,00 € | +112,00 € — Fête du Travail, one rank up |
