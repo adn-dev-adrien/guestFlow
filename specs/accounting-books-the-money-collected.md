@@ -84,6 +84,13 @@ options and resources appear once, at their real amount, only when they were rea
      shape**: ratio = `expected / scheduledTotal`, exactly as today. This is the only case that grosses
      amounts up, and it is what keeps réservation #7 (Parreton) booking 994 € of CA against a 903 €
      bank movement.
+
+     > **Since 2026-08-25** the fiche of such a row disagreed with this branch: it deducted the
+     > commission from a solde that was already net, and read « encaissé 812 € » where the journal and
+     > the bank said 903 €. `specs/legacy-net-solde-schedule-repair.md` puts the commission back into
+     > the échéance at boot, so #7 now takes the **ratio-1** branch above and produces the very same
+     > entry. This branch stays — it is what makes that repair provably free of effect on the books —
+     > but no reservation in production needs it any more.
    - else → **schedule drift**: ratio 1. The books follow the money; a fiche/total inconsistency is
      never resolved by inventing revenue.
 2. **The complément de fin de séjour joins the denominator.** It is scheduled money like the other
