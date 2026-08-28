@@ -251,6 +251,17 @@ applicables, **seule la réduction la plus importante** est affichée aux client
 croissante (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc, exactement comme sur Lodgify — il faut
 une promotion par palier.
 
+### Piloter l'extranet Booking : ne jamais taper une URL
+
+**Relevé le 2026-08-28.** Les pages de `admin.booking.com` portent un jeton de session dans leur
+URL (`?ses=<32 hexa>`). **Naviguer vers une URL construite à la main — même correcte, même avec le
+bon `hotel_id` — déconnecte la session** et renvoie sur `account.booking.com/sign-in`. Il faut alors
+que l'opérateur se reconnecte, et le jeton change.
+
+Conséquence pratique : dans cet extranet, **on ne se déplace qu'en cliquant les liens de la page**.
+Les URL notées ici servent à reconnaître un écran, pas à y aller. Si une URL directe est
+indispensable, y recopier le `ses=` lu dans la page courante — et savoir qu'il expire.
+
 ### La dégressivité sur Booking passe par un PLAN TARIFAIRE, jamais par une promotion
 
 **Cause trouvée le 2026-08-28.** Une promotion — poussée par Lodgify ou créée dans l'extranet en
