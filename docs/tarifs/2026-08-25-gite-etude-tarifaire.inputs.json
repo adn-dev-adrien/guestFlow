@@ -2,7 +2,7 @@
  "titre": "Étude tarifaire du Gîte, et la grille qui en sort",
  "titrePage": "Étude tarifaire du Gîte",
  "sousTitre": "Gîte · Domaine Solio · 25 août 2026, révisée le 28 août",
- "intro": "La tarification du Gîte n'existait nulle part sous forme de règle : cinq saisons peintes à la main, des paliers saisis nuit par nuit, et 2027 sans prix passé le 8 janvier. Cette page est ce que l'on trouve en démontant cette grille, et la recette qui la remplace — prix inchangés partout où l'ancienne ne se contredisait pas. Révision du 28 août : les quatre nuits fortes des fêtes sont calibrées sur les encaissements, L'Ardéchoise ajoutée, et la commission Gîtes de France élucidée.",
+ "intro": "La tarification du Gîte n'existait nulle part sous forme de règle. Cette page est ce que l'on trouve en démontant l'ancienne grille, et la recette qui la remplace. Révision du 28 août : le propriétaire a ouvert le tableur qui faisait tourner le Gîte avant GuestFlow, et le pivot a dû être refait — les prix qui servaient de référence étaient ceux de Gîtes de France, le canal le moins cher.",
  "anneeReference": 2026,
  "anneesDerivees": [
   2026,
@@ -12,7 +12,6 @@
  "fraisMoteurPct": 5,
  "saisonsProvisoires": [],
  "reglesCalendrier": {
-  "spring": "Le mois d'avril",
   "shoulder": "Du 1er mai au 30 octobre",
   "july-shoulder": "La première semaine samedi-samedi de juillet",
   "august-shoulder": "La dernière semaine entière d'août",
@@ -26,9 +25,9 @@
  "noteSaisonCassee": "Les deux semaines de plein été réellement vendues en 2026 avaient été devisées 2 148 € à la prise de réservation, soit quatre fois 537 € : la courbe a été écrasée après coup. Ce sont les quarante-deux nuits les plus demandées de l'année.",
  "noteDerive": "Aucun de ces jours n'est un choix commercial : le 1er janvier 2026 avait simplement été oublié en très basse saison alors que le 1er janvier 2027, lui, était bien peint en haute ; et la basse saison d'avril démarrait au premier samedi plutôt qu'au premier du mois.",
  "notePonts": "La règle est celle de la Lodge, à une différence près : elle est plafonnée à la haute saison. Sans plafond, elle monterait le 25 décembre au tarif du réveillon. Une nuit déjà au-dessus du plafond — le 14 juillet, le 15 août — garde son prix et ne prend que le minimum de séjour de son bloc.",
- "noteCanaux": "Gîtes de France est calculé à 10 %, taux confirmé par deux documents indépendants (voir plus bas) — mais `platforms` contient encore 0 % dans l'application : c'est un réglage à corriger, pas un prix. Les nuits de Noël et du Nouvel An sont facturées à plat : la remise de durée ne s'y applique pas.",
+ "noteCanaux": "Le plancher net est mesuré, pas décrété : moindres carrés sur les 15 séjours Gîtes de France, résidu de 48,84 €. Chaque plateforme est regrossie depuis ce plancher ; le direct l'est depuis le plancher PLUS 16 €, ce qui le place au niveau du canal le moins cher alors qu'il ne paie que 5 % — c'est de là que vient la marge supplémentaire d'une réservation directe. Gîtes de France retombe sur les prix qu'il pratique aujourd'hui, ce qui était la contrainte de départ.",
  "canauxDouteux": [],
- "noteIso": "Quatre causes, et seulement quatre : la réparation de la très haute saison, les ponts fériés, quatre jours de calendrier, et L'Ardéchoise. Aucun séjour de 2026 ne tombe sur le 24, le 25 ou le 31 décembre — les deux pointes des fêtes n'apparaissent donc pas du tout dans ce tableau, et c'est bien pourquoi il a fallu les calibrer sur les relevés d'Adrien plutôt que sur le planning.",
+ "noteIso": "Les 24 séjours bougent, puisque toute la grille a bougé — la colonne de droite est le prix DIRECT. La forme du changement est le fait marquant : l'hiver monte, l'été descend. Un week-end de février passe de 504 € à 640 €, la mi-juillet de 1 074,50 € à 904 €. C'est ce que la mesure imposait : l'ancienne grille facturait 252 € la nuit en hiver quand Adrien en encaissait 288 € via Gîtes de France et 407 € via les plateformes, et 537,50 € au pic d'été quand Gîtes de France lui en rapportait 413 €.",
  "cas": [
   {
    "id": "g1",
@@ -38,7 +37,7 @@
   },
   {
    "id": "g2",
-   "titre": "Trois nuits en avril",
+   "titre": "Trois nuits en avril, désormais très basse saison",
    "du": "2026-04-11",
    "nuits": 3
   },
@@ -89,7 +88,7 @@
    "titre": "Noël, les deux nuits fortes",
    "du": "2026-12-24",
    "nuits": 2,
-   "note": "La référence : 1 550 € encaissés en 2025 sur ces deux nuits, plus 20 %. Le tarif de 930 € en découle, il n'est pas choisi."
+   "note": "La référence : 1 514 € de location encaissés en 2025 sur ces deux nuits, plus 20 %. Le tarif en découle, il n'est pas choisi."
   },
   {
    "id": "g7b",
@@ -110,7 +109,7 @@
    "titre": "Le réveillon, arrivée le 31",
    "du": "2026-12-31",
    "nuits": 3,
-   "note": "Le séjour réellement vendu en 2025, 1 222 €. Le 1er janvier et le 2 retombent en haute et basse saison : la nuit du 31 porte seule la plus-value."
+   "note": "Le séjour réellement vendu en 2025. Le 1er janvier et le 2 retombent en haute et très basse saison : la nuit du 31 porte seule la plus-value."
   },
   {
    "id": "g8b",
@@ -136,19 +135,24 @@
  ],
  "reserves": [
   {
-   "id": "gdf",
-   "titre": "Le taux Gîtes de France est connu, mais pas encore saisi dans l’application",
-   "texte": "Deux documents indépendants donnent la même règle : 10 % de la LOCATION, TVA comprise, arrondis à l'euro ; les options sont reversées en entier ; la taxe de séjour est collectée et reversée par la centrale ; le client paie des frais de dossier par-dessus, qui ne touchent jamais le net du propriétaire. Contrat n° 13164 : 840 × 0,90 + 120 = 876 €. Facture n° 7092-2026 : 1 628 + 80 − 163 = 1 545 €. Restent deux choses à faire dans l'application : passer `platforms.GitesDeFrance` de 0 % à 10 %, et regarder que GuestFlow applique le pourcentage au brut entier alors que Gîtes de France exonère les options — 8 € d'écart sur un séjour avec ménage. Aucune ne change un prix de la recette."
+   "id": "abritel",
+   "titre": "Abritel n'existe pas dans la table des plateformes",
+   "texte": "C'est pourtant là que Noël et le réveillon 2025 ont été vendus, et ses deux relevés donnent 9,66 % et 9,69 % de commission. Ajouté à 9,7 %, il deviendrait le canal le moins cher — un euro sous Gîtes de France — et le prix direct devrait le suivre vers le bas."
   },
   {
-   "id": "noel-nuits",
-   "titre": "Les deux nuits de Noël 2025 sont supposées être le 24 et le 25",
-   "texte": "Adrien a dit « 2 jours à 1 550 € » sans les nommer. Toute la calibration du tarif de Noël en dépend : si c'étaient le 23 et le 24, ou le 25 et le 26, les 930 € bougent. À confirmer avant de publier quoi que ce soit sur un canal."
+   "id": "basse",
+   "titre": "La saison « Basse » doit être supprimée à la main avant la première application",
+   "texte": "La recette ne la déclare plus, mais la ligne sur la fiche du Gîte est une saison MANUELLE : l'application ne peut pas la supprimer et se bloque sur le chevauchement d'avril. Vérifié sur une copie de la production. Une fois supprimée, l'application passe, adopte les quatre saisons restantes par leur libellé, crée Noël et Nouvel An, écrit le levier à 16 €, et une seconde exécution ne fait rien."
   },
   {
-   "id": "rangs",
-   "titre": "Cinq rangs historiques, dont un pour le seul mois d'avril",
-   "texte": "La basse saison se situe 20 % au-dessus de la très basse et 7 % en dessous de la moyenne, pour trente nuits par an. C'est un rang de plus à configurer sur chaque plateforme. La fusionner ou l'élargir se défend ; la recette la garde parce que la consigne était de partir des prix existants."
+   "id": "airbnb",
+   "titre": "Airbnb bascule en frais hôte le 13 octobre 2026",
+   "texte": "Tous les hôtes de l'Espace économique européen passent à une commission unique de 15,5 % HT, soit 18,6 % TTC, la TVA irlandaise n'étant pas récupérable pour un loueur non assujetti. La solution ne touche pas la recette : les commissions sont globales par plateforme. Le jour venu, passer Airbnb de 15,5 % à 18,6 % dans les réglages suffit, et le pivot regrosse tout seul — la très basse saison passerait de 341 € à 354 €, la très haute de 489 € à 508 €. À vérifier d'abord sur un versement réel : les relevés 2026 montrent 15,0 % prélevés, pas 18,6 %."
+  },
+  {
+   "id": "abraca",
+   "titre": "Abracadaroom élargit la fourchette au-delà des 10 % demandés",
+   "texte": "À 20 % de commission, il étire l'écart à 12,5 % en très basse saison et 14,4 % en très haute — et jusqu'à 16,7 % sur Noël, où les 16 € du levier direct pèsent relativement moins. Adrien a choisi de le garder plutôt que de le sortir, alors que le Gîte n'y a jamais vendu une nuit."
   }
  ],
  "nonVerifie": [
@@ -159,12 +163,12 @@
  "pied": [
   "Page auto-portante : polices intégrées, aucune requête réseau à l'ouverture. Elle s'ouvre hors ligne.",
   "Produite par .claude/skills/tariff-recipe/build-study-page.mjs à partir de server/src/recipes/gite-2027.json. Les faits observés — grille actuelle, séjours au planning, commissions, relevés de canaux — viennent de la base et du propriétaire ; tout le reste est recalculé à chaque génération. La page peut contredire qui l'a écrite.",
-  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v2.0.0"
+  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v3.0.0"
  ],
  "periodesVoulues": [
   "new-year"
  ],
- "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, les quatre nuits fortes des fêtes sont creusées dans le bloc de haute saison, le creux du 27 au 29 redescend en moyenne, et L'Ardéchoise peint une semaine de haute au milieu de juin. Ils sont listés à part des corrections ci-dessus, parce qu'ils se décident et ne se déduisent pas.",
+ "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, les quatre nuits fortes des fêtes sont creusées dans le bloc de haute saison, le creux du 27 au 29 redescend en moyenne, et L'Ardéchoise peint une semaine de haute au milieu de juin. La saison « Basse » a disparu : les encaissements la donnent identique à la très basse (286 € contre 288 €), pour un rang qui ne couvrait qu'avril.",
  "ancienneGrille": [
   {
    "label": "Très basse",

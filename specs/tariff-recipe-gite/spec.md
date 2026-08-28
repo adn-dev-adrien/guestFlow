@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented — **except the net pivot**, which the owner's own records show is anchored on the wrong column (§9 Q7). Nothing goes out on a channel until that is settled. |
+| **Status** | Implemented |
 | **Branch** | `feature/tariff-recipe-gite` |
 | **Created** | 2026-08-24 |
-| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 the festive peaks, Q2 the Gîtes-de-France commission, L'Ardéchoise added; Q5 still open) |
+| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 festive peaks, Q2 commission, Q7 the pivot rebuilt on the Gîtes-de-France net, Q5 answered by measurement, L'Ardéchoise added) |
 | **Author** | Adrien |
 | **Companion** | [etude.md](etude.md) — the analysis this spec rests on |
 | **Builds on** | [tariff-recipes](../tariff-recipes/spec.md) (the recipe engine), [platform-price-from-commission](../platform-price-from-commission.md) (the channel grid) |
@@ -49,20 +49,34 @@ a calendar.
 
 ### 3.1 The pivot
 
-1. **The displayed price is the anchor, the net target is derived.** The rate GuestFlow bills today
-   on the own channel is kept as the displayed price; the net target is what survives the 5 % Lodgify
-   engine fee: `net = round2(displayed × 0,95)`.
-2. **The identity must hold in both directions.** `ceil(net / 0,95)` must return the displayed price
-   unchanged, per season. This is the only check that proves the net was persisted rather than
-   dropped by the apply — a failure that shipped once on the Lodge
-   ([tariff-recipes §3.6 rule 34bis](../tariff-recipes/spec.md); trap 15 of the `tariff-recipe`
-   skill). Asserted in the test suite, season by season.
-3. **Très haute's displayed price moves from 537,50 € to 538 €.** The channel grid rounds up to the
-   whole euro, so a half-euro base cannot be reproduced by rule 2. +0,50 €/night; every other season
-   is unchanged.
-4. **Every other channel is grossed up from the net, never from the displayed price.** Existing
-   behaviour of [platform-price-from-commission](../platform-price-from-commission.md); the recipe
-   only supplies the pivot it was missing.
+1. **The net is the anchor, and it is a FLOOR.** `netTargetPerNight` is what the owner receives on
+   any channel and never less. It is **measured, not declared**: a least-squares fit of the recipe's
+   own degressivity curve against the 15 Gîtes-de-France stays on record — 288 / 302 / 341 / 413 €,
+   residual 48,84 € ([étude §3](etude.md)). _(Owner's call, 2026-08-28: « tu calcules ce que je gagne
+   avec Gîte de France et ça devient la référence […] je ne veux jamais descendre en dessous ».)_
+2. **Gîtes de France keeps the prices it charges today.** Grossed up from the floor at its 10 %, it
+   comes out at 320 / 336 / 379 / 459 € — the constraint the whole grid was anchored on.
+3. **Every channel is grossed up from the floor**, `ceil(net ÷ (1 − commission))`. Existing behaviour
+   of [platform-price-from-commission](../platform-price-from-commission.md); the recipe only supplies
+   the pivot it was missing.
+4. **The direct channel carries a 16 € uplift**, so it lands level with the cheapest channel while
+   paying only 5 % — which is where the extra margin on a direct booking comes from.
+   `pricePerNight = ceil((net + 16) ÷ 0,95)` = 320 / 335 / 376 / 452 €. The uplift is carried by the
+   recipe's `welcomePack.cost`, which the grid applies to the direct row alone
+   (`fixedCost: p.isDirect ? welcomePackCost : 0`). **It is not a welcome pack here**; the field is
+   simply the only per-stay direct-side amount the grid knows about, and the comment in the recipe
+   says so. _(Owner's call, 2026-08-28: « en direct je veux que tu me place au prix le plus bas des
+   plateformes ».)_
+5. **Two identities must hold, per season, or the grid lies.** `ceil((net + 16) ÷ 0,95)` must return
+   `pricePerNight` unchanged, and `pricePerNight` must be **≤ the cheapest platform price**. The first
+   is what proves the net was persisted rather than dropped by the apply — a failure that shipped once
+   on the Lodge ([tariff-recipes §3.6 rule 34bis](../tariff-recipes/spec.md); trap 15 of the
+   `tariff-recipe` skill). The second is what keeps booking direct from costing the guest more than a
+   platform. Both asserted in the test suite, season by season.
+6. **The band is 12,5 % to 14,4 % on the ordinary seasons, 16,7 % on Noël.** The owner asked for 10 %
+   and accepted the widening rather than drop Abracadaroom, which sits at 20 % and through which the
+   Gîte has never sold a night. On the festive seasons a flat 16 € is a smaller relative uplift, so
+   the band widens further — arithmetic, not a choice.
 
 ### 3.2 The degressivity
 
@@ -248,19 +262,26 @@ No schema change. Applying the recipe writes existing columns on `pricing_rules`
 `tariffRecipeVersion` on `properties`.
 
 **Data impact:** the apply previews as a diff and is transactional. Reservations already saved keep
-their prices through the locked tariff snapshot; unsold dates re-price. The five existing seasons are
-**adopted** rather than replaced, because the recipe declares their exact labels.
+their prices through the locked tariff snapshot; unsold dates re-price.
 
-Re-priced dates, measured over the 24 stays of 2026: **13 identical to the cent, 11 changed for
-+1 944,30 € in total** — of which +1 197 € is the repair of Très haute, +452,80 € the holiday bridges,
-+182,50 € four calendar days and half a euro, and +112 € L'Ardéchoise ([etude.md §4](etude.md)).
-No 2026 stay falls on 24, 25 or 31 December, so the two festive peaks do not appear in that
-comparison at all.
+> **One manual step before the first apply.** The recipe no longer declares a « Basse » season, and
+> the one on the Gîte's card is a *manual* row, not a recipe-owned one — so the apply cannot delete
+> it and is **blocked** by the April overlap it creates (verified against a copy of production:
+> `blocking: true`, two conflicts on 04→30 April). **Delete the « Basse » season on the Gîte's tariff
+> page first**; the apply then goes through cleanly, adopts the four remaining seasons by label,
+> creates Noël and Nouvel An, writes `welcomePackCost = 16`, and a second run is a no-op.
+
+Re-priced dates, measured over the 24 stays of 2026: **all 24 move**, the whole grid having moved,
+for **+1 157,92 € (+5,2 %)** on the direct price. Winter rises and summer falls — a February weekend
+goes 504 € → 640 € (+27 %), mid-July 1 074,50 € → 904 € (−16 %) — which is what the measurement
+demanded: the old grid charged 252 € a night in winter where the owner nets 288 € on Gîtes de France
+and 407 € on the platforms, and 537,50 € at the summer peak where Gîtes de France nets him 413 €
+([etude.md §4](etude.md)).
 
 ## 6. UI / UX
 
 No new screen and no new string. The recipe shows up in **Paramètres → Recettes tarifaires** (source
-« Livrée », version 2.0.0) and becomes selectable on the Gîte's tariff page, where the apply dialog
+« Livrée », version 3.0.0) and becomes selectable on the Gîte's tariff page, where the apply dialog
 shows the diff before writing. Both screens already exist and are already responsive.
 
 `PageActionBar`: unchanged on both pages.
@@ -331,18 +352,18 @@ shows the diff before writing. Both screens already exist and are already respon
   - **A (2026-08-25): no, the week model is kept.** Nights 3 to 7 cost 100,80 € in Très basse and
     the 8th 144 €. Totals never decrease; only the marginal price steps back up once, at the week
     boundary. Smoothing it would have cut a 14-night peak stay by 15 %.
-- **Q7 — What net should the pivot be anchored on? BLOCKING for any channel work.** The recipe's
-  displayed prices were taken from GuestFlow on the instruction that they were the direct/Lodgify
-  rate. The owner's own spreadsheet shows they are the **Gîtes-de-France** column, and that platform
-  and direct bookings sell some 30 % above it ([étude §2ter](etude.md)). Measured against what was
-  actually paid, the recipe is +10,7 % on Gîtes de France and **−28,8 % on the platforms**. Until a
-  net target per season is chosen, the channel grid cannot be trusted and nothing goes out.
-  - A: …
+- **Q7 — What net should the pivot be anchored on?** — **answered 2026-08-28: what Gîtes de France
+  actually pays, measured on 15 stays; that net is a FLOOR, never a target.** See rules 3bis-3quater
+  and [étude §3](etude.md). Gîtes de France keeps the prices it charges today; every other channel is
+  grossed up from the same floor; the direct channel gets a 16 € uplift so it lands level with the
+  cheapest channel while still paying only 5 %, which is where the extra margin on a direct booking
+  comes from.
+  - A: floors 288 / 302 / 341 / 413 €, direct 320 / 335 / 376 / 452 €.
 
-- **Q5 — Keep five seasons?** Basse exists for April alone, 20 % above Très basse and 7 % below
-  Moyenne — one more rank to configure on every channel for 30 nights a year. **Still open**; the
-  recipe now carries six ranks, Nouvel An included.
-  - A: …
+- **Q5 — Keep five seasons?** — **answered 2026-08-28 by measurement: no, merged.** The least-squares
+  fit on the Gîtes-de-France stays gives 286 € for Basse against 288 € for Très basse — the two are
+  indistinguishable, and the one covering April alone is gone. Four ordinary seasons remain.
+
 - **Q6 — What are the festive rates?** — **answered 2026-08-28: 908 € on 24-25 December, 938 € on
   31 December, both flat, everything around them back in Haute or Moyenne.** See rules 13ter to
   13quinquies and [étude §5 Q1bis](etude.md).

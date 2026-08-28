@@ -1,8 +1,8 @@
 {
   "id": "gite-2027",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "label": "Gîte — grille automatique 2027",
-  "description": "Cible nette remontée par la commission du canal ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat — les nuits du 24-25 décembre et celle du 31 — calibrées sur les encaissements 2025 majorés de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
+  "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
   "_comment_pivot": "Le prix affiché est celui déjà pratiqué sur le canal propre (moteur Lodgify) ; le net cible en est déduit en retirant les 5 % du moteur — netTargetPerNight = pricePerNight × 0,95, à l'euro près et sans arrondi supplémentaire. L'identité tient dans les deux sens : ceil(net / 0,95) redonne exactement le prix affiché, ce qui est le seul contrôle qui prouve que le net a bien été enregistré (piège n° 15 du skill). Les autres canaux sont regrossis depuis ce net, jamais depuis le prix affiché — sinon la marge du direct serait commissionnée une seconde fois.",
   "_comment_lengthOfStayDiscounts": "La grille du Gîte tient en une phrase : la semaine vaut quatre nuits. Nuits 1 et 2 au prix plein, puis la 3e à la 7e interpolent linéairement du double (2 nuits) au quadruple (une semaine), et au-delà chaque nuit vaut un septième de semaine. Les pourcentages ci-dessous sont exactement cela : 1 − (2 + 0,4 × (n − 2)) / n de 3 à 7 nuits, puis 1 − 4/7 = 42,857142857142854 % à partir de 7. La ligne à 8 nuits n'est pas une redite : sans elle le report du dernier palier facturerait la 8e nuit au prix marginal de la 7e (100,80 € en Très basse) au lieu du septième de semaine (144 €), et un séjour de deux semaines perdrait 15 %. Un seul jeu de pourcentages pour les six saisons — c'est déjà le cas aujourd'hui.",
@@ -39,24 +39,13 @@
   "_comment_seasons": "Libellés et couleurs des cinq premières saisons repris à l'identique de la fiche tarifaire du Gîte : la première application ADOPTE une saison manuelle de même libellé au lieu de buter dessus (règle 9bis). Prix affichés inchangés, sauf la Très haute portée de 537,50 € à 538 € — la grille par canal s'arrondit à l'euro supérieur, un demi-euro de base empêcherait la ligne « direct » de redonner son propre prix. Aucun plafond de durée (des séjours de 14 nuits se vendent), minimum 2 nuits partout comme aujourd'hui, et aucun jour d'arrivée imposé : deux des trois semaines de plein été 2026 sont parties un dimanche et un lundi, un samedi-samedi les aurait refusées.",
   "seasons": [
     {
+      "_comment": "Basse saison FUSIONNÉE dans celle-ci le 2026-08-28. Les 15 séjours Gîtes de France ajustés par moindres carrés donnaient 288,25 € de net pour la très basse et 286,29 € pour la basse : deux saisons statistiquement indiscernables, dont l'une ne couvrait qu'avril. Un rang de moins à configurer sur chaque plateforme, retiré parce que les encaissements d'Adrien disent qu'il ne servait à rien.",
       "key": "very-low",
       "label": "Très basse",
       "rank": 1,
       "color": "#669c35",
-      "pricePerNight": 252,
-      "netTargetPerNight": 239.4,
-      "pricingMode": "progressive",
-      "minNights": 2,
-      "maxNights": null,
-      "changeover": null
-    },
-    {
-      "key": "low",
-      "label": "Basse",
-      "rank": 2,
-      "color": "#0042aa",
-      "pricePerNight": 303,
-      "netTargetPerNight": 287.85,
+      "pricePerNight": 320,
+      "netTargetPerNight": 288,
       "pricingMode": "progressive",
       "minNights": 2,
       "maxNights": null,
@@ -65,10 +54,10 @@
     {
       "key": "mid",
       "label": "Moyenne",
-      "rank": 3,
+      "rank": 2,
       "color": "#942192",
-      "pricePerNight": 326,
-      "netTargetPerNight": 309.7,
+      "pricePerNight": 335,
+      "netTargetPerNight": 302,
       "pricingMode": "progressive",
       "minNights": 2,
       "maxNights": null,
@@ -77,10 +66,10 @@
     {
       "key": "high",
       "label": "Haute",
-      "rank": 4,
+      "rank": 3,
       "color": "#ff9300",
-      "pricePerNight": 382,
-      "netTargetPerNight": 362.9,
+      "pricePerNight": 376,
+      "netTargetPerNight": 341,
       "pricingMode": "progressive",
       "minNights": 2,
       "maxNights": null,
@@ -89,36 +78,36 @@
     {
       "key": "peak",
       "label": "Très haute",
-      "rank": 5,
+      "rank": 4,
       "color": "#ff2600",
-      "pricePerNight": 538,
-      "netTargetPerNight": 511.1,
+      "pricePerNight": 452,
+      "netTargetPerNight": 413,
       "pricingMode": "progressive",
       "minNights": 2,
       "maxNights": null,
       "changeover": null
     },
     {
-      "_comment": "LES NUITS DU 24 ET DU 25 SEULES — dates confirmées le 2026-08-28 par le contrat CAGGIU : « du mercredi 24/12 à 15h au jeudi 26/12/25 à 11h, soit 2 nuits ». Calibré sur la LOCATION PURE de ce séjour : le contrat dit « 1550 € hors option, dont taxe de séjour 1 €/jour/adulte soit 16 € et supplément chien », et les conditions générales fixent le chien à 20 € — soit 1 514 € de location. La taxe de séjour n'est pas un revenu (elle est reversée) et le chien est une option, que la recette ne tarife pas. Cible +20 % = 1 816,80 €, deux nuits à plat, d'où 908,40 € arrondis à 908 € — l'euro entier est obligatoire pour que ceil(net / 0,95) redonne le prix affiché.",
-      "key": "christmas",
-      "label": "Noël",
-      "rank": 6,
-      "color": "#b03a3a",
-      "pricePerNight": 908,
-      "netTargetPerNight": 862.6,
+      "_comment": "LA NUIT DU 31 SEULE, et elle porte toute la plus-value. Abritel a facturé le réveillon 2025 (31/12 → 03/01) 1 222 € taxe de séjour comprise et reversé 1 103,94 € ; moins les 21 € de taxe, le net d'Adrien sur la location était de 1 082,94 €. Cible + 20 % = 1 299,53 €. Les deux autres nuits sont désormais fixées par la grille — le 1er janvier en Haute (341 € de net en 2e nuit) et le 2 janvier en Très basse (115,20 € en 3e nuit) — ce qui laisse 843 € pour la nuit du 31. `fixed` : les nuits les plus rares de l'année ne se remisent pas.",
+      "key": "new-year",
+      "label": "Nouvel An",
+      "rank": 5,
+      "color": "#d4af37",
+      "pricePerNight": 905,
+      "netTargetPerNight": 843,
       "pricingMode": "fixed",
       "minNights": 2,
       "maxNights": null,
       "changeover": null
     },
     {
-      "_comment": "LA NUIT DU 31 SEULE, et elle porte toute la plus-value. Le réveillon 2025 (31/12 → 03/01) a été facturé 1 222 € par Abritel, taxe de séjour COMPRISE (confirmé par Adrien le 2026-08-28) : 7 adultes × 3 nuits × 1 € = 21 €, donc 1 201 € de location. Cible +20 % = 1 441,20 €. Le 1er janvier retombe en Haute (382 € en 2e nuit) et le 2 janvier en Basse (121,20 € en 3e nuit, remontée par le pont du jour de l'an), ce qui laisse exactement 938 € pour la nuit du 31 — et le séjour de référence retombe sur +20,00 % au centime. `fixed` : cette nuit ne se remise pas.",
-      "key": "new-year",
-      "label": "Nouvel An",
-      "rank": 7,
-      "color": "#d4af37",
-      "pricePerNight": 938,
-      "netTargetPerNight": 891.1,
+      "_comment": "LES NUITS DU 24 ET DU 25 SEULES — dates établies par le contrat CAGGIU : « du mercredi 24/12 à 15h au jeudi 26/12/25 à 11h, soit 2 nuits ». Vendu en direct, donc sans commission : 1 550 € « hors option, dont taxe de séjour 16 € et supplément chien » (20 € aux conditions générales), soit 1 514 € de location nette sur deux nuits, 757 € la nuit. Cible + 20 % = 908 €. Noël ressort AU-DESSUS du réveillon, et c'est ce que disent les chiffres : 757 € la nuit encaissés à Noël contre 361 € en moyenne sur le réveillon.",
+      "key": "christmas",
+      "label": "Noël",
+      "rank": 6,
+      "color": "#b03a3a",
+      "pricePerNight": 973,
+      "netTargetPerNight": 908,
       "pricingMode": "fixed",
       "minNights": 2,
       "maxNights": null,
@@ -129,15 +118,6 @@
   "calendar": {
     "baseSeason": "very-low",
     "periods": [
-      {
-        "id": "spring",
-        "season": "low",
-        "anchor": {
-          "type": "fixed_dates",
-          "from": "04-01",
-          "to": "04-30"
-        }
-      },
       {
         "id": "shoulder",
         "season": "mid",
@@ -247,8 +227,13 @@
           }
         }
       }
-    ]
+    ],
+    "_comment_pivot": "`pricePerNight` est le prix AFFICHÉ EN DIRECT ; `netTargetPerNight` est le plancher — ce qu'Adrien touche sur n'importe quelle plateforme, jamais moins. La grille regrosse chaque canal depuis le plancher et ajoute `welcomePack.cost` à la seule ligne directe, si bien que ceil((net + 16) / 0,95) redonne exactement `pricePerNight`. Cette identité est le contrat du pivot : si elle casse, la ligne directe de la grille cesse de reproduire ce que le moteur facture."
   },
   "_comment_closures": "Le Gîte est ouvert toute l'année — aucune fermeture récurrente, contrairement à la Lodge.",
-  "closures": []
+  "closures": [],
+  "_comment_welcomePack": "N'est PAS un pack accueil ici, mais le levier d'alignement du canal direct. La grille n'applique `fixedCost` qu'à la ligne directe (propertiesModel : `fixedCost: p.isDirect ? welcomePackCost : 0`), ce qui permet d'afficher en direct le prix du canal le moins cher tout en ne payant que 5 % de commission — la différence reste à l'exploitant. Consigne d'Adrien du 2026-08-28 : « en direct je veux que tu me place au prix le plus bas des plateformes ». 16 € est la valeur qui, sur les quatre saisons ordinaires, place le prix direct entre 0 et 7 € SOUS le canal le moins cher (Gîtes de France), jamais au-dessus. Interne à la recette : le client ne voit jamais ce nombre.",
+  "welcomePack": {
+    "cost": 16
+  }
 }

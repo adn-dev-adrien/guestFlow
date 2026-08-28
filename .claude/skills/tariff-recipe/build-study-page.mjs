@@ -74,6 +74,7 @@ const marginal = (s, night) => {
 const cumul = (s, upTo) => { const out = [Number(s.pricePerNight)]; for (let n = 2; n <= upTo; n += 1) out.push(r2(out[out.length - 1] + marginal(s, n))); return out; };
 
 const MOTEUR = IN.fraisMoteurPct ?? 5;
+const UPLIFT = Number(R.welcomePack?.cost || 0);
 for (const s of seasons) {
   if ((s.pricingMode || 'fixed') === 'progressive') {
     check(`${s.label} — la semaine vaut quatre nuits`, cumul(s, 7)[6] === r2(s.pricePerNight * 4), `${eur(cumul(s, 7)[6])} contre ${eur(r2(s.pricePerNight * 4))}`);
@@ -82,7 +83,8 @@ for (const s of seasons) {
     // A season billed flat must stay flat: n nights = n × the rate, with no discount creeping in.
     check(`${s.label} — facturée à plat, sans remise de durée`, cumul(s, 5).every((t, i) => t === r2(s.pricePerNight * (i + 1))), `5 nuits = ${eur(cumul(s, 5)[4])}`);
   }
-  check(`${s.label} — le net cible redonne le prix affiché`, grossFromNet(s.netTargetPerNight, MOTEUR) === Number(s.pricePerNight), `plafond(${eur(s.netTargetPerNight)} ÷ ${String(1 - MOTEUR / 100).replace('.', ',')}) = ${eur0(grossFromNet(s.netTargetPerNight, MOTEUR))}`);
+  check(`${s.label} — le net plancher redonne le prix direct`, grossFromNet(s.netTargetPerNight, MOTEUR, { fixedCost: UPLIFT }) === Number(s.pricePerNight), `plafond((${eur(s.netTargetPerNight)} + ${eur0(UPLIFT)}) ÷ ${String(1 - MOTEUR / 100).replace('.', ',')}) = ${eur0(grossFromNet(s.netTargetPerNight, MOTEUR, { fixedCost: UPLIFT }))}`);
+  check(`${s.label} — le direct ne dépasse pas le canal le moins cher`, Number(s.pricePerNight) <= grossFromNet(s.netTargetPerNight, 10), `${eur0(s.pricePerNight)} contre ${eur0(grossFromNet(s.netTargetPerNight, 10))} chez Gîtes de France`);
 }
 
 // ── calendars ────────────────────────────────────────────────────────────────
@@ -200,11 +202,14 @@ const vus = new Set();
 for (const c of [...IN.canaux].sort((a, b) => b.commissionPct - a.commissionPct)) {
   const cle = estPropre(c.nom) ? 'propre' : c.nom.toLowerCase();
   if (vus.has(cle)) continue; vus.add(cle);
-  canaux.push({ nom: estPropre(c.nom) ? 'Direct · moteur Lodgify' : c.nom, commissionPct: c.commissionPct, propre: estPropre(c.nom),
-    prix: seasons.map((s) => grossFromNet(s.netTargetPerNight, c.commissionPct)) });
+  const propre = estPropre(c.nom);
+  // The direct row carries the recipe's per-stay direct-side amount — the grid applies it to that
+  // row alone — so the page shows what the engine actually bills, not a bare gross-up.
+  canaux.push({ nom: propre ? 'Direct · moteur Lodgify' : c.nom, commissionPct: c.commissionPct, propre,
+    prix: seasons.map((s) => grossFromNet(s.netTargetPerNight, c.commissionPct, propre ? { fixedCost: UPLIFT } : {})) });
 }
 for (const c of canaux.filter((x) => x.propre)) {
-  check('La ligne « direct » de la grille redonne exactement les prix affichés', c.prix.every((p, i) => p === Number(seasons[i].pricePerNight)), c.prix.map(eur0).join(' · '));
+  check('La ligne « direct » de la grille redonne exactement ce que le moteur facture', c.prix.every((p, i) => p === Number(seasons[i].pricePerNight)), c.prix.map(eur0).join(' · '));
 }
 
 // ── the public-holiday blocks the modifier produced ──────────────────────────
@@ -572,7 +577,7 @@ const html = `<title>${esc(IN.titrePage || IN.titre)}</title>
   <section>
     <div class="sec-head">
       <h2>Les mêmes prix sur les autres plateformes</h2>
-      <p>Le prix affiché sur le canal propre est le point de départ ; le net cible en est déduit en retirant les ${String(MOTEUR).replace('.', ',')} % du moteur, et chaque plateforme est regrossie depuis ce net — jamais depuis le prix affiché, qui contient déjà la marge du direct.</p>
+      <p>${esc(IN.pivotIntro || `Chaque canal est regrossi depuis le net plancher, jamais depuis un prix affiché — un prix contient déjà une marge, un net n'en contient pas.${UPLIFT ? ` La ligne directe porte en plus ${eur0(UPLIFT)} par nuit, que la grille n'applique qu'à elle.` : ''}`)}</p>
     </div>
     <div class="scroll">
       <table>

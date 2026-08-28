@@ -39,11 +39,11 @@ function cumulativeTotals(season, upTo) {
 test('the shipped recipe validates and prices a week at exactly four nights', () => {
   const recipe = loadShippedRecipe();
   assert.equal(recipe.id, 'gite-2027');
-  assert.deepEqual(recipe.seasons.map((s) => s.label), ['Très basse', 'Basse', 'Moyenne', 'Haute', 'Très haute', 'Noël', 'Nouvel An']);
+  assert.deepEqual(recipe.seasons.map((s) => s.label), ['Très basse', 'Moyenne', 'Haute', 'Très haute', 'Nouvel An', 'Noël']);
   // A `fixed` season opts OUT of the curve on purpose — the réveillon is billed flat, every night at
   // the full rate — so it has no tiers to walk and must not be held to the week-is-four-nights rule.
   const progressive = recipe.seasons.filter((s) => s.pricingMode === 'progressive');
-  assert.deepEqual(recipe.seasons.filter((s) => s.pricingMode === 'fixed').map((s) => s.label), ['Noël', 'Nouvel An']);
+  assert.deepEqual(recipe.seasons.filter((s) => s.pricingMode === 'fixed').map((s) => s.label), ['Nouvel An', 'Noël']);
   for (const season of progressive) {
     const totals = cumulativeTotals(season, 14);
     // The whole grid in one line: nights 1-2 at the full rate, a week at four times it.
@@ -59,13 +59,20 @@ test('the shipped recipe validates and prices a week at exactly four nights', ()
   }
 });
 
-test('every season\'s net target reproduces its own displayed price through the 5 % engine fee', () => {
+test('the direct price is the net target grossed up WITH the direct-channel uplift', () => {
   const recipe = loadShippedRecipe();
+  const uplift = recipe.welcomePack.cost;
+  assert.equal(uplift, 16);
   for (const season of recipe.seasons) {
-    // The identity that proves the net was stored rather than silently dropped: gross it back up at
-    // the own-channel commission and the displayed price must come out unchanged, to the euro.
-    assert.equal(grossFromNet(season.netTargetPerNight, 5), season.pricePerNight, `${season.label}: ceil(net / 0,95) = prix affiché`);
-    assert.equal(round2(season.pricePerNight * 0.95), season.netTargetPerNight, `${season.label}: net = prix × 0,95`);
+    // The identity that proves the net was stored rather than silently dropped — and that the grid's
+    // direct row reproduces what the engine bills. The uplift is what puts the direct price level
+    // with the cheapest channel while the operator still pays only 5 %.
+    assert.equal(grossFromNet(season.netTargetPerNight, 5, { fixedCost: uplift }), season.pricePerNight,
+      `${season.label}: ceil((net + ${uplift}) / 0,95) = prix direct`);
+    // …and it must never land ABOVE the cheapest platform, or booking direct costs the guest more.
+    const cheapest = grossFromNet(season.netTargetPerNight, 10);   // Gîtes de France, the lowest commission configured
+    assert.ok(season.pricePerNight <= cheapest,
+      `${season.label}: direct ${season.pricePerNight} € doit rester ≤ ${cheapest} € (Gîtes de France)`);
   }
 });
 
@@ -78,12 +85,13 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
 
   const plan2026 = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
   // The four rules, then the holiday blocks cutting into them one rank up, capped at Haute.
-  assert.deepEqual(plan2026['very-low'], [r('2026-01-04', '2026-03-31'), r('2026-10-31', '2026-12-18')]);
-  assert.deepEqual(plan2026.low, [
-    r('2026-01-02', '2026-01-03', 3),  // Jour de l'an (jeudi) + pont du vendredi
-    r('2026-04-01', '2026-04-03'), r('2026-04-06', '2026-04-30'),
+  // April no longer has a season of its own: « Basse » was merged into Très basse on 2026-08-28,
+  // the owner's own takings making the two indistinguishable.
+  assert.deepEqual(plan2026['very-low'], [
+    r('2026-01-04', '2026-04-03'), r('2026-04-06', '2026-04-30'), r('2026-10-31', '2026-12-18'),
   ]);
   assert.deepEqual(plan2026.mid, [
+    r('2026-01-02', '2026-01-03', 3),  // Jour de l'an (jeudi) + pont du vendredi, un rang plus haut
     r('2026-04-04', '2026-04-05', 2),  // Pâques (lundi 6)
     r('2026-05-03', '2026-05-07'), r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'),
     // L'Ardéchoise cuts a Haute week out of the middle of the Moyenne stretch.
@@ -124,16 +132,21 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   assert.deepEqual(plan2027.christmas, [r('2027-12-24', '2027-12-25')]);
   assert.deepEqual(plan2027['new-year'], [r('2027-12-31', '2027-12-31')]);
   assert.deepEqual(plan2027.mid, [
+    r('2027-01-02', '2027-01-02', 2), r('2027-03-27', '2027-03-28', 2),
     r('2027-05-02', '2027-05-05'), r('2027-05-09', '2027-05-14'),
     r('2027-05-17', '2027-06-06'), r('2027-06-13', '2027-07-02'), r('2027-08-28', '2027-10-29'),
-    r('2027-12-27', '2027-12-29'),
+    r('2027-10-31', '2027-10-31', 2), r('2027-11-11', '2027-11-13', 3), r('2027-12-27', '2027-12-29'),
+  ]);
+  assert.deepEqual(plan2027['very-low'], [
+    r('2027-01-03', '2027-03-26'), r('2027-03-29', '2027-04-30'),
+    r('2027-11-01', '2027-11-10'), r('2027-11-14', '2027-12-18'),
   ]);
 });
 
 test('a holiday raise stops at Haute, and never demotes a night above it', () => {
   const recipe = loadShippedRecipe();
   const plan = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
-  // 25 December is a public holiday and it sits in Noël, ABOVE the cap: it keeps its 930 € and takes
+  // 25 December is a public holiday and it sits in Noël, ABOVE the cap: it keeps its 973 € and takes
   // only the block's minimum. 26 December, the bridge day, would climb to Très haute without the cap
   // and is held at Haute — the two halves of the rule, one block, one assertion each.
   assert.ok(plan.christmas.some((x) => x.startDate === '2026-12-25' && x.minNights === 2));
@@ -224,34 +237,34 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
   };
   const CASES = [
     // Party size never moves the price: the Gîte is sold whole, up to 10 people.
-    ['G1 · 2 nuits Très basse', 2, '2026-02-20', '2026-02-22', 504.00],
-    ['G2 · 3 nuits Basse', 10, '2026-04-11', '2026-04-14', 727.20],
+    ['G1 · 2 nuits Très basse', 2, '2026-02-20', '2026-02-22', 640.00],
+    ['G2 · 3 nuits en avril, désormais Très basse', 10, '2026-04-11', '2026-04-14', 768.00],
     // A « pont » one rank up: three Haute nights inside what would otherwise be Moyenne.
-    ['G3 · pont de l\'Ascension', 6, '2026-05-14', '2026-05-17', 916.80],
-    ['G4 · la semaine de plein été', 8, '2026-07-19', '2026-07-26', 2152.00],
-    ['G5 · deux semaines de plein été', 5, '2026-08-01', '2026-08-15', 4304.01],
+    ['G3 · pont de l\'Ascension', 6, '2026-05-14', '2026-05-17', 902.40],
+    ['G4 · la semaine de plein été', 8, '2026-07-19', '2026-07-26', 1808.00],
+    ['G5 · deux semaines de plein été', 5, '2026-08-01', '2026-08-15', 3616.03],
     // Straddles the peak/high boundary: 5 nights in Très haute then 2 in Haute, the discount tier
     // being taken from the position in the STAY and the price from the season of each night.
-    ['G6 · à cheval sur la fin du cœur d\'été', 7, '2026-08-17', '2026-08-24', 2027.20],
+    ['G6 · à cheval sur la fin du cœur d\'été', 7, '2026-08-17', '2026-08-24', 1747.20],
     // The two premium nights alone: the 2025 Christmas RENTAL (1 514 €, the contract's 1 550 € less
     // 16 € of tourist tax and the 20 € dog supplement) plus 20 %, to the whole euro.
-    ['G7 · Noël, les deux nuits', 9, '2026-12-24', '2026-12-26', 1816.00],
-    ['G7b · Noël, du 23 au 26', 9, '2026-12-23', '2026-12-26', 2198.00],
+    ['G7 · Noël, les deux nuits', 9, '2026-12-24', '2026-12-26', 1946.00],
+    ['G7b · Noël, du 23 au 26', 9, '2026-12-23', '2026-12-26', 2322.00],
     // The lull the owner asked for: 27-29 December a rank down, in Moyenne.
-    ['G7c · le creux entre les fêtes', 6, '2026-12-27', '2026-12-30', 782.40],
+    ['G7c · le creux entre les fêtes', 6, '2026-12-27', '2026-12-30', 804.00],
     // The réveillon is the night of the 31st and nothing else; 30 December and 1 January fall back
     // to Haute. This is the 2025 stay re-priced: the channel billed 1 222 € tourist tax included, so
     // 1 201 € of rental, and +20 % of that is 1 441,20 € — which 938 € hits exactly.
-    ['G8 · réveillon, arrivée le 31 (la référence 2025)', 10, '2026-12-31', '2027-01-03', 1441.20],
-    ['G8b · réveillon, du 30 au 2', 10, '2026-12-30', '2027-01-02', 1472.80],
+    ['G8 · réveillon, arrivée le 31 (la référence 2025)', 10, '2026-12-31', '2027-01-03', 1415.00],
+    ['G8b · réveillon, du 30 au 2', 10, '2026-12-30', '2027-01-02', 1431.40],
     // Whoever books the whole festive run pays the two peaks and nothing else out of the ordinary.
-    ['G8c · toutes les fêtes, du 23 au 2', 10, '2026-12-23', '2027-01-02', 4116.58],
+    ['G8c · toutes les fêtes, du 23 au 2', 10, '2026-12-23', '2027-01-02', 4209.12],
     // 14 juillet keeps its Très haute price despite the cap at Haute.
-    ['G9 · le bloc du 14 juillet', 4, '2026-07-11', '2026-07-14', 1291.20],
+    ['G9 · le bloc du 14 juillet', 4, '2026-07-11', '2026-07-14', 1084.80],
     // 2027, derived and never painted by anyone.
-    ['G10 · la semaine de plein été 2027', 4, '2027-07-17', '2027-07-24', 2152.00],
+    ['G10 · la semaine de plein été 2027', 4, '2027-07-17', '2027-07-24', 1808.00],
     // L'Ardéchoise: Haute instead of the Moyenne that surrounds it — the week the Domaine fills.
-    ['G11 · L\'Ardéchoise', 8, '2026-06-12', '2026-06-14', 764.00],
+    ['G11 · L\'Ardéchoise', 8, '2026-06-12', '2026-06-14', 752.00],
   ];
   for (const [label, adults, startDate, endDate, expected] of CASES) {
     const quote = calculateReservationQuote({ ...BASE, adults, startDate, endDate });

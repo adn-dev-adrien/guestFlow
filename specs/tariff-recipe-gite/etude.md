@@ -200,55 +200,73 @@ is still to be chosen. **Open, and blocking the channel grid** (§5 Q7).
 The sample is thin: one to three stays per cell, and only in winter is there both a GdF and a platform
 observation. It is enough to prove the structural error, not enough to fix each season by itself.
 
-## 3. The net pivot
+## 3. The net pivot — rebuilt on what Gîtes de France actually pays
 
-The Lodge decided a net target first and derived the displayed price from it. The Gîte goes the
-other way, per the instruction: the price GuestFlow already bills on the own channel *is* the
-displayed price, and the net is what survives the 5 % Lodgify engine fee.
+The first version took GuestFlow's prices as the displayed rate and derived the net from them. §2ter
+showed those prices to be the Gîtes-de-France column of a spreadsheet the owner had stopped
+maintaining. Rebuilt on 2026-08-28 to his instruction:
+
+> « il faut laisser Gîte de France inchangé. Donc tu calcules ce que je gagne avec Gîte de France et
+> ça devient la référence. Mais attention je ne veux jamais descendre en dessous de ce montant pour
+> toutes les saisons. Et comme pour la Lodge, je veux qu'on fasse en sorte que le prix de vente sur
+> les plateformes soit assez proche les uns des autres (à 10 % près). […] En direct ce sera toujours
+> le prix le plus faible pour le client, mais je dois quand même être proche du prix plateforme. »
+> — and, a moment later: « en direct je veux que tu me place au prix le plus bas des plateformes ».
+
+**The reference is measured, not declared.** Fifteen Gîtes-de-France stays, priced by least squares
+against the recipe's own degressivity curve — five unknowns, fifteen equations, residual 48,84 € on
+stays of 569 to 3 304 €:
+
+| Season | Net fitted on the GdF stays | Net the first version targeted |
+|---|---:|---:|
+| Très basse | **288 €** | 239 € |
+| Basse | 286 € | 288 € |
+| Moyenne | **302 €** | 310 € |
+| Haute | **341 €** | 363 € |
+| Très haute | **413 €** | 511 € |
+
+Basse and Très basse came out **statistically indistinguishable** — 286 € against 288 €, for a season
+covering April alone. That answers Q5 by measurement rather than by taste: the two are merged, and
+the Gîte drops from five ordinary seasons to four.
+
+**`netTargetPerNight` is a floor, not a target.** It is what the owner receives on any channel and
+never less. Each platform is grossed up from it; the direct channel is grossed up from it **plus a
+16 € uplift**, carried by the recipe's `welcomePack.cost` — which the grid applies to the direct row
+alone (`fixedCost: p.isDirect ? welcomePackCost : 0`). That is what places the direct price level with
+the cheapest channel while the owner still pays only 5 %:
 
 ```
-net = displayed × 0,95            displayed = ceil(net / 0,95)
+plateforme = ceil(plancher ÷ (1 − commission))
+direct     = ceil((plancher + 16) ÷ 0,95)          ← et c'est `pricePerNight`
 ```
 
-The two directions must agree exactly, or the net was stored wrong — the failure that shipped once on
-the Lodge (trap 15 of the recipe skill: a net target validated then dropped, and every channel
-grossed up from a price that already contained the margin). Asserted per season in the test suite.
+The identity `direct = ceil((net + 16) ÷ 0,95)` is asserted per season in the test suite, along with
+`direct ≤ the cheapest platform`. Break either and the grid's direct row stops reproducing what the
+engine bills — trap 15 of the recipe skill, paid for once on the Lodge.
 
-| Season | Displayed (own channel) | Net target |
-|---|---|---|
-| Très basse | 252 € | 239,40 € |
-| Basse | 303 € | 287,85 € |
-| Moyenne | 326 € | 309,70 € |
-| Haute | 382 € | 362,90 € |
-| Très haute | **538 €** | 511,10 € |
-| Noël — 24 and 25 December only | **908 €** — flat, no length discount | 862,60 € |
-| Nouvel An — 31 December only | **938 €** — flat, no length discount | 891,10 € |
+| Channel | Commission | Très basse | Moyenne | Haute | Très haute | Nouvel An | Noël |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Abracadaroom | 20 % | 360 € | 378 € | 427 € | 517 € | 1 054 € | 1 135 € |
+| Airbnb | 15,5 % | 341 € | 358 € | 404 € | 489 € | 998 € | 1 075 € |
+| Booking | 15 % | 339 € | 356 € | 402 € | 486 € | 992 € | 1 069 € |
+| GreenGo | 14,5 % | 337 € | 354 € | 399 € | 484 € | 986 € | 1 062 € |
+| Gîtes de France | 10 % | 320 € | 336 € | 379 € | 459 € | 937 € | 1 009 € |
+| **Direct** | 5 % | **320 €** | **335 €** | **376 €** | **452 €** | **905 €** | **973 €** |
+| _floor (net)_ | | _288 €_ | _302 €_ | _341 €_ | _413 €_ | _843 €_ | _908 €_ |
+| _net on a direct sale_ | | _304 €_ | _318,25 €_ | _357,20 €_ | _429,40 €_ | _859,75 €_ | _924,35 €_ |
 
-Très haute is the one displayed price that moves — 537,50 € → 538 €. The channel grid rounds up to
-the whole euro, so a half-euro base makes the direct row unable to reproduce its own price. The move
-is +0,50 €/night.
+Gîtes de France comes out at 320 / 336 / 379 / 459 €, which is what it charges today — the constraint
+that anchored everything. Direct sits at or just below it (0 to 7 € under), so it is never the dearer
+option, and it yields the owner 16 € a night more than the floor.
 
-**Resulting grid**, computed with the commissions currently stored in `platforms`:
+**Two things the ten-per-cent rule does not cover.** Abracadaroom at 20 % stretches the band to
+12,5 % in Très basse and 14,4 % in Très haute; the owner accepted that on 2026-08-28 rather than drop
+the channel, though the Gîte has never sold a night through it. And on the festive seasons the fixed
+16 € is a smaller relative uplift, so the band widens to 16,7 % on Noël — arithmetic, not a choice.
 
-| Channel | Commission | Très basse | Basse | Moyenne | Haute | Très haute | Noël* | Nouvel An* |
-|---|---|---|---|---|---|---|---|---|
-| Abracadaroom | 20 % | 300 € | 360 € | 388 € | 454 € | 639 € | 1 105 € | 1 144 € |
-| Airbnb | 15,5 % | 284 € | 341 € | 367 € | 430 € | 605 € | 1 046 € | 1 083 € |
-| Booking | 15 % | 282 € | 339 € | 365 € | 427 € | 602 € | 1 040 € | 1 077 € |
-| Greengo | 14,5 % | 280 € | 337 € | 363 € | 425 € | 598 € | 1 034 € | 1 070 € |
-| Gîtes de France | **10 %** | 266 € | 320 € | 345 € | 404 € | 568 € | 982 € | 1 017 € |
-| **Direct / Lodgify** | 5 % | **252 €** | **303 €** | **326 €** | **382 €** | **538 €** | **930 €** | **963 €** |
-
-\* The Noël and Nouvel An nights are billed **flat**: the length discount does not apply to them.
-The Gîtes de France row now uses the **10 %** the contracts show (see Q2), not the 0 % still stored
-in `platforms` — that setting has yet to be corrected in the app.
-
-> **That last row is wrong, and it is the Gîte's main channel.** `platforms.GitesDeFrance.commissionPercent`
-> is 0 in GuestFlow. The seven Gîtes-de-France bookings that carry a recorded commission total
-> 1 710,73 € on 12 202,13 € of gross — **14,02 %**, individual rates ranging from 6,90 % to 19,58 %.
-> At 14 %, the Gîtes-de-France row would read 279 / 335 / 361 / 423 / 595 € rather than
-> 240 / 288 / 310 / 363 / 512 €. See §4 Q2 — this is the single number that most changes the Gîte's
-> real revenue, and it is not one the data can settle.
+**Abritel is missing from `platforms`.** It is where Christmas and the réveillon were sold, and its
+two statements give 9,66 % and 9,69 %. Added at 9,7 % it would become the cheapest channel, one euro
+under Gîtes de France, and the direct price would want to follow it down.
 
 ---
 
@@ -269,15 +287,24 @@ The 24 stays of 2026, re-priced by the recipe and compared with what the current
 | 19/07/2026 | 7 | 1 794,75 € | 2 152,00 € | +357,25 € — Très haute repaired |
 | 01/08/2026 | 14 | 3 595,36 € | 4 304,01 € | +708,65 € — Très haute repaired |
 | 17/08/2026 | 7 | 1 896,10 € | 2 027,20 € | +131,10 € — Très haute repaired |
-| **Total** | | **22 349,31 €** | **24 293,61 €** | **+1 944,30 € (+8,7 %)** |
+| **Total** | | **22 349,31 €** | **23 507,23 €** | **+1 157,92 € (+5,2 %)** |
 
-Four causes, and only four: **+1 197 €** the repair of one broken season, **+452,80 €** the holiday
-bridges the owner asked for on 2026-08-25, **+182,50 €** four calendar days and half a euro, and
-**+112 €** L'Ardéchoise. Nothing else in the recipe raises a price.
+**Every one of the 24 stays moves now**, because the whole grid moved: the table above compares the
+old prices with the new DIRECT price. The shape of the change is the point — winter up, summer down:
+
+| | Old | New (direct) | |
+|---|---:|---:|---:|
+| A February weekend, 2 nights | 504 € | 640 € | **+27 %** |
+| Mid-July, 2 nights | 1 074,50 € | 904 € | **−16 %** |
+| Late August, 7 nights | 1 896,10 € | 1 747,20 € | **−8 %** |
+
+That is exactly what the measurement demanded: the old grid charged 252 € a night in winter, when
+the owner's own takings show him netting 288 € on Gîtes de France and 407 € on the platforms; and it
+charged 537,50 € at the summer peak, when Gîtes de France netted him 413 €.
 
 **No 2026 stay touches the festive peaks.** Nothing is booked on 24, 25 or 31 December, so the two
 new seasons do not appear in this table at all — which is also why they had to be calibrated against
-the owner's own channel statements rather than against anything the planning could show.
+the owner's own statements rather than against anything the planning could show.
 
 ## 5. Arbitrations the recipe could not take alone
 
