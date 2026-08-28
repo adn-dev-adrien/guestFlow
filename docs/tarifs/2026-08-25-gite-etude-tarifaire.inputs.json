@@ -25,7 +25,7 @@
  "noteSaisonCassee": "Les deux semaines de plein été réellement vendues en 2026 avaient été devisées 2 148 € à la prise de réservation, soit quatre fois 537 € : la courbe a été écrasée après coup. Ce sont les quarante-deux nuits les plus demandées de l'année.",
  "noteDerive": "Le seul vrai défaut du calendrier peint à la main : le 1er janvier 2026 avait été oublié en très basse saison alors que le 1er janvier 2027, lui, était bien peint en haute. Tout le reste de ce qui bouge est voulu, et listé ci-dessous.",
  "notePonts": "La règle est celle de la Lodge, à une différence près : elle est plafonnée à la haute saison. Sans plafond, elle monterait le 25 décembre au tarif du réveillon. Une nuit déjà au-dessus du plafond — le 14 juillet, le 15 août — garde son prix et ne prend que le minimum de séjour de son bloc.",
- "noteCanaux": "Le plancher net est mesuré, pas décrété : moindres carrés sur les 15 séjours Gîtes de France, résidu de 48,84 €. Chaque plateforme est regrossie depuis ce plancher ; le direct l'est depuis le plancher PLUS 16 €, ce qui le place au niveau du canal le moins cher alors qu'il ne paie que 5 % — c'est de là que vient la marge supplémentaire d'une réservation directe. Gîtes de France retombe sur les prix qu'il pratique aujourd'hui, ce qui était la contrainte de départ.",
+ "noteCanaux": "Le plancher net est mesuré, pas décrété : moindres carrés sur les 15 séjours Gîtes de France, résidu de 48,84 €. Chaque plateforme est regrossie depuis ce plancher ; le direct l'est depuis le plancher PLUS 15 €, ce qui le place au niveau du canal le moins cher alors qu'il ne paie que 5 % — c'est de là que vient la marge supplémentaire d'une réservation directe. Ce levier valait 16 € jusqu'à ce qu'Abritel entre à 9,7 % : il est devenu le canal le moins cher, et à 16 € le direct serait sorti un euro AU-DESSUS de lui en très basse saison. Il est à recalculer chaque fois qu'un canal moins cher apparaît. **Gîtes de France ne bouge pas** — 320 / 336 / 379 / 459 / 937 / 1 009 € — c'est l'ancre, et le déploiement ne touche pas ce canal.",
  "canauxDouteux": [],
  "noteIso": "Les 24 séjours bougent, puisque toute la grille a bougé — la colonne de droite est le prix DIRECT. La forme du changement est le fait marquant : l'hiver monte, l'été descend. Un week-end de février passe de 504 € à 640 €, la mi-juillet de 1 074,50 € à 904 €. C'est ce que la mesure imposait : l'ancienne grille facturait 252 € la nuit en hiver quand Adrien en encaissait 288 € via Gîtes de France et 407 € via les plateformes, et 537,50 € au pic d'été quand Gîtes de France lui en rapportait 413 €.",
  "cas": [
@@ -163,7 +163,7 @@
  "pied": [
   "Page auto-portante : polices intégrées, aucune requête réseau à l'ouverture. Elle s'ouvre hors ligne.",
   "Produite par .claude/skills/tariff-recipe/build-study-page.mjs à partir de server/src/recipes/gite-2027.json. Les faits observés — grille actuelle, séjours au planning, commissions, relevés de canaux — viennent de la base et du propriétaire ; tout le reste est recalculé à chaque génération. La page peut contredire qui l'a écrite.",
-  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v3.0.0"
+  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v3.1.0"
  ],
  "periodesVoulues": [
   "new-year",
@@ -1949,6 +1949,10 @@
   {
    "nom": "GitesDeFrance",
    "commissionPct": 10
+  },
+  {
+   "nom": "Abritel",
+   "commissionPct": 9.7
   }
  ],
  "sejours": [
