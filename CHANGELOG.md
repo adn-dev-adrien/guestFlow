@@ -4,6 +4,41 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-08-28
+
+### Summary
+- La très haute saison du Gîte impose désormais 4 nuits minimum : le cœur de l'été ne se vend plus au week-end.
+- Le nouveau minimum n'entre en vigueur qu'une fois la recette du Gîte ré-appliquée depuis sa page tarifs.
+- Le calendrier des tarifs devient lisible : une couleur par saison, de la moins chère à la plus chère, enfin visible.
+- Un pont férié ne peut plus autoriser un séjour plus court que sa saison : le 14 juillet n'ouvrait plus qu'à 3 nuits.
+- Une mise à jour qui échoue dit enfin pourquoi, et la refuse sous 512 Mo de mémoire libre au lieu de mourir en silence.
+
+### Changed
+- **The Gîte's peak season demands four nights, and the tariff calendar is finally readable**
+  (`gite-2027` v3.5.0). The heart of the summer no longer sells by the weekend. Seasons now carry a
+  colour ranked by price — green the cheapest, red the dearest — and above all the calendar paints
+  them at 55 % opacity instead of 13 %. At the old value the six seasons came out `#E3F3E3`,
+  `#E9F3E3`, `#EEF1E2`… six whites two to four ΔE apart, below the threshold the eye can separate:
+  no choice of colours could have fixed that, the opacity was the defect. Neighbouring seasons now
+  sit ~19 ΔE apart, and the ink keeps 5.6:1 of contrast at worst against the 4.5:1 required. The
+  Lodge's calendar gains from it too.
+
+### Fixed
+- **A public-holiday block can no longer allow a stay shorter than its season.** A block's minimum
+  was written as-is onto the nights it lifts, including when it was LOWER than the season's: on the
+  Gîte, whose peak season moves to a four-night minimum, the 14 July block imposed three — those
+  three days would have been the only ones in the whole summer where a short stay got through. The
+  minimum kept is now the strongest of the three — block, period, season — and it is only recorded
+  when it exceeds the season's, which incidentally removes needless range splits.
+- **An update that fails finally says why.** An installation that died during preparation showed
+  "Command failed" and pointed at a log that had never been created — you had to read the kernel
+  logs to understand. Three fixes: the full error message is kept instead of being truncated at the
+  first colon, the update log is written from the start of the operation rather than by the final
+  step an early failure never reaches, and an **available-memory check** joins the disk-space one in
+  pre-flight. Under 512 MB available the application refuses the update and says so, instead of
+  letting the kernel kill `npm ci` in silence — which happened three times running on a 648 MB VM
+  with no swap. +8 server tests.
+
 ## [2.6.0] - 2026-08-28
 
 ### Summary
