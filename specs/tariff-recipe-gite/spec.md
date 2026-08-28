@@ -5,7 +5,7 @@
 | **Status** | Implemented |
 | **Branch** | `feature/tariff-recipe-gite` |
 | **Created** | 2026-08-24 |
-| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 the réveillon, Christmas kept, L'Ardéchoise added; Q2 and Q5 still open) |
+| **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 the festive peaks, Q2 the Gîtes-de-France commission, L'Ardéchoise added; Q5 still open) |
 | **Author** | Adrien |
 | **Companion** | [etude.md](etude.md) — the analysis this spec rests on |
 | **Builds on** | [tariff-recipes](../tariff-recipes/spec.md) (the recipe engine), [platform-price-from-commission](../platform-price-from-commission.md) (the channel grid) |
@@ -98,7 +98,9 @@ a calendar.
    | 4 | the last whole Saturday-to-Saturday week of August (7 nights) | Haute |
    | 5 | everything between rules 3 and 4 | Très haute |
    | 6 | 19 December → 1 January | Haute |
-   | 7 | 30 December → 1 January | Nouvel An |
+   | 7 | 24 → 25 December | Noël |
+   | 8 | 27 → 29 December | Moyenne |
+   | 9 | 31 December | Nouvel An |
    | event | L'Ardéchoise, dates declared year by year | Haute |
 
 10. **The year-end block straddles 31 December**, so 1 January belongs to the *previous* year's
@@ -118,26 +120,36 @@ a calendar.
 13bis. **A night already above the cap is not raised, but still carries its minimum.** 14 juillet and
     15 août sit inside the summer core: they keep their Très haute price and take only the block's
     minimum stay — the behaviour rule 16ter already defined for a night at the ceiling.
-13ter. **The réveillon is its own season, above every other.** « Nouvel An » covers the **nights of
-    30 December, 31 December and 1 January**, carved out of the year-end block by being declared
-    after it. **750 €/night, billed flat** (`pricingMode: "fixed"` — no length discount).
-    _(Owner's call, 2026-08-28, on the evidence of [étude §2bis](etude.md).)_
+13ter. **The festive premium sits on four nights and nowhere else.** _(Owner's call, 2026-08-28:
+    « seulement ces nuits soient à un tarif fort ».)_ Rule 6 lays the whole 19 December → 1 January
+    block down in Haute; rules 7 to 9 then cut two peaks and a lull out of it:
 
-    The window carries more of the decision than the price does. The 2025 réveillon guest arrived on
-    the **31st**: over a 30–31 December window only one of their three nights took the high rate and
-    the other two fell back to Haute *with the length discount*, so that at 650 €/night the stay
-    would have earned **less than it actually did** (−5,6 %). Including 1 January turns the same
-    headline into +16,3 %. One January is a réveillon night, not a departure morning.
+    | Nights | Season | Rate |
+    |---|---|---:|
+    | 19 → 23 December | Haute | 382 € |
+    | **24 – 25 December** | **Noël** | **930 €**, flat |
+    | 26 December | Haute | 382 € |
+    | 27 – 29 December | Moyenne | 326 € |
+    | 30 December | Haute | 382 € |
+    | **31 December** | **Nouvel An** | **963 €**, flat |
+    | 1 January | Haute | 382 € |
 
-    The flat mode is equally deliberate: the three scarcest nights of the year are not discounted,
-    and −20 % on the third night of the réveillon has no commercial meaning. At 750 € the réveillon
-    actually sold in 2025 — 1 222 € for three nights — prices at **1 621,20 €, +32,7 %**; the grid in
-    force billed those nights 382 €, *below* what the market had already paid.
+    « Entre le 27 et le 30 on doit être en moyenne saison » is read as **27, 28 and 29**, because the
+    same instruction puts the 30th in Haute alongside 1 January. Three nights, not four.
 
-13quinquies. **Christmas week stays in Haute at 382 €.** 19 → 29 December is unchanged.
-    _(Owner's call, 2026-08-28.)_ Recorded with its counter-evidence: the only Christmas price the
-    Gîte is known to have obtained is 775 €/night ([étude §2bis](etude.md)), more than double. The
-    decision was taken with that figure in hand.
+13quater. **The two premium rates are solved, not chosen.** « Compare avec ce que j'ai gagné l'année
+    dernière pour définir le tarif augmenté de la plus-value » — target the 2025 takings **+ 20 %**,
+    all of it loaded on the premium nights ([étude §5 Q1bis](etude.md) for the arithmetic).
+    Réveillon: 1 222 € earned → 1 466,40 € targeted → **963 €** for the night of the 31st. Noël:
+    1 550 € earned over two nights → 1 860 € targeted → **930 €** each.
+
+    Both are **whole euros by obligation**, not by taste: `ceil(net ÷ 0,95)` has to give the displayed
+    price back, or the direct row of the channel grid stops reproducing itself. The réveillon's exact
+    figure was 963,20 €, so the reference stay lands at +19,98 % instead of +20 % — twenty cents,
+    against an invertible grid.
+
+13quinquies. **Both festive seasons are billed flat** (`pricingMode: "fixed"`). A length discount on
+    the four scarcest nights of the year would hand back exactly the premium they exist to collect.
 
 13sexies. **L'Ardéchoise is declared, not derived.** The same event, the same dates and the same
     reasoning as the Lodge's recipe: the organiser moves it and only announces the next edition in
@@ -233,14 +245,15 @@ their prices through the locked tariff snapshot; unsold dates re-price. The five
 **adopted** rather than replaced, because the recipe declares their exact labels.
 
 Re-priced dates, measured over the 24 stays of 2026: **13 identical to the cent, 11 changed for
-+2 312,30 € in total** — of which +1 197 € is the repair of Très haute, +452,80 € the holiday
-bridges, +368 € the réveillon reaching the night of 1 January and +112 € L'Ardéchoise
-([etude.md §4](etude.md)).
++1 944,30 € in total** — of which +1 197 € is the repair of Très haute, +452,80 € the holiday bridges,
++182,50 € four calendar days and half a euro, and +112 € L'Ardéchoise ([etude.md §4](etude.md)).
+No 2026 stay falls on 24, 25 or 31 December, so the two festive peaks do not appear in that
+comparison at all.
 
 ## 6. UI / UX
 
 No new screen and no new string. The recipe shows up in **Paramètres → Recettes tarifaires** (source
-« Livrée », version 1.3.0) and becomes selectable on the Gîte's tariff page, where the apply dialog
+« Livrée », version 2.0.0) and becomes selectable on the Gîte's tariff page, where the apply dialog
 shows the diff before writing. Both screens already exist and are already responsive.
 
 `PageActionBar`: unchanged on both pages.
@@ -315,9 +328,9 @@ shows the diff before writing. Both screens already exist and are already respon
   Moyenne — one more rank to configure on every channel for 30 nights a year. **Still open**; the
   recipe now carries six ranks, Nouvel An included.
   - A: …
-- **Q6 — What is the Nouvel An rate?** — **answered 2026-08-28: 750 €/night, flat, over three
-  nights (30, 31 December and 1 January).** See rule 13ter and [étude §5 Q1bis](etude.md). The
-  decision rests on the only year-end evidence that exists ([étude §2bis](etude.md)): the réveillon
-  sold for 407 €/night in 2025, above the 382 € the grid in force was quoting for those nights.
-  - A: 750 €, `pricingMode: "fixed"`, window widened to include 1 January — which carried more of the
-    gain than the headline did.
+- **Q6 — What are the festive rates?** — **answered 2026-08-28: 930 € on 24-25 December, 963 € on
+  31 December, both flat, everything around them back in Haute or Moyenne.** See rules 13ter to
+  13quinquies and [étude §5 Q1bis](etude.md).
+  - A: the premium is concentrated on four nights, and both rates are solved from the 2025 takings
+    plus 20 % rather than picked. An earlier answer the same day — 750 € spread over 30 December to
+    1 January — was superseded: it charged the réveillon rate to a guest *arriving* on 1 January.

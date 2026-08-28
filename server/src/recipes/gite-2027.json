@@ -1,8 +1,8 @@
 {
   "id": "gite-2027",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "label": "Gîte — grille automatique 2027",
-  "description": "La grille du Gîte, redite en règles : six saisons, un calendrier dérivé chaque année (épaules de juillet et d'août autour du cœur d'été, avril en basse, fêtes de fin d'année en haute, réveillon du Nouvel An à part), les ponts fériés montés d'un cran sans dépasser la Haute, la dégressivité « la semaine vaut quatre nuits », et le pivot net après les 5 % du moteur Lodgify. Prix inchangés, sauf la courbe de la Très haute saison, incohérente en base, qui est rétablie — et le tarif du Nouvel An, encore provisoire.",
+  "description": "Cible nette remontée par la commission du canal ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat — les nuits du 24-25 décembre et celle du 31 — calibrées sur les encaissements 2025 majorés de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
   "_comment_pivot": "Le prix affiché est celui déjà pratiqué sur le canal propre (moteur Lodgify) ; le net cible en est déduit en retirant les 5 % du moteur — netTargetPerNight = pricePerNight × 0,95, à l'euro près et sans arrondi supplémentaire. L'identité tient dans les deux sens : ceil(net / 0,95) redonne exactement le prix affiché, ce qui est le seul contrôle qui prouve que le net a bien été enregistré (piège n° 15 du skill). Les autres canaux sont regrossis depuis ce net, jamais depuis le prix affiché — sinon la marge du direct serait commissionnée une seconde fois.",
   "_comment_lengthOfStayDiscounts": "La grille du Gîte tient en une phrase : la semaine vaut quatre nuits. Nuits 1 et 2 au prix plein, puis la 3e à la 7e interpolent linéairement du double (2 nuits) au quadruple (une semaine), et au-delà chaque nuit vaut un septième de semaine. Les pourcentages ci-dessous sont exactement cela : 1 − (2 + 0,4 × (n − 2)) / n de 3 à 7 nuits, puis 1 − 4/7 = 42,857142857142854 % à partir de 7. La ligne à 8 nuits n'est pas une redite : sans elle le report du dernier palier facturerait la 8e nuit au prix marginal de la 7e (100,80 € en Très basse) au lieu du septième de semaine (144 €), et un séjour de deux semaines perdrait 15 %. Un seul jeu de pourcentages pour les six saisons — c'est déjà le cas aujourd'hui.",
@@ -99,13 +99,26 @@
       "changeover": null
     },
     {
-      "_comment": "750 €/nuit, sans dégressivité, arbitré par Adrien le 2026-08-28 sur la seule preuve qui existe : le réveillon 2025 s'est vendu 1 222 € pour 3 nuits, soit 407 €/nuit — au-dessus des 382 € que la grille en vigueur facture pour ces nuits. 750 € = 1,4 × le pic d'été, 75 € par personne et par nuit à dix. `pricingMode: fixed` est délibéré : les nuits les plus rares de l'année ne se remisent pas, et une remise de 20 % sur la 3e nuit du réveillon n'a aucun sens commercial. Le net suit la règle commune (× 0,95) et ceil(712,50 / 0,95) = 750 tient.",
+      "_comment": "LES NUITS DU 24 ET DU 25 SEULES. Même principe que le réveillon et même calibration : le Noël 2025 (« Tangi ») a rapporté 1 550 € pour deux nuits ; +20 % fait 1 860 €, soit 930 € la nuit puisque les deux sont au même tarif et facturées à plat. HYPOTHÈSE À CONFIRMER : que ces deux nuits étaient bien le 24 et le 25 — Adrien a dit « 2 jours à 1550 € » sans les nommer. Si c'étaient d'autres nuits, la calibration bouge.",
+      "key": "christmas",
+      "label": "Noël",
+      "rank": 6,
+      "color": "#b03a3a",
+      "pricePerNight": 930,
+      "netTargetPerNight": 883.5,
+      "pricingMode": "fixed",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    },
+    {
+      "_comment": "LA NUIT DU 31 SEULE, et elle porte toute la plus-value. Calibrée par Adrien le 2026-08-28 sur ce qu'il a encaissé : le réveillon 2025 (31/12 → 03/01) a rapporté 1 222 € ; la cible est +20 %, soit 1 466,40 €. Le 1er janvier retombe en Haute (382 € en 2e nuit) et le 2 janvier en Basse (121,20 € en 3e nuit, remonté par le pont du jour de l'an), ce qui laisse 963,20 € pour la nuit du 31. Arrondi à 963 € — un euro entier est OBLIGATOIRE, sinon ceil(net / 0,95) ne redonne plus le prix affiché et la ligne directe de la grille par canal cesse de se reproduire elle-même. Le séjour de référence retombe alors sur 1 466,20 €, soit +19,98 % : vingt centimes d'écart avec la consigne, contre une grille qui reste inversible. `fixed` : cette nuit ne se remise pas.",
       "key": "new-year",
       "label": "Nouvel An",
-      "rank": 6,
+      "rank": 7,
       "color": "#d4af37",
-      "pricePerNight": 750,
-      "netTargetPerNight": 712.5,
+      "pricePerNight": 963,
+      "netTargetPerNight": 914.85,
       "pricingMode": "fixed",
       "minNights": 2,
       "maxNights": null,
@@ -165,7 +178,7 @@
         }
       },
       {
-        "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles, le 1er janvier reste en Haute. Dates fixes et non ancrées sur un samedi — la demande de Noël suit le calendrier des fêtes, pas celui des changements de semaine. Noël (23, 24, 25) est dedans, comme tout le reste du bloc.",
+        "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles. Elle pose TOUT le bloc en Haute, et les trois périodes suivantes viennent y creuser les deux pointes et le creux. Déclarées après elle, elles la repeignent.",
         "id": "year-end",
         "season": "high",
         "anchor": {
@@ -175,13 +188,33 @@
         }
       },
       {
-        "_comment": "Le réveillon, découpé DANS le bloc des fêtes : déclaré après lui, il le repeint. Trois nuits — 30, 31 décembre et 1er janvier — arbitrées par Adrien le 2026-08-28. La fenêtre, et non le prix affiché, est le vrai levier : le client de 2025 est arrivé le 31, et sur une fenêtre de deux nuits une seule de ses trois nuits portait le tarif fort, les deux autres retombant en Haute avec la remise de durée. Ce même prix affiché rapportait alors MOINS qu'en 2025 (−5,6 %) ; sur trois nuits il rapporte +32,7 %. Le 1er janvier est une nuit de réveillon : personne ne repart le matin du 1er.",
+        "_comment": "Les deux nuits de Noël, creusées dans le bloc des fêtes. Le 23 et le 26 restent en Haute.",
+        "id": "christmas",
+        "season": "christmas",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-24",
+          "to": "12-25"
+        }
+      },
+      {
+        "_comment": "Le creux entre Noël et le réveillon, redescendu en moyenne saison. Adrien, 2026-08-28 : « entre le 27 et le 30 on doit être en moyenne saison » — lu comme 27, 28 et 29, parce que la même phrase met explicitement le 30 en haute saison avec le 1er janvier. Trois nuits, pas quatre.",
+        "id": "christmas-lull",
+        "season": "mid",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-27",
+          "to": "12-29"
+        }
+      },
+      {
+        "_comment": "La seule nuit du 31. Adrien, 2026-08-28 : « c'est la nuit du 31 qui prend toute la plus-value, par contre le 30 et le 1 doivent être en tarif haute saison ». Le 30 et le 1er janvier restent donc dans le bloc Haute posé au-dessus.",
         "id": "new-year",
         "season": "new-year",
         "anchor": {
           "type": "fixed_dates",
-          "from": "12-30",
-          "to": "01-01"
+          "from": "12-31",
+          "to": "12-31"
         }
       }
     ],
