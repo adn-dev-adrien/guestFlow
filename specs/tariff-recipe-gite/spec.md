@@ -125,13 +125,48 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     **Where a channel takes two decimals, use 42,86 %. Where it only takes an integer, use 42 %,
     never 43 %.**
 
-20. **Booking applies no length discount at all, and for the Gîte that costs nothing.** Neither the
-    promotions pushed by Lodgify nor Booking's own native ones reach a rate fed by a channel manager
-    — established over three days on the Lodge, six tiers created on 14 August and still not applied
-    on 17 August. It was an expensive finding there. Here it is inert: **both Booking stays on the
-    Gîte's books are two nights, and two nights carry no discount.** The exposure is worth measuring
-    again whenever Booking starts selling longer stays; today the discount matters on 9 of the 15
-    Gîtes-de-France stays, 1 Lodgify and 1 direct, and on nothing else.
+20. **Booking ignores the discount because it was put in the wrong layer, and the fix is a rate
+    plan, not a promotion.** A *promotion* — whether pushed by Lodgify or created in the extranet as
+    a « Basic Deal » — sits above the rate. On a property whose rates arrive from a connectivity
+    provider, Booking does not consult that layer: its own guidance is that promotions reach such a
+    property only through a provider that has integrated the **Promotions API**, which Lodgify has
+    not for this deal type. That is why six tiers created on 14 August, still shown « Activée(s) » on
+    17 August, changed no price.
+
+    **What Booking does honour is a DERIVED RATE PLAN**: a plan that takes the channel-manager's
+    standard rate as its base, subtracts a percentage, and carries its own minimum length of stay.
+    Booking's own documentation is explicit — the channel manager updates the standard rate, and
+    *« your derived rates will get updated from your base rate »*. Several derived plans already
+    exist on this account (the listing shows five), which is the proof the mechanism runs here.
+
+    | Plan | Derived from the standard | Minimum stay |
+    |---|---|---|
+    | Standard, pushed by Lodgify | — | 2 nights |
+    | 3 nuits et + | −20 % | 3 nights |
+    | 4 nuits et + | −30 % | 4 nights |
+    | 5 nuits et + | −36 % | 5 nights |
+    | 6 nuits et + | −40 % | 6 nights |
+    | 7 nuits et + | −42,86 % | 7 nights |
+
+    They self-select exactly like Lodgify's promotions: a guest sees every plan whose minimum their
+    stay satisfies, and Booking shows the cheapest.
+
+    **The operational catch: only a Booking account manager can create a derived rate plan.** It is
+    not a self-service screen. This is a request to make, not a setting to find.
+
+20bis. **What it is worth, measured.** Without the discount a Booking guest is quoted the full
+    nightly rate times the number of nights. In Moyenne season, at 356 € the night: three nights are
+    **25 % too dear**, seven nights **75 % too dear** (2 492 € against 1 424 €), fourteen nights
+    2 136 € too dear. An earlier version of this spec called the exposure inert because both Booking
+    stays on the books are two nights — **that reasoning was backwards**. Two nights is all Booking
+    sells *because* it is the only length priced correctly. Nine of the fifteen Gîtes-de-France stays
+    run three nights or more; that is the demand Booking cannot currently quote.
+
+20ter. **The other route, and why it is not the first choice.** Booking also supports **LOS pricing**,
+    where the provider sends an explicit total for every length of stay up to 90 nights. It would
+    reproduce the curve to the cent, but it has a sharp edge: *there is no default per-night price,
+    and any length not declared becomes unbookable*. It also depends on Lodgify supporting that model
+    — unverified. Derived rate plans first; LOS pricing only if Booking refuses them.
 
 21. **Two channel-specific traps do not apply to the Gîte, and one does.** Abracadaroom's rule that
     the discount spares the guest supplement, and Lodgify's that each season must re-declare that

@@ -316,10 +316,59 @@ Four of them bear on length discounts. Checked against the Gîte's curve before 
 |---|---|---|
 | Discount past the last declared night | A flat rate would have made night 8 dearer than night 7 — the table had to stop at 7 and let the carry-forward extend it | **Constant from 7 nights on** (42,86 %), so **one promotion covers 7 nights to infinity** |
 | First discounted night | 2 nights, −24 % | **3 nights** — two nights are full price |
-| Booking ignoring every discount | Cost the whole degressivity on that channel | **Costs nothing**: both Booking stays are 2 nights, which carry no discount anyway |
+| Booking ignoring every discount | Cost the whole degressivity on that channel | **Costs the Gîte more, not less** — see below |
 | Discount vs the guest supplement | Applied on Lodgify, not on Abracadaroom — a per-channel difference to model | **Moot**: the Gîte sells the whole house |
 
-**The one that does apply.** GreenGo carries length reductions in *two* places — the Tarification page
+### Booking — the cause, found
+
+The first version of this section called the Booking problem inert, because both Booking stays on the
+books are two nights and two nights carry no discount. **That reasoning was backwards**, and the
+owner said so: two nights is all Booking sells *because* it is the only length it prices correctly.
+
+**The cause is a layer error, not a bad setting.** A promotion — pushed by Lodgify or created in the
+extranet as a « Basic Deal » — sits *above* the rate. On a property whose rates arrive from a
+connectivity provider, Booking does not consult that layer: promotions reach such a property only
+through a provider that has integrated the **Promotions API**, which Lodgify has not for this deal
+type. Six tiers created on 14 August, still shown « Activée(s) » on 17 August, changed no price —
+and could not have.
+
+**What Booking does honour is a derived rate plan**, and its own documentation says so plainly: the
+channel manager updates the standard rate, and *« your derived rates will get updated from your base
+rate »*. Five rate plans already show on the Lodge's listing, which is the proof the mechanism runs
+on this account.
+
+| Plan | Derived from the standard | Minimum stay |
+|---|---|---|
+| Standard, pushed by Lodgify | — | 2 nights |
+| 3 nuits et + | −20 % | 3 |
+| 4 nuits et + | −30 % | 4 |
+| 5 nuits et + | −36 % | 5 |
+| 6 nuits et + | −40 % | 6 |
+| 7 nuits et + | −42,86 % | 7 |
+
+They self-select like Lodgify's promotions: the guest sees every plan whose minimum their stay meets,
+and Booking shows the cheapest. **Only a Booking account manager can create them** — a request to
+make, not a screen to find.
+
+**What it costs today**, Moyenne season at 356 € the night:
+
+| Nights | Quoted | Should be | Too dear by |
+|---:|---:|---:|---:|
+| 2 | 712 € | 712 € | — |
+| 3 | 1 068 € | 854,40 € | **25 %** |
+| 5 | 1 780 € | 1 139,20 € | **56 %** |
+| 7 | 2 492 € | 1 424 € | **75 %** |
+| 14 | 4 984 € | 2 848 € | **75 %** |
+
+Nine of the fifteen Gîtes-de-France stays run three nights or more. That is the demand Booking
+cannot currently quote — and the same hole is open on the Lodge.
+
+**The other route.** Booking also supports **LOS pricing**, where the provider sends an explicit total
+for every length up to 90 nights. It reproduces the curve exactly, but there is no default per-night
+price and *any length not declared becomes unbookable* — and it depends on Lodgify supporting the
+model, which is unverified. Derived rate plans first.
+
+**The one channel trap that also applies.** GreenGo carries length reductions in *two* places — the Tarification page
 and the calendar's « ensembles de règles » — and **they stack**. Fill one, never both.
 
 **And one number to get right.** A whole-number discount is not neutral. On a seven-night stay in

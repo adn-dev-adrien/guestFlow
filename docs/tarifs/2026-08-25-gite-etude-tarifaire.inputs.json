@@ -2246,9 +2246,14 @@
    "texte": "C'est l'arithmétique du Gîte : « la semaine vaut quatre nuits » plus « chaque nuit suivante vaut un septième de semaine » font tomber la remise cumulée sur 42,86 % pour toute durée d'au moins sept nuits. Une promotion « 7 nuits et plus » couvre donc de sept nuits à l'infini. La Lodge n'avait pas cette propriété : chez elle, un taux plat au-delà du dernier palier rendait la 8e nuit plus chère que la 7e."
   },
   {
-   "ok": true,
-   "titre": "Booking n'applique aucune remise — et ça ne coûte rien au Gîte",
-   "texte": "Ni les promotions poussées par Lodgify ni celles créées dans l'extranet Booking n'atteignent un tarif alimenté par un gestionnaire de canaux : établi sur la Lodge en trois jours, six paliers créés le 14 août et toujours pas appliqués le 17. Ici c'est sans effet : les DEUX séjours Booking du Gîte font deux nuits, et deux nuits ne portent aucune remise. À re-mesurer le jour où Booking vendra des séjours plus longs."
+   "ok": false,
+   "titre": "Booking ignore la remise — et la cause n'est pas un réglage raté",
+   "texte": "Une PROMOTION, qu'elle soit poussée par Lodgify ou créée dans l'extranet en « Basic Deal », se place AU-DESSUS du tarif. Sur un hébergement dont les prix arrivent d'un gestionnaire de canaux, Booking ne consulte pas cette couche : sa propre documentation dit que les promotions n'atteignent un tel hébergement que par un prestataire ayant intégré l'API Promotions — ce que Lodgify n'a pas fait pour ce type d'offre. Les six paliers créés le 14 août, toujours « Activée(s) » le 17, ne pouvaient pas fonctionner. Ce que Booking honore, c'est un PLAN TARIFAIRE DÉRIVÉ : il prend le tarif standard poussé par Lodgify comme base, en retire un pourcentage et porte sa propre durée minimum. La documentation de Booking est explicite — le gestionnaire met à jour le tarif standard, et « vos tarifs dérivés sont mis à jour depuis votre tarif de base ». Cinq plans tarifaires existent déjà sur l'annonce de la Lodge : la preuve que le mécanisme tourne sur ce compte. Piège opératoire : SEUL UN GESTIONNAIRE DE COMPTE BOOKING peut créer un plan dérivé. C'est une demande à faire, pas un écran à trouver."
+  },
+  {
+   "ok": false,
+   "titre": "Ce que ce trou coûte : 75 % de trop sur une semaine",
+   "texte": "En moyenne saison, à 356 € la nuit sur Booking : trois nuits sont facturées 1 068 € au lieu de 854,40 € (+25 %), sept nuits 2 492 € au lieu de 1 424 € (+75 %), quatorze nuits 4 984 € au lieu de 2 848 €. J'avais d'abord écrit que ce trou ne coûtait rien au Gîte, puisque ses deux séjours Booking font deux nuits. Le raisonnement était à l'envers, et Adrien l'a corrigé : deux nuits est TOUT ce que Booking vend parce que c'est la seule durée correctement tarifée. Neuf des quinze séjours Gîtes de France font trois nuits ou plus — c'est cette demande-là que Booking ne sait pas coter."
   },
   {
    "ok": false,
