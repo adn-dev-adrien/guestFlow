@@ -915,7 +915,13 @@ export default function PropertyPricingSeasonsPage() {
                                     if (!c.inMonth) return 'transparent';
                                     if (isInSelection(c.dateStr)) return alpha(t.palette.primary.main, 0.28);
                                     if (c.closure) return t.palette.action.disabledBackground;
-                                    return c.season ? `${c.season.color || t.palette.primary.main}22` : t.palette.background.paper;
+                                    // 0x8C ≈ 55 % d'opacité. À 0x22 (13 %) les six saisons du Gîte
+                                    // s'affichaient #E3F3E3, #E9F3E3, #EEF1E2… : six blancs à peine
+                                    // teintés, séparés par un écart perceptuel de 2 à 4 ΔE, sous le
+                                    // seuil où l'œil distingue. Aucune palette ne pouvait le corriger.
+                                    // À 55 % l'écart passe à 19 ΔE et l'encre garde 5,6:1 de
+                                    // contraste au pire, très au-dessus des 4,5:1 exigés.
+                                    return c.season ? `${c.season.color || t.palette.primary.main}8C` : t.palette.background.paper;
                                   },
                                   color: c.inMonth ? (c.closure ? 'text.disabled' : 'text.primary') : 'transparent',
                                   fontSize: 10,

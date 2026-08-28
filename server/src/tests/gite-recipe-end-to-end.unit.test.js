@@ -78,30 +78,54 @@ test('the direct price is the net target grossed up WITH the direct-channel upli
   }
 });
 
-test('the season colours run green to red, ordered by price', () => {
-  // The calendar paints a season by its colour, so the colour has to mean something: the hue falls
-  // as the price rises, red being the dearest night. Ordered by RANK, not proportionally to price —
-  // the festive nights cost three times the ordinary ones, and a proportional ramp would have put
-  // 319, 334, 375 and 451 € in four greens nobody can tell apart.
+test('the season colours are distinguishable ON THE CALENDAR, green to red by price', () => {
+  // The calendar composites the season colour over white at 55 % opacity, so the palette must be
+  // judged AS RENDERED, never at full strength. At the old 13 % the six seasons came out #E3F3E3,
+  // #E9F3E3, #EEF1E2, #F1EEE1, #F5E9E1, #F6E1E1 — six near-whites two ΔE apart, which no choice of
+  // colour could have fixed. That is why this test measures the composite.
   const recipe = loadShippedRecipe();
-  const hue = (hex) => {
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-    const max = Math.max(r, g, b); const min = Math.min(r, g, b); const d = max - min;
-    if (!d) return 0;
-    const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-    return h * 60;
+  const ALPHA = 0x8c / 255;
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const overWhite = (hex) => rgb(hex).map((c) => c * ALPHA + 255 * (1 - ALPHA));
+  const lab = (c) => {
+    const [r, g, b] = c.map((v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+    const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+    const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+    const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
   };
+  const dE = (p, q) => Math.hypot(...lab(p).map((v, i) => v - lab(q)[i]));
+  const hue = (hex) => {
+    const [r, g, b] = rgb(hex).map((v) => v / 255);
+    const max = Math.max(r, g, b); const d = max - Math.min(r, g, b);
+    if (!d) return 0;
+    return 60 * (max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4);
+  };
+
   const byPrice = [...recipe.seasons].sort((a, b) => a.pricePerNight - b.pricePerNight);
-  const hues = byPrice.map((s) => hue(s.color));
-  assert.equal(Math.round(hues[0]), 120, 'la moins chère doit être verte');
-  assert.equal(Math.round(hues[hues.length - 1]), 0, 'la plus chère doit être rouge');
-  for (let i = 1; i < hues.length; i += 1) {
-    assert.ok(hues[i] < hues[i - 1],
+  // Cheapest green, dearest red, and every step redder than the one before — a colour that stops
+  // following the price is worse than none, because it keeps being read as though it did.
+  assert.ok(hue(byPrice[0].color) > 100, `la moins chère doit être verte, obtenu ${hue(byPrice[0].color).toFixed(0)}°`);
+  assert.ok(hue(byPrice[byPrice.length - 1].color) < 15, 'la plus chère doit être rouge');
+  for (let i = 1; i < byPrice.length; i += 1) {
+    assert.ok(hue(byPrice[i].color) < hue(byPrice[i - 1].color),
       `${byPrice[i].label} (${byPrice[i].pricePerNight} €) doit être plus rouge que ${byPrice[i - 1].label}`);
   }
-  // Evenly spread, so every season is distinguishable at a glance on the calendar.
-  const steps = hues.slice(1).map((h, i) => Math.round(hues[i] - h));
-  assert.deepEqual(steps, steps.map(() => steps[0]), `pas réguliers attendus, obtenus ${steps}`);
+  // Adjacent seasons must be clearly apart once composited: ΔE under 5 reads as the same colour.
+  const rendus = byPrice.map((s) => overWhite(s.color));
+  for (let i = 1; i < rendus.length; i += 1) {
+    const ecart = dE(rendus[i - 1], rendus[i]);
+    assert.ok(ecart >= 12,
+      `${byPrice[i - 1].label} et ${byPrice[i].label} trop proches sur le calendrier : ΔE ${ecart.toFixed(1)}`);
+  }
+  // …and the ink stays readable on every one of them (WCAG AA is 4,5:1).
+  const lum = (c) => { const [r, g, b] = c.map((v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  for (const s of byPrice) {
+    const ratio = (lum(overWhite(s.color)) + 0.05) / (lum([39, 37, 31]) + 0.05);
+    assert.ok(ratio >= 4.5, `${s.label} : encre à ${ratio.toFixed(1)}:1, sous les 4,5:1 requis`);
+  }
 });
 
 test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => {

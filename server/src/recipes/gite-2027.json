@@ -1,6 +1,6 @@
 {
   "id": "gite-2027",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "label": "Gîte — grille automatique 2027",
   "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
@@ -43,7 +43,7 @@
       "key": "very-low",
       "label": "Très basse",
       "rank": 1,
-      "color": "#30A630",
+      "color": "#1B9E3E",
       "pricePerNight": 319,
       "netTargetPerNight": 288,
       "pricingMode": "progressive",
@@ -55,7 +55,7 @@
       "key": "mid",
       "label": "Moyenne",
       "rank": 2,
-      "color": "#5DA72B",
+      "color": "#7FBF1F",
       "pricePerNight": 334,
       "netTargetPerNight": 302,
       "pricingMode": "progressive",
@@ -67,7 +67,7 @@
       "key": "high",
       "label": "Haute",
       "rank": 3,
-      "color": "#7E9522",
+      "color": "#D4C11A",
       "pricePerNight": 375,
       "netTargetPerNight": 341,
       "pricingMode": "progressive",
@@ -79,7 +79,7 @@
       "key": "peak",
       "label": "Très haute",
       "rank": 4,
-      "color": "#98801E",
+      "color": "#E8951C",
       "pricePerNight": 451,
       "netTargetPerNight": 413,
       "pricingMode": "progressive",
@@ -93,7 +93,7 @@
       "key": "new-year",
       "label": "Nouvel An",
       "rank": 5,
-      "color": "#B35A1E",
+      "color": "#E05A1B",
       "pricePerNight": 904,
       "netTargetPerNight": 843,
       "pricingMode": "fixed",
@@ -106,7 +106,7 @@
       "key": "christmas",
       "label": "Noël",
       "rank": 6,
-      "color": "#BB1B1B",
+      "color": "#C41E1E",
       "pricePerNight": 972,
       "netTargetPerNight": 908,
       "pricingMode": "fixed",
@@ -239,5 +239,5 @@
   "welcomePack": {
     "cost": 15
   },
-  "_comment_colors": "Dégradé vert → rouge, le rouge étant la nuit la plus chère (Adrien, 2026-08-28). L'ordre suit le prix ; l'ESPACEMENT est par rang et non proportionnel au prix, parce que les nuits de fête valent trois fois les autres et qu'un dégradé proportionnel écraserait les quatre saisons ordinaires dans un vert indistinguable — 319, 334, 375 et 451 € seraient sortis #30A630, #35A630, #43A72E et #5DA72B. À recalculer si l'ordre des prix change : la couleur ment dès qu'une saison plus chère porte un vert plus clair que sa voisine."
+  "_comment_colors": "Une couleur par RANG de prix — vert pour la moins chère, rouge pour la plus chère — et non une rampe proportionnelle au prix (Adrien, 2026-08-28 : « je veux juste que tu classes les tarifs et que tu attribues une couleur par rapport au classement »). Six teintes franchement distinctes : vert, vert-jaune, jaune, orange clair, orange, rouge. Le calendrier les compose sur du blanc à 55 % d'opacité ; à l'ancienne valeur de 13 % elles ressortaient toutes blanches, quel que soit le choix de couleurs. À réordonner si l'ordre des prix change."
 }

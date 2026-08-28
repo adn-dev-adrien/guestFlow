@@ -229,12 +229,19 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     block minimum now raises a season's and never lowers it
     ([tariff-recipes §3.3 rule 16quater](../tariff-recipes/spec.md)).
 
-25. **The season colours are a green-to-red ramp ordered by price**, red being the dearest night.
-    _(Owner's call, 2026-08-28.)_ The spacing is by **rank**, not proportional to price: the festive
-    nights cost roughly three times the ordinary ones, and a proportional ramp put 319, 334, 375 and
-    451 € in four greens nobody could tell apart on a calendar. Hues fall in even 24° steps —
-    120° 96° 72° 48° 24° 0° — and the test asserts both the ordering and the even spacing, because a
-    colour that no longer follows the price is worse than no colour at all.
+25. **One colour per PRICE RANK, green to red** — not a ramp proportional to price.
+    _(Owner's call, 2026-08-28: « je veux juste que tu classes les tarifs et que tu attribues une
+    couleur par rapport au classement ».)_ Six deliberately distinct hues: `#1B9E3E` `#7FBF1F`
+    `#D4C11A` `#E8951C` `#E05A1B` `#C41E1E`.
+
+25bis. **The palette is judged as the calendar RENDERS it, never at full strength.** The cell
+    composites the season colour over white, and at the original 13 % opacity the six seasons came
+    out `#E3F3E3` `#E9F3E3` `#EEF1E2` `#F1EEE1` `#F5E9E1` `#F6E1E1` — six near-whites two to four ΔE
+    apart, below the threshold at which an eye separates them. **No choice of colour could fix that**;
+    the opacity was the defect. It is now 55 % (`0x8C`), which puts adjacent seasons ~19 ΔE apart
+    while the ink keeps 5,6:1 of contrast at worst, well above the 4,5:1 AA floor. The test measures
+    the composite, the ordering and the ink contrast — not the raw hex, which says nothing about what
+    anyone sees.
 
 ### 3.3 The calendar
 
