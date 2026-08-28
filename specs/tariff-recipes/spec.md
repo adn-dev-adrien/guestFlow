@@ -209,6 +209,14 @@ all-inclusive pricing as the first such recipe.
     guest arriving Friday evening for two nights. Declared as `minNights: "block"` on the modifier
     (an integer forces a fixed value; absent imposes nothing, which is what a recipe without the
     setting keeps).
+16quater. **A block minimum RAISES a season's, it never lowers it.** The minimum written on a raised
+    night is `max(block length, period override, the night's own season minimum)`, and it is recorded
+    only when it exceeds what the season already demands — otherwise every raised night would split
+    its range for a constraint that already applied. Found on the Gîte the day Très haute went to a
+    4-night minimum: the 3-night 14-juillet block sat inside it and wrote its own 3 over the season's
+    4, making those three days the only ones in the entire summer where a shorter stay was bookable.
+    A « pont » is a floor for a season that has none, not a licence inside one that has a higher one.
+
 16ter. **The minimum applies even where the rank cannot rise.** A block already at the top rank —
     14 juillet, always inside high season — is not raised, but still carries its minimum and
     therefore still splits the range. Two overlapping blocks resolve to the longer one, and neither

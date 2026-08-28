@@ -222,6 +222,20 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     Verified on Booking on 2026-08-28 (Gîte, rate plan 57972851): « Durée de séjour minimum » reads 2
     on every date of the displayed month.
 
+24. **Très haute demands 4 nights.** _(Owner's call, 2026-08-28: « pour la très haute saison tu
+    bloques à 4 nuits minimum ».)_ It is the only season whose minimum departs from the common 2, and
+    it exposed an engine defect: the 3-night 14-juillet block sits inside it and used to write its own
+    minimum over the season's, making those three days the only short stays bookable all summer. A
+    block minimum now raises a season's and never lowers it
+    ([tariff-recipes §3.3 rule 16quater](../tariff-recipes/spec.md)).
+
+25. **The season colours are a green-to-red ramp ordered by price**, red being the dearest night.
+    _(Owner's call, 2026-08-28.)_ The spacing is by **rank**, not proportional to price: the festive
+    nights cost roughly three times the ordinary ones, and a proportional ramp put 319, 334, 375 and
+    451 € in four greens nobody could tell apart on a calendar. Hues fall in even 24° steps —
+    120° 96° 72° 48° 24° 0° — and the test asserts both the ordering and the even spacing, because a
+    colour that no longer follows the price is worse than no colour at all.
+
 ### 3.3 The calendar
 
 9. **The year is derived from six rules**, in declaration order, last write wins:

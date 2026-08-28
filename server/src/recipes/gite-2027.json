@@ -1,6 +1,6 @@
 {
   "id": "gite-2027",
-  "version": "3.1.0",
+  "version": "3.3.0",
   "label": "Gîte — grille automatique 2027",
   "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
@@ -43,7 +43,7 @@
       "key": "very-low",
       "label": "Très basse",
       "rank": 1,
-      "color": "#669c35",
+      "color": "#30A630",
       "pricePerNight": 319,
       "netTargetPerNight": 288,
       "pricingMode": "progressive",
@@ -55,7 +55,7 @@
       "key": "mid",
       "label": "Moyenne",
       "rank": 2,
-      "color": "#942192",
+      "color": "#5DA72B",
       "pricePerNight": 334,
       "netTargetPerNight": 302,
       "pricingMode": "progressive",
@@ -67,7 +67,7 @@
       "key": "high",
       "label": "Haute",
       "rank": 3,
-      "color": "#ff9300",
+      "color": "#7E9522",
       "pricePerNight": 375,
       "netTargetPerNight": 341,
       "pricingMode": "progressive",
@@ -79,20 +79,21 @@
       "key": "peak",
       "label": "Très haute",
       "rank": 4,
-      "color": "#ff2600",
+      "color": "#98801E",
       "pricePerNight": 451,
       "netTargetPerNight": 413,
       "pricingMode": "progressive",
-      "minNights": 2,
+      "minNights": 4,
       "maxNights": null,
-      "changeover": null
+      "changeover": null,
+      "_comment": "Minimum de 4 nuits, demandé par Adrien le 2026-08-28 : le cœur de l'été ne se vend pas au week-end. C'est la seule saison dont le minimum s'écarte des 2 nuits communes. Attention au pont du 14 juillet, qui tombe dedans : le modificateur lui pose le minimum de SON bloc, et un bloc de 3 nuits donnerait un minimum plus BAS que celui de la saison — c'est le maximum des deux qui doit gagner."
     },
     {
       "_comment": "LA NUIT DU 31 SEULE, et elle porte toute la plus-value. Abritel a facturé le réveillon 2025 (31/12 → 03/01) 1 222 € taxe de séjour comprise et reversé 1 103,94 € ; moins les 21 € de taxe, le net d'Adrien sur la location était de 1 082,94 €. Cible + 20 % = 1 299,53 €. Les deux autres nuits sont désormais fixées par la grille — le 1er janvier en Haute (341 € de net en 2e nuit) et le 2 janvier en Très basse (115,20 € en 3e nuit) — ce qui laisse 843 € pour la nuit du 31. `fixed` : les nuits les plus rares de l'année ne se remisent pas.",
       "key": "new-year",
       "label": "Nouvel An",
       "rank": 5,
-      "color": "#d4af37",
+      "color": "#B35A1E",
       "pricePerNight": 904,
       "netTargetPerNight": 843,
       "pricingMode": "fixed",
@@ -105,7 +106,7 @@
       "key": "christmas",
       "label": "Noël",
       "rank": 6,
-      "color": "#b03a3a",
+      "color": "#BB1B1B",
       "pricePerNight": 972,
       "netTargetPerNight": 908,
       "pricingMode": "fixed",
@@ -235,5 +236,6 @@
   "_comment_welcomePack": "N'est PAS un pack accueil ici, mais le levier d'alignement du canal direct. La grille n'applique `fixedCost` qu'à la ligne directe (propertiesModel : `fixedCost: p.isDirect ? welcomePackCost : 0`), ce qui permet d'afficher en direct le prix du canal le moins cher tout en ne payant que 5 % de commission — la différence reste à l'exploitant. Consigne d'Adrien du 2026-08-28 : « en direct je veux que tu me place au prix le plus bas des plateformes ». Passé de 16 € à 15 € le 2026-08-28 quand Abritel a été ajouté à 9,7 % : il devient le canal le moins cher, et à 16 € le direct serait sorti 1 € AU-DESSUS de lui en très basse saison. À 15 €, le direct est à égalité avec Abritel sur la première saison et en dessous partout ailleurs. Ce nombre est à recalculer à chaque fois qu'un canal moins cher entre dans `platforms`. Interne à la recette : le client ne voit jamais ce nombre.",
   "welcomePack": {
     "cost": 15
-  }
+  },
+  "_comment_colors": "Dégradé vert → rouge, le rouge étant la nuit la plus chère (Adrien, 2026-08-28). L'ordre suit le prix ; l'ESPACEMENT est par rang et non proportionnel au prix, parce que les nuits de fête valent trois fois les autres et qu'un dégradé proportionnel écraserait les quatre saisons ordinaires dans un vert indistinguable — 319, 334, 375 et 451 € seraient sortis #30A630, #35A630, #43A72E et #5DA72B. À recalculer si l'ordre des prix change : la couleur ment dès qu'une saison plus chère porte un vert plus clair que sa voisine."
 }

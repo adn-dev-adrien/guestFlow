@@ -78,6 +78,32 @@ test('the direct price is the net target grossed up WITH the direct-channel upli
   }
 });
 
+test('the season colours run green to red, ordered by price', () => {
+  // The calendar paints a season by its colour, so the colour has to mean something: the hue falls
+  // as the price rises, red being the dearest night. Ordered by RANK, not proportionally to price —
+  // the festive nights cost three times the ordinary ones, and a proportional ramp would have put
+  // 319, 334, 375 and 451 € in four greens nobody can tell apart.
+  const recipe = loadShippedRecipe();
+  const hue = (hex) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b); const min = Math.min(r, g, b); const d = max - min;
+    if (!d) return 0;
+    const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return h * 60;
+  };
+  const byPrice = [...recipe.seasons].sort((a, b) => a.pricePerNight - b.pricePerNight);
+  const hues = byPrice.map((s) => hue(s.color));
+  assert.equal(Math.round(hues[0]), 120, 'la moins chère doit être verte');
+  assert.equal(Math.round(hues[hues.length - 1]), 0, 'la plus chère doit être rouge');
+  for (let i = 1; i < hues.length; i += 1) {
+    assert.ok(hues[i] < hues[i - 1],
+      `${byPrice[i].label} (${byPrice[i].pricePerNight} €) doit être plus rouge que ${byPrice[i - 1].label}`);
+  }
+  // Evenly spread, so every season is distinguishable at a glance on the calendar.
+  const steps = hues.slice(1).map((h, i) => Math.round(hues[i] - h));
+  assert.deepEqual(steps, steps.map(() => steps[0]), `pas réguliers attendus, obtenus ${steps}`);
+});
+
 test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => {
   const recipe = loadShippedRecipe();
   const r = (startDate, endDate, minNights) => (minNights ? { startDate, endDate, minNights } : { startDate, endDate });
@@ -94,7 +120,7 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   ]);
   assert.deepEqual(plan2026.mid, [
     r('2026-01-02', '2026-01-03', 3),  // Jour de l'an (jeudi) + pont du vendredi, un rang plus haut
-    r('2026-04-04', '2026-04-05', 2),  // Pâques (lundi 6)
+    r('2026-04-04', '2026-04-05'),     // Pâques (lundi 6) — 2 nuits, soit le minimum de la saison
     r('2026-05-03', '2026-05-07'), r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'),
     // L'Ardéchoise cuts a Haute week out of the middle of the Moyenne stretch.
     r('2026-05-25', '2026-06-07'), r('2026-06-14', '2026-07-03'), r('2026-08-29', '2026-10-30'),
@@ -103,30 +129,35 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   ]);
   assert.deepEqual(plan2026.high, [
     r('2026-01-01', '2026-01-01', 3),  // 1 January: back in Haute, the réveillon is the 31st alone
-    r('2026-05-01', '2026-05-02', 2),  // Fête du Travail (vendredi)
-    r('2026-05-08', '2026-05-09', 2),  // Victoire (vendredi)
+    // Only minimums STRONGER than Haute's own 2 are recorded; a 2-night block adds nothing.
+    r('2026-05-01', '2026-05-02'),     // Fête du Travail (vendredi)
+    r('2026-05-08', '2026-05-09'),     // Victoire (vendredi)
     r('2026-05-14', '2026-05-16', 3),  // Ascension (jeudi) + pont
-    r('2026-05-23', '2026-05-24', 2),  // Pentecôte (lundi 25)
+    r('2026-05-23', '2026-05-24'),     // Pentecôte (lundi 25)
     ev('2026-06-08', '2026-06-13', 2),  // L'Ardéchoise — declared dates, never derived
     r('2026-07-04', '2026-07-10'), r('2026-08-22', '2026-08-28'),
     // What is LEFT of the year-end block once the two peaks and the lull are cut out of it:
     // 19-23 December, then 26 December alone, then 30 December alone.
-    r('2026-12-19', '2026-12-23'), r('2026-12-26', '2026-12-26', 2), r('2026-12-30', '2026-12-30'),
+    r('2026-12-19', '2026-12-23'), r('2026-12-26', '2026-12-26'), r('2026-12-30', '2026-12-30'),
   ]);
-  assert.deepEqual(plan2026.peak, [r('2026-07-11', '2026-07-13', 3), r('2026-07-14', '2026-08-21')]);
+  // Très haute demands 4 nights, and no holiday block inside it is longer than that — so neither
+  // 14 juillet nor 15 août records an override, and the summer stays ONE range at the season's own
+  // minimum. Before the clamp, the 3-night 14-juillet block wrote a 3 over it and those were the only
+  // short stays allowed all summer.
+  assert.deepEqual(plan2026.peak, [r('2026-07-11', '2026-08-21')]);
   // The two peaks: only the nights that carry the premium. 25 December is split off by its own
   // holiday minimum, not by a price change — both Christmas nights bill the same 930 €.
-  assert.deepEqual(plan2026.christmas, [r('2026-12-24', '2026-12-24'), r('2026-12-25', '2026-12-25', 2)]);
+  assert.deepEqual(plan2026.christmas, [r('2026-12-24', '2026-12-25')]);
   assert.deepEqual(plan2026['new-year'], [r('2026-12-31', '2026-12-31')]);
 
   // 2027 — the year the grid is written for, derived from the same rules, nothing painted.
   const plan2027 = buildYearPlan(recipe, 2027, materializeClosures(recipe, 2026, 2027));
   assert.deepEqual(plan2027.high, [
-    r('2027-01-01', '2027-01-01', 2), r('2027-05-01', '2027-05-01'),
-    r('2027-05-06', '2027-05-08', 3), r('2027-05-15', '2027-05-16', 2),
+    r('2027-01-01', '2027-01-01'), r('2027-05-01', '2027-05-01'),
+    r('2027-05-06', '2027-05-08', 3), r('2027-05-15', '2027-05-16'),
     ev('2027-06-07', '2027-06-12', 2),  // L'Ardéchoise
     r('2027-07-03', '2027-07-09'), r('2027-08-21', '2027-08-27'),
-    r('2027-10-30', '2027-10-30', 2),
+    r('2027-10-30', '2027-10-30'),
     r('2027-12-19', '2027-12-23'), r('2027-12-26', '2027-12-26'), r('2027-12-30', '2027-12-30'),
   ]);
   assert.deepEqual(plan2027.peak, [r('2027-07-10', '2027-08-20')]);
@@ -134,10 +165,10 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   assert.deepEqual(plan2027.christmas, [r('2027-12-24', '2027-12-25')]);
   assert.deepEqual(plan2027['new-year'], [r('2027-12-31', '2027-12-31')]);
   assert.deepEqual(plan2027.mid, [
-    r('2027-01-02', '2027-01-02', 2), r('2027-03-27', '2027-03-28', 2),
+    r('2027-01-02', '2027-01-02'), r('2027-03-27', '2027-03-28'),
     r('2027-05-02', '2027-05-05'), r('2027-05-09', '2027-05-14'),
     r('2027-05-17', '2027-06-06'), r('2027-06-13', '2027-07-02'), r('2027-08-28', '2027-10-29'),
-    r('2027-10-31', '2027-10-31', 2), r('2027-11-11', '2027-11-13', 3), r('2027-12-27', '2027-12-29'),
+    r('2027-10-31', '2027-10-31'), r('2027-11-11', '2027-11-13', 3), r('2027-12-27', '2027-12-29'),
   ]);
   assert.deepEqual(plan2027['very-low'], [
     r('2027-01-03', '2027-03-26'), r('2027-03-29', '2027-04-30'),
@@ -151,12 +182,16 @@ test('a holiday raise stops at Haute, and never demotes a night above it', () =>
   // 25 December is a public holiday and it sits in Noël, ABOVE the cap: it keeps its 973 € and takes
   // only the block's minimum. 26 December, the bridge day, would climb to Très haute without the cap
   // and is held at Haute — the two halves of the rule, one block, one assertion each.
-  assert.ok(plan.christmas.some((x) => x.startDate === '2026-12-25' && x.minNights === 2));
-  assert.ok(plan.high.some((x) => x.startDate === '2026-12-26' && x.minNights === 2));
+  // Both are already at their season's 2-night minimum, so neither records an override — the point
+  // being that the cap did not raise them, not that they carry a number.
+  assert.ok(plan.christmas.some((x) => x.startDate === '2026-12-24' && x.endDate === '2026-12-25'));
+  assert.ok(plan.high.some((x) => x.startDate === '2026-12-26' && x.endDate === '2026-12-26'));
   assert.equal(plan.peak.some((x) => x.startDate.startsWith('2026-12')), false);
-  // 14 juillet sits in Très haute, ABOVE the cap. It keeps its price and takes the block's minimum;
-  // a cap implemented as min(cap, rank + 1) would have moved these three nights down to Haute.
-  assert.ok(plan.peak.some((x) => x.startDate === '2026-07-11' && x.endDate === '2026-07-13' && x.minNights === 3));
+  // 14 juillet sits in Très haute, ABOVE the cap. It keeps its price and takes a minimum; a cap
+  // implemented as min(cap, rank + 1) would have moved these three nights down to Haute.
+  // The minimum is 4, not the block's own 3: a holiday block may RAISE a season's minimum, never
+  // lower it, or those three days would be the only short stays allowed in the whole summer.
+  assert.ok(plan.peak.some((x) => x.startDate === '2026-07-11' && x.endDate === '2026-08-21' && !x.minNights));
   assert.equal(plan.high.some((x) => x.startDate.startsWith('2026-07-1')), false);
 });
 
@@ -273,12 +308,17 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
     assert.equal(quote.finalPrice, expected, `${label}: attendu ${expected}, obtenu ${quote.finalPrice}`);
   }
 
-  // Minimum 2 nights everywhere, no ceiling and no imposed changeover day.
-  const oneNight = calculateReservationQuote({ ...BASE, startDate: '2026-07-19', endDate: '2026-07-20' });
-  assert.equal(oneNight.requiredMinNights, 2);
-  assert.equal(oneNight.requiredMaxNights, null);
-  // And 3 on the 14 juillet block — the minimum a « pont » carries even where the rank cannot rise.
+  // 2 nights everywhere, except the summer core which demands 4 — the owner's call: the peak season
+  // is not sold by the weekend. No ceiling and no imposed changeover day anywhere.
+  const février = calculateReservationQuote({ ...BASE, startDate: '2026-02-20', endDate: '2026-02-21' });
+  assert.equal(février.requiredMinNights, 2);
+  assert.equal(février.requiredMaxNights, null);
+  const plein_été = calculateReservationQuote({ ...BASE, startDate: '2026-07-19', endDate: '2026-07-20' });
+  assert.equal(plein_été.requiredMinNights, 4);
+  // The 14 juillet « pont » is a 3-night block sitting INSIDE that season: it must not license a
+  // shorter stay than the season it falls in, or those three days would be the only ones all summer
+  // where two nights were bookable.
   const bastille = calculateReservationQuote({ ...BASE, startDate: '2026-07-11', endDate: '2026-07-12' });
-  assert.equal(bastille.requiredMinNights, 3);
+  assert.equal(bastille.requiredMinNights, 4);
   db.close();
 });
