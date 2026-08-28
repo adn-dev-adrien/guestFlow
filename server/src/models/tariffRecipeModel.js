@@ -82,6 +82,12 @@ function createTariffRecipeModel(database, recipeStore) {
   function desiredSeasonPayload(recipe, season, dateRanges) {
     return {
       label: season.label,
+      // A recipe label is authored and reviewed, not typed into a form, so it keeps its casing.
+      // Without this, `sentenceCase` turns « Nouvel An » into « Nouvel an » on write, the next
+      // preview sees a label change that can never be satisfied, and the apply is no longer
+      // idempotent (spec §3.2 rule 11) — every horizon check would rewrite the seasons and stamp a
+      // line in the tariff journal, which is the data a tariff change is measured against.
+      labelFromRecipe: true,
       color: season.color,
       pricePerNight: Number(season.pricePerNight || 0),
       pricingMode: season.pricingMode || 'fixed',

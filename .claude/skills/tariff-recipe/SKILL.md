@@ -37,6 +37,18 @@ Read `specs/tariff-recipes/spec.md` before a substantial change; it is the sourc
    derived ranges **and** the priced control cases. A recipe is data, and data can be wrong.
 6. Property-level configuration the recipe does not own goes in a `scripts/configure-<property>.mjs`
    script that then calls `tariffRecipeModel.apply()`.
+7. **Publish the study as a page the owner can read**, archived beside the deployment reports in
+   `docs/tarifs/` (see its README):
+   ```bash
+   node .claude/skills/tariff-recipe/build-study-page.mjs entrees.json server/src/recipes/<id>.json \
+     docs/tarifs/AAAA-MM-JJ-<hébergement>-etude-tarifaire.html
+   ```
+   Same golden rule as the rollout skill's generator: `entrees.json` declares **observed facts only**
+   — the grid as it stands in the database, the stays on the books, the platform commissions, the
+   prose. Prices, calendars, the channel grid, the iso-price comparison and the control cases are all
+   recomputed from the recipe at render time, and a self-check that fails prints in red with exit
+   code 2. Never write a derived figure into the inputs: the page has to be able to contradict you —
+   it caught a miscounted stay total on the Gîte's first run.
 
 ## What is in the recipe, and what is not
 

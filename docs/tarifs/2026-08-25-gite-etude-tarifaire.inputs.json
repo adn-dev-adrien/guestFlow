@@ -1,0 +1,2281 @@
+{
+ "titre": "Étude tarifaire du Gîte, et la grille qui en sort",
+ "titrePage": "Étude tarifaire du Gîte",
+ "sousTitre": "Gîte · Domaine Solio · 25 août 2026, révisée le 28 août",
+ "intro": "La tarification du Gîte n'existait nulle part sous forme de règle. Cette page est ce que l'on trouve en démontant l'ancienne grille, et la recette qui la remplace. Révision du 28 août : le propriétaire a ouvert le tableur qui faisait tourner le Gîte avant GuestFlow, et le pivot a dû être refait — les prix qui servaient de référence étaient ceux de Gîtes de France, le canal le moins cher.",
+ "anneeReference": 2026,
+ "anneesDerivees": [
+  2026,
+  2027,
+  2028
+ ],
+ "fraisMoteurPct": 5,
+ "saisonsProvisoires": [],
+ "reglesCalendrier": {
+  "shoulder": "Du 1er mai au 30 octobre",
+  "july-shoulder": "La première semaine samedi-samedi de juillet",
+  "august-shoulder": "La dernière semaine entière d'août",
+  "summer-core": "Tout ce qui se trouve entre les deux épaules",
+  "year-end": "Du 19 décembre au 1er janvier, tout le bloc",
+  "new-year": "La seule nuit du 31 décembre",
+  "ponts": "Chaque pont férié monte d'un cran et impose la durée de son bloc en minimum de séjour",
+  "christmas": "Les nuits du 24 et du 25 décembre, creusées dedans",
+  "christmas-lull": "Du 27 au 29 décembre, redescendues d'un cran"
+ },
+ "noteSaisonCassee": "Les deux semaines de plein été réellement vendues en 2026 avaient été devisées 2 148 € à la prise de réservation, soit quatre fois 537 € : la courbe a été écrasée après coup. Ce sont les quarante-deux nuits les plus demandées de l'année.",
+ "noteDerive": "Le seul vrai défaut du calendrier peint à la main : le 1er janvier 2026 avait été oublié en très basse saison alors que le 1er janvier 2027, lui, était bien peint en haute. Tout le reste de ce qui bouge est voulu, et listé ci-dessous.",
+ "notePonts": "La règle est celle de la Lodge, à une différence près : elle est plafonnée à la haute saison. Sans plafond, elle monterait le 25 décembre au tarif du réveillon. Une nuit déjà au-dessus du plafond — le 14 juillet, le 15 août — garde son prix et ne prend que le minimum de séjour de son bloc.",
+ "noteCanaux": "Le plancher net est mesuré, pas décrété : moindres carrés sur les 15 séjours Gîtes de France, résidu de 48,84 €. Chaque plateforme est regrossie depuis ce plancher ; le direct l'est depuis le plancher PLUS 15 €, ce qui le place au niveau du canal le moins cher alors qu'il ne paie que 5 % — c'est de là que vient la marge supplémentaire d'une réservation directe. Ce levier valait 16 € jusqu'à ce qu'Abritel entre à 9,7 % : il est devenu le canal le moins cher, et à 16 € le direct serait sorti un euro AU-DESSUS de lui en très basse saison. Il est à recalculer chaque fois qu'un canal moins cher apparaît. **Gîtes de France ne bouge pas** — 320 / 336 / 379 / 459 / 937 / 1 009 € — c'est l'ancre, et le déploiement ne touche pas ce canal.",
+ "canauxDouteux": [],
+ "noteIso": "Les 24 séjours bougent, puisque toute la grille a bougé — la colonne de droite est le prix DIRECT. La forme du changement est le fait marquant : l'hiver monte, l'été descend. Un week-end de février passe de 504 € à 640 €, la mi-juillet de 1 074,50 € à 904 €. C'est ce que la mesure imposait : l'ancienne grille facturait 252 € la nuit en hiver quand Adrien en encaissait 288 € via Gîtes de France et 407 € via les plateformes, et 537,50 € au pic d'été quand Gîtes de France lui en rapportait 413 €.",
+ "cas": [
+  {
+   "id": "g1",
+   "titre": "Un week-end d'hiver",
+   "du": "2026-02-20",
+   "nuits": 2
+  },
+  {
+   "id": "g2",
+   "titre": "Trois nuits en avril, désormais très basse saison",
+   "du": "2026-04-11",
+   "nuits": 3
+  },
+  {
+   "id": "g3",
+   "titre": "Le pont de l'Ascension",
+   "du": "2026-05-14",
+   "nuits": 3,
+   "note": "Trois nuits de haute saison au milieu de ce qui serait sinon de la moyenne — et un minimum de trois nuits, parce qu'un pont ne se vend pas à la nuit."
+  },
+  {
+   "id": "g11",
+   "titre": "L'Ardéchoise",
+   "du": "2026-06-12",
+   "nuits": 2,
+   "note": "Dates déclarées et jamais devinées : l'organisateur déplace l'épreuve et n'annonce l'édition suivante qu'en décembre. Le séjour déjà réservé sur ces dates avait été devisé 652 € en moyenne saison."
+  },
+  {
+   "id": "g4",
+   "titre": "La semaine de plein été",
+   "du": "2026-07-19",
+   "nuits": 7,
+   "note": "Sept nuits pour quatre fois la nuit : c'est toute la dégressivité du Gîte en une ligne. L'ancienne grille facturait 1 794,75 € pour ce même séjour."
+  },
+  {
+   "id": "g5",
+   "titre": "Deux semaines de plein été",
+   "du": "2026-08-01",
+   "nuits": 14,
+   "note": "Au-delà de la première semaine, chaque nuit vaut un septième de semaine — d'où un total qui refait deux fois la semaine, au centime d'arrondi près."
+  },
+  {
+   "id": "g6",
+   "titre": "À cheval sur la fin du cœur d'été",
+   "du": "2026-08-17",
+   "nuits": 7,
+   "note": "Le palier de remise vient du rang de la nuit dans le séjour, le prix vient de la saison du jour."
+  },
+  {
+   "id": "g9",
+   "titre": "Le bloc du 14 juillet",
+   "du": "2026-07-11",
+   "nuits": 3,
+   "note": "Le 14 juillet est déjà au-dessus du plafond des ponts : il garde son prix de très haute saison et ne prend que le minimum de trois nuits."
+  },
+  {
+   "id": "g7",
+   "titre": "Noël, les deux nuits fortes",
+   "du": "2026-12-24",
+   "nuits": 2,
+   "note": "La référence : 1 514 € de location encaissés en 2025 sur ces deux nuits, plus 20 %. Le tarif en découle, il n'est pas choisi."
+  },
+  {
+   "id": "g7b",
+   "titre": "Noël, du 23 au 26",
+   "du": "2026-12-23",
+   "nuits": 3,
+   "note": "Le 23 est en haute saison, seules les deux nuits de Noël portent la hausse."
+  },
+  {
+   "id": "g7c",
+   "titre": "Le creux entre les fêtes",
+   "du": "2026-12-27",
+   "nuits": 3,
+   "note": "Du 27 au 29, un cran plus bas que le reste du bloc — la demande y retombe."
+  },
+  {
+   "id": "g8",
+   "titre": "Le réveillon, arrivée le 31",
+   "du": "2026-12-31",
+   "nuits": 3,
+   "note": "Le séjour réellement vendu en 2025. Le 1er janvier retombe en haute saison et le 2 en moyenne, remontée par le pont du jour de l'an : la nuit du 31 porte seule la plus-value."
+  },
+  {
+   "id": "g8b",
+   "titre": "Le réveillon, du 30 au 2",
+   "du": "2026-12-30",
+   "nuits": 3,
+   "note": "Le 30 décembre est en haute saison, comme demandé."
+  },
+  {
+   "id": "g8c",
+   "titre": "Toutes les fêtes, du 23 au 2",
+   "du": "2026-12-23",
+   "nuits": 10,
+   "note": "Dix nuits d'affilée : on voit la forme du bloc — deux pointes, un creux, et de la haute saison autour."
+  },
+  {
+   "id": "g10",
+   "titre": "La semaine de plein été 2027",
+   "du": "2027-07-17",
+   "nuits": 7,
+   "note": "Une année que personne n'a peinte : ces dates sont déduites des mêmes règles que 2026."
+  }
+ ],
+ "reserves": [
+  {
+   "id": "abritel",
+   "titre": "Abritel n'existe pas dans la table des plateformes",
+   "texte": "C'est pourtant là que Noël et le réveillon 2025 ont été vendus, et ses deux relevés donnent 9,66 % et 9,69 % de commission. Ajouté à 9,7 %, il deviendrait le canal le moins cher — un euro sous Gîtes de France — et le prix direct devrait le suivre vers le bas."
+  },
+  {
+   "id": "basse",
+   "titre": "La saison « Basse » doit être supprimée à la main avant la première application",
+   "texte": "La recette ne la déclare plus, mais la ligne sur la fiche du Gîte est une saison MANUELLE : l'application ne peut pas la supprimer et se bloque sur le chevauchement d'avril. Vérifié sur une copie de la production. Une fois supprimée, l'application passe, adopte les quatre saisons restantes par leur libellé, crée Noël et Nouvel An, écrit le levier à 16 €, et une seconde exécution ne fait rien."
+  },
+  {
+   "id": "airbnb",
+   "titre": "Airbnb bascule en frais hôte le 13 octobre 2026",
+   "texte": "Tous les hôtes de l'Espace économique européen passent à une commission unique de 15,5 % HT, soit 18,6 % TTC, la TVA irlandaise n'étant pas récupérable pour un loueur non assujetti. La solution ne touche pas la recette : les commissions sont globales par plateforme. Le jour venu, passer Airbnb de 15,5 % à 18,6 % dans les réglages suffit, et le pivot regrosse tout seul — la très basse saison passerait de 341 € à 354 €, la très haute de 489 € à 508 €. À vérifier d'abord sur un versement réel : les relevés 2026 montrent 15,0 % prélevés, pas 18,6 %."
+  },
+  {
+   "id": "abraca",
+   "titre": "Abracadaroom élargit la fourchette au-delà des 10 % demandés",
+   "texte": "À 20 % de commission, il étire l'écart à 12,5 % en très basse saison et 14,4 % en très haute — et jusqu'à 16,7 % sur Noël, où les 16 € du levier direct pèsent relativement moins. Adrien a choisi de le garder plutôt que de le sortir, alors que le Gîte n'y a jamais vendu une nuit."
+  }
+ ],
+ "nonVerifie": [
+  "Aucune plateforme n'a été touchée : rien n'a été configuré, aucun devis n'a été relevé, rien n'a été publié.",
+  "La grille n'a pas été comparée aux prix réellement affichés par Lodgify pour le Gîte — le navigateur n'a pas pu être piloté et le site de réservation répond un contrôle anti-robot. À faire ensemble, navigateur ouvert.",
+  "La recette n'a pas été appliquée en production. Elle l'a été sur une copie de la base, ce qui a montré que les cinq saisons existantes sont adoptées sans obstacle, que 2026 et 2027 sont générées, et qu'une seconde application n'écrit rien."
+ ],
+ "pied": [
+  "Page auto-portante : polices intégrées, aucune requête réseau à l'ouverture. Elle s'ouvre hors ligne.",
+  "Produite par .claude/skills/tariff-recipe/build-study-page.mjs à partir de server/src/recipes/gite-2027.json. Les faits observés — grille actuelle, séjours au planning, commissions, relevés de canaux — viennent de la base et du propriétaire ; tout le reste est recalculé à chaque génération. La page peut contredire qui l'a écrite.",
+  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v3.1.0"
+ ],
+ "periodesVoulues": [
+  "new-year",
+  "christmas",
+  "christmas-lull"
+ ],
+ "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, les quatre nuits fortes des fêtes sont creusées dans le bloc de haute saison, le creux du 27 au 29 redescend en moyenne, et L'Ardéchoise peint une semaine de haute au milieu de juin. La saison « Basse » a disparu sans apparaître ici : avril garde exactement le même prix, puisque les encaissements donnaient les deux saisons identiques (286 € contre 288 €).",
+ "ancienneGrille": [
+  {
+   "label": "Très basse",
+   "base": 252,
+   "tiers": [
+    {
+     "n": 2,
+     "p": 252
+    },
+    {
+     "n": 3,
+     "p": 100.8
+    },
+    {
+     "n": 4,
+     "p": 100.8
+    },
+    {
+     "n": 5,
+     "p": 100.8
+    },
+    {
+     "n": 6,
+     "p": 100.8
+    },
+    {
+     "n": 7,
+     "p": 100.8
+    },
+    {
+     "n": 8,
+     "p": 144
+    },
+    {
+     "n": 9,
+     "p": 144
+    },
+    {
+     "n": 10,
+     "p": 144
+    },
+    {
+     "n": 11,
+     "p": 144
+    },
+    {
+     "n": 12,
+     "p": 144
+    },
+    {
+     "n": 13,
+     "p": 144
+    },
+    {
+     "n": 14,
+     "p": 144
+    }
+   ],
+   "ranges": [
+    {
+     "startDate": "2026-01-01",
+     "endDate": "2026-03-06"
+    },
+    {
+     "startDate": "2026-03-07",
+     "endDate": "2026-04-03"
+    },
+    {
+     "startDate": "2026-10-31",
+     "endDate": "2026-12-18"
+    },
+    {
+     "startDate": "2027-01-02",
+     "endDate": "2027-01-08"
+    }
+   ]
+  },
+  {
+   "label": "Basse",
+   "base": 303,
+   "tiers": [
+    {
+     "n": 2,
+     "p": 303
+    },
+    {
+     "n": 3,
+     "p": 121.2
+    },
+    {
+     "n": 4,
+     "p": 121.2
+    },
+    {
+     "n": 5,
+     "p": 121.2
+    },
+    {
+     "n": 6,
+     "p": 121.2
+    },
+    {
+     "n": 7,
+     "p": 121.2
+    },
+    {
+     "n": 8,
+     "p": 173.14
+    },
+    {
+     "n": 9,
+     "p": 173.14
+    },
+    {
+     "n": 10,
+     "p": 173.14
+    },
+    {
+     "n": 11,
+     "p": 173.14
+    },
+    {
+     "n": 12,
+     "p": 173.14
+    },
+    {
+     "n": 13,
+     "p": 173.14
+    },
+    {
+     "n": 14,
+     "p": 173.14
+    }
+   ],
+   "ranges": [
+    {
+     "startDate": "2026-04-04",
+     "endDate": "2026-04-30"
+    }
+   ]
+  },
+  {
+   "label": "Moyenne",
+   "base": 326,
+   "tiers": [
+    {
+     "n": 2,
+     "p": 326
+    },
+    {
+     "n": 3,
+     "p": 130.4
+    },
+    {
+     "n": 4,
+     "p": 130.4
+    },
+    {
+     "n": 5,
+     "p": 130.4
+    },
+    {
+     "n": 6,
+     "p": 130.4
+    },
+    {
+     "n": 7,
+     "p": 130.4
+    },
+    {
+     "n": 8,
+     "p": 186.29
+    },
+    {
+     "n": 9,
+     "p": 186.29
+    },
+    {
+     "n": 10,
+     "p": 186.29
+    },
+    {
+     "n": 11,
+     "p": 186.29
+    },
+    {
+     "n": 12,
+     "p": 186.29
+    },
+    {
+     "n": 13,
+     "p": 186.29
+    },
+    {
+     "n": 14,
+     "p": 186.29
+    }
+   ],
+   "ranges": [
+    {
+     "startDate": "2026-05-01",
+     "endDate": "2026-07-03"
+    },
+    {
+     "startDate": "2026-08-29",
+     "endDate": "2026-10-30"
+    }
+   ]
+  },
+  {
+   "label": "Haute",
+   "base": 382,
+   "tiers": [
+    {
+     "n": 2,
+     "p": 382
+    },
+    {
+     "n": 3,
+     "p": 152.8
+    },
+    {
+     "n": 4,
+     "p": 152.8
+    },
+    {
+     "n": 5,
+     "p": 152.8
+    },
+    {
+     "n": 6,
+     "p": 152.8
+    },
+    {
+     "n": 7,
+     "p": 152.8
+    },
+    {
+     "n": 8,
+     "p": 218.29
+    },
+    {
+     "n": 9,
+     "p": 218.29
+    },
+    {
+     "n": 10,
+     "p": 218.29
+    },
+    {
+     "n": 11,
+     "p": 218.29
+    },
+    {
+     "n": 12,
+     "p": 218.29
+    },
+    {
+     "n": 13,
+     "p": 218.29
+    },
+    {
+     "n": 14,
+     "p": 218.29
+    }
+   ],
+   "ranges": [
+    {
+     "startDate": "2026-07-04",
+     "endDate": "2026-07-10"
+    },
+    {
+     "startDate": "2026-08-22",
+     "endDate": "2026-08-28"
+    },
+    {
+     "startDate": "2026-12-19",
+     "endDate": "2027-01-01"
+    }
+   ]
+  },
+  {
+   "label": "Très haute",
+   "base": 537.5,
+   "tiers": [
+    {
+     "n": 2,
+     "p": 537
+    },
+    {
+     "n": 3,
+     "p": 182.75
+    },
+    {
+     "n": 4,
+     "p": 177.37
+    },
+    {
+     "n": 5,
+     "p": 155.88
+    },
+    {
+     "n": 6,
+     "p": 21.5
+    },
+    {
+     "n": 7,
+     "p": 182.75
+    },
+    {
+     "n": 8,
+     "p": 252.62
+    },
+    {
+     "n": 9,
+     "p": 258
+    },
+    {
+     "n": 10,
+     "p": 258
+    },
+    {
+     "n": 11,
+     "p": 252.62
+    },
+    {
+     "n": 12,
+     "p": 258
+    },
+    {
+     "n": 13,
+     "p": 252.62
+    },
+    {
+     "n": 14,
+     "p": 268.75
+    },
+    {
+     "n": 15,
+     "p": 307
+    },
+    {
+     "n": 16,
+     "p": 307
+    },
+    {
+     "n": 17,
+     "p": 307
+    },
+    {
+     "n": 18,
+     "p": 308
+    },
+    {
+     "n": 19,
+     "p": 307
+    },
+    {
+     "n": 20,
+     "p": 307
+    },
+    {
+     "n": 21,
+     "p": 307
+    },
+    {
+     "n": 22,
+     "p": 307
+    },
+    {
+     "n": 23,
+     "p": 307
+    },
+    {
+     "n": 24,
+     "p": 307
+    },
+    {
+     "n": 25,
+     "p": 308
+    },
+    {
+     "n": 26,
+     "p": 307
+    },
+    {
+     "n": 27,
+     "p": 307
+    },
+    {
+     "n": 28,
+     "p": 307
+    },
+    {
+     "n": 29,
+     "p": 307
+    },
+    {
+     "n": 30,
+     "p": 307
+    },
+    {
+     "n": 31,
+     "p": 307
+    },
+    {
+     "n": 32,
+     "p": 308
+    },
+    {
+     "n": 33,
+     "p": 307
+    },
+    {
+     "n": 34,
+     "p": 307
+    },
+    {
+     "n": 35,
+     "p": 307
+    },
+    {
+     "n": 36,
+     "p": 307
+    },
+    {
+     "n": 37,
+     "p": 307
+    },
+    {
+     "n": 38,
+     "p": 307
+    },
+    {
+     "n": 39,
+     "p": 308
+    },
+    {
+     "n": 40,
+     "p": 307
+    },
+    {
+     "n": 41,
+     "p": 307
+    },
+    {
+     "n": 42,
+     "p": 307
+    },
+    {
+     "n": 43,
+     "p": 307
+    },
+    {
+     "n": 44,
+     "p": 307
+    },
+    {
+     "n": 45,
+     "p": 307
+    },
+    {
+     "n": 46,
+     "p": 308
+    },
+    {
+     "n": 47,
+     "p": 307
+    },
+    {
+     "n": 48,
+     "p": 307
+    },
+    {
+     "n": 49,
+     "p": 307
+    },
+    {
+     "n": 50,
+     "p": 307
+    },
+    {
+     "n": 51,
+     "p": 307
+    },
+    {
+     "n": 52,
+     "p": 307
+    },
+    {
+     "n": 53,
+     "p": 308
+    },
+    {
+     "n": 54,
+     "p": 307
+    },
+    {
+     "n": 55,
+     "p": 307
+    },
+    {
+     "n": 56,
+     "p": 307
+    },
+    {
+     "n": 57,
+     "p": 307
+    },
+    {
+     "n": 58,
+     "p": 307
+    },
+    {
+     "n": 59,
+     "p": 307
+    },
+    {
+     "n": 60,
+     "p": 308
+    },
+    {
+     "n": 61,
+     "p": 307
+    },
+    {
+     "n": 62,
+     "p": 307
+    },
+    {
+     "n": 63,
+     "p": 307
+    },
+    {
+     "n": 64,
+     "p": 307
+    },
+    {
+     "n": 65,
+     "p": 307
+    },
+    {
+     "n": 66,
+     "p": 307
+    },
+    {
+     "n": 67,
+     "p": 308
+    },
+    {
+     "n": 68,
+     "p": 307
+    },
+    {
+     "n": 69,
+     "p": 307
+    },
+    {
+     "n": 70,
+     "p": 307
+    },
+    {
+     "n": 71,
+     "p": 307
+    },
+    {
+     "n": 72,
+     "p": 307
+    },
+    {
+     "n": 73,
+     "p": 307
+    },
+    {
+     "n": 74,
+     "p": 308
+    },
+    {
+     "n": 75,
+     "p": 307
+    },
+    {
+     "n": 76,
+     "p": 307
+    },
+    {
+     "n": 77,
+     "p": 307
+    },
+    {
+     "n": 78,
+     "p": 307
+    },
+    {
+     "n": 79,
+     "p": 307
+    },
+    {
+     "n": 80,
+     "p": 307
+    },
+    {
+     "n": 81,
+     "p": 308
+    },
+    {
+     "n": 82,
+     "p": 307
+    },
+    {
+     "n": 83,
+     "p": 307
+    },
+    {
+     "n": 84,
+     "p": 307
+    },
+    {
+     "n": 85,
+     "p": 307
+    },
+    {
+     "n": 86,
+     "p": 307
+    },
+    {
+     "n": 87,
+     "p": 307
+    },
+    {
+     "n": 88,
+     "p": 308
+    },
+    {
+     "n": 89,
+     "p": 307
+    },
+    {
+     "n": 90,
+     "p": 307
+    },
+    {
+     "n": 91,
+     "p": 307
+    },
+    {
+     "n": 92,
+     "p": 307
+    },
+    {
+     "n": 93,
+     "p": 307
+    },
+    {
+     "n": 94,
+     "p": 307
+    },
+    {
+     "n": 95,
+     "p": 308
+    },
+    {
+     "n": 96,
+     "p": 307
+    },
+    {
+     "n": 97,
+     "p": 307
+    },
+    {
+     "n": 98,
+     "p": 307
+    },
+    {
+     "n": 99,
+     "p": 307
+    },
+    {
+     "n": 100,
+     "p": 307
+    },
+    {
+     "n": 101,
+     "p": 307
+    },
+    {
+     "n": 102,
+     "p": 308
+    },
+    {
+     "n": 103,
+     "p": 307
+    },
+    {
+     "n": 104,
+     "p": 307
+    },
+    {
+     "n": 105,
+     "p": 307
+    },
+    {
+     "n": 106,
+     "p": 307
+    },
+    {
+     "n": 107,
+     "p": 307
+    },
+    {
+     "n": 108,
+     "p": 307
+    },
+    {
+     "n": 109,
+     "p": 308
+    },
+    {
+     "n": 110,
+     "p": 307
+    },
+    {
+     "n": 111,
+     "p": 307
+    },
+    {
+     "n": 112,
+     "p": 307
+    },
+    {
+     "n": 113,
+     "p": 307
+    },
+    {
+     "n": 114,
+     "p": 307
+    },
+    {
+     "n": 115,
+     "p": 307
+    },
+    {
+     "n": 116,
+     "p": 308
+    },
+    {
+     "n": 117,
+     "p": 307
+    },
+    {
+     "n": 118,
+     "p": 307
+    },
+    {
+     "n": 119,
+     "p": 307
+    },
+    {
+     "n": 120,
+     "p": 307
+    },
+    {
+     "n": 121,
+     "p": 307
+    },
+    {
+     "n": 122,
+     "p": 307
+    },
+    {
+     "n": 123,
+     "p": 308
+    },
+    {
+     "n": 124,
+     "p": 307
+    },
+    {
+     "n": 125,
+     "p": 307
+    },
+    {
+     "n": 126,
+     "p": 307
+    },
+    {
+     "n": 127,
+     "p": 307
+    },
+    {
+     "n": 128,
+     "p": 307
+    },
+    {
+     "n": 129,
+     "p": 307
+    },
+    {
+     "n": 130,
+     "p": 308
+    },
+    {
+     "n": 131,
+     "p": 307
+    },
+    {
+     "n": 132,
+     "p": 307
+    },
+    {
+     "n": 133,
+     "p": 307
+    },
+    {
+     "n": 134,
+     "p": 307
+    },
+    {
+     "n": 135,
+     "p": 307
+    },
+    {
+     "n": 136,
+     "p": 307
+    },
+    {
+     "n": 137,
+     "p": 308
+    },
+    {
+     "n": 138,
+     "p": 307
+    },
+    {
+     "n": 139,
+     "p": 307
+    },
+    {
+     "n": 140,
+     "p": 307
+    },
+    {
+     "n": 141,
+     "p": 307
+    },
+    {
+     "n": 142,
+     "p": 307
+    },
+    {
+     "n": 143,
+     "p": 307
+    },
+    {
+     "n": 144,
+     "p": 308
+    },
+    {
+     "n": 145,
+     "p": 307
+    },
+    {
+     "n": 146,
+     "p": 307
+    },
+    {
+     "n": 147,
+     "p": 307
+    },
+    {
+     "n": 148,
+     "p": 307
+    },
+    {
+     "n": 149,
+     "p": 307
+    },
+    {
+     "n": 150,
+     "p": 307
+    },
+    {
+     "n": 151,
+     "p": 308
+    },
+    {
+     "n": 152,
+     "p": 307
+    },
+    {
+     "n": 153,
+     "p": 307
+    },
+    {
+     "n": 154,
+     "p": 307
+    },
+    {
+     "n": 155,
+     "p": 307
+    },
+    {
+     "n": 156,
+     "p": 307
+    },
+    {
+     "n": 157,
+     "p": 307
+    },
+    {
+     "n": 158,
+     "p": 308
+    },
+    {
+     "n": 159,
+     "p": 307
+    },
+    {
+     "n": 160,
+     "p": 307
+    },
+    {
+     "n": 161,
+     "p": 307
+    },
+    {
+     "n": 162,
+     "p": 307
+    },
+    {
+     "n": 163,
+     "p": 307
+    },
+    {
+     "n": 164,
+     "p": 307
+    },
+    {
+     "n": 165,
+     "p": 308
+    },
+    {
+     "n": 166,
+     "p": 307
+    },
+    {
+     "n": 167,
+     "p": 307
+    },
+    {
+     "n": 168,
+     "p": 307
+    },
+    {
+     "n": 169,
+     "p": 307
+    },
+    {
+     "n": 170,
+     "p": 307
+    },
+    {
+     "n": 171,
+     "p": 307
+    },
+    {
+     "n": 172,
+     "p": 308
+    },
+    {
+     "n": 173,
+     "p": 307
+    },
+    {
+     "n": 174,
+     "p": 307
+    },
+    {
+     "n": 175,
+     "p": 307
+    },
+    {
+     "n": 176,
+     "p": 307
+    },
+    {
+     "n": 177,
+     "p": 307
+    },
+    {
+     "n": 178,
+     "p": 307
+    },
+    {
+     "n": 179,
+     "p": 308
+    },
+    {
+     "n": 180,
+     "p": 307
+    },
+    {
+     "n": 181,
+     "p": 307
+    },
+    {
+     "n": 182,
+     "p": 307
+    },
+    {
+     "n": 183,
+     "p": 307
+    },
+    {
+     "n": 184,
+     "p": 307
+    },
+    {
+     "n": 185,
+     "p": 307
+    },
+    {
+     "n": 186,
+     "p": 308
+    },
+    {
+     "n": 187,
+     "p": 307
+    },
+    {
+     "n": 188,
+     "p": 307
+    },
+    {
+     "n": 189,
+     "p": 307
+    },
+    {
+     "n": 190,
+     "p": 307
+    },
+    {
+     "n": 191,
+     "p": 307
+    },
+    {
+     "n": 192,
+     "p": 307
+    },
+    {
+     "n": 193,
+     "p": 308
+    },
+    {
+     "n": 194,
+     "p": 307
+    },
+    {
+     "n": 195,
+     "p": 307
+    },
+    {
+     "n": 196,
+     "p": 307
+    },
+    {
+     "n": 197,
+     "p": 307
+    },
+    {
+     "n": 198,
+     "p": 307
+    },
+    {
+     "n": 199,
+     "p": 307
+    },
+    {
+     "n": 200,
+     "p": 308
+    },
+    {
+     "n": 201,
+     "p": 307
+    },
+    {
+     "n": 202,
+     "p": 307
+    },
+    {
+     "n": 203,
+     "p": 307
+    },
+    {
+     "n": 204,
+     "p": 307
+    },
+    {
+     "n": 205,
+     "p": 307
+    },
+    {
+     "n": 206,
+     "p": 307
+    },
+    {
+     "n": 207,
+     "p": 308
+    },
+    {
+     "n": 208,
+     "p": 307
+    },
+    {
+     "n": 209,
+     "p": 307
+    },
+    {
+     "n": 210,
+     "p": 307
+    },
+    {
+     "n": 211,
+     "p": 307
+    },
+    {
+     "n": 212,
+     "p": 307
+    },
+    {
+     "n": 213,
+     "p": 307
+    },
+    {
+     "n": 214,
+     "p": 308
+    },
+    {
+     "n": 215,
+     "p": 307
+    },
+    {
+     "n": 216,
+     "p": 307
+    },
+    {
+     "n": 217,
+     "p": 307
+    },
+    {
+     "n": 218,
+     "p": 307
+    },
+    {
+     "n": 219,
+     "p": 307
+    },
+    {
+     "n": 220,
+     "p": 307
+    },
+    {
+     "n": 221,
+     "p": 308
+    },
+    {
+     "n": 222,
+     "p": 307
+    },
+    {
+     "n": 223,
+     "p": 307
+    },
+    {
+     "n": 224,
+     "p": 307
+    },
+    {
+     "n": 225,
+     "p": 307
+    },
+    {
+     "n": 226,
+     "p": 307
+    },
+    {
+     "n": 227,
+     "p": 307
+    },
+    {
+     "n": 228,
+     "p": 308
+    },
+    {
+     "n": 229,
+     "p": 307
+    },
+    {
+     "n": 230,
+     "p": 307
+    },
+    {
+     "n": 231,
+     "p": 307
+    },
+    {
+     "n": 232,
+     "p": 307
+    },
+    {
+     "n": 233,
+     "p": 307
+    },
+    {
+     "n": 234,
+     "p": 307
+    },
+    {
+     "n": 235,
+     "p": 308
+    },
+    {
+     "n": 236,
+     "p": 307
+    },
+    {
+     "n": 237,
+     "p": 307
+    },
+    {
+     "n": 238,
+     "p": 307
+    },
+    {
+     "n": 239,
+     "p": 307
+    },
+    {
+     "n": 240,
+     "p": 307
+    },
+    {
+     "n": 241,
+     "p": 307
+    },
+    {
+     "n": 242,
+     "p": 308
+    },
+    {
+     "n": 243,
+     "p": 307
+    },
+    {
+     "n": 244,
+     "p": 307
+    },
+    {
+     "n": 245,
+     "p": 307
+    },
+    {
+     "n": 246,
+     "p": 307
+    },
+    {
+     "n": 247,
+     "p": 307
+    },
+    {
+     "n": 248,
+     "p": 307
+    },
+    {
+     "n": 249,
+     "p": 308
+    },
+    {
+     "n": 250,
+     "p": 307
+    },
+    {
+     "n": 251,
+     "p": 307
+    },
+    {
+     "n": 252,
+     "p": 307
+    },
+    {
+     "n": 253,
+     "p": 307
+    },
+    {
+     "n": 254,
+     "p": 307
+    },
+    {
+     "n": 255,
+     "p": 307
+    },
+    {
+     "n": 256,
+     "p": 308
+    },
+    {
+     "n": 257,
+     "p": 307
+    },
+    {
+     "n": 258,
+     "p": 307
+    },
+    {
+     "n": 259,
+     "p": 307
+    },
+    {
+     "n": 260,
+     "p": 307
+    },
+    {
+     "n": 261,
+     "p": 307
+    },
+    {
+     "n": 262,
+     "p": 307
+    },
+    {
+     "n": 263,
+     "p": 308
+    },
+    {
+     "n": 264,
+     "p": 307
+    },
+    {
+     "n": 265,
+     "p": 307
+    },
+    {
+     "n": 266,
+     "p": 307
+    },
+    {
+     "n": 267,
+     "p": 307
+    },
+    {
+     "n": 268,
+     "p": 307
+    },
+    {
+     "n": 269,
+     "p": 307
+    },
+    {
+     "n": 270,
+     "p": 308
+    },
+    {
+     "n": 271,
+     "p": 307
+    },
+    {
+     "n": 272,
+     "p": 307
+    },
+    {
+     "n": 273,
+     "p": 307
+    },
+    {
+     "n": 274,
+     "p": 307
+    },
+    {
+     "n": 275,
+     "p": 307
+    },
+    {
+     "n": 276,
+     "p": 307
+    },
+    {
+     "n": 277,
+     "p": 308
+    },
+    {
+     "n": 278,
+     "p": 307
+    },
+    {
+     "n": 279,
+     "p": 307
+    },
+    {
+     "n": 280,
+     "p": 307
+    },
+    {
+     "n": 281,
+     "p": 307
+    },
+    {
+     "n": 282,
+     "p": 307
+    },
+    {
+     "n": 283,
+     "p": 307
+    },
+    {
+     "n": 284,
+     "p": 308
+    },
+    {
+     "n": 285,
+     "p": 307
+    },
+    {
+     "n": 286,
+     "p": 307
+    },
+    {
+     "n": 287,
+     "p": 307
+    },
+    {
+     "n": 288,
+     "p": 307
+    },
+    {
+     "n": 289,
+     "p": 307
+    },
+    {
+     "n": 290,
+     "p": 307
+    },
+    {
+     "n": 291,
+     "p": 308
+    },
+    {
+     "n": 292,
+     "p": 307
+    },
+    {
+     "n": 293,
+     "p": 307
+    },
+    {
+     "n": 294,
+     "p": 307
+    },
+    {
+     "n": 295,
+     "p": 307
+    },
+    {
+     "n": 296,
+     "p": 307
+    },
+    {
+     "n": 297,
+     "p": 307
+    },
+    {
+     "n": 298,
+     "p": 308
+    },
+    {
+     "n": 299,
+     "p": 307
+    },
+    {
+     "n": 300,
+     "p": 307
+    },
+    {
+     "n": 301,
+     "p": 307
+    },
+    {
+     "n": 302,
+     "p": 307
+    },
+    {
+     "n": 303,
+     "p": 307
+    },
+    {
+     "n": 304,
+     "p": 307
+    },
+    {
+     "n": 305,
+     "p": 308
+    },
+    {
+     "n": 306,
+     "p": 307
+    },
+    {
+     "n": 307,
+     "p": 307
+    },
+    {
+     "n": 308,
+     "p": 307
+    },
+    {
+     "n": 309,
+     "p": 307
+    },
+    {
+     "n": 310,
+     "p": 307
+    },
+    {
+     "n": 311,
+     "p": 307
+    },
+    {
+     "n": 312,
+     "p": 308
+    },
+    {
+     "n": 313,
+     "p": 307
+    },
+    {
+     "n": 314,
+     "p": 307
+    },
+    {
+     "n": 315,
+     "p": 307
+    },
+    {
+     "n": 316,
+     "p": 307
+    },
+    {
+     "n": 317,
+     "p": 307
+    },
+    {
+     "n": 318,
+     "p": 307
+    },
+    {
+     "n": 319,
+     "p": 308
+    },
+    {
+     "n": 320,
+     "p": 307
+    },
+    {
+     "n": 321,
+     "p": 307
+    },
+    {
+     "n": 322,
+     "p": 307
+    },
+    {
+     "n": 323,
+     "p": 307
+    },
+    {
+     "n": 324,
+     "p": 307
+    },
+    {
+     "n": 325,
+     "p": 307
+    },
+    {
+     "n": 326,
+     "p": 308
+    },
+    {
+     "n": 327,
+     "p": 307
+    },
+    {
+     "n": 328,
+     "p": 307
+    },
+    {
+     "n": 329,
+     "p": 307
+    },
+    {
+     "n": 330,
+     "p": 307
+    },
+    {
+     "n": 331,
+     "p": 307
+    },
+    {
+     "n": 332,
+     "p": 307
+    },
+    {
+     "n": 333,
+     "p": 308
+    },
+    {
+     "n": 334,
+     "p": 307
+    },
+    {
+     "n": 335,
+     "p": 307
+    },
+    {
+     "n": 336,
+     "p": 307
+    },
+    {
+     "n": 337,
+     "p": 307
+    },
+    {
+     "n": 338,
+     "p": 307
+    },
+    {
+     "n": 339,
+     "p": 307
+    },
+    {
+     "n": 340,
+     "p": 308
+    },
+    {
+     "n": 341,
+     "p": 307
+    },
+    {
+     "n": 342,
+     "p": 307
+    },
+    {
+     "n": 343,
+     "p": 307
+    },
+    {
+     "n": 344,
+     "p": 307
+    },
+    {
+     "n": 345,
+     "p": 307
+    },
+    {
+     "n": 346,
+     "p": 307
+    },
+    {
+     "n": 347,
+     "p": 308
+    },
+    {
+     "n": 348,
+     "p": 307
+    },
+    {
+     "n": 349,
+     "p": 307
+    },
+    {
+     "n": 350,
+     "p": 307
+    },
+    {
+     "n": 351,
+     "p": 307
+    },
+    {
+     "n": 352,
+     "p": 307
+    },
+    {
+     "n": 353,
+     "p": 307
+    },
+    {
+     "n": 354,
+     "p": 308
+    },
+    {
+     "n": 355,
+     "p": 307
+    },
+    {
+     "n": 356,
+     "p": 307
+    },
+    {
+     "n": 357,
+     "p": 307
+    },
+    {
+     "n": 358,
+     "p": 307
+    },
+    {
+     "n": 359,
+     "p": 307
+    },
+    {
+     "n": 360,
+     "p": 307
+    },
+    {
+     "n": 361,
+     "p": 308
+    },
+    {
+     "n": 362,
+     "p": 307
+    },
+    {
+     "n": 363,
+     "p": 307
+    },
+    {
+     "n": 364,
+     "p": 307
+    },
+    {
+     "n": 365,
+     "p": 307
+    }
+   ],
+   "ranges": [
+    {
+     "startDate": "2026-07-11",
+     "endDate": "2026-08-21"
+    }
+   ]
+  }
+ ],
+ "canaux": [
+  {
+   "nom": "Abracadaroom",
+   "commissionPct": 20
+  },
+  {
+   "nom": "Airbnb",
+   "commissionPct": 15.5
+  },
+  {
+   "nom": "Booking",
+   "commissionPct": 15
+  },
+  {
+   "nom": "Greengo",
+   "commissionPct": 14.5
+  },
+  {
+   "nom": "direct",
+   "commissionPct": 5
+  },
+  {
+   "nom": "Lodgify",
+   "commissionPct": 5
+  },
+  {
+   "nom": "GitesDeFrance",
+   "commissionPct": 10
+  },
+  {
+   "nom": "Abritel",
+   "commissionPct": 9.7
+  }
+ ],
+ "sejours": [
+  {
+   "du": "2026-01-01",
+   "au": "2026-01-03",
+   "nuits": 2,
+   "pax": 1,
+   "canal": "Lodgify",
+   "brut": 0
+  },
+  {
+   "du": "2026-02-01",
+   "au": "2026-02-02",
+   "nuits": 1,
+   "pax": 1,
+   "canal": "Lodgify",
+   "brut": 0
+  },
+  {
+   "du": "2026-02-06",
+   "au": "2026-02-08",
+   "nuits": 2,
+   "pax": 1,
+   "canal": "Lodgify",
+   "brut": 0
+  },
+  {
+   "du": "2026-02-20",
+   "au": "2026-02-22",
+   "nuits": 2,
+   "pax": 1,
+   "canal": "GitesDeFrance",
+   "brut": 569
+  },
+  {
+   "du": "2026-03-20",
+   "au": "2026-03-22",
+   "nuits": 2,
+   "pax": 1,
+   "canal": "Lodgify",
+   "brut": 0
+  },
+  {
+   "du": "2026-04-03",
+   "au": "2026-04-06",
+   "nuits": 3,
+   "pax": 9,
+   "canal": "GitesDeFrance",
+   "brut": 599
+  },
+  {
+   "du": "2026-04-11",
+   "au": "2026-04-13",
+   "nuits": 2,
+   "pax": 10,
+   "canal": "GitesDeFrance",
+   "brut": 577
+  },
+  {
+   "du": "2026-04-13",
+   "au": "2026-04-16",
+   "nuits": 3,
+   "pax": 12,
+   "canal": "direct",
+   "brut": 807.2
+  },
+  {
+   "du": "2026-04-13",
+   "au": "2026-04-17",
+   "nuits": 4,
+   "pax": 1,
+   "canal": "Lodgify",
+   "brut": 0
+  },
+  {
+   "du": "2026-04-17",
+   "au": "2026-04-19",
+   "nuits": 2,
+   "pax": 8,
+   "canal": "GitesDeFrance",
+   "brut": 626
+  },
+  {
+   "du": "2026-05-01",
+   "au": "2026-05-03",
+   "nuits": 2,
+   "pax": 9,
+   "canal": "GitesDeFrance",
+   "brut": 687
+  },
+  {
+   "du": "2026-05-08",
+   "au": "2026-05-10",
+   "nuits": 2,
+   "pax": 10,
+   "canal": "GitesDeFrance",
+   "brut": 733
+  },
+  {
+   "du": "2026-05-13",
+   "au": "2026-05-17",
+   "nuits": 4,
+   "pax": 9,
+   "canal": "GitesDeFrance",
+   "brut": 994
+  },
+  {
+   "du": "2026-05-21",
+   "au": "2026-05-25",
+   "nuits": 4,
+   "pax": 9,
+   "canal": "GitesDeFrance",
+   "brut": 903
+  },
+  {
+   "du": "2026-06-12",
+   "au": "2026-06-14",
+   "nuits": 2,
+   "pax": 10,
+   "canal": "Greengo",
+   "brut": 624
+  },
+  {
+   "du": "2026-06-26",
+   "au": "2026-06-28",
+   "nuits": 2,
+   "pax": 8,
+   "canal": "GitesDeFrance",
+   "brut": 733
+  },
+  {
+   "du": "2026-07-03",
+   "au": "2026-07-08",
+   "nuits": 5,
+   "pax": 5,
+   "canal": "GitesDeFrance",
+   "brut": 1165
+  },
+  {
+   "du": "2026-07-17",
+   "au": "2026-07-19",
+   "nuits": 2,
+   "pax": 8,
+   "canal": "Booking",
+   "brut": 1283.34
+  },
+  {
+   "du": "2026-07-19",
+   "au": "2026-07-26",
+   "nuits": 7,
+   "pax": 4,
+   "canal": "GitesDeFrance",
+   "brut": 1974.6
+  },
+  {
+   "du": "2026-08-01",
+   "au": "2026-08-15",
+   "nuits": 14,
+   "pax": 5,
+   "canal": "GitesDeFrance",
+   "brut": 3962.61
+  },
+  {
+   "du": "2026-08-17",
+   "au": "2026-08-24",
+   "nuits": 7,
+   "pax": 7,
+   "canal": "GitesDeFrance",
+   "brut": 1983.92
+  },
+  {
+   "du": "2026-08-24",
+   "au": "2026-08-29",
+   "nuits": 5,
+   "pax": 10,
+   "canal": "GitesDeFrance",
+   "brut": 1389
+  },
+  {
+   "du": "2026-09-25",
+   "au": "2026-09-28",
+   "nuits": 3,
+   "pax": 10,
+   "canal": "GitesDeFrance",
+   "brut": 706
+  },
+  {
+   "du": "2026-10-09",
+   "au": "2026-10-11",
+   "nuits": 2,
+   "pax": 6,
+   "canal": "Booking",
+   "brut": 652
+  }
+ ],
+ "gdf": [
+  {
+   "date": "2026-05-13",
+   "brut": 994,
+   "com": 91
+  },
+  {
+   "date": "2026-06-26",
+   "brut": 733,
+   "com": 50.6
+  },
+  {
+   "date": "2026-07-03",
+   "brut": 1165,
+   "com": 86
+  },
+  {
+   "date": "2026-07-19",
+   "brut": 1974.6,
+   "com": 282.6
+  },
+  {
+   "date": "2026-08-01",
+   "brut": 3962.61,
+   "com": 625.01
+  },
+  {
+   "date": "2026-08-17",
+   "brut": 1983.92,
+   "com": 388.52
+  },
+  {
+   "date": "2026-08-24",
+   "brut": 1389,
+   "com": 187
+  }
+ ],
+ "services": [
+  {
+   "nom": "Ménage",
+   "prix": 80,
+   "unite": "per_stay",
+   "inclus": false
+  },
+  {
+   "nom": "Linge de lit",
+   "prix": 7,
+   "unite": "per_person",
+   "inclus": true
+  },
+  {
+   "nom": "Linge de toilette",
+   "prix": 8,
+   "unite": "per_person",
+   "inclus": false
+  }
+ ],
+ "propriete": {
+  "maxGuests": 10,
+  "singleBeds": 5,
+  "doubleBeds": 4,
+  "basePriceIncludedGuests": 0,
+  "extraGuestPrice": 0,
+  "touristTaxMode": "per_day_per_person",
+  "touristTaxPerDayPerPerson": 1.2
+ },
+ "preuvesTitre": "Ce que les fêtes ont réellement payé",
+ "preuvesIntro": "GuestFlow ne contient rien avant 2026 — la seule ligne antérieure au 15 janvier est un import iCal à 0 €. Tout ce tableau vient des relevés sortis par Adrien le 28 août, et c'est la totalité de la base factuelle sur laquelle les fêtes ont été tarifées. Les deux tarifs forts ne sont pas choisis : ils sont RÉSOLUS pour que ces deux séjours rapportent exactement 20 % de plus.",
+ "preuvesNote": "Attention à la base de comparaison : la calibration a été faite sur le NET, la colonne de droite affiche le prix DIRECT. Noël : 1 514 € de location nette encaissés en 2025 (les 1 550 € du contrat moins 16 € de taxe de séjour et 20 € de chien) → plancher net porté à 908 € la nuit, soit +20 % au centime ; le prix direct qui en découle est 973 €. Réveillon : 1 082,94 € nets sur trois nuits (1 103,94 € reversés par Abritel moins 21 € de taxe) → 843 € de plancher pour la nuit du 31, +20 % également. Un tiret signifie que les nuits exactes ne sont pas connues. Les dates de Noël, elles, sont établies par le contrat : du 24 au 26 décembre, soit deux nuits.",
+ "preuves": [
+  {
+   "quoi": "Noël 2025 (« Tangi »)",
+   "nuits": 2,
+   "brut": 1550.0,
+   "du": "2026-12-24",
+   "source": "relevé propriétaire, 28/08/2026"
+  },
+  {
+   "quoi": "Réveillon 2025 (31/12 → 03/01)",
+   "nuits": 3,
+   "brut": 1222.0,
+   "du": "2026-12-31",
+   "source": "relevé canal, réf. HA-ZB330Z, net 1 103,94 € après 9,66 %"
+  },
+  {
+   "quoi": "Fin octobre 2025",
+   "nuits": 2,
+   "brut": 492.0,
+   "du": null,
+   "source": "relevé canal, réf. HA-PVSF94, net 444,34 €"
+  }
+ ],
+ "deploiementTitre": "Poser cette remise sur les plateformes",
+ "deploiementIntro": "Le déploiement de la Lodge, les 13 et 14 août, a coûté une quinzaine de surprises, toutes consignées. Quatre portent sur les remises de durée. Voilà ce qu'elles donnent confrontées à la courbe du Gîte, avant que quoi que ce soit ne parte sur un canal.",
+ "deploiement": [
+  {
+   "ok": true,
+   "titre": "Au-delà de sept nuits la remise est constante : une seule promotion suffit",
+   "texte": "C'est l'arithmétique du Gîte : « la semaine vaut quatre nuits » plus « chaque nuit suivante vaut un septième de semaine » font tomber la remise cumulée sur 42,86 % pour toute durée d'au moins sept nuits. Une promotion « 7 nuits et plus » couvre donc de sept nuits à l'infini. La Lodge n'avait pas cette propriété : chez elle, un taux plat au-delà du dernier palier rendait la 8e nuit plus chère que la 7e."
+  },
+  {
+   "ok": false,
+   "titre": "Booking ignore la remise — et la cause n'est pas un réglage raté",
+   "texte": "Une PROMOTION, qu'elle soit poussée par Lodgify ou créée dans l'extranet en « Basic Deal », se place AU-DESSUS du tarif. Sur un hébergement dont les prix arrivent d'un gestionnaire de canaux, Booking ne consulte pas cette couche : sa propre documentation dit que les promotions n'atteignent un tel hébergement que par un prestataire ayant intégré l'API Promotions — ce que Lodgify n'a pas fait pour ce type d'offre. Les six paliers créés le 14 août, toujours « Activée(s) » le 17, ne pouvaient pas fonctionner. Ce que Booking honore, c'est un PLAN TARIFAIRE DÉRIVÉ : il prend le tarif standard poussé par Lodgify comme base, en retire un pourcentage et porte sa propre durée minimum. La documentation de Booking est explicite — le gestionnaire met à jour le tarif standard, et « vos tarifs dérivés sont mis à jour depuis votre tarif de base ». Cinq plans tarifaires existent déjà sur l'annonce de la Lodge : la preuve que le mécanisme tourne sur ce compte. Piège opératoire : SEUL UN GESTIONNAIRE DE COMPTE BOOKING peut créer un plan dérivé. C'est une demande à faire, pas un écran à trouver."
+  },
+  {
+   "ok": false,
+   "titre": "Ce que ce trou coûte : 75 % de trop sur une semaine",
+   "texte": "En moyenne saison, à 356 € la nuit sur Booking : trois nuits sont facturées 1 068 € au lieu de 854,40 € (+25 %), sept nuits 2 492 € au lieu de 1 424 € (+75 %), quatorze nuits 4 984 € au lieu de 2 848 €. J'avais d'abord écrit que ce trou ne coûtait rien au Gîte, puisque ses deux séjours Booking font deux nuits. Le raisonnement était à l'envers, et Adrien l'a corrigé : deux nuits est TOUT ce que Booking vend parce que c'est la seule durée correctement tarifée. Neuf des quinze séjours Gîtes de France font trois nuits ou plus — c'est cette demande-là que Booking ne sait pas coter."
+  },
+  {
+   "ok": false,
+   "titre": "43 % passe sous le plancher, 42 % non",
+   "texte": "Un pourcentage entier n'est pas neutre. Sur sept nuits en très basse saison la cible est 1 280 € : −42,86 % donne 1 279,94 €, −42 % donne 1 299,20 €, et −43 % donne 1 276,80 € — soit 3,20 € SOUS le plancher net, ce que le pivot interdit. Là où un canal accepte deux décimales, 42,86 %. Là où il n'accepte qu'un entier, 42 %, jamais 43 %."
+  },
+  {
+   "ok": false,
+   "titre": "GreenGo cumule deux remises de durée",
+   "texte": "Les paliers de la page Tarification et les « ensembles de règles » du calendrier portent chacun leurs réductions, et elles s'additionnent. Ne remplir que l'un des deux. C'est le seul piège de canal de la Lodge qui s'applique tel quel au Gîte — ceux d'Abracadaroom et de Lodgify concernent le supplément voyageur, que le Gîte n'a pas puisqu'il se loue en entier."
+  },
+  {
+   "ok": false,
+   "titre": "Ne jamais utiliser « Prix par durée du séjour » chez Lodgify",
+   "texte": "Ce champ demande un total fixe en euros, pas un pourcentage, et Booking l'ignore. La remise se pose dans « Promotions » (pourcentage + durée minimum). Chez Abracadaroom, une seule promotion porte les cinq paliers : la régler sur « Globale » et non « Additionnelle », sinon elle se cumule."
+  }
+ ],
+ "fusions": {
+  "Basse": "very-low"
+ }
+}

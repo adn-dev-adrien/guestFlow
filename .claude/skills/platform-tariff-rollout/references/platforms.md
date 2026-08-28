@@ -149,11 +149,32 @@ domaine ; pour leur tranquillité et celle de nos hôtes, les animaux de compagn
 acceptés. »
 
 **Le nom Booking se change seul, sans passer par leurs éditeurs.**
-`extranet_ng/manage/general_info.html` → « Changer le nom de l'établissement » : champ libre, aperçu
-en direct, trois étapes (saisie → « Suivant » → « Changer le nom de l'établissement » dans le pied de
-la modale, `[data-test-id="footer"] button[type="submit"]`). Effectif immédiatement ; seul le `<title>`
-de la page publique reste en cache quelques heures. **À ne pas confondre avec la description**, elle,
-non éditable.
+`Établissement` → `Infos sur l'établissement et statut de l'établissement` → « Changer le nom de
+l'établissement » : champ libre, aperçu en direct, trois étapes (saisie → « Suivant » → « Changer le
+nom de l'établissement »). **À ne pas confondre avec la description**, elle, non éditable.
+
+- **Booking refuse la ponctuation dans un nom d'hébergement.** Relevé le 2026-08-28 en essayant
+  d'ajouter trois points de suspension : « Les noms des hébergements ne peuvent pas inclure de signes
+  de ponctuation, d'astérisques ou de symboles », et le bouton « Suivant » **se désactive**. Le tiret
+  et les virgules, eux, passent — la règle vise les points, astérisques et symboles.
+- **Le délai annoncé est « sous 24 heures maximum »**, pas immédiat comme noté auparavant. Le nom
+  change tout de suite dans l'extranet (onglet, en-tête) ; c'est la page publique qui attend.
+- **L'aperçu montre trois lignes**, et seule la première est le titre : titre, puis note client
+  (« 9,0 Fabuleux »), puis **la localité de l'adresse**. Ne pas confondre les deux dernières avec le
+  nom qu'on est en train d'écrire.
+
+**L'adresse, elle, n'est PAS en libre-service.** `Infos sur l'établissement` affiche
+« Adresse de l'établissement » **sans aucun bouton de modification** — le nom en a un, l'adresse non —
+et le sous-menu `Établissement` n'a pas d'entrée adresse (Note de qualité, Score de la page, Infos sur
+l'établissement, TVA taxes et frais, Photos, Conditions de l'établissement, Conditions de réservation,
+Équipements et services, Hébergements, Détails des hébergements). Elle passe donc par
+`request_change.html`, comme la description. **Sujet ouvert au 2026-08-28** : les deux hébergements
+affichent « Japperenard » — le lieu-dit — là où le voyageur attend « Satillieu ». Personne ne cherche
+Japperenard.
+
+**Titre du Gîte corrigé le 2026-08-28** : « Domaine Solio - Gite confort, nature, **animaux** » →
+« … **ânes et chèvres** », la même correction que la Lodge avait reçue le 17 août après l'annulation
+d'une cliente. Le Gîte portait encore le mot piégeux.
 
 **Airbnb : la description de Lodgify n'arrive jamais.** Le Channel Manager signale en permanence
 « Synchronisé avec les problèmes » → `channels/manager/<rental>/room/<room>/resolve-issues` :
@@ -250,6 +271,143 @@ couvrent. À reprendre côté Lodgify.
 applicables, **seule la réduction la plus importante** est affichée aux clients ». Une échelle
 croissante (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc, exactement comme sur Lodgify — il faut
 une promotion par palier.
+
+### Piloter l'extranet Booking : ne jamais taper une URL
+
+**Relevé le 2026-08-28.** Les pages de `admin.booking.com` portent un jeton de session dans leur
+URL (`?ses=<32 hexa>`). **Naviguer vers une URL construite à la main — même correcte, même avec le
+bon `hotel_id` — déconnecte la session** et renvoie sur `account.booking.com/sign-in`. Il faut alors
+que l'opérateur se reconnecte, et le jeton change.
+
+Conséquence pratique : dans cet extranet, **on ne se déplace qu'en cliquant les liens de la page**.
+Les URL notées ici servent à reconnaître un écran, pas à y aller. Si une URL directe est
+indispensable, y recopier le `ses=` lu dans la page courante — et savoir qu'il expire.
+
+### Contrôle obligatoire avant et après tout déploiement : le minimum de séjour
+
+**Consigne de l'opérateur, 2026-08-28 : « il faut que tu vérifies qu'on est bien à 2 nuits minimum et
+pas plus ».** Un minimum trop haut ne produit aucune erreur — il rend simplement invendables les
+dates concernées, et rien ne le signale. C'est le même mode de panne que la fenêtre de réservation
+(piège 14) : le devis client répond comme des dates indisponibles.
+
+**L'enjeu est chiffré.** Sur le Gîte, les séjours de deux nuits sont **6 des 15 réservations Gîtes de
+France, les 2 de Booking et celle de GreenGo**. Un minimum passé à 3 efface cette demande-là.
+
+**Côté recette, c'est vérifiable et vérifié.** Les six saisons de `gite-2027` déclarent toutes
+`minNights: 2`, et seulement **2,1 % de l'année** porte un minimum supérieur — les blocs de ponts à
+3 nuits, voulus et datés. Jamais plus de 3. Un contrôle qui remonterait 4, 7 ou 14 quelque part vient
+forcément de la plateforme, pas de la recette.
+
+**Deux choses portent le même nom, et il faut les tenir séparées.**
+
+- Une **restriction de séjour** interdit de réserver moins de N nuits à une date. Elle BLOQUE. C'est
+  ce que porte le plan standard : 2 nuits, plus 3 sur les blocs de ponts.
+- La **durée minimum d'un plan tarifaire** conditionne seulement l'ÉLIGIBILITÉ à ce prix — le
+  formulaire dit « durée de séjour minimum **pour ce plan tarifaire** ». Elle ne bloque rien : un
+  client qui veut 2 nuits ne voit pas le plan « 3 nuits et + », il voit le plan standard à son prix
+  plein. Le calendrier le confirme, chaque plan ayant sa propre ligne « Durée de séjour minimum »
+  avec son identifiant de tarif.
+
+**Donc les paliers 3 à 7 nuits des plans dérivés n'obligent personne à rien.** Le danger est unique et
+précis : **qu'un de ces minimums atterrisse sur le plan STANDARD**. Là il ne remiserait rien et
+supprimerait d'un coup toutes les réservations de deux nuits.
+
+**Vérification après chaque création de plan** — `Tarifs et disponibilités` → `Calendrier`, déplier
+les plans : le plan standard doit toujours afficher `2` sur toutes les dates, et le nouveau plan doit
+apparaître dans **sa propre ligne**. Si le minimum du nouveau palier s'est écrit dans la ligne du plan
+standard, tout défaire avant d'aller plus loin.
+
+**Où lire le minimum, canal par canal** :
+
+| Canal | Écran | Forme |
+|---|---|---|
+| Booking | `Tarifs et disponibilités` → `Calendrier`, déplier le plan tarifaire | ligne « Durée de séjour minimum », une case par date |
+| Lodgify | `Tarifs` puis chaque saison | minimum par saison |
+| GreenGo | page Tarification du logement | minimum par palier |
+| Abracadaroom | calendrier / création groupée | minimum par période |
+
+**Relevé le 2026-08-28 sur le Gîte (Booking, plan 57972851)** : `2` sur les 31 dates du mois affiché.
+Conforme.
+
+### La dégressivité sur Booking passe par un PLAN TARIFAIRE, jamais par une promotion
+
+**Cause trouvée le 2026-08-28.** Une promotion — poussée par Lodgify ou créée dans l'extranet en
+« Basic Deal » — se place **au-dessus** du tarif. Sur un hébergement dont les prix arrivent d'un
+gestionnaire de canaux, Booking ne consulte pas cette couche : sa propre documentation dit que les
+promotions n'atteignent un tel hébergement que par un prestataire ayant intégré l'**API Promotions**,
+ce que Lodgify n'a pas fait pour ce type d'offre. Les six paliers du 14 août ne pouvaient pas
+fonctionner ; ce n'était pas un réglage raté, c'était la mauvaise couche.
+
+**Ce que Booking honore : un plan tarifaire supplémentaire**, dont le prix dérive du tarif standard
+poussé par Lodgify et qui porte sa propre durée minimum. La documentation est explicite : le
+gestionnaire met à jour le tarif standard, et *« vos tarifs dérivés sont mis à jour depuis votre
+tarif de base »*.
+
+**Chemin** : `admin.booking.com` → **Tarifs et disponibilités → Plans tarifaires → Ajouter un
+nouveau plan tarifaire**. **Ce n'est pas réservé à un gestionnaire de compte** — une note antérieure
+issue d'une doc hôtelière l'affirmait, c'est faux pour un meublé : l'hôte crée le plan lui-même.
+Booking propose deux types intégrés, **Hebdomadaire** (s'affiche pour les recherches de **7 à 27
+nuits**) et **Mensuel** (**28 nuits et plus**), tous deux exprimés en pourcentage de remise sur le
+tarif quotidien le moins cher. Pour les paliers intermédiaires, créer un plan par palier et lui poser
+sa durée minimum.
+
+**Procédure relevée dans l'extranet le 2026-08-28** (Gîte, hôtel `14407976` ; Lodge `15343212`).
+Le Gîte n'avait qu'UN plan tarifaire : « Peu flexible », ID 57972851, annulation « Flexible -
+14 jours », colonne Tarif = **« Mappage à partir de Lodgify »**. C'est le plan standard, celui que le
+gestionnaire de canaux possède.
+
+`Tarifs et disponibilités` → `Plans tarifaires` → **« Ajouter un plan tarifaire »** ouvre un
+catalogue à trois sections :
+
+| Section | Types proposés |
+|---|---|
+| Posez vos bases | Peu flexible *(déjà ajouté)*, Non remboursable |
+| Attirez différents types de clients | **À la semaine** (« séjours de plus d'une semaine »), **Au mois** (« au moins 28 nuits »), Réservation anticipée |
+| Personnalisez un plan tarifaire | **Option personnalisable** |
+
+**L'option personnalisable fait exactement ce qu'il faut**, en neuf étapes :
+
+1. Conditions d'annulation — Flexible 21 j / Flexible 14 j / Non remboursable. **Choisir celle du
+   plan standard** (ici Flexible 14 j) : le défaut proposé est 21 j, et un palier de durée qui
+   change aussi la politique d'annulation n'est plus une remise de durée, c'est un autre produit.
+2. Repas — Non.
+3. Avantages — aucun.
+4. **« Souhaitez-vous fixer une durée de séjour minimum ? » → Oui + la valeur.** C'est le point qui
+   restait à vérifier : **la durée minimum est libre**, donc les paliers 3, 4, 5 et 6 nuits sont
+   faisables, pas seulement la semaine et le mois.
+5. Délai avant l'arrivée — À tout moment.
+6. **« Comment gérer ce plan ? » → « En fonction de l'un de mes plans tarifaires existants » → « Peu
+   flexible ».** Booking l'explique lui-même : *« Le tarif sera basé sur Peu flexible, duquel sera
+   déduite toute réduction configurée dans l'étape suivante. […] **Il n'est pas nécessaire de
+   modifier les tarifs, d'indiquer des disponibilités ou encore d'ajouter le tarif dans votre Channel
+   Manager.** »* C'est la confirmation, écrite par la plateforme, que le plan dérivé suit le tarif
+   poussé par Lodgify sans aucune intervention côté canal.
+7. **« Moins cher que le tarif Peu flexible » + le montant + le sélecteur `%` / `€`** — le
+   pourcentage est disponible, c'est ce qu'il faut.
+8. Hébergements concernés — cocher le logement.
+9. Nom du plan — **référence interne, invisible pour le client**. Puis « Vérifier ».
+
+**Le piège structurel : la limitation XML.** Pour tout plan tarifaire AUTRE que le standard, aucune
+condition de réservation ne transite par la connexion du gestionnaire de canaux. **Durée minimum,
+durée maximum et jours d'arrivée/départ d'un plan secondaire se règlent à la main dans l'extranet**,
+et ne s'y maintiennent pas tout seuls. Le prix, lui, suit le tarif standard.
+
+**Deux règles qui en découlent** :
+- **Ne jamais modifier le tarif standard à la main dans Booking** — Lodgify en est propriétaire, et
+  une saisie manuelle sera écrasée à la synchro suivante, ou pire, la bloquera.
+- **Supprimer les plans périmés** avant d'en ajouter : d'anciens plans non mappés créent des conflits
+  de synchronisation. Et **désactiver les six « Basic Deal » du 14 août**, qui ne font rien et
+  brouillent la lecture.
+
+**Si les réglages avancés d'un plan ne sont pas disponibles**, ils s'activent sur demande au support
+Booking — c'est le seul moment où passer par eux est nécessaire.
+
+**La seconde voie, plus puissante et plus tranchante : le LOS pricing.** Booking accepte qu'un
+prestataire envoie le **prix total explicite de chaque durée de séjour jusqu'à 90 nuits**
+(`developers.booking.com/connectivity/docs/csv-los_pricing`). Il reproduit n'importe quelle courbe au
+centime, mais **il n'existe aucun prix par nuit par défaut : toute durée non déclarée devient
+non réservable**. Et il faut que Lodgify supporte ce modèle — non vérifié. Les plans tarifaires
+d'abord ; le LOS pricing seulement si Booking refuse les plans.
 
 **Ces promotions ne s'appliquent PAS — constat définitif du 2026-08-17.** Les six paliers, créés le
 14 août, toujours affichés « Activée(s) » trois jours plus tard (publics, tous les jours, tous les
