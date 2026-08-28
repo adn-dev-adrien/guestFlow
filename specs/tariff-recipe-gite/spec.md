@@ -192,6 +192,23 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     stay), and on Abracadaroom in a single promotion holding all five tiers, set to **« Globale »**
     and not « Additionelle », so it applies to the whole stay and does not compound.
 
+23. **Every channel must sit at a 2-night minimum, and never more.** _(Owner's instruction,
+    2026-08-28.)_ A minimum set too high raises no error: it simply makes those dates unsellable, and
+    the guest quote answers exactly as it does for unavailable dates. The stake is measurable — two-night
+    stays are 6 of the 15 Gîtes-de-France bookings, both Booking ones and the GreenGo one.
+
+    The recipe side is clean and checkable: all six seasons declare `minNights: 2`, and only **2,1 %
+    of the year** carries more — the deliberate 3-night holiday blocks, never above 3. Anything
+    reading 4, 7 or 14 comes from the channel, not from here.
+
+    **The trap the new Booking scheme introduces**: each derived rate plan carries its own minimum
+    (3, 4, 5, 6, 7 nights). Those live on the SECONDARY plans; **the standard plan must stay at 2**.
+    A minimum landing on the standard plan would discount nothing and wipe out every two-night
+    booking at once. Re-read it after creating each plan.
+
+    Verified on Booking on 2026-08-28 (Gîte, rate plan 57972851): « Durée de séjour minimum » reads 2
+    on every date of the displayed month.
+
 ### 3.3 The calendar
 
 9. **The year is derived from six rules**, in declaration order, last write wins:

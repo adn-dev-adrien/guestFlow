@@ -283,6 +283,38 @@ Conséquence pratique : dans cet extranet, **on ne se déplace qu'en cliquant le
 Les URL notées ici servent à reconnaître un écran, pas à y aller. Si une URL directe est
 indispensable, y recopier le `ses=` lu dans la page courante — et savoir qu'il expire.
 
+### Contrôle obligatoire avant et après tout déploiement : le minimum de séjour
+
+**Consigne de l'opérateur, 2026-08-28 : « il faut que tu vérifies qu'on est bien à 2 nuits minimum et
+pas plus ».** Un minimum trop haut ne produit aucune erreur — il rend simplement invendables les
+dates concernées, et rien ne le signale. C'est le même mode de panne que la fenêtre de réservation
+(piège 14) : le devis client répond comme des dates indisponibles.
+
+**L'enjeu est chiffré.** Sur le Gîte, les séjours de deux nuits sont **6 des 15 réservations Gîtes de
+France, les 2 de Booking et celle de GreenGo**. Un minimum passé à 3 efface cette demande-là.
+
+**Côté recette, c'est vérifiable et vérifié.** Les six saisons de `gite-2027` déclarent toutes
+`minNights: 2`, et seulement **2,1 % de l'année** porte un minimum supérieur — les blocs de ponts à
+3 nuits, voulus et datés. Jamais plus de 3. Un contrôle qui remonterait 4, 7 ou 14 quelque part vient
+forcément de la plateforme, pas de la recette.
+
+**Le piège propre au nouveau montage.** Les plans tarifaires dérivés portent chacun leur durée
+minimum — 3, 4, 5, 6, 7 nuits. **Ces minimums vivent sur les plans SECONDAIRES ; le plan standard doit
+rester à 2.** Si l'un d'eux atterrissait sur le plan standard, il ne remiserait rien et supprimerait
+d'un coup toutes les réservations de deux nuits. À relire après chaque création de plan.
+
+**Où lire le minimum, canal par canal** :
+
+| Canal | Écran | Forme |
+|---|---|---|
+| Booking | `Tarifs et disponibilités` → `Calendrier`, déplier le plan tarifaire | ligne « Durée de séjour minimum », une case par date |
+| Lodgify | `Tarifs` puis chaque saison | minimum par saison |
+| GreenGo | page Tarification du logement | minimum par palier |
+| Abracadaroom | calendrier / création groupée | minimum par période |
+
+**Relevé le 2026-08-28 sur le Gîte (Booking, plan 57972851)** : `2` sur les 31 dates du mois affiché.
+Conforme.
+
 ### La dégressivité sur Booking passe par un PLAN TARIFAIRE, jamais par une promotion
 
 **Cause trouvée le 2026-08-28.** Une promotion — poussée par Lodgify ou créée dans l'extranet en
