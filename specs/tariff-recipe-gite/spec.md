@@ -151,8 +151,20 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     They self-select exactly like Lodgify's promotions: a guest sees every plan whose minimum their
     stay satisfies, and Booking shows the cheapest.
 
-    **The operational catch: only a Booking account manager can create a derived rate plan.** It is
-    not a self-service screen. This is a request to make, not a setting to find.
+    **The host creates these himself** — `admin.booking.com` → **Tarifs et disponibilités → Plans
+    tarifaires → Ajouter un nouveau plan tarifaire**. An earlier reading of a hotel-side document
+    said only an account manager could; that is wrong for a holiday let. Booking ships two ready-made
+    types, **Hebdomadaire** (shown for searches of 7 to 27 nights) and **Mensuel** (28 and over),
+    both expressed as a percentage off the cheapest daily rate — which covers the Gîte's whole tail in
+    two plans, its curve being flat past seven nights. The 3-to-6-night tiers need one plan each.
+
+    **The structural catch is the XML limitation.** For any rate plan other than the standard one, no
+    booking condition travels over the channel-manager connection: **minimum stay, maximum stay and
+    arrival/departure days of a secondary plan are set by hand in the extranet**, and do not maintain
+    themselves. The price does follow the standard rate. Two consequences: never edit the standard
+    rate by hand in Booking (Lodgify owns it), and delete stale plans before adding new ones — an
+    unmapped leftover creates sync conflicts. The six « Basic Deal » promotions of 14 August should
+    be deactivated: they do nothing and confuse the reading.
 
 20bis. **What it is worth, measured.** Without the discount a Booking guest is quoted the full
     nightly rate times the number of nights. In Moyenne season, at 356 € the night: three nights are

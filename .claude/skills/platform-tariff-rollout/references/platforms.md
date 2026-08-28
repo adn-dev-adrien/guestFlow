@@ -251,6 +251,50 @@ applicables, **seule la réduction la plus importante** est affichée aux client
 croissante (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc, exactement comme sur Lodgify — il faut
 une promotion par palier.
 
+### La dégressivité sur Booking passe par un PLAN TARIFAIRE, jamais par une promotion
+
+**Cause trouvée le 2026-08-28.** Une promotion — poussée par Lodgify ou créée dans l'extranet en
+« Basic Deal » — se place **au-dessus** du tarif. Sur un hébergement dont les prix arrivent d'un
+gestionnaire de canaux, Booking ne consulte pas cette couche : sa propre documentation dit que les
+promotions n'atteignent un tel hébergement que par un prestataire ayant intégré l'**API Promotions**,
+ce que Lodgify n'a pas fait pour ce type d'offre. Les six paliers du 14 août ne pouvaient pas
+fonctionner ; ce n'était pas un réglage raté, c'était la mauvaise couche.
+
+**Ce que Booking honore : un plan tarifaire supplémentaire**, dont le prix dérive du tarif standard
+poussé par Lodgify et qui porte sa propre durée minimum. La documentation est explicite : le
+gestionnaire met à jour le tarif standard, et *« vos tarifs dérivés sont mis à jour depuis votre
+tarif de base »*.
+
+**Chemin** : `admin.booking.com` → **Tarifs et disponibilités → Plans tarifaires → Ajouter un
+nouveau plan tarifaire**. **Ce n'est pas réservé à un gestionnaire de compte** — une note antérieure
+issue d'une doc hôtelière l'affirmait, c'est faux pour un meublé : l'hôte crée le plan lui-même.
+Booking propose deux types intégrés, **Hebdomadaire** (s'affiche pour les recherches de **7 à 27
+nuits**) et **Mensuel** (**28 nuits et plus**), tous deux exprimés en pourcentage de remise sur le
+tarif quotidien le moins cher. Pour les paliers intermédiaires, créer un plan par palier et lui poser
+sa durée minimum.
+
+**Le piège structurel : la limitation XML.** Pour tout plan tarifaire AUTRE que le standard, aucune
+condition de réservation ne transite par la connexion du gestionnaire de canaux. **Durée minimum,
+durée maximum et jours d'arrivée/départ d'un plan secondaire se règlent à la main dans l'extranet**,
+et ne s'y maintiennent pas tout seuls. Le prix, lui, suit le tarif standard.
+
+**Deux règles qui en découlent** :
+- **Ne jamais modifier le tarif standard à la main dans Booking** — Lodgify en est propriétaire, et
+  une saisie manuelle sera écrasée à la synchro suivante, ou pire, la bloquera.
+- **Supprimer les plans périmés** avant d'en ajouter : d'anciens plans non mappés créent des conflits
+  de synchronisation. Et **désactiver les six « Basic Deal » du 14 août**, qui ne font rien et
+  brouillent la lecture.
+
+**Si les réglages avancés d'un plan ne sont pas disponibles**, ils s'activent sur demande au support
+Booking — c'est le seul moment où passer par eux est nécessaire.
+
+**La seconde voie, plus puissante et plus tranchante : le LOS pricing.** Booking accepte qu'un
+prestataire envoie le **prix total explicite de chaque durée de séjour jusqu'à 90 nuits**
+(`developers.booking.com/connectivity/docs/csv-los_pricing`). Il reproduit n'importe quelle courbe au
+centime, mais **il n'existe aucun prix par nuit par défaut : toute durée non déclarée devient
+non réservable**. Et il faut que Lodgify supporte ce modèle — non vérifié. Les plans tarifaires
+d'abord ; le LOS pricing seulement si Booking refuse les plans.
+
 **Ces promotions ne s'appliquent PAS — constat définitif du 2026-08-17.** Les six paliers, créés le
 14 août, toujours affichés « Activée(s) » trois jours plus tard (publics, tous les jours, tous les
 plans tarifaires, séjours 14/08/2026–31/12/2027), n'ont **jamais** été appliqués sur la page
