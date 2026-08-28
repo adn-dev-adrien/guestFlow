@@ -233,19 +233,19 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
     // Straddles the peak/high boundary: 5 nights in Très haute then 2 in Haute, the discount tier
     // being taken from the position in the STAY and the price from the season of each night.
     ['G6 · à cheval sur la fin du cœur d\'été', 7, '2026-08-17', '2026-08-24', 2027.20],
-    // The two premium nights alone: the 2025 Christmas takings (1 550 €) plus 20 %, to the cent.
-    ['G7 · Noël, les deux nuits', 9, '2026-12-24', '2026-12-26', 1860.00],
-    ['G7b · Noël, du 23 au 26', 9, '2026-12-23', '2026-12-26', 2242.00],
+    // The two premium nights alone: the 2025 Christmas RENTAL (1 514 €, the contract's 1 550 € less
+    // 16 € of tourist tax and the 20 € dog supplement) plus 20 %, to the whole euro.
+    ['G7 · Noël, les deux nuits', 9, '2026-12-24', '2026-12-26', 1816.00],
+    ['G7b · Noël, du 23 au 26', 9, '2026-12-23', '2026-12-26', 2198.00],
     // The lull the owner asked for: 27-29 December a rank down, in Moyenne.
     ['G7c · le creux entre les fêtes', 6, '2026-12-27', '2026-12-30', 782.40],
     // The réveillon is the night of the 31st and nothing else; 30 December and 1 January fall back
-    // to Haute. This is the 2025 stay re-priced: 1 222 € then, 1 466,20 € now — the +20 % the owner
-    // asked for, twenty cents short because the rate must be a whole euro for the channel grid to
-    // stay invertible.
-    ['G8 · réveillon, arrivée le 31 (la référence 2025)', 10, '2026-12-31', '2027-01-03', 1466.20],
-    ['G8b · réveillon, du 30 au 2', 10, '2026-12-30', '2027-01-02', 1497.80],
+    // to Haute. This is the 2025 stay re-priced: the channel billed 1 222 € tourist tax included, so
+    // 1 201 € of rental, and +20 % of that is 1 441,20 € — which 938 € hits exactly.
+    ['G8 · réveillon, arrivée le 31 (la référence 2025)', 10, '2026-12-31', '2027-01-03', 1441.20],
+    ['G8b · réveillon, du 30 au 2', 10, '2026-12-30', '2027-01-02', 1472.80],
     // Whoever books the whole festive run pays the two peaks and nothing else out of the ordinary.
-    ['G8c · toutes les fêtes, du 23 au 2', 10, '2026-12-23', '2027-01-02', 4185.58],
+    ['G8c · toutes les fêtes, du 23 au 2', 10, '2026-12-23', '2027-01-02', 4116.58],
     // 14 juillet keeps its Très haute price despite the cap at Haute.
     ['G9 · le bloc du 14 juillet', 4, '2026-07-11', '2026-07-14', 1291.20],
     // 2027, derived and never painted by anyone.

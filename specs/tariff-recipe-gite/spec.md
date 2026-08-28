@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented — **except the net pivot**, which the owner's own records show is anchored on the wrong column (§9 Q7). Nothing goes out on a channel until that is settled. |
 | **Branch** | `feature/tariff-recipe-gite` |
 | **Created** | 2026-08-24 |
 | **Arbitrated** | 2026-08-25 (Q1, Q3, Q4) · 2026-08-28 (Q6 the festive peaks, Q2 the Gîtes-de-France commission, L'Ardéchoise added; Q5 still open) |
@@ -127,11 +127,11 @@ a calendar.
     | Nights | Season | Rate |
     |---|---|---:|
     | 19 → 23 December | Haute | 382 € |
-    | **24 – 25 December** | **Noël** | **930 €**, flat |
+    | **24 – 25 December** | **Noël** | **908 €**, flat |
     | 26 December | Haute | 382 € |
     | 27 – 29 December | Moyenne | 326 € |
     | 30 December | Haute | 382 € |
-    | **31 December** | **Nouvel An** | **963 €**, flat |
+    | **31 December** | **Nouvel An** | **938 €**, flat |
     | 1 January | Haute | 382 € |
 
     « Entre le 27 et le 30 on doit être en moyenne saison » is read as **27, 28 and 29**, because the
@@ -140,13 +140,20 @@ a calendar.
 13quater. **The two premium rates are solved, not chosen.** « Compare avec ce que j'ai gagné l'année
     dernière pour définir le tarif augmenté de la plus-value » — target the 2025 takings **+ 20 %**,
     all of it loaded on the premium nights ([étude §5 Q1bis](etude.md) for the arithmetic).
-    Réveillon: 1 222 € earned → 1 466,40 € targeted → **963 €** for the night of the 31st. Noël:
-    1 550 € earned over two nights → 1 860 € targeted → **930 €** each.
+    **The base is the RENTAL, not the invoice total** — corrected 2026-08-28 against the owner's own
+    records. Réveillon: Abritel billed 1 222 € tourist tax included, so 1 201 € of rental →
+    1 441,20 € targeted → **938 €** for the night of the 31st, landing on +20,00 % to the cent. Noël:
+    the contract reads « 1550 € hors option, dont taxe de séjour […] 16 € et supplément chien » (20 €
+    in the general conditions), so 1 514 € of rental → 1 816,80 € targeted → **908 €** a night. The
+    tourist tax is collected and remitted, never earned; the dog is an option, which the recipe does
+    not price.
 
     Both are **whole euros by obligation**, not by taste: `ceil(net ÷ 0,95)` has to give the displayed
-    price back, or the direct row of the channel grid stops reproducing itself. The réveillon's exact
-    figure was 963,20 €, so the reference stay lands at +19,98 % instead of +20 % — twenty cents,
-    against an invertible grid.
+    price back, or the direct row of the channel grid stops reproducing itself. Christmas's exact
+    figure was 908,40 €, so its reference stay lands eighty cents short of +20 %.
+
+13sexies. **The Christmas dates are established, not assumed.** The CAGGIU contract reads « Date de
+    séjour du mercredi 24/12 à 15h au jeudi 26/12/25 à 11h, soit 2 nuits ».
 
 13quinquies. **Both festive seasons are billed flat** (`pricingMode: "fixed"`). A length discount on
     the four scarcest nights of the year would hand back exactly the premium they exist to collect.
@@ -324,11 +331,19 @@ shows the diff before writing. Both screens already exist and are already respon
   - **A (2026-08-25): no, the week model is kept.** Nights 3 to 7 cost 100,80 € in Très basse and
     the 8th 144 €. Totals never decrease; only the marginal price steps back up once, at the week
     boundary. Smoothing it would have cut a 14-night peak stay by 15 %.
+- **Q7 — What net should the pivot be anchored on? BLOCKING for any channel work.** The recipe's
+  displayed prices were taken from GuestFlow on the instruction that they were the direct/Lodgify
+  rate. The owner's own spreadsheet shows they are the **Gîtes-de-France** column, and that platform
+  and direct bookings sell some 30 % above it ([étude §2ter](etude.md)). Measured against what was
+  actually paid, the recipe is +10,7 % on Gîtes de France and **−28,8 % on the platforms**. Until a
+  net target per season is chosen, the channel grid cannot be trusted and nothing goes out.
+  - A: …
+
 - **Q5 — Keep five seasons?** Basse exists for April alone, 20 % above Très basse and 7 % below
   Moyenne — one more rank to configure on every channel for 30 nights a year. **Still open**; the
   recipe now carries six ranks, Nouvel An included.
   - A: …
-- **Q6 — What are the festive rates?** — **answered 2026-08-28: 930 € on 24-25 December, 963 € on
+- **Q6 — What are the festive rates?** — **answered 2026-08-28: 908 € on 24-25 December, 938 € on
   31 December, both flat, everything around them back in Haute or Moyenne.** See rules 13ter to
   13quinquies and [étude §5 Q1bis](etude.md).
   - A: the premium is concentrated on four nights, and both rates are solved from the 2025 takings

@@ -148,6 +148,58 @@ Three things follow, and they drove every year-end decision in the recipe:
    start by getting the channel statements out again. This section is the substitute for the history
    the database does not have.
 
+## 2ter. What the owner's own spreadsheet says — and what it breaks
+
+`Suivie client Gite.xlsx` (the sheet that ran the Gîte before GuestFlow) was opened on 2026-08-28.
+Two things came out of it, one small and one that undermines the pivot.
+
+**The small one.** The Gîtes-de-France statements write a stay as *first night → last night*, not
+arrival → departure: « 17/08/2026-23/08/2026 » is the seven-night stay GuestFlow records as
+17 → 24 August. An earlier note in this study called one of them wrong; neither is.
+
+**The large one.** The sheet prices in **two columns** — `Gite de France` and `Plateforme plus 20%`:
+
+| | Gîtes de France | Plateforme +20 % |
+|---|---:|---:|
+| Basse | 252 € | 300 € |
+| Moyenne | 303,50 € | 370 € |
+| Haute | 381,50 € | 460 € |
+| Très haute | 537,50 € | 650 € |
+
+The prices sitting in GuestFlow — 252 / 303 / 326 / 382 / 537,50 — are the **left column**. The whole
+recipe was pivoted off them on the instruction « pars sur le tarif qui est dans GuestFlow, c'est celui
+de Lodgify » (2026-08-24). The owner's correction on 2026-08-28: « ils ne sont pas à jour, concentre-toi
+sur la colonne montant du paiement ».
+
+Measured against what he was actually **paid**, per stay, with the length discount neutralised:
+
+| Channel | Stays | Actually paid | What the recipe would pay | |
+|---|---:|---:|---:|---:|
+| Gîtes de France | 15 | 15 539 € | 17 207 € | **+10,7 %** |
+| Platforms | 4 | 2 885 € | 2 056 € | **−28,8 %** |
+| Direct | 1 | 1 060 € | 691 € | **−34,8 %** |
+
+And per season, in net per full-price night:
+
+| Season | Net achieved on GdF | Net achieved direct / platform | Recipe's current target |
+|---|---:|---:|---:|
+| Très basse | 288 € | **407 €** | 239 € |
+| Basse | 297 € | **442 €** | 288 € |
+| Moyenne | 328 € | 222 €¹ | 310 € |
+| Haute | 343 € | — | 363 € |
+| Très haute | 416 € | — | 511 € |
+
+¹ one stay, the one annotated « gens de la ville, pas très agréable ».
+
+**The recipe prices every channel at the Gîtes-de-France level.** On the channels where the Gîte
+actually sells 30 % dearer it would cut the takings. This is precisely the defect a net pivot exists
+to remove — the same dates fetching different nets by channel is not a pricing model, it is an
+accident — but the pivot has to be anchored on the net the owner intends to receive, and that number
+is still to be chosen. **Open, and blocking the channel grid** (§5 Q7).
+
+The sample is thin: one to three stays per cell, and only in winter is there both a GdF and a platform
+observation. It is enough to prove the structural error, not enough to fix each season by itself.
+
 ## 3. The net pivot
 
 The Lodge decided a net target first and derived the displayed price from it. The Gîte goes the
@@ -169,8 +221,8 @@ grossed up from a price that already contained the margin). Asserted per season 
 | Moyenne | 326 € | 309,70 € |
 | Haute | 382 € | 362,90 € |
 | Très haute | **538 €** | 511,10 € |
-| Noël — 24 and 25 December only | **930 €** — flat, no length discount | 883,50 € |
-| Nouvel An — 31 December only | **963 €** — flat, no length discount | 914,85 € |
+| Noël — 24 and 25 December only | **908 €** — flat, no length discount | 862,60 € |
+| Nouvel An — 31 December only | **938 €** — flat, no length discount | 891,10 € |
 
 Très haute is the one displayed price that moves — 537,50 € → 538 €. The channel grid rounds up to
 the whole euro, so a half-euro base makes the direct row unable to reproduce its own price. The move
@@ -287,21 +339,23 @@ The premium is **concentrated, not spread**. The festive block is now a shape ra
 gagné l'année dernière pour définir le tarif augmenté de la plus-value » — target the 2025 takings
 plus 20 %, and load the whole increase onto the premium nights.
 
-*Réveillon.* The 2025 stay (31/12 → 03/01) earned **1 222 €**; +20 % is 1 466,40 €. Under the new
-shape the other two nights are fixed by the grid — 1 January in Haute as night 2 (382 €), 2 January
-in Basse as night 3 (121,20 €, the night having been raised by the New Year bridge) — which leaves
-**963,20 €** for the night of the 31st. It ships at **963 €**: a whole euro is mandatory, because
-`ceil(net ÷ 0,95)` must reproduce the displayed price or the direct row of the channel grid stops
-reproducing itself ([tariff-recipes](../tariff-recipes/spec.md), trap 3). The reference stay then
-prices at 1 466,20 € — **+19,98 %**, twenty cents short of the instruction, against a grid that stays
-invertible.
+Both bases were corrected on 2026-08-28 once the owner's own records were opened (§2ter). Neither
+headline figure was pure rental.
 
-*Noël.* The 2025 Christmas earned **1 550 €** over two nights; +20 % is 1 860 €, and the two nights
-carry the same flat rate, so **930 €** each. The reference prices at exactly 1 860,00 €.
+*Réveillon.* Abritel billed **1 222 € tourist tax included** (owner, 2026-08-28): 7 adults × 3 nights
+× 1 € = 21 €, so **1 201 €** of rental. +20 % is 1 441,20 €. The other two nights are fixed by the
+grid — 1 January in Haute as night 2 (382 €), 2 January in Basse as night 3 (121,20 €, raised by the
+New Year bridge) — which leaves exactly **938 €** for the night of the 31st, and the reference stay
+lands on **+20,00 %** to the cent.
 
-**An assumption that has to be checked**: that the two nights sold in 2025 were the 24th and the 25th.
-The owner said « 2 jours à 1 550 € » without naming them. If they were other nights, the calibration
-moves.
+*Noël.* The contract says « **1550 € hors option, dont taxe de séjour 1 €/jour/adulte soit 16 € et
+supplément chien** », and the general conditions price the dog at 20 €. Rental: **1 514 €** over two
+nights. +20 % is 1 816,80 €, both nights flat, so 908,40 € — shipped at **908 €**, a whole euro being
+mandatory for `ceil(net ÷ 0,95)` to reproduce the displayed price ([tariff-recipes](../tariff-recipes/spec.md),
+trap 3). The reference prices at 1 816 €, eighty cents short.
+
+**The Christmas dates are no longer an assumption.** The CAGGIU contract reads « Date de séjour du
+mercredi 24/12 à 15h au jeudi 26/12/25 à 11h, soit 2 nuits » — the 24th and the 25th, as supposed.
 
 Both seasons are `pricingMode: "fixed"`. A length discount on the four scarcest nights of the year
 would give back exactly the premium they exist to collect.
