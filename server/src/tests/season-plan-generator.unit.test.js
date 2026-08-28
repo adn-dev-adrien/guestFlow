@@ -224,3 +224,64 @@ test('a Sunday holiday changes nothing — it adds no day off', () => {
   assert.equal(covering('2027-08-15'), recipe.calendar.baseSeason, 'the holiday itself');
   assert.equal(covering('2027-08-14'), recipe.calendar.baseSeason, 'and the Saturday before it');
 });
+
+// ── capSeason (spec §3.3 rule 15bis) ─────────────────────────────────────────
+// A grid whose top rank is a peak-summer price cannot let a holiday raise reach it: 25 December
+// would be sold at the August rate. The cap stops the raise — and, just as important, never moves a
+// night that already sits above it back DOWN.
+
+const FIVE_RANKS = validateRecipe({
+  id: 'cap-test', version: '1.0.0', label: 'Cinq rangs', horizonYears: 1,
+  seasons: [
+    { key: 'r1', label: 'R1', rank: 1, color: '#111', pricePerNight: 100 },
+    { key: 'r2', label: 'R2', rank: 2, color: '#222', pricePerNight: 200 },
+    { key: 'r3', label: 'R3', rank: 3, color: '#333', pricePerNight: 300 },
+    { key: 'r4', label: 'R4', rank: 4, color: '#444', pricePerNight: 400 },
+    { key: 'r5', label: 'R5', rank: 5, color: '#555', pricePerNight: 500 },
+  ],
+  calendar: {
+    baseSeason: 'r1',
+    // 14 juillet 2026 is a Tuesday: its block is 11-13 July, and it sits in the TOP rank here.
+    periods: [
+      { id: 'summer', season: 'r5', anchor: { type: 'fixed_dates', from: '07-01', to: '08-31' } },
+      { id: 'christmas', season: 'r3', anchor: { type: 'fixed_dates', from: '12-19', to: '12-31' } },
+    ],
+    modifiers: [{ type: 'public_holiday_bridge', effect: 'raise_rank', amount: 1, capSeason: 'r4', minNights: 'block' }],
+  },
+}).recipe;
+
+test('capSeason stops the raise at its rank instead of the highest one', () => {
+  const plan = buildYearPlan(FIVE_RANKS, 2026, []);
+  // 25 décembre 2026 is a Friday → the block is 25-26 December, painted r3, raised one rank to r4.
+  assert.ok(plan.r4.some((x) => x.startDate === '2026-12-25' && x.endDate === '2026-12-26' && x.minNights === 2));
+  // And it stops there: nothing reached r5 outside the summer period it was painted with.
+  assert.deepEqual(plan.r5.map((x) => x.startDate).filter((d) => !d.startsWith('2026-07') && !d.startsWith('2026-08')), []);
+});
+
+test('a night already above the cap is never demoted, but still carries the block minimum', () => {
+  const plan = buildYearPlan(FIVE_RANKS, 2026, []);
+  // 14 juillet: the 3-night block splits the r5 range and keeps its price — a naive
+  // Math.min(cap, rank + 1) would silently move these nights down to r4.
+  assert.ok(plan.r5.some((x) => x.startDate === '2026-07-11' && x.endDate === '2026-07-13' && x.minNights === 3));
+  assert.ok(plan.r5.some((x) => x.startDate === '2026-07-14'));
+  assert.equal(plan.r4.some((x) => x.startDate.startsWith('2026-07')), false, 'no July night was demoted to r4');
+});
+
+test('an unknown capSeason is refused rather than silently ignored', () => {
+  const out = validateRecipe({
+    ...JSON.parse(JSON.stringify(FIVE_RANKS)),
+    calendar: { ...FIVE_RANKS.calendar, modifiers: [{ type: 'public_holiday_bridge', effect: 'raise_rank', capSeason: 'nope' }] },
+  });
+  assert.equal(out.valid, false);
+  assert.match(out.error, /capSeason/);
+});
+
+test('without capSeason the ceiling is still the highest rank — recipes written before it are untouched', () => {
+  const noCap = validateRecipe({
+    ...JSON.parse(JSON.stringify(FIVE_RANKS)), id: 'no-cap',
+    calendar: { ...FIVE_RANKS.calendar, modifiers: [{ type: 'public_holiday_bridge', effect: 'raise_rank', amount: 1, minNights: 'block' }] },
+  }).recipe;
+  const plan = buildYearPlan(noCap, 2026, []);
+  assert.ok(plan.r4.some((x) => x.startDate === '2026-12-25'), '25 December still rises one rank');
+  assert.equal(plan.r5.some((x) => x.startDate.startsWith('2026-12')), false, 'and one rank only, from r3');
+});

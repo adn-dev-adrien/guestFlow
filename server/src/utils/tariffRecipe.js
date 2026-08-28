@@ -265,6 +265,11 @@ function validateRecipe(json) {
     if (m.effect !== 'raise_rank') return fail(`${where}.effect`, 'doit être raise_rank');
     const amount = m.amount === undefined ? 1 : m.amount;
     if (!Number.isInteger(amount) || amount < 1) return fail(`${where}.amount`, 'entier ≥ 1');
+    // Ceiling on the raise (spec §3.3 rule 15bis). Absent = the highest declared rank, which is
+    // what every recipe written before this field carried.
+    if (m.capSeason !== undefined && m.capSeason !== null && !keys.has(m.capSeason)) {
+      return fail(`${where}.capSeason`, 'doit être une clé de saison déclarée');
+    }
     // Minimum nights imposed on the holiday block: "block" = the block's own length, an integer =
     // that value, absent = no minimum (backward compatible).
     if (m.minNights !== undefined && m.minNights !== 'block'

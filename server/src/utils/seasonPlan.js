@@ -10,7 +10,8 @@
  *   2. periods repaint their span in declaration order (last write wins — rule 13), carrying their
  *      own minNights/changeover overrides;
  *   3. the `public_holiday_bridge` modifier raises each holiday block's nights by `amount` ranks,
- *      capped at the highest rank, skipping closed days (rules 15-17);
+ *      capped at `capSeason`'s rank or, absent one, at the highest rank, skipping closed days
+ *      (rules 15-17);
  *   4. contiguous runs of (same season, same override) become the date ranges — the per-day
  *      representation makes range splitting a consequence, not a special case, and overlapping
  *      ranges unrepresentable (rule 19).
@@ -217,6 +218,13 @@ function buildYearPlan(recipe, year, closureRows = []) {
   for (const modifier of recipe.calendar.modifiers) {
     if (modifier.type !== 'public_holiday_bridge') continue;
     const amount = modifier.amount === undefined ? 1 : modifier.amount;
+    // `capSeason` stops the raise below the top rank (spec §3.3 rule 15bis). Without it the ceiling
+    // is the highest rank declared, which on a grid whose top season is a peak-summer price would
+    // put 25 December there. `Math.max(currentRank, …)` is the load-bearing half: a cap must never
+    // move a night DOWN — 14 juillet and 15 août sit above any sane cap and are not to be demoted.
+    const capRank = modifier.capSeason && rankByKey.has(modifier.capSeason)
+      ? rankByKey.get(modifier.capSeason)
+      : maxRank;
     const touched = new Set();
     for (const block of holidayBlocks(year)) {
       const blockMinNights = resolveModifierMinNights(modifier, block.nights.length);
@@ -229,7 +237,7 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // Two overlapping blocks must not raise the same night twice.
         const raisedKey = touched.has(t)
           ? current.season
-          : (keyByRank.get(Math.min(maxRank, currentRank + amount)) || current.season);
+          : (keyByRank.get(Math.max(currentRank, Math.min(capRank, maxRank, currentRank + amount))) || current.season);
         touched.add(t);
         // A raised night leaves its period, so it drops that period's overrides; a night already at
         // the top rank keeps them. The holiday minimum wins whenever it is the stronger constraint,

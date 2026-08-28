@@ -1,0 +1,239 @@
+{
+  "id": "gite-2027",
+  "version": "3.1.0",
+  "label": "Gîte — grille automatique 2027",
+  "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
+  "horizonYears": 2,
+  "_comment_pivot": "Le prix affiché est celui déjà pratiqué sur le canal propre (moteur Lodgify) ; le net cible en est déduit en retirant les 5 % du moteur — netTargetPerNight = pricePerNight × 0,95, à l'euro près et sans arrondi supplémentaire. L'identité tient dans les deux sens : ceil(net / 0,95) redonne exactement le prix affiché, ce qui est le seul contrôle qui prouve que le net a bien été enregistré (piège n° 15 du skill). Les autres canaux sont regrossis depuis ce net, jamais depuis le prix affiché — sinon la marge du direct serait commissionnée une seconde fois.",
+  "_comment_lengthOfStayDiscounts": "La grille du Gîte tient en une phrase : la semaine vaut quatre nuits. Nuits 1 et 2 au prix plein, puis la 3e à la 7e interpolent linéairement du double (2 nuits) au quadruple (une semaine), et au-delà chaque nuit vaut un septième de semaine. Les pourcentages ci-dessous sont exactement cela : 1 − (2 + 0,4 × (n − 2)) / n de 3 à 7 nuits, puis 1 − 4/7 = 42,857142857142854 % à partir de 7. La ligne à 8 nuits n'est pas une redite : sans elle le report du dernier palier facturerait la 8e nuit au prix marginal de la 7e (100,80 € en Très basse) au lieu du septième de semaine (144 €), et un séjour de deux semaines perdrait 15 %. Un seul jeu de pourcentages pour les six saisons — c'est déjà le cas aujourd'hui.",
+  "lengthOfStayDiscounts": [
+    {
+      "nights": 2,
+      "discountPct": 0
+    },
+    {
+      "nights": 3,
+      "discountPct": 20
+    },
+    {
+      "nights": 4,
+      "discountPct": 30
+    },
+    {
+      "nights": 5,
+      "discountPct": 36
+    },
+    {
+      "nights": 6,
+      "discountPct": 40
+    },
+    {
+      "nights": 7,
+      "discountPct": 42.857142857142854
+    },
+    {
+      "nights": 8,
+      "discountPct": 42.857142857142854
+    }
+  ],
+  "_comment_seasons": "Libellés et couleurs des cinq premières saisons repris à l'identique de la fiche tarifaire du Gîte : la première application ADOPTE une saison manuelle de même libellé au lieu de buter dessus (règle 9bis). Prix affichés inchangés, sauf la Très haute portée de 537,50 € à 538 € — la grille par canal s'arrondit à l'euro supérieur, un demi-euro de base empêcherait la ligne « direct » de redonner son propre prix. Aucun plafond de durée (des séjours de 14 nuits se vendent), minimum 2 nuits partout comme aujourd'hui, et aucun jour d'arrivée imposé : deux des trois semaines de plein été 2026 sont parties un dimanche et un lundi, un samedi-samedi les aurait refusées.",
+  "seasons": [
+    {
+      "_comment": "Basse saison FUSIONNÉE dans celle-ci le 2026-08-28. Les 15 séjours Gîtes de France ajustés par moindres carrés donnaient 288,25 € de net pour la très basse et 286,29 € pour la basse : deux saisons statistiquement indiscernables, dont l'une ne couvrait qu'avril. Un rang de moins à configurer sur chaque plateforme, retiré parce que les encaissements d'Adrien disent qu'il ne servait à rien.",
+      "key": "very-low",
+      "label": "Très basse",
+      "rank": 1,
+      "color": "#669c35",
+      "pricePerNight": 319,
+      "netTargetPerNight": 288,
+      "pricingMode": "progressive",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    },
+    {
+      "key": "mid",
+      "label": "Moyenne",
+      "rank": 2,
+      "color": "#942192",
+      "pricePerNight": 334,
+      "netTargetPerNight": 302,
+      "pricingMode": "progressive",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    },
+    {
+      "key": "high",
+      "label": "Haute",
+      "rank": 3,
+      "color": "#ff9300",
+      "pricePerNight": 375,
+      "netTargetPerNight": 341,
+      "pricingMode": "progressive",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    },
+    {
+      "key": "peak",
+      "label": "Très haute",
+      "rank": 4,
+      "color": "#ff2600",
+      "pricePerNight": 451,
+      "netTargetPerNight": 413,
+      "pricingMode": "progressive",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    },
+    {
+      "_comment": "LA NUIT DU 31 SEULE, et elle porte toute la plus-value. Abritel a facturé le réveillon 2025 (31/12 → 03/01) 1 222 € taxe de séjour comprise et reversé 1 103,94 € ; moins les 21 € de taxe, le net d'Adrien sur la location était de 1 082,94 €. Cible + 20 % = 1 299,53 €. Les deux autres nuits sont désormais fixées par la grille — le 1er janvier en Haute (341 € de net en 2e nuit) et le 2 janvier en Très basse (115,20 € en 3e nuit) — ce qui laisse 843 € pour la nuit du 31. `fixed` : les nuits les plus rares de l'année ne se remisent pas.",
+      "key": "new-year",
+      "label": "Nouvel An",
+      "rank": 5,
+      "color": "#d4af37",
+      "pricePerNight": 904,
+      "netTargetPerNight": 843,
+      "pricingMode": "fixed",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    },
+    {
+      "_comment": "LES NUITS DU 24 ET DU 25 SEULES — dates établies par le contrat CAGGIU : « du mercredi 24/12 à 15h au jeudi 26/12/25 à 11h, soit 2 nuits ». Vendu en direct, donc sans commission : 1 550 € « hors option, dont taxe de séjour 16 € et supplément chien » (20 € aux conditions générales), soit 1 514 € de location nette sur deux nuits, 757 € la nuit. Cible + 20 % = 908 €. Noël ressort AU-DESSUS du réveillon, et c'est ce que disent les chiffres : 757 € la nuit encaissés à Noël contre 361 € en moyenne sur le réveillon.",
+      "key": "christmas",
+      "label": "Noël",
+      "rank": 6,
+      "color": "#b03a3a",
+      "pricePerNight": 972,
+      "netTargetPerNight": 908,
+      "pricingMode": "fixed",
+      "minNights": 2,
+      "maxNights": null,
+      "changeover": null
+    }
+  ],
+  "_comment_calendar": "Les bornes peintes à la main pour 2026 tombent toutes un vendredi soir / samedi matin : le Gîte se découpe en semaines qui changent le samedi. Les quatre périodes d'été le disent en règle plutôt qu'en dates — mêmes ancrages que la Lodge, un cran de saisons en plus. Les périodes se peignent dans l'ordre, la dernière écriture gagne : « shoulder » couvre mai→octobre en Moyenne, puis les épaules de juillet et d'août la percent en Haute, puis le cœur d'été entre les deux en Très haute.",
+  "calendar": {
+    "baseSeason": "very-low",
+    "periods": [
+      {
+        "id": "shoulder",
+        "season": "mid",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "05-01",
+          "to": "10-30"
+        }
+      },
+      {
+        "id": "july-shoulder",
+        "season": "high",
+        "anchor": {
+          "type": "nth_weekday_of_month",
+          "month": 7,
+          "weekday": 6,
+          "occurrence": 1
+        },
+        "nights": 7
+      },
+      {
+        "id": "august-shoulder",
+        "season": "high",
+        "anchor": {
+          "type": "last_full_week_of_month",
+          "month": 8,
+          "weekday": 6
+        },
+        "nights": 7
+      },
+      {
+        "id": "summer-core",
+        "season": "peak",
+        "anchor": {
+          "type": "between",
+          "after": "july-shoulder",
+          "before": "august-shoulder"
+        }
+      },
+      {
+        "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles. Elle pose TOUT le bloc en Haute, et les trois périodes suivantes viennent y creuser les deux pointes et le creux. Déclarées après elle, elles la repeignent.",
+        "id": "year-end",
+        "season": "high",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-19",
+          "to": "01-01"
+        }
+      },
+      {
+        "_comment": "Les deux nuits de Noël, creusées dans le bloc des fêtes. Le 23 et le 26 restent en Haute.",
+        "id": "christmas",
+        "season": "christmas",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-24",
+          "to": "12-25"
+        }
+      },
+      {
+        "_comment": "Le creux entre Noël et le réveillon, redescendu en moyenne saison. Adrien, 2026-08-28 : « entre le 27 et le 30 on doit être en moyenne saison » — lu comme 27, 28 et 29, parce que la même phrase met explicitement le 30 en haute saison avec le 1er janvier. Trois nuits, pas quatre.",
+        "id": "christmas-lull",
+        "season": "mid",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-27",
+          "to": "12-29"
+        }
+      },
+      {
+        "_comment": "La seule nuit du 31. Adrien, 2026-08-28 : « c'est la nuit du 31 qui prend toute la plus-value, par contre le 30 et le 1 doivent être en tarif haute saison ». Le 30 et le 1er janvier restent donc dans le bloc Haute posé au-dessus.",
+        "id": "new-year",
+        "season": "new-year",
+        "anchor": {
+          "type": "fixed_dates",
+          "from": "12-31",
+          "to": "12-31"
+        }
+      }
+    ],
+    "_comment_modifiers": "Les ponts fériés montent d'un cran et portent la longueur de leur bloc en minimum de séjour, comme sur la Lodge — mais plafonnés à la Haute saison. Sans `capSeason`, le plafond serait le rang le plus haut, soit le Nouvel An à 1 200 € : un 25 décembre à ce tarif. Le plafond ne descend jamais une nuit déjà au-dessus : le 14 juillet et le 15 août gardent leur prix de Très haute et ne prennent que le minimum de séjour du bloc.",
+    "modifiers": [
+      {
+        "type": "public_holiday_bridge",
+        "effect": "raise_rank",
+        "amount": 1,
+        "capSeason": "high",
+        "minNights": "block"
+      }
+    ],
+    "_comment_events": "Dates NON dérivables : l'Ardéchoise finissait le 4e samedi de juin, puis le 3e, puis le 2e — trois éditions récentes ne font pas une règle, et l'organisateur n'annonce l'édition suivante qu'à l'ouverture des inscriptions, en décembre. Elles sont donc déclarées année par année ; une année absente est signalée (fiche logement + Dashboard) et surveillée, jamais devinée. Mêmes dates que la recette de la Lodge — c'est le même événement sur le même domaine. Le minimum reste celui du Gîte (2 nuits) et non le 1 de la Lodge : une maison de 10 personnes ne se vend pas à la nuit à un cycliste isolé. Nuits = veille du 1er jour de course → dernier soir.",
+    "events": [
+      {
+        "key": "ardechoise",
+        "label": "L'Ardéchoise",
+        "season": "high",
+        "minNights": 2,
+        "sourceUrl": "https://www.ardechoise.com/",
+        "dates": {
+          "2026": {
+            "from": "2026-06-08",
+            "to": "2026-06-13"
+          },
+          "2027": {
+            "from": "2027-06-07",
+            "to": "2027-06-12"
+          }
+        }
+      }
+    ],
+    "_comment_pivot": "`pricePerNight` est le prix AFFICHÉ EN DIRECT ; `netTargetPerNight` est le plancher — ce qu'Adrien touche sur n'importe quelle plateforme, jamais moins. La grille regrosse chaque canal depuis le plancher et ajoute `welcomePack.cost` à la seule ligne directe, si bien que ceil((net + 16) / 0,95) redonne exactement `pricePerNight`. Cette identité est le contrat du pivot : si elle casse, la ligne directe de la grille cesse de reproduire ce que le moteur facture."
+  },
+  "_comment_closures": "Le Gîte est ouvert toute l'année — aucune fermeture récurrente, contrairement à la Lodge.",
+  "closures": [],
+  "_comment_welcomePack": "N'est PAS un pack accueil ici, mais le levier d'alignement du canal direct. La grille n'applique `fixedCost` qu'à la ligne directe (propertiesModel : `fixedCost: p.isDirect ? welcomePackCost : 0`), ce qui permet d'afficher en direct le prix du canal le moins cher tout en ne payant que 5 % de commission — la différence reste à l'exploitant. Consigne d'Adrien du 2026-08-28 : « en direct je veux que tu me place au prix le plus bas des plateformes ». Passé de 16 € à 15 € le 2026-08-28 quand Abritel a été ajouté à 9,7 % : il devient le canal le moins cher, et à 16 € le direct serait sorti 1 € AU-DESSUS de lui en très basse saison. À 15 €, le direct est à égalité avec Abritel sur la première saison et en dessous partout ailleurs. Ce nombre est à recalculer à chaque fois qu'un canal moins cher entre dans `platforms`. Interne à la recette : le client ne voit jamais ce nombre.",
+  "welcomePack": {
+    "cost": 15
+  }
+}

@@ -53,7 +53,11 @@ for (const file of FILES) {
     if (bridge) {
       const ranks = recipe.seasons.filter((s) => used.has(s.key)).map((s) => s.rank);
       const maxUsed = ranks.length ? Math.max(...ranks) : 1;
-      const reach = maxUsed + (bridge.amount === undefined ? 1 : bridge.amount);
+      // A `capSeason` bounds the reach too, or a season the modifier can never touch would be
+      // waved through as reachable.
+      const capRank = recipe.seasons.find((s) => s.key === bridge.capSeason)?.rank
+        ?? Math.max(...recipe.seasons.map((s) => s.rank));
+      const reach = Math.min(capRank, maxUsed + (bridge.amount === undefined ? 1 : bridge.amount));
       for (const s of recipe.seasons) if (s.rank > maxUsed && s.rank <= reach) used.add(s.key);
     }
     const unreachable = recipe.seasons.filter((s) => !used.has(s.key)).map((s) => s.key);

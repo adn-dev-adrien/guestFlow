@@ -145,6 +145,13 @@ all-inclusive pricing as the first such recipe.
     mid-way leaves the property exactly as it was.
 11. **Applying is idempotent.** Re-applying the same recipe version to an unchanged property produces
     an empty diff and writes nothing.
+11bis. **A recipe's season label keeps the casing the recipe declares.** `sentenceCase` tidies what an
+    operator types into the season dialog; a recipe label is authored and reviewed, and lower-casing
+    it breaks rule 11 outright — « Nouvel An » stored as « Nouvel an » makes the next preview report
+    a label change it can never satisfy, so every apply rewrites every season and stamps a line in
+    `tariff_change_events`, the very data a tariff change is measured against. The apply payload
+    carries `labelFromRecipe`; nothing else is exempt.
+    _(Found applying the Gîte's recipe, 2026-08-25.)_
 12. **The horizon is what the recipe declares** — two years for Aventura (§3.7). A monthly scheduled
     task checks every recipe-driven property, generates the missing year when the horizon has moved,
     and surfaces what it generated on the Dashboard, so a generated year is reviewed rather than
@@ -169,6 +176,17 @@ all-inclusive pricing as the first such recipe.
     those dates.
 15. **Modifiers run after the periods** and adjust what the periods produced. One modifier type in this
     version: `public_holiday_bridge`, which raises the rank of a public-holiday long weekend.
+15bis. **The raise stops at `capSeason`, or at the top rank when none is declared.** A grid whose
+    highest season is a peak-summer price cannot let a holiday reach it: on the Gîte, whose top rank
+    is Très haute at 538 €/night, an uncapped raise sells 25 December and 1 January at the August
+    rate ([tariff-recipe-gite](../tariff-recipe-gite/spec.md) §3.3 rule 13). `capSeason` names the
+    season the raise may not exceed; absent, the ceiling stays the highest declared rank, which is
+    what every recipe written before the field carried — the Lodge included, whose cap already *is*
+    its top rank. An unknown key is refused at load rather than ignored.
+15ter. **A cap never moves a night DOWN.** The night's own rank is a floor: 14 juillet and 15 août
+    sit inside the summer core, above any sane cap, and the naive `min(cap, rank + amount)` would
+    quietly demote them — 624 € over 2026 on the Gîte. They keep their price and take only the
+    block's minimum stay, which is rule 16ter's behaviour for a night already at the ceiling.
 16. **A public-holiday block is the run of consecutive non-working days around the holiday, minus its
     last day** — the guest checks out that morning:
 
