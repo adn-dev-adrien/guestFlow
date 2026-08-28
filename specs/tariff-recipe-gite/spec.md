@@ -54,20 +54,26 @@ a calendar.
    own degressivity curve against the 15 Gîtes-de-France stays on record — 288 / 302 / 341 / 413 €,
    residual 48,84 € ([étude §3](etude.md)). _(Owner's call, 2026-08-28: « tu calcules ce que je gagne
    avec Gîte de France et ça devient la référence […] je ne veux jamais descendre en dessous ».)_
-2. **Gîtes de France keeps the prices it charges today.** Grossed up from the floor at its 10 %, it
-   comes out at 320 / 336 / 379 / 459 € — the constraint the whole grid was anchored on.
+2. **Gîtes de France keeps the prices it charges today, and nothing is configured on that channel.**
+   Grossed up from the floor at its 10 %, it comes out at 320 / 336 / 379 / 459 / 937 / 1 009 € — the
+   constraint the whole grid is anchored on. _(Owner, 2026-08-28: « je ne veux pas toucher au tarif
+   sur Gîtes de France, et c'est eux qui doivent régir tout le reste ».)_ The rollout therefore
+   touches Lodgify, GreenGo and Abracadaroom, never Gîtes de France.
 3. **Every channel is grossed up from the floor**, `ceil(net ÷ (1 − commission))`. Existing behaviour
    of [platform-price-from-commission](../platform-price-from-commission.md); the recipe only supplies
    the pivot it was missing.
-4. **The direct channel carries a 16 € uplift**, so it lands level with the cheapest channel while
+4. **The direct channel carries a 15 € uplift**, so it lands level with the cheapest channel while
    paying only 5 % — which is where the extra margin on a direct booking comes from.
-   `pricePerNight = ceil((net + 16) ÷ 0,95)` = 320 / 335 / 376 / 452 €. The uplift is carried by the
+   `pricePerNight = ceil((net + 15) ÷ 0,95)` = 319 / 334 / 375 / 451 €. **The uplift must be
+   recomputed whenever a cheaper channel enters `platforms`**: it was 16 € until Abritel was added at
+   9,7 % on 2026-08-28, at which point 16 € would have put the direct price 1 € ABOVE Abritel in Très
+   basse. The uplift is carried by the
    recipe's `welcomePack.cost`, which the grid applies to the direct row alone
    (`fixedCost: p.isDirect ? welcomePackCost : 0`). **It is not a welcome pack here**; the field is
    simply the only per-stay direct-side amount the grid knows about, and the comment in the recipe
    says so. _(Owner's call, 2026-08-28: « en direct je veux que tu me place au prix le plus bas des
    plateformes ».)_
-5. **Two identities must hold, per season, or the grid lies.** `ceil((net + 16) ÷ 0,95)` must return
+5. **Two identities must hold, per season, or the grid lies.** `ceil((net + 15) ÷ 0,95)` must return
    `pricePerNight` unchanged, and `pricePerNight` must be **≤ the cheapest platform price**. The first
    is what proves the net was persisted rather than dropped by the apply — a failure that shipped once
    on the Lodge ([tariff-recipes §3.6 rule 34bis](../tariff-recipes/spec.md); trap 15 of the

@@ -1,6 +1,6 @@
 {
   "id": "gite-2027",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "label": "Gîte — grille automatique 2027",
   "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
@@ -44,7 +44,7 @@
       "label": "Très basse",
       "rank": 1,
       "color": "#669c35",
-      "pricePerNight": 320,
+      "pricePerNight": 319,
       "netTargetPerNight": 288,
       "pricingMode": "progressive",
       "minNights": 2,
@@ -56,7 +56,7 @@
       "label": "Moyenne",
       "rank": 2,
       "color": "#942192",
-      "pricePerNight": 335,
+      "pricePerNight": 334,
       "netTargetPerNight": 302,
       "pricingMode": "progressive",
       "minNights": 2,
@@ -68,7 +68,7 @@
       "label": "Haute",
       "rank": 3,
       "color": "#ff9300",
-      "pricePerNight": 376,
+      "pricePerNight": 375,
       "netTargetPerNight": 341,
       "pricingMode": "progressive",
       "minNights": 2,
@@ -80,7 +80,7 @@
       "label": "Très haute",
       "rank": 4,
       "color": "#ff2600",
-      "pricePerNight": 452,
+      "pricePerNight": 451,
       "netTargetPerNight": 413,
       "pricingMode": "progressive",
       "minNights": 2,
@@ -93,7 +93,7 @@
       "label": "Nouvel An",
       "rank": 5,
       "color": "#d4af37",
-      "pricePerNight": 905,
+      "pricePerNight": 904,
       "netTargetPerNight": 843,
       "pricingMode": "fixed",
       "minNights": 2,
@@ -106,7 +106,7 @@
       "label": "Noël",
       "rank": 6,
       "color": "#b03a3a",
-      "pricePerNight": 973,
+      "pricePerNight": 972,
       "netTargetPerNight": 908,
       "pricingMode": "fixed",
       "minNights": 2,
@@ -232,8 +232,8 @@
   },
   "_comment_closures": "Le Gîte est ouvert toute l'année — aucune fermeture récurrente, contrairement à la Lodge.",
   "closures": [],
-  "_comment_welcomePack": "N'est PAS un pack accueil ici, mais le levier d'alignement du canal direct. La grille n'applique `fixedCost` qu'à la ligne directe (propertiesModel : `fixedCost: p.isDirect ? welcomePackCost : 0`), ce qui permet d'afficher en direct le prix du canal le moins cher tout en ne payant que 5 % de commission — la différence reste à l'exploitant. Consigne d'Adrien du 2026-08-28 : « en direct je veux que tu me place au prix le plus bas des plateformes ». 16 € est la valeur qui, sur les quatre saisons ordinaires, place le prix direct entre 0 et 7 € SOUS le canal le moins cher (Gîtes de France), jamais au-dessus. Interne à la recette : le client ne voit jamais ce nombre.",
+  "_comment_welcomePack": "N'est PAS un pack accueil ici, mais le levier d'alignement du canal direct. La grille n'applique `fixedCost` qu'à la ligne directe (propertiesModel : `fixedCost: p.isDirect ? welcomePackCost : 0`), ce qui permet d'afficher en direct le prix du canal le moins cher tout en ne payant que 5 % de commission — la différence reste à l'exploitant. Consigne d'Adrien du 2026-08-28 : « en direct je veux que tu me place au prix le plus bas des plateformes ». Passé de 16 € à 15 € le 2026-08-28 quand Abritel a été ajouté à 9,7 % : il devient le canal le moins cher, et à 16 € le direct serait sorti 1 € AU-DESSUS de lui en très basse saison. À 15 €, le direct est à égalité avec Abritel sur la première saison et en dessous partout ailleurs. Ce nombre est à recalculer à chaque fois qu'un canal moins cher entre dans `platforms`. Interne à la recette : le client ne voit jamais ce nombre.",
   "welcomePack": {
-    "cost": 16
+    "cost": 15
   }
 }
