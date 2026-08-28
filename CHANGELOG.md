@@ -4,6 +4,73 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-08-28
+
+### Summary
+- Le Gîte a désormais une recette tarifaire : ses saisons, ses prix et sa dégressivité se déduisent seuls, année après année.
+- Ses prix sont recalés sur ce que Gîtes de France paie réellement — l'hiver monte, l'été baisse, et le direct devient le canal le moins cher.
+- Deux nouvelles saisons ne couvrent que quatre nuits : le 24 et le 25 décembre, et le 31.
+- Rien n'est retarifé tant que tu n'as pas appliqué la recette depuis la fiche du Gîte.
+- Avant cette première application, supprime la saison « Basse » sur la fiche, sinon l'application se bloque.
+- Les réservations déjà enregistrées gardent leur prix : seules les dates non vendues suivent la nouvelle grille.
+
+### Added
+- **The Gîte's tariff becomes a recipe** (spec `tariff-recipe-gite/`). Its seasons, their prices, the
+  « a week is four nights » discount curve and the rules that carve the year — May to October, the
+  July and August shoulders around the summer core, the year-end block, the Christmas and New Year's
+  Eve nights cut out of it, and L'Ardéchoise declared year by year — now live in one declarative
+  document, so 2027 and every year after are derived instead of painted by hand. Public-holiday long
+  weekends go up one rank, capped at Haute, and carry the block's own length as a minimum stay.
+  **Nothing is re-priced until the recipe is applied from the property's tariff page**, and the
+  « Basse » season has to be deleted there first or the apply is blocked by an April overlap.
+  +6 server tests.
+- **Two festive seasons of four nights in all.** « Noël » covers the nights of 24 and 25 December,
+  « Nouvel An » the night of the 31st, both billed flat — no length discount applies to them. The
+  nights around them stay in high season, and 27 to 29 December drops to mid: the premium sits on the
+  nights that carry it and nowhere else.
+- **A public-holiday raise can now stop below the top season** (spec `tariff-recipes/spec.md` §3.3
+  rules 15bis-15ter). `public_holiday_bridge` capped its raise at the highest rank a recipe declared,
+  which only worked because the Lodge's highest rank *is* its high season. On a grid whose top season
+  is a peak-summer price, the same rule sold 25 December at the August rate. The modifier now takes an
+  optional `capSeason`; absent, the ceiling stays the highest rank, so every existing recipe behaves
+  exactly as before. A cap also never moves a night **down**: a night already above it — 14 juillet,
+  15 août — keeps its price and takes only the block's minimum stay. +4 server tests.
+- **A tariff study page for the Gîte** (`docs/tarifs/2026-08-25-gite-etude-tarifaire.html`), in the
+  format of the Lodge's deployment reports: what the old grid actually said, the calendar restated as
+  rules, the net pivot, the per-channel grid, the 24 stays of 2026 re-priced, and the reservations
+  still to lift. It is produced by a generator that receives observed facts only and recomputes
+  everything else from the recipe file, so the page can contradict whoever wrote it — its arithmetic
+  self-checks print at the foot, and one failing bars it in red.
+
+### Changed
+- **The Gîte's prices are rebuilt on what Gîtes de France actually pays.** The rates that had served
+  as the anchor came from a spreadsheet the owner no longer maintained, and they were its
+  *Gîtes-de-France* column — the cheapest channel. Measured against real payouts, the old grid was
+  +10,7 % on Gîtes de France but **−28,8 % on the platforms** and −34,8 % on direct bookings: it
+  priced every channel at the level of the cheapest one. The net floor is now **measured** — a
+  least-squares fit over 15 Gîtes-de-France stays — and every channel is grossed up from it. Gîtes de
+  France keeps the prices it charges today; the direct channel carries a small uplift so it lands
+  level with the cheapest channel while still paying only 5 %, which is where the extra margin on a
+  direct booking comes from. Winter rises and summer falls: a February weekend goes 504 € → 638 €,
+  mid-July 1 074,50 € → 904 €.
+- **The « Basse » season is gone.** Not by taste but by measurement: the owner's own payouts give it
+  286 € against 288 € for Très basse — two seasons that cannot be told apart, one of which covered
+  April alone. Four ordinary seasons remain.
+
+### Fixed
+- **Applying a recipe was not idempotent when a season's label carried a capital letter.**
+  `sentenceCase` rewrote « Nouvel An » as « Nouvel an » on write, so the next preview saw a label
+  change that could never be satisfied: every horizon check rewrote all the seasons and stamped a line
+  in the tariff journal — the very data a tariff change is measured against. Recipe labels are
+  authored and reviewed, so they now keep their casing.
+- **An échéance holds what the guest pays, not the net of the commission.**
+- **Why Booking drops the length discount, and what to do instead** (documentation). A promotion —
+  pushed by the channel manager or created in the extranet — sits above the rate, and Booking does not
+  consult that layer for a property whose rates arrive from a connectivity provider. What it honours
+  is a **derived rate plan**, which takes the pushed rate as its base, subtracts a percentage and
+  carries its own minimum length of stay. The hole is expensive: in mid season a week shows at
+  2 492 € instead of 1 424 €. Nothing is applied yet — the procedure is recorded for the rollout.
+
 ## [2.5.0] - 2026-08-24
 
 ### Summary
