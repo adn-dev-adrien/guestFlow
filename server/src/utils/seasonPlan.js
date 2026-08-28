@@ -193,6 +193,7 @@ function overrideSignature(override) {
 function buildYearPlan(recipe, year, closureRows = []) {
   const rankByKey = new Map(recipe.seasons.map((s) => [s.key, s.rank]));
   const keyByRank = new Map(recipe.seasons.map((s) => [s.rank, s.key]));
+  const minNightsBySeason = new Map(recipe.seasons.map((s) => [s.key, Number(s.minNights || 0)]));
   const maxRank = Math.max(...recipe.seasons.map((s) => s.rank));
 
   // 1-2. Base + periods.
@@ -243,13 +244,27 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // the top rank keeps them. The holiday minimum wins whenever it is the stronger constraint,
         // which also resolves two overlapping blocks to the longer « pont ».
         const kept = raisedKey === current.season ? (current.override || {}) : {};
-        const minNights = Math.max(blockMinNights, Number(kept.minNights || 0));
-        // A minimum of ONE night is not a constraint, it is the default — recording it would split
-        // the range around a single raised night for nothing (a one-night Saturday « block » is
-        // exactly that case). Only a real minimum, 2 nights or more, carries an override.
-        const override = minNights > 1
-          ? { ...kept, minNights }
-          : (Object.keys(kept).length ? kept : null);
+        // The night's OWN season minimum is part of the comparison, not just the period override and
+        // the block. Without it a 3-night « pont » landing inside a season that demands 4 wrote a
+        // minimum of 3 over it, and those three days became the only ones in the whole season where
+        // a short stay was allowed — found on the Gîte the day Très haute went to 4 nights.
+        const seasonMin = Number(minNightsBySeason.get(raisedKey) || 0);
+        const minNights = Math.max(blockMinNights, Number(kept.minNights || 0), seasonMin);
+        // Only a minimum STRONGER than what already applies is worth recording. The season's own
+        // minimum needs no override — writing it would split the range around every raised night for
+        // nothing — and a minimum of one night is the default, not a constraint (a one-night Saturday
+        // « block » is exactly that case). Clamping to the season's minimum is what stops a 3-night
+        // « pont » from licensing short stays inside a season that demands 4.
+        const floor = Math.max(1, seasonMin);
+        let override = null;
+        if (minNights > floor) {
+          override = { ...kept, minNights };
+        } else if (Object.keys(kept).length) {
+          // Drop the KEY, never set it to undefined: an explicit `minNights: undefined` travels into
+          // the range and makes it unequal to an identical range that simply never had one.
+          const { minNights: _dropped, ...rest } = kept;
+          override = Object.keys(rest).length ? rest : null;
+        }
         days[t] = { season: raisedKey, override };
       }
     }
