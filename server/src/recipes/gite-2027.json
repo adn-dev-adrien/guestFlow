@@ -1,6 +1,6 @@
 {
   "id": "gite-2027",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "label": "Gîte — grille automatique 2027",
   "description": "Pivot net ancré sur ce que Gîtes de France paie réellement, ajusté sur 15 séjours ; le prix direct est aligné sur le canal le moins cher via le levier `welcomePack.cost`, si bien que le direct rapporte 16 € de plus par nuit ; la semaine vaut quatre nuits ; deux pointes de fin d'année facturées à plat, calibrées sur le net 2025 majoré de 20 % ; ponts fériés montés d'un cran et plafonnés à la haute saison ; L'Ardéchoise déclarée année par année.",
   "horizonYears": 2,
@@ -156,7 +156,9 @@
           "type": "between",
           "after": "july-shoulder",
           "before": "august-shoulder"
-        }
+        },
+        "minNights": 4,
+        "_comment": "Le minimum de 4 nuits est posé DEUX FOIS : sur la saison `peak` et ici, sur la période. La redondance est voulue et non un oubli — un minimum de PÉRIODE entre dans la comparaison du modificateur de ponts sur toutes les versions du moteur, là où le minimum de SAISON n'y est entré qu'à partir du correctif du 2026-08-28. Sans cette ligne, un serveur antérieur laisse le bloc du 14 juillet imposer ses 3 nuits au milieu d'une saison qui en demande 4. À conserver tant qu'un serveur plus ancien peut lire cette recette."
       },
       {
         "_comment": "Fêtes de fin d'année, à cheval sur le 31 décembre : la fenêtre est repartie sur les deux années civiles. Elle pose TOUT le bloc en Haute, et les trois périodes suivantes viennent y creuser les deux pointes et le creux. Déclarées après elle, elles la repeignent.",

@@ -256,9 +256,15 @@ function buildYearPlan(recipe, year, closureRows = []) {
         // « block » is exactly that case). Clamping to the season's minimum is what stops a 3-night
         // « pont » from licensing short stays inside a season that demands 4.
         const floor = Math.max(1, seasonMin);
-        const override = minNights > floor
-          ? { ...kept, minNights }
-          : (Object.keys(kept).length ? { ...kept, minNights: undefined } : null);
+        let override = null;
+        if (minNights > floor) {
+          override = { ...kept, minNights };
+        } else if (Object.keys(kept).length) {
+          // Drop the KEY, never set it to undefined: an explicit `minNights: undefined` travels into
+          // the range and makes it unequal to an identical range that simply never had one.
+          const { minNights: _dropped, ...rest } = kept;
+          override = Object.keys(rest).length ? rest : null;
+        }
         days[t] = { season: raisedKey, override };
       }
     }

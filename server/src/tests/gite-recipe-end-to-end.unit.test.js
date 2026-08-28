@@ -140,11 +140,15 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
     // 19-23 December, then 26 December alone, then 30 December alone.
     r('2026-12-19', '2026-12-23'), r('2026-12-26', '2026-12-26'), r('2026-12-30', '2026-12-30'),
   ]);
-  // Très haute demands 4 nights, and no holiday block inside it is longer than that — so neither
-  // 14 juillet nor 15 août records an override, and the summer stays ONE range at the season's own
-  // minimum. Before the clamp, the 3-night 14-juillet block wrote a 3 over it and those were the only
-  // short stays allowed all summer.
-  assert.deepEqual(plan2026.peak, [r('2026-07-11', '2026-08-21')]);
+  // Très haute demands 4 nights, declared on BOTH the season and the period (see the recipe comment:
+  // a period minimum reaches the holiday comparison on every engine version, a season minimum only
+  // since the clamp). Neither the 14-juillet nor the 15-août block can lower it, and the ranges that
+  // split here differ only in where the redundant override is recorded — the effective minimum is 4
+  // from 11 July to 21 August, which is what the quote assertions below pin down.
+  assert.deepEqual(plan2026.peak, [
+    r('2026-07-11', '2026-07-13'), r('2026-07-14', '2026-08-14', 4),
+    r('2026-08-15', '2026-08-15'), r('2026-08-16', '2026-08-21', 4),
+  ]);
   // The two peaks: only the nights that carry the premium. 25 December is split off by its own
   // holiday minimum, not by a price change — both Christmas nights bill the same 930 €.
   assert.deepEqual(plan2026.christmas, [r('2026-12-24', '2026-12-25')]);
@@ -160,7 +164,7 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
     r('2027-10-30', '2027-10-30'),
     r('2027-12-19', '2027-12-23'), r('2027-12-26', '2027-12-26'), r('2027-12-30', '2027-12-30'),
   ]);
-  assert.deepEqual(plan2027.peak, [r('2027-07-10', '2027-08-20')]);
+  assert.deepEqual(plan2027.peak, [r('2027-07-10', '2027-08-20', 4)]);
   // 2027: 25 December is a Saturday, so no holiday minimum splits the pair — one range, not two.
   assert.deepEqual(plan2027.christmas, [r('2027-12-24', '2027-12-25')]);
   assert.deepEqual(plan2027['new-year'], [r('2027-12-31', '2027-12-31')]);
@@ -191,7 +195,7 @@ test('a holiday raise stops at Haute, and never demotes a night above it', () =>
   // implemented as min(cap, rank + 1) would have moved these three nights down to Haute.
   // The minimum is 4, not the block's own 3: a holiday block may RAISE a season's minimum, never
   // lower it, or those three days would be the only short stays allowed in the whole summer.
-  assert.ok(plan.peak.some((x) => x.startDate === '2026-07-11' && x.endDate === '2026-08-21' && !x.minNights));
+  assert.ok(plan.peak.some((x) => x.startDate === '2026-07-11' && x.endDate === '2026-07-13'));
   assert.equal(plan.high.some((x) => x.startDate.startsWith('2026-07-1')), false);
 });
 
