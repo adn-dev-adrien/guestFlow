@@ -298,10 +298,24 @@ France, les 2 de Booking et celle de GreenGo**. Un minimum passé à 3 efface ce
 3 nuits, voulus et datés. Jamais plus de 3. Un contrôle qui remonterait 4, 7 ou 14 quelque part vient
 forcément de la plateforme, pas de la recette.
 
-**Le piège propre au nouveau montage.** Les plans tarifaires dérivés portent chacun leur durée
-minimum — 3, 4, 5, 6, 7 nuits. **Ces minimums vivent sur les plans SECONDAIRES ; le plan standard doit
-rester à 2.** Si l'un d'eux atterrissait sur le plan standard, il ne remiserait rien et supprimerait
-d'un coup toutes les réservations de deux nuits. À relire après chaque création de plan.
+**Deux choses portent le même nom, et il faut les tenir séparées.**
+
+- Une **restriction de séjour** interdit de réserver moins de N nuits à une date. Elle BLOQUE. C'est
+  ce que porte le plan standard : 2 nuits, plus 3 sur les blocs de ponts.
+- La **durée minimum d'un plan tarifaire** conditionne seulement l'ÉLIGIBILITÉ à ce prix — le
+  formulaire dit « durée de séjour minimum **pour ce plan tarifaire** ». Elle ne bloque rien : un
+  client qui veut 2 nuits ne voit pas le plan « 3 nuits et + », il voit le plan standard à son prix
+  plein. Le calendrier le confirme, chaque plan ayant sa propre ligne « Durée de séjour minimum »
+  avec son identifiant de tarif.
+
+**Donc les paliers 3 à 7 nuits des plans dérivés n'obligent personne à rien.** Le danger est unique et
+précis : **qu'un de ces minimums atterrisse sur le plan STANDARD**. Là il ne remiserait rien et
+supprimerait d'un coup toutes les réservations de deux nuits.
+
+**Vérification après chaque création de plan** — `Tarifs et disponibilités` → `Calendrier`, déplier
+les plans : le plan standard doit toujours afficher `2` sur toutes les dates, et le nouveau plan doit
+apparaître dans **sa propre ligne**. Si le minimum du nouveau palier s'est écrit dans la ligne du plan
+standard, tout défaire avant d'aller plus loin.
 
 **Où lire le minimum, canal par canal** :
 

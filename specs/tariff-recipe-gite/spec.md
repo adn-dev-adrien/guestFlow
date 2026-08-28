@@ -201,10 +201,17 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     of the year** carries more — the deliberate 3-night holiday blocks, never above 3. Anything
     reading 4, 7 or 14 comes from the channel, not from here.
 
-    **The trap the new Booking scheme introduces**: each derived rate plan carries its own minimum
-    (3, 4, 5, 6, 7 nights). Those live on the SECONDARY plans; **the standard plan must stay at 2**.
-    A minimum landing on the standard plan would discount nothing and wipe out every two-night
-    booking at once. Re-read it after creating each plan.
+    **Two things share the name « minimum » and must be kept apart.** A *stay restriction* forbids
+    booking fewer than N nights on a date — it BLOCKS, and it is what the standard plan carries
+    (2 nights, 3 on the holiday blocks). A *rate plan's minimum* only conditions ELIGIBILITY for that
+    price — the form says « durée de séjour minimum **pour ce plan tarifaire** », and the calendar
+    gives each plan its own row. A guest wanting two nights simply does not see the « 3 nuits et + »
+    plan; they see the standard one at full price. **So the 3-to-7-night tiers forbid nothing.**
+
+    The danger is single and precise: **a tier's minimum landing on the STANDARD plan**. It would
+    discount nothing and wipe out every two-night booking at once. After creating each plan, reopen
+    `Tarifs et disponibilités → Calendrier`, expand the plans, and check the standard one still reads
+    2 on every date while the new plan sits in its own row.
 
     Verified on Booking on 2026-08-28 (Gîte, rate plan 57972851): « Durée de séjour minimum » reads 2
     on every date of the displayed month.
