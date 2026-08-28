@@ -149,6 +149,31 @@ function freeBytes(target) {
   }
 }
 
+/**
+ * Memory an update can actually draw on, in bytes: `MemAvailable` plus `SwapFree`, read from
+ * /proc/meminfo. `os.freemem()` is the wrong number here — it ignores reclaimable page cache, so it
+ * under-reports on a busy host and over-reports nothing useful. Returns null off Linux, where the
+ * caller skips the check rather than guessing.
+ *
+ * This exists because `npm ci` was killed by the OOM killer on a 648 MB VM with no swap
+ * (2026-08-28): the update reported « Command failed » and wrote no log, and the real cause was only
+ * found in `dmesg`. A pre-flight that names the problem is worth more than a post-mortem.
+ */
+function availableMemoryBytes(readFileImpl = fs.readFileSync) {
+  try {
+    const meminfo = String(readFileImpl('/proc/meminfo', 'utf8'));
+    const field = (name) => {
+      const m = meminfo.match(new RegExp(`^${name}:\\s+(\\d+) kB$`, 'm'));
+      return m ? Number(m[1]) * 1024 : null;
+    };
+    const available = field('MemAvailable');
+    if (available === null) return null;
+    return available + (field('SwapFree') ?? 0);
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   resolveDbPath,
   resolveDataDir,
@@ -157,5 +182,6 @@ module.exports = {
   selfUpdateSupported,
   currentReleaseDir,
   freeBytes,
+  availableMemoryBytes,
   __test: { isSymlink, isDirectory, isFile },
 };
