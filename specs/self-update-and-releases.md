@@ -200,7 +200,28 @@ signed-off releases over HTTPS, when the operator asks for it.
 21. Pre-flight, all must pass or the update is refused with an explicit French message:
     admin role; no update already running; self-update supported by the layout
     (`~/guestflow/current` is a symlink, `ecosystem.config.js` present, `pm2` resolvable);
-    at least **2 GB** free on the deployment filesystem.
+    at least **2 GB** free on the deployment filesystem; and at least **512 MB of available
+    memory** — `MemAvailable + SwapFree` read from `/proc/meminfo`, not `os.freemem()`, which
+    ignores reclaimable page cache. Off Linux the memory check is skipped rather than guessed.
+
+21bis. **Why memory is a pre-flight and not a surprise.** On 2026-08-28 an update died three times on
+    a 648 MB VM with no swap: `npm ci` peaked at ~330 MB of anonymous RSS and the OOM killer took it.
+    The 512 MB floor is that peak plus room for the running application. A host below it is now told
+    « Mémoire insuffisante (N Mo disponibles, 512 Mo requis). Ajoutez du swap ou de la RAM. »
+    instead of watching the install die without a reason.
+
+21ter. **The update log is created by the API call, not by the helper.** Its header records the
+    versions, the start time, and the free memory and disk the pre-flight measured. Staging failures
+    never reach the helper, so a log opened later does not exist when it is most needed: before this
+    rule the operator was told « Voir le journal de mise à jour » about a file that had never been
+    created. Writing it is best-effort — a log that cannot be written never aborts an update.
+
+21quater. **A staging failure keeps its cause.** The declared codes encode their detail after a colon
+    (`ARCHIVE_ABSOLUTE_MEMBER:<name>`), so the prefix is the code — **but only when it is one of the
+    declared codes**. Splitting unconditionally turned `Command failed: npm ci …` into the code
+    « Command failed » and discarded the rest, which is what made the 2026-08-28 outage opaque. An
+    unrecognised failure is reported as `STAGING_FAILED`, its first line (capped at 300 characters)
+    is shown to the operator, and its full message and `stderr` go to the log.
 22. Download: only from `https://api.github.com/repos/adn-dev-adrien/guestFlow/…` and the GitHub
     release-asset hosts it redirects to (`objects.githubusercontent.com`, `release-assets.githubusercontent.com`).
     Any other final host aborts the update. Hard size cap of **200 MB**.
@@ -392,7 +413,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 | GET | `/api/system/version` | admin | — | `{ current, latest, updateAvailable, publishedAt, versions[], versionsTruncated, lastCheckAt, dismissedVersion, selfUpdateSupported, selfUpdateReason, updateInProgress, history[] }` |
 | GET | `/api/system/update/status` | admin | — | `{ phase, label, terminal, fromVersion, targetVersion, startedAt, updatedAt, errorCode, error, logTail[] }` |
 | POST | `/api/system/version/check` | admin | — | same shape as `GET /system/version`; `429` with `Retry-After` when called within 10 s |
-| POST | `/api/system/update/start` | admin | `{ targetVersion }` | `202 { started: true, targetVersion }`; `409` update in progress; `400` version mismatch / unknown target; `412` `selfUpdateSupported: false`; `507` insufficient disk |
+| POST | `/api/system/update/start` | admin | `{ targetVersion }` | `202 { started: true, targetVersion }`; `409` update in progress; `400` version mismatch / unknown target; `412` `selfUpdateSupported: false`; `507` insufficient disk (`INSUFFICIENT_STORAGE`) or memory (`INSUFFICIENT_MEMORY`) |
 | POST | `/api/system/update/dismiss` | admin | `{ version }` | `{ dismissedVersion }` |
 
 The release notes travel **inside the version payload** rather than behind a dedicated endpoint: the

@@ -9,11 +9,12 @@
  * mounting under `/api/system` is enough — no allowlist entry to add, nothing to weaken.
  */
 
+const fs = require('fs');
 const path = require('path');
 const { getAppVersion } = require('../utils/appVersion');
 const { isNewerVersion, isValidVersion } = require('../utils/semver');
 const { fetchReleaseFeed, splitSummary } = require('../utils/releaseClient');
-const { resolvePaths, selfUpdateSupported, resolvePm2Binary, currentReleaseDir, freeBytes } = require('../utils/deploymentPaths');
+const { resolvePaths, selfUpdateSupported, resolvePm2Binary, currentReleaseDir, freeBytes, availableMemoryBytes } = require('../utils/deploymentPaths');
 const { stageRelease, pruneReleases } = require('../utils/updateStaging');
 const { buildHelperArgs, spawnHelper } = require('../utils/updateHelper');
 const { createPreUpdateBackup, rotateBackups } = require('../utils/dbBackup');
@@ -23,6 +24,10 @@ const updateStateModel = require('../models/updateStateModel');
 
 const CHECK_THROTTLE_MS = 10_000;
 const REQUIRED_FREE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB — archive + node_modules + headroom
+// `npm ci` peaked at ~330 MB of anonymous RSS when the OOM killer took it on 2026-08-28; 512 MB of
+// MemAvailable + SwapFree is that peak plus room for the running app to breathe. Below it the update
+// is refused BY NAME, instead of dying under the OOM killer and reporting « Command failed ».
+const REQUIRED_FREE_MEMORY_BYTES = 512 * 1024 * 1024;
 const KEEP_RELEASES = 3;
 
 let lastManualCheckAt = 0;
@@ -103,6 +108,28 @@ function buildStatus(model = updateStateModel) {
       ? model.readLogTail(status.logFile)
       : [],
   };
+}
+
+/**
+ * Create the update log and write its header, so the file exists from the first second of the run.
+ * Best-effort: a log that cannot be written must never abort an update that would otherwise work.
+ */
+function openUpdateLog(logFile, { current, targetVersion, startedAt, memory, free }) {
+  try {
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.writeFileSync(logFile, [
+      `=== GuestFlow update ${current} → ${targetVersion} ===`,
+      `started   ${startedAt}`,
+      `memory    ${memory === null ? 'inconnue' : `${Math.round(memory / 1e6)} Mo disponibles`}`,
+      `disk      ${free === null ? 'inconnu' : `${Math.round(free / 1e9)} Go libres`}`,
+      '',
+    ].join('\n'));
+  } catch { /* a missing log is not a reason to refuse the update */ }
+}
+
+/** Append a line to the update log, best-effort. */
+function appendUpdateLog(logFile, text) {
+  try { fs.appendFileSync(logFile, `${text}\n`); } catch { /* best-effort */ }
 }
 
 /** Terminal outcome reached inside this process (a staging failure): record it here and now. */
@@ -242,8 +269,22 @@ async function startUpdate(req, res) {
     });
   }
 
+  const memory = availableMemoryBytes();
+  if (memory !== null && memory < REQUIRED_FREE_MEMORY_BYTES) {
+    model.releaseLock();
+    return res.status(507).json({
+      error: 'INSUFFICIENT_MEMORY',
+      message: `Mémoire insuffisante (${Math.round(memory / 1e6)} Mo disponibles, `
+        + `${Math.round(REQUIRED_FREE_MEMORY_BYTES / 1e6)} Mo requis). Ajoutez du swap ou de la RAM.`,
+    });
+  }
+
   const startedAt = new Date().toISOString();
   const logFile = path.join(paths.logsDir, `update-${targetVersion}-${startedAt.replace(/[:.]/g, '-')}.log`);
+  // Open the log HERE, not in the helper. A staging failure never reaches the helper, and until this
+  // line existed the operator was told « Voir le journal de mise à jour » about a file that had
+  // never been created (2026-08-28).
+  openUpdateLog(logFile, { current, targetVersion, startedAt, memory, free });
   model.startStatus({ fromVersion: current, targetVersion, logFile, startedAt });
 
   // Answer immediately; the work continues in the background and is followed through the status
@@ -294,14 +335,22 @@ async function runUpdate({ model, paths, current, targetVersion, startedAt, logF
     // From here the helper owns the status file. We keep the lock: the restart is imminent, and a
     // second trigger in that window must be refused.
   } catch (err) {
-    const code = String(err.message || '').split(':')[0] || 'STAGING_FAILED';
-    finishInProcess(model, 'failed', code, stagingErrorMessage(code));
+    // The staging errors encode their detail after a colon (`ARCHIVE_ABSOLUTE_MEMBER:<name>`), so the
+    // prefix is the code — but ONLY when it is one we declared. A generic failure like
+    // `Command failed: npm ci …` used to be truncated to « Command failed » and its cause thrown
+    // away, which is exactly what hid an OOM kill on 2026-08-28. Keep the whole message.
+    const raw = String(err.message || '');
+    const prefix = raw.split(':')[0];
+    const code = isKnownStagingCode(prefix) ? prefix : 'STAGING_FAILED';
+    appendUpdateLog(logFile, `ÉCHEC (${code})`);
+    appendUpdateLog(logFile, raw);
+    if (err.stderr) appendUpdateLog(logFile, `--- stderr ---\n${String(err.stderr).trim()}`);
+    finishInProcess(model, 'failed', code, stagingErrorMessage(code, raw));
   }
 }
 
 /** Staging failures the operator can act on, in French. */
-function stagingErrorMessage(code) {
-  const messages = {
+const STAGING_MESSAGES = {
     FORBIDDEN_HOST: "Le téléchargement pointait vers un hôte non autorisé : mise à jour refusée.",
     ARCHIVE_TOO_LARGE: "L'archive dépasse la taille maximale autorisée.",
     CHECKSUM_MISSING: "L'empreinte SHA-256 de l'archive est absente de la release.",
@@ -312,9 +361,23 @@ function stagingErrorMessage(code) {
     ARCHIVE_UNEXPECTED_ROOT: "L'archive n'a pas la structure attendue : mise à jour refusée.",
     RELEASE_LAYOUT_MISSING: "L'archive ne contient pas une version complète de GuestFlow.",
     RELEASE_VERSION_MISMATCH: "L'archive ne correspond pas à la version annoncée.",
-    EMPTY_ARCHIVE: "L'archive téléchargée est vide.",
-  };
-  return messages[code] || "L'installation de la nouvelle version a échoué. Voir le journal de mise à jour.";
+  EMPTY_ARCHIVE: "L'archive téléchargée est vide.",
+};
+
+function isKnownStagingCode(code) {
+  return Object.prototype.hasOwnProperty.call(STAGING_MESSAGES, code);
+}
+
+/**
+ * `detail` is the raw error. For an unrecognised failure it is the only thing that says what went
+ * wrong, so it goes in the message the operator reads rather than being dropped.
+ */
+function stagingErrorMessage(code, detail = '') {
+  if (STAGING_MESSAGES[code]) return STAGING_MESSAGES[code];
+  const trimmed = String(detail).trim().split('\n')[0].slice(0, 300);
+  return trimmed
+    ? `L'installation de la nouvelle version a échoué : ${trimmed}`
+    : "L'installation de la nouvelle version a échoué. Voir le journal de mise à jour.";
 }
 
 module.exports = {
@@ -326,5 +389,8 @@ module.exports = {
   runVersionCheck,
   initOnBoot,
   // Exposed for tests.
-  __test: { buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage, CHECK_THROTTLE_MS, REQUIRED_FREE_BYTES },
+  __test: {
+    buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage, isKnownStagingCode,
+    CHECK_THROTTLE_MS, REQUIRED_FREE_BYTES, REQUIRED_FREE_MEMORY_BYTES,
+  },
 };
