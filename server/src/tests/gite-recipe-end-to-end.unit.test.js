@@ -40,7 +40,11 @@ test('the shipped recipe validates and prices a week at exactly four nights', ()
   const recipe = loadShippedRecipe();
   assert.equal(recipe.id, 'gite-2027');
   assert.deepEqual(recipe.seasons.map((s) => s.label), ['Très basse', 'Basse', 'Moyenne', 'Haute', 'Très haute', 'Nouvel An']);
-  for (const season of recipe.seasons) {
+  // A `fixed` season opts OUT of the curve on purpose — the réveillon is billed flat, every night at
+  // the full rate — so it has no tiers to walk and must not be held to the week-is-four-nights rule.
+  const progressive = recipe.seasons.filter((s) => s.pricingMode === 'progressive');
+  assert.deepEqual(recipe.seasons.filter((s) => s.pricingMode === 'fixed').map((s) => s.label), ['Nouvel An']);
+  for (const season of progressive) {
     const totals = cumulativeTotals(season, 14);
     // The whole grid in one line: nights 1-2 at the full rate, a week at four times it.
     assert.equal(totals[1], round2(season.pricePerNight * 2), `${season.label}: 2 nights = 2 × base`);
@@ -68,6 +72,9 @@ test('every season\'s net target reproduces its own displayed price through the 
 test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => {
   const recipe = loadShippedRecipe();
   const r = (startDate, endDate, minNights) => (minNights ? { startDate, endDate, minNights } : { startDate, endDate });
+  // An event range carries its identity through the plan so the fiche and the Dashboard can flag a
+  // year whose dates were never declared.
+  const ev = (startDate, endDate, minNights) => ({ startDate, endDate, eventKey: 'ardechoise', eventLabel: "L'Ardéchoise", minNights });
 
   const plan2026 = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
   // The four rules, then the holiday blocks cutting into them one rank up, capped at Haute.
@@ -79,34 +86,38 @@ test('the shipped recipe derives the 2026 and 2027 calendars to the day', () => 
   assert.deepEqual(plan2026.mid, [
     r('2026-04-04', '2026-04-05', 2),  // Pâques (lundi 6)
     r('2026-05-03', '2026-05-07'), r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'),
-    r('2026-05-25', '2026-07-03'), r('2026-08-29', '2026-10-30'),
+    // L'Ardéchoise cuts a Haute week out of the middle of the Moyenne stretch.
+    r('2026-05-25', '2026-06-07'), r('2026-06-14', '2026-07-03'), r('2026-08-29', '2026-10-30'),
   ]);
   assert.deepEqual(plan2026.high, [
-    r('2026-01-01', '2026-01-01', 3),  // already Haute (year-end block): capped, minimum only
     r('2026-05-01', '2026-05-02', 2),  // Fête du Travail (vendredi)
     r('2026-05-08', '2026-05-09', 2),  // Victoire (vendredi)
     r('2026-05-14', '2026-05-16', 3),  // Ascension (jeudi) + pont
     r('2026-05-23', '2026-05-24', 2),  // Pentecôte (lundi 25)
+    ev('2026-06-08', '2026-06-13', 2),  // L'Ardéchoise — declared dates, never derived
     r('2026-07-04', '2026-07-10'), r('2026-08-22', '2026-08-28'),
     // The year-end block, split by Christmas's own 2-night minimum and by the réveillon.
     r('2026-12-19', '2026-12-24'), r('2026-12-25', '2026-12-26', 2), r('2026-12-27', '2026-12-29'),
   ]);
   assert.deepEqual(plan2026.peak, [r('2026-07-11', '2026-07-13', 3), r('2026-07-14', '2026-08-21')]);
-  assert.deepEqual(plan2026['new-year'], [r('2026-12-30', '2026-12-31')]);
+  // The réveillon spans the civil year, so it surfaces at BOTH ends of the plan: 1 January closes
+  // the window opened on 30 December of the year before, and keeps its holiday block's minimum.
+  assert.deepEqual(plan2026['new-year'], [r('2026-01-01', '2026-01-01', 3), r('2026-12-30', '2026-12-31')]);
 
   // 2027 — the year the grid is written for, derived from the same rules, nothing painted.
   const plan2027 = buildYearPlan(recipe, 2027, materializeClosures(recipe, 2026, 2027));
   assert.deepEqual(plan2027.high, [
-    r('2027-01-01', '2027-01-01', 2), r('2027-05-01', '2027-05-01'),
+    r('2027-05-01', '2027-05-01'),
     r('2027-05-06', '2027-05-08', 3), r('2027-05-15', '2027-05-16', 2),
+    ev('2027-06-07', '2027-06-12', 2),  // L'Ardéchoise
     r('2027-07-03', '2027-07-09'), r('2027-08-21', '2027-08-27'),
     r('2027-10-30', '2027-10-30', 2), r('2027-12-19', '2027-12-29'),
   ]);
   assert.deepEqual(plan2027.peak, [r('2027-07-10', '2027-08-20')]);
-  assert.deepEqual(plan2027['new-year'], [r('2027-12-30', '2027-12-31')]);
+  assert.deepEqual(plan2027['new-year'], [r('2027-01-01', '2027-01-01', 2), r('2027-12-30', '2027-12-31')]);
   assert.deepEqual(plan2027.mid, [
     r('2027-05-02', '2027-05-05'), r('2027-05-09', '2027-05-14'),
-    r('2027-05-17', '2027-07-02'), r('2027-08-28', '2027-10-29'),
+    r('2027-05-17', '2027-06-06'), r('2027-06-13', '2027-07-02'), r('2027-08-28', '2027-10-29'),
   ]);
 });
 
@@ -114,7 +125,7 @@ test('a holiday raise stops at Haute, and never demotes a night above it', () =>
   const recipe = loadShippedRecipe();
   const plan = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
   // 25 December is a public holiday inside the year-end block, which is ALREADY Haute: the cap
-  // holds it there instead of letting it climb to Nouvel An at 1 200 €.
+  // holds it there instead of letting it climb to Nouvel An at 750 €.
   assert.equal(plan['new-year'].some((x) => x.startDate.startsWith('2026-12-2')), false);
   assert.ok(plan.high.some((x) => x.startDate === '2026-12-25' && x.minNights === 2));
   // 14 juillet sits in Très haute, ABOVE the cap. It keeps its price and takes the block's minimum;
@@ -212,12 +223,19 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
     // being taken from the position in the STAY and the price from the season of each night.
     ['G6 · à cheval sur la fin du cœur d\'été', 7, '2026-08-17', '2026-08-24', 2027.20],
     ['G7 · Noël', 9, '2026-12-23', '2026-12-26', 916.80],
-    // The réveillon, at its provisional rate — the two nights of a stay arriving on the 30th.
-    ['G8 · réveillon du Nouvel An', 10, '2026-12-30', '2027-01-01', 2400.00],
+    // The réveillon: three nights at 750 € flat, no length discount — `pricingMode: fixed`. A stay
+    // arriving on the 30th and leaving on the 2nd pays 3 × 750, not 3 × 750 × 0,80.
+    ['G8 · réveillon, le bloc de deux nuits', 10, '2026-12-30', '2027-01-01', 1500.00],
+    ['G8b · réveillon, les trois nuits', 10, '2026-12-30', '2027-01-02', 2250.00],
+    // The window, not the headline, is the lever: a guest arriving on the 31st still gets two nights
+    // at the réveillon rate because 1 January is inside it. On a 30-31 window they would get one.
+    ['G8c · réveillon, arrivée le 31', 10, '2026-12-31', '2027-01-03', 1621.20],
     // 14 juillet keeps its Très haute price despite the cap at Haute.
     ['G9 · le bloc du 14 juillet', 4, '2026-07-11', '2026-07-14', 1291.20],
     // 2027, derived and never painted by anyone.
     ['G10 · la semaine de plein été 2027', 4, '2027-07-17', '2027-07-24', 2152.00],
+    // L'Ardéchoise: Haute instead of the Moyenne that surrounds it — the week the Domaine fills.
+    ['G11 · L\'Ardéchoise', 8, '2026-06-12', '2026-06-14', 764.00],
   ];
   for (const [label, adults, startDate, endDate, expected] of CASES) {
     const quote = calculateReservationQuote({ ...BASE, adults, startDate, endDate });

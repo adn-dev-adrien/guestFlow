@@ -120,6 +120,34 @@ Three consequences for the model:
 
 ---
 
+## 2bis. The only year-end evidence that exists
+
+GuestFlow holds **nothing** before 2026: the one row it has earlier than 15 January 2026 is a 0 €
+iCal import. Every figure below was produced by the owner on 2026-08-28, from the channels' own
+statements, and it is the entire factual basis for the year-end part of the recipe.
+
+| Stay | Nights | Gross | Per night | Source |
+|---|---:|---:|---:|---|
+| Christmas | 2 | 1 550,00 € | **775,00 €** | owner (« Tangi »), 2026-08-28 |
+| Réveillon | 3 | 1 222,00 € | **407,33 €** | channel statement, ref. HA-ZB330Z, net 1 103,94 € after 9,66 % |
+| Late October | 2 | 492,00 € | 246,00 € | channel statement, ref. HA-PVSF94, net 444,34 € |
+
+A fourth document — Gîtes de France contract n° 13164, 26 → 30 December, 4 nights, 840 € rental,
+210 €/night — was given first and then **superseded by the owner**: the Christmas stay on the Gîte
+was Tangi's two nights at 1 550 €. The contract is kept here anyway, because it is the source of the
+commission arithmetic in Q2 and that finding stands whatever stay it describes.
+
+Three things follow, and they drove every year-end decision in the recipe:
+
+1. **The réveillon was underpriced by the grid, not just by the market.** 407 €/night was obtained;
+   the grid in force bills those nights **382 €**. It was quoting below a price already paid.
+2. **Late October at 246 €/night** sits under the Moyenne season (326 €) that the recipe assigns it.
+   Nothing was changed there — it is one stay — but it is the only evidence that the shoulder season
+   may be optimistic, and it is worth a second look once a season of real data exists.
+3. **The year-end cannot be reasoned about from GuestFlow.** Any future review of these prices has to
+   start by getting the channel statements out again. This section is the substitute for the history
+   the database does not have.
+
 ## 3. The net pivot
 
 The Lodge decided a net target first and derived the displayed price from it. The Gîte goes the
@@ -141,7 +169,7 @@ grossed up from a price that already contained the margin). Asserted per season 
 | Moyenne | 326 € | 309,70 € |
 | Haute | 382 € | 362,90 € |
 | Très haute | **538 €** | 511,10 € |
-| Nouvel An | **1 200 € — provisional** | 1 140 € |
+| Nouvel An | **750 €** — flat, no length discount | 712,50 € |
 
 Très haute is the one displayed price that moves — 537,50 € → 538 €. The channel grid rounds up to
 the whole euro, so a half-euro base makes the direct row unable to reproduce its own price. The move
@@ -151,14 +179,15 @@ is +0,50 €/night.
 
 | Channel | Commission | Très basse | Basse | Moyenne | Haute | Très haute | Nouvel An* |
 |---|---|---|---|---|---|---|---|
-| Abracadaroom | 20 % | 300 € | 360 € | 388 € | 454 € | 639 € | 1 425 € |
-| Airbnb | 15,5 % | 284 € | 341 € | 367 € | 430 € | 605 € | 1 350 € |
-| Booking | 15 % | 282 € | 339 € | 365 € | 427 € | 602 € | 1 342 € |
-| Greengo | 14,5 % | 280 € | 337 € | 363 € | 425 € | 598 € | 1 334 € |
-| **Direct / Lodgify** | 5 % | **252 €** | **303 €** | **326 €** | **382 €** | **538 €** | **1 200 €** |
-| Gîtes de France | **0 %** | 240 € | 288 € | 310 € | 363 € | 512 € | 1 140 € |
+| Abracadaroom | 20 % | 300 € | 360 € | 388 € | 454 € | 639 € | 891 € |
+| Airbnb | 15,5 % | 284 € | 341 € | 367 € | 430 € | 605 € | 844 € |
+| Booking | 15 % | 282 € | 339 € | 365 € | 427 € | 602 € | 839 € |
+| Greengo | 14,5 % | 280 € | 337 € | 363 € | 425 € | 598 € | 834 € |
+| **Direct / Lodgify** | 5 % | **252 €** | **303 €** | **326 €** | **382 €** | **538 €** | **750 €** |
+| Gîtes de France | **0 %** | 240 € | 288 € | 310 € | 363 € | 512 € | 713 € |
 
-\* The Nouvel An column is derived from a **placeholder** rate (§5 Q6) and is not to be published.
+\* The Nouvel An nights are billed **flat**: the length discount does not apply to them, so a
+three-night réveillon is 3 × the figure above, not 3 × 0,80.
 
 > **That last row is wrong, and it is the Gîte's main channel.** `platforms.GitesDeFrance.commissionPercent`
 > is 0 in GuestFlow. The seven Gîtes-de-France bookings that carry a recorded commission total
@@ -186,12 +215,20 @@ The 24 stays of 2026, re-priced by the recipe and compared with what the current
 | 19/07/2026 | 7 | 1 794,75 € | 2 152,00 € | +357,25 € — Très haute repaired |
 | 01/08/2026 | 14 | 3 595,36 € | 4 304,01 € | +708,65 € — Très haute repaired |
 | 17/08/2026 | 7 | 1 896,10 € | 2 027,20 € | +131,10 € — Très haute repaired |
-| **Total** | | **22 349,31 €** | **24 181,61 €** | **+1 832,30 € (+8,2 %)** |
+| **Total** | | **22 349,31 €** | **24 661,61 €** | **+2 312,30 € (+10,3 %)** |
 
-Three causes, and only three: **+1 197 €** the repair of one broken season, **+452,80 €** the holiday
-bridges the owner asked for on 2026-08-25, and **+182,50 €** four calendar days and half a euro.
-Nothing else in the recipe raises a price. No stay of 2026 falls in the réveillon, so the placeholder
-rate does not appear in this table.
+Five causes, and only five: **+1 197 €** the repair of one broken season, **+452,80 €** the holiday
+bridges the owner asked for on 2026-08-25, **+182,50 €** four calendar days and half a euro,
+**+368 €** the réveillon reaching the night of 1 January, and **+112 €** L'Ardéchoise. Nothing else
+in the recipe raises a price.
+
+**One consequence to keep in sight.** The only 2026 stay touched by the réveillon is the one that
+*arrives* on 1 January (01/01 → 03/01): it goes from 504 € to 1 053 €, because the night of the 1st
+is now billed 750 €. A guest arriving that evening has missed the party and pays for it. This is the
+cost of a window that prices by NIGHT rather than by arrival date — the same property that makes the
+rate bite for the guest arriving on the 31st, which is the case the owner decided on. A rule keyed to
+the arrival date is not expressible in the recipe format, and would not be worth it: one stay in
+twenty-four, against the réveillon itself.
 
 ## 5. Arbitrations the recipe could not take alone
 
@@ -225,23 +262,73 @@ their Très haute price and gain only the block's minimum stay.
 
 **On the 24 stays already on the books for 2026: +452,80 €** (+1,9 %) across 6 of them.
 
-### Q1bis — The Nouvel An season — **added 2026-08-25, rate still pending**
+### Q1bis — The Nouvel An season — **answered 2026-08-28: 750 €, flat, over three nights**
 
-The owner asked for a season of its own for the réveillon, priced above high season, covering « la
-veille du jour de l'an et le jour, bref le 30 et le 31 » — i.e. the **nights of 30 and 31 December**,
-a stay arriving on the 30th and leaving on 1 January. It is carved out of the year-end block by being
-declared after it; 1 January stays in Haute, being a departure morning rather than a réveillon night.
-The rest of the block — 19 → 29 December, Christmas included — is unchanged.
+The owner asked for a season of its own for the réveillon, priced above high season. It is carved out
+of the year-end block by being declared after it; the rest of the block — 19 → 29 December, Christmas
+included — is unchanged.
 
-**Its rate is not decided.** 1 200 €/night is a placeholder (« pour le moment tu mets 1200 € la
-nuit »). Replacing it is a two-number edit plus a version bump and a re-apply. Until then those two
-nights are not to be published on any channel.
+Settled on 2026-08-28, once the owner produced the only evidence that exists about the Gîte's
+year-end (§2bis). Three decisions, in the order they matter:
 
-### Q2 — The Gîtes de France commission
+**The window is the lever, not the headline.** The season first covered the nights of 30 and 31
+December. But the guest who actually booked the 2025 réveillon *arrived on the 31st*: on a two-night
+window only one of their three nights carried the high rate, the other two falling back to Haute
+**with the length discount applied**. Modelled at 650 €/night, that stay would have brought in **less
+than it did in 2025** (−5,6 %). The same headline over a window that includes 1 January brings +16,3 %.
+The season therefore covers **30 December, 31 December and 1 January**. One January is a réveillon
+night: nobody leaves on the morning of the 1st.
 
-See §3. Until the contractual rate is entered, the channel grid cannot be derived for 70 % of the
-Gîte's bookings, and the Gîte's accounting attributes 0 € of commission to them. This is not part of
-the recipe (commissions are global per platform) but it gates the rollout.
+**No length discount.** `pricingMode: "fixed"` — every night at the full rate. The scarcest nights of
+the year are not discounted, and a −20 % on the third night of the réveillon has no commercial sense.
+This is what the mode exists for, and the Gîte is its first user.
+
+**750 €/night**, chosen from three modelled options. It is 1,4 × the summer peak and 75 € per person
+per night at ten. Against the 2025 réveillon actually sold — 1 222 € for three nights, 407 €/night —
+it prices that same stay at **1 621,20 €, +32,7 %**. Note what the old grid was doing: those nights
+were billed **382 €**, i.e. *below* what the market had already paid.
+
+| Stay | 2025 realised | Recipe v1.3.0 |
+|---|---:|---:|
+| The réveillon actually sold (31/12 → 03/01, 3 n) | 1 222,00 € | **1 621,20 €** (+32,7 %) |
+| A textbook réveillon (30/12 → 02/01, 3 n) | — | 2 250,00 € |
+| The minimum block (30/12 → 01/01, 2 n) | — | 1 500,00 € |
+| The whole festive week (26/12 → 02/01, 7 n) | — | 3 319,60 € |
+
+### Q1ter — Christmas week itself — **answered 2026-08-28: unchanged at Haute, 382 €**
+
+Christmas (19 → 29 December) stays in Haute at 382 €/night. The owner's call, made with the Tangi
+figure of §2bis in front of him.
+
+Recorded because the two numbers pull in opposite directions and a future reader will notice: the
+only Christmas price the Gîte is known to have obtained is **775 €/night** (Tangi, 2 nights,
+1 550 €), which is more than double what the recipe now charges. 382 € is the decision; this
+paragraph is the note that it was taken knowingly, not by omission.
+
+### Q2 — The Gîtes de France commission — **a contract now says 10 %, still to be confirmed**
+
+See §3. Until the contractual rate is entered, the channel grid cannot be derived for the majority of
+the Gîte's bookings, and the Gîte's accounting attributes 0 € of commission to them. This is not part
+of the recipe (commissions are global per platform) but it gates the rollout.
+
+On 2026-08-28 the owner produced contract n° 13164, which reconciles exactly on one reading:
+
+```
+rental                     840 €
+options (ménage 80 + 5 × linge toilette 8)   120 €
+tourist tax                 20 €     collected and remitted by the centrale
+--------------------------------------------------
+owner net                  876 €  =  840 × 0,90 + 120
+client total             1 028 €  =  840 + 120 + 20 + 48 frais de dossier
+```
+
+So: **10 % on the rental, nothing on the options, the tourist tax passed through, and a 48 € booking
+fee charged to the guest on top** — which the centrale keeps and which never touches the owner's net.
+
+One contract is one data point, and it does **not** reproduce what GuestFlow has stored for the 2026
+bookings, where the recorded commission ranges from 7,75 % to 20,41 % of the rental. Those figures
+were entered by hand and are probably mixing the booking fee in. Two or three more contracts, or the
+rate in writing, before this number is wired into the channel grid.
 
 ### Q3 — Whole-house price, or base + extra guest? — **answered 2026-08-25: whole house, unchanged**
 

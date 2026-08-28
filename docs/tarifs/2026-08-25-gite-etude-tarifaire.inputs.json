@@ -1,8 +1,8 @@
 {
  "titre": "Étude tarifaire du Gîte, et la grille qui en sort",
  "titrePage": "Étude tarifaire du Gîte",
- "sousTitre": "Gîte · Domaine Solio · 25 août 2026",
- "intro": "La tarification du Gîte n'existait nulle part sous forme de règle : cinq saisons peintes à la main, des paliers saisis nuit par nuit, et 2027 sans prix passé le 8 janvier. Cette page est ce que l'on trouve en démontant cette grille, et la recette qui la remplace — prix inchangés partout où l'ancienne ne se contredisait pas.",
+ "sousTitre": "Gîte · Domaine Solio · 25 août 2026, révisée le 28 août",
+ "intro": "La tarification du Gîte n'existait nulle part sous forme de règle : cinq saisons peintes à la main, des paliers saisis nuit par nuit, et 2027 sans prix passé le 8 janvier. Cette page est ce que l'on trouve en démontant cette grille, et la recette qui la remplace — prix inchangés partout où l'ancienne ne se contredisait pas. Révision du 28 août : le tarif du réveillon est arbitré, L'Ardéchoise ajoutée.",
  "anneeReference": 2026,
  "anneesDerivees": [
   2026,
@@ -10,9 +10,7 @@
   2028
  ],
  "fraisMoteurPct": 5,
- "saisonsProvisoires": [
-  "new-year"
- ],
+ "saisonsProvisoires": [],
  "reglesCalendrier": {
   "spring": "Le mois d'avril",
   "shoulder": "Du 1er mai au 30 octobre",
@@ -26,11 +24,11 @@
  "noteSaisonCassee": "Les deux semaines de plein été réellement vendues en 2026 avaient été devisées 2 148 € à la prise de réservation, soit quatre fois 537 € : la courbe a été écrasée après coup. Ce sont les quarante-deux nuits les plus demandées de l'année.",
  "noteDerive": "Aucun de ces jours n'est un choix commercial : le 1er janvier 2026 avait simplement été oublié en très basse saison alors que le 1er janvier 2027, lui, était bien peint en haute ; et la basse saison d'avril démarrait au premier samedi plutôt qu'au premier du mois.",
  "notePonts": "La règle est celle de la Lodge, à une différence près : elle est plafonnée à la haute saison. Sans plafond, elle monterait le 25 décembre au tarif du réveillon. Une nuit déjà au-dessus du plafond — le 14 juillet, le 15 août — garde son prix et ne prend que le minimum de séjour de son bloc.",
- "noteCanaux": "La ligne Gîtes de France est calculée à 0 % de commission, ce qui est la valeur enregistrée dans GuestFlow — et c'est faux. Voir la réserve plus bas : c'est le canal qui porte 84 % du brut du Gîte.",
+ "noteCanaux": "La ligne Gîtes de France est calculée à 0 % de commission, ce qui est la valeur enregistrée dans GuestFlow — et c'est faux. Un contrat produit le 28 août donne 10 % sur la location seule ; voir la réserve plus bas. Les nuits de Nouvel An sont facturées à plat : un réveillon de trois nuits coûte trois fois le prix affiché, pas trois fois 0,80.",
  "canauxDouteux": [
   "GitesDeFrance"
  ],
- "noteIso": "Trois causes, et seulement trois : la réparation de la très haute saison, les ponts fériés, et quatre jours de calendrier. Aucun prix n'est monté volontairement. Aucun séjour de 2026 ne tombe sur le réveillon, donc le tarif provisoire n'apparaît pas dans ce tableau.",
+ "noteIso": "Cinq causes, et seulement cinq : la réparation de la très haute saison, les ponts fériés, quatre jours de calendrier, le réveillon qui atteint la nuit du 1er janvier, et L'Ardéchoise. Aucun autre prix n'est monté. Le seul séjour touché par le réveillon est celui qui ARRIVE le 1er janvier : il passe de 504 € à 1 053 €, parce que la recette tarife à la nuit et non à la date d'arrivée — la même propriété qui fait mordre le tarif sur le client arrivé le 31.",
  "cas": [
   {
    "id": "g1",
@@ -50,6 +48,13 @@
    "du": "2026-05-14",
    "nuits": 3,
    "note": "Trois nuits de haute saison au milieu de ce qui serait sinon de la moyenne — et un minimum de trois nuits, parce qu'un pont ne se vend pas à la nuit."
+  },
+  {
+   "id": "g11",
+   "titre": "L'Ardéchoise",
+   "du": "2026-06-12",
+   "nuits": 2,
+   "note": "Dates déclarées et jamais devinées : l'organisateur déplace l'épreuve et n'annonce l'édition suivante qu'en décembre. Le séjour déjà réservé sur ces dates avait été devisé 652 € en moyenne saison."
   },
   {
    "id": "g4",
@@ -76,14 +81,28 @@
    "id": "g7",
    "titre": "Noël",
    "du": "2026-12-23",
-   "nuits": 3
+   "nuits": 3,
+   "note": "Noël reste en haute saison à 382 € — décision d'Adrien le 28 août, prise en connaissance du seul prix de Noël que le Gîte ait obtenu : 775 € la nuit."
   },
   {
    "id": "g8",
-   "titre": "Le réveillon du Nouvel An",
+   "titre": "Le réveillon, le bloc de deux nuits",
    "du": "2026-12-30",
    "nuits": 2,
-   "note": "Tarif provisoire. Ces deux nuits ne doivent partir sur aucun canal avant que le vrai prix soit arrêté."
+   "note": "750 € la nuit, facturées à plat : les trois nuits les plus rares de l'année ne se remisent pas."
+  },
+  {
+   "id": "g8b",
+   "titre": "Le réveillon, les trois nuits",
+   "du": "2026-12-30",
+   "nuits": 3
+  },
+  {
+   "id": "g8c",
+   "titre": "Le réveillon, arrivée le 31",
+   "du": "2026-12-31",
+   "nuits": 3,
+   "note": "Le cas réel de 2025, vendu 1 222 €. La fenêtre inclut le 1er janvier : deux de ces trois nuits portent le tarif fort. Sur une fenêtre de deux nuits, une seule l'aurait porté et ce séjour rapporterait moins qu'en 2025."
   },
   {
    "id": "g9",
@@ -102,19 +121,19 @@
  ],
  "reserves": [
   {
-   "id": "reveillon",
-   "titre": "Le tarif du Nouvel An n'est pas arrêté",
-   "texte": "1 200 € la nuit est une valeur d'attente, pas un prix décidé. Le remplacer coûte deux nombres — le prix affiché et son net, qui vaut 95 % de ce prix — plus un incrément de version et une réapplication. D'ici là, les nuits du 30 et du 31 décembre ne doivent être publiées sur aucun canal."
-  },
-  {
    "id": "gdf",
    "titre": "La commission Gîtes de France est enregistrée à 0 %",
-   "texte": "Le canal porte 15 des 24 réservations du Gîte et 84 % de son brut, et GuestFlow le traite comme s'il ne prenait rien. Sur les sept réservations qui enregistrent une commission, elle représente 14,02 % du brut — mais avec des taux individuels allant de 6,90 % à 19,58 %, ce qui ressemble à des frais de dossier venant s'ajouter à un pourcentage. Il faut le taux du contrat : une moyenne ne suffira pas à construire une grille."
+   "texte": "Le canal porte 15 des 24 réservations du Gîte et 84 % de son brut, et GuestFlow le traite comme s'il ne prenait rien. Le contrat n° 13164 produit le 28 août se réconcilie exactement d'une seule façon : 840 € de location × 0,90 + 120 € d'options = 876 € de net propriétaire. Soit 10 % sur la location, rien sur les options, la taxe de séjour reversée, et 48 € de frais de dossier facturés au client par-dessus. Mais un contrat est un point unique, et il ne reproduit pas ce que GuestFlow a enregistré sur 2026, où la commission relevée va de 7,75 % à 20,41 % de la location. Deux ou trois contrats de plus, ou le taux par écrit, avant de câbler ce chiffre."
   },
   {
    "id": "rangs",
    "titre": "Cinq rangs historiques, dont un pour le seul mois d'avril",
    "texte": "La basse saison se situe 20 % au-dessus de la très basse et 7 % en dessous de la moyenne, pour trente nuits par an. C'est un rang de plus à configurer sur chaque plateforme. La fusionner ou l'élargir se défend ; la recette la garde parce que la consigne était de partir des prix existants."
+  },
+  {
+   "id": "noel",
+   "titre": "Noël reste à 382 € alors que la seule preuve dit 775 €",
+   "texte": "Décision d'Adrien le 28 août, prise avec le chiffre sous les yeux. Elle est notée ici parce qu'un lecteur futur verra la contradiction : le seul prix de Noël que le Gîte ait obtenu est plus du double de ce que la recette facture. Ce n'est pas un oubli."
   }
  ],
  "nonVerifie": [
@@ -124,13 +143,13 @@
  ],
  "pied": [
   "Page auto-portante : polices intégrées, aucune requête réseau à l'ouverture. Elle s'ouvre hors ligne.",
-  "Produite par .claude/skills/tariff-recipe/build-study-page.mjs à partir de server/src/recipes/gite-2027.json. Les faits observés — grille actuelle, séjours au planning, commissions — viennent de la base ; tout le reste est recalculé à chaque génération. La page peut contredire qui l'a écrite.",
-  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v1.1.0"
+  "Produite par .claude/skills/tariff-recipe/build-study-page.mjs à partir de server/src/recipes/gite-2027.json. Les faits observés — grille actuelle, séjours au planning, commissions, relevés de canaux — viennent de la base et du propriétaire ; tout le reste est recalculé à chaque génération. La page peut contredire qui l'a écrite.",
+  "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v1.3.0"
  ],
  "periodesVoulues": [
   "new-year"
  ],
- "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, et le réveillon sort du bloc des fêtes pour prendre sa propre saison. Ils sont listés à part des corrections ci-dessus, parce qu'ils se décident et ne se déduisent pas.",
+ "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, le réveillon sort du bloc des fêtes pour prendre sa propre saison sur trois nuits, et L'Ardéchoise peint une semaine de Haute au milieu de juin. Ils sont listés à part des corrections ci-dessus, parce qu'ils se décident et ne se déduisent pas.",
  "ancienneGrille": [
   {
    "label": "Très basse",
@@ -2170,5 +2189,31 @@
   "extraGuestPrice": 0,
   "touristTaxMode": "per_day_per_person",
   "touristTaxPerDayPerPerson": 1.2
- }
+ },
+ "preuvesTitre": "Ce que les fêtes ont réellement payé",
+ "preuvesIntro": "GuestFlow ne contient rien avant 2026 — la seule ligne antérieure au 15 janvier est un import iCal à 0 €. Tout ce tableau vient des relevés de canaux sortis par Adrien le 28 août, et c'est la totalité de la base factuelle sur laquelle la fin d'année a été arbitrée.",
+ "preuvesNote": "Le réveillon est le chiffre qui a tout décidé : 407 € la nuit obtenus, contre 382 € que la grille en vigueur facture pour ces nuits — elle cotait en dessous d'un prix déjà payé. Un contrat Gîtes de France du 26 au 30 décembre (4 nuits, 840 € de location) avait d'abord été fourni puis remplacé par Adrien : le séjour de Noël sur le Gîte, c'est Tangi. Le contrat reste la source du calcul de commission plus bas. La colonne de droite compare aux MÊMES dates un an plus tard, seule comparaison possible : l'horizon de la recette commence en 2026. Un tiret signifie que les nuits exactes ne sont pas connues — deux nuits de Noël, une arrivée fin octobre — et le générateur refuse de calculer sur une date qu'il ne couvre pas plutôt que de compter zéro.",
+ "preuves": [
+  {
+   "quoi": "Noël 2025 (« Tangi »)",
+   "nuits": 2,
+   "brut": 1550.0,
+   "du": null,
+   "source": "relevé propriétaire, 28/08/2026"
+  },
+  {
+   "quoi": "Réveillon 2025 (31/12 → 03/01)",
+   "nuits": 3,
+   "brut": 1222.0,
+   "du": "2026-12-31",
+   "source": "relevé canal, réf. HA-ZB330Z, net 1 103,94 € après 9,66 %"
+  },
+  {
+   "quoi": "Fin octobre 2025",
+   "nuits": 2,
+   "brut": 492.0,
+   "du": null,
+   "source": "relevé canal, réf. HA-PVSF94, net 444,34 €"
+  }
+ ]
 }

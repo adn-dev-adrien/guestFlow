@@ -65,6 +65,8 @@ const seasons = [...R.seasons].sort((a, b) => a.rank - b.rank);
 const plusLongueSuite = {};
 const byKey = Object.fromEntries(seasons.map((s) => [s.key, s]));
 const marginal = (s, night) => {
+  // A `fixed` season opts out of the curve: every night at the full rate, no length discount.
+  if ((s.pricingMode || 'fixed') !== 'progressive') return Number(s.pricePerNight);
   if (night === 1) return Number(s.pricePerNight);
   const t = s.progressiveTiers.find((x) => Number(x.nightNumber) === night);
   return Number(t ? t.extraNightPrice : s.progressiveTiers[s.progressiveTiers.length - 1].extraNightPrice);
@@ -73,8 +75,13 @@ const cumul = (s, upTo) => { const out = [Number(s.pricePerNight)]; for (let n =
 
 const MOTEUR = IN.fraisMoteurPct ?? 5;
 for (const s of seasons) {
-  check(`${s.label} — la semaine vaut quatre nuits`, cumul(s, 7)[6] === r2(s.pricePerNight * 4), `${eur(cumul(s, 7)[6])} contre ${eur(r2(s.pricePerNight * 4))}`);
-  check(`${s.label} — la nuit d'après une semaine vaut un septième de semaine`, r2(cumul(s, 8)[7] - cumul(s, 8)[6]) === r2((s.pricePerNight * 4) / 7), `${eur(r2(cumul(s, 8)[7] - cumul(s, 8)[6]))}`);
+  if ((s.pricingMode || 'fixed') === 'progressive') {
+    check(`${s.label} — la semaine vaut quatre nuits`, cumul(s, 7)[6] === r2(s.pricePerNight * 4), `${eur(cumul(s, 7)[6])} contre ${eur(r2(s.pricePerNight * 4))}`);
+    check(`${s.label} — la nuit d'après une semaine vaut un septième de semaine`, r2(cumul(s, 8)[7] - cumul(s, 8)[6]) === r2((s.pricePerNight * 4) / 7), `${eur(r2(cumul(s, 8)[7] - cumul(s, 8)[6]))}`);
+  } else {
+    // A season billed flat must stay flat: n nights = n × the rate, with no discount creeping in.
+    check(`${s.label} — facturée à plat, sans remise de durée`, cumul(s, 5).every((t, i) => t === r2(s.pricePerNight * (i + 1))), `5 nuits = ${eur(cumul(s, 5)[4])}`);
+  }
   check(`${s.label} — le net cible redonne le prix affiché`, grossFromNet(s.netTargetPerNight, MOTEUR) === Number(s.pricePerNight), `plafond(${eur(s.netTargetPerNight)} ÷ ${String(1 - MOTEUR / 100).replace('.', ',')}) = ${eur0(grossFromNet(s.netTargetPerNight, MOTEUR))}`);
 }
 
@@ -129,6 +136,7 @@ const labelToKey = Object.fromEntries(seasons.map((s) => [s.label.toLowerCase(),
 const voulues = new Set(IN.periodesVoulues || []);
 const socle = JSON.parse(JSON.stringify(loaded.recipe));
 socle.calendar.modifiers = [];
+socle.calendar.events = [];
 socle.calendar.periods = socle.calendar.periods.filter((p) => !voulues.has(p.id));
 const joursSocle = {};
 for (const y of ANNEES) {
@@ -143,15 +151,17 @@ const ajouts = joursAnnee.filter((d) => joursSocle[d] !== joursNouveaux[d]);
 
 // ── pricing a stay under either grid ─────────────────────────────────────────
 const prixNouveau = (debut, nuits) => {
-  let total = 0; const lignes = [];
+  let total = 0; const lignes = []; let complet = true;
   for (let i = 0; i < nuits; i += 1) {
     const d = iso(Date.parse(debut + 'T00:00:00Z') + i * DAY);
     const s = byKey[joursNouveaux[d]];
-    if (!s) { lignes.push({ d, saison: null, prix: 0 }); continue; }
+    // A date outside the derived horizon has NO price. Counting it as zero would quietly understate
+    // the total and print a comparison that looks precise and is wrong.
+    if (!s) { complet = false; lignes.push({ d, saison: null, prix: 0 }); continue; }
     const p = marginal(s, i + 1);
     total = r2(total + p); lignes.push({ d, saison: s, prix: p });
   }
-  return { total, lignes };
+  return { total, lignes, complet };
 };
 const prixAncien = (debut, nuits) => {
   let total = 0;
@@ -459,6 +469,27 @@ const html = `<title>${esc(IN.titrePage || IN.titre)}</title>
     </div>
     ${IN.saisonsProvisoires?.length ? `<p class="note"><span class="provisoire">prov.</span> — tarif provisoire, en attente d’arbitrage. À ne publier sur aucun canal en l’état.</p>` : ''}
   </section>
+
+  ${(IN.preuves || []).length ? `<section>
+    <div class="sec-head">
+      <h2>${esc(IN.preuvesTitre || 'Ce que la réalité a payé')}</h2>
+      <p>${esc(IN.preuvesIntro || '')}</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Séjour</th><th>Nuits</th><th>Brut</th><th>Par nuit</th><th>Ce que la recette facture</th><th>Source</th></tr></thead>
+        <tbody>
+          ${IN.preuves.map((pr) => {
+            const parNuit = r2(pr.brut / pr.nuits);
+            const q = pr.du ? prixNouveau(pr.du, pr.nuits) : null;
+            const rec = q && q.complet ? q.total : null;
+            return `<tr><td>${esc(pr.quoi)}</td><td>${pr.nuits}</td><td>${eur(pr.brut)}</td><td class="total">${eur(parNuit)}</td><td class="${rec === null ? 'same' : (rec > pr.brut ? 'up total' : 'total')}">${rec === null ? '—' : `${eur(rec)}${rec !== pr.brut ? ` <span style="font-size:.8em">(${rec > pr.brut ? '+' : ''}${pct((100 * (rec - pr.brut)) / pr.brut)})</span>` : ''}`}</td><td style="text-align:left;font-size:.85em;color:var(--ink-soft)">${esc(pr.source)}</td></tr>`;
+          }).join('\n          ')}
+        </tbody>
+      </table>
+    </div>
+    ${IN.preuvesNote ? `<p class="note">${esc(IN.preuvesNote)}</p>` : ''}
+  </section>` : ''}
 
   <section>
     <div class="sec-head">

@@ -42,3 +42,4 @@ code de sortie 2. La page doit pouvoir contredire celui qui l'a produite.
 |---|---|---|
 | 2026-08-14 | Aventura Lodge | **Déploiement.** Nouvelle grille (remises par durée, tarif 2 personnes + supplément) déployée sur Lodgify, GreenGo et Abracadaroom ; saisons 2027 ; fenêtre de réservation et prix forcés corrigés. |
 | 2026-08-25 | Gîte | **Étude.** Démontage de la grille peinte à la main (« la semaine vaut quatre nuits »), très haute saison incohérente rétablie, calendrier redit en règles, saison Nouvel An, ponts fériés plafonnés, pivot net à 5 %. Aucun déploiement : deux réserves à lever d'abord. |
+| 2026-08-28 | Gîte | **Étude, révision.** Même page, même lien. Le propriétaire sort les relevés de canaux des fêtes 2025 — la seule preuve qui existe, GuestFlow ne contenant rien avant 2026. Réveillon arbitré à 750 € la nuit, à plat, sur trois nuits ; Noël maintenu en Haute ; L'Ardéchoise ajoutée ; la commission Gîtes de France élucidée par un contrat. |
