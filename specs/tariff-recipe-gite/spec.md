@@ -99,6 +99,52 @@ a calendar.
    model. Totals never decrease; only the marginal price goes back up once, at the week boundary.
    _(See §9 Q4.)_
 
+### 3.2bis The degressivity, as the channels have to be configured
+
+The Lodge's rollout of 13-14 August 2026 cost a fortnight of surprises, all recorded in
+[`platforms.md`](../../.claude/skills/platform-tariff-rollout/references/platforms.md). Four of them
+bear on discounts, and they were checked against the Gîte's own curve **before** anything is pushed.
+
+**The curve, restated as the channels want it** — a cumulative percentage per length, which is the
+only form Lodgify, Booking, GreenGo and Abracadaroom accept:
+
+| Nights | 2 | 3 | 4 | 5 | 6 | **7 and beyond** |
+|---|---:|---:|---:|---:|---:|---:|
+| Discount | 0 % | 20 % | 30 % | 36 % | 40 % | **42,86 %** |
+
+18. **Past seven nights the discount is CONSTANT, so one promotion covers seven nights to infinity.**
+    This is the Gîte's own arithmetic — « a week is four nights » plus « each further night is a
+    seventh of a week » makes `cum(n)/n × base` land on 4/7 for every n ≥ 7 — and it is what the
+    Lodge did *not* have (trap 1 of the `tariff-recipe` skill: a flat rate past the last declared
+    night makes night N+1 dearer than night N). Five promotions instead of six, and no upper bound to
+    maintain.
+
+19. **A whole-number discount is not neutral: 43 % dips under the net floor, 42 % does not.** On a
+    seven-night stay in Très basse the target is 1 280 €; −42,86 % gives 1 279,94 €, −43 % gives
+    1 276,80 € — **3,20 € below the floor**, which §3.1 rule 1 forbids — and −42 % gives 1 299,20 €.
+    **Where a channel takes two decimals, use 42,86 %. Where it only takes an integer, use 42 %,
+    never 43 %.**
+
+20. **Booking applies no length discount at all, and for the Gîte that costs nothing.** Neither the
+    promotions pushed by Lodgify nor Booking's own native ones reach a rate fed by a channel manager
+    — established over three days on the Lodge, six tiers created on 14 August and still not applied
+    on 17 August. It was an expensive finding there. Here it is inert: **both Booking stays on the
+    Gîte's books are two nights, and two nights carry no discount.** The exposure is worth measuring
+    again whenever Booking starts selling longer stays; today the discount matters on 9 of the 15
+    Gîtes-de-France stays, 1 Lodgify and 1 direct, and on nothing else.
+
+21. **Two channel-specific traps do not apply to the Gîte, and one does.** Abracadaroom's rule that
+    the discount spares the guest supplement, and Lodgify's that each season must re-declare that
+    supplement, are both moot: the Gîte sells the whole house, with no per-guest price
+    (§3.5). What does apply is **GreenGo's double discount** — the calendar's « ensembles de règles »
+    carry their own length reductions and they **stack** with the Tarification page's. Only one of
+    the two may be filled.
+
+22. **Never use Lodgify's « Prix par durée du séjour ».** It asks for a fixed total in euros, not a
+    percentage, and Booking ignores it. The discount goes in **Promotions** (percentage + minimum
+    stay), and on Abracadaroom in a single promotion holding all five tiers, set to **« Globale »**
+    and not « Additionelle », so it applies to the whole stay and does not compound.
+
 ### 3.3 The calendar
 
 9. **The year is derived from six rules**, in declaration order, last write wins:

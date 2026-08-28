@@ -148,7 +148,12 @@ for (const y of ANNEES) {
   }
 }
 const joursAnnee = Object.keys(joursAnciens).filter((d) => d.startsWith(String(ANNEE))).sort();
-const derives = joursAnnee.filter((d) => labelToKey[joursAnciens[d].toLowerCase()] !== joursSocle[d]);
+// A season the recipe retired into another one is a DECIDED merge, not a defect in the old
+// painting: map its old label onto the key that absorbed it, or every one of its nights is
+// paraded as a correction.
+const fusions = Object.fromEntries(Object.entries(IN.fusions || {}).map(([k, v]) => [k.toLowerCase(), v]));
+const cleAncienne = (d) => fusions[joursAnciens[d].toLowerCase()] ?? labelToKey[joursAnciens[d].toLowerCase()];
+const derives = joursAnnee.filter((d) => cleAncienne(d) !== joursSocle[d]);
 const ajouts = joursAnnee.filter((d) => joursSocle[d] !== joursNouveaux[d]);
 
 // ── pricing a stay under either grid ─────────────────────────────────────────
@@ -224,6 +229,11 @@ const cas = (IN.cas || []).map((c) => {
   const q = prixNouveau(c.du, c.nuits);
   return { ...c, ...q, min: minimumSur(c.du, c.nuits) };
 });
+
+// The table an operator copies onto a channel: trailing tiers that repeat the same percentage are one
+// promotion, not several — collapse them so the last row reads « N et + ».
+// Keep the FIRST tier of each run of equal percentages: « 7 et + », not « 8 et + ».
+const paliers = R.lengthOfStayDiscounts.filter((t, i, all) => i === 0 || t.discountPct !== all[i - 1].discountPct);
 
 const gdfTotalBrut = r2(IN.gdf.reduce((a, b) => a + b.brut, 0));
 const gdfTotalCom = r2(IN.gdf.reduce((a, b) => a + b.com, 0));
@@ -548,7 +558,10 @@ const html = `<title>${esc(IN.titrePage || IN.titre)}</title>
     <div class="flags" style="margin-top:1.25rem">
       ${derives.length ? `<div class="flag"><span class="flag-mark">!</span><div>
         <h3>${derives.length} jour${derives.length > 1 ? 's' : ''} que les règles corrigent en ${ANNEE}</h3>
-        <p>${derives.map((d) => `<strong>${jour(d)}</strong> : ${esc(joursAnciens[d])} → ${esc(byKey[joursSocle[d]].label)}`).join('<br>')}</p>
+        <p>${(() => { const g = []; for (const d of derives) { const l = g[g.length - 1];
+            if (l && Date.parse(d) - Date.parse(l.fin) === DAY && joursAnciens[d] === joursAnciens[l.debut] && joursSocle[d] === joursSocle[l.debut]) l.fin = d;
+            else g.push({ debut: d, fin: d }); }
+          return g.map((x) => `<strong>${jour(x.debut)}${x.debut === x.fin ? '' : ' → ' + jour(x.fin)}</strong> : ${esc(joursAnciens[x.debut])} → ${esc(byKey[joursSocle[x.debut]].label)}`).join('<br>'); })()}</p>
         <p>${esc(IN.noteDerive || '')}</p>
       </div></div>` : ''}
       ${ajouts.length ? `<div class="flag" style="background:var(--card);border-color:var(--rule)"><span class="flag-mark" style="color:var(--sapin)">+</span><div>
@@ -599,12 +612,12 @@ const html = `<title>${esc(IN.titrePage || IN.titre)}</title>
       <table>
         <thead><tr><th>Séjour</th><th>Nuits</th><th>Pers.</th><th>Canal</th><th>Grille actuelle</th><th>Nouvelle grille</th><th>Écart</th></tr></thead>
         <tbody>
-          ${sejours.map((sj) => `<tr><td>${jourCourt(sj.du)} → ${jourCourt(sj.au)}</td><td>${sj.nuits}</td><td>${sj.pax || '—'}</td><td>${esc(sj.canal)}</td><td>${eur(sj.avant)}</td><td>${eur(sj.apres)}</td><td class="${sj.ecart ? 'up total' : 'same'}">${sj.ecart ? '+' + eur(sj.ecart) : '—'}</td></tr>`).join('\n          ')}
-          <tr class="is-sum"><td>Total</td><td></td><td></td><td></td><td>${eur(totalAvant)}</td><td>${eur(totalApres)}</td><td class="up">+${eur(r2(totalApres - totalAvant))}</td></tr>
+          ${sejours.map((sj) => `<tr><td>${jourCourt(sj.du)} → ${jourCourt(sj.au)}</td><td>${sj.nuits}</td><td>${sj.pax || '—'}</td><td>${esc(sj.canal)}</td><td>${eur(sj.avant)}</td><td>${eur(sj.apres)}</td><td class="${sj.ecart ? (sj.ecart > 0 ? 'up total' : 'total') : 'same'}">${sj.ecart ? (sj.ecart > 0 ? '+' : '−') + eur(Math.abs(sj.ecart)) : '—'}</td></tr>`).join('\n          ')}
+          <tr class="is-sum"><td>Total</td><td></td><td></td><td></td><td>${eur(totalAvant)}</td><td>${eur(totalApres)}</td><td class="${totalApres >= totalAvant ? 'up' : ''}">${totalApres >= totalAvant ? '+' : '−'}${eur(Math.abs(r2(totalApres - totalAvant)))}</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">${sejours.length - bouges.length} séjours sur ${sejours.length} au centime près. ${esc(IN.noteIso || '')}</p>
+    <p class="note">${bouges.length === sejours.length ? `Les ${sejours.length} séjours bougent.` : `${sejours.length - bouges.length} séjour${sejours.length - bouges.length > 1 ? 's' : ''} sur ${sejours.length} au centime près.`} ${esc(IN.noteIso || '')}</p>
   </section>
 
   ${cas.length ? `<section>
@@ -613,6 +626,22 @@ const html = `<title>${esc(IN.titrePage || IN.titre)}</title>
       <p>Le calcul se lit ligne à ligne. Ces mêmes totaux sont vérifiés par la suite de tests du serveur, qui les fait passer par le vrai moteur de devis — deux chemins indépendants pour un seul chiffre.</p>
     </div>
     <div class="cases">${cas.map(carteCas).join('\n')}</div>
+  </section>` : ''}
+
+  ${(IN.deploiement || []).length ? `<section>
+    <div class="sec-head">
+      <h2>${esc(IN.deploiementTitre || 'Poser cette remise sur les plateformes')}</h2>
+      <p>${esc(IN.deploiementIntro || '')}</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Nuits</th>${paliers.map((t, i) => `<th>${t.nights}${i === paliers.length - 1 ? ' et +' : ''}</th>`).join('')}</tr></thead>
+        <tbody><tr><td>Remise cumulée</td>${paliers.map((t) => `<td class="total">${t.discountPct === 0 ? '—' : '−' + pct(t.discountPct)}</td>`).join('')}</tr></tbody>
+      </table>
+    </div>
+    <div class="flags" style="margin-top:1.25rem">
+      ${IN.deploiement.map((d) => `<div class="flag"${d.ok ? ' style="background:var(--ok-bg);border-color:color-mix(in srgb, var(--ok) 30%, transparent)"' : ''}><span class="flag-mark"${d.ok ? ' style="color:var(--ok)"' : ''}>${d.ok ? '✓' : '!'}</span><div><h3${d.ok ? ' style="color:var(--ok)"' : ''}>${esc(d.titre)}</h3><p>${esc(d.texte)}</p></div></div>`).join('\n      ')}
+    </div>
   </section>` : ''}
 
   ${(IN.reserves || []).length ? `<section>

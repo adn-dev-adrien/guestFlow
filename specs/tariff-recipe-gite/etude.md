@@ -306,6 +306,29 @@ charged 537,50 € at the summer peak, when Gîtes de France netted him 413 €.
 new seasons do not appear in this table at all — which is also why they had to be calibrated against
 the owner's own statements rather than against anything the planning could show.
 
+## 4bis. What the Lodge's rollout already taught us about discounts
+
+The Gîte has not been pushed to any channel yet, but the Lodge was, on 13-14 August 2026, and its
+[difficulties are on record](../../.claude/skills/platform-tariff-rollout/references/platforms.md).
+Four of them bear on length discounts. Checked against the Gîte's curve before anything is configured:
+
+| | The Lodge | The Gîte |
+|---|---|---|
+| Discount past the last declared night | A flat rate would have made night 8 dearer than night 7 — the table had to stop at 7 and let the carry-forward extend it | **Constant from 7 nights on** (42,86 %), so **one promotion covers 7 nights to infinity** |
+| First discounted night | 2 nights, −24 % | **3 nights** — two nights are full price |
+| Booking ignoring every discount | Cost the whole degressivity on that channel | **Costs nothing**: both Booking stays are 2 nights, which carry no discount anyway |
+| Discount vs the guest supplement | Applied on Lodgify, not on Abracadaroom — a per-channel difference to model | **Moot**: the Gîte sells the whole house |
+
+**The one that does apply.** GreenGo carries length reductions in *two* places — the Tarification page
+and the calendar's « ensembles de règles » — and **they stack**. Fill one, never both.
+
+**And one number to get right.** A whole-number discount is not neutral. On a seven-night stay in
+Très basse the target is 1 280 €: −42,86 % gives 1 279,94 €, −42 % gives 1 299,20 €, and **−43 %
+gives 1 276,80 € — 3,20 € under the net floor**, which the pivot forbids. Where a channel takes two
+decimals, 42,86 %; where it takes an integer, 42 %, never 43 %.
+
+---
+
 ## 5. Arbitrations the recipe could not take alone
 
 ### Q1 — Public-holiday long weekends — **answered 2026-08-25: yes, capped at Haute**

@@ -23,7 +23,7 @@
   "christmas-lull": "Du 27 au 29 décembre, redescendues d'un cran"
  },
  "noteSaisonCassee": "Les deux semaines de plein été réellement vendues en 2026 avaient été devisées 2 148 € à la prise de réservation, soit quatre fois 537 € : la courbe a été écrasée après coup. Ce sont les quarante-deux nuits les plus demandées de l'année.",
- "noteDerive": "Aucun de ces jours n'est un choix commercial : le 1er janvier 2026 avait simplement été oublié en très basse saison alors que le 1er janvier 2027, lui, était bien peint en haute ; et la basse saison d'avril démarrait au premier samedi plutôt qu'au premier du mois.",
+ "noteDerive": "Le seul vrai défaut du calendrier peint à la main : le 1er janvier 2026 avait été oublié en très basse saison alors que le 1er janvier 2027, lui, était bien peint en haute. Tout le reste de ce qui bouge est voulu, et listé ci-dessous.",
  "notePonts": "La règle est celle de la Lodge, à une différence près : elle est plafonnée à la haute saison. Sans plafond, elle monterait le 25 décembre au tarif du réveillon. Une nuit déjà au-dessus du plafond — le 14 juillet, le 15 août — garde son prix et ne prend que le minimum de séjour de son bloc.",
  "noteCanaux": "Le plancher net est mesuré, pas décrété : moindres carrés sur les 15 séjours Gîtes de France, résidu de 48,84 €. Chaque plateforme est regrossie depuis ce plancher ; le direct l'est depuis le plancher PLUS 16 €, ce qui le place au niveau du canal le moins cher alors qu'il ne paie que 5 % — c'est de là que vient la marge supplémentaire d'une réservation directe. Gîtes de France retombe sur les prix qu'il pratique aujourd'hui, ce qui était la contrainte de départ.",
  "canauxDouteux": [],
@@ -109,7 +109,7 @@
    "titre": "Le réveillon, arrivée le 31",
    "du": "2026-12-31",
    "nuits": 3,
-   "note": "Le séjour réellement vendu en 2025. Le 1er janvier et le 2 retombent en haute et très basse saison : la nuit du 31 porte seule la plus-value."
+   "note": "Le séjour réellement vendu en 2025. Le 1er janvier retombe en haute saison et le 2 en moyenne, remontée par le pont du jour de l'an : la nuit du 31 porte seule la plus-value."
   },
   {
    "id": "g8b",
@@ -166,9 +166,11 @@
   "Spécification : specs/tariff-recipe-gite/ · Recette : gite-2027 v3.0.0"
  ],
  "periodesVoulues": [
-  "new-year"
+  "new-year",
+  "christmas",
+  "christmas-lull"
  ],
- "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, les quatre nuits fortes des fêtes sont creusées dans le bloc de haute saison, le creux du 27 au 29 redescend en moyenne, et L'Ardéchoise peint une semaine de haute au milieu de juin. La saison « Basse » a disparu : les encaissements la donnent identique à la très basse (286 € contre 288 €), pour un rang qui ne couvrait qu'avril.",
+ "noteAjouts": "Ceux-là sont voulus : les ponts fériés montent d'un cran, les quatre nuits fortes des fêtes sont creusées dans le bloc de haute saison, le creux du 27 au 29 redescend en moyenne, et L'Ardéchoise peint une semaine de haute au milieu de juin. La saison « Basse » a disparu sans apparaître ici : avril garde exactement le même prix, puisque les encaissements donnaient les deux saisons identiques (286 € contre 288 €).",
  "ancienneGrille": [
   {
    "label": "Très basse",
@@ -2211,7 +2213,7 @@
  },
  "preuvesTitre": "Ce que les fêtes ont réellement payé",
  "preuvesIntro": "GuestFlow ne contient rien avant 2026 — la seule ligne antérieure au 15 janvier est un import iCal à 0 €. Tout ce tableau vient des relevés sortis par Adrien le 28 août, et c'est la totalité de la base factuelle sur laquelle les fêtes ont été tarifées. Les deux tarifs forts ne sont pas choisis : ils sont RÉSOLUS pour que ces deux séjours rapportent exactement 20 % de plus.",
- "preuvesNote": "La colonne de droite compare aux MÊMES nuits un an plus tard : l'horizon de la recette commence en 2026. Noël tombe à 1 860,00 €, soit +20,00 % au centime. Le réveillon tombe à 1 466,20 € au lieu de 1 466,40 €, soit +19,98 % — vingt centimes, parce que le tarif doit être un euro entier pour que la grille par canal reste inversible. Un tiret signifie que les nuits exactes ne sont pas connues. HYPOTHÈSE : que les deux nuits de Noël 2025 étaient bien le 24 et le 25 ; Adrien a dit « 2 jours à 1 550 € » sans les nommer.",
+ "preuvesNote": "Attention à la base de comparaison : la calibration a été faite sur le NET, la colonne de droite affiche le prix DIRECT. Noël : 1 514 € de location nette encaissés en 2025 (les 1 550 € du contrat moins 16 € de taxe de séjour et 20 € de chien) → plancher net porté à 908 € la nuit, soit +20 % au centime ; le prix direct qui en découle est 973 €. Réveillon : 1 082,94 € nets sur trois nuits (1 103,94 € reversés par Abritel moins 21 € de taxe) → 843 € de plancher pour la nuit du 31, +20 % également. Un tiret signifie que les nuits exactes ne sont pas connues. Les dates de Noël, elles, sont établies par le contrat : du 24 au 26 décembre, soit deux nuits.",
  "preuves": [
   {
    "quoi": "Noël 2025 (« Tangi »)",
@@ -2234,5 +2236,37 @@
    "du": null,
    "source": "relevé canal, réf. HA-PVSF94, net 444,34 €"
   }
- ]
+ ],
+ "deploiementTitre": "Poser cette remise sur les plateformes",
+ "deploiementIntro": "Le déploiement de la Lodge, les 13 et 14 août, a coûté une quinzaine de surprises, toutes consignées. Quatre portent sur les remises de durée. Voilà ce qu'elles donnent confrontées à la courbe du Gîte, avant que quoi que ce soit ne parte sur un canal.",
+ "deploiement": [
+  {
+   "ok": true,
+   "titre": "Au-delà de sept nuits la remise est constante : une seule promotion suffit",
+   "texte": "C'est l'arithmétique du Gîte : « la semaine vaut quatre nuits » plus « chaque nuit suivante vaut un septième de semaine » font tomber la remise cumulée sur 42,86 % pour toute durée d'au moins sept nuits. Une promotion « 7 nuits et plus » couvre donc de sept nuits à l'infini. La Lodge n'avait pas cette propriété : chez elle, un taux plat au-delà du dernier palier rendait la 8e nuit plus chère que la 7e."
+  },
+  {
+   "ok": true,
+   "titre": "Booking n'applique aucune remise — et ça ne coûte rien au Gîte",
+   "texte": "Ni les promotions poussées par Lodgify ni celles créées dans l'extranet Booking n'atteignent un tarif alimenté par un gestionnaire de canaux : établi sur la Lodge en trois jours, six paliers créés le 14 août et toujours pas appliqués le 17. Ici c'est sans effet : les DEUX séjours Booking du Gîte font deux nuits, et deux nuits ne portent aucune remise. À re-mesurer le jour où Booking vendra des séjours plus longs."
+  },
+  {
+   "ok": false,
+   "titre": "43 % passe sous le plancher, 42 % non",
+   "texte": "Un pourcentage entier n'est pas neutre. Sur sept nuits en très basse saison la cible est 1 280 € : −42,86 % donne 1 279,94 €, −42 % donne 1 299,20 €, et −43 % donne 1 276,80 € — soit 3,20 € SOUS le plancher net, ce que le pivot interdit. Là où un canal accepte deux décimales, 42,86 %. Là où il n'accepte qu'un entier, 42 %, jamais 43 %."
+  },
+  {
+   "ok": false,
+   "titre": "GreenGo cumule deux remises de durée",
+   "texte": "Les paliers de la page Tarification et les « ensembles de règles » du calendrier portent chacun leurs réductions, et elles s'additionnent. Ne remplir que l'un des deux. C'est le seul piège de canal de la Lodge qui s'applique tel quel au Gîte — ceux d'Abracadaroom et de Lodgify concernent le supplément voyageur, que le Gîte n'a pas puisqu'il se loue en entier."
+  },
+  {
+   "ok": false,
+   "titre": "Ne jamais utiliser « Prix par durée du séjour » chez Lodgify",
+   "texte": "Ce champ demande un total fixe en euros, pas un pourcentage, et Booking l'ignore. La remise se pose dans « Promotions » (pourcentage + durée minimum). Chez Abracadaroom, une seule promotion porte les cinq paliers : la régler sur « Globale » et non « Additionnelle », sinon elle se cumule."
+  }
+ ],
+ "fusions": {
+  "Basse": "very-low"
+ }
 }
