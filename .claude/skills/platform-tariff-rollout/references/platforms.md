@@ -149,11 +149,32 @@ domaine ; pour leur tranquillité et celle de nos hôtes, les animaux de compagn
 acceptés. »
 
 **Le nom Booking se change seul, sans passer par leurs éditeurs.**
-`extranet_ng/manage/general_info.html` → « Changer le nom de l'établissement » : champ libre, aperçu
-en direct, trois étapes (saisie → « Suivant » → « Changer le nom de l'établissement » dans le pied de
-la modale, `[data-test-id="footer"] button[type="submit"]`). Effectif immédiatement ; seul le `<title>`
-de la page publique reste en cache quelques heures. **À ne pas confondre avec la description**, elle,
-non éditable.
+`Établissement` → `Infos sur l'établissement et statut de l'établissement` → « Changer le nom de
+l'établissement » : champ libre, aperçu en direct, trois étapes (saisie → « Suivant » → « Changer le
+nom de l'établissement »). **À ne pas confondre avec la description**, elle, non éditable.
+
+- **Booking refuse la ponctuation dans un nom d'hébergement.** Relevé le 2026-08-28 en essayant
+  d'ajouter trois points de suspension : « Les noms des hébergements ne peuvent pas inclure de signes
+  de ponctuation, d'astérisques ou de symboles », et le bouton « Suivant » **se désactive**. Le tiret
+  et les virgules, eux, passent — la règle vise les points, astérisques et symboles.
+- **Le délai annoncé est « sous 24 heures maximum »**, pas immédiat comme noté auparavant. Le nom
+  change tout de suite dans l'extranet (onglet, en-tête) ; c'est la page publique qui attend.
+- **L'aperçu montre trois lignes**, et seule la première est le titre : titre, puis note client
+  (« 9,0 Fabuleux »), puis **la localité de l'adresse**. Ne pas confondre les deux dernières avec le
+  nom qu'on est en train d'écrire.
+
+**L'adresse, elle, n'est PAS en libre-service.** `Infos sur l'établissement` affiche
+« Adresse de l'établissement » **sans aucun bouton de modification** — le nom en a un, l'adresse non —
+et le sous-menu `Établissement` n'a pas d'entrée adresse (Note de qualité, Score de la page, Infos sur
+l'établissement, TVA taxes et frais, Photos, Conditions de l'établissement, Conditions de réservation,
+Équipements et services, Hébergements, Détails des hébergements). Elle passe donc par
+`request_change.html`, comme la description. **Sujet ouvert au 2026-08-28** : les deux hébergements
+affichent « Japperenard » — le lieu-dit — là où le voyageur attend « Satillieu ». Personne ne cherche
+Japperenard.
+
+**Titre du Gîte corrigé le 2026-08-28** : « Domaine Solio - Gite confort, nature, **animaux** » →
+« … **ânes et chèvres** », la même correction que la Lodge avait reçue le 17 août après l'annulation
+d'une cliente. Le Gîte portait encore le mot piégeux.
 
 **Airbnb : la description de Lodgify n'arrive jamais.** Le Channel Manager signale en permanence
 « Synchronisé avec les problèmes » → `channels/manager/<rental>/room/<room>/resolve-issues` :
