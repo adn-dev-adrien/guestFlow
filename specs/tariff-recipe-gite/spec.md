@@ -222,6 +222,27 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     Verified on Booking on 2026-08-28 (Gîte, rate plan 57972851): « Durée de séjour minimum » reads 2
     on every date of the displayed month.
 
+24. **Très haute demands 4 nights.** _(Owner's call, 2026-08-28: « pour la très haute saison tu
+    bloques à 4 nuits minimum ».)_ It is the only season whose minimum departs from the common 2, and
+    it exposed an engine defect: the 3-night 14-juillet block sits inside it and used to write its own
+    minimum over the season's, making those three days the only short stays bookable all summer. A
+    block minimum now raises a season's and never lowers it
+    ([tariff-recipes §3.3 rule 16quater](../tariff-recipes/spec.md)).
+
+25. **One colour per PRICE RANK, green to red** — not a ramp proportional to price.
+    _(Owner's call, 2026-08-28: « je veux juste que tu classes les tarifs et que tu attribues une
+    couleur par rapport au classement ».)_ Six deliberately distinct hues: `#1B9E3E` `#7FBF1F`
+    `#D4C11A` `#E8951C` `#E05A1B` `#C41E1E`.
+
+25bis. **The palette is judged as the calendar RENDERS it, never at full strength.** The cell
+    composites the season colour over white, and at the original 13 % opacity the six seasons came
+    out `#E3F3E3` `#E9F3E3` `#EEF1E2` `#F1EEE1` `#F5E9E1` `#F6E1E1` — six near-whites two to four ΔE
+    apart, below the threshold at which an eye separates them. **No choice of colour could fix that**;
+    the opacity was the defect. It is now 55 % (`0x8C`), which puts adjacent seasons ~19 ΔE apart
+    while the ink keeps 5,6:1 of contrast at worst, well above the 4,5:1 AA floor. The test measures
+    the composite, the ordering and the ink contrast — not the raw hex, which says nothing about what
+    anyone sees.
+
 ### 3.3 The calendar
 
 9. **The year is derived from six rules**, in declaration order, last write wins:
