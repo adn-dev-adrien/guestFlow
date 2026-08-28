@@ -284,6 +284,42 @@ nuits**) et **Mensuel** (**28 nuits et plus**), tous deux exprimés en pourcenta
 tarif quotidien le moins cher. Pour les paliers intermédiaires, créer un plan par palier et lui poser
 sa durée minimum.
 
+**Procédure relevée dans l'extranet le 2026-08-28** (Gîte, hôtel `14407976` ; Lodge `15343212`).
+Le Gîte n'avait qu'UN plan tarifaire : « Peu flexible », ID 57972851, annulation « Flexible -
+14 jours », colonne Tarif = **« Mappage à partir de Lodgify »**. C'est le plan standard, celui que le
+gestionnaire de canaux possède.
+
+`Tarifs et disponibilités` → `Plans tarifaires` → **« Ajouter un plan tarifaire »** ouvre un
+catalogue à trois sections :
+
+| Section | Types proposés |
+|---|---|
+| Posez vos bases | Peu flexible *(déjà ajouté)*, Non remboursable |
+| Attirez différents types de clients | **À la semaine** (« séjours de plus d'une semaine »), **Au mois** (« au moins 28 nuits »), Réservation anticipée |
+| Personnalisez un plan tarifaire | **Option personnalisable** |
+
+**L'option personnalisable fait exactement ce qu'il faut**, en neuf étapes :
+
+1. Conditions d'annulation — Flexible 21 j / Flexible 14 j / Non remboursable. **Choisir celle du
+   plan standard** (ici Flexible 14 j) : le défaut proposé est 21 j, et un palier de durée qui
+   change aussi la politique d'annulation n'est plus une remise de durée, c'est un autre produit.
+2. Repas — Non.
+3. Avantages — aucun.
+4. **« Souhaitez-vous fixer une durée de séjour minimum ? » → Oui + la valeur.** C'est le point qui
+   restait à vérifier : **la durée minimum est libre**, donc les paliers 3, 4, 5 et 6 nuits sont
+   faisables, pas seulement la semaine et le mois.
+5. Délai avant l'arrivée — À tout moment.
+6. **« Comment gérer ce plan ? » → « En fonction de l'un de mes plans tarifaires existants » → « Peu
+   flexible ».** Booking l'explique lui-même : *« Le tarif sera basé sur Peu flexible, duquel sera
+   déduite toute réduction configurée dans l'étape suivante. […] **Il n'est pas nécessaire de
+   modifier les tarifs, d'indiquer des disponibilités ou encore d'ajouter le tarif dans votre Channel
+   Manager.** »* C'est la confirmation, écrite par la plateforme, que le plan dérivé suit le tarif
+   poussé par Lodgify sans aucune intervention côté canal.
+7. **« Moins cher que le tarif Peu flexible » + le montant + le sélecteur `%` / `€`** — le
+   pourcentage est disponible, c'est ce qu'il faut.
+8. Hébergements concernés — cocher le logement.
+9. Nom du plan — **référence interne, invisible pour le client**. Puis « Vérifier ».
+
 **Le piège structurel : la limitation XML.** Pour tout plan tarifaire AUTRE que le standard, aucune
 condition de réservation ne transite par la connexion du gestionnaire de canaux. **Durée minimum,
 durée maximum et jours d'arrivée/départ d'un plan secondaire se règlent à la main dans l'extranet**,
