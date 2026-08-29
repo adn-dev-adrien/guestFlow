@@ -2584,9 +2584,13 @@ function createReservationsModel(database) {
         const offerLine = (line) => {
           if (Number(line && line.offered ? 1 : 0) !== 1) return line;
           const unitPrice = round2(line.unitPrice);
-          return unitPrice > 0
-            ? { ...line, offered: 1, amount: 0, unitPrice }
-            : { ...line, offered: 1, amount: 0, qty: 1, unitPrice: round2(line.amount) };
+          if (unitPrice > 0) return { ...line, offered: 1, amount: 0, unitPrice };
+          // Nothing to preserve on a line that is worth 0 € anyway (a linen item priced 0): collapsing
+          // it would trade no price at all for a lost quantity — « 3 draps offerts » read back as 1.
+          const total = round2(line.amount);
+          return total > 0
+            ? { ...line, offered: 1, amount: 0, qty: 1, unitPrice: total }
+            : { ...line, offered: 1, amount: 0 };
         };
         const baseDetail = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
           .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))

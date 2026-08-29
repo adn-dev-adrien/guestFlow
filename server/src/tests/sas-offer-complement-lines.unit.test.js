@@ -202,6 +202,20 @@ test('departure commit: an offered line with no unit price keeps its real price'
   assert.equal(round2(detail[0].qty * detail[0].unitPrice), 24);
 });
 
+test('departure commit: an offered line worth 0 € keeps its quantity', () => {
+  // The collapse of the test above exists only to save a price. With no price to save it would trade
+  // nothing for a lost quantity — « 3 draps offerts » would read back as 1 in the recap and the history.
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap de rechange', qty: 3, unitPrice: 0, amount: 0, offered: true }],
+  });
+  const line = endOfStay(db).detail[0];
+  assert.equal(line.offered, 1);
+  assert.equal(line.qty, 3, 'the quantity is the only thing this line carries — it must survive');
+  assert.equal(line.amount, 0);
+});
+
 test('departure re-commit: un-offering that line bills it at its real price again', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
