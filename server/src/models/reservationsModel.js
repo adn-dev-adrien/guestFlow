@@ -2576,9 +2576,21 @@ function createReservationsModel(database) {
         // specs/sas-offer-complement-lines.md §3.3 rule 9 — an offered line is stored at 0 € but keeps
         // its label, its quantity, its unit price and its `source`/`key` tags: that is what shows the
         // real price struck through on the recap, and what lets a re-open bill it again.
-        const offerLine = (line) => (Number(line && line.offered ? 1 : 0) === 1
-          ? { ...line, offered: 1, amount: 0, unitPrice: round2(line.unitPrice != null ? line.unitPrice : line.amount) }
-          : line);
+        // The real total is stored VERBATIM in `originalAmount`, never left to be re-derived — that is
+        // what makes the gesture reversible (§3.1 rule 3). `qty × unitPrice` is not that total: a
+        // « préservée » line (rule 6.bis) carries no unit price at all, so it was stored 1 × 0 € and
+        // its price was simply gone; and `buildMidStayLine` legitimately emits 2 × 16,67 € for a
+        // 33,33 € line, which re-derives one cent too high. Quantity and unit price are left exactly
+        // as sent — they are the recap wording and the history, not the price.
+        const offerLine = (line) => {
+          if (Number(line && line.offered ? 1 : 0) !== 1) return line;
+          // The recap sends the real total in `amount` — a line is zeroed HERE, not on the way in. The
+          // fallback makes the write idempotent all the same: re-committing an already-stored offered
+          // row verbatim would otherwise read its zeroed `amount` and overwrite the price with 0,
+          // destroying it. No client does that today; nothing should be one refactor away from it.
+          const sent = round2(line.amount);
+          return { ...line, offered: 1, amount: 0, originalAmount: sent > 0 ? sent : round2(line.originalAmount) };
+        };
         const baseDetail = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
           .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
           .map(offerLine);
@@ -2595,7 +2607,7 @@ function createReservationsModel(database) {
             const lineAmount = Math.round(unitPrice * qty * 100) / 100;
             if (lineAmount <= 0) continue;
             extinguisherLines.push(charge && charge.offered
-              ? { repairKey, label: row.label, qty, unitPrice, amount: 0, offered: 1 }
+              ? { repairKey, label: row.label, qty, unitPrice, amount: 0, offered: 1, originalAmount: lineAmount }
               : { repairKey, label: row.label, qty, amount: lineAmount });
           }
         }

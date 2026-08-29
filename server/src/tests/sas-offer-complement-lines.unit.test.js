@@ -71,6 +71,7 @@ function makeDb() {
   return db;
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const complementAmount = (db) => db.prepare('SELECT complementAmount FROM reservations WHERE id = 1').get().complementAmount;
 const optionRow = (db, id) => db.prepare('SELECT totalPrice, offered, unitPrice FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(id);
 const customRow = (db, description) => db.prepare('SELECT id, amount, offered FROM reservation_custom_options WHERE reservationId = 1 AND description = ?').get(description);
@@ -180,7 +181,94 @@ test('departure commit: an offered end-of-stay line is stored at 0 € with its 
   const cleaning = detail.find((l) => l.label === 'Ménage de fin de séjour');
   assert.equal(cleaning.offered, 1);
   assert.equal(cleaning.amount, 0);
-  assert.equal(cleaning.unitPrice, 80, 'the real price survives, so the recap can show it struck through');
+  assert.equal(cleaning.unitPrice, 80, 'the wording survives');
+  assert.equal(cleaning.originalAmount, 80, 'and the real total, so the recap can show it struck through');
+});
+
+// Régression 2026-08-29 — a « préservée » line (its priced item was renamed or deleted since, so the
+// recap carries only a label and a total) has no usable unit price. Stored as 1 × 0 € its real price
+// was gone for good, and un-offering it on a later re-open restored 0 € instead of what the guest
+// owed — breaking §3.1 rule 3 (« offering is lossless and reversible »).
+test('departure commit: an offered line with no unit price keeps its real price', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 24, offered: true }],
+  });
+  const { amount, detail } = endOfStay(db);
+  assert.equal(amount, 0, 'offered → nothing to collect');
+  assert.equal(detail[0].offered, 1);
+  assert.equal(detail[0].originalAmount, 24, 'the real total is stored verbatim, not left to be re-derived');
+});
+
+test('departure commit: an offered line worth 0 € keeps its quantity', () => {
+  // The collapse of the test above exists only to save a price. With no price to save it would trade
+  // nothing for a lost quantity — « 3 draps offerts » would read back as 1 in the recap and the history.
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap de rechange', qty: 3, unitPrice: 0, amount: 0, offered: true }],
+  });
+  const line = endOfStay(db).detail[0];
+  assert.equal(line.offered, 1);
+  assert.equal(line.qty, 3, 'the quantity is the only thing this line carries — it must survive');
+  assert.equal(line.amount, 0);
+  assert.equal(line.originalAmount, 0);
+});
+
+// The reason the real total is stored rather than re-derived: `buildMidStayLine` legitimately emits
+// « 2 × 16,67 € » for a 33,33 € line, and 2 × 16,67 = 33,34. Re-deriving billed the guest one cent
+// too much every time a mid-stay line was offered then billed back.
+// The stored line is zeroed, so re-sending it verbatim must not be read as « this gesture is worth
+// 0 € ». No client does that today — the recap always re-sends the real total — but the write is one
+// refactor away from destroying a price silently.
+test('departure re-commit: re-sending a stored offered row verbatim does not destroy its price', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 24, offered: true }],
+  });
+  const stored = endOfStay(db).detail[0];
+  assert.equal(stored.originalAmount, 24);
+
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [stored] });
+  assert.equal(endOfStay(db).detail[0].originalAmount, 24, 'still 24 €, not 0');
+  assert.equal(endOfStay(db).amount, 0);
+});
+
+test('departure re-commit: an offered mid-stay line comes back at its stored total, to the cent', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const carried = { label: 'Bain nordique', qty: 2, unitPrice: 16.67, amount: 33.33, source: 'midStayExtra', key: 'custom:bain nordique' };
+  assert.notEqual(round2(carried.qty * carried.unitPrice), carried.amount, 'the premise: qty × unitPrice ≠ the total');
+
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ ...carried, offered: true }] });
+  const stored = endOfStay(db).detail[0];
+  assert.equal(stored.originalAmount, 33.33);
+  assert.equal(stored.qty, 2, 'the wording « 2 × 16,67 € » survives');
+  assert.equal(stored.unitPrice, 16.67);
+
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ ...carried, amount: Number(stored.originalAmount) }] });
+  assert.equal(endOfStay(db).amount, 33.33, 'not 33,34');
+});
+
+test('departure re-commit: un-offering that line bills it at its real price again', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 24, offered: true }],
+  });
+  // What the re-opened recap reads back and re-sends once the gesture is withdrawn.
+  const stored = endOfStay(db).detail[0];
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{
+      label: stored.label,
+      qty: Number(stored.qty) || 1,
+      unitPrice: Number(stored.unitPrice) || 0,
+      amount: Number(stored.originalAmount),
+    }],
+  });
+  assert.equal(endOfStay(db).amount, 24, 'the guest owes the real price again, not 0 €');
 });
 
 test('departure commit: an offered extinguisher charge is priced then given away', () => {
@@ -197,6 +285,7 @@ test('departure commit: an offered extinguisher charge is priced then given away
   assert.equal(detail.length, 1, 'the line is kept — it is the trace of the gesture');
   assert.equal(detail[0].offered, 1);
   assert.equal(detail[0].unitPrice, 30, 'server-resolved price, not lost');
+  assert.equal(detail[0].originalAmount, 30);
 });
 
 test('departure commit: offering a recalled arrival line reduces the arrival complement', () => {
