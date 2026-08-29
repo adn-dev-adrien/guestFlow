@@ -229,7 +229,7 @@ test('departure commit: everything offered → nothing is marked collected', () 
 // The Gîte routes its « Linge de lit » to the complement as a property default and OFFERS it (it is
 // included in the base price), so the arrival complement is worth 0 €. The recap then shows no recall
 // block at all, and the empty offered set it used to send read as « nothing is offered » — billing the
-// line back at 70 € on the way out. specs/sas-offer-complement-lines.md §3.2 rule 6bis.
+// line back at 70 € on the way out. specs/sas-offer-complement-lines.md §3.2 rule 6.ter.
 test('departure commit: an arrival complement made only of gestes commerciaux is not billed back', () => {
   const db = makeDb();
   db.prepare('UPDATE reservation_options SET offered = 1, totalPrice = 0 WHERE reservationId = 1 AND optionId = 5').run();

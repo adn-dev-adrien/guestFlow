@@ -992,7 +992,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           complementsPaidCash: departurePayMode === 'cash',
           // specs/sas-offer-complement-lines.md §3.2 rule 6 — gestes commerciaux on the recalled lines.
           // The set is AUTHORITATIVE, so it is only sent when the recap actually showed those lines:
-          // no recall, no toggle rendered, nothing to say about their offered flags (rule 6bis).
+          // no recall, no toggle rendered, nothing to say about their offered flags (rule 6.ter).
           offeredArrivalExtras: arrivalRecall ? offeredRefsOf(arrivalRecallLines) : undefined,
         });
       }

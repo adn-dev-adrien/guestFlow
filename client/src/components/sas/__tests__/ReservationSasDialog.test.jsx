@@ -1189,7 +1189,7 @@ test('departure recap: a recalled arrival line is offerable, the taxe de séjour
 // Régression 2026-08-29 (réservation Geuffrard) — the arrival complement is entirely made of gestes
 // commerciaux, so it is worth 0 € and the recap shows no recall block. The commit must then say
 // NOTHING about the offered flags: an empty set is authoritative server-side and billed them all back.
-// specs/sas-offer-complement-lines.md §3.2 rule 6bis.
+// specs/sas-offer-complement-lines.md §3.2 rule 6.ter.
 test('departure recap: an arrival complement worth 0 € claims no authority over the offered flags', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
