@@ -47,8 +47,9 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
    Tapping it toggles the line between *billed* and *offered*.
 2. **An offered line renders its real price struck through and counts 0 €** in the recap total.
 3. **Offering is lossless and reversible**: the real price is preserved (`originalTotalPrice` for a
-   catalogue line, the stored `amount` for a custom line, `qty × unitPrice` for an end-of-stay line), so
-   un-offering restores exactly the same amount — during the same SAS run *and* after a re-open.
+   catalogue line, the stored `amount` for a custom line, `originalAmount` for an end-of-stay line), so
+   un-offering restores exactly the same amount — during the same SAS run *and* after a re-open. It is
+   always a STORED total, never a product re-derived from a quantity and a unit price (rule 3.bis).
 3.bis **An offered end-of-stay line stores its real total; it is never re-derived** (fix 2026-08-29).
    `qty × unitPrice` looked like the real price and is not, in two reachable cases:
    - a **« préservée »** line (rule 6.bis) carries only a label and a total — no unit price at all — so
@@ -61,7 +62,9 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
    `amount`, and leaves `qty` / `unitPrice` exactly as sent — they are the recap wording and the
    history, not the price. The client reads that one field (`realOfStoredLine`) for carried and
    preserved lines alike, so no price is rebuilt on the client (CLAUDE.md §6.0). Rows written before
-   the field shipped fall back to `qty × unitPrice`; production carries none (checked 2026-08-29).
+   the field shipped fall back to `qty × unitPrice`; production carries none (checked 2026-08-29). The
+   write is idempotent: a stored offered row is zeroed, so re-sending it verbatim keeps its
+   `originalAmount` instead of reading the zero as « this gesture is worth 0 € ».
 
    The arrival side never had the defect: a SAS custom line stores its `amount` whatever its `offered`
    flag, and the read layer exposes it as `unitPrice`.
@@ -173,7 +176,7 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `models/` | `models/reservationsModel.js` | T | `arrivalComplementDetailFromReservation(r, { includeOffered })` adds a `ref` (`{ kind, id }`) to every line and, on demand, includes the offered in-complement extras (`amount: 0`, `originalAmount`, `offered: 1`). `commitArrivalSas` accepts `offeredExtras` (refs) + per-item `offered` on `complementItems` + `cleaningOffered` / `bathLinenOffered`; applies the flags and adjusts `complementAmount` by the exact real price of each line that changed state. `commitDepartureSas` accepts `offered` on the detail lines + on `extinguisherCharges`, stores them at 0 € with their real price kept recoverable as `qty × unitPrice` (§3.1 rule 3.bis), and sums only the billed ones; `offeredArrivalExtras` applies the same arrival-row logic at check-out — but only after re-reading the recall condition itself, so a set sent while the arrival complement is not recallable is ignored rather than billing every offered line back (§3.2 rule 6.ter). |
+| `models/` | `models/reservationsModel.js` | T | `arrivalComplementDetailFromReservation(r, { includeOffered })` adds a `ref` (`{ kind, id }`) to every line and, on demand, includes the offered in-complement extras (`amount: 0`, `originalAmount`, `offered: 1`). `commitArrivalSas` accepts `offeredExtras` (refs) + per-item `offered` on `complementItems` + `cleaningOffered` / `bathLinenOffered`; applies the flags and adjusts `complementAmount` by the exact real price of each line that changed state. `commitDepartureSas` accepts `offered` on the detail lines + on `extinguisherCharges`, stores them at 0 € with their real total verbatim in `originalAmount` (§3.1 rule 3.bis), and sums only the billed ones; `offeredArrivalExtras` applies the same arrival-row logic at check-out — but only after re-reading the recall condition itself, so a set sent while the arrival complement is not recallable is ignored rather than billing every offered line back (§3.2 rule 6.ter). |
 | `controllers/` | `controllers/sasController.js` | T | Ships `arrivalComplement` with the offered lines included (SAS-only flavour); forwards the new commit fields (validated/normalised) to the model. |
 | `utils/` | `utils/sasAudit.js` | T | Renders « (offert) » on the complement lines of the history diff. |
 | `routes/` | `routes/reservations.js` | — | (none — same endpoints, additive payload) |
@@ -242,7 +245,7 @@ Same endpoints, additive fields (no breaking change):
 ## 7. Test plan
 
 ### Server unit tests (`server/src/tests/`)
-- [x] `sas-offer-complement-lines.unit.test.js` (new, 19 tests):
+- [x] `sas-offer-complement-lines.unit.test.js` (new, 20 tests):
   - arrival commit with `offeredExtras` → row `offered = 1`, `totalPrice = 0`, `complementAmount` reduced
     by exactly the line's real price;
   - un-offering on a re-commit restores the amount (lossless round-trip);
@@ -265,7 +268,9 @@ Same endpoints, additive fields (no breaking change):
     `originalAmount`, and a re-commit that withdraws the gesture bills it at that price again;
   - **(2026-08-29)** an offered line worth 0 € keeps its quantity;
   - **(2026-08-29)** a carried mid-stay line whose `qty × unitPrice` disagrees with its total by a cent
-    (2 × 16,67 € for 33,33 €) comes back at **33,33 €**, not 33,34 € (rule 3.bis).
+    (2 × 16,67 € for 33,33 €) comes back at **33,33 €**, not 33,34 € (rule 3.bis);
+  - **(2026-08-29)** re-sending a stored offered row verbatim keeps its `originalAmount` — the write is
+    idempotent, so no refactor can silently zero a price.
 - [x] Full server suite green.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
@@ -290,16 +295,12 @@ Same endpoints, additive fields (no breaking change):
 
 - §4.2's list of offer keys had drifted: it predated `preserved:<i>` / `preservedDep:<i>` and named an
   `arr:` prefix the code never builds. Corrected in the same pass.
-
-- **The real price of an offered end-of-stay line is re-derived on the client** (`qty × unitPrice`, in
-  both `carriedEndOfStayLines` and the preserved re-open). The arrival side does it properly: the
-  server ships `originalAmount` and the client just reads it. Shipping the same field on the
-  end-of-stay lines would retire both reconstructions and honour CLAUDE.md §6.0. Not done in the same
-  breath as a bug fix headed for a release: it changes the SAS payload and touches a path this fix
-  does not.
-- Because that price is re-derived, a unit price carrying **more than two decimals** would round-trip
-  one cent off. Unreachable today — linen items, repair amounts and `buildMidStayLine` all produce
-  ≤2-decimal unit prices with `amount = qty × unitPrice` — and it disappears with the follow-up above.
+- An earlier draft of this fix kept the real price recoverable as `qty × unitPrice` and recorded, here,
+  that re-deriving it was safe because « linen items, repair amounts and `buildMidStayLine` all produce
+  ≤2-decimal unit prices with `amount = qty × unitPrice` ». **That was false** — `buildMidStayLine`
+  emits `{ qty: 2, unitPrice: 16.67, amount: 33.33 }` — and the drift it dismissed was reachable with an
+  ordinary two-decimal price. Rule 3.bis is the answer; the note stays as the reason the rule is worded
+  « stored, never re-derived ».
 
 ## 8. Out of scope
 
@@ -311,6 +312,14 @@ Same endpoints, additive fields (no breaking change):
 - A « raison du geste » free-text field (not asked; the history already records what was offered).
 
 ## 9. Open questions
+
+- **An offered line carried from mid-stay does not survive a fiche save or a note settle** (raised in
+  review 2026-08-29, verified to behave identically on `master` — pre-existing, not a regression of
+  rule 3.bis). `settleMidStayNote` / `cancelMidStayNote` / `adjustMidStayNote` rebuild every
+  `midStayExtra` line through `buildMidStayLine` and filter on `amount > 0`, which drops an offered line
+  along with its `offered` flag and its `originalAmount`; `syncMidStayComplement` re-derives them from
+  the engine. So the gesture is lost on those paths, which rule 3 promises it is not. Needs its own fix.
+
 
 Resolved during scoping (2026-08-17, issue #429):
 - **Portée** → **line by line** on both recaps (rejected: one global « Offert » settlement button).

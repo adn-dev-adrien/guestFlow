@@ -824,7 +824,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // un-itemised remainder have no ref → no toggle.
   const arrivalRecallLines = useMemo(() => ((arrivalRecall && arrivalRecall.detail) || []).map((l) => {
     const storedOffered = Number(l.offered || 0) === 1;
-    const real = round2(storedOffered ? l.originalAmount : l.amount);
+    const real = realOfStoredLine(l);
     const offerKey = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
     return {
       label: l.label, qty: Number(l.qty || 1), unitPrice: Number(l.unitPrice || 0),

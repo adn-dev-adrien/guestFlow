@@ -219,6 +219,23 @@ test('departure commit: an offered line worth 0 € keeps its quantity', () => {
 // The reason the real total is stored rather than re-derived: `buildMidStayLine` legitimately emits
 // « 2 × 16,67 € » for a 33,33 € line, and 2 × 16,67 = 33,34. Re-deriving billed the guest one cent
 // too much every time a mid-stay line was offered then billed back.
+// The stored line is zeroed, so re-sending it verbatim must not be read as « this gesture is worth
+// 0 € ». No client does that today — the recap always re-sends the real total — but the write is one
+// refactor away from destroying a price silently.
+test('departure re-commit: re-sending a stored offered row verbatim does not destroy its price', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 24, offered: true }],
+  });
+  const stored = endOfStay(db).detail[0];
+  assert.equal(stored.originalAmount, 24);
+
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [stored] });
+  assert.equal(endOfStay(db).detail[0].originalAmount, 24, 'still 24 €, not 0');
+  assert.equal(endOfStay(db).amount, 0);
+});
+
 test('departure re-commit: an offered mid-stay line comes back at its stored total, to the cent', () => {
   const db = makeDb();
   const model = createReservationsModel(db);

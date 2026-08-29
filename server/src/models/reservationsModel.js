@@ -2582,9 +2582,15 @@ function createReservationsModel(database) {
         // its price was simply gone; and `buildMidStayLine` legitimately emits 2 × 16,67 € for a
         // 33,33 € line, which re-derives one cent too high. Quantity and unit price are left exactly
         // as sent — they are the recap wording and the history, not the price.
-        const offerLine = (line) => (Number(line && line.offered ? 1 : 0) === 1
-          ? { ...line, offered: 1, amount: 0, originalAmount: round2(line.amount) }
-          : line);
+        const offerLine = (line) => {
+          if (Number(line && line.offered ? 1 : 0) !== 1) return line;
+          // The recap sends the real total in `amount` — a line is zeroed HERE, not on the way in. The
+          // fallback makes the write idempotent all the same: re-committing an already-stored offered
+          // row verbatim would otherwise read its zeroed `amount` and overwrite the price with 0,
+          // destroying it. No client does that today; nothing should be one refactor away from it.
+          const sent = round2(line.amount);
+          return { ...line, offered: 1, amount: 0, originalAmount: sent > 0 ? sent : round2(line.originalAmount) };
+        };
         const baseDetail = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
           .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
           .map(offerLine);
