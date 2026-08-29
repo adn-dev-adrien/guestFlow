@@ -225,6 +225,45 @@ test('departure commit: everything offered → nothing is marked collected', () 
   assert.equal(r.endOfStayComplementPaid, 0);
 });
 
+// Régression 2026-08-29 (réservation Geuffrard) — a check-out that billed back a geste commercial.
+// The Gîte routes its « Linge de lit » to the complement as a property default and OFFERS it (it is
+// included in the base price), so the arrival complement is worth 0 €. The recap then shows no recall
+// block at all, and the empty offered set it used to send read as « nothing is offered » — billing the
+// line back at 70 € on the way out. specs/sas-offer-complement-lines.md §3.2 rule 6.ter.
+test('departure commit: an arrival complement made only of gestes commerciaux is not billed back', () => {
+  const db = makeDb();
+  db.prepare('UPDATE reservation_options SET offered = 1, totalPrice = 0 WHERE reservationId = 1 AND optionId = 5').run();
+  db.prepare('UPDATE reservation_custom_options SET offered = 1 WHERE reservationId = 1').run();
+  db.prepare('UPDATE reservations SET complementAmount = 0 WHERE id = 1').run();
+
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, { cautionReturned: true, endOfStayComplementDetail: [], offeredArrivalExtras: [] });
+
+  assert.equal(complementAmount(db), 0, 'nothing was un-offered at the door, so nothing is due');
+  assert.equal(optionRow(db, 5).offered, 1);
+  assert.equal(optionRow(db, 5).totalPrice, 0, 'the catalogue line is still worth 0 €');
+  assert.equal(customRow(db, 'Extra manuel').offered, 1);
+});
+
+test('departure commit: a recalled complement can still un-offer a line', () => {
+  // The guard above must not cost the feature: as soon as something IS owed, the recap renders every
+  // arrival line and its set is authoritative again — a line absent from it goes back to billed.
+  const db = makeDb();
+  db.prepare('UPDATE reservation_options SET offered = 1, totalPrice = 0 WHERE reservationId = 1 AND optionId = 5').run();
+  db.prepare('UPDATE reservations SET complementAmount = 10 WHERE id = 1').run();
+
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [],
+    offeredArrivalExtras: [{ kind: 'custom', id: customRow(db, 'Extra manuel').id }],
+  });
+
+  assert.equal(optionRow(db, 5).offered, 0, 'un-offered at the door');
+  assert.equal(optionRow(db, 5).totalPrice, 20, 'and billed at its real price again');
+  assert.equal(customRow(db, 'Extra manuel').offered, 1);
+  assert.equal(complementAmount(db), 20, '10 € - 10 € (custom offered) + 20 € (extra billed back)');
+});
+
 // ---- SAS payload ----
 
 test('arrivalComplementDetailFromReservation: offered lines ride the SAS flavour only, with their real price', () => {

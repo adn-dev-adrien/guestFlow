@@ -2540,7 +2540,16 @@ function createReservationsModel(database) {
     } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
-        applyOfferedComplementExtras(reservationId, offeredArrivalExtras);
+        // specs/sas-offer-complement-lines.md §3.2 rule 6.ter — the check-out recap only RECALLS the
+        // arrival complement when something is still owed on it (amount > 0 and unpaid). When it is
+        // not recalled, the recap rendered no arrival line, so it holds no authority over their
+        // `offered` flags: an empty set coming from that screen means « nothing was shown », never
+        // « nothing is offered ». Taken literally it billed back every offered line — and an arrival
+        // complement made entirely of gestes commerciaux sums to 0 €, which is exactly the case where
+        // it is not recalled.
+        const recall = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
+        const recallsArrival = Boolean(recall) && Number(recall.complementPaid || 0) !== 1 && round2(recall.complementAmount) > 0;
+        applyOfferedComplementExtras(reservationId, recallsArrival ? offeredArrivalExtras : undefined);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
