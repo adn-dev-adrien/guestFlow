@@ -759,6 +759,49 @@ test('departure SAS re-open: a cleaning line billed before the ménage was sold 
   expect(arg.endOfStayComplementDetail).toEqual([]);
 });
 
+// Régression 2026-08-29 — a « préservée » line (label no longer mapping to any priced item) that was
+// offered is stored at 0 € with its price in `unitPrice`. Re-opening read only `amount`, so the recap
+// showed 0 € and un-offering restored 0 € instead of the real price — §3.1 rule 3 says offering is
+// lossless and reversible.
+test('departure SAS re-open: an offered preserved line comes back with its real price, and can be un-offered', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      cautionAmount: 0,
+      departureSasDoneAt: '2026-08-02 10:00:00',
+      endOfStayComplementDetail: JSON.stringify([
+        { label: 'Drap ancien modèle', qty: 1, unitPrice: 24, amount: 0, offered: 1 },
+      ]),
+    },
+    cleaning: { included: true, price: null },
+  }));
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+
+  await screen.findByText('Récapitulatif fin de séjour');
+  // The gesture reopens « ✓ Offert » — 24 € shown, 0 € counted.
+  expect(screen.getByText(/Drap ancien modèle : 24,00 €/)).toBeInTheDocument();
+  expect(screen.queryByText(/Total à percevoir/)).toBeNull();
+
+  clickBtn('✓ Offert'); // withdraw the gesture
+  expect(screen.getByText(/Total à percevoir : 24,00 €/)).toBeInTheDocument();
+
+  clickBtn('CB / Chèque');
+  clickBtn('Valider et terminer');
+  await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
+  const line = api.commitDepartureSas.mock.calls[0][1].endOfStayComplementDetail
+    .find((l) => l.label === 'Drap ancien modèle');
+  expect(line).toMatchObject({ qty: 1, unitPrice: 24, amount: 24 });
+  expect(line.offered).toBeUndefined();
+});
+
 // ---- recap settlement buttons (specs/sas-recap-payment-buttons.md) ----
 
 async function openArrivalRecapWithComplement() {

@@ -2576,9 +2576,18 @@ function createReservationsModel(database) {
         // specs/sas-offer-complement-lines.md §3.3 rule 9 — an offered line is stored at 0 € but keeps
         // its label, its quantity, its unit price and its `source`/`key` tags: that is what shows the
         // real price struck through on the recap, and what lets a re-open bill it again.
-        const offerLine = (line) => (Number(line && line.offered ? 1 : 0) === 1
-          ? { ...line, offered: 1, amount: 0, unitPrice: round2(line.unitPrice != null ? line.unitPrice : line.amount) }
-          : line);
+        // The real price has to stay recoverable as `qty × unitPrice` — that is how a re-open reads it
+        // back. A line that arrives with no usable unit price (a « préservée » line, whose priced item
+        // was renamed or deleted since, carries only a label and a total) was stored 1 × 0 € and its
+        // price was simply gone: un-offering it later restored 0 € instead of what the guest owed.
+        // Collapsing it to `1 × <the real total>` keeps the same invariant with no extra field.
+        const offerLine = (line) => {
+          if (Number(line && line.offered ? 1 : 0) !== 1) return line;
+          const unitPrice = round2(line.unitPrice);
+          return unitPrice > 0
+            ? { ...line, offered: 1, amount: 0, unitPrice }
+            : { ...line, offered: 1, amount: 0, qty: 1, unitPrice: round2(line.amount) };
+        };
         const baseDetail = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
           .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL))
           .map(offerLine);

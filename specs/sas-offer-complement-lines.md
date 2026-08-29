@@ -49,6 +49,18 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 3. **Offering is lossless and reversible**: the real price is preserved (`originalTotalPrice` for a
    catalogue line, the stored `amount` for a custom line, `qty × unitPrice` for an end-of-stay line), so
    un-offering restores exactly the same amount — during the same SAS run *and* after a re-open.
+3.bis **A « préservée » check-out line is lossless too** (fix 2026-08-29). The lines of rule 6.bis —
+   whose label no longer maps to a priced item — carry only a label and a total, no unit price. Offered,
+   they were stored `1 × 0 €` and **their price was gone for good**: the re-opened recap showed 0 € and
+   withdrawing the gesture billed 0 € instead of what the guest owed. Two halves, both required:
+   - **Server** — `commitDepartureSas` keeps the real price recoverable as `qty × unitPrice`, the form
+     a re-open reads back. A line arriving with no usable unit price is collapsed to
+     `1 × <the real total>` rather than stored at zero. No new field, same invariant.
+   - **Client** — the re-open reads a preserved line the way it already reads a carried one (an offered
+     line is worth `qty × unitPrice`), and carries its quantity and unit price back into the commit
+     instead of flattening the line to « 1 × 0 € ».
+   The arrival side never had the defect: a SAS custom line stores its `amount` whatever its `offered`
+   flag, and the read layer exposes it as `unitPrice`.
 4. The gesture is **decided in memory and written at the single commit**, like every other SAS decision.
    Quitter → nothing written.
 
@@ -157,7 +169,7 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `models/` | `models/reservationsModel.js` | T | `arrivalComplementDetailFromReservation(r, { includeOffered })` adds a `ref` (`{ kind, id }`) to every line and, on demand, includes the offered in-complement extras (`amount: 0`, `originalAmount`, `offered: 1`). `commitArrivalSas` accepts `offeredExtras` (refs) + per-item `offered` on `complementItems` + `cleaningOffered` / `bathLinenOffered`; applies the flags and adjusts `complementAmount` by the exact real price of each line that changed state. `commitDepartureSas` accepts `offered` on the detail lines + on `extinguisherCharges`, stores them at 0 €, and sums only the billed ones; `offeredArrivalExtras` applies the same arrival-row logic at check-out — but only after re-reading the recall condition itself, so a set sent while the arrival complement is not recallable is ignored rather than billing every offered line back (§3.2 rule 6.ter). |
+| `models/` | `models/reservationsModel.js` | T | `arrivalComplementDetailFromReservation(r, { includeOffered })` adds a `ref` (`{ kind, id }`) to every line and, on demand, includes the offered in-complement extras (`amount: 0`, `originalAmount`, `offered: 1`). `commitArrivalSas` accepts `offeredExtras` (refs) + per-item `offered` on `complementItems` + `cleaningOffered` / `bathLinenOffered`; applies the flags and adjusts `complementAmount` by the exact real price of each line that changed state. `commitDepartureSas` accepts `offered` on the detail lines + on `extinguisherCharges`, stores them at 0 € with their real price kept recoverable as `qty × unitPrice` (§3.1 rule 3.bis), and sums only the billed ones; `offeredArrivalExtras` applies the same arrival-row logic at check-out — but only after re-reading the recall condition itself, so a set sent while the arrival complement is not recallable is ignored rather than billing every offered line back (§3.2 rule 6.ter). |
 | `controllers/` | `controllers/sasController.js` | T | Ships `arrivalComplement` with the offered lines included (SAS-only flavour); forwards the new commit fields (validated/normalised) to the model. |
 | `utils/` | `utils/sasAudit.js` | T | Renders « (offert) » on the complement lines of the history diff. |
 | `routes/` | `routes/reservations.js` | — | (none — same endpoints, additive payload) |
@@ -226,7 +238,7 @@ Same endpoints, additive fields (no breaking change):
 ## 7. Test plan
 
 ### Server unit tests (`server/src/tests/`)
-- [x] `sas-offer-complement-lines.unit.test.js` (new, 15 tests):
+- [x] `sas-offer-complement-lines.unit.test.js` (new, 17 tests):
   - arrival commit with `offeredExtras` → row `offered = 1`, `totalPrice = 0`, `complementAmount` reduced
     by exactly the line's real price;
   - un-offering on a re-commit restores the amount (lossless round-trip);
@@ -244,7 +256,9 @@ Same endpoints, additive fields (no breaking change):
   - **(2026-08-29)** a departure commit whose arrival complement is worth 0 € leaves every offered line
     offered — an empty `offeredArrivalExtras` bills nothing back;
   - **(2026-08-29)** a departure commit on a *recalled* complement still un-offers a line absent from
-    the set (the guard costs nothing).
+    the set (the guard costs nothing);
+  - **(2026-08-29)** an offered detail line with no unit price is stored `1 × <its real total>`, and a
+    re-commit that withdraws the gesture bills it at that price again (rule 3.bis).
 - [x] Full server suite green.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
@@ -259,6 +273,8 @@ Same endpoints, additive fields (no breaking change):
 - [x] Re-open: a stored offered line reopens « ✓ Offert ».
 - [x] **(2026-08-29)** Departure recap on an arrival complement worth 0 € → the commit omits
       `offeredArrivalExtras` entirely.
+- [x] **(2026-08-29)** Re-open: an offered *preserved* check-out line shows its real price, and
+      withdrawing the gesture sends `qty`, `unitPrice` and the real `amount` back (rule 3.bis).
 
 ### Manual UI verification
 - [x] Arrival + departure SAS run in the browser at `xs` and desktop widths, screenshot in the PR.

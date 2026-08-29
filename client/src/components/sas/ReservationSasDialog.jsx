@@ -443,8 +443,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               nextDep[item.id] = Number(line.qty) || Math.max(1, Math.round(Number(line.amount) / Number(item.price || 1)));
               if (lineOffered) seed.add(`dep:${item.id}`);
             } else {
+              // specs/sas-offer-complement-lines.md §3.1 rule 3 — offering is lossless, so a preserved
+              // line must come back with its REAL price, not the 0 € it is stored at. Same reading as
+              // `carriedEndOfStayLines`: an offered line keeps `qty × unitPrice`. Its quantity and unit
+              // price are carried too, so a re-commit re-sends them instead of flattening the line to
+              // « 1 × 0 € » and losing the price for good.
               if (lineOffered) seed.add(`preservedDep:${keep.length}`);
-              keep.push({ label, amount: Number(line.amount) || 0 });
+              const qty = Number(line.qty) || 1;
+              const unitPrice = Number(line.unitPrice) || 0;
+              const real = lineOffered ? round2(qty * unitPrice) : (Number(line.amount) || 0);
+              keep.push({ label, amount: real, qty, unitPrice });
             }
           });
           setMissingDep(nextDep); setExtinguisherQty(nextExtinguisher); setPreservedDeparture(keep);

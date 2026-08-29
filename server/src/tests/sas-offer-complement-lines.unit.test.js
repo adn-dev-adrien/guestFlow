@@ -71,6 +71,7 @@ function makeDb() {
   return db;
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const complementAmount = (db) => db.prepare('SELECT complementAmount FROM reservations WHERE id = 1').get().complementAmount;
 const optionRow = (db, id) => db.prepare('SELECT totalPrice, offered, unitPrice FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(id);
 const customRow = (db, description) => db.prepare('SELECT id, amount, offered FROM reservation_custom_options WHERE reservationId = 1 AND description = ?').get(description);
@@ -181,6 +182,43 @@ test('departure commit: an offered end-of-stay line is stored at 0 € with its 
   assert.equal(cleaning.offered, 1);
   assert.equal(cleaning.amount, 0);
   assert.equal(cleaning.unitPrice, 80, 'the real price survives, so the recap can show it struck through');
+});
+
+// Régression 2026-08-29 — a « préservée » line (its priced item was renamed or deleted since, so the
+// recap carries only a label and a total) has no usable unit price. Stored as 1 × 0 € its real price
+// was gone for good, and un-offering it on a later re-open restored 0 € instead of what the guest
+// owed — breaking §3.1 rule 3 (« offering is lossless and reversible »).
+test('departure commit: an offered line with no unit price keeps its real price', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 24, offered: true }],
+  });
+  const { amount, detail } = endOfStay(db);
+  assert.equal(amount, 0, 'offered → nothing to collect');
+  assert.equal(detail[0].offered, 1);
+  assert.equal(detail[0].qty, 1);
+  assert.equal(detail[0].unitPrice, 24, 'the total became the unit price, so qty × unitPrice is still the real price');
+  assert.equal(round2(detail[0].qty * detail[0].unitPrice), 24);
+});
+
+test('departure re-commit: un-offering that line bills it at its real price again', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 24, offered: true }],
+  });
+  // What the re-opened recap reads back and re-sends once the gesture is withdrawn.
+  const stored = endOfStay(db).detail[0];
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{
+      label: stored.label,
+      qty: Number(stored.qty) || 1,
+      unitPrice: Number(stored.unitPrice) || 0,
+      amount: round2((Number(stored.qty) || 1) * (Number(stored.unitPrice) || 0)),
+    }],
+  });
+  assert.equal(endOfStay(db).amount, 24, 'the guest owes the real price again, not 0 €');
 });
 
 test('departure commit: an offered extinguisher charge is priced then given away', () => {
