@@ -59,6 +59,13 @@ import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
 import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+// The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
+// once offered. The server stores that total verbatim (`originalAmount`), so there is no price to
+// rebuild here — specs/sas-offer-complement-lines.md §3.1 rule 3.bis. The `qty × unitPrice` branch is
+// only for rows written before that field shipped; production carries none (checked 2026-08-29).
+const realOfStoredLine = (l) => (Number(l?.offered || 0) === 1
+  ? round2(l.originalAmount != null ? l.originalAmount : (Number(l.qty) || 1) * Number(l.unitPrice || 0))
+  : round2(l?.amount));
 
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
@@ -443,8 +450,17 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               nextDep[item.id] = Number(line.qty) || Math.max(1, Math.round(Number(line.amount) / Number(item.price || 1)));
               if (lineOffered) seed.add(`dep:${item.id}`);
             } else {
+              // specs/sas-offer-complement-lines.md §3.1 rule 3 — offering is lossless, so a preserved
+              // line must come back with its REAL price, not the 0 € it is stored at. Same reader as
+              // `carriedEndOfStayLines`. Quantity and unit price are carried too, so a re-commit
+              // re-sends them instead of flattening the line to « 1 × 0 € ».
               if (lineOffered) seed.add(`preservedDep:${keep.length}`);
-              keep.push({ label, amount: Number(line.amount) || 0 });
+              keep.push({
+                label,
+                amount: realOfStoredLine(line),
+                qty: Number(line.qty) || 1,
+                unitPrice: Number(line.unitPrice) || 0,
+              });
             }
           });
           setMissingDep(nextDep); setExtinguisherQty(nextExtinguisher); setPreservedDeparture(keep);
@@ -778,10 +794,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     return detail
       .filter((l) => l && l.source)
       .map((l, i) => {
-        // An offered line is stored at 0 € with its unit price intact — that's the real price to show.
-        const real = Number(l.offered || 0) === 1
-          ? round2((Number(l.qty) || 1) * Number(l.unitPrice || 0))
-          : round2(l.amount);
+        const real = realOfStoredLine(l);
         const offerKey = `carried:${i}`;
         return {
           label: l.label, unitPrice: Number(l.unitPrice) || 0,
@@ -811,7 +824,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // un-itemised remainder have no ref → no toggle.
   const arrivalRecallLines = useMemo(() => ((arrivalRecall && arrivalRecall.detail) || []).map((l) => {
     const storedOffered = Number(l.offered || 0) === 1;
-    const real = round2(storedOffered ? l.originalAmount : l.amount);
+    const real = realOfStoredLine(l);
     const offerKey = l.ref ? `${l.ref.kind}:${l.ref.id}` : null;
     return {
       label: l.label, qty: Number(l.qty || 1), unitPrice: Number(l.unitPrice || 0),
