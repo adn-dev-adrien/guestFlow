@@ -69,6 +69,20 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
    commit whose label no longer maps to a priced item (renamed / deleted since) were re-sent on every
    re-commit but shown nowhere and counted in no total, so the recap under-stated what the server would
    store. They now appear in the recap list like any other line — and are therefore offerable too.
+6.ter **The offered set only speaks for the lines the recap rendered** (fix 2026-08-29, réservation
+   Geuffrard). `offeredArrivalExtras` is *authoritative*: a recalled line absent from it is billed back.
+   But the check-out recap only recalls the arrival complement when something is still owed on it
+   (`amount > 0` and unpaid — `recall-unpaid-arrival-complement-at-checkout.md`), and **an arrival
+   complement made entirely of gestes commerciaux is worth 0 €** — so the recap showed nothing, sent an
+   empty set, and the server read it as « plus rien n'est offert » and billed every offered line back at
+   check-out. Two guards, both required:
+   - **Client** — the departure commit sends `offeredArrivalExtras` **only when the recall block was
+     rendered**; otherwise the field is omitted (`undefined` = « leave every flag as it is »).
+   - **Server** — `commitDepartureSas` re-reads the recall condition itself and ignores the field when
+     the arrival complement is not recallable. The rule is business logic, so the backend owns it and
+     no client version can re-open the hole.
+   Un-offering at the door is untouched: as soon as something is owed, the recap renders every arrival
+   line and its set is authoritative again.
 7. **Never offerable — no toggle rendered:**
    - the **taxe de séjour** (decision 2026-08-17): it is reversed to the commune, so it can never be a
      geste commercial. It stays due and visible on both recaps.
@@ -179,7 +193,8 @@ Same endpoints, additive fields (no breaking change):
 - `endOfStayComplementDetail[]` gains `offered?: boolean`.
 - `extinguisherCharges[]` gains `offered?: boolean`.
 - `offeredArrivalExtras?: [{ kind, id }]` — same contract as `offeredExtras`, applied to the recalled
-  arrival complement.
+  arrival complement. **Sent only when the recap recalled that complement** (§3.2 rule 6.ter); the
+  server ignores it otherwise, so an omitted or stale field can never bill an offered line back.
 
 ---
 
@@ -207,7 +222,7 @@ Same endpoints, additive fields (no breaking change):
 ## 7. Test plan
 
 ### Server unit tests (`server/src/tests/`)
-- [x] `sas-offer-complement-lines.unit.test.js` (new, 9 tests):
+- [x] `sas-offer-complement-lines.unit.test.js` (new, 11 tests):
   - arrival commit with `offeredExtras` → row `offered = 1`, `totalPrice = 0`, `complementAmount` reduced
     by exactly the line's real price;
   - un-offering on a re-commit restores the amount (lossless round-trip);
@@ -221,7 +236,11 @@ Same endpoints, additive fields (no breaking change):
   - `offeredArrivalExtras` at check-out → arrival row offered + `complementAmount` reduced;
   - the tourist-tax line is never touched by an offer;
   - `buildArrivalComplementDetail(id, { includeOffered: true })` lists offered lines at 0 € with their
-    `originalAmount`, and the detail still sums to `amount`.
+    `originalAmount`, and the detail still sums to `amount`;
+  - **(2026-08-29)** a departure commit whose arrival complement is worth 0 € leaves every offered line
+    offered — an empty `offeredArrivalExtras` bills nothing back;
+  - **(2026-08-29)** a departure commit on a *recalled* complement still un-offers a line absent from
+    the set (the guard costs nothing).
 - [x] Full server suite green.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
@@ -234,6 +253,8 @@ Same endpoints, additive fields (no breaking change):
 - [x] No toggle on the « Taxe de séjour » line (both recaps).
 - [x] Everything offered → the « Règlement » block is gone.
 - [x] Re-open: a stored offered line reopens « ✓ Offert ».
+- [x] **(2026-08-29)** Departure recap on an arrival complement worth 0 € → the commit omits
+      `offeredArrivalExtras` entirely.
 
 ### Manual UI verification
 - [x] Arrival + departure SAS run in the browser at `xs` and desktop widths, screenshot in the PR.

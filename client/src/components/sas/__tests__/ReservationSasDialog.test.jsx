@@ -1186,6 +1186,41 @@ test('departure recap: a recalled arrival line is offerable, the taxe de séjour
   expect(api.commitDepartureSas.mock.calls[0][1].offeredArrivalExtras).toEqual([{ kind: 'option', id: 4 }]);
 });
 
+// Régression 2026-08-29 (réservation Geuffrard) — the arrival complement is entirely made of gestes
+// commerciaux, so it is worth 0 € and the recap shows no recall block. The commit must then say
+// NOTHING about the offered flags: an empty set is authoritative server-side and billed them all back.
+// specs/sas-offer-complement-lines.md §3.2 rule 6bis.
+test('departure recap: an arrival complement worth 0 € claims no authority over the offered flags', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0 },
+    cleaning: { included: true, price: null },
+    arrivalComplement: {
+      amount: 0,
+      paid: 0,
+      detail: [
+        { label: 'Linge de lit', kind: 'option', qty: 10, unitPrice: 7, amount: 0, offered: 1, originalAmount: 70, ref: { kind: 'option', id: 8 } },
+      ],
+    },
+  }));
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+
+  await screen.findByText('Récapitulatif fin de séjour');
+  expect(screen.queryByText(/Total à percevoir/)).toBeNull(); // the offered linen is not a collection
+
+  clickBtn('Valider et terminer');
+  await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
+  expect(api.commitDepartureSas.mock.calls[0][1].offeredArrivalExtras).toBeUndefined();
+});
+
 // ── Prestations sold at check-in (specs/sas-breakfast-and-catering-upsell.md) ────────────────
 
 test('arrival SAS: selling the breakfast — mornings pre-selected, count shown, composition seeded', async () => {
