@@ -1,6 +1,6 @@
 {
   "name": "guestflow-server",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "scripts": {
     "dev:clean": "fuser -k 4000/tcp 2>/dev/null || true",
     "dev:watch": "nodemon --watch src --ext js,json --signal SIGTERM src/index.js",

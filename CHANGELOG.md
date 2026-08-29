@@ -4,6 +4,32 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-08-29
+
+### Summary
+- Le linge de lit du Gîte, compris dans le prix, ne réapparaît plus à 70 € quand vous validez le départ : un geste offert reste offert.
+- Une prestation offerte au départ retrouve son vrai prix quand vous revenez dessus, au lieu de 0 € ou d'un centime de trop.
+
+### Fixed
+- **A geste commercial made at check-in was billed back at check-out.** `offeredArrivalExtras` is an
+  authoritative set: a recalled arrival line absent from it goes back to billed — that is what makes
+  un-offering work on a re-open. But the check-out recap only recalls the arrival complement when
+  something is still owed on it, and **a complement made entirely of gestes commerciaux is worth
+  0 €** — precisely when nothing is rendered. The recap showed no arrival line, sent an empty set
+  anyway, and the server read it as « plus rien n'est offert ». On a Gîte stay the « Linge de lit »
+  line — a property default offered because the linen is included in the base price — reappeared at
+  70 € the moment the departure was validated. The recap now speaks only for the lines it actually
+  rendered, and `commitDepartureSas` re-reads the recall condition itself, so no client version can
+  reopen the hole. Un-offering at the door is untouched.
+- **Offering a check-out line could lose, or overcharge, its price.** The real price of an offered
+  end-of-stay line was re-derived as `qty × unitPrice`, which is not always the price. A line whose
+  priced item has been renamed or deleted since carries only a label and a total: offered, it was
+  stored `1 × 0 €`, so withdrawing the gesture on a re-opened check-out billed **0 €** instead of what
+  the guest owed. And a line carried from mid-stay is legitimately stored « 2 × 16,67 € » for 33,33 €,
+  so the same reconstruction billed **33,34 €** — a cent too much. The real total is now stored
+  verbatim when the gesture is made, and read back as such; quantity and unit price stay what they
+  always were, the wording of the line.
+
 ## [2.7.0] - 2026-08-28
 
 ### Summary
