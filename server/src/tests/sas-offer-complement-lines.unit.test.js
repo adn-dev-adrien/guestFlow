@@ -181,7 +181,8 @@ test('departure commit: an offered end-of-stay line is stored at 0 € with its 
   const cleaning = detail.find((l) => l.label === 'Ménage de fin de séjour');
   assert.equal(cleaning.offered, 1);
   assert.equal(cleaning.amount, 0);
-  assert.equal(cleaning.unitPrice, 80, 'the real price survives, so the recap can show it struck through');
+  assert.equal(cleaning.unitPrice, 80, 'the wording survives');
+  assert.equal(cleaning.originalAmount, 80, 'and the real total, so the recap can show it struck through');
 });
 
 // Régression 2026-08-29 — a « préservée » line (its priced item was renamed or deleted since, so the
@@ -197,9 +198,7 @@ test('departure commit: an offered line with no unit price keeps its real price'
   const { amount, detail } = endOfStay(db);
   assert.equal(amount, 0, 'offered → nothing to collect');
   assert.equal(detail[0].offered, 1);
-  assert.equal(detail[0].qty, 1);
-  assert.equal(detail[0].unitPrice, 24, 'the total became the unit price, so qty × unitPrice is still the real price');
-  assert.equal(round2(detail[0].qty * detail[0].unitPrice), 24);
+  assert.equal(detail[0].originalAmount, 24, 'the real total is stored verbatim, not left to be re-derived');
 });
 
 test('departure commit: an offered line worth 0 € keeps its quantity', () => {
@@ -214,6 +213,26 @@ test('departure commit: an offered line worth 0 € keeps its quantity', () => {
   assert.equal(line.offered, 1);
   assert.equal(line.qty, 3, 'the quantity is the only thing this line carries — it must survive');
   assert.equal(line.amount, 0);
+  assert.equal(line.originalAmount, 0);
+});
+
+// The reason the real total is stored rather than re-derived: `buildMidStayLine` legitimately emits
+// « 2 × 16,67 € » for a 33,33 € line, and 2 × 16,67 = 33,34. Re-deriving billed the guest one cent
+// too much every time a mid-stay line was offered then billed back.
+test('departure re-commit: an offered mid-stay line comes back at its stored total, to the cent', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const carried = { label: 'Bain nordique', qty: 2, unitPrice: 16.67, amount: 33.33, source: 'midStayExtra', key: 'custom:bain nordique' };
+  assert.notEqual(round2(carried.qty * carried.unitPrice), carried.amount, 'the premise: qty × unitPrice ≠ the total');
+
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ ...carried, offered: true }] });
+  const stored = endOfStay(db).detail[0];
+  assert.equal(stored.originalAmount, 33.33);
+  assert.equal(stored.qty, 2, 'the wording « 2 × 16,67 € » survives');
+  assert.equal(stored.unitPrice, 16.67);
+
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ ...carried, amount: Number(stored.originalAmount) }] });
+  assert.equal(endOfStay(db).amount, 33.33, 'not 33,34');
 });
 
 test('departure re-commit: un-offering that line bills it at its real price again', () => {
@@ -229,7 +248,7 @@ test('departure re-commit: un-offering that line bills it at its real price agai
       label: stored.label,
       qty: Number(stored.qty) || 1,
       unitPrice: Number(stored.unitPrice) || 0,
-      amount: round2((Number(stored.qty) || 1) * (Number(stored.unitPrice) || 0)),
+      amount: Number(stored.originalAmount),
     }],
   });
   assert.equal(endOfStay(db).amount, 24, 'the guest owes the real price again, not 0 €');
@@ -249,6 +268,7 @@ test('departure commit: an offered extinguisher charge is priced then given away
   assert.equal(detail.length, 1, 'the line is kept — it is the trace of the gesture');
   assert.equal(detail[0].offered, 1);
   assert.equal(detail[0].unitPrice, 30, 'server-resolved price, not lost');
+  assert.equal(detail[0].originalAmount, 30);
 });
 
 test('departure commit: offering a recalled arrival line reduces the arrival complement', () => {

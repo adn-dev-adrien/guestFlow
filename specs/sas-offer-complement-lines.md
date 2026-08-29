@@ -49,16 +49,20 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 3. **Offering is lossless and reversible**: the real price is preserved (`originalTotalPrice` for a
    catalogue line, the stored `amount` for a custom line, `qty × unitPrice` for an end-of-stay line), so
    un-offering restores exactly the same amount — during the same SAS run *and* after a re-open.
-3.bis **A « préservée » check-out line is lossless too** (fix 2026-08-29). The lines of rule 6.bis —
-   whose label no longer maps to a priced item — carry only a label and a total, no unit price. Offered,
-   they were stored `1 × 0 €` and **their price was gone for good**: the re-opened recap showed 0 € and
-   withdrawing the gesture billed 0 € instead of what the guest owed. Two halves, both required:
-   - **Server** — `commitDepartureSas` keeps the real price recoverable as `qty × unitPrice`, the form
-     a re-open reads back. A line arriving with no usable unit price is collapsed to
-     `1 × <the real total>` rather than stored at zero. No new field, same invariant.
-   - **Client** — the re-open reads a preserved line the way it already reads a carried one (an offered
-     line is worth `qty × unitPrice`), and carries its quantity and unit price back into the commit
-     instead of flattening the line to « 1 × 0 € ».
+3.bis **An offered end-of-stay line stores its real total; it is never re-derived** (fix 2026-08-29).
+   `qty × unitPrice` looked like the real price and is not, in two reachable cases:
+   - a **« préservée »** line (rule 6.bis) carries only a label and a total — no unit price at all — so
+     it was stored `1 × 0 €` and **its price was gone for good**: the re-opened recap showed 0 € and
+     withdrawing the gesture billed 0 € instead of what the guest owed;
+   - `buildMidStayLine` legitimately emits **2 × 16,67 € for a 33,33 € line**, so re-deriving billed
+     33,34 € — one cent too much — every time a carried mid-stay line was offered then billed back.
+
+   So `commitDepartureSas` stores the real total **verbatim** in `originalAmount` next to the zeroed
+   `amount`, and leaves `qty` / `unitPrice` exactly as sent — they are the recap wording and the
+   history, not the price. The client reads that one field (`realOfStoredLine`) for carried and
+   preserved lines alike, so no price is rebuilt on the client (CLAUDE.md §6.0). Rows written before
+   the field shipped fall back to `qty × unitPrice`; production carries none (checked 2026-08-29).
+
    The arrival side never had the defect: a SAS custom line stores its `amount` whatever its `offered`
    flag, and the read layer exposes it as `unitPrice`.
 4. The gesture is **decided in memory and written at the single commit**, like every other SAS decision.
@@ -179,7 +183,7 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `components/sas/ReservationSasDialog.jsx` | T | One `offered` set in the wizard state (keys `option:<id>`, `resource:<id>`, `custom:<id>`, `bed:<itemId>`, `cleaning`, `bathLinen`, `dep:<itemId>`, `depCleaning`, `ext:<repairKey>`, `carried:<i>`, `arr:<kind>:<id>`); every recap line is built with its key + real price and rendered through the new `OfferableLine`; totals count offered lines as 0; the commit maps the set onto the new payload fields; re-open seeds the set from the reservation. |
+| `components/` | `components/sas/ReservationSasDialog.jsx` | T | One `offered` set in the wizard state (keys `option:<id>`, `resource:<id>`, `custom:<id>`, `bed:<itemId>`, `cleaning`, `bathLinen`, `dep:<itemId>`, `depCleaning`, `ext:<repairKey>`, `carried:<i>`, `preserved:<i>` / `preservedDep:<i>`, and `<kind>:<id>` for a recalled arrival line); every recap line is built with its key + real price and rendered through the new `OfferableLine`; totals count offered lines as 0; the commit maps the set onto the new payload fields; re-open seeds the set from the reservation. |
 | `components/` | `components/sas/OfferableLine.jsx` | C | Presentational row: « libellé : qté × PU = total » + an « Offrir / ✓ Offert » toggle, real price struck through when offered. Feature-local (SAS recap semantics). |
 | `services/` | `services/api.js` | — | (none — same endpoints) |
 
@@ -222,7 +226,7 @@ Same endpoints, additive fields (no breaking change):
 |---|---|
 | `reservation_options.offered`, `reservation_resources.offered`, `reservation_custom_options.offered` | 1 = offered; the row's `totalPrice` is 0 (catalogue) / derived 0 (custom). |
 | `reservations.complementAmount` | Decreased by the real price of each newly-offered arrival line, increased back when un-offered. |
-| `reservations.endOfStayComplementDetail` (JSON) | A line may carry `offered: 1` with `amount: 0` and its `unitPrice` / `qty` intact — that pair is what makes the gesture reversible (§3.1 rule 3). **One exception** (rule 3.bis): a line arriving with no usable unit price and a positive total is stored `qty: 1` with the total as its `unitPrice`, because a price that survives nowhere is worse than a quantity that reads 1. A line worth 0 € either way keeps its quantity — there is nothing to preserve. |
+| `reservations.endOfStayComplementDetail` (JSON) | A line may carry `offered: 1` with `amount: 0`, its `unitPrice` / `qty` intact **and `originalAmount` = the real total** — that last field is what makes the gesture reversible (§3.1 rule 3.bis); the quantity and unit price are wording, not price. |
 | `reservations.endOfStayComplementAmount` | Sum of the **billed** lines only. |
 
 ## 6. UI / UX
@@ -238,7 +242,7 @@ Same endpoints, additive fields (no breaking change):
 ## 7. Test plan
 
 ### Server unit tests (`server/src/tests/`)
-- [x] `sas-offer-complement-lines.unit.test.js` (new, 18 tests):
+- [x] `sas-offer-complement-lines.unit.test.js` (new, 19 tests):
   - arrival commit with `offeredExtras` → row `offered = 1`, `totalPrice = 0`, `complementAmount` reduced
     by exactly the line's real price;
   - un-offering on a re-commit restores the amount (lossless round-trip);
@@ -257,10 +261,11 @@ Same endpoints, additive fields (no breaking change):
     offered — an empty `offeredArrivalExtras` bills nothing back;
   - **(2026-08-29)** a departure commit on a *recalled* complement still un-offers a line absent from
     the set (the guard costs nothing);
-  - **(2026-08-29)** an offered detail line with no unit price is stored `1 × <its real total>`, and a
-    re-commit that withdraws the gesture bills it at that price again (rule 3.bis);
-  - **(2026-08-29)** an offered line worth 0 € keeps its quantity — the collapse only fires when there
-    is a price to save.
+  - **(2026-08-29)** an offered detail line with no unit price stores its real total in
+    `originalAmount`, and a re-commit that withdraws the gesture bills it at that price again;
+  - **(2026-08-29)** an offered line worth 0 € keeps its quantity;
+  - **(2026-08-29)** a carried mid-stay line whose `qty × unitPrice` disagrees with its total by a cent
+    (2 × 16,67 € for 33,33 €) comes back at **33,33 €**, not 33,34 € (rule 3.bis).
 - [x] Full server suite green.
 
 ### Client tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.jsx`)
@@ -281,7 +286,10 @@ Same endpoints, additive fields (no breaking change):
 ### Manual UI verification
 - [x] Arrival + departure SAS run in the browser at `xs` and desktop widths, screenshot in the PR.
 
-### 7.bis Known follow-ups (raised in review, deliberately not fixed here)
+### 7.bis Noted in review
+
+- §4.2's list of offer keys had drifted: it predated `preserved:<i>` / `preservedDep:<i>` and named an
+  `arr:` prefix the code never builds. Corrected in the same pass.
 
 - **The real price of an offered end-of-stay line is re-derived on the client** (`qty × unitPrice`, in
   both `carriedEndOfStayLines` and the preserved re-open). The arrival side does it properly: the

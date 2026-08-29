@@ -769,7 +769,7 @@ test('departure SAS re-open: an offered preserved line comes back with its real 
       cautionAmount: 0,
       departureSasDoneAt: '2026-08-02 10:00:00',
       endOfStayComplementDetail: JSON.stringify([
-        { label: 'Drap ancien modèle', qty: 1, unitPrice: 24, amount: 0, offered: 1 },
+        { label: 'Drap ancien modèle', qty: 1, unitPrice: 0, amount: 0, offered: 1, originalAmount: 24 },
       ]),
     },
     cleaning: { included: true, price: null },
@@ -798,7 +798,7 @@ test('departure SAS re-open: an offered preserved line comes back with its real 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const line = api.commitDepartureSas.mock.calls[0][1].endOfStayComplementDetail
     .find((l) => l.label === 'Drap ancien modèle');
-  expect(line).toMatchObject({ qty: 1, unitPrice: 24, amount: 24 });
+  expect(line).toMatchObject({ qty: 1, unitPrice: 0, amount: 24 });
   expect(line.offered).toBeUndefined();
 });
 
