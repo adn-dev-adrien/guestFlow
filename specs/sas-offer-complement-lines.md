@@ -124,9 +124,11 @@ geste commercial is recorded as such instead of being billed, hidden, or left pe
    - an offered arrival extra sets `offered = 1` on its row (`totalPrice = 0` for a catalogue
      option/resource; a custom line keeps its `amount` and is worth 0 by the existing
      `CASE WHEN offered` read), and `complementAmount` is decreased by the line's real price;
-   - an offered end-of-stay line is stored in `endOfStayComplementDetail` with `offered: 1` and
-     `amount: 0` (keeping `label`, `qty`, `unitPrice`, and any `source` / `key` / `repairKey` tag), and
-     `endOfStayComplementAmount` is the sum of the **non-offered** lines only.
+   - an offered end-of-stay line is stored in `endOfStayComplementDetail` with `offered: 1`,
+     `amount: 0` and **`originalAmount` = its real total** (rule 3.bis — that field, not
+     `qty × unitPrice`, is what makes the gesture reversible), keeping `label`, `qty`, `unitPrice` and
+     any `source` / `key` / `repairKey` tag; `endOfStayComplementAmount` is the sum of the
+     **non-offered** lines only.
 10. **No new bucket, no new column, no migration.** Offering reuses the `offered` flag that already
     exists on `reservation_options` / `reservation_resources` / `reservation_custom_options`, and a
     plain `offered` field inside the end-of-stay detail JSON. Every downstream view (finance, compta,
