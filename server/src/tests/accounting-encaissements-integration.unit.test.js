@@ -50,6 +50,7 @@ function createDb() {
       balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balancePaidDate TEXT,
       complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT,
       complementPaidCash INTEGER DEFAULT 0,
+      depositPaidCash INTEGER NOT NULL DEFAULT 0, balancePaidCash INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
       endOfStayComplementDetail TEXT, arrivalExtrasBaseline TEXT, midStaySettledNotes TEXT,
@@ -153,6 +154,31 @@ test('normal deposit + balance flow (regression guard): both entries emitted wit
   const byKind = Object.fromEntries(entries.map((e) => [e.kind, e]));
   assert.equal(byKind.deposit.encaissementTtc, 60);
   assert.equal(byKind.balance.encaissementTtc, 140);
+});
+
+// specs/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the caisse
+// interne is off the books, exactly like a cash complement: no encaissement, no export line.
+
+test('caisse interne on the solde: the balance entry is NOT emitted', () => {
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15', balancePaidCash: 1,
+  });
+  const model = createAccountingModel(db);
+  assert.equal(model.encaissementsByMonth({ month: 8, year: 2026 }).length, 0);
+});
+
+test('caisse interne on the acompte only: the solde still books normally', () => {
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 60, depositPaid: 1, depositPaidDate: '2026-08-15', depositPaidCash: 1,
+    balanceAmount: 140, balancePaid: 1, balancePaidDate: '2026-08-15',
+  });
+  const model = createAccountingModel(db);
+  const entries = model.encaissementsByMonth({ month: 8, year: 2026 });
+  assert.deepEqual(entries.map((e) => e.kind), ['balance']);
+  assert.equal(entries[0].encaissementTtc, 140);
 });
 
 // specs/platform-commission-line.md (2026-06-21) — the engine now stores the NET (total − commission)

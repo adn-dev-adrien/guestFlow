@@ -20,6 +20,8 @@ const SAS_FIELD_LABELS = {
   cleaningOption: 'Ménage',
   bathLinenOption: 'Linge de toilette',
   soldOptions: 'Prestations vendues au check-in',
+  depositPaid: 'Acompte encaissé',
+  balancePaid: 'Solde encaissé',
   complementAmount: 'Complément à percevoir',
   complementPaid: 'Complément encaissé',
   complementDeferredToCheckout: 'Complément reporté en fin de séjour',
@@ -42,6 +44,12 @@ const money = (amount) => {
 };
 
 const yesNo = (v) => (Number(v) === 1 || v === true ? 'oui' : 'non');
+// specs/collect-stay-payment-at-check-in.md §3.3 rule 16 — the stay collected at the door: the
+// history must say WHERE the money went, so the caisse interne is spelled out rather than implied.
+const paidText = (paid, cash) => {
+  if (!(Number(paid) === 1 || paid === true)) return 'non';
+  return (Number(cash) === 1 || cash === true) ? 'oui (caisse interne)' : 'oui';
+};
 const takenOrNot = (v) => (v ? 'pris' : 'non pris');
 const sealText = (v) => (v == null ? 'non renseigné' : (Number(v) === 1 ? 'plomb présent' : 'plomb absent'));
 const textOrDash = (v) => {
@@ -95,6 +103,8 @@ function buildSasSnapshot(row, extras = {}) {
     // specs/sas-breakfast-and-catering-upsell.md §3.5 — the prestations the check-in sold (petit
     // déjeuner, restauration), so the fiche history says what was added and for how much.
     soldOptions: itemsText(extras.soldOptionLines),
+    depositPaid: paidText(r.depositPaid, r.depositPaidCash),
+    balancePaid: paidText(r.balancePaid, r.balancePaidCash),
     complementAmount: money(r.complementAmount),
     complementPaid: yesNo(r.complementPaid),
     complementDeferredToCheckout: yesNo(r.complementDeferredToCheckout),

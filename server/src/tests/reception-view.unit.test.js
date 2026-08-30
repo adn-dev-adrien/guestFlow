@@ -6,6 +6,8 @@ const {
   toReceptionReservationList,
   toReceptionPropertyView,
   toReceptionPaymentPatch,
+  toReceptionStayPayment,
+  toReceptionSasCommit,
 } = require('../utils/receptionView');
 
 // specs/reception-role-checkin-only.md §3.2 — the money guard. Door money (caution / complement) is
@@ -191,4 +193,28 @@ test('toReceptionReservationList resolves the locks against the same instant', (
   const [view] = toReceptionReservationList([STAY], at(2026, 8, 4, 16));
   assert.equal(view.arrivalSasLock, null);
   assert.equal(view.departureSasLock, 'future');
+});
+
+// ── specs/collect-stay-payment-at-check-in.md §3.6 — the stay is admin-only ───────────────────────
+
+test('toReceptionStayPayment: the step is off and NO amount is served', () => {
+  const view = toReceptionStayPayment();
+  assert.equal(view.applicable, false);
+  assert.deepEqual(Object.keys(view), ['applicable']);
+});
+
+test('toReceptionSasCommit: the stay settlement is dropped, the rest of the check-in rides through', () => {
+  const body = toReceptionSasCommit({
+    stayPaid: true, stayPaidCash: true,
+    cautionReceived: true, complementSettled: true, complementItems: [{ label: 'Taie', amount: 5 }],
+  });
+  assert.equal('stayPaid' in body, false);
+  assert.equal('stayPaidCash' in body, false);
+  assert.equal(body.cautionReceived, true);
+  assert.equal(body.complementSettled, true);
+  assert.equal(body.complementItems.length, 1);
+});
+
+test('toReceptionSasCommit: an empty body stays usable (no throw on a missing payload)', () => {
+  assert.deepEqual(toReceptionSasCommit(undefined), {});
 });

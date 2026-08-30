@@ -2080,6 +2080,15 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // accounting (compta) + the accounting export. Independent per complement.
   if (!rcols.includes('complementPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN complementPaidCash INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('endOfStayComplementPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0");
+  // The stay itself collected at the door (specs/collect-stay-payment-at-check-in.md §5) — a
+  // last-minute booking arrives unpaid and pays the whole séjour at check-in. Two caisse-interne
+  // flags, mirroring the complements (off the books, off the turnover), and two ownership markers
+  // saying « the arrival SAS settled this bucket », which is what makes the gesture undoable on a
+  // re-opened SAS without ever touching an acompte wired by bank transfer.
+  if (!rcols.includes('depositPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN depositPaidCash INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('balancePaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN balancePaidCash INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('depositPaidAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN depositPaidAtArrival INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('balancePaidAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN balancePaidAtArrival INTEGER NOT NULL DEFAULT 0");
   // « En fin de séjour » on the arrival recap (specs/defer-arrival-complement-to-checkout.md §3.2
   // rule 5): the arrival complement is not collected at check-in but at the door, together with the
   // end-of-stay complement — presented as ONE complement everywhere. Backfilled once, on creation,

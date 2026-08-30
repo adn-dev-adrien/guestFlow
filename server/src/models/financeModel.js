@@ -7,7 +7,7 @@ const { buildReservationEngineInput } = require('../utils/reservationEngineInput
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
 const {
-  isSettled, remainingToPay, platformCommission, midStayNotesTotal, refundsBook, comptaCollected,
+  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
 
@@ -62,15 +62,20 @@ function nightsBetween(startDate, endDate) {
 // specs/finance-overview-rework.md §3.1 + specs/fiche-total-sejour-net-of-commission.md — the « total de
 // séjour » shown in the Suivi financier is the « total perçu sur le séjour » = what the operator actually
 // earns = acompte + solde + complément d'arrivée + complément de fin de séjour, NET of the platform
-// commission, with BOTH complements EXCLUDED when settled via caisse interne (off-books). Direct →
+// commission, with EVERY bucket EXCLUDED when settled via caisse interne (off-books). Direct →
 // commission 0 → unchanged.
 function totalSejour(r) {
-  const deposit = Number(r.depositAmount || 0);
-  const balance = Number(r.balanceAmount || 0);
+  // specs/collect-stay-payment-at-check-in.md §3.4 rule 18 — the acompte / solde joined the two
+  // complements here: a stay collected in the caisse interne leaves the turnover too. « Hors
+  // comptabilité » means out of what the operator declares earning, not merely out of the export,
+  // and it is what keeps `comptaCollected + remainingToPay === totalSejour` true on such a stay.
+  // A bucket that left the turnover takes ITS OWN commission with it, otherwise a cash-collected
+  // OTA solde would leave a lone negative commission behind and break the invariant.
+  const deposit = r.depositPaidCash ? 0 : Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0);
+  const balance = r.balancePaidCash ? 0 : Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
-  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r)
-    - platformCommission(r) - refundsBook(r));
+  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - refundsBook(r));
 }
 
 // `isSettled` (specs/finance-overview-rework.md §3.3), `remainingToPay`
@@ -135,6 +140,14 @@ function createFinanceModel(database) {
   const ATTRIBUTION_DATE_SQL = hasReservationColumn('balancePaidDate')
     ? ATTRIBUTION_DATE_SQL_FULL
     : 'r.endDate';
+
+  // specs/collect-stay-payment-at-check-in.md §3.4 — the caisse-interne flags of the stay buckets.
+  // Guarded like every other late column: a minimal test schema without them reads 0 = « nothing was
+  // collected in cash », i.e. the pre-spec behaviour.
+  const STAY_CASH_COLS = [
+    hasReservationColumn('depositPaidCash') ? 'depositPaidCash' : '0 AS depositPaidCash',
+    hasReservationColumn('balancePaidCash') ? 'balancePaidCash' : '0 AS balancePaidCash',
+  ].join(', ');
 
   // specs/reservation-refunds.md §3.3 — per-reservation refund totals, injected into every query that
   // feeds totalSejour/comptaCollected. Guarded like the mid-stay columns: a minimal test schema without
@@ -297,6 +310,7 @@ function createFinanceModel(database) {
       // the guest leaves after it (specs/fiscal-year-and-nights-sold.md §3.2).
       const yearRows = database.prepare(`
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
+               ${STAY_CASH_COLS},
                endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes,
                r.startDate, r.endDate,
                ${ATTRIBUTION_DATE_SQL} AS attributionDate,

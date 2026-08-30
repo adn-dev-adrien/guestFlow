@@ -156,12 +156,33 @@ function toReceptionPaymentPatch(body) {
   return { checkInReady, checkInDone, checkOutDone };
 }
 
+// specs/collect-stay-payment-at-check-in.md §3.6 rule 24 — the « Séjour à régler » step is admin-only:
+// the acompte / solde are exactly what this role must never see. The shell keeps the shape the client
+// expects (`applicable` decides whether the step exists) while carrying no amount at all.
+const RECEPTION_STAY_PAYMENT = Object.freeze({ applicable: false });
+
+function toReceptionStayPayment() {
+  return { ...RECEPTION_STAY_PAYMENT };
+}
+
+/**
+ * Rule 25 — fail-closed on the write side: a reception-only SAS commit never settles the stay.
+ * The two fields are DROPPED, not rejected: a stale client must not lose a whole check-in over a
+ * field it should not have sent. Everything else in the body rides through untouched.
+ */
+function toReceptionSasCommit(body) {
+  const { stayPaid, stayPaidCash, ...rest } = body || {};
+  return rest;
+}
+
 module.exports = {
   toReceptionReservationView,
   toReceptionReservationList,
   toReceptionPropertyView,
   toReceptionPropertyList,
   toReceptionPaymentPatch,
+  toReceptionStayPayment,
+  toReceptionSasCommit,
   RESERVATION_KEEP,
   PROPERTY_KEEP,
 };

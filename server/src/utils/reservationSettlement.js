@@ -37,12 +37,14 @@ function bucketStates(r = {}) {
     deposit: {
       amount: deposit,
       applicable: deposit > 0 && !r.depositDisabled,
-      settled: Boolean(r.depositPaid),
+      // specs/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the
+      // caisse interne is settled like a cash complement: the money is in, it just stays off-books.
+      settled: Boolean(r.depositPaid) || Boolean(r.depositPaidCash),
     },
     balance: {
       amount: balance,
       applicable: balance > 0,
-      settled: Boolean(r.balancePaid),
+      settled: Boolean(r.balancePaid) || Boolean(r.balancePaidCash),
     },
     complement: {
       amount: complement,
@@ -76,11 +78,37 @@ function remainingToPay(r) {
   // than bucketStates' `applicable`.
   const acompteComm = Number(r.acompteCommissionAmount || 0);
   const soldeComm = Number(r.platformCommissionAmount || 0);
-  const deposit = (!r.depositDisabled && !r.depositPaid) ? Number(r.depositAmount || 0) - acompteComm : 0;
-  const balance = !r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0;
+  const deposit = (!r.depositDisabled && !r.depositPaid && !r.depositPaidCash)
+    ? Number(r.depositAmount || 0) - acompteComm : 0;
+  const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
   return round2(deposit + balance + complement + endOfStay);
+}
+
+/**
+ * What the guest still owes ON THE STAY ITSELF at check-in — the amount the arrival SAS asks for
+ * (specs/collect-stay-payment-at-check-in.md §3.1).
+ *
+ * GROSS on purpose: this is the money that physically changes hands at the door, so — unlike
+ * `remainingToPay`, which answers « what will I actually receive? » — the platform commission is NOT
+ * netted out. It stays owed to the platform and is settled with it later.
+ *
+ * A last-minute stay carries no acompte (pricing.js routes everything to the solde), so `total` is
+ * then the whole solde.
+ *
+ * @param {object} r reservation row.
+ * @returns {{ total:number, deposit:object, balance:object }} each bucket `{ amount, applicable,
+ *          settled, due }` — `due` is the part this step would collect (0 when already settled).
+ */
+function stayDueAtArrival(r = {}) {
+  const { deposit, balance } = bucketStates(r);
+  const due = (b) => (b.applicable && !b.settled ? b.amount : 0);
+  return {
+    total: round2(due(deposit) + due(balance)),
+    deposit: { ...deposit, due: due(deposit) },
+    balance: { ...balance, due: due(balance) },
+  };
 }
 
 // specs/fiscal-year-and-nights-sold.md §3.2 — the ACCOUNTING ATTRIBUTION DATE of a reservation: the
@@ -119,8 +147,8 @@ function comptaCollected(r) {
   const acompteComm = Number(r.acompteCommissionAmount || 0);
   const soldeComm = Number(r.platformCommissionAmount || 0);
   return round2(
-    (r.depositPaid ? Number(r.depositAmount || 0) - acompteComm : 0)
-    + (r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0)
+    (r.depositPaid && !r.depositPaidCash ? Number(r.depositAmount || 0) - acompteComm : 0)
+    + (r.balancePaid && !r.balancePaidCash ? Number(r.balanceAmount || 0) - soldeComm : 0)
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
     + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
     // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
@@ -131,6 +159,6 @@ function comptaCollected(r) {
 }
 
 module.exports = {
-  bucketStates, isSettled, remainingToPay, platformCommission, attributionDate,
+  bucketStates, isSettled, remainingToPay, platformCommission, attributionDate, stayDueAtArrival,
   midStayNotesTotal, refundsBook, comptaCollected, round2,
 };

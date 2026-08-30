@@ -18,6 +18,9 @@ const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
 const { isReceptionOnly } = require('../constants/roles');
 const { sasLockReason } = require('../utils/sasEditWindow');
+const { stayDueAtArrival } = require('../utils/reservationSettlement');
+const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
+const { toReceptionStayPayment, toReceptionSasCommit } = require('../utils/receptionView');
 
 // specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
 // has never been committed: a past, future or already-committed SAS is refused. The rule depends on
@@ -68,6 +71,47 @@ function recordSasHistory(reservationId, eventType, before) {
     // eslint-disable-next-line no-console
     console.error(`[sas-history] ${eventType} on reservation ${reservationId} not recorded: ${err.message}`);
   }
+}
+
+/**
+ * « Séjour à régler » — what the guest still owes on the stay itself at check-in
+ * (specs/collect-stay-payment-at-check-in.md §3.1-§3.2). Arrival only, admin only.
+ *
+ * `applicable` drives the step's existence: something left to collect, OR a stay THIS SAS already
+ * settled — the latter is what lets a re-opened wizard show its own decision and undo it.
+ */
+function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
+  if (isDeparture || receptionOnly) return toReceptionStayPayment();
+  const due = stayDueAtArrival(reservation);
+  // `collectible` = the amount THIS step is about: what is still owed, plus what this SAS already
+  // collected on an earlier run. A bucket is never both, so the sum is exact — and it is what keeps a
+  // re-opened SAS from announcing « Séjour à régler : 0 € » over the payment it made itself.
+  const own = [
+    { key: 'deposit', atArrival: reservation.depositPaidAtArrival, paid: reservation.depositPaid, cash: reservation.depositPaidCash },
+    { key: 'balance', atArrival: reservation.balancePaidAtArrival, paid: reservation.balancePaid, cash: reservation.balancePaidCash },
+  ];
+  const ownedOf = (key) => Number(own.find((b) => b.key === key).atArrival || 0) === 1;
+  const withCollectible = (key) => ({
+    ...due[key],
+    owned: ownedOf(key),
+    collectible: Math.round((due[key].due + (ownedOf(key) ? due[key].amount : 0)) * 100) / 100,
+  });
+  const deposit = withCollectible('deposit');
+  const balance = withCollectible('balance');
+  const settledHere = own.filter((b) => Number(b.atArrival || 0) === 1);
+  const paid = settledHere.some((b) => Number(b.paid || 0) === 1);
+  return {
+    applicable: due.total > 0 || settledHere.length > 0,
+    total: Math.round((deposit.collectible + balance.collectible) * 100) / 100,
+    deposit,
+    balance,
+    // The OTA warning of rule 9 — on a platform booking the solde is the payout, not the guest's money.
+    channel: isDirectChannel(reservation.platform) ? 'direct' : 'platform',
+    platformLabel: formatPlatformName(reservation.platform),
+    // Re-open pre-fill (rule 14): what THIS SAS recorded, never a payment made elsewhere.
+    paid,
+    paidCash: paid && settledHere.some((b) => Number(b.cash || 0) === 1),
+  };
 }
 
 function getSas(req, res) {
@@ -122,6 +166,9 @@ function getSas(req, res) {
         sasOrigin: true,
       };
     })(),
+    // specs/collect-stay-payment-at-check-in.md — the séjour still owed at the door (last-minute
+    // stays arrive unpaid). `{ applicable: false }` for a reception-only user: no amount is served.
+    stayPayment: buildStayPayment(reservation, { isDeparture, receptionOnly: isReceptionOnly(req.user) }),
     linenItems: linenItemsModel.list(),
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
     // itemised detail) so the departure SAS can recall it when it was never settled.
@@ -161,12 +208,16 @@ function commitArrival(req, res) {
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
   const arrivalLock = receptionSasLock(req, reservation, 'arrival');
   if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
+  // specs/collect-stay-payment-at-check-in.md §3.6 rule 25 — fail-closed: a reception-only commit
+  // never settles the stay. The fields are dropped silently; the rest of the check-in goes through.
+  if (isReceptionOnly(req.user)) req.body = toReceptionSasCommit(req.body);
   const {
     cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
+    stayPaid, stayPaidCash,
     cleaningAdded, bathLinenAdded, resourceBlocks, soldOptions,
     offeredExtras, cleaningOffered, bathLinenOffered,
   } = req.body || {};
@@ -213,6 +264,10 @@ function commitArrival(req, res) {
     // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
     complementSettled: complementSettled === undefined ? undefined : Boolean(complementSettled),
     complementPaidCash: Boolean(complementPaidCash),
+    // specs/collect-stay-payment-at-check-in.md §3.3 — the séjour settled at the door. Same tri-state
+    // contract: undefined = the step never ran → the acompte / solde are left untouched.
+    stayPaid: stayPaid === undefined ? undefined : Boolean(stayPaid),
+    stayPaidCash: Boolean(stayPaidCash),
     // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — intent only; the model resolves the
     // catalogue option and its price. Tri-state: undefined = step not shown → leave the option alone.
     cleaningAdded: cleaningAdded === undefined ? undefined : Boolean(cleaningAdded),
