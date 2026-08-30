@@ -4,6 +4,53 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-08-30
+
+### Summary
+- Le SAS d'arrivée sait encaisser le séjour : une réservation de dernière minute non payée se règle à la porte.
+- Trois choix, comme pour le complément : CB / Chèque, Payé en liquide (caisse interne), ou Pas maintenant.
+- Le récapitulatif d'arrivée sépare « Séjour » et « Complément », et donne le total à percevoir à l'arrivée.
+- Un séjour encaissé en liquide part en caisse interne : il sort de la comptabilité et du chiffre d'affaires.
+- Sur une réservation plateforme, l'étape prévient que le solde est versé par la plateforme après le séjour.
+- Le repas des trappeurs se prend enfin au check-in : chaque ligne de la page Restauration a son interrupteur.
+
+### Added
+- **Collect the stay at check-in** (spec `collect-stay-payment-at-check-in.md`, 2026-08-30). A
+  last-minute booking arrives unpaid: the arrival SAS now carries a « Séjour à régler » step, right
+  after the caution, showing what is still owed on the stay itself — unpaid deposit + unpaid balance
+  — with the same buttons as the complement: **CB / Chèque**, **Payé en liquide** (caisse interne)
+  and **Pas maintenant**, pre-selected. The recap takes the choice up in a « Séjour » block kept
+  separate from the complement, with a total to collect on arrival. On a platform booking the step
+  warns that the balance is paid by the platform after the stay, so nothing is collected twice. The
+  gesture is undone by re-opening the SAS, it never touches a deposit already settled by transfer,
+  and the step stays invisible to the reception role. +33 server tests, +6 client tests.
+
+### Changed
+- **The SAS tests are split by subject** (internal, CLAUDE.md §9). `ReservationSasDialog.test.jsx`
+  held 65 tests over 1846 lines covering eight specs, and every feature appended its cases to the
+  end — so two parallel branches conflicted there on 2026-08-30 over tests that had nothing to do
+  with each other. The suite is now nine `ReservationSasDialog.<subject>.test.jsx` files with their
+  shared fixtures in `__tests__/sasFixtures.jsx`: the same principle as `changelog.d/`, and what the
+  server has always done (one test file per spec). No test added, removed or renamed.
+
+### Fixed
+- **« Le repas des trappeurs » can be taken at check-in again** (spec
+  `sas-breakfast-and-catering-upsell.md` rule 7bis, reported from production on 2026-08-30). On the
+  arrival SAS « Restauration » page every apéro board carried a switch, but the card option showed
+  nothing except a grid of hour chips — and since nothing there is pre-selected, that row opened
+  empty: its grey chips read as information rather than a control, and the meal looked unsellable.
+  Every row now carries **the same switch**: turning it on unfolds the moments served (captioned
+  « Choisissez les moments servis » while none is picked), turning it off clears them and cancels the
+  sale. Prices, billed units (`moments × personnes servies`) and re-opening a committed check-in are
+  unchanged.
+
+### Migration
+- **`reservations`** gains four columns (`depositPaidCash`, `balancePaidCash`,
+  `depositPaidAtArrival`, `balancePaidAtArrival`), all defaulting to 0: the two « caisse interne »
+  flags for the deposit and the balance, plus two markers recording that the arrival SAS collected
+  that item. No existing data is changed. A stay collected into the caisse interne leaves the
+  accounting **and** the Suivi financier revenue, exactly like a complement paid in cash.
+
 ## [2.7.1] - 2026-08-29
 
 ### Summary
