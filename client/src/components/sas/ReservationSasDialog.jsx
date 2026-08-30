@@ -261,6 +261,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const autoSeededFoodRef = useRef(null);                         // pre-fill still owned by the wizard
   const [cateringServed, setCateringServed] = useState({});       // { [optionId]: persons }
   const [cateringGrids, setCateringGrids] = useState({});         // { [optionId]: [{ date, time, slot, checked }] }
+  // « Le client prend cette prestation » for a CARD option, which sells nothing until a moment is
+  // picked: without it the row carried no control at all next to the switches of the plain options,
+  // and an operator had no way to tell that its hour chips were the way to take it
+  // (specs/sas-breakfast-and-catering-upsell.md §3.2 rule 7bis).
+  const [cateringPicked, setCateringPicked] = useState({});       // { [optionId]: bool }
   // Re-edit (specs/reopen-completed-sas.md): complement lines from a PRIOR commit whose label no
   // longer maps to a priced item (renamed / deleted since) — carried verbatim into the re-commit so
   // they're never lost or duplicated.
@@ -299,7 +304,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false); setBathLinenAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
-    setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({});
+    setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null);
     setWeatherAlerts([]); setOffered(new Set());
@@ -334,12 +339,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           })));
         }
         if (sales?.catering?.available) {
-          const units = {}; const grids = {}; const served = {}; let anySold = false;
+          const units = {}; const grids = {}; const served = {}; const picked = {}; let anySold = false;
           for (const opt of (sales.catering.options || [])) {
             served[opt.optionId] = Number(opt.selectedPersons) || Number(opt.defaultPersons) || 0;
             if (opt.showsPlanningCard) {
               const sold = opt.selectedOccurrences || [];
               if (sold.length > 0) anySold = true;
+              // The switch reopens on what this SAS sold, so its moments stay visible and undoable.
+              picked[opt.optionId] = sold.length > 0;
               grids[opt.optionId] = (opt.occurrences || []).map((o) => ({
                 ...o,
                 slot: o.slot ?? 0,
@@ -351,7 +358,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               units[opt.optionId] = sold;
             }
           }
-          setCateringUnits(units); setCateringGrids(grids); setCateringServed(served);
+          setCateringUnits(units); setCateringGrids(grids); setCateringServed(served); setCateringPicked(picked);
           setCateringWanted(anySold ? true : null);
         }
         // specs/sas-offer-complement-lines.md §3.4 rule 13 — the gestes commerciaux already recorded on
@@ -1344,6 +1351,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {options.map((o) => {
               const grid = cateringGrids[o.optionId] || [];
               const chosen = grid.filter((x) => x.checked).length;
+              const picked = Boolean(cateringPicked[o.optionId]);
               const served = servedFor(o, cateringServed[o.optionId]);
               const units = o.showsPlanningCard
                 ? chosen * (o.perPerson ? served : 1)
@@ -1358,19 +1366,29 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                         {formatCurrency(o.unitPrice)} {PRICE_TYPE_LABELS[o.priceType] || ''}
                       </Typography>
                     </Box>
-                    {/* A card option is taken by picking its moments; everything else works like the
-                        fiche: the switch fills the quantity in for you, the stepper adjusts it. */}
-                    {!o.showsPlanningCard && (
-                      <Switch
-                        checked={units > 0}
-                        slotProps={{ input: { 'aria-label': o.title } }}
-                        onChange={(e) => setCateringUnits((prev) => ({
-                          ...prev, [o.optionId]: e.target.checked ? Number(o.defaultUnits) || 1 : 0,
-                        }))}
-                      />
-                    )}
+                    {/* Every row is taken the same way — by its switch (rule 7bis). A plain option gets
+                        its default quantity filled in; a card option opens its moments, which is
+                        what it actually sells, and turning it off clears them. */}
+                    <Switch
+                      checked={o.showsPlanningCard ? picked : units > 0}
+                      slotProps={{ input: { 'aria-label': o.title } }}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        if (!o.showsPlanningCard) {
+                          setCateringUnits((prev) => ({ ...prev, [o.optionId]: on ? Number(o.defaultUnits) || 1 : 0 }));
+                          return;
+                        }
+                        setCateringPicked((prev) => ({ ...prev, [o.optionId]: on }));
+                        if (!on) {
+                          setCateringGrids((prev) => ({
+                            ...prev,
+                            [o.optionId]: (prev[o.optionId] || []).map((x) => ({ ...x, checked: false })),
+                          }));
+                        }
+                      }}
+                    />
                   </Stack>
-                  {o.showsPlanningCard ? (
+                  {o.showsPlanningCard ? (picked && (
                     <>
                       <OccurrenceGrid
                         grid={grid}
@@ -1385,7 +1403,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                             Quantité&nbsp;: <strong>{units}</strong>
                             {o.perPerson ? ` (${chosen} × ${served} pers. servies)` : ''} = {formatCurrency(amount)}
                           </>
-                        ) : null}
+                        ) : 'Choisissez les moments servis'}
                       />
                       {/* specs/card-option-served-persons.md §3.3 — le nombre de couverts, quand les
                           enfants ne mangent pas. Affiché dès qu'un moment est coché. */}
@@ -1400,7 +1418,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                         />
                       )}
                     </>
-                  ) : units > 0 && (
+                  )) : units > 0 && (
                     <CountStepper
                       icon={<RestaurantIcon color="action" />}
                       label={`Quantité — ${formatCurrency(amount)}`}
