@@ -18,6 +18,7 @@ const DDL = `
     finalPrice REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0,
     depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositDueDate TEXT, depositDisabled INTEGER DEFAULT 0,
     balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT,
+    depositPaidCash INTEGER NOT NULL DEFAULT 0, balancePaidCash INTEGER NOT NULL DEFAULT 0,
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
     endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
@@ -44,8 +45,8 @@ function freshModel() {
 
 const COLS = [
   'id', 'clientId', 'propertyId', 'startDate', 'endDate', 'platform', 'finalPrice', 'touristTaxTotal',
-  'depositAmount', 'depositPaid', 'depositDueDate', 'depositDisabled',
-  'balanceAmount', 'balancePaid', 'balanceDueDate',
+  'depositAmount', 'depositPaid', 'depositDueDate', 'depositDisabled', 'depositPaidCash',
+  'balanceAmount', 'balancePaid', 'balanceDueDate', 'balancePaidCash',
   'complementAmount', 'complementPaid', 'complementPaidCash',
   'endOfStayComplementAmount', 'endOfStayComplementPaid', 'endOfStayComplementPaidCash',
   'midStaySettledNotes',
@@ -55,8 +56,8 @@ const insertRes = (db, r) => db.prepare(
   `INSERT INTO reservations (${COLS.join(', ')}) VALUES (${COLS.map((c) => `@${c}`).join(', ')})`,
 ).run({
   platform: 'direct', finalPrice: 0, touristTaxTotal: 0,
-  depositAmount: 0, depositPaid: 0, depositDueDate: null, depositDisabled: 0,
-  balanceAmount: 0, balancePaid: 0, balanceDueDate: null,
+  depositAmount: 0, depositPaid: 0, depositDueDate: null, depositDisabled: 0, depositPaidCash: 0,
+  balanceAmount: 0, balancePaid: 0, balanceDueDate: null, balancePaidCash: 0,
   complementAmount: 0, complementPaid: 0, complementPaidCash: 0,
   endOfStayComplementAmount: 0, endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0,
   midStaySettledNotes: null,
@@ -137,6 +138,20 @@ matrixCase('direct + complément d arrivée dû (owner-style tax-in-complement),
 matrixCase('direct + complément CAISSE INTERNE → exclu partout (settled)', {
   platform: 'direct', balanceAmount: 200, balancePaid: 1, complementAmount: 50, complementPaid: 1, complementPaidCash: 1,
 }, { total: 200, collected: 200, reste: 0 });
+
+// specs/collect-stay-payment-at-check-in.md §3.4 rule 18 — the SÉJOUR itself collected at the door in
+// the caisse interne: out of the turnover AND out of « encaissé », settled, nothing left to pay.
+matrixCase('direct + SÉJOUR encaissé en caisse interne → hors CA, sold\u00e9', {
+  platform: 'direct', balanceAmount: 400, balancePaid: 1, balancePaidCash: 1,
+}, { total: 0, collected: 0, reste: 0 });
+
+matrixCase('direct + acompte en caisse interne, solde d\u00fb → seul le solde compte', {
+  platform: 'direct', depositAmount: 100, depositPaid: 1, depositPaidCash: 1, balanceAmount: 200, balancePaid: 0,
+}, { total: 200, collected: 0, reste: 200 });
+
+matrixCase('plateforme + solde en caisse interne → sa commission part avec lui (pas de CA n\u00e9gatif)', {
+  platform: 'airbnb', balanceAmount: 300, balancePaid: 1, balancePaidCash: 1, platformCommissionAmount: 30,
+}, { total: 0, collected: 0, reste: 0 });
 
 // Platform with commission (acompte 10 + solde 30).
 matrixCase('plateforme + commission, acompte payé + solde dû', {

@@ -788,6 +788,11 @@ export default function ReservationPage() {
             depositDisabled: Boolean(res.depositDisabled),
             balancePaid: res.balancePaid || false,
             balancePaidDate: res.balancePaidDate || '',
+            // specs/collect-stay-payment-at-check-in.md §3.4 rule 20 — read-only markers: the séjour
+            // was collected at the door in the caisse interne. The choice is made in the SAS; the
+            // fiche only says so (and the server clears the flag when a bucket is un-ticked here).
+            depositPaidCash: Boolean(res.depositPaidCash),
+            balancePaidCash: Boolean(res.balancePaidCash),
             complementPaid: Boolean(res.complementPaid),
             complementPaidDate: res.complementPaidDate || '',
             complementPaidCash: Boolean(res.complementPaidCash),

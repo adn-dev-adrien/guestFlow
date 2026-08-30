@@ -6,7 +6,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { bucketStates, isSettled, remainingToPay, platformCommission } = require('../utils/reservationSettlement');
+const {
+  bucketStates, isSettled, remainingToPay, platformCommission, stayDueAtArrival, comptaCollected,
+} = require('../utils/reservationSettlement');
 
 const PLATFORM_STAY = {
   depositAmount: 0, balanceAmount: 400, complementAmount: 60, endOfStayComplementAmount: 0,
@@ -78,4 +80,41 @@ test('remainingToPay: 0 exactly when isSettled is true', () => {
 test('platformCommission: acompte + solde, 0 on a direct booking', () => {
   assert.equal(platformCommission({ acompteCommissionAmount: 12.5, platformCommissionAmount: 30 }), 42.5);
   assert.equal(platformCommission({}), 0);
+});
+
+// ── Le séjour encaissé à la porte (specs/collect-stay-payment-at-check-in.md) ─────────────────
+
+test('stayDueAtArrival: a last-minute stay owes its whole solde (no acompte by construction)', () => {
+  const due = stayDueAtArrival({ depositAmount: 0, balanceAmount: 480 });
+  assert.equal(due.total, 480);
+  assert.equal(due.balance.due, 480);
+  assert.equal(due.deposit.due, 0);
+});
+
+test('stayDueAtArrival: both unpaid buckets add up; a paid one drops out', () => {
+  assert.equal(stayDueAtArrival({ depositAmount: 120, balanceAmount: 360 }).total, 480);
+  assert.equal(stayDueAtArrival({ depositAmount: 120, depositPaid: 1, balanceAmount: 360 }).total, 360);
+});
+
+test('stayDueAtArrival: GROSS — the platform commission is NOT netted (that is what the guest hands over)', () => {
+  const due = stayDueAtArrival({
+    depositAmount: 0, balanceAmount: 400, platformCommissionAmount: 60,
+  });
+  assert.equal(due.total, 400);
+});
+
+test('stayDueAtArrival: a disabled acompte is not applicable, a fully paid stay owes nothing', () => {
+  assert.equal(stayDueAtArrival({ depositAmount: 100, depositDisabled: 1, balanceAmount: 0 }).total, 0);
+  assert.equal(stayDueAtArrival({ depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 1 }).total, 0);
+});
+
+test('caisse interne on the stay: settled, nothing left to pay, out of « encaissé »', () => {
+  const cashStay = { depositAmount: 0, balanceAmount: 400, balancePaid: 1, balancePaidCash: 1 };
+  assert.equal(bucketStates(cashStay).balance.settled, true);
+  assert.equal(isSettled(cashStay), true);
+  assert.equal(remainingToPay(cashStay), 0);
+  assert.equal(stayDueAtArrival(cashStay).total, 0);
+  // Real money in, but off the books: it never counts as « encaissé » (rule 17).
+  assert.equal(comptaCollected(cashStay), 0);
+  assert.equal(comptaCollected({ ...cashStay, balancePaidCash: 0 }), 400);
 });
