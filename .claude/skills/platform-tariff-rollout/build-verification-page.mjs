@@ -22,7 +22,14 @@
  *   "bareme":   [[2, 24], [3, 33], …],            // [nuits, remise %]
  *   "canaux":   [["Airbnb", 193, 233, 267], …],   // [nom, basse, moyenne, haute]
  *   "reserves": [{ "titre": "…", "texte": "…" }],
- *   "cas": [{ "id","saison","extras","nuits","remisePct","dates","img","affiche","note","url" }]
+ *   "tableaux": [{ "titre","chapo","entetes":[…],"lignes":[[…]],"note" }],
+ *   "comparatif": { "titre","chapo","note","canaux":[{nom,prix{saison:€},commissionPct,fraisFixes,taxePPPN,tolerance}],
+ *                   "cas":[{id,libelle,dates,note,composition:[[saison,n]],cellules:{<canal>:{remise|remisePct,total}}}] },
+ *   "saisonsFixes": ["christmas","new-year"],   // jamais remisées : le plancher ne les dégresse pas
+ *   "taxeSejourParPersonneParNuit": 1.2,   // forfait ; sinon tauxTaxeSejour en %
+ *   "fraisFixes": 80,                       // ménage & co, ajoutés au total
+ *   "cas": [{ "id","saison","extras","nuits","remisePct","dates","img","affiche","note","url",
+ *            "composition": [["high",1],["christmas",2]] }]  // séjour à cheval sur des saisons
  * }
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -52,7 +59,12 @@ const sans400 = face('inter/files/inter-latin-400-normal.woff2');
 const sans600 = face('inter/files/inter-latin-600-normal.woff2');
 if (!serif600 || !sans400) console.warn('! polices @fontsource absentes — repli sur les polices système');
 
-const shot = (name) => `data:image/png;base64,${b64(join(resolve(shotsDir), name))}`;
+/** A case may have no screenshot yet: degrade to a placeholder rather than failing the whole page. */
+const shot = (name) => {
+  if (!name) return null;
+  const f = join(resolve(shotsDir), name);
+  return existsSync(f) ? `data:image/png;base64,${b64(f)}` : null;
+};
 const eur = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -62,16 +74,34 @@ const INCL = cfg.occupantsInclus ?? 2;
 const TAXE = cfg.tauxTaxeSejour ?? 0;
 const TVA = cfg.tauxTva ?? 0;
 
+const TAXE_PPPN = cfg.taxeSejourParPersonneParNuit ?? 0;
+const FRAIS = cfg.fraisFixes ?? 0;
+
 const derive = (c) => {
-  const prixSaison = cfg.saisons[c.saison].prix;
+  // `composition` lets one stay span several seasons — a Christmas stay is Haute + Noël + Noël.
+  // Without it a case is a single season repeated `nuits` times, which is the common shape.
+  const compo = c.composition && c.composition.length
+    ? c.composition
+    : [[c.saison, c.nuits]];
+  const nuitsTotal = compo.reduce((a, [, n]) => a + n, 0);
+  if (nuitsTotal !== c.nuits) {
+    throw new Error(`cas ${c.id} : la composition fait ${nuitsTotal} nuits, le cas en déclare ${c.nuits}`);
+  }
+  const prixSaison = cfg.saisons[compo[0][0]].prix;
   const prixNuit = prixSaison + SUP * (c.extras || 0);
-  const brut = r2(prixNuit * c.nuits);
+  const brut = r2(compo.reduce(
+    (a, [cle, n]) => a + (cfg.saisons[cle].prix + SUP * (c.extras || 0)) * n, 0));
   const remise = r2((brut * (c.remisePct || 0)) / 100);
   const net = r2(brut - remise);
   const ht = r2(net / (1 + TVA / 100));
-  const taxe = r2((ht * TAXE) / 100);
-  const total = r2(net + taxe);
-  return { prixSaison, prixNuit, brut, remise, net, ht, taxe, total, ok: Math.abs(total - c.affiche) < 0.011 };
+  // Tourist tax: either a percentage of the VAT-excluded amount, or a flat per-person per-night
+  // amount. Never both — a channel does it one way or the other.
+  const taxe = TAXE_PPPN
+    ? r2(TAXE_PPPN * (INCL + (c.extras || 0)) * c.nuits)
+    : r2((ht * TAXE) / 100);
+  const total = r2(net + taxe + FRAIS);
+  return { prixSaison, prixNuit, brut, remise, net, ht, taxe, frais: FRAIS, total,
+    compo, ok: Math.abs(total - c.affiche) < 0.011 };
 };
 
 const cases = cfg.cas.map((c) => ({ ...c, ...derive(c) }));
@@ -86,20 +116,20 @@ const row = (lib, calc, montant, cls = '') => `
 
 const carte = (c) => {
   const occ = INCL + (c.extras || 0);
-  const s = cfg.saisons[c.saison];
+  const s = cfg.saisons[(c.composition && c.composition.length ? c.composition[0][0] : c.saison)];
   const nuitLbl = `${c.nuits} nuit${c.nuits > 1 ? 's' : ''}`;
   return `
     <article class="case${c.ok ? '' : ' case-flagged'}" id="${esc(c.id)}">
       <div class="case-head">
-        <span class="chip chip-${esc(c.saison)}">${esc(s.nom)}</span>
+        <span class="chip chip-${esc(c.saison)}"${s.couleur ? ` style="color:${esc(s.couleur)}"` : ''}>${esc(s.nom)}</span>
         <h3>${nuitLbl}, ${occ} personne${occ > 1 ? 's' : ''}</h3>
         <p class="dates">${esc(c.dates)}</p>
       </div>
       <div class="case-body">
-        <figure class="shot">
+        ${shot(c.img) ? `<figure class="shot">
           <img src="${shot(c.img)}" alt="Devis : ${esc(s.nom)}, ${nuitLbl}, ${occ} personnes, total ${eur(c.affiche)}" loading="lazy" />
           <figcaption>Devis relevé sur le site client</figcaption>
-        </figure>
+        </figure>` : ''}
         <div class="ledger">
           ${row('Prix par nuit', c.extras
             ? `${c.prixSaison} € + ${c.extras} voyageur${c.extras > 1 ? 's' : ''} en plus × ${SUP} €`
@@ -214,6 +244,11 @@ const html = `<title>${esc(cfg.titre)}</title>
   thead th { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); font-weight:600; }
   tbody tr:last-child td { border-bottom:0; }
   td.total { font-weight:600; }
+  td.sous-plancher { background:var(--warn-bg); color:var(--warn); font-weight:700; }
+  tr.is-bad td { background:var(--warn-bg); }
+  tr.is-bad td:first-child { font-weight:600; color:var(--warn); }
+  tr.is-bad td strong { color:var(--warn); }
+  td .row-calc { font-size:.82em; opacity:.7; }
   tr.is-direct td { background:var(--ok-bg); }
   tr.is-direct td:first-child { font-weight:600; }
 
@@ -324,6 +359,99 @@ const html = `<title>${esc(cfg.titre)}</title>
       ${cfg.reserves.map((r) => `<div class="flag"><span class="flag-mark">!</span><div><h3>${esc(r.titre)}</h3><p>${esc(r.texte)}</p></div></div>`).join('\n      ')}
     </div>
   </section>` : ''}
+
+  ${(() => {
+    const C = cfg.comparatif;
+    if (!C) return '';
+    // Per channel, per case: rebuild the quote from the channel's OWN grid and compare it to the
+    // total observed on the guest page. `remise` (euros) or `remisePct` is an INPUT, read off the
+    // page; everything else is derived here so a wrong cell shows up red.
+    const tier = (n) => {
+      let best = 0;
+      for (const [nn, pct] of (cfg.bareme || [])) if (n >= nn) best = pct;
+      return best;
+    };
+    const cells = [];
+    const body = C.cas.map((c) => {
+      const nuits = c.composition.reduce((a, [, n]) => a + n, 0);
+      const plancher = r2(c.composition.reduce((a, [cle, n]) => {
+        const s = cfg.saisons[cle];
+        const fixe = (cfg.saisonsFixes || []).includes(cle);
+        return a + (s.net || 0) * n * (fixe ? 1 : 1 - tier(nuits) / 100);
+      }, 0));
+      const cols = C.canaux.map((ch) => {
+        const cell = c.cellules[ch.nom];
+        if (!cell) return { ch, vide: true };
+        const brut = r2(c.composition.reduce((a, [cle, n]) => a + ch.prix[cle] * n, 0));
+        const remise = cell.remise != null ? r2(cell.remise) : r2(brut * (cell.remisePct || 0) / 100);
+        const heberg = r2(brut - remise);
+        const taxe = r2((ch.taxePPPN || 0) * (cfg.occupantsInclus ?? 2) * nuits);
+        const attendu = r2(heberg + taxe + (ch.fraisFixes || 0));
+        const ecart = r2(attendu - cell.total);
+        const ok = Math.abs(ecart) <= (ch.tolerance ?? 0.011);
+        const net = ch.commissionPct == null ? null : r2(heberg * (1 - ch.commissionPct / 100));
+        const marge = net == null ? null : r2(net - plancher);
+        cells.push({ ok, sousPlancher: marge != null && marge < 0, canal: ch.nom, cas: c.libelle });
+        return { ch, cell, brut, remise, heberg, taxe, attendu, ecart, ok, net, marge, pct: brut ? r2(remise / brut * 100) : 0 };
+      });
+      return { c, nuits, plancher, cols };
+    });
+    const kos = cells.filter((x) => !x.ok).length;
+    const sous = cells.filter((x) => x.sousPlancher);
+    return `<section>
+    <div class="sec-head">
+      <h2>${esc(C.titre)}</h2>
+      ${C.chapo ? `<p>${esc(C.chapo)}</p>` : ''}
+    </div>
+    <p class="note">${cells.length} devis relevés sur les pages clientes, ${kos === 0
+      ? 'et les ' + cells.length + ' se reconstruisent depuis la grille du canal.'
+      : '<strong>dont ' + kos + ' que le calcul ne reproduit pas</strong> — signalés en rouge.'}
+      Le plancher est ce que Gîtes de France paie réellement, remisé sur les nuits progressives et jamais sur les nuits de fête.</p>
+    ${sous.length ? `<p class="verdict is-bad">${sous.length === 1 ? 'Un devis vend' : sous.length + ' devis vendent'} sous le plancher : ${
+      sous.map((x) => esc(x.canal) + ' sur « ' + esc(x.cas) + ' »').join(', ')}.</p>`
+      : `<p class="verdict">Aucun devis ne passe sous le plancher.</p>`}
+    ${body.map((b) => `
+    <div class="sec-head" style="margin-top:2rem">
+      <h3>${esc(b.c.libelle)} — <span style="font-weight:400">${esc(b.c.dates)}</span></h3>
+      ${b.c.note ? `<p>${esc(b.c.note)}</p>` : ''}
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Canal</th><th>Brut</th><th>Remise</th><th>Taxe</th><th>Frais</th><th>Total attendu</th><th>Total relevé</th><th>Net après commission</th><th>Plancher ${eur(b.plancher)}</th></tr></thead>
+        <tbody>
+          ${b.cols.filter((x) => !x.vide).map((x) => `<tr class="${x.ok ? '' : 'is-bad'}${/direct/i.test(x.ch.nom) ? ' is-direct' : ''}">
+            <td>${esc(x.ch.nom)}</td>
+            <td class="total">${eur(x.brut)}</td>
+            <td class="total">${x.remise ? '−' + eur(x.remise) + ' <span class="row-calc">(' + String(x.pct).replace('.', ',') + ' %)</span>' : '—'}</td>
+            <td class="total">${x.taxe ? eur(x.taxe) : '—'}</td>
+            <td class="total">${x.ch.fraisFixes ? eur(x.ch.fraisFixes) : '—'}</td>
+            <td class="total">${eur(x.attendu)}</td>
+            <td class="total">${eur(x.cell.total)}${x.ok ? '' : ' <strong>ÉCART ' + eur(Math.abs(x.ecart)) + '</strong>'}</td>
+            <td class="total">${x.net == null ? '—' : eur(x.net)}</td>
+            <td class="total${x.marge != null && x.marge < 0 ? ' sous-plancher' : ''}">${x.marge == null ? '—' : (x.marge >= 0 ? '+' : '−') + eur(Math.abs(x.marge))}</td>
+          </tr>`).join('\n          ')}
+        </tbody>
+      </table>
+    </div>`).join('\n')}
+    ${C.note ? `<p class="note">${esc(C.note)}</p>` : ''}
+  </section>`;
+  })()}
+
+  ${(cfg.tableaux || []).map((t) => `<section>
+    <div class="sec-head">
+      <h2>${esc(t.titre)}</h2>
+      ${t.chapo ? `<p>${esc(t.chapo)}</p>` : ''}
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>${t.entetes.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${t.lignes.map((l) => `<tr>${l.map((v, i) => `<td${i && /^[-−+]?[\d\s  ]+([,.]\d+)?\s*€?$/.test(String(v)) ? ' class="total"' : ''}>${esc(String(v))}</td>`).join('')}</tr>`).join('\n          ')}
+        </tbody>
+      </table>
+    </div>
+    ${t.note ? `<p class="note">${esc(t.note)}</p>` : ''}
+  </section>`).join('\n')}
 
   ${(cfg.canaux || []).length ? `<section>
     <div class="sec-head">

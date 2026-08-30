@@ -1,0 +1,31 @@
+# Domaine Solio — service automatique des images WebP.
+#
+# Chaque JPEG et chaque PNG possede un jumeau .webp de meme nom (genere par le lot 7c).
+# Quand le navigateur annonce qu'il accepte le WebP et que le jumeau existe, Apache le sert
+# a la place de l'original. Le balisage HTML des pages reste inchange, ce qui evite tout
+# risque de casse sur les carrousels MetaSlider.
+#
+# L'en-tete Vary: Accept est indispensable : sans lui, un cache intermediaire pourrait
+# servir un WebP a un navigateur qui ne le comprend pas.
+
+<IfModule mod_mime.c>
+    AddType image/webp .webp
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /wp-content/uploads/
+
+    # %1 reprend le chemin sans extension capture par la condition precedente.
+    RewriteCond %{HTTP_ACCEPT} image/webp
+    RewriteCond %{REQUEST_FILENAME} (.+)\.(jpe?g|png)$ [NC]
+    RewriteCond %1.webp -f
+    RewriteRule (.+)\.(jpe?g|png)$ $1.webp [T=image/webp,L,NC]
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(jpe?g|png|webp|gif|svg|avif)$">
+        Header always append Vary Accept
+        Header always set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
