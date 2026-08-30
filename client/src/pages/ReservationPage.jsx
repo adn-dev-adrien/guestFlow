@@ -805,6 +805,9 @@ export default function ReservationPage() {
             endOfStayComplementDetail: res.endOfStayComplementDetail || null,
             // specs/mid-stay-notes.md §3.1 — history of what was collected DURING the stay.
             midStaySettledNotes: res.midStaySettledNotes || null,
+            // specs/single-payment-at-check-in.md §3.4 — the single payment made at the door, already
+            // shaped by the server (amount, means, buckets covered). `null` when there was none.
+            arrivalPayment: res.arrivalPayment || null,
             // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
             // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
             complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
@@ -925,6 +928,7 @@ export default function ReservationPage() {
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
             midStaySettledNotes: null,
+            arrivalPayment: null,
             complementDeferredToCheckout: false,
             checkoutComplement: null,
             complementAmountOverride: '',
@@ -1048,6 +1052,7 @@ export default function ReservationPage() {
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
             midStaySettledNotes: null,
+            arrivalPayment: null,
             complementDeferredToCheckout: false,
             checkoutComplement: null,
             complementAmountOverride: '',
@@ -2504,6 +2509,7 @@ export default function ReservationPage() {
       endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
       endOfStayComplementDetail: res.endOfStayComplementDetail || null,
       midStaySettledNotes: res.midStaySettledNotes || null,
+      arrivalPayment: res.arrivalPayment || null,
       checkoutComplement: res.checkoutComplement || null,
       complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
       endOfStayComplementAmountOverride: res.endOfStayComplementAmountOverride == null ? '' : res.endOfStayComplementAmountOverride,

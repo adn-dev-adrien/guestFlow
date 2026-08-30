@@ -463,6 +463,10 @@ function entryToStructured(entry) {
     libelle: rows[0][5],          // libellé column
     clientAccount: rows[0][6],    // compte column on the debit row
     encaissementTtc: round2(entry.encaissementTtc),
+    // specs/single-payment-at-check-in.md §3.3 rule 12 — the collection this entry belonged to, so
+    // the Comptabilité can render ONE card for one payment. Carried through untouched: the entry's
+    // own ventilation (accounts, VAT, share of the séjour) is not affected by the grouping.
+    ...(entry.paymentGroup ? { paymentGroup: entry.paymentGroup } : {}),
     finalPrice,
     fraction: entry.fraction,
     stayShare,

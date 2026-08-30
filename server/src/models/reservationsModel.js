@@ -39,6 +39,7 @@ const { buildOperationalCollection } = require('../utils/operationalCollection')
 const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
+const { serialiseGroup, groupCovers } = require('../utils/arrivalPaymentGroup');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const bookingLinesModel = require('./bookingLinesModel');
 
@@ -1354,6 +1355,40 @@ function createReservationsModel(database) {
       } catch {
         // Minimal test schemas without the columns: nothing to release.
       }
+      model.releaseArrivalPaymentGroup(reservationId, bucket);
+    },
+
+    /**
+     * The complement's twin of `releaseStayBucket` (specs/single-payment-at-check-in.md rules 8-9):
+     * a complement flipped from the fiche is no longer the SAS's, so its ownership marker goes and
+     * any single payment that named it is dissolved. Guarded — a minimal test schema has neither
+     * column, and there is then nothing to release.
+     */
+    releaseComplementBucket(reservationId) {
+      try {
+        database.prepare("UPDATE reservations SET complementPaidAtArrival = 0, updatedAt = datetime('now') WHERE id = ?")
+          .run(reservationId);
+      } catch {
+        // No marker column here: nothing to release.
+      }
+      model.releaseArrivalPaymentGroup(reservationId, 'complement');
+    },
+
+    /**
+     * specs/single-payment-at-check-in.md §3.2 rule 8 — a bucket that stops being settled takes the
+     * whole group down with it. The group says « these buckets were ONE collection »; once one of
+     * them is no longer collected, that sentence is false, and the fiche must stop showing a payment
+     * that no longer exists. All-or-nothing by construction, so there is nothing to shrink.
+     */
+    releaseArrivalPaymentGroup(reservationId, bucket) {
+      try {
+        const row = database.prepare('SELECT arrivalPaymentGroup FROM reservations WHERE id = ?').get(reservationId);
+        if (!row || !groupCovers(row.arrivalPaymentGroup, bucket)) return;
+        database.prepare("UPDATE reservations SET arrivalPaymentGroup = NULL, updatedAt = datetime('now') WHERE id = ?")
+          .run(reservationId);
+      } catch {
+        // Minimal test schemas without the column: no group to release.
+      }
     },
 
     updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked) {
@@ -1388,7 +1423,7 @@ function createReservationsModel(database) {
         : null;
       // Rule 15 — read the stay flags BEFORE they are overwritten, so the SAS ownership markers are
       // released on a real flip and only on a real flip.
-      const beforeStay = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(reservationId) || {};
+      const beforeStay = database.prepare('SELECT depositPaid, balancePaid, complementPaid FROM reservations WHERE id = ?').get(reservationId) || {};
       database.prepare(`
         UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
           singleBeds=?, doubleBeds=?, babyBeds=?,
@@ -1433,6 +1468,9 @@ function createReservationsModel(database) {
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
       if (Number(beforeStay.depositPaid || 0) !== (depositPaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'deposit');
       if (Number(beforeStay.balancePaid || 0) !== (balancePaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'balance');
+      // Same ownership release for the complement (specs/single-payment-at-check-in.md rules 8-9):
+      // a full fiche save that flips it dissolves the single payment that named it.
+      if (Number(beforeStay.complementPaid || 0) !== (complementPaid ? 1 : 0)) model.releaseComplementBucket(reservationId);
     },
 
     // `inComplement` is carried on every write, authoritative as resolved by the pricing engine
@@ -2271,6 +2309,10 @@ function createReservationsModel(database) {
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
+      // specs/single-payment-at-check-in.md §3.2 — the guest handed over ONE payment covering the
+      // stay AND the complement. INTENT only: the server records which buckets it actually settled
+      // and what they came to, so the group can never claim a collection that did not happen.
+      groupArrivalPayment,
       // specs/collect-stay-payment-at-check-in.md §3.3 — the SÉJOUR itself settled at the door
       // (a last-minute stay arrives unpaid). Tri-state like the caution: `undefined` = the step never
       // ran → the acompte / solde are left exactly as they are.
@@ -2532,13 +2574,27 @@ function createReservationsModel(database) {
         // WHERE the complement will be collected: « En fin de séjour » (not settled) marks the
         // reservation deferred so every view presents a single end-of-stay complement; settling on
         // the spot clears the marker (fully reversible on a re-open).
+        // specs/single-payment-at-check-in.md §3.2 — what THIS commit actually settled, which is what
+        // the group is allowed to claim. Filled by the two blocks below, read once at the end.
+        const settledByThisCommit = [];
         if (complementSettled !== undefined) {
           if (complementSettled) {
             database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = COALESCE(complementPaidDate, ?), complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
               .run(today, complementPaidCash ? 1 : 0, reservationId);
+            settledByThisCommit.push('complement');
           } else {
             database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
+          }
+          // `complementPaidAtArrival` mirrors the two stay markers (specs/single-payment-at-check-in.md
+          // rule 9): the settlement is the SAS's own, so a re-open may undo it and a fiche edit takes
+          // it away. Written apart and guarded — several minimal test schemas have no such column, and
+          // the settlement above must not depend on it.
+          try {
+            database.prepare("UPDATE reservations SET complementPaidAtArrival = ? WHERE id = ?")
+              .run(complementSettled ? 1 : 0, reservationId);
+          } catch {
+            // No marker column here: the complement is settled all the same.
           }
           persistComplementDeferred(reservationId, !complementSettled);
         }
@@ -2584,6 +2640,33 @@ function createReservationsModel(database) {
             const [paidCol, dateCol, cashCol, markerCol] = target.cols;
             database.prepare(`UPDATE reservations SET ${paidCol} = ?, ${dateCol} = ?, ${cashCol} = ?, ${markerCol} = ?, updatedAt = datetime('now') WHERE id = ?`)
               .run(next.paid, next.date, next.cash, next.atArrival, reservationId);
+            if (willBe) settledByThisCommit.push(target.key);
+          }
+        }
+
+        // specs/single-payment-at-check-in.md §3.2 rules 6-7 — the group. Nothing above changed:
+        // every bucket keeps its own amount, its own date and its own accounting. What is added is
+        // the sentence « these buckets were one collection », written from what the commit really
+        // settled rather than from what the client claimed. Fewer than two buckets settled → no
+        // group, and any previous one is dropped (the re-opened SAS that undoes a single payment
+        // lands here with an empty list).
+        if (groupArrivalPayment !== undefined) {
+          const after = model.getRow(reservationId);
+          const amountOf = { deposit: 'depositAmount', balance: 'balanceAmount', complement: 'complementAmount' };
+          const total = settledByThisCommit.reduce((sum, b) => sum + (Number(after[amountOf[b]]) || 0), 0);
+          const json = groupArrivalPayment
+            ? serialiseGroup({
+              at: today,
+              cash: Boolean(stayPaidCash || complementPaidCash),
+              total,
+              buckets: settledByThisCommit,
+            })
+            : null;
+          try {
+            database.prepare("UPDATE reservations SET arrivalPaymentGroup = ?, updatedAt = datetime('now') WHERE id = ?")
+              .run(json, reservationId);
+          } catch {
+            // Minimal test schemas without the column: the settlement above still stands.
           }
         }
         // specs/sas-bath-linen-ghost-line.md §3 rules 1-2 — the arrival SAS never writes a billing line

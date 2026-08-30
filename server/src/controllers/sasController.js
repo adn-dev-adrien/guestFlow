@@ -14,6 +14,7 @@ const optionsModel = require('../models/optionsModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
 const resourceSchedulingModel = require('../models/resourceSchedulingModel');
 const { buildSasSaleOffers } = require('../utils/sasOptionSale');
+const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
 const { isReceptionOnly } = require('../constants/roles');
@@ -80,6 +81,29 @@ function recordSasHistory(reservationId, eventType, before) {
  * `applicable` drives the step's existence: something left to collect, OR a stay THIS SAS already
  * settled — the latter is what lets a re-opened wizard show its own decision and undo it.
  */
+/**
+ * specs/single-payment-at-check-in.md §3.1 rule 1 + §3.4 — the single arrival payment.
+ *
+ * `complementOpen` is the ONE thing the server can answer here: is the arrival complement still to be
+ * collected? Whether the recap may settle both sides at once also depends on what the check-in is
+ * about to sell — a « repas des trappeurs » taken during the wizard is not in `complementAmount`
+ * when this payload is built, and that is precisely the case the feature exists for. The recap
+ * therefore composes: the stay step is shown, the complement is open, and its live total is > 0.
+ *
+ * The money itself is never composed client-side: every amount is re-priced by the server at commit.
+ *
+ * `group` is the collection already recorded, so a re-opened SAS and the fiche show the payment that
+ * was actually made. At check-out, and for a reception-only user (who never sees the stay side at
+ * all), there is no unified settlement.
+ */
+function buildArrivalPayment(reservation, { isDeparture, receptionOnly }) {
+  if (isDeparture || receptionOnly) return { complementOpen: false, group: null };
+  return {
+    complementOpen: Number(reservation.complementPaid || 0) !== 1,
+    group: parseGroup(reservation.arrivalPaymentGroup),
+  };
+}
+
 function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
   if (isDeparture || receptionOnly) return toReceptionStayPayment();
   const due = stayDueAtArrival(reservation);
@@ -169,6 +193,9 @@ function getSas(req, res) {
     // specs/collect-stay-payment-at-check-in.md — the séjour still owed at the door (last-minute
     // stays arrive unpaid). `{ applicable: false }` for a reception-only user: no amount is served.
     stayPayment: buildStayPayment(reservation, { isDeparture, receptionOnly: isReceptionOnly(req.user) }),
+    // specs/single-payment-at-check-in.md §3.1 — may the recap settle the stay AND the complement in
+    // ONE gesture? The server answers, so the client never decides it from amounts it does not own.
+    arrivalPayment: buildArrivalPayment(reservation, { isDeparture, receptionOnly: isReceptionOnly(req.user) }),
     linenItems: linenItemsModel.list(),
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
     // itemised detail) so the departure SAS can recall it when it was never settled.
@@ -218,9 +245,44 @@ function commitArrival(req, res) {
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
     stayPaid, stayPaidCash,
+    // specs/single-payment-at-check-in.md §3.1 — one gesture for both sides. `arrivalPaymentSplit`
+    // true means the operator chose « Régler séparément », and the four fields above are honoured
+    // exactly as in v2.8.0.
+    arrivalPaymentMode, arrivalPaymentSplit,
     cleaningAdded, bathLinenAdded, resourceBlocks, soldOptions,
     offeredExtras, cleaningOffered, bathLinenOffered,
   } = req.body || {};
+
+  // specs/single-payment-at-check-in.md §3.1 rule 2 — ONE mode drives both sides. This is a
+  // translation, not a second settlement path: the model keeps the two tri-states it has always had,
+  // so everything downstream (contribution capture, deferral marker, accounting) is unchanged.
+  //
+  //   'card'  → both settled, ordinary accounting
+  //   'cash'  → both settled into the caisse interne, off the books on both sides at once
+  //   'later' → neither settled, and each side keeps its own meaning of « later »: the stay stays
+  //             due, the complement is recalled at the check-out.
+  //
+  // « Régler séparément » (`arrivalPaymentSplit`) hands the decision back to the two v2.8.0 fields.
+  const mode = arrivalPaymentMode === 'defer' ? 'later' : arrivalPaymentMode;
+  const unifying = arrivalPaymentSplit !== true && (mode === 'card' || mode === 'cash' || mode === 'later');
+  const settles = unifying && mode !== 'later';
+  const unified = unifying
+    ? {
+      stayPaid: settles,
+      stayPaidCash: mode === 'cash',
+      complementSettled: settles,
+      complementPaidCash: mode === 'cash',
+      // false (not undefined) on « later »: a re-opened SAS undoing its single payment must DROP the
+      // group, not leave the fiche announcing a collection that no longer exists.
+      grouped: settles,
+    }
+    : {
+      stayPaid: stayPaid === undefined ? undefined : Boolean(stayPaid),
+      stayPaidCash: Boolean(stayPaidCash),
+      complementSettled: complementSettled === undefined ? undefined : Boolean(complementSettled),
+      complementPaidCash: Boolean(complementPaidCash),
+      grouped: undefined,
+    };
 
   // Hours placed on the resource picker. The picker only ever offers bookable slots, but its payload
   // can be stale by the time it commits — so everything is re-checked here (opening window, capacity,
@@ -262,12 +324,15 @@ function commitArrival(req, res) {
     departureHandoverNote,
     extinguisherSealOkAtArrival,
     // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
-    complementSettled: complementSettled === undefined ? undefined : Boolean(complementSettled),
-    complementPaidCash: Boolean(complementPaidCash),
+    complementSettled: unified.complementSettled,
+    complementPaidCash: unified.complementPaidCash,
     // specs/collect-stay-payment-at-check-in.md §3.3 — the séjour settled at the door. Same tri-state
     // contract: undefined = the step never ran → the acompte / solde are left untouched.
-    stayPaid: stayPaid === undefined ? undefined : Boolean(stayPaid),
-    stayPaidCash: Boolean(stayPaidCash),
+    stayPaid: unified.stayPaid,
+    stayPaidCash: unified.stayPaidCash,
+    // specs/single-payment-at-check-in.md §3.2 — record the collection as ONE payment. The model
+    // decides what the group may claim, from the buckets it really settled.
+    groupArrivalPayment: unified.grouped,
     // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — intent only; the model resolves the
     // catalogue option and its price. Tri-state: undefined = step not shown → leave the option alone.
     cleaningAdded: cleaningAdded === undefined ? undefined : Boolean(cleaningAdded),

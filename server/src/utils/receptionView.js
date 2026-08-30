@@ -171,7 +171,13 @@ function toReceptionStayPayment() {
  * field it should not have sent. Everything else in the body rides through untouched.
  */
 function toReceptionSasCommit(body) {
-  const { stayPaid, stayPaidCash, ...rest } = body || {};
+  // specs/single-payment-at-check-in.md §3.4 — the unified mode settles the stay, so it is dropped
+  // for a reception-only user exactly like `stayPaid`: silently, never rejected. A stale client must
+  // not lose a whole check-in over a field it should not have sent. Dropping the mode leaves the
+  // complement to settle through its own field, which reception is allowed to use.
+  const {
+    stayPaid, stayPaidCash, arrivalPaymentMode, arrivalPaymentSplit, ...rest
+  } = body || {};
   return rest;
 }
 

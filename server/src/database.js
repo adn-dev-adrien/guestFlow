@@ -2089,6 +2089,15 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   if (!rcols.includes('balancePaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN balancePaidCash INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('depositPaidAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN depositPaidAtArrival INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('balancePaidAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN balancePaidAtArrival INTEGER NOT NULL DEFAULT 0");
+  // One payment at check-in (specs/single-payment-at-check-in.md §5). The guest hands over ONE card
+  // for the stay AND the arrival complement; the buckets stay separate — they carry different revenue
+  // accounts and VAT rates — but the collection is recorded as a group, so the fiche and the
+  // Comptabilité can show the one payment that actually happened. NULL on every existing row: a
+  // reservation with no group reads exactly as it does today.
+  if (!rcols.includes('arrivalPaymentGroup')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalPaymentGroup TEXT");
+  // The complement's own « the arrival SAS settled this » marker, mirroring the two stay ones, so a
+  // re-opened SAS may undo a settlement it made and never one made elsewhere.
+  if (!rcols.includes('complementPaidAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN complementPaidAtArrival INTEGER NOT NULL DEFAULT 0");
   // « En fin de séjour » on the arrival recap (specs/defer-arrival-complement-to-checkout.md §3.2
   // rule 5): the arrival complement is not collected at check-in but at the door, together with the
   // end-of-stay complement — presented as ONE complement everywhere. Backfilled once, on creation,

@@ -6,7 +6,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
+import { sasPayload, stayDue, renderDialog, clickBtn } from './sasFixtures';
 
 // Mock the API the dialog consumes.
 vi.mock('../../../api', () => ({
@@ -114,4 +114,98 @@ test('departure recap: « Payé en liquide » settles into caisse interne; no «
   const arg = api.commitDepartureSas.mock.calls[0][1];
   expect(arg.complementsSettled).toBe(true);
   expect(arg.complementsPaidCash).toBe(true);
+});
+
+// ── One payment at check-in (specs/single-payment-at-check-in.md §3.1) ──────────────────────────
+// A last-minute guest takes a prestation during the check-in and pays everything with one card. The
+// recap must ask ONCE — while keeping the two-settlement case one tap away.
+
+const unifiablePayload = () => sasPayload({
+  reservation: { cautionReceived: 1, cautionAmount: 0, complementAmount: 50, complementPaid: 0 },
+  cleaning: { included: true, price: 80 },
+  stayPayment: stayDue(),
+  arrivalPayment: { complementOpen: true, group: null },
+});
+
+async function openUnifiedRecap() {
+  api.getReservationSas.mockResolvedValue(unifiablePayload());
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Séjour à régler :');
+  clickBtn('Suivant');
+  await screen.findByText('Récapitulatif — à percevoir');
+}
+
+test('arrival recap: both sides collectible → ONE settlement, not two', async () => {
+  await openUnifiedRecap();
+
+  // The two v2.8.0 headings are gone; a single « Règlement » stands for the whole collection.
+  expect(screen.getByText('Règlement')).toBeInTheDocument();
+  expect(screen.queryByText('Règlement du séjour')).toBeNull();
+  expect(screen.queryByText('Règlement du complément')).toBeNull();
+  // Both amounts are still listed, and the total is what the guest hands over.
+  expect(screen.getByText(/Séjour : 480,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Total complément : 50,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Total à percevoir à l'arrivée : 530,00 €/)).toBeInTheDocument();
+});
+
+test('arrival recap: « CB / Chèque » once settles both sides in a single payment', async () => {
+  await openUnifiedRecap();
+  clickBtn('CB / Chèque');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const payload = api.commitArrivalSas.mock.calls[0][1];
+  expect(payload.arrivalPaymentMode).toBe('card');
+  expect(payload.arrivalPaymentSplit).toBe(false);
+});
+
+test('arrival recap: « Plus tard » is the default and collects nothing', async () => {
+  await openUnifiedRecap();
+  expect(screen.getByText(/le séjour reste dû et le complément est rappelé au check-out/i)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].arrivalPaymentMode).toBe('defer');
+});
+
+test('arrival recap: « Régler séparément » brings the two settlements back, and back again', async () => {
+  await openUnifiedRecap();
+  clickBtn('Régler séparément');
+
+  // The v2.8.0 shape, unchanged — the case where one side is collected and the other deferred.
+  expect(await screen.findByText('Règlement du séjour')).toBeInTheDocument();
+  expect(screen.getByText('Règlement du complément')).toBeInTheDocument();
+  expect(screen.queryByText('Règlement')).toBeNull();
+
+  clickBtn('Régler en une fois');
+  expect(await screen.findByText('Règlement')).toBeInTheDocument();
+  expect(screen.queryByText('Règlement du séjour')).toBeNull();
+});
+
+test('arrival recap: split mode commits the two independent settlements, not a group', async () => {
+  await openUnifiedRecap();
+  clickBtn('Régler séparément');
+  await screen.findByText('Règlement du séjour');
+
+  clickBtn('Valider et terminer');
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].arrivalPaymentSplit).toBe(true);
+});
+
+test('arrival recap: nothing owed on the stay → the complement settles alone, as before', async () => {
+  // No stay step (nothing owed on the séjour), so there is nothing to unify: the recap keeps the
+  // single complement block it has always had.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, complementAmount: 50 },
+    cleaning: { included: true, price: null },
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText('Règlement du complément')).toBeInTheDocument();
+  expect(screen.queryByText('Régler séparément')).toBeNull();
 });
