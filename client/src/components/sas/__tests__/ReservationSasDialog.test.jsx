@@ -1437,7 +1437,8 @@ test('arrival SAS: the restauration page sells a meal by its moment and a board 
   clickBtn('Oui, proposer');
 
   await screen.findByText('Le repas des trappeurs');
-  // Card option: one moment → 1 × 2 pers. × 25 €.
+  // Card option: taken by its switch, then billed by the moment → 1 × 2 pers. × 25 €.
+  fireEvent.click(screen.getByRole('switch', { name: 'Le repas des trappeurs' }));
   fireEvent.click(screen.getAllByText('19:30')[0]);
   expect(screen.getByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
   // Plain option: the switch fills the quantity in (per_stay → 1).
@@ -1528,6 +1529,7 @@ test('arrival SAS: lowering the covers of a meal re-prices the preview and the i
   clickBtn('Oui, proposer');
 
   await screen.findByText('Le repas des trappeurs');
+  fireEvent.click(screen.getByRole('switch', { name: 'Le repas des trappeurs' }));
   fireEvent.click(screen.getAllByText('19:30')[0]);
   // The whole table by default: 1 moment × 4 pers. × 25 €.
   expect(screen.getByText(/\(1 × 4 pers\. servies\) = 100,00 €/)).toBeInTheDocument();
@@ -1604,6 +1606,7 @@ test('arrival SAS: the covers stepper stops at the capacity of the logement', as
   await screen.findByText(/souhaite-t-il de la restauration/);
   clickBtn('Oui, proposer');
   await screen.findByText('Le repas des trappeurs');
+  fireEvent.click(screen.getByRole('switch', { name: 'Le repas des trappeurs' }));
   fireEvent.click(screen.getAllByText('19:30')[0]);
 
   const plus = screen.getAllByRole('button', { name: '+' });
@@ -1637,7 +1640,55 @@ test('arrival SAS re-open: the covers this SAS sold are pre-filled', async () =>
   clickBtn('Oui, proposer');
 
   await screen.findByText('Le repas des trappeurs');
+  // The switch reopens ON — the moments this SAS sold stay visible and undoable.
+  expect(screen.getByRole('switch', { name: 'Le repas des trappeurs' })).toBeChecked();
   expect(screen.getByText(/\(1 × 2 pers\. servies\) = 50,00 €/)).toBeInTheDocument();
+});
+
+// Reported 2026-08-30 from production: on the « Restauration » page the boards each carried a switch
+// while « Le repas des trappeurs » carried nothing but a grid of grey hour chips, which reads as
+// information rather than a control — the operator had no way to tell the meal could be taken at all
+// (specs/sas-breakfast-and-catering-upsell.md §3.2 rule 7).
+test('arrival SAS: a card option is taken by its switch, which opens (and clears) its moments', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2 },
+    cleaning: { included: true, price: 80 },
+    sasSales: salesPayload({ catering: { available: true, options: [MEAL_OFFER, BOARD_OFFER] } }),
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/souhaite-t-il de la restauration/);
+  clickBtn('Oui, proposer');
+
+  await screen.findByText('Le repas des trappeurs');
+  // Every row carries the same control, the meal included; its moments stay closed until it is taken.
+  const mealSwitch = screen.getByRole('switch', { name: 'Le repas des trappeurs' });
+  expect(mealSwitch).not.toBeChecked();
+  expect(screen.queryByText('19:30')).toBeNull();
+
+  fireEvent.click(mealSwitch);
+  expect(screen.getAllByText('19:30').length).toBeGreaterThan(0);
+  // Nothing is pre-selected — a meal is picked moment by moment, and the caption says so.
+  expect(screen.getByText('Choisissez les moments servis')).toBeInTheDocument();
+  expect(screen.getByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getAllByText('19:30')[0]);
+  expect(screen.getByText(/Total restauration : 50,00 €/)).toBeInTheDocument();
+
+  // Turning it back off drops the sale, moments included.
+  fireEvent.click(mealSwitch);
+  expect(screen.queryByText('19:30')).toBeNull();
+  expect(screen.getByText(/Total restauration : 0,00 €/)).toBeInTheDocument();
+  clickBtn('Suivant');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.queryByText(/Le repas des trappeurs :/)).toBeNull();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([]);
 });
 
 // ── « Séjour à régler » — specs/collect-stay-payment-at-check-in.md ──────────────────────────────

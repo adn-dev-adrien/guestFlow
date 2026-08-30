@@ -95,20 +95,32 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
    la restauration ? » → **« Oui, proposer »** ouvre le catalogue, **« Non merci »** ne vend rien.
    Affichée seulement si le logement a au moins une option vendable dans la catégorie
    **« Restauration »** (décision 2026-08-17 — pas les boissons, pas tout le catalogue).
-7. **Page catalogue** : une ligne par option, avec son prix et son type de prix, et le contrôle qui
-   correspond à sa nature — **le même système que la fiche** :
-   - option à carte (*Le repas des trappeurs*) → la **grille des moments** (jour × créneau) ; la
-     quantité facturée est `moments × personnes servies`, affichée comme sur la fiche. Rien n'est
-     pré-coché : un repas se prend moment par moment (divergence assumée avec la fiche, qui pré-coche
-     tout). Dès qu'un moment est coché, le pas-à-pas **« Personnes servies »** apparaît (2026-08-20,
-     [card-option-served-persons.md](card-option-served-persons.md)) : la tablée par défaut, baissée
-     quand les enfants ne mangent pas, plafonnée à la capacité du logement.
-   - option simple (planches) → un **interrupteur** qui remplit tout seul la quantité par défaut (le
+7. **Page catalogue** : une ligne par option, avec son prix et son type de prix. **Toute ligne se prend
+   par le même interrupteur** (corrigé le 2026-08-30, voir rule 7bis) ; ce qu'il ouvre dépend de la
+   nature de l'option :
+   - option à carte (*Le repas des trappeurs*) → l'interrupteur ouvre la **grille des moments**
+     (jour × créneau) ; la quantité facturée est `moments × personnes servies`, affichée comme sur la
+     fiche. Rien n'est pré-coché : un repas se prend moment par moment (divergence assumée avec la
+     fiche, qui pré-coche tout), et la légende de la grille dit **« Choisissez les moments servis »**
+     tant qu'aucun ne l'est. Dès qu'un moment est coché, le pas-à-pas **« Personnes servies »**
+     apparaît (2026-08-20, [card-option-served-persons.md](card-option-served-persons.md)) : la tablée
+     par défaut, baissée quand les enfants ne mangent pas, plafonnée à la capacité du logement.
+     Éteindre l'interrupteur **décoche tous les moments** : la vente est annulée d'un geste.
+   - option simple (planches) → l'interrupteur remplit tout seul la quantité par défaut (le
      multiplicateur du type de prix : `per_person` → la tablée, `per_stay` → 1), puis un pas-à-pas
      pour l'ajuster.
    Un total « Total restauration » ferme la page.
+7bis. **Toute ligne porte son interrupteur, l'option à carte comprise** (remonté de la production le
+   2026-08-30). La grille des moments était affichée seule, sans interrupteur, et comme rule 7 interdit
+   de pré-cocher, la ligne du repas s'ouvrait *vide* : à côté des planches et de leurs interrupteurs,
+   ses puces d'horaire grises se lisaient comme une information, pas comme une commande — l'opérateur
+   n'avait aucun moyen de voir que le repas pouvait être vendu. L'interrupteur porte l'intention
+   (« le client prend cette prestation »), la grille porte le détail (« à quels moments ») ; tant qu'il
+   est éteint la grille reste fermée, ce qui rend aussi la page lisible d'un coup d'œil. Une option à
+   carte allumée sans aucun moment coché **ne vend rien** (rule 10 est inchangée) — la légende le dit.
 8. Les options **déjà prises à la réservation** ne sont pas listées (même règle que le petit déjeuner,
-   rule 2) ; celles que ce SAS a vendues restent listées, pré-sélectionnées.
+   rule 2) ; celles que ce SAS a vendues restent listées, pré-sélectionnées — interrupteur **allumé**
+   et moments cochés pour une option à carte, afin de pouvoir les corriger ou les retirer.
 
 ### 3.3 Ce qui est écrit, et où va l'argent
 
@@ -197,7 +209,7 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
 |---|---|---|---|
 | `components/` | `components/OccurrenceGrid.jsx` | C | **Composant générique** : la grille de moments (une ligne par jour, un chip par créneau) + l'éditeur d'heures optionnel + la légende de quantité. Extrait de `OptionRow` pour être partagé fiche ↔ SAS. |
 | `components/` | `components/reservation/OptionRow.jsx` | T | `OptionCardOccurrences` garde sa logique de formulaire et délègue le rendu à `OccurrenceGrid` (aucun changement visuel). |
-| `components/` | `components/sas/ReservationSasDialog.jsx` | T | 4 nouvelles pages (`breakfastSale`, `breakfastMornings`, `cateringAsk`, `cateringItems`), l'état des ventes, la composition enchaînée + ses défauts, les lignes d'aperçu du récap, `soldOptions` dans le commit, et la ré-ouverture pré-remplie. |
+| `components/` | `components/sas/ReservationSasDialog.jsx` | T | 4 nouvelles pages (`breakfastSale`, `breakfastMornings`, `cateringAsk`, `cateringItems`), l'état des ventes, la composition enchaînée + ses défauts, les lignes d'aperçu du récap, `soldOptions` dans le commit, et la ré-ouverture pré-remplie. **2026-08-30** : `cateringPicked` (`{ [optionId]: bool }`) porte l'intention d'une option à carte sur `cateringItems` — l'interrupteur de la ligne, ce que la grille de moments seule ne pouvait pas exprimer (rule 7bis) ; éteint, il vide `cateringGrids[optionId]`. |
 | `services/` | `api.js` | — | Inchangé : `commitArrivalSas` passe l'objet payload tel quel. |
 
 **Component reuse declaration (mandatory):**
@@ -240,8 +252,11 @@ recalculée.
   pers.) », puis « 6 petits déjeuners — 48,00 € ». Avertissement quand plus aucun matin n'est coché.
 - **Page « Restauration » (demande)** — icône couverts, question + une phrase (« Repas, planches
   apéro… ajoutés au complément à percevoir »), boutons **« Oui, proposer »** / **« Non merci »**.
-- **Page catalogue** — une ligne par option (titre, prix + type de prix), grille de moments pour les
-  options à carte, interrupteur + pas-à-pas pour les autres, total en pied de page.
+- **Page catalogue** — une ligne par option (titre, prix + type de prix) et, sur chacune, **le même
+  interrupteur à droite**. Allumé, il déplie la grille de moments (options à carte, légende
+  « Choisissez les moments servis » puis « Quantité : … » et le pas-à-pas « Personnes servies ») ou le
+  pas-à-pas de quantité (options simples). Éteint, la ligne se referme et sa sélection est effacée.
+  Total en pied de page.
 - **Récap d'arrivée** — chaque vente apparaît en « + » (« Petit déjeuner : 6 × 8,00 € = 48,00 € »),
   entre dans le total à percevoir et se règle avec les boutons de règlement existants.
 - **Responsive** — hérite de la coquille du SAS : plein écran sur `xs`, boutons empilés, cibles
@@ -265,7 +280,7 @@ recalculée.
       séjour, clé hors baseline ; re-run qui dé-sélectionne et rend l'argent sans toucher aux ventes
       faites depuis la fiche ; historique des prestations vendues.
 
-### Client tests (vitest) — `components/sas/__tests__/ReservationSasDialog.test.jsx` (6 tests)
+### Client tests (vitest) — `components/sas/__tests__/ReservationSasDialog.test.jsx` (7 tests)
 - [x] Vente du petit déjeuner : matins pré-cochés, légende « (2 × 2 pers.) », total, composition
       enchaînée pré-remplie, payload `soldOptions` + composition.
 - [x] « Non merci » → `soldOptions: []`, page des matins sautée.
@@ -274,10 +289,12 @@ recalculée.
 - [x] Restauration : repas vendu au moment (1 × 2 pers. = 50 €), planche vendue à la quantité par
       défaut, payload conforme.
 - [x] Rien en offre → aucune page de vente, `soldOptions` absent.
+- [x] Option à carte prise par son interrupteur (2026-08-30) : moments fermés tant qu'il est éteint,
+      « Choisissez les moments servis » à l'ouverture, éteindre décoche tout → `soldOptions: []`.
 
 ### Full suites
 - [x] `cd server && npm test` — 2951 tests.
-- [x] `cd client && npx vitest run` — 951 tests.
+- [x] `cd client && npx vitest run` — 1157 tests (2026-08-30, après la fusion de `collect-stay-payment-at-check-in`).
 - [x] `npm run test:e2e` (Playwright).
 - [x] `cd client && npm run build`.
 
@@ -286,6 +303,9 @@ recalculée.
       repas + d'une planche, récap, validation, puis vérification de la fiche (options créées, en
       complément) et du planning (cartes créées).
 - [x] Mobile (`xs`) : pages plein écran, chips et lignes empilés, boutons pleine largeur.
+- [x] 2026-08-30 — page « Restauration » relue à 420 px et à 1280 px avec les données de production
+      (Gîte, 6 options) : un interrupteur par ligne, le repas des trappeurs qui s'ouvre sur ses trois
+      moments, « Quantité : 6 (1 × 6 pers. servies) = 150,00 € » puis « Total restauration : 150,00 € ».
 
 ## 8. Out of scope
 
