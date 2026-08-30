@@ -30,7 +30,9 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import RoomServiceIcon from '@mui/icons-material/RoomService';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import HotTubIcon from '@mui/icons-material/HotTub';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import SasResourceSchedulingPage from './SasResourceSchedulingPage';
+import SasStayPaymentPage from './SasStayPaymentPage';
 import KingBedIcon from '@mui/icons-material/KingBed';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DryCleaningIcon from '@mui/icons-material/DryCleaning';
@@ -107,6 +109,7 @@ function stepMeta(key, mode) {
     case 'portal': return { title: 'Portail', Icon: DialpadIcon };
     case 'caution':
     case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
+    case 'stayPayment': return { title: 'Séjour', Icon: PaymentsIcon };
     case 'options': return { title: 'Prestations', Icon: RoomServiceIcon };
     case 'resourceScheduling': return { title: 'Planifier', Icon: HotTubIcon };
     case 'breakfast': return { title: 'Petit déjeuner', Icon: FreeBreakfastIcon };
@@ -164,7 +167,10 @@ function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
 //   - 'defer' → « En fin de séjour » (arrival only: leave unpaid → recalled at check-out)
 // Clicking the active mode again clears it — on the arrival recap that falls back to 'defer' (the
 // default) rather than to nothing, since an unsettled complement is collected at check-out anyway.
-function PaymentModeButtons({ value, onChange, showDefer }) {
+// `deferLabel` — the third button is « En fin de séjour » on a complement, « Pas maintenant » on the
+// stay (specs/collect-stay-payment-at-check-in.md §3.3 rule 10): same fallback semantics, different
+// promise. Everything else (single select, click-active-to-fall-back) is shared.
+function PaymentModeButtons({ value, onChange, showDefer, deferLabel = 'En fin de séjour' }) {
   const optButton = (key, label) => (
     <Button
       variant={value === key ? 'contained' : 'outlined'}
@@ -179,7 +185,7 @@ function PaymentModeButtons({ value, onChange, showDefer }) {
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: '100%' }}>
       {optButton('card', 'CB / Chèque')}
       {optButton('cash', 'Payé en liquide')}
-      {showDefer && optButton('defer', 'En fin de séjour')}
+      {showDefer && optButton('defer', deferLabel)}
     </Stack>
   );
 }
@@ -275,6 +281,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // Departure: null | 'card' | 'cash' (no defer at check-out).
   const [arrivalPayMode, setArrivalPayMode] = useState('defer');
   const [departurePayMode, setDeparturePayMode] = useState(null);
+  // specs/collect-stay-payment-at-check-in.md §3.3 — how the SÉJOUR itself was settled at the door:
+  // 'card' | 'cash' | 'defer' (« Pas maintenant »). One state, rendered twice (the dedicated step and
+  // the recap block), committed once. 'defer' is the default AND the fallback, so validating without
+  // touching anything writes nothing on the acompte / solde.
+  const [stayPayMode, setStayPayMode] = useState('defer');
   // specs/sas-offer-complement-lines.md — the lines the operator offers on the recap (geste
   // commercial), as a set of line keys: `option:<id>` / `resource:<id>` / `custom:<id>` for the rows of
   // the complement, `bed:<itemId>` / `cleaning` / `bathLinen` for what the arrival SAS adds,
@@ -301,7 +312,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({});
     setPreservedArrival([]); setPreservedDeparture([]);
-    setArrivalPayMode('defer'); setDeparturePayMode(null);
+    setArrivalPayMode('defer'); setDeparturePayMode(null); setStayPayMode('defer');
     setWeatherAlerts([]); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
@@ -390,6 +401,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // paid + cash → 'cash' (caisse interne); paid non-cash → 'card'; unpaid → 'defer' (an unpaid
           // complement IS collected at check-out, so it reopens on the same default as a fresh SAS).
           setArrivalPayMode(Number(res.complementPaid) === 1 ? (Number(res.complementPaidCash) === 1 ? 'cash' : 'card') : 'defer');
+          // Same reconstruction for the stay, but from what THIS SAS recorded (`stayPayment.paid`),
+          // never from a payment made elsewhere — specs/collect-stay-payment-at-check-in.md rule 14.
+          const stay = d.stayPayment || {};
+          setStayPayMode(stay.paid ? (stay.paidCash ? 'cash' : 'card') : 'defer');
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
@@ -532,6 +547,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         'intro',
         data.portalCode ? 'portal' : null,
         cautionStep ? 'caution' : null,
+        // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
+        // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
+        // prepaid stay) and for a reception-only user, who never sees the stay amounts.
+        data.stayPayment?.applicable ? 'stayPayment' : null,
         hasOptions ? 'options' : null,
         // Place the hours bought by the hour on real slots, right after the read-only prestations
         // list (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 17). Skipped once
@@ -959,6 +978,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // check-out (specs/recall-unpaid-arrival-complement-at-checkout.md).
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
+          // specs/collect-stay-payment-at-check-in.md §3.3 rule 13 — the séjour settled at the door.
+          // Tri-state: `undefined` when the step never ran, so a prepaid stay's acompte / solde are
+          // left strictly untouched. « Pas maintenant » sends `false`, which also UNDOES a settlement
+          // this SAS made on an earlier run.
+          stayPaid: activeKeys.includes('stayPayment') ? (stayPayMode === 'card' || stayPayMode === 'cash') : undefined,
+          stayPaidCash: stayPayMode === 'cash',
           // Hours placed on real slots. `undefined` when the step never ran, so a SAS that does not
           // touch scheduling leaves the stored sessions exactly as they were
           // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rules 23-24). The server
@@ -1138,6 +1163,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {caution === 'fait' && <Chip label="Marquée comme perçue" color="success" sx={{ alignSelf: 'flex-start' }} />}
             {caution === 'reporte' && stepKey === 'caution' && <Chip label="Reportée — réaffichée à la fin" color="warning" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
+        );
+      case 'stayPayment':
+        return (
+          <SasStayPaymentPage stayPayment={data.stayPayment} value={stayPayMode}>
+            <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
+          </SasStayPaymentPage>
         );
       case 'options': {
         const opts = (r.options || []);
@@ -1477,9 +1508,30 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // (or give back to) the stored complement — the recap total must follow them live.
           const existing = Math.max(0, round2(Number(r.complementAmount || 0) - sasOriginSum - preExistingOfferDelta));
           const total = round2(existing + arrivalAdded + preservedArrivalSum);
+          // specs/collect-stay-payment-at-check-in.md §3.5 — the séjour gets its own block, above the
+          // complement and settled independently: the two are different accounting objects, and one
+          // may be deferred to the check-out while the other is collected at the door.
+          const stayStep = activeKeys.includes('stayPayment');
+          const stayDue = stayStep ? round2(Number(data.stayPayment?.total || 0)) : 0;
           return (
             <Stack spacing={1}>
-              <Typography variant="sectionHeader">Récapitulatif — complément à percevoir</Typography>
+              <Typography variant="sectionHeader">
+                {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
+              </Typography>
+              {stayStep && (
+                <>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>Séjour : {formatCurrency(stayDue)}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du séjour</Typography>
+                  <PaymentModeButtons value={stayPayMode} onChange={setStayPayMode} showDefer deferLabel="Pas maintenant" />
+                  {stayPayMode === 'defer' && (
+                    <Typography variant="body2" color="text.secondary">Le séjour reste dû (rien n'est encaissé).</Typography>
+                  )}
+                  {stayPayMode === 'cash' && (
+                    <Typography variant="body2" color="text.secondary">Encaissé en caisse interne (hors comptabilité).</Typography>
+                  )}
+                  <Divider />
+                </>
+              )}
               {/* specs/sas-hide-settled-steps.md §3 rule 4 — when the ménage page is hidden (cleaning
                   included), its client reminder is carried here so it's not lost. */}
               {data.cleaning?.included && (
@@ -1521,7 +1573,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               ))}
               <Divider />
               {/* Amounts never render in serif → bold sans body, not sectionHeader. */}
-              <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>Total : {formatCurrency(total)}</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>
+                {stayStep ? 'Total complément' : 'Total'} : {formatCurrency(total)}
+              </Typography>
+              {/* Rule 23 — a reading aid only: each block still settles on its own buttons. */}
+              {stayStep && stayDue > 0 && total > 0 && (
+                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>
+                  Total à percevoir à l'arrivée : {formatCurrency(round2(stayDue + total))}
+                </Typography>
+              )}
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
               {/* Hours sold but never placed on a slot. The step is skippable on purpose, so the recap
                   is what keeps them from being forgotten
@@ -1645,6 +1705,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             badLabel="Reporté" onBad={() => { setCaution('reporte'); goNext(); }}
           />
         </>;
+      case 'stayPayment': return <>{quit}{next()}</>;
       case 'options': return <>{quit}{next()}</>;
       // Not a yes/no safety question → neutral styling, like the ménage upsell. A check-in is never
       // blocked by scheduling: « Planifier plus tard » moves on and the recap recalls what is left

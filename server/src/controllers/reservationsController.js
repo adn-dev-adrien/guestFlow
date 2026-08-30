@@ -1022,6 +1022,9 @@ function updatePayment(req, res) {
           "UPDATE reservations SET depositPaid = ?, depositPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
           willBeDepositPaid ? 1 : 0, date, id,
         );
+        // specs/collect-stay-payment-at-check-in.md §3.3 rule 15 — the fiche just took the bucket
+        // over: the arrival SAS's ownership marker and its caisse-interne flag go with the flip.
+        if (wasDepositPaid !== willBeDepositPaid) model.releaseStayBucket(Number(id), 'deposit');
       })();
     } catch (err) {
       return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
@@ -1043,6 +1046,7 @@ function updatePayment(req, res) {
           "UPDATE reservations SET balancePaid = ?, balancePaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
           willBeBalancePaid ? 1 : 0, date, id,
         );
+        if (wasBalancePaid !== willBeBalancePaid) model.releaseStayBucket(Number(id), 'balance');
       })();
     } catch (err) {
       return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });

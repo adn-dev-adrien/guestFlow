@@ -37,6 +37,9 @@ const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfSta
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 const { hasGuestArrived } = require('../utils/arrivalMoment');
+const { bucketStates } = require('../utils/reservationSettlement');
+const { resolveStayPayment } = require('../utils/stayPayment');
+const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const bookingLinesModel = require('./bookingLinesModel');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
@@ -1333,6 +1336,26 @@ function createReservationsModel(database) {
       return result.lastInsertRowid;
     },
 
+    /**
+     * specs/collect-stay-payment-at-check-in.md §3.3 rule 15 — a stay bucket whose paid flag is
+     * FLIPPED outside the arrival SAS stops being the SAS's: its ownership marker goes, and so does
+     * its caisse-interne flag (a bucket the operator just un-ticked must not keep reading « settled »
+     * through the cash flag, and a payment recorded on the fiche is never caisse interne).
+     *
+     * Called on a real change only: saving the fiche for an unrelated reason must not silently pull
+     * a stay collected at the door back into the accounting.
+     */
+    releaseStayBucket(reservationId, bucket) {
+      const marker = bucket === 'deposit' ? 'depositPaidAtArrival' : 'balancePaidAtArrival';
+      const cash = bucket === 'deposit' ? 'depositPaidCash' : 'balancePaidCash';
+      try {
+        database.prepare(`UPDATE reservations SET ${marker} = 0, ${cash} = 0, updatedAt = datetime('now') WHERE id = ?`)
+          .run(reservationId);
+      } catch {
+        // Minimal test schemas without the columns: nothing to release.
+      }
+    },
+
     updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
@@ -1363,6 +1386,9 @@ function createReservationsModel(database) {
       const platformPayoutForStore = platformIsNonDirect
         ? (platformPayoutAmount != null && platformPayoutAmount !== '' ? Math.max(0, Number(platformPayoutAmount)) : null)
         : null;
+      // Rule 15 — read the stay flags BEFORE they are overwritten, so the SAS ownership markers are
+      // released on a real flip and only on a real flip.
+      const beforeStay = database.prepare('SELECT depositPaid, balancePaid FROM reservations WHERE id = ?').get(reservationId) || {};
       database.prepare(`
         UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
           singleBeds=?, doubleBeds=?, babyBeds=?,
@@ -1405,6 +1431,8 @@ function createReservationsModel(database) {
       persistReservationNumber(reservationId, payload);
       persistEmailLanguage(reservationId, payload);
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
+      if (Number(beforeStay.depositPaid || 0) !== (depositPaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'deposit');
+      if (Number(beforeStay.balancePaid || 0) !== (balancePaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'balance');
     },
 
     // `inComplement` is carried on every write, authoritative as resolved by the pricing engine
@@ -2214,12 +2242,39 @@ function createReservationsModel(database) {
       writeEndOfStayDetail(reservationId, detail, model.getMidStaySettledNotes(reservationId));
     },
 
+    /**
+     * Per-bucket contribution snapshot for a stay settled at the door
+     * (specs/collect-stay-payment-at-check-in.md §3.3 rule 13, revised 2026-08-30).
+     *
+     * BEST EFFORT on purpose. The capture replays the pricing engine and asserts that the line
+     * contributions sum to the stored échéance; on a booking whose stored solde is the platform's
+     * figure — most OTA stays — the two legitimately disagree and it throws. Letting that abort the
+     * commit would cost the whole check-in (caution, upsells, planning flags) for something the
+     * operator cannot fix at the door, so the failure is logged and the money is recorded with NULL
+     * contribs: the accounting then derives the attribution the legacy way, which is exactly what a
+     * full fiche save has always done with these same reservations.
+     */
+    captureStayContribs(reservationId, bucket) {
+      try {
+        captureContribsOnFlip({ db: database, reservation: model.getRow(reservationId), bucket });
+        return true;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[sas-stay-payment] contribs not captured on ${bucket} of reservation ${reservationId}: ${err.message}`);
+        return false;
+      }
+    },
+
     commitArrivalSas(reservationId, {
       cautionReceived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
+      // specs/collect-stay-payment-at-check-in.md §3.3 — the SÉJOUR itself settled at the door
+      // (a last-minute stay arrives unpaid). Tri-state like the caution: `undefined` = the step never
+      // ran → the acompte / solde are left exactly as they are.
+      stayPaid, stayPaidCash,
       // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — the two upsells are sent as
       // INTENT (booleans); the server resolves the option + its price. Tri-state, like the caution.
       cleaningAdded, bathLinenAdded,
@@ -2486,6 +2541,50 @@ function createReservationsModel(database) {
               .run(reservationId);
           }
           persistComplementDeferred(reservationId, !complementSettled);
+        }
+
+        // specs/collect-stay-payment-at-check-in.md §3.3 rules 13-14 — the stay collected at the door.
+        // Runs AFTER the complement lines: the contribution capture replays the engine on the stored
+        // reservation, and the SAS lines are `inComplement = 1`, so they contribute NULL and leave the
+        // acompte / solde conservation invariant alone. A capture that breaks it THROWS, which rolls
+        // the whole check-in back rather than booking a half-attributed encaissement.
+        if (stayPaid !== undefined) {
+          const row = model.getRow(reservationId);
+          const buckets = bucketStates(row);
+          const targets = [
+            {
+              key: 'deposit',
+              bucket: buckets.deposit,
+              cols: ['depositPaid', 'depositPaidDate', 'depositPaidCash', 'depositPaidAtArrival'],
+              prev: {
+                paid: row.depositPaid, cash: row.depositPaidCash, date: row.depositPaidDate, atArrival: row.depositPaidAtArrival,
+              },
+            },
+            {
+              key: 'balance',
+              bucket: buckets.balance,
+              cols: ['balancePaid', 'balancePaidDate', 'balancePaidCash', 'balancePaidAtArrival'],
+              prev: {
+                paid: row.balancePaid, cash: row.balancePaidCash, date: row.balancePaidDate, atArrival: row.balancePaidAtArrival,
+              },
+            },
+          ];
+          for (const target of targets) {
+            const next = resolveStayPayment({
+              bucket: target.bucket, prev: target.prev, stayPaid, stayPaidCash: Boolean(stayPaidCash), today,
+            });
+            if (!next) continue;
+            const was = Number(target.prev.paid || 0) === 1;
+            const willBe = next.paid === 1;
+            // Re-read the row for the capture: the acompte is settled first in this very loop, and the
+            // solde capture is defined as « what the line still owes AFTER its acompte snapshot ».
+            // Handing it the pre-loop row makes it claim the whole line and break its own invariant.
+            if (!was && willBe) model.captureStayContribs(reservationId, target.key);
+            else if (was && !willBe) clearContribsOnUnflip({ db: database, reservationId, bucket: target.key });
+            const [paidCol, dateCol, cashCol, markerCol] = target.cols;
+            database.prepare(`UPDATE reservations SET ${paidCol} = ?, ${dateCol} = ?, ${cashCol} = ?, ${markerCol} = ?, updatedAt = datetime('now') WHERE id = ?`)
+              .run(next.paid, next.date, next.cash, next.atArrival, reservationId);
+          }
         }
         // specs/sas-bath-linen-ghost-line.md §3 rules 1-2 — the arrival SAS never writes a billing line
         // into the end-of-stay complement: what the guest takes is the catalogue option activated on the
