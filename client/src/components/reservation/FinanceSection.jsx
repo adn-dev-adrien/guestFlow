@@ -685,6 +685,13 @@ export default function FinanceSection() {
                       >
                         {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
                       </Button>
+                      {/* specs/collect-stay-payment-at-check-in.md §3.4 rule 20 — read-only: the SAS
+                          collected it at the door, hors compta. Un-ticking the bucket clears it. */}
+                      {form.depositPaid && form.depositPaidCash && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                          Caisse interne ✓ — encaissé à l'arrivée, hors compta.
+                        </Typography>
+                      )}
                       {form.depositPaid && (
                         <DateField
                           label="Payé le"
@@ -757,6 +764,11 @@ export default function FinanceSection() {
                   >
                     {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
                   </Button>
+                  {form.balancePaid && form.balancePaidCash && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      Caisse interne ✓ — encaissé à l'arrivée, hors compta.
+                    </Typography>
+                  )}
                   {form.balancePaid && (
                     <DateField
                       label="Payé le"

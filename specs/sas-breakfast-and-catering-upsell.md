@@ -294,7 +294,7 @@ recalculée.
 
 ### Full suites
 - [x] `cd server && npm test` — 2951 tests.
-- [x] `cd client && npx vitest run` — 1150 tests (2026-08-30).
+- [x] `cd client && npx vitest run` — 1157 tests (2026-08-30, après la fusion de `collect-stay-payment-at-check-in`).
 - [x] `npm run test:e2e` (Playwright).
 - [x] `cd client && npm run build`.
 

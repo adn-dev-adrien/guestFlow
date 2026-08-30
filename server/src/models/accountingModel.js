@@ -47,6 +47,15 @@ function createAccountingModel(database) {
     // complement. Absent (or NULL) → the postes are derived exactly as before.
     hasReservationColumn('complementAllocation') ? 'r.complementAllocation' : 'NULL AS complementAllocation',
   ].join(', ');
+  // specs/collect-stay-payment-at-check-in.md §3.4 rule 17 — a stay collected at the door in the
+  // caisse interne is off the books, exactly like a cash complement. Guarded the same way: a schema
+  // without the columns reads 0 = « nothing was collected in cash », i.e. the legacy behaviour.
+  const stayCashCols = [
+    hasReservationColumn('depositPaidCash') ? 'COALESCE(r.depositPaidCash, 0) AS depositPaidCash' : '0 AS depositPaidCash',
+    hasReservationColumn('balancePaidCash') ? 'COALESCE(r.balancePaidCash, 0) AS balancePaidCash' : '0 AS balancePaidCash',
+  ].join(', ');
+  const depositCashFilter = hasReservationColumn('depositPaidCash') ? 'AND COALESCE(r.depositPaidCash, 0) = 0' : '';
+  const balanceCashFilter = hasReservationColumn('balancePaidCash') ? 'AND COALESCE(r.balancePaidCash, 0) = 0' : '';
   // A stay whose ONLY collection of the month is a « note en séjour » must still be selected — its
   // buckets may all be paid in another month, or not at all yet (specs/mid-stay-notes.md §3.4).
   // Month prefix match on the serialised `paidDate`; `inMonth` below stays the authoritative filter.
@@ -80,6 +89,7 @@ function createAccountingModel(database) {
                COALESCE(r.complementPaidCash, 0) AS complementPaidCash,
                r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidDate,
                COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
+               ${stayCashCols},
                ${midStayCols},
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
@@ -98,9 +108,10 @@ function createAccountingModel(database) {
         -- booked in the cancellation month instead (avoir + indemnité).
         WHERE r.kind IN ('reservation', 'cancelled')
           AND (
-            (r.depositPaid = 1 AND r.depositPaidDate >= ? AND r.depositPaidDate < ?)
+            -- A stay collected in the caisse interne is excluded too (same rule as the complements).
+            (r.depositPaid = 1 AND r.depositPaidDate >= ? AND r.depositPaidDate < ? ${depositCashFilter})
             OR
-            (r.balancePaid = 1 AND r.balancePaidDate >= ? AND r.balancePaidDate < ?)
+            (r.balancePaid = 1 AND r.balancePaidDate >= ? AND r.balancePaidDate < ? ${balanceCashFilter})
             OR
             -- Cash-flagged complements are excluded from accounting (paid « en liquide », off the books).
             (r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ? AND COALESCE(r.complementPaidCash, 0) = 0)
@@ -127,8 +138,14 @@ function createAccountingModel(database) {
         const taxContext = { collectedOnArrival };
         const entries = [];
         const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
-        if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, 'deposit', perLineData, commissionContext, taxContext));
-        if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, 'balance', perLineData, commissionContext, taxContext));
+        // Cash-collected stay buckets are settled off the books → never emitted as an encaissement
+        // (specs/collect-stay-payment-at-check-in.md §3.4).
+        if (inMonth(row.depositPaid, row.depositPaidDate) && Number(row.depositPaidCash || 0) === 0) {
+          entries.push(buildEntry(row, 'deposit', perLineData, commissionContext, taxContext));
+        }
+        if (inMonth(row.balancePaid, row.balancePaidDate) && Number(row.balancePaidCash || 0) === 0) {
+          entries.push(buildEntry(row, 'balance', perLineData, commissionContext, taxContext));
+        }
         // Cash complements are settled off the books → never emitted as an encaissement.
         if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
           entries.push(buildEntry(row, 'complement', perLineData, commissionContext, taxContext));

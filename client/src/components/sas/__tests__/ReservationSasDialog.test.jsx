@@ -41,8 +41,24 @@ function sasPayload(over = {}) {
     arrivalComplement: over.arrivalComplement, // undefined → no recall at departure
     // specs/sas-breakfast-and-catering-upsell.md — sale steps; nothing on offer by default.
     sasSales: over.sasSales || { persons: 0, nights: 0, breakfast: { available: false }, catering: { available: false, options: [] } },
+    // specs/collect-stay-payment-at-check-in.md — nothing owed on the stay by default (the ordinary
+    // prepaid case), so the « Séjour à régler » step is absent from every pre-existing flow.
+    stayPayment: over.stayPayment || { applicable: false },
   };
 }
+
+// A last-minute stay: no acompte, the whole pre-arrival total in the solde, nothing collected yet.
+const stayDue = (over = {}) => ({
+  applicable: true,
+  total: 480,
+  deposit: { amount: 0, applicable: false, settled: false, due: 0, owned: false, collectible: 0 },
+  balance: { amount: 480, applicable: true, settled: false, due: 480, owned: false, collectible: 480 },
+  channel: 'direct',
+  platformLabel: 'Direct',
+  paid: false,
+  paidCash: false,
+  ...over,
+});
 
 // A 2-night stay (10 → 12 July) for 2 persons: 2 candidate mornings at 8 €/pers.
 const BREAKFAST_OFFER = {
@@ -142,6 +158,10 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
     // ticked in this flow, so the complement stays unsettled (→ recalled at checkout).
     complementSettled: false,
     complementPaidCash: false,
+    // specs/collect-stay-payment-at-check-in.md §3.3 rule 13 — the stay step never ran on this
+    // fixture (nothing owed), so the acompte / solde are left strictly untouched.
+    stayPaid: undefined,
+    stayPaidCash: false,
   });
 });
 
@@ -1669,4 +1689,158 @@ test('arrival SAS: a card option is taken by its switch, which opens (and clears
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   expect(api.commitArrivalSas.mock.calls[0][1].soldOptions).toEqual([]);
+});
+
+// ── « Séjour à régler » — specs/collect-stay-payment-at-check-in.md ──────────────────────────────
+
+test('arrival SAS: the stay step is absent when nothing is owed on the séjour', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 }, reservation: { cautionAmount: 0 } }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.queryByText('Séjour à régler :')).toBeNull();
+});
+
+test('arrival SAS: « CB / Chèque » on the stay step commits stayPaid without the caisse interne', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 },
+    reservation: { cautionAmount: 0 }, stayPayment: stayDue(),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Séjour à régler :');
+  expect(screen.getByText('480,00 €')).toBeInTheDocument();
+  // Direct channel → no platform warning.
+  expect(screen.queryByText(/versé par la plateforme/)).toBeNull();
+  clickBtn('CB / Chèque');
+  clickBtn('Suivant');
+
+  await screen.findByText('Récapitulatif — à percevoir');
+  expect(screen.getByText(/Séjour : 480,00 €/)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const payload = api.commitArrivalSas.mock.calls[0][1];
+  expect(payload.stayPaid).toBe(true);
+  expect(payload.stayPaidCash).toBe(false);
+});
+
+test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 },
+    reservation: { cautionAmount: 0 }, stayPayment: stayDue(),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Séjour à régler :');
+  clickBtn('Payé en liquide');
+  expect(screen.getByText('Encaissé en caisse interne (hors comptabilité).')).toBeInTheDocument();
+  clickBtn('Suivant');
+  await screen.findByText('Récapitulatif — à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const payload = api.commitArrivalSas.mock.calls[0][1];
+  expect(payload.stayPaid).toBe(true);
+  expect(payload.stayPaidCash).toBe(true);
+});
+
+test('arrival SAS: « Pas maintenant » is the default — validating writes no stay payment', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 },
+    reservation: { cautionAmount: 0 }, stayPayment: stayDue(),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Séjour à régler :');
+  expect(screen.getByText("Le séjour reste dû (rien n'est encaissé).")).toBeInTheDocument();
+  clickBtn('Suivant');
+  await screen.findByText('Récapitulatif — à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const payload = api.commitArrivalSas.mock.calls[0][1];
+  expect(payload.stayPaid).toBe(false);
+  expect(payload.stayPaidCash).toBe(false);
+});
+
+test('arrival SAS: an OTA stay warns that the solde is the platform payout, and pre-selects nothing', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 },
+    reservation: { cautionAmount: 0, platform: 'airbnb' },
+    stayPayment: stayDue({ channel: 'platform', platformLabel: 'Airbnb' }),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Séjour à régler :');
+  expect(screen.getByText(/versé par la plateforme après le séjour/)).toBeInTheDocument();
+  expect(screen.getByText("Le séjour reste dû (rien n'est encaissé).")).toBeInTheDocument();
+});
+
+test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can undo it', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 },
+    reservation: {
+      cautionAmount: 0, arrivalSasDoneAt: '2026-07-10 16:00:00', complementPaid: 0, complementAmount: 0,
+    },
+    stayPayment: stayDue({
+      total: 480, paid: true, paidCash: true,
+      balance: { amount: 480, applicable: true, settled: true, due: 0, owned: true, collectible: 480 },
+    }),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Séjour à régler :');
+  // The amount survives the re-open: it is what THIS SAS collected, not what is still owed.
+  expect(screen.getByText('480,00 €')).toBeInTheDocument();
+  expect(screen.getByText('Encaissé en caisse interne (hors comptabilité).')).toBeInTheDocument();
+  clickBtn('Pas maintenant');
+  clickBtn('Suivant');
+  await screen.findByText('Récapitulatif — à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const payload = api.commitArrivalSas.mock.calls[0][1];
+  expect(payload.stayPaid).toBe(false);
+});
+
+test('arrival SAS recap: stay and complement are settled separately, with a combined arrival total', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    // Cleaning included → no ménage page: these cases are about the stay step only.
+    cleaning: { included: true, price: 80 },
+    reservation: { cautionAmount: 0, complementAmount: 50, complementPaid: 0 },
+    stayPayment: stayDue(),
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Séjour à régler :');
+  clickBtn('Suivant');
+
+  await screen.findByText('Récapitulatif — à percevoir');
+  expect(screen.getByText(/Séjour : 480,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Total complément : 50,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Total à percevoir à l'arrivée : 530,00 €/)).toBeInTheDocument();
+  // Two independent settlements: the stay keeps « Pas maintenant », the complement « En fin de séjour ».
+  expect(screen.getByText('Règlement du séjour')).toBeInTheDocument();
+  expect(screen.getByText('Règlement du complément')).toBeInTheDocument();
 });
