@@ -13,7 +13,11 @@
  * Pure — no DB access. Stored as JSON in `reservations.arrivalPaymentGroup`, NULL when there is none.
  */
 
-const BUCKETS = ['deposit', 'balance', 'complement'];
+// specs/single-payment-from-the-fiche.md rule 2bis — the end-of-stay complement joins the list. It is
+// normally collected at the door on departure, but a guest who settles EVERYTHING on arrival has paid
+// it too, and the group records what happened rather than what was planned. Named exactly like the
+// accounting entry it belongs to (`endOfStayComplement`), so the journal can stamp it without a map.
+const BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -73,6 +77,11 @@ function serialiseGroup(group) {
  * The acompte of a stay with `depositDisabled` is not applicable; a 0 € complement is nothing to
  * collect; a bucket already paid — by transfer, or earlier at the door — is left alone.
  *
+ * The END-OF-STAY complement is in the list (rule 2bis, 2026-08-31). It is scheduled for the door on
+ * departure, but a guest who pays everything on arrival has paid it as well — and on a platform
+ * booking, where the acompte is disabled and nothing was sold at check-in, it is often the only other
+ * money there is. Leaving it out made the control silently absent exactly when it was needed.
+ *
  * @returns {Array<{bucket: 'deposit'|'balance'|'complement', label: string, amount: number}>}
  */
 function collectibleArrivalBuckets(row = {}) {
@@ -85,6 +94,9 @@ function collectibleArrivalBuckets(row = {}) {
   add('deposit', 'acompte', row.depositAmount, Number(row.depositDisabled || 0) !== 1, row.depositPaid);
   add('balance', 'solde', row.balanceAmount, true, row.balancePaid);
   add('complement', 'complément', row.complementAmount, true, row.complementPaid);
+  // A cash-flagged bucket counts as settled, so it is never offered again (same rule as everywhere).
+  add('endOfStayComplement', 'complément de fin de séjour', row.endOfStayComplementAmount, true,
+    Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1);
   return out;
 }
 

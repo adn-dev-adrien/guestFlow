@@ -632,3 +632,23 @@ test('an ungrouped entry carries no paymentGroup through the mapper either', () 
   assert.equal(mapped.length, 1);
   assert.equal(mapped[0].paymentGroup, undefined);
 });
+
+test('a group covering the END-OF-STAY complement stamps that entry too', () => {
+  // Reported 2026-08-31: a platform booking with the acompte disabled and nothing sold at check-in
+  // still had 50 € scheduled for the door — and the guest paid it on arrival with the rest.
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+    endOfStayComplementAmount: 50, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-08-15',
+    arrivalPaymentGroup: JSON.stringify({
+      at: '2026-08-15', cash: 0, total: 250, buckets: ['balance', 'endOfStayComplement'],
+    }),
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+
+  assert.deepEqual(entries.map((e) => e.kind).sort(), ['balance', 'endOfStayComplement']);
+  for (const entry of entries) {
+    assert.equal(entry.paymentGroup.total, 250, `${entry.kind} carries the group`);
+  }
+});

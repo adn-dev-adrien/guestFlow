@@ -1380,8 +1380,11 @@ function createReservationsModel(database) {
         if (mode === 'undo') {
           const group = parseGroup(row.arrivalPaymentGroup);
           if (!group) return { buckets: [], total: 0, grouped: false };
-          for (const bucket of group.buckets) {
-            if (bucket === 'complement') {
+            for (const bucket of group.buckets) {
+            if (bucket === 'endOfStayComplement') {
+              database.prepare("UPDATE reservations SET endOfStayComplementPaid = 0, endOfStayComplementPaidDate = NULL, endOfStayComplementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
+                .run(reservationId);
+            } else if (bucket === 'complement') {
               database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
                 .run(reservationId);
               try {
@@ -1407,7 +1410,12 @@ function createReservationsModel(database) {
         if (collectible.length === 0) return { buckets: [], total: 0, grouped: false };
 
         for (const { bucket } of collectible) {
-          if (bucket === 'complement') {
+          if (bucket === 'endOfStayComplement') {
+            // Scheduled for the door on departure, but this guest paid it on arrival: same columns,
+            // same accounting, booked at the date the money actually changed hands.
+            database.prepare("UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
+              .run(date, cash, reservationId);
+          } else if (bucket === 'complement') {
             database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
               .run(date, cash, reservationId);
             try {
@@ -1452,6 +1460,14 @@ function createReservationsModel(database) {
      * any single payment that named it is dissolved. Guarded — a minimal test schema has neither
      * column, and there is then nothing to release.
      */
+    /**
+     * specs/single-payment-from-the-fiche.md rule 2bis — the end-of-stay complement is now groupable,
+     * so flipping it from the fiche must dissolve the group like every other bucket does.
+     */
+    releaseEndOfStayBucket(reservationId) {
+      model.releaseArrivalPaymentGroup(reservationId, 'endOfStayComplement');
+    },
+
     releaseComplementBucket(reservationId) {
       try {
         database.prepare("UPDATE reservations SET complementPaidAtArrival = 0, updatedAt = datetime('now') WHERE id = ?")
