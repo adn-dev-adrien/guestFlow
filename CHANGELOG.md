@@ -4,6 +4,31 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-08-31
+
+### Summary
+- Un client qui a tout payé à l'arrivée s'enregistre depuis sa fiche, sans rouvrir le check-in.
+- Le bloc « Encaisser en une fois » apparaît dès que le séjour ET le complément restent à percevoir.
+- La date d'encaissement est la vôtre : un paiement reçu avant-hier part dans la comptabilité d'avant-hier.
+- Un bouton CB / Chèque, un bouton Caisse interne, et « Annuler ce paiement » pour revenir en arrière.
+- Rien de ce que le check-in avait enregistré n'est touché : prestations, petit déjeuner, cartes du planning.
+- Une date dans le futur, ou antérieure à la réservation, est refusée en disant pourquoi.
+
+### Added
+- **Collect the stay and the complement in one go, from the fiche** (spec
+  `single-payment-from-the-fiche.md`, 2026-08-31). Version 2.9.0 knows how to record a single payment,
+  but only inside the arrival SAS, at the moment of the check-in. When the guest paid at the door and
+  nothing was entered at the time, the only route was to **re-open the whole wizard** — eleven pages,
+  questions whose wrong answer *removes* a sale, and the loss of the planning cards' « préparé »
+  ticks. The fiche now carries the gesture: as soon as the stay **and** the complement are both still
+  to be collected, an « Encaisser en une fois » block announces the total and what it covers, with
+  **the collection date left to the operator** — a guest who paid the day before yesterday is recorded
+  then, and the entry books into that month's accounting. One **CB / Chèque** button, one **Caisse
+  interne** button, and « Annuler ce paiement » to undo. Nothing else is touched: no SAS page runs, so
+  the prestations sold, the breakfast composition and the planning cards stay exactly as they were. A
+  date in the future, or before the reservation existed, is refused with its reason. +20 server tests,
+  +7 client tests.
+
 ## [2.9.0] - 2026-08-31
 
 ### Summary
