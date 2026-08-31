@@ -913,8 +913,14 @@ function update(req, res) {
   // engine reads depositDisabled directly to short-circuit the deposit math.
   // See specs/disable-deposit-per-reservation.md.
   const depositDisabledFlag = req.body.depositDisabled ? 1 : 0;
-  const effectiveDepositPaid = depositDisabledFlag ? false : req.body.depositPaid;
-  const effectiveDepositPaidDate = depositDisabledFlag ? null : req.body.depositPaidDate;
+  // The stored state is the truth for the three payment flags (see `modelPayload` below): the quote
+  // is priced on it too, so the frozen-schedule branches of the engine and the row that is about to
+  // be written can never disagree.
+  const storedPaymentForQuote = model.getRow(id) || {};
+  const effectiveDepositPaid = depositDisabledFlag ? false : Number(storedPaymentForQuote.depositPaid || 0) === 1;
+  const effectiveDepositPaidDate = depositDisabledFlag ? null : (storedPaymentForQuote.depositPaidDate || null);
+  const effectiveBalancePaid = Number(storedPaymentForQuote.balancePaid || 0) === 1;
+  const effectiveComplementPaid = Number(storedPaymentForQuote.complementPaid || 0) === 1;
 
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
   // lines are replaced: the state the reservation had entering this save is exactly « what was sold
@@ -925,8 +931,8 @@ function update(req, res) {
   // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:
   // a client-side quote built without the mid-stay baseline puts a sale made during the stay back
   // into the arrival complement, and the accounting then credits it twice.
-  const frozenComplementAmount = req.body.complementPaid
-    ? (model.getRow(id) || {}).complementAmount
+  const frozenComplementAmount = effectiveComplementPaid
+    ? storedPaymentForQuote.complementAmount
     : req.body.complementAmount;
 
   const quote = calculateReservationQuote({
@@ -945,8 +951,8 @@ function update(req, res) {
     selectedResources: reservationResources,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositPaid: effectiveDepositPaid,
-    balancePaid: req.body.balancePaid,
-    complementPaid: req.body.complementPaid,
+    balancePaid: effectiveBalancePaid,
+    complementPaid: effectiveComplementPaid,
     depositAmount: req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
@@ -1074,9 +1080,28 @@ function update(req, res) {
   // to 0 above; this prevents an inconsistent persisted state where the deposit is
   // "disabled" yet still flagged paid (which would re-emit a phantom journal entry).
   // See specs/disable-deposit-per-reservation.md.
-  const modelPayload = depositDisabledFlag
-    ? { ...req.body, depositPaid: false, depositPaidDate: null }
-    : req.body;
+  //
+  // specs/single-payment-from-the-fiche.md rule 11bis — and the three payment flags come from the
+  // STORED row, never from the browser. They are not form fields: « Marquer solde payé », the SAS and
+  // « Encaisser en une fois » each write them through their own endpoint, and the form only mirrors
+  // what they wrote. A save therefore carries them back UNCHANGED at best — and STALE at worst, when
+  // the fiche was loaded before the money was recorded. Echoing a stale copy back un-paid a bucket
+  // that had really been collected, and un-paying a bucket dissolves the single payment that named
+  // it: measured in production on réservation 22281 (2026-08-31), where « Encaisser en une fois »
+  // followed by « Enregistrer » lost the group every single time.
+  const storedPayment = model.getRow(id) || {};
+  const modelPayload = {
+    ...req.body,
+    depositPaid: Number(storedPayment.depositPaid || 0) === 1,
+    depositPaidDate: storedPayment.depositPaidDate || null,
+    balancePaid: Number(storedPayment.balancePaid || 0) === 1,
+    balancePaidDate: storedPayment.balancePaidDate || null,
+    complementPaid: Number(storedPayment.complementPaid || 0) === 1,
+    complementPaidDate: storedPayment.complementPaidDate || null,
+    // …except the one flag this save legitimately owns: disabling the deposit force-zeroes it, so the
+    // accounting stops emitting a phantom entry for an échéance that no longer exists.
+    ...(depositDisabledFlag ? { depositPaid: false, depositPaidDate: null } : {}),
+  };
   model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
 
   if (!pastReservationLocked && reservationOptions) model.replaceOptions(id, quote.optionLines);
