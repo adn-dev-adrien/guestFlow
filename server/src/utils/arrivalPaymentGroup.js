@@ -65,4 +65,29 @@ function serialiseGroup(group) {
   return g ? JSON.stringify(g) : null;
 }
 
-module.exports = { BUCKETS, buildGroup, parseGroup, groupCovers, serialiseGroup };
+/**
+ * The arrival buckets that can still be collected (specs/single-payment-from-the-fiche.md rule 2):
+ * applicable, worth something, and not yet paid. Shared by the fiche payload and the write, so the
+ * operator can never be offered a bucket the server would then refuse.
+ *
+ * The acompte of a stay with `depositDisabled` is not applicable; a 0 € complement is nothing to
+ * collect; a bucket already paid — by transfer, or earlier at the door — is left alone.
+ *
+ * @returns {Array<{bucket: 'deposit'|'balance'|'complement', label: string, amount: number}>}
+ */
+function collectibleArrivalBuckets(row = {}) {
+  const out = [];
+  const add = (bucket, label, amount, applicable, paid) => {
+    const value = round2(amount);
+    if (!applicable || !(value > 0) || Number(paid || 0) === 1) return;
+    out.push({ bucket, label, amount: value });
+  };
+  add('deposit', 'acompte', row.depositAmount, Number(row.depositDisabled || 0) !== 1, row.depositPaid);
+  add('balance', 'solde', row.balanceAmount, true, row.balancePaid);
+  add('complement', 'complément', row.complementAmount, true, row.complementPaid);
+  return out;
+}
+
+module.exports = {
+  BUCKETS, buildGroup, parseGroup, groupCovers, serialiseGroup, collectibleArrivalBuckets,
+};

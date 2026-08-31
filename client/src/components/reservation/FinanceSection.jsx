@@ -190,6 +190,12 @@ export default function FinanceSection() {
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
+  // specs/single-payment-from-the-fiche.md §3.1 — the single arrival payment. The date is the
+  // OPERATOR's (a guest who paid at the door yesterday is recorded yesterday); the server validates
+  // it and its refusal is what the field shows, so both say the same thing.
+  const [arrivalPayDate, setArrivalPayDate] = useState(todayStr());
+  const [arrivalPayBusy, setArrivalPayBusy] = useState(false);
+  const [arrivalPayError, setArrivalPayError] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [refundHistoryOpen, setRefundHistoryOpen] = useState(false);
 
@@ -323,6 +329,22 @@ export default function FinanceSection() {
   // `midStayNoteAccess` que le bouton de la barre d'actions (utils/midStayNoteAccess.js) : les deux
   // surfaces ne peuvent pas diverger.
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
+
+  // One click, one payment: settle every collectible arrival bucket (or undo the group), then reload
+  // the finance block from the server — the amounts, the group and the bucket flags are all its call.
+  const runArrivalPayment = async (mode) => {
+    if (!editingReservationId) return;
+    setArrivalPayBusy(true);
+    setArrivalPayError('');
+    try {
+      await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate);
+      await reloadReservationFinance();
+    } catch (err) {
+      setArrivalPayError(err?.message || 'L\'encaissement n\'a pas pu être enregistré.');
+    } finally {
+      setArrivalPayBusy(false);
+    }
+  };
   const midStayNotesTotal = midStayNotes.reduce((s, n) => s + (Number(n.total) || 0), 0);
   const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const showMidStayNotes = Boolean(midStayNote?.visible);
@@ -573,7 +595,7 @@ export default function FinanceSection() {
                 at the door. The buckets below keep their own amounts and their own controls; this
                 line is what says they were collected together, once. It disappears the moment one of
                 them is un-ticked (rule 17), because the payment is then no longer true. */}
-            {form.arrivalPayment && (
+            {form.arrivalPayment?.covers && (
               <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   Encaissé à l'arrivée : paiement unique de {formatCurrency(form.arrivalPayment.total)}
@@ -582,6 +604,63 @@ export default function FinanceSection() {
                 <Typography variant="caption" color="text.secondary">
                   {form.arrivalPayment.covers.map((c) => `${c.label} ${formatCurrency(c.amount)}`).join(' · ')}
                   {form.arrivalPayment.cash && ' — hors comptabilité'}
+                </Typography>
+                {/* specs/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the
+                    buckets the group named; one paid outside it is never touched. */}
+                <Button
+                  size="small"
+                  variant="text"
+                  disabled={arrivalPayBusy}
+                  onClick={() => runArrivalPayment('undo')}
+                  sx={{ mt: 0.5, textTransform: 'none', px: 0 }}
+                >
+                  Annuler ce paiement
+                </Button>
+              </Box>
+            )}
+
+            {/* specs/single-payment-from-the-fiche.md §3.1 — the stay and the complement are both
+                still to be collected: offer to record them as the ONE payment the guest actually
+                made. Nothing else is touched — no SAS page runs, so the planning « préparé » flags
+                and everything the check-in recorded stay exactly as they are. */}
+            {form.arrivalPayment?.collectible && (
+              <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  {form.arrivalPayment.collectible.buckets.map((b) => `${b.label} ${formatCurrency(b.amount)}`).join(' · ')}
+                </Typography>
+                <DateField
+                  label="Encaissé le"
+                  type="date"
+                  size="small"
+                  value={arrivalPayDate}
+                  onChange={(e) => setArrivalPayDate(e.target.value)}
+                  error={Boolean(arrivalPayError)}
+                  helperText={arrivalPayError || ' '}
+                  sx={{ maxWidth: 200 }}
+                />
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5 }}>
+                  <Button
+                    variant="outlined"
+                    disabled={arrivalPayBusy || !arrivalPayDate}
+                    onClick={() => runArrivalPayment('card')}
+                    sx={{ textTransform: 'none', minHeight: 44 }}
+                  >
+                    CB / Chèque
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    disabled={arrivalPayBusy || !arrivalPayDate}
+                    onClick={() => runArrivalPayment('cash')}
+                    sx={{ textTransform: 'none', minHeight: 44 }}
+                  >
+                    Caisse interne
+                  </Button>
+                </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                  « Caisse interne » : encaissé hors comptabilité, comme un complément en liquide.
                 </Typography>
               </Box>
             )}
