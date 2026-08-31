@@ -14,6 +14,13 @@
 # valide au cas par cas (breaking changes, module natif recompilé sur le Pi, outillage de test), elle
 # ne doit jamais être noyée dans un lot.
 
+# Les labels ci-dessous doivent EXISTER dans le dépôt, et Dependabot les compare à la casse près :
+# `dependencies`, `server`, `client`, `ci`. Un label absent n'est pas une erreur bloquante — la PR
+# est ouverte quand même — mais Dependabot commente « The following labels could not be found », et
+# la PR arrive sans étiquette. Constaté le 2026-08-31 sur les PR #510 et #511 : `client` et `ci`
+# n'existaient pas, et `server` était écrit `Server`. Les quatre sont créés depuis, en minuscules.
+# Si le dépôt est recréé ou les labels supprimés, les recréer avant d'attendre un tri par écosystème.
+
 version: 2
 updates:
   # ── Racine : outillage de dev (Playwright, concurrently, better-sqlite3 des scripts) ──
