@@ -2103,6 +2103,11 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // pourboire left on top. Modelled on the refund (an independent amount the readers subtract), NOT
   // on the price: no bucket and no quote is rewritten, so a settled schedule is never re-priced.
   // NULL on every existing row = rien d'ajusté. Only one of the two is ever non-zero.
+  // specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — « c'est le SAS départ qui a
+  // encaissé ce complément ». Miroir de `complementPaidAtArrival` : le SAS ne défait que ce qu'il a
+  // fait lui-même. Sans ce marqueur, valider le récap de départ sans choisir de mode de règlement
+  // effaçait un complément déjà encaissé À LA PORTE, dans le paiement unique de l'arrivée.
+  if (!rcols.includes('endOfStayComplementPaidAtDeparture')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidAtDeparture INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('arrivalPaymentReduction')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalPaymentReduction REAL");
   if (!rcols.includes('arrivalPaymentTip')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalPaymentTip REAL");
   // « En fin de séjour » on the arrival recap (specs/defer-arrival-complement-to-checkout.md §3.2

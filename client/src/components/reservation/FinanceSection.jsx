@@ -906,10 +906,17 @@ export default function FinanceSection() {
                           const next = !form.depositPaid;
                           const today = todayStr();
                           const date = next ? (form.depositPaidDate || today) : '';
-                          if (isReservationLocked && editingReservationId) {
+                          // specs/single-payment-from-the-fiche.md rule 11bis — l'état payé appartient
+                          // au serveur : on l'écrit TOUT DE SUITE, comme le complément le fait déjà, au
+                          // lieu de le confier au prochain Enregistrer. C'est ce qui permet à
+                          // l'enregistrement d'ignorer ces drapeaux, et donc de ne plus pouvoir en
+                          // effacer un par mégarde.
+                          if (editingReservationId) {
                             await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
                           }
                           updateForm({ depositPaid: next, depositPaidDate: date });
+                          // …et le bloc du paiement unique reflète le serveur : le groupe a pu mourir ici.
+                          if (editingReservationId) await reloadReservationFinance();
                         }}
                         sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
                       >
@@ -930,7 +937,7 @@ export default function FinanceSection() {
                           onChange={async (e) => {
                             const v = e.target.value;
                             updateForm({ depositPaidDate: v });
-                            if (isReservationLocked && editingReservationId) {
+                            if (editingReservationId) {
                               await api.markPayment(editingReservationId, { depositPaid: true, depositPaidDate: v || null });
                             }
                           }}
@@ -985,10 +992,12 @@ export default function FinanceSection() {
                       const next = !form.balancePaid;
                       const today = todayStr();
                       const date = next ? (form.balancePaidDate || today) : '';
-                      if (isReservationLocked && editingReservationId) {
+                      // rule 11bis — même règle que l'acompte : écriture immédiate, serveur maître.
+                      if (editingReservationId) {
                         await api.markPayment(editingReservationId, { balancePaid: next, balancePaidDate: date || null });
                       }
                       updateForm({ balancePaid: next, balancePaidDate: date });
+                      if (editingReservationId) await reloadReservationFinance();
                     }}
                     sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
                   >
@@ -1007,7 +1016,7 @@ export default function FinanceSection() {
                       onChange={async (e) => {
                         const v = e.target.value;
                         updateForm({ balancePaidDate: v });
-                        if (isReservationLocked && editingReservationId) {
+                        if (editingReservationId) {
                           await api.markPayment(editingReservationId, { balancePaid: true, balancePaidDate: v || null });
                         }
                       }}

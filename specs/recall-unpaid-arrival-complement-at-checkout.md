@@ -80,6 +80,36 @@ the complement), the arrival complement silently stays unpaid and is never recal
    detail always sums to `complementAmount`. (Itemisation is display-only; the authoritative recalled amount
    is `complementAmount`.)
 
+9bis. **Le SAS départ ne défait que ce qu'il a encaissé lui-même** (ajouté le 2026-08-31, depuis la
+   production). Le complément de fin de séjour peut avoir été réglé **ailleurs** : depuis la v2.10.1,
+   « Encaisser en une fois » le couvre ([single-payment-from-the-fiche.md](single-payment-from-the-fiche.md)
+   règle 2bis), et la fiche sait aussi le marquer payé. Répondre « pas maintenant » sur le récap de
+   départ ne peut donc plus effacer l'encaissement : la colonne
+   `endOfStayComplementPaidAtDeparture` dit qui l'a encaissé, et seul le SAS départ peut défaire ce
+   qu'il a fait. Miroir exact de `complementPaidAtArrival` côté arrivée
+   ([single-payment-at-check-in.md](single-payment-at-check-in.md) règle 9) et de la même discipline
+   que `resolveStayPayment` : « déjà encaissé avant le check-in : ce n'est pas à nous de le
+   re-tamponner ».
+
+   Le marqueur se pose sur la **transition**, pas sur l'état final : re-valider un départ sur un
+   complément déjà réglé à la porte n'en rend pas le SAS propriétaire — sinon le passage suivant se
+   croirait autorisé à le dé-payer et le bug reviendrait d'un cran plus loin. Il est effacé dès que la
+   fiche bascule le drapeau, dans un sens comme dans l'autre.
+
+   **Côté récap**, deux corrections indissociables du serveur, sans lesquelles l'opérateur est conduit
+   à la faute :
+   - le mode de règlement se reconstitue depuis les drapeaux stockés **à tous les passages**, plus
+     seulement à la ré-édition. Enfermée dans un `if (editing)`, la reconstitution laissait le premier
+     passage sans mode sélectionné — donc « Valider et terminer » envoyait « pas encaissé » ;
+   - le récap dit « **Déjà encaissé le JJ/MM — rien à percevoir** », et le total s'intitule « Total fin
+     de séjour » au lieu de « Total à percevoir ». Sans ça, l'opérateur réclame au client une somme
+     déjà payée.
+
+   **Constaté en production** sur la réservation 22281 (Harmen Van Dijk), et **rejoué à l'identique en
+   dev** le 2026-08-31 avant correction : même ligne d'historique « Complément de fin de séjour
+   encaissé : oui → non », groupe promettant 281,98 € dont une moitié redevenue due, et deux écritures
+   en comptabilité au lieu d'une carte.
+
 **Edge cases**
 - Arrival complement already paid (normal flow) → no recall, departure SAS unchanged.
 - Arrival complement = 0 → nothing to recall.
@@ -120,6 +150,29 @@ complement instead of leaving it unpaid.
 - [x] Reversible: re-commit with `complementsSettled: false` clears the end-of-stay marker + date.
 - [x] Client (`ReservationSasDialog.test.js`): departure recap recalls an unsettled arrival complement (detail + combined total) and sends `complementsSettled`; a paid one is NOT recalled; arrival payload carries `complementSettled`.
 - [x] Full server (1793) + client (586) suites green.
+
+### Règle 9bis — vérification de bout en bout (2026-08-31)
+
+Tests serveur : `tests/departure-sas-keeps-the-payment.unit.test.js` (5) — un complément encaissé à la
+porte survit à un départ validé sans mode de règlement, à sa date et sans changer de propriétaire ; le
+SAS qui encaisse vraiment devient propriétaire et peut se dédire ; re-valider un départ sur un
+complément réglé ailleurs n'en fait pas le propriétaire (sinon le bug revient au passage suivant) ; et
+sans la colonne, le comportement d'avant la règle est conservé.
+
+**Et surtout, le parcours réel rejoué dans le navigateur sur l'environnement de dev**, sur une
+réservation montée à la forme exacte de la production (directe, acompte désactivé, aucun complément
+d'arrivée, 50 € de complément de fin de séjour) :
+
+| Étape | Avant correction | Après |
+|---|---|---|
+| « Encaisser en une fois » au 30/08 | groupe écrit ✅ | groupe écrit ✅ |
+| **Enregistrer** la fiche | groupe **perdu**, solde redevenu dû | groupe intact (prouvé par une note écrite dans la même sauvegarde + sa ligne d'historique) |
+| SAS départ, récap | « Total à percevoir : 50,00 € », aucun mode sélectionné | « Total fin de séjour : 50,00 € » + « Déjà encaissé le 30/08/2026 — rien à percevoir », CB / Chèque pré-sélectionné |
+| **Valider et terminer** sans mode (le pire cas) | « Complément encaissé : oui → non », paiement détruit | paiement intact, marqueur resté à 0 |
+| Comptabilité d'août | 2 écritures séparées | **1 carte « Paiement unique »** de 184,95 € contenant les deux journaux, équilibrés |
+
+C'est ce déroulé complet — et non les suites unitaires, vertes à chaque itération précédente — qui a
+mis au jour le second mécanisme (le SAS départ) après la correction du premier (l'enregistrement).
 
 ## 7. Out of scope
 - Merging the two amounts into one DB field (rejected — breaks the tourist-tax 46710000 routing).
