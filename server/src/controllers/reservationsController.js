@@ -322,8 +322,14 @@ function occupiedDates(req, res) {
  */
 function buildArrivalPaymentView(row) {
   const group = parseGroup(row.arrivalPaymentGroup);
-  const label = { deposit: 'acompte', balance: 'solde', complement: 'complément' };
-  const amountOf = { deposit: row.depositAmount, balance: row.balanceAmount, complement: row.complementAmount };
+  const label = {
+    deposit: 'acompte', balance: 'solde', complement: 'complément',
+    endOfStayComplement: 'complément de fin de séjour',
+  };
+  const amountOf = {
+    deposit: row.depositAmount, balance: row.balanceAmount, complement: row.complementAmount,
+    endOfStayComplement: row.endOfStayComplementAmount,
+  };
   if (group) {
     return {
       at: group.at,
@@ -1208,6 +1214,11 @@ function updatePayment(req, res) {
       "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
       paid, date, cash, id,
     );
+    // specs/single-payment-from-the-fiche.md rule 2bis — flipped from the fiche, it leaves any single
+    // payment that named it: the group must never claim a collection that is no longer true.
+    if (Number(before?.endOfStayComplementPaid || 0) !== Number(paid || 0)) {
+      model.releaseEndOfStayBucket(Number(id));
+    }
   }
   if (cautionReceived !== undefined) {
     const date = cautionReceivedDate || (cautionReceived ? new Date().toISOString().split('T')[0] : null);

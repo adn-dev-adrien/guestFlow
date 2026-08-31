@@ -263,3 +263,53 @@ test('the options and their planning occurrences are NOT touched — the whole p
   assert.equal(row.breakfastPastries, 4);
   assert.equal(row.breakfastBread, 2);
 });
+
+// ── The end-of-stay complement in the group (rule 2bis) ─────────────────────────────────────────
+
+test('a guest who pays everything on arrival settles the END-OF-STAY complement too', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  // Harmen's shape, reported 2026-08-31: platform booking, acompte disabled, nothing sold at
+  // check-in, 50 € scheduled for the door on departure — and paid on arrival all the same.
+  const id = seedStay(db, {
+    depositDisabled: 1, depositAmount: 0, complementAmount: 0, endOfStayComplementAmount: 50,
+  });
+
+  const res = model.settleArrivalBuckets(id, { mode: 'card', date: YESTERDAY });
+
+  assert.deepEqual(res.buckets, ['balance', 'endOfStayComplement']);
+  assert.equal(res.total, 250);
+  const row = rowOf(db, id);
+  assert.equal(row.balancePaid, 1);
+  assert.equal(row.endOfStayComplementPaid, 1);
+  assert.equal(row.endOfStayComplementPaidDate, YESTERDAY, 'booked when the money changed hands');
+  assert.equal(row.endOfStayComplementPaidCash, 0);
+  assert.deepEqual(groupOf(db, id).buckets, ['balance', 'endOfStayComplement']);
+});
+
+test('undoing releases the end-of-stay complement as well', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const id = seedStay(db, { complementAmount: 0, endOfStayComplementAmount: 50 });
+  model.settleArrivalBuckets(id, { mode: 'cash', date: TODAY });
+  assert.equal(rowOf(db, id).endOfStayComplementPaidCash, 1);
+
+  model.settleArrivalBuckets(id, { mode: 'undo' });
+
+  const row = rowOf(db, id);
+  assert.equal(row.endOfStayComplementPaid, 0);
+  assert.equal(row.endOfStayComplementPaidDate, null);
+  assert.equal(row.endOfStayComplementPaidCash, 0);
+  assert.equal(groupOf(db, id), null);
+});
+
+test('un-ticking the end-of-stay complement from the fiche dissolves the group', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const id = seedStay(db, { complementAmount: 0, endOfStayComplementAmount: 50 });
+  model.settleArrivalBuckets(id, { mode: 'card', date: TODAY });
+
+  model.releaseEndOfStayBucket(id);
+
+  assert.equal(groupOf(db, id), null);
+});

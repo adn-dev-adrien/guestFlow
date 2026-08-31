@@ -48,11 +48,38 @@ test('the ordinary prepaid stay offers nothing', () => {
   }), []);
 });
 
-test('the three buckets come back in payment order, acompte first', () => {
+test('the buckets come back in payment order, acompte first', () => {
   const out = collectibleArrivalBuckets({
-    depositAmount: 200, balanceAmount: 300, complementAmount: 50,
+    depositAmount: 200, balanceAmount: 300, complementAmount: 50, endOfStayComplementAmount: 20,
   });
-  assert.deepEqual(out.map((b) => b.bucket), ['deposit', 'balance', 'complement']);
+  assert.deepEqual(out.map((b) => b.bucket), ['deposit', 'balance', 'complement', 'endOfStayComplement']);
+});
+
+// ── The end-of-stay complement (rule 2bis, 2026-08-31) ──────────────────────────────────────────
+// Reported from production: a platform booking with the acompte disabled, nothing sold at check-in
+// and 50 € sitting in the end-of-stay complement offered NO control at all — one collectible bucket.
+// The guest had nonetheless paid everything on arrival.
+
+test('an unpaid end-of-stay complement is collectible with the stay', () => {
+  const out = collectibleArrivalBuckets({
+    depositDisabled: 1, depositAmount: 0,
+    balanceAmount: 1933.52, complementAmount: 0, endOfStayComplementAmount: 50,
+  });
+  assert.deepEqual(out, [
+    { bucket: 'balance', label: 'solde', amount: 1933.52 },
+    { bucket: 'endOfStayComplement', label: 'complément de fin de séjour', amount: 50 },
+  ]);
+});
+
+test('an end-of-stay complement already settled — cash included — is left alone', () => {
+  const paid = collectibleArrivalBuckets({
+    balanceAmount: 300, endOfStayComplementAmount: 50, endOfStayComplementPaid: 1,
+  });
+  assert.deepEqual(paid.map((b) => b.bucket), ['balance']);
+  const cash = collectibleArrivalBuckets({
+    balanceAmount: 300, endOfStayComplementAmount: 50, endOfStayComplementPaidCash: 1,
+  });
+  assert.deepEqual(cash.map((b) => b.bucket), ['balance'], 'caisse interne counts as settled');
 });
 
 // ── validateArrivalPaymentDate ──────────────────────────────────────────────────────────────────

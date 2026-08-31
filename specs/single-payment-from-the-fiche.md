@@ -45,9 +45,19 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
 1. **Above the payment buckets**, in the same place the « Encaissé à l'arrivée » line already renders
    ([single-payment-at-check-in.md](single-payment-at-check-in.md) rule 16) — that block becomes the
    control when there is no group yet, and the summary once there is one.
-2. **Shown only when at least TWO arrival buckets are collectible**: an acompte that is applicable,
-   > 0 and unpaid; a solde likewise; an arrival complement > 0 and unpaid. Fewer than two → nothing is
-   shown, because a group of one is not a group — the existing per-bucket buttons already cover it.
+2. **Shown only when at least TWO buckets are collectible**: an acompte that is applicable, > 0 and
+   unpaid; a solde likewise; an arrival complement > 0 and unpaid; and the **end-of-stay complement**
+   (rule 2bis). Fewer than two → nothing is shown, because a group of one is not a group — the
+   existing per-bucket buttons already cover it.
+2bis. **The end-of-stay complement is groupable** (added 2026-08-31, from production). It is scheduled
+   for the door on departure, so the first version excluded it — and that made the control silently
+   absent in exactly the case it was written for. A platform booking has its acompte disabled (single
+   transfer) and often nothing sold at check-in: the stay is then the ONLY arrival bucket, while the
+   money the guest actually handed over also covered 50 € parked in the end-of-stay complement.
+   The group records **what happened, not what was planned**: if the guest paid it on arrival, it
+   belongs to that collection, and its accounting entry books at that date like every other.
+   It carries the name of its accounting entry (`endOfStayComplement`), so the journal stamps it with
+   no mapping. The **mid-stay notes stay out**: each one is its own collection, at its own date.
 3. It announces what it will collect: « Encaisser en une fois : 852,82 € » and, underneath, the
    buckets it covers with their amounts (« solde 720,82 € · complément 132,00 € »).
 3bis. **The collection date is the operator's**, not the clock's (2026-08-31). A guest who paid at the
@@ -99,12 +109,16 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
     Tuesday and the complement on Thursday keeps recording two payments, which is the truth.
 13. It does **not** re-price anything. The amounts are the stored bucket amounts; no quote is replayed
     beyond the contribution capture of rule 7.
-14. It does **not** reach the end-of-stay complement or the mid-stay notes: those are collected at
-    another moment and are never part of an arrival group — same boundary as at check-in.
+14. It does **not** reach the mid-stay notes: each is its own collection, at its own date. The
+    end-of-stay complement, excluded here at first, **is** groupable — see rule 2bis, corrected from
+    production on 2026-08-31.
 
 **Edge cases:**
 - Only the complement is due (the ordinary prepaid stay) → no control; « Marquer complément payé »
   already does the job.
+- A platform stay with the acompte disabled, no arrival complement and an end-of-stay complement → two
+  buckets, so the control appears (rule 2bis). Before that rule it did not, and nothing on screen said
+  why — the silence is what made the case hard to diagnose.
 - Complement already paid, stay still due → no control (one bucket left).
 - A reservation with a group whose complement is later adjusted → the group keeps the amount actually
   collected; the difference is an ordinary unpaid complement, as at check-in.
@@ -163,7 +177,7 @@ everything this feature needs.
 
 ## 7. Test plan
 
-### Server unit tests — 20 new, suite at 3757
+### Server unit tests — 26 new, suite at 3763
 - `collectibleArrivalBuckets`: applicable/unpaid only; a disabled acompte excluded; a 0 € complement
   excluded; already-paid buckets excluded.
 - `settleArrivalBuckets`: card → every collectible bucket paid **at the chosen date**, not cash, group
@@ -198,6 +212,11 @@ everything this feature needs.
   the Comptabilité of THAT month**, and the planning « préparé » flags of that stay verified untouched.
 - The same in caisse interne, then « Annuler ce paiement ».
 - Mobile (`xs`) at 420 px.
+- [x] **Done 2026-08-31, rule 2bis** on a copy of production, rebuilt to Harmen's exact shape (platform
+      booking, acompte disabled, no arrival complement, 50 € in the end-of-stay complement): the control
+      now appears, announces **1 983,52 €**, and settles both at 2026-08-17. The fiche reads « solde
+      1 933,52 € · complément de fin de séjour 50,00 € », and August's Comptabilité carries the two
+      entries — `balance` and `endOfStayComplement` — under the group `11:2026-08-17`.
 - [x] **Done 2026-08-31** on a copy of production (réservation 11, solde 1 933,52 € + complément
       21,00 € dus): the control announced « Encaisser en une fois : 1 954,52 € », was **backdated to
       2026-08-17**, and settled both. The fiche then reads « Encaissé à l'arrivée : paiement unique de
@@ -209,7 +228,7 @@ everything this feature needs.
 ## 8. Out of scope
 
 - Grouping buckets **already paid** on separate days after the fact.
-- The end-of-stay complement and the mid-stay notes.
+- The mid-stay notes (the end-of-stay complement is in scope since rule 2bis).
 - Fixing the SAS's lost « préparé » flag — a separate bug, worth its own fix, and this feature removes
   the main reason to hit it.
 
