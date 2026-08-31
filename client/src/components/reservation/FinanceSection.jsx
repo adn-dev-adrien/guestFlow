@@ -44,6 +44,136 @@ function parseEndOfStayDetail(detail) {
 }
 
 /**
+ * ArrivalPaymentCard — le paiement unique de l'arrivée, détaillé
+ * (specs/arrival-payment-detail-and-adjustment.md §3.1-§3.2).
+ *
+ * Le groupe dit QUELS SEAUX une même collecte a couverts ; cette carte dit ce que le client a payé :
+ * les nuits, le linge, le repas, la taxe de séjour, puis le total. Les lignes viennent du serveur
+ * telles quelles — leur ordre, leurs libellés et leurs montants sont sa décision, pas la nôtre.
+ *
+ * Le champ « Total encaissé » porte le seul geste éditable du bloc : en dessous du calcul, l'écart
+ * devient une « Réduction accordée » imputée sur l'hébergement ; au-dessus, un « Pourboire ». Le
+ * serveur dérive et borne les deux ; ici on ne fait que transmettre le montant saisi.
+ *
+ * Props : `payment` (la charge utile `arrivalPayment`), `busy`, `error`, `readOnly`,
+ * `onCommitTotal(value)` et `onUndo()`.
+ */
+function ArrivalPaymentCard({ payment, busy, error, readOnly, onCommitTotal, onUndo }) {
+  const lines = payment.lines || [];
+  const reduction = Number(payment.reduction || 0);
+  const tip = Number(payment.tip || 0);
+  const adjusted = reduction > 0 || tip > 0;
+  const bucketsTotal = Number(payment.bucketsTotal ?? payment.total);
+  const accommodation = Number(payment.accommodation || 0);
+  // Le plancher est atteint quand la réduction a mangé tout l'hébergement : le dire, plutôt que de
+  // laisser l'opérateur croire que sa saisie a été ignorée.
+  const atFloor = reduction > 0 && Number(payment.total) <= Number(payment.floor || 0) + 0.005;
+  const helper = atFloor
+    ? `Réduction maximale ${formatCurrency(accommodation)} : elle ne peut pas dépasser l'hébergement.`
+    : `Calcul auto (${formatCurrency(bucketsTotal)})`;
+
+  const lineLabel = (l) => {
+    const qty = Number(l.qty || 0);
+    const unit = Number(l.unitPrice || 0);
+    return qty > 1 && unit > 0 ? `${l.label} · ${qty} × ${formatCurrency(unit)}` : l.label;
+  };
+
+  return (
+    <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        Encaissé à l'arrivée : paiement unique de {formatCurrency(payment.total)}
+        {' '}le {displayDate(payment.at)} — {payment.means}
+      </Typography>
+      {payment.cash && (
+        <Typography variant="caption" color="text.secondary">Hors comptabilité (caisse interne).</Typography>
+      )}
+      {/* Sans détail — un seau dont l'attribution n'a jamais été capturée, une charge utile d'avant
+          cette spec — on retombe sur la légende par seau : dégradé, jamais inventé. */}
+      {lines.length === 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {(payment.covers || []).map((c) => `${c.label} ${formatCurrency(c.amount)}`).join(' · ')}
+        </Typography>
+      )}
+      {lines.length > 0 && (
+        <Stack spacing={0.25} sx={{ mt: 1 }}>
+          {lines.map((l, i) => (
+            <Box key={`${l.kind}-${i}`} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">{lineLabel(l)}</Typography>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: l.offered ? 'success.main' : 'inherit' }}
+              >
+                {l.offered && Number(l.originalAmount || 0) > 0 && (
+                  <Box component="span" sx={{ textDecoration: 'line-through', color: 'text.disabled', mr: 0.5 }}>
+                    {formatCurrency(l.originalAmount)}
+                  </Box>
+                )}
+                {formatCurrency(l.amount)}
+              </Typography>
+            </Box>
+          ))}
+          {reduction > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">Réduction accordée</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: 'warning.main' }}>
+                − {formatCurrency(reduction)}
+              </Typography>
+            </Box>
+          )}
+          {tip > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">Pourboire</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: 'success.main' }}>
+                + {formatCurrency(tip)}
+              </Typography>
+            </Box>
+          )}
+          <Divider sx={{ my: 0.5 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>Total encaissé</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {formatCurrency(payment.total)}
+            </Typography>
+          </Box>
+        </Stack>
+      )}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1}
+        sx={{ mt: 1, alignItems: { sm: 'flex-start' } }}
+      >
+        {!readOnly && (
+          <ArithmeticTextField
+            label="Total encaissé"
+            value={adjusted ? payment.total : ''}
+            onCommit={onCommitTotal}
+            size="small"
+            disabled={busy}
+            error={Boolean(error)}
+            helperText={error || helper}
+            sx={{ maxWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' } }}
+          />
+        )}
+        {/* specs/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the buckets the
+            group named; one paid outside it is never touched. */}
+        <Button
+          size="small"
+          variant="text"
+          disabled={busy}
+          onClick={onUndo}
+          sx={{
+            textTransform: 'none', px: 0, minHeight: 44,
+            alignSelf: { xs: 'flex-start', sm: 'center' },
+          }}
+        >
+          Annuler ce paiement
+        </Button>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
  * One collectible complement: title + amount, optional itemised lines, the operator's adjusted amount,
  * « payé » / « caisse interne » toggles and the payment date. Shared by the arrival complement, the
  * end-of-stay complement and the merged « complément de fin de séjour » of a deferred reservation
@@ -345,6 +475,23 @@ export default function FinanceSection() {
       setArrivalPayBusy(false);
     }
   };
+
+  // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest ACTUALLY handed over. The
+  // réduction (or the pourboire) is derived and clamped server-side; the field only carries the
+  // operator's amount, and '' restores the computed total.
+  const commitArrivalTotal = async (value) => {
+    if (!editingReservationId) return;
+    setArrivalPayBusy(true);
+    setArrivalPayError('');
+    try {
+      await api.adjustArrivalPayment(editingReservationId, value === '' || value == null ? null : Number(value));
+      await reloadReservationFinance();
+    } catch (err) {
+      setArrivalPayError(err?.message || 'Le total encaissé n\'a pas pu être enregistré.');
+    } finally {
+      setArrivalPayBusy(false);
+    }
+  };
   const midStayNotesTotal = midStayNotes.reduce((s, n) => s + (Number(n.total) || 0), 0);
   const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const showMidStayNotes = Boolean(midStayNote?.visible);
@@ -596,27 +743,14 @@ export default function FinanceSection() {
                 line is what says they were collected together, once. It disappears the moment one of
                 them is un-ticked (rule 17), because the payment is then no longer true. */}
             {form.arrivalPayment?.covers && (
-              <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Encaissé à l'arrivée : paiement unique de {formatCurrency(form.arrivalPayment.total)}
-                  {' '}le {displayDate(form.arrivalPayment.at)} — {form.arrivalPayment.means}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {form.arrivalPayment.covers.map((c) => `${c.label} ${formatCurrency(c.amount)}`).join(' · ')}
-                  {form.arrivalPayment.cash && ' — hors comptabilité'}
-                </Typography>
-                {/* specs/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the
-                    buckets the group named; one paid outside it is never touched. */}
-                <Button
-                  size="small"
-                  variant="text"
-                  disabled={arrivalPayBusy}
-                  onClick={() => runArrivalPayment('undo')}
-                  sx={{ mt: 0.5, textTransform: 'none', px: 0 }}
-                >
-                  Annuler ce paiement
-                </Button>
-              </Box>
+              <ArrivalPaymentCard
+                payment={form.arrivalPayment}
+                busy={arrivalPayBusy}
+                error={arrivalPayError}
+                readOnly={isReservationLocked}
+                onCommitTotal={commitArrivalTotal}
+                onUndo={() => runArrivalPayment('undo')}
+              />
             )}
 
             {/* specs/single-payment-from-the-fiche.md §3.1 — the stay and the complement are both

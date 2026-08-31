@@ -28,7 +28,7 @@ const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = requir
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = require('../utils/midStayExtras');
 const { createModel: createRefundsModel } = require('./refundsModel');
 const { buildModel: buildCompensationsModel } = require('./cancellationCompensationsModel');
-const { DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('../constants/accounting');
+const { DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT } = require('../constants/accounting');
 const { parseComplementAllocation } = require('../utils/complementAllocation');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
 
@@ -61,6 +61,13 @@ function createAccountingModel(database) {
   // « these two were one payment ».
   const paymentGroupCol = hasReservationColumn('arrivalPaymentGroup')
     ? 'r.arrivalPaymentGroup' : 'NULL AS arrivalPaymentGroup';
+  // specs/arrival-payment-detail-and-adjustment.md §3.4 — what the guest actually handed over for that
+  // one payment, when it differs from the buckets: a réduction accordée, or a pourboire. Each gets its
+  // own entry, stamped with the same group, so the card reads « voilà ce qui a été encaissé ».
+  const arrivalAdjustmentCols = [
+    hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
+    hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
+  ].join(', ');
   const depositCashFilter = hasReservationColumn('depositPaidCash') ? 'AND COALESCE(r.depositPaidCash, 0) = 0' : '';
   const balanceCashFilter = hasReservationColumn('balancePaidCash') ? 'AND COALESCE(r.balancePaidCash, 0) = 0' : '';
   // A stay whose ONLY collection of the month is a « note en séjour » must still be selected — its
@@ -98,6 +105,7 @@ function createAccountingModel(database) {
                COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
                ${stayCashCols},
                ${paymentGroupCol},
+               ${arrivalAdjustmentCols},
                ${midStayCols},
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
@@ -182,6 +190,15 @@ function createAccountingModel(database) {
             if (entry && group.buckets.includes(entry.kind)) {
               entry.paymentGroup = { id, at: group.at, cash: group.cash === 1, total: group.total };
             }
+          }
+          // specs/arrival-payment-detail-and-adjustment.md rules 24-27 — the adjustment of that
+          // payment, at ITS date. A caisse-interne group is off the books whole: its buckets emit
+          // nothing, so neither may its réduction (it would credit back money the journal never
+          // booked).
+          if (group.cash === 0 && group.at >= from && group.at < nextMonth) {
+            const stamp = { id, at: group.at, cash: false, total: group.total };
+            const adjustments = buildArrivalAdjustmentEntries(row, group, commissionContext.vatRate);
+            for (const entry of adjustments) entries.push({ ...entry, paymentGroup: stamp });
           }
         }
         // Pure-tax entries are dropped (see `buildEntry`).
@@ -488,6 +505,64 @@ function splitByDestination({ optionLines, customOptionLines, resourceLines }, m
 //
 // `taxContext.collectedOnArrival` is resolved by the caller (no quote recompute); pure-function
 // callers (unit tests) inject it directly.
+/**
+ * The two entries a single arrival payment can carry beyond its buckets
+ * (specs/arrival-payment-detail-and-adjustment.md §3.4).
+ *
+ * A **réduction accordée** is the operator giving up part of the accommodation at the door. The sale
+ * entries keep their gross credits — the accommodation IS worth what it is worth — and the rebate
+ * carries its own debit on `70900000`, the PCG account for exactly that. Reading the journal, the
+ * operator sees the price AND the gesture, instead of a smaller price with no explanation.
+ *
+ * A **pourboire** is money with no prestation in front of it: produit divers de gestion courante,
+ * hors TVA.
+ *
+ * Both are dated on the GROUP's date — they belong to the collection, not to the day the operator got
+ * round to recording them.
+ */
+function buildArrivalAdjustmentEntries(row, group, vatRate) {
+  const out = [];
+  const common = {
+    reservationId: row.id,
+    paidDate: group.at,
+    client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+    propertyName: row.propertyName || '',
+    platform: row.platform || 'direct',
+    finalPrice: round2(row.finalPrice),
+    taxTtc: 0,
+    commission: null,
+    buckets: [],
+    fraction: 1,
+  };
+  const reduction = round2(row.arrivalPaymentReduction);
+  if (reduction > 0) {
+    const rate = Number.isFinite(Number(vatRate)) ? Number(vatRate) : 10;
+    const ht = round2(reduction / (1 + rate / 100));
+    out.push({
+      ...common,
+      kind: 'discount',
+      direction: 'discount',
+      encaissementTtc: reduction,
+      encaissementNetTtc: reduction,
+      discount: { account: DISCOUNT_ACCOUNT, ttc: reduction, ht, vat: round2(reduction - ht), ratePercent: rate },
+    });
+  }
+  const tip = round2(row.arrivalPaymentTip);
+  if (tip > 0) {
+    out.push({
+      ...common,
+      kind: 'tip',
+      direction: 'tip',
+      encaissementTtc: tip,
+      encaissementNetTtc: tip,
+      tipAccount: TIP_ACCOUNT,
+      // The account is shared with the indemnité d'annulation, so this entry names its own use of it.
+      accountLabels: { [TIP_ACCOUNT]: 'Pourboire' },
+    });
+  }
+  return out;
+}
+
 function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   const finalPriceTtc = Number(row.finalPrice || 0);
   const touristTaxTotal = Number(row.touristTaxTotal || 0);

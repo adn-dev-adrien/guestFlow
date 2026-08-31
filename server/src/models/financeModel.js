@@ -7,7 +7,7 @@ const { buildReservationEngineInput } = require('../utils/reservationEngineInput
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
 const {
-  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected,
+  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
 
@@ -75,7 +75,11 @@ function totalSejour(r) {
   const balance = r.balancePaidCash ? 0 : Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
-  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - refundsBook(r));
+  // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée at the door lowers
+  // what the operator earns exactly as a refund does, and a pourboire raises it. Applied here as well
+  // as in `comptaCollected` so `comptaCollected + remainingToPay === totalSejour` keeps holding.
+  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - refundsBook(r)
+    + arrivalPaymentAdjustment(r).net);
 }
 
 // `isSettled` (specs/finance-overview-rework.md §3.3), `remainingToPay`
@@ -147,6 +151,15 @@ function createFinanceModel(database) {
   const STAY_CASH_COLS = [
     hasReservationColumn('depositPaidCash') ? 'depositPaidCash' : '0 AS depositPaidCash',
     hasReservationColumn('balancePaidCash') ? 'balancePaidCash' : '0 AS balancePaidCash',
+  ].join(', ');
+
+  // specs/arrival-payment-detail-and-adjustment.md rule 21 — the réduction / pourboire of the single
+  // arrival payment, and the group that says whether it is on the books at all. Guarded like every
+  // other late column: without them a row reads « rien d'ajusté », i.e. the pre-spec behaviour.
+  const ARRIVAL_ADJUSTMENT_COLS = [
+    hasReservationColumn('arrivalPaymentGroup') ? 'r.arrivalPaymentGroup' : 'NULL AS arrivalPaymentGroup',
+    hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
+    hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
   ].join(', ');
 
   // specs/reservation-refunds.md §3.3 — per-reservation refund totals, injected into every query that
@@ -316,6 +329,7 @@ function createFinanceModel(database) {
                ${ATTRIBUTION_DATE_SQL} AS attributionDate,
                finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
                r.propertyId, p.name AS propertyName,
+               ${ARRIVAL_ADJUSTMENT_COLS},
                ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation'

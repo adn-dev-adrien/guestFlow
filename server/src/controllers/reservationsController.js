@@ -9,6 +9,9 @@ const { calculateReservationQuote } = require('../utils/pricing');
 const { validateFinanceInputs } = require('../utils/financeValidation');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
+const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
+const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
+const { arrivalPaymentAdjustment } = require('../utils/reservationSettlement');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -59,6 +62,12 @@ function midStayQuoteInputs(reservationId) {
     // specs/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
     // books, exactly like the cash complements it mirrors.
     refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
+    // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée on the single
+    // arrival payment lowers the « total du séjour » exactly as a refund does (and a pourboire raises
+    // it). Read from the row, never from the browser: it is money, and the helper already gates a
+    // caisse-interne group out of the books.
+    arrivalPaymentReduction: arrivalPaymentAdjustment(row).reduction,
+    arrivalPaymentTip: arrivalPaymentAdjustment(row).tip,
   };
 }
 
@@ -315,6 +324,8 @@ function occupiedDates(req, res) {
   res.json(merged);
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 /**
  * The arrival single payment, ready to render (specs/single-payment-at-check-in.md §3.4 rule 16):
  * what was handed over, when, by what means, and which buckets it covered — with their amounts as
@@ -331,14 +342,35 @@ function buildArrivalPaymentView(row) {
     endOfStayComplement: row.endOfStayComplementAmount,
   };
   if (group) {
+    // specs/arrival-payment-detail-and-adjustment.md §3.1 — what the payment actually paid for. The
+    // arrival complement's own itemisation is reused verbatim (offered lines included, so a geste
+    // commercial stays visible at 0 €) rather than re-listed: one source for the SAS recap, the J-2
+    // email and the fiche.
+    const complementDetail = group.buckets.includes('complement')
+      ? reservationsModel.buildArrivalComplementDetail(row.id, { includeOffered: true })
+      : null;
+    const detail = buildArrivalPaymentDetail(row, { buckets: group.buckets, complementDetail });
+    const reduction = round2(row.arrivalPaymentReduction);
+    const tip = round2(row.arrivalPaymentTip);
+    // §3.2 — computed live from the lines, so the total the operator reads is always the sum of what
+    // is printed above it, whatever a bucket did since the payment was recorded.
+    const { floor } = resolveArrivalPaymentAdjustment({
+      bucketsTotal: detail.bucketsTotal, accommodation: detail.accommodation, target: null,
+    });
     return {
       at: group.at,
-      total: group.total,
+      total: round2(detail.bucketsTotal - reduction + tip),
       cash: group.cash === 1,
       means: group.cash === 1 ? 'Caisse interne' : 'CB / Chèque',
       covers: group.buckets.map((b) => ({
-        bucket: b, label: label[b], amount: Math.round((Number(amountOf[b]) || 0) * 100) / 100,
+        bucket: b, label: label[b], amount: round2(amountOf[b]),
       })),
+      lines: detail.lines,
+      bucketsTotal: detail.bucketsTotal,
+      accommodation: detail.accommodation,
+      floor,
+      reduction,
+      tip,
     };
   }
   // specs/single-payment-from-the-fiche.md rules 2-3 — no group yet: what could still be collected as
@@ -369,8 +401,37 @@ function settleArrivalPayment(req, res) {
   if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'FORBIDDEN' });
 
   const mode = String(req.body?.mode || '');
-  if (!['card', 'cash', 'undo'].includes(mode)) {
+  if (!['card', 'cash', 'undo', 'adjust'].includes(mode)) {
     return res.status(400).json({ error: 'Mode de règlement inconnu.' });
+  }
+
+  // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest ACTUALLY handed over. Not a
+  // settlement: the buckets, their dates and their means are left exactly as they are; only the
+  // réduction accordée (or the pourboire) is written, derived server-side and clamped to the
+  // accommodation. `null` clears it.
+  if (mode === 'adjust') {
+    const raw = req.body?.total;
+    const cleared = raw === null || raw === undefined || raw === '';
+    const target = cleared ? null : Number(raw);
+    if (!cleared && !Number.isFinite(target)) {
+      return res.status(400).json({ error: 'Le total encaissé doit être un montant.' });
+    }
+    const before = round2(parseGroup(row.arrivalPaymentGroup)?.total);
+    const resolved = model.setArrivalPaymentAdjustment(id, { target });
+    if (!resolved) return res.status(400).json({ error: 'ADJUST_NO_GROUP' });
+    const detailed = model.getByIdWithDetails(id);
+    if (resolved.total !== before) {
+      const gesture = resolved.reduction > 0
+        ? ` (réduction ${resolved.reduction} €)`
+        : (resolved.tip > 0 ? ` (pourboire ${resolved.tip} €)` : '');
+      model.addHistoryEntry(id, 'update', [{
+        field: 'arrivalPaymentAdjustment',
+        label: "Total encaissé à l'arrivée",
+        from: `${before} €`,
+        to: `${resolved.total} €${gesture}`,
+      }]);
+    }
+    return res.json({ arrivalPayment: buildArrivalPaymentView(detailed), reservation: model.getRow(id) });
   }
 
   let date;
@@ -388,6 +449,9 @@ function settleArrivalPayment(req, res) {
 
   const result = model.settleArrivalBuckets(id, { mode, date });
   const after = model.getRow(id);
+  // The view itemises the payment, which needs the options / ressources of the fiche — `getRow`
+  // carries only the reservation columns.
+  const detailed = model.getByIdWithDetails(id);
   // specs/arrival-departure-sas.md §3.7 — money decisions are always traceable.
   if (result.buckets.length > 0) {
     const covered = result.buckets.join(', ');
@@ -400,7 +464,7 @@ function settleArrivalPayment(req, res) {
         to: `${result.total} € — ${mode === 'cash' ? 'caisse interne' : 'CB / Chèque'} le ${date} — ${covered}`,
       }]);
   }
-  return res.json({ arrivalPayment: buildArrivalPaymentView(after), reservation: after });
+  return res.json({ arrivalPayment: buildArrivalPaymentView(detailed || after), reservation: after });
 }
 
 function getById(req, res) {
