@@ -4,6 +4,24 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-08-31
+
+### Summary
+- Le paiement unique encaissé à l'arrivée est désormais détaillé sur la fiche : hébergement, options, prestations, taxe de séjour, puis le total.
+- Un champ « Total encaissé » permet d'enregistrer ce que le client a réellement remis.
+- Moins que prévu : une réduction est imputée sur l'hébergement, sans jamais rogner la taxe de séjour. Plus que prévu : un pourboire.
+- La comptabilité porte ces deux gestes en écritures propres, rangées dans la carte du paiement qu'elles corrigent.
+- L'export du comptable gagne donc deux types d'écritures : prévenez-le avant le premier export qui en portera une.
+
+### Added
+- **The single arrival payment, itemised and adjustable** (spec `arrival-payment-detail-and-adjustment.md`). On the reservation fiche, the « Encaissé à l'arrivée » block no longer names buckets (« solde · complément ») but what the guest actually paid for: the nights, the pre-arrival options, the complement's own lines — the same wording as the check-in recap — the tourist tax on a single line, then the total. An offered line stays visible at 0 € with its original amount struck through. A « Total encaissé » field records what was really handed over: below the computed total it books a **réduction accordée** charged to the accommodation, above it a **pourboire**. The reduction can never exceed the accommodation, and the server clamps it to that floor — the tourist tax is owed to the commune whatever was granted at the door.
+
+### Changed
+- **Accounting — the rebate and the tip each get their own entry** (spec `arrival-payment-detail-and-adjustment.md`). A reduction granted at the door is debited to `70900000` (rabais, remises et ristournes accordés) with its VAT, the accommodation keeping its gross credit: the journal shows the price AND the gesture. A tip is credited to `75880000` (produit divers), with no VAT — a freely given tip is not the consideration of a service. Both are filed inside the « Paiement unique » card of the collection they adjust, and a caisse-interne group emits neither. **The accountant's export therefore gains two entry kinds: tell them before the first export that carries one.**
+
+### Migration
+- Two nullable columns on `reservations`: `arrivalPaymentReduction` and `arrivalPaymentTip` (spec `arrival-payment-detail-and-adjustment.md`). `NULL` on every existing row means « nothing adjusted », so no earlier reservation changes its display or its journal entry. No backfill. Both are cleared together with the payment group they adjust, so an undone payment can never leave a reduction behind.
+
 ## [2.10.1] - 2026-08-31
 
 ### Summary
