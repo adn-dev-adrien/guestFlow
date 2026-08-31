@@ -38,6 +38,19 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
    euros, pas un pourcentage, et Booking ne le supporte pas. Utiliser les **Promotions**
    (pourcentage + « Durée de séjour minimum »), dont les « Restrictions » cochent les quatre canaux —
    **Booking compris**, contrairement à la doc publique de Lodgify.
+2bis. **`stayDates` est un TABLEAU, et Lodgify exige que le séjour tienne ENTIÈREMENT dans une des
+   fenêtres.** Le formulaire n'en laisse saisir qu'une à la fois, mais l'API en accepte plusieurs, et
+   c'est ce qui permet de **soustraire des nuits à la dégressivité** sans multiplier les promotions :
+   cinq paliers × cinq fenêtres suffisent. Mesuré le 2026-08-28 sur le Gîte — un séjour 20→23/12
+   (dans la fenêtre) reçoit bien −20 %, un séjour 23→26/12 (à cheval sur le 24-25) n'en reçoit
+   **aucune** et sort à 2 319 €, le plein tarif. C'est la seule façon connue de protéger des nuits
+   vendues en mode `fixed` par la recette, puisque toutes les plateformes remisent le total du séjour.
+2ter. **Un PUT sur une promotion la DÉTACHE de l'hébergement** (`isBound` retombe à `false`,
+   `propertyId` à `null`), même en renvoyant l'objet lu tel quel, et même en forçant ces deux champs.
+   Le rattachement est une opération distincte que seul le bouton « Ajouter » de
+   `pricing/<id>/assign-promotion` sait faire. **Après tout PUT sur une promotion, relire
+   `?onlyBound=true` et rattacher.** Payé le 2026-08-28 : les cinq paliers du Gîte se sont retrouvés
+   orphelins d'un coup, donc plus aucune remise en ligne.
 3. **Les tarifs de saison ignorent le supplément voyageur par défaut.** Chaque saison a sa propre
    section « Frais pour les invités supplémentaires » à activer et remplir. L'oublier fait payer le
    tarif deux personnes à une famille de quatre.
@@ -64,6 +77,14 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 12. **Lodgify refuse une période indisponible qui en chevauche une autre** (« Cette période a déjà
     été fermée »), y compris un blocage **importé par iCal depuis un autre canal**. Voir « Fermeture »
     plus bas : c'est le nœud du sujet.
+12bis. **Une `notification-toast` d'erreur reste posée par-dessus la barre d'actions** et rend
+    « Ajouter une saison » inerte — Playwright dit alors « `<html>` intercepts pointer events », ce qui
+    envoie chercher un problème de sticky header qui n'existe pas. Retirer les
+    `.notification-toast` du DOM, ou recharger, avant de conclure quoi que ce soit sur un bouton.
+12ter. **Les dates et codes promo d'une promotion s'affichent SOUS le champ, pas dedans.** Lire
+    `.value` du `date-picker-input` renvoie toujours `''`, y compris quand une plage est posée : le
+    « Séjour de 4 nuits » du Gîte a gardé un code `CALINS10` et une fenêtre janvier-avril invisibles
+    pendant toute une passe de vérification. **Contrôler par l'API, jamais par le formulaire.**
 13. Un sondage tiers en iframe peut recouvrir le calendrier ; retirer l'iframe surdimensionnée du DOM
     le fait disparaître sans toucher aux données.
 14. **La fenêtre de réservation peut annuler tout le travail sans rien afficher d'anormal.**
@@ -272,6 +293,80 @@ applicables, **seule la réduction la plus importante** est affichée aux client
 croissante (2 n → 24 % … 7 n → 45 %) s'auto-sélectionne donc, exactement comme sur Lodgify — il faut
 une promotion par palier.
 
+### Protéger une nuit de la dégressivité sur Booking : FERMER le plan dérivé sur cette date
+
+Trouvé et **prouvé par devis public le 2026-08-29**. Le prix d'un plan dérivé ne peut pas être forcé
+— son panneau le dit : « Pour changer les montants de ce tarif, mettez à jour Peu flexible ». Mais il
+peut être **ouvert ou fermé par date**, et **un plan fermé sur une seule nuit du séjour n'est plus
+proposé pour ce séjour** : le voyageur retombe sur le tarif standard, au plein tarif.
+
+Mesuré sur le Gîte, séjour 23→26/12/2026 (Haute + Noël + Noël), après fermeture du seul palier
+« 3 nuits » le seul 24/12 :
+
+| | Prix public |
+|---|---:|
+| Avant | **2 047 €** (palier 3 nuits, −20 %) |
+| Après | **2 557 €** (tarif standard) |
+
+2 550,90 € d'hébergement + taxe. Net après 15 % : 2 168 € contre un plancher de 2 088,80 € — **+79 €**.
+
+**Le chemin** : `Tarifs et disponibilités → Calendrier`, amener la plage voulue **par le sélecteur de
+dates, jamais par l'URL**, puis cliquer la cellule du plan dérivé à la date visée. Les cellules
+portent `data-test-id="cell-AAAA-MM-JJ"` et `data-dns="AAAA-MM-JJ"`, la ligne se reconnaît au nom du
+plan. Le panneau offre `OPEN`/`CLOSED` ; valider avec `[data-test-id="submit-cta"]`.
+
+**Trois pièges.**
+- Le calendrier **n'affiche aucun marqueur visible** pour une date fermée : le prix reste affiché à
+  l'identique. Le seul contrôle fiable est de **rouvrir la cellule et relire le radio**, ou de quoter
+  la page publique.
+- **Le panneau précédent (`#bulk-popover`) reste ouvert et intercepte les clics suivants.** Presser
+  `Échap` entre deux cellules, sinon la deuxième ne s'ouvre jamais.
+- La page publique **met quelques minutes à propager** : un premier devis juste après
+  l'enregistrement montre encore l'ancien prix. Recharger avant de conclure à un échec.
+
+Le levier vaut **par plan et par date** : protéger 24-25/12 et 31/12 sur deux années demande
+5 plans × 6 dates = 30 fermetures.
+
+### Les plans tarifaires dérivés — relevé d'exécution du 2026-08-28
+
+Les cinq paliers du Gîte ont été créés et vérifiés ce jour-là. Ce que le terrain a appris :
+
+1. **Les neuf étapes tiennent sur UNE page, pas dans un assistant.** Six réglages sont déjà bons par
+   défaut : Repas Non, « À tout moment », « En fonction de l'un de mes plans existants »,
+   « Peu flexible », « Moins cher que », unité `%`, et l'hébergement coché. **Seuls quatre gestes
+   sont nécessaires** : la politique d'annulation, la durée minimum (Oui + valeur), le montant, le nom.
+2. **L'annulation est un piège réel** : « Flexible - 21 jours » est coché à l'ouverture. Le plan
+   standard est à « Flexible - 14 jours » — un palier qui change aussi la politique n'est plus une
+   remise de durée mais un autre produit.
+3. **La réduction n'accepte AUCUNE décimale.** Le champ est un `input[type=number]` `min=1 max=99`
+   sans `step` ; saisir `42.86` fait répondre « Les deux valeurs valides les plus proches sont "42"
+   et "43" ». Donc **42**, jamais 43.
+4. **Le champ « durée minimum » naît à `2`** quand on répond Oui : l'écraser, sinon le palier
+   doublonne le plan standard.
+5. **Le menu du plan de base ne propose QUE le plan standard** — on ne peut pas dériver d'un dérivé.
+6. **Booking re-catégorise un plan de 7 nuits en « À la semaine ».** C'est une étiquette, pas le type
+   intégré : le détail ne montre aucune durée maximum, la colonne Tarif reste « 42 % moins cher que
+   le tarif Peu flexible », et le calendrier lui donne son prix dérivé. **Le plafond de 27 nuits ne
+   s'applique pas.**
+7. **Le filtre « Restrictions » du calendrier revient à OFF à chaque chargement.** Sans lui, les
+   lignes « Durée de séjour minimum » sont invisibles et le contrôle ne prouve rien. Sa case est
+   interceptée par son label : cliquer `label[for="grid-filter-RESTRICTIONS"]`.
+8. **Lire le calendrier par le DOM, pas par `innerText`.** Chaque ligne est un `.av-cal-list-grid` de
+   32 enfants : le premier est l'étiquette, les 31 suivants les dates. Le découpage par texte fait
+   déborder le premier prix d'une ligne dans la précédente.
+9. **Les boutons du catalogue « Ajouter un plan tarifaire » sont des `<a>`, pas des `<button>`.»
+   « Option personnalisable » est le dernier des sept.
+
+**Preuve que la dégressivité est vivante** (2026-08-28, mois affiché) : tarif standard 367,40 €
+poussé par Lodgify, et les cinq plans dérivés cotent 293,92 / 257,18 / 235,14 / 220,44 / 213,09 € —
+exactement ×0,80 / 0,70 / 0,64 / 0,60 / 0,58, **sans aucune intervention côté canal**. Les six lignes
+« Durée de séjour minimum » du calendrier lisent 2 / 3 / 4 / 5 / 6 / 7, chacune constante sur le mois :
+le standard n'a pas bougé de 2.
+
+**Identifiants** : Gîte = hôtel `14407976`, plan standard `57972851`, paliers `68725154` (3 n),
+`68725190` (4 n), `68725222` (5 n), `68725254` (6 n), `68725290` (7 n et +).
+Page publique du Gîte : slug `gite-a-la-ferme-domaine-solio`.
+
 ### Piloter l'extranet Booking : ne jamais taper une URL
 
 **Relevé le 2026-08-28.** Les pages de `admin.booking.com` portent un jeton de session dans leur
@@ -280,8 +375,13 @@ bon `hotel_id` — déconnecte la session** et renvoie sur `account.booking.com/
 que l'opérateur se reconnecte, et le jeton change.
 
 Conséquence pratique : dans cet extranet, **on ne se déplace qu'en cliquant les liens de la page**.
-Les URL notées ici servent à reconnaître un écran, pas à y aller. Si une URL directe est
-indispensable, y recopier le `ses=` lu dans la page courante — et savoir qu'il expire.
+Les URL notées ici servent à reconnaître un écran, pas à y aller. **Recopier le `ses=` de la page courante ne suffit PAS.** Refait le 2026-08-29 avec un jeton lu
+à la seconde d'avant, sur la même page : déconnexion immédiate. Le jeton n'est pas la seule
+condition — Booking valide aussi la façon dont on arrive sur la page. **Il n'y a pas d'exception :
+dans cet extranet, on ne se déplace QU'EN CLIQUANT.** Pour changer les dates affichées du
+calendrier, utiliser son sélecteur de plage (un champ au format `AAAA-MM-JJ — AAAA-MM-JJ` qu'on
+ouvre au clic, puis deux clics sur les cellules `aria-label="<jour> <n> <mois> <année>"`), jamais
+les paramètres `from=`/`until=` de l'URL, qui pourtant apparaissent dans la barre d'adresse.
 
 ### Contrôle obligatoire avant et après tout déploiement : le minimum de séjour
 
@@ -429,7 +529,222 @@ pour ça : il est générique et n'interroge pas les tarifs réels. `curl` ne co
 
 ---
 
+## Deux agents dans le MÊME navigateur — ce qu'il faut savoir avant d'essayer
+
+Relevé le 2026-08-28, en faisant tourner GreenGo et Booking en parallèle.
+
+**Le danger n'est pas théorique et il n'est pas bénin.** L'onglet actif bascule entre quasiment
+chaque appel d'outil. Trois écritures ont été arrêtées par la garde « relire l'URL avant de
+cliquer » — dont une où l'onglet actif était « Plans tarifaires » de Booking : un
+`button.btn-primary:has-text("Enregistrer")` y aurait cliqué **Enregistrer chez Booking**.
+**Le libellé « Enregistrer » n'est pas discriminant entre deux back-offices**, donc l'idée qu'une
+action mal synchronisée « échouerait faute de sélecteur » est FAUSSE. Ne pas s'en contenter.
+
+**La parade robuste : piloter une POIGNÉE DE PAGE, pas « l'onglet courant ».**
+Avec `browser_run_code_unsafe`, `page.context().pages().find(p => p.url().startsWith(BASE))` rend un
+objet page ; tous les `goto`/`click` faits dessus ignorent la sélection d'onglet. L'autre agent peut
+basculer autant qu'il veut, ça n'atteint plus. C'est ce qui a permis de traiter 25 plages GreenGo
+par lots sans une seule collision. **À faire dès qu'on lance deux agents navigateur.**
+
+**Garde de dernier recours** : vérifier les libellés du panneau (« À partir de… » / « Jusqu'au… »),
+pas seulement l'URL. Ils prouvent que le panneau est lié aux dates visées ; l'URL peut être bonne
+alors que le panneau n'a pas suivi.
+
+---
+
+## GreenGo — les remises d'un ensemble de règles REMPLACENT celles de l'annonce
+
+Mesuré le 2026-08-29, et **cela corrige une note antérieure de ce fichier**. Protocole : un séjour de
+3 nuits en mars 2027, 1 011 € brut, remise annonce 20 % → 816 €. Un ensemble de règles portant **20 %**
+appliqué sur ces dates : total **inchangé à 816 €** — indécidable, les deux valeurs étant égales. Le
+même ensemble passé à **50 %** : total **513 €**, soit −506 € = 50,05 %. Un cumul aurait donné 60 %
+(1 − 0,8 × 0,5) ou 70 %. **C'est un remplacement.**
+
+> Leçon de méthode : un test dont les deux branches produisent le même nombre ne prouve rien. Choisir
+> une valeur qui **discrimine** — ici 50 % contre 20 %.
+
+**Le remplacement n'opère QUE si l'ensemble porte ses propres remises.** Un ensemble *sans* palier
+laisse passer ceux de l'annonce — mesuré le 2026-08-29 : l'été 2027 portait « Très haute saison —
+4 nuits », un ensemble ne contenant qu'un minimum de nuits, et un séjour de 7 nuits y recevait
+malgré tout les 42 % de l'annonce (3 388 € → 1 982 €). Ne jamais lire « un ensemble est appliqué »
+comme « les paliers de l'annonce sont neutralisés ».
+
+**Et la remise se calcule NUIT PAR NUIT**, comme Abracadaroom — question restée ouverte jusqu'au
+2026-08-29, tranchée par un séjour à cheval. 23→26/12/2026, 3 nuits : le 23 (couvert par l'annonce à
+20 %, 399 €) et les 24-25 (couverts par un ensemble à 1 %, 1 062 €). Remise affichée : **−101 €**,
+soit exactement `0,20 × 399 + 0,01 × 1 062 × 2 = 101,04`. Ni prorata de durée, ni « tout ou rien » :
+chaque nuit prend le taux de la configuration qui la couvre, pour le palier correspondant à la durée
+TOTALE du séjour.
+
+**Conséquence : le bon montage est le CREUSAGE, pas le renversement.** Puisque la remise est
+nuit-par-nuit et qu'un ensemble ne remplace que là où il s'applique, il suffit de poser un ensemble
+« plancher » sur les seules nuits à protéger — 4 courtes plages — au lieu de vider les paliers de
+l'annonce et de re-couvrir tout l'horizon segment par segment. Surface de risque incomparablement
+plus faible, et rien ne peut « tomber entre » deux segments.
+
+**Deux validations bloquent le formulaire, dans cet ordre** (elles s'affichent en `.text-error-600`,
+rien n'est enregistré) :
+1. « La réduction minimale est de 1 % » — **0 % est refusé**, donc on ne peut pas annuler
+   complètement la dégressivité, seulement la réduire à 1 %.
+2. « Les réductions doivent augmenter avec la durée de séjour » — 1/1/1/1/1 est refusé.
+   D'où la forme retenue : **un seul palier, « à partir de 3 jours → 1 % »**, qui couvre toutes les
+   durées (« à partir de » = seuil) sans avoir à croître. Cinq paliers 1/2/3/4/5 % passeraient aussi,
+   mais coûteraient jusqu'à 5 % sur les nuits de fête au lieu de 1 %.
+
+**Le 1 % résiduel mord le plancher : compenser par le prix de la nuit.** À 1 062 €, une nuit de Noël
+rendait 913,32 € net ; moins 1 %, 904,19 € — **sous les 908 € de plancher**. La nuit doit valoir au
+moins `plancher / (0,99 × 0,86)`, soit 1 067 € pour Noël et 991 € pour le réveillon. Retenus : **1 070 €
+et 995 €**, pour garder ~3 € de marge.
+
+Bouton d'enregistrement : `button[form="spp-host-calendar-custom-rules-set-form"]` — `visible=true`
+ne suffit pas à le distinguer de « Quitter sans enregistrer ».
+
+**Devis public par URL** : `https://www.greengo.voyage/hote/domaine-solio-gite?checkIn=AAAA-MM-JJ&checkOut=AAAA-MM-JJ&numberOfAdults=2&numberOfChildren=0&numberOfBabies=0&numberOfPets=0`
+— le slug de produit n'est pas nécessaire. Le récapitulatif donne prix × nuits, « Réductions », « Total ».
+
+---
+
+## GreenGo — le panneau ment après un enregistrement
+
+**Après une sauvegarde, le panneau replié continue d'afficher l'ANCIENNE valeur.** Relire le prix ou
+l'ensemble de règles juste après avoir enregistré renvoie donc l'état d'avant, et fait conclure à tort
+que l'écriture a échoué — j'ai failli tout refaire. **Seul un rechargement de l'URL** (ou le devis
+public) dit la vérité. Vérifier par `browser_navigate` sur la même URL `?startDate=…&endDate=…`, jamais
+par une relecture du DOM en place.
+
+## GreenGo — `advanceBookingTimeMaxLimit`, la fenêtre qui masque une saison entière
+
+Page **Disponibilité** de l'annonce (`/annonce/<id>/availability`), section « Réservation à l'avance ».
+Valeur trouvée le 2026-08-29 : **`ONE_YEAR`** — donc décembre 2027, à 481 jours, s'affichait
+« Indisponible à vos dates » côté voyageur alors que la console le donnait « Disponible » à 399-1 070 €.
+**Toute la grille 2027 posée au-delà d'août était invisible.** Les valeurs sont
+`SIX_MONTHS | NINE_MONTHS | ONE_YEAR | TWO_YEARS` (radios `class="hidden-input"` → cliquer
+`label[for="TWO_YEARS"]`), il n'y a pas d'intermédiaire.
+
+> **Le symptôme est trompeur** : la console dit « Disponible », le public dit « Indisponible ». Ce
+> n'est ni un blocage iCal ni une réservation — c'est la fenêtre. Toujours vérifier ce réglage avant
+> de chercher un blocage.
+
+**Effet de bord à contrôler après l'avoir ouverte** : les dates nouvellement vendables peuvent porter
+des prix forcés résiduels. Ici, `2028-03-01 → 2028-08-29` était uniformément à **1 300 €/nuit**
+(reliquat), invisible tant que la fenêtre valait un an. Ouvrir la fenêtre, c'est publier ce qui dort
+derrière — relire la plage `<horizon de la grille> → <aujourd'hui + fenêtre>` juste après.
+
+## GreenGo — un blocage manuel SORT dans le flux iCal exporté
+
+Le flux `https://calendars.greengo.voyage/calendar/greengo-icalendar/<calendar-id>.ics` est présenté
+comme exportant « vos **réservations** ». **C'est faux, ou du moins incomplet** : mesuré le
+2026-08-29 par deux `curl` encadrant l'opération, le flux était *vide* avant, et portait aussitôt
+après :
+
+```
+SUMMARY:GreenGo (Not Available)
+DTSTART:20280301T000000Z   DTEND:20280830T000000Z
+```
+
+**Donc bloquer sur GreenGo peut fermer les mêmes dates partout**, chez qui s'abonne à ce flux. Avant
+tout blocage sur un canal, se demander qui importe son flux — et le vérifier de la même façon :
+relever le `.ics`, agir, relever à nouveau, diff.
+
+> **La description d'un flux n'est pas son contrat.** Deux `curl` tranchent en trente secondes une
+> question qu'aucune page d'aide ne documente.
+
+## GreenGo — divers relevés le 2026-08-29
+
+- La commission se lit en clair sur la page Tarification : `337 €` de prix, `289,82 €` de revenus,
+  soit **14,00 % exactement**. Ne plus la déduire.
+- **Chaque logement a son PROPRE identifiant de calendrier** : Gîte `6f6a8ef2-…`, Lodge `e05779b2-…`.
+  C'est la garantie structurelle la plus forte contre une écriture sur le mauvais bien — le sélecteur
+  de logement change l'URL. Vérifier l'id dans l'URL vaut mieux que vérifier le libellé du sélecteur.
+- « À partir de 3 jours » signifie bien **3 NUITS** : mesuré, un séjour de 3 nuits prend le palier
+  « 3 jours » (20 %) et un de 7 nuits le palier « 1 semaine » (42 %).
+- `defaultMaximumNumberOfNights = 14` : plafond de durée, sans effet sur la grille actuelle.
+- Un ensemble de règles se supprime par un bouton « Supprimer » qui n'a **pas** la classe
+  `btn-invisible` (celle-ci appartient aux boutons de suppression de chaque palier). En mode édition
+  il y a donc N+1 boutons « Supprimer » : filtrer sur la classe, jamais sur le libellé.
+
+---
+
+## GreenGo — le formulaire « ensemble de règles »
+
+- Les radios de couleur portent `class="hidden-input"` : `.check()` échoue en timeout
+  (« div intercepts pointer events »). **Cliquer le label** : `label[for="custom-rules-set-color-ORANGE"]`.
+- **Les 7 jours d'arrivée et les 7 jours de départ sont cochés PAR DÉFAUT** — cochés = aucune
+  restriction. **Les décocher interdirait toute arrivée et tout départ** et rendrait la période
+  invendable. Une consigne « ne coche aucun jour » se lit de travers : dire « laisser par défaut ».
+- `#save-custom-rules-set` est **coché par défaut** : c'est lui qui nomme et persiste l'ensemble dans
+  la liste déroulante. Le laisser.
+- Quand le formulaire d'ensemble de règles est ouvert, il y a **3 boutons « Enregistrer »**, dont
+  deux cachés. `nth=0` clique un bouton invisible : utiliser `visible=true`.
+- Le texte du bouton « Prix par nuit » contient déjà le prix ET le net : on vérifie une plage sans
+  déplier le panneau.
+
+---
+
 ## Abracadaroom — administré via Unic Stay / HostRider
+
+**Relevé d'exécution du 2026-08-28/29.** La grille du Gîte y a été posée en entier ; ce que le
+terrain a appris :
+
+- **`calendar/create-many` fait UN prix pour PLUSIEURS périodes.** Grouper les plages par prix : six
+  soumissions au lieu de trente-huit. Le formulaire **garde son état entre deux enregistrements**
+  (prix, type, périmètre vivent dans le store Vuex), donc on enchaîne les groupes sans tout resaisir.
+- **Quatre boutons « Enregistrer » cohabitent sur la page**, un par type de formulaire, et ils se
+  distinguent par `data-cy` : `PricingCreationFormSaveButton`, `BookingConditionCreationFormSaveButton`,
+  `ServiceDiscountCreationFormSaveButton`, `UnavailabilityCreationFormSaveButton`. Un
+  `button:has-text("ENREGISTRER")` est ambigu et peut valider le mauvais formulaire.
+- **Le jeu de cases d'APPLICATION est celui qui suit, dans l'ordre du document, la case « Appliquer à
+  tous les hébergements ».** C'est le seul critère fiable — les deux jeux sont identiques à l'écran.
+  Les cases portent le serviceId en `value` (`5837` / `5912`) : cibler par valeur, jamais par libellé.
+- **Le `<input>` d'un radio ou d'une case est intercepté par son `span.check`** : cliquer le `.check`.
+- **Le champ de dates d'une période est `readonly`** : passer par le `.datepicker`. Son en-tête
+  visible porte deux `<select>` — **mois 0-based (Décembre = 11)** et année. **Régler l'année AVANT
+  le mois.** Quand plusieurs pickers sont ouverts, prendre le dernier visible.
+- **Double-clic + frappe lente sur le champ PRIX** (texte) ; **mais sur le champ NUITS MINIMUM
+  (`input[type=number]`) le double-clic NE sélectionne PAS** : taper « 2 » sur « 1 » donne **12**.
+  Là, clic + `Cmd+A` avant de taper.
+- **Les promotions se rognent entre elles** : créer une promotion modifie ou supprime celles qui la
+  chevauchent, et les anciennes deviennent alors inatteignables depuis le calendrier. **Supprimer les
+  périmées AVANT de créer la nouvelle** si on veut pouvoir les viser une par une.
+- **Le tarif de base du Gîte est 650 €** et transparaît partout où aucun tarif spécifique ne couvre —
+  donc au-delà de la dernière période posée. Contiguïté obligatoire.
+- **La page publique ignore `?arrival=&departure=`** : piloter son sélecteur de dates.
+
+**LA remise d'Abracadaroom se calcule NUIT PAR NUIT, pas sur le total du séjour.** Découvert le
+2026-08-29, et c'est le modèle le plus fidèle des quatre plateformes. Une promotion ne remise que les
+nuits qu'elle **couvre** ; les autres restent au plein tarif, et le pourcentage affiché au client est
+la moyenne qui en résulte. Mesuré : un séjour 23→26/12/2026 (Haute + Noël + Noël) dont seule la nuit
+du 23 est couverte affiche **3 %** — soit 85,40 €, exactement 20 % de cette seule nuit.
+
+**Conséquence : pour protéger une nuit de la dégressivité, il suffit de l'ôter de la couverture de la
+promotion.** Pas besoin de reconstruire la promotion en fenêtres comme sur Lodgify : on **creuse**.
+`calendar/delete-many` → type **Promotions** → la ou les nuits à protéger → Gîte coché seul.
+C'est réversible (il suffit de recréer la promotion sur ces dates) et ça se fait en une soumission
+multi-périodes.
+
+**Et c'est plus juste que les fenêtres de Lodgify.** Sur Lodgify un séjour qui enjambe une nuit
+protégée perd sa remise sur TOUTES ses nuits ; ici il la garde sur les nuits ordinaires. Vérifié
+contre le moteur de la recette : 2 611,60 € encaissés → 2 089,28 € nets contre un plancher à
+2 088,80 € (le plancher où la remise ne touche que les nuits `progressive`), soit **+0,48 €**.
+
+**L'horizon commercialisable est plus court que la grille.** Au 2026-08-29, le Gîte ne se vend plus
+au-delà de **fin août 2027** : septembre 2027 et tout ce qui suit renvoient `available: false`, alors
+que la grille et les conditions de séjour courent jusqu'au 29/02/2028. À reprendre côté disponibilités.
+
+**Endpoint de devis, sans piloter le sélecteur de dates** — il rend le détail au centime :
+`POST https://www.abracadaroom.com/fr/availability/` avec
+`id=5457&checkin=YYYY-MM-DD&checkout=YYYY-MM-DD&nb_adults=2&nb_children=0&nb_infants=0`.
+`id=5457` = Gîte, `id=5508` = Lodge. Réponse : `price_full`, `discount_percent`, `price`, `available`.
+**Un `available: false` sur un séjour court en Très haute n'est pas une indisponibilité** : c'est le
+minimum de 4 nuits qui refuse. Toujours sonder avec une durée compatible avant de conclure.
+
+Formulaire `delete-many` : le type à supprimer est le SECOND groupe de radios
+(`UNAVAILABILITIES` / `PRICING` / `BOOKING_CONDITION` / `DISCOUNT`) — le premier n'est qu'un filtre
+d'affichage. Bouton `data-cy="submitButtonDeleteManyForm"`, ajout de période
+`data-cy="MultipleDateRangePickerAddPeriod"`. Le formulaire **garde son état** entre deux
+suppressions.
+
+**Gîte = service 5837** (« Gite nature, 13 ha, piscine »), Lodge = service 5912.
 
 Marketplace d'hébergements insolites, commission **20 %**. Console : `admin.unicstay.com`.
 
@@ -473,7 +788,22 @@ Annonce publique : `abracadaroom.com/fr/reservation-domaine-solio-…-lodge-6567
 
 ## GreenGo — le mieux conçu des trois
 
-Commission **14,5 %**. Console : `greengo.voyage/service-provider-portal`.
+Commission **14 %** — pas 14,5 %. Mesuré le 2026-08-28 dans le panneau « Vos revenus par nuit » du
+Gîte : 337 € affichés → 289,82 € nets, soit exactement ×0,86. La valeur 14,5 % notée ici auparavant
+était fausse. **Ce panneau est le contrôle le moins cher du déploiement** : il recalcule le net à
+chaque frappe, donc un prix mal tapé se voit immédiatement. Console : `greengo.voyage/service-provider-portal`.
+
+**Identifiants** — Gîte : annonce `0a63652e-9222-414e-aad0-4626024e17d5`, tarification **au niveau de
+l'annonce** (`/annonce/<id>/tarification`). Lodge : annonce `58dbf98b-8524-4ee9-804e-5f7f03d5d957`,
+logement `e05779b2-942b-4666-a534-967f295a1566`, tarification **au niveau du logement**
+(`/annonce/accommodation/<id>/…`). Les deux écrans sont structurellement distincts : travailler sur
+l'annonce du Gîte ne peut pas atteindre la Lodge.
+
+**Pièges de saisie relevés le 2026-08-28.** (a) Le champ pourcentage **avale le point décimal** :
+taper `42.85` inscrit `4285`. Utiliser **42**, jamais 43 (43 % passe sous le plancher net).
+(b) `Ctrl+A` ne sélectionne pas le contenu d'un champ : taper par-dessus **concatène** (`530` + `337`
+= `530337`). **Double-cliquer** le champ avant de saisir. (c) Les paliers de durée s'empilent avec
+« Ajouter une autre réduction » : `lengthOfStayDiscounts.<i>.…`, valeurs `THREE_DAYS` … `ONE_WEEK`.
 
 | Écran | URL |
 |---|---|
@@ -495,7 +825,9 @@ Domaine Solio : annonce Lodge **58dbf98b-8524-4ee9-804e-5f7f03d5d957**, logement
    seuils 2 à 6 jours puis « À la semaine (1 semaine) » = 7 nuits. Les `<select>` sont masqués mais
    `browser_select_option` fonctionne dessus.
 3. **Les « ensembles de règles » du calendrier portent d'autres réductions** (durée, jours de semaine)
-   et **elles se cumulent** avec celles de la page Tarification — attention au doublon.
+   et **elles REMPLACENT** celles de la page Tarification — mesuré le 2026-08-29, voir la section
+   « les remises d'un ensemble de règles REMPLACENT celles de l'annonce ». Une note antérieure
+   affirmait qu'elles se cumulaient : c'est FAUX.
 4. **Le prix par période se pilote entièrement par l'URL** — c'est la découverte qui débloque tout.
    `…/calendar/host-calendar/<logementId>?startDate=AAAA-MM-JJ&endDate=AAAA-MM-JJ` ouvre le panneau
    sur la plage voulue, sans toucher au calendrier. Ensuite, en quatre gestes :
