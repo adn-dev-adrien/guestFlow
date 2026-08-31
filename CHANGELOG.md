@@ -4,6 +4,25 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-08-31
+
+### Summary
+- « Encaisser en une fois » apparaît maintenant quand le seul autre montant dû est le complément de fin de séjour.
+- C'est le cas d'une réservation plateforme sans acompte et sans prestation vendue au check-in.
+- Ce complément entre dans le paiement unique : même date, même moyen, même mois comptable.
+- « Annuler ce paiement » le libère avec les autres postes.
+- Les notes en séjour restent à part : chacune est un encaissement distinct, à sa propre date.
+
+### Fixed
+- **« Encaisser en une fois » was missing exactly where it was needed most** (spec
+  `single-payment-from-the-fiche.md` rule 2bis, reported from production on 2026-08-31). The control
+  needs two amounts left to collect, and the **end-of-stay** complement was not counted among them. On
+  a platform booking — acompte disabled, nothing sold at check-in — that leaves only the balance: one
+  amount, so no control at all. Which was precisely the reservation whose guest had paid everything on
+  arrival, the end-of-stay complement included. That complement now joins the single payment: it is
+  collected at the same date, books into the accounting month of that date, and the undo releases it
+  with the rest. The mid-stay notes stay apart — each is its own collection, at its own date.
+
 ## [2.10.0] - 2026-08-31
 
 ### Summary
