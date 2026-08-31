@@ -30,6 +30,7 @@ const { createModel: createRefundsModel } = require('./refundsModel');
 const { buildModel: buildCompensationsModel } = require('./cancellationCompensationsModel');
 const { DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('../constants/accounting');
 const { parseComplementAllocation } = require('../utils/complementAllocation');
+const { parseGroup } = require('../utils/arrivalPaymentGroup');
 
 function createAccountingModel(database) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
@@ -54,6 +55,12 @@ function createAccountingModel(database) {
     hasReservationColumn('depositPaidCash') ? 'COALESCE(r.depositPaidCash, 0) AS depositPaidCash' : '0 AS depositPaidCash',
     hasReservationColumn('balancePaidCash') ? 'COALESCE(r.balancePaidCash, 0) AS balancePaidCash' : '0 AS balancePaidCash',
   ].join(', ');
+  // specs/single-payment-at-check-in.md §3.3 rule 12 — the collection this entry belonged to. It
+  // changes nothing about WHICH entries are emitted nor what they contain: the ventilation stays per
+  // bucket (different revenue accounts, different VAT rates). It only lets the reading side say
+  // « these two were one payment ».
+  const paymentGroupCol = hasReservationColumn('arrivalPaymentGroup')
+    ? 'r.arrivalPaymentGroup' : 'NULL AS arrivalPaymentGroup';
   const depositCashFilter = hasReservationColumn('depositPaidCash') ? 'AND COALESCE(r.depositPaidCash, 0) = 0' : '';
   const balanceCashFilter = hasReservationColumn('balancePaidCash') ? 'AND COALESCE(r.balancePaidCash, 0) = 0' : '';
   // A stay whose ONLY collection of the month is a « note en séjour » must still be selected — its
@@ -90,6 +97,7 @@ function createAccountingModel(database) {
                r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidDate,
                COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
                ${stayCashCols},
+               ${paymentGroupCol},
                ${midStayCols},
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
@@ -163,6 +171,18 @@ function createAccountingModel(database) {
           if (Number(note.paidCash || 0) === 1) continue;
           if (!inMonth(1, note.paidDate)) continue;
           entries.push(buildMidStayNoteEntry(row, note, commissionContext.vatRate));
+        }
+        // Stamp the group on the entries it named, so the Comptabilité can render one card for one
+        // collection. A cash group emits no entry at all (its buckets are off the books), so there is
+        // nothing to stamp there.
+        const group = parseGroup(row.arrivalPaymentGroup);
+        if (group) {
+          const id = `${row.id}:${group.at}`;
+          for (const entry of entries) {
+            if (entry && group.buckets.includes(entry.kind)) {
+              entry.paymentGroup = { id, at: group.at, cash: group.cash === 1, total: group.total };
+            }
+          }
         }
         // Pure-tax entries are dropped (see `buildEntry`).
         return entries.filter(Boolean);

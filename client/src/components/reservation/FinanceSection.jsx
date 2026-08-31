@@ -569,6 +569,23 @@ export default function FinanceSection() {
 
             <Divider />
 
+            {/* specs/single-payment-at-check-in.md §3.4 rule 16 — the guest handed over ONE payment
+                at the door. The buckets below keep their own amounts and their own controls; this
+                line is what says they were collected together, once. It disappears the moment one of
+                them is un-ticked (rule 17), because the payment is then no longer true. */}
+            {form.arrivalPayment && (
+              <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Encaissé à l'arrivée : paiement unique de {formatCurrency(form.arrivalPayment.total)}
+                  {' '}le {displayDate(form.arrivalPayment.at)} — {form.arrivalPayment.means}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {form.arrivalPayment.covers.map((c) => `${c.label} ${formatCurrency(c.amount)}`).join(' · ')}
+                  {form.arrivalPayment.cash && ' — hors comptabilité'}
+                </Typography>
+              </Box>
+            )}
+
             <Box>
               <Grid container spacing={2} sx={sectionGridSx}>
                 {/* accounting-platform-commission-and-no-deposit.md §3.3 rule 5 + §3.8 rule 21.
