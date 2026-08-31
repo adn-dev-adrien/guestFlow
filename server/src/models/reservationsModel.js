@@ -39,7 +39,7 @@ const { buildOperationalCollection } = require('../utils/operationalCollection')
 const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
-const { serialiseGroup, groupCovers } = require('../utils/arrivalPaymentGroup');
+const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const bookingLinesModel = require('./bookingLinesModel');
 
@@ -1356,6 +1356,94 @@ function createReservationsModel(database) {
         // Minimal test schemas without the columns: nothing to release.
       }
       model.releaseArrivalPaymentGroup(reservationId, bucket);
+    },
+
+    /**
+     * Record the single arrival payment FROM THE FICHE
+     * (specs/single-payment-from-the-fiche.md §3.2), without running a single SAS page.
+     *
+     * That restraint is the feature: re-opening the wizard to record one payment costs eleven pages,
+     * several questions whose wrong answer REMOVES a sale, and — measured on 2026-08-31 — the
+     * « préparé » flags of the planning cards. Here nothing but the payment columns is touched, so
+     * the options, their `cardOccurrences` and the breakfast composition are safe by construction.
+     *
+     * `mode` is 'card' | 'cash' | 'undo'. The date is the operator's and is validated BEFORE this
+     * runs (utils/arrivalPaymentDate) — the transaction never opens on a refused date.
+     *
+     * @returns {{buckets: string[], total: number, grouped: boolean}}
+     */
+    settleArrivalBuckets(reservationId, { mode, date } = {}) {
+      const run = database.transaction(() => {
+        const row = model.getRow(reservationId);
+        if (!row) return { buckets: [], total: 0, grouped: false };
+
+        if (mode === 'undo') {
+          const group = parseGroup(row.arrivalPaymentGroup);
+          if (!group) return { buckets: [], total: 0, grouped: false };
+          for (const bucket of group.buckets) {
+            if (bucket === 'complement') {
+              database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
+                .run(reservationId);
+              try {
+                database.prepare('UPDATE reservations SET complementPaidAtArrival = 0 WHERE id = ?').run(reservationId);
+              } catch { /* no marker column on a minimal schema */ }
+            } else {
+              const cols = bucket === 'deposit'
+                ? ['depositPaid', 'depositPaidDate', 'depositPaidCash', 'depositPaidAtArrival']
+                : ['balancePaid', 'balancePaidDate', 'balancePaidCash', 'balancePaidAtArrival'];
+              const [paidCol, dateCol, cashCol, markerCol] = cols;
+              database.prepare(`UPDATE reservations SET ${paidCol} = 0, ${dateCol} = NULL, ${cashCol} = 0, ${markerCol} = 0, updatedAt = datetime('now') WHERE id = ?`)
+                .run(reservationId);
+              clearContribsOnUnflip({ db: database, reservationId, bucket });
+            }
+          }
+          database.prepare("UPDATE reservations SET arrivalPaymentGroup = NULL, updatedAt = datetime('now') WHERE id = ?")
+            .run(reservationId);
+          return { buckets: group.buckets, total: group.total, grouped: false };
+        }
+
+        const cash = mode === 'cash' ? 1 : 0;
+        const collectible = collectibleArrivalBuckets(row);
+        if (collectible.length === 0) return { buckets: [], total: 0, grouped: false };
+
+        for (const { bucket } of collectible) {
+          if (bucket === 'complement') {
+            database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
+              .run(date, cash, reservationId);
+            try {
+              database.prepare('UPDATE reservations SET complementPaidAtArrival = 1 WHERE id = ?').run(reservationId);
+            } catch { /* no marker column on a minimal schema */ }
+            // Collecting the arrival complement CLOSES it: what is sold afterwards goes to the
+            // end-of-stay complement instead of drifting between échéances (same rule as the fiche's
+            // own « Marquer complément payé », specs/mid-stay-extras-to-end-of-stay-complement.md).
+            model.captureArrivalExtrasBaseline(reservationId);
+            persistComplementDeferred(reservationId, false);
+          } else {
+            // Best effort, exactly as at check-in: on a booking whose stored solde is the platform's
+            // own figure the capture legitimately fails, and losing the payment over an attribution
+            // the operator cannot fix would be worse than storing it with NULL contribs.
+            model.captureStayContribs(reservationId, bucket);
+            const cols = bucket === 'deposit'
+              ? ['depositPaid', 'depositPaidDate', 'depositPaidCash', 'depositPaidAtArrival']
+              : ['balancePaid', 'balancePaidDate', 'balancePaidCash', 'balancePaidAtArrival'];
+            const [paidCol, dateCol, cashCol, markerCol] = cols;
+            database.prepare(`UPDATE reservations SET ${paidCol} = 1, ${dateCol} = ?, ${cashCol} = ?, ${markerCol} = 1, updatedAt = datetime('now') WHERE id = ?`)
+              .run(date, cash, reservationId);
+          }
+        }
+
+        const buckets = collectible.map((b) => b.bucket);
+        const total = Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100;
+        // A group of one is not a group: a lone bucket settled here is an ordinary payment, and the
+        // fiche must not announce a « paiement unique » that groups nothing.
+        const json = serialiseGroup({ at: date, cash, total, buckets });
+        try {
+          database.prepare("UPDATE reservations SET arrivalPaymentGroup = ?, updatedAt = datetime('now') WHERE id = ?")
+            .run(json, reservationId);
+        } catch { /* no column on a minimal schema: the settlement above still stands */ }
+        return { buckets, total, grouped: Boolean(json) };
+      });
+      return run();
     },
 
     /**
