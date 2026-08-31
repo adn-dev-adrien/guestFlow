@@ -120,9 +120,17 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
     `releaseStayBucket` dissolvait le paiement unique. À chaque fois, et sans rien dans l'historique
     pour le dire. La comptabilité affichait alors deux écritures au lieu d'une carte.
 
-    Côté client, `reloadReservationFinance` rafraîchit désormais aussi les deux échéances du séjour :
-    sans ça le formulaire continuait d'afficher « non payé » juste après le clic, ce qui est faux à
-    l'écran même si le serveur ne s'y fie plus.
+    Côté client, deux conséquences indissociables, **trouvées au test de bout en bout** et sans
+    lesquelles la garde serveur serait une régression :
+    - `reloadReservationFinance` rafraîchit aussi les deux échéances du séjour, sinon le formulaire
+      continue d'afficher « non payé » juste après le clic ;
+    - **« Marquer acompte / solde payé » écrit désormais tout de suite** (`PATCH`), comme le
+      complément le fait déjà, au lieu de n'écrire qu'à l'enregistrement sur une réservation
+      verrouillée. Sans ce changement, le serveur ignorant les drapeaux, **dé-cocher une échéance
+      n'aurait plus rien fait du tout** : le bouton basculait l'affichage et l'enregistrement
+      rétablissait l'état stocké. Le geste reste donc possible — il passe simplement par le chemin qui
+      encaisse, comme tous les autres mouvements d'argent de la fiche. La caution garde son
+      fonctionnement (elle n'est pas concernée par la garde).
 
 ### 3.4 What this is not
 

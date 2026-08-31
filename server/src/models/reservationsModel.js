@@ -128,6 +128,39 @@ function readExtraLinesFromDetailed(r) {
   ];
 }
 
+// specs/single-payment-at-check-in.md rule 8bis — un paiement unique qui se dissout doit le DIRE.
+//
+// La dissolution est silencieuse depuis la v2.9.0 : le groupe disparaissait sans une ligne
+// d'historique, si bien qu'un opérateur voyait son encaissement s'évaporer sans aucun moyen de savoir
+// ce qui l'avait effacé. C'est ce silence qui a rendu les bugs de 2026-08-31 (l'enregistrement de la
+// fiche, puis le SAS départ) impossibles à diagnostiquer depuis l'interface — il a fallu lire la base
+// de production. La trace ne corrige aucun comportement : elle rend le comportement visible.
+const ARRIVAL_BUCKET_LABELS = {
+  deposit: 'acompte',
+  balance: 'solde',
+  complement: "complément d'arrivée",
+  endOfStayComplement: 'complément de fin de séjour',
+};
+
+function traceGroupDissolved(database, reservationId, group, bucket) {
+  if (!group) return;
+  const covered = group.buckets.map((b) => ARRIVAL_BUCKET_LABELS[b] || b).join(', ');
+  const cause = bucket
+    ? `« ${ARRIVAL_BUCKET_LABELS[bucket] || bucket} » n'est plus encaissé`
+    : 'aucune échéance ne le porte plus';
+  try {
+    database.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, ?, ?)')
+      .run(reservationId, 'update', JSON.stringify([{
+        field: 'arrivalPayment',
+        label: "Paiement unique à l'arrivée",
+        from: `${group.total} € le ${group.at} (${covered})`,
+        to: `dissous — ${cause}`,
+      }]));
+  } catch {
+    // Pas de table d'historique (schémas de test minimaux) : la dissolution tient quand même.
+  }
+}
+
 // specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — le marqueur d'appartenance du
 // complément de fin de séjour : 1 = « c'est le SAS départ qui l'a encaissé », et lui seul peut donc le
 // dé-payer. Miroir exact de `complementPaidAtArrival` côté arrivée. Gardés : plusieurs schémas de test
@@ -1536,8 +1569,11 @@ function createReservationsModel(database) {
       try {
         const row = database.prepare('SELECT arrivalPaymentGroup FROM reservations WHERE id = ?').get(reservationId);
         if (!row || !groupCovers(row.arrivalPaymentGroup, bucket)) return;
+        const dissolved = parseGroup(row.arrivalPaymentGroup);
         database.prepare("UPDATE reservations SET arrivalPaymentGroup = NULL, updatedAt = datetime('now') WHERE id = ?")
           .run(reservationId);
+        // rule 8bis — dire ce qui vient de disparaître, et à cause de quelle échéance.
+        traceGroupDissolved(database, reservationId, dissolved, bucket);
         // specs/arrival-payment-detail-and-adjustment.md rule 23 — the réduction dies with the payment
         // it was granted on. Left behind, it would keep lowering `comptaCollected` and the total du
         // séjour of a collection that no longer exists.
@@ -2863,8 +2899,12 @@ function createReservationsModel(database) {
             })
             : null;
           try {
+            const previous = parseGroup(after.arrivalPaymentGroup);
             database.prepare("UPDATE reservations SET arrivalPaymentGroup = ?, updatedAt = datetime('now') WHERE id = ?")
               .run(json, reservationId);
+            // rule 8bis — un SAS re-joué en « Plus tard » retire le paiement unique qu'un passage
+            // précédent avait enregistré : ça aussi doit se relire.
+            if (previous && !json) traceGroupDissolved(database, reservationId, previous, null);
           } catch {
             // Minimal test schemas without the column: the settlement above still stands.
           }

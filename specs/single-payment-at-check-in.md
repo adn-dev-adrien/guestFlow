@@ -98,6 +98,17 @@ commission) stays exactly as correct as it is today.
    that flips a bucket back. Same ownership discipline as the `*PaidAtArrival` markers
    ([collect-stay-payment-at-check-in.md](collect-stay-payment-at-check-in.md) rule 15): the app never
    claims a single payment it no longer owns.
+8bis. **La dissolution d'un paiement unique laisse une trace** (ajouté le 2026-08-31, depuis la
+    production). La règle 8 fait mourir le groupe avec n'importe laquelle de ses échéances — mais elle
+    le faisait **en silence** : aucune ligne d'historique, donc un opérateur voyait son encaissement
+    disparaître sans le moindre moyen de savoir ce qui l'avait effacé. C'est ce silence qui a rendu les
+    deux bugs du 2026-08-31 impossibles à diagnostiquer depuis l'application — il a fallu lire la base
+    de production. La ligne dit **ce qui disparaît et pourquoi** : « Paiement unique à l'arrivée :
+    184,95 € le 2026-08-30 (solde, complément de fin de séjour) → dissous — « solde » n'est plus
+    encaissé ». Elle est écrite au point d'écriture unique (`releaseArrivalPaymentGroup`), donc par
+    tous les chemins qui dissolvent, et par le SAS re-joué en « Plus tard ». Elle ne change aucun
+    comportement : elle rend le comportement lisible.
+
 9. **`complementPaidAtArrival`** — a new marker, mirroring the two stay ones, so a re-opened SAS knows
    the complement settlement is **its own** and may undo it. Today the complement has no such marker
    because it has always been the SAS's business; the group makes the ownership explicit.
