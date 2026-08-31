@@ -403,6 +403,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Re-edit pre-fill (specs/reopen-completed-sas.md §2): a SAS already committed reopens with
         // every decision seeded from the persisted reservation. A fresh SAS keeps the blank defaults.
         const editing = mode === 'arrival' ? !!res.arrivalSasDoneAt : !!res.departureSasDoneAt;
+        // specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis — le mode de règlement du
+        // départ se reconstitue TOUJOURS depuis les drapeaux stockés, même au premier passage : le
+        // complément de fin de séjour a pu être encaissé ailleurs (le paiement unique de l'arrivée le
+        // couvre depuis la v2.10.1). Enfermée dans le `editing` ci-dessous, la reconstitution laissait
+        // le récap sans mode sélectionné, et « Valider » envoyait « pas encaissé » — ce qui effaçait
+        // l'argent déjà rentré.
+        if (mode === 'departure' && Number(res.endOfStayComplementPaid) === 1) {
+          setDeparturePayMode(Number(res.endOfStayComplementPaidCash) === 1 ? 'cash' : 'card');
+        }
         if (!editing) { setOffered(seed); return; }
         const sealToBool = (v) => (v == null ? true : Number(v) === 1);
         if (mode === 'arrival') {
@@ -1741,9 +1750,27 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <Typography variant="body2">Sous-total arrivée : <strong>{formatCurrency(recalledArrivalAmount)}</strong></Typography>
               </>
             )}
-            {departureGrandTotal > 0 && (<><Divider /><Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>Total à percevoir : {formatCurrency(departureGrandTotal)}</Typography></>)}
             {departureGrandTotal > 0 && (
               <>
+                <Divider />
+                {/* « à percevoir » serait faux sur de l'argent déjà rentré : le total reste affiché — il
+                    dit de quoi on parle — mais il ne réclame plus rien (rule 9bis). */}
+                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>
+                  {Number(r.endOfStayComplementPaid || 0) === 1 ? 'Total fin de séjour' : 'Total à percevoir'}
+                  {' : '}{formatCurrency(departureGrandTotal)}
+                </Typography>
+              </>
+            )}
+            {departureGrandTotal > 0 && (
+              <>
+                {/* rule 9bis — encaissé à la porte : le dire, sinon l'opérateur le réclame une seconde
+                    fois au client, et un clic malheureux efface le paiement qui existe déjà. */}
+                {Number(r.endOfStayComplementPaid || 0) === 1 && (
+                  <Typography variant="body2" color="success.main">
+                    Déjà encaissé{r.endOfStayComplementPaidDate ? ` le ${displayDate(r.endOfStayComplementPaidDate)}` : ''}
+                    {Number(r.endOfStayComplementPaidCash || 0) === 1 ? ' (caisse interne)' : ''} — rien à percevoir.
+                  </Typography>
+                )}
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
                 <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />
               </>

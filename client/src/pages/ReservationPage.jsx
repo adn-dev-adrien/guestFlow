@@ -2503,6 +2503,16 @@ export default function ReservationPage() {
       complementPaid: Boolean(res.complementPaid),
       complementPaidDate: res.complementPaidDate || '',
       complementPaidCash: Boolean(res.complementPaidCash),
+      // specs/single-payment-from-the-fiche.md rule 11bis — les deux échéances du séjour aussi.
+      // « Encaisser en une fois » les marque payées côté serveur ; sans ce rafraîchissement le
+      // formulaire gardait « non payé », l'affichage retombait dessus au premier re-rendu, et
+      // l'enregistrement suivant renvoyait la valeur périmée — ce qui dissolvait le paiement unique.
+      depositPaid: Boolean(res.depositPaid),
+      depositPaidDate: res.depositPaidDate || '',
+      depositPaidCash: Boolean(res.depositPaidCash),
+      balancePaid: Boolean(res.balancePaid),
+      balancePaidDate: res.balancePaidDate || '',
+      balancePaidCash: Boolean(res.balancePaidCash),
       endOfStayComplementAmount: Number(res.endOfStayComplementAmount || 0),
       endOfStayComplementPaid: Boolean(res.endOfStayComplementPaid),
       endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',

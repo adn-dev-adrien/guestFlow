@@ -102,6 +102,35 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
 11. Un-ticking a single bucket by its own button keeps its existing behaviour and **dissolves the
     group** as well (already true since v2.9.0: the group dies with any bucket it names). The fiche
     then stops announcing a payment that is no longer true.
+11bis. **Enregistrer la fiche ne touche à aucun drapeau de paiement** (ajouté le 2026-08-31, depuis la
+    production). `depositPaid`, `balancePaid` et `complementPaid` ne sont pas des champs du
+    formulaire : « Marquer … payé », le SAS et « Encaisser en une fois » les écrivent chacun par son
+    propre point d'entrée, et le formulaire ne fait que les refléter. Ce que le navigateur renvoie à
+    l'enregistrement est donc, au mieux, identique — au pire **périmé**, quand la fiche a été chargée
+    avant que l'argent ne soit enregistré. **L'état stocké gagne, toujours** : le serveur repart de la
+    ligne en base et ignore les trois drapeaux reçus, y compris pour le devis qu'il calcule, afin que
+    les branches « échéance gelée » du moteur et la ligne qu'il s'apprête à écrire ne puissent pas
+    diverger. La seule exception est `depositDisabled`, qui EST un champ du formulaire et continue de
+    remettre l'acompte à zéro ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md)).
+
+    **Mesuré en production sur la réservation 22281 le 2026-08-31.** L'opérateur ouvrait la fiche,
+    cliquait « Encaisser en une fois » — le solde et le complément de fin de séjour étaient encaissés
+    et le groupe écrit — puis « Enregistrer ». Le formulaire, chargé *avant* l'encaissement, portait
+    encore « solde payé = non » ; l'enregistrement le renvoyait, le serveur y lisait un dé-paiement, et
+    `releaseStayBucket` dissolvait le paiement unique. À chaque fois, et sans rien dans l'historique
+    pour le dire. La comptabilité affichait alors deux écritures au lieu d'une carte.
+
+    Côté client, deux conséquences indissociables, **trouvées au test de bout en bout** et sans
+    lesquelles la garde serveur serait une régression :
+    - `reloadReservationFinance` rafraîchit aussi les deux échéances du séjour, sinon le formulaire
+      continue d'afficher « non payé » juste après le clic ;
+    - **« Marquer acompte / solde payé » écrit désormais tout de suite** (`PATCH`), comme le
+      complément le fait déjà, au lieu de n'écrire qu'à l'enregistrement sur une réservation
+      verrouillée. Sans ce changement, le serveur ignorant les drapeaux, **dé-cocher une échéance
+      n'aurait plus rien fait du tout** : le bouton basculait l'affichage et l'enregistrement
+      rétablissait l'état stocké. Le geste reste donc possible — il passe simplement par le chemin qui
+      encaisse, comme tous les autres mouvements d'argent de la fiche. La caution garde son
+      fonctionnement (elle n'est pas concernée par la garde).
 
 ### 3.4 What this is not
 
@@ -192,6 +221,14 @@ everything this feature needs.
 - **Nothing else moves**: options, `cardOccurrences` (« préparé » flags included), breakfast counts and
   `complementAmount` are byte-identical before and after — the regression this feature exists to avoid.
 - Reception: the write is refused, the payload carries no amount.
+
+### Server unit tests — rule 11bis (`tests/fiche-save-keeps-the-payment.unit.test.js`, 6)
+- A stale « non payé » in the save no longer un-pays the solde, the complément or the acompte, and
+  their dates are the stored ones.
+- The mirror case: a save claiming « payé » on a bucket the server knows is unpaid books nothing.
+- `depositDisabled` still force-zeroes the acompte — the one flag the save owns.
+- The quote is priced on the stored flags, so the engine and the row about to be written agree.
+- Pinned by running the file against the pre-fix controller: 5 of the 6 fail there.
 
 ### Client tests (vitest) — 7 new, suite at 1175
 - The control appears only with ≥ 2 collectible buckets, and never once a group exists.
