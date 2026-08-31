@@ -2098,6 +2098,13 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // The complement's own « the arrival SAS settled this » marker, mirroring the two stay ones, so a
   // re-opened SAS may undo a settlement it made and never one made elsewhere.
   if (!rcols.includes('complementPaidAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN complementPaidAtArrival INTEGER NOT NULL DEFAULT 0");
+  // specs/arrival-payment-detail-and-adjustment.md §5 — what the guest ACTUALLY handed over, when it
+  // differs from the sum of the buckets: a réduction granted on the accommodation at the door, or a
+  // pourboire left on top. Modelled on the refund (an independent amount the readers subtract), NOT
+  // on the price: no bucket and no quote is rewritten, so a settled schedule is never re-priced.
+  // NULL on every existing row = rien d'ajusté. Only one of the two is ever non-zero.
+  if (!rcols.includes('arrivalPaymentReduction')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalPaymentReduction REAL");
+  if (!rcols.includes('arrivalPaymentTip')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalPaymentTip REAL");
   // « En fin de séjour » on the arrival recap (specs/defer-arrival-complement-to-checkout.md §3.2
   // rule 5): the arrival complement is not collected at check-in but at the door, together with the
   // end-of-stay complement — presented as ONE complement everywhere. Backfilled once, on creation,

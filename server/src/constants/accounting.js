@@ -44,6 +44,16 @@ const VAT_DEDUCTIBLE_COMMISSION_ACCOUNT = '44566000';
 // TVA associé (0 % par défaut = hors champ) vit dans app_settings.vatRateCancellationCompensation.
 const DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT = '75880000';
 
+// specs/arrival-payment-detail-and-adjustment.md §3.4 rule 24. Compte PCG des « rabais, remises et
+// ristournes accordés par l'entreprise » : une réduction consentie au client à la porte est une
+// DIMINUTION du produit, pas un produit plus petit. L'hébergement reste crédité au brut et la remise
+// porte sa propre ligne — c'est ce que l'opérateur doit pouvoir relire dans le journal.
+const DISCOUNT_ACCOUNT = '70900000';
+
+// Rule 25 — un pourboire n'est pas la contrepartie d'une prestation : produit divers de gestion
+// courante, hors TVA. Même compte que l'indemnité d'annulation, pour la même raison.
+const TIP_ACCOUNT = DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT;
+
 // Well-known commission accounts the accountant uses. Adrien's accountant gave these by
 // email 2026-06-04; new platforms get a generic `622600` fallback until the operator
 // configures the right number on `/comptabilite/plateformes`.
@@ -71,6 +81,7 @@ const ACCOUNT_LABELS = {
   [VAT_ACCOUNTS.REDUCED_10]:  'TVA 10 %',
   [VAT_ACCOUNTS.STANDARD_20]: 'TVA 20 %',
   [PASS_THROUGH_ACCOUNTS.TOURIST_TAX]: 'Taxe de séjour',
+  [DISCOUNT_ACCOUNT]: 'Rabais accordé',
   [VAT_DEDUCTIBLE_COMMISSION_ACCOUNT]: 'TVA déductible commission',
   [DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT]: "Indemnité d'annulation",
 };
@@ -141,6 +152,8 @@ module.exports = {
   DEFAULT_COMMISSION_ACCOUNT,
   VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
+  DISCOUNT_ACCOUNT,
+  TIP_ACCOUNT,
   BUCKET_TO_ACCOUNT,
   REFUND_BUCKET_TO_ACCOUNT,
   vatAccountForRate,

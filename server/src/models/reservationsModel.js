@@ -41,6 +41,8 @@ const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
+const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
+const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
 const bookingLinesModel = require('./bookingLinesModel');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
@@ -124,6 +126,18 @@ function readExtraLinesFromDetailed(r) {
       offered: Number(res.offered || 0), inComplement: Number(res.inComplement || 0),
     })),
   ];
+}
+
+// specs/arrival-payment-detail-and-adjustment.md rule 23 — the réduction and the pourboire belong to
+// ONE payment; when that payment goes, they go with it. Guarded: several minimal test schemas have
+// neither column, and there is then nothing to clear.
+function clearArrivalPaymentAdjustment(database, reservationId) {
+  try {
+    database.prepare("UPDATE reservations SET arrivalPaymentReduction = NULL, arrivalPaymentTip = NULL, updatedAt = datetime('now') WHERE id = ?")
+      .run(reservationId);
+  } catch {
+    // No adjustment columns here: nothing to clear.
+  }
 }
 
 function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
@@ -1402,6 +1416,7 @@ function createReservationsModel(database) {
           }
           database.prepare("UPDATE reservations SET arrivalPaymentGroup = NULL, updatedAt = datetime('now') WHERE id = ?")
             .run(reservationId);
+          clearArrivalPaymentAdjustment(database, reservationId);
           return { buckets: group.buckets, total: group.total, grouped: false };
         }
 
@@ -1490,9 +1505,57 @@ function createReservationsModel(database) {
         if (!row || !groupCovers(row.arrivalPaymentGroup, bucket)) return;
         database.prepare("UPDATE reservations SET arrivalPaymentGroup = NULL, updatedAt = datetime('now') WHERE id = ?")
           .run(reservationId);
+        // specs/arrival-payment-detail-and-adjustment.md rule 23 — the réduction dies with the payment
+        // it was granted on. Left behind, it would keep lowering `comptaCollected` and the total du
+        // séjour of a collection that no longer exists.
+        clearArrivalPaymentAdjustment(database, reservationId);
       } catch {
         // Minimal test schemas without the column: no group to release.
       }
+    },
+
+    /**
+     * specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over.
+     *
+     * `target` is the operator's amount; the réduction and the pourboire are DERIVED from it against
+     * the buckets the group settled, and the réduction is clamped to the accommodation before being
+     * stored (rule 16). Storing the derived pair rather than the target is what lets every reader —
+     * the fiche, `comptaCollected`, the journal — apply it without re-deriving anything.
+     *
+     * `null` clears the adjustment. Returns the resolution, or `null` when there is no group to
+     * adjust (a payment must exist before it can have been made for less).
+     */
+    setArrivalPaymentAdjustment(reservationId, { target } = {}) {
+      const run = database.transaction(() => {
+        const reservation = model.getByIdWithDetails(reservationId);
+        if (!reservation) return null;
+        const group = parseGroup(reservation.arrivalPaymentGroup);
+        if (!group) return null;
+        const detail = buildArrivalPaymentDetail(reservation, {
+          buckets: group.buckets,
+          complementDetail: group.buckets.includes('complement')
+            ? arrivalComplementDetailFromReservation(reservation, { includeOffered: true })
+            : null,
+        });
+        const resolved = resolveArrivalPaymentAdjustment({
+          bucketsTotal: detail.bucketsTotal,
+          accommodation: detail.accommodation,
+          target,
+        });
+        database.prepare(`UPDATE reservations SET arrivalPaymentReduction = ?, arrivalPaymentTip = ?,
+                          updatedAt = datetime('now') WHERE id = ?`)
+          .run(resolved.reduction || null, resolved.tip || null, reservationId);
+        // The group records what the guest handed over, so its total follows the adjustment. A total
+        // of 0 € (everything given away) is the one case left alone: `buildGroup` refuses a group
+        // worth nothing, and rewriting it would DELETE the payment instead of adjusting it. The fiche
+        // computes its total live from the lines, so nothing is lost by keeping the stored one.
+        if (resolved.total > 0) {
+          database.prepare("UPDATE reservations SET arrivalPaymentGroup = ?, updatedAt = datetime('now') WHERE id = ?")
+            .run(serialiseGroup({ ...group, total: resolved.total }), reservationId);
+        }
+        return resolved;
+      });
+      return run();
     },
 
     updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked) {

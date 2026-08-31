@@ -46,6 +46,18 @@ describe('groupEntries', () => {
     expect(blocks[1].entries).toEqual([other]);
   });
 
+  test('the réduction and the pourboire of a payment join ITS card', () => {
+    // specs/arrival-payment-detail-and-adjustment.md rule 26 — l'ajustement appartient à la collecte
+    // qu'il corrige : il se lit sous les seaux, pas dans une carte orpheline à l'autre bout du mois.
+    const blocks = groupEntries([
+      entry({ kind: 'balance', paymentGroup: GROUP }),
+      entry({ kind: 'complement', paymentGroup: GROUP }),
+      entry({ kind: 'discount', direction: 'discount', paymentGroup: GROUP }),
+    ]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].entries.map((e) => e.kind)).toEqual(['balance', 'complement', 'discount']);
+  });
+
   test('two different collections are two blocks', () => {
     const g2 = { ...GROUP, id: '2:2026-08-16' };
     const blocks = groupEntries([

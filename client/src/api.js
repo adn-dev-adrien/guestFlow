@@ -205,6 +205,9 @@ const api = {
   // specs/single-payment-from-the-fiche.md §4.3 — the stay and the complement collected as ONE
   // payment, at a date the operator chooses. `mode` is 'card' | 'cash' | 'undo'.
   settleArrivalPayment: (id, mode, date) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode, date } }),
+  // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over. `total`
+  // null restores the computed total; the réduction / pourboire is derived and clamped server-side.
+  adjustArrivalPayment: (id, total) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode: 'adjust', total } }),
   deleteReservation: (id) => request(`/reservations/${id}`, { method: 'DELETE' }),
 
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation

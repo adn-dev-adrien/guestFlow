@@ -1298,6 +1298,12 @@ function calculateReservationQuote({
   // only subtracts it from the displayed « total de séjour »: the sale, the échéances and the buckets
   // are deliberately untouched by a refund.
   refundsTotal = 0,
+  // specs/arrival-payment-detail-and-adjustment.md rules 20-21 — the single arrival payment was made
+  // for LESS than its buckets add up to (a réduction accordée on the accommodation) or for more (a
+  // pourboire). Like a refund, the engine only moves the displayed « total du séjour » with it: no
+  // bucket, no échéance and no price is re-derived, which is what keeps a settled schedule settled.
+  arrivalPaymentReduction = 0,
+  arrivalPaymentTip = 0,
   // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — the operator moved the arrival
   // complement to the door. Files it under « fin de séjour » in the split even before the stay starts.
   complementDeferredToCheckout = false,
@@ -2395,9 +2401,11 @@ function calculateReservationQuote({
   // specs/reservation-refunds.md §3.3 rule 17 — refunds are the only deduction on this total, and they
   // are the LAST one: the buckets above still show what was sold and collected.
   const resolvedRefundsTotal = roundMoney(Math.max(0, Number(refundsTotal) || 0));
+  const resolvedArrivalReduction = roundMoney(Math.max(0, Number(arrivalPaymentReduction) || 0));
+  const resolvedArrivalTip = roundMoney(Math.max(0, Number(arrivalPaymentTip) || 0));
   const sejourNetTotal = roundMoney(
     netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledTotal
-    - resolvedRefundsTotal,
+    - resolvedRefundsTotal - resolvedArrivalReduction + resolvedArrivalTip,
   );
 
   // specs/tariff-recipes/spec.md §3.4 rules 21-23 — changeover-day check, exposed beside the
@@ -2504,6 +2512,9 @@ function calculateReservationQuote({
     endOfStayComplementTotal,
     // specs/reservation-refunds.md — surfaced so the fiche can show the « Remboursements » line.
     refundsTotal: resolvedRefundsTotal,
+    // Echoed so the summary can print its own row for each, like « Remboursements » above.
+    arrivalPaymentReduction: resolvedArrivalReduction,
+    arrivalPaymentTip: resolvedArrivalTip,
     complementSplit,
     preArrivalAmount,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses

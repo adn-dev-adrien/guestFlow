@@ -59,6 +59,8 @@ const {
   PASS_THROUGH_ACCOUNTS,
   SALES_JOURNAL_CODE,
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
+  DISCOUNT_ACCOUNT,
+  TIP_ACCOUNT,
 } = require('../constants/accounting');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
@@ -124,6 +126,10 @@ function entryToRows(entry) {
   if (entry && entry.direction === 'refund') return refundEntryToRows(entry);
   // Indemnités d'annulation (specs/cancellation-compensation.md §3.3 rule 16).
   if (entry && entry.direction === 'compensation') return compensationEntryToRows(entry);
+  // specs/arrival-payment-detail-and-adjustment.md §3.4 — the two faces of « what the guest actually
+  // handed over » for a single arrival payment.
+  if (entry && entry.direction === 'discount') return discountEntryToRows(entry);
+  if (entry && entry.direction === 'tip') return tipEntryToRows(entry);
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
   const clientAccount = buildClientAccount(entry.client.lastName);
@@ -375,6 +381,58 @@ function compensationEntryToRows(entry) {
   return rows;
 }
 
+// Une réduction accordée à la porte (specs/arrival-payment-detail-and-adjustment.md rule 24) :
+// l'inverse d'une vente, sur le compte de rabais.
+//   - 1 DÉBIT sur 70900000 pour le HT — le produit diminue, il n'est pas « plus petit » ;
+//   - 1 DÉBIT sur le compte de TVA pour la TVA de la remise (la TVA due baisse d'autant) ;
+//   - 1 CRÉDIT sur le compte client pour le TTC : l'écriture de vente a débité le brut, celle-ci
+//     ramène le débit client au montant réellement encaissé.
+// Aucune ligne de commission (la remise ne change pas ce que la plateforme prélève) et aucune ligne
+// de taxe de séjour : le plancher garantit que la remise ne mord jamais dessus.
+function discountEntryToRows(entry) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const libelle = libelleFor(entry);
+  const clientAccount = buildClientAccount(entry.client?.lastName);
+  const piece = '';
+  const ttc = round2(entry.encaissementTtc);
+  const debits = [];
+  const ht = round2(entry.discount?.ht != null ? entry.discount.ht : ttc);
+  if (ht > 0) debits.push({ account: entry.discount?.account || DISCOUNT_ACCOUNT, amount: ht });
+  const vat = round2(entry.discount?.vat || 0);
+  if (vat > 0) debits.push({ account: vatAccountForRate(entry.discount?.ratePercent), amount: vat });
+  if (debits.length > 0) {
+    const sum = round2(debits.reduce((a, l) => a + l.amount, 0));
+    const residue = round2(ttc - sum);
+    if (residue !== 0) debits[debits.length - 1].amount = round2(debits[debits.length - 1].amount + residue);
+  }
+  const rows = debits.map((line) => zerofyMoneyColumns([
+    day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
+  ]));
+  rows.push(zerofyMoneyColumns([
+    day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, '', ttc, '', '', '',
+  ]));
+  return rows;
+}
+
+// Un pourboire (rule 25) : de l'argent qui entre sans prestation en face.
+//   - 1 DÉBIT sur le compte client pour ce qui a été remis ;
+//   - 1 CRÉDIT sur le produit divers de gestion courante, hors TVA (un don n'est pas taxable).
+function tipEntryToRows(entry) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const libelle = libelleFor(entry);
+  const clientAccount = buildClientAccount(entry.client?.lastName);
+  const piece = '';
+  const ttc = round2(entry.encaissementTtc);
+  return [
+    zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, ttc, '', '', '', '',
+    ]),
+    zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, entry.tipAccount || TIP_ACCOUNT, '', ttc, '', '', '',
+    ]),
+  ];
+}
+
 function buildRows(entries) {
   const rows = [];
   for (const entry of entries || []) {
@@ -394,7 +452,10 @@ function entryToStructured(entry) {
 
   const isRefund = entry.direction === 'refund';
   const isCompensation = entry.direction === 'compensation';
-  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation)
+  const isDiscount = entry.direction === 'discount';
+  const isTip = entry.direction === 'tip';
+  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
+    && !isDiscount && !isTip)
     ? {
         platform: entry.platform,
         gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
@@ -418,7 +479,10 @@ function entryToStructured(entry) {
     const creditVal = typeof credit === 'number' ? credit : null;
     return {
       compte: String(compte),
-      accountLabel: accountLabel(compte),
+      // specs/arrival-payment-detail-and-adjustment.md rule 25 — the pourboire shares the produit-divers
+      // account with the indemnité d'annulation, so an entry may name what ITS use of the account is.
+      // Everything else keeps the shared chart-of-accounts label.
+      accountLabel: (entry.accountLabels && entry.accountLabels[String(compte)]) || accountLabel(compte),
       libelle: String(libelle),
       // Map literal-0 placeholders back to null so the preview shows a blank cell on the
       // counter-side (the user sees `100,00 / —` not `100,00 / 0,00`).
@@ -438,7 +502,7 @@ function entryToStructured(entry) {
   const finalPrice = round2(entry.finalPrice);
   // A refund covers no « share of the séjour » — it gives part of it back (the caption is hidden).
   // A compensation has no séjour at all: the stay was cancelled (the caption is hidden too).
-  const stayShare = (!isRefund && !isCompensation && finalPrice > 0)
+  const stayShare = (!isRefund && !isCompensation && !isDiscount && !isTip && finalPrice > 0)
     ? Math.max(0, (round2(entry.encaissementTtc) - round2(entry.taxTtc || 0)) / finalPrice)
     : null;
 
@@ -447,7 +511,9 @@ function entryToStructured(entry) {
     kind: entry.kind,
     // specs/reservation-refunds.md §3.4 rule 25 — the card renders as an « avoir » when set.
     // specs/cancellation-compensation.md §6.3 — « compensation » renders as an indemnity card.
-    direction: isRefund ? 'refund' : (isCompensation ? 'compensation' : 'sale'),
+    direction: isRefund ? 'refund'
+      : (isCompensation ? 'compensation'
+        : (isDiscount ? 'discount' : (isTip ? 'tip' : 'sale'))),
     compensationId: entry.compensationId != null ? entry.compensationId : null,
     // The cancelled stay window, so the card can say WHICH séjour the indemnity replaces.
     compensationStay: isCompensation

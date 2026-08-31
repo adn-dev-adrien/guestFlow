@@ -13,6 +13,7 @@
  */
 
 const { parseNotes } = require('./midStayExtras');
+const { parseGroup } = require('./arrivalPaymentGroup');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -140,6 +141,23 @@ function refundsBook(r) {
   return round2(Number(r.refundsBookTtc || 0));
 }
 
+/**
+ * specs/arrival-payment-detail-and-adjustment.md §3.2-§3.3 — the single arrival payment was made for
+ * LESS than the buckets add up to (a réduction accordée on the accommodation) or for more (a
+ * pourboire). Modelled on the refund: an amount the readers subtract, never a bucket rewritten.
+ *
+ * A **caisse-interne** group is off the books whole — its buckets already count for nothing, so its
+ * réduction must count for nothing either; subtracting it there would push the collected total
+ * negative on money that was never in the books to begin with.
+ */
+function arrivalPaymentAdjustment(r = {}) {
+  const group = parseGroup(r.arrivalPaymentGroup);
+  if (!group || group.cash === 1) return { reduction: 0, tip: 0, net: 0 };
+  const reduction = round2(r.arrivalPaymentReduction);
+  const tip = round2(r.arrivalPaymentTip);
+  return { reduction, tip, net: round2(tip - reduction) };
+}
+
 // « Encaissé » = what the operator has actually RECEIVED so far = every component marked paid,
 // EXCLUDING caisse interne, NET of the platform commission of each paid échéance and NET of the
 // refunds already sent back. Direct → commission 0 → the plain paid sum.
@@ -154,11 +172,14 @@ function comptaCollected(r) {
     // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
     + midStayNotesTotal(r)
     // …and a refund is money already given back (specs/reservation-refunds.md rule 18).
-    - refundsBook(r),
+    - refundsBook(r)
+    // …and the single arrival payment may have been made for less (réduction) or more (pourboire)
+    // than its buckets: what the operator received is what the bank shows.
+    + arrivalPaymentAdjustment(r).net,
   );
 }
 
 module.exports = {
   bucketStates, isSettled, remainingToPay, platformCommission, attributionDate, stayDueAtArrival,
-  midStayNotesTotal, refundsBook, comptaCollected, round2,
+  midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, round2,
 };
