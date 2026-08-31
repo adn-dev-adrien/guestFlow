@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { buildMonthLayout, normalizeItems, monthItems, frRange } from '../CumulativeMonthCalendar';
 
@@ -107,15 +107,33 @@ describe('frRange', () => {
 });
 
 describe('CumulativeMonthCalendar (infinite scroll)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  // The component reads « today » from the clock, so these cases used to depend on the day they ran.
+  // On 2026-08-31 they failed: the fixture below built its end date by incrementing the DAY NUMBER as
+  // a string, which on the last day of a month gives « 2026-08-32 ». `daysBetween` returns NaN on an
+  // impossible date, the bar comes out as `calc(NaN% - 2px)`, and every reservation silently
+  // disappears from the grid. Freezing the clock removes the whole class of failure; only `Date` is
+  // faked, so `waitFor` keeps its real timers.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-16T12:00:00'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
   function todayIso() {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
   }
+  // A real one-day step, so the fixture stays valid on the 28th, the 30th and the 31st alike.
+  function nextDayIso(iso) {
+    const d = new Date(`${iso}T12:00:00`);
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
 
   it('stacks multiple months and renders reservation bars from the loaded data', async () => {
     const d = todayIso();
-    const end = `${d.slice(0, 8)}${String(Number(d.slice(8, 10)) + 1).padStart(2, '0')}`;
+    const end = nextDayIso(d);
     api.getReservations.mockResolvedValue([
       { id: 1, startDate: d, endDate: end, platform: 'airbnb', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
     ]);
@@ -129,7 +147,7 @@ describe('CumulativeMonthCalendar (infinite scroll)', () => {
   // Case is not identity — one platform, one entry, one leading capital.
   it('lists a platform once in the legend whatever the stored casing', async () => {
     const d = todayIso();
-    const end = `${d.slice(0, 8)}${String(Number(d.slice(8, 10)) + 1).padStart(2, '0')}`;
+    const end = nextDayIso(d);
     api.getReservations.mockResolvedValue([
       { id: 1, startDate: d, endDate: end, platform: 'Abracadaroom', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
       { id: 2, startDate: d, endDate: end, platform: 'abracadaroom', propertyName: 'Lodge', firstName: 'Marie', lastName: 'Martin' },
