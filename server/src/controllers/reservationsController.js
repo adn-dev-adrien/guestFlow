@@ -1307,6 +1307,9 @@ function updatePayment(req, res) {
     // payment that named it: the group must never claim a collection that is no longer true.
     if (Number(before?.endOfStayComplementPaid || 0) !== Number(paid || 0)) {
       model.releaseEndOfStayBucket(Number(id));
+      // …et ce n'est plus le SAS départ qui possède cet encaissement, quel que soit le sens du
+      // basculement (specs/recall-unpaid-arrival-complement-at-checkout.md rule 9bis).
+      model.clearEndOfStayDepartureMarker(Number(id));
     }
   }
   if (cautionReceived !== undefined) {
