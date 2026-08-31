@@ -1,6 +1,6 @@
 {
   "name": "guestflow",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Gestion d'accueils touristiques - Réservation et suivi financier",
   "private": true,
   "scripts": {

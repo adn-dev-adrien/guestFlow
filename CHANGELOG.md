@@ -4,6 +4,40 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-08-31
+
+### Summary
+- Un client qui règle tout à l'arrivée n'est plus enregistré deux fois : un seul encaissement, un seul geste.
+- Le récapitulatif du check-in demande « Total à percevoir à l'arrivée », puis CB / Chèque, liquide ou plus tard.
+- Le repas ou la planche vendus PENDANT le check-in sont comptés dans ce total, c'est le cas visé.
+- La fiche affiche « Encaissé à l'arrivée : paiement unique de … », et la compta regroupe les écritures.
+- « Régler séparément » reste à un tap pour encaisser le séjour et reporter le complément au départ.
+- Comptes et TVA sont inchangés : hébergement et prestations gardent chacun leur ventilation.
+
+### Added
+- **One payment when the guest settles everything on arrival** (spec `single-payment-at-check-in.md`,
+  2026-08-30). Since 2.8.0 the arrival SAS can collect two things — the stay and the arrival
+  complement — and settled them separately: two button rows in the recap, two « payé » on the fiche,
+  **two accounting entries** for a single line on the bank statement. At the door that is not what
+  happens: a last-minute guest who takes a meal during the check-in hands over **one card, once**.
+  When both sides are collectible the recap now asks once — « Total à percevoir à l'arrivée », then
+  **CB / Chèque**, **Payé en liquide** or **Plus tard** — and what the check-in itself just sold is
+  part of that total, which is the case the feature exists for. The fiche shows « Encaissé à
+  l'arrivée : paiement unique de 802,00 € » above the buckets, and the Comptabilité folds the entries
+  under one « Encaissé le … » card. The accounting ventilation is untouched: accommodation and
+  prestations keep their own revenue accounts and VAT rates, because the collection is what is
+  grouped, never the ventilation. « Régler séparément » stays one tap away, for a stay collected at
+  the door and a complement deferred to the check-out. +24 server tests, +11 client tests.
+
+### Migration
+- **`reservations`** gains two columns: `arrivalPaymentGroup` (TEXT, NULL), which records the single
+  arrival payment — its date, its means, the amount handed over and the buckets it covered — and
+  `complementPaidAtArrival` (0 by default), the marker saying the SAS settled the complement itself,
+  mirroring the two that already exist for the acompte and the solde. No existing data is changed: a
+  reservation without a group reads exactly as before. The group is dissolved as soon as any bucket it
+  names stops being settled, including from the fiche — so the fiche never announces a payment that
+  is no longer true.
+
 ## [2.8.0] - 2026-08-30
 
 ### Summary
