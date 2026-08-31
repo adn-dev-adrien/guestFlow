@@ -7,7 +7,8 @@
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { validateFinanceInputs } = require('../utils/financeValidation');
-const { parseGroup } = require('../utils/arrivalPaymentGroup');
+const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
+const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -321,18 +322,79 @@ function occupiedDates(req, res) {
  */
 function buildArrivalPaymentView(row) {
   const group = parseGroup(row.arrivalPaymentGroup);
-  if (!group) return null;
   const label = { deposit: 'acompte', balance: 'solde', complement: 'complément' };
   const amountOf = { deposit: row.depositAmount, balance: row.balanceAmount, complement: row.complementAmount };
+  if (group) {
+    return {
+      at: group.at,
+      total: group.total,
+      cash: group.cash === 1,
+      means: group.cash === 1 ? 'Caisse interne' : 'CB / Chèque',
+      covers: group.buckets.map((b) => ({
+        bucket: b, label: label[b], amount: Math.round((Number(amountOf[b]) || 0) * 100) / 100,
+      })),
+    };
+  }
+  // specs/single-payment-from-the-fiche.md rules 2-3 — no group yet: what could still be collected as
+  // ONE payment. Fewer than two buckets is not an offer: the per-bucket buttons already cover it, and
+  // calling a lone settlement « paiement unique » would be a lie.
+  const collectible = collectibleArrivalBuckets(row);
+  if (collectible.length < 2) return null;
   return {
-    at: group.at,
-    total: group.total,
-    cash: group.cash === 1,
-    means: group.cash === 1 ? 'Caisse interne' : 'CB / Chèque',
-    covers: group.buckets.map((b) => ({
-      bucket: b, label: label[b], amount: Math.round((Number(amountOf[b]) || 0) * 100) / 100,
-    })),
+    collectible: {
+      total: Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100,
+      buckets: collectible,
+      // The earliest date the operator may pick — the collection cannot predate the booking.
+      bookedAt: String(row.createdAt || '').slice(0, 10) || null,
+    },
   };
+}
+
+/**
+ * specs/single-payment-from-the-fiche.md §3.2-§3.3 — record (or undo) the single arrival payment
+ * from the fiche. The date is the operator's and is validated here, BEFORE the transaction opens, so
+ * a refused date never leaves a half-written payment behind.
+ */
+function settleArrivalPayment(req, res) {
+  const id = Number(req.params.id);
+  const row = model.getRow(id);
+  if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
+  // Fail-closed: the reception role never sees the stay amounts, so it never settles them either.
+  if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'FORBIDDEN' });
+
+  const mode = String(req.body?.mode || '');
+  if (!['card', 'cash', 'undo'].includes(mode)) {
+    return res.status(400).json({ error: 'Mode de règlement inconnu.' });
+  }
+
+  let date;
+  if (mode !== 'undo') {
+    const checked = validateArrivalPaymentDate(req.body?.date, {
+      today: getTodayIsoDate(),
+      bookedAt: String(row.createdAt || '').slice(0, 10),
+    });
+    if (!checked.ok) return res.status(400).json({ error: checked.reason });
+    date = checked.date;
+    if (collectibleArrivalBuckets(row).length === 0) {
+      return res.status(409).json({ error: 'Il n\'y a plus rien à encaisser sur cette réservation.' });
+    }
+  }
+
+  const result = model.settleArrivalBuckets(id, { mode, date });
+  const after = model.getRow(id);
+  // specs/arrival-departure-sas.md §3.7 — money decisions are always traceable.
+  if (result.buckets.length > 0) {
+    const covered = result.buckets.join(', ');
+    model.addHistoryEntry(id, 'update', mode === 'undo'
+      ? [{ field: 'arrivalPayment', label: 'Paiement unique à l\'arrivée', from: `${result.total} € (${covered})`, to: 'annulé' }]
+      : [{
+        field: 'arrivalPayment',
+        label: 'Paiement unique encaissé à l\'arrivée',
+        from: '',
+        to: `${result.total} € — ${mode === 'cash' ? 'caisse interne' : 'CB / Chèque'} le ${date} — ${covered}`,
+      }]);
+  }
+  return res.json({ arrivalPayment: buildArrivalPaymentView(after), reservation: after });
 }
 
 function getById(req, res) {
@@ -1188,5 +1250,5 @@ function remove(req, res) {
 
 module.exports = {
   suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
-  create, update, updatePayment, remove,
+  create, update, updatePayment, settleArrivalPayment, remove,
 };

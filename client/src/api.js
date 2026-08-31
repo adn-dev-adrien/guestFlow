@@ -202,6 +202,9 @@ const api = {
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
+  // specs/single-payment-from-the-fiche.md §4.3 — the stay and the complement collected as ONE
+  // payment, at a date the operator chooses. `mode` is 'card' | 'cash' | 'undo'.
+  settleArrivalPayment: (id, mode, date) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode, date } }),
   deleteReservation: (id) => request(`/reservations/${id}`, { method: 'DELETE' }),
 
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
