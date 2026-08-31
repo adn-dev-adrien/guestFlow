@@ -153,7 +153,11 @@ test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can und
   expect(payload.stayPaid).toBe(false);
 });
 
-test('arrival SAS recap: stay and complement are settled separately, with a combined arrival total', async () => {
+// Superseded on 2026-08-30 by specs/single-payment-at-check-in.md: when BOTH sides are collectible
+// the recap now asks once, because that is what happens at the door. The two independent settlements
+// this spec introduced are still there — one tap away, behind « Régler séparément » — because the
+// case rule 22 was written for (one side collected, the other deferred) is real.
+test('arrival SAS recap: both sides listed, and « Régler séparément » restores the two settlements', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
     cleaning: { included: true, price: 80 },
@@ -171,7 +175,12 @@ test('arrival SAS recap: stay and complement are settled separately, with a comb
   expect(screen.getByText(/Séjour : 480,00 €/)).toBeInTheDocument();
   expect(screen.getByText(/Total complément : 50,00 €/)).toBeInTheDocument();
   expect(screen.getByText(/Total à percevoir à l'arrivée : 530,00 €/)).toBeInTheDocument();
-  // Two independent settlements: the stay keeps « Pas maintenant », the complement « En fin de séjour ».
-  expect(screen.getByText('Règlement du séjour')).toBeInTheDocument();
+  // One gesture by default — the guest hands over one card.
+  expect(screen.getByText('Règlement')).toBeInTheDocument();
+
+  // …and the two independent settlements are one tap away: the stay keeps « Pas maintenant », the
+  // complement « En fin de séjour ».
+  clickBtn('Régler séparément');
+  expect(await screen.findByText('Règlement du séjour')).toBeInTheDocument();
   expect(screen.getByText('Règlement du complément')).toBeInTheDocument();
 });

@@ -70,6 +70,11 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
     bathLinenOffered: false,
     offeredExtras: [],
     departureHandoverNote: '',
+    // specs/single-payment-at-check-in.md §3.1 — nothing is collectible on the stay here, so the
+    // server never offers the unified settlement and the commit says « settle them separately »:
+    // the two fields below keep deciding, exactly as they did before this feature.
+    arrivalPaymentMode: 'defer',
+    arrivalPaymentSplit: true,
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the « Complément encaissé » box was not
     // ticked in this flow, so the complement stays unsettled (→ recalled at checkout).
     complementSettled: false,

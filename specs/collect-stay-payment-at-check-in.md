@@ -158,6 +158,13 @@ wizard.
 22. The complement keeps its own block, its own detail and its own « CB / Chèque · Payé en liquide · En
     fin de séjour » buttons — the two are different accounting objects and one may be deferred while the
     other is collected.
+    **Superseded on 2026-08-30 by [single-payment-at-check-in.md](single-payment-at-check-in.md).**
+    Separating them by default was wrong at the door: the guest hands over ONE card for the stay and
+    the prestations taken during the check-in, and GuestFlow recorded two collections — two ticks on
+    the fiche, two entries in the Comptabilité for one bank line. When both sides are collectible the
+    recap now asks **once**. The case this rule was written for is real and stays reachable in one
+    tap, behind « Régler séparément »; and the two buckets remain separate accounting objects, which
+    is exactly why the unified settlement groups the *collection* and never merges the ventilation.
 23. When both are non-zero the recap shows a **« Total à percevoir à l'arrivée »** = `stayDue` +
     complement total, purely as a reading aid (each block still settles independently).
 

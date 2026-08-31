@@ -7,6 +7,7 @@
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { validateFinanceInputs } = require('../utils/financeValidation');
+const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -313,6 +314,27 @@ function occupiedDates(req, res) {
   res.json(merged);
 }
 
+/**
+ * The arrival single payment, ready to render (specs/single-payment-at-check-in.md §3.4 rule 16):
+ * what was handed over, when, by what means, and which buckets it covered — with their amounts as
+ * they stand now, so the operator sees what the collection paid for.
+ */
+function buildArrivalPaymentView(row) {
+  const group = parseGroup(row.arrivalPaymentGroup);
+  if (!group) return null;
+  const label = { deposit: 'acompte', balance: 'solde', complement: 'complément' };
+  const amountOf = { deposit: row.depositAmount, balance: row.balanceAmount, complement: row.complementAmount };
+  return {
+    at: group.at,
+    total: group.total,
+    cash: group.cash === 1,
+    means: group.cash === 1 ? 'Caisse interne' : 'CB / Chèque',
+    covers: group.buckets.map((b) => ({
+      bucket: b, label: label[b], amount: Math.round((Number(amountOf[b]) || 0) * 100) / 100,
+    })),
+  };
+}
+
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -321,7 +343,15 @@ function getById(req, res) {
   // payload, so opening the reservation needs no extra round-trip (and the reception view, which is
   // finance-stripped by construction, never sees them).
   const register = refundsController.buildRegister(Number(req.params.id), reservation);
-  res.json({ ...reservation, ...(register ? register.payload : {}) });
+  res.json({
+    ...reservation,
+    ...(register ? register.payload : {}),
+    // specs/single-payment-at-check-in.md §3.4 rule 16 — the single payment made at the door, shaped
+    // for display: the fiche renders it and computes nothing (CLAUDE.md §6.0). `null` when the guest
+    // paid the buckets separately, which is every reservation before this feature. The raw column
+    // rides along untouched for the SAS, which re-reads it as the stored group.
+    arrivalPayment: buildArrivalPaymentView(reservation),
+  });
 }
 
 function getHistory(req, res) {
@@ -1081,6 +1111,10 @@ function updatePayment(req, res) {
       "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
       paid, date, cash, id,
     );
+    // specs/single-payment-at-check-in.md §3.2 rules 8-9 — a complement FLIPPED from the fiche stops
+    // being the SAS's: its ownership marker goes, and so does any single payment that named it. Only
+    // on a real change, so saving the fiche for an unrelated reason never dissolves a group.
+    if (Number(before?.complementPaid || 0) !== Number(paid || 0)) model.releaseComplementBucket(Number(id));
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 (élargi le 2026-08-22) —
     // encaisser le complément d'arrivée le CLÔT : on fige ici l'état des extras, pour que tout ce qui
     // sera vendu ensuite parte au complément de fin de séjour au lieu de se perdre entre les

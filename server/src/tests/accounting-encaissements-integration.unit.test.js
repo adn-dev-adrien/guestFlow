@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 const { create: createAccountingModel } = require('../models/accountingModel');
 const { create: createAccountingController } = require('../controllers/accountingController');
+const { entryToStructured } = require('../utils/accountingExport');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -51,6 +52,7 @@ function createDb() {
       complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT,
       complementPaidCash INTEGER DEFAULT 0,
       depositPaidCash INTEGER NOT NULL DEFAULT 0, balancePaidCash INTEGER NOT NULL DEFAULT 0,
+      arrivalPaymentGroup TEXT,
       endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
       endOfStayComplementDetail TEXT, arrivalExtrasBaseline TEXT, midStaySettledNotes TEXT,
@@ -540,4 +542,93 @@ test('end-of-stay complement paid date drives the export month (not the stay dat
   });
   assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }).length, 0);
   assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 9, year: 2026 }).length, 1);
+});
+
+// ── One payment at check-in (specs/single-payment-at-check-in.md §3.3) ──────────────────────────
+// The ventilation must NOT change: two buckets, two entries, two revenue accounts, two VAT rates.
+// What is added is the sentence « these two were one collection », carried on both entries.
+
+test('a single arrival payment stamps its group on every entry it named — and on no other', () => {
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+    complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-15',
+    arrivalPaymentGroup: JSON.stringify({
+      at: '2026-08-15', cash: 0, total: 250, buckets: ['balance', 'complement'],
+    }),
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+
+  // Still TWO entries — merging them would merge two accounts and two VAT rates.
+  assert.deepEqual(entries.map((e) => e.kind).sort(), ['balance', 'complement']);
+  assert.equal(entries[0].encaissementTtc + entries[1].encaissementTtc, 250);
+  for (const entry of entries) {
+    assert.deepEqual(entry.paymentGroup, {
+      id: `${entry.reservationId}:2026-08-15`, at: '2026-08-15', cash: false, total: 250,
+    });
+  }
+});
+
+test('an ordinary reservation carries no group at all', () => {
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 60, depositPaid: 1, depositPaidDate: '2026-08-15',
+    balanceAmount: 140, balancePaid: 1, balancePaidDate: '2026-08-15',
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  assert.equal(entries.length, 2);
+  assert.ok(entries.every((e) => e.paymentGroup === undefined));
+});
+
+test('a caisse-interne group emits nothing: there is no entry to group', () => {
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15', balancePaidCash: 1,
+    complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-15', complementPaidCash: 1,
+    arrivalPaymentGroup: JSON.stringify({
+      at: '2026-08-15', cash: 1, total: 250, buckets: ['balance', 'complement'],
+    }),
+  });
+  assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }).length, 0);
+});
+
+test('the group survives the journal mapper — it is what the Comptabilité page reads', () => {
+  // The model stamps `paymentGroup`, but the page reads the MAPPED entry, which rebuilds the object
+  // from an explicit field list. A field dropped there is a field the UI never sees — which is
+  // exactly what happened the first time this was wired.
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+    complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-15',
+    arrivalPaymentGroup: JSON.stringify({
+      at: '2026-08-15', cash: 0, total: 250, buckets: ['balance', 'complement'],
+    }),
+  });
+  const mapped = createAccountingModel(db)
+    .encaissementsByMonth({ month: 8, year: 2026 })
+    .map((e) => entryToStructured(e));
+
+  assert.equal(mapped.length, 2);
+  for (const entry of mapped) {
+    assert.equal(entry.paymentGroup.total, 250);
+    assert.equal(entry.paymentGroup.id, '1:2026-08-15');
+    // …and the ventilation is untouched: each entry keeps its own balanced journal.
+    assert.ok(entry.lines.length > 0);
+  }
+});
+
+test('an ungrouped entry carries no paymentGroup through the mapper either', () => {
+  const db = createDb();
+  insertReservation(db, {
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+  });
+  const mapped = createAccountingModel(db)
+    .encaissementsByMonth({ month: 8, year: 2026 })
+    .map((e) => entryToStructured(e));
+  assert.equal(mapped.length, 1);
+  assert.equal(mapped[0].paymentGroup, undefined);
 });

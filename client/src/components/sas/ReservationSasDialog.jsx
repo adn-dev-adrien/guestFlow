@@ -285,6 +285,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // anything reads as « encaissé au check-out », which is what the commit already does.
   // Departure: null | 'card' | 'cash' (no defer at check-out).
   const [arrivalPayMode, setArrivalPayMode] = useState('defer');
+  // specs/single-payment-at-check-in.md §3.1 rule 4 — « Régler séparément ». Local to this check-in:
+  // nothing is persisted about the choice, only about what was actually collected.
+  const [splitSettlement, setSplitSettlement] = useState(false);
   const [departurePayMode, setDeparturePayMode] = useState(null);
   // specs/collect-stay-payment-at-check-in.md §3.3 — how the SÉJOUR itself was settled at the door:
   // 'card' | 'cash' | 'defer' (« Pas maintenant »). One state, rendered twice (the dedicated step and
@@ -317,7 +320,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setPreservedDeparture([]);
-    setArrivalPayMode('defer'); setDeparturePayMode(null); setStayPayMode('defer');
+    setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
     setWeatherAlerts([]); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
@@ -759,6 +762,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     return s + (isOffered(l.offerKey) ? l.real : 0) - (l.storedOffered ? l.real : 0);
   }, 0)), [complementDetailLines, isOffered]);
 
+  // specs/single-payment-at-check-in.md §3.1 rule 1 — the arrival complement as it stands right now,
+  // including what this check-in just sold. The recap renders it and the commit reads it to decide
+  // whether the settlement was one gesture or two; the server re-prices every line either way.
+  const arrivalComplementTotal = round2(
+    Math.max(0, round2(Number(r?.complementAmount || 0) - sasOriginSum - preExistingOfferDelta))
+    + arrivalAdded + preservedArrivalSum,
+  );
+  const unifiableNow = mode === 'arrival'
+    && Boolean(data?.arrivalPayment?.complementOpen)
+    && Boolean(data?.stayPayment?.applicable)
+    && arrivalComplementTotal > 0;
+
   // « label : qty × unitPrice € = total € » when there is a meaningful quantity, else « label : total € ».
   // Always the REAL price (specs/sas-offer-complement-lines.md §3.1 rule 2): an offered line shows what
   // the guest would have paid, struck through by `OfferableLine` — never a bare 0 €.
@@ -983,6 +998,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // specs/sas-recap-payment-buttons.md — settlement mode → paid flags. 'card'/'cash' settle the
           // arrival complement now ('cash' = caisse interne); 'defer'/null leave it unpaid → recalled at
           // check-out (specs/recall-unpaid-arrival-complement-at-checkout.md).
+          // specs/single-payment-at-check-in.md §3.1 — one gesture, one mode. The server translates it
+          // into the two settlements; `arrivalPaymentSplit` hands the decision back to them.
+          arrivalPaymentMode: arrivalPayMode,
+          arrivalPaymentSplit: splitSettlement || !unifiableNow,
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
           // specs/collect-stay-payment-at-check-in.md §3.3 rule 13 — the séjour settled at the door.
@@ -1525,18 +1544,23 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // `preExistingOfferDelta` is what the gestes commerciaux decided during THIS run take out of
           // (or give back to) the stored complement — the recap total must follow them live.
           const existing = Math.max(0, round2(Number(r.complementAmount || 0) - sasOriginSum - preExistingOfferDelta));
-          const total = round2(existing + arrivalAdded + preservedArrivalSum);
+          const total = arrivalComplementTotal;
           // specs/collect-stay-payment-at-check-in.md §3.5 — the séjour gets its own block, above the
           // complement and settled independently: the two are different accounting objects, and one
           // may be deferred to the check-out while the other is collected at the door.
           const stayStep = activeKeys.includes('stayPayment');
           const stayDue = stayStep ? round2(Number(data.stayPayment?.total || 0)) : 0;
+          // specs/single-payment-at-check-in.md §3.1 rule 1 — both sides collectible at the door: the
+          // stay step is shown, the complement is still open (the server's call), and it has a live
+          // total — which INCLUDES what this check-in just sold, the very case the feature is for.
+          // « Régler séparément » opts out. No money is decided here: the server re-prices at commit.
+          const unifiedPayment = unifiableNow && stayStep && !splitSettlement;
           return (
             <Stack spacing={1}>
               <Typography variant="sectionHeader">
                 {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
               </Typography>
-              {stayStep && (
+              {stayStep && !unifiedPayment && (
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>Séjour : {formatCurrency(stayDue)}</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du séjour</Typography>
@@ -1549,6 +1573,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   )}
                   <Divider />
                 </>
+              )}
+              {/* specs/single-payment-at-check-in.md §3.1 — the guest hands over ONE payment: the
+                  séjour and the complément are listed, then settled together, once. */}
+              {unifiedPayment && (
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>Séjour : {formatCurrency(stayDue)}</Typography>
               )}
               {/* specs/sas-hide-settled-steps.md §3 rule 4 — when the ménage page is hidden (cleaning
                   included), its client reminder is carried here so it's not lost. */}
@@ -1612,12 +1641,35 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
                 <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(arrivalAdded)}) manuellement.</Typography>
               )}
-              {total > 0 && Number(r.complementPaid || 0) !== 1 && (
+              {unifiedPayment ? (
+                <>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
+                  <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" />
+                  {arrivalPayMode === 'defer' && (
+                    <Typography variant="body2" color="text.secondary">
+                      Rien n'est encaissé : le séjour reste dû et le complément est rappelé au check-out.
+                    </Typography>
+                  )}
+                  {arrivalPayMode === 'cash' && (
+                    <Typography variant="body2" color="text.secondary">Encaissé en caisse interne (hors comptabilité).</Typography>
+                  )}
+                  {/* Rule 4 — the two-settlement case is real (séjour encaissé, complément reporté) and
+                      must stay one tap away. */}
+                  <Button size="small" variant="text" sx={{ alignSelf: 'flex-start' }} onClick={() => setSplitSettlement(true)}>
+                    Régler séparément
+                  </Button>
+                </>
+              ) : total > 0 && Number(r.complementPaid || 0) !== 1 && (
                 <>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du complément</Typography>
                   <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer />
                   {arrivalPayMode === 'defer' && (
                     <Typography variant="body2" color="text.secondary">Reporté au check-out (rappelé dans le SAS de départ).</Typography>
+                  )}
+                  {unifiableNow && stayStep && splitSettlement && (
+                    <Button size="small" variant="text" sx={{ alignSelf: 'flex-start' }} onClick={() => setSplitSettlement(false)}>
+                      Régler en une fois
+                    </Button>
                   )}
                 </>
               )}

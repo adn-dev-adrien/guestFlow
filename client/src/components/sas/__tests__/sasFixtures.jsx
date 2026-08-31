@@ -48,6 +48,11 @@ export function sasPayload(over = {}) {
     // specs/collect-stay-payment-at-check-in.md — nothing owed on the stay by default (the ordinary
     // prepaid case), so the « Séjour à régler » step is absent from every pre-existing flow.
     stayPayment: over.stayPayment || { applicable: false },
+    // specs/single-payment-at-check-in.md §3.1 — the only thing the server settles here: is the
+    // arrival complement still to be collected? The recap adds « and the stay step is shown, and the
+    // complement has a live total » before offering one settlement — so this default (an unpaid
+    // complement, the ordinary case) changes nothing for a prepaid stay.
+    arrivalPayment: over.arrivalPayment || { complementOpen: true, group: null },
   };
 }
 

@@ -197,13 +197,38 @@ export default function AccountingPage() {
 
             {!salesLoading && sales && sales.entries.length > 0 && (
               <Stack spacing={2}>
-                {sales.entries.map((entry) => (
+                {groupEntries(sales.entries).map((block) => (block.group ? (
+                  /* specs/single-payment-at-check-in.md §3.3 rule 13 — one collection, one card. The
+                     ventilation underneath is untouched: each bucket keeps its own balanced journal,
+                     its own account and its own VAT. */
+                  <Box key={block.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: { xs: 1, sm: 1.5 } }}>
+                    <Stack
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={1}
+                      sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between', mb: 1 }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        Encaissé le {displayDate(block.group.at)} — {formatCurrency(block.group.total)}
+                      </Typography>
+                      <Chip size="small" variant="outlined" label="Paiement unique" />
+                    </Stack>
+                    <Stack spacing={2}>
+                      {block.entries.map((entry) => (
+                        <JournalEntryCard
+                          key={`${entry.reservationId}-${entry.kind}-${entry.refundId ?? entry.paidDate}`}
+                          entry={entry}
+                          canOpenReservation={canOpenReservation}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+                ) : (
                   <JournalEntryCard
-                    key={`${entry.reservationId}-${entry.kind}-${entry.refundId ?? entry.paidDate}`}
-                    entry={entry}
+                    key={block.key}
+                    entry={block.entries[0]}
                     canOpenReservation={canOpenReservation}
                   />
-                ))}
+                )))}
               </Stack>
             )}
           </CardContent>
@@ -308,6 +333,32 @@ export default function AccountingPage() {
 // ─── JournalEntryCard ──────────────────────────────────────────────────────────────────────────
 // One card per encaissement. Header shows the date, kind (acompte / solde), client, encaissement TTC,
 // and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
+
+/**
+ * specs/single-payment-at-check-in.md §3.3 rule 13 — fold the entries that were ONE collection into
+ * one block, in place, without reordering anything else. A group of one falls back to a plain card:
+ * a lone entry is an ordinary payment, and framing it would announce a grouping that isn't one.
+ */
+export function groupEntries(entries) {
+  const blocks = [];
+  const byGroup = new Map();
+  for (const entry of entries) {
+    const key = `${entry.reservationId}-${entry.kind}-${entry.refundId ?? entry.paidDate}`;
+    const id = entry.paymentGroup?.id;
+    if (!id) {
+      blocks.push({ key, group: null, entries: [entry] });
+      continue;
+    }
+    const seen = byGroup.get(id);
+    if (seen) { seen.entries.push(entry); continue; }
+    const block = { key: `g-${id}`, group: entry.paymentGroup, entries: [entry] };
+    byGroup.set(id, block);
+    blocks.push(block);
+  }
+  // A group that ended up with a single entry (the other bucket fell in another month, or was
+  // dropped as a pure-tax entry) reads as an ordinary payment.
+  return blocks.map((b) => (b.group && b.entries.length < 2 ? { ...b, group: null } : b));
+}
 
 const KIND_LABELS = {
   deposit: 'Acompte', balance: 'Solde', complement: 'Complément',
