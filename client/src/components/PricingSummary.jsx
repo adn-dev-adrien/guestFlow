@@ -750,6 +750,12 @@ export default function PricingSummary({
             // specs/reservation-refunds.md §3.3 rule 17 — money given back to the guest is the last
             // deduction of the cascade: everything above still shows what was sold and collected.
             const refundsTotal = Number(quote?.refundsTotal || 0);
+            // specs/arrival-payment-detail-and-adjustment.md rule 21 — le client a réglé le paiement
+            // unique de l'arrivée pour moins (réduction accordée sur l'hébergement) ou pour plus
+            // (pourboire) que la somme de ses seaux. Le serveur l'a déjà répercuté sur
+            // `sejourNetTotal` ; ici on ne fait qu'imprimer la ligne qui l'explique.
+            const arrivalReduction = Number(quote?.arrivalPaymentReduction || 0);
+            const arrivalTip = Number(quote?.arrivalPaymentTip || 0);
             const totalPercu = Number(quote?.sejourNetTotal ?? (versement + onSiteTotal - refundsTotal));
             // The cascade flow (deductions → versement → +complément) only makes sense for a platform
             // reservation. Direct keeps a single « Total du séjour » + a complément line if any.
@@ -775,6 +781,8 @@ export default function PricingSummary({
                     {split.duringStay > 0 && row(COMPLEMENT_LABELS.duringStay, split.duringStay, { sign: '+ ', color: 'success.main' })}
                     {split.endOfStay > 0 && row(COMPLEMENT_LABELS.endOfStay, split.endOfStay, { sign: '+ ', color: 'success.main' })}
                     {refundsTotal > 0 && row('Remboursements', refundsTotal, { sign: '− ', color: 'error.main' })}
+                    {arrivalReduction > 0 && row('Réduction accordée', arrivalReduction, { sign: '− ', color: 'warning.main' })}
+                    {arrivalTip > 0 && row('Pourboire', arrivalTip, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
                     {form.complementPaid && split.arrival > 0 && (
                       <StatusBadge status="success" label="Complément payé" />
@@ -816,7 +824,10 @@ export default function PricingSummary({
                     {/* Direct: no cascade to print, so the « total perçu » line only appears once a
                         refund makes it differ from the gross above. */}
                     {refundsTotal > 0 && row('Remboursements', refundsTotal, { sign: '− ', color: 'error.main' })}
-                    {refundsTotal > 0 && row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
+                    {arrivalReduction > 0 && row('Réduction accordée', arrivalReduction, { sign: '− ', color: 'warning.main' })}
+                    {arrivalTip > 0 && row('Pourboire', arrivalTip, { sign: '+ ', color: 'success.main' })}
+                    {(refundsTotal > 0 || arrivalReduction > 0 || arrivalTip > 0)
+                      && row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
                   </>
                 )}
               </>

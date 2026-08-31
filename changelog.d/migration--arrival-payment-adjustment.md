@@ -1,0 +1,1 @@
+- Deux colonnes nullables sur `reservations` : `arrivalPaymentReduction` et `arrivalPaymentTip` (spec `arrival-payment-detail-and-adjustment.md`). `NULL` sur toutes les lignes existantes = « rien d'ajusté », donc aucune réservation antérieure ne change d'affichage ni d'écriture. Aucun backfill. Les deux sont effacées avec le groupe de paiement qu'elles corrigent.

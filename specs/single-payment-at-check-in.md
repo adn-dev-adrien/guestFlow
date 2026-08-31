@@ -129,6 +129,11 @@ commission) stays exactly as correct as it is today.
 16. The reservation's finance section gains, above the buckets, a **« Encaissé à l'arrivée »** line
     when a group exists: « Paiement unique de 530,00 € le 30/08 — CB / Chèque », followed by what it
     covered (« solde 480,00 € · complément 50,00 € »). Caisse interne is spelled out when it applies.
+    **Superseded on 2026-08-31** by
+    [arrival-payment-detail-and-adjustment.md](arrival-payment-detail-and-adjustment.md) §3.1: the
+    caption now lists the PRESTATIONS the payment covered rather than its buckets. The bucket caption
+    survives as the fallback for a payment whose contribution snapshots were never captured (rule 8
+    there), so nothing is lost when the detail cannot be built.
 17. **The per-bucket controls stay exactly as they are.** They are still separate amounts with
     separate accounting; the group is a reading aid above them, not a replacement. Un-ticking one of
     them clears the group (rule 8) and the line disappears — the fiche never shows a payment that is

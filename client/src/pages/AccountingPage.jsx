@@ -367,6 +367,10 @@ const KIND_LABELS = {
   refund: 'Remboursement',
   // specs/cancellation-compensation.md §6.3 — money in, but for a stay that never happened.
   compensation: "Indemnité d'annulation",
+  // specs/arrival-payment-detail-and-adjustment.md §3.4 — les deux faces de « ce que le client a
+  // vraiment remis » pour un paiement unique : une remise consentie à la porte, ou un pourboire.
+  discount: 'Rabais accordé',
+  tip: 'Pourboire',
 };
 
 // Tight single-letter badge so the encaissements table can show the kind without eating a
@@ -376,6 +380,8 @@ const KIND_BADGE_STYLES = {
   balance:    { letter: 'S', color: 'info.contrastText',    bgcolor: 'info.main' },
   complement: { letter: 'C', color: 'secondary.contrastText', bgcolor: 'secondary.main' },
   compensation: { letter: 'I', color: 'success.contrastText', bgcolor: 'success.main' },
+  discount: { letter: 'R', color: 'warning.contrastText', bgcolor: 'warning.main' },
+  tip: { letter: 'P', color: 'success.contrastText', bgcolor: 'success.main' },
 };
 
 function KindBadge({ kind }) {
@@ -413,6 +419,12 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
   // A compensation outlived its reservation (approving the cancellation deleted it), so the client
   // name must NOT link to a reservation page that would 404.
   const isCompensation = entry.direction === 'compensation';
+  // specs/arrival-payment-detail-and-adjustment.md §3.4 — ni l'une ni l'autre ne couvre une part du
+  // séjour : la remise en retire, le pourboire s'y ajoute sans rien vendre. Les deux sortent donc du
+  // libellé « N % du séjour », qui n'aurait aucun sens sur elles.
+  const isDiscount = entry.direction === 'discount';
+  const isTip = entry.direction === 'tip';
+  const isDeduction = isRefund || isDiscount;
   const clientNode = canOpenReservation && !isCompensation ? (
     <Link
       component={RouterLink}
@@ -444,7 +456,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           />
           <Chip
             size="small"
-            color={isRefund ? 'warning' : (isCompensation ? 'success' : 'default')}
+            color={isDeduction ? 'warning' : ((isCompensation || isTip) ? 'success' : 'default')}
             label={KIND_LABELS[entry.kind] || entry.kind}
           />
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -465,8 +477,8 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           <Stack sx={{ alignItems: 'flex-end' }}>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <EuroIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: isRefund ? 'warning.dark' : 'inherit' }}>
-                {isRefund ? '− ' : ''}{formatCurrency(entry.encaissementTtc)}
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: isDeduction ? 'warning.dark' : 'inherit' }}>
+                {isDeduction ? '− ' : ''}{formatCurrency(entry.encaissementTtc)}
               </Typography>
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
@@ -474,7 +486,9 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
               {isCompensation && (entry.compensationStay?.startDate
                 ? `Séjour annulé du ${displayDate(entry.compensationStay.startDate)} au ${displayDate(entry.compensationStay.endDate)}`
                 : 'Séjour annulé')}
-              {!isRefund && !isCompensation
+              {isDiscount && "Réduction accordée sur l'hébergement"}
+              {isTip && 'Pourboire remis par le client'}
+              {!isRefund && !isCompensation && !isDiscount && !isTip
                 && `${Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour (${formatCurrency(entry.finalPrice)})`}
             </Typography>
           </Stack>
