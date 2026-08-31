@@ -4,6 +4,27 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-08-31
+
+### Summary
+- Encaisser un séjour en une fois puis enregistrer la fiche n'efface plus le paiement : il tenait rarement plus d'un clic.
+- Le SAS départ ne réclame plus, ni n'efface, un complément de fin de séjour déjà réglé à l'arrivée.
+- « Marquer acompte / solde payé » s'enregistre immédiatement, sans attendre le bouton Enregistrer.
+- Si un paiement unique se défait, l'historique de la fiche dit désormais ce qui a disparu et pourquoi.
+
+### Added
+- **A dissolved single payment is finally traceable** (spec `single-payment-at-check-in.md`, rule 8bis). The payment group dies as soon as one of the buckets it covers stops being settled — but it did so without a word in the reservation's history, so a collection could vanish leaving no trace at all. That silence is what made the two bugs below impossible to diagnose from the app. The history now carries « Paiement unique à l'arrivée : 184,95 € le 30/08 (solde, complément de fin de séjour) → dissous — « solde » n'est plus encaissé »: what disappeared, and which bucket caused it.
+
+### Changed
+- **« Marquer acompte / solde payé » writes immediately** (spec `single-payment-from-the-fiche.md`, rule 11bis). Those two buttons only moved form state and waited for the page's Save; they now go through the same path as the complement, like every other money movement on the fiche. That is what lets the save ignore the payment flags — and therefore stop being able to erase one by accident. The caution keeps its own behaviour.
+
+### Fixed
+- **Saving a reservation no longer erases the single arrival payment** (spec `single-payment-from-the-fiche.md`, rule 11bis; found in production on 2026-08-31). After « Encaisser en une fois », clicking Save dissolved the collection: the form had been loaded BEFORE the money was recorded, so it sent « solde payé = non » back, the server read that as an un-payment and dropped the group — hence two entries in the Comptabilité instead of one card, and an end-of-stay complement due again. The three payment flags are no longer read from the browser: they belong to the buttons that collect, and the stored state wins.
+- **The departure SAS no longer erases a complement collected at the door** (spec `recall-unpaid-arrival-complement-at-checkout.md`, rule 9bis; found in production on 2026-08-31). When the guest had settled everything on arrival, the departure recap did not know: it asked for the 50 € of the end-of-stay complement all over again, and « Valider et terminer » — with no settlement mode, since the money was already in — cleared the collection. The recap now says « Déjà encaissé le JJ/MM — rien à percevoir », pre-selects the mode actually used, and the commit can only undo a collection that this SAS made itself.
+
+### Migration
+- One column on `reservations`: `endOfStayComplementPaidAtDeparture` (spec `recall-unpaid-arrival-complement-at-checkout.md`, rule 9bis), `0` on every existing row. It records whether the departure SAS is what collected the end-of-stay complement — only then may it un-collect it. Mirror of `complementPaidAtArrival`. No backfill: an older reservation behaves as if the complement had been collected elsewhere, which is the cautious side.
+
 ## [2.11.0] - 2026-08-31
 
 ### Summary
