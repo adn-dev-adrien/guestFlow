@@ -37,6 +37,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # specs/spec-rule-coverage.md §3.2 — la barrière : une règle AJOUTÉE à une spec doit être citée par
+  # un test. Uniquement sur les PR, et uniquement sur le diff : les 2 500 règles existantes ne
+  # bloquent personne (règle 10). Le 2026-09-01, trois règles écrites en v2.9.0 dormaient sur le
+  # papier pendant que 5 000 tests étaient verts ; ce job est ce qui empêche la quatrième.
+  spec-rules:
+    name: spec rules
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+        with:
+          # Le contrôle compare les specs à la base de la PR : il faut donc l'historique, pas un
+          # checkout superficiel.
+          fetch-depth: 0
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📏 Une règle ajoutée est-elle citée par un test ?
+        run: |
+          git fetch --no-tags --depth=200 origin "${{ github.base_ref }}"
+          node scripts/check-spec-coverage.mjs --changed --base "origin/${{ github.base_ref }}"
+
   server:
     name: server (node --test)
     runs-on: ubuntu-latest
