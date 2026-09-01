@@ -139,7 +139,17 @@ commission) stays exactly as correct as it is today.
     > comptable, elle, n'a jamais fusionné. La charge utile du tableau (`platformsPreview`) transporte
     > pour cela le `paymentGroup` de chaque écriture. Cliquer la ligne ouvre la fiche comme avant ;
     > seul le bouton de dépliage arrête la propagation.
+    >
+    > La « pastille combinée » annoncée ci-dessus est remplacée par le **bouton de dépliage**, dans la
+    > même colonne de 32 px : sur une ligne repliée, l'affordance vaut mieux qu'une étiquette, et les
+    > pastilles par échéance réapparaissent dans le détail — là où elles disent quelque chose.
 14. **The accountant's export is unchanged** (decision, §9 Q1): it keeps one journal entry per bucket.
+
+    > **Révisé le 2026-08-31** par
+    > [arrival-payment-detail-and-adjustment.md](arrival-payment-detail-and-adjustment.md) rule 28 :
+    > l'export gagne deux TYPES d'écritures — le rabais accordé (`70900000`) et le pourboire
+    > (`75880000`). La forme par échéance, elle, ne change toujours pas : c'est ce que cette règle
+    > protégeait. À annoncer au comptable avant le premier export qui en porte une.
     The grouping is what the *operator* reads in the app; the accountant's file keeps the shape their
     tooling already ingests. Changing the export is a separate decision, to be taken with them.
 15. A **caisse interne** group is excluded from the accounting exactly as its buckets already are —
