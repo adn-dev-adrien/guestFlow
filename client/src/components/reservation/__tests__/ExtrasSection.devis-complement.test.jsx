@@ -51,6 +51,7 @@ test('reservation on the same platform: the historic default still applies', () 
   complementSwitches().forEach((input) => expect(input).toBeChecked());
 });
 
+// specs/force-item-to-complement.md rule 4
 test('devis: an explicit « Compl. » on a line still reads ON', () => {
   renderExtras({ platform: 'Airbnb', isDevisMode: true, lineOverrides: { inComplement: true } });
 

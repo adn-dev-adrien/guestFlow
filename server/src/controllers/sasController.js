@@ -415,4 +415,4 @@ function commitDeparture(req, res) {
 module.exports = { getSas, commitArrival, commitDeparture };
 // Le repli d'historique de la règle 10 est de la logique pure sur une liste de changements : exposé
 // pour être épinglé sans monter tout le harnais du contrôleur.
-module.exports.__test = { foldGroupedPayment };
+module.exports.__test = { foldGroupedPayment, buildStayPayment };

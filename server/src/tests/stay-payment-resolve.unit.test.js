@@ -13,6 +13,7 @@ test('the step never ran → nothing is written', () => {
   assert.equal(resolveStayPayment({ bucket: owed, prev: {}, stayPaid: undefined, today: TODAY }), null);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 13
 test('settling an owed bucket stamps today, no cash', () => {
   assert.deepEqual(
     resolveStayPayment({ bucket: owed, prev: {}, stayPaid: true, stayPaidCash: false, today: TODAY }),
@@ -20,6 +21,7 @@ test('settling an owed bucket stamps today, no cash', () => {
   );
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 17
 test('« Payé en liquide » flags the caisse interne', () => {
   assert.deepEqual(
     resolveStayPayment({ bucket: owed, prev: {}, stayPaid: true, stayPaidCash: true, today: TODAY }),
@@ -27,11 +29,13 @@ test('« Payé en liquide » flags the caisse interne', () => {
   );
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 1
 test('a non-applicable bucket is never touched (0 €, or a deposit opted out)', () => {
   const bucket = { applicable: false, settled: false };
   assert.equal(resolveStayPayment({ bucket, prev: {}, stayPaid: true, today: TODAY }), null);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 15
 test('a bucket already paid OUTSIDE the SAS is not re-stamped', () => {
   const prev = { paid: 1, cash: 0, date: '2026-06-01', atArrival: 0 };
   assert.equal(resolveStayPayment({ bucket: paidElsewhere, prev, stayPaid: true, today: TODAY }), null);
@@ -45,6 +49,7 @@ test('re-committing our own settlement keeps the original date and may correct t
   );
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 11
 test('« Pas maintenant » undoes what this SAS settled', () => {
   const prev = { paid: 1, cash: 1, date: '2026-07-10', atArrival: 1 };
   assert.deepEqual(
@@ -53,6 +58,7 @@ test('« Pas maintenant » undoes what this SAS settled', () => {
   );
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 15
 test('« Pas maintenant » never clears a payment made elsewhere', () => {
   const prev = { paid: 1, cash: 0, date: '2026-06-01', atArrival: 0 };
   assert.equal(resolveStayPayment({ bucket: paidElsewhere, prev, stayPaid: false, today: TODAY }), null);

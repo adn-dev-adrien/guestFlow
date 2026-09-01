@@ -10,6 +10,7 @@ const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdju
 // 720,82 € de solde + 132 € de complément, dont 720,82 € d'hébergement.
 const PAYMENT = { bucketsTotal: 852.82, accommodation: 720.82 };
 
+// specs/arrival-payment-detail-and-adjustment.md rule 9
 test('no target: nothing is adjusted, and the total is the buckets', () => {
   for (const target of [null, undefined, '']) {
     const r = resolveArrivalPaymentAdjustment({ ...PAYMENT, target });
@@ -20,6 +21,7 @@ test('no target: nothing is adjusted, and the total is the buckets', () => {
   }
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 10
 test('below the computed total: the difference is a réduction accordée', () => {
   const r = resolveArrivalPaymentAdjustment({ ...PAYMENT, target: 800 });
   assert.equal(r.reduction, 52.82);
@@ -28,6 +30,7 @@ test('below the computed total: the difference is a réduction accordée', () =>
   assert.equal(r.floored, false);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 12
 test('above the computed total: the surplus is a pourboire', () => {
   const r = resolveArrivalPaymentAdjustment({ ...PAYMENT, target: 900 });
   assert.equal(r.tip, 47.18);
@@ -35,12 +38,14 @@ test('above the computed total: the surplus is a pourboire', () => {
   assert.equal(r.total, 900);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 11
 test('the floor is the payment minus its accommodation', () => {
   // 852,82 − 720,82 : les prestations et la taxe de séjour ne sont pas négociables ici.
   const r = resolveArrivalPaymentAdjustment({ ...PAYMENT, target: null });
   assert.equal(r.floor, 132);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 16
 test('a target under the floor is RAISED to it, and says so', () => {
   // L'opérateur voulait 50 € ; la réduction s'arrête à l'hébergement. On honore l'intention aussi
   // loin que les livres le permettent au lieu de refuser la saisie — et `floored` le dit au champ.
@@ -56,6 +61,7 @@ test('the réduction may eat the whole accommodation, and not a cent more', () =
   assert.equal(r.floored, false);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 11
 test('a payment with no accommodation cannot be reduced at all', () => {
   // Un séjour prépayé dont le groupe ne couvre que les compléments : rien à réduire, et le plancher
   // le dit (il vaut le total).
@@ -66,6 +72,7 @@ test('a payment with no accommodation cannot be reduced at all', () => {
   assert.equal(r.floored, true);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 16
 test('a nonsense target is ignored rather than stored', () => {
   const r = resolveArrivalPaymentAdjustment({ ...PAYMENT, target: 'huit cents' });
   assert.equal(r.reduction, 0);
