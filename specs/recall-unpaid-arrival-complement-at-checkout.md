@@ -80,7 +80,9 @@ the complement), the arrival complement silently stays unpaid and is never recal
    detail always sums to `complementAmount`. (Itemisation is display-only; the authoritative recalled amount
    is `complementAmount`.)
 
-9bis. **Le SAS départ ne défait que ce qu'il a encaissé lui-même** (ajouté le 2026-08-31, depuis la
+9bis. *(numérotée ainsi — et non « 7 » — parce que le CHANGELOG 2.12.0 et les commits la citent déjà
+   sous ce nom ; les règles de cette spec s'arrêtent sinon à 6.)*
+   **Le SAS départ ne défait que ce qu'il a encaissé lui-même** (ajouté le 2026-08-31, depuis la
    production). Le complément de fin de séjour peut avoir été réglé **ailleurs** : depuis la v2.10.1,
    « Encaisser en une fois » le couvre ([single-payment-from-the-fiche.md](single-payment-from-the-fiche.md)
    règle 2bis), et la fiche sait aussi le marquer payé. Répondre « pas maintenant » sur le récap de

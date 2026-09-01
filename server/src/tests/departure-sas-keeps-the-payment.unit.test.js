@@ -36,7 +36,12 @@ function makeDb({ withMarker = true } = {}) {
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
       ${withMarker ? 'endOfStayComplementPaidAtDeparture INTEGER NOT NULL DEFAULT 0,' : ''}
       balanceAmount REAL NOT NULL DEFAULT 0, balancePaid INTEGER NOT NULL DEFAULT 0, balancePaidDate TEXT,
-      arrivalPaymentGroup TEXT,
+      balancePaidCash INTEGER NOT NULL DEFAULT 0, balancePaidAtArrival INTEGER NOT NULL DEFAULT 0,
+      depositAmount REAL NOT NULL DEFAULT 0, depositPaid INTEGER NOT NULL DEFAULT 0, depositPaidDate TEXT,
+      depositPaidCash INTEGER NOT NULL DEFAULT 0, depositPaidAtArrival INTEGER NOT NULL DEFAULT 0,
+      depositDisabled INTEGER NOT NULL DEFAULT 0, complementPaidAtArrival INTEGER NOT NULL DEFAULT 0,
+      arrivalPaymentGroup TEXT, arrivalPaymentReduction REAL, arrivalPaymentTip REAL,
+      arrivalExtrasBaseline TEXT, midStaySettledNotes TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
       checkInReady INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0, checkOutDone INTEGER DEFAULT 0,
       extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER,
@@ -160,4 +165,25 @@ test('sans la colonne marqueur, le comportement d’avant la règle 9bis est con
   createReservationsModel(db).commitDepartureSas(1, VALIDATED_WITH_NO_MODE);
   const r = db.prepare('SELECT endOfStayComplementPaid AS paid FROM reservations WHERE id = 1').get();
   assert.equal(r.paid, 0);
+});
+
+// ── specs/arrival-payment-detail-and-adjustment.md rule 23 ────────────────────
+// La réduction meurt avec le groupe, y compris quand c'est le SAS ARRIVÉE rejoué en « Plus tard »
+// qui le retire. Laissée derrière, elle minorerait la comptabilité au nom d'une collecte disparue.
+test('un SAS arrivée rejoué en « Plus tard » efface aussi la réduction', () => {
+  const db = makeDb();
+  db.prepare(`INSERT INTO reservations
+    (id, propertyId, adults, balanceAmount, balancePaid, complementAmount, complementPaid,
+     arrivalPaymentGroup, arrivalPaymentReduction)
+    VALUES (1, 7, 2, 400, 1, 100, 1, ?, 50)`)
+    .run('{"at":"2026-08-30","cash":0,"total":450,"buckets":["balance","complement"]}');
+
+  createReservationsModel(db).commitArrivalSas(1, {
+    stayPaid: false, complementSettled: false, groupArrivalPayment: false,
+  });
+
+  const r = db.prepare(`SELECT arrivalPaymentGroup AS grp, arrivalPaymentReduction AS red
+                        FROM reservations WHERE id = 1`).get();
+  assert.equal(r.grp, null, 'le groupe est retiré');
+  assert.equal(r.red, null, 'et la réduction avec lui');
 });

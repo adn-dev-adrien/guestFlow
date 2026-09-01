@@ -64,9 +64,38 @@ function normaliseOfferedRefs(refs) {
     .map((x) => ({ kind: String(x.kind), id: Number(x.id) }));
 }
 
+// specs/single-payment-at-check-in.md §3.2 rule 10 — quand le check-in a encaissé EN UNE FOIS,
+// l'historique porte UNE ligne « Encaissé à l'arrivée — paiement unique » au lieu des lignes par
+// échéance. Trois lignes « Acompte encaissé / Solde encaissé / Complément encaissé » racontent trois
+// gestes ; il n'y en a eu qu'un, et c'est ce qu'il faut pouvoir relire des mois plus tard.
+const GROUPED_PAID_FIELDS = new Set(['depositPaid', 'balancePaid', 'complementPaid', 'endOfStayComplementPaid']);
+const GROUPED_BUCKET_LABELS = {
+  deposit: 'acompte', balance: 'solde', complement: 'complément',
+  endOfStayComplement: 'complément de fin de séjour',
+};
+
+function foldGroupedPayment(reservationId, changes) {
+  const group = parseGroup((reservationsModel.getRow(reservationId) || {}).arrivalPaymentGroup);
+  if (!group) return changes;
+  // Seules les lignes de PAIEMENT sont repliées : tout le reste du check-in (ménage, petit-déjeuner,
+  // caution…) garde sa propre ligne, ce sont d'autres décisions.
+  const paid = changes.filter((c) => GROUPED_PAID_FIELDS.has(c.field));
+  if (paid.length < 2) return changes;
+  const covered = group.buckets.map((b) => GROUPED_BUCKET_LABELS[b] || b).join(', ');
+  return [
+    ...changes.filter((c) => !GROUPED_PAID_FIELDS.has(c.field)),
+    {
+      field: 'arrivalPayment',
+      label: "Encaissé à l'arrivée — paiement unique",
+      fromText: '—',
+      toText: `${group.total} € — ${group.cash === 1 ? 'caisse interne' : 'CB / Chèque'} le ${group.at} — ${covered}`,
+    },
+  ];
+}
+
 function recordSasHistory(reservationId, eventType, before) {
   try {
-    const changes = computeSasChanges(before, snapshotSas(reservationId));
+    const changes = foldGroupedPayment(reservationId, computeSasChanges(before, snapshotSas(reservationId)));
     if (changes.length > 0) reservationsModel.addHistoryEntry(reservationId, eventType, changes);
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -384,3 +413,6 @@ function commitDeparture(req, res) {
 }
 
 module.exports = { getSas, commitArrival, commitDeparture };
+// Le repli d'historique de la règle 10 est de la logique pure sur une liste de changements : exposé
+// pour être épinglé sans monter tout le harnais du contrôleur.
+module.exports.__test = { foldGroupedPayment };
