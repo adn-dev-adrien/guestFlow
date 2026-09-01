@@ -2904,7 +2904,13 @@ function createReservationsModel(database) {
               .run(json, reservationId);
             // rule 8bis — un SAS re-joué en « Plus tard » retire le paiement unique qu'un passage
             // précédent avait enregistré : ça aussi doit se relire.
-            if (previous && !json) traceGroupDissolved(database, reservationId, previous, null);
+            // specs/arrival-payment-detail-and-adjustment.md rule 23 — …et la réduction (ou le
+            // pourboire) meurt avec lui. Laissée derrière, elle continuerait à minorer `comptaCollected`
+            // et le total du séjour au nom d'une collecte qui n'existe plus.
+            if (previous && !json) {
+              traceGroupDissolved(database, reservationId, previous, null);
+              clearArrivalPaymentAdjustment(database, reservationId);
+            }
           } catch {
             // Minimal test schemas without the column: the settlement above still stands.
           }
