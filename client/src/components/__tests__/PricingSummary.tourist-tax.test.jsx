@@ -53,7 +53,7 @@ const QUOTE_USER_BUG_SCENARIO = {
   resourceLines: [],
 };
 
-function renderSummary({ quote, form = MIN_FORM, selectedProperty = { name: 'Villa A' }, isPastReservation = false, onRefreshTouristTax } = {}) {
+function renderSummary({ quote, form = MIN_FORM, selectedProperty = { name: 'Villa A' }, isTouristTaxFrozen = false, onRefreshTouristTax } = {}) {
   return render(
     <PricingSummary
       quote={quote}
@@ -64,7 +64,7 @@ function renderSummary({ quote, form = MIN_FORM, selectedProperty = { name: 'Vil
       availableResources={[]}
       parsedTotalPrice={1000}
       accommodationDiscountedPriceDisplay={'1000.00'}
-      isPastReservation={isPastReservation}
+      isTouristTaxFrozen={isTouristTaxFrozen}
       onRefreshTouristTax={onRefreshTouristTax}
     />
   );
@@ -127,18 +127,18 @@ describe('PricingSummary — tourist tax mirrors the engine quote (devis PDF par
   });
 });
 
-// specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tax is frozen; a refresh
-// button next to the « Taxe de séjour » label forces a live recompute.
-describe('PricingSummary — refresh button for a frozen (past) reservation', () => {
-  test('no refresh button when the reservation is not past', () => {
-    renderSummary({ quote: QUOTE_USER_BUG_SCENARIO, isPastReservation: false, onRefreshTouristTax: () => {} });
+// specs/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax already collected or
+// declared is frozen; a refresh button next to the « Taxe de séjour » label forces a live recompute.
+describe('PricingSummary — refresh button for a frozen tourist tax', () => {
+  test('no refresh button while the tax is still live', () => {
+    renderSummary({ quote: QUOTE_USER_BUG_SCENARIO, isTouristTaxFrozen: false, onRefreshTouristTax: () => {} });
     expect(screen.queryByRole('button', { name: /Recalculer la taxe de séjour/i })).toBeNull();
   });
 
-  test('past reservation → the refresh button shows and calls onRefreshTouristTax', async () => {
+  test('frozen tax → the refresh button shows and calls onRefreshTouristTax', async () => {
     const user = userEvent.setup();
     const onRefresh = vi.fn();
-    renderSummary({ quote: QUOTE_USER_BUG_SCENARIO, isPastReservation: true, onRefreshTouristTax: onRefresh });
+    renderSummary({ quote: QUOTE_USER_BUG_SCENARIO, isTouristTaxFrozen: true, onRefreshTouristTax: onRefresh });
     const btn = screen.getByRole('button', { name: /Recalculer la taxe de séjour/i });
     await user.click(btn);
     expect(onRefresh).toHaveBeenCalledTimes(1);

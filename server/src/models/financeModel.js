@@ -4,6 +4,7 @@
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
+const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
 const {
@@ -758,10 +759,10 @@ function createFinanceModel(database) {
           .all(...rows.map((row) => row.reservationId)))
           .map((r) => [Number(r.id), r]),
       );
-      // specs/tourist-tax-freeze-past-with-refresh.md — the fiche freezes the tax of a stay whose last
-      // night falls before the 1st of the current month and shows the stored amount. Same rule here,
-      // or the declaration of a past month would drift away from the fiches it declares.
-      const firstOfCurrentMonth = `${currentMonth}-01`;
+      // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the fiche freezes a tax the
+      // guest has paid or the operator has declared, and shows the base it was frozen with. Same rule
+      // here, decided by the same helper, or the declaration would drift away from the fiches it
+      // declares — which is exactly what the recomputed base did.
 
       const reservations = rows
         .map((row) => {
@@ -771,12 +772,9 @@ function createFinanceModel(database) {
           const adults = Number(row.adults || 0);
           const children = Number(row.children || 0);
           const teens = Number(row.teens || 0);
-          const isPastStay = String(row.lastNightDate || '') < firstOfCurrentMonth;
           const quote = calculateReservationQuote({
             ...buildReservationEngineInput(database, stored),
-            freezeTouristTax: isPastStay,
-            frozenTouristTaxTotal: stored.touristTaxTotal,
-            frozenTouristTaxRate: stored.touristTaxRate,
+            freezeTouristTax: isTouristTaxFrozen(database, stored),
           });
           const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
 
@@ -839,7 +837,7 @@ function createFinanceModel(database) {
             // included in the rate, HT. Elsewhere no price enters the tax, so it stays the plain
             // accommodation the guest was charged, HT.
             accommodationAmount: isPercentageMode
-              ? round2(Number(quote.touristTaxPricePerNightHt || 0) * nightsCount)
+              ? round2(Number(quote.touristTaxBaseHt || 0))
               : round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),
             // What the rate covered and therefore left the BASE. Zero outside percentage mode, where
             // there is no base for it to leave: the engine still computes it, it just plays no part.

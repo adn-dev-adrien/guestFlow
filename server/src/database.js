@@ -2146,6 +2146,15 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // Tourist-tax declaration marker (specs/tourist-tax-declared-checkbox.md): set to the server time-stamp
   // when the operator ticks « Déclarée » on the extraction page, NULL = not yet declared.
   if (!rcols.includes('touristTaxDeclaredAt')) db.exec("ALTER TABLE reservations ADD COLUMN touristTaxDeclaredAt TEXT");
+  // Tourist-tax freeze envelope (specs/tourist-tax-matches-the-office-calculation.md rules 10-14):
+  // when the instalment carrying the tax is collected — or the line is ticked « Déclarée » — the
+  // amount stops moving, and the base / divisor / €-per-adult-night that produced it are pinned
+  // beside it. Without them a frozen stay shows a base recomputed under whatever rule is current,
+  // which is what made a declared line impossible to reproduce in the commune's own form.
+  if (!rcols.includes('touristTaxFrozenAt')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenAt TEXT');
+  if (!rcols.includes('touristTaxFrozenBaseHt')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenBaseHt REAL');
+  if (!rcols.includes('touristTaxFrozenOccupants')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenOccupants INTEGER');
+  if (!rcols.includes('touristTaxFrozenUnitAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxFrozenUnitAmount REAL');
   // SAS completion markers (specs/arrival-departure-sas.md §3.0): set on commit so the planning
   // card disables the SAS button once done (no accidental re-run).
   if (!rcols.includes('arrivalSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalSasDoneAt TEXT");
@@ -2323,6 +2332,25 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     if (skipped.length > 0) {
       console.log(`[migration:legacy-net-solde] left reservation(s) ${skipped.join(', ')} untouched (commission with no bucket to ride on)`);
     }
+  }
+}
+
+// ONE-SHOT — specs/tourist-tax-matches-the-office-calculation.md rule 13. Pins the tourist tax of
+// every stay whose tax is already collected or already declared, together with the base and divisor
+// that produced it, before the new base rules start applying. Bookings still to be collected are
+// deliberately left live so the guest is charged what the commune's form computes.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'tourist_tax_freeze_backfill_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runTouristTaxFreezeBackfill } = require('./utils/touristTaxFreezeBackfill');
+    const tx = db.transaction(() => {
+      const result = runTouristTaxFreezeBackfill(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return result;
+    });
+    const { frozen, leftLive } = tx();
+    console.log(`[migration:tourist-tax-freeze] froze ${frozen.length} collected/declared reservation(s); left ${leftLive.length} still-collectable one(s) live`);
   }
 }
 

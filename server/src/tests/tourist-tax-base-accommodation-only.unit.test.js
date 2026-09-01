@@ -121,7 +121,7 @@ test('an included value larger than the accommodation floors the base at 0', () 
   db.close();
 });
 
-test('the platform brut does not derive the base — the tariff accommodation does', () => {
+test('the platform brut derives the base again, net of the extras billed through it', () => {
   const db = createDb();
   const direct = calculateReservationQuote({ ...BASE, db });
   const platformNoBrut = calculateReservationQuote({ ...BASE, db, platform: 'Lodgify' });
@@ -130,14 +130,43 @@ test('the platform brut does not derive the base — the tariff accommodation do
     ...BASE, db, platform: 'Lodgify', platformGrossAmount: 450,
     selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
   });
+  const platformBrutAndComplementExtra = calculateReservationQuote({
+    ...BASE, db, platform: 'Lodgify', platformGrossAmount: 450,
+    selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 1 }],
+  });
 
-  for (const q of [platformNoBrut, platformWithBrut, platformBrutAndExtra]) {
-    assert.equal(q.touristTaxBaseAccommodation, 200);
-    assert.equal(q.touristTaxTotal, direct.touristTaxTotal);
-  }
+  // specs/tourist-tax-matches-the-office-calculation.md rule 3 — no brut, no change: the tariff is
+  // what the guest paid us.
+  assert.equal(platformNoBrut.touristTaxBaseAccommodation, 200);
+  assert.equal(platformNoBrut.touristTaxTotal, direct.touristTaxTotal);
+
+  // Rule 2 — with a brut, the brut IS what the guest paid, so it is the base. This repeals the
+  // decoupling of PR #470: declaring on the tariff declared on money nobody ever paid.
+  assert.equal(platformWithBrut.touristTaxBaseAccommodation, 450);
+
+  // An extra billed THROUGH the platform is inside the brut, so it comes out of the base…
+  assert.equal(platformBrutAndExtra.optionLines.find((l) => Number(l.optionId) === 10).totalPrice, 34.09);
+  assert.equal(platformBrutAndExtra.touristTaxBaseAccommodation, 415.91); // 450 − 34,09
+  // …but one routed to « Complément » is collected by us at arrival and was never in the brut:
+  // subtracting it would deduct it twice.
+  assert.equal(platformBrutAndComplementExtra.touristTaxBaseAccommodation, 450);
+
   // The brut still pins the money: it holds the whole stay, the reversed tax included
-  // (specs/platform-payment-tourist-tax-as-option.md). Only the tax AMOUNT was decoupled from it.
+  // (specs/platform-payment-tourist-tax-as-option.md).
   assert.equal(platformWithBrut.totalStayPrice, 450);
+  db.close();
+});
+
+test('a brut that does not even cover its extras is flagged, and floors the base at 0', () => {
+  const db = createDb();
+  const quote = calculateReservationQuote({
+    ...BASE, db, platform: 'Lodgify', platformGrossAmount: 5,
+    selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
+  });
+  // Rule 7 + rule 16 — an inconsistent entry, not a negative base and not a silent zero.
+  assert.equal(quote.touristTaxBaseAccommodation, 0);
+  assert.equal(quote.touristTaxBrutInconsistent, true);
+  assert.equal(quote.touristTaxTotal, 0);
   db.close();
 });
 

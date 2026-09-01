@@ -1,8 +1,13 @@
-// specs/tourist-tax-included-services-deduction.md rules 14-15 — the « Suivi financier → Taxe de
-// séjour » page RECOMPUTES the tax instead of reading the stored one, so it has to apply the same
-// deduction as the fiche: otherwise the operator validates 13,05 € on the reservation and declares
-// 14,85 € to the commune. It also reports the assiette the commune's percentage form asks for — the
-// cost of one night per occupant, HT.
+// specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the « Suivi financier → Taxe de
+// séjour » page must show, for every stay it lists, the amount the fiche shows AND a base that
+// reproduces it. That second half is what broke on 2026-08-20: the amount was pinned while the base
+// went on being recomputed under a new rule, so a declared line read « 24,73 €/occupant/nuit » next
+// to « 21,00 € » — two numbers that do not answer each other, and cannot be retyped into the
+// commune's form.
+//
+// Note the structural consequence of rule 10: the page only ever lists stays whose tax has been
+// COLLECTED, and collecting is what freezes it. Every line here is therefore a frozen one — the
+// declaration reports, it no longer re-prices.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,23 +16,16 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
+const { calculateReservationQuote } = require('../utils/pricing').__test;
+const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
+const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const pad2 = (n) => String(n).padStart(2, '0');
 
-// The CURRENT month on purpose: a stay whose last night falls before the 1st of it is frozen
-// (specs/tourist-tax-freeze-past-with-refresh.md) and declares its stored amount — which is exactly
-// what its fiche shows, and what the last test below pins. Everything else here exercises the live
-// recompute, i.e. the fiche of a stay that is not frozen yet.
 function currentMonth() {
   const now = new Date();
   return { month: `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`, year: now.getFullYear(), m: now.getMonth() + 1 };
-}
-
-function previousMonth() {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return { month: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`, year: d.getFullYear(), m: d.getMonth() + 1 };
 }
 
 // The Lodge as configured in production: 5 % + 10 % departmental, VAT 10 %, 2 guests included in the
@@ -56,6 +54,8 @@ function seedDb({ mode = 'percentage_accommodation' } = {}) {
 }
 
 // 3 nights at 119,93 € → 359,79 € of accommodation, 2 adults, solde paid inside the month.
+// `touristTaxTotal` is left at 0 here and filled by `saveLikeTheFiche` below, once the option lines
+// are in place — exactly the order a real save follows.
 function insertStay(db, { year, m, persons = 2 }) {
   const start = `${year}-${pad2(m)}-10`;
   const end = `${year}-${pad2(m)}-13`;
@@ -79,40 +79,48 @@ function insertInclusions(db, { persons = 2 } = {}) {
   line.run(9, 8, persons, 'per_person');
 }
 
-test('the declaration deducts the services included in the rate, exactly like the fiche', () => {
+// What the fiche does on save: price the stay live, store the amount, and store the base and divisor
+// behind it (rule 12). Without this the declaration would be reading a tax nobody ever computed.
+function saveLikeTheFiche(db) {
+  const stored = db.prepare('SELECT * FROM reservations WHERE id = 1').get();
+  const quote = calculateReservationQuote({
+    ...buildReservationEngineInput(db, stored),
+    freezeTouristTax: false,
+  });
+  db.prepare('UPDATE reservations SET touristTaxTotal = ?, touristTaxRate = ? WHERE id = 1')
+    .run(quote.touristTaxTotal, quote.touristTaxRate);
+  writeTouristTaxSnapshot(db, 1, quote);
+  return quote;
+}
+
+test('the declaration shows the amount the fiche stored, and a base that reproduces it', () => {
   const { db, model } = seedDb();
   const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
-
-  const before = model.getTouristTaxExtraction({ month }).data.reservations[0];
-  assert.equal(before.taxAmount, 18);                 // 359,79 € → 18,00 €
-  assert.equal(before.includedServicesDeduction, 0);
-
   insertInclusions(db);
-  const after = model.getTouristTaxExtraction({ month }).data.reservations[0];
-  assert.equal(after.includedServicesDeduction, 60);  // 30 + 7×2 + 8×2
-  assert.equal(after.taxAmount, 15);                  // the amount the fiche shows
-});
-
-test('the declaration reports the night cost per occupant, HT', () => {
-  const { db, model } = seedDb();
-  const { month, year, m } = currentMonth();
-  insertStay(db, { year, m });
-  insertInclusions(db);
+  const quote = saveLikeTheFiche(db);
 
   const row = model.getTouristTaxExtraction({ month }).data.reservations[0];
-  assert.equal(row.nightPricePerOccupantHt, 45.43);   // (299,79 ÷ 3 ÷ 1,10) ÷ 2 occupants
-  // « Montant hébergement HT » is that same base for the stay, so the operator can re-derive it:
-  // 272,55 ÷ 3 nuits ÷ 2 occupants = 45,43 €.
+  assert.equal(row.taxAmount, quote.touristTaxTotal);
+  assert.equal(row.taxAmount, 15);                    // 359,79 € minus the 60 € of inclusions
+  assert.equal(row.includedServicesDeduction, 60);    // 30 + 7×2 + 8×2
+
+  // The line answers itself: base ÷ nuits ÷ occupants × 5 % + 10 % dep × nuits × adultes = taxAmount.
   assert.equal(row.accommodationAmount, 272.55);
+  assert.equal(row.nightPricePerOccupantHt, 45.43);   // 272,55 ÷ 3 ÷ 2
+  const municipal = Math.round(row.nightPricePerOccupantHt * 5) / 100;
+  const unit = Math.round((municipal + Math.round(municipal * 10) / 100) * 100) / 100;
+  assert.equal(Math.round(unit * 3 * 2 * 100) / 100, row.taxAmount);
 });
 
-// Rule 3 again, this time through the declaration: the forfait does not follow the party.
+// Rule 3 of tourist-tax-included-services-deduction.md, seen through the declaration: the forfait
+// does not follow the party.
 test('the deduction does not grow with the party — the linen is sold for four, deducted for two', () => {
   const { db, model } = seedDb();
   const { month, year, m } = currentMonth();
   insertStay(db, { year, m, persons: 4 });
   insertInclusions(db, { persons: 4 });               // 7 × 4 and 8 × 4 are SOLD
+  saveLikeTheFiche(db);
 
   const row = model.getTouristTaxExtraction({ month }).data.reservations[0];
   assert.equal(row.includedServicesDeduction, 60);    // …30 + 7×2 + 8×2 is DEDUCTED
@@ -126,6 +134,7 @@ test('a one-off commercial gesture is not deducted from the declaration either',
   db.prepare(`INSERT INTO reservation_options
     (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
     VALUES (1, 11, 1, 45, 1, 'per_stay', 0, 1)`).run();
+  saveLikeTheFiche(db);
 
   const row = model.getTouristTaxExtraction({ month }).data.reservations[0];
   assert.equal(row.includedServicesDeduction, 0);
@@ -137,6 +146,7 @@ test('a per-day-per-person property is untouched — no deduction, no night pric
   const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
   insertInclusions(db);
+  saveLikeTheFiche(db);
 
   const row = model.getTouristTaxExtraction({ month }).data.reservations[0];
   assert.equal(row.taxAmount, 7.2);                   // 1,20 € × 2 adultes × 3 nuits
@@ -145,18 +155,38 @@ test('a per-day-per-person property is untouched — no deduction, no night pric
   assert.equal(row.accommodationAmount, 327.08);      // 359,79 € HT — unchanged by the inclusions
 });
 
-// The other half of « exactly what the fiche shows »: a PAST stay is frozen on the fiche and declares
-// the amount stored at its last save, whatever a live recompute would say today
-// (specs/tourist-tax-freeze-past-with-refresh.md, unchanged by this spec).
-test('a past stay declares its frozen amount, like its fiche', () => {
+// The defect this spec exists to remove: a fiche re-priced under a NEW rule after the guest had paid,
+// with the declaration reporting the new base beside the old amount. The base is pinned with the
+// amount now, so neither a rate change nor a re-priced night reaches a collected stay.
+test('a repriced property does not move a collected line, base included', () => {
   const { db, model } = seedDb();
-  const { month, year, m } = previousMonth();
+  const { month, year, m } = currentMonth();
   insertStay(db, { year, m });
   insertInclusions(db);
-  db.prepare('UPDATE reservations SET touristTaxTotal = 12.34, touristTaxRate = 5 WHERE id = 1').run();
+  saveLikeTheFiche(db);
+  const before = model.getTouristTaxExtraction({ month }).data.reservations[0];
+
+  db.prepare('UPDATE properties SET touristTaxPercentage = 10 WHERE id = 1').run();
+  db.prepare('UPDATE reservation_nights SET price = 250 WHERE reservationId = 1').run();
+
+  const after = model.getTouristTaxExtraction({ month }).data.reservations[0];
+  assert.equal(after.taxAmount, before.taxAmount);
+  assert.equal(after.accommodationAmount, before.accommodationAmount);
+  assert.equal(after.nightPricePerOccupantHt, before.nightPricePerOccupantHt);
+});
+
+// A legacy row the backfill could not rebuild a base for (rule 14): the amount is still pinned, and
+// the page falls back to describing the stay rather than showing nothing.
+test('a frozen row with no stored base still declares its amount', () => {
+  const { db, model } = seedDb();
+  const { month, year, m } = currentMonth();
+  insertStay(db, { year, m });
+  insertInclusions(db);
+  db.prepare(`UPDATE reservations
+    SET touristTaxTotal = 12.34, touristTaxRate = 5, touristTaxFrozenAt = '2026-09-01 12:00:00'
+    WHERE id = 1`).run();
 
   const row = model.getTouristTaxExtraction({ month }).data.reservations[0];
   assert.equal(row.taxAmount, 12.34, 'the stored amount wins over any recompute');
-  // The base columns still describe the stay, so the declaration form can be filled in.
   assert.equal(row.nightPricePerOccupantHt, 45.43);
 });

@@ -19,6 +19,7 @@ const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
+const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
@@ -540,12 +541,20 @@ function calculatePrice(req, res) {
     }
   }
 
-  // specs/tourist-tax-freeze-past-with-refresh.md — when the client asks to freeze the tourist tax
-  // (a PAST reservation, not being refreshed), source the frozen amount from the stored reservation so
-  // the engine pins it instead of recomputing. No reservationId / no stored row → no freeze.
+  // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
+  // call, not the client's: it depends on whether the instalment carrying the tax has been collected,
+  // which the fiche cannot know better than the database. The client only ever asks for the opposite,
+  // through « Recalculer la taxe de séjour » (`refreshTouristTax`). No reservationId → nothing stored
+  // to pin, so a fresh fiche always prices live.
   let frozenTouristTax = null;
-  if (req.body.freezeTouristTax && reservationId > 0) {
-    frozenTouristTax = db.prepare('SELECT touristTaxTotal, touristTaxRate FROM reservations WHERE id = ?').get(reservationId);
+  if (reservationId > 0 && !req.body.refreshTouristTax) {
+    const stored = db.prepare(`
+      SELECT id, touristTaxTotal, touristTaxRate, touristTaxInComplement, touristTaxDeclaredAt,
+             touristTaxFrozenAt, touristTaxFrozenBaseHt, touristTaxFrozenOccupants,
+             balancePaid, complementPaid
+      FROM reservations WHERE id = ?
+    `).get(reservationId);
+    if (stored && isTouristTaxFrozen(db, stored)) frozenTouristTax = stored;
   }
 
   const quote = calculateReservationQuote({
@@ -597,6 +606,9 @@ function calculatePrice(req, res) {
     freezeTouristTax: Boolean(frozenTouristTax),
     frozenTouristTaxTotal: frozenTouristTax ? frozenTouristTax.touristTaxTotal : 0,
     frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
+    frozenTouristTaxBaseHt: frozenTouristTax ? frozenTouristTax.touristTaxFrozenBaseHt : null,
+    frozenTouristTaxOccupants: frozenTouristTax ? frozenTouristTax.touristTaxFrozenOccupants : null,
+    frozenTouristTaxAt: frozenTouristTax ? frozenTouristTax.touristTaxFrozenAt : null,
     // Read-only preview: the baseline is only CAPTURED on save, never here.
     ...midStayQuoteInputs(reservationId),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the

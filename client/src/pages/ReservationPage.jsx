@@ -410,23 +410,18 @@ export default function ReservationPage() {
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
   }), [selectedProp, form]);
-  // A reservation is "past" (→ frozen tourist tax) when its last night (endDate − 1 day) is before the
-  // 1st of the current month (specs/tourist-tax-freeze-past-with-refresh.md §3 rule 1).
-  const isPastReservation = useMemo(() => {
-    if (!editingReservationId || !form.endDate) return false;
-    const lastNight = new Date(`${form.endDate}T00:00:00`);
-    lastNight.setDate(lastNight.getDate() - 1);
-    const now = new Date();
-    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    return lastNight < firstOfMonth;
-  }, [editingReservationId, form.endDate]);
-  const freezeTouristTax = isPastReservation && !touristTaxRefreshRequested;
+  // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
+  // decision (has the instalment carrying the tax been collected? has the line been declared?), so the
+  // page no longer derives it from the dates. It only ever asks for the opposite, through
+  // « Recalculer la taxe de séjour », and reads back what the engine did in `quote.touristTaxFrozen`.
+  const refreshTouristTax = touristTaxRefreshRequested;
+  const isTouristTaxFrozen = Boolean(pricingQuote?.touristTaxFrozen);
   // Reset the manual refresh when switching to another reservation (the frozen value is re-loaded).
   useEffect(() => { setTouristTaxRefreshRequested(false); }, [editingReservationId]);
 
   const pricingQuoteSignature = useMemo(() => JSON.stringify({
     propertyId: selectedProp ? Number(selectedProp) : null,
-    freezeTouristTax,
+    refreshTouristTax,
     startDate: form.startDate,
     endDate: form.endDate,
     checkInTime: form.checkInTime,
@@ -508,10 +503,10 @@ export default function ReservationPage() {
           ...propertyOptions.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)),
         ])).sort((a, b) => a - b)
       : [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
-    // specs/tourist-tax-freeze-past-with-refresh.md — `freezeTouristTax` MUST be a dependency: the
-    // « Recalculer » button flips it (via `touristTaxRefreshRequested`), and without it here the memo
+    // specs/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
+    // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, refreshTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
@@ -1215,7 +1210,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
@@ -1827,7 +1822,7 @@ export default function ReservationPage() {
         platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
@@ -1965,7 +1960,7 @@ export default function ReservationPage() {
         platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
@@ -2103,7 +2098,7 @@ export default function ReservationPage() {
         platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
@@ -2173,7 +2168,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
           status: form.status || 'draft',
           totalPrice: quote.totalPrice,
           touristTaxRate: quote.touristTaxRate || 0,
@@ -2242,7 +2237,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
@@ -2317,7 +2312,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
-        freezeTouristTax,
+        refreshTouristTax,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
@@ -3249,7 +3244,7 @@ export default function ReservationPage() {
           onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
           onToggleResourceInComplement={setResourceInComplement}
           onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
-          isPastReservation={isPastReservation}
+          isTouristTaxFrozen={isTouristTaxFrozen}
           onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
         />
 
