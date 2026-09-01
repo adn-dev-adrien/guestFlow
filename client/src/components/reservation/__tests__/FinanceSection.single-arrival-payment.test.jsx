@@ -87,6 +87,7 @@ test('« Caisse interne » posts the cash mode, and says it is off the books', a
   expect(api.settleArrivalPayment).toHaveBeenCalledWith(7, 'cash', expect.any(String));
 });
 
+// specs/single-payment-at-check-in.md rule 16
 test('a group already recorded → the summary and its undo, and never the control', () => {
   renderFinance({ editingReservationId: 7, reservationId: 7, form: { arrivalPayment: GROUP } });
   expect(screen.getByText(/paiement unique de 852,82 €/)).toBeInTheDocument();
@@ -112,4 +113,39 @@ test('a refused date surfaces the server reason instead of failing silently', as
   await user.click(screen.getByRole('button', { name: 'CB / Chèque' }));
 
   expect(await screen.findByText(/daté dans le futur/)).toBeInTheDocument();
+});
+
+// specs/single-payment-from-the-fiche.md rule 1 — le contrôle vit AU-DESSUS des échéances, dans le
+// bloc où la ligne « Encaissé à l'arrivée » se rend déjà. La place n'est pas décorative : c'est la
+// première chose que l'opérateur lit quand le client règle tout à la porte, avant de descendre dans
+// les échéances qu'il n'aura pas à cocher une par une.
+test('le contrôle se rend au-dessus des échéances du séjour', () => {
+  renderFinance({
+    editingReservationId: 7,
+    reservationId: 7,
+    form: { arrivalPayment: COLLECTIBLE, balanceAmount: 720.82, complementAmount: 132 },
+  });
+
+  const control = screen.getByText(/Encaisser en une fois : 852,82 €/);
+  const bucketButton = screen.getByRole('button', { name: 'Marquer solde payé' });
+  // eslint-disable-next-line no-bitwise
+  const controlComesFirst = control.compareDocumentPosition(bucketButton)
+    & Node.DOCUMENT_POSITION_FOLLOWING;
+  expect(controlComesFirst).toBeTruthy();
+});
+
+// specs/single-payment-from-the-fiche.md rule 12 — il ne REMPLACE pas les boutons par échéance :
+// l'opérateur qui a vraiment encaissé le solde mardi et le complément jeudi continue d'enregistrer
+// deux paiements, ce qui est la vérité.
+test('les boutons par échéance restent offerts à côté du contrôle', () => {
+  renderFinance({
+    editingReservationId: 7,
+    reservationId: 7,
+    pricingQuote: { complementAmount: 132 },
+    form: { arrivalPayment: COLLECTIBLE, balanceAmount: 720.82 },
+  });
+
+  expect(screen.getByText(/Encaisser en une fois/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Marquer solde payé' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Marquer complément payé' })).toBeInTheDocument();
 });

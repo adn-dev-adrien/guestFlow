@@ -319,6 +319,7 @@ test('commitDepartureSas: preserves an arrival-added bath-linen line (source tag
 
 // ---- departure commit ----
 
+// specs/arrival-departure-sas.md rule 18
 test('commitDepartureSas: caution returned + end-of-stay complement + detail set', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -357,6 +358,7 @@ test('commitDepartureSas: cautionReturned omitted leaves the marker untouched', 
   assert.equal(r.cautionReturnedDate, '2026-06-10');
 });
 
+// specs/arrival-departure-sas.md rule 19
 test('commitDepartureSas: end-of-stay re-commit OVERWRITES amount + detail (no accumulation)', () => {
   // specs/reopen-completed-sas.md §4 — the end-of-stay complement is already overwrite-based.
   const db = makeDb();
@@ -460,6 +462,7 @@ test('commitDepartureSas: a 0-qty or 0-priced extinguisher tariff produces no li
 
 // ── planning coche + dashboard status flags (specs/arrival-departure-sas.md §3.6) ──────────────────
 
+// specs/arrival-departure-sas.md rule 22
 test('commitArrivalSas: completing the arrival SAS validates checkInReady (coche/Prêt) + checkInDone (Arrivé)', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -491,6 +494,7 @@ test('commitArrivalSas: re-committing keeps the flags validated (never auto-unti
   assert.equal(r.checkInDone, 1, 'completing the SAS re-affirms « Arrivé »');
 });
 
+// specs/arrival-departure-sas.md rule 22
 test('commitDepartureSas: completing the departure SAS validates checkOutDone (coche/Parti)', () => {
   const db = makeDb();
   const model = createReservationsModel(db);

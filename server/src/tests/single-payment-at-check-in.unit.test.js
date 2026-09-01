@@ -137,6 +137,7 @@ const groupOf = (db, id) => {
 // whole spec is about.
 const seedBoth = (db) => seedStay(db, { complementAmount: 50 });
 
+// specs/single-payment-at-check-in.md rule 6
 test('« CB / Chèque » once: both sides settled, one group, and no amount moved', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -167,6 +168,7 @@ test('« CB / Chèque » once: both sides settled, one group, and no amount move
   assert.equal(row.complementAmount, 50);
 });
 
+// specs/single-payment-at-check-in.md rule 15
 test('« Payé en liquide » once: both sides off the books, and the group says so', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -184,6 +186,7 @@ test('« Payé en liquide » once: both sides off the books, and the group says 
   assert.equal(groupOf(db, id).cash, 1);
 });
 
+// specs/single-payment-at-check-in.md rule 2
 test('« Plus tard » writes nothing on either side, and no group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -201,6 +204,7 @@ test('« Plus tard » writes nothing on either side, and no group', () => {
   assert.equal(row.complementDeferredToCheckout, 1);
 });
 
+// specs/single-payment-at-check-in.md rule 9
 test('re-opening the SAS and choosing « Plus tard » undoes BOTH sides and dissolves the group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -224,6 +228,7 @@ test('re-opening the SAS and choosing « Plus tard » undoes BOTH sides and diss
   assert.equal(groupOf(db, id), null, 'the fiche must stop announcing a payment that was undone');
 });
 
+// specs/single-payment-at-check-in.md rule 4
 test('« Régler séparément » keeps the v2.8.0 behaviour: two settlements, no group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -240,6 +245,7 @@ test('« Régler séparément » keeps the v2.8.0 behaviour: two settlements, no
   assert.equal(groupOf(db, id), null, 'nothing was collected in one gesture');
 });
 
+// specs/single-payment-at-check-in.md rule 7
 test('a single bucket settled alone is not a group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -254,6 +260,7 @@ test('a single bucket settled alone is not a group', () => {
   assert.equal(rowOf(db, id).complementPaid, 1);
 });
 
+// specs/single-payment-at-check-in.md rule 8
 test('un-ticking the solde from the fiche dissolves the group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -266,6 +273,7 @@ test('un-ticking the solde from the fiche dissolves the group', () => {
   assert.equal(rowOf(db, id).balancePaidAtArrival, 0);
 });
 
+// specs/single-payment-at-check-in.md rule 8
 test('un-ticking the complement from the fiche dissolves the group', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -278,6 +286,7 @@ test('un-ticking the complement from the fiche dissolves the group', () => {
   assert.equal(rowOf(db, id).complementPaidAtArrival, 0);
 });
 
+// specs/single-payment-at-check-in.md rule 8
 test('releasing a bucket the group never named leaves it alone', () => {
   const db = makeDb();
   const model = createReservationsModel(db);

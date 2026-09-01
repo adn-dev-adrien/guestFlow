@@ -27,6 +27,7 @@ test('extraLineKey: one namespace per line type, custom lines keyed by normalise
   assert.equal(extraLineKey(null), null);
 });
 
+// specs/mid-stay-notes.md rule 5bis
 test('buildExtrasBaseline: sums per key, skips offered and zero lines', () => {
   const baseline = buildExtrasBaseline([
     opt(9, 12), opt(9, 12), // same key → aggregated
@@ -45,6 +46,7 @@ test('no baseline (stay not started) → nothing is mid-stay', () => {
   });
 });
 
+// specs/mid-stay-notes.md rule 9
 test('a brand-new line is fully mid-stay, itemised with its label', () => {
   const split = splitMidStayExtras([{ optionId: 9, title: 'Petit-déjeuner', totalPrice: 24, unitPrice: 12 }], '{}');
   assert.equal(split.total, 24);
@@ -55,6 +57,7 @@ test('a brand-new line is fully mid-stay, itemised with its label', () => {
   }]);
 });
 
+// specs/mid-stay-notes.md rule 12
 test('quantity bump: only the units added during the stay move', () => {
   const split = splitMidStayExtras(
     [{ optionId: 9, title: 'Petit-déjeuner', totalPrice: 36, unitPrice: 12 }],
@@ -66,6 +69,7 @@ test('quantity bump: only the units added during the stay move', () => {
   });
 });
 
+// specs/mid-stay-notes.md rule 13
 test('removing / shrinking a line brings the mid-stay part back to 0, never negative', () => {
   const shrunk = splitMidStayExtras([opt(9, 12)], JSON.stringify({ 'opt:9': 24 }));
   assert.deepEqual(shrunk.byKey, {});
@@ -110,6 +114,7 @@ test('a non-integer number of units stays a flat amount (no misleading « × »)
   });
 });
 
+// specs/mid-stay-notes.md rule 11
 test('splitFromStoredLines: frozen amounts, routing re-read from the current lines', () => {
   const stored = [{ label: 'Petit-déjeuner', amount: 12, key: 'opt:9', source: MID_STAY_SOURCE }];
   const split = splitFromStoredLines(stored, [{ optionId: 9, totalPrice: 36, inComplement: 1 }]);
@@ -118,6 +123,7 @@ test('splitFromStoredLines: frozen amounts, routing re-read from the current lin
   assert.deepEqual(split.byKey, { 'opt:9': 12 });
 });
 
+// specs/mid-stay-notes.md rule 4
 test('mergeMidStayIntoDetail: replaces the mid-stay lines, preserves the SAS ones, re-totals', () => {
   const detail = JSON.stringify([
     { label: 'Ménage de fin de séjour', amount: 60 },

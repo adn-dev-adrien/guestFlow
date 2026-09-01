@@ -22,6 +22,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => { vi.clearAllMocks(); });
 
+// specs/arrival-departure-sas.md rule 3
 test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced items, commit payload', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { bedLinenAlert: { type: 'no_linen' } },
@@ -86,6 +87,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   });
 });
 
+// specs/arrival-departure-sas.md rule 5
 test('arrival SAS intro: property photo, centred blue client name, platform badge, planning-style dates + people count', async () => {
   // specs/arrival-departure-sas.md §6 (mobile intro redesign 2026-06-15).
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -108,6 +110,7 @@ test('arrival SAS intro: property photo, centred blue client name, platform badg
   expect(screen.getByText('3 personnes')).toBeInTheDocument();    // 2 adults + 1 child
 });
 
+// specs/arrival-departure-sas.md rule 6
 test('arrival SAS reopen: caution hidden once received, ménage reminder rides on recap, complement reconstructed once', async () => {
   // specs/sas-hide-settled-steps.md §3 — reopening a completed SAS no longer shows the arrival caution
   // page once received (the commit leaves the marker untouched → undefined). Cleaning included → no ménage
@@ -149,6 +152,7 @@ test('arrival SAS reopen: caution hidden once received, ménage reminder rides o
   expect(arg.departureHandoverNote).toBe('Clé sous le pot');
 });
 
+// specs/arrival-departure-sas.md rule 9
 test('arrival SAS: linen OK skips the priced-items page', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { bedLinenAlert: { type: 'capacity', capacity: 1, required: 2 }, cautionReceived: 1 },
@@ -165,6 +169,7 @@ test('arrival SAS: linen OK skips the priced-items page', async () => {
   expect(screen.queryByText('Éléments de linge manquants')).toBeNull();
 });
 
+// specs/arrival-departure-sas.md rule 12
 test('arrival SAS recap: an in-complément extra is detailed with quantity + price (not a lump « Déjà dû »)', () => {
   // The complement detail lists each extra routed to the complément with qty × unit price = total.
   api.getReservationSas.mockResolvedValue(sasPayload({
@@ -189,6 +194,7 @@ test('arrival SAS recap: an in-complément extra is detailed with quantity + pri
   })();
 });
 
+// specs/arrival-departure-sas.md rule 17
 test('arrival SAS recap: the tourist tax collected at arrival is itemised as a « Taxe de séjour » line', () => {
   // specs/per-platform-tourist-tax-three-way.md §3 rule 7 — the arrival-collected tax is part of the
   // complement; it gets its own line so the detail reconciles with the total (here: Repas 80 + tax 4,80).
