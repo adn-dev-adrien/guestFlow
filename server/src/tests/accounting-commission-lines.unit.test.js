@@ -57,6 +57,7 @@ test('Case 1: Direct booking → no commission line, balanced as before', () => 
 });
 
 // specs/accounting-platform-commission-and-no-deposit.md rule 12
+// specs/accountant-accounting-export.md rule 7
 test('Case 2: Platform without VAT (Airbnb) → 1 commission HT debit only, no VAT debit', () => {
   // Airbnb: hasVatOnCommission = 0. The full commission TTC rides on the 6226xx line as HT.
   const row = rowForPlatform({ platform: 'Airbnb', gross: 687, balance: 626 });
@@ -104,6 +105,7 @@ test('Case 4: Platform-row override beats the global default account', () => {
 });
 
 // specs/accounting-platform-commission-and-no-deposit.md rule 11
+// specs/accountant-accounting-export.md rule 8
 test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount (« Prix payé client » retired)', () => {
   // specs/platform-commission-line.md (2026-06-22): the CA is the total séjour (= finalPrice 300), the
   // commission is the operator-entered `platformCommissionAmount` (40), and the engine already stored the

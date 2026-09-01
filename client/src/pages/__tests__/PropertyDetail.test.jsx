@@ -232,6 +232,7 @@ test('Plateformes & iCal: a configured DEFAULT platform cannot be deleted; a cus
 
 // ── Délai de virement plateforme (specs/platform-payout-due-date.md §3.4) ─────────────────────
 
+// specs/platform-payout-due-date.md rules 35 + 37
 test('Plateformes & iCal: the payout delay is shown per platform and hidden on own channels', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByDisplayValue('Le Moulin');

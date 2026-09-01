@@ -10,7 +10,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry } } = require('../models/accountingModel');
+const { __test: { buildEntry, buildEndOfStayEntry } } = require('../models/accountingModel');
 const { entryToRows } = require('../utils/accountingExport');
 
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
@@ -121,4 +121,28 @@ test('règle 37 — le gross-up ne réagit pas à l\'ajustement (ni sur le compl
 test('une ventilation illisible retombe sur la dérivation d\'origine', () => {
   const entry = buildEntry(rowOf({ complementAllocation: 'pas du json' }), 'complement', PER_LINE);
   assert.equal(round2(creditsOf(entry).reduce((s, c) => s + c.amount, 0)), 93.6);
+});
+
+// specs/adjustable-complement-amounts.md rule 38 — le complément de FIN DE SÉJOUR n'a rien à
+// ventiler : son écriture est une ligne `70600010` unique à plat, si bien que le montant ajusté s'y
+// applique directement. La règle dit « rien à faire » ; ce test est là pour que « rien » le reste —
+// une ventilation qui se mettrait à mordre sur ce bucket casserait un montant que l'opérateur a
+// annoncé au client.
+test('règle 38 — le complément de fin de séjour reste une ligne unique, au montant ajusté', () => {
+  const row = rowOf({
+    endOfStayComplementAmount: 50,
+    endOfStayComplementPaid: 1,
+    endOfStayComplementPaidDate: '2026-07-17',
+    // Une ventilation d'ARRIVÉE est stockée : elle ne doit pas déteindre sur ce bucket.
+    complementAllocation: '{"accommodation":0,"options":21.54,"resources":53.86,"tax":9.6,"auto":93.6}',
+  });
+  const entry = buildEndOfStayEntry(row, 10);
+
+  assert.equal(entry.encaissementTtc, 50);
+  const credits = creditsOf(entry);
+  // Un seul poste de produit — pas de prorata entre options, activités et taxe comme à l'arrivée —
+  // et sa TVA. La ventilation d'arrivée stockée sur la ligne n'y change rien.
+  assert.deepEqual(credits.map((c) => c.account), ['70600010', '44571100']);
+  assert.equal(round2(credits.reduce((sum, c) => sum + c.amount, 0)), 50);
+  assert.equal(debitOf(entry), 50);
 });

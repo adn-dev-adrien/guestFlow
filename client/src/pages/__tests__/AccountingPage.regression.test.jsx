@@ -18,7 +18,7 @@ import { vi } from 'vitest';
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
@@ -94,6 +94,7 @@ beforeEach(() => {
 });
 
 describe('AccountingPage — clickable client name in journal entries', () => {
+  // specs/accountant-accounting-export.md rule 25
   test('admin (new roles array shape): client name is a link to the reservation', async () => {
     setAuth({ id: 1, email: 'adrien@example.com', roles: ['admin'] });
     renderPage();
@@ -121,6 +122,7 @@ describe('AccountingPage — clickable client name in journal entries', () => {
     expect(link).toHaveAttribute('href', '/reservations/42');
   });
 
+  // specs/accountant-accounting-export.md rule 25
   test('accountant-only: NO link rendered for the client name', async () => {
     // Server already 403s `/api/reservations/:id` for accountants, but the UI hides the link too
     // so the click leads nowhere instead of a refused fetch. Note: "Jean Dupont" appears twice
@@ -149,5 +151,35 @@ describe('AccountingPage — clickable client name in journal entries', () => {
 
     await screen.findByText('Équilibré');
     expect(screen.queryByRole('link', { name: 'Jean Dupont' })).not.toBeInTheDocument();
+  });
+});
+
+// specs/accountant-accounting-export.md rule 27 — sous le montant de chaque carte, la part du séjour
+// que cet encaissement représente et le total du séjour. Sans ce contexte, une carte à 100 € ne dit
+// pas si c'est un acompte de 30 % ou la totalité : le comptable ne peut pas la rapprocher.
+describe('AccountingPage — le contexte de chaque carte', () => {
+  test('rule 27 — la carte annonce la part du séjour et le total', async () => {
+    setAuth({ id: 1, roles: ['admin'] });
+    renderPage();
+    expect(await screen.findByText(/100 % du séjour \(100,00 €\)/)).toBeInTheDocument();
+  });
+
+  test('rule 27 — un acompte partiel annonce sa part, pas le total', async () => {
+    setAuth({ id: 1, roles: ['admin'] });
+    api.getAccountingSales.mockResolvedValue({
+      ...SAMPLE_SALES,
+      entries: [{ ...SAMPLE_SALES.entries[0], kind: 'deposit', encaissementTtc: 30, fraction: 0.3, finalPrice: 100 }],
+    });
+    renderPage();
+    expect(await screen.findByText(/30 % du séjour \(100,00 €\)/)).toBeInTheDocument();
+  });
+
+  // specs/accountant-accounting-export.md rule 26 — le mois et l'année vivent dans l'URL, si bien
+  // qu'un retour arrière — ou un lien envoyé au comptable — retombe sur le même mois.
+  test('rule 26 — le mois et l’année de l’URL pilotent la requête', async () => {
+    setAuth({ id: 1, roles: ['admin'] });
+    renderPage();
+    await waitFor(() => expect(api.getAccountingSales).toHaveBeenCalled());
+    expect(api.getAccountingSales.mock.calls[0].slice(0, 2)).toEqual([8, 2026]);
   });
 });

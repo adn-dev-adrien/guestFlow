@@ -510,3 +510,38 @@ matrixCase('note + reste à percevoir au départ — seul le reste est « en att
   endOfStayComplementAmount: 18, endOfStayComplementPaid: 0,
   midStaySettledNotes: oneNote(30),
 }, { total: 348, collected: 330, reste: 18 });
+
+// specs/adjustable-complement-amounts.md rule 40 — le suivi financier lit les montants STOCKÉS des
+// trois buckets : il suit l'ajustement sans une ligne de code. Ce test épingle ce « sans une ligne de
+// code » — la table de ce harnais ne porte AUCUNE colonne d'ajustement, donc un modèle qui se
+// mettrait à en consulter une échouerait ici au lieu de diverger en silence de la fiche.
+test('le suivi financier suit l’ajustement parce qu’il ne lit que le montant du bucket', () => {
+  const { db, model } = freshModel();
+  // Complément calculé à 24 €, annoncé au client à 14 € : c'est 14 € qui est stocké.
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4),
+    depositAmount: 150, balanceAmount: 350, complementAmount: 14,
+  });
+
+  assert.equal(model.getSummary({ from: iso(0), to: iso(10) }).revenueTotal, 514);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('reservations') WHERE name LIKE '%Override%'").get().n,
+    0,
+    'aucune colonne d’ajustement dans ce schéma : le modèle n’en a pas besoin',
+  );
+});
+
+// specs/payment-schedule-and-cancellation.md rule 35 — la page Finances est une vue OPÉRATIONNELLE :
+// elle exclut les séjours annulés. Leur argent reste visible en comptabilité — l'acompte conservé a
+// bien été encaissé — mais il n'a plus rien à faire dans un chiffre d'affaires prévisionnel : les
+// dates sont reparties à la vente et le séjour n'aura pas lieu.
+test('un séjour annulé sort du suivi financier', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), depositAmount: 150, balanceAmount: 350 });
+  insertRes(db, { id: 2, clientId: 2, propertyId: 1, startDate: iso(2), endDate: iso(5), depositAmount: 200, balanceAmount: 400 });
+  assert.equal(model.getSummary({ from: iso(0), to: iso(10) }).revenueTotal, 1100);
+
+  db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = 2").run();
+
+  assert.equal(model.getSummary({ from: iso(0), to: iso(10) }).revenueTotal, 500, 'seul le séjour vivant compte');
+});

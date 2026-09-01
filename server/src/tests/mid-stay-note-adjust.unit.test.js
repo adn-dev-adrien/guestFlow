@@ -41,6 +41,7 @@ const row = (db) => db.prepare('SELECT endOfStayComplementAmount AS amount, endO
 const notesOf = (db) => JSON.parse(row(db).notes || '[]');
 const notesTotal = (db) => round2(notesOf(db).reduce((s, n) => s + Number(n.total || 0), 0));
 
+// specs/adjustable-complement-amounts.md rule 26
 test('règle 25 — baisser une note remet la différence à percevoir en fin de séjour', () => {
   const { db, model } = makeDb();
   model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 26 }] });
@@ -83,6 +84,7 @@ test('une note à 0 € ou négative est refusée — annuler la note est le ges
   }
 });
 
+// specs/adjustable-complement-amounts.md rule 23
 test('règle 24 — date et mode seuls : les montants ne bougent pas', () => {
   const { db, model } = makeDb();
   model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 26 }], cash: false });

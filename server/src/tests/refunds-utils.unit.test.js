@@ -186,6 +186,7 @@ test('rules 12–13 — amounts must be positive, dates valid and never in the f
   assert.equal(future.code, 'REFUND_INVALID_DATE');
 });
 
+// specs/reservation-refunds.md rule 4
 test('unknown key, unknown means and unlabelled free line are all refused', () => {
   const unknownKey = validateRefundPayload({ refundDate: '2026-08-14', lines: [{ key: 'opt:999', amountTtc: 5 }] }, CONTEXT);
   assert.equal(unknownKey.code, 'REFUND_UNKNOWN_LINE');
@@ -198,4 +199,19 @@ test('unknown key, unknown means and unlabelled free line are all refused', () =
 
   const badBucket = validateRefundPayload({ refundDate: '2026-08-14', lines: [{ label: 'X', bucket: 'caution', amountTtc: 5 }] }, CONTEXT);
   assert.equal(badBucket.code, 'REFUND_INVALID_LINE');
+});
+
+// specs/reservation-refunds.md rule 5 — `totalTtc` est calculé par le SERVEUR comme la somme des
+// lignes ; un total envoyé par le client n'est jamais cru. C'est la même discipline que partout
+// ailleurs sur l'argent : le navigateur propose des lignes, le serveur décide du montant.
+test('rule 5 — un total envoyé par le client est ignoré au profit de la somme des lignes', () => {
+  const result = validateRefundPayload({
+    refundDate: '2026-08-14',
+    method: 'transfer',
+    totalTtc: 999,
+    lines: [{ key: 'opt:7', quantity: 2, amountTtc: 24 }, { label: 'Geste', bucket: 'options', amountTtc: 6 }],
+  }, CONTEXT);
+
+  assert.equal(result.error, undefined);
+  assert.equal(result.refund.totalTtc, 30);
 });

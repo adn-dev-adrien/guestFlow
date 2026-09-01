@@ -125,3 +125,23 @@ test('unknown / no role → fail-closed 403 (unchanged)', () => {
   assert.equal(call({ roles: ['ghost'], method: 'GET', path: '/reservations' }).nextCalled, false);
   assert.equal(call({ roles: null, method: 'GET', path: '/reservations' }).nextCalled, false);
 });
+
+// specs/payment-schedule-and-cancellation.md rule 19 — la carte « Échéances de paiement » est cachée
+// pour un compte réception, ET son point d'entrée refuse ce rôle. Elle porte des montants dus, des
+// noms de clients et le geste « Relancer » qui envoie un email à un client : rien de tout cela n'est
+// du ressort de l'accueil. La garde ne tient pas à un test explicite dans le contrôleur mais à
+// l'allowlist déclarative, qui refuse par défaut — c'est elle qu'on épingle ici.
+test('rule 19 — les trois routes des échéances de paiement sont hors de portée de la réception', () => {
+  const routes = [
+    { method: 'GET', path: '/api/dashboard/payment-deadlines' },
+    { method: 'POST', path: '/api/dashboard/payment-deadlines/12/snooze' },
+    { method: 'POST', path: '/api/dashboard/payment-deadlines/12/remind' },
+  ];
+  for (const route of routes) {
+    const { res, nextCalled } = call({ roles: ['reception'], ...route });
+    assert.equal(nextCalled, false, `${route.method} ${route.path} ne doit pas passer`);
+    assert.equal(res.statusCode, 403);
+  }
+  // Et l'admin y accède, sinon le test ne prouverait que l'existence d'un mur.
+  assert.equal(call({ roles: ['admin'], method: 'GET', path: '/api/dashboard/payment-deadlines' }).nextCalled, true);
+});
