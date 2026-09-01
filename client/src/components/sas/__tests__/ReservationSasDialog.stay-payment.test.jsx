@@ -24,6 +24,7 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 // ── « Séjour à régler » — specs/collect-stay-payment-at-check-in.md ──────────────────────────────
 
+// specs/collect-stay-payment-at-check-in.md rule 6
 test('arrival SAS: the stay step is absent when nothing is owed on the séjour', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -35,6 +36,7 @@ test('arrival SAS: the stay step is absent when nothing is owed on the séjour',
   expect(screen.queryByText('Séjour à régler :')).toBeNull();
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 10
 test('arrival SAS: « CB / Chèque » on the stay step commits stayPaid without the caisse interne', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -62,6 +64,7 @@ test('arrival SAS: « CB / Chèque » on the stay step commits stayPaid without 
   expect(payload.stayPaidCash).toBe(false);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 10
 test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -85,6 +88,7 @@ test('arrival SAS: « Payé en liquide » on the stay commits the caisse interne
   expect(payload.stayPaidCash).toBe(true);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 11
 test('arrival SAS: « Pas maintenant » is the default — validating writes no stay payment', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -107,6 +111,7 @@ test('arrival SAS: « Pas maintenant » is the default — validating writes no 
   expect(payload.stayPaidCash).toBe(false);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 9
 test('arrival SAS: an OTA stay warns that the solde is the platform payout, and pre-selects nothing', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -123,6 +128,7 @@ test('arrival SAS: an OTA stay warns that the solde is the platform payout, and 
   expect(screen.getByText("Le séjour reste dû (rien n'est encaissé).")).toBeInTheDocument();
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 12
 test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can undo it', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.
@@ -157,6 +163,8 @@ test('arrival SAS: a re-opened SAS pre-selects the mode it recorded, and can und
 // the recap now asks once, because that is what happens at the door. The two independent settlements
 // this spec introduced are still there — one tap away, behind « Régler séparément » — because the
 // case rule 22 was written for (one side collected, the other deferred) is real.
+// specs/collect-stay-payment-at-check-in.md rules 21 + 22 + 23 — le séjour et le complément gardent
+// chacun leur bloc, et le récap porte le total combiné à percevoir à l'arrivée.
 test('arrival SAS recap: both sides listed, and « Régler séparément » restores the two settlements', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     // Cleaning included → no ménage page: these cases are about the stay step only.

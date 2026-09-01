@@ -50,6 +50,7 @@ function debit(rows) {
   return rows.find((r) => typeof r[COL.debit] === 'number' && r[COL.debit] !== 0)[COL.debit];
 }
 
+// specs/accountant-accounting-export.md rule 13
 test('CSV_HEADERS match the accountant\'s example layout (9 cols) + 3 GuestFlow info cols', () => {
   // The header `Mois ` carries a TRAILING SPACE byte-for-byte from the example file.
   assert.deepEqual(CSV_HEADERS, [
@@ -62,12 +63,14 @@ test('CSV_HEADERS match the accountant\'s example layout (9 cols) + 3 GuestFlow 
   ]);
 });
 
+// specs/accountant-accounting-export.md rule 12
 test('one entry → 1 debit + N credits; Σ credits == debit (balanced)', () => {
   const rows = entryToRows(makeEntry());
   const totalCredits = Math.round(sumCredits(rows) * 100) / 100;
   assert.equal(totalCredits, debit(rows));
 });
 
+// specs/accountant-accounting-export.md rule 14
 test('debit line uses the client auxiliary account C<NAME>; libellé is UPPERCASED', () => {
   const rows = entryToRows(makeEntry());
   const debitRow = rows[0];
@@ -76,6 +79,7 @@ test('debit line uses the client auxiliary account C<NAME>; libellé is UPPERCAS
   assert.equal(debitRow[COL.libelle], 'JEAN DUPONT');
 });
 
+// specs/accountant-accounting-export.md rule 13b
 test('every row carries journal=VT and an empty Pièce (numbering scheme not yet decided)', () => {
   const rows = entryToRows(makeEntry());
   for (const row of rows) {
@@ -94,6 +98,7 @@ test('empty money cells render as literal 0 (the counter-side of every line)', (
   }
 });
 
+// specs/accountant-accounting-export.md rule 12
 test('revenue accounts: accommodation → 70600000; options → 70600010; resources → 70601000', () => {
   const e = makeEntry({
     buckets: [
@@ -119,6 +124,7 @@ test('VAT account by rate: 10 % → 44571100, 20 % → 44571200', () => {
   assert.ok(accounts.includes('44571200')); // 20 %
 });
 
+// specs/accountant-accounting-export.md rule 15b
 test('tourist tax > 0 → an extra credit on 46710000 covers it; debit = revenue + tax', () => {
   // Stay 200 TTC (accommodation only @ 10%) + 20 € tourist tax → encaissement = 220.
   // Buckets sum to 200 TTC so that adding tax 20 makes the debit = 220 align exactly.
@@ -139,12 +145,15 @@ test('tourist tax > 0 → an extra credit on 46710000 covers it; debit = revenue
   assert.equal(Math.round(sumCredits(rows) * 100) / 100, debit(rows));
 });
 
+// specs/accountant-accounting-export.md rule 15b
 test('tourist tax == 0 → no 46710000 line emitted (existing direct-bookings stay unchanged)', () => {
   const rows = entryToRows(makeEntry()); // taxTtc: 0
   const taxRow = rows.find((r) => r[COL.compte] === PASS_THROUGH_ACCOUNTS.TOURIST_TAX);
   assert.equal(taxRow, undefined);
 });
 
+// specs/force-item-to-complement.md rule 14
+// specs/accountant-accounting-export.md rule 29
 test('pro-rata: a 30 % deposit produces lines summing to 30 % of HT + VAT (within rounding)', () => {
   const rows = entryToRows(makeEntry()); // fraction = 0.30, debit = 60
   assert.equal(debit(rows), 60);
@@ -165,6 +174,7 @@ test('rounding residue: Σ credits is nudged to match debit exactly to the cent'
   assert.equal(Math.round(sumCredits(rows) * 100) / 100, debit(rows));
 });
 
+// specs/accountant-accounting-export.md rule 9
 test('platform info columns are filled only on the debit row, for non-direct only', () => {
   const platformEntry = makeEntry({
     platform: 'airbnb',
@@ -189,6 +199,7 @@ test('direct booking → platform info columns empty even on the debit row', () 
   assert.equal(rows[0][COL.commission], '');
 });
 
+// specs/accountant-accounting-export.md rule 11
 test('buildRows concatenates multiple entries in order', () => {
   const a = makeEntry({ paidDate: '2026-08-15' });
   const b = makeEntry({ paidDate: '2026-08-20', reservationId: 99, encaissementTtc: 80, fraction: 0.4 });
@@ -205,6 +216,7 @@ test('paidDate "YYYY-MM-DD" is split into day, month, year integers', () => {
   assert.equal(rows[0][COL.year], 2026);
 });
 
+// specs/accountant-accounting-export.md rule 14
 test('client account formatting: C + up to 6 chars (variable width, matches SOLIO example)', () => {
   // SOLIO example shows variable-width codes: CNOTIN (6 chars), CCAGGUI (7 chars). We follow:
   // 'C' + lastname uppercased, accent-stripped, non-alpha removed, truncated to 6 chars.
@@ -239,6 +251,7 @@ test('zerofyMoneyColumns: empty → 0 on debit + credit columns only', () => {
 
 // ---------- Structured (JSON) preview ----------
 
+// specs/accountant-accounting-export.md rule 23
 test('classifyLine: C* → client, 70* → revenue, 44571* → vat, 46710000 → tax_pass_through', () => {
   assert.equal(classifyLine('CDUPONT'), 'client');
   assert.equal(classifyLine('70600000'), 'revenue');
@@ -250,6 +263,7 @@ test('classifyLine: C* → client, 70* → revenue, 44571* → vat, 46710000 →
   assert.equal(classifyLine('999'),      'other');
 });
 
+// specs/accountant-accounting-export.md rule 23
 test('entryToStructured: 1 entry → 1 grouped object with classified lines + balanced flag', () => {
   const out = entryToStructured(makeEntry());
   assert.equal(out.reservationId, 42);
@@ -290,6 +304,7 @@ test('entryToStructured: direct booking → platform is null/empty', () => {
   assert.equal(out.platform.commission, null);
 });
 
+// specs/accountant-accounting-export.md rule 9
 test('entryToStructured: platform booking → platform name + gross + commission exposed', () => {
   const out = entryToStructured(makeEntry({ platform: 'airbnb', clientGrossAmount: 240 }));
   assert.equal(out.platform.platform, 'airbnb');
@@ -309,6 +324,7 @@ test('buildStructuredEntries: mirrors buildRows entry-for-entry', () => {
   assert.equal(structured[1].reservationId, 99);
 });
 
+// specs/accountant-accounting-export.md rule 24
 test('accountLabel: maps each account number to its human label (incl. tax pass-through)', () => {
   assert.equal(accountLabel('70600000'), 'Location gîte');
   assert.equal(accountLabel('70600010'), 'Prestation complémentaire');
@@ -323,6 +339,7 @@ test('accountLabel: maps each account number to its human label (incl. tax pass-
   assert.equal(accountLabel(null), '');
 });
 
+// specs/accountant-accounting-export.md rule 24
 test('entryToStructured: each line carries accountLabel alongside the account number', () => {
   const out = entryToStructured(makeEntry());
   for (const line of out.lines) {

@@ -68,6 +68,7 @@ function fresh(ddl) {
   return { db, store: bookingLinesModel.buildModel(db) };
 }
 
+// specs/force-item-to-complement.md rule 1
 test('writes every line column when the schema has them', () => {
   const { db, store } = fresh(FULL_DDL);
   store.replaceOptions(1, OPTION_LINES);
@@ -105,6 +106,7 @@ test('degrades on a minimal schema instead of throwing', () => {
   assert.equal(snapshot.lockedResourceLines[0].acompteContribTtc, null);
 });
 
+// specs/force-item-to-complement.md rule 3
 test('a line in Complément never carries acompte/solde contributions', () => {
   const { db, store } = fresh(FULL_DDL);
   store.replaceOptions(1, [{ optionId: 6, quantity: 1, totalPrice: 10, inComplement: 1, acompteContribTtc: 4, soldeContribTtc: 6 }]);

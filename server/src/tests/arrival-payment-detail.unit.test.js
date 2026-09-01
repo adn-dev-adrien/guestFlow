@@ -44,6 +44,7 @@ const COMPLEMENT_DETAIL = {
   ],
 };
 
+// specs/arrival-payment-detail-and-adjustment.md rule 2
 test('the lines name the prestations, in the spec order, and sum to the buckets', () => {
   const { lines, bucketsTotal, accommodation } = buildArrivalPaymentDetail(reservation(), {
     buckets: ['balance', 'complement'],
@@ -57,6 +58,7 @@ test('the lines name the prestations, in the spec order, and sum to the buckets'
   assert.equal(accommodation, 420);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 7
 test('the accommodation is the RESIDUAL of its bucket, so nothing can drift', () => {
   // L'instantané d'hébergement ment de 3 € (arrondi, capture partielle) : c'est le seau qui fait foi,
   // et l'écart revient sur l'hébergement plutôt que de casser le total.
@@ -68,6 +70,7 @@ test('the accommodation is the RESIDUAL of its bucket, so nothing can drift', ()
   assert.equal(sum(lines), 584.82);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 2
 test('the taxe de séjour is ONE line, wherever it was collected', () => {
   const { lines } = buildArrivalPaymentDetail(reservation(), {
     buckets: ['balance', 'complement'],
@@ -84,6 +87,7 @@ test('the taxe de séjour is ONE line, wherever it was collected', () => {
   assert.equal(lines[lines.length - 1].kind, 'tax', 'la taxe ferme la liste');
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 6
 test('an option split between the acompte and the solde is ONE prestation, not two', () => {
   const r = reservation({
     depositAmount: 200,
@@ -105,6 +109,7 @@ test('an option split between the acompte and the solde is ONE prestation, not t
   assert.equal(sum(lines), 452.82);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 3
 test('an offered line stays visible at 0 € with its original amount', () => {
   // Un geste commercial fait partie de ce que le client a reçu : le cacher ferait mentir le détail
   // par omission.
@@ -126,6 +131,7 @@ test('an offered line stays visible at 0 € with its original amount', () => {
   assert.equal(sum(lines), 584.82, 'une ligne offerte ne change pas le total');
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 8
 test('a bucket with no contribution snapshot degrades to ONE line named after it', () => {
   // Réservation plateforme dont la capture a légitimement échoué : on ne fabrique pas une répartition
   // qui n'a jamais été mesurée.
@@ -143,6 +149,7 @@ test('a bucket with no contribution snapshot degrades to ONE line named after it
   assert.equal(sum(lines), 584.82);
 });
 
+// specs/arrival-payment-detail-and-adjustment.md rule 2
 test('the end-of-stay complement brings its own lines when the group covers it', () => {
   const r = reservation({
     endOfStayComplementAmount: 50,

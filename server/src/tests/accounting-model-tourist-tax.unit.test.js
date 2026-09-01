@@ -37,6 +37,7 @@ function makeRow(overrides = {}) {
 // (row, kind, perLineData, commissionContext, taxContext) — the former quote is gone; the
 // tax-routing flag is injected via `taxContext.collectedOnArrival`.
 
+// specs/accountant-accounting-export.md rule 12
 test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" entry)', () => {
   // Regression for the dev-server bug Adrien spotted 2026-06-02: a reservation appeared twice
   // in the AccountingPage table (and as two journal cards) — once with real numbers, once with
@@ -63,6 +64,7 @@ test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" en
   assert.equal(buildEntry(row, 'complement', perLineData, null, taxContext), null);
 });
 
+// specs/accountant-accounting-export.md rule 12
 test('every entry exposes propertyName, on BOTH the contrib-driven path AND the legacy fallback', () => {
   // Regression: the propertyName field was only added to the contrib-driven return shape on
   // first pass (2026-06-02 fix). Legacy reservations (no captured contribs) fall through to
@@ -90,6 +92,7 @@ test('every entry exposes propertyName, on BOTH the contrib-driven path AND the 
   assert.equal(contribDriven.propertyName, 'La Maison du Lac');
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 13
 test('direct booking (legacy path) — the tourist tax rides 100% on the solde, 0 on the acompte', () => {
   // specs/tourist-tax-on-solde.md — the acompte is the accommodation only (60), the solde carries the
   // accommodation remainder (140) + the WHOLE tax (4.80) = 144.80. The accounting must mirror that even
