@@ -22,6 +22,7 @@ vi.mock('../../../api', () => ({
 
 beforeEach(() => { vi.clearAllMocks(); });
 
+// specs/arrival-departure-sas.md rule 13
 test('departure SAS: shows the read-only handover note left at arrival', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0, departureHandoverNote: 'Récupérer la 2e clé' },
@@ -33,6 +34,7 @@ test('departure SAS: shows the read-only handover note left at arrival', async (
   expect(screen.getByText('Récupérer la 2e clé')).toBeInTheDocument();
 });
 
+// specs/arrival-departure-sas.md rule 14
 test('departure SAS: cleaning page asks « fait correctement » (not the arrival UI) and commits the end-of-stay complement', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
@@ -77,6 +79,7 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   expect(arg.cautionReturned).toBeUndefined();
 });
 
+// specs/arrival-departure-sas.md rule 17
 test('departure SAS: an UNSETTLED arrival complement is recalled — detail + combined total + « Compléments encaissés »', async () => {
   // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (12,50 €) was never
   // collected (paid: 0). The departure recap recalls it with its detail on top of the end-of-stay ménage,
@@ -167,6 +170,7 @@ test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay compleme
   expect(screen.getByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
 });
 
+// specs/arrival-departure-sas.md rule 18
 test('departure SAS: extinguisher not in good condition opens the tariff page; quantities ride to the payload as charges', async () => {
   // specs/extinguisher-seal-and-repair-amounts.md §3.2 — answering « Non » at departure opens the
   // extinguisher tariff page; the per-tariff quantity is sent as extinguisherCharges (priced server-side).

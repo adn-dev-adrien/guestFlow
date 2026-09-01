@@ -140,6 +140,8 @@ test('at the floor, the helper names the accommodation as the limit', () => {
   expect(screen.getByText(/Réduction maximale 700,00 €/)).toBeInTheDocument();
 });
 
+// specs/single-payment-at-check-in.md rule 17 — les contrôles par échéance ne bougent pas : le bloc
+// est une aide à la lecture au-dessus d'eux, pas leur remplaçant.
 // specs/arrival-payment-detail-and-adjustment.md rule 4 — le bloc est une LECTURE des seaux, jamais
 // un remplacement : les contrôles par échéance restent là, intacts, sous lui.
 test('les contrôles par échéance restent affichés sous le bloc', () => {
