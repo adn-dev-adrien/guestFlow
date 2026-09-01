@@ -129,6 +129,16 @@ commission) stays exactly as correct as it is today.
     and inside it the per-bucket mini-journals it already draws, one under the other. The
     encaissements table shows **one row** for the group, with its total and a combined badge, and the
     per-bucket rows are reachable by unfolding it.
+
+    > **Livrée à moitié, complétée le 2026-09-01.** Seules les CARTES de journal regroupaient ; le
+    > tableau « Encaissements du mois », juste en dessous, listait toujours une ligne par échéance.
+    > L'opérateur y lisait donc deux versements là où son relevé bancaire n'en porte qu'un — signalé en
+    > production sur les réservations 22281 (281,98 €) et 12 (27 €). Le tableau replie désormais les
+    > lignes d'une même collecte (`groupPreviewRows`), affiche la **somme** des échéances dans les
+    > colonnes d'argent et la date du groupe, et se déplie sur le détail par échéance : la ventilation
+    > comptable, elle, n'a jamais fusionné. La charge utile du tableau (`platformsPreview`) transporte
+    > pour cela le `paymentGroup` de chaque écriture. Cliquer la ligne ouvre la fiche comme avant ;
+    > seul le bouton de dépliage arrête la propagation.
 14. **The accountant's export is unchanged** (decision, §9 Q1): it keeps one journal entry per bucket.
     The grouping is what the *operator* reads in the app; the accountant's file keeps the shape their
     tooling already ingests. Changing the export is a separate decision, to be taken with them.
