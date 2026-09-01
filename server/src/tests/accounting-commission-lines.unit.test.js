@@ -48,6 +48,7 @@ const commissionContext = {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 11
 test('Case 1: Direct booking → no commission line, balanced as before', () => {
   const row = { ...rowForPlatform({ platform: 'direct', gross: 626, balance: 626 }), platform: 'direct' };
   const entry = buildEntry(row, 'balance', null, commissionContext);
@@ -55,6 +56,7 @@ test('Case 1: Direct booking → no commission line, balanced as before', () => 
   assert.equal(entry.encaissementNetTtc, entry.encaissementTtc); // net === gross for direct
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 12
 test('Case 2: Platform without VAT (Airbnb) → 1 commission HT debit only, no VAT debit', () => {
   // Airbnb: hasVatOnCommission = 0. The full commission TTC rides on the 6226xx line as HT.
   const row = rowForPlatform({ platform: 'Airbnb', gross: 687, balance: 626 });
@@ -70,6 +72,7 @@ test('Case 2: Platform without VAT (Airbnb) → 1 commission HT debit only, no V
   assert.deepEqual(types.filter((t) => t.startsWith('commission')), ['commission_charge']);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 12
 test('Case 3: Platform with VAT (Gîtes de France) → matches the accountant example to the cent', () => {
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626 });
   const entry = buildEntry(row, 'balance', null, commissionContext);
@@ -92,6 +95,7 @@ test('Case 3: Platform with VAT (Gîtes de France) → matches the accountant ex
   assert.equal(round2(sumCredits), 687);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 4
 test('Case 4: Platform-row override beats the global default account', () => {
   // The Gîtes-de-France row has 62260500 set → wins over default 622600.
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626 });
@@ -99,6 +103,7 @@ test('Case 4: Platform-row override beats the global default account', () => {
   assert.equal(entry.commission.account, '62260500');
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 11
 test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount (« Prix payé client » retired)', () => {
   // specs/platform-commission-line.md (2026-06-22): the CA is the total séjour (= finalPrice 300), the
   // commission is the operator-entered `platformCommissionAmount` (40), and the engine already stored the
@@ -125,6 +130,7 @@ test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount
   assert.equal(round2(sumCredits), 300);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 12
 test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, commission 16.48, versement 86.02', () => {
   // Regression for the prod report (2026-06-22): Booking #6622323293. The owner listed the stay at
   // 102,50 € (= what the guest pays the platform), Booking kept 16,48 € commission, and wired 86,02 €.
@@ -151,6 +157,7 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
   assert.equal(round2(sumCredits), 102.50);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 10
 test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved after « solde = net »)', () => {
   // Prod bug 2026-06-22 (Estelle Z. after the deploy): the reservation kept its OLD stored balance =
   // the full total (102,50), not the net (86,02), because it predates « solde = net » and was never
@@ -223,6 +230,7 @@ test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW m
   assert.equal(round2(sumCredits), 687);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 4
 test('Case 5: Unknown platform → falls back to default account; hasVat defaults to false', () => {
   const row = rowForPlatform({ platform: 'Booking.com', gross: 687, balance: 626 });
   const entry = buildEntry(row, 'balance', null, commissionContext);
@@ -230,6 +238,7 @@ test('Case 5: Unknown platform → falls back to default account; hasVat default
   assert.equal(entry.commission.hasVat, false);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 11
 test('Case 6: Complement entry → 0 commission regardless of platform', () => {
   // On-site extras (complement) are host-billed: no platform commission.
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626, complement: 50 });
@@ -239,6 +248,7 @@ test('Case 6: Complement entry → 0 commission regardless of platform', () => {
   assert.equal(complementEntry.commission, null);
 });
 
+// specs/accounting-platform-commission-and-no-deposit.md rule 5
 test('Case 7: Deposit entry on a platform → 0 commission (deposit is 0 post-migration)', () => {
   // The migration collapses platform deposits into balance; here we model that state by
   // passing deposit = 0 + balance = full. The buildEntry never emits a deposit entry for

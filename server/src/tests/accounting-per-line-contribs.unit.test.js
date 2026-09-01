@@ -31,6 +31,7 @@ function rowOf(overrides = {}) {
   };
 }
 
+// specs/force-item-to-complement.md rule 6
 test('legacy fallback (no contribs) → identical pro-rata behaviour as before', () => {
   // Deposit at 30 %: fraction = 60/200 = 0.3, applied to the full reservation HT in the export.
   const entry = buildEntry(rowOf(), 'deposit');
@@ -41,6 +42,7 @@ test('legacy fallback (no contribs) → identical pro-rata behaviour as before',
   assert.ok(acco.ht > 100); // 200 / 1.10 ≈ 181.82
 });
 
+// specs/force-item-to-complement.md rule 11
 test('contrib path: deposit entry uses the per-line acompteContribTtc directly', () => {
   const perLineData = {
     optionLines: [{ optionId: 10, totalPrice: 100, offered: 0, inComplement: 0, acompteContribTtc: 30, soldeContribTtc: null }],
@@ -67,6 +69,7 @@ test('contrib path: deposit entry uses the per-line acompteContribTtc directly',
   assert.equal(entry.encaissementTtc, 90);
 });
 
+// specs/force-item-to-complement.md rule 12
 test('contrib path: balance entry mirrors solde contribs (no contamination from deposit)', () => {
   const perLineData = {
     optionLines: [{ optionId: 10, totalPrice: 100, offered: 0, inComplement: 0, acompteContribTtc: 30, soldeContribTtc: 70 }],
@@ -87,6 +90,7 @@ test('contrib path: balance entry mirrors solde contribs (no contamination from 
   assert.equal(entry.encaissementTtc, 210);
 });
 
+// specs/force-item-to-complement.md rule 2
 test('forced option lives 100 % in complement entry, NOT in deposit/balance', () => {
   const perLineData = {
     optionLines: [{ optionId: 10, totalPrice: 100, offered: 0, inComplement: 1, acompteContribTtc: null, soldeContribTtc: null }],
@@ -111,6 +115,7 @@ test('forced option lives 100 % in complement entry, NOT in deposit/balance', ()
   assert.equal(compOpt.ht, round2(100 / 1.10));
 });
 
+// specs/force-item-to-complement.md rule 13
 test('post-payment growth: complement entry carries the delta, deposit/balance stay clean', () => {
   // Option started at 100, captured 30/70 acompte/solde. Grew to 130 post-payment.
   // Delta = 130 - 30 - 70 = 30 → in complement.
@@ -134,6 +139,7 @@ test('post-payment growth: complement entry carries the delta, deposit/balance s
   assert.equal(complement.buckets.find((b) => b.name === 'options').ht, round2(30 / 1.10));
 });
 
+// specs/force-item-to-complement.md rule 13
 test('complement entry sums forced + delta correctly', () => {
   const perLineData = {
     optionLines: [
@@ -156,6 +162,7 @@ test('complement entry sums forced + delta correctly', () => {
   assert.equal(opt.ht, round2(130 / 1.10));
 });
 
+// specs/force-item-to-complement.md rule 5
 test('tax routed to complement (touristTaxInComplement=1) → kept with taxTtc surfaced for the 46710000 line', () => {
   // Policy 2026-06-01 (accountant SOLIO format): the tax now rides on the `46710000` pass-
   // through account; a pure-tax complement is a valid 1-debit / 1-credit row.
@@ -177,6 +184,7 @@ test('tax routed to complement (touristTaxInComplement=1) → kept with taxTtc s
   assert.equal(complement.buckets.length, 0);
 });
 
+// specs/force-item-to-complement.md rule 6
 test('resource contribs follow the same per-bucket attribution', () => {
   const perLineData = {
     optionLines: [],
@@ -194,6 +202,7 @@ test('resource contribs follow the same per-bucket attribution', () => {
   assert.equal(res.ht, round2(9 / 1.10));
 });
 
+// specs/force-item-to-complement.md rule 6
 test('legacy reservation (all contribs NULL) → fallback buckets come from the STORED line totals', () => {
   const perLineData = {
     optionLines: [{ optionId: 10, totalPrice: 100, offered: 0, inComplement: 0, acompteContribTtc: null, soldeContribTtc: null }],

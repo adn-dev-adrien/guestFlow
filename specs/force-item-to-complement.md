@@ -138,6 +138,8 @@ Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` 
 ### 3.5 Access
 
 17. Admin-only at the UI layer (accountants are already read-only on reservations server-side). No new RBAC plumbing.
+    > **Sans test** — le serveur refuse déjà `/api/reservations/*` au rôle comptable (RBAC testé
+    > ailleurs) ; il ne resterait ici qu'à masquer un bouton, sans logique propre.
 
 **Edge cases:**
 

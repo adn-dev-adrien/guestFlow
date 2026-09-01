@@ -123,6 +123,7 @@ function seedStay(db, overrides = {}) {
 
 const rowOf = (db, id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
 
+// specs/collect-stay-payment-at-check-in.md rule 13
 test('« CB / Chèque » settles the whole remaining stay and captures the contribs', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -142,6 +143,7 @@ test('« CB / Chèque » settles the whole remaining stay and captures the contr
   assert.equal(after.depositPaidAtArrival, 0);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 17
 test('« Payé en liquide » flags the caisse interne on the settled bucket', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -155,6 +157,7 @@ test('« Payé en liquide » flags the caisse interne on the settled bucket', ()
   assert.equal(after.balancePaidAtArrival, 1);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 4
 test('both unpaid buckets are settled together — the guest pays « le séjour », not two lines', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -172,6 +175,7 @@ test('both unpaid buckets are settled together — the guest pays « le séjour 
   assert.equal(after.accommodationSoldeContribTtc, 140);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 15
 test('an acompte already paid before the check-in keeps its date and gets NO marker', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -192,6 +196,7 @@ test('an acompte already paid before the check-in keeps its date and gets NO mar
   assert.equal(after.balancePaidAtArrival, 1);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 1
 test('a disabled acompte is not applicable — only the solde is collected', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -207,6 +212,7 @@ test('a disabled acompte is not applicable — only the solde is collected', () 
   assert.equal(after.balancePaid, 1);
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 14
 test('« Pas maintenant » on a re-opened SAS undoes ITS OWN settlement and clears the contribs', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -230,6 +236,7 @@ test('« Pas maintenant » on a re-opened SAS undoes ITS OWN settlement and clea
   assert.equal(after.depositPaidDate, '2026-06-01');
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 14
 test('re-committing the same settlement keeps the original paid date (money never moves twice)', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -244,6 +251,7 @@ test('re-committing the same settlement keeps the original paid date (money neve
   assert.equal(after.balancePaidCash, 1);          // the mode can still be corrected
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 6
 test('the step never ran (`stayPaid` absent) → the stay buckets are left strictly alone', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -258,6 +266,7 @@ test('the step never ran (`stayPaid` absent) → the stay buckets are left stric
   assert.equal(after.arrivalSasDoneAt !== null, true);   // the rest of the check-in did commit
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 15
 test('releaseStayBucket: a bucket written from the fiche stops being the SAS\'s', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
@@ -272,6 +281,7 @@ test('releaseStayBucket: a bucket written from the fiche stops being the SAS\'s'
   assert.equal(after.balancePaidAtArrival, 0);     // and the SAS may no longer undo it
 });
 
+// specs/collect-stay-payment-at-check-in.md rule 2
 test('a stay whose stored solde disagrees with the engine is STILL collected (contribs left NULL)', () => {
   // The common OTA case: the stored solde is the platform's figure, the engine re-derives another
   // number, and the conservation invariant of the capture cannot hold. Losing the whole check-in over
