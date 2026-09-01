@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Chip, Link, Tooltip,
+  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -10,6 +10,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import MonthYearPicker from '../components/MonthYearPicker';
@@ -288,37 +290,14 @@ export default function AccountingPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {preview.rows.map((row, idx) => {
-                      // Row → reservation file, admin only. The accountant role is read-only
-                      // accounting and the server 403s `/api/reservations/*` for them, so the
-                      // link stays hidden at the UI layer too. `userHasRole(user, ADMIN)` is the
-                      // single gate (same helper as the sidebar + journal cards).
-                      const clickable = canOpenReservation && row.reservationId != null;
-                      return (
-                        <TableRow
-                          key={idx}
-                          hover={clickable}
-                          onClick={clickable ? () => navigate(`/reservations/${row.reservationId}`) : undefined}
-                          sx={clickable ? { cursor: 'pointer' } : undefined}
-                        >
-                          <TableCell>{displayDate(row.date)}</TableCell>
-                          <TableCell>{row.propertyName || '—'}</TableCell>
-                          <TableCell>{row.client}</TableCell>
-                          <TableCell><PlatformChip platform={row.platform} /></TableCell>
-                          <TableCell sx={{ width: 32, p: 0.5 }}>
-                            <KindBadge kind={row.kind} />
-                          </TableCell>
-                          {/* Revenu brut (CA) = what the guest paid the platform. */}
-                          <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(row.encaissement)}</TableCell>
-                          <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{row.commission == null ? '—' : `− ${formatCurrency(row.commission)}`}</TableCell>
-                          {/* Net perçu (versement) — highlighted: it's the figure the operator reconciles
-                              against the platform's bank transfer. */}
-                          <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', bgcolor: (t) => alpha(t.palette.success.main, 0.08) }}>
-                            {formatCurrency(row.net)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {groupPreviewRows(preview.rows).map((block, idx) => (
+                      <EncaissementRow
+                        key={block.group ? block.group.id : `r${idx}`}
+                        block={block}
+                        canOpenReservation={canOpenReservation}
+                        onOpen={(id) => navigate(`/reservations/${id}`)}
+                      />
+                    ))}
                   </TableBody>
                 </Table>
               </Box>
@@ -327,6 +306,73 @@ export default function AccountingPage() {
         </Card>
       </Box>
     </Box>
+  );
+}
+
+/**
+ * Une ligne du tableau « Encaissements du mois » (specs/single-payment-at-check-in.md §3.3 rule 13).
+ *
+ * Une collecte = une ligne. Quand elle réunit plusieurs échéances, la ligne porte le TOTAL réellement
+ * encaissé — le montant qu'on retrouve sur le relevé bancaire — une puce « Paiement unique », et se
+ * déplie sur le détail par échéance. Sinon c'est la ligne d'avant, inchangée.
+ */
+function EncaissementRow({ block, canOpenReservation, onOpen }) {
+  const [open, setOpen] = useState(false);
+  const first = block.rows[0];
+  const clickable = canOpenReservation && first.reservationId != null;
+  const grouped = Boolean(block.group);
+  // Sur un groupe, les colonnes d'argent somment les échéances : le mouvement bancaire est unique.
+  const sum = (key) => Math.round(block.rows.reduce((t, r) => t + (Number(r[key]) || 0), 0) * 100) / 100;
+  const commission = block.rows.every((r) => r.commission == null) ? null : sum('commission');
+  const openFiche = clickable ? () => onOpen(first.reservationId) : undefined;
+
+  return (
+    <>
+      <TableRow
+        hover={clickable}
+        onClick={openFiche}
+        sx={clickable ? { cursor: 'pointer' } : undefined}
+      >
+        <TableCell>{displayDate(grouped ? block.group.at : first.date)}</TableCell>
+        <TableCell>{first.propertyName || '—'}</TableCell>
+        <TableCell>{first.client}</TableCell>
+        <TableCell><PlatformChip platform={first.platform} /></TableCell>
+        <TableCell sx={{ width: 32, p: 0.5 }}>
+          {grouped ? (
+            <Tooltip title={open ? 'Masquer le détail' : `Paiement unique — ${block.rows.length} échéances`}>
+              {/* `stopPropagation` : déplier n'est pas ouvrir la fiche — toute la ligne y mène. */}
+              <IconButton
+                size="small"
+                aria-label="Détail du paiement unique"
+                onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+              >
+                {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          ) : <KindBadge kind={first.kind} />}
+        </TableCell>
+        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {formatCurrency(grouped ? sum('encaissement') : first.encaissement)}
+        </TableCell>
+        <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {commission == null ? '—' : `− ${formatCurrency(commission)}`}
+        </TableCell>
+        <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', bgcolor: (t) => alpha(t.palette.success.main, 0.08) }}>
+          {formatCurrency(grouped ? sum('net') : first.net)}
+        </TableCell>
+      </TableRow>
+      {/* Le détail par échéance reste atteignable : la ventilation comptable, elle, n'a pas fusionné. */}
+      {grouped && open && block.rows.map((r, i) => (
+        <TableRow key={`${block.group.id}-${i}`} sx={{ bgcolor: (t) => alpha(t.palette.grey[500], 0.04) }}>
+          <TableCell sx={{ color: 'text.secondary', pl: 4 }}>{displayDate(r.date)}</TableCell>
+          <TableCell colSpan={3} sx={{ color: 'text.secondary' }}>{KIND_LABELS[r.kind] || r.kind}</TableCell>
+          <TableCell sx={{ width: 32, p: 0.5 }}><KindBadge kind={r.kind} /></TableCell>
+          <TableCell align="right" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(r.encaissement)}</TableCell>
+          <TableCell align="right" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{r.commission == null ? '—' : `− ${formatCurrency(r.commission)}`}</TableCell>
+          <TableCell align="right" sx={{ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(r.net)}</TableCell>
+        </TableRow>
+      ))}
+    </>
   );
 }
 
@@ -358,6 +404,33 @@ export function groupEntries(entries) {
   // A group that ended up with a single entry (the other bucket fell in another month, or was
   // dropped as a pure-tax entry) reads as an ordinary payment.
   return blocks.map((b) => (b.group && b.entries.length < 2 ? { ...b, group: null } : b));
+}
+
+/**
+ * specs/single-payment-at-check-in.md §3.3 rule 13 — le tableau des encaissements montre UNE ligne par
+ * collecte, pas une par échéance.
+ *
+ * Écrit dans la spec dès la v2.9.0 mais jamais construit : le tableau listait deux encaissements pour
+ * un seul mouvement bancaire, pendant que la carte de journal juste au-dessus les regroupait déjà.
+ * L'opérateur lisait donc deux versements là où il n'y en avait qu'un (constaté en production le
+ * 2026-09-01, réservations 22281 et 12).
+ *
+ * Même contrat que `groupEntries` : un groupe qui ne réunit qu'une ligne redevient une ligne
+ * ordinaire — nommer « paiement unique » une collecte qui ne groupe rien serait un mensonge.
+ */
+export function groupPreviewRows(rows) {
+  const blocks = [];
+  const byGroup = new Map();
+  for (const row of (rows || [])) {
+    const id = row.paymentGroup?.id;
+    if (!id) { blocks.push({ group: null, rows: [row] }); continue; }
+    const seen = byGroup.get(id);
+    if (seen) { seen.rows.push(row); continue; }
+    const block = { group: row.paymentGroup, rows: [row] };
+    byGroup.set(id, block);
+    blocks.push(block);
+  }
+  return blocks.map((b) => (b.group && b.rows.length < 2 ? { ...b, group: null } : b));
 }
 
 const KIND_LABELS = {
