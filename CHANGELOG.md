@@ -4,6 +4,18 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.12.1] - 2026-09-01
+
+### Summary
+- La Comptabilité affiche un paiement encaissé en une fois sur UNE ligne, dépliable, au lieu de deux versements.
+- L'historique d'une fiche porte une seule ligne pour ce paiement, au lieu d'une par échéance.
+- Une réduction accordée ne survit plus au paiement qu'elle corrigeait quand le check-in est rejoué.
+
+### Fixed
+- **The « Encaissements du mois » table folds a single payment into one row** (spec `single-payment-at-check-in.md`, rule 13; reported from production on 2026-09-01). The journal cards already folded the entries of one collection, but the table underneath still listed one row per bucket — the operator read two payments where the bank statement carries one. The table now shows one row per collection, at the total actually collected, unfolding on the per-bucket detail. Clicking the row still opens the reservation. The rule had been written in v2.9.0 and only half built.
+- **A reservation's history no longer tells three stories for one payment** (spec `single-payment-at-check-in.md`, rule 10; never implemented since v2.9.0). A check-in collected in ONE gesture wrote « Acompte encaissé », « Solde encaissé » and « Complément encaissé » separately; it now carries a single « Encaissé à l'arrivée — paiement unique » line with the amount, the means, the date and the buckets covered. The rest of the check-in — caution, breakfast, prestations sold — keeps its own lines.
+- **A réduction no longer outlives the payment it corrected** (spec `arrival-payment-detail-and-adjustment.md`, rule 23). Re-running the arrival SAS and answering « Plus tard » dropped the single payment but left the réduction (or the pourboire) in the row, where it kept lowering `comptaCollected` and the total du séjour on behalf of a collection that no longer existed.
+
 ## [2.12.0] - 2026-08-31
 
 ### Summary

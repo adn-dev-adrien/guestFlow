@@ -1,1 +1,0 @@
-- **Une réduction ne survit plus au paiement qu'elle corrigeait** (spec `arrival-payment-detail-and-adjustment.md` règle 23). Rejouer le SAS d'arrivée en « Plus tard » retirait le paiement unique mais laissait la réduction (ou le pourboire) en base, où elle continuait à minorer la comptabilité et le total du séjour au nom d'une collecte disparue.
