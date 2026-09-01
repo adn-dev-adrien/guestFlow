@@ -99,6 +99,11 @@ function createAccountingController(accountingModel) {
           // (operator-entered `platformCommissionAmount`, or the legacy gross−net fallback inside
           // buildEntry). Read it off the entry instead of re-deriving from the gross here.
           commission: e.commission ? Math.round(Number(e.commission.ttc) * 100) / 100 : null,
+          // specs/single-payment-at-check-in.md §3.3 rule 13 — la collecte à laquelle cette écriture
+          // appartient. Le tableau replie les écritures d'un même paiement en UNE ligne : sans ça il
+          // affichait deux encaissements pour un seul mouvement bancaire, à rebours de la carte de
+          // journal juste au-dessus qui, elle, les regroupe déjà (constaté en production 2026-09-01).
+          paymentGroup: e.paymentGroup || null,
         }));
       const totalCommission = platformRows.reduce((s, r) => s + (r.commission || 0), 0);
       return res.json({ rows: platformRows, totalCommission: Math.round(totalCommission * 100) / 100 });
