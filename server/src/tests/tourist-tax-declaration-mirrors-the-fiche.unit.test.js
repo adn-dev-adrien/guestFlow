@@ -5,9 +5,9 @@
 // to « 21,00 € » — two numbers that do not answer each other, and cannot be retyped into the
 // commune's form.
 //
-// Note the structural consequence of rule 10: the page only ever lists stays whose tax has been
-// COLLECTED, and collecting is what freezes it. Every line here is therefore a frozen one — the
-// declaration reports, it no longer re-prices.
+// specs/tourist-tax-matches-the-office-calculation.md rule 10bis — the structural consequence: the
+// page only ever lists stays whose tax has been COLLECTED, and collecting is what freezes it. Every
+// line here is therefore a frozen one; the declaration reports, it no longer re-prices.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

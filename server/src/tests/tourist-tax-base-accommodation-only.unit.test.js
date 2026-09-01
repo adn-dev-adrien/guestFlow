@@ -66,6 +66,8 @@ test('the base is the accommodation charged — 200 €, not the total', () => {
   db.close();
 });
 
+// specs/tourist-tax-matches-the-office-calculation.md rule 6 — every other extra stays inert: it
+// never enters the base, it only ever leaves it through rule 2, and only for what was billed.
 test('no BILLED extra moves the tax — paid, custom, resource, routed to Complément or not', () => {
   const db = createDb();
   const reference = calculateReservationQuote({ ...BASE, db });
@@ -121,6 +123,8 @@ test('an included value larger than the accommodation floors the base at 0', () 
   db.close();
 });
 
+// specs/tourist-tax-matches-the-office-calculation.md rules 1-2 — the base is the accommodation the
+// guest actually paid, and where that figure lives depends on who took the money.
 test('the platform brut derives the base again, net of the extras billed through it', () => {
   const db = createDb();
   const direct = calculateReservationQuote({ ...BASE, db });
@@ -157,13 +161,35 @@ test('the platform brut derives the base again, net of the extras billed through
   db.close();
 });
 
+// specs/tourist-tax-matches-the-office-calculation.md rule 4 — the extra-guest surcharge is NOT part
+// of the base. On the tariff branch it simply is not added; inside a brut the guest HAS paid it, so it
+// has to be subtracted. Operator decision of 2026-09-01, and the heaviest one in the spec: it declares
+// less than the guest paid to sleep, so it gets a test of its own rather than riding on another.
+test('the extra-guest surcharge is subtracted from the brut', () => {
+  const db = createDb();
+  db.prepare("UPDATE properties SET basePriceIncludedGuests = 2, extraGuestPrice = 15, extraGuestPriceUnit = 'per_night' WHERE id = 1").run();
+  const partyOfThree = { ...BASE, db, adults: 3 };
+
+  const withoutBrut = calculateReservationQuote(partyOfThree);
+  const withBrut = calculateReservationQuote({ ...partyOfThree, platform: 'Lodgify', platformGrossAmount: 450 });
+
+  // 1 extra guest × 15 € × 2 nights = 30 €, charged either way…
+  assert.equal(withoutBrut.extraGuestSurcharge, 30);
+  assert.equal(withBrut.extraGuestSurcharge, 30);
+  // …and out of the base on both branches: the tariff never added it, the brut has it removed.
+  assert.equal(withoutBrut.touristTaxBaseAccommodation, 200);
+  assert.equal(withBrut.touristTaxBaseAccommodation, 420);   // 450 − 30
+  db.close();
+});
+
 test('a brut that does not even cover its extras is flagged, and floors the base at 0', () => {
   const db = createDb();
   const quote = calculateReservationQuote({
     ...BASE, db, platform: 'Lodgify', platformGrossAmount: 5,
     selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
   });
-  // Rule 7 + rule 16 — an inconsistent entry, not a negative base and not a silent zero.
+  // specs/tourist-tax-matches-the-office-calculation.md rules 7 + 16 — an inconsistent entry, not a
+  // negative base and not a silent zero.
   assert.equal(quote.touristTaxBaseAccommodation, 0);
   assert.equal(quote.touristTaxBrutInconsistent, true);
   assert.equal(quote.touristTaxTotal, 0);

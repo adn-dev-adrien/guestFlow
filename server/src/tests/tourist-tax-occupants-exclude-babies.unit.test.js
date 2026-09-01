@@ -72,6 +72,8 @@ test('the divisor is adults + children + teens, and the caption says so', () => 
 });
 
 // The Carpier declaration of August 2026: 3 adults, 1 child, 1 baby, filed with 4 occupants.
+// specs/tourist-tax-matches-the-office-calculation.md rule 9 — the taxable-person count is unchanged:
+// the adults pay, whoever else shares the night. Only the divisor moved.
 test('a party of adults-only is unaffected — the rule only removes babies', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, adults: 4, children: 0, teens: 0, babies: 0 });
