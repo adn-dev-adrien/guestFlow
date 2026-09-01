@@ -58,6 +58,7 @@ const collected = (q) => Math.round(
   (q.depositAmount + q.balanceAmount + q.complementAmount + q.endOfStayComplementTotal) * 100,
 ) / 100;
 
+// specs/mid-stay-notes.md rule 9
 test('direct — un petit-déjeuner vendu en cours de séjour part au complément de fin de séjour', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 1 }],
@@ -94,6 +95,7 @@ test('le complément d\'arrivée NON réglé part quand même en fin de séjour 
   assert.equal(collected(q), 212);
 });
 
+// specs/mid-stay-notes.md rule 12
 test('hausse de quantité — seule l\'unité ajoutée bascule', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), depositAmount: 63.6, balanceAmount: 148.4,
@@ -105,6 +107,7 @@ test('hausse de quantité — seule l\'unité ajoutée bascule', () => {
   assert.equal(collected(q), 224);
 });
 
+// specs/mid-stay-notes.md rule 5bis
 test('séjour non commencé (aucune base) — moteur strictement inchangé', () => {
   const withBaseline = calculateReservationQuote({
     ...DIRECT, db: createDb(), depositPaid: false, balancePaid: false, complementPaid: false,
@@ -121,6 +124,8 @@ test('séjour non commencé (aucune base) — moteur strictement inchangé', () 
   assert.equal(withBaseline.preArrivalAmount, legacy.preArrivalAmount);
 });
 
+// specs/mid-stay-notes.md rule 11
+// specs/mid-stay-notes.md rule 11
 test('complément de fin de séjour encaissé — la part vendue est gelée sur les lignes stockées', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 2 }],
@@ -143,6 +148,8 @@ test('le complément de fin de séjour du SAS s\'ajoute aux ventes en cours de s
   assert.equal(q.sejourNetTotal, 272, 'le total de la fiche intègre tout le complément de fin de séjour');
 });
 
+// specs/mid-stay-notes.md rule 19
+// specs/mid-stay-notes.md rule 19
 test('sejourNetTotal — plateforme avec commission : versement net + compléments perçus sur place', () => {
   const q = calculateReservationQuote({
     ...PLATFORM, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 1 }],
@@ -163,6 +170,8 @@ const collectedWithNotes = (q) => Math.round(
   (q.depositAmount + q.balanceAmount + q.complementAmount + q.endOfStayComplementTotal + q.midStaySettledTotal) * 100,
 ) / 100;
 
+// specs/mid-stay-notes.md rule 16
+// specs/mid-stay-notes.md rule 16
 test('note réglée — sort du reste à percevoir, jamais des échéances gelées', () => {
   const q = calculateReservationQuote({
     ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 2 }],

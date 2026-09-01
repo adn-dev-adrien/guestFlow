@@ -137,6 +137,7 @@ async function openUnifiedRecap() {
   await screen.findByText('Récapitulatif — à percevoir');
 }
 
+// specs/single-payment-at-check-in.md rule 1
 test('arrival recap: both sides collectible → ONE settlement, not two', async () => {
   await openUnifiedRecap();
 
@@ -150,6 +151,7 @@ test('arrival recap: both sides collectible → ONE settlement, not two', async 
   expect(screen.getByText(/Total à percevoir à l'arrivée : 530,00 €/)).toBeInTheDocument();
 });
 
+// specs/single-payment-at-check-in.md rule 2
 test('arrival recap: « CB / Chèque » once settles both sides in a single payment', async () => {
   await openUnifiedRecap();
   clickBtn('CB / Chèque');
@@ -161,6 +163,7 @@ test('arrival recap: « CB / Chèque » once settles both sides in a single paym
   expect(payload.arrivalPaymentSplit).toBe(false);
 });
 
+// specs/single-payment-at-check-in.md rule 3
 test('arrival recap: « Plus tard » is the default and collects nothing', async () => {
   await openUnifiedRecap();
   expect(screen.getByText(/le séjour reste dû et le complément est rappelé au check-out/i)).toBeInTheDocument();
@@ -170,6 +173,7 @@ test('arrival recap: « Plus tard » is the default and collects nothing', async
   expect(api.commitArrivalSas.mock.calls[0][1].arrivalPaymentMode).toBe('defer');
 });
 
+// specs/single-payment-at-check-in.md rule 4
 test('arrival recap: « Régler séparément » brings the two settlements back, and back again', async () => {
   await openUnifiedRecap();
   clickBtn('Régler séparément');
@@ -194,6 +198,7 @@ test('arrival recap: split mode commits the two independent settlements, not a g
   expect(api.commitArrivalSas.mock.calls[0][1].arrivalPaymentSplit).toBe(true);
 });
 
+// specs/single-payment-at-check-in.md rule 5
 test('arrival recap: nothing owed on the stay → the complement settles alone, as before', async () => {
   // No stay step (nothing owed on the séjour), so there is nothing to unify: the recap keeps the
   // single complement block it has always had.

@@ -17,10 +17,12 @@ const baseRow = {
 
 const snap = (row = {}, extras = {}) => buildSasSnapshot({ ...baseRow, ...row }, extras);
 
+// specs/arrival-departure-sas.md rule 27
 test('no change → no history entry', () => {
   assert.deepEqual(computeSasChanges(snap(), snap()), []);
 });
 
+// specs/arrival-departure-sas.md rule 25
 test('arrival: caution, upsells and complement land in the diff with French texts', () => {
   const before = snap();
   const after = snap(
@@ -50,6 +52,7 @@ test('breakfast is summarised, and only its non-zero items show', () => {
   assert.equal(byField.breakfastNote, undefined, 'an untouched field never appears');
 });
 
+// specs/arrival-departure-sas.md rule 25
 test('departure: billed lines, extinguisher and caution return are recorded', () => {
   const before = snap();
   const after = snap(
@@ -68,6 +71,7 @@ test('departure: billed lines, extinguisher and caution return are recorded', ()
   assert.equal(byField.endOfStayComplementDetail.toText, 'Serviette de bain ×2 (16 €), Plomb manquant (32 €)');
 });
 
+// specs/arrival-departure-sas.md rule 25
 test('linen elements billed at check-in are listed', () => {
   const changes = computeSasChanges(
     snap(),
@@ -78,6 +82,7 @@ test('linen elements billed at check-in are listed', () => {
   assert.deepEqual([line.fromText, line.toText], ['aucun', "Taie d'oreiller (5 €)"]);
 });
 
+// specs/arrival-departure-sas.md rule 24
 test('a removed upsell reads « pris → non pris » (the SAS undo is traceable too)', () => {
   const changes = computeSasChanges(
     snap({}, { bathLinenPresent: true }),

@@ -9,6 +9,7 @@ const {
   buildGroup, parseGroup, groupCovers, serialiseGroup,
 } = require('../utils/arrivalPaymentGroup');
 
+// specs/single-payment-at-check-in.md rule 7
 test('buildGroup keeps the collection as it happened: date, means, amount, buckets', () => {
   const g = buildGroup({ at: '2026-08-30', cash: false, total: 530, buckets: ['balance', 'complement'] });
   assert.deepEqual(g, { at: '2026-08-30', cash: 0, total: 530, buckets: ['balance', 'complement'] });
@@ -23,6 +24,7 @@ test('buildGroup orders the buckets and drops duplicates and unknown names', () 
   assert.equal(g.cash, 1);
 });
 
+// specs/single-payment-at-check-in.md rule 7
 test('a group of one is not a group', () => {
   // A single bucket settled on its own is an ordinary payment; recording it would make the fiche
   // announce a « paiement unique » that groups nothing.
@@ -57,6 +59,7 @@ test('an unreadable group degrades to « no group », never to a throw', () => {
   }
 });
 
+// specs/single-payment-at-check-in.md rule 8
 test('groupCovers answers which buckets the collection owned', () => {
   const json = serialiseGroup({ at: '2026-08-30', total: 530, buckets: ['balance', 'complement'] });
   assert.equal(groupCovers(json, 'balance'), true);

@@ -548,6 +548,8 @@ test('end-of-stay complement paid date drives the export month (not the stay dat
 // The ventilation must NOT change: two buckets, two entries, two revenue accounts, two VAT rates.
 // What is added is the sentence « these two were one collection », carried on both entries.
 
+// specs/single-payment-at-check-in.md rules 12 + 14 — le groupe estampille les écritures sans les
+// fusionner : l'export du comptable garde UNE écriture par échéance, sa forme ne change pas.
 test('a single arrival payment stamps its group on every entry it named — and on no other', () => {
   const db = createDb();
   insertReservation(db, {
@@ -570,6 +572,7 @@ test('a single arrival payment stamps its group on every entry it named — and 
   }
 });
 
+// specs/single-payment-at-check-in.md rule 12
 test('an ordinary reservation carries no group at all', () => {
   const db = createDb();
   insertReservation(db, {
@@ -594,6 +597,7 @@ test('a caisse-interne group emits nothing: there is no entry to group', () => {
   assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }).length, 0);
 });
 
+// specs/single-payment-at-check-in.md rule 11
 test('the group survives the journal mapper — it is what the Comptabilité page reads', () => {
   // The model stamps `paymentGroup`, but the page reads the MAPPED entry, which rebuilds the object
   // from an explicit field list. A field dropped there is a field the UI never sees — which is
@@ -633,6 +637,7 @@ test('an ungrouped entry carries no paymentGroup through the mapper either', () 
   assert.equal(mapped[0].paymentGroup, undefined);
 });
 
+// specs/single-payment-at-check-in.md rule 11
 test('a group covering the END-OF-STAY complement stamps that entry too', () => {
   // Reported 2026-08-31: a platform booking with the acompte disabled and nothing sold at check-in
   // still had 50 € scheduled for the door — and the guest paid it on arrival with the rest.

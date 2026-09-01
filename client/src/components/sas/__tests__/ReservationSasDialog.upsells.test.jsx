@@ -26,6 +26,7 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 const BATH_LINEN_OFFER = { available: true, unitPrice: 4, priceType: 'per_person', persons: 3, nights: 2, amount: 12, label: 'Linge de toilette' };
 
+// specs/arrival-departure-sas.md rule 8
 test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds the line to the arrival complement; règlement is on the recap', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
@@ -81,6 +82,7 @@ test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', asy
   expect(arg.complementItems).toEqual([]);
 });
 
+// specs/arrival-departure-sas.md rule 8
 test('arrival SAS: bath-linen page is skipped when the offer is unavailable', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1 },
@@ -129,6 +131,7 @@ test('departure SAS: a bath-linen line deferred at arrival is shown, counted in 
   expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
 });
 
+// specs/arrival-departure-sas.md rule 14
 test('departure SAS: the ménage page is dropped when the cleaning is already sold — nothing is billed', async () => {
   // specs/defer-arrival-complement-to-checkout.md §3.1 — the guest bought the cleaning (or it was
   // added at check-in): the host does it, so the departure SAS must not ask, and must not bill it a
