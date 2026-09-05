@@ -56,6 +56,8 @@ function controllerFor(db, { settings = recordingSettings(), clientFactory = fak
   return { ctrl, model, settings, clientFactory };
 }
 
+// specs/neat-cancellation-insurance-subscription.md règle 1 (the Réglages section holds the
+// environment + credentials, secret masked) + règle 6 (status summary derived server-side).
 test('getSettings masks the secret to a boolean and derives the status server-side', () => {
   const db = freshNeatDb();
   const { ctrl } = controllerFor(db);
@@ -79,6 +81,32 @@ test('updateSettings — the secret 3-way: absent preserves, empty clears, value
   assert.equal(settings.upserts[1].neatClientSecretEncrypted, '', 'empty → cleared');
   ctrl.updateSettings({ body: { clientSecret: 'new-secret' } }, fakeRes());
   assert.equal(settings.upserts[2].neatClientSecretEncrypted, 'new-secret');
+  db.close();
+});
+
+// specs/neat-cancellation-insurance-subscription.md règle 2 — « Tester la connexion »
+// authenticates against the selected environment and reports success or the exact Neat error;
+// without credentials the whole feature is off (400, no call attempted).
+test('testConnection — 400 without credentials, 502 with Neat’s exact error, ok on success', async () => {
+  const db = freshNeatDb();
+  const unconfigured = controllerFor(db, { settings: recordingSettings({ clientId: '', clientSecret: '' }) });
+  const noCreds = fakeRes();
+  await unconfigured.ctrl.testConnection({}, noCreds);
+  assert.equal(noCreds.statusCode, 400);
+
+  const okFactory = () => ({ testConnection: async () => ({ ok: true, serviceAccountId: 'svc-1' }) });
+  const okCtrl = controllerFor(db, { clientFactory: okFactory });
+  const okRes = fakeRes();
+  await okCtrl.ctrl.testConnection({}, okRes);
+  assert.deepEqual(okRes.body, { ok: true, environment: 'staging' });
+
+  const boom = Object.assign(new Error('Neat auth failed (HTTP 401)'), { status: 401 });
+  const koFactory = () => ({ testConnection: async () => { throw boom; } });
+  const koCtrl = controllerFor(db, { clientFactory: koFactory });
+  const koRes = fakeRes();
+  await koCtrl.ctrl.testConnection({}, koRes);
+  assert.equal(koRes.statusCode, 502);
+  assert.match(koRes.body.error, /Connexion Neat impossible : Neat auth failed/);
   db.close();
 });
 
@@ -229,6 +257,9 @@ test('a Neat failure during void keeps the job active and surfaces a 502', async
   db.close();
 });
 
+// specs/neat-cancellation-insurance-subscription.md règle 3 — discovery is server-driven: the
+// operator picks the sales channel / contract / payment method, and everything stored about them
+// (labels, the contract's serviceFields schema) is resolved from Neat, never trusted from the client.
 test('updateSelection resolves labels + the contract schema from Neat, never from the client payload', async () => {
   const db = freshNeatDb();
   const clientFactory = () => ({
