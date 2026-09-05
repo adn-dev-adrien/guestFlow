@@ -154,6 +154,8 @@ async function status(req, res) {
       const pay = await buildQontoClient().getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId });
       if (pay.paid) {
         await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });
+        // Insured + acompte just paid → subscribe at Neat now (neat spec rule 8). Fire-and-forget.
+        require('../neatController').kickPass('public-payment-status');
         const reloaded = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id);
         if (reloaded && reloaded.convertedReservationId) return asConfirmed(reloaded.convertedReservationId);
         return ok(res, { status: 'paid' });

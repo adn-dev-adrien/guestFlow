@@ -318,12 +318,16 @@ function createOptionsModel(database) {
      * when no option carries the flag, when it isn't applicable to that property, or when it is
      * still unpriced — an insurance at 0 is not an offer (rule 15).
      */
-    getCancellationInsurance(propertyId) {
+    // `neatPricingActive` (specs/neat-cancellation-insurance-subscription.md rule 13): with the
+    // Neat-derived guest price active, the insurance is sellable even at a static price of 0 — the
+    // static tariff is then only the fallback. Without it, unpriced = invisible (rule 15).
+    getCancellationInsurance(propertyId, { neatPricingActive = false } = {}) {
       if (!HAS_OPTION_CANCELLATION_INSURANCE) return null;
       const found = this.listForProperty(propertyId)
         .filter((o) => Number(o.isCancellationInsurance || 0) === 1)
         .sort((a, b) => Number(a.id) - Number(b.id))[0] || null;
-      if (!found || Number(found.price || 0) <= 0) return null;
+      if (!found) return null;
+      if (Number(found.price || 0) <= 0 && !neatPricingActive) return null;
       return found;
     },
 

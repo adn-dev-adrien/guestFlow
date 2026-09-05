@@ -24,6 +24,10 @@ const establishmentClosuresModel = require('../models/establishmentClosuresModel
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
+const neatSubscriptionsModel = require('../models/neatSubscriptionsModel');
+const neatController = require('./neatController');
+const { repriceQuoteWithNeatSync, repriceQuoteWithNeatLive } = require('../utils/neatGuestPricing');
+const { buildNeatClient } = require('../utils/neatClient');
 const refundsModel = require('../models/refundsModel');
 const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
@@ -483,6 +487,9 @@ function getById(req, res) {
     // paid the buckets separately, which is every reservation before this feature. The raw column
     // rides along untouched for the SAS, which re-reads it as the stored group.
     arrivalPayment: buildArrivalPaymentView(reservation),
+    // specs/neat-cancellation-insurance-subscription.md §3.3 — the Neat subscription state of this
+    // stay, shaped for display (chip + actions); null when there is nothing to show.
+    neat: neatController.buildFicheBlock(reservation),
   });
 }
 
@@ -501,7 +508,7 @@ function isDevisPricingExpired(devisId) {
   return isDevisExpired(row.validUntil, getTodayIsoDate());
 }
 
-function calculatePrice(req, res) {
+async function calculatePrice(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -548,7 +555,7 @@ function calculatePrice(req, res) {
     frozenTouristTax = db.prepare('SELECT touristTaxTotal, touristTaxRate FROM reservations WHERE id = ?').get(reservationId);
   }
 
-  const quote = calculateReservationQuote({
+  const engineInput = {
     db,
     propertyId,
     startDate: req.body.startDate,
@@ -615,7 +622,25 @@ function calculatePrice(req, res) {
     // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
     // at `endDate + N` instead of the guest-facing J-30.
     platformPayoutDueDays: resolvePlatformPayoutDueDays(req.body.platform),
-  });
+  };
+  let quote = calculateReservationQuote(engineInput);
+  // Neat-derived insurance price (specs/neat-cancellation-insurance-subscription.md rule 13): the
+  // live preview resolves against Neat (warming the cache the sync save path then reads), so the
+  // fiche announces exactly what the save will bill. Unconfigured / unreachable with a cold cache
+  // → the static tariff stands.
+  try {
+    ({ quote } = await repriceQuoteWithNeatLive({
+      engineInput,
+      quote,
+      settingsModel,
+      cacheModel: neatSubscriptionsModel,
+      buildClient: buildNeatClient,
+      calculate: calculateReservationQuote,
+    }));
+  } catch (err) {
+    // Pricing resilience over freshness: the preview must render even if Neat resolution blows up.
+    console.error('[neat] live reprice failed:', err.message);
+  }
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   // specs/defer-arrival-complement-to-checkout.md §3.2 rule 7bis — the merged « complément de fin de
   // séjour » block, rebuilt from THIS quote so the card follows every edit live instead of showing
@@ -706,7 +731,7 @@ function create(req, res) {
   // specs/disable-deposit-per-reservation.md.
   const depositDisabledFlag = req.body.depositDisabled ? 1 : 0;
 
-  const quote = calculateReservationQuote({
+  const engineInput = {
     db,
     propertyId: Number(propertyId),
     startDate, endDate, checkInTime, checkOutTime,
@@ -748,7 +773,13 @@ function create(req, res) {
     // specs/payment-schedule-and-cancellation.md §3.1 — booked today: the acompte is due
     // `depositDueDays` from now, the solde 30 days before arrival at the earliest.
     ...scheduleQuoteInputs(0),
-  });
+  };
+  let quote = calculateReservationQuote(engineInput);
+  // Neat-derived insurance price (rule 13): sync, cache-only — the fiche preview warmed the cache,
+  // so the save bills what the preview announced. Cold cache / feature off → static tariff.
+  ({ quote } = repriceQuoteWithNeatSync({
+    engineInput, quote, settingsModel, cacheModel: neatSubscriptionsModel, calculate: calculateReservationQuote,
+  }));
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
     return res.status(409).json({
@@ -808,6 +839,9 @@ function create(req, res) {
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
   googleCalendarSync.schedulePush(reservationId);
+  // An insured reservation may have been created acompte already encaissé — subscribe at Neat now
+  // (specs/neat-cancellation-insurance-subscription.md rule 8). Silent no-op while unconfigured.
+  neatController.kickPass('reservation-create');
   // No acompte request leaves here (specs/payment-schedule-and-cancellation.md §1 amendment, rule 36):
   // the booking raises a `deposit_to_request` row on the dashboard instead, and the operator sends it.
 }
@@ -935,7 +969,7 @@ function update(req, res) {
     ? storedPaymentForQuote.complementAmount
     : req.body.complementAmount;
 
-  const quote = calculateReservationQuote({
+  const engineInput = {
     db,
     propertyId: Number(propertyId),
     startDate, endDate, checkInTime, checkOutTime,
@@ -984,7 +1018,12 @@ function update(req, res) {
     ...midStayQuoteInputs(id),
     // The acompte deadline was promised on the booking day: an edit never moves it (rule 4).
     ...scheduleQuoteInputs(id),
-  });
+  };
+  let quote = calculateReservationQuote(engineInput);
+  // Neat-derived insurance price (rule 13): sync, cache-only — same premium the preview announced.
+  ({ quote } = repriceQuoteWithNeatSync({
+    engineInput, quote, settingsModel, cacheModel: neatSubscriptionsModel, calculate: calculateReservationQuote,
+  }));
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
@@ -1134,6 +1173,9 @@ function update(req, res) {
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
   googleCalendarSync.schedulePush(id);
+  // A save may have flipped the acompte to « encaissé » on an insured stay — subscribe at Neat now
+  // (specs/neat-cancellation-insurance-subscription.md rule 8). Silent no-op while unconfigured.
+  neatController.kickPass('reservation-update');
 }
 
 // specs/reception-sas-today-only.md §3.2 rule 6 — reception may flip the status toggles only on the

@@ -13,6 +13,7 @@ import SettingsVatSection from '../components/SettingsVatSection';
 import SettingsFiscalYearSection from '../components/SettingsFiscalYearSection';
 import SettingsReservationLockSection from '../components/SettingsReservationLockSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
+import SettingsNeatSection from '../components/SettingsNeatSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
 import SettingsEmailAutomationSection from '../components/SettingsEmailAutomationSection';
@@ -400,6 +401,12 @@ export default function SettingsPage() {
               settings form; specs/google-calendar-oauth-rework.md §6). */}
           <Box sx={{ breakInside: 'avoid' }}>
             <SettingsGoogleCalendarSection />
+          </Box>
+
+          {/* Neat cancellation insurance (self-contained — card-local save, discovery + mapping;
+              specs/neat-cancellation-insurance-subscription.md §6.1). */}
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsNeatSection />
           </Box>
 
           <Box sx={{ breakInside: 'avoid' }}>
