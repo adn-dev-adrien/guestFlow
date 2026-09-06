@@ -186,15 +186,21 @@ test('customPrice and the discount drive the accommodation BEFORE the deduction'
 
 // Rule 6 — the half of specs/tourist-tax-base-accommodation-only.md that stays. The brut is a
 // payment figure; it never derives the base, with or without inclusions on the booking.
-test('the platform brut still does not derive the base', () => {
+// specs/tourist-tax-matches-the-office-calculation.md rule 2 repeals the decoupling, but rule 5
+// keeps this deduction: on a platform booking the inclusions come out of the BRUT, not out of the
+// tariff. The office asked for the accommodation « hors options et ménage », whoever cashed it.
+test('the inclusions are deducted from the platform brut too', () => {
   const db = createDb();
   const direct = calculateReservationQuote({ ...BASE, ...INCLUSIONS, db });
   const withBrut = calculateReservationQuote({
     ...BASE, ...INCLUSIONS, db, platform: 'Lodgify', platformGrossAmount: 450,
   });
 
-  assert.equal(withBrut.touristTaxBaseAccommodation, 299.79);
-  assert.equal(withBrut.touristTaxTotal, direct.touristTaxTotal);
+  // The brut is what the guest paid; 60 € of it bought the cleaning and the linen sold inside the
+  // rate, so the dry night is 390 € — where a direct booking at the same tariff declares 299,79 €.
+  assert.equal(direct.touristTaxBaseAccommodation, 299.79);
+  assert.equal(withBrut.touristTaxBaseAccommodation, 390);
+  assert.ok(withBrut.touristTaxTotal > direct.touristTaxTotal);
   assert.equal(withBrut.totalStayPrice, 450);
   db.close();
 });

@@ -432,6 +432,11 @@ function computeTouristTaxBreakdown({
   occupants,
   accommodationAmountTtc,
   accommodationVatRate,
+  // specs/tourist-tax-matches-the-office-calculation.md rule 12 — a FROZEN tax carries the base it
+  // was computed on, already HT. Given it, the breakdown starts from that figure instead of
+  // re-deriving one from today's tariff: it is what makes the frozen line reproduce its own amount
+  // in the office's form, which a recomputed base stopped doing on 2026-08-20.
+  accommodationAmountHt,
 }) {
   const mode = String(touristTaxMode || 'per_day_per_person');
   const nightsCount = Math.max(0, Number(nights || 0));
@@ -447,15 +452,27 @@ function computeTouristTaxBreakdown({
   const vatRate = Math.max(0, Number(accommodationVatRate || 0));
   const vatDivisor = 1 + (vatRate / 100);
 
-  const averageNightPriceTtc = nightsCount > 0
-    ? roundMoney(accommodationReferenceTtc / nightsCount)
-    : 0;
-  const averageNightPriceHt = vatDivisor > 0
-    ? roundMoney(averageNightPriceTtc / vatDivisor)
-    : averageNightPriceTtc;
+  // `Number(null)` is 0 and passes isFinite, so the null check has to come FIRST: a legacy frozen row
+  // carries no base, and reading one as « 0 € » would declare a 0 € tax.
+  const frozenBaseHt = accommodationAmountHt != null && Number.isFinite(Number(accommodationAmountHt))
+    ? Math.max(0, Number(accommodationAmountHt))
+    : null;
+  const averageNightPriceHt = frozenBaseHt != null
+    ? (nightsCount > 0 ? roundMoney(frozenBaseHt / nightsCount) : 0)
+    : (vatDivisor > 0
+      ? roundMoney(roundMoney(nightsCount > 0 ? accommodationReferenceTtc / nightsCount : 0) / vatDivisor)
+      : roundMoney(nightsCount > 0 ? accommodationReferenceTtc / nightsCount : 0));
+  const averageNightPriceTtc = frozenBaseHt != null
+    ? roundMoney(averageNightPriceHt * vatDivisor)
+    : (nightsCount > 0 ? roundMoney(accommodationReferenceTtc / nightsCount) : 0);
   const perOccupantNightPriceHt = occupantsCount > 0
     ? roundMoney(averageNightPriceHt / occupantsCount)
     : 0;
+
+  // The figure the operator retypes into the commune's form, defined ONCE so the caption and the
+  // quote field can never disagree. A frozen base is returned verbatim: rebuilding it from the
+  // rounded nightly price drifts by a cent, and what is shown must be what was stored.
+  const stayBaseHt = frozenBaseHt != null ? roundMoney(frozenBaseHt) : roundMoney(averageNightPriceHt * nightsCount);
 
   let touristTaxRate = 0;
   let touristTaxUnitAmount = 0;
@@ -481,7 +498,11 @@ function computeTouristTaxBreakdown({
     const fixedLabel = mode === 'percentage_and_fixed' && fixedAmount > 0
       ? ` + ${fixedAmount.toFixed(2)}EUR`
       : '';
-    touristTaxLabel = `(${averageNightPriceHt.toFixed(2)}EUR HT/nuit ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''}) x ${communePercentage.toFixed(2)}% + ${departmentPercentage.toFixed(2)}% dep${fixedLabel} = ${touristTaxUnitAmount.toFixed(2)}EUR/adulte/nuit`;
+    // specs/tourist-tax-matches-the-office-calculation.md rule 15 — the caption opens on the stay's
+    // whole base HT because that is the single figure the office's form asks for (« Montant du séjour
+    // HT »). The operator retypes it and lands on the amount shown beside it; the per-night and
+    // per-occupant steps follow so the arithmetic can be checked without a calculator.
+    touristTaxLabel = `(${stayBaseHt.toFixed(2)}EUR HT ÷ ${nightsCount} nuit${nightsCount > 1 ? 's' : ''} ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''} = ${averageNightPriceHt.toFixed(2)}EUR HT/nuit) x ${communePercentage.toFixed(2)}% + ${departmentPercentage.toFixed(2)}% dep${fixedLabel} = ${touristTaxUnitAmount.toFixed(2)}EUR/adulte/nuit`;
   }
 
   return {
@@ -493,6 +514,8 @@ function computeTouristTaxBreakdown({
     touristTaxFixedAmount: fixedAmount,
     touristTaxPricePerNight: averageNightPriceTtc,
     touristTaxPricePerNightHt: averageNightPriceHt,
+    // The stay's whole base HT — what the office's « Montant du séjour HT » field wants (rule 12).
+    touristTaxBaseHt: stayBaseHt,
     touristTaxPerOccupantNightPriceHt: perOccupantNightPriceHt,
     touristTaxMunicipalUnitAmount: municipalUnitAmount,
     touristTaxDepartmentUnitAmount: departmentUnitAmount,
@@ -1248,6 +1271,13 @@ function calculateReservationQuote({
   freezeTouristTax,
   frozenTouristTaxTotal,
   frozenTouristTaxRate,
+  // specs/tourist-tax-matches-the-office-calculation.md rule 12 — the base (HT, whole stay), the
+  // divisor and the €/adulte/nuit the frozen amount was computed with, stored alongside it. The
+  // fiche and the declaration render these, so a frozen line reproduces its own amount in the
+  // office's form instead of showing a base recomputed under whatever rule is current.
+  frozenTouristTaxBaseHt,
+  frozenTouristTaxOccupants,
+  frozenTouristTaxAt,
   // specs/platform-commission-line.md + platform-per-echeance-commission.md — the platform commission on
   // the SOLDE, operator-entered (€, TTC). Non-direct only. Books on the platform account on the balance
   // entry; the acompte has its own `acompteCommissionAmount` below.
@@ -2033,7 +2063,31 @@ function calculateReservationQuote({
     finalOptionLines.filter((line) => line && line.includedInRate),
     { referencePersons: taxReferencePersons, nights },
   );
-  const taxBaseAccommodation = roundMoney(Math.max(0, taxBaseBeforeDeduction - touristTaxIncludedInRateDeduction));
+  // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
+  // accommodation the guest paid, « hors options et ménage ». Where that figure lives depends on who
+  // took the money:
+  //   - a platform booking with a brut → the brut IS what the guest paid, so the accommodation is
+  //     what remains once the extras billed THROUGH the platform are taken out (rule 2). A line
+  //     routed to « Complément » is collected by us at arrival and was never inside the brut, so
+  //     subtracting it would deduct it twice;
+  //   - anything else → the tariff, which is what the guest paid us directly (rule 3).
+  // Then, on both branches alike: the services sold inside the night rate come out (rule 5, the
+  // office's « hors ménage »), and so does the extra-guest surcharge (rule 4, operator decision of
+  // 2026-09-01 — it is inside the brut, hence subtracted rather than merely not added).
+  // This repeals rule 2 of tourist-tax-base-accommodation-only.md: the brut derives the base again.
+  const taxAccommodationPaid = platformGrossPin != null
+    ? roundMoney(Math.max(0, platformGrossPin - preArrivalOptionsResources))
+    : taxBaseBeforeDeduction;
+  const taxBaseAccommodation = roundMoney(Math.max(
+    0,
+    taxAccommodationPaid
+      - touristTaxIncludedInRateDeduction
+      - (platformGrossPin != null ? extraGuestSurcharge : 0),
+  ));
+  // Rule 16 — a brut that does not even cover the extras billed alongside it is an inconsistent
+  // entry, not a zero-euro stay. Floored above, surfaced on the fiche rather than swallowed.
+  const touristTaxBrutInconsistent = platformGrossPin != null
+    && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestSurcharge);
 
   // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
   // Resolved HERE (before the brut back-solve) so the reversed tax can be treated as part of the brut.
@@ -2058,9 +2112,24 @@ function calculateReservationQuote({
     touristTaxFixedAmount: property.touristTaxFixedAmount,
     nights,
     adults: Number(adults || 0),
-    occupants: Number(adults || 0) + Number(children || 0) + Number(teens || 0) + Number(babies || 0),
+    // specs/tourist-tax-matches-the-office-calculation.md rule 8 — babies are NOT occupants for the
+    // divisor. They were, and since dividing by more occupants lowers the tax, every stay with a cot
+    // was billed short of what the office's own form computes (checked against the Carpier
+    // declaration, filed with 4 occupants where the engine counted 5). The cot still bills its
+    // supplement — this is the divisor, not the sale.
+    // A frozen stay keeps the divisor it was frozen with (rule 12), so a party edited after
+    // collection cannot rewrite the arithmetic behind an amount already paid.
+    occupants: freezeTouristTax
+      && Number.isFinite(Number(frozenTouristTaxOccupants)) && Number(frozenTouristTaxOccupants) > 0
+      ? Number(frozenTouristTaxOccupants)
+      : Number(adults || 0) + Number(children || 0) + Number(teens || 0),
     accommodationAmountTtc: taxBaseAccommodation,
     accommodationVatRate: vatRate,
+    // Rule 12 — a frozen stay is described by the base it was frozen with, never by a fresh one.
+    accommodationAmountHt: freezeTouristTax && frozenTouristTaxBaseHt != null
+      && Number.isFinite(Number(frozenTouristTaxBaseHt))
+      ? Number(frozenTouristTaxBaseHt)
+      : null,
   });
   // specs/tourist-tax-freeze-past-with-refresh.md — for a PAST reservation, freeze the tax AMOUNT to
   // the reservation's stored values (passed in) instead of the recompute. Platform-mode routing below
@@ -2068,7 +2137,14 @@ function calculateReservationQuote({
   if (freezeTouristTax) {
     touristTaxBreakdown.touristTaxTotal = roundMoney(Number(frozenTouristTaxTotal || 0));
     touristTaxBreakdown.touristTaxRate = Number(frozenTouristTaxRate || 0);
-    touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
+    // With a frozen base the breakdown above already re-derived the €/adulte/nuit FROM that base, and
+    // it reproduces the frozen total (rule 14 round-trips). Keep it: it is the figure the caption and
+    // the declaration have to show. Without a base — a legacy row the inversion could not rebuild —
+    // fall back to the stored rate, which on a percentage property holds the PERCENTAGE, not euros;
+    // the declaration derives its own €/adulte/nuit from the amount in that case.
+    if (frozenTouristTaxBaseHt == null || !Number.isFinite(Number(frozenTouristTaxBaseHt))) {
+      touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
+    }
   }
   let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
   if (isTouristTaxOfferedByPlatform) {
@@ -2518,6 +2594,13 @@ function calculateReservationQuote({
     touristTaxBaseAccommodation: taxBaseAccommodation,
     touristTaxBaseBeforeDeduction: taxBaseBeforeDeduction,
     touristTaxIncludedInRateDeduction,
+    // specs/tourist-tax-matches-the-office-calculation.md — the accommodation the guest paid before
+    // the two deductions (rules 2-3), whether the fiche is frozen (rule 12), and the inconsistent-brut
+    // flag (rule 16). The fiche and the declaration render them; neither recomputes anything.
+    touristTaxAccommodationPaid: taxAccommodationPaid,
+    touristTaxFrozen: Boolean(freezeTouristTax),
+    touristTaxFrozenAt: freezeTouristTax ? (frozenTouristTaxAt || null) : null,
+    touristTaxBrutInconsistent,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     touristTaxRemittedByOwner: isTouristTaxRemittedByOwnerFlag,
     touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,
