@@ -7,6 +7,8 @@
 const db = require('../../database');
 const propertiesModel = require('../../models/propertiesModel');
 const optionsModel = require('../../models/optionsModel');
+const settingsModel = require('../../models/settingsModel');
+const { isNeatPricingActive } = require('../../utils/neatGuestPricing');
 const resourcesModel = require('../../models/resourcesModel');
 const reservationsModel = require('../../models/reservationsModel');
 const establishmentClosuresModel = require('../../models/establishmentClosuresModel');
@@ -110,8 +112,11 @@ function listOptions(req, res) {
     ungrouped: ungrouped.slice().sort(byPriceAsc),
     groups: groups.map((g) => ({ category: g.category, options: g.options.slice().sort(byPriceAsc) })),
     // Null while unpriced (rule 15) — the projection enforces it: no block, and the site then has
-    // no mandatory question to ask.
-    cancellationInsurance: toPublicCancellationInsurance(insuranceOption),
+    // no mandatory question to ask. With Neat pricing active the block stays even at a static 0
+    // and its label announces a per-stay tariff (neat-cancellation-insurance rule 13).
+    cancellationInsurance: toPublicCancellationInsurance(insuranceOption, {
+      neatPricingActive: isNeatPricingActive(settingsModel),
+    }),
   });
 }
 

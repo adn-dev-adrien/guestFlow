@@ -16,7 +16,8 @@ function freshModel() {
     CREATE TABLE user_push_prefs (
       userId INTEGER PRIMARY KEY, newReservation INTEGER NOT NULL DEFAULT 1,
       arrivals INTEGER NOT NULL DEFAULT 1, departures INTEGER NOT NULL DEFAULT 1,
-      breakfast INTEGER NOT NULL DEFAULT 1
+      breakfast INTEGER NOT NULL DEFAULT 1,
+      neat INTEGER NOT NULL DEFAULT 1
     );
   `);
   return { db, model: createModel(db) };
@@ -51,11 +52,11 @@ test('unsubscribe / removeByEndpoint delete the row (idempotent)', () => {
 
 test('preferences default to all-ON with no row; setPreferences is a partial update', () => {
   const { model } = freshModel();
-  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: true, departures: true, breakfast: true });
+  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true });
   model.setPreferences(1, { arrivals: false });
-  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: false, departures: true, breakfast: true });
-  model.setPreferences(1, { newReservation: false, breakfast: false });
-  assert.deepEqual(model.getPreferences(1), { newReservation: false, arrivals: false, departures: true, breakfast: false });
+  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: false, departures: true, breakfast: true, neat: true });
+  model.setPreferences(1, { newReservation: false, breakfast: false, neat: false });
+  assert.deepEqual(model.getPreferences(1), { newReservation: false, arrivals: false, departures: true, breakfast: false, neat: false });
 });
 
 test('subscriptionsForPref returns subs of users whose pref is ON (default ON when no prefs row)', () => {

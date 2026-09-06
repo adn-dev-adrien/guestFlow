@@ -123,16 +123,21 @@ function frNumber(value) {
  * `amount` is what it costs for the quoted stay, priced server-side — `null` when there is no stay
  * yet (catalogue call), in which case the site falls back to `priceLabel`.
  */
-function toPublicCancellationInsurance(option, { amount = null, selected = false } = {}) {
+function toPublicCancellationInsurance(option, { amount = null, selected = false, neatPricingActive = false } = {}) {
   if (!option) return null;
   const priceType = String(option.priceType || 'per_stay');
   const isPercent = priceType === 'percent_of_stay';
   const price = Number(option.price || 0);
-  if (price <= 0) return null;
+  // Neat-derived pricing (specs/neat-cancellation-insurance-subscription.md rule 13): the static
+  // tariff is only a fallback, so a 0 no longer hides the block — and there is no per-unit label
+  // to print before the dates are picked, the premium being per-stay on the Neat side.
+  if (price <= 0 && !neatPricingActive) return null;
   const labels = optionPriceLabels(priceType, false);
-  const priceLabel = isPercent
-    ? `${frNumber(price)} % du montant du séjour`
-    : `${frNumber(price)} €${labels.priceUnitLabel ? ` ${labels.priceUnitLabel}` : ''}`;
+  const priceLabel = neatPricingActive
+    ? 'Tarif calculé pour vos dates de séjour'
+    : (isPercent
+      ? `${frNumber(price)} % du montant du séjour`
+      : `${frNumber(price)} €${labels.priceUnitLabel ? ` ${labels.priceUnitLabel}` : ''}`);
   return {
     optionId: Number(option.id),
     title: option.title,
