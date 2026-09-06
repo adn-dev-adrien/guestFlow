@@ -30,6 +30,7 @@ const FUTURE = { startDate: '2099-06-01', endDate: '2099-06-05' };
 
 beforeEach(() => { vi.clearAllMocks(); });
 
+// specs/adjustable-complement-amounts.md rule 1
 test('le champ « Montant ajusté » affiche le calcul auto tant qu\'il est vide', () => {
   renderFinance({
     editingReservationId: 7, reservationId: 7,
@@ -213,4 +214,76 @@ test('§6.5 — les deux compléments sont rendus dans la même grille, chacun s
   const endOfStay = screen.getByText('Complément de fin de séjour').closest('.MuiGrid-root');
   expect(arrival).not.toBe(endOfStay);
   expect(arrival.parentElement).toBe(endOfStay.parentElement);
+});
+
+// specs/adjustable-complement-amounts.md rule 29 — complément d'arrivée reporté au check-out : la
+// fiche n'affiche qu'UNE carte, et ajuster son total écrit l'ajustement du complément d'ARRIVÉE à
+// « cible − montant de fin de séjour ». Le total saisi est celui que l'opérateur a annoncé au client ;
+// c'est au code de retrouver quel bucket doit bouger pour l'obtenir.
+const MERGED = {
+  editingReservationId: 7,
+  reservationId: 7,
+  pricingQuote: {
+    complementAmount: 128.05, complementAmountAuto: 128.05,
+    endOfStayComplementTotal: 30, endOfStayComplementAutoTotal: 30,
+    checkoutComplement: {
+      deferred: true, amount: 158.05, arrivalAmount: 128.05, endOfStayAmount: 30,
+      paid: false, paidCash: false, paidDate: null,
+      lines: [{ label: 'Le repas des trappeurs', amount: 128.05, origin: 'arrival' }],
+    },
+  },
+  form: {
+    ...FUTURE,
+    complementDeferredToCheckout: true,
+    complementAdjustment: { floor: 9.6, tax: 9.6, accommodation: 0, allocation: null },
+  },
+};
+
+test('règle 29 — ajuster la carte fusionnée écrit l’ajustement d’ARRIVÉE, net de la fin de séjour', async () => {
+  const user = userEvent.setup();
+  const ctx = renderFinance(MERGED);
+
+  await user.type(screen.getByLabelText(/Montant ajusté/i), '150');
+  await user.tab();
+
+  expect(ctx.updateForm).toHaveBeenCalledWith({ complementAmountOverride: 120 });
+});
+
+// specs/adjustable-complement-amounts.md rule 30 — sous le montant de fin de séjour, l'ajustement
+// d'arrivée tombe à 0 : descendre plus bas demanderait de corriger les lignes de fin de séjour, qui
+// ont leur propre vérité (celles du SAS départ).
+test('règle 30 — une cible sous la fin de séjour bute sur le plancher', async () => {
+  const user = userEvent.setup();
+  // Sans taxe de séjour dans le complément, le seul plancher qui reste est celui de la règle 30 :
+  // la part de fin de séjour, que la carte fusionnée ne peut pas négocier.
+  const ctx = renderFinance({
+    ...MERGED,
+    form: { ...MERGED.form, complementAdjustment: { floor: 0, tax: 0, accommodation: 0, allocation: null } },
+  });
+
+  await user.type(screen.getByLabelText(/Montant ajusté/i), '20');
+  await user.tab();
+
+  expect(ctx.updateForm).toHaveBeenCalledWith({ complementAmountOverride: 0 });
+});
+
+// specs/adjustable-complement-amounts.md rule 19 — la ligne « Ajustement » du complément de fin de
+// séjour est VISIBLE dans les lignes de la carte, négative comprise : aucune écriture séparée n'est
+// produite, donc c'est la seule façon pour l'opérateur de voir de combien il a corrigé.
+test('règle 19 — la ligne d’ajustement se lit dans les lignes de la carte, même négative', () => {
+  renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    form: {
+      ...FUTURE,
+      endOfStayComplementAmount: 70,
+      endOfStayComplementAmountOverride: 70,
+      endOfStayComplementDetail: JSON.stringify([
+        { label: 'Ménage de fin de séjour', amount: 80 },
+        { label: 'Ajustement', amount: -10 },
+      ]),
+    },
+  });
+
+  expect(screen.getByText(/Ménage de fin de séjour : 80,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Ajustement : -10,00 €/)).toBeInTheDocument();
 });

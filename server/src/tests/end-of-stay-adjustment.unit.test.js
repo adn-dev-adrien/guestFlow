@@ -81,6 +81,8 @@ function makeDb() {
 }
 const stored = (db) => db.prepare('SELECT endOfStayComplementAmount AS amount, endOfStayComplementDetail AS detail FROM reservations WHERE id = 1').get();
 
+// specs/adjustable-complement-amounts.md rule 17 — l'invariant du bucket : `endOfStayComplementAmount`
+// est EXACTEMENT la somme de son détail, ligne « Ajustement » comprise.
 test('règle 20 — l\'ajustement passe par le point d\'écriture unique : amount == Σ détail', () => {
   const db = makeDb();
   const model = createReservationsModel(db);

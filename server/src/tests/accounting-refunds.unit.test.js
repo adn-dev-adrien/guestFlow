@@ -93,6 +93,8 @@ test('rule 26 — a caisse-interne refund never reaches the export', () => {
   assert.deepEqual(accounting.refundsByMonth({ month: 8, year: 2026 }), []);
 });
 
+// specs/reservation-refunds.md rule 3
+// specs/accountant-accounting-export.md rule 5
 test('the month filter follows the refund date, not the stay', () => {
   const { refunds, accounting } = freshDb();
   refunds.create(1, breakfastRefund({ refundDate: '2026-09-02' }));
@@ -139,6 +141,7 @@ test('an avoir whose HT/VAT split rounds off still balances to the cent', () => 
   assert.equal(sum(CREDIT), 0.05);
 });
 
+// specs/accountant-accounting-export.md rule 15
 test('a devis is never refundable through the export', () => {
   const { db, refunds, accounting } = freshDb();
   db.prepare("UPDATE reservations SET kind = 'devis' WHERE id = 1").run();

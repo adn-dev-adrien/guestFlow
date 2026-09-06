@@ -35,6 +35,7 @@ const BREAKFASTS = {
   lines: [{ lineKey: 'opt:7', label: 'Petit-déjeuner', bucket: 'options', quantity: 2, unitPrice: 12, amountTtc: 24, vatRate: 10 }],
 };
 
+// specs/reservation-refunds.md rule 2
 test('create persists the header and its lines, and listByReservation reads them back', () => {
   const { model } = freshDb();
   const id = model.create(1, BREAKFASTS);
@@ -52,6 +53,7 @@ test('create persists the header and its lines, and listByReservation reads them
   );
 });
 
+// specs/reservation-refunds.md rule 1
 test('the sale is never touched by a refund', () => {
   const { db, model } = freshDb();
   const before = db.prepare('SELECT * FROM reservations WHERE id = 1').get();
@@ -200,4 +202,43 @@ test('the module exports real (req, res) handlers — the factory must not shado
     assert.equal(typeof refundsController[name], 'function', `${name} must be exported`);
     assert.equal(refundsController[name].length, 2, `${name} must take (req, res)`);
   }
+});
+
+// specs/reservation-refunds.md rule 6 — un remboursement est IMMUABLE : il n'existe aucun verbe de
+// modification, et une correction est une suppression suivie d'une recréation. Le registre garde
+// ainsi la trace de ce qui a été fait plutôt qu'un montant réécrit sur place, comme les écritures
+// comptables auxquelles il correspond.
+test('rule 6 — corriger un remboursement, c’est le supprimer et le refaire', () => {
+  const { controller, model } = stubbedController();
+  assert.equal(controller.update, undefined, 'aucun handler de modification n’existe');
+
+  const created = fakeRes();
+  controller.create(
+    { params: { id: '1' }, body: { refundDate: todayIso(), lines: [{ key: 'opt:7', amountTtc: 24 }] } },
+    created,
+  );
+  controller.remove({ params: { id: '1', refundId: String(created.body.refund.id) } }, fakeRes());
+  const redone = fakeRes();
+  controller.create(
+    { params: { id: '1' }, body: { refundDate: todayIso(), lines: [{ key: 'opt:7', amountTtc: 12 }] } },
+    redone,
+  );
+
+  assert.equal(redone.statusCode, 201);
+  assert.deepEqual(model.listByReservation(1).map((r) => r.totalTtc), [12], 'un seul remboursement, corrigé');
+  assert.equal(redone.body.refundableLines.find((l) => l.key === 'opt:7').refundedTtc, 12);
+});
+
+// specs/reservation-refunds.md rule 15 — le verrou du passé ne s'applique PAS au registre : on
+// rembourse presque toujours après coup, et souvent bien après la fin du séjour.
+test('rule 15 — une réservation passée reste remboursable', () => {
+  const { controller } = stubbedController({
+    reservation: { startDate: '2024-05-01', endDate: '2024-05-08' },
+  });
+  const res = fakeRes();
+  controller.create(
+    { params: { id: '1' }, body: { refundDate: todayIso(), lines: [{ key: 'opt:7', amountTtc: 24 }] } },
+    res,
+  );
+  assert.equal(res.statusCode, 201);
 });

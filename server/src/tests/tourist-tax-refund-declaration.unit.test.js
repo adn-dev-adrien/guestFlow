@@ -53,6 +53,7 @@ const taxRefund = (nights, amount, method = 'transfer') => ({
 
 const only = (extraction) => extraction.data.reservations[0];
 
+// specs/reservation-refunds.md rule 27
 test('la taxe est remboursable À LA NUIT : la ligne porte les nuits et le prix par nuit', () => {
   const lines = buildRefundableLines({
     finalPrice: 300, touristTaxTotal: 13.2, vatRate: 10, options: [], resources: [], refunds: [], nights: 3,
@@ -65,6 +66,7 @@ test('la taxe est remboursable À LA NUIT : la ligne porte les nuits et le prix 
   assert.equal(tax.vatRate, 0);
 });
 
+// specs/reservation-refunds.md rule 28
 test('la quantité en nuits est DÉRIVÉE du montant côté serveur, jamais reprise du client', () => {
   const refundableLines = buildRefundableLines({
     finalPrice: 300, touristTaxTotal: 13.2, vatRate: 10, options: [], resources: [], refunds: [], nights: 3,
@@ -163,6 +165,7 @@ test('la ligne reste cohérente avec sa propre arithmétique : net + retiré = b
   assert.equal(after.taxAmount, round2(after.adultNights * after.taxRate));
 });
 
+// specs/reservation-refunds.md rule 33
 test('rembourser un petit-déjeuner ne touche pas la déclaration', () => {
   const { model, refunds, month } = seed();
   refunds.create(1, {

@@ -57,7 +57,7 @@ test('findByName matches case-sensitive on the stored name; upsertByName is idem
   assert.equal(model.listAll().length, before + 1);
 });
 
-test('update writes the per-platform config + leaves Direct untouched (rule 18)', () => {
+test('update writes the per-platform config + leaves Direct untouched', () => {
   const { model } = freshModel({ seedIcal: ['Airbnb', 'Gîtes de France'] });
   const gdf = model.findByName('Gîtes de France');
   const updated = model.update({
@@ -129,6 +129,7 @@ test('rescan unions ical_sources + reservations.platform (idempotent, returns in
 
 // ── Payout delay (specs/platform-payout-due-date.md §3.1 rules 6-7) ───────────────────────────
 
+// specs/platform-payout-due-date.md rule 6
 test('payout delay: set and read back, per platform', () => {
   const { model } = freshModel({ seedIcal: ['Airbnb', 'Booking'] });
   assert.equal(model.getPayoutDueDays('Airbnb'), 10, 'the column default is the intended value');
@@ -138,6 +139,7 @@ test('payout delay: set and read back, per platform', () => {
   assert.equal(model.setPayoutDueDays('Airbnb', 0).payoutDueDays, 0, '0 is a legitimate setting');
 });
 
+// specs/platform-payout-due-date.md rule 7bis
 test('payout delay: matched by SLUG, so an iCal platformKey finds its catalogue row', () => {
   const { model } = freshModel({ seedIcal: ['GitesDeFrance'] });
   model.setPayoutDueDays('GitesDeFrance', 21);
@@ -146,6 +148,7 @@ test('payout delay: matched by SLUG, so an iCal platformKey finds its catalogue 
   assert.equal(model.getPayoutDueDays('GITESDEFRANCE'), 21);
 });
 
+// specs/platform-payout-due-date.md rule 7
 test('payout delay: own channels and unknown platforms fall back to the default', () => {
   const { model } = freshModel({ seedIcal: ['Airbnb'] });
   assert.equal(model.getPayoutDueDays('direct'), 10);
@@ -158,6 +161,7 @@ test('payout delay: own channels and unknown platforms fall back to the default'
   assert.equal(model.setPayoutDueDays('Lodgify', 5), null);
 });
 
+// specs/platform-payout-due-date.md rule 36
 test('payout delay: a never-synced platform is upserted on first configuration', () => {
   const { model, db } = freshModel();
   const out = model.setPayoutDueDays('Abritel', 14);

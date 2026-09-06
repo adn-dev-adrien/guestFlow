@@ -224,6 +224,10 @@ acompte is kept as an indemnity, and the books say so correctly.
     there is no money to requalify. `cancellationReason` records `unpaid_deposit`.
 28. Re-cancelling an already-cancelled reservation returns **409 `ALREADY_CANCELLED`**.
 29. **Un-cancelling is out of scope** (§8) — the data model keeps it possible, the UI does not offer it.
+
+    > **Sans test** — énoncé de périmètre : il n'y a rien à prouver qu'une absence. Le modèle de
+    > données garde la porte ouverte (le `kind` est une colonne, pas une suppression), et aucune
+    > surface ne la propose. *(Déclaré le 2026-09-01 en mesurant la couverture.)*
 29bis. Cancelling **from the reservation page** navigates back to the origin list once confirmed: the
     fiche it came from is now read-only and the operator's next move is elsewhere. Cancelling **from
     the dashboard** stays on the dashboard and refreshes the card.
@@ -301,9 +305,15 @@ acompte is kept as an indemnity, and the books say so correctly.
     ([email-language-fr-en.md](email-language-fr-en.md)), `email_log` dedup (one send per
     template × reservation), silent skip when the client has no email, and no send for a cancelled
     reservation.
-43. New tokens for the bodies: `cancelOnDate` (the date the stay would be cancelled),
-    `retainedDepositAmount`, `daysLate`. `depositDueDate`, `balanceDueDate`, `paymentLink` already
+43. New tokens for the bodies: `cancelOnDate` (the date the stay would be cancelled) and
+    `retainedDepositAmount`. `depositDueDate`, `balanceDueDate`, `paymentLink` already
     exist ([emailContextBuilder.js:360-364](../server/src/utils/emailContextBuilder.js#L360-L364)).
+
+    > **Corrigé le 2026-09-01** (relevé en écrivant `payment-email-contract.unit.test.js`) : la règle
+    > annonçait un troisième jeton, `daysLate`, qui n'a jamais été construit — et qu'aucun corps
+    > n'emploie. La relance de solde dit la **date** à laquelle le solde était attendu, ce qui est
+    > plus clair pour le client qu'un nombre de jours, et ne demande aucun calcul à l'email.
+    > `daysLate` existe bien, mais sur la LIGNE du tableau de bord (règle 15), pas dans un email.
 44. **No scheduled task may send a money email — enforced, not just intended.** The four request /
     reminder stable keys are exported as `PAYMENT_STABLE_KEYS` from
     `defaultEmailTemplatesRegistry.js`, and a unit test asserts that none of them ships with

@@ -53,6 +53,8 @@ const BASE = {
   selectedOptions: [{ optionId: 9, quantity: 1, inComplement: 1 }],
 };
 
+const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+
 const quote = (extra) => calculateReservationQuote({ ...BASE, db: createDb(), ...extra });
 
 test('règle 3 — pas d\'ajustement : le complément calculé ne bouge pas', () => {
@@ -61,6 +63,7 @@ test('règle 3 — pas d\'ajustement : le complément calculé ne bouge pas', ()
   assert.equal(q.complementAmountAuto, 24);
 });
 
+// specs/adjustable-complement-amounts.md rule 12
 test('règle 13 — l\'ajustement gagne sur les lignes forcées', () => {
   const q = quote({ complementAmountOverride: 20 });
   assert.equal(q.complementAmount, 20);
@@ -91,6 +94,7 @@ test('un ajustement négatif est ramené à 0 (le validateur le refuse déjà en
   assert.equal(quote({ complementAmountOverride: -5 }).complementAmount, 0);
 });
 
+// specs/adjustable-complement-amounts.md rule 8
 test('un ajustement vide / illisible laisse le calcul auto', () => {
   assert.equal(quote({ complementAmountOverride: '' }).complementAmount, 24);
   assert.equal(quote({ complementAmountOverride: null }).complementAmount, 24);
@@ -109,4 +113,20 @@ test('specs/defer-arrival-complement-to-checkout §3.3 règle 16 — le marqueur
   const deferred = quote({ stayStarted: false, complementDeferredToCheckout: true });
   assert.equal(deferred.complementSplit.arrival, 0);
   assert.equal(deferred.complementSplit.endOfStay, 24);
+});
+
+// specs/adjustable-complement-amounts.md rule 5 — l'écart est ABSORBÉ : le montant ajusté devient le
+// montant du bucket, point. Aucune ligne de compensation n'est créée ailleurs, aucun autre bucket
+// n'est touché, et le total du séjour de la fiche reprend la valeur annoncée au client.
+test('règle 5 — l’écart est absorbé : le total suit, les autres échéances ne bougent pas', () => {
+  const auto = quote({});
+  const adjusted = quote({ complementAmountOverride: 14 });
+
+  assert.equal(adjusted.complementAmount, 14);
+  assert.equal(
+    round2(auto.sejourNetTotal - adjusted.sejourNetTotal), 10,
+    'le total du séjour baisse exactement de l’écart consenti',
+  );
+  assert.equal(adjusted.depositAmount, auto.depositAmount, 'l’acompte est intact');
+  assert.equal(adjusted.balanceAmount, auto.balanceAmount, 'le solde aussi');
 });

@@ -71,6 +71,9 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
     }
   });
 
+  // specs/accountant-accounting-export.md rule 22 — la barre latérale d'un comptable est minimale :
+  // Comptabilité, son mot de passe, et se déconnecter. Tout le reste lui est fermé, et c'est cette
+  // table — pas un `hidden` d'affichage — qui le décide.
   test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, and /account', () => {
     // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — accountant gains
     // access to the dedicated per-platform commission config page.

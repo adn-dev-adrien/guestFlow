@@ -40,6 +40,8 @@ const BASE = {
   depositPaid: false, balancePaid: false,
 };
 
+// specs/platform-payout-due-date.md rules 4 + 5 — le solde bascule après le départ ; l'ACOMPTE, lui,
+// n'est pas touché par cette règle et garde son propre calendrier (ici : une plateforme n'en prend pas).
 test('a platform booking owes its solde after the departure, not a month before the arrival', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb' });
@@ -81,6 +83,7 @@ test('a devis is never put on the payout schedule (rule 3)', () => {
   db.close();
 });
 
+// specs/platform-payout-due-date.md rule 11
 test('nothing left to collect → no deadline at all', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb', customPrice: 0 });

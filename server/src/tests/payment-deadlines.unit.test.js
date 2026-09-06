@@ -36,6 +36,7 @@ function row(overrides = {}) {
   };
 }
 
+// specs/payment-schedule-and-cancellation.md rule 12
 test('a solde late past the cancellation deadline proposes the cancellation', () => {
   const out = buildPaymentDeadlineRow(row(), TODAY);
   assert.equal(out.state, 'cancel_due');
@@ -109,6 +110,8 @@ function platformRow(overrides = {}) {
   });
 }
 
+// specs/payment-schedule-and-cancellation.md rule 1
+// specs/platform-payout-due-date.md rule 1
 test('platform bookings never surface in a GUEST-facing state (rule 15)', () => {
   // A platform booking still in the future can never be « arrivée non réglée » nor « à annuler »:
   // its solde is the platform's payout, and it is not late until the guest has left.
@@ -122,6 +125,7 @@ test('platform bookings never surface in a GUEST-facing state (rule 15)', () => 
   assert.equal(lodgify.platformLabel, null);
 });
 
+// specs/platform-payout-due-date.md rules 12 + 16 + 17
 test('a late platform payout gets its own state, with no dunning and no cancellation', () => {
   const out = buildPaymentDeadlineRow(platformRow(), TODAY);
   assert.equal(out.state, 'platform_payout_overdue');
@@ -141,6 +145,7 @@ test('a late platform payout gets its own state, with no dunning and no cancella
   assert.equal(out.retainedDepositAmount, 0);
 });
 
+// specs/platform-payout-due-date.md rule 12ter
 test('a platform payout is not late before the deadline — nor before the guest has left', () => {
   // Departure + 10 still ahead.
   assert.equal(buildPaymentDeadlineRow(platformRow({ endDate: '2026-08-12' }), TODAY), null);
@@ -156,6 +161,7 @@ test('a platform payout is not late before the deadline — nor before the guest
   assert.equal(buildPaymentDeadlineRow(future, TODAY), null);
 });
 
+// specs/platform-payout-due-date.md rule 12bis
 test('the deadline is derived from the departure, never read from the stored column (rule 12bis)', () => {
   // A reservation created BEFORE this change still carries the old guest-facing date (arrival − 30
   // or − 7). Trusting it would announce « en retard de 26 jours » for a payout that is not due yet —
@@ -180,6 +186,7 @@ test('the platform\'s own delay drives the row', () => {
   assert.equal(fallback.dueDate, '2026-08-01');
 });
 
+// specs/platform-payout-due-date.md rule 14
 test('an unpaid acompte on a platform that takes one never raises a row (rule 14)', () => {
   const out = buildPaymentDeadlineRow(platformRow({
     depositAmount: 200, depositPaid: 0, depositDueDate: '2026-06-01',
@@ -188,11 +195,14 @@ test('an unpaid acompte on a platform that takes one never raises a row (rule 14
   assert.equal(out, null);
 });
 
+// specs/platform-payout-due-date.md rule 18
 test('a snoozed platform row is hidden too (rule 18)', () => {
   assert.equal(buildPaymentDeadlineRow(platformRow({ paymentAlertSnoozedUntil: '2026-08-26' }), TODAY), null);
   assert.ok(buildPaymentDeadlineRow(platformRow({ paymentAlertSnoozedUntil: '2026-08-18' }), TODAY));
 });
 
+// specs/payment-schedule-and-cancellation.md rule 20bis
+// specs/platform-payout-due-date.md rule 21
 test('rows leave the card on their own clock — departure for a guest, deadline for a platform (rule 21)', () => {
   // Own channel: 30 days after the DEPARTURE.
   const stayEnded = { startDate: '2026-06-20', endDate: '2026-07-20', balanceDueDate: '2026-06-01' };
@@ -204,6 +214,7 @@ test('rows leave the card on their own clock — departure for a guest, deadline
   assert.equal(buildPaymentDeadlineRow(payout, '2026-09-01'), null, 'gone on day 31');
 });
 
+// specs/platform-payout-due-date.md rule 13
 test('a late payout ranks after every guest-facing state', () => {
   const rows = buildPaymentDeadlineRows([
     { ...platformRow(), id: 4 },
@@ -213,6 +224,7 @@ test('a late payout ranks after every guest-facing state', () => {
   assert.deepEqual(rows.map((r) => r.state), ['cancel_due', 'balance_overdue', 'platform_payout_overdue']);
 });
 
+// specs/payment-schedule-and-cancellation.md rule 20
 test('nothing outstanding → no row', () => {
   assert.equal(buildPaymentDeadlineRow(row({ balancePaid: 1 }), TODAY), null);
   assert.equal(buildPaymentDeadlineRow(row({ balanceAmount: 0 }), TODAY), null);
@@ -232,6 +244,8 @@ test('a client without an email cannot be reminded from the card', () => {
   assert.equal(buildPaymentDeadlineRow(row({ email: '' }), TODAY).canRemind, false);
 });
 
+// specs/payment-schedule-and-cancellation.md rule 15 — les six états de la ligne, du plus grave au
+// moins grave : c'est l'ORDRE qui fait le travail, l'opérateur traitant la carte de haut en bas.
 test('rows are ordered by severity, then by how late they are', () => {
   const rows = buildPaymentDeadlineRows([
     row({ id: 1, depositPaid: 0, depositDueDate: '2026-08-18', balanceAmount: 0, balanceDueDate: null }),
@@ -249,6 +263,7 @@ function unpricedRow(overrides = {}) {
   return platformRow({ finalPrice: 0, balanceAmount: 0, depositAmount: 0, ...overrides });
 }
 
+// specs/platform-payout-due-date.md rule 27
 test('a platform booking with no figures at all asks for the amount, not for the money', () => {
   const out = buildPaymentDeadlineRow(unpricedRow(), TODAY);
   assert.equal(out.state, 'platform_amount_missing');
@@ -265,6 +280,7 @@ test('a platform booking with no figures at all asks for the amount, not for the
   assert.equal(out.canCancel, false);
 });
 
+// specs/platform-payout-due-date.md rule 28
 test('the amount is only « missing » once the payout deadline has passed (rule 27)', () => {
   // Before the departure: not having typed the figures yet is not an oversight.
   assert.equal(buildPaymentDeadlineRow(unpricedRow({ endDate: '2026-09-30' }), TODAY), null);
@@ -283,6 +299,7 @@ test('a booking whose amount IS known stays a payout row, never an amount-missin
   assert.equal(buildPaymentDeadlineRow(platformRow({ finalPrice: 640, balanceAmount: 0 }), TODAY), null);
 });
 
+// specs/platform-payout-due-date.md rule 29
 test('an amount-missing row never expires — unlike every other state (rule 29)', () => {
   const ancient = unpricedRow({ startDate: '2025-07-15', endDate: '2025-07-22' });
   const out = buildPaymentDeadlineRow(ancient, TODAY);
@@ -296,6 +313,7 @@ test('an amount-missing row can be snoozed like any other', () => {
   assert.equal(buildPaymentDeadlineRow(unpricedRow({ paymentAlertSnoozedUntil: '2026-08-26' }), TODAY), null);
 });
 
+// specs/platform-payout-due-date.md rule 32
 test('amount-missing ranks last, after the late payouts', () => {
   const rows = buildPaymentDeadlineRows([
     { ...unpricedRow(), id: 5 },
@@ -305,6 +323,7 @@ test('amount-missing ranks last, after the late payouts', () => {
   assert.deepEqual(rows.map((r) => r.state), ['cancel_due', 'platform_payout_overdue', 'platform_amount_missing']);
 });
 
+// specs/platform-payout-due-date.md rule 31
 test('an own channel with no figures is never flagged — this is about platform imports', () => {
   assert.equal(buildPaymentDeadlineRow(unpricedRow({ platform: 'direct' }), TODAY), null);
   assert.equal(buildPaymentDeadlineRow(unpricedRow({ platform: 'Lodgify' }), TODAY), null);
@@ -313,6 +332,7 @@ test('an own channel with no figures is never flagged — this is about platform
 
 // ── 2026-08-20 amendment: nothing is sent automatically, so the card carries the to-dos ────────────
 
+// specs/payment-schedule-and-cancellation.md rule 15bis
 test('a fresh booking whose acompte was never requested is a to-do, not a late payment', () => {
   const out = buildPaymentDeadlineRow(
     row({ depositPaid: 0, depositRequestSent: 0, depositDueDate: '2026-08-26', balanceDueDate: '2026-09-01' }),
@@ -369,6 +389,7 @@ test('« à demander » outranks « en retard » but stays under the two red sta
   assert.deepEqual(rows.map((r) => r.state), ['unpaid_at_arrival', 'balance_to_request', 'deposit_to_request']);
 });
 
+// specs/platform-payout-due-date.md rule 15
 test('a platform booking never produces a « à demander » row — its solde is the platform\'s', () => {
   const out = buildPaymentDeadlineRow(
     row({ platform: 'airbnb', balanceRequestSent: 0, depositRequestSent: 0, payoutDueDays: 10 }),
@@ -376,4 +397,19 @@ test('a platform booking never produces a « à demander » row — its solde is
   );
   assert.notEqual(out && out.state, 'balance_to_request');
   assert.notEqual(out && out.state, 'deposit_to_request');
+});
+
+// specs/payment-schedule-and-cancellation.md rule 17ter — l'action demande CE DONT LA LIGNE PARLE.
+// `remindType` suit l'état de la ligne, pas simplement « la plus vieille échéance impayée » : relancer
+// un client sur son acompte alors que la ligne rouge parle du solde, c'est réclamer la mauvaise somme.
+test('rule 17ter — le type de relance suit l’état de la ligne, acompte ou solde', () => {
+  const balanceLate = buildPaymentDeadlineRow(row(), TODAY);
+  assert.equal(balanceLate.remindType, 'balance');
+
+  // Acompte impayé, solde encore loin : la ligne parle de l'acompte, et la relance aussi.
+  const depositLate = buildPaymentDeadlineRow(row({
+    depositPaid: 0, depositDueDate: '2026-08-01',
+    balanceDueDate: '2026-09-10', balanceAmount: 640,
+  }), TODAY);
+  assert.equal(depositLate.remindType, 'deposit');
 });

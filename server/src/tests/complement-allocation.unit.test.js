@@ -21,6 +21,7 @@ const DETAIL = [
   { kind: 'tax', label: 'Taxe de séjour', amount: 9.6 },
 ];
 
+// specs/adjustable-complement-amounts.md rule 31
 test('splitComplementByPoste — chaque ligne tombe sur son poste, Σ = le complément auto', () => {
   const split = splitComplementByPoste(DETAIL, 93.6);
   assert.deepEqual(split, { accommodation: 0, options: 24, resources: 60, tax: 9.6 });
