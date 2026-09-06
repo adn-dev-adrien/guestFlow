@@ -102,7 +102,7 @@ export default function PricingSummary({
   onToggleTouristTaxInComplement,
   // specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
   // refresh button next to the label to force a live recompute.
-  isPastReservation = false,
+  isTouristTaxFrozen = false,
   onRefreshTouristTax,
 }) {
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
@@ -117,6 +117,8 @@ export default function PricingSummary({
   const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
   const touristTaxIncludedDeduction = Number(quote?.touristTaxIncludedInRateDeduction || 0);
   const touristTaxBaseBeforeDeduction = Number(quote?.touristTaxBaseBeforeDeduction || 0);
+  const touristTaxFrozenAt = quote?.touristTaxFrozenAt || null;
+  const touristTaxBrutInconsistent = Boolean(quote?.touristTaxBrutInconsistent);
   const optionsSelected = quote?.optionLines || [];
   const resourcesSelected = quote?.resourceLines || [];
   const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -591,10 +593,11 @@ export default function PricingSummary({
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
-                    {/* specs/tourist-tax-freeze-past-with-refresh.md — past reservations keep a frozen
-                        tax; this button forces a live recompute (then Save persists it). */}
-                    {isPastReservation && onRefreshTouristTax && (
-                      <Tooltip title="Recalculer la taxe de séjour (séjour passé — figée)">
+                    {/* specs/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax the
+                        guest has paid, or one already declared, is frozen; this button forces a live
+                        recompute (then Save persists it). */}
+                    {isTouristTaxFrozen && onRefreshTouristTax && (
+                      <Tooltip title="Recalculer la taxe de séjour (figée — déjà encaissée ou déclarée)">
                         <IconButton size="small" onClick={onRefreshTouristTax} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
                           <RefreshIcon sx={{ fontSize: 16 }} />
                         </IconButton>
@@ -659,6 +662,14 @@ export default function PricingSummary({
                   <Typography variant="caption" color="text.secondary">
                     Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
+                  {/* specs/tourist-tax-matches-the-office-calculation.md rule 12 — say when the amount
+                      was pinned, so the operator knows the caption above describes what was actually
+                      charged and not today's tariff. */}
+                  {isTouristTaxFrozen && touristTaxFrozenAt && (
+                    <Typography variant="caption" color="text.secondary">
+                      Figée le {String(touristTaxFrozenAt).slice(0, 10).split('-').reverse().join('/')}
+                    </Typography>
+                  )}
                   {/* specs/tourist-tax-included-services-deduction.md rule 13 — the services sold
                       inside the night rate are not the dry night: their reference value leaves the
                       declared base. */}
@@ -668,6 +679,15 @@ export default function PricingSummary({
                     </Typography>
                   )}
                 </Box>
+              )}
+
+              {/* specs/tourist-tax-matches-the-office-calculation.md rule 16 — a brut that does not
+                  cover the extras billed beside it cannot yield an accommodation: the base is floored
+                  at 0, and saying so beats declaring a silent zero to the commune. */}
+              {touristTaxBrutInconsistent && (
+                <Typography variant="caption" sx={{ display: 'block', color: 'error.main' }}>
+                  Le brut plateforme ne couvre pas les extras facturés — la taxe est calculée sur une assiette nulle.
+                </Typography>
               )}
 
               {/* specs/per-platform-tourist-tax-three-way.md — three cases, three captions:

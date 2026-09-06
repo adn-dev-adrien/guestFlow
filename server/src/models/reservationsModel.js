@@ -15,6 +15,7 @@ const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HO
 const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
+const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 
 // Own channels, bound as NAMED parameters (the deadline read already uses `@today`, and better-sqlite3
 // refuses a mix of named and positional binds). Single-sourced from platformNameFormat so adding a
@@ -1405,6 +1406,9 @@ function createReservationsModel(database) {
       persistReservationNumber(result.lastInsertRowid, payload);
       persistEmailLanguage(result.lastInsertRowid, payload);
       persistComplementOverrides(result.lastInsertRowid, { complementAmountOverride, endOfStayComplementAmountOverride });
+      // specs/tourist-tax-matches-the-office-calculation.md rule 12 — the base and divisor behind the
+      // amount just written, so a line that later freezes can still explain itself.
+      writeTouristTaxSnapshot(database, result.lastInsertRowid, quote);
       return result.lastInsertRowid;
     },
 
@@ -1702,6 +1706,9 @@ function createReservationsModel(database) {
       persistReservationNumber(reservationId, payload);
       persistEmailLanguage(reservationId, payload);
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
+      // Rule 12 — written AFTER the payment flags above, so a save that collects the instalment
+      // carrying the tax stamps the freeze in the same breath.
+      writeTouristTaxSnapshot(database, reservationId, quote);
       if (Number(beforeStay.depositPaid || 0) !== (depositPaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'deposit');
       if (Number(beforeStay.balancePaid || 0) !== (balancePaid ? 1 : 0)) model.releaseStayBucket(reservationId, 'balance');
       // Same ownership release for the complement (specs/single-payment-at-check-in.md rules 8-9):

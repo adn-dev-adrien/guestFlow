@@ -195,7 +195,7 @@ export default function TouristTaxPage() {
                               commune's percentage form asks for, straight from the fiche's own caption. */}
                           <TableCell sx={{ fontWeight: 600 }} align="right">Nuit HT / occupant</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Taxe séjour (client)</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="right">Montant hébergement HT</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Montant du séjour HT</TableCell>
                         </TableRow>
                       )}
                       renderRow={(row) => (
@@ -252,7 +252,7 @@ export default function TouristTaxPage() {
                             <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(row.taxAmount)}</Typography>
                           </Stack>
                           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-                            <Typography variant="caption" color="text.secondary">Hébergement HT</Typography>
+                            <Typography variant="caption" color="text.secondary">Montant du séjour HT</Typography>
                             <Typography variant="body2" sx={{ ...TABULAR }}>{formatCurrency(row.accommodationAmount)}</Typography>
                           </Stack>
                         </Stack>

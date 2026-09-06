@@ -241,11 +241,13 @@ test('calculateReservationQuote excludes extra-guest surcharge from percentage t
   assert.equal(quote.totalPrice, 360);
   assert.equal(quote.baseAccommodationAdjustedPrice, 360);
   assert.equal(quote.touristTaxPricePerNightHt, 100);
-  assert.equal(quote.touristTaxPerOccupantNightPriceHt, 20);
+  // specs/tourist-tax-matches-the-office-calculation.md rule 8 — the baby is NOT an occupant for the
+  // divisor: 2 adults + 1 child + 1 teen = 4, where this used to count 5 and bill 6,60 €.
+  assert.equal(quote.touristTaxPerOccupantNightPriceHt, 25);
   assert.equal(quote.touristTaxAdultsCount, 2);
-  assert.equal(quote.touristTaxOccupantsCount, 5);
-  assert.equal(quote.touristTaxUnitAmount, 1.1);
-  assert.equal(quote.touristTaxTotal, 6.6);
+  assert.equal(quote.touristTaxOccupantsCount, 4);
+  assert.equal(quote.touristTaxUnitAmount, 1.38);
+  assert.equal(quote.touristTaxTotal, 8.28);
 
   db.close();
 });
