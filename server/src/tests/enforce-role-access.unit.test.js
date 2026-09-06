@@ -28,6 +28,7 @@ test('admin: any method / any path → passes', () => {
   assert.equal(call({ role: 'admin', method: 'DELETE', path: '/clients/9' }).nextCalled, true);
 });
 
+// specs/accountant-accounting-export.md rule 17
 test('accountant: GET /accounting/sales.csv → passes', () => {
   const { res, nextCalled } = call({ role: 'accountant', method: 'GET', path: '/accounting/sales.csv' });
   assert.equal(nextCalled, true);
@@ -74,6 +75,7 @@ test('accountant: GET the cancellation compensations → passes, every write →
   }
 });
 
+// specs/accountant-accounting-export.md rule 18
 test('accountant: any non-accounting / non-self route → 403', () => {
   for (const path of ['/reservations', '/clients', '/settings', '/finance', '/properties/1']) {
     const { res, nextCalled } = call({ role: 'accountant', method: 'GET', path });

@@ -150,6 +150,7 @@ test('a devis is never dunned by the reservation anchors', async () => {
   db.close();
 });
 
+// specs/payment-schedule-and-cancellation.md rule 42
 test('one send per template × reservation, ever', async () => {
   const db = fixture();
   addReservation(db, { id: 100, depositDueDate: TODAY });
@@ -225,8 +226,9 @@ test('a reservation with no deadline on the anchor is never scheduled', async ()
   db.close();
 });
 
-// ── Channel filter (specs/platform-payout-due-date.md §3.3 rules 22-23) ───────────────────────
+// ── Channel filter (specs/platform-payout-due-date.md §3.3 rules 33-34) ───────────────────────
 
+// specs/platform-payout-due-date.md rules 33 + 34
 test('a money template never leaves for a platform booking — its solde is the platform\'s', async () => {
   const db = fixture();
   addReservation(db, { id: 100, balanceDueDate: '2026-08-16', platform: 'Airbnb' });

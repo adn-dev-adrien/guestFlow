@@ -214,3 +214,13 @@ test('arrival recap: nothing owed on the stay → the complement settles alone, 
   expect(screen.getByText('Règlement du complément')).toBeInTheDocument();
   expect(screen.queryByText('Régler séparément')).toBeNull();
 });
+
+// specs/adjustable-complement-amounts.md rule 2 — le montant ajusté ne se modifie QUE sur la fiche.
+// Le SAS AFFICHE le complément — l'opérateur doit savoir combien percevoir — mais ne propose aucun
+// moyen de le changer : le montant annoncé au client se décide sur la fiche, pas au milieu d'un
+// assistant que la personne à l'accueil déroule à la porte.
+test('rule 2 — le SAS affiche le complément mais n’offre aucun champ pour l’ajuster', async () => {
+  await openArrivalRecapWithComplement();
+  expect(screen.getByText('Récapitulatif — complément à percevoir')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Montant ajusté/i)).toBeNull();
+});

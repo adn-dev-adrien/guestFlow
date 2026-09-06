@@ -54,14 +54,42 @@ standard).
 
 1. VAT is configured by **two global rates** in app settings, common to every property:
    **`vatRateAccommodation`** (default **10%**) and **`vatRateStandard`** (default **20%**).
+
+> **Sans test** — modèle à deux taux, remplacé le 2026-06-03 par
+> [single-vat-rate.md](single-vat-rate.md) : le comptable a tranché que toute l'offre relève du taux
+> réduit unique, et `vatRateStandard` a quitté le schéma. Cette règle ne décrit plus le système — la
+> prouver demanderait de ressusciter la colonne. Le comportement d'aujourd'hui est couvert par
+> `single-vat-rate.md`. *(Relevé le 2026-09-01 en mesurant la couverture.)*
+
 2. **Accommodation** (the nightly stay, incl. extra-guest surcharge) uses `vatRateAccommodation`.
    **Everything else billable** — options, custom options, resources — uses `vatRateStandard`.
+
+> **Sans test** — modèle à deux taux, remplacé le 2026-06-03 par
+> [single-vat-rate.md](single-vat-rate.md) : le comptable a tranché que toute l'offre relève du taux
+> réduit unique, et `vatRateStandard` a quitté le schéma. Cette règle ne décrit plus le système — la
+> prouver demanderait de ressusciter la colonne. Le comportement d'aujourd'hui est couvert par
+> `single-vat-rate.md`. *(Relevé le 2026-09-01 en mesurant la couverture.)*
+
 3. The pricing engine, the reservation/devis quote, the **devis PDF** and the reservation **TVA summary**
    must read these two global rates. The three per-property VAT columns are **dropped** (migrated
    first, see §5).
+
+> **Sans test** — modèle à deux taux, remplacé le 2026-06-03 par
+> [single-vat-rate.md](single-vat-rate.md) : le comptable a tranché que toute l'offre relève du taux
+> réduit unique, et `vatRateStandard` a quitté le schéma. Cette règle ne décrit plus le système — la
+> prouver demanderait de ressusciter la colonne. Le comportement d'aujourd'hui est couvert par
+> `single-vat-rate.md`. *(Relevé le 2026-09-01 en mesurant la couverture.)*
+
 4. **No price total may change** for an existing reservation purely because of this refactor *unless* its
    stored property rates already differed from 10/20 — and any such change must be surfaced, never silent.
    Tourist tax stays out of VAT entirely (unchanged).
+
+> **Sans test** — modèle à deux taux, remplacé le 2026-06-03 par
+> [single-vat-rate.md](single-vat-rate.md) : le comptable a tranché que toute l'offre relève du taux
+> réduit unique, et `vatRateStandard` a quitté le schéma. Cette règle ne décrit plus le système — la
+> prouver demanderait de ressusciter la colonne. Le comportement d'aujourd'hui est couvert par
+> `single-vat-rate.md`. *(Relevé le 2026-09-01 en mesurant la couverture.)*
+
 
 ### 3.2 Payment dates (real encaissement date)
 

@@ -115,6 +115,12 @@ that deadline passes with the money still not in.
 10. **No boot migration.** Existing platform reservations keep their `startDate − 30` date until they
     are next saved, at which point the engine re-derives it (rule 8). Nothing in `database.js`
     rewrites reservation rows.
+
+    > **Sans test** — décision de NE PAS écrire de migration : il n'y a pas de comportement à
+    > épingler, seulement du code absent. Ce qui compte est sa conséquence — une ligne dont la date
+    > stockée est périmée doit quand même produire la bonne alerte — et elle est prouvée par la
+    > règle 12bis, qui dérive la deadline au lieu de lire la colonne.
+    > *(Déclaré le 2026-09-01 en mesurant la couverture.)*
 11. `balanceDueDate` stays `NULL` when `balanceAmount = 0` on an engine recompute — unchanged
     behaviour, and the reason rule 9 writes the import date directly rather than through the engine.
 

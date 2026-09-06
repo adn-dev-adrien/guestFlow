@@ -155,3 +155,19 @@ test('rule 17 — le total de séjour de la fiche est net des remboursements, le
   assert.equal(refunded.complementAmount, plain.complementAmount);
   assert.equal(refunded.totalStayPrice, plain.totalStayPrice);
 });
+
+// specs/reservation-refunds.md rule 20 — un remboursement est rattaché à la PÉRIODE DE LA
+// RÉSERVATION pour les fenêtres finance, pas à sa propre date. Sans quoi rembourser en novembre un
+// séjour d'août ferait remonter le chiffre d'août rétroactivement dans un mois déjà clos, et
+// creuserait un trou dans un mois où il ne s'est rien passé.
+test('rule 20 — un remboursement tardif se déduit du mois du SÉJOUR, pas du sien', () => {
+  const { model, refunds } = freshDb();
+  refunds.create(1, refund({ refundDate: '2026-11-05' }));
+
+  assert.equal(model.getSummary(PERIOD).revenueTotal, 456, 'août porte la déduction');
+  assert.equal(
+    model.getSummary({ from: '2026-11-01', to: '2026-11-30' }).revenueTotal,
+    0,
+    'et novembre, où le séjour n’existe pas, reste vide',
+  );
+});

@@ -158,6 +158,8 @@ test('« Reporter » snoozes for a week and reloads', async () => {
   expect(api.getPaymentDeadlines).toHaveBeenCalledTimes(2);
 });
 
+// specs/payment-schedule-and-cancellation.md rule 21 — l'annulation part de la LIGNE du tableau de
+// bord, et passe par le récapitulatif de la règle 22 avant d'être confirmée.
 test('cancelling goes through the confirmation dialog and its recap', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE] });
   api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 274 });
@@ -176,6 +178,7 @@ test('cancelling goes through the confirmation dialog and its recap', async () =
   }));
 });
 
+// specs/platform-payout-due-date.md rule 19
 test('a late platform payout names the platform and offers no dunning, no cancellation', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [PLATFORM_PAYOUT] });
   renderCard();
@@ -197,6 +200,7 @@ test('a direct row keeps its « Relancer » button alongside a platform one', as
   expect(screen.getAllByRole('button', { name: 'Reporter' })).toHaveLength(2);
 });
 
+// specs/platform-payout-due-date.md rule 30
 test('a booking whose amount was never entered asks for the data, and prints no figure', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [AMOUNT_MISSING] });
   renderCard();

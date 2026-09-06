@@ -90,6 +90,8 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
 
 // specs/reservation-refunds.md §3.5 — les chiffres affichés sont NETS des nuits dont la taxe a été
 // rendue ; la mention dit ce qui a été retiré, sinon l'écart avec la fiche serait inexplicable.
+// specs/reservation-refunds.md rule 32 — la ligne DIT pourquoi son net est plus bas : sans cette
+// annotation, l'opérateur qui compare sa déclaration au mois précédent verrait un chiffre inexpliqué.
 test('une nuit dont la taxe est remboursée est annotée sur la ligne', async () => {
   api.getTouristTaxExtraction.mockResolvedValue({
     ...DATA,

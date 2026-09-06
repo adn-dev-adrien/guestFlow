@@ -9,6 +9,7 @@ const {
   resolveDepositDueDate, resolveBalanceDueDate, resolveCancelOn, daysBetween,
 } = require('../utils/paymentSchedule');
 
+// specs/payment-schedule-and-cancellation.md rule 3
 test('acompte: booking date + depositDueDays', () => {
   assert.equal(resolveDepositDueDate({ bookingDate: '2026-03-01', depositDueDays: 7 }), '2026-03-08');
   assert.equal(resolveDepositDueDate({ bookingDate: '2026-03-01', depositDueDays: 0 }), '2026-03-01');
@@ -115,4 +116,21 @@ test('an unusable payout delay falls back to 10, never to 0 (rule 7)', () => {
 test('a platform stay with no departure date, or nothing to collect, has no deadline', () => {
   assert.equal(resolveBalanceDueDate({ startDate: '2026-07-02', endDate: null, platform: 'Airbnb' }), null);
   assert.equal(resolveBalanceDueDate({ endDate: '2026-07-09', platform: 'Airbnb', hasBalance: false }), null);
+});
+
+// specs/payment-schedule-and-cancellation.md rule 8 — contrairement à l'acompte (règle 4, figé à la
+// création), la deadline du SOLDE suit le séjour : déplacer les dates la recalcule. C'est la bonne
+// dissymétrie — l'acompte est dû pour réserver, le solde est dû avant d'arriver.
+test('rule 8 — déplacer le séjour déplace la deadline du solde, jamais celle de l’acompte', () => {
+  const commun = { bookingDate: '2026-01-10', balanceDaysBefore: 30 };
+  const juin = resolveBalanceDueDate({ ...commun, startDate: '2026-06-30' });
+  const juillet = resolveBalanceDueDate({ ...commun, startDate: '2026-07-30' });
+
+  assert.equal(juin, '2026-05-31');
+  assert.equal(juillet, '2026-06-30', 'la deadline a suivi le séjour d’un mois');
+  // L'acompte, lui, ne bouge pas : il ne dépend que du jour de la réservation (règle 3).
+  assert.equal(
+    resolveDepositDueDate({ bookingDate: '2026-01-10', depositDueDays: 7 }),
+    resolveDepositDueDate({ bookingDate: '2026-01-10', depositDueDays: 7, startDate: '2026-07-30' }),
+  );
 });

@@ -155,6 +155,7 @@ test('platform-collect — tax = 0, schedule is identical to a no-tax stay', () 
   assert.equal(round4(bal.fraction), 0.7);
 });
 
+// specs/accountant-accounting-export.md rule 30
 test('platform-reversed (case 1) — the tax is a real charge in the balance, booked on 46710000', () => {
   // The platform collects the tax then reverses it to us (single payout → balance entry, deposit=0).
   // The tax is now a REAL charge stored in `touristTaxTotal` and scheduled in the balance, so the
@@ -205,6 +206,7 @@ test('owner-collect non-direct — complement that IS the tax → entry kept wit
   assert.equal(c.taxTtc, 4.80);
 });
 
+// specs/accountant-accounting-export.md rule 30
 test('owner-collect non-direct — complement with tax + extras → emit BOTH revenue + tax pass-through', () => {
   // Extras added after balance was paid: complement = tax (4.80) + extras (20) = 24.80.
   const row = makeRow({

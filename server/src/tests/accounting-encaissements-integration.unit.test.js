@@ -143,6 +143,7 @@ test('reservation with all three amounts = 0: emits zero entries (NOT three phan
   assert.equal(entries.length, 0);
 });
 
+// specs/accountant-accounting-export.md rule 6
 test('normal deposit + balance flow (regression guard): both entries emitted with non-zero amounts', () => {
   // Sanity that the new null-guard doesn't accidentally drop legitimate entries.
   const db = createDb();
@@ -341,6 +342,7 @@ test('platformsPreview: reservationId is populated so the AccountingPage row cli
   assert.equal(res.body.rows[0].reservationId, id);
 });
 
+// specs/accountant-accounting-export.md rule 10
 test('platformsPreview: empty month → empty rows + zero totalCommission (defensive)', () => {
   const db = createDb();
   const controller = createAccountingController(createAccountingModel(db));
@@ -393,6 +395,7 @@ test('cash arrival complement is excluded from accounting (off the books)', () =
   assert.deepEqual(entries.map((e) => e.kind).sort(), ['balance']);
 });
 
+// specs/accountant-accounting-export.md rule 28
 test('non-cash arrival complement is still emitted', () => {
   const db = createDb();
   insertReservation(db, {
@@ -486,6 +489,8 @@ test('regression: a forced option NOT sold mid-stay is still fully credited to t
 // ── Notes en séjour (specs/mid-stay-notes.md §3.4 rule 14) ───────────────────
 // One journal entry per SETTLED note, at its own payment date — the note IS the collection.
 
+// specs/adjustable-complement-amounts.md rule 39 — une note en séjour n'a rien à ventiler : une
+// écriture à plat, un seul poste, et le total ajusté de la note EST le montant booké.
 test('each settled note emits its own encaissement, at its own date, HT+VAT on the options bucket', () => {
   const db = createDb();
   insertReservation(db, {
