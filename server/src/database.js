@@ -2245,6 +2245,72 @@ db.exec(`
   );
 `);
 
+// Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §5).
+// Connection + contract choice + field mapping live in app_settings; the secret is AES-256-GCM
+// encrypted at rest (settingsModel.ENCRYPTED_COLUMNS). Empty credentials → the feature is inert.
+{
+  const scols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);
+  const addNeat = (col, sql) => { if (!scols.includes(col)) db.exec(sql); };
+  addNeat('neatEnvironment', "ALTER TABLE app_settings ADD COLUMN neatEnvironment TEXT NOT NULL DEFAULT 'staging'");
+  addNeat('neatClientId', "ALTER TABLE app_settings ADD COLUMN neatClientId TEXT DEFAULT ''");
+  addNeat('neatClientSecretEncrypted', "ALTER TABLE app_settings ADD COLUMN neatClientSecretEncrypted TEXT DEFAULT ''");
+  addNeat('neatStoreId', "ALTER TABLE app_settings ADD COLUMN neatStoreId TEXT DEFAULT ''");
+  addNeat('neatSalesChannelId', "ALTER TABLE app_settings ADD COLUMN neatSalesChannelId TEXT DEFAULT ''");
+  addNeat('neatSalesChannelLabel', "ALTER TABLE app_settings ADD COLUMN neatSalesChannelLabel TEXT DEFAULT ''");
+  addNeat('neatContractId', "ALTER TABLE app_settings ADD COLUMN neatContractId TEXT DEFAULT ''");
+  addNeat('neatContractLabel', "ALTER TABLE app_settings ADD COLUMN neatContractLabel TEXT DEFAULT ''");
+  addNeat('neatPaymentMethodId', "ALTER TABLE app_settings ADD COLUMN neatPaymentMethodId TEXT DEFAULT ''");
+  addNeat('neatPaymentMethodKind', "ALTER TABLE app_settings ADD COLUMN neatPaymentMethodKind TEXT DEFAULT ''");
+  addNeat('neatPaymentMethodLabel', "ALTER TABLE app_settings ADD COLUMN neatPaymentMethodLabel TEXT DEFAULT ''");
+  addNeat('neatFieldMappingJson', "ALTER TABLE app_settings ADD COLUMN neatFieldMappingJson TEXT DEFAULT ''");
+  // Flattened serviceFields of the chosen contract, cached at selection time so the worker and the
+  // pricing path build payloads without a discovery round-trip.
+  addNeat('neatContractFieldsJson', "ALTER TABLE app_settings ADD COLUMN neatContractFieldsJson TEXT DEFAULT ''");
+  // Guest price = ceil(premium × (1 + neatMarginPercent/100)) — NULL/'' = Neat pricing inactive
+  // (rule 13); the static Options tariff then applies as before.
+  addNeat('neatMarginPercent', 'ALTER TABLE app_settings ADD COLUMN neatMarginPercent REAL DEFAULT NULL');
+}
+// « Souscriptions Neat » push preference (rule 11). Default ON, like the other channels.
+{
+  const pcols = db.prepare('PRAGMA table_info(user_push_prefs)').all().map((c) => c.name);
+  if (!pcols.includes('neat')) db.exec('ALTER TABLE user_push_prefs ADD COLUMN neat INTEGER NOT NULL DEFAULT 1');
+}
+// One subscription job per (reservation, environment): UNIQUE keeps staging-era jobs dead once the
+// environment flips to production while letting the scan enqueue a fresh production job.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS neat_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    environment TEXT NOT NULL,
+    externalId TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    neatSubscriptionId TEXT,
+    premiumAmount REAL,
+    billedAmount REAL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    nextAttemptAt TEXT,
+    lastError TEXT,
+    errorKind TEXT,
+    lastNotifiedAt TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (environment IN ('production', 'staging')),
+    CHECK (status IN ('pending', 'active', 'failed', 'voided')),
+    UNIQUE (reservationId, environment),
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_neat_subscriptions_due ON neat_subscriptions (status, nextAttemptAt);
+  CREATE TABLE IF NOT EXISTS neat_price_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    environment TEXT NOT NULL,
+    contractId TEXT NOT NULL,
+    fieldsHash TEXT NOT NULL,
+    premium REAL NOT NULL,
+    fetchedAt TEXT NOT NULL,
+    UNIQUE (environment, contractId, fieldsHash)
+  );
+`);
+
 // Data repair (specs/sas-bath-linen-ghost-line.md §3 rule 3): erase the billing lines the removed
 // « linge de toilette réglé en fin de séjour » flow left in the end-of-stay complement. Naturally
 // idempotent (a filter — once dropped, nothing matches), so it needs no `migrations` guard and keeps

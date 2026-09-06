@@ -31,6 +31,9 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 // Property default-options merge — shared with the public live quote so preview == devis (the function
 // moved to utils/propertyDefaultOptions; re-exported via __test for the existing devis tests).
 const { mergePropertyDefaultsIntoPayload, carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
+const settingsModel = require('./settingsModel');
+const neatSubscriptionsModel = require('./neatSubscriptionsModel');
+const { repriceQuoteWithNeatSync } = require('../utils/neatGuestPricing');
 
 /**
  * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -354,7 +357,7 @@ function createModel(database) {
     const locked = resolveLockedPricing(body, existing);
     const lockedResourceLines = locked.lockedResourceLines || payloadResourceLines;
 
-    return calculateReservationQuote({
+    const engineInput = {
       db: database,
       propertyId: Number(body.propertyId || existing?.propertyId),
       startDate: body.startDate || existing?.startDate,
@@ -402,7 +405,19 @@ function createModel(database) {
       // a solde deadline free to land in the past, and (specs/deposit-blocks-the-dates.md rule 5) an
       // acompte on a stay too close to collect one, contradicting the fiche's own live recompute.
       bookingDate: existing?.createdAt || getTodayIsoDate(),
-    });
+    };
+    const quote = calculateReservationQuote(engineInput);
+    // Neat-derived insurance price (specs/neat-cancellation-insurance-subscription.md rule 13):
+    // sync, cache-only — the async preview paths (public /quote, fiche calculate-price) warm the
+    // cache, so the persisted devis prices the insurance exactly as the preview announced it. Cold
+    // cache / feature off → the quote stands as computed (static tariff).
+    return repriceQuoteWithNeatSync({
+      engineInput,
+      quote,
+      settingsModel,
+      cacheModel: neatSubscriptionsModel,
+      calculate: calculateReservationQuote,
+    }).quote;
   }
 
   // ---- replay the quote of a PERSISTED devis (specs/devis-pdf-total-parity.md §3.1) ----

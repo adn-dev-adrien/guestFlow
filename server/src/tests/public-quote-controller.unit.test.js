@@ -54,11 +54,11 @@ function buildController({ captures, applicableOptionIds = [7], applicableResour
   });
 }
 
-test('quote forces platform=direct and drops every price-override field before the engine', () => {
+test('quote forces platform=direct and drops every price-override field before the engine', async () => {
   const captures = {};
   const controller = buildController({ captures });
   const res = fakeRes();
-  controller.quote({ body: {
+  await controller.quote({ body: {
     propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2,
     options: [{ optionId: 7, quantity: 1 }],
     // hostile overrides — must never reach the engine:
@@ -79,12 +79,12 @@ test('quote forces platform=direct and drops every price-override field before t
   assert.deepEqual(sent.selectedOptions, [{ optionId: 7, quantity: 1 }]);
 });
 
-test('quote injects the property DEFAULT options (paid → priced, offered → free) like the devis', () => {
+test('quote injects the property DEFAULT options (paid → priced, offered → free) like the devis', async () => {
   const captures = {};
   // Property has two defaults: option 8 PAID (offered:0), option 17 OFFERED (offered:1).
   const controller = buildController({ captures, propertyDefaults: [{ optionId: 8, offered: 0 }, { optionId: 17, offered: 1 }] });
   const res = fakeRes();
-  controller.quote({ body: { propertyId: 2, startDate: '2026-09-10', endDate: '2026-09-13', adults: 2 } }, res);
+  await controller.quote({ body: { propertyId: 2, startDate: '2026-09-10', endDate: '2026-09-13', adults: 2 } }, res);
   assert.equal(res.statusCode, 200);
   const sent = captures.engineInput;
   // Both defaults reach the engine as selected lines...
@@ -93,11 +93,11 @@ test('quote injects the property DEFAULT options (paid → priced, offered → f
   assert.deepEqual(sent.offeredOptionIds, [17]);
 });
 
-test('quote rejects an option not applicable to the property (422)', () => {
+test('quote rejects an option not applicable to the property (422)', async () => {
   const captures = {};
   const controller = buildController({ captures, applicableOptionIds: [99] }); // 7 not applicable
   const res = fakeRes();
-  controller.quote({ body: {
+  await controller.quote({ body: {
     propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2,
     options: [{ optionId: 7, quantity: 1 }],
   } }, res);
@@ -106,11 +106,11 @@ test('quote rejects an option not applicable to the property (422)', () => {
   assert.equal(captures.engineInput, undefined, 'engine not called on invalid option');
 });
 
-test('quote passes selected resources to the engine as {resourceId, quantity} only (no smuggled price)', () => {
+test('quote passes selected resources to the engine as {resourceId, quantity} only (no smuggled price)', async () => {
   const captures = {};
   const controller = buildController({ captures, applicableResourceIds: [3] });
   const res = fakeRes();
-  controller.quote({ body: {
+  await controller.quote({ body: {
     propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2,
     resources: [{ resourceId: 3, quantity: 2, unitPrice: 0, price: 999, offered: true }],
   } }, res);
@@ -118,11 +118,11 @@ test('quote passes selected resources to the engine as {resourceId, quantity} on
   assert.deepEqual(captures.engineInput.selectedResources, [{ resourceId: 3, quantity: 2 }]);
 });
 
-test('quote rejects a resource not applicable to the property (422)', () => {
+test('quote rejects a resource not applicable to the property (422)', async () => {
   const captures = {};
   const controller = buildController({ captures, applicableResourceIds: [99] }); // 3 not applicable
   const res = fakeRes();
-  controller.quote({ body: {
+  await controller.quote({ body: {
     propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2,
     resources: [{ resourceId: 3, quantity: 1 }],
   } }, res);
@@ -130,11 +130,11 @@ test('quote rejects a resource not applicable to the property (422)', () => {
   assert.equal(captures.engineInput, undefined, 'engine not called on invalid resource');
 });
 
-test('quote returns the public projection with an availability flag', () => {
+test('quote returns the public projection with an availability flag', async () => {
   const captures = {};
   const controller = buildController({ captures });
   const res = fakeRes();
-  controller.quote({ body: { propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2 } }, res);
+  await controller.quote({ body: { propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2 } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.data.available, true);
   assert.equal(res.body.data.finalPrice, 700);

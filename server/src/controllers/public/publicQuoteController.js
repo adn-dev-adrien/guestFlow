@@ -18,6 +18,10 @@ const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogCo
 const { resolvePublicPaymentMode } = require('../../utils/publicPaymentMode');
 const { mergePropertyDefaultsIntoPayload } = require('../../utils/propertyDefaultOptions');
 const propertyOptionDefaultsModel = require('../../models/propertyOptionDefaultsModel');
+const settingsModel = require('../../models/settingsModel');
+const neatSubscriptionsModel = require('../../models/neatSubscriptionsModel');
+const { resolveInsurancePricing, buildQuoteSnapshot, isNeatPricingActive } = require('../../utils/neatGuestPricing');
+const { buildNeatClient } = require('../../utils/neatClient');
 const { ok, fail } = require('./publicHttp');
 
 /** Reject any option id that is not applicable to the property. Returns an error list or null. */
@@ -89,6 +93,8 @@ function buildEngineQuote(input) {
     // Public/site flow: planning-card options are billed by quantity (unschedulable on the site) —
     // the operator fixes the slots later (specs/public-planning-options.md).
     planningCardAsQuantity: true,
+    // Neat-derived insurance price (see resolveNeatPricing) — absent on the first run.
+    cancellationInsurancePriceOverride: input.cancellationInsurancePriceOverride,
   });
 }
 
@@ -101,8 +107,9 @@ function buildEngineQuote(input) {
  * diverge. A fixed-price insurance (`per_stay`, `per_person`…) is priced through the engine's own
  * multipliers instead.
  */
-function buildCancellationInsurance(input, engineQuote) {
-  const option = optionsModel.getCancellationInsurance(Number(input.propertyId));
+function buildCancellationInsurance(input, engineQuote, neatPricing) {
+  const neatActive = isNeatPricingActive(settingsModel);
+  const option = optionsModel.getCancellationInsurance(Number(input.propertyId), { neatPricingActive: neatActive });
   if (!option) return null;
   const optionId = Number(option.id);
   const selected = (input.options || []).some((o) => Number(o.optionId) === optionId);
@@ -110,14 +117,41 @@ function buildCancellationInsurance(input, engineQuote) {
   const line = (engineQuote.optionLines || []).find((l) => Number(l.optionId) === optionId);
   const amount = line
     ? Number(line.totalPrice || 0)
-    : (String(option.priceType) === 'percent_of_stay'
-      ? computePercentOfStayAmount(option.price, engineQuote.cancellationInsuranceBase)
-      : roundMoney(Number(option.price || 0)
-        * getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0))));
-  return toPublicCancellationInsurance(option, { amount, selected });
+    : (neatPricing
+      ? Number(neatPricing.unitPrice)
+      : (String(option.priceType) === 'percent_of_stay'
+        ? computePercentOfStayAmount(option.price, engineQuote.cancellationInsuranceBase)
+        : roundMoney(Number(option.price || 0)
+          * getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0)))));
+  return toPublicCancellationInsurance(option, { amount, selected, neatPricingActive: neatActive });
 }
 
-function quote(req, res) {
+// Neat-derived guest price for this stay (spec neat-cancellation-insurance-subscription rule 13):
+// resolved AFTER a first engine run (the snapshot needs the engine's amounts), null when the
+// feature is inactive, the property has no insurance, or Neat + cache are both silent — the
+// engine then prices the flagged option from its static tariff exactly as before.
+async function resolveNeatPricing(input, engineQuote) {
+  const option = optionsModel.getCancellationInsurance(Number(input.propertyId), {
+    neatPricingActive: isNeatPricingActive(settingsModel),
+  });
+  if (!option) return null;
+  const optionId = Number(option.id);
+  const line = (engineQuote.optionLines || []).find((l) => Number(l.optionId) === optionId);
+  const property = db.prepare('SELECT name FROM properties WHERE id = ?').get(Number(input.propertyId));
+  const snapshot = buildQuoteSnapshot({
+    startDate: input.startDate,
+    endDate: input.endDate,
+    engineQuote,
+    insuranceLineTotal: line ? Number(line.totalPrice || 0) : 0,
+    propertyName: property ? String(property.name || '') : '',
+  });
+  return resolveInsurancePricing(
+    { settingsModel, cacheModel: neatSubscriptionsModel, buildClient: buildNeatClient },
+    snapshot,
+  );
+}
+
+async function quote(req, res) {
   const v = validateStayInput(req.body);
   if (!v.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Données de devis invalides.', v.errors);
 
@@ -127,10 +161,18 @@ function quote(req, res) {
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
   if (resErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Ressource non disponible pour ce logement.', resErrors);
 
-  const engineQuote = buildEngineQuote(v.value);
+  let engineQuote = buildEngineQuote(v.value);
   if (engineQuote.error) {
     if (engineQuote.status === 404) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
     return fail(res, 422, 'VALIDATION_FAILED', engineQuote.error);
+  }
+
+  // Neat-derived insurance price (rule 13): re-run the engine with the resolved override so a
+  // selected insurance line is billed at premium + margin. The double run is cheap (pure, sync)
+  // and keeps the engine the single pricing authority.
+  const neatPricing = await resolveNeatPricing(v.value, engineQuote);
+  if (neatPricing) {
+    engineQuote = buildEngineQuote({ ...v.value, cancellationInsurancePriceOverride: neatPricing.unitPrice });
   }
 
   const blocked = computeBlockedDates(v.value.propertyId, v.value.startDate, v.value.endDate);
@@ -141,7 +183,7 @@ function quote(req, res) {
 
   return ok(res, toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
-    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote),
+    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, neatPricing),
   }));
 }
 

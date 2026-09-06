@@ -2,7 +2,7 @@
  * Push subscriptions + per-user push preferences (specs/pwa-push-notifications.md §5).
  *
  * `push_subscriptions` holds one row per (user, device) browser subscription. `user_push_prefs` holds
- * the per-user toggles (newReservation / arrivals / departures / breakfast), all defaulting ON when
+ * the per-user toggles (newReservation / arrivals / departures / breakfast / neat), all defaulting ON when
  * the user has no row yet.
  *
  * Factory `create(db)` (+ a default bound to the production DB), mirroring the other models.
@@ -10,8 +10,8 @@
 
 const db = require('../database');
 
-const PREF_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast'];
-const DEFAULT_PREFS = { newReservation: true, arrivals: true, departures: true, breakfast: true };
+const PREF_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast', 'neat'];
+const DEFAULT_PREFS = { newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true };
 
 function createPushSubscriptionsModel(database) {
   const stmts = {
@@ -22,12 +22,12 @@ function createPushSubscriptionsModel(database) {
     `),
     removeByEndpoint: database.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?'),
     listByUser: database.prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE userId = ? ORDER BY id'),
-    readPrefs: database.prepare('SELECT newReservation, arrivals, departures, breakfast FROM user_push_prefs WHERE userId = ?'),
+    readPrefs: database.prepare('SELECT newReservation, arrivals, departures, breakfast, neat FROM user_push_prefs WHERE userId = ?'),
     upsertPrefs: database.prepare(`
-      INSERT INTO user_push_prefs (userId, newReservation, arrivals, departures, breakfast)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO user_push_prefs (userId, newReservation, arrivals, departures, breakfast, neat)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(userId) DO UPDATE SET
-        newReservation = excluded.newReservation, arrivals = excluded.arrivals, departures = excluded.departures, breakfast = excluded.breakfast
+        newReservation = excluded.newReservation, arrivals = excluded.arrivals, departures = excluded.departures, breakfast = excluded.breakfast, neat = excluded.neat
     `),
   };
 
@@ -81,6 +81,7 @@ function createPushSubscriptionsModel(database) {
         arrivals: Number(row.arrivals) !== 0,
         departures: Number(row.departures) !== 0,
         breakfast: Number(row.breakfast) !== 0,
+        neat: Number(row.neat) !== 0,
       };
     },
 
@@ -91,7 +92,7 @@ function createPushSubscriptionsModel(database) {
       for (const k of PREF_KEYS) {
         if (patch[k] !== undefined) next[k] = Boolean(patch[k]);
       }
-      stmts.upsertPrefs.run(Number(userId), next.newReservation ? 1 : 0, next.arrivals ? 1 : 0, next.departures ? 1 : 0, next.breakfast ? 1 : 0);
+      stmts.upsertPrefs.run(Number(userId), next.newReservation ? 1 : 0, next.arrivals ? 1 : 0, next.departures ? 1 : 0, next.breakfast ? 1 : 0, next.neat ? 1 : 0);
       return next;
     },
   };

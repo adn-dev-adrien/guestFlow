@@ -52,7 +52,7 @@ const INSURANCE = {
   priceType: 'percent_of_stay', price: 4, isCancellationInsurance: 1,
 };
 
-test('the insurance leaves the supplements lists and gets its own block', () => {
+test('the insurance leaves the supplements lists and gets its own block', async () => {
   const data = listOptions([
     { id: 1, title: 'Ménage', priceType: 'per_stay', price: 80 },
     { id: 2, title: 'Planche S', priceType: 'per_stay', price: 17, category: 'Restauration' },
@@ -66,23 +66,23 @@ test('the insurance leaves the supplements lists and gets its own block', () => 
   assert.equal(data.cancellationInsurance.amount, null, 'no stay yet → no amount, the label stands in');
 });
 
-test('an unpriced insurance is not an offer — no block, so nothing to answer', () => {
+test('an unpriced insurance is not an offer — no block, so nothing to answer', async () => {
   const data = listOptions([{ ...INSURANCE, price: 0 }]);
   assert.equal(data.cancellationInsurance, null);
   assert.deepEqual(data.ungrouped, []);
 });
 
-test('no insurance configured at all → null', () => {
+test('no insurance configured at all → null', async () => {
   const data = listOptions([{ id: 1, title: 'Ménage', priceType: 'per_stay', price: 80 }]);
   assert.equal(data.cancellationInsurance, null);
 });
 
-test('an insurance hidden from clients or offered by default is not sold', () => {
+test('an insurance hidden from clients or offered by default is not sold', async () => {
   assert.equal(listOptions([{ ...INSURANCE, displayToClient: 0 }]).cancellationInsurance, null);
   assert.equal(listOptions([INSURANCE], [42]).cancellationInsurance, null);
 });
 
-test('a flat-price insurance gets a euro label instead of a percentage', () => {
+test('a flat-price insurance gets a euro label instead of a percentage', async () => {
   const data = listOptions([{ ...INSURANCE, priceType: 'per_stay', price: 25 }]);
   assert.equal(data.cancellationInsurance.priceLabel, '25 € au séjour');
   assert.equal(data.cancellationInsurance.percent, null);
@@ -127,7 +127,8 @@ function quoteDb({ percent = 4 } = {}) {
   return db;
 }
 
-function publicQuote(db, body) {
+// `quote` is async since the Neat-derived pricing resolution (neat-cancellation-insurance rule 13).
+async function publicQuote(db, body) {
   const controller = withMocks({
     '../../database': db,
     '../../models/optionsModel': buildModel(db),
@@ -140,7 +141,7 @@ function publicQuote(db, body) {
     return require(m);
   });
   const res = fakeRes();
-  controller.quote({ body }, res);
+  await controller.quote({ body }, res);
   return res;
 }
 
@@ -149,9 +150,9 @@ const STAY = {
   adults: 2, children: 0, teens: 0, babies: 0,
 };
 
-test('the quote prices the insurance even when the visitor has not taken it', () => {
+test('the quote prices the insurance even when the visitor has not taken it', async () => {
   const db = quoteDb();
-  const res = publicQuote(db, { ...STAY, options: [] });
+  const res = await publicQuote(db, { ...STAY, options: [] });
   assert.equal(res.statusCode, 200);
   const ins = res.body.data.cancellationInsurance;
   assert.equal(ins.amount, 12, '4 % of the 300 € stay, shown beside the Oui/Non choice');
@@ -160,10 +161,10 @@ test('the quote prices the insurance even when the visitor has not taken it', ()
   db.close();
 });
 
-test('the previewed amount is the billed amount — they cannot diverge', () => {
+test('the previewed amount is the billed amount — they cannot diverge', async () => {
   const db = quoteDb();
-  const preview = publicQuote(db, { ...STAY, options: [] }).body.data.cancellationInsurance;
-  const taken = publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 1 }] }).body.data;
+  const preview = (await publicQuote(db, { ...STAY, options: [] })).body.data.cancellationInsurance;
+  const taken = (await publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 1 }] })).body.data;
   assert.equal(taken.cancellationInsurance.selected, true);
   assert.equal(taken.cancellationInsurance.amount, preview.amount);
   assert.equal(taken.options.find((o) => o.optionId === 42).total, preview.amount);
@@ -172,16 +173,16 @@ test('the previewed amount is the billed amount — they cannot diverge', () => 
   db.close();
 });
 
-test('the premium follows the stay — a longer stay costs more to insure', () => {
+test('the premium follows the stay — a longer stay costs more to insure', async () => {
   const db = quoteDb();
-  const week = publicQuote(db, { ...STAY, endDate: '2026-05-08', options: [] }).body.data;
+  const week = (await publicQuote(db, { ...STAY, endDate: '2026-05-08', options: [] })).body.data;
   assert.equal(week.cancellationInsurance.amount, 28, '4 % of 7 nights × 100 €');
   db.close();
 });
 
-test('no insurance configured → no block in the quote either', () => {
+test('no insurance configured → no block in the quote either', async () => {
   const db = quoteDb({ percent: 0 });
-  const res = publicQuote(db, { ...STAY, options: [] });
+  const res = await publicQuote(db, { ...STAY, options: [] });
   assert.equal(res.body.data.cancellationInsurance, null);
   db.close();
 });
@@ -189,29 +190,29 @@ test('no insurance configured → no block in the quote either', () => {
 // The default tariff is per-night (specs/cancellation-insurance.md §3.2 rule 13): the site must
 // announce « 3 € par nuit » and preview the same amount the engine will bill.
 
-test('a per-night insurance is announced by the night', () => {
+test('a per-night insurance is announced by the night', async () => {
   const data = listOptions([{ ...INSURANCE, priceType: 'per_night', price: 3 }]);
   assert.equal(data.cancellationInsurance.priceLabel, '3 € par nuit');
   assert.equal(data.cancellationInsurance.percent, null);
   assert.equal(data.cancellationInsurance.amount, null, 'no stay yet → the label stands in');
 });
 
-test('a per-night insurance previews and bills the same nights', () => {
+test('a per-night insurance previews and bills the same nights', async () => {
   const db = quoteDb();
   db.prepare("UPDATE options SET priceType = 'per_night', price = 3 WHERE id = 42").run();
-  const preview = publicQuote(db, { ...STAY, options: [] }).body.data.cancellationInsurance;
+  const preview = (await publicQuote(db, { ...STAY, options: [] })).body.data.cancellationInsurance;
   assert.equal(preview.amount, 9, '3 € × the 3 nights');
-  const taken = publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 1 }] }).body.data;
+  const taken = (await publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 1 }] })).body.data;
   assert.equal(taken.cancellationInsurance.amount, 9);
   assert.equal(taken.optionsTotal, 9);
   assert.equal(taken.totalStayPrice, 309);
   db.close();
 });
 
-test('a visitor cannot inflate a per-night insurance with a quantity', () => {
+test('a visitor cannot inflate a per-night insurance with a quantity', async () => {
   const db = quoteDb();
   db.prepare("UPDATE options SET priceType = 'per_night', price = 3 WHERE id = 42").run();
-  const taken = publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 9 }] }).body.data;
+  const taken = (await publicQuote(db, { ...STAY, options: [{ optionId: 42, quantity: 9 }] })).body.data;
   assert.equal(taken.optionsTotal, 9, 'the engine clamps the yes/no line to the stay');
   db.close();
 });

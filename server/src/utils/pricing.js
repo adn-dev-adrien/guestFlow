@@ -1323,6 +1323,12 @@ function calculateReservationQuote({
   // 'reservation' (default) | 'devis'. A devis takes `validUntil` as its acompte deadline (rule 5).
   kind: quoteKind = 'reservation',
   validUntil = null,
+  // specs/neat-cancellation-insurance-subscription.md §3.2 rule 13 — the Neat-derived guest price
+  // of the cancellation insurance, for the WHOLE stay (premium + margin, euro-ceiled), resolved
+  // asynchronously by the caller BEFORE invoking the engine. When a finite number, it replaces the
+  // flagged option's catalogue tariff (unit price × 1, whatever the price type); the locked
+  // snapshot of a sold line still wins over it. Null/absent → the catalogue tariff as before.
+  cancellationInsurancePriceOverride = null,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1649,14 +1655,33 @@ function calculateReservationQuote({
       const isPercentOfStay = priceType === 'percent_of_stay';
       const isStayWideYesNo = isPercentOfStay || isCancellationInsurance;
       const effectiveQuantity = isStayWideYesNo ? 1 : quantity;
+      // Neat-derived guest price (rule 13): a stay-wide amount, so it bypasses the type multiplier
+      // (a per-night insurance must not bill it × nights).
+      const neatOverride = isCancellationInsurance
+        && cancellationInsurancePriceOverride != null
+        && cancellationInsurancePriceOverride !== ''
+        && Number.isFinite(Number(cancellationInsurancePriceOverride))
+        ? Number(cancellationInsurancePriceOverride)
+        : null;
       const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
         ? Number(optionUnitOverrides[optionId])
-        : (isPercentOfStay
-          ? computePercentOfStayAmount(option.price, cancellationInsuranceBase)
-          : Number(option.price || 0));
-      const targetBilledUnits = roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights));
+        : (neatOverride !== null
+          ? neatOverride
+          : (isPercentOfStay
+            ? computePercentOfStayAmount(option.price, cancellationInsuranceBase)
+            : Number(option.price || 0)));
+      // A SOLD insurance line is frozen whole — units included (rule 13 sub-rule « price lock
+      // unchanged »): a Neat-priced line lives at billedUnits 1, and a recompute path that did not
+      // resolve the override (or a later Neat disconnect) must not re-bill it × nights. Fresh
+      // Neat-priced lines are stay-wide: billedUnits 1.
+      const lockedInsuranceLine = isCancellationInsurance ? reconstructLockedRealTotal(locked, unitBase) : null;
+      const targetBilledUnits = lockedInsuranceLine
+        ? normalizeBilledUnits(lockedInsuranceLine.billedUnits !== undefined ? lockedInsuranceLine.billedUnits : lockedInsuranceLine.quantity)
+        : (neatOverride !== null
+          ? 1
+          : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights)));
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(locked, unitBase),
+        lockedLine: lockedInsuranceLine || reconstructLockedRealTotal(locked, unitBase),
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });

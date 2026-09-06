@@ -47,6 +47,9 @@ const ENCRYPTED_COLUMNS = [
   // Météo-France Vigilance API key (specs/checkin-weather-alerts.md §3 rule 10). Operator secret,
   // stored encrypted; never returned to the client (masked to a boolean below).
   'meteoFranceApiKeyEncrypted',
+  // Neat service-account secret (specs/neat-cancellation-insurance-subscription.md §3.1 rule 1).
+  // Stored encrypted, never returned to the client (masked to a boolean below).
+  'neatClientSecretEncrypted',
 ];
 
 const COLUMNS = [
@@ -161,6 +164,22 @@ const COLUMNS = [
   // Météo-France Vigilance API key (specs/checkin-weather-alerts.md). Encrypted (above); masked to
   // `meteoFranceApiKeySet` on read so the client only learns whether a key is configured.
   'meteoFranceApiKeyEncrypted',
+  // Neat cancellation-insurance connection (specs/neat-cancellation-insurance-subscription.md §3.1).
+  // The secret is encrypted (above); the rest is non-secret configuration read through `neatConfig()`.
+  'neatEnvironment',
+  'neatClientId',
+  'neatClientSecretEncrypted',
+  'neatStoreId',
+  'neatSalesChannelId',
+  'neatSalesChannelLabel',
+  'neatContractId',
+  'neatContractLabel',
+  'neatPaymentMethodId',
+  'neatPaymentMethodKind',
+  'neatPaymentMethodLabel',
+  'neatFieldMappingJson',
+  'neatContractFieldsJson',
+  'neatMarginPercent',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -192,6 +211,7 @@ const STRING_DEFAULT_OVERRIDES = {
   smtpFromName: 'GuestFlow',
   paymentDepositReminderOffsets: '[-5,0]',
   paymentBalanceReminderOffsets: '[-10,-5,0]',
+  neatEnvironment: 'staging',
 };
 
 const DEFAULTS = COLUMNS.reduce((acc, col) => {
@@ -212,6 +232,8 @@ const HTTP_MASKED_COLUMNS = {
   qontoRefreshTokenEncrypted: 'qontoConnected',
   // Météo-France key is never exposed; the client only learns whether it's configured.
   meteoFranceApiKeyEncrypted: 'meteoFranceApiKeySet',
+  // Neat secret is never exposed; the client only learns whether it's configured.
+  neatClientSecretEncrypted: 'neatClientSecretSet',
 };
 
 function createSettingsModel(databaseInstance) {
@@ -525,6 +547,40 @@ function createSettingsModel(databaseInstance) {
       if (r.ok) return r.value;
       warnDecryptFailure('meteoFranceApiKeyEncrypted', r.reason);
       return '';
+    },
+
+    // Neat connection + configuration, secret decrypted, for internal use only (never over HTTP).
+    // `marginPercent` is null when unset (Neat-derived guest pricing inactive, rule 13).
+    // Missing/undecryptable secret → `clientSecret: ''` and the feature reads as unconfigured.
+    neatConfig() {
+      const row = readRaw();
+      let clientSecret = '';
+      const blob = row.neatClientSecretEncrypted || '';
+      if (blob) {
+        const r = safeDecrypt(blob);
+        if (r.ok) clientSecret = r.value;
+        else warnDecryptFailure('neatClientSecretEncrypted', r.reason);
+      }
+      const rawMargin = row.neatMarginPercent;
+      const marginPercent = rawMargin === null || rawMargin === undefined || rawMargin === ''
+        ? null
+        : Number(rawMargin);
+      return {
+        environment: String(row.neatEnvironment || 'staging') === 'production' ? 'production' : 'staging',
+        clientId: String(row.neatClientId || '').trim(),
+        clientSecret,
+        storeId: String(row.neatStoreId || ''),
+        salesChannelId: String(row.neatSalesChannelId || ''),
+        salesChannelLabel: String(row.neatSalesChannelLabel || ''),
+        contractId: String(row.neatContractId || ''),
+        contractLabel: String(row.neatContractLabel || ''),
+        paymentMethodId: String(row.neatPaymentMethodId || ''),
+        paymentMethodKind: String(row.neatPaymentMethodKind || ''),
+        paymentMethodLabel: String(row.neatPaymentMethodLabel || ''),
+        fieldMappingJson: String(row.neatFieldMappingJson || ''),
+        contractFieldsJson: String(row.neatContractFieldsJson || ''),
+        marginPercent: Number.isFinite(marginPercent) ? marginPercent : null,
+      };
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.

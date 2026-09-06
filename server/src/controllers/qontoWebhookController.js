@@ -95,6 +95,9 @@ async function handleWebhook(req, res) {
       const pay = await buildQontoClient().getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId });
       if (pay.paid) {
         await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });
+        // The acompte of an insured reservation may just have landed — subscribe at Neat now
+        // (specs/neat-cancellation-insurance-subscription.md rule 8). Fire-and-forget.
+        require('./neatController').kickPass('qonto-webhook');
       }
     }
   } catch (err) {

@@ -187,11 +187,29 @@ async function runPaymentPollPass(reason = 'cron') {
       qontoClient: buildQontoClient(),
       getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
     });
-    if (summary.paid > 0) console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
+    if (summary.paid > 0) {
+      console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
+      // A paid link may just have flipped an insured reservation's acompte — subscribe now, not
+      // at the next Neat tick (specs/neat-cancellation-insurance-subscription.md rule 8).
+      require('./controllers/neatController').kickPass('payment-poll');
+    }
   } catch (err) {
     console.error('[payments] poll pass error:', err && err.message ? err.message : err);
   } finally {
     paymentPollInProgress = false;
+  }
+}
+
+// Neat cancellation-insurance subscriptions (specs/neat-cancellation-insurance-subscription.md
+// §3.2 rule 8): scan insured + deposit-paid reservations, subscribe due jobs, retry failures.
+// The controller owns the pass (re-entrancy guard + real deps) and bails silently while the
+// integration is unconfigured; the payment flows kick the same pass so the nominal case
+// subscribes within seconds of the acompte, this tick being the safety net.
+async function runNeatSubscriptionPass(reason = 'cron') {
+  try {
+    await require('./controllers/neatController').runPass(reason);
+  } catch (err) {
+    console.error('[neat] pass error:', err && err.message ? err.message : err);
   }
 }
 
@@ -329,6 +347,12 @@ function startScheduledTasks() {
   setInterval(() => { try { runTariffRecipeHorizonPass('cron'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, TARIFF_RECIPE_TICK);
   setTimeout(() => { try { runTariffRecipeHorizonPass('boot'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, 140 * 1000);
 
+  // Neat subscriptions: every 5 min (the payment flows kick the pass for the nominal case; this
+  // tick is the retry ladder + the safety net). Boot pass 150 s after start.
+  const NEAT_TICK = 5 * 60 * 1000;
+  setInterval(() => runNeatSubscriptionPass('cron').catch((err) => console.error('[neat] unhandled:', err)), NEAT_TICK);
+  setTimeout(() => runNeatSubscriptionPass('boot').catch((err) => console.error('[neat] unhandled:', err)), 150 * 1000);
+
   // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
   // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
   // `runVersionCheck` never rejects — an unreachable GitHub leaves the last known state in place.
@@ -350,4 +374,6 @@ module.exports = {
   runBreakfastPushPass,
   // Google Calendar reconcile pass — exposed for tests + ops trigger.
   runGoogleSyncPass,
+  // Neat subscription pass — exposed for tests + ops trigger.
+  runNeatSubscriptionPass,
 };

@@ -497,6 +497,16 @@ const api = {
   googleCalendarSyncNow: () => request('/google-calendar/sync-now', { method: 'POST' }),
   testGoogleCalendarConnection: () => request('/google-calendar/test-connection', { method: 'POST' }),
 
+  // Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §4.3).
+  getNeatSettings: () => request('/neat/settings'),
+  updateNeatSettings: (payload) => request('/neat/settings', { method: 'PUT', body: payload }),
+  testNeatConnection: () => request('/neat/test-connection', { method: 'POST' }),
+  getNeatDiscovery: (salesChannelId) => request(`/neat/discovery${salesChannelId ? `?salesChannelId=${encodeURIComponent(salesChannelId)}` : ''}`),
+  updateNeatSelection: (payload) => request('/neat/selection', { method: 'PUT', body: payload }),
+  updateNeatMapping: (mapping) => request('/neat/mapping', { method: 'PUT', body: { mapping } }),
+  retryNeatSubscription: (reservationId) => request(`/neat/reservations/${reservationId}/retry`, { method: 'POST' }),
+  voidNeatSubscription: (reservationId) => request(`/neat/reservations/${reservationId}/void`, { method: 'POST' }),
+
   // Establishment closures
   getEstablishmentClosures: (params = {}) => {
     const filtered = Object.entries(params)

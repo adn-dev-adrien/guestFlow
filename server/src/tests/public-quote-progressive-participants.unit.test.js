@@ -109,9 +109,9 @@ function buildController(db) {
   });
 }
 
-function quoteFor(controller, optionId, participants, extra = {}) {
+async function quoteFor(controller, optionId, participants, extra = {}) {
   const res = fakeRes();
-  controller.quote({ body: {
+  await controller.quote({ body: {
     propertyId: 1, startDate: '2026-07-10', endDate: '2026-07-12',
     adults: 4, children: 0, teens: 0, babies: 0,
     options: [{ optionId, quantity: participants }],
@@ -120,7 +120,7 @@ function quoteFor(controller, optionId, participants, extra = {}) {
   return res;
 }
 
-test('public quote prices a progressive option by participant count (degressive tiers 55/45/35)', () => {
+test('public quote prices a progressive option by participant count (degressive tiers 55/45/35)', async () => {
   const controller = buildController(createDb());
 
   // Mirrors the live Gite checks: the quantity IS the participant count and drives the degressive sum.
@@ -131,7 +131,7 @@ test('public quote prices a progressive option by participant count (degressive 
     { participants: 4, total: 170 }, // 4th participant keeps the last tier (35)
   ];
   for (const c of cases) {
-    const res = quoteFor(controller, 15, c.participants);
+    const res = await quoteFor(controller, 15, c.participants);
     assert.equal(res.statusCode, 200, `${c.participants} participants → 200`);
     const line = res.body.data.options.find((o) => o.optionId === 15);
     assert.ok(line, `${c.participants} participants → option line present`);
@@ -141,22 +141,22 @@ test('public quote prices a progressive option by participant count (degressive 
   }
 });
 
-test('participant 1 falls back to the base price when no tier covers it (30 base, tiers at 2 and 3)', () => {
+test('participant 1 falls back to the base price when no tier covers it (30 base, tiers at 2 and 3)', async () => {
   const controller = buildController(createDb());
   // 1 -> 30 (fallback base), 2 -> 60 (30+30), 3 -> 65 (30+30+5).
   for (const c of [{ p: 1, t: 30 }, { p: 2, t: 60 }, { p: 3, t: 65 }]) {
-    const res = quoteFor(controller, 11, c.p);
+    const res = await quoteFor(controller, 11, c.p);
     assert.equal(res.statusCode, 200);
     const line = res.body.data.options.find((o) => o.optionId === 11);
     assert.equal(line.total, c.t, `${c.p} participants → ${c.t} €`);
   }
 });
 
-test('changing the participant count re-prices the option through the public quote (no client-side maths)', () => {
+test('changing the participant count re-prices the option through the public quote (no client-side maths)', async () => {
   const controller = buildController(createDb());
   // The widget refreshes the quote on every +/-; assert two successive counts yield the tiered totals.
-  const two = quoteFor(controller, 15, 2).body.data.options.find((o) => o.optionId === 15).total;
-  const three = quoteFor(controller, 15, 3).body.data.options.find((o) => o.optionId === 15).total;
+  const two = (await quoteFor(controller, 15, 2)).body.data.options.find((o) => o.optionId === 15).total;
+  const three = (await quoteFor(controller, 15, 3)).body.data.options.find((o) => o.optionId === 15).total;
   assert.equal(two, 100);
   assert.equal(three, 135);
   assert.notEqual(two, three, 'a different participant count must yield a different total');
