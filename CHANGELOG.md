@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.13.2] - 2026-09-07
+
+### Summary
+- Confidentialité renforcée : un compte Accueil ne reçoit plus les montants du séjour ni les coordonnées du client en ouvrant un check-in / check-out.
+- Rien ne change à l'écran : ces données transitaient sans être affichées ; elles ne quittent plus le serveur.
+
+### Fixed
+- **Reception SAS payload no longer carries stay finance or client PII** — `GET /reservations/:id/sas` now serves a reception-only account the same whitelisted reservation view as the fiche (door money + operational fields only). The raw payload transported (without displaying) revenue, deposit/balance, commission and the guest's email/phone since the role shipped (specs/reception-role-checkin-only.md §3.6 rule 12).
+
 ## [2.13.1] - 2026-09-07
 
 ### Summary
