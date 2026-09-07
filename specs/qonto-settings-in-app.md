@@ -85,6 +85,12 @@ when it is broken.
     an old scar.
 14. The visitor on the public site never sees the detail of a Qonto failure: the tunnel keeps
     answering its generic message, and the detail goes to the operator's interface.
+17. A failure from the Qonto Business API carries its own `errors[].code` and `errors[].detail` to
+    the operator, not just its HTTP status — the two envelopes Qonto uses (`{error, error_description}`
+    for OAuth, `{errors: [{code, detail}]}` for the Business API) are both read. In particular, a
+    payment link refused because the link provider is not connected is named as such and points at
+    the form that fixes it, instead of sending the operator to the support desk for something they
+    can repair themselves in a minute.
 
 **Safety**
 
@@ -276,3 +282,12 @@ card, next to the fields they act on.
 - Q: what does « Connecté » mean when no call has been made yet?
   - A (2026-09-07): « À vérifier » — the badge only claims success after a real call (rule 11), and
     the page invites the operator to run the test.
+
+**Corrected 2026-09-07 (first production run):** the release was exercised against production the
+hour it shipped. Recording worked — the public tunnel's failure reached Réglages → Paiements with
+its origin and its timestamp, which it never had before. But the page read « Qonto a renvoyé une
+erreur — HTTP 400 » while the body held `{"errors":[{"code":"invalid","detail":"connection with the
+provider does not exist"}]}`. Two envelopes, one reader: `errorMessageOf` only knew the OAuth shape.
+Rule 17 makes it read both, and names that particular refusal after the form that repairs it. The
+first version of this spec sent the operator back to the logs for a failure it had already caught —
+half a fix is its own kind of bug.
