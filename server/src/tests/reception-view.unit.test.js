@@ -40,14 +40,21 @@ const FULL_RESERVATION = {
   singleBeds: 1,
   notes: 'Late arrival',
   bedLinenAlert: 'no-linen',
-  // Door money — kept.
+  // Door money — kept (incl. the cash/date/detail markers a re-opened SAS pre-fills from).
   cautionAmount: 300,
   cautionReceived: 0,
   cautionReturned: 0,
   complementAmount: 45,
   complementPaid: 0,
+  complementPaidCash: 0,
   endOfStayComplementAmount: 0,
   endOfStayComplementPaid: 0,
+  endOfStayComplementPaidCash: 0,
+  endOfStayComplementPaidDate: null,
+  endOfStayComplementDetail: '[{"label":"Serviette","amount":8}]',
+  // Operational SAS fields — kept.
+  departureHandoverNote: 'Clés dans la boîte',
+  extinguisherSealOkAtDeparture: 1,
   // Status flags — kept.
   checkInReady: 1,
   checkInDone: 0,
@@ -71,10 +78,14 @@ const FULL_RESERVATION = {
   touristTaxAmount: 12,
   platformCommissionAmount: 20,
   options: [
-    { id: 1, optionId: 5, title: 'Ménage', quantity: 1, autoOptionType: 'cleaning', totalPrice: 60, unitPrice: 60, originalTotalPrice: 60, acompteContribTtc: 10 },
+    // A séjour line (stay money): its prices must be stripped.
+    { id: 1, optionId: 5, title: 'Ménage', description: 'Forfait ménage', quantity: 1, autoOptionType: 'cleaning', totalPrice: 60, unitPrice: 60, originalTotalPrice: 60, acompteContribTtc: 10, inComplement: 0, offered: 0, sasArrivalOrigin: 0 },
+    // A complement line the arrival SAS itself added (door money): its amount must SURVIVE so the
+    // SAS reopens pre-filled (specs/reopen-completed-sas.md §5).
+    { id: 2, customOptionId: 11, isCustom: 1, title: 'Linge de toilette', description: 'Linge de toilette', quantity: 1, unitPrice: 32, totalPrice: 32, originalTotalPrice: 32, acompteContribTtc: null, inComplement: 1, offered: 0, sasArrivalOrigin: 1 },
   ],
   resources: [
-    { id: 9, resourceId: 4, name: 'Kayak', quantity: 2, totalPrice: 40, unitPrice: 20 },
+    { id: 9, resourceId: 4, name: 'Kayak', quantity: 2, totalPrice: 40, unitPrice: 20, inComplement: 1, offered: 1 },
   ],
 };
 
@@ -84,7 +95,9 @@ const KEPT_KEYS = [
   'checkOutTime', 'adults', 'children', 'teens', 'babies', 'babyBeds', 'doubleBeds', 'singleBeds',
   'notes', 'bedLinenAlert',
   'cautionAmount', 'cautionReceived', 'cautionReturned', 'complementAmount', 'complementPaid',
-  'endOfStayComplementAmount', 'endOfStayComplementPaid', 'checkInReady', 'checkInDone',
+  'complementPaidCash', 'endOfStayComplementAmount', 'endOfStayComplementPaid',
+  'endOfStayComplementPaidCash', 'endOfStayComplementPaidDate', 'endOfStayComplementDetail',
+  'departureHandoverNote', 'extinguisherSealOkAtDeparture', 'checkInReady', 'checkInDone',
   'checkOutDone', 'arrivalSasDoneAt', 'departureSasDoneAt',
 ];
 
@@ -110,17 +123,32 @@ test('toReceptionReservationView drops every finance + PII field', () => {
   }
 });
 
-test('toReceptionReservationView strips prices off option / resource lines', () => {
+test('toReceptionReservationView strips prices off séjour option / resource lines', () => {
   const view = toReceptionReservationView(FULL_RESERVATION);
-  assert.deepEqual(view.options, [
-    { id: 1, optionId: 5, customOptionId: undefined, title: 'Ménage', quantity: 1, autoOptionType: 'cleaning', isCustom: undefined },
-  ]);
-  assert.deepEqual(view.resources, [{ id: 9, resourceId: 4, name: 'Kayak', quantity: 2 }]);
-  // No price key survives on any line.
-  for (const line of [...view.options, ...view.resources]) {
+  assert.deepEqual(view.options[0], {
+    id: 1, optionId: 5, customOptionId: undefined, title: 'Ménage', description: 'Forfait ménage',
+    quantity: 1, autoOptionType: 'cleaning', isCustom: undefined, inComplement: 0, offered: 0, sasArrivalOrigin: 0,
+  });
+  assert.deepEqual(view.resources, [{ id: 9, resourceId: 4, name: 'Kayak', quantity: 2, inComplement: 1, offered: 1 }]);
+  // No stay-money key survives on a séjour line or a resource line.
+  for (const line of [view.options[0], ...view.resources]) {
     for (const priceKey of ['totalPrice', 'unitPrice', 'originalTotalPrice', 'amount', 'acompteContribTtc']) {
       assert.ok(!(priceKey in line), `${priceKey} leaked on a line`);
     }
+  }
+});
+
+// specs/reception-role-checkin-only.md §3.2 rule 3 — a complement line is DOOR money: its amount is
+// exactly what reception collects, and the reopened arrival SAS rebuilds its own lines from it.
+test('toReceptionReservationView keeps the amount of a complement line', () => {
+  const view = toReceptionReservationView(FULL_RESERVATION);
+  const sasLine = view.options[1];
+  assert.equal(sasLine.unitPrice, 32);
+  assert.equal(sasLine.totalPrice, 32);
+  assert.equal(sasLine.sasArrivalOrigin, 1);
+  // The contribution split stays stay-money even on a complement line.
+  for (const priceKey of ['originalTotalPrice', 'acompteContribTtc', 'soldeContribTtc']) {
+    assert.ok(!(priceKey in sasLine), `${priceKey} leaked on the complement line`);
   }
 });
 

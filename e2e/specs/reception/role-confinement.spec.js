@@ -67,6 +67,38 @@ test('the reservation payload carries the door money but no revenue, balance or 
   }
 });
 
+test('the SAS payload serves the same reception view as the fiche', async ({ request }) => {
+  // The leak this pins: GET /reservations/:id/sas used to embed the RAW reservation (full finance +
+  // client PII) even for a reception-only requester — only /reservations went through the serializer.
+  const property = await createProperty({ name: 'E2E accueil SAS', basePrice: 180 });
+  const client = await createClient({
+    firstName: 'Rémi', lastName: 'Guichet', email: 'remi.guichet@example.test', phone: '+33600000043',
+  });
+  const reservation = await createReservation({
+    propertyId: property.id, clientId: client.id, startDate: '2099-10-01', endDate: '2099-10-04', adults: 2,
+  });
+
+  const res = await request.get(`/api/reservations/${reservation.id}/sas?mode=arrival`);
+  expect(res.ok()).toBeTruthy();
+  const sas = await res.json();
+
+  // Kept: the door money + operational fields the SAS wizard renders.
+  expect(sas.reservation).toHaveProperty('cautionAmount');
+  expect(sas.reservation).toHaveProperty('complementAmount');
+  expect(sas.reservation).toHaveProperty('firstName');
+
+  // Dropped: every revenue / settlement figure, and the guest's contact details.
+  for (const leaked of [
+    'totalPrice', 'customPrice', 'finalPrice', 'depositAmount', 'depositPaid', 'balanceAmount',
+    'balancePaid', 'remainingDue', 'paymentComplete', 'commissionAmount', 'email', 'phone',
+  ]) {
+    expect(sas.reservation, `${leaked} leaked to the reception SAS payload`).not.toHaveProperty(leaked);
+  }
+
+  // The stay-payment step stays inapplicable for reception (no amount served at all).
+  expect(sas.stayPayment).toEqual({ applicable: false });
+});
+
 test('write endpoints outside the reception allowlist are refused server-side', async ({ request }) => {
   // A crafted call (the UI never offers these) must fail closed, not merely be hidden.
   const clients = await request.get('/api/clients');
