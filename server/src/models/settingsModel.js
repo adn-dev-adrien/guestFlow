@@ -50,6 +50,13 @@ const ENCRYPTED_COLUMNS = [
   // Neat service-account secret (specs/neat-cancellation-insurance-subscription.md §3.1 rule 1).
   // Stored encrypted, never returned to the client (masked to a boolean below).
   'neatClientSecretEncrypted',
+  // Qonto application credentials (specs/qonto-settings-in-app.md §3 rules 1 + 3). Editable from
+  // Réglages → Paiements so a secret Qonto regenerates can be rotated without a shell. Encrypted,
+  // and masked to booleans below — the client id is NOT here on purpose (rule 4: it is a public
+  // identifier, and the operator must be able to compare it with the Qonto portal).
+  'qontoClientSecretEncrypted',
+  'qontoStagingTokenEncrypted',
+  'qontoWebhookSecretEncrypted',
 ];
 
 const COLUMNS = [
@@ -161,6 +168,23 @@ const COLUMNS = [
   'qontoConnectionId',
   'qontoConnectionStatus',
   'qontoConnectedAt',
+  // Qonto application settings, editable in the interface (specs/qonto-settings-in-app.md §3
+  // rules 1-7). Empty means "keep reading the environment" (rule 2), so an installation configured
+  // through .env.local is unaffected until someone opens the form.
+  'qontoEnvironment',
+  'qontoClientId',
+  'qontoClientSecretEncrypted',
+  'qontoStagingTokenEncrypted',
+  'qontoWebhookSecretEncrypted',
+  'publicSiteOrigin',
+  // The verified state of the connection (rules 11-13): what the last real call to Qonto did, so the
+  // page can stop claiming "Connecté" on the mere presence of a token.
+  'qontoLastCheckAt',
+  'qontoLastSuccessAt',
+  'qontoLastErrorAt',
+  'qontoLastErrorCode',
+  'qontoLastErrorMessage',
+  'qontoLastErrorOrigin',
   // Météo-France Vigilance API key (specs/checkin-weather-alerts.md). Encrypted (above); masked to
   // `meteoFranceApiKeySet` on read so the client only learns whether a key is configured.
   'meteoFranceApiKeyEncrypted',
@@ -234,6 +258,11 @@ const HTTP_MASKED_COLUMNS = {
   meteoFranceApiKeyEncrypted: 'meteoFranceApiKeySet',
   // Neat secret is never exposed; the client only learns whether it's configured.
   neatClientSecretEncrypted: 'neatClientSecretSet',
+  // Qonto application secrets are never exposed (specs/qonto-settings-in-app.md §3 rule 3): the
+  // credentials form writes them and reads back only whether they are configured.
+  qontoClientSecretEncrypted: 'qontoClientSecretSet',
+  qontoStagingTokenEncrypted: 'qontoStagingTokenSet',
+  qontoWebhookSecretEncrypted: 'qontoWebhookSecretSet',
 };
 
 function createSettingsModel(databaseInstance) {
@@ -427,6 +456,103 @@ function createSettingsModel(databaseInstance) {
         accessToken: dec('qontoAccessTokenEncrypted'),
         refreshToken: dec('qontoRefreshTokenEncrypted'),
         expiresAt: String(row.qontoTokenExpiresAt || '').trim() || null,
+      };
+    },
+
+    // ----- Qonto application settings (specs/qonto-settings-in-app.md §3 rules 1-3, 8) -----
+
+    // The credentials as stored HERE only. `resolveQontoConfig` is what merges them over the
+    // environment (rule 2); this accessor stays dumb on purpose.
+    qontoCredentials() {
+      const row = readRaw();
+      const dec = (col) => {
+        const blob = row[col];
+        if (!blob) return '';
+        const r = safeDecrypt(blob);
+        if (r.ok) return r.value;
+        warnDecryptFailure(col, r.reason);
+        return '';
+      };
+      return {
+        environment: String(row.qontoEnvironment || '').trim(),
+        clientId: String(row.qontoClientId || '').trim(),
+        clientSecret: dec('qontoClientSecretEncrypted'),
+        stagingToken: dec('qontoStagingTokenEncrypted'),
+        webhookSecret: dec('qontoWebhookSecretEncrypted'),
+        publicSiteOrigin: String(row.publicSiteOrigin || '').trim(),
+        redirectUri: '',
+      };
+    },
+
+    // Whether each secret is configured, without decrypting anything — what the settings payload
+    // shows the operator (rule 3).
+    qontoSecretsPresence() {
+      const row = readRaw();
+      return {
+        clientSecret: Boolean(row.qontoClientSecretEncrypted),
+        stagingToken: Boolean(row.qontoStagingTokenEncrypted),
+        webhookSecret: Boolean(row.qontoWebhookSecretEncrypted),
+      };
+    },
+
+    /**
+     * Write the credentials. A key left `undefined` keeps its stored value, `''` erases it — the
+     * three-state write every masked secret field in GuestFlow uses. Values are trimmed (rule 8):
+     * a secret copied from a web page carries a trailing newline, and Qonto rejects it exactly like
+     * a wrong one, which is a full hour of diagnosis for an invisible character.
+     */
+    storeQontoCredentials({ environment, clientId, clientSecret, stagingToken, webhookSecret, publicSiteOrigin } = {}) {
+      const payload = {};
+      const set = (col, value, transform = (v) => String(v).trim()) => {
+        if (value === undefined) return;
+        payload[col] = value == null ? '' : transform(value);
+      };
+      set('qontoEnvironment', environment, (v) => (String(v).trim().toLowerCase() === 'production' ? 'production' : 'sandbox'));
+      set('qontoClientId', clientId);
+      set('qontoClientSecretEncrypted', clientSecret);
+      set('qontoStagingTokenEncrypted', stagingToken);
+      set('qontoWebhookSecretEncrypted', webhookSecret);
+      set('publicSiteOrigin', publicSiteOrigin, (v) => String(v).trim().replace(/\/+$/, ''));
+      if (Object.keys(payload).length) this.upsert(payload);
+    },
+
+    // ----- Verified connection health (specs/qonto-settings-in-app.md §3 rules 11-13) -----
+
+    // Record what the last real call to Qonto did. Keys left undefined are untouched, so a success
+    // can clear the error columns by passing them empty.
+    recordQontoHealth({ lastCheckAt, lastSuccessAt, lastErrorAt, lastErrorCode, lastErrorMessage, lastErrorOrigin } = {}) {
+      const payload = {};
+      const set = (col, value) => { if (value !== undefined) payload[col] = value == null ? '' : String(value); };
+      set('qontoLastCheckAt', lastCheckAt);
+      set('qontoLastSuccessAt', lastSuccessAt);
+      set('qontoLastErrorAt', lastErrorAt);
+      set('qontoLastErrorCode', lastErrorCode);
+      set('qontoLastErrorMessage', lastErrorMessage);
+      set('qontoLastErrorOrigin', lastErrorOrigin);
+      if (Object.keys(payload).length) this.upsert(payload);
+    },
+
+    /**
+     * The verified state. `lastError` is null once a success came after it (rule 13) — the page must
+     * show the current state, not an old scar.
+     */
+    qontoHealth() {
+      const row = readRaw();
+      const str = (col) => String(row[col] || '').trim();
+      const errorAt = str('qontoLastErrorAt');
+      const successAt = str('qontoLastSuccessAt');
+      const stale = Boolean(errorAt && successAt && Date.parse(successAt) >= Date.parse(errorAt));
+      return {
+        lastCheckAt: str('qontoLastCheckAt') || null,
+        lastSuccessAt: successAt || null,
+        lastError: errorAt && !stale
+          ? {
+            at: errorAt,
+            code: str('qontoLastErrorCode'),
+            message: str('qontoLastErrorMessage'),
+            origin: str('qontoLastErrorOrigin'),
+          }
+          : null,
       };
     },
 

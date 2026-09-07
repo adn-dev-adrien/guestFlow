@@ -18,8 +18,8 @@
 const crypto = require('crypto');
 
 const paymentLinksModel = require('../models/paymentLinksModel');
-const { buildQontoClient } = require('../utils/qontoClient');
-const { getValidQontoAccessToken } = require('../utils/qontoAuth');
+const { withQonto } = require('../utils/qontoService');
+const { resolveQontoConfig } = require('../utils/qontoConfig');
 const { processPaidLink } = require('../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const settingsModel = require('../models/settingsModel');
@@ -74,7 +74,7 @@ function extractPaymentLinkId(body) {
 }
 
 async function handleWebhook(req, res) {
-  const secret = String(process.env.QONTO_WEBHOOK_SECRET || '').trim();
+  const secret = resolveQontoConfig({ settings: settingsModel }).webhookSecret;
   // Fail closed: with no secret configured we cannot authenticate Qonto, so we refuse rather than
   // process an unverifiable payload.
   if (!secret) return res.status(503).json({ error: 'WEBHOOK_NOT_CONFIGURED' });
@@ -91,8 +91,7 @@ async function handleWebhook(req, res) {
     const qontoId = extractPaymentLinkId(req.body);
     const link = qontoId ? paymentLinksModel.findByQontoPaymentLinkId(qontoId) : null;
     if (link && link.status === 'open' && link.qontoPaymentLinkId) {
-      const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
-      const pay = await buildQontoClient().getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId });
+      const pay = await withQonto({ settings: settingsModel, origin: 'webhook' }, (client, accessToken) => client.getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId }));
       if (pay.paid) {
         await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });
         // The acompte of an insured reservation may just have landed — subscribe at Neat now

@@ -24,9 +24,26 @@ import ErrorAlert from '../components/ErrorAlert';
 import ConfirmDialog from '../components/ConfirmDialog';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import StatusCard from '../components/StatusCard';
+import QontoApplicationCard from '../components/QontoApplicationCard';
 import api from '../api';
 
 const offsetsToText = (arr) => (Array.isArray(arr) ? arr.join(', ') : '');
+
+// Where a recorded Qonto failure came from (specs/qonto-settings-in-app.md §3 rule 12).
+const ORIGIN_LABELS = {
+  test: 'test de connexion',
+  'public-payment': 'paiement depuis le site',
+  poll: 'vérification automatique',
+  'manual-link': 'lien créé à la main',
+  webhook: 'notification Qonto',
+  admin: 'réglages',
+};
+
+const formatStamp = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+};
 // Normalise a phone to E.164, tolerating the French national form (e.g. "06 28 05 60 66" → "+33628056066").
 // Mirrors the server's paymentProviderValidation.normalizePhone so the button-enable check matches.
 const normalizeFrPhone = (raw) => {
@@ -60,6 +77,12 @@ export default function PaymentsSettingsPage() {
   const [loadError, setLoadError] = useState(false);
   const { showSuccess, showError } = useToast();
 
+  // Qonto application settings + connection test (specs/qonto-settings-in-app.md §6).
+  const [credentials, setCredentials] = useState(null);
+  const [savingCredentials, setSavingCredentials] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
   // Provider connection.
   const [bankAccounts, setBankAccounts] = useState(null); // null = not loaded yet
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
@@ -75,6 +98,7 @@ export default function PaymentsSettingsPage() {
   const load = useCallback(async () => {
     const data = await api.getPaymentSettings();
     setQonto(data.qonto);
+    setCredentials(data.credentials);
     const shaped = {
       ...data.timings,
       depositReminderOffsetsText: offsetsToText(data.timings.depositReminderOffsets),
@@ -148,6 +172,39 @@ export default function PaymentsSettingsPage() {
     }
   };
 
+  // Saving the credentials may drop the OAuth tokens (rule 15) — refresh the status alongside.
+  const handleSaveCredentials = async (payload) => {
+    setSavingCredentials(true);
+    try {
+      const res = await api.updateQontoCredentials(payload);
+      setCredentials(res);
+      setTestResult(null);
+      setQonto(await api.getQontoStatus());
+      showSuccess(res.tokensCleared
+        ? 'Identifiants enregistrés ✓ — reconnecte Qonto pour autoriser la nouvelle application.'
+        : 'Identifiants Qonto enregistrés ✓');
+    } catch (e) {
+      showError(e?.body?.message || e.message || "Échec de l'enregistrement des identifiants.");
+    } finally {
+      setSavingCredentials(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    try {
+      const res = await api.testQontoConnection();
+      setTestResult(res);
+      if (res.status) setQonto(res.status);
+      if (res.ok) showSuccess('Connexion Qonto opérationnelle ✓');
+      else showError(res.title || 'La connexion Qonto ne fonctionne pas.');
+    } catch (e) {
+      showError(e?.body?.message || e.message || 'Impossible de tester la connexion.');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const handleRegisterWebhook = async () => {
     try {
       await api.registerQontoWebhook();
@@ -176,7 +233,7 @@ export default function PaymentsSettingsPage() {
     }
   };
 
-  if (!draft || !qonto) {
+  if (!draft || !qonto || !credentials) {
     return (
       <Box>
         <PageActionBar title="Paiements" backTo="/settings" />
@@ -187,6 +244,11 @@ export default function PaymentsSettingsPage() {
 
   const connected = Boolean(qonto.connected);
   const providerEnabled = qonto.connectionStatus === 'enabled';
+  // Rule 11 — the badge reads the VERIFIED state, never the mere presence of a token.
+  const health = qonto.health || {};
+  const badge = health.state === 'ok'
+    ? { status: 'success', label: 'Connecté' }
+    : { status: health.state === 'not_configured' || health.state === 'unverified' ? 'neutral' : 'warning', label: health.title || 'À vérifier' };
   const descLen = providerForm.businessDescription.trim().length;
   const providerFormValid = providerForm.bankAccountId
     && /^\+[1-9]\d{6,14}$/.test(normalizeFrPhone(providerForm.phone))
@@ -199,13 +261,30 @@ export default function PaymentsSettingsPage() {
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 900, mx: 'auto' }}>
         {loadError && <ErrorAlert message="Impossible de charger les paramètres de paiement." onRetry={() => window.location.reload()} />}
 
+        {health.lastError && (
+          <ErrorAlert
+            message={`Dernier échec Qonto — ${health.lastError.code}${health.lastError.message ? ` : ${health.lastError.message}` : ''} (${ORIGIN_LABELS[health.lastError.origin] || health.lastError.origin}, le ${formatStamp(health.lastError.at)})`}
+          />
+        )}
+
+        <QontoApplicationCard
+          credentials={credentials}
+          health={health}
+          testResult={testResult}
+          saving={savingCredentials}
+          testing={testing}
+          onSave={handleSaveCredentials}
+          onTest={handleTestConnection}
+        />
+
         <StatusCard
           title="Connexion bancaire (Qonto)"
-          badge={connected ? { status: 'success', label: 'Connecté' } : { status: 'warning', label: 'Non connecté' }}
+          badge={badge}
           items={[
             { label: 'Mode', value: qonto.sandbox ? 'Sandbox (test)' : 'Production' },
-            { label: 'Identifiants', value: qonto.configured ? 'Configurés' : 'Manquants (.env.local)' },
+            { label: 'Identifiants', value: qonto.configured ? 'Configurés' : 'Manquants' },
             { label: 'Provider de liens', value: providerEnabled ? 'Activé' : (qonto.connectionStatus || 'non connecté') },
+            { label: 'Dernière vérification', value: formatStamp(health.lastCheckAt), valuePlaceholder: 'jamais testée' },
           ]}
           actions={(
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>

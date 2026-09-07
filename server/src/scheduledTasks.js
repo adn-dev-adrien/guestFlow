@@ -26,8 +26,7 @@ const breakfastModel = require('./models/breakfastModel');
 // Online-payment polling (specs/online-payments-qonto.md §3.3): detect paid Qonto links → convert.
 const paymentLinksModel = require('./models/paymentLinksModel');
 const devisModel = require('./models/devisModel');
-const { buildQontoClient } = require('./utils/qontoClient');
-const { getValidQontoAccessToken } = require('./utils/qontoAuth');
+const { withQonto } = require('./utils/qontoService');
 const { runPaymentPoll } = require('./utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
 
@@ -182,11 +181,13 @@ async function runPaymentPollPass(reason = 'cron') {
   if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
   paymentPollInProgress = true;
   try {
-    const summary = await runPaymentPoll({
+    // Through `withQonto` so a broken connection is recorded and shown in Réglages → Paiements
+    // instead of failing silently every quarter of an hour (specs/qonto-settings-in-app.md rule 12).
+    const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
       ...buildPaymentEffectDeps(),
-      qontoClient: buildQontoClient(),
-      getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
-    });
+      qontoClient: client,
+      getAccessToken: () => accessToken,
+    }));
     if (summary.paid > 0) {
       console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
       // A paid link may just have flipped an insured reservation's acompte — subscribe now, not
