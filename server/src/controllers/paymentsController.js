@@ -16,8 +16,11 @@ const database = require('../database');
 const settingsModel = require('../models/settingsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
-const { buildQontoClient } = require('../utils/qontoClient');
-const { getValidQontoAccessToken } = require('../utils/qontoAuth');
+const {
+  buildConfiguredQontoClient, withQonto, runQontoConnectionTest,
+  qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
+} = require('../utils/qontoService');
+const { resolveQontoConfig } = require('../utils/qontoConfig');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
@@ -28,22 +31,20 @@ const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimin
 const { validateProviderConnection } = require('../utils/paymentProviderValidation');
 const { formatCurrency } = require('../utils/devisHelpers');
 
-const CALLBACK_PATH = '/api/payments/qonto/callback';
+// The effective configuration: what the operator saved in the interface, over what the files hold
+// (specs/qonto-settings-in-app.md §3 rule 2).
+const qontoConfig = () => resolveQontoConfig({ settings: settingsModel });
 
-// The OAuth redirect_uri MUST byte-match the one registered in the Qonto app. Prefer an explicit
-// env override; otherwise derive it from the configured public URL.
-function resolveRedirectUri() {
-  if (process.env.QONTO_REDIRECT_URI) return process.env.QONTO_REDIRECT_URI.trim();
-  const base = settingsModel.publicUrl();
-  return base ? `${base.replace(/\/+$/, '')}${CALLBACK_PATH}` : '';
-}
+// The OAuth redirect_uri MUST byte-match the one registered in the Qonto app.
+const resolveRedirectUri = () => qontoConfig().redirectUri;
 
 function qontoAuthorize(req, res) {
-  const client = buildQontoClient();
-  if (!client.isConfigured()) {
-    return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto (client id/secret) manquants dans .env.local.' });
+  const config = qontoConfig();
+  if (!config.configured) {
+    return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto (client id/secret) manquants — renseigne-les dans Réglages → Paiements.' });
   }
-  const redirectUri = resolveRedirectUri();
+  const client = buildConfiguredQontoClient({ config });
+  const redirectUri = config.redirectUri;
   if (!redirectUri) {
     return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres) et QONTO_REDIRECT_URI est absent." });
   }
@@ -64,7 +65,7 @@ async function qontoCallback(req, res) {
     return back('invalid_state');
   }
   try {
-    const client = buildQontoClient();
+    const client = buildConfiguredQontoClient();
     const tokens = await client.exchangeCode({ code: String(code), redirectUri: resolveRedirectUri() });
     if (!tokens.refreshToken) return back('error');
     const expiresAt = tokens.expiresIn ? new Date(Date.now() + tokens.expiresIn * 1000).toISOString() : null;
@@ -76,13 +77,29 @@ async function qontoCallback(req, res) {
   }
 }
 
+// ----- Qonto state, credentials and connection test (specs/qonto-settings-in-app.md §3) -----
+//
+// Thin on purpose: the payload shapes, the precedence and the token-clearing decision live in
+// `utils/qontoService`, which is where they can be unit-tested without an HTTP layer.
+
+const statusPayload = () => qontoStatusPayload({ settings: settingsModel });
+
 function qontoStatus(req, res) {
-  const client = buildQontoClient();
-  return res.json({
-    ...settingsModel.qontoConnectionInfo(),
-    configured: client.isConfigured(),
-    sandbox: client.sandbox,
-  });
+  return res.json(statusPayload());
+}
+
+function getQontoCredentials(req, res) {
+  return res.json(qontoCredentialsPayload({ settings: settingsModel }));
+}
+
+function updateQontoCredentials(req, res) {
+  return res.json(applyQontoCredentials({ settings: settingsModel, body: req.body || {} }));
+}
+
+/** Run a real call against Qonto and report what it means (rules 9-10). */
+async function testQontoConnection(req, res) {
+  const result = await runQontoConnectionTest({ settings: settingsModel });
+  return res.json({ ...result, status: statusPayload() });
 }
 
 // ----- Paiements settings page (specs/online-payments-qonto.md §3.1) -----
@@ -94,14 +111,10 @@ function timingColumn(key) {
 
 // Everything the Paiements page renders: the parsed timings + the Qonto connection state.
 function getSettings(req, res) {
-  const client = buildQontoClient();
   return res.json({
     timings: settingsModel.paymentTimings(),
-    qonto: {
-      ...settingsModel.qontoConnectionInfo(),
-      configured: client.isConfigured(),
-      sandbox: client.sandbox,
-    },
+    qonto: statusPayload(),
+    credentials: qontoCredentialsPayload({ settings: settingsModel }),
   });
 }
 
@@ -127,10 +140,10 @@ function qontoError(res, err) {
   return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto — réessaie ou consulte les logs." });
 }
 
-// Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`.
-async function withAccessToken(fn) {
-  const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
-  return fn(buildQontoClient(), accessToken);
+// Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`. Goes
+// through `withQonto` so the outcome is recorded like every other Qonto call (rules 12-13).
+async function withAccessToken(fn, origin = 'admin') {
+  return withQonto({ settings: settingsModel, origin }, (client, accessToken) => fn(client, accessToken));
 }
 
 // Where Qonto redirects the user after the provider onboarding/KYC — back on the Paiements page,
@@ -191,7 +204,7 @@ function requestServiceDeps() {
     resolveAmountCents,
     resolveItems: (id, type) => resolveVatComponents(id, type),
     createLink: ({ title, amountCents, items, expectedTotalCents }) =>
-      withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents })),
+      withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents }), 'manual-link'),
     sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
@@ -310,8 +323,8 @@ function listReservationPaymentLinks(req, res) {
 // §3bis). Builds the callback from the configured public URL + uses QONTO_WEBHOOK_SECRET so deliveries
 // are signed with the secret our endpoint verifies. One-shot admin action from the Paiements page.
 async function registerQontoWebhook(req, res) {
-  const secret = String(process.env.QONTO_WEBHOOK_SECRET || '').trim();
-  if (!secret) return res.status(400).json({ error: 'WEBHOOK_SECRET_MISSING', message: 'Définis QONTO_WEBHOOK_SECRET dans server/.env.local avant d’enregistrer le webhook.' });
+  const secret = qontoConfig().webhookSecret;
+  if (!secret) return res.status(400).json({ error: 'WEBHOOK_SECRET_MISSING', message: 'Renseigne le secret du webhook dans Réglages → Paiements avant de l’enregistrer.' });
   const base = settingsModel.publicUrl();
   if (!base) return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres)." });
   const callbackUrl = `${base.replace(/\/+$/, '')}/api/payments/qonto/webhook`;
@@ -327,17 +340,18 @@ async function registerQontoWebhook(req, res) {
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
 async function pollPaymentsNow(req, res) {
   try {
-    const summary = await runPaymentPoll({
+    const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
       ...buildPaymentEffectDeps(),
-      qontoClient: buildQontoClient(),
-      getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
-    });
+      qontoClient: client,
+      getAccessToken: () => accessToken,
+    }));
     return res.json(summary);
   } catch (err) { return qontoError(res, err); }
 }
 
 module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
+  getQontoCredentials, updateQontoCredentials, testQontoConnection,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
   registerQontoWebhook, sendBalanceRequestFor, sendDepositRequestFor,
