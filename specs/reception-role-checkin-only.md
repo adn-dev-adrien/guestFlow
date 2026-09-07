@@ -162,12 +162,27 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     reservations, `GET /reservations/:id/history`, `GET /reservations/search`, …) → **403
     `FORBIDDEN_ROLE`**. Fail-closed. A unit test **pins the exact reachable set** (drift guard, like
     the accountant scope test).
-12. **Finance stripping (fat backend).** For a **reception-only** requester, `GET /reservations`
-    and `GET /reservations/:id` return a **reception view** (whitelist of operational fields,
-    rules 3–4) produced by a pure `utils/receptionView.js` serializer; `GET /properties` returns a
-    **reception property view** (id, name, photo, non-financial config only). Admin / accountant
-    payloads are **untouched**. The stripping is keyed on
-    `userHasRole(req.user, RECEPTION) && !userHasRole(req.user, ADMIN)`.
+12. **Finance stripping (fat backend).** For a **reception-only** requester, `GET /reservations`,
+    `GET /reservations/:id` **and the `reservation` object embedded in `GET /reservations/:id/sas`**
+    return a **reception view** (whitelist of operational fields, rules 3–4) produced by a pure
+    `utils/receptionView.js` serializer; `GET /properties` returns a **reception property view**
+    (id, name, photo, non-financial config only). Admin / accountant payloads are **untouched**.
+    The stripping is keyed on `userHasRole(req.user, RECEPTION) && !userHasRole(req.user, ADMIN)`.
+
+    *(Fixed 2026-09-07: the SAS read shipped without the serializer — it embedded the raw
+    reservation (full finance + client PII) for a reception account while the UI simply didn't
+    render those fields. The SAS-specific keys of that payload were already guarded
+    (`stayPayment`/`arrivalPayment` per specs/collect-stay-payment-at-check-in.md rules 7 + 24) or
+    are door money by nature (`arrivalComplement`, upsell/linen/repair prices).)*
+
+12bis. **What the reception view keeps for the SAS to work** (all door money or operational, never
+    stay revenue): the settlement markers a committed SAS reopens on (`complementPaidCash`,
+    `endOfStayComplementPaid*`, `endOfStayComplementDetail`), the `departureHandoverNote` and
+    `extinguisherSealOkAtDeparture` states, and — on option/resource lines — the
+    `inComplement`/`offered`/`sasArrivalOrigin` flags. A **complement line** (`inComplement = 1`)
+    keeps its `unitPrice`/`totalPrice` (that amount IS the door money of rule 3); a **séjour line**
+    keeps title × quantity only. Contribution splits (`acompteContribTtc`/`soldeContribTtc`) and
+    `originalTotalPrice` are stripped on every line.
 
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
@@ -204,6 +219,7 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
 | `middleware/` | `middleware/enforceRoleAccess.js` | T | New `reception` branch: an explicit `{method, matcher}` allowlist (rule 11). Reuses `SELF_ENDPOINTS`. Exports the reception matchers on `__test` for the drift-pinning test. |
 | `utils/` | `utils/receptionView.js` | C | Pure serializers: `toReceptionReservationView(res)` (whitelist operational fields, drop all finance + client PII per rules 3–4) and `toReceptionPropertyView(prop)` (id, name, photo, non-financial fields). Unit-tested. |
 | `controllers/` | `controllers/reservationsController.js` | T | `list` + `getById`: when requester is reception-only, map the payload through `toReceptionReservationView`. `updatePayment`: when reception-only, restrict the writable set to `{checkInReady, checkInDone, checkOutDone}` (ignore/skip every financial field). |
+| `controllers/` | `controllers/sasController.js` | T | `getSas`: when requester is reception-only, embed the reservation through `toReceptionReservationView` (rule 12, fixed 2026-09-07); `stayPayment`/`arrivalPayment` already carry their own reception guards. |
 | `controllers/` | `controllers/propertiesController.js` | T | `list`: when reception-only, map through `toReceptionPropertyView`. |
 | `models/` | — | — | No schema/model change — `user_roles` already stores arbitrary role strings; the reception view reads existing columns. |
 | `database.js` | — | — | **No migration.** `reception` is just a new value in the existing `user_roles.role` column. |
@@ -318,9 +334,13 @@ added, no migration, no backfill.
       `{clientDisplayName, propertyName/Id, dates, times, guest counts, options, resources,
       bedLinenAlert, cautionAmount, cautionReceived/Returned, complementAmount, complementPaid,
       endOfStayComplementAmount, checkInReady/Done, checkOutDone, arrival/departureSasDoneAt,
-      platform}` and **drops** `{totalPrice, customPrice, depositAmount/Paid, balanceAmount/Paid,
-      remainingDue, paymentComplete, discountPercent, touristTax, commission, contribs, client
-      email/phone/address}`; `toReceptionPropertyView` drops pricing fields.
+      platform}` plus (2026-09-07, rule 12bis) the SAS reopen markers `{complementPaidCash,
+      endOfStayComplementPaidCash/Date/Detail, departureHandoverNote,
+      extinguisherSealOkAtDeparture}` and **drops** `{totalPrice, customPrice, depositAmount/Paid,
+      balanceAmount/Paid, remainingDue, paymentComplete, discountPercent, touristTax, commission,
+      contribs, client email/phone/address}`; a complement option line keeps its
+      `unitPrice`/`totalPrice` while a séjour line stays price-free (both stripped of contribution
+      splits); `toReceptionPropertyView` drops pricing fields.
 - [x] `tests/reception-view.unit.test.js` — the `PATCH /reservations/:id/payment` field guard is a
       pure helper `toReceptionPaymentPatch(body)` (used by `updatePayment`): it keeps only
       `{checkInReady, checkInDone, checkOutDone}` and drops `depositPaid`/`balancePaid`/
@@ -358,6 +378,10 @@ added, no migration, no backfill.
       paymentComplete, touristTax, commissionAmount, contribs}` nor the client's
       `{email, phone, address}`; `GET /properties` drops the pricing config; and crafted calls
       (`GET /clients`, `POST /reservations`, `GET /finance/overview`) fail closed with 403.
+      **Extended 2026-09-07:** `GET /reservations/:id/sas` embeds the same reception view (door
+      money + operational fields kept; `{totalPrice, customPrice, finalPrice, deposit*, balance*,
+      remainingDue, paymentComplete, commissionAmount, email, phone}` absent) and `stayPayment`
+      stays `{ applicable: false }`.
       *(Shipped as its own spec file rather than as an extension of `auth/sidebar-navigation.spec.js`
       — that suite runs under the admin storageState, and mixing sessions in one file is not
       possible with Playwright's per-file `test.use`.)*
