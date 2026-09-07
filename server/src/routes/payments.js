@@ -13,6 +13,13 @@ router.get('/qonto/authorize', ctrl.qontoAuthorize);
 router.get('/qonto/callback', ctrl.qontoCallback);
 router.get('/qonto/status', ctrl.qontoStatus);
 
+// The application credentials and the connection test, so a broken Qonto setup can be repaired from
+// the interface alone (specs/qonto-settings-in-app.md §3 rules 1, 9, 16). Session-guarded like the
+// rest of /api/payments/**.
+router.get('/qonto/credentials', ctrl.getQontoCredentials);
+router.put('/qonto/credentials', ctrl.updateQontoCredentials);
+router.post('/qonto/test', ctrl.testQontoConnection);
+
 // Qonto payment webhook — public (no session; HMAC-verified in the controller). The /api auth guard in
 // index.js exempts this exact path. specs/public-online-payment.md §3bis.
 const qontoWebhookController = require('../controllers/qontoWebhookController');

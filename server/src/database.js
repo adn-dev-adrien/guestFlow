@@ -390,6 +390,22 @@ tryAddAppSettingsCol('qontoTokenExpiresAt',        "ALTER TABLE app_settings ADD
 tryAddAppSettingsCol('qontoConnectionId',          "ALTER TABLE app_settings ADD COLUMN qontoConnectionId          TEXT DEFAULT ''");
 tryAddAppSettingsCol('qontoConnectionStatus',      "ALTER TABLE app_settings ADD COLUMN qontoConnectionStatus      TEXT DEFAULT 'not_connected'");
 tryAddAppSettingsCol('qontoConnectedAt',           "ALTER TABLE app_settings ADD COLUMN qontoConnectedAt           TEXT DEFAULT ''");
+// 2026-09-07 — Qonto configurable from the interface (specs/qonto-settings-in-app.md §5). The
+// application credentials leave .env.local so a secret Qonto regenerates can be rotated without a
+// shell; the health columns hold what the last REAL call did, so the page stops claiming "Connecté"
+// on the mere presence of a token. Empty means "keep reading the environment" (§3 rule 2).
+tryAddAppSettingsCol('qontoEnvironment',            "ALTER TABLE app_settings ADD COLUMN qontoEnvironment            TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoClientId',               "ALTER TABLE app_settings ADD COLUMN qontoClientId               TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoClientSecretEncrypted',  "ALTER TABLE app_settings ADD COLUMN qontoClientSecretEncrypted  TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoStagingTokenEncrypted',  "ALTER TABLE app_settings ADD COLUMN qontoStagingTokenEncrypted  TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoWebhookSecretEncrypted', "ALTER TABLE app_settings ADD COLUMN qontoWebhookSecretEncrypted TEXT DEFAULT ''");
+tryAddAppSettingsCol('publicSiteOrigin',            "ALTER TABLE app_settings ADD COLUMN publicSiteOrigin            TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoLastCheckAt',            "ALTER TABLE app_settings ADD COLUMN qontoLastCheckAt            TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoLastSuccessAt',          "ALTER TABLE app_settings ADD COLUMN qontoLastSuccessAt          TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoLastErrorAt',            "ALTER TABLE app_settings ADD COLUMN qontoLastErrorAt            TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoLastErrorCode',          "ALTER TABLE app_settings ADD COLUMN qontoLastErrorCode          TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoLastErrorMessage',       "ALTER TABLE app_settings ADD COLUMN qontoLastErrorMessage       TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoLastErrorOrigin',        "ALTER TABLE app_settings ADD COLUMN qontoLastErrorOrigin        TEXT DEFAULT ''");
 // 2026-07-18 — Google Calendar OAuth rework (specs/google-calendar-oauth-rework.md §5). The OAuth
 // client id/secret live in .env.local; these columns hold the per-connection refresh token
 // (AES-256-GCM, masked on read) + non-secret connection metadata and last-sync state.

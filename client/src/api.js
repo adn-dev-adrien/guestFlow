@@ -289,6 +289,11 @@ const api = {
   getPaymentSettings: () => request('/payments/settings'),
   updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
   getQontoStatus: () => request('/payments/qonto/status'),
+  // The Qonto application settings + the connection test (specs/qonto-settings-in-app.md §4.3).
+  // Secrets travel one way only: written here, never read back.
+  getQontoCredentials: () => request('/payments/qonto/credentials'),
+  updateQontoCredentials: (payload) => request('/payments/qonto/credentials', { method: 'PUT', body: payload }),
+  testQontoConnection: () => request('/payments/qonto/test', { method: 'POST' }),
   getQontoBankAccounts: () => request('/payments/qonto/bank-accounts'),
   connectQontoProvider: (payload) => request('/payments/qonto/connect-provider', { method: 'POST', body: payload }),
   refreshQontoConnection: () => request('/payments/qonto/refresh-connection'),

@@ -12,8 +12,8 @@
 const db = require('../../database');
 const devisModel = require('../../models/devisModel');
 const paymentLinksModel = require('../../models/paymentLinksModel');
-const { buildQontoClient } = require('../../utils/qontoClient');
-const { getValidQontoAccessToken } = require('../../utils/qontoAuth');
+const { withQonto } = require('../../utils/qontoService');
+const { resolveQontoConfig } = require('../../utils/qontoConfig');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
@@ -28,7 +28,7 @@ const { ok, fail } = require('./publicHttp');
 // Build the site success URL from the configured site origin + a caller-supplied path. Allowlisted to
 // the origin to prevent open redirects; returns '' (no redirect) when unset/invalid.
 function buildReturnUrl(returnPath) {
-  const origin = String(process.env.PUBLIC_SITE_ORIGIN || '').trim().replace(/\/+$/, '');
+  const origin = resolveQontoConfig({ settings: settingsModel }).publicSiteOrigin;
   if (!origin) return '';
   const path = String(returnPath || '/').trim();
   // Only a same-origin path: must start with a single '/'. Reject protocol-relative ('//host') and full
@@ -97,9 +97,11 @@ async function pay(req, res) {
   }
 }
 
+// The visitor keeps seeing the generic message (specs/qonto-settings-in-app.md §3 rule 14); the
+// failure itself is recorded by `withQonto` so it reaches the operator's Réglages → Paiements —
+// on 2026-09-06 this exact path failed for eighteen days without anyone being told.
 async function withAccessToken(fn) {
-  const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
-  return fn(buildQontoClient(), accessToken);
+  return withQonto({ settings: settingsModel, origin: 'public-payment' }, fn);
 }
 
 // Minimal, non-PII recap of a confirmed booking. When only the acompte was collected online (deposit
@@ -150,8 +152,7 @@ async function status(req, res) {
     || paymentLinksModel.findOpenForReservation(id, mode === 'deposit' ? 'full' : 'deposit');
   if (link && link.qontoPaymentLinkId) {
     try {
-      const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
-      const pay = await buildQontoClient().getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId });
+      const pay = await withAccessToken((client, accessToken) => client.getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId }));
       if (pay.paid) {
         await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });
         // Insured + acompte just paid → subscribe at Neat now (neat spec rule 8). Fire-and-forget.
