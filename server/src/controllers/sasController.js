@@ -21,7 +21,7 @@ const { isReceptionOnly } = require('../constants/roles');
 const { sasLockReason } = require('../utils/sasEditWindow');
 const { stayDueAtArrival } = require('../utils/reservationSettlement');
 const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
-const { toReceptionStayPayment, toReceptionSasCommit } = require('../utils/receptionView');
+const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
 
 // specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
 // has never been committed: a past, future or already-committed SAS is refused. The rule depends on
@@ -197,7 +197,11 @@ function getSas(req, res) {
     : null;
 
   return res.json({
-    reservation,
+    // specs/reception-role-checkin-only.md §3.6 rule 12 — the SAS read serves the same reception
+    // view as GET /reservations/:id: door money only, no revenue/settlement figure, no client PII.
+    // The SAS-specific keys below already carry their own reception guards (stayPayment,
+    // arrivalPayment) or are door money by nature (arrivalComplement, upsell prices).
+    reservation: isReceptionOnly(req.user) ? toReceptionReservationView(reservation) : reservation,
     receptionLock,
     portalCode: String(settings.portalCode || '').trim(),
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected

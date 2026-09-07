@@ -45,7 +45,13 @@ const RESERVATION_KEEP = [
   'singleBeds',
   'notes',
   'bedLinenAlert',
-  // Door money (allowed for reception).
+  // Operational SAS fields (no money): the handover note shown at check-out and the extinguisher
+  // seal state the departure SAS reopens on.
+  'departureHandoverNote',
+  'extinguisherSealOkAtDeparture',
+  // Door money (allowed for reception). The cash/date/detail markers ride along so a committed SAS
+  // can reopen pre-filled (specs/reopen-completed-sas.md §2) — they describe the door collection,
+  // never the stay's revenue.
   'cautionAmount',
   'cautionReceived',
   'cautionReceivedDate',
@@ -53,8 +59,12 @@ const RESERVATION_KEEP = [
   'cautionReturnedDate',
   'complementAmount',
   'complementPaid',
+  'complementPaidCash',
   'endOfStayComplementAmount',
   'endOfStayComplementPaid',
+  'endOfStayComplementPaidCash',
+  'endOfStayComplementPaidDate',
+  'endOfStayComplementDetail',
   // « En fin de séjour » marker: labels the complement as collected at check-out, no amount added
   // (specs/defer-arrival-complement-to-checkout.md §3.2 rule 10).
   'complementDeferredToCheckout',
@@ -66,17 +76,30 @@ const RESERVATION_KEEP = [
   'departureSasDoneAt',
 ];
 
-// Option / resource lines are shown as "title × quantity" only — their prices are stripped.
+// Option / resource lines are shown as "title × quantity" only — stay-money prices are stripped.
+// Complement lines (`inComplement = 1`) are DOOR money (spec §3.2 rule 3): their amounts survive so
+// the arrival SAS can reopen its own upsell / linen lines pre-filled (specs/reopen-completed-sas.md
+// §5). The `offered` / `sasArrivalOrigin` flags carry no money and drive the « ✓ Offert » seeding
+// (specs/sas-offer-complement-lines.md §3.4 rule 13).
 function receptionOptionLine(o) {
-  return {
+  const line = {
     id: o.id,
     optionId: o.optionId,
     customOptionId: o.customOptionId,
     title: o.title,
+    description: o.description,
     quantity: o.quantity,
     autoOptionType: o.autoOptionType,
     isCustom: o.isCustom,
+    inComplement: o.inComplement,
+    offered: o.offered,
+    sasArrivalOrigin: o.sasArrivalOrigin,
   };
+  if (Number(o.inComplement || 0) === 1) {
+    line.unitPrice = o.unitPrice;
+    line.totalPrice = o.totalPrice;
+  }
+  return line;
 }
 
 function receptionResourceLine(rr) {
@@ -85,6 +108,8 @@ function receptionResourceLine(rr) {
     resourceId: rr.resourceId,
     name: rr.name,
     quantity: rr.quantity,
+    inComplement: rr.inComplement,
+    offered: rr.offered,
   };
 }
 
