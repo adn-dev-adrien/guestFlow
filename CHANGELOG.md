@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-09-07
+
+### Summary
+- Une erreur Qonto affiche désormais le code et le détail donnés par Qonto, au lieu d'un « HTTP 400 » qui n'aide personne.
+- Un lien de paiement refusé faute de provider connecté renvoie au formulaire qui le répare, au lieu de conseiller le support.
+
+### Fixed
+- **A Qonto error finally says what it is** (spec `qonto-settings-in-app.md`, rule 17; found by the first production run of v2.13.0). Qonto answers with two different envelopes depending on the endpoint — `{error, error_description}` on OAuth, `{errors: [{code, detail}]}` on the Business API — and GuestFlow only read the first. Réglages → Paiements showed « Qonto a renvoyé une erreur — HTTP 400 » while the response body already named the cause. Both envelopes are now read, and Qonto's own code and detail reach the page. In particular, a payment link refused because the link provider is not connected is named as such and points at the form that repairs it, instead of advising the operator to contact support for something they can fix on the spot in a minute.
+
 ## [2.13.0] - 2026-09-07
 
 ### Summary
