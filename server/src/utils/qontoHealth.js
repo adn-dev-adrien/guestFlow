@@ -73,17 +73,37 @@ function errorCodeOf(err) {
   const body = err.body && typeof err.body === 'object' ? err.body : null;
   const fromBody = body ? String(body.error || body.code || '').trim() : '';
   if (fromBody) return fromBody;
+  // The Business API answers `{"errors":[{"code","detail"}], "trace_id"}` — a different envelope
+  // from the OAuth one, and the shape every payment-link failure arrives in.
+  const first = firstApiError(body);
+  if (first && first.code) return String(first.code);
   if (err.code) return String(err.code);
   if (err.status) return `HTTP ${err.status}`;
   return 'error';
 }
 
-/** The sentence Qonto itself gave, kept as-is: it is the only thing the operator can act on. */
+/** The first entry of the Business API's `errors` array, or null. */
+function firstApiError(body) {
+  const list = body && Array.isArray(body.errors) ? body.errors : null;
+  const first = list && list.length ? list[0] : null;
+  return first && typeof first === 'object' ? first : null;
+}
+
+/**
+ * The sentence Qonto itself gave, kept as-is: it is the only thing the operator can act on.
+ *
+ * On 2026-09-07 a production run showed « Qonto a renvoyé une erreur — HTTP 400 » while the body
+ * held « connection with the provider does not exist ». The diagnosis existed; it just never
+ * reached the page, and the operator was sent to the logs — the exact trip this spec removes.
+ */
 function errorMessageOf(err) {
   if (!err) return '';
   const body = err.body && typeof err.body === 'object' ? err.body : null;
   const detail = body ? String(body.error_description || body.detail || body.message || '').trim() : '';
-  return detail || String(err.message || '').trim();
+  if (detail) return detail;
+  const first = firstApiError(body);
+  const apiDetail = first ? String(first.detail || first.message || '').trim() : '';
+  return apiDetail || String(err.message || '').trim();
 }
 
 /** A failure that never reached Qonto: DNS, TLS, refused connection, timeout. */
@@ -124,6 +144,10 @@ function classifyQontoOutcome(err, context = {}) {
   if (code === 'invalid_client' || code === 'unauthorized_client') return decorate('credentials_rejected');
   if (isNetworkFailure(err)) return decorate('unreachable');
   if (err.status === 401 || err.status === 403) return decorate('reauth_required');
+  // Creating a payment link without the link provider fails with a plain 400; only the sentence in
+  // the body says so, and « contacte le support Qonto » would be the wrong advice for a form the
+  // operator can fill right there.
+  if (/connection with the provider does not exist/i.test(errorMessageOf(err))) return decorate('provider_not_connected');
   return decorate('api_error');
 }
 
