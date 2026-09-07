@@ -138,8 +138,11 @@ test('toReceptionReservationView strips prices off séjour option / resource lin
   }
 });
 
-// specs/reception-role-checkin-only.md §3.2 rule 3 — a complement line is DOOR money: its amount is
-// exactly what reception collects, and the reopened arrival SAS rebuilds its own lines from it.
+// specs/reception-role-checkin-only.md rule 12bis — a complement line is DOOR money: its amount is
+// exactly what reception collects (rule 3), and the reopened arrival SAS rebuilds its own lines
+// from it. The SAS reopen markers (complementPaidCash, endOfStayComplementPaidCash/Date/Detail,
+// departureHandoverNote, extinguisherSealOkAtDeparture) survive for the same reason — pinned by
+// the KEPT_KEYS walk above.
 test('toReceptionReservationView keeps the amount of a complement line', () => {
   const view = toReceptionReservationView(FULL_RESERVATION);
   const sasLine = view.options[1];

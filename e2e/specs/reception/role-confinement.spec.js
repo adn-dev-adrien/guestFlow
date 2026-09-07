@@ -68,8 +68,9 @@ test('the reservation payload carries the door money but no revenue, balance or 
 });
 
 test('the SAS payload serves the same reception view as the fiche', async ({ request }) => {
-  // The leak this pins: GET /reservations/:id/sas used to embed the RAW reservation (full finance +
-  // client PII) even for a reception-only requester — only /reservations went through the serializer.
+  // specs/reception-role-checkin-only.md rule 12 — the leak this pins: GET /reservations/:id/sas
+  // used to embed the RAW reservation (full finance + client PII) even for a reception-only
+  // requester — only /reservations went through the serializer (fixed 2026-09-07).
   const property = await createProperty({ name: 'E2E accueil SAS', basePrice: 180 });
   const client = await createClient({
     firstName: 'Rémi', lastName: 'Guichet', email: 'remi.guichet@example.test', phone: '+33600000043',
