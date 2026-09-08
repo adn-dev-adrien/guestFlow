@@ -154,7 +154,12 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
   const settledHere = own.filter((b) => Number(b.atArrival || 0) === 1);
   const paid = settledHere.some((b) => Number(b.paid || 0) === 1);
   return {
-    applicable: due.total > 0 || settledHere.length > 0,
+    // specs/collect-stay-payment-at-check-in.md rule 6 (revised 2026-09-08) — the step exists for
+    // the DIRECT channel only: a platform solde is the OTA's payout, wired after the stay, never
+    // money to claim at the door (dashboard-collection-alert.md already treats it as « normal, not
+    // an alert »). A platform SAS that settled the stay on an earlier run still gets the step, so
+    // its own (mistaken) collection stays visible and undoable.
+    applicable: (isDirectChannel(reservation.platform) && due.total > 0) || settledHere.length > 0,
     total: Math.round((deposit.collectible + balance.collectible) * 100) / 100,
     deposit,
     balance,

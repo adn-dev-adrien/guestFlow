@@ -50,7 +50,9 @@ commission) stays exactly as correct as it is today.
    « Both collectible » is **composed**, not answered by a single server flag (corrected 2026-08-30,
    during implementation):
    - the **« Séjour à régler » step is shown** (`stayPayment.applicable` — the server's call, rule 6
-     of [collect-stay-payment-at-check-in.md](collect-stay-payment-at-check-in.md));
+     of [collect-stay-payment-at-check-in.md](collect-stay-payment-at-check-in.md); since 2026-09-08
+     that rule is **direct-channel only**, so a platform booking never composes a unified payment —
+     its complements settle through their own block, as before this spec);
    - the **complement is still open** (`arrivalPayment.complementOpen` — the server's call);
    - and the complement has a **live total > 0**.
 
