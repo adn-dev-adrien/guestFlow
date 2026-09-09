@@ -62,21 +62,35 @@ wizard.
 
 5. **New arrival-SAS page**, placed **after** the caution page(s) and **before** « Prestations
    réservées » — the door-money pages are grouped, caution first. Departure SAS: never shown.
-6. **Shown only when** `stayPayment.applicable` is true, i.e. **`stayDue > 0`** *(something to collect)*
-   **OR** the stay was settled **by a previous run of this very SAS** (rule 14) *(so a re-opened SAS can
-   show and undo its own decision)*. A stay that was already fully paid before the SAS — the normal,
-   prepaid case — never displays the page, consistently with
+6. **Shown only when** `stayPayment.applicable` is true, i.e. **the booking is DIRECT channel**
+   (`isDirectChannel(platform)`: `direct`, `Lodgify`) **AND `stayDue > 0`** *(something to collect)*
+   **OR** — whatever the channel — the stay was settled **by a previous run of this very SAS**
+   (rule 14) *(so a re-opened SAS can show and undo its own decision — including a platform stay
+   mistakenly collected before this restriction shipped)*. A stay that was already fully paid before
+   the SAS — the normal, prepaid case — never displays the page, consistently with
    [sas-hide-settled-steps.md](sas-hide-settled-steps.md).
+
+   *(Revised 2026-09-08 — operator feedback on two Booking arrivals: a platform solde is the OTA's
+   payout, wired after the stay on a schedule the operator does not control. The SAS recap read
+   « Séjour : 146,93 € » with settlement buttons — a claim on money that is never collected at the
+   door, and one mistaken « CB » tap away from booking the payout as door money. The original
+   2026-08-30 resolution (« any unpaid stay, whatever the channel ») contradicted
+   [dashboard-collection-alert.md](dashboard-collection-alert.md), which had already established
+   that a platform solde in flight is « a perfectly normal situation », never an alert. The
+   channel restriction realigns the SAS on that philosophy: on a platform booking the SAS claims
+   the complements and nothing else. The rare OTA guest who really pays on site is handled on the
+   fiche (« Marquer solde payé »), where the deliberate gesture belongs.)*
 7. **Never shown to a reception-only user** (§3.6).
 8. **Body — direct channel** (`isDirectChannel(platform)`: `direct`, `Lodgify`):
    - « **Séjour à régler : {stayDue}** » as the page's hero amount;
    - one detail line per unpaid bucket **when both are unpaid** (« Acompte : X € », « Solde : Y € »);
      a single bucket shows no redundant detail line;
    - the settlement buttons of rule 10.
-9. **Body — OTA channel** (everything else): the same page, preceded by a warning block —
-   « ⚠ Ce solde est versé par la plateforme après le séjour. À n'encaisser que si le client paie sur
-   place. » The buttons render **unselected** by default there too (rule 11), so the page is a question,
-   never a nudge.
+9. **Body — OTA channel** (everything else): since 2026-09-08 (rule 6) an OTA booking only reaches
+   this page through the re-open path — a stay this very SAS settled earlier. The page then renders
+   with its warning block — « ⚠ Ce solde est versé par la plateforme après le séjour. À n'encaisser
+   que si le client paie sur place. » — and the buttons **unselected** by default (rule 11), so the
+   operator can see and undo the mistaken collection.
 
 ### 3.3 Settling
 
@@ -347,6 +361,10 @@ header (title + progress + ✕ = Quitter) and pinned footer actions are unchange
       « encaissé » and settled; a cash acompte leaves only the solde counted; a cash solde on a
       platform booking takes **its own commission** with it (no negative turnover), invariant
       `encaissé + reste = total` asserted on each.
+- [x] `tests/sas-stay-step-direct-only.unit.test.js` (new, 4 — added 2026-09-08) — rule 6 revised:
+      a platform booking with an unpaid solde gets **no** step; direct (`direct`, `Lodgify`, blank)
+      keeps it; a platform stay settled **by this SAS** still gets the step to undo it (rule 14);
+      a platform stay paid elsewhere stays out.
 - [x] `tests/reception-view.unit.test.js` (+3) — `toReceptionStayPayment` carries `applicable: false`
       and **no other key**; `toReceptionSasCommit` drops `stayPaid` / `stayPaidCash` and passes the
       rest of the check-in through; an empty body does not throw.
@@ -372,6 +390,8 @@ header (title + progress + ✕ = Quitter) and pinned footer actions are unchange
 - [x] Re-open: the mode is pre-selected on « Payé en liquide » and the amount is still 313,48 € (not
       0 €) → « Pas maintenant » → commit `200` → back to unpaid, marker cleared.
 - [x] OTA arrival (Booking, 140,97 €): the warning renders above the amount, nothing pre-selected.
+      *(Obsolete since 2026-09-08 — rule 6 revised: an OTA arrival no longer gets the step at all
+      unless this SAS itself settled the stay.)*
 - [x] Prepaid stay: no step (verified through `stayPayment.applicable = false` on the live payload).
 - [x] Mobile 390×844: buttons full-width stacked, amount not wrapped, **0 px** horizontal overflow.
 - [x] The reservation used for the test was restored to its prior state (see §9).
@@ -396,8 +416,10 @@ header (title + progress + ✕ = Quitter) and pinned footer actions are unchange
 ## 9. Open questions
 
 Resolved during scoping (2026-08-30):
-- **Which reservations get the step?** → **any unpaid stay, whatever the channel**, with an explicit
-  warning on OTA arrivals (§3.2 rules 6 and 9).
+- **Which reservations get the step?** → ~~any unpaid stay, whatever the channel, with an explicit
+  warning on OTA arrivals~~ — **re-resolved 2026-09-08: DIRECT channel only** (§3.2 rule 6). The
+  warning had proved insufficient in production: the recap still read as a claim on the platform's
+  payout. An OTA booking now only sees the step to undo a collection this SAS itself recorded.
 - **Which amount?** → **the whole remaining stay** (acompte + solde still unpaid), gross.
 - **Which settlement modes?** → **CB / Chèque + Payé en liquide (caisse interne)**, plus the
   « Pas maintenant » default.
