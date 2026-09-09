@@ -4,6 +4,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-09-09
+
+### Summary
+- Le check-in ne réclame plus le séjour d'une résa plateforme (Booking, Airbnb…) : ce solde est versé par la plateforme après le séjour.
+- Le sas continue d'encaisser les compléments impayés du voyageur, quel que soit le canal ; les résas directes gardent l'étape « Séjour à régler ».
+- Un séjour plateforme encaissé par erreur lors d'un ancien check-in reste visible dans le sas pour pouvoir être annulé.
+
+### Changed
+- **The arrival SAS no longer claims a platform booking's stay** — the « Séjour à régler » step (and its recap block) now exists for direct-channel bookings only. A Booking/Airbnb solde is the platform's payout, wired after the stay: the SAS claims the guest's unpaid complements and nothing else. A platform stay mistakenly collected by an earlier SAS run still shows, so it can be undone (specs/collect-stay-payment-at-check-in.md rule 6, revised).
+
 ## [2.13.2] - 2026-09-07
 
 ### Summary
