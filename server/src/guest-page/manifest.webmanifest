@@ -1,0 +1,15 @@
+{
+  "name": "Accès portail — Domaine Solio",
+  "short_name": "Portail",
+  "description": "Ouvrir le portail du Domaine Solio pendant votre séjour.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F0E6",
+  "theme_color": "#2E3B2A",
+  "icons": [
+    { "src": "/gate/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/gate/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,200 @@
+/* Accès portail — Domaine Solio.
+   The identity is the site's, copied from integrations/wordpress/solio-site/mu-plugins/
+   gf-site-style.php (« forêt et heure dorée ») rather than re-invented: same tokens, same faces,
+   same square-cornered ocre button. The night register is the site's too — the one its header and
+   its « band ciel » already use — because a gate is mostly used after dark. */
+:root {
+  --paper: #F5F0E6;
+  --card: #FDFAF3;
+  --ink: #22271F;
+  --ink-soft: #5C6153;
+  --sapin: #2E3B2A;
+  --ocre: #B87B2A;
+  --ocre-deep: #9A6318;
+  --line: #DCD4C2;
+  --ok: #5A6B48;
+  --warn: #9A6318;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #161C16;
+    --card: #1E251C;
+    --ink: #EFE8D6;
+    --ink-soft: #B9B5A5;
+    --sapin: #A8BE96;
+    --ocre: #B87B2A;
+    --ocre-deep: #E8C286;
+    --line: #2E3B2A;
+    --ok: #A8BE96;
+    --warn: #E8C286;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Karla, Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: max(1.4rem, env(safe-area-inset-top)) 1.3rem max(1.6rem, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.brand {
+  margin: 0;
+  font-family: Marcellus, Georgia, serif;
+  font-size: .95rem;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--ocre-deep);
+}
+
+.view { flex: 1; display: flex; flex-direction: column; gap: .9rem; }
+.spacer { flex: 1; min-height: .5rem; }
+
+h1 {
+  margin: 0;
+  font-family: Marcellus, Georgia, serif;
+  font-weight: 400;
+  font-size: 1.9rem;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--sapin);
+  text-wrap: balance;
+}
+
+.sub { margin: 0; font-size: .95rem; color: var(--ink-soft); }
+
+.state {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .75rem;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.state .dot { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+.state.is-open { color: var(--ocre-deep); border-color: var(--ocre); }
+
+button {
+  font-family: Karla, Helvetica, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.press {
+  width: 100%;
+  min-height: 4.5rem;
+  border: 0;
+  border-radius: 2px;
+  background: var(--ocre);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  transition: background-color .25s ease, transform .12s ease;
+}
+.press:hover { background: var(--ocre-deep); }
+.press:active { transform: scale(.99); }
+.press:disabled {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.ghost {
+  width: 100%;
+  padding: .8rem;
+  border: 1px solid var(--sapin);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--sapin);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.ghost:disabled { opacity: .45; cursor: not-allowed; }
+
+label { display: block; font-size: .78rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--ocre-deep); }
+
+input[type="text"] {
+  width: 100%;
+  padding: .95rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.35rem;
+  letter-spacing: .2em;
+  text-align: center;
+  text-transform: uppercase;
+}
+input[type="text"]:focus { outline: 2px solid var(--ocre); outline-offset: 2px; }
+
+.note {
+  padding: .8rem .9rem;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: .88rem;
+  color: var(--ink);
+}
+.note.ok { border-color: var(--ok); color: var(--ok); }
+.note.warn { border-color: var(--warn); color: var(--warn); }
+.note a { color: inherit; font-weight: 700; }
+
+.caption { margin: 0; font-size: .78rem; color: var(--ink-soft); text-align: center; }
+
+.bar { height: .5rem; border: 1px solid var(--line); background: var(--card); overflow: hidden; }
+.bar > span { display: block; height: 100%; width: 0; background: var(--ocre); transition: width .3s linear; }
+
+.countdown {
+  font-family: Marcellus, Georgia, serif;
+  font-size: 2.1rem;
+  letter-spacing: .08em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.lodging {
+  margin: 0;
+  padding-top: .8rem;
+  border-top: 1px solid var(--line);
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--ocre-deep);
+}
+
+.code-recap { font-family: ui-monospace, Menlo, monospace; font-size: 1rem; letter-spacing: .1em; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

@@ -140,6 +140,9 @@ app.use(tagGuestHost());
 // this surface. It answers 404 on the admin host, and the admin API answers 404 on this one.
 app.use('/gate/v1', require('./routes/guest'));
 
+// The page itself — HTML, CSS, JS, manifest and icons, on the guest host only.
+app.use('/', require('./routes/guestPage'));
+
 // ...and the other direction. These MUST come before the trees they guard: a guard mounted after
 // its router never runs, because the router has already answered.
 // 404 and not 403 — a 403 would confirm there is something there to find.
