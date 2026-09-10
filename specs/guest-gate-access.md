@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (2026-09-09) |
+| **Status** | Implemented (2026-09-10) — the GuestFlow half. The Sowel plugin and recipe are still to be written, against the contract in §4.3. |
 | **Branch** | `feature/guest-gate-access` _(user-managed)_ |
 | **Created** | 2026-09-09 |
 | **Author** | Adrien |
