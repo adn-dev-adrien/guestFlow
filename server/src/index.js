@@ -7,6 +7,7 @@ const session = require('express-session');
 const { startScheduledTasks } = require('./scheduledTasks');
 const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
+const { tagGuestHost, adminTreeOnly } = require('./middleware/requireGuestHost');
 const enforceRoleAccess = require('./middleware/enforceRoleAccess');
 const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
 const {
@@ -112,6 +113,16 @@ try {
 getOrCreateSecret('PUBLIC_API_KEY', 32);
 logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
 
+// Guest gate access (specs/guest-gate-access.md). Two secrets, same mechanism as PUBLIC_API_KEY:
+//   - GATE_API_KEY signs nothing and opens nothing on its own; it is what the Sowel plugin sends to
+//     come and fetch the open requests. Distinct from PUBLIC_API_KEY on purpose — the WordPress
+//     proxy and the house are different callers with different reach.
+//   - GATE_SESSION_SECRET signs the guest's session cookie. Rotating it costs every guest one code
+//     entry, and nothing else.
+getOrCreateSecret('GATE_API_KEY', 32);
+getOrCreateSecret('GATE_SESSION_SECRET', 32);
+logErrorMarker('GATE_API_KEY ready in server/.env.local — copy it into the Sowel guest-access plugin.');
+
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
@@ -119,6 +130,26 @@ require('./utils/vapid').ensureVapid();
 
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// Host separation (specs/guest-gate-access.md §4.1). `tagGuestHost` only tags the request; each
+// tree below then declares which host it exists on. Fail-closed: with no GUEST_HOST set, nothing is
+// the guest host — the guest tree 404s everywhere and the admin app is untouched.
+app.use(tagGuestHost());
+
+// The guest tree. Mounted BEFORE the `/api` guard and outside it: there is no operator session on
+// this surface. It answers 404 on the admin host, and the admin API answers 404 on this one.
+app.use('/gate/v1', require('./routes/guest'));
+
+// ...and the other direction. These MUST come before the trees they guard: a guard mounted after
+// its router never runs, because the router has already answered.
+// 404 and not 403 — a 403 would confirm there is something there to find.
+app.use('/api', adminTreeOnly);
+app.use('/public/v1', adminTreeOnly);
+
+// The two routes the house calls (specs/guest-gate-access.md §4.3). Mounted BEFORE the general
+// public tree so its own key applies instead of the WordPress proxy's: the site's key must not be
+// able to drain the gate queue, and the house's key must not be able to read the booking API.
+app.use('/public/v1/gate', require('./routes/gatePoller'));
 
 // Public API (specs/public-api.md) — a SEPARATE tree from the internal `/api/*` admin API. It is
 // key-authenticated (X-API-Key / Bearer) and rate-limited inside its own router, and it never
@@ -221,8 +252,10 @@ app.get(['/favicon.ico', '/favicon.svg'], dynamicFavicon);
 const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');
 const clientIndexPath = path.join(clientBuildDir, 'index.html');
 if (fs.existsSync(clientIndexPath)) {
-  app.use(express.static(clientBuildDir));
-  app.get(/^\/(?!api|uploads).*/, (req, res) => {
+  // `adminTreeOnly` first: without it the guest hostname would serve the operator's SPA for every
+  // unknown path, which is precisely the origin separation this feature exists to keep.
+  app.use(adminTreeOnly, express.static(clientBuildDir));
+  app.get(/^\/(?!api|uploads).*/, adminTreeOnly, (req, res) => {
     res.sendFile(clientIndexPath);
   });
 }
@@ -282,6 +315,10 @@ const server = serverHandle.listen(PORT, () => {
 function shutdown(signal) {
   logErrorMarker(`=== SERVER SHUTDOWN (${signal}) ===`);
   console.log(`Received ${signal}, shutting down GuestFlow API...`);
+  // The house's long-polls are held open for 25 s (specs/guest-gate-access.md §4.3). Settling them
+  // now turns a 25-second wait for the last poller into an immediate, quiet `{ request: null }`.
+  const drained = require('./utils/gateQueue').drain();
+  if (drained) console.log(`Released ${drained} waiting gate poller(s).`);
   server.close(() => {
     process.exit(0);
   });

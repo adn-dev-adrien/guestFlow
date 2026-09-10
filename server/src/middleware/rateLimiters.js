@@ -73,4 +73,44 @@ const paymentStatusLimiter = rateLimit({
   message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
 });
 
-module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStatusLimiter };
+const TEN_MIN = 10 * 60 * 1000;
+
+/**
+ * Guest gate access limiters (specs/guest-gate-access.md §3.3 rule 12).
+ *
+ * - gateCodeLimiter: the unlock form is the one door a stranger can knock on — a permanent QR code
+ *   is printed at the gate, so the URL is public by design. 5 attempts per 10 min per IP, and only
+ *   FAILED ones count: a family sharing one code must not lock itself out by typing it on four
+ *   phones in a row. The per-code lockout (10 failures → 1 h) lives in the model, because an
+ *   attacker rotating IPs would otherwise walk straight past a per-IP cap.
+ * - gateOpenLimiter: a rough per-IP bound in front of the real ceilings, which are counted per
+ *   access and per gate in the model.
+ *
+ * Both answer 401/429 rather than a page, and never say whether the code exists.
+ */
+const gateCodeLimiter = rateLimit({
+  windowMs: Number(process.env.GATE_CODE_RATELIMIT_WINDOW_MS) || TEN_MIN,
+  max: Number(process.env.GATE_CODE_RATELIMIT_MAX) || 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: { code: 'TOO_MANY_ATTEMPTS' } },
+});
+
+const gateOpenLimiter = rateLimit({
+  windowMs: Number(process.env.GATE_OPEN_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+  max: Number(process.env.GATE_OPEN_RATELIMIT_MAX) || 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_OPENS' } },
+});
+
+module.exports = {
+  apiLimiter,
+  loginLimiter,
+  publicApiLimiter,
+  bookingRequestLimiter,
+  paymentStatusLimiter,
+  gateCodeLimiter,
+  gateOpenLimiter,
+};
