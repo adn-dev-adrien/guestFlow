@@ -36,34 +36,36 @@ test('a press from ANOTHER device on the same access is still the same request',
   assert.equal(second.deduped, true);
 });
 
-test('a press within ten seconds of a successful open is the same request', () => {
+test('a press within two seconds of an answer is the same tap, not a second one', () => {
   const { model, clock, access } = setup();
   const first = model.createRequest({ accessId: access.id });
   model.resolveRequest(first.request.id, 'opened');
 
-  clock.advance(9 * 1000);
+  clock.advance(1500);
   const again = model.createRequest({ accessId: access.id });
   assert.equal(again.deduped, true);
   assert.equal(again.request.id, first.request.id);
 });
 
-test('past ten seconds, a press is a new request', () => {
+test('past two seconds it is a NEW request — a guest may close the gate behind them', () => {
+  // The window was ten seconds in the first draft, which would have swallowed exactly the press
+  // that closes the gate. Decision 2026-09-10: the command always goes out (spec §3.8 rule 28).
   const { model, clock, access } = setup();
   const first = model.createRequest({ accessId: access.id });
   model.resolveRequest(first.request.id, 'opened');
 
-  clock.advance(11 * 1000);
+  clock.advance(3 * 1000);
   const again = model.createRequest({ accessId: access.id });
   assert.equal(again.deduped, false);
   assert.notEqual(again.request.id, first.request.id);
 });
 
-test('an already_open answer also absorbs a second press', () => {
+test('the debounce covers a retried request whatever the answer was', () => {
   const { model, clock, access } = setup();
   const first = model.createRequest({ accessId: access.id });
   model.resolveRequest(first.request.id, 'already_open');
 
-  clock.advance(3 * 1000);
+  clock.advance(900);
   assert.equal(model.createRequest({ accessId: access.id }).deduped, true);
 });
 

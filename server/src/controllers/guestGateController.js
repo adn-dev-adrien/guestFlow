@@ -191,14 +191,17 @@ function readSessionState(req, res) {
 /**
  * POST /gate/v1/open — the thumb.
  *
- * Order matters here, and every step refuses for a different reason:
+ * **The command always goes out** (decision 2026-09-10, Adrien): the gate state is never a reason
+ * to withhold it. A guest who wants to CLOSE the gate behind them presses the same button, and the
+ * same pulse does it — exactly like the physical remote this replaces, with the same trade-off: a
+ * second press during the travel reverses it. Refusing on « the gate is already open » would have
+ * taken that away, and it was my idea, not a requirement.
+ *
+ * What is still refused, and each for its own reason:
  *   1. no live session, or a window that is not open → nothing to discuss;
- *   2. the house has not been heard from in a minute → 503, and the page had already greyed the
- *      button out (§3.5 rule 19), so this is the race, not the normal path;
- *   3. the gate is not closed → the request is SATISFIED with no pulse (§3.8 rule 28). A second
- *      pulse would reverse the travel and close it on the car going through;
- *   4. the ceilings;
- *   5. only then does a request exist, and a poller is woken.
+ *   2. the house has not been heard from in a minute → 503; the page had already greyed the button
+ *      out (§3.5 rule 19), so this is the race, not the normal path;
+ *   3. the ceilings — abuse, not state.
  */
 function requestOpen(req, res) {
   const resolved = currentAccess(req);
@@ -219,13 +222,6 @@ function requestOpen(req, res) {
   if (!runtime.available) {
     gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'maison injoignable', ip, userAgent: ua });
     return refuse(res, 503, 'SERVICE_UNAVAILABLE');
-  }
-
-  if (runtime.gateState === 'open') {
-    gateAccessModel.appendEvent({
-      accessId: access.id, kind: 'already_open', reason: 'portail non fermé — aucune impulsion envoyée', ip, userAgent: ua, deviceId: resolved.deviceId,
-    });
-    return res.json({ requestId: null, status: 'already_open' });
   }
 
   if (gateAccessModel.countOpensSince(access.id) >= gateAccessModel.OPENS_PER_HOUR_PER_ACCESS) {

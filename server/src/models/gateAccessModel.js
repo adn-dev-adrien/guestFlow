@@ -22,7 +22,10 @@ function fromSqlDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-const DEDUP_MS = 10 * 1000;            // §3.5 rule 17 — two presses inside this window are one request
+// §3.5 rule 17. Two seconds, and not ten: a longer window would swallow a DELIBERATE second press,
+// and a guest is allowed to close the gate behind them (§3.8, decision 2026-09-10). What is left is
+// the debounce of one fat-fingered tap and of a retried request — the same intent, not a second one.
+const DEDUP_MS = 2 * 1000;
 const REQUEST_TIMEOUT_MS = 30 * 1000;  // §3.5 rule 19 — a request nobody claimed is dead
 const POLLER_STALE_MS = 60 * 1000;     // §3.5 rule 19 / 19.bis — no heartbeat, no button; stale state is 'unknown'
 const CODE_LOCKOUT_FAILURES = 10;      // §3.3 rule 12

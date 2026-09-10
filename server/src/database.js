@@ -2440,6 +2440,27 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 // the unit tests can build the very same tables in memory — see the note there.
 db.exec(require('./utils/gateSchema').GATE_SCHEMA_SQL);
 
+// ONE-SHOT — specs/guest-gate-access.md §3.6 rule 23. Puts the gate paragraph into the arrival
+// reminders of an instance that already has its own wording in the database; the default registry
+// only shapes a fresh install. Timid by construction — see utils/gateParagraphMigration.js.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'gate_access_paragraph_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runGateParagraphMigration } = require('./utils/gateParagraphMigration');
+    const tx = db.transaction(() => {
+      const result = runGateParagraphMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return result;
+    });
+    const touched = tx();
+    if (touched.length) {
+      console.log(`[migration:portail] paragraphe d'accès ajouté à ${touched.length} gabarit(s) : `
+        + touched.map((t) => `${t.stableKey}${t.fr ? ' fr' : ''}${t.en ? ' en' : ''}`).join(', '));
+    }
+  }
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

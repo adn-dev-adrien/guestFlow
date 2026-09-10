@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var TRAVEL_SECONDS = 34;          // measured on the real gate, not an estimate
+  var TRAVEL_SECONDS = 34;          // measured on the real gate: how long the button stays inactive
   var POLL_MS = 1000;               // while the gate travels
   var POLL_TIMEOUT_MS = 45000;
   var REFRESH_MS = 20000;           // gate state + availability, while the page is visible
@@ -131,25 +131,21 @@
         : payload.gate.state === 'closed' ? 'Portail fermé' : 'État inconnu',
     ));
 
-    var press = el('button', 'press', 'Ouvrir le portail');
+    // The label says what the pulse will DO, read from the contact — a guest who wants to close the
+    // gate behind them should not have to press a button that claims to open it. When the state is
+    // unknown or stale it stays « Ouvrir » : that is the overwhelmingly common intent.
+    var press = el('button', 'press', payload.gate.state === 'open' ? 'Fermer le portail' : 'Ouvrir le portail');
     var slot = el('div');
     slot.style.display = 'flex';
     slot.style.flexDirection = 'column';
     slot.style.gap = '.6rem';
     slot.appendChild(press);
 
-    var unavailable = !payload.service.available;
-    var alreadyOpen = payload.gate.state === 'open';
-
-    if (unavailable) {
+    // The ONE thing that greys the button out: the house is not answering, so nothing would happen.
+    // The gate's own state never does (decision 2026-09-10) — the command always goes out.
+    if (!payload.service.available) {
       press.disabled = true;
       slot.insertBefore(serviceDownNote(payload), press);
-    } else if (alreadyOpen) {
-      press.disabled = true;
-      slot.insertBefore(
-        el('p', 'note ok', 'Le portail est déjà ouvert : vous pouvez entrer. Nous ne renvoyons pas de commande, elle le refermerait.'),
-        press,
-      );
     }
 
     press.addEventListener('click', function () { requestOpen(press, slot, payload); });
@@ -238,23 +234,17 @@
   // ---------- the press ----------
 
   function requestOpen(press, slot, payload) {
-    press.disabled = true;
-    press.textContent = 'Ouverture…';
+    press.textContent = 'Envoi…';
 
     api('/open', { method: 'POST' }).then(function (result) {
-      if (result.status === 200 && result.body.status === 'already_open') {
-        press.remove();
-        slot.appendChild(el('p', 'note ok', 'Le portail est déjà ouvert : vous pouvez entrer.'));
-        return;
-      }
       if (result.status !== 200) {
-        press.remove();
+        press.textContent = payload.gate.state === 'open' ? 'Fermer le portail' : 'Ouvrir le portail';
         slot.appendChild(refusalNote(result, payload));
         return;
       }
-      travel(result.body.requestId, press, slot, payload);
+      watchQuietly(result.body.requestId, press, slot, payload);
     }).catch(function () {
-      press.remove();
+      press.textContent = payload.gate.state === 'open' ? 'Fermer le portail' : 'Ouvrir le portail';
       slot.appendChild(el('p', 'note warn', 'Connexion perdue. Réessayez dans un instant.'));
     });
   }
@@ -272,55 +262,39 @@
     return el('p', 'note warn', 'L’ouverture a échoué.');
   }
 
-  /** Watches one request through: a 34-second bar, then the answer the house gave. */
-  function travel(requestId, press, slot, payload) {
-    press.remove();
-
-    var bar = el('div', 'bar');
-    var fill = el('span');
-    bar.appendChild(fill);
-    var caption = el('p', 'caption', 'Le portail s’ouvre… ' + TRAVEL_SECONDS + ' s');
-    slot.appendChild(bar);
-    slot.appendChild(caption);
+  /**
+   * After the press. Deliberately almost nothing (decision 2026-09-10): no progress bar, no
+   * countdown, no confirmation screen, and **no lock on the button** — a guest presses and puts the
+   * phone away, and the one who wants to close the gate behind them must be able to press again.
+   *
+   * The request is still watched silently, and the page speaks ONLY on a failure: a refusal from
+   * the house, an error, or no answer at all. Standing in front of a gate that was never going to
+   * move, a guest deserves to be told.
+   */
+  function watchQuietly(requestId, press, slot, payload) {
+    var label = press.textContent;
+    press.textContent = 'Demande envoyée';
+    // Half a second of grace, purely so the label is readable — not a lock.
+    window.setTimeout(function () { press.textContent = label; }, 1500);
 
     var startedAt = Date.now();
-    var progress = window.setInterval(function () {
-      var elapsed = (Date.now() - startedAt) / 1000;
-      var ratio = Math.min(1, elapsed / TRAVEL_SECONDS);
-      fill.style.width = (ratio * 100) + '%';
-      // The remaining seconds, counted down: standing in a car, « encore 12 s » is the difference
-      // between waiting and pressing again — and pressing again is what closes the gate.
-      var left = Math.max(0, Math.ceil(TRAVEL_SECONDS - elapsed));
-      caption.textContent = left
-        ? 'Le portail s’ouvre… ' + left + ' s'
-        : 'Le portail s’ouvre…';
-    }, 200);
-
-    function finish(node) {
-      window.clearInterval(progress);
-      bar.remove();
-      caption.remove();
-      slot.appendChild(node);
-      window.setTimeout(load, 6000);
-    }
-
     var poll = window.setInterval(function () {
       if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
         window.clearInterval(poll);
-        finish(el('p', 'note warn', 'Sans réponse de la maison. Réessayez, ou appelez-nous.'));
+        slot.appendChild(el('p', 'note warn', 'Sans réponse de la maison. Réessayez, ou appelez-nous.'));
         return;
       }
       api('/open/' + requestId).then(function (result) {
         var status = result.body && result.body.status;
         if (!status || status === 'pending') return;
         window.clearInterval(poll);
-        if (status === 'opened') return finish(el('p', 'note ok', 'Portail ouvert. Bonne arrivée !'));
-        if (status === 'already_open') return finish(el('p', 'note ok', 'Le portail était déjà ouvert : entrez.'));
+        // opened / already_open: nothing to say. The gate is moving and the guest is driving in.
         if (status === 'refused') {
-          return finish(el('p', 'note warn', 'Ouverture refusée depuis la maison.'
+          slot.appendChild(el('p', 'note warn', 'Commande refusée depuis la maison.'
             + (result.body.detail ? ' (' + result.body.detail + ')' : '')));
+          return;
         }
-        return finish(serviceDownNote(payload));
+        if (status === 'error' || status === 'timeout') slot.appendChild(serviceDownNote(payload));
       }).catch(function () { /* one lost poll is not a failure — the next one answers */ });
     }, POLL_MS);
   }
