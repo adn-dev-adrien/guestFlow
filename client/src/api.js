@@ -427,6 +427,13 @@ const api = {
   getReservationSas: (id, mode) => request(
     `/reservations/${encodeURIComponent(id)}/sas${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
   ),
+  // Guest gate access (specs/guest-gate-access.md §3.6). The card is read wherever the code has to
+  // be shown; reading it mints the access on first need, server-side.
+  getGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access`),
+  regenerateGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access/regenerate`, { method: 'POST' }),
+  revokeGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access/revoke`, { method: 'POST' }),
+  earlyOpenGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access/early-open`, { method: 'POST' }),
+
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
   // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the

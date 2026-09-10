@@ -135,7 +135,8 @@ function openSession(req, res) {
   gateAccessModel.appendEvent({
     accessId: access.id,
     kind: 'code_ok',
-    reason: isNew ? `new device (${deviceCount})` : null,
+    // French on purpose: this string is rendered verbatim in the fiche's journal.
+    reason: isNew ? `nouvel appareil (${deviceCount})` : null,
     ip,
     userAgent: ua,
     deviceId,
@@ -216,23 +217,23 @@ function requestOpen(req, res) {
 
   const runtime = gateAccessModel.readRuntime();
   if (!runtime.available) {
-    gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'house unreachable', ip, userAgent: ua });
+    gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'maison injoignable', ip, userAgent: ua });
     return refuse(res, 503, 'SERVICE_UNAVAILABLE');
   }
 
   if (runtime.gateState === 'open') {
     gateAccessModel.appendEvent({
-      accessId: access.id, kind: 'already_open', reason: 'gate not closed — no pulse sent', ip, userAgent: ua, deviceId: resolved.deviceId,
+      accessId: access.id, kind: 'already_open', reason: 'portail non fermé — aucune impulsion envoyée', ip, userAgent: ua, deviceId: resolved.deviceId,
     });
     return res.json({ requestId: null, status: 'already_open' });
   }
 
   if (gateAccessModel.countOpensSince(access.id) >= gateAccessModel.OPENS_PER_HOUR_PER_ACCESS) {
-    gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'access ceiling', ip, userAgent: ua });
+    gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'plafond de l’accès atteint', ip, userAgent: ua });
     return refuse(res, 429, 'TOO_MANY_OPENS');
   }
   if (gateAccessModel.countGateOpensSince() >= gateAccessModel.OPENS_PER_HOUR_PER_GATE) {
-    gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'gate ceiling', ip, userAgent: ua });
+    gateAccessModel.appendEvent({ accessId: access.id, kind: 'refused', reason: 'plafond du portail atteint', ip, userAgent: ua });
     return refuse(res, 429, 'TOO_MANY_OPENS');
   }
 
@@ -241,7 +242,7 @@ function requestOpen(req, res) {
   });
   if (!deduped) {
     gateAccessModel.appendEvent({
-      accessId: access.id, kind: 'open', reason: `request ${request.id}`, ip, userAgent: ua, deviceId: resolved.deviceId,
+      accessId: access.id, kind: 'open', reason: `demande n° ${request.id}`, ip, userAgent: ua, deviceId: resolved.deviceId,
     });
     gateQueue.notify();
   }

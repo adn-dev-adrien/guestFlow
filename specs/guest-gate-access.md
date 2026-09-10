@@ -182,11 +182,17 @@ can cut it at any time, and never has to change a printed code again.
 ### 3.6 Operator surfaces
 
 20. **Arrival SAS**: the « Code portail » step (specs/arrival-departure-sas.md
-    §3.1 rule 5.bis) becomes **« Accès portail »**: the stay code in large type,
-    a QR code **displayed on screen** carrying the `?c=…` link so the guest can
-    scan it in front of the operator, a « Renvoyer le lien par email » button,
-    and — when the stay has not started yet — « Ouvrir l'accès maintenant »,
-    which stamps `earlyOpenedAt` and makes the window start immediately.
+    §3.1 rule 5.bis) becomes **« Accès portail »**: the stay code in large type
+    (dictable — no I, L, O or U), the guest link underneath, and — when the stay
+    has not started yet — « Ouvrir l'accès maintenant », which stamps
+    `earlyOpenedAt` and makes the window start immediately.
+    **No QR is generated.** The QR the guests scan is the PERMANENT one, printed
+    once and carrying no secret (§3.3 rule 10); a per-stay QR on the operator's
+    screen would have bought a rendering dependency to save typing eight
+    characters that are already one tap away in the email. Re-sending the link
+    goes through the existing manual send of the arrival template
+    (specs/manual-email-from-template.md) — it carries `gateAccessUrl` like the
+    automatic passes do.
     The global `portalCode` setting stays in place, unused by this flow, until
     the physical fallback is retired.
 21. **Reservation fiche**: a « Accès portail » card — code, window, device
@@ -276,13 +282,12 @@ can cut it at any time, and never has to change a printed code again.
 | `middleware/` | `rateLimiters.js` | T | `gateCodeLimiter` (5/10 min/IP), `gateOpenLimiter` (12/h/access) |
 | `utils/` | `gateCode.js` | C | Generate / normalize / hash the code (pure) |
 | `utils/` | `gateWindow.js` | C | Window from a reservation, Europe/Paris, DST-safe (pure) |
-| `utils/` | `gateQr.js` | C | QR PNG/data-URI for the SAS and the emails (new dep: `qrcode`) |
 | `utils/` | `emailContextBuilder.js` | T | Adds `hasGateAccess`, `gateAccessCode`, `gateAccessUrl` |
 | `utils/` | `localEnv.js` | T | `getOrCreateSecret('GATE_API_KEY', 32)` at boot, like `PUBLIC_API_KEY` |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Daily purge (§3.7) + `timeout` sweep on stale requests |
 | `database.js` | `database.js` | T | Idempotent migration block for the four tables |
 
-**New dependencies:** `qrcode` (QR rendering, server-side only).
+**New dependencies: none.** The one that was planned (`qrcode`) was dropped: the QR the guests scan is printed once and holds no secret, so nothing needs rendering at runtime.
 
 ### 4.2 Client side
 
@@ -511,6 +516,8 @@ colour, confirmation dialog: « le lien déjà envoyé cessera de fonctionner »
   release.
 - **A welcome-book page** (wifi code, house rules, breakfast time) — the data is
   in GuestFlow and the page is the obvious home for it, but not here.
+- **Generating any QR code.** The permanent one is a printed artefact, made once
+  with any tool; nothing in the app renders it.
 - **SMS**, second factor, PIN — decided against on 2026-09-09.
 - **Retiring `portalCode`** — the physical fallback stays until the remote path
   has run a full season.

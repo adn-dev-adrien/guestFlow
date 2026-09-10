@@ -107,7 +107,7 @@ test('a request nobody answers times out after thirty seconds', () => {
   assert.equal(model.expireStaleRequests(), 1);
   const dead = model.getRequest(request.id);
   assert.equal(dead.status, 'timeout');
-  assert.match(dead.detail, /no answer/);
+  assert.match(dead.detail, /sans réponse/);
 
   // And a timeout does not hold the next press hostage.
   assert.equal(model.createRequest({ accessId: access.id }).deduped, false);

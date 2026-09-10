@@ -98,7 +98,7 @@ function normaliseLang(v) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, gateAccess = null }) {
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
   // drop them up-front so every option-derived list/flag/complement line below ignores them.
   options = (options || []).filter(isClientVisibleOption);
@@ -357,6 +357,16 @@ function buildContext({ reservation, client, property, options = [], resources =
       clientAddress:   joinAddress(c),
       // Reservation
       reservationNumber: safeStr(r.reservationNumber),
+      // specs/guest-gate-access.md §3.6 rule 23. Three strings, and the `hasGateAccess` flag that
+      // gates the paragraph sits with the other flags below.
+      // All three, or none: a half-built card (a code without a link, say) must not leave the code
+      // sitting in a context whose paragraph is hidden. Same condition as `hasGateAccess`.
+      gateAccessCode: gateAccess && gateAccess.code && gateAccess.url ? gateAccess.code : '',
+      gateAccessUrl: gateAccess && gateAccess.code && gateAccess.url ? gateAccess.url : '',
+      // The permanent address, the one behind the printed QR: it never changes and holds no secret,
+      // so it is what to dictate when a mail client has mangled the personal link.
+      gateAccessBaseUrl: gateAccess && gateAccess.code && gateAccess.url && gateAccess.permanentUrl
+        ? gateAccess.permanentUrl : '',
       startDate:    formatDateLong(r.startDate, L),
       endDate:      formatDateLong(r.endDate, L),
       checkInTime,
@@ -414,6 +424,11 @@ function buildContext({ reservation, client, property, options = [], resources =
     },
     flags: {
       hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
+      // specs/guest-gate-access.md §3.6 rule 23 — the code and the link travel in the same message,
+      // by decision: the bar to clear is the permanent shared code this replaces, and the window,
+      // the journal and the revocation clear it. `hasGateAccess` is false for a stay that has none
+      // (a devis, a cancellation), so the paragraph disappears rather than rendering empty.
+      hasGateAccess: !!(gateAccess && gateAccess.code && gateAccess.url),
       // An acompte actually collected — the cancellation notice only mentions a retained sum when
       // there is one (rule 27: an unpaid acompte keeps nothing).
       hasRetainedDeposit: retainedDepositAmount > 0,

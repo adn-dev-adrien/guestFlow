@@ -15,6 +15,7 @@
 
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
+const { buildGateAccessCard } = require('./gateAccessCard');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { DIRECT_CHANNELS } = require('./platformNameFormat');
@@ -175,7 +176,13 @@ async function performAutoEmailPass(deps) {
       let arrivalComplementDetail = null;
       try { arrivalComplementDetail = reservationsModel.create(database).buildArrivalComplementDetail(reservation.id); }
       catch { arrivalComplementDetail = null; }
-      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail });
+      const context = buildContext({
+        reservation, client, property, options, resources, customOptions,
+        bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail,
+        // specs/guest-gate-access.md §3.6 rule 23 — the J-7 and J-2 passes are what actually put
+        // the code in the guest's hands. Reading the card mints the access on first need.
+        gateAccess: buildGateAccessCard(reservation.id),
+      });
       const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(
         { subject: side.subject, body: side.body },
