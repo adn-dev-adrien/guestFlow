@@ -110,6 +110,11 @@ can cut it at any time, and never has to change a printed code again.
 - Request before `start` → `403 NOT_YET_ACTIVE` + the activation instant, so the
   page can display the countdown.
 - Request after `end` → `403 EXPIRED`.
+- **A just-expired code must still be recognised**, for two days after check-out.
+  Otherwise the guest who presses in the car park an hour late is told « code
+  incorrect » — they would retype it, then call. The `401` is reserved for a code
+  that matches nothing at all; past the grace the two become indistinguishable,
+  which is what keeps an old code from being confirmable as ever having existed.
 - Reservation deleted → the access row cascades away; the link 404s.
 - DST change inside a stay → the window must still land on the wall-clock hour;
   covered by a unit test on the March and October transitions.
