@@ -366,7 +366,7 @@ function createGateAccessModel(database, deps = {}) {
       const cutoff = toSqlDate(new Date(now.getTime() - maxAgeMs));
       const info = database.prepare(`
         UPDATE gate_requests
-           SET status = 'timeout', resolvedAt = ?, detail = COALESCE(detail, 'no answer from the house')
+           SET status = 'timeout', resolvedAt = ?, detail = COALESCE(detail, 'sans réponse de la maison')
          WHERE status = 'pending' AND requestedAt <= ?
       `).run(toSqlDate(now), cutoff);
       return info.changes;

@@ -2,6 +2,33 @@
 
 All notable changes to GuestFlow are documented in this file. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Accès portail invités (à venir)
+
+### Ajouté
+- **Ouverture du portail depuis le téléphone du client**, limitée à son séjour : de l'heure
+  d'arrivée jusqu'à une heure après le départ, sur un nom d'hôte séparé
+  (`guest.domainesolio.com`). Un code par séjour, dictable sans erreur, partageable avec la
+  famille, révocable, et un journal qui dit qui est entré et quand.
+  Voir `specs/guest-gate-access.md`.
+- **Carte « Accès portail » sur la fiche** : le code, la fenêtre, les appareils, le journal, et
+  deux boutons — *Régénérer* (le lien déjà envoyé cesse de fonctionner) et *Révoquer*.
+- **Étape « Accès portail » du SAS d'arrivée**, qui remplace l'affichage du code unique, avec
+  « Ouvrir l'accès maintenant » pour un client en avance.
+- **Les rappels J-7 et J-2 portent le lien et le code** (`{{gateAccessUrl}}`,
+  `{{gateAccessCode}}`, `{{gateAccessBaseUrl}}`, sous `{{#if hasGateAccess}}`).
+
+### À faire au déploiement
+- Renseigner `GUEST_HOST` et `GUEST_BASE_URL` côté serveur ; sans eux la page invité n'existe
+  nulle part (choix assumé : fail-closed).
+- Recopier `GATE_API_KEY` (généré dans `server/.env.local` au démarrage) dans le plugin Sowel
+  `guest-access`.
+- **Les gabarits d'email déjà en base ne changent pas.** Le paragraphe du portail n'est ajouté
+  qu'aux gabarits par défaut : sur une instance existante, il faut le coller une fois dans
+  Réglages → Emails (ou réinitialiser les deux rappels d'arrivée).
+- Le cookie de session d'administration devra passer en préfixe `__Host-` : c'est la contrepartie
+  d'un hôte invité voisin sous le même domaine (spec §9). Prévu dans sa propre PR — il déconnecte
+  l'opérateur une fois.
+
 ## [Unreleased]
 
 ## [2.14.0] - 2026-09-09
