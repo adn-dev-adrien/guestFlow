@@ -279,14 +279,21 @@
     var bar = el('div', 'bar');
     var fill = el('span');
     bar.appendChild(fill);
-    var caption = el('p', 'caption', 'Le portail s’ouvre…');
+    var caption = el('p', 'caption', 'Le portail s’ouvre… ' + TRAVEL_SECONDS + ' s');
     slot.appendChild(bar);
     slot.appendChild(caption);
 
     var startedAt = Date.now();
     var progress = window.setInterval(function () {
-      var ratio = Math.min(1, (Date.now() - startedAt) / (TRAVEL_SECONDS * 1000));
+      var elapsed = (Date.now() - startedAt) / 1000;
+      var ratio = Math.min(1, elapsed / TRAVEL_SECONDS);
       fill.style.width = (ratio * 100) + '%';
+      // The remaining seconds, counted down: standing in a car, « encore 12 s » is the difference
+      // between waiting and pressing again — and pressing again is what closes the gate.
+      var left = Math.max(0, Math.ceil(TRAVEL_SECONDS - elapsed));
+      caption.textContent = left
+        ? 'Le portail s’ouvre… ' + left + ' s'
+        : 'Le portail s’ouvre…';
     }, 200);
 
     function finish(node) {

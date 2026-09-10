@@ -39,9 +39,12 @@ function onGuestHost(handler) {
 }
 
 /**
- * The page. `no-store` on the HTML shell only: the state comes from /gate/v1/session anyway, and a
- * cached shell that outlives a deploy is the classic way a guest ends up running last month's JS
- * against this month's API. The assets are fingerprint-free but immutable-ish for an hour.
+ * Caching, and why there is so little of it: these filenames carry NO fingerprint, so a long
+ * max-age means a guest keeps running yesterday's JS against today's API for as long as it lasts —
+ * and the one page you never want stale is the one that opens a gate. The shell is `no-store`; the
+ * assets are `no-cache`, which is not "no caching" but "revalidate every time": sendFile emits an
+ * ETag, so the answer is a 304 of a few bytes, not the file. Deploy safety for the price of one
+ * conditional request.
  */
 router.get('/', onGuestHost((req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -49,17 +52,17 @@ router.get('/', onGuestHost((req, res) => {
 }));
 
 router.get('/gate/style.css', onGuestHost((req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('Cache-Control', 'no-cache');
   res.type('css').sendFile(path.join(PAGE_DIR, 'style.css'));
 }));
 
 router.get('/gate/app.js', onGuestHost((req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('Cache-Control', 'no-cache');
   res.type('js').sendFile(path.join(PAGE_DIR, 'app.js'));
 }));
 
 router.get('/gate/manifest.webmanifest', onGuestHost((req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('Cache-Control', 'no-cache');
   res.type('application/manifest+json').sendFile(path.join(PAGE_DIR, 'manifest.webmanifest'));
 }));
 
