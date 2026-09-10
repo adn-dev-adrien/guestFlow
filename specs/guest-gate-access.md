@@ -157,13 +157,25 @@ can cut it at any time, and never has to change a printed code again.
 ### 3.5 Opening the gate
 
 17. Pressing the button creates a `gate_requests` row in state `pending`.
-    **Two presses within 10 s return the same request** (dedup at the source:
-    two pulses on a sequential gate mean *open then close*).
+    **Two presses within 2 s return the same request.** Two seconds, and not the
+    ten this spec first asked for: a longer window would swallow a *deliberate*
+    second press, and a guest is allowed to close the gate behind them (§3.8,
+    decision 2026-09-10). What is left is the debounce of one fat-fingered tap
+    and of a retried request — the same intent, never a second one.
 18. The Sowel poller (§4.3) takes the request, and reports back `opened`,
-    `refused` (the recipe is disarmed) or `error`. The page shows the outcome:
-    « Le portail s'ouvre… » with the 34 s travel time as a progress bar,
-    « Accès coupé par le propriétaire », or the failure message with the owner's
-    phone number.
+    `refused` (the recipe is disarmed) or `error`.
+    **The page shows almost nothing of this** (decision 2026-09-10, Adrien): no
+    progress bar, no countdown, no « Portail ouvert » screen. A guest presses and
+    puts the phone away — they are driving in, not watching a page. What remains
+    is only for the case where it does not work:
+    - the button goes inactive for the length of the travel (34 s), so nobody
+      presses twice out of doubt — the server absorbs a duplicate anyway (rule
+      17), but an inviting button is a bad idea;
+    - the request is watched **silently**, and the page speaks only on a failure:
+      a refusal from the house, an error, or no answer at all. Standing in front
+      of a gate that was never going to move, a guest deserves to be told.
+    Nothing is said on success — `opened` included. The gate is moving and the
+    guest is already driving in.
 19. **Availability is shown before the guest presses.** If no poller has been
     seen for more than 60 s, the button is disabled and the page says the
     service is unreachable and gives the phone number, instead of failing
@@ -227,21 +239,22 @@ can cut it at any time, and never has to change a printed code again.
 27. **The session is bound to one access.** Entering a different code on the
     same phone replaces the session — the family that stayed at the Gîte last
     year and books the Lodge this year needs no clearing of anything.
-28. **The gate guard is gate-wide, never per-access.** A second pulse on a
-    sequential gate does not open it twice: it **reverses the travel and closes
-    it**, possibly on the car driving through. So a request is **satisfied
-    without any pulse** whenever the gate is not already closed — the page
-    answers « Le portail est déjà ouvert » (or « s'ouvre déjà ») and the guest
-    simply drives in. That guard reads the real `closed` contact, not a timer,
-    so it also covers a gate left open by the owner, by the night-closure recipe
-    or by a delivery.
-28.bis **The guard is enforced twice, and only one of them is authoritative.**
-    GuestFlow refuses to even create a request while its advisory copy of the
-    state (§3.5 rule 19.bis) says the gate is not closed — that is a UI courtesy,
-    resolved in the phone's hand. The **recipe** re-reads the contact at the
-    instant it would pulse and answers `already_open` if it moved in between.
-    Never trust the advisory copy for the decision: it can be up to a poll
-    interval stale, and a gate closes in 34 s.
+28. **The command always goes out.** (Decision 2026-09-10, Adrien — it reverses
+    what this spec said first, and the reversal is the right call.) The gate's
+    state is never a reason to withhold a pulse: a guest who wants to **close**
+    the gate behind them presses the same button, and the same pulse does it.
+    That is what the physical remote this replaces has always done.
+    - The trade-off is named and accepted: on a sequential gate, a second press
+      during the travel **reverses it**. A remote has exactly that property, and
+      nobody has ever asked for one that refuses to close.
+    - Neither guestFlow nor the recipe inspects `closed` to decide. The contact
+      is **information**, not a veto: the page reads it to label the button —
+      « Fermer le portail » when the gate stands open, « Ouvrir le portail »
+      otherwise or when the state is unknown — and that label is the whole of
+      what the state buys.
+    - The earlier design refused a pulse while the gate was not closed, so that a
+      second guest could not close it on the first one's car. It was my idea, not
+      a requirement, and it took away something a guest legitimately wants.
 29. **Requests queue, they do not race.** `gate_requests` is served to the
     poller FIFO, one at a time; the plugin resolves a request before taking the
     next. Two guests pressing within the same second produce one pulse and two
@@ -251,11 +264,12 @@ can cut it at any time, and never has to change a printed code again.
     cannot starve the other lodging.
 
 **Edge cases:**
-- Contact stuck reporting « open » → nothing ever pulses, and that is the right
-  refusal: a guest whose goal is to drive in can drive in. The fiche shows the
-  refusal reason, and the Sowel recipe surfaces the stale contact.
-- Both lodgings press while the gate is closed → first request pulses, second is
-  coalesced by rule 28 as soon as the contact leaves the closed position.
+- Contact stuck, or stale → the button simply reads « Ouvrir le portail » and the
+  pulse goes out anyway. A wrong label is a small thing; a gate that refuses to
+  move is not.
+- Both lodgings press within the same seconds → two pulses, and the gate may end
+  up closed again. Exactly what two people with two remotes would do, and the
+  journal says who pressed when.
 
 ---
 
@@ -443,12 +457,14 @@ carries (`integrations/wordpress/solio-site/mu-plugins/gf-site-style.php`,
   in `text-transform: uppercase` with `inputmode: text`, the dash inserted as
   you type, one button. Error: « Code incorrect ou expiré. » — never more.
 - **Unlocked**: « Bonjour Camille », the stay dates, a badge reading the real
-  gate contact (**Portail ouvert** / **Portail fermé**), a full-width button
-  « Ouvrir le portail » at least 64 px high, and under it « Votre accès est
-  actif jusqu'au 14/09 à 11:00 » plus « Partager l'accès ».
-- **Pressing**: the button becomes a 34 s progress bar, « Le portail s'ouvre… ».
-  Then « Portail ouvert » or the error with the owner's phone number as a
-  `tel:` link.
+  gate contact (**Portail ouvert** / **Portail fermé**), and a full-width button
+  at least 64 px high whose LABEL follows that state — « Fermer le portail » when
+  the gate stands open, « Ouvrir le portail » otherwise. Under it « Votre accès
+  est actif jusqu'au 14/09 à 11:00 » and « Partager l'accès ».
+- **Pressing**: the button reads « Demande envoyée » and stays inactive for the
+  travel time. No bar, no seconds, no confirmation screen — see §3.5 rule 18.
+  A failure, and only a failure, appends a line: the refusal, or the phone number
+  as a `tel:` link.
 - **Before the window**: « Votre accès sera actif le 12/09 à 16:00 » with a live
   countdown. **After**: « Votre séjour est terminé. Merci de votre visite. »
 - **Service down** (§3.5 rule 19): the button is disabled and greyed, with

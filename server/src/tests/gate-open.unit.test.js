@@ -68,19 +68,25 @@ test('the happy path: one request, and a poller woken', () => {
   assert.ok(journal.deviceId, 'and it says which phone');
 });
 
-test('the gate already open: satisfied WITHOUT a pulse, and no request at all', () => {
+test('the gate already open: the command goes out anyway, and the button says « Fermer »', () => {
+  // Decision 2026-09-10 — the reversal. A guest who wants to close the gate behind them presses
+  // the same button; the state is information, never a veto. The earlier version of this test
+  // asserted the opposite, and the behaviour it pinned took away something guests legitimately do.
   const { model, controller, cookie, queue, db } = setup();
   model.noteHeartbeat({ state: 'open' });
 
   const res = press(controller, cookie);
 
-  assert.equal(res.statusCode, 200, 'this is a success for the guest — they can drive in');
-  assert.equal(res.body.status, 'already_open');
-  assert.equal(res.body.requestId, null);
-  assert.equal(queue.notified, 0, 'no poller woken');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gate_requests').get().n, 0,
-    'a second pulse would reverse the travel and close it on the car going through');
-  assert.ok(db.prepare("SELECT * FROM gate_events WHERE kind = 'already_open'").get());
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.status, 'pending', 'a real request, not a polite refusal');
+  assert.ok(res.body.requestId);
+  assert.equal(queue.notified, 1, 'the house is woken');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gate_requests').get().n, 1);
+
+  // And the page labels the button by what the pulse will do.
+  const session = fakeRes();
+  controller.readSessionState(fakeReq({ cookie }), session);
+  assert.equal(session.body.gate.state, 'open');
 });
 
 test('two presses in a row are one request, and wake one poller', () => {
@@ -118,7 +124,9 @@ test('the two lodgings both press while the gate is shut: two requests, two wake
   assert.equal(model.claimNextRequest().id, lodge.body.requestId);
 });
 
-test('and the second one, pressed while the first is opening, gets no pulse of its own', () => {
+test('the second lodging pressing during the travel gets its own pulse', () => {
+  // Two people, two remotes: the second press may well close the gate again. Named and accepted
+  // (spec §3.8 rule 28) — and the journal says who pressed when.
   const { db, model, controller, queue, cookie: giteCookie } = setup();
   model.noteHeartbeat({ state: 'closed' });
 
@@ -129,14 +137,14 @@ test('and the second one, pressed while the first is opening, gets no pulse of i
 
   const gite = press(controller, giteCookie);
   model.resolveRequest(gite.body.requestId, 'opened');
-  // The gate has left the closed position — the contact says so on the next heartbeat.
-  model.noteHeartbeat({ state: 'open' });
+  model.noteHeartbeat({ state: 'open' });      // the gate has left the closed position
 
   const lodge = press(controller, lodgeUnlock.cookie());
-  assert.equal(lodge.body.status, 'already_open');
-  assert.equal(lodge.body.requestId, null);
-  assert.equal(queue.notified, 1, 'exactly one pulse for the two of them');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gate_requests').get().n, 1);
+  assert.equal(lodge.body.status, 'pending');
+  assert.ok(lodge.body.requestId);
+  assert.notEqual(lodge.body.requestId, gite.body.requestId);
+  assert.equal(queue.notified, 2, 'two intents, two pulses');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gate_requests').get().n, 2);
 });
 
 test('outside the window, the press is refused with the reason the page shows', () => {

@@ -14,6 +14,7 @@ const {
   shouldEnforceHttps,
   buildHelmetOptions,
   buildSessionCookieOptions,
+  sessionCookieName,
   PERMISSIONS_POLICY_VALUE,
 } = require('./utils/securityConfig');
 const { buildServer } = require('./utils/httpsBootstrap');
@@ -93,7 +94,9 @@ app.use(express.json({
 app.use(session({
   store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
   secret: getOrCreateSecret('GUESTFLOW_SESSION_SECRET', 32),
-  name: 'guestflow.sid',
+  // `__Host-` prefixed under HTTPS, so a sibling host of the domain cannot shadow it
+  // (specs/guest-gate-access.md §9). Deploying it logs the operator out once.
+  name: sessionCookieName({ httpsEnabled }),
   resave: false,
   saveUninitialized: false,
   rolling: true, // sliding 30-day expiration

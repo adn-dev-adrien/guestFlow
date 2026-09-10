@@ -170,9 +170,6 @@ input[type="text"]:focus { outline: 2px solid var(--ocre); outline-offset: 2px; 
 
 .caption { margin: 0; font-size: .78rem; color: var(--ink-soft); text-align: center; }
 
-.bar { height: .5rem; border: 1px solid var(--line); background: var(--card); overflow: hidden; }
-.bar > span { display: block; height: 100%; width: 0; background: var(--ocre); transition: width .3s linear; }
-
 .countdown {
   font-family: Marcellus, Georgia, serif;
   font-size: 2.1rem;

@@ -403,6 +403,46 @@ pm2 startOrRestart ~/guestflow/ecosystem.config.js --update-env
 
 The application will be available on port 4000 by default.
 
+#### 🚪 Guest gate access — the variables
+
+The guest page (`specs/guest-gate-access.md`) lives on **its own hostname**, and two variables are
+what make it exist. Without them it exists nowhere, deliberately: a deployment that forgets them
+loses the feature, and never serves the admin API on a public name.
+
+| Variable | Example | Role |
+|---|---|---|
+| `GUEST_HOST` | `guest.domainesolio.com` | The hostname(s), comma-separated, that serve the guest page. On that host, `/api/*`, `/public/v1/*` and the admin SPA answer **404**; everywhere else `/gate/v1/*` answers 404. In development: `guest.localhost:4000`. |
+| `GUEST_BASE_URL` | `https://guest.domainesolio.com` | The public origin used to build the links sent to guests (emails, fiche card). Derived from `GUEST_HOST` when absent. |
+
+Two secrets auto-generate into `server/.env.local` on first boot, like `PUBLIC_API_KEY`:
+
+- **`GATE_API_KEY`** — what the Sowel `guest-access` plugin sends to come and fetch the open
+  requests. Copy it into the plugin's settings. Distinct from `PUBLIC_API_KEY` on purpose: the
+  site's key must not be able to drain the gate queue, and the house's key must not be able to read
+  the booking API.
+- **`GATE_SESSION_SECRET`** — signs the guest's session cookie. Rotating it costs every guest one
+  code entry, and nothing else.
+
+On the reverse proxy, the guest host must strip the `c` query parameter from its access log — the
+stay code travels in it:
+
+```caddy
+guest.domainesolio.com {
+	log {
+		output file /var/log/caddy/access.log
+		format filter {
+			wrap json
+			fields { request>uri query { delete c } }
+		}
+	}
+	reverse_proxy 192.168.0.24:4000
+}
+```
+
+⚠️ **The admin session cookie changes name** when `HTTPS_ENABLED=true`: it becomes
+`__Host-guestflow.sid`. The `__Host-` prefix stops a sibling host of the domain — the guest page is
+one — from shadowing it. Single consequence: the operator is logged out once at deploy.
+
 #### 🔒 HTTPS — production setup
 
 GuestFlow's production stack on the Raspberry Pi runs Node **directly** on `:4000` over HTTPS

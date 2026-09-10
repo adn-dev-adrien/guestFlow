@@ -98,8 +98,31 @@ function buildSessionCookieOptions({ httpsEnabled }) {
     httpOnly: true,
     sameSite: 'lax',
     secure: httpsEnabled,
+    // `__Host-` requires Path=/ (express-session's default) and no Domain attribute, so it must be
+    // set explicitly alongside the name below.
+    path: '/',
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   };
+}
+
+/**
+ * The session cookie's NAME (specs/guest-gate-access.md §9).
+ *
+ * Under HTTPS it carries the **`__Host-` prefix**, which browsers only accept from a cookie that is
+ * Secure, Path=/ and has no Domain — and, the point here, they refuse it from ANY other host of the
+ * domain. The guest page lives at `guest.domainesolio.com`, a sibling of the admin app under the
+ * same registrable domain: a script running there could otherwise set a `.domainesolio.com` cookie
+ * of the same name and shadow the operator's session (cookie tossing). The prefix closes that door
+ * at the browser, which is the only place it can be closed.
+ *
+ * Over plain HTTP the prefix is illegal and the cookie would simply be dropped, so the bare name is
+ * used — in development, where the guard cannot matter anyway.
+ *
+ * Deploying this logs the operator out once: the browser holds the old name, the server now looks
+ * for the new one. That is the whole cost.
+ */
+function sessionCookieName({ httpsEnabled }) {
+  return httpsEnabled ? '__Host-guestflow.sid' : 'guestflow.sid';
 }
 
 /**
@@ -129,5 +152,6 @@ module.exports = {
   shouldEnforceHttps,
   buildHelmetOptions,
   buildSessionCookieOptions,
+  sessionCookieName,
   PERMISSIONS_POLICY_VALUE,
 };
