@@ -33,7 +33,8 @@ const OPENS_PER_HOUR_PER_GATE = 30;
 // The stay a candidate code could belong to. Deliberately coarse: it only has to be a superset of
 // the live accesses, the exact verdict comes from computeWindow() in JS.
 const CANDIDATE_SQL = `
-  SELECT a.*, r.startDate, r.endDate, r.checkInTime, r.checkOutTime, r.cancelledAt
+  SELECT a.*, r.startDate, r.endDate, r.checkInTime, r.checkOutTime, r.cancelledAt,
+         r.propertyId, r.clientId
     FROM gate_accesses a
     JOIN reservations r ON r.id = a.reservationId
    WHERE a.revokedAt IS NULL
@@ -130,12 +131,18 @@ function createGateAccessModel(database, deps = {}) {
       const rows = database.prepare(CANDIDATE_SQL).all(stamp, stamp);
       for (const row of rows) {
         if (!verifyCode(input, row)) continue;
+        // The same shape resolve() returns, deliberately: the payload builder reads propertyId and
+        // clientId to name the lodging and greet the guest, and a partial row here made the page go
+        // anonymous on the unlock but not on a reload — the kind of split behaviour nobody notices
+        // until a guest sees « Bonjour » with no name.
         const reservation = {
           id: row.reservationId,
           startDate: row.startDate,
           endDate: row.endDate,
           checkInTime: row.checkInTime,
           checkOutTime: row.checkOutTime,
+          propertyId: row.propertyId,
+          clientId: row.clientId,
         };
         return {
           access: readAccessRow(row.id),
