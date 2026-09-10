@@ -117,6 +117,56 @@ test('on the admin host, the guest tree does not exist either', async () => {
   });
 });
 
+test('the page router, mounted at the root, STEPS ASIDE on the admin host', async () => {
+  // The regression this pins: the page router first carried a blanket `guestTreeOnly`, and because
+  // it is mounted at `/`, every admin request went through it and got a 404 — the whole application
+  // answered « not found » on its own hostname. A router that owns a prefix can afford a wall; a
+  // router at the root has to fall through.
+  const app = express();
+  app.use(tagGuestHost(GUEST));
+  app.use('/', require('../routes/guestPage'));
+  app.use('/api/version', (req, res) => res.json({ tree: 'admin' }));
+  app.get('/', (req, res) => res.json({ tree: 'spa' }));
+  app.use((req, res) => res.status(404).json({ error: 'NOT_FOUND' }));
+
+  const server = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const { port } = server.address();
+  const call = (path, host) => new Promise((resolve, reject) => {
+    const request = http.request(
+      { host: '127.0.0.1', port, path, method: 'GET', headers: { Host: host } },
+      (response) => {
+        let raw = '';
+        response.on('data', (chunk) => { raw += chunk; });
+        response.on('end', () => resolve({ status: response.statusCode, raw }));
+      },
+    );
+    request.on('error', reject);
+    request.end();
+  });
+
+  try {
+    const adminApi = await call('/api/version', 'guestflow.domainesolio.com');
+    assert.equal(adminApi.status, 200, 'the admin API must survive a router mounted at the root');
+    assert.deepEqual(JSON.parse(adminApi.raw), { tree: 'admin' });
+
+    const adminRoot = await call('/', 'guestflow.domainesolio.com');
+    assert.deepEqual(JSON.parse(adminRoot.raw), { tree: 'spa' }, 'and so must the operator\'s SPA');
+
+    const guestRoot = await call('/', 'guest.domainesolio.com');
+    assert.equal(guestRoot.status, 200);
+    assert.match(guestRoot.raw, /Accès portail/, 'while the guest host gets the page');
+    assert.match(guestRoot.raw, /Domaine Solio/);
+
+    const guestCss = await call('/gate/style.css', 'guest.domainesolio.com');
+    assert.equal(guestCss.status, 200);
+    assert.match(guestCss.raw, /--sapin/, 'the site\'s own tokens, not a copy');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test('with no GUEST_HOST, the admin app is untouched and the guest tree is closed', async () => {
   await withApp({}, async (call) => {
     assert.equal((await call('/api/reservations', 'guestflow.domainesolio.com')).status, 200);
