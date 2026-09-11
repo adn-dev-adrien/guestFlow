@@ -888,6 +888,9 @@ function createReservationsModel(database) {
       // the form's fields repopulate correctly on load.
       reservation.platformGrossAmount = reservation.platformGrossAmount == null ? '' : Number(reservation.platformGrossAmount);
       reservation.platformPayoutAmount = reservation.platformPayoutAmount == null ? '' : Number(reservation.platformPayoutAmount);
+      // specs/platform-tourist-tax-out-of-the-commission.md rule 2 — '' is not 0 here: it is what says
+      // the brut was typed tourist-tax-excluded, and the fiche must be able to tell the two apart.
+      reservation.platformTouristTaxAmount = reservation.platformTouristTaxAmount == null ? '' : Number(reservation.platformTouristTaxAmount);
       reservation.complementAmount = Number(reservation.complementAmount || 0);
       reservation.complementPaid = Number(reservation.complementPaid || 0);
       reservation.complementPaidDate = reservation.complementPaidDate || null;
@@ -1336,6 +1339,7 @@ function createReservationsModel(database) {
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
         clientGrossAmount, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
+        platformTouristTaxAmount,
         depositDisabled, touristTaxInComplement, depositAmountOverride,
         complementAmountOverride, endOfStayComplementAmountOverride } = payload;
       // specs/normalize-platform-names.md §3.2 rule 9 — `reservations.platform` is normalized
@@ -1367,6 +1371,11 @@ function createReservationsModel(database) {
       const platformPayoutForStore = platformIsNonDirect
         ? (platformPayoutAmount != null && platformPayoutAmount !== '' ? Math.max(0, Number(platformPayoutAmount)) : null)
         : null;
+      // specs/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
+      // withheld (€, ≥ 0, NULL on direct). NULL is meaningful: it says the brut is tax-excluded.
+      const platformTouristTaxForStore = platformIsNonDirect
+        ? (platformTouristTaxAmount != null && platformTouristTaxAmount !== '' ? Math.max(0, Number(platformTouristTaxAmount)) : null)
+        : null;
       const result = database.prepare(`
         INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds,
@@ -1375,8 +1384,9 @@ function createReservationsModel(database) {
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
           notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
           depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
+          platformTouristTaxAmount,
           tariffSnapshot)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -1397,6 +1407,7 @@ function createReservationsModel(database) {
         acompteCommissionForStore,
         platformGrossForStore,
         platformPayoutForStore,
+        platformTouristTaxForStore,
         // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff this reservation is SOLD under.
         // Written once, at creation, and replayed by every later save so a recipe change never
         // re-prices what is already in the database.
@@ -1637,6 +1648,7 @@ function createReservationsModel(database) {
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
         extraGuestSurchargeOffered, clientGrossAmount, platformCommissionAmount, acompteCommissionAmount, platformGrossAmount, platformPayoutAmount,
+        platformTouristTaxAmount,
         complementPaid, complementPaidDate,
         depositDisabled, touristTaxInComplement, depositAmountOverride,
         complementAmountOverride, endOfStayComplementAmountOverride } = payload;
@@ -1661,6 +1673,11 @@ function createReservationsModel(database) {
       const platformPayoutForStore = platformIsNonDirect
         ? (platformPayoutAmount != null && platformPayoutAmount !== '' ? Math.max(0, Number(platformPayoutAmount)) : null)
         : null;
+      // specs/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
+      // withheld (€, ≥ 0, NULL on direct, which is also what a switch to direct writes back).
+      const platformTouristTaxForStore = platformIsNonDirect
+        ? (platformTouristTaxAmount != null && platformTouristTaxAmount !== '' ? Math.max(0, Number(platformTouristTaxAmount)) : null)
+        : null;
       // Rule 15 — read the stay flags BEFORE they are overwritten, so the SAS ownership markers are
       // released on a real flip and only on a real flip.
       const beforeStay = database.prepare('SELECT depositPaid, balancePaid, complementPaid FROM reservations WHERE id = ?').get(reservationId) || {};
@@ -1675,6 +1692,7 @@ function createReservationsModel(database) {
           blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
           depositDisabled=?, touristTaxInComplement=?, depositAmountOverride=?, platformCommissionAmount=?,
           acompteCommissionAmount=?, platformGrossAmount=?, platformPayoutAmount=?,
+          platformTouristTaxAmount=?,
           updatedAt=datetime('now')
         WHERE id=?
       `).run(
@@ -1700,6 +1718,7 @@ function createReservationsModel(database) {
         acompteCommissionForStore,
         platformGrossForStore,
         platformPayoutForStore,
+        platformTouristTaxForStore,
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);

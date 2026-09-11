@@ -37,6 +37,7 @@ import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
+import { resolvePlatformTouristTaxPrefill } from '../utils/platformTouristTaxPrefill';
 import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
 import useWelcomePack from '../hooks/useWelcomePack';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
@@ -367,6 +368,9 @@ export default function ReservationPage() {
     // specs/platform-payment-entry.md — brut (pins the total séjour) + virement (reconciliation), '' = unset.
     platformGrossAmount: '',
     platformPayoutAmount: '',
+    // specs/platform-tourist-tax-out-of-the-commission.md rule 2 — '' means « the brut carries no
+    // tourist tax », which is what every reservation stored before this feature says. Never 0.
+    platformTouristTaxAmount: '',
   });
 
   // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
@@ -448,6 +452,7 @@ export default function ReservationPage() {
     acompteCommissionAmount: form.acompteCommissionAmount === '' ? '' : Number(form.acompteCommissionAmount),
     // specs/platform-payment-entry.md — the brut pins the total séjour (recompute when it changes).
     platformGrossAmount: form.platformGrossAmount === '' ? '' : Number(form.platformGrossAmount),
+    platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? '' : Number(form.platformTouristTaxAmount),
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
     complementPaid: Boolean(form.complementPaid),
@@ -509,7 +514,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, isPlatformReservation, refreshTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, isPlatformReservation, refreshTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   // A saved booking keeps the prices it was sold at as long as its placement doesn't move. For a devis
@@ -820,6 +825,7 @@ export default function ReservationPage() {
             acompteCommissionAmount: res.acompteCommissionAmount == null || res.acompteCommissionAmount === '' ? '' : res.acompteCommissionAmount,
             platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
             platformPayoutAmount: res.platformPayoutAmount == null || res.platformPayoutAmount === '' ? '' : res.platformPayoutAmount,
+            platformTouristTaxAmount: res.platformTouristTaxAmount == null || res.platformTouristTaxAmount === '' ? '' : res.platformTouristTaxAmount,
             touristTaxInComplement: Boolean(res.touristTaxInComplement),
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
             // bit lives in `reservation_options`, but they're not part of form.selectedOptions
@@ -938,6 +944,7 @@ export default function ReservationPage() {
             acompteCommissionAmount: '',
             platformGrossAmount: '',
             platformPayoutAmount: '',
+            platformTouristTaxAmount: '',
             touristTaxInComplement: Boolean(devis.touristTaxInComplement),
             autoOptionsInComplement: (devis.options || [])
               .filter((o) => !o.isCustom && Number(o.autoEnabled || 0) === 1 && Number(o.inComplement || 0) === 1)
@@ -1062,6 +1069,7 @@ export default function ReservationPage() {
             acompteCommissionAmount: '',
             platformGrossAmount: '',
             platformPayoutAmount: '',
+            platformTouristTaxAmount: '',
           });
 
           await loadResourcesAvailability(startDate, endDate, initialPropId);
@@ -1194,6 +1202,7 @@ export default function ReservationPage() {
           platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (solde commission)
           acompteCommissionAmount: form.acompteCommissionAmount, // specs/platform-per-echeance-commission.md (acompte commission)
           platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour)
+          platformTouristTaxAmount: form.platformTouristTaxAmount, // specs/platform-tourist-tax-out-of-the-commission.md (comes back out of the brut)
           depositPaid: form.depositPaid,
           balancePaid: form.balancePaid,
           complementPaid: form.complementPaid,
@@ -1232,7 +1241,17 @@ export default function ReservationPage() {
           if (prev.startDate !== form.startDate || prev.endDate !== form.endDate || prev.adults !== form.adults || prev.children !== form.children || prev.teens !== form.teens) {
             return prev;
           }
-          return applyQuoteToForm(prev, calc, preserveBlankPrice);
+          const next = applyQuoteToForm(prev, calc, preserveBlankPrice);
+          // specs/platform-tourist-tax-out-of-the-commission.md rule 4 — a fiche that has never been
+          // saved starts from the engine's figure, so everything typed from now on follows the
+          // tax-inclusive convention. The decision itself lives in a pure helper.
+          const seededTouristTax = resolvePlatformTouristTaxPrefill({
+            isNewFiche: !editingReservationId && !editingDevisId,
+            currentValue: next.platformTouristTaxAmount,
+            quote: calc,
+          });
+          if (seededTouristTax != null) return { ...next, platformTouristTaxAmount: seededTouristTax };
+          return next;
         });
       } catch (err) {
         // Keep current form state if quote refresh fails
@@ -2272,6 +2291,7 @@ export default function ReservationPage() {
           acompteCommissionAmount: form.acompteCommissionAmount === '' ? null : form.acompteCommissionAmount,
           platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
+          platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
           cautionReceivedDate: form.cautionReceivedDate,
@@ -2336,6 +2356,7 @@ export default function ReservationPage() {
           acompteCommissionAmount: form.acompteCommissionAmount === '' ? null : form.acompteCommissionAmount,
           platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
+          platformTouristTaxAmount: form.platformTouristTaxAmount === '' ? null : form.platformTouristTaxAmount,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,

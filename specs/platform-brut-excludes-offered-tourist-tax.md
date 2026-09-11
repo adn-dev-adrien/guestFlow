@@ -94,9 +94,15 @@ tourist-tax figure it estimated itself.
    accommodation = 653,00, options = 80,00.
    **This supersedes rule 1 of `specs/platform-offered-tax-passthrough-and-cascade.md`**, which must be
    annotated in the same commit.
+
+> **Amended 2026-09-11** by [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md): this reading is now the **empty-box** case, not the only case. When the operator states, in euros, the tourist tax the platform withheld, the brut is the guest-paid total again and that stated amount — the platform's, never our estimate — comes back out of it. An empty box keeps everything below exactly as written, which is what lets every reservation stored under this spec keep its amounts to the cent.
 3. **« Calculer la commission » stops subtracting the offered tax.** The formula is uniformly
    `commission solde = brut − virement reçu − commission acompte`, clamped ≥ 0, for every tax mode.
    Grimaud: 733 − 668 − 0 = **65,00**.
+
+> **Amended 2026-09-11** — the formula gains one term, and only one: `− taxe de séjour retenue`, the
+> amount the operator typed off the platform's statement. Our own estimate is still never subtracted,
+> which is what this rule was written to prevent. Empty box → the formula above, unchanged.
 4. **The « reversed » case is untouched** (`collectsTouristTax = 1` + `touristTaxRemittedByPlatform = 0`
    — Lodgify). There the platform charges the tax to the guest and wires it back to us, so it sits in
    both the brut and the virement: the brut stays tax-inclusive, the back-solve keeps subtracting
@@ -108,6 +114,10 @@ tourist-tax figure it estimated itself.
 7. **The field label states the convention**, because the correct number to type now depends on the
    platform's tax mode (§6). A wrong assumption here is exactly what produced the accountant's report,
    so the convention must be readable at the point of entry, not inferred.
+
+> **Amended 2026-09-11** — in the offered mode the label now depends on the tax box as well: empty, it
+> stays « Total séjour facturé par la plateforme » (this rule); filled, it reads « Montant total payé
+> par le client ». Same reason, one state further: the convention has to be readable where it is typed.
 8. **`hasVatOnCommission = 1` for Gîtes de France** (operator action in Comptabilité → plateformes, on
    dev **and** on prod). With it, the export splits the 65,00 € into 54,17 € on 622600 and 10,83 € on
    44566000, exactly as the GdF invoice states. Booking and Airbnb stay at `0` (VAT self-assessed for

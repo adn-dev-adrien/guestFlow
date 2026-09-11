@@ -629,6 +629,10 @@ async function calculatePrice(req, res) {
     // specs/platform-payment-entry.md — the brut pins the total séjour (finalPrice = brut, accommodation
     // back-solved). Forwarded so the live preview reflects it.
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
+    // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
+    // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
+    platformTouristTaxAmount: req.body.platformTouristTaxAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
@@ -681,6 +685,7 @@ function create(req, res) {
     acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
     platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
     platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
+    platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
@@ -777,6 +782,10 @@ function create(req, res) {
     // vs fiche 994/903).
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
+    // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
+    // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
+    platformTouristTaxAmount: req.body.platformTouristTaxAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
@@ -873,6 +882,7 @@ function update(req, res) {
     acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
     platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
     platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
+    platformTouristTaxAmount: { value: req.body.platformTouristTaxAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
@@ -1022,6 +1032,10 @@ function update(req, res) {
     // and the commission (reduces the solde to the net) to the engine on SAVE, not just the live preview.
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-tourist-tax-out-of-the-commission.md rule 6 — the tourist tax the platform kept,
+    // which comes back out of the brut. Forwarded on the SAVE paths too, not just the preview: the
+    // fiche and the books have to price identically (the divergence platform-payment-entry had to fix).
+    platformTouristTaxAmount: req.body.platformTouristTaxAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     // specs/platform-payout-due-date.md — the platform's payout delay, which sets the solde deadline
