@@ -26,22 +26,35 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function gf_seo_redirections_lodgify() {
 	return array(
-		'/fr/domaine-solio---gite-confort-nature-animaux'  => '/gite-10-personnes-ardeche/',
-		'/fr/domaine-solio---lodge-isolee-nature-animaux'  => '/tente-safari-glamping-ardeche/',
+		'/fr/domaine-solio---gite-confort-nature-animaux'  => '/la-granja/',
+		'/fr/domaine-solio---lodge-isolee-nature-animaux'  => '/estiva/',
 		'/fr/bien-preparer-votre-sejour'                   => '/faq/',
-		'/fr/toutes-les-proprietes'                        => '/tarifs-et-reservation/',
-		'/fr/options'                                      => '/tarifs-et-reservation/',
-		'/fr/decouverte'                                   => '/activites-autour-du-domaine/',
+		'/fr/toutes-les-proprietes'                        => '/reserver/',
+		'/fr/options'                                      => '/reserver/',
+		'/fr/decouverte'                                   => '/autour-de-nous/',
 		'/fr/contactez-nous'                               => '/contact/',
 		'/fr/vie-du-domaine'                               => '/le-domaine/',
 
+		// Fusion « Le Domaine » (refonte 2026-09) : quatre pages deviennent une.
+		'/bain-nordique-ardeche'                           => '/le-domaine/#bain-nordique',
+		'/vos-hotes'                                       => '/le-domaine/#hotes',
+		'/privatiser-le-domaine'                           => '/le-domaine/#privatiser',
+		'/autour-de-nous/avec-des-enfants'                 => '/autour-de-nous/#enfants',
+		'/activites-autour-du-domaine/avec-des-enfants'    => '/autour-de-nous/#enfants',
+
+		// Renommage 2026-09-06 : les URLs collent aux noms des pages.
+		'/gite-10-personnes-ardeche'                       => '/la-granja/',
+		'/tente-safari-glamping-ardeche'                   => '/estiva/',
+		'/activites-autour-du-domaine'                     => '/autour-de-nous/',
+		'/tarifs-et-reservation'                           => '/reserver/',
+
 		'/en'                                              => '/',
-		'/en/to-complete'                                  => '/gite-10-personnes-ardeche/',
-		'/en/aventura-lodge-tente-tout-confort'            => '/tente-safari-glamping-ardeche/',
+		'/en/to-complete'                                  => '/la-granja/',
+		'/en/aventura-lodge-tente-tout-confort'            => '/estiva/',
 		'/en/faq'                                          => '/faq/',
-		'/en/all-properties'                               => '/tarifs-et-reservation/',
-		'/en/options'                                      => '/tarifs-et-reservation/',
-		'/en/discovery'                                    => '/activites-autour-du-domaine/',
+		'/en/all-properties'                               => '/reserver/',
+		'/en/options'                                      => '/reserver/',
+		'/en/discovery'                                    => '/autour-de-nous/',
 		'/en/contact-us'                                   => '/contact/',
 		'/en/life-on-the-estate'                           => '/le-domaine/',
 	);

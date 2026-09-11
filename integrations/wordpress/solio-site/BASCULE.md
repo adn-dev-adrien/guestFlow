@@ -46,15 +46,30 @@ dans la Search Console.**
 
 | Ancienne URL Lodgify | Destination |
 |---|---|
-| `/fr/domaine-solio---gite-confort-nature-animaux` | `/gite-10-personnes-ardeche/` |
-| `/fr/domaine-solio---lodge-isolee-nature-animaux` | `/tente-safari-glamping-ardeche/` |
+| `/fr/domaine-solio---gite-confort-nature-animaux` | `/la-granja/` |
+| `/fr/domaine-solio---lodge-isolee-nature-animaux` | `/estiva/` |
 | `/fr/bien-preparer-votre-sejour` | `/faq/` |
-| `/fr/toutes-les-proprietes` | `/tarifs-et-reservation/` |
-| `/fr/options` | `/tarifs-et-reservation/` |
-| `/fr/decouverte` | `/activites-autour-du-domaine/` |
+| `/fr/toutes-les-proprietes` | `/reserver/` |
+| `/fr/options` | `/reserver/` |
+| `/fr/decouverte` | `/autour-de-nous/` |
 | `/fr/contactez-nous` | `/contact/` |
 | `/fr/vie-du-domaine` | `/le-domaine/` |
 | les 9 URL `/en/…` | vers l'équivalent français, à réaffecter quand la version anglaise existera |
+
+La refonte de septembre 2026 a renommé quatre pages et en a fondu quatre autres dans
+`/le-domaine/` ; les anciennes adresses du WordPress lui-même sont redirigées par la même
+table :
+
+| Ancienne URL WordPress | Destination |
+|---|---|
+| `/gite-10-personnes-ardeche` | `/la-granja/` |
+| `/tente-safari-glamping-ardeche` | `/estiva/` |
+| `/activites-autour-du-domaine` | `/autour-de-nous/` |
+| `/tarifs-et-reservation` | `/reserver/` |
+| `/bain-nordique-ardeche` | `/le-domaine/#bain-nordique` |
+| `/vos-hotes` | `/le-domaine/#hotes` |
+| `/privatiser-le-domaine` | `/le-domaine/#privatiser` |
+| `/…/avec-des-enfants` | `/autour-de-nous/#enfants` |
 
 Les anciennes URL du WordPress lui-même (`/le-gite/`, `/aventura-lodge/`,
 `/experiences-options/`, `/bien-preparer-votre-sejour/`, `/activites-autour/`,
@@ -142,7 +157,7 @@ gîte seul reste disponible le reste de l'année.
 
 ## 8. Points de vigilance repérés pendant le chantier
 
-- **Une image de remplacement externe subsiste** sur `/tarifs-et-reservation/` :
+- **Une image de remplacement externe subsiste** sur `/reserver/` :
   `https://picsum.photos/seed/solio17/800/600`. C'est un reste de la construction du site,
   qui tire une photo aléatoire chez un tiers à chaque affichage. À remplacer par une photo
   du domaine — c'est la seule image du site qui n'a ni texte alternatif ni contrôle éditorial.

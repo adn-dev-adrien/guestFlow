@@ -50,9 +50,6 @@ function gf_seo_shortcode_essentiel( $atts ) {
 	} elseif ( $l['superficie_m2'] ) {
 		$lignes['Superficie'] = $l['superficie_m2'] . ' m²';
 	}
-	if ( $l['label'] ) {
-		$lignes['Label'] = $l['label'] . ( $l['numero_label'] ? ' — n° ' . $l['numero_label'] : '' );
-	}
 
 	$arrivee = ! empty( $l['checkin_fin'] )
 		? 'entre ' . gf_seo_heure( $l['checkin'] ) . ' et ' . gf_seo_heure( $l['checkin_fin'] )
@@ -61,8 +58,11 @@ function gf_seo_shortcode_essentiel( $atts ) {
 	if ( ! empty( $l['saison'] ) ) {
 		$lignes['Saison'] = $l['saison'];
 	}
-	$lignes['Wifi']             = $l['wifi'] ? 'oui, gratuit' : 'non, volontairement';
-	$lignes['Animaux']          = $d['chiens_acceptes'] ? 'chiens acceptés' : 'chiens non acceptés — bébés et enfants bienvenus';
+	if ( empty( $l['wifi'] ) ) {
+		$lignes['Wifi'] = 'non — ici, on se connecte à la nature plutôt qu’à internet';
+	}
+	$lignes['Animaux']          = $d['chiens_acceptes'] ? 'chiens acceptés' : 'chiens non acceptés';
+	$lignes['Bébés']            = 'équipement complet sur demande — tout est prêt à votre arrivée';
 	$lignes['Bain nordique']    = $l['bain_nordique'];
 	if ( ! empty( $l['non_fumeur'] ) ) {
 		$lignes['Non-fumeur'] = 'oui, hébergement entièrement non-fumeur';
@@ -70,16 +70,6 @@ function gf_seo_shortcode_essentiel( $atts ) {
 	if ( isset( $l['accessible_pmr'] ) && false === $l['accessible_pmr'] ) {
 		$lignes['Accessibilité'] = $l['accessible_pmr_note'] ?? 'non adapté aux personnes à mobilité réduite';
 	}
-
-	if ( $l['caution'] ) {
-		$lignes['Caution'] = gf_seo_prix( $l['caution'] );
-	}
-	if ( ! empty( $l['prix_min_nuit'] ) ) {
-		$lignes['Tarif'] = 'à partir de ' . gf_seo_prix( $l['prix_min_nuit'] ) . ' la nuit, dégressif selon la durée';
-	}
-
-	$lignes['Cadre']  = 'domaine privé de ' . $d['superficie_ha'] . ' hectares, ' . $d['nb_hebergements'] . ' hébergements en tout';
-	$lignes['Adresse'] = $d['rue'] . ', ' . $d['code_postal'] . ' ' . $d['ville'] . ' (' . $d['region'] . ')';
 
 	$html  = '<div class="gf-essentiel"><h2 class="gf-essentiel-titre">L’essentiel</h2><dl>';
 	foreach ( $lignes as $terme => $valeur ) {
@@ -202,6 +192,27 @@ function gf_seo_shortcode_prix( $atts ) {
 add_shortcode( 'solio_prix', 'gf_seo_shortcode_prix' );
 
 /**
+ * [solio_caution] — security deposit per lodging, read from the facts (mirrors
+ * GuestFlow Reglages > Logements) so the CGV never hardcode an amount.
+ * lang="en" switches the connecting words.
+ */
+function gf_seo_shortcode_caution( $atts ) {
+	$atts  = shortcode_atts( array( 'lang' => 'fr' ), $atts );
+	$gite  = gf_seo_lodging( 'gite' );
+	$lodge = gf_seo_lodging( 'lodge' );
+	if ( ! $gite || ! $lodge || empty( $gite['caution'] ) || empty( $lodge['caution'] ) ) {
+		return 'en' === $atts['lang'] ? 'the amount stated in your quote' : 'du montant indiqué sur votre devis';
+	}
+	$g = '<b>' . gf_seo_prix( $gite['caution'] ) . '</b>';
+	$l = '<b>' . gf_seo_prix( $lodge['caution'] ) . '</b>';
+	if ( 'en' === $atts['lang'] ) {
+		return $g . ' for La Granja and ' . $l . ' for L’Estiva';
+	}
+	return $g . ' pour La Granja et ' . $l . ' pour L’Estiva';
+}
+add_shortcode( 'solio_caution', 'gf_seo_shortcode_caution' );
+
+/**
  * Normalise un libelle pour le comparer sans se soucier des accents ni de la casse.
  */
 function gf_seo_normalise( $texte ) {
@@ -234,6 +245,87 @@ function gf_seo_shortcode_tarifs_nuits() {
 add_shortcode( 'solio_tarifs_nuits', 'gf_seo_shortcode_tarifs_nuits' );
 
 /**
+ * Unite de prix telle qu'affichee au client (specs cote site, 2026-09-06) : « au séjour » ne dit
+ * rien a personne — on montre juste le prix ; les repas sont « par repas » ; les animations
+ * degressives le disent ; les animaux sauvages se paient a la session. Pur affichage, le moteur
+ * de reservation calcule avec les vraies unites GuestFlow.
+ */
+function gf_seo_unite_affichee( $titre, $unite ) {
+	$t = gf_seo_normalise( $titre );
+	if ( false !== strpos( $t, 'animaux sauvage' ) ) {
+		return 'la session';
+	}
+	if ( false !== strpos( $t, 'visite animaux' ) || false !== strpos( $t, 'enfants bain nordique' ) ) {
+		return 'par personne · tarif dégressif';
+	}
+	if ( 0 === strpos( $t, 'petit dejeuner' ) || 0 === strpos( $t, 'repas' ) ) {
+		return str_ireplace( 'par séance', 'par repas', $unite );
+	}
+	return trim( str_ireplace( 'au séjour', '', $unite ) );
+}
+
+/**
+ * « À la carte » : les options et ressources des deux hebergements, fusionnees et dedoublonnees,
+ * rendues comme la carte d'un restaurant — nom, pointilles, prix. Les prix sont lus dans
+ * GuestFlow : le jour ou ils changent, la page suit.
+ */
+function gf_seo_shortcode_surdemande() {
+	$tout = array(); // titre normalise => [titre, prix_min, prix_max, unite, categorie]
+	foreach ( array( 'gite', 'lodge' ) as $cle ) {
+		$l = gf_seo_lodging( $cle );
+		if ( ! $l ) { continue; }
+		$t = gf_seo_guestflow_tarifs( $l['guestflow_id'] );
+		$listes = array();
+		foreach ( $t['simples'] as $o ) { $o['categorie'] = 'Services'; $listes[] = $o; }
+		foreach ( $t['groupes'] as $g ) {
+			// Les animations ne sont pas vendues sur le site (retrait demande 2026-09-06) ;
+			// elles restent reservables sur place via GuestFlow.
+			if ( 'animations' === gf_seo_normalise( $g['categorie'] ) ) { continue; }
+			foreach ( $g['options'] as $o ) { $o['categorie'] = $g['categorie']; $listes[] = $o; }
+		}
+		foreach ( $t['ressources'] as $o ) { $o['categorie'] = 'À réserver sur place'; $listes[] = $o; }
+		foreach ( $listes as $o ) {
+			// Les libelles GuestFlow portent parfois un prefixe technique (« Animation-visite
+			// animaux ») : on le retire pour la carte, sans toucher a la cle de dedoublonnage.
+			$o['titre'] = trim( preg_replace( '~^Animation[\s-]+~iu', '', $o['titre'] ) );
+			$o['titre'] = ucfirst( $o['titre'] );
+			$k = gf_seo_normalise( $o['titre'] );
+			if ( ! isset( $tout[ $k ] ) ) {
+				$tout[ $k ] = array(
+					'titre' => $o['titre'], 'min' => $o['prix'], 'max' => $o['prix'],
+					'unite' => $o['unite'] ?? '', 'categorie' => $o['categorie'],
+				);
+			} else {
+				$tout[ $k ]['min'] = min( $tout[ $k ]['min'], $o['prix'] );
+				$tout[ $k ]['max'] = max( $tout[ $k ]['max'], $o['prix'] );
+			}
+		}
+	}
+	if ( ! $tout ) { return ''; }
+
+	$cats = array();
+	foreach ( $tout as $o ) { $cats[ $o['categorie'] ][] = $o; }
+
+	$html = '<div class="gf-carte">';
+	foreach ( $cats as $cat => $items ) {
+		$html .= '<h3 class="gf-carte-cat">' . esc_html( $cat ) . '</h3>';
+		foreach ( $items as $o ) {
+			$prix = ( $o['min'] < $o['max'] ) ? 'dès ' . gf_seo_prix( $o['min'] ) : gf_seo_prix( $o['min'] );
+			$unite = gf_seo_unite_affichee( $o['titre'], $o['unite'] );
+			$html .= '<div class="gf-carte-item"><span class="gf-carte-nom">' . esc_html( $o['titre'] ) . '</span>'
+				. '<span class="gf-carte-fill" aria-hidden="true"></span>'
+				. '<span class="gf-carte-prix">' . esc_html( $prix )
+				. ( $unite ? ' <span class="gf-carte-unite">' . esc_html( $unite ) . '</span>' : '' )
+				. '</span></div>';
+		}
+	}
+	$html .= '<p class="gf-carte-note">Prix à jour au ' . esc_html( date_i18n( 'j F Y' ) )
+		. '. Tout se réserve en même temps que vos dates — ou s’ajoute une fois sur place, selon disponibilité.</p></div>';
+	return $html;
+}
+add_shortcode( 'solio_surdemande', 'gf_seo_shortcode_surdemande' );
+
+/**
  * Questions frequentes en <details> natifs : le texte est dans la source meme replie.
  *
  * gf-seo-schema.php lit le meme tableau de questions pour produire le balisage FAQPage :
@@ -247,10 +339,13 @@ function gf_seo_shortcode_faq( $atts ) {
 	}
 	$l = gf_seo_lodging( $atts['page'] );
 
-	$html = '<section class="gf-faq-seo"><h2>' . esc_html( $atts['titre'] ) . '</h2>';
-	foreach ( $faq as $i => $item ) {
+	$html  = '<section class="gf-faq-seo">';
+	if ( '' !== trim( $atts['titre'] ) ) {
+		$html .= '<h2>' . esc_html( $atts['titre'] ) . '</h2>';
+	}
+	foreach ( $faq as $item ) {
 		$reponse = $l ? gf_seo_tokens( $item['r'], $l ) : $item['r'];
-		$html   .= '<details class="gf-faq-item"' . ( 0 === $i ? ' open' : '' ) . '>'
+		$html   .= '<details class="gf-faq-item">'
 			. '<summary><h3>' . esc_html( $item['q'] ) . '</h3></summary>'
 			. '<div class="gf-faq-reponse"><p>' . esc_html( $reponse ) . '</p></div>'
 			. '</details>';
@@ -368,6 +463,8 @@ add_action(
 .gf-essentiel, .gf-tarifs, .gf-faq-seo, .gf-geo, .gf-comparatif {
 	max-width: 645px; margin: 44px auto; padding: 0 22px;
 }
+.gf-essentiel { max-width: 560px; font-size: .95rem; }
+.gf-essentiel-titre { text-align: center; }
 .gf-tarifs, .gf-comparatif { max-width: 820px; }
 .gf-essentiel-titre, .gf-tarifs h2, .gf-faq-seo h2, .gf-geo h2 {
 	font-size: 1.5rem; color: #2f3a26; margin: 0 0 18px;
@@ -376,7 +473,7 @@ add_action(
 .gf-essentiel-ligne {
 	display: flex; gap: 18px; padding: 11px 0; border-bottom: 1px solid #e5e8df;
 }
-.gf-essentiel dt { flex: 0 0 190px; font-weight: 600; color: #5a6b48; margin: 0; }
+.gf-essentiel dt { flex: 0 0 160px; font-weight: 600; color: #5a6b48; margin: 0; }
 .gf-essentiel dd { margin: 0; color: #2f3a26; }
 
 .gf-tarifs h3, .gf-geo h3 { font-size: 1.06rem; color: #5a6b48; margin: 26px 0 8px; }
@@ -419,6 +516,16 @@ add_action(
 .gf-geo-distances { list-style: none; padding: 0; margin: 0; }
 .gf-geo-distances li { padding: 7px 0; border-bottom: 1px solid #eef0ea; color: #2f3a26; }
 .gf-geo-adresse { margin-top: 18px; color: #5a6b48; font-size: .93rem; }
+
+.gf-carte { max-width: 700px; margin: 10px auto 0; padding: 0 22px; }
+.gf-carte-cat { font-family: Karla, sans-serif; font-size: .78rem; font-weight: 700; letter-spacing: .3em;
+	text-transform: uppercase; color: #9A6318; margin: 34px 0 10px; text-align: center; }
+.gf-carte-item { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; }
+.gf-carte-nom { color: #22271F; }
+.gf-carte-fill { flex: 1; border-bottom: 1px dotted #C9C1AC; transform: translateY(-4px); }
+.gf-carte-prix { white-space: nowrap; color: #2E3B2A; font-weight: 700; }
+.gf-carte-unite { color: #9aa392; font-size: .8rem; font-weight: 400; }
+.gf-carte-note { color: #9aa392; font-size: .85rem; margin-top: 28px; text-align: center; }
 
 @media (max-width: 600px) {
 	.gf-essentiel, .gf-tarifs, .gf-faq-seo, .gf-geo, .gf-comparatif { margin: 32px auto; padding: 0 16px; }

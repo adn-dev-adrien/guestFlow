@@ -34,15 +34,16 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-facts.php` | **Source de vérité.** Adresse, GPS, capacités, horaires, équipements, distances, FAQ. Lit les tarifs vivants dans GuestFlow (cache 6 h, repli statique). |
 | `gf-seo-head.php` | `<title>` 50-60 car., meta description 140-155 car., Open Graph, Twitter Card, `hreflang`, geo. Table page → référencement, surchargeable par page. |
 | `gf-seo-schema.php` | JSON-LD : `LodgingBusiness`, `VacationRental` / `Campground` + `Accommodation`, `FAQPage`, `BreadcrumbList`. Fil d'Ariane visible. |
-| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. |
+| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. |
 | `gf-seo-images.php` | Complète les `<img>` du contenu : `alt`, `width`/`height`, `srcset`, `loading`, `fetchpriority` sur l'image LCP. |
 | `gf-seo-indexation.php` | `robots.txt` (12 robots autorisés nommément), sitemap nettoyé, `/llms.txt`. |
 | `gf-seo-redirects.php` | 301 des anciennes URLs WordPress et des 18 URLs Lodgify. |
 | `gf-seo-activites.php` | Type de contenu `activite` (fiches territoire) + champs structurés + `TouristAttraction`. |
 | `gf-seo-perf.php` | `defer` sur les scripts non critiques, préchargement de la police, retrait des assets inutiles. |
 | `gf-seo-admin.php` | Metabox d'édition du titre et de la description, bouton « Actualiser les tarifs ». |
-| `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral, ouvert par un bouton flottant en bas à droite. |
+| `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral en deux écrans, ouvert par un bouton flottant en bas à droite. |
 | `gf-seo-urls.php` | Garde-fou : toute adresse générée suit l'hôte réellement utilisé par le visiteur. |
+| `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ. |
 | `apache/uploads.htaccess` | Sert les jumeaux WebP par négociation de contenu. À déposer dans `wp-content/uploads/.htaccess`. |
 | `apache/roboto.css` | Feuille de la police auto-hébergée. Va dans `wp-content/uploads/fonts/`. |
 
@@ -51,6 +52,11 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 Le moteur GuestFlow n'est plus posé en bas de page. `gf-seo-reservation.php` l'intercepte au
 rendu et le place dans un **tiroir latéral**, ouvert par un bouton flottant en bas à droite qui
 suit le défilement. Le bloc n'est ni dupliqué ni modifié : c'est exactement le même moteur.
+
+Le tiroir se parcourt en **deux écrans** : « Votre séjour » (dates, voyageurs et options, le
+total se mettant à jour en direct) puis « Récapitulatif » (le détail chiffré, les coordonnées et
+l'acceptation des CGV, qui conditionne l'envoi). Au retour de la page de paiement Qonto
+(`?gf_payment=…`), le moteur reste dans la page plutôt que dans un tiroir fermé.
 
 Deux détails qui comptent : le tiroir n'est jamais en `display:none` (il est décalé hors écran
 par une transformation), sans quoi le calendrier se positionnerait mal à l'initialisation ; et
@@ -66,9 +72,10 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 | Information | Seul endroit où elle figure |
 |---|---|
 | Capacité, chambres, lits, salles d'eau | les pastilles à icônes en haut de page (`gf-caps`) |
-| Superficie, saison, horaires, wifi, animaux, caution, tarif de départ | l'encadré « L'essentiel » |
+| Superficie, saison, horaires, animaux, bébés, bain nordique | l'encadré « L'essentiel » (le wifi n'y figure que lorsqu'il n'y en a pas) |
 | Équipements détaillés | la grille de pictogrammes (`gf-amenities`) |
-| Prix des options et des animations | la page `/tarifs-et-reservation/`, via GuestFlow |
+| Prix des options | la carte « à la carte » de `/reserver/` (`[solio_surdemande]`), via GuestFlow |
+| Montant des cautions | `[solio_caution]`, lu dans les faits — les CGV ne le codent jamais en dur |
 | Contexte géographique | uniquement les deux pages de logement et `/acces/` |
 
 ## Ce qui est intentionnellement absent

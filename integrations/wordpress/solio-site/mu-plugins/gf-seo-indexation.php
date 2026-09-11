@@ -167,9 +167,9 @@ function gf_seo_llms_txt() {
 	$l[] = '- Animaux de la ferme : ' . implode( ', ', $d['animaux_ferme'] );
 	$l[] = '- Chiens : non acceptés. Enfants et bébés : bienvenus';
 	$l[] = '- Arrivée entre 16h00 et 19h00, départ avant 10h00, hébergements non-fumeurs';
-	$l[] = '- Piscine extérieure partagée, non chauffée, ouverte en juillet et août';
-	$l[] = '- Bain nordique privatisé, par créneau d’1h30, eau chauffée autour de ' . $d['bain_temperature']
-		. ' °C ; offert dès 3 nuits au gîte, en option au lodge ; réservé aux adultes';
+	$l[] = '- Piscine extérieure partagée, non chauffée, ouverte de mi-juin à fin août';
+	$l[] = '- Bain nordique privatisé, par créneau d’1 h, eau chauffée autour de ' . $d['bain_temperature']
+		. ' °C ; un créneau offert dès 3 nuits à La Granja uniquement, sinon à partir de 30 € l’heure ; pensé pour les adultes';
 	$l[] = '- Label : ' . $d['label_cavalier'] . ' — ' . implode( ', ', $d['cavalier_equipements'] )
 		. ', pas de box, ' . $d['cavalier_tarif'] . ' € par cheval et par nuit';
 	$l[] = '- Gare la plus proche : ' . $d['gare'] . ' ; transfert possible sur demande, ' . $d['transfert_gare'] . ' €';
@@ -212,16 +212,16 @@ function gf_seo_llms_txt() {
 	$l[] = '## Pages';
 	$l[] = '';
 	$resumes = array(
-		'hebergements'                => 'Comparatif des deux hébergements du domaine.',
-		'privatiser-le-domaine'       => 'Louer le gîte et la tente ensemble, 15 à 20 personnes, domaine privatisé.',
-		'le-domaine'                  => 'Les 13 hectares, la forêt, les animaux de la ferme, la boucle de 2 km.',
-		'bain-nordique-ardeche'       => 'Le bain nordique privatif : fonctionnement, créneaux, conditions.',
-		'tarifs-et-reservation'       => 'Tarifs des hébergements et catalogue complet des options.',
-		'activites-autour-du-domaine' => 'Que faire autour de Satillieu et en Ardèche verte.',
-		'faq'                         => 'Questions fréquentes sur le séjour, les équipements et les règles.',
-		'acces'                       => 'Comment venir : itinéraire, coordonnées GPS, distances.',
-		'vos-hotes'                   => 'Sophie et Adrien, les propriétaires qui vivent sur le domaine.',
-		'contact'                     => 'Formulaire et téléphone pour joindre directement les propriétaires.',
+		'hebergements'          => 'Comparatif des deux hébergements du domaine.',
+		'privatiser-le-domaine' => 'Louer le gîte et la tente ensemble, 15 à 20 personnes, domaine privatisé.',
+		'le-domaine'            => 'Les 13 hectares, la forêt, les animaux de la ferme, la boucle de 2 km.',
+		'bain-nordique-ardeche' => 'Le bain nordique privatif : fonctionnement, créneaux, conditions.',
+		'reserver'              => 'Tarifs des hébergements et catalogue complet des options.',
+		'autour-de-nous'        => 'Que faire autour de Satillieu et en Ardèche verte.',
+		'faq'                   => 'Questions fréquentes sur le séjour, les équipements et les règles.',
+		'acces'                 => 'Comment venir : itinéraire, coordonnées GPS, distances.',
+		'vos-hotes'             => 'Sophie et Adrien, les propriétaires qui vivent sur le domaine.',
+		'contact'               => 'Formulaire et téléphone pour joindre directement les propriétaires.',
 	);
 	foreach ( $resumes as $slug => $resume ) {
 		$page = get_page_by_path( $slug );
