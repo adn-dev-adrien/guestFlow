@@ -4,6 +4,38 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-09-11
+
+### Summary
+- Les liens de paiement Qonto portent la référence de la réservation et le nom du client : chaque paiement est identifiable dans Qonto.
+- Sur une plateforme qui reverse elle-même la taxe de séjour, une case « Taxe de séjour retenue » accueille le montant total payé par le client.
+- La commission, le chiffre d'affaires et la base TVA portent alors sur le séjour seul ; laissée vide, la case ne change rien.
+- Une taxe de séjour prise en charge par la plateforme s'affiche barrée dans le résumé : ni encaissée, ni comptabilisée.
+
+### Changed
+- Qonto payment links now carry the **booking reference and guest name** in the item title
+  (`Séjour <property> — <ref> — <name>`) and the stay dates in the item description, so each payment
+  is identifiable in the Qonto dashboard. Amounts and VAT are unchanged
+  (`specs/qonto-payment-link-reference.md`).
+
+### Fixed
+- **Tourist tax withheld by the platform.** On a platform that collects the tourist tax and remits it
+  to the commune itself (Gîtes de France, Airbnb, Greengo), the « Paiement plateforme » block gains a
+  « Taxe de séjour retenue » box. Filled in, it lets the operator type the total the guest paid — the
+  number on the statement — and the tax is taken out of it: the computed commission, the revenue and
+  the VAT base then cover the stay alone. On a new booking the box arrives pre-filled from the
+  engine's own calculation; « Reprendre le calcul » fills it on an existing one. Left empty it
+  changes nothing: the amount typed is still read as tax-excluded, exactly as today, so no
+  already-recorded booking moves (`specs/platform-tourist-tax-out-of-the-commission.md`).
+- **Tourist tax borne by the platform: struck through in the summary.** It now displays struck
+  through, as the specification had said since June — it enters neither what is collected nor the
+  accounts.
+
+### Migration
+- `reservations.platformTouristTaxAmount` (REAL, nullable) is added on startup. Existing rows stay
+  NULL, which means « the platform gross was typed tax-excluded » — the convention in force until
+  now — so no recorded booking changes amount. No backfill, nothing to do on update.
+
 ## [2.14.0] - 2026-09-09
 
 ### Summary
