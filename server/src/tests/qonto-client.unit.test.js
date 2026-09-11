@@ -90,6 +90,19 @@ test('createPaymentLink emits a multi-item VAT basket (HT unit prices) when item
   assert.equal(sent.items[1].vat_rate, '0');
 });
 
+test('createPaymentLink forwards an item description, and omits the key when absent (specs/qonto-payment-link-reference.md)', async () => {
+  const { fetchImpl, calls } = stubFetch({ payment_link: { id: 'pl_d', url: 'u', status: 'open', amount: { value: '266.05', currency: 'EUR' } } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  await client.createPaymentLink({ accessToken: 'at', items: [
+    { title: 'Séjour La Granja — 2026-09-002 — Claude Dupont', description: 'Séjour du 10/10/2026 au 12/10/2026 · 2 nuits · réf 2026-09-002', amountCents: 23295, vatRate: 10 },
+    { title: 'Taxe de séjour', amountCents: 980, vatRate: 0 },
+  ], expectedTotalCents: 26605 });
+  const sent = JSON.parse(calls[0].opts.body).payment_link;
+  assert.equal(sent.items[0].title, 'Séjour La Granja — 2026-09-002 — Claude Dupont');
+  assert.equal(sent.items[0].description, 'Séjour du 10/10/2026 au 12/10/2026 · 2 nuits · réf 2026-09-002');
+  assert.equal('description' in sent.items[1], false, 'the un-described tax line carries no description');
+});
+
 test('createPaymentLink THROWS when Qonto amount ≠ expectedTotalCents (money guard)', async () => {
   const { fetchImpl } = stubFetch({ payment_link: { id: 'pl_bad', url: 'u', status: 'open', amount: { value: '292.66', currency: 'EUR' } } });
   const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });

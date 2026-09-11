@@ -120,3 +120,48 @@ test('htFromTtc floors so the round-trip never exceeds the target', () => {
     assert.ok(lineTotalCents(ht, R) <= ttc, `${ttc}@${R}: line total must not exceed target`);
   }
 });
+
+// --- Component `description` is carried through untouched (specs/qonto-payment-link-reference.md) ---
+
+test('an item description is forwarded, and it changes neither the HT nor the charged total', () => {
+  const plain = buildVatItems({
+    components: [
+      { title: 'Séjour et prestations', grossCents: 25625, taxable: true },
+      { title: 'Taxe de séjour', grossCents: 980, taxable: false },
+    ],
+    vatRatePercent: 10,
+  });
+  const labelled = buildVatItems({
+    components: [
+      { title: 'Séjour La Granja — 2026-09-002 — Claude Dupont', description: 'Séjour du 10/10/2026 au 12/10/2026 · 2 nuits · réf 2026-09-002', grossCents: 25625, taxable: true },
+      { title: 'Taxe de séjour', grossCents: 980, taxable: false },
+    ],
+    vatRatePercent: 10,
+  });
+  // Description present on the stay line, and identical amounts to the un-labelled basket (rule 6).
+  const stay = labelled.items.find((i) => i.vatRate === 10);
+  assert.equal(stay.description, 'Séjour du 10/10/2026 au 12/10/2026 · 2 nuits · réf 2026-09-002');
+  assert.equal(labelled.expectedTotalCents, plain.expectedTotalCents);
+  assert.equal(qontoCharge(labelled.items), qontoCharge(plain.items));
+  assert.equal(stay.amountCents, plain.items.find((i) => i.vatRate === 10).amountCents);
+  // The un-described tax line carries no `description` key at all.
+  assert.equal('description' in labelled.items.find((i) => i.title === 'Taxe de séjour'), false);
+});
+
+test('description survives the residual fold on the taxable stay line', () => {
+  const { items } = buildVatItems({
+    components: [{ title: 'Acompte séjour — réf X', description: 'Acompte · réf X', grossCents: 25624, taxable: true }],
+    vatRatePercent: 10,
+  });
+  const stay = items.find((i) => i.vatRate === 10);
+  assert.equal(stay.description, 'Acompte · réf X', 'the stay line keeps its description');
+  assert.equal(qontoCharge(items), 25624, 'total still exact after the adjustment');
+});
+
+test('a blank/whitespace description is treated as absent (no empty description key)', () => {
+  const { items } = buildVatItems({
+    components: [{ title: 'Séjour', description: '   ', grossCents: 20000, taxable: true }],
+    vatRatePercent: 0,
+  });
+  assert.equal('description' in items[0], false);
+});
