@@ -164,7 +164,13 @@ export default function PricingSummary({
     ? Boolean(quote.touristTaxOfferedByPlatform)
     : (isIcalSource || (String(form.platform || '').toLowerCase() !== 'direct'));
   const isTouristTaxCollectedOnArrival = Boolean(quote?.touristTaxCollectedOnArrival);
-  const touristTaxDisplayedAmount = isTouristTaxOffered ? touristTaxOriginalTotal : touristTaxTotal;
+  // specs/platform-tourist-tax-out-of-the-commission.md rule 9 — when the operator stated what the
+  // platform actually withheld, that figure is the one to print and to deduct: it is the platform's,
+  // where `touristTaxOriginalTotal` is only our estimate of it. Empty → the estimate, as before.
+  const platformTouristTaxWithheld = quote?.platformTouristTaxWithheld == null
+    ? null : Number(quote.platformTouristTaxWithheld);
+  const touristTaxPlatformAmount = platformTouristTaxWithheld ?? touristTaxOriginalTotal;
+  const touristTaxDisplayedAmount = isTouristTaxOffered ? touristTaxPlatformAmount : touristTaxTotal;
 
   // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
   // extras line is server-forced to inComplement = 1. The per-line <ComplementChip> here is
@@ -645,10 +651,19 @@ export default function PricingSummary({
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {/* Case 2 (platform collects AND remits to the commune): the amount is shown normally
-                      with the « Plateforme » tag above — NOT struck-through (it isn't « offert »). The
-                      caption below explains who handles it. */}
-                  <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {/* Case 2 (platform collects AND remits to the commune): struck through, beside the
+                      « Plateforme » tag (specs/platform-tourist-tax-out-of-the-commission.md rule 13).
+                      This revises per-platform-tourist-tax-three-way.md, which printed it plain because
+                      « it isn't offert » — true, but the strike does not say FREE, it says NOT OURS:
+                      the amount enters neither what we collect nor our books. It is here to be read. */}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      ...(isTouristTaxOffered ? { textDecoration: 'line-through', color: 'text.secondary' } : {}),
+                    }}
+                  >
                     {formatCurrency(touristTaxDisplayedAmount)}
                   </Typography>
                 </Box>
@@ -753,12 +768,15 @@ export default function PricingSummary({
             // The SAS half of the end-of-stay complement (ménage/linge/extincteur) lives OUTSIDE
             // finalPrice; the mid-stay half (sold + collected or still due) is already inside it.
             const endOfStaySas = Math.max(0, endOfStay - Number(quote?.midStayRemainingTotal ?? quote?.midStayExtrasTotal ?? 0));
+            // Rule 13 — with a withheld amount stated, this cascade becomes literally true: « Total du
+            // séjour » is the guest-paid total off the statement and « Versement plateforme » is the
+            // transfer, top and bottom of the same column.
             const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour)
-              + touristTaxOriginalTotal + endOfStaySas;
+              + touristTaxPlatformAmount + endOfStaySas;
             // Deductions to the commission base: the tax the platform collects + remits to the commune
             // itself (offered), and the extras collected on-site (the complément). What's left is the
             // pre-arrival amount the platform commissions on.
-            const offeredTax = isTouristTaxOffered ? touristTaxOriginalTotal : 0;
+            const offeredTax = isTouristTaxOffered ? touristTaxPlatformAmount : 0;
             const complement = Number(quote?.complementAmount || 0);
             const onSiteTotal = complement + endOfStay + midStayNotes;
             // specs/complement-buckets-by-moment.md §3 rule 1 — the server files each amount under the

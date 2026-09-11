@@ -92,6 +92,15 @@ Nothing the guest has already paid moves. What is still to be collected is corre
    `tourist-tax-base-accommodation-only.md` (« the platform brut never derives the base ») is
    **repealed**.
 
+   > **Amended 2026-09-11** by
+   > [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md)
+   > rule 6bis: when the operator states the tourist tax the platform withheld, the brut is the
+   > guest-paid total, so that stated tax leaves the base as well —
+   > `hébergement payé = brut − extras hors Complément − taxe de séjour retenue`. Otherwise a
+   > tax-inclusive brut would inflate the base by the tax itself: harmless in
+   > `per_day_per_person` (the base doesn't drive the amount), a tax on the tax in
+   > `percentage_accommodation`, which is the Lodge's mode. Empty box → this rule, unchanged.
+
 3. **Without a brut, the accommodation is the tariff.** A direct booking, or a platform booking whose
    brut has not been entered yet:
 
@@ -225,6 +234,10 @@ Nothing the guest has already paid moves. What is still to be collected is corre
     `brut < options hors Complément + supplément voyageur`, the fiche shows a warning next to the
     tourist-tax line: « Le brut plateforme ne couvre pas les extras facturés — la taxe est calculée
     sur une assiette nulle. »
+
+    > **Amended 2026-09-11** — the threshold counts the withheld tourist tax too
+    > (`brut < extras + supplément + taxe retenue`): a brut that covers the extras but not the tax it
+    > claims to contain is just as inconsistent, and floors the base the same way.
 
 ---
 
