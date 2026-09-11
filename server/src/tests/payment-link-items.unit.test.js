@@ -138,7 +138,8 @@ test('an item description is forwarded, and it changes neither the HT nor the ch
     ],
     vatRatePercent: 10,
   });
-  // Description present on the stay line, and identical amounts to the un-labelled basket (rule 6).
+  // Description present on the stay line, and amounts identical to the un-labelled basket
+  // (specs/qonto-payment-link-reference.md rule 6 — charged total unchanged by the label).
   const stay = labelled.items.find((i) => i.vatRate === 10);
   assert.equal(stay.description, 'Séjour du 10/10/2026 au 12/10/2026 · 2 nuits · réf 2026-09-002');
   assert.equal(labelled.expectedTotalCents, plain.expectedTotalCents);

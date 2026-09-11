@@ -69,6 +69,17 @@ test('title truncated on a word boundary to ≤ 120 chars with … (rule 8)', ()
   assert.doesNotMatch(title, /\s…$/); // trimmed before the ellipsis
 });
 
+test('rule 9 — the label carries no e-mail, phone or amount', () => {
+  const { title, description } = buildStayLineLabel({
+    propertyName: 'La Granja', reference: '2026-09-002', guest: G,
+    startDate: '2026-10-10', endDate: '2026-10-12', kind: 'full',
+  });
+  const blob = `${title} ${description}`;
+  assert.doesNotMatch(blob, /@/, 'no e-mail');
+  assert.doesNotMatch(blob, /€|EUR/, 'no amount');
+  assert.doesNotMatch(blob, /\+?\d{9,}/, 'no phone-like digit run'); // dates stay short (DD/MM/YYYY)
+});
+
 test('helpers: frDate + nightsBetween', () => {
   assert.equal(frDate('2026-10-12'), '12/10/2026');
   assert.equal(frDate('bad'), null);
