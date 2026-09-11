@@ -121,15 +121,18 @@ function buildQontoClient(config = {}) {
     //    utils/paymentLinkItems — Qonto adds VAT on top of each HT unit_price (specs/payment-links-vat.md).
     // `unit_price` is HT; Qonto's link `amount` = Σ round_half_up(unit_price × (1+vat_rate/100)).
     async createPaymentLink({ accessToken, title, amountCents, items, expectedTotalCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false, redirectUrl }) {
-      const toLine = (t, cents, rate) => ({
+      const toLine = (t, cents, rate, description) => ({
         title: String(t || 'Paiement'), quantity: 1,
         unit_price: { value: (Math.round(Number(cents || 0)) / 100).toFixed(2), currency },
         // Qonto expects `vat_rate` as a STRING (e.g. "0", "20") — a number is rejected with
         // "cannot unmarshal number ... of type string".
         vat_rate: String(rate == null ? 0 : rate),
+        // Optional per-item free text carrying the booking reference/dates so the payment is
+        // identifiable in Qonto (specs/qonto-payment-link-reference.md). Omitted when absent.
+        ...(description != null && String(description).trim() ? { description: String(description) } : {}),
       });
       const wireItems = Array.isArray(items) && items.length
-        ? items.map((it) => toLine(it.title, it.amountCents, it.vatRate))
+        ? items.map((it) => toLine(it.title, it.amountCents, it.vatRate, it.description))
         : [toLine(title, amountCents, vatRate)];
       const payload = { payment_link: { reusable: Boolean(reusable), potential_payment_methods: paymentMethods, items: wireItems } };
       // Where Qonto sends the payer back after a successful payment (the site success page). Only set

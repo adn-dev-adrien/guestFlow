@@ -11,6 +11,35 @@
  */
 
 const { buildVatItems } = require('./paymentLinkItems');
+const { buildStayLineLabel } = require('./paymentLinkLabel');
+
+// Enrich the stay line's title + description with the booking reference, guest name, property and
+// dates so the payment is identifiable in Qonto (specs/qonto-payment-link-reference.md). Text only —
+// never touches amounts. Returns silently on any lookup failure (the generic titles stay).
+function enrichStayComponent(database, id, type, components) {
+  if (!Array.isArray(components) || !components.length) return;
+  let info = null;
+  try {
+    info = database.prepare(`
+      SELECT res.devisNumber, res.startDate, res.endDate, c.firstName, c.lastName, p.name AS propertyName
+      FROM reservations res
+      LEFT JOIN clients c ON c.id = res.clientId
+      LEFT JOIN properties p ON p.id = res.propertyId
+      WHERE res.id = ?`).get(id);
+  } catch { info = null; }
+  if (!info) return;
+  const { title, description } = buildStayLineLabel({
+    propertyName: info.propertyName,
+    reference: info.devisNumber,
+    guest: { firstName: info.firstName, lastName: info.lastName },
+    startDate: info.startDate,
+    endDate: info.endDate,
+    kind: type,
+  });
+  // The first component is always the taxable stay line; the tax line (if any) keeps its label.
+  components[0].title = title;
+  if (description) components[0].description = description;
+}
 
 const LINK_TYPES   = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
 const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour' };
@@ -66,6 +95,7 @@ async function ensurePaymentLink(deps, id, type) {
     let built = null;
     try { built = resolveItems(id, type, r); } catch { built = null; }
     if (built && Array.isArray(built.components)) {
+      enrichStayComponent(database, id, type, built.components);
       const { items, expectedTotalCents } = buildVatItems(built);
       if (expectedTotalCents === amountCents && items.length) {
         linkArgs.items = items;

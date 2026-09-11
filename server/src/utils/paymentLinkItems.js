@@ -45,11 +45,14 @@ function buildVatItems({ components, vatRatePercent }) {
 
   const items = list.map((c) => {
     const grossCents = Math.round(Number(c.grossCents));
+    // A component may carry an optional free-text `description` (specs/qonto-payment-link-reference.md):
+    // pure passenger data forwarded to the Qonto item, it never affects amounts.
+    const description = c.description != null && String(c.description).trim() ? String(c.description) : undefined;
     if (!c.taxable || R <= 0) {
-      return { title: String(c.title || 'Ligne'), amountCents: grossCents, vatRate: 0, _lineTotal: grossCents, _taxable: false };
+      return { title: String(c.title || 'Ligne'), amountCents: grossCents, vatRate: 0, description, _lineTotal: grossCents, _taxable: false };
     }
     const htCents = htFromTtc(grossCents, R);
-    return { title: String(c.title || 'Ligne'), amountCents: htCents, vatRate: vatRatePercent, _lineTotal: lineTotalCents(htCents, R), _taxable: true };
+    return { title: String(c.title || 'Ligne'), amountCents: htCents, vatRate: vatRatePercent, description, _lineTotal: lineTotalCents(htCents, R), _taxable: true };
   });
 
   const predicted = items.reduce((s, it) => s + it._lineTotal, 0);
@@ -68,7 +71,9 @@ function buildVatItems({ components, vatRatePercent }) {
   }
 
   return {
-    items: items.map(({ title, amountCents, vatRate }) => ({ title, amountCents, vatRate })),
+    items: items.map(({ title, amountCents, vatRate, description }) => (
+      description ? { title, amountCents, vatRate, description } : { title, amountCents, vatRate }
+    )),
     expectedTotalCents: target,
   };
 }
