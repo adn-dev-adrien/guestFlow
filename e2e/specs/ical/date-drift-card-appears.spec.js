@@ -10,21 +10,38 @@ import { seedPendingDateDrift, lockIcalReservation } from '../../fixtures/dbSeed
 test('A pending date-drift alert renders an orange card on the Dashboard', async ({ page }) => {
   const property = await createProperty({ name: 'Drift Property' });
   const client = await createClient({ firstName: 'Drift', lastName: 'Tester' });
+  // Relative dates: the stay must stay in the future (the API rejects a past check-in) so the test
+  // never ages out — a hard-coded 2026-09-10 broke the smoke run on 2026-09-11.
+  const DAY = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const now = Date.now();
+  const startDate = iso(now + 30 * DAY);
+  const endDate = iso(now + 32 * DAY);
+  const newStartDate = iso(now + 60 * DAY);
+  const newEndDate = iso(now + 62 * DAY);
+
   const reservation = await createReservation({
-    propertyId: property.id, clientId: client.id,
-    startDate: '2026-09-10', endDate: '2026-09-12',
+    propertyId: property.id, clientId: client.id, startDate, endDate,
   });
   // Mark the reservation as iCal-sync-locked (otherwise the engine just rewrites the dates).
   lockIcalReservation(reservation.id);
   seedPendingDateDrift({
     reservationId: reservation.id,
-    previousStartDate: '2026-09-10', previousEndDate: '2026-09-12',
-    newStartDate: '2026-10-05',      newEndDate: '2026-10-07',
+    previousStartDate: startDate, previousEndDate: endDate,
+    newStartDate, newEndDate,
   });
 
   await page.goto('/');
   // The alert title (specs/ical-sync-override-locked-dates.md §6.1).
   await expect(page.getByText(/Modifications de dates iCal/i)).toBeVisible({ timeout: 10_000 });
-  // The new dates appear somewhere in the alert body.
-  await expect(page.getByText(/05 oct\.? 2026/i).or(page.getByText('2026-10-05'))).toBeVisible();
+  // The proposed new start date appears in the alert body — built from the app's own short format
+  // (displayDateShort → « 05 oct. 2026 »), tolerant to the ICU period/spacing.
+  const p = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+    .formatToParts(new Date(`${newStartDate}T12:00:00`));
+  const dd = p.find((x) => x.type === 'day').value;
+  const mon = p.find((x) => x.type === 'month').value.replace('.', '');
+  const yyyy = p.find((x) => x.type === 'year').value;
+  await expect(
+    page.getByText(new RegExp(`${dd}\\s+${mon}\\.?\\s+${yyyy}`, 'i')).or(page.getByText(newStartDate)),
+  ).toBeVisible();
 });

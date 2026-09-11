@@ -148,3 +148,47 @@ test('sendPaymentRequest: a validation throw from ensurePaymentLink bubbles (zer
   await assert.rejects(() => sendPaymentRequest(baseDeps(db, { resolveAmountCents: () => 0 }), devisId, 'deposit'),
     (e) => { assert.equal(e.httpStatus, 400); return true; });
 });
+
+// Enriched Qonto stay line — specs/qonto-payment-link-reference.md rules 3, 5, 6.
+// The stay line's title/description are built from the reservation's OWN devisNumber, client and
+// property (rule 5); the tax line keeps its label (rule 3); the charged amount is unchanged (rule 6).
+test('ensurePaymentLink: stay line carries « Séjour <bien> — <réf> — <Prénom Nom> », tax line untouched, amount unchanged', async () => {
+  const { db, devisId } = seed(); // property « Gite », client « Jean Dupont », 2026-08-10 → 2026-08-12
+  db.prepare("UPDATE reservations SET devisNumber = '2026-08-042' WHERE id = ?").run(devisId);
+  let sent = null;
+  const deps = baseDeps(db, {
+    resolveAmountCents: () => 9000,
+    resolveItems: () => ({
+      components: [
+        { title: 'Séjour et prestations', grossCents: 8020, taxable: true },
+        { title: 'Taxe de séjour', grossCents: 980, taxable: false },
+      ],
+      vatRatePercent: 10,
+    }),
+    createLink: async (args) => { sent = args; return { id: 'ql_e', url: 'https://pay/e', mappedStatus: 'open' }; },
+  });
+
+  await ensurePaymentLink(deps, devisId, 'full');
+
+  assert.ok(sent.items, 'a VAT basket was sent');
+  assert.equal(sent.items[0].title, 'Séjour Gite — 2026-08-042 — Jean Dupont', 'rule 5: property + reference + Prénom Nom');
+  assert.equal(sent.items[0].description, 'Séjour du 10/08/2026 au 12/08/2026 · 2 nuits · réf 2026-08-042');
+  assert.equal(sent.items[1].title, 'Taxe de séjour', 'rule 3: the tax line keeps its label');
+  assert.equal('description' in sent.items[1], false);
+  assert.equal(sent.expectedTotalCents, 9000, 'rule 6: charged total unchanged by the label');
+});
+
+// specs/qonto-payment-link-reference.md rule 7 — a missing reference/property must not break the
+// label nor the flow; the enrichment fails soft and the generic title is used.
+test('ensurePaymentLink: no devisNumber → stay line still enriched with what exists (rule 7)', async () => {
+  const { db, devisId } = seed(); // devisNumber left NULL
+  let sent = null;
+  const deps = baseDeps(db, {
+    resolveAmountCents: () => 9000,
+    resolveItems: () => ({ components: [{ title: 'Séjour et prestations', grossCents: 9000, taxable: true }], vatRatePercent: 10 }),
+    createLink: async (args) => { sent = args; return { id: 'ql_f', url: 'https://pay/f', mappedStatus: 'open' }; },
+  });
+  await ensurePaymentLink(deps, devisId, 'full');
+  assert.equal(sent.items[0].title, 'Séjour Gite — Jean Dupont', 'reference segment dropped cleanly');
+  assert.doesNotMatch(sent.items[0].title, /—\s+—/);
+});
