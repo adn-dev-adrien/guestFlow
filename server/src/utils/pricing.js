@@ -1299,6 +1299,11 @@ function calculateReservationQuote({
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
   // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
   platformGrossAmount: platformGrossAmountInput,
+  // specs/platform-tourist-tax-out-of-the-commission.md — the tourist tax the platform withheld from
+  // its payout and remits to the commune itself, as the PLATFORM computed it (€, operator-entered).
+  // Only read alongside a brut on a platform in mode « collecte ET reverse ». Empty → the brut is
+  // read tourist-tax-excluded, which is the pre-existing convention and every stored reservation.
+  platformTouristTaxAmount: platformTouristTaxAmountInput,
   // specs/public-online-deposit.md → public-planning-options.md — the PUBLIC/site flow can't schedule
   // a planning-card option's slots, so when truthy the engine bills such an option by the client's
   // QUANTITY as the occurrence count (quantity × (perPerson ? persons : 1) × unitPrice) instead of
@@ -2063,34 +2068,9 @@ function calculateReservationQuote({
     finalOptionLines.filter((line) => line && line.includedInRate),
     { referencePersons: taxReferencePersons, nights },
   );
-  // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
-  // accommodation the guest paid, « hors options et ménage ». Where that figure lives depends on who
-  // took the money:
-  //   - a platform booking with a brut → the brut IS what the guest paid, so the accommodation is
-  //     what remains once the extras billed THROUGH the platform are taken out (rule 2). A line
-  //     routed to « Complément » is collected by us at arrival and was never inside the brut, so
-  //     subtracting it would deduct it twice;
-  //   - anything else → the tariff, which is what the guest paid us directly (rule 3).
-  // Then, on both branches alike: the services sold inside the night rate come out (rule 5, the
-  // office's « hors ménage »), and so does the extra-guest surcharge (rule 4, operator decision of
-  // 2026-09-01 — it is inside the brut, hence subtracted rather than merely not added).
-  // This repeals rule 2 of tourist-tax-base-accommodation-only.md: the brut derives the base again.
-  const taxAccommodationPaid = platformGrossPin != null
-    ? roundMoney(Math.max(0, platformGrossPin - preArrivalOptionsResources))
-    : taxBaseBeforeDeduction;
-  const taxBaseAccommodation = roundMoney(Math.max(
-    0,
-    taxAccommodationPaid
-      - touristTaxIncludedInRateDeduction
-      - (platformGrossPin != null ? extraGuestSurcharge : 0),
-  ));
-  // Rule 16 — a brut that does not even cover the extras billed alongside it is an inconsistent
-  // entry, not a zero-euro stay. Floored above, surfaced on the fiche rather than swallowed.
-  const touristTaxBrutInconsistent = platformGrossPin != null
-    && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestSurcharge);
-
   // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
-  // Resolved HERE (before the brut back-solve) so the reversed tax can be treated as part of the brut.
+  // Resolved HERE (before the declared tax base AND the brut back-solve) so both the withheld tax
+  // (case 2) and the reversed tax (case 1) can be treated as parts of the brut.
   //   collectsFromGuest               = the platform charges the tax to the guest.
   //   isTouristTaxRemittedByOwnerFlag = WE remit it to the commune (→ « Taxe de séjour » page + 46710000).
   //   platform          (1,1) → OFFERED (zeroed, absent from our books).
@@ -2103,6 +2083,49 @@ function calculateReservationQuote({
   // OFFERED (struck-through, zeroed) ONLY when the platform both collects it AND remits it itself
   // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered.
   const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
+
+  // specs/platform-tourist-tax-out-of-the-commission.md rules 2-3 — in the OFFERED case the operator
+  // may state, in euros, the tourist tax the platform kept out of its payout. That amount is the
+  // PLATFORM's figure, never ours, which is exactly what makes subtracting it safe where subtracting
+  // our own estimate was not (platform-brut-excludes-offered-tourist-tax.md). Empty → 0 → every term
+  // below is inert and the brut keeps being read tax-excluded, so no already-booked reservation moves.
+  const withheldTouristTaxInBrut = (platformGrossPin != null && isTouristTaxOfferedByPlatform
+    && platformTouristTaxAmountInput !== '' && platformTouristTaxAmountInput != null
+    && Number.isFinite(Number(platformTouristTaxAmountInput)))
+    ? roundMoney(Math.max(0, Number(platformTouristTaxAmountInput)))
+    : 0;
+
+  // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
+  // accommodation the guest paid, « hors options et ménage ». Where that figure lives depends on who
+  // took the money:
+  //   - a platform booking with a brut → the brut IS what the guest paid, so the accommodation is
+  //     what remains once the extras billed THROUGH the platform are taken out (rule 2). A line
+  //     routed to « Complément » is collected by us at arrival and was never inside the brut, so
+  //     subtracting it would deduct it twice;
+  //   - anything else → the tariff, which is what the guest paid us directly (rule 3).
+  // Then, on both branches alike: the services sold inside the night rate come out (rule 5, the
+  // office's « hors ménage »), and so does the extra-guest surcharge (rule 4, operator decision of
+  // 2026-09-01 — it is inside the brut, hence subtracted rather than merely not added).
+  // This repeals rule 2 of tourist-tax-base-accommodation-only.md: the brut derives the base again.
+  // specs/platform-tourist-tax-out-of-the-commission.md rule 6bis — a tax-inclusive brut must not
+  // inflate the base the tax itself is computed on. Invisible on a per_day_per_person property (the
+  // base doesn't drive the amount) but a tax on the tax on a percentage_accommodation one.
+  const taxAccommodationPaid = platformGrossPin != null
+    ? roundMoney(Math.max(0, platformGrossPin - preArrivalOptionsResources - withheldTouristTaxInBrut))
+    : taxBaseBeforeDeduction;
+  const taxBaseAccommodation = roundMoney(Math.max(
+    0,
+    taxAccommodationPaid
+      - touristTaxIncludedInRateDeduction
+      - (platformGrossPin != null ? extraGuestSurcharge : 0),
+  ));
+  // Rule 16 — a brut that does not even cover the extras billed alongside it is an inconsistent
+  // entry, not a zero-euro stay. Floored above, surfaced on the fiche rather than swallowed.
+  // platform-tourist-tax-out-of-the-commission.md rule 16 — a withheld tax is part of what the brut
+  // is supposed to contain, so it counts in the threshold: a brut that covers the extras but not the
+  // tax it claims to include is just as inconsistent.
+  const touristTaxBrutInconsistent = platformGrossPin != null
+    && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestSurcharge + withheldTouristTaxInBrut);
 
   const touristTaxBreakdown = computeTouristTaxBreakdown({
     touristTaxMode: property.touristTaxMode,
@@ -2157,13 +2180,19 @@ function calculateReservationQuote({
   // écart equal to the tax (specs/platform-payment-tourist-tax-as-option.md).
   const touristTaxReversedByPlatform = collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0;
   const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform) ? touristTaxTotal : 0;
-  // « Offered » case (platform collects the tax AND remits it to the commune itself): the brut is the
-  // stay total the platform BILLS US, tourist tax excluded — that is the number its statement prints
-  // (Gîtes de France « prix location + options », Booking « sous-total »), and the tax never transits
-  // through our accounts. So nothing is subtracted here: the whole brut is revenue
-  // (specs/platform-brut-excludes-offered-tourist-tax.md, superseding the earlier deduction).
+  // « Offered » case (platform collects the tax AND remits it to the commune itself): what the brut
+  // contains is now the operator's call, stated in euros (specs/platform-tourist-tax-out-of-the-
+  // commission.md rules 3 and 6). `withheldTouristTaxInBrut` empty → the brut is the stay total the
+  // platform BILLS US, tax excluded, and nothing is subtracted — the reading of
+  // platform-brut-excludes-offered-tourist-tax.md, byte-identical. Non-empty → the brut is the
+  // guest-paid total and the stated tax comes back out of it, so the revenue and the VAT base are the
+  // stay alone. Never our own estimate: that is what made the earlier deduction unreconcilable.
   const pinnedAccommodation = platformGrossPin != null
-    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources - reversedTouristTaxInBrut))
+    ? roundMoney(Math.max(
+      0,
+      platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources
+        - reversedTouristTaxInBrut - withheldTouristTaxInBrut,
+    ))
     : null;
   const accommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null
@@ -2648,6 +2677,11 @@ function calculateReservationQuote({
     platformTakesDeposit: platformIsNonDirect && Boolean(platformTakesDeposit),
     // specs/platform-payment-entry.md — echo the brut (pins finalPrice) so the client repopulates the field.
     platformGrossAmount: platformGrossPin,
+    // specs/platform-tourist-tax-out-of-the-commission.md rule 9 — the amount actually withheld, or
+    // null when the box is empty / the mode isn't « collecte ET reverse ». Distinct from
+    // `touristTaxOriginalTotal`, which stays the engine's OWN estimate: the fiche displays the
+    // withheld one and falls back to the estimate, « Reprendre le calcul » offers the estimate.
+    platformTouristTaxWithheld: withheldTouristTaxInBrut > 0 ? withheldTouristTaxInBrut : null,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,

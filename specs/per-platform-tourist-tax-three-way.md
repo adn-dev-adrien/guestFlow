@@ -222,6 +222,14 @@ reservations created before this change keep their stored schedule until re-save
   **struck-through** with **no « Offert » badge** (it isn't a geste commercial), and a short neutral
   caption underneath explains the routing: « Collectée et reversée à la commune par la plateforme ».
   Owner-collect (case 3) and direct captions unchanged.
+
+  > **Built 2026-09-11, not before.** The code shipped the amount PLAIN, under a comment asserting the
+  > opposite of this rule (« NOT struck-through (it isn't « offert ») »). The rule was right and was
+  > simply never implemented — the exact failure [spec-rule-coverage.md](spec-rule-coverage.md) was
+  > written to surface. Fixed while implementing
+  > [platform-tourist-tax-out-of-the-commission.md](platform-tourist-tax-out-of-the-commission.md)
+  > rule 13, which also makes the struck amount the one the platform actually withheld when the
+  > operator has stated it. Pinned by `PricingSummary.platform-tourist-tax.test.jsx`.
 - **SAS arrivée:** the « complément à percevoir » detail gains a **« Taxe de séjour : X € »** line
   when the reservation routes the tax to the complement (case 3 / forced). The total is unchanged
   (the tax was already in `complementAmount`); the line just makes it explicit and reconciles the

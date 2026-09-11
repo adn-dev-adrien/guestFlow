@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taxe de séjour retenue par la plateforme — résumé de spec</title>
+<style>
+  :root{
+    --fir:#2F5D46; --honey:#C99038; --paper:#F8F5EF; --card:#ffffff;
+    --ink:#27251F; --muted:#6E6A5E; --line:rgba(60,54,36,.14);
+    --ok:#3E7D54; --ok-soft:#E6EFE7; --warn:#8F6A1D; --warn-soft:#F6EDD7;
+    --err:#A8433A; --err-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+    --serif:'Iowan Old Style',Charter,Georgia,'Times New Roman',serif;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --r:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#1B1A17; --card:#242320; --ink:#EDEAE2; --muted:#A8A294;
+      --line:rgba(237,234,226,.14);
+      --ok-soft:#22301F; --warn-soft:#332A15; --err-soft:#331F1C; --info-soft:#1C2A33;
+      --fir:#7FB495; --honey:#DFB265; --ok:#7FB495; --warn:#DFB265; --err:#E08A80; --info:#8FB5CE;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 var(--sans);
+       -webkit-text-size-adjust:100%}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 18px 80px}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.25;margin:0}
+  h1{font-size:1.85rem}
+  h2{font-size:1.25rem;margin:38px 0 14px}
+  h3{font-size:1.02rem;margin:0 0 8px}
+  p{margin:0 0 12px}
+  a{color:var(--fir)}
+  .sub{color:var(--muted);margin:8px 0 0}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
+  .tag{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.02em;
+       padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+  .tag.draft{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+  .tag.neutral{color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+        padding:18px;margin:0 0 16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:600;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .scroll{overflow-x:auto}
+  ul{margin:0 0 12px;padding-left:20px}
+  li{margin:0 0 6px}
+  code{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+       background:var(--info-soft);color:var(--info);padding:1px 5px;border-radius:5px}
+  .callout{border-left:3px solid var(--honey);background:var(--warn-soft);color:var(--ink);
+           padding:12px 16px;border-radius:0 var(--r) var(--r) 0;margin:0 0 16px}
+  .callout.bad{border-color:var(--err);background:var(--err-soft)}
+  .callout.good{border-color:var(--ok);background:var(--ok-soft)}
+  .callout p:last-child{margin:0}
+
+  /* ---- simulateur ---- */
+  .sim{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .sim-head{padding:14px 18px;border-bottom:1px solid var(--line);
+            display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+  .sim-body{display:grid;grid-template-columns:1.05fr .95fr;gap:0}
+  @media (max-width:860px){.sim-body{grid-template-columns:1fr}}
+  .pane{padding:18px}
+  .pane+.pane{border-left:1px solid var(--line)}
+  @media (max-width:860px){.pane+.pane{border-left:0;border-top:1px solid var(--line)}}
+  .field{margin:0 0 14px}
+  .field label{display:block;font-size:.74rem;font-weight:600;color:var(--muted);
+               text-transform:uppercase;letter-spacing:.04em;margin:0 0 5px}
+  .inp{display:flex;align-items:center;gap:8px}
+  input[type=text]{flex:1;min-width:0;font:inherit;font-variant-numeric:tabular-nums;
+    padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+    background:var(--paper);color:var(--ink)}
+  input[type=text]:focus{outline:2px solid var(--fir);outline-offset:1px;border-color:transparent}
+  input[type=text].bad{border-color:var(--err);background:var(--err-soft)}
+  .unit{color:var(--muted);font-size:.85rem}
+  .hint{font-size:.78rem;color:var(--muted);margin:5px 0 0}
+  .hint.err{color:var(--err);font-weight:600}
+  button{font:inherit;font-weight:500;cursor:pointer;border-radius:10px;
+         padding:9px 14px;min-height:44px;border:1px solid var(--line);
+         background:var(--card);color:var(--ink)}
+  button:hover:not(:disabled){border-color:var(--fir);color:var(--fir)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--fir);border-color:var(--fir);color:#fff}
+  button.primary:hover:not(:disabled){filter:brightness(1.12);color:#fff}
+  button.link{border:0;background:transparent;color:var(--fir);padding:6px 8px;
+              text-decoration:underline;text-underline-offset:3px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 0}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{border:0;border-radius:0;min-height:38px;padding:7px 12px;font-size:.83rem}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button[aria-pressed=true]{background:var(--fir);color:#fff}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;font-weight:600;
+        padding:4px 10px;border-radius:999px}
+  .chip.ok{background:var(--ok-soft);color:var(--ok)}
+  .chip.warn{background:var(--warn-soft);color:var(--warn)}
+  .chip.info{background:var(--info-soft);color:var(--info);font-size:.68rem;padding:2px 8px}
+  .line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:5px 0}
+  .line .lbl{color:var(--muted);font-size:.9rem}
+  .line .val{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+  .line.strong{padding-top:9px;border-top:1px solid var(--line);margin-top:4px}
+  .line.strong .lbl{color:var(--ink);font-weight:600;font-size:.95rem}
+  .line.strong .val{font-size:1.02rem}
+  .line.total .lbl,.line.total .val{color:var(--fir)}
+  .line .val.minus{color:var(--warn)}
+  .struck{text-decoration:line-through;text-decoration-thickness:2px;opacity:.65}
+  .panel-title{font-family:var(--serif);font-weight:600;font-size:.95rem;margin:0 0 10px;
+               padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .muted-note{font-size:.78rem;color:var(--muted);font-style:italic;margin:4px 0 0}
+  .hidden{display:none!important}
+  .delta{font-size:.78rem;color:var(--muted);margin:10px 0 0;padding:10px 12px;
+         background:var(--paper);border-radius:10px;border:1px solid var(--line)}
+  .delta b{color:var(--ink)}
+  footer{margin:44px 0 0;padding-top:18px;border-top:1px solid var(--line);
+         color:var(--muted);font-size:.82rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>La taxe de séjour retenue par la plateforme sort de la commission</h1>
+    <p class="sub">Une case de plus dans « Paiement plateforme », et les trois nombres du relevé se tapent tels quels.</p>
+    <div class="meta">
+      <span class="tag draft">Draft — à valider</span>
+      <span class="tag neutral">11/09/2026</span>
+      <span class="tag neutral">specs/platform-tourist-tax-out-of-the-commission.md</span>
+    </div>
+  </header>
+
+  <h2>Le constat</h2>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Ce que la plateforme imprime</h3>
+      <p style="font-size:.86rem;color:var(--muted);margin-bottom:10px">Gîtes de France — Grimaud #22225, 26–28 juin 2026</p>
+      <div class="scroll"><table>
+        <tr><td>Prix location</td><td class="num">653,00</td></tr>
+        <tr><td>Options / forfait ménage</td><td class="num">80,00</td></tr>
+        <tr><td>Taxe de séjour <span class="chip info">collectée ET reversée par la centrale</span></td><td class="num">14,40</td></tr>
+        <tr><td><b>Payé par le client</b></td><td class="num"><b>747,40</b></td></tr>
+        <tr><td><b>Virement propriétaire</b></td><td class="num"><b>668,00</b></td></tr>
+      </table></div>
+      <p class="muted-note">La vraie commission est 65,00 € = 747,40 − 668,00 − 14,40.</p>
+    </div>
+
+    <div class="card">
+      <h3>Ce que GuestFlow en fait aujourd'hui</h3>
+      <p>Depuis le 24/08 (<i>platform-brut-excludes-offered-tourist-tax</i>, écrite après le rapport de la comptable sur cette fiche exactement), le champ s'appelle « Total séjour facturé par la plateforme » et on y tape <b>733,00</b> — le séjour, <b>hors</b> taxe.</p>
+      <div class="scroll"><table>
+        <tr><th>Ce qu'on tape</th><th class="num">Commission calculée</th><th class="num">Juste&nbsp;?</th></tr>
+        <tr><td>733,00 (hors taxe)</td><td class="num">65,00</td><td class="num" style="color:var(--ok)">oui</td></tr>
+        <tr><td>747,40 (total client)</td><td class="num">79,40</td><td class="num" style="color:var(--err)">+14,40</td></tr>
+      </table></div>
+      <p style="margin-top:12px">Deux choses clochent&nbsp;:</p>
+      <ul>
+        <li><b>Aucune plateforme n'imprime 733.</b> Elles impriment toutes le total payé par le client. La soustraction se fait de tête, avant de taper.</li>
+        <li><b>Le vrai chiffre de la taxe n'est stocké nulle part.</b> C'était la raison de la décision d'août&nbsp;: le moteur soustrayait <i>sa propre estimation</i>, qui n'est jamais celle de la plateforme (Booking facture 4,4&nbsp;% du séjour là où nous comptons par personne et par nuit). Faute de champ, le choix était entre soustraire un mauvais chiffre et ne rien soustraire.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Ce qu'on propose</h2>
+  <div class="card">
+    <ul>
+      <li><b>Une case « Taxe de séjour retenue »</b> dans « Paiement plateforme », <b>uniquement</b> quand la plateforme collecte la taxe <i>et</i> la reverse elle-même à la commune (Gîtes de France, Booking, Airbnb, Greengo).</li>
+      <li><b>Pré-remplie par le moteur sur une fiche neuve</b>, librement modifiable — le chiffre de la plateforme l'emporte sur notre estimation, et une fois posé plus rien ne le réécrit.</li>
+      <li><b>Le brut redevient « Montant total payé par le client »</b>, taxe comprise. La case dit combien en sortir.</li>
+      <li><b>Elle sort de partout où c'est dû&nbsp;:</b> du chiffre d'affaires, de la base TVA, et de la commission calculée.</li>
+      <li><b>Elle s'affiche barrée dans le résumé</b> — lisible, jamais comptée.</li>
+      <li><b>Case vide = convention d'août, à l'identique.</b> C'est l'état de toutes les fiches déjà saisies&nbsp;: rien ne bouge d'un centime.</li>
+    </ul>
+  </div>
+
+  <h2>Le rendu — manipulez-le</h2>
+  <p class="sub" style="margin-bottom:14px">Les chiffres du relevé Grimaud sont en place. Changez le mode de taxe de la plateforme, videz la case, tapez un montant faux&nbsp;: l'écran répond.</p>
+
+  <div class="sim">
+    <div class="sim-head">
+      <div>
+        <div style="font-family:var(--serif);font-weight:600">Fiche réservation — bloc « Paiement plateforme »</div>
+        <div style="font-size:.78rem;color:var(--muted)">Mode taxe de séjour de la plateforme&nbsp;:</div>
+      </div>
+      <div class="seg" role="group" aria-label="Mode de taxe de séjour">
+        <button type="button" data-mode="platform" aria-pressed="true">Reversée à la commune</button>
+        <button type="button" data-mode="reversed" aria-pressed="false">Reversée à nous</button>
+        <button type="button" data-mode="owner" aria-pressed="false">Encaissée à l'arrivée</button>
+      </div>
+    </div>
+
+    <div class="sim-body">
+      <!-- ------- saisie ------- -->
+      <div class="pane">
+        <div class="panel-title">Paiement plateforme</div>
+
+        <div class="field">
+          <label id="lab-brut" for="f-brut">Montant total payé par le client</label>
+          <div class="inp"><input type="text" id="f-brut" inputmode="decimal" value="747,40"><span class="unit">€</span></div>
+          <p class="hint" id="hint-brut">Total du relevé, taxe de séjour comprise. La taxe saisie ci-dessous en est déduite.</p>
+        </div>
+
+        <div class="field" id="box-tax">
+          <label for="f-tax">Taxe de séjour retenue</label>
+          <div class="inp">
+            <input type="text" id="f-tax" inputmode="decimal" value="14,40">
+            <span class="unit">€</span>
+            <button type="button" class="link" id="btn-recalc" title="Reprendre le calcul du moteur : 14,40 €">Reprendre le calcul</button>
+          </div>
+          <p class="hint" id="hint-tax">Collectée par la plateforme et reversée à la commune — jamais encaissée par nous.</p>
+          <p class="hint" id="hint-ht"><b>Montant hors taxe de séjour&nbsp;: 733,00 €</b> — base TVA et base de commission.</p>
+        </div>
+
+        <div class="field">
+          <label for="f-virement">Virement reçu (contrôle)</label>
+          <div class="inp"><input type="text" id="f-virement" inputmode="decimal" value="668,00"><span class="unit">€</span></div>
+        </div>
+
+        <div class="field">
+          <label for="f-comm">Commission solde</label>
+          <div class="inp"><input type="text" id="f-comm" inputmode="decimal" value=""><span class="unit">€</span></div>
+          <p class="hint">Champ libre — le bouton ne fait que le remplir, une fois, à la demande.</p>
+        </div>
+
+        <div class="row">
+          <button type="button" class="primary" id="btn-comm">Calculer la commission</button>
+          <button type="button" id="btn-clear" title="Brut hors taxe, case vide — l'état des 17 fiches déjà saisies">Simuler une fiche d'avant</button>
+        </div>
+        <p class="hint" id="hint-comm"></p>
+      </div>
+
+      <!-- ------- résumé ------- -->
+      <div class="pane">
+        <div class="panel-title">Résumé de la réservation</div>
+
+        <div class="line">
+          <span class="lbl">Taxe de séjour <span class="chip info" id="tax-chip">Plateforme</span></span>
+          <span class="val" id="r-tax">14,40 €</span>
+        </div>
+        <p class="muted-note" id="r-tax-note">Collectée et reversée à la commune par la plateforme</p>
+
+        <div style="height:14px"></div>
+
+        <div class="line strong total"><span class="lbl">Total du séjour</span><span class="val" id="r-gross">747,40 €</span></div>
+        <div class="line" id="r-line-tax"><span class="lbl">Taxe de séjour (plateforme)</span><span class="val minus" id="r-offered">− 14,40 €</span></div>
+        <div class="line strong"><span class="lbl">Montant soumis à commission</span><span class="val" id="r-base">733,00 €</span></div>
+        <div class="line" id="r-line-comm"><span class="lbl">Commission solde</span><span class="val minus" id="r-comm">− 0,00 €</span></div>
+        <div class="line strong"><span class="lbl">Versement plateforme</span><span class="val" id="r-payout">733,00 €</span></div>
+
+        <div style="height:14px"></div>
+        <div class="line"><span class="lbl">Hébergement (CA)</span><span class="val" id="r-accom">653,00 €</span></div>
+        <div class="line"><span class="lbl">Options facturées</span><span class="val">80,00 €</span></div>
+        <div class="line"><span class="lbl">Base TVA 10 %</span><span class="val" id="r-vatbase">733,00 €</span></div>
+
+        <div style="height:14px"></div>
+        <div class="line"><span class="lbl">Net perçu</span><span class="val" id="r-net">733,00 €</span></div>
+        <div class="row"><span class="chip warn" id="r-chip">écart : 65,00 €</span></div>
+
+        <div class="delta" id="r-delta"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <div class="card">
+    <ul>
+      <li><b>Le mode « la plateforme nous reverse la taxe »</b> (Lodgify — la seule dans ce mode). La taxe y est à la fois dans le brut et dans le virement&nbsp;: elle n'est retenue nulle part. Les 8 fiches Lodgify mesurées réconcilient au centime aujourd'hui, elles n'ont aucune raison de bouger.</li>
+      <li><b>Aucune reprise du passé.</b> Les 17 fiches déjà saisies dans ce mode (Gîtes de France 7, Booking 6, Airbnb 3, Greengo 1, mai → août 2026, déjà exportées à la comptable) gardent leurs montants exacts. Faire passer une fiche à la nouvelle convention, c'est un clic volontaire sur « Reprendre le calcul » puis retaper le brut.</li>
+      <li><b>Pas de lecture automatique du relevé</b> (mail, API). Saisie manuelle, comme le reste du bloc.</li>
+      <li><b>Les frais de dossier</b> (36,65 € chez Gîtes de France) restent hors du brut&nbsp;: ils sont au client, jamais à nous.</li>
+    </ul>
+  </div>
+
+  <h2>Le risque</h2>
+  <div class="callout bad">
+    <p><b>Le double comptage, dans un sens ou dans l'autre.</b> C'est exactement ce qui a produit le rapport de la comptable en août&nbsp;: 14,40 € de commission manquants et 14,40 € de CA en trop sur chaque fiche Gîtes de France, une écriture qui <i>s'équilibrait</i> — donc que rien ne signalait.</p>
+    <p>La parade tient en une règle&nbsp;: <b>la case vide veut dire « le brut ne contient pas de taxe »</b>, ce qui est littéralement la convention d'août. Aucune fiche existante ne bouge, aucune migration ne tourne, et le basculement d'une fiche est un geste explicite. Le seul moment où la soustraction a lieu est celui où l'opérateur a écrit, lui-même, combien la plateforme a retenu.</p>
+  </div>
+  <div class="callout good">
+    <p><b>Effet de bord bienvenu&nbsp;:</b> la cascade du résumé devient littéralement vraie. « Total du séjour » vaut le montant payé par le client, et « Versement plateforme » vaut le virement reçu — les deux nombres du relevé, en haut et en bas de la même colonne.</p>
+  </div>
+
+  <h2>Les arbitrages</h2>
+  <div class="card scroll">
+    <table>
+      <tr><th>Question</th><th>Tranché le 11/09/2026</th></tr>
+      <tr>
+        <td>Quel nombre tape-t-on dans le champ du brut&nbsp;?</td>
+        <td><b>Le total payé par le client, taxe comprise</b> (747,40). La case dit combien en est de la taxe. On revient sur la <i>convention de saisie</i> d'août, pas sur son résultat&nbsp;: le moteur ne soustrait toujours pas son estimation, il soustrait le chiffre de l'opérateur — celui de la plateforme.</td>
+      </tr>
+      <tr>
+        <td>Que deviennent les 17 fiches déjà saisies&nbsp;?</td>
+        <td><b>Rien.</b> Case vide = ancienne convention. Aucun CA ni aucune commission déjà exportés ne bougent.</td>
+      </tr>
+      <tr>
+        <td>La case vaut-elle aussi pour « reversée à nous »&nbsp;?</td>
+        <td><b>Non</b> — mode « reversée à la commune » seulement.</td>
+      </tr>
+      <tr>
+        <td>Le montant barré dans le résumé&nbsp;?</td>
+        <td><b>Oui.</b> Cela révise <i>per-platform-tourist-tax-three-way</i>, qui l'affichait non barré au motif que « ce n'est pas offert ». Le trait ne dit pas <i>gratuit</i>, il dit <i>pas pour nous</i>.</td>
+      </tr>
+    </table>
+  </div>
+
+  <footer>
+    Résumé de <code>specs/platform-tourist-tax-out-of-the-commission.md</code> — la spec Markdown reste la référence versionnée. Ce fichier est autonome&nbsp;: aucune police, aucun script, aucune image distante.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var OPTIONS = 80;        // forfait ménage facturé, dans le brut
+  var ENGINE_TAX = 14.40;  // estimation du moteur : 6 adultes x 2 nuits x 1,20 €
+  var VAT = 10;
+
+  var mode = 'platform';
+  var $ = function(id){ return document.getElementById(id); };
+
+  function parse(v){
+    if (v == null) return null;
+    var s = String(v).trim().replace(/\s/g,'').replace(',', '.');
+    if (s === '') return null;
+    if (!/^-?\d*\.?\d*$/.test(s)) return NaN;
+    var n = Number(s);
+    return isNaN(n) ? NaN : n;
+  }
+  function eur(n){
+    return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+  }
+  function r2(n){ return Math.round(n*100)/100; }
+
+  function setMode(m){
+    mode = m;
+    Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+    });
+    render();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function(b){
+    b.addEventListener('click', function(){ setMode(b.dataset.mode); });
+  });
+
+  $('btn-recalc').addEventListener('click', function(){
+    $('f-tax').value = ENGINE_TAX.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    render();
+  });
+  // Une fiche saisie avant cette spec : brut hors taxe (733,00), case vide, commission à refaire.
+  $('btn-clear').addEventListener('click', function(){
+    $('f-brut').value = '733,00';
+    $('f-tax').value = '';
+    $('f-comm').value = '';
+    render();
+  });
+  $('btn-comm').addEventListener('click', function(){
+    var s = state();
+    if (!s.canCompute) return;
+    var c = Math.max(0, r2(s.brut - s.virement - s.withheld));
+    $('f-comm').value = c.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    render();
+  });
+  ['f-brut','f-tax','f-virement','f-comm'].forEach(function(id){
+    $(id).addEventListener('input', render);
+  });
+
+  function state(){
+    var brutRaw = parse($('f-brut').value);
+    var taxRaw  = parse($('f-tax').value);
+    var virRaw  = parse($('f-virement').value);
+    var commRaw = parse($('f-comm').value);
+
+    var boxVisible = (mode === 'platform');
+    var errors = {};
+    if (isNaN(brutRaw) || (brutRaw !== null && brutRaw < 0)) errors.brut = 'Montant invalide — un nombre positif est attendu.';
+    if (isNaN(taxRaw)  || (taxRaw  !== null && taxRaw  < 0)) errors.tax  = 'Montant invalide — un nombre positif est attendu.';
+    if (isNaN(virRaw)  || (virRaw  !== null && virRaw  < 0)) errors.vir  = 'Montant invalide — un nombre positif est attendu.';
+    if (isNaN(commRaw) || (commRaw !== null && commRaw < 0)) errors.comm = 'Montant invalide.';
+
+    var brut = (errors.brut || brutRaw === null) ? 0 : brutRaw;
+    var virement = (errors.vir || virRaw === null) ? null : virRaw;
+    var comm = (errors.comm || commRaw === null) ? 0 : commRaw;
+
+    // Case vide ou mode hors « reversée à la commune » → rien n'est retenu (règles 1 et 2).
+    var withheld = (!boxVisible || errors.tax || taxRaw === null) ? 0 : taxRaw;
+    var boxFilled = boxVisible && !errors.tax && taxRaw !== null;
+
+    if (boxFilled && withheld > brut) errors.tax = 'La taxe retenue dépasse le montant payé par le client.';
+
+    var finalPrice = r2(Math.max(0, brut - withheld));
+    var accom = r2(Math.max(0, finalPrice - OPTIONS));
+
+    return {
+      brut: brut, withheld: withheld, boxFilled: boxFilled, boxVisible: boxVisible,
+      virement: virement, comm: comm, errors: errors,
+      finalPrice: finalPrice, accom: accom,
+      canCompute: !errors.brut && !errors.vir && brutRaw !== null && virRaw !== null
+    };
+  }
+
+  function render(){
+    var s = state();
+
+    // ---- champs & validation
+    $('f-brut').classList.toggle('bad', !!s.errors.brut);
+    $('f-tax').classList.toggle('bad', !!s.errors.tax);
+    $('f-virement').classList.toggle('bad', !!s.errors.vir);
+    $('f-comm').classList.toggle('bad', !!s.errors.comm);
+
+    $('box-tax').classList.toggle('hidden', !s.boxVisible);
+
+    // libellé + aide du brut, selon le mode (règle 14)
+    var lab = $('lab-brut'), hint = $('hint-brut');
+    if (mode === 'platform'){
+      lab.textContent = s.boxFilled ? 'Montant total payé par le client' : 'Total séjour facturé par la plateforme';
+      hint.textContent = s.boxFilled
+        ? 'Total du relevé, taxe de séjour comprise. La taxe saisie ci-dessous en est déduite.'
+        : 'Case taxe vide : le montant est lu hors taxe de séjour — le libellé et la convention d’aujourd’hui, inchangés.';
+    } else if (mode === 'reversed'){
+      lab.textContent = 'Montant total payé par le client';
+      hint.textContent = 'Taxe de séjour comprise — la plateforme vous la reverse avec le virement. Rien à retenir.';
+    } else {
+      lab.textContent = 'Montant total payé par le client';
+      hint.textContent = "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
+    }
+
+    var ht = $('hint-ht');
+    if (s.boxFilled && !s.errors.tax){
+      ht.classList.remove('hidden');
+      ht.innerHTML = '<b>Montant hors taxe de séjour : ' + eur(s.finalPrice) + '</b> — base TVA et base de commission.';
+    } else {
+      ht.classList.add('hidden');
+    }
+
+    var ht2 = $('hint-tax');
+    if (s.errors.tax){ ht2.textContent = s.errors.tax; ht2.classList.add('err'); }
+    else { ht2.textContent = 'Collectée par la plateforme et reversée à la commune — jamais encaissée par nous.'; ht2.classList.remove('err'); }
+
+    $('btn-comm').disabled = !s.canCompute;
+    var hc = $('hint-comm');
+    if (!s.canCompute){
+      hc.textContent = 'Renseignez le montant payé par le client et le virement reçu.';
+      hc.classList.remove('err');
+    } else if (s.errors.brut || s.errors.vir){
+      hc.textContent = 'Corrigez les montants en rouge.';
+      hc.classList.add('err');
+    } else {
+      hc.textContent = s.boxFilled
+        ? 'Commission = ' + eur(s.brut) + ' − ' + eur(s.virement) + ' − ' + eur(s.withheld) + ' (taxe retenue)'
+        : 'Commission = ' + eur(s.brut) + ' − ' + eur(s.virement);
+      hc.classList.remove('err');
+    }
+
+    // ---- résumé
+    var offered = (mode === 'platform') ? (s.boxFilled ? s.withheld : ENGINE_TAX) : 0;
+    var taxLine = $('r-tax');
+    taxLine.textContent = eur(mode === 'platform' ? offered : ENGINE_TAX);
+    taxLine.classList.toggle('struck', mode === 'platform');
+    $('tax-chip').classList.toggle('hidden', mode !== 'platform');
+
+    var note = $('r-tax-note');
+    if (mode === 'platform') note.textContent = 'Collectée et reversée à la commune par la plateforme';
+    else if (mode === 'reversed') note.textContent = 'Collectée par la plateforme puis reversée — incluse dans le solde, à déclarer';
+    else note.textContent = "À collecter à l'arrivée (incluse dans le complément)";
+
+    var gross = r2(s.finalPrice + offered);
+    var base  = r2(gross - offered);
+    var payout = r2(base - s.comm);
+
+    $('r-gross').textContent  = eur(gross);
+    $('r-offered').textContent = '− ' + eur(offered);
+    $('r-line-tax').classList.toggle('hidden', offered <= 0);
+    $('r-base').textContent   = eur(base);
+    $('r-comm').textContent   = '− ' + eur(s.comm);
+    $('r-line-comm').classList.toggle('hidden', s.comm <= 0);
+    $('r-payout').textContent = eur(payout);
+    $('r-accom').textContent  = eur(s.accom);
+    $('r-vatbase').textContent = eur(s.finalPrice);
+    $('r-net').textContent    = eur(payout);
+
+    var chip = $('r-chip');
+    if (s.virement === null || s.errors.vir){
+      chip.className = 'chip warn'; chip.textContent = 'virement non renseigné';
+    } else {
+      var ecart = r2(payout - s.virement);
+      if (Math.abs(ecart) < 0.01){ chip.className = 'chip ok'; chip.textContent = '✓ cohérent avec le virement'; }
+      else { chip.className = 'chip warn'; chip.textContent = 'écart : ' + eur(ecart); }
+    }
+
+    // ---- ce que la case change, chiffré
+    var d = $('r-delta');
+    if (mode !== 'platform'){
+      d.innerHTML = 'Mode hors périmètre : la case n’existe pas, le bloc et le calcul sont <b>strictement ceux d’aujourd’hui</b>.';
+    } else if (!s.boxFilled){
+      d.innerHTML = 'Case vide = <b>convention d’août</b>, à l’identique : rien n’est retenu, le brut est lu hors taxe. C’est l’état des 17 fiches déjà saisies — elles ne bougent pas d’un centime.';
+    } else if (s.canCompute && !s.errors.tax){
+      var withTax = Math.max(0, r2(s.brut - s.virement - s.withheld));
+      var without = Math.max(0, r2(s.brut - s.virement));
+      d.innerHTML = 'Sur ces nombres, la commission passe de <b>' + eur(without) + '</b> (sans la retenue) à <b>' + eur(withTax) + '</b>, et le CA de <b>' + eur(s.brut) + '</b> à <b>' + eur(s.finalPrice) + '</b>. La TVA ne porte plus la taxe de séjour.';
+    } else {
+      d.innerHTML = 'Complétez le virement reçu pour voir l’effet sur la commission.';
+    }
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

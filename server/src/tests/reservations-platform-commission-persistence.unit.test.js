@@ -105,3 +105,43 @@ test('updateReservation persists new brut + virement; switching to direct clears
   assert.equal(readGross(db, id), null);
   assert.equal(readPayout(db, id), null);
 });
+
+// specs/platform-tourist-tax-out-of-the-commission.md rules 3 + 18 — the tourist tax the platform
+// withheld, stored beside the brut it comes out of. NULL is meaningful here and is NOT 0: it is what
+// says the brut was typed tourist-tax-excluded, so every row written before this feature keeps
+// pricing exactly as it did.
+const readWithheld = (db, id) => db.prepare('SELECT platformTouristTaxAmount FROM reservations WHERE id = ?').get(id).platformTouristTaxAmount;
+
+test('platform: the withheld tourist tax is persisted (clamped ≥ 0)', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Gîtes de France', platformGrossAmount: 747.40, platformTouristTaxAmount: 14.40 }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readWithheld(db, id), 14.40);
+});
+
+test('platform: an empty withheld tax → NULL (the tax-excluded brut convention)', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Gîtes de France', platformGrossAmount: 733, platformTouristTaxAmount: '' }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readWithheld(db, id), null);
+});
+
+test('platform: an explicit 0 is stored as 0, not as NULL', () => {
+  // Rule 15 — the two states compute alike but mean different things, and the pre-fill tells them apart.
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Airbnb', platformGrossAmount: 500, platformTouristTaxAmount: 0 }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readWithheld(db, id), 0);
+});
+
+test('direct: the withheld tax is forced to NULL even when supplied', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'direct', platformGrossAmount: 747.40, platformTouristTaxAmount: 14.40 }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readWithheld(db, id), null);
+});
+
+test('updateReservation persists a new withheld tax; switching to direct clears it', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Airbnb', platformGrossAmount: 500, platformTouristTaxAmount: 10 }), QUOTE, NIGHT_BLOCKS);
+  model.updateReservation(id, basePayload({ platform: 'Airbnb', platformGrossAmount: 520, platformTouristTaxAmount: 12 }), QUOTE, NIGHT_BLOCKS, 0);
+  assert.equal(readWithheld(db, id), 12);
+  model.updateReservation(id, basePayload({ platform: 'direct', platformGrossAmount: 520, platformTouristTaxAmount: 12 }), QUOTE, NIGHT_BLOCKS, 0);
+  assert.equal(readWithheld(db, id), null);
+});

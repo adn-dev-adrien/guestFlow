@@ -2215,6 +2215,11 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // only). Both NULL on direct / unused.
   if (!rcols.includes('platformGrossAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformGrossAmount REAL');
   if (!rcols.includes('platformPayoutAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPayoutAmount REAL');
+  // 2026-09-11 — specs/platform-tourist-tax-out-of-the-commission.md rules 2-3: the tourist tax the
+  // platform keeps out of its payout, as the PLATFORM computed it. NULL (the state of every existing
+  // row, no backfill) means the brut was typed tax-excluded — the convention of
+  // platform-brut-excludes-offered-tourist-tax.md, which must keep computing to the cent.
+  if (!rcols.includes('platformTouristTaxAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL');
   // specs/public-online-payment.md §5 — set when a paid online full-payment was converted onto dates that
   // had become unavailable (the devis never blocked them). Drives the admin notification + the conflict
   // chip; NULL on every normal booking. Idempotent ADD COLUMN.
