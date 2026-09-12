@@ -2,6 +2,46 @@
 
 All notable changes to GuestFlow are documented in this file. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Accès portail invités (à venir)
+
+### Summary
+- Les clients ouvrent le portail depuis leur téléphone, pendant leur séjour seulement : de l'heure
+  d'arrivée jusqu'à une heure après le départ. Un code par séjour, dictable, partageable avec la
+  famille, révocable — et un journal qui dit qui est entré et quand. Le code unique et permanent
+  que tous les anciens clients connaissent reste en secours, rien de plus.
+- La commande part toujours : un client peut refermer le portail derrière lui, comme avec une
+  télécommande.
+- Sur la fiche, une carte « Accès portail » ; dans le SAS d'arrivée, l'étape qui remplace le code
+  unique ; dans les rappels J-7 et J-2, le lien et le code.
+
+### Added
+- **Guest gate access** (`specs/guest-gate-access.md`): a per-stay code and a page of its own on a
+  separate hostname, from which a guest opens the gate. The window is recomputed from the live
+  reservation on every press; the access is revocable, and every attempt is journalled.
+  Sowel comes and FETCHES the requests — GuestFlow holds no credential over the house.
+- **« Accès portail » card on the reservation fiche**: the code, the window, the devices, the
+  journal, and two guarded actions — *Régénérer* (the link already emailed stops working) and
+  *Révoquer*.
+- **« Accès portail » step in the arrival SAS**, replacing the display of the single portal code,
+  with « Ouvrir l'accès maintenant » for a guest who turned up early.
+- **The J-7 and J-2 reminders carry the link and the code** (`{{gateAccessUrl}}`,
+  `{{gateAccessCode}}`, `{{gateAccessBaseUrl}}`, under `{{#if hasGateAccess}}`), in both languages.
+  A one-shot migration inserts the paragraph into the templates an existing instance already holds,
+  above their sign-off, without rewriting a single existing character.
+
+### Changed
+- **The admin session cookie is `__Host-` prefixed under HTTPS.** The guest page is a sibling host
+  of the admin app under the same registrable domain, and the prefix is what stops a cookie set
+  there from shadowing the operator's session. **Deploying logs the operator out once.**
+
+### Deployment
+- Set `GUEST_HOST` and `GUEST_BASE_URL` (see README). Without them the guest page exists nowhere —
+  fail-closed by design.
+- Copy `GATE_API_KEY`, auto-generated into `server/.env.local` at boot, into the Sowel
+  `guest-access` plugin.
+- On the reverse proxy, strip the `c` query parameter from the guest host's access log: the stay
+  code travels in it.
+
 ## [Unreleased]
 
 ## [2.15.0] - 2026-09-11

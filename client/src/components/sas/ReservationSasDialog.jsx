@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
-  LinearProgress, IconButton,
+  LinearProgress, IconButton, Alert,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
@@ -106,7 +106,7 @@ const modeColorFor = (theme, mode) => (mode === 'arrival' ? theme.palette.warnin
 function stepMeta(key, mode) {
   switch (key) {
     case 'intro': return { title: mode === 'arrival' ? 'Arrivée' : 'Départ', Icon: mode === 'arrival' ? MeetingRoomIcon : LogoutIcon };
-    case 'portal': return { title: 'Portail', Icon: DialpadIcon };
+    case 'portal': return { title: 'Accès portail', Icon: DialpadIcon };
     case 'caution':
     case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
     case 'stayPayment': return { title: 'Séjour', Icon: PaymentsIcon };
@@ -225,6 +225,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [committing, setCommitting] = useState(false);
+  // specs/guest-gate-access.md §3.6 rule 20 — « Ouvrir l'accès maintenant », for the guest who
+  // turned up three hours early. It writes immediately, unlike every other SAS decision, which
+  // waits for the recap: it exists to unblock someone standing at the gate right now.
+  const [earlyOpenBusy, setEarlyOpenBusy] = useState(false);
   const [stepKey, setStepKey] = useState(null);
 
   // Decisions (in memory until commit)
@@ -545,6 +549,19 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   })();
   const lockedTitle = sasLockTitle(mode, sasLock);
   const lockedMessage = sasLockMessage(mode, sasLock, lockDateLabel);
+  const onEarlyOpenGateAccess = useCallback(async () => {
+    if (!reservationId || earlyOpenBusy) return;
+    setEarlyOpenBusy(true);
+    try {
+      const card = await api.earlyOpenGateAccess(reservationId);
+      setData((previous) => (previous ? { ...previous, gateAccess: card } : previous));
+    } catch (err) {
+      setError(err?.message || 'L’ouverture de l’accès a échoué.');
+    } finally {
+      setEarlyOpenBusy(false);
+    }
+  }, [reservationId, earlyOpenBusy]);
+
   const bedItems = useMemo(() => (data?.linenItems || []).filter((i) => i.category === 'bed'), [data]);
   const allItems = useMemo(() => (data?.linenItems || []), [data]);
 
@@ -564,7 +581,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
-        data.portalCode ? 'portal' : null,
+        (data.gateAccess || data.portalCode) ? 'portal' : null,
         cautionStep ? 'caution' : null,
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
@@ -1180,11 +1197,62 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       }
       case 'portal':
+        // specs/guest-gate-access.md §3.6 rule 20 — « Code portail » became « Accès portail »: the
+        // stay's own code, which dies with the stay, instead of the one code everyone has known
+        // since the beginning. `portalCode` stays below it while the physical fallback lives on.
         return (
           <Stack spacing={1.5} sx={{ alignItems: 'center', py: 1 }}>
-            <Typography variant="body1">Code du portail à communiquer au client :</Typography>
-            {/* Portal code = digits → kpiValue role (sans, tabular — amounts/codes never serif), h3-sized. */}
-            <Typography variant="kpiValue" sx={{ fontSize: '2.6rem', letterSpacing: 2 }}>{data.portalCode}</Typography>
+            {data.gateAccess ? (
+              <>
+                <Typography variant="body1">Code d’accès de ce séjour :</Typography>
+                {/* A code is digits-and-letters → kpiValue (sans, tabular): never serif. */}
+                <Typography variant="kpiValue" sx={{ fontSize: '2.6rem', letterSpacing: 2 }}>
+                  {data.gateAccess.code || '—'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                  Dictable sans erreur : ni I, ni L, ni O, ni U. Le client peut aussi ouvrir le lien
+                  reçu par email, et le partager avec ses accompagnants.
+                </Typography>
+                {data.gateAccess.window && (
+                  <Typography variant="body2" color="text.secondary">
+                    Actif : {data.gateAccess.window.label}
+                  </Typography>
+                )}
+                {data.gateAccess.state === 'before' && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => onEarlyOpenGateAccess?.()}
+                    disabled={earlyOpenBusy}
+                  >
+                    {earlyOpenBusy ? 'Ouverture…' : 'Ouvrir l’accès maintenant'}
+                  </Button>
+                )}
+                {data.gateAccess.state === 'revoked' && (
+                  <Alert severity="warning" sx={{ width: '100%' }}>
+                    Cet accès est révoqué : le client ne pourra pas ouvrir le portail.
+                  </Alert>
+                )}
+                {!data.gateAccess.service.available && (
+                  <Alert severity="warning" sx={{ width: '100%' }}>
+                    L’ouverture à distance ne répond pas en ce moment. Donnez le code du portail
+                    ci-dessous, ou ouvrez depuis la maison.
+                  </Alert>
+                )}
+              </>
+            ) : null}
+            {data.portalCode ? (
+              <Stack spacing={0.5} sx={{ alignItems: 'center', pt: data.gateAccess ? 2 : 0 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {data.gateAccess ? 'Secours — code du portail :' : 'Code du portail à communiquer au client :'}
+                </Typography>
+                <Typography
+                  variant="kpiValue"
+                  sx={{ fontSize: data.gateAccess ? '1.6rem' : '2.6rem', letterSpacing: 2 }}
+                >
+                  {data.portalCode}
+                </Typography>
+              </Stack>
+            ) : null}
           </Stack>
         );
       case 'weather':

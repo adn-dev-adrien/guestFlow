@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Accès portail — Domaine Solio</title>
+<meta name="theme-color" content="#2E3B2A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Portail">
+<link rel="manifest" href="/gate/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/gate/icon-192.png">
+<link rel="icon" href="/gate/icon-192.png">
+
+<!-- The site's own faces. Loaded from Google Fonts by the operator's choice (2026-09-09): the
+     showcase site self-hosts them, this page does not. `display=swap` plus a real fallback stack
+     means a slow or blocked request costs a font, never the button. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Karla:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/gate/style.css">
+</head>
+<body>
+<main class="app" id="app" aria-live="polite">
+  <!-- Server-rendered nothing: the first paint is the shell, the state arrives from /gate/v1/session
+       a few hundred milliseconds later. A guest at a gate on 5G sees the ground and the name first. -->
+  <p class="brand">Domaine Solio</p>
+  <div id="view" class="view">
+    <p class="sub" id="boot">Un instant…</p>
+  </div>
+  <footer class="lodging" id="lodging" hidden></footer>
+</main>
+<script src="/gate/app.js" defer></script>
+</body>
+</html>

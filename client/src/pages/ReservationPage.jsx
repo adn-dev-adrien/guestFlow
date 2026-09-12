@@ -27,6 +27,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
+import GateAccessSection from '../components/reservation/GateAccessSection';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
@@ -3259,6 +3260,15 @@ export default function ReservationPage() {
           {hasExtrasSection && <ExtrasSection />}
 
           <FinanceSection />
+
+          {/* specs/guest-gate-access.md §3.6 rule 21 — the stay's gate code, its window and its
+              journal. The component renders nothing for a stay that can have no access (a devis,
+              a cancelled booking), so it is mounted unconditionally. */}
+          <GateAccessSection
+            reservationId={editingReservationId}
+            cardSx={formSectionCardSx}
+            contentSx={formSectionContentSx}
+          />
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>

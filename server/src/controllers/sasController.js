@@ -209,6 +209,10 @@ function getSas(req, res) {
     reservation: isReceptionOnly(req.user) ? toReceptionReservationView(reservation) : reservation,
     receptionLock,
     portalCode: String(settings.portalCode || '').trim(),
+    // specs/guest-gate-access.md §3.6 rule 20 — the « Code portail » step becomes « Accès portail ».
+    // `portalCode` above stays in the payload, unused by that step, until the physical fallback is
+    // retired (§8): the operator keeps a code to dictate the day the chain is down.
+    gateAccess: require('../utils/gateAccessCard').buildGateAccessCard(reservation.id),
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected
     // « ajouté », and « Non merci » removes it (specs/sas-upsells-activate-catalogue-option.md §3.2).
     cleaning: { included: cleaningIncluded, price: cleaningPrice, sasOrigin: upsells.cleaning.sasOrigin },

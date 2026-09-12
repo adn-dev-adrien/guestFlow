@@ -14,6 +14,7 @@
 
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
+const { buildGateAccessCard } = require('../utils/gateAccessCard');
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { autoSendAllowed } = require('../utils/autoSendPolicy');
@@ -122,6 +123,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
+      gateAccess:  buildGateAccessCard(graph.reservation.id),
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        useLang,
@@ -309,6 +311,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
+      gateAccess:  buildGateAccessCard(graph.reservation.id),
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
@@ -358,6 +361,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
+      gateAccess:  buildGateAccessCard(graph.reservation.id),
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(

@@ -5,8 +5,7 @@ const {
   envFlag,
   shouldEnforceHttps,
   buildHelmetOptions,
-  buildSessionCookieOptions,
-} = require('../utils/securityConfig');
+  buildSessionCookieOptions, sessionCookieName,} = require('../utils/securityConfig');
 
 // These tests pin the rules that prevent the prod-without-TLS regression
 // (HSTS + CSP `upgrade-insecure-requests` were unconditionally enforced on
@@ -119,4 +118,25 @@ test('regression: NODE_ENV=production alone does NOT re-enable HSTS or upgrade-i
   assert.equal('upgradeInsecureRequests' in opts.contentSecurityPolicy.directives, false);
   // And the cookie stays sendable over plain HTTP.
   assert.equal(buildSessionCookieOptions({ httpsEnabled: false }).secure, false);
+});
+
+// ----- the session cookie's name (specs/guest-gate-access.md §9) -----
+
+test('the session cookie carries the __Host- prefix as soon as TLS is there', () => {
+  assert.equal(sessionCookieName({ httpsEnabled: true }), '__Host-guestflow.sid');
+});
+
+test('over plain HTTP the prefix is dropped — a __Host- cookie without Secure is refused', () => {
+  // Keeping the prefix in development would not be strict, it would be broken: the browser drops
+  // the cookie entirely and nobody can log in.
+  assert.equal(sessionCookieName({ httpsEnabled: false }), 'guestflow.sid');
+});
+
+test('the cookie options satisfy what the __Host- prefix requires', () => {
+  // A browser accepts `__Host-` only with Secure, Path=/ and NO Domain. If a future edit adds a
+  // domain or changes the path, the prefix silently stops working — hence this pin.
+  const opts = buildSessionCookieOptions({ httpsEnabled: true });
+  assert.equal(opts.secure, true);
+  assert.equal(opts.path, '/');
+  assert.equal('domain' in opts, false, 'a Domain attribute would void the prefix');
 });
