@@ -7,7 +7,11 @@ const {
 const requireGateApiKey = require('../middleware/requireGateApiKey');
 const gateQueue = require('../utils/gateQueue');
 
-// specs/guest-gate-access.md §4.3 — the two routes the house calls, and the key it comes with.
+// specs/guest-gate-access.md §4.3 and §4.4 — the two routes the house calls, the key it comes with,
+// and the signature that proves the answer was written by the house.
+
+// The fixture signs with this; the controller reads the environment.
+process.env.GATE_SIGNING_SECRET = 'test-signing-secret';
 
 function setup({ startIso = '2026-09-12T17:00:00.000Z' } = {}) {
   const db = makeGateDb();
@@ -147,6 +151,82 @@ test('the wait is clamped so a long poll always ends before the proxy gives up',
 });
 
 // --- the answer coming back ---
+
+test('an outcome with no signature is refused, whatever the API key said', () => {
+  const { model, access, controller } = setup();
+  const { request } = model.createRequest({ accessId: access.id });
+
+  const res = fakeRes();
+  controller.reportResult(fakePollerReq({ params: { id: request.id }, body: { status: 'opened' }, sign: false }), res);
+
+  assert.equal(res.statusCode, 401);
+  assert.deepEqual(res.body, { error: { code: 'UNAUTHORIZED' } });
+  assert.equal(model.getRequest(request.id).status, 'pending', 'and nothing was written');
+});
+
+test('an outcome signed with the wrong secret is refused', () => {
+  const { model, access, controller } = setup();
+  const { request } = model.createRequest({ accessId: access.id });
+
+  const res = fakeRes();
+  controller.reportResult(
+    fakePollerReq({ params: { id: request.id }, body: { status: 'opened' }, secret: 'the-attacker-guess' }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(model.getRequest(request.id).status, 'pending');
+});
+
+test('a captured outcome cannot be replayed the next day', () => {
+  const { model, access, controller } = setup();
+  const { request } = model.createRequest({ accessId: access.id });
+
+  const res = fakeRes();
+  controller.reportResult(
+    fakePollerReq({
+      params: { id: request.id },
+      body: { status: 'opened' },
+      timestamp: Date.now() - 24 * 60 * 60 * 1000,
+    }),
+    res,
+  );
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(model.getRequest(request.id).status, 'pending');
+});
+
+test('a refused signature leaves a trace, and the response says nothing about why', () => {
+  const { db, model, access, controller } = setup();
+  const { request } = model.createRequest({ accessId: access.id });
+
+  const res = fakeRes();
+  controller.reportResult(fakePollerReq({ params: { id: request.id }, body: { status: 'opened' }, sign: false }), res);
+
+  const row = db.prepare("SELECT * FROM gate_events WHERE kind = 'signature_ko' ORDER BY id DESC").get();
+  assert.ok(row, 'a refused second factor is worth a journal line');
+  assert.match(row.reason, /issue non signée/);
+  // The reason is for the journal only: the caller learns nothing from the 401.
+  assert.deepEqual(res.body, { error: { code: 'UNAUTHORIZED' } });
+});
+
+test('the request handed over is signed, so the house can tell it came from GuestFlow', async () => {
+  const { model, access, controller } = setup();
+  const { request } = model.createRequest({ accessId: access.id, deviceId: 'phone-a' });
+
+  const res = fakeRes();
+  await controller.pollRequests(fakePollerReq({ query: { wait: '0', state: 'closed' } }), res);
+
+  const { sign } = require('../utils/gateSignature');
+  const handed = res.body.request;
+  assert.equal(handed.id, request.id);
+  assert.ok(handed.signedAt, 'the moment it was signed');
+  assert.equal(
+    handed.signature,
+    sign(`${handed.id}.${handed.signedAt}.${handed.reservationId}`, 'test-signing-secret'),
+  );
+  // Without this, anyone able to answer as GuestFlow on the LAN could have the gate pulsed.
+});
 
 test('the recipe reports the outcome, once, and it lands in the journal', () => {
   const { model, access, controller } = setup();

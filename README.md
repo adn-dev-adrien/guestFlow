@@ -422,6 +422,31 @@ Two secrets auto-generate into `server/.env.local` on first boot, like `PUBLIC_A
   the booking API.
 - **`GATE_SESSION_SECRET`** — signs the guest's session cookie. Rotating it costs every guest one
   code entry, and nothing else.
+- **`GATE_SIGNING_SECRET`** — the **second factor** on the Sowel channel, and the only secret that
+  never travels. GuestFlow signs each request it hands over, the house signs each outcome it
+  reports, and both refuse what they cannot verify (spec §4.4). Copy it into the plugin alongside
+  `GATE_API_KEY`. **Both sides fail closed without it.**
+
+Why it exists: the API key proves the *house* to GuestFlow, and nothing proved GuestFlow to the
+house. The plugin polls over the LAN, so anyone able to answer as this machine could have handed it
+a forged request — and a request is what makes the recipe pulse the gate. A bearer key is replayed
+in full on every call, so reading one call is enough to impersonate the caller; a signature never
+puts its secret on the wire.
+
+#### Transport: prefer an internal HTTPS name
+
+The signature makes plain HTTP survivable, not desirable. Point the plugin at a TLS name served on
+the LAN rather than at `http://192.168.0.24:4000` — the internal Caddy (LXC 109) already holds a
+wildcard certificate for `*.maison.adn-dev.fr`:
+
+```caddy
+guestflow.maison.adn-dev.fr {
+	reverse_proxy 192.168.0.24:4000
+}
+```
+
+The traffic then stays on the LAN, encrypted, with a certificate the plugin validates — which also
+closes the spoofing route the signature only neutralises.
 
 On the reverse proxy, the guest host must strip the `c` query parameter from its access log — the
 stay code travels in it:

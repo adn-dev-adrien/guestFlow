@@ -124,7 +124,12 @@ logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the W
 //     entry, and nothing else.
 getOrCreateSecret('GATE_API_KEY', 32);
 getOrCreateSecret('GATE_SESSION_SECRET', 32);
-logErrorMarker('GATE_API_KEY ready in server/.env.local — copy it into the Sowel guest-access plugin.');
+//   - GATE_SIGNING_SECRET is the second factor on that channel, and the only one that never travels:
+//     GuestFlow signs the request it hands over, the house signs the outcome it reports, and each
+//     side refuses what it cannot verify (specs/guest-gate-access.md §4.4). Without it, anyone able
+//     to answer as GuestFlow on the LAN could have the gate pulsed.
+getOrCreateSecret('GATE_SIGNING_SECRET', 32);
+logErrorMarker('GATE_API_KEY + GATE_SIGNING_SECRET ready in server/.env.local — copy BOTH into the Sowel guest-access plugin.');
 
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
