@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accès portail — ce qu'il reste à trancher</title>
+<style>
+/* ============================================================
+   Document de validation — accès portail invités.
+   Autonome par construction : aucune police, aucun script, aucune image
+   distante. Il s'ouvre depuis le disque, sans réseau.
+   Les couleurs sont celles du site (« forêt et heure dorée »). Les polices du
+   site (Marcellus + Karla) ne sont PAS embarquées ici — l'application finale
+   les utilise, ce document se contente des polices système.
+   ============================================================ */
+:root {
+  --paper:#F5F0E6; --card:#FDFAF3; --ink:#22271F; --soft:#5C6153;
+  --sapin:#2E3B2A; --ocre:#B87B2A; --deep:#9A6318; --line:#DCD4C2;
+  --nuit:#161C16; --or:#E8C286; --brique:#8E3B27; --vert:#5A6B48;
+  --wash-ocre:#F2E6D2; --wash-sapin:#E3E5DB; --wash-brique:#EFDCD6;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 60rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 400; color: var(--sapin); margin: 0; line-height: 1.2; }
+h1 { font-size: 2.1rem; text-transform: uppercase; letter-spacing: .05em; }
+h2 { font-size: 1.5rem; text-transform: uppercase; letter-spacing: .04em; margin-top: 3rem; }
+h3 { font-size: 1.15rem; margin-top: 1.6rem; }
+p { margin: .7rem 0; }
+.eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--deep); }
+.lede { font-size: 1.08rem; color: var(--soft); }
+small, .small { font-size: .88rem; }
+.muted { color: var(--soft); }
+code { font-family: var(--mono); font-size: .85em; background: var(--wash-ocre); padding: .1em .35em; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+
+.box { background: var(--card); border: 1px solid var(--line); padding: 1.1rem 1.2rem; margin: 1rem 0; }
+.box.warm { background: var(--wash-ocre); border-left: 3px solid var(--ocre); }
+.box.forest { background: var(--wash-sapin); border-left: 3px solid var(--sapin); }
+.box.stop { background: var(--wash-brique); border-left: 3px solid var(--brique); }
+.box h3 { margin-top: 0; }
+
+ul.clean { list-style: none; padding: 0; margin: .6rem 0; }
+ul.clean li { position: relative; padding-left: 1.1rem; margin: .45rem 0; }
+ul.clean li::before { content: ""; position: absolute; left: 0; top: .62em; width: .4rem; height: .4rem; background: var(--ocre); }
+
+/* ---------- démonstrations ---------- */
+.demo { border: 1px solid var(--line); background: var(--card); margin: 1.2rem 0; }
+.demo-head {
+  background: var(--wash-sapin); border-bottom: 1px solid var(--line);
+  padding: .55rem .9rem; font-size: .72rem; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--sapin);
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+.demo-head span:last-child { font-weight: 400; letter-spacing: .06em; text-transform: none; color: var(--soft); }
+.demo-body { padding: 1.2rem; }
+
+/* ---------- téléphone ---------- */
+.phone { width: 20rem; margin: 0 auto; background: #23291F; border-radius: 2rem; padding: .5rem; }
+.phone .screen { background: var(--paper); border-radius: 1.6rem; padding: 1.1rem 1.15rem 1.3rem; min-height: 27rem; display: flex; flex-direction: column; gap: .8rem; }
+.brand { font-family: var(--serif); font-size: .8rem; letter-spacing: .28em; text-transform: uppercase; color: var(--deep); }
+.screen h4 { font-family: var(--serif); font-weight: 400; font-size: 1.4rem; text-transform: uppercase; letter-spacing: .04em; color: var(--sapin); margin: 0; }
+.sub { font-size: .82rem; color: var(--soft); margin: 0; }
+.chip-state { align-self: flex-start; border: 1px solid var(--line); background: var(--card); padding: .28rem .65rem; font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); }
+.chip-state.open { color: var(--deep); border-color: var(--ocre); }
+.spacer { flex: 1; min-height: .5rem; }
+.caption { font-size: .72rem; color: var(--soft); text-align: center; margin: 0; }
+.lodging { font-size: .66rem; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--deep); border-top: 1px solid var(--line); padding-top: .6rem; margin: 0; }
+.note { border: 1px solid var(--line); background: var(--card); padding: .6rem .7rem; font-size: .8rem; }
+.note.ok { border-color: var(--vert); color: var(--vert); }
+.note.warn { border-color: var(--ocre); color: var(--deep); }
+
+/* ---------- glissière ---------- */
+.slide-track {
+  position: relative; height: 58px; width: 260px; margin: 0 auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; touch-action: none; user-select: none;
+}
+.slide-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--wash-ocre); }
+.slide-label {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  gap: .4rem; font-size: .8rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--soft); pointer-events: none; padding: 0 58px;
+}
+.slide-label.done { color: var(--vert); }
+.slide-knob {
+  position: absolute; top: 4px; left: 4px; width: 50px; height: 50px;
+  border-radius: 9px; background: var(--ocre); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,.25); z-index: 2;
+}
+.slide-knob.dragging { cursor: grabbing; }
+.slide-track.done .slide-knob { background: var(--vert); cursor: default; }
+.slide-track.disabled { opacity: .5; }
+.slide-track.disabled .slide-knob { cursor: not-allowed; }
+
+/* ---------- liste des accès ---------- */
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+.toolbar .grow { flex: 1; }
+button, select, input[type="text"], input[type="time"], input[type="date"] {
+  font-family: var(--sans); font-size: .88rem; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); padding: .45rem .7rem;
+}
+button { cursor: pointer; }
+button:hover { background: var(--wash-ocre); }
+button.primary { background: var(--ocre); color: #fff; border-color: var(--ocre); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .76rem; padding: .55rem 1rem; }
+button.primary:hover { background: var(--deep); }
+button.danger { color: var(--brique); border-color: var(--brique); }
+button.danger:hover { background: var(--wash-brique); }
+button[disabled] { opacity: .45; cursor: not-allowed; }
+button[disabled]:hover { background: var(--card); }
+
+.acc { border: 1px solid var(--line); background: var(--card); padding: .8rem .9rem; margin-bottom: .6rem; }
+.acc.suspended { background: var(--paper); }
+.acc-top { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; }
+.acc-name { font-weight: 700; }
+.acc-code { font-family: var(--mono); letter-spacing: .1em; }
+.acc-meta { font-size: .82rem; color: var(--soft); margin: .3rem 0 .6rem; }
+.acc-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.tag { font-size: .64rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: .18rem .5rem; border: 1px solid var(--line); }
+.tag.auto { background: var(--wash-sapin); color: var(--sapin); border-color: var(--sapin); }
+.tag.manual { background: var(--wash-ocre); color: var(--deep); border-color: var(--ocre); }
+.tag.actif { color: var(--vert); border-color: var(--vert); }
+.tag.suspendu { color: var(--soft); }
+.tag.expire { color: var(--soft); }
+.tag.revoque { color: var(--brique); border-color: var(--brique); }
+
+/* ---------- formulaire ---------- */
+.field { margin-bottom: .9rem; }
+.field > label { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--deep); margin-bottom: .3rem; }
+.field input[type="text"], .field select { width: 100%; max-width: 22rem; }
+.row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.err { color: var(--brique); font-size: .82rem; margin-top: .3rem; }
+.err:empty { display: none; }
+.win { display: flex; gap: .4rem; align-items: center; margin-bottom: .4rem; }
+fieldset { border: 1px solid var(--line); padding: .8rem; margin: 0 0 .9rem; }
+legend { font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--deep); padding: 0 .3rem; }
+.radios label { display: inline-flex; align-items: center; gap: .35rem; margin-right: 1.2rem; font-size: .9rem; }
+.hidden { display: none; }
+.preview { font-size: .85rem; color: var(--soft); border-top: 1px dashed var(--line); margin-top: .8rem; padding-top: .6rem; }
+
+table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1rem 0; }
+th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--deep); background: var(--wash-ocre); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="eyebrow">Domaine Solio · 14 septembre 2026</p>
+<h1>Accès portail : ce qu'il reste à trancher</h1>
+<p class="lede">
+  Trois demandes, et deux d'entre elles changent l'interface. Ce document les montre
+  <strong>manipulables</strong> — glisse, suspends, supprime, saisis une plage invalide — pour que tu
+  puisses trancher sans avoir à imaginer le résultat. Rien de tout ça n'est encore codé.
+</p>
+
+<div class="box forest">
+  <h3>Ce qui est déjà livré et ne bouge pas</h3>
+  <ul class="clean">
+    <li>L'accès des <strong>clients du gîte et de la lodge</strong>, lié à leur séjour, avec son code
+      dictable, son partage à la famille et son journal. PR guestFlow #547.</li>
+    <li><strong>Aucun contrôle sur l'état du portail</strong> : la commande part toujours, un client
+      peut refermer derrière lui. Vérifié dans le code ce matin, des deux côtés.</li>
+    <li>La <strong>double authentification</strong> que tu demandes : elle est faite, elle est
+      décrite en bas de page, et elle n'a aucune conséquence sur l'écran.</li>
+  </ul>
+</div>
+
+<h2>1 · Confirmer l'intention d'ouvrir</h2>
+
+<p><strong>Le constat.</strong> Aujourd'hui le bouton part au premier contact. Un téléphone dans une
+poche, un enfant qui manipule l'écran, et le portail s'ouvre pour personne.</p>
+
+<p><strong>Ce qu'on propose.</strong> Le même geste que ta tuile Sowel : une glissière à amener au
+bout. Je reprends la mécanique telle quelle — piste plafonnée à 260 px et centrée, pouce de 50 px,
+retour en arrière si on lâche avant la fin — parce que ce plafond a été réglé à la main sur un
+téléphone : pleine largeur, le départ tombe dans le coin le plus éloigné du pouce de la main qui
+tient l'appareil, sur un contrôle fait pour être utilisé à une main devant un portail.</p>
+
+<div class="demo">
+  <div class="demo-head"><span>Maquette manipulable</span><span>glisse le carré ocre jusqu'au bout — lâche avant, il revient</span></div>
+  <div class="demo-body">
+    <div class="phone">
+      <div class="screen">
+        <p class="brand">Domaine Solio</p>
+        <h4>Bonjour Camille</h4>
+        <p class="sub">Du 12 au 14 septembre · 4 personnes</p>
+        <span class="chip-state" id="d1-chip">● Portail fermé</span>
+        <div class="spacer"></div>
+        <div id="d1-slot"></div>
+        <p class="caption">Actif jusqu'au 14/09 à 11:00</p>
+        <p class="lodging">Le Gîte</p>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:1rem" id="d1-log">Aucune commande envoyée.</p>
+  </div>
+</div>
+
+<div class="box">
+  <h3>Les arbitrages de ce geste</h3>
+  <ul class="clean">
+    <li><strong>Le libellé suit l'état</strong>, comme aujourd'hui : « Glisser pour ouvrir » quand le
+      contact dit fermé, « Glisser pour fermer » quand il dit ouvert. L'état n'empêche rien, il
+      nomme.</li>
+    <li><strong>Après l'envoi, la glissière revient au repos au bout de 2 s.</strong> Pas de
+      verrouillage : tu as tranché que le client doit pouvoir renvoyer une commande.</li>
+    <li><strong>La maison injoignable grise la glissière</strong> — le seul cas, inchangé.</li>
+  </ul>
+</div>
+
+<h2>2 · Des accès pour les amis et la famille</h2>
+
+<p><strong>Le constat.</strong> Les accès naissent aujourd'hui d'une réservation, et d'elle seule.
+Un ami qui vient arroser les plantes n'a pas de réservation, donc pas d'accès — il lui reste le
+code physique, celui qu'on cherche justement à retirer du paysage.</p>
+
+<p><strong>Ce qu'on propose.</strong> Une page « Accès portail » qui liste <em>tout</em>, où les
+accès automatiques se reconnaissent d'un coup d'œil, et où tu crées les tiens à la main avec une
+validité au choix : une plage de dates, ou toujours valable — et pour ceux-là, des plages horaires.</p>
+
+<div class="demo">
+  <div class="demo-head"><span>Maquette manipulable</span><span>suspends, réactive, régénère, supprime — les boutons agissent vraiment</span></div>
+  <div class="demo-body">
+    <div class="toolbar">
+      <label class="small muted" for="f-kind">Filtrer&nbsp;</label>
+      <select id="f-kind">
+        <option value="all">Tous les accès</option>
+        <option value="manual">Créés par moi</option>
+        <option value="stay">Créés par guestFlow</option>
+      </select>
+      <select id="f-state">
+        <option value="all">Tous les états</option>
+        <option value="actif">Actifs seulement</option>
+        <option value="off">Inactifs (suspendus, expirés, révoqués)</option>
+      </select>
+      <span class="grow"></span>
+      <button class="primary" id="f-new">+ Nouvel accès</button>
+    </div>
+    <div id="acc-list"></div>
+    <p class="caption" id="acc-log" style="text-align:left">—</p>
+  </div>
+</div>
+
+<div class="box warm">
+  <h3>Les règles que cette liste suppose — c'est là qu'il faut me contredire si je me trompe</h3>
+  <ul class="clean">
+    <li><strong>Suspendre n'est pas supprimer.</strong> Suspendu, le code survit et l'accès se
+      réactive d'un clic. Supprimé, la ligne disparaît de la liste et le code est mort.</li>
+    <li><strong>Un accès automatique ne se supprime pas.</strong> Il renaîtrait au prochain email ou
+      à la prochaine ouverture de fiche, puisqu'il est créé à la demande depuis la réservation. Sur
+      ces lignes, « Supprimer » est donc absent — tu as « Suspendre » et « Révoquer ».
+      <em>Si tu veux vraiment pouvoir les faire disparaître, il faudra que la réservation elle-même
+      porte un « pas d'accès portail » : dis-le moi, c'est un autre chantier.</em></li>
+    <li><strong>Le journal survit à la suppression.</strong> Il est déjà écrit sans lien vers
+      l'accès, précisément pour répondre à « qui est entré cette nuit-là » même après un ménage.</li>
+    <li><strong>Régénérer</strong> donne un code neuf et tue le lien déjà envoyé. Utile quand un code
+      a circulé plus loin que prévu.</li>
+  </ul>
+</div>
+
+<h3>Créer un accès à la main</h3>
+
+<div class="demo">
+  <div class="demo-head"><span>Maquette manipulable</span><span>essaie une fin avant le début, ou deux plages qui se chevauchent</span></div>
+  <div class="demo-body">
+    <div class="field">
+      <label for="n-name">Pour qui</label>
+      <input type="text" id="n-name" placeholder="Paul (voisin), Mamie, le facteur…">
+      <div class="err" id="e-name"></div>
+    </div>
+
+    <fieldset>
+      <legend>Validité</legend>
+      <div class="radios">
+        <label><input type="radio" name="n-kind" value="always" checked> Toujours valable</label>
+        <label><input type="radio" name="n-kind" value="range"> Sur une plage de dates</label>
+      </div>
+      <div id="n-range" class="hidden" style="margin-top:.7rem">
+        <div class="row">
+          <label class="small muted">Du</label> <input type="date" id="n-from" value="2026-09-20">
+          <input type="time" id="n-from-h" value="09:00">
+          <label class="small muted">au</label> <input type="date" id="n-to" value="2026-09-27">
+          <input type="time" id="n-to-h" value="18:00">
+        </div>
+        <div class="err" id="e-range"></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Plages horaires de commande <span class="muted" style="font-weight:400;letter-spacing:0;text-transform:none">— facultatif</span></legend>
+      <p class="small muted" style="margin-top:0">Hors de ces plages, le bouton refuse et dit pourquoi. Sans plage, l'accès commande à toute heure.</p>
+      <div id="n-wins"></div>
+      <button id="n-add-win">+ Ajouter une plage</button>
+      <div class="err" id="e-wins"></div>
+    </fieldset>
+
+    <div class="row">
+      <button class="primary" id="n-save">Créer l'accès</button>
+      <span class="small muted" id="n-status"></span>
+    </div>
+    <p class="preview" id="n-preview"></p>
+  </div>
+</div>
+
+<h2>3 · Ce qu'on ne fait pas</h2>
+<div class="box stop">
+  <ul class="clean">
+    <li><strong>Pas de jours de la semaine</strong> sur les plages horaires. « Tous les jours de 8 h à
+      20 h » couvre l'ami qui arrose ; « seulement le mardi » est un autre besoin, et je préfère
+      l'ajouter le jour où il existe.</li>
+    <li><strong>Pas de comptes, pas de mots de passe</strong> pour ces accès : le code et le lien,
+      comme pour les clients. Un accès permanent dont le code fuite se régénère d'un clic.</li>
+    <li><strong>Pas de notification par accès.</strong> Le journal reste la source, et la poussée
+      existante (au-delà de 6 appareils) ne change pas.</li>
+    <li><strong>Pas de limite d'usage</strong> sur un accès permanent au-delà des plafonds déjà en
+      place (12 ouvertures par heure et par accès, 30 pour le portail).</li>
+  </ul>
+</div>
+
+<h2>4 · Le risque, dit franchement</h2>
+<div class="box">
+  <p>Un accès <strong>permanent</strong> est un code qui ne meurt jamais tout seul. C'est exactement
+  ce que tu remplaces chez les clients — et c'est raisonnable ici, parce que la liste existe, que tu
+  la relis, et que chaque ligne se suspend ou se supprime en un clic. Mais la protection n'est plus
+  le temps : c'est <strong>toi qui regardes la liste</strong>.</p>
+  <p class="small muted">Deux garde-fous que je propose contre l'oubli : la page trie les permanents
+  en tête quand ils n'ont pas servi depuis 90 jours, et le journal de chaque accès reste visible sur
+  sa ligne. Aucune expiration automatique : un accès qui meurt sans prévenir devant un portail, la
+  nuit, est pire que le risque qu'il couvre.</p>
+</div>
+
+<h2>5 · La sécurité du canal, déjà faite</h2>
+<div class="box forest">
+  <p>Tu demandais si la communication guestFlow ↔ Sowel était sûre <strong>dans les deux sens</strong>.
+  Elle ne l'était pas, et le trou était instructif.</p>
+  <table>
+    <tr><th>Sens</th><th>Avant</th><th>Maintenant</th></tr>
+    <tr>
+      <td>Maison → guestFlow</td>
+      <td>Clé porteuse <code>GATE_API_KEY</code>, comparée à temps constant, fail-closed.</td>
+      <td>+ chaque issue est <strong>signée</strong> (HMAC sur l'id, le statut et l'horodatage).</td>
+    </tr>
+    <tr>
+      <td>guestFlow → maison</td>
+      <td><strong>Rien.</strong> Le plugin interroge en clair sur le LAN : usurper l'adresse, c'est
+        faire pulser le portail avec une fausse demande. Sans connaître aucune clé, puisque la clé
+        voyage <em>depuis</em> la maison.</td>
+      <td>Chaque demande remise est <strong>signée</strong>, et le plugin refuse — avant toute
+        publication — ce qu'il ne peut pas vérifier.</td>
+    </tr>
+  </table>
+  <p class="small">Le second secret <strong>ne circule jamais</strong> : lire mille appels ne permet
+  pas de forger le suivant, ce qu'une clé porteuse ne peut pas dire d'elle-même. Fenêtre de
+  fraîcheur ±2 min, mémoire des demandes déjà honorées, les deux côtés fail-closed. Et le transport
+  reste à passer en HTTPS interne — le README porte le bloc Caddy ; la signature rend le HTTP en
+  clair survivable, pas souhaitable.</p>
+</div>
+
+<h2>6 · Ce que j'attends de toi</h2>
+<div class="box warm">
+  <ul class="clean">
+    <li>La glissière : <strong>ce geste-là</strong>, ou tu préfères un appui long ?</li>
+    <li>Les accès automatiques <strong>non supprimables</strong> : d'accord, ou il faut un « pas
+      d'accès portail » sur la réservation ?</li>
+    <li>Les plages horaires <strong>tous les jours</strong>, sans choix de jours : suffisant ?</li>
+    <li>Un accès permanent inutilisé depuis 90 jours <strong>remonte en tête de liste</strong> :
+      utile, ou bruit ?</li>
+  </ul>
+</div>
+
+<hr>
+<p class="small muted">
+  Document autonome : aucune police, aucun script et aucune image distante — il s'ouvre depuis le
+  disque, sans réseau. Les maquettes ci-dessus sont du HTML réel, pas des captures ; l'application
+  finale utilise les polices du site (Marcellus + Karla), que ce document n'embarque pas.
+  Versionné dans <code>guestFlow/specs/guest-gate-access-maquettes.html</code>.
+</p>
+
+</div>
+
+<script>
+/* ============================================================
+   Aucune dépendance. Trois maquettes, toutes réellement interactives.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  /* ---------- 1. la glissière ---------- */
+  var KNOB = 50, PAD = 4;
+
+  function buildSlide(options) {
+    var track = document.createElement("div");
+    track.className = "slide-track";
+    var fill = document.createElement("div");
+    fill.className = "slide-fill";
+    var label = document.createElement("div");
+    label.className = "slide-label";
+    label.textContent = options.label;
+    var knob = document.createElement("div");
+    knob.className = "slide-knob";
+    knob.textContent = "»";
+    track.appendChild(fill); track.appendChild(label); track.appendChild(knob);
+
+    var x = 0, dragging = false, startX = 0, done = false;
+    function max() { return Math.max(0, track.clientWidth - (KNOB + PAD * 2)); }
+    function place(value) {
+      x = Math.max(0, Math.min(value, max()));
+      knob.style.left = (PAD + x) + "px";
+      fill.style.width = (PAD + x + KNOB) + "px";
+    }
+    function reset() {
+      done = false; dragging = false;
+      track.classList.remove("done");
+      label.classList.remove("done");
+      label.textContent = options.label;
+      knob.textContent = "»";
+      place(0);
+    }
+    function finish() {
+      if (done) return;
+      done = true; dragging = false;
+      track.classList.add("done");
+      label.classList.add("done");
+      label.textContent = options.confirmedLabel;
+      knob.textContent = "✓";
+      place(max());
+      options.onConfirm();
+      // Retour au repos : le client doit pouvoir renvoyer une commande.
+      window.setTimeout(reset, 2000);
+    }
+
+    // La capture de pointeur garde le suivi hors de l'élément, mais elle n'est pas
+    // la SEULE voie : les mouvements sont aussi écoutés sur la fenêtre. Certains
+    // environnements ne délivrent rien à l'élément capturé, et une glissière qui
+    // ne glisse que sur certaines machines n'est pas une glissière.
+    function onMove(e) {
+      if (!dragging) return;
+      place(e.clientX - startX);
+      if (x >= max() - 2) finish();
+    }
+    function release() {
+      if (!dragging) return;
+      dragging = false;
+      knob.classList.remove("dragging");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      if (!done) place(0);   // lâché avant la fin : rien ne part
+    }
+    knob.addEventListener("pointerdown", function (e) {
+      if (done || track.classList.contains("disabled")) return;
+      knob.setPointerCapture && knob.setPointerCapture(e.pointerId);
+      dragging = true; startX = e.clientX - x;
+      knob.classList.add("dragging");
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", release);
+      window.addEventListener("pointercancel", release);
+      e.preventDefault();
+    });
+    knob.addEventListener("pointermove", onMove);
+    knob.addEventListener("pointerup", release);
+
+    place(0);
+    return { el: track, reset: reset };
+  }
+
+  var d1Slot = document.getElementById("d1-slot");
+  var d1Log = document.getElementById("d1-log");
+  var d1Chip = document.getElementById("d1-chip");
+  var gateOpen = false;
+  var sent = 0;
+
+  function renderSlide() {
+    d1Slot.textContent = "";
+    var slide = buildSlide({
+      label: gateOpen ? "Glisser pour fermer" : "Glisser pour ouvrir",
+      confirmedLabel: "Commande envoyée",
+      onConfirm: function () {
+        sent += 1;
+        gateOpen = !gateOpen;
+        d1Log.textContent = sent + " commande(s) envoyée(s). Le contact dit maintenant : "
+          + (gateOpen ? "ouvert" : "fermé") + " — le libellé suit, il n'empêche rien.";
+        d1Chip.className = "chip-state" + (gateOpen ? " open" : "");
+        d1Chip.textContent = gateOpen ? "● Portail ouvert" : "● Portail fermé";
+        window.setTimeout(renderSlide, 2100);
+      }
+    });
+    d1Slot.appendChild(slide.el);
+  }
+  renderSlide();
+
+  /* ---------- 2. la liste des accès ---------- */
+  var accesses = [
+    { id: 1, kind: "stay", name: "Camille Roux", code: "KM76-EG8M", detail: "Le Gîte · séjour 202609042 · 12 → 14 sept.", state: "actif", lastUse: "hier, 23:41", devices: 3 },
+    { id: 2, kind: "stay", name: "Léa Bertin", code: "9QT2-4XW7", detail: "La Lodge · séjour 202609043 · 10 → 17 sept.", state: "actif", lastUse: "ce matin, 08:12", devices: 1 },
+    { id: 3, kind: "manual", name: "Paul (voisin)", code: "H3KM-7PQZ", detail: "Toujours valable · 08:00 → 20:00", state: "actif", lastUse: "il y a 3 jours", devices: 1 },
+    { id: 4, kind: "manual", name: "Mamie", code: "ZW83-2FRT", detail: "Toujours valable · à toute heure", state: "actif", lastUse: "il y a 112 jours", devices: 2 },
+    { id: 5, kind: "manual", name: "Les Martin (cousins)", code: "5TQD-8JKM", detail: "Du 20 au 27 sept. · 09:00 → 22:00", state: "actif", lastUse: "jamais", devices: 0 },
+    { id: 6, kind: "stay", name: "Famille Dubois", code: "—", detail: "Le Gîte · séjour 202608031 · terminé le 30 août", state: "expire", lastUse: "30 août, 10:02", devices: 4 }
+  ];
+  var nextId = 7;
+
+  var STATE_LABEL = { actif: "actif", suspendu: "suspendu", expire: "expiré", revoque: "révoqué" };
+  var list = document.getElementById("acc-list");
+  var accLog = document.getElementById("acc-log");
+  var fKind = document.getElementById("f-kind");
+  var fState = document.getElementById("f-state");
+
+  function say(message) { accLog.textContent = message; }
+
+  function matchesFilter(a) {
+    if (fKind.value !== "all" && a.kind !== fKind.value) return false;
+    if (fState.value === "actif" && a.state !== "actif") return false;
+    if (fState.value === "off" && a.state === "actif") return false;
+    return true;
+  }
+
+  /**
+   * Les permanents oubliés remontent : sur un accès sans fin, la protection n'est plus le temps,
+   * c'est le regard. Un accès déjà suspendu ne remonte PAS — il est déjà traité, et le faire
+   * remonter reviendrait à réclamer deux fois la même décision.
+   */
+  function isStale(a) {
+    if (a.kind !== "manual" || a.state !== "actif") return false;
+    var m = /il y a (\d+) jours/.exec(a.lastUse);
+    return !!m && Number(m[1]) >= 90;
+  }
+  function sortKey(a) {
+    return (isStale(a) ? 0 : 1) + "" + (a.state === "actif" ? 0 : 1);
+  }
+
+  function button(text, className, handler) {
+    var b = document.createElement("button");
+    b.textContent = text;
+    if (className) b.className = className;
+    b.addEventListener("click", handler);
+    return b;
+  }
+
+  function render() {
+    list.textContent = "";
+    var rows = accesses.filter(matchesFilter).sort(function (a, b) {
+      return sortKey(a).localeCompare(sortKey(b));
+    });
+    if (!rows.length) {
+      var empty = document.createElement("p");
+      empty.className = "muted small";
+      empty.textContent = "Aucun accès ne correspond à ce filtre.";
+      list.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (a) {
+      var card = document.createElement("div");
+      card.className = "acc" + (a.state === "actif" ? "" : " suspended");
+
+      var top = document.createElement("div");
+      top.className = "acc-top";
+      var name = document.createElement("span");
+      name.className = "acc-name";
+      name.textContent = a.name;
+      var code = document.createElement("span");
+      code.className = "acc-code muted";
+      code.textContent = a.code;
+      var kindTag = document.createElement("span");
+      kindTag.className = "tag " + (a.kind === "stay" ? "auto" : "manual");
+      kindTag.textContent = a.kind === "stay" ? "guestFlow" : "créé par moi";
+      var stateTag = document.createElement("span");
+      stateTag.className = "tag " + a.state;
+      stateTag.textContent = STATE_LABEL[a.state];
+      top.appendChild(name); top.appendChild(code); top.appendChild(kindTag); top.appendChild(stateTag);
+
+      if (isStale(a)) {
+        var warn = document.createElement("span");
+        warn.className = "tag revoque";
+        warn.textContent = "inutilisé 90 j";
+        top.appendChild(warn);
+      }
+
+      var meta = document.createElement("p");
+      meta.className = "acc-meta";
+      meta.textContent = a.detail + " · " + a.devices + " appareil(s) · dernier usage : " + a.lastUse;
+
+      var actions = document.createElement("div");
+      actions.className = "acc-actions";
+
+      if (a.state === "actif") {
+        actions.appendChild(button("Suspendre", "", function () {
+          a.state = "suspendu"; say("« " + a.name + " » suspendu : le code survit, réactivable d'un clic."); render();
+        }));
+      } else if (a.state === "suspendu") {
+        actions.appendChild(button("Réactiver", "", function () {
+          a.state = "actif"; say("« " + a.name + " » réactivé, même code."); render();
+        }));
+      }
+
+      actions.appendChild(button("Régénérer", "", function () {
+        a.code = "NEW" + a.id + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+        a.devices = 0;
+        say("Nouveau code pour « " + a.name + " » : le lien déjà envoyé ne fonctionne plus, les appareils sont oubliés.");
+        render();
+      }));
+
+      if (a.kind === "manual") {
+        actions.appendChild(button("Supprimer", "danger", function () {
+          accesses = accesses.filter(function (x) { return x.id !== a.id; });
+          say("« " + a.name + " » supprimé : la ligne disparaît, le code est mort. Le journal, lui, reste.");
+          render();
+        }));
+      } else {
+        var no = button("Supprimer", "danger", function () {});
+        no.disabled = true;
+        no.title = "Un accès créé par guestFlow renaîtrait au prochain email : suspendez-le ou révoquez-le.";
+        actions.appendChild(no);
+        actions.appendChild(button("Révoquer", "danger", function () {
+          a.state = "revoque"; a.code = "—";
+          say("« " + a.name + " » révoqué : le client ne peut plus ouvrir, la ligne reste pour l'historique du séjour.");
+          render();
+        }));
+      }
+
+      card.appendChild(top); card.appendChild(meta); card.appendChild(actions);
+      list.appendChild(card);
+    });
+  }
+
+  fKind.addEventListener("change", render);
+  fState.addEventListener("change", render);
+  document.getElementById("f-new").addEventListener("click", function () {
+    document.getElementById("n-name").focus();
+    say("Le formulaire de création est juste en dessous.");
+  });
+  render();
+
+  /* ---------- 3. le formulaire, refus compris ---------- */
+  var wins = [];
+  var winsBox = document.getElementById("n-wins");
+
+  function renderWins() {
+    winsBox.textContent = "";
+    wins.forEach(function (w, index) {
+      var row = document.createElement("div");
+      row.className = "win";
+      var from = document.createElement("input");
+      from.type = "time"; from.value = w.from;
+      from.addEventListener("input", function () { w.from = from.value; preview(); });
+      var to = document.createElement("input");
+      to.type = "time"; to.value = w.to;
+      to.addEventListener("input", function () { w.to = to.value; preview(); });
+      var dash = document.createElement("span");
+      dash.className = "muted"; dash.textContent = "→";
+      var drop = document.createElement("button");
+      drop.textContent = "Retirer";
+      drop.addEventListener("click", function () { wins.splice(index, 1); renderWins(); preview(); });
+      row.appendChild(from); row.appendChild(dash); row.appendChild(to); row.appendChild(drop);
+      winsBox.appendChild(row);
+    });
+  }
+
+  document.getElementById("n-add-win").addEventListener("click", function () {
+    wins.push({ from: "08:00", to: "20:00" });
+    renderWins(); preview();
+  });
+
+  function kind() {
+    var checked = document.querySelector('input[name="n-kind"]:checked');
+    return checked ? checked.value : "always";
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="n-kind"]'), function (radio) {
+    radio.addEventListener("change", function () {
+      document.getElementById("n-range").className = kind() === "range" ? "" : "hidden";
+      preview();
+    });
+  });
+
+  function minutes(hhmm) {
+    var m = /^(\d{2}):(\d{2})$/.exec(hhmm || "");
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  }
+
+  /** Le refus fait partie de la maquette : c'est ce qu'il faut valider, pas seulement le cas heureux. */
+  function validate() {
+    var errors = { name: "", range: "", wins: "" };
+    var name = document.getElementById("n-name").value.trim();
+    if (!name) errors.name = "Un accès sans nom est un accès qu'on n'osera pas supprimer dans six mois.";
+
+    if (kind() === "range") {
+      var from = document.getElementById("n-from").value + "T" + document.getElementById("n-from-h").value;
+      var to = document.getElementById("n-to").value + "T" + document.getElementById("n-to-h").value;
+      if (!document.getElementById("n-from").value || !document.getElementById("n-to").value) {
+        errors.range = "Les deux dates sont nécessaires.";
+      } else if (new Date(to) <= new Date(from)) {
+        errors.range = "La fin doit venir après le début.";
+      }
+    }
+
+    var sorted = wins.map(function (w, i) { return { i: i, from: minutes(w.from), to: minutes(w.to) }; });
+    for (var i = 0; i < sorted.length; i += 1) {
+      if (sorted[i].from === null || sorted[i].to === null) { errors.wins = "Plage incomplète."; break; }
+      if (sorted[i].to <= sorted[i].from) {
+        errors.wins = "Plage " + (sorted[i].i + 1) + " : la fin doit venir après le début (pas de plage qui passe minuit, pour l'instant).";
+        break;
+      }
+    }
+    if (!errors.wins) {
+      var byStart = sorted.slice().sort(function (a, b) { return a.from - b.from; });
+      for (var j = 1; j < byStart.length; j += 1) {
+        if (byStart[j].from < byStart[j - 1].to) {
+          errors.wins = "Deux plages se chevauchent — fusionnez-les, sinon la règle devient indevinable.";
+          break;
+        }
+      }
+    }
+    return { errors: errors, ok: !errors.name && !errors.range && !errors.wins, name: name };
+  }
+
+  function describe() {
+    var text = kind() === "always" ? "Toujours valable" :
+      "Du " + document.getElementById("n-from").value + " " + document.getElementById("n-from-h").value +
+      " au " + document.getElementById("n-to").value + " " + document.getElementById("n-to-h").value;
+    if (!wins.length) return text + " · à toute heure";
+    return text + " · " + wins.map(function (w) { return w.from + " → " + w.to; }).join(", ");
+  }
+
+  function preview() {
+    var check = validate();
+    document.getElementById("e-name").textContent = check.errors.name;
+    document.getElementById("e-range").textContent = check.errors.range;
+    document.getElementById("e-wins").textContent = check.errors.wins;
+    document.getElementById("n-preview").textContent = "Ce que porterait la ligne : " + describe();
+    document.getElementById("n-save").disabled = !check.ok;
+  }
+
+  ["n-name", "n-from", "n-from-h", "n-to", "n-to-h"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", preview);
+  });
+
+  document.getElementById("n-save").addEventListener("click", function () {
+    var check = validate();
+    if (!check.ok) { preview(); return; }
+    accesses.push({
+      id: nextId, kind: "manual", name: check.name,
+      code: "NEW" + nextId + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(),
+      detail: describe(), state: "actif", lastUse: "jamais", devices: 0
+    });
+    nextId += 1;
+    document.getElementById("n-name").value = "";
+    wins = [];
+    renderWins();
+    preview();
+    document.getElementById("n-status").textContent = "Créé — la ligne est dans la liste ci-dessus.";
+    say("Nouvel accès créé. Il porte l'étiquette « créé par moi » et se supprime, contrairement aux automatiques.");
+    render();
+    window.setTimeout(function () { document.getElementById("n-status").textContent = ""; }, 4000);
+  });
+
+  renderWins();
+  preview();
+}());
+</script>
+</body>
+</html>
