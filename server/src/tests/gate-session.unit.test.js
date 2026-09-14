@@ -6,7 +6,9 @@ const {
 } = require('./gateFixtures');
 const gateSession = require('../utils/gateSession');
 
-// specs/guest-gate-access.md §3.3 (getting in) and §3.8 rule 27 (one session, one access).
+// specs/guest-gate-access.md — getting in: rules 4, 10, 11 and 13 (§3.3), rule 14 (§3.4, the
+// share link), rule 15 (§3.4, every device remembered and none refused), rule 16 (§3.4, every
+// attempt journalled) and rule 27 (§3.8, one session bound to one access).
 
 process.env.GUEST_BASE_URL = 'https://guest.test';
 process.env.GATE_SESSION_SECRET = 'test-secret-for-the-guest-cookie';
@@ -69,6 +71,21 @@ test('the right code opens a session and hands the page everything it renders', 
   // field either — this route is pollable from anywhere with a valid code.
   assert.equal(res.body.gate, undefined, 'no gate state in the guest payload');
   assert.match(res.cookie(), /^gate_sid=/, 'plain name over http — the __Host- prefix needs Secure');
+});
+
+test('the reservation number is not a key, and cannot be typed in as one', () => {
+  // Rule 4, and it is worth an assertion rather than a sentence: the number is sequential, it is
+  // printed on every document the guest holds, and it is the obvious thing to try. It must open
+  // nothing. Nine digits also happen to be the wrong shape, which is a second lock, not the first.
+  const { controller, db } = setup();
+  const number = db.prepare('SELECT reservationNumber FROM reservations WHERE id = 1').get();
+
+  for (const attempt of [String(number && number.reservationNumber || '202609042'), '20260904', '1']) {
+    const res = fakeRes();
+    controller.openSession(fakeReq({ body: { code: attempt } }), res);
+    assert.equal(res.statusCode, 401, `« ${attempt} » must not open a session`);
+    assert.equal(res.cookie(), null, 'and must not leave a cookie behind');
+  }
 });
 
 test('the dashed, lower-cased form the guest actually types is accepted', () => {

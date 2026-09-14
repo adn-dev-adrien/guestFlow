@@ -4,7 +4,10 @@ const assert = require('node:assert/strict');
 const { makeGateDb, insertStay, makeModel } = require('./gateFixtures');
 const { verifyCode, normalizeCode } = require('../utils/gateCode');
 
-// specs/guest-gate-access.md §3.1 rules 1, 2.bis, 5, 6, 6.bis.
+// specs/guest-gate-access.md — the life of an access: rules 1, 5 and 6 (§3.1, creation,
+// regeneration, revocation) and rule 20 (§3.6 — « Ouvrir l'accès maintenant » in the arrival SAS,
+// whose whole behaviour is the early opening tested at the bottom of this file).
+// Also 2.bis (uniqueness among live accesses) and 6.bis (a code dies with its reservation).
 
 test('the access is created on first need, and only once', () => {
   const db = makeGateDb();

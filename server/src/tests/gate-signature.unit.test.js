@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const gateSignature = require('../utils/gateSignature');
 const { signRequest, verifyResult, sign, isFresh, matches, WINDOW_MS, __test } = gateSignature;
 
-// specs/guest-gate-access.md §4.4 — the second factor on the GuestFlow ↔ Sowel channel.
+// specs/guest-gate-access.md §3.9 rules 31 and 32 — the second factor on the GuestFlow ↔ Sowel
+// channel: fail closed with no secret, and a freshness window of ±2 min. The payloads are pinned
+// here too, because both halves compute them independently and a silent change breaks the channel.
 //
 // The hole it closes is worth restating, because the tests below only make sense against it: the
 // API key proves the HOUSE to GuestFlow, and nothing proved GuestFlow to the house. The plugin

@@ -37,90 +37,97 @@ hand-made access is valid either **over a date range** or **always**, optionally
 
 ## 3. Functional rules
 
+> **Pas de numéros tant que ce brouillon n'est pas validé.** Dans ce dépôt, numéroter une règle est
+> un engagement : `scripts/check-spec-coverage.mjs` exige alors qu'un test la nomme, et c'est ce qui
+> a rattrapé trois règles écrites en v2.9.0 que personne n'avait construites. Rien ici n'est
+> construit. Les règles prendront leur numéro en même temps que leurs tests, quand les maquettes
+> seront validées — les déclarer « sans test » en attendant serait mentir à l'outil et masquer le
+> trou le jour où il compterait.
+
 ### 3.1 Two kinds of access
 
-1. An access carries a **`kind`**: `stay` (born with a reservation, §3.2) or `manual` (created by
-   the owner on this page).
-2. A `manual` access carries a **label** — who it is for. It is required: an access whose name is
-   « — » is one nobody will dare delete in six months.
-3. **Both kinds can be deleted**, and then they are gone from the list (decision 2026-09-14). The
-   journal survives: `gate_events` deliberately carries no foreign key, so « who came in that
-   night » outlives a tidy-up.
-4. **Suspension** (`suspendedAt`) is not deletion and not a state: it keeps the code and the
-   schedule, and takes the access out of service until it is resumed. It applies to both kinds.
+- An access carries a **`kind`**: `stay` (born with a reservation, §3.2) or `manual` (created by the
+  owner on this page).
+- A `manual` access carries a **label** — who it is for. It is required: an access whose name is
+  « — » is one nobody will dare delete in six months.
+- **Both kinds can be deleted**, and then they are gone from the list (decision 2026-09-14). The
+  journal survives: `gate_events` deliberately carries no foreign key, so « who came in that night »
+  outlives a tidy-up.
+- **Suspension** (`suspendedAt`) is not deletion and not a state: it keeps the code and the
+  schedule, and takes the access out of service until it is resumed. It applies to both kinds.
 
 ### 3.2 Where a `stay` access comes from, and when it goes
 
-5. **The access is created with the reservation**, not on first use, and carries its own
-   `validFrom` / `validUntil` written from the stay window (check-in → check-out + 1 h).
-   Consequence, and the reason for the change: **a deleted access stays deleted.** The fiche then
-   offers « recréer un accès », which is a deliberate gesture rather than a side effect.
-6. **Nothing ever asks for its removal.** The access and the reservation live in the same database;
-   Sowel holds no list of accesses — it collects an already-authorised request and returns a result.
-   There is therefore no « create / delete » conversation between the two halves that could
-   desynchronise, in either direction. At the end of the stay the row simply **falls out of the
-   list**, because its own end date has passed.
-7. **A change to the reservation's dates or times rewrites the stay window**, on the spot. This is
-   explicit: the reservation is the source of truth for the stay part of the window.
-8. **A hand-made override can only ever widen** (§3.4). Rule 7 therefore cannot shorten an access
-   behind the owner's back: the window in force is the **widest** of the stay window and the
-   overrides. Moving a departure two days later extends the access; an override set beyond it
-   survives untouched; an override the stay has overtaken simply stops mattering.
-9. **Retention.** Seven days after the stay ends the row is purged with its code, as
-   `guest-gate-access.md` §3.7 already provides. Until then it is reachable under one filter
-   (§3.5), for the client who rings back asking for their code.
+- **The access is created with the reservation**, not on first use, and carries its own
+  `validFrom` / `validUntil` written from the stay window (check-in → check-out + 1 h).
+  Consequence, and the reason for the change: **a deleted access stays deleted.** The fiche then
+  offers « recréer un accès », which is a deliberate gesture rather than a side effect.
+- **Nothing ever asks for its removal.** The access and the reservation live in the same database;
+  Sowel holds no list of accesses — it collects an already-authorised request and returns a result.
+  There is therefore no « create / delete » conversation between the two halves that could
+  desynchronise, in either direction. At the end of the stay the row simply **falls out of the
+  list**, because its own end date has passed.
+- **A change to the reservation's dates or times rewrites the stay window**, on the spot. This is
+  explicit: the reservation is the source of truth for the stay part of the window.
+- **A hand-made override can only ever widen** (§3.4). The rule above therefore cannot shorten an
+  access behind the owner's back: the window in force is the **widest** of the stay window and the
+  overrides. Moving a departure two days later extends the access; an override set beyond it
+  survives untouched; an override the stay has overtaken simply stops mattering.
+- **Retention.** Seven days after the stay ends the row is purged with its code, as
+  `guest-gate-access.md` §3.7 already provides. Until then it is reachable under one filter (§3.5),
+  for the client who rings back asking for their code.
 
 ### 3.3 Validity
 
-10. A `manual` access is either **ranged** (`validFrom` → `validUntil`, both stored) or
-    **permanent** (both null). A range refuses an end before its start, at the API and in the form.
-11. **Time-of-day windows** (`timeWindows`, a JSON array of `{ from, to }` in `HH:MM`) restrict when
-    the access may *command* the gate. Empty means any hour.
-    - Windows apply **every day** (confirmed 2026-09-14). Days of the week are out of scope (§8).
-    - A window whose end is not after its start is refused — no window crossing midnight for now.
-    - Overlapping windows are refused: two overlapping rules make the effective one unguessable.
-    - Windows are allowed on **both kinds**, since the owner asked to be able to add hours from the
-      list without caring which sort of access he is looking at.
-12. The effective decision at press time is therefore, in order: not deleted → not suspended → not
-    revoked → inside the validity (stay window widened by its overrides, range, or always) → inside
-    a time window if any. Each refusal answers with its own reason, because « ça ne marche pas » in
-    front of a gate is what generates a phone call.
+- A `manual` access is either **ranged** (`validFrom` → `validUntil`, both stored) or **permanent**
+  (both null). A range refuses an end before its start, at the API and in the form.
+- **Time-of-day windows** (`timeWindows`, a JSON array of `{ from, to }` in `HH:MM`) restrict when
+  the access may *command* the gate. Empty means any hour.
+  - Windows apply **every day** (confirmed 2026-09-14). Days of the week are out of scope (§8).
+  - A window whose end is not after its start is refused — no window crossing midnight for now.
+  - Overlapping windows are refused: two overlapping rules make the effective one unguessable.
+  - Windows are allowed on **both kinds**, since the owner asked to be able to add hours from the
+    list without caring which sort of access he is looking at.
+- The effective decision at press time is, in order: not deleted → not suspended → not revoked →
+  inside the validity (stay window widened by its overrides, range, or always) → inside a time
+  window if any. Each refusal answers with its own reason, because « ça ne marche pas » in front of
+  a gate is what generates a phone call.
 
 ### 3.4 Editing from the list
 
-13. Every line carries **« Modifier »**, and what it opens depends on the kind.
-14. On a `stay` access the stay window is **shown but not editable** — it belongs to the
-    reservation. Two overrides sit under it:
-    - **« Ouvrir dès »** (`earlyOpenedAt`, which already exists and is already tested): opens the
-      access before the contractual check-in hour. Refused if it is not *before* check-in.
-    - **« Prolonger jusqu'au »** (`extendedUntil`, new): keeps it alive after check-out + 1 h.
-      Refused if it does not *exceed* the end of the stay — that is not a prolongation, it is an
-      early revocation, and for that there is « Suspendre ».
-15. On a `manual` access the validity itself is editable: permanent ↔ ranged, and the dates.
-16. Time windows are editable on both, with the refusals of rule 11 shown as you type.
-17. Every edit writes a `gate_events` line naming what changed and what caused it — a hand edit or a
-    reservation that moved. « Why is this access open until Tuesday » must have an answer.
+- Every line carries **« Modifier »**, and what it opens depends on the kind.
+- On a `stay` access the stay window is **shown but not editable** — it belongs to the reservation.
+  Two overrides sit under it:
+  - **« Ouvrir dès »** (`earlyOpenedAt`, which already exists and is already tested): opens the
+    access before the contractual check-in hour. Refused if it is not *before* check-in.
+  - **« Prolonger jusqu'au »** (`extendedUntil`, new): keeps it alive after check-out + 1 h.
+    Refused if it does not *exceed* the end of the stay — that is not a prolongation, it is an early
+    revocation, and for that there is « Suspendre ».
+- On a `manual` access the validity itself is editable: permanent ↔ ranged, and the dates.
+- Time windows are editable on both, with the refusals of §3.3 shown as you type.
+- Every edit writes a `gate_events` line naming what changed and what caused it — a hand edit or a
+  reservation that moved. « Why is this access open until Tuesday » must have an answer.
 
 ### 3.5 The list
 
-18. One page, every access, in three plain groups: **actifs**, then **suspendus**, then — under its
-    own filter only — **séjours terminés (7 derniers jours)**. No attention section, no line that
-    jumps the queue: an unused permanent access shows « dernier usage : il y a 112 jours » in its
-    own column and asks nothing of anybody (decision 2026-09-14: the 90-day surfacing was noise).
-19. **A `stay` access is identifiable at a glance**: a « guestFlow » tag against « créé par moi »
-    for a manual one. Its line also names the lodging and the stay number.
-20. Filters: by kind (all / mine / guestFlow) and by state (in service / active / suspended /
-    finished stays).
-21. Each line shows the code, what the validity amounts to in words, the hours, the device count,
-    the last use, and its actions.
-22. **No automatic expiry of a permanent access.** On an access with no end, the protection is no
-    longer time — it is the owner reading this list. An access that dies unannounced in front of a
-    gate at night is worse than the risk it covers.
+- One page, every access, in three plain groups: **actifs**, then **suspendus**, then — under its
+  own filter only — **séjours terminés (7 derniers jours)**. No attention section, no line that
+  jumps the queue: an unused permanent access shows « dernier usage : il y a 112 jours » in its own
+  column and asks nothing of anybody (decision 2026-09-14: the 90-day surfacing was noise).
+- **A `stay` access is identifiable at a glance**: a « guestFlow » tag against « créé par moi » for
+  a manual one. Its line also names the lodging and the stay number.
+- Filters: by kind (all / mine / guestFlow) and by state (in service / active / suspended /
+  finished stays).
+- Each line shows the code, what the validity amounts to in words, the hours, the device count, the
+  last use, and its actions.
+- **No automatic expiry of a permanent access.** On an access with no end, the protection is no
+  longer time — it is the owner reading this list. An access that dies unannounced in front of a
+  gate at night is worse than the risk it covers.
 
 ### 3.6 Confirming the intent to open
 
-23. Done, and no longer part of this spec: the slide-to-confirm, its geometry and its wording live
-    in `guest-gate-access.md` §3.5 rule 17.bis, implemented on 2026-09-14 in the guest page.
+- Done, and no longer part of this spec: the slide-to-confirm, its geometry and its wording live in
+  `guest-gate-access.md` §3.5 rule 17.bis, implemented on 2026-09-14 in the guest page.
 
 **Edge cases:**
 - A permanent access pressing outside its windows → refused with « hors des heures autorisées »
@@ -137,9 +144,10 @@ hand-made access is valid either **over a date range** or **always**, optionally
 
 - `gate_accesses` gains `kind`, `label`, `validFrom`, `validUntil`, `extendedUntil`, `suspendedAt`,
   `timeWindows`, `createdBy`. The migration is additive; existing rows carry nulls and keep their
-  behaviour until the backfill of rule 5 runs.
-- **Creation moves from lazy to eager**: a hook on reservation creation, a backfill for the existing
-  ones, and a `deletedAt` tombstone that the old lazy path must honour if it is kept as a fallback.
+  behaviour until the backfill of §3.2 runs.
+- **Creation moves from lazy to eager** (§3.2): a hook on reservation creation, a backfill for the
+  existing ones, and a `deletedAt` tombstone that the old lazy path must honour if it is kept as a
+  fallback.
 - `utils/gateWindow.js` grows a resolver answering « is this access commandable now » from the three
   shapes (stay-derived plus overrides, ranged, permanent) and the windows. The stay path stays
   exactly as it is — it is already tested against both DST transitions.

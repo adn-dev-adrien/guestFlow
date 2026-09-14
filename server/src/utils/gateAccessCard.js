@@ -29,7 +29,13 @@ function buildGateAccessCard(reservationId) {
     // Null once the purge has cleared it, a week after the stay: the row stays a record, the code
     // stops being a secret anyone can read off the fiche.
     code: access.code ? formatCode(access.code) : null,
-    url: base && access.code ? `${base}/?c=${encodeURIComponent(access.code)}` : null,
+    // No link for a revoked access (§3.1 rule 6: it answers as if it had never existed). The code
+    // itself stays, so the operator can still recognise the line in the journal — but a URL is
+    // something you HAND OUT, and handing out a dead one is how « j'ai envoyé le lien et ça ne
+    // marche pas » happens. Found by the card's own test, 2026-09-14.
+    url: base && access.code && !access.revokedAt
+      ? `${base}/?c=${encodeURIComponent(access.code)}`
+      : null,
     permanentUrl: base || null,
     state: resolved ? resolved.state : 'unknown',
     window: resolved && resolved.window ? {

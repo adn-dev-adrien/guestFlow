@@ -3,7 +3,10 @@ const assert = require('node:assert/strict');
 
 const { makeGateDb, insertStay, makeModel } = require('./gateFixtures');
 
-// specs/guest-gate-access.md §3.8 — the gîte and the lodge, two stays, ONE gate.
+// specs/guest-gate-access.md §3.8 rules 25, 26, 29 and 30 — the gîte and the lodge, two stays and
+// ONE gate: several accesses live at once, the code alone identifies the stay (so the unlock screen
+// needs no picker), requests queue rather than race, and the two ceilings are counted separately.
+// specs/guest-gate-access.md rules 16 and 24 — the journal outlives both the access and the purge.
 
 function twoLodgings(startIso = '2026-09-12T17:00:00.000Z') {
   const db = makeGateDb();
