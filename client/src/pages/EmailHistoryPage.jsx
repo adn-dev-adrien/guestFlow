@@ -22,7 +22,9 @@ const PAGE_SIZE = 50;
 
 // Maps the email-log domain status to the shared StatusBadge (specs/ds-components.md §3.5 — the
 // page used to ship its own shadowing StatusBadge with a divergent outlined rendering).
-function EmailStatusBadge({ status, channel }) {
+// `detail` is the server's wording (specs/gate-access-portier.md §6): « prochain essai à 08:15 » on an
+// email waiting for Portier, « réservation annulée » on one dropped meanwhile.
+function EmailStatusBadge({ status, channel, detail }) {
   if (status === 'sent') {
     return channel === 'manual'
       ? <StatusBadge status="info" label="Envoyé manuellement" />
@@ -30,6 +32,10 @@ function EmailStatusBadge({ status, channel }) {
   }
   if (status === 'failed') return <StatusBadge status="error" label="Échec" />;
   if (status === 'acknowledged-skip') return <StatusBadge status="neutral" label="Ignoré" />;
+  if (status === 'waiting_portier') {
+    return <StatusBadge status="warning" label={`En attente de Portier${detail ? ` · ${detail}` : ''}`} />;
+  }
+  if (status === 'skipped') return <StatusBadge status="neutral" label={`Ignoré${detail ? ` — ${detail}` : ''}`} />;
   return <StatusBadge status="neutral" label={String(status)} />;
 }
 
@@ -85,6 +91,7 @@ export default function EmailHistoryPage() {
                 <MenuItem value="sent">Envoyé</MenuItem>
                 <MenuItem value="failed">Échec</MenuItem>
                 <MenuItem value="acknowledged-skip">Ignoré</MenuItem>
+                <MenuItem value="waiting_portier">En attente de Portier</MenuItem>
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 220 }}>
@@ -136,7 +143,7 @@ export default function EmailHistoryPage() {
               </Stack>
             </TableCell>
             <TableCell>{r.recipientEmail || '—'}</TableCell>
-            <TableCell><EmailStatusBadge status={r.status} channel={r.channel} /></TableCell>
+            <TableCell><EmailStatusBadge status={r.status} channel={r.channel} detail={r.statusDetail} /></TableCell>
             <TableCell sx={{ maxWidth: 260, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               {r.renderedSubject}
             </TableCell>

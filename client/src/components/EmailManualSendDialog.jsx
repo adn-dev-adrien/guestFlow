@@ -44,12 +44,16 @@ export default function EmailManualSendDialog({
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  // specs/gate-access-portier.md §3.2 — a send that has to wait for Portier: the server's sentence stays
+  // on screen until the operator closes, rather than vanishing with the dialog.
+  const [queued, setQueued] = useState(null);
 
   // Load template list once when the dialog opens.
   useEffect(() => {
     if (!open) return;
     setError('');
     setManualEmail('');
+    setQueued(null);
     api.getEmailTemplates()
       .then((rows) => {
         const enabled = rows.filter((r) => r.enabled !== 0);
@@ -110,6 +114,10 @@ export default function EmailManualSendDialog({
         // sends to it AND saves it on the client record.
         overrides: { subject, body, ...(to ? {} : { to: manualEmail.trim() }) },
       });
+      if (res && res.waitingPortier) {
+        setQueued(res);
+        return;
+      }
       if (onSent) onSent(res);
       if (onClose) onClose();
     } catch (e) {
@@ -225,6 +233,11 @@ export default function EmailManualSendDialog({
             </Box>
           ) : null}
 
+          {queued ? (
+            <Box sx={{ p: 1.5, bgcolor: 'warning.lighter', border: '1px solid', borderColor: 'warning.light', borderRadius: 1 }}>
+              <Typography variant="body2">{queued.message}</Typography>
+            </Box>
+          ) : null}
           {error ? (
             <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
               <Typography variant="body2" color="error.main">{error}</Typography>
@@ -233,15 +246,23 @@ export default function EmailManualSendDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={sending}>Annuler</Button>
-        <Button
-          onClick={handleSend}
-          variant="contained"
-          disabled={sendDisabled}
-          startIcon={sending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
-        >
-          Envoyer
-        </Button>
+        {queued ? (
+          <Button variant="contained" onClick={() => { if (onSent) onSent(queued); if (onClose) onClose(); }}>
+            Fermer
+          </Button>
+        ) : (
+          <>
+            <Button onClick={onClose} disabled={sending}>Annuler</Button>
+            <Button
+              onClick={handleSend}
+              variant="contained"
+              disabled={sendDisabled}
+              startIcon={sending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+            >
+              Envoyer
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );
