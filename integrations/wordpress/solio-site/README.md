@@ -3,15 +3,19 @@
 Copie de référence du code SEO installé sur le site vitrine WordPress (`domainesolio.com`).
 
 > **Attention — ce dossier est une copie, pas la source qui tourne.**
-> Le site s'exécute dans le conteneur Docker `wp_app` sur le Pi `192.168.0.196`, et son
-> unique source vivante est le volume `soliowebsite_wp_data`. Il n'existe aucun déploiement
-> automatique depuis ce dépôt. Toute modification doit être **recopiée dans le conteneur** :
+> Depuis la migration Proxmox, le site s'exécute dans le conteneur Docker `wp_app` sur
+> `192.168.0.23` (et non plus sur le Pi `192.168.0.196`), son unique source vivante étant le
+> volume `soliowebsite_wp_data`. Il n'existe aucun déploiement automatique depuis ce dépôt.
+> Toute modification doit être **recopiée dans le conteneur**, en sauvegardant d'abord la
+> version en place :
 >
 > ```bash
-> ssh pi@192.168.0.196 "docker exec -i wp_app sh -c 'cat > /tmp/gf-seo-head.php'" < mu-plugins/gf-seo-head.php
-> ssh pi@192.168.0.196 'docker exec wp_app php -l /tmp/gf-seo-head.php \
->   && docker exec wp_app sh -c "cp /tmp/gf-seo-head.php /var/www/html/wp-content/mu-plugins/ \
->   && chown www-data:www-data /var/www/html/wp-content/mu-plugins/gf-seo-head.php"'
+> scp mu-plugins/gf-seo-head.php adrien@192.168.0.23:/tmp/gf-seo-head.php
+> ssh adrien@192.168.0.23 'docker cp /tmp/gf-seo-head.php wp_app:/tmp/gf-seo-head.php \
+>   && docker exec wp_app php -l /tmp/gf-seo-head.php'
+> ssh adrien@192.168.0.23 'docker cp wp_app:/var/www/html/wp-content/mu-plugins/gf-seo-head.php /tmp/bak-gf-seo-head.php'
+> ssh adrien@192.168.0.23 'docker cp /tmp/gf-seo-head.php wp_app:/var/www/html/wp-content/mu-plugins/gf-seo-head.php \
+>   && docker exec wp_app chown www-data:www-data /var/www/html/wp-content/mu-plugins/gf-seo-head.php'
 > ```
 >
 > Cette copie existe pour que le travail ne vive plus uniquement dans un volume Docker
@@ -32,8 +36,8 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | Fichier | Rôle |
 |---|---|
 | `gf-seo-facts.php` | **Source de vérité.** Adresse, GPS, capacités, horaires, équipements, distances, FAQ. Lit les tarifs vivants dans GuestFlow (cache 6 h, repli statique). |
-| `gf-seo-head.php` | `<title>` 50-60 car., meta description 140-155 car., Open Graph, Twitter Card, `hreflang`, geo. Table page → référencement, surchargeable par page. |
-| `gf-seo-schema.php` | JSON-LD : `LodgingBusiness`, `VacationRental` / `Campground` + `Accommodation`, `FAQPage`, `BreadcrumbList`. Fil d'Ariane visible. |
+| `gf-seo-head.php` | `<title>` 50-60 car., meta description 140-155 car., Open Graph, Twitter Card, `hreflang`, geo. Table page → référencement, surchargeable par page. Le visuel de partage se replie sur la première `<img>` du contenu, ce qui couvre les bandeaux écrits en HTML brut. |
+| `gf-seo-schema.php` | JSON-LD : `LodgingBusiness`, `VacationRental` / `Campground` + `Accommodation`, `FAQPage`, `BreadcrumbList`. Fil d'Ariane visible. La galerie du logement reprend chaque diapo du carrousel en `ImageObject`, légende comprise. |
 | `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. |
 | `gf-seo-images.php` | Complète les `<img>` du contenu : `alt`, `width`/`height`, `srcset`, `loading`, `fetchpriority` sur l'image LCP. |
 | `gf-seo-indexation.php` | `robots.txt` (12 robots autorisés nommément), sitemap nettoyé, `/llms.txt`. |
@@ -77,6 +81,16 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 | Prix des options | la carte « à la carte » de `/reserver/` (`[solio_surdemande]`), via GuestFlow |
 | Montant des cautions | `[solio_caution]`, lu dans les faits — les CGV ne le codent jamais en dur |
 | Contexte géographique | uniquement les deux pages de logement et `/acces/` |
+| Ce que montre chaque photo | la légende de la diapo, sous l'image du carrousel |
+
+## Les carrousels
+
+Chaque diapo MetaSlider porte une **légende** (`post_excerpt` de la diapo), affichée sous la
+photo plutôt qu'en bandeau sombre par-dessus : les diapos ne sont pas recadrées, un bandeau
+absolu masquerait le bas de l'image. La légende est du texte rendu par le serveur, donc lue par
+Google comme par les robots d'IA, et elle est reprise telle quelle dans le `ImageObject` du
+JSON-LD. Le texte alternatif, lui, décrit la photo pour qui ne la voit pas — les deux ne disent
+pas la même chose et ne doivent pas être copiés l'un sur l'autre.
 
 ## Ce qui est intentionnellement absent
 
@@ -92,10 +106,12 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 ## Régénérer les fichiers dérivés
 
 ```bash
-# Jumeaux WebP après ajout de photos (idempotent, ignore ce qui existe déjà)
-ssh pi@192.168.0.196 'docker exec wp_app php /tmp/lot7c.php'
+# Jumeaux WebP après ajout de photos (idempotent : un jumeau à jour est laissé tel quel)
+scp scripts/webp-twins.php adrien@192.168.0.23:/tmp/webp-twins.php
+ssh adrien@192.168.0.23 'docker cp /tmp/webp-twins.php wp_app:/tmp/webp-twins.php \
+  && docker exec wp_app php /tmp/webp-twins.php'
 
 # Vider le cache des tarifs GuestFlow après un changement de prix
 # (ou bouton « Actualiser les tarifs » dans la barre d'admin)
-ssh pi@192.168.0.196 'docker exec wp_app php -r "require \"/var/www/html/wp-load.php\"; gf_seo_purge_cache();"'
+ssh adrien@192.168.0.23 'docker exec wp_app php -r "require \"/var/www/html/wp-load.php\"; gf_seo_purge_cache();"'
 ```

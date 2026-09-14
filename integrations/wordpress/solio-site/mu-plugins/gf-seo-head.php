@@ -255,6 +255,14 @@ function gf_seo_og_image() {
 		if ( $trouve ) {
 			return $trouve;
 		}
+
+		// Depuis la refonte de septembre 2026, les bandeaux de haut de page sont ecrits en
+		// HTML brut (<img class="gf-hero-media">) et non en bloc de couverture : sans cette
+		// reprise, aucune page du site n'avait de visuel de partage, et tout lien partage sur
+		// un reseau ou une messagerie s'affichait en carte sans image.
+		if ( preg_match( '~<img[^>]+src=["\']([^"\']+)["\']~i', (string) get_post_field( 'post_content', $id ), $m ) ) {
+			return $m[1];
+		}
 	}
 	return gf_seo_domaine()['og_image'];
 }
