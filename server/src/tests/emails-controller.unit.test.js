@@ -106,18 +106,18 @@ function fakeEmailService(over = {}) {
 
 // ---- preview ----
 
-test('preview: returns recipient + rendered subject + body + missingVariables', () => {
+test('preview: returns recipient + rendered subject + body + missingVariables', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
   const r = res();
-  ctl.preview({ query: { reservationId: 100, templateId: 10 } }, r);
+  await ctl.preview({ query: { reservationId: 100, templateId: 10 } }, r);
   assert.equal(r.body.to, 'jean@dupont.fr');
   assert.equal(r.body.subject, 'Sujet Jean');
   assert.equal(r.body.body, 'Hello Jean');
   assert.deepEqual(r.body.missingVariables, []);
 });
 
-test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}', () => {
+test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
@@ -125,11 +125,11 @@ test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}
 
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
   const r = res();
-  ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
+  await ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
   assert.equal(r.body.body, 'Lien : https://pay.qonto/pl_X');
 });
 
-test('preview: deposit_reminder with no open link falls back to the no-link branch', () => {
+test('preview: deposit_reminder with no open link falls back to the no-link branch', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
@@ -137,33 +137,33 @@ test('preview: deposit_reminder with no open link falls back to the no-link bran
 
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
   const r = res();
-  ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
+  await ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
   assert.equal(r.body.body, 'Aucun lien');
 });
 
-test('preview: 404 on unknown template', () => {
+test('preview: 404 on unknown template', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
   const r = res();
-  ctl.preview({ query: { reservationId: 100, templateId: 999 } }, r);
+  await ctl.preview({ query: { reservationId: 100, templateId: 999 } }, r);
   assert.equal(r.statusCode, 404);
   assert.equal(r.body.error, 'TEMPLATE_NOT_FOUND');
 });
 
-test('preview: 404 on unknown reservation', () => {
+test('preview: 404 on unknown reservation', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
   const r = res();
-  ctl.preview({ query: { reservationId: 999, templateId: 10 } }, r);
+  await ctl.preview({ query: { reservationId: 999, templateId: 10 } }, r);
   assert.equal(r.statusCode, 404);
   assert.equal(r.body.error, 'RESERVATION_NOT_FOUND');
 });
 
-test('preview: 400 when query params missing', () => {
+test('preview: 400 when query params missing', async () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
   const r = res();
-  ctl.preview({ query: {} }, r);
+  await ctl.preview({ query: {} }, r);
   assert.equal(r.statusCode, 400);
 });
 

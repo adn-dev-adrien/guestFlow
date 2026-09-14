@@ -26,6 +26,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DialpadIcon from '@mui/icons-material/Dialpad';
+import SasGateAccessStep from './SasGateAccessStep';
 import SavingsIcon from '@mui/icons-material/Savings';
 import RoomServiceIcon from '@mui/icons-material/RoomService';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
@@ -106,7 +107,7 @@ const modeColorFor = (theme, mode) => (mode === 'arrival' ? theme.palette.warnin
 function stepMeta(key, mode) {
   switch (key) {
     case 'intro': return { title: mode === 'arrival' ? 'Arrivée' : 'Départ', Icon: mode === 'arrival' ? MeetingRoomIcon : LogoutIcon };
-    case 'portal': return { title: 'Portail', Icon: DialpadIcon };
+    case 'portal': return { title: 'Accès portail', Icon: DialpadIcon };
     case 'caution':
     case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
     case 'stayPayment': return { title: 'Séjour', Icon: PaymentsIcon };
@@ -564,7 +565,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
-        data.portalCode ? 'portal' : null,
+        (data.gateAccess?.configured || data.portalCode) ? 'portal' : null,
         cautionStep ? 'caution' : null,
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
@@ -1180,12 +1181,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       }
       case 'portal':
+        // specs/gate-access-portier.md §3.3 — the code and its QR, read from Portier by the step
+        // itself. The SAS activates nothing: early opening is « Ouvrir dès » in the list.
         return (
-          <Stack spacing={1.5} sx={{ alignItems: 'center', py: 1 }}>
-            <Typography variant="body1">Code du portail à communiquer au client :</Typography>
-            {/* Portal code = digits → kpiValue role (sans, tabular — amounts/codes never serif), h3-sized. */}
-            <Typography variant="kpiValue" sx={{ fontSize: '2.6rem', letterSpacing: 2 }}>{data.portalCode}</Typography>
-          </Stack>
+          <SasGateAccessStep
+            reservationId={reservationId}
+            configured={Boolean(data.gateAccess?.configured)}
+            portalCode={data.portalCode}
+          />
         );
       case 'weather':
         return <SasWeatherAlertPage alerts={weatherAlerts} />;

@@ -22,6 +22,8 @@ const { sasLockReason } = require('../utils/sasEditWindow');
 const { stayDueAtArrival } = require('../utils/reservationSettlement');
 const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
 const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
+const portierClient = require('../utils/portierClient');
+const { invitationForSas } = require('../utils/portierInvitation');
 
 // specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
 // has never been committed: a past, future or already-committed SAS is refused. The rule depends on
@@ -209,6 +211,10 @@ function getSas(req, res) {
     reservation: isReceptionOnly(req.user) ? toReceptionReservationView(reservation) : reservation,
     receptionLock,
     portalCode: String(settings.portalCode || '').trim(),
+    // specs/gate-access-portier.md §3.3 — the step « Accès portail » reads Portier on its own
+    // (GET /:id/sas/gate-access), so a slow Portier never holds the whole SAS back. Here, only whether
+    // there is a Portier to read: the step shows when there is one, or a keypad code to dictate.
+    gateAccess: { configured: portierClient.isConfigured() },
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected
     // « ajouté », and « Non merci » removes it (specs/sas-upsells-activate-catalogue-option.md §3.2).
     cleaning: { included: cleaningIncluded, price: cleaningPrice, sasOrigin: upsells.cleaning.sasOrigin },
@@ -421,7 +427,18 @@ function commitDeparture(req, res) {
   return res.json({ ok: true });
 }
 
-module.exports = { getSas, commitArrival, commitDeparture };
+// GET /api/reservations/:id/sas/gate-access — specs/gate-access-portier.md §3.3. The code and a QR of the
+// invitation's address, read from Portier now; the gate keypad's code rides along for the day Portier
+// does not answer. Reception runs the SAS, so this read is in its allowlist. The QR is handed to the
+// screen only: never logged, never stored.
+async function getGateAccessStep(req, res) {
+  const reservation = reservationsModel.getRow(Number(req.params.id));
+  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const settings = settingsModel.read();
+  return res.json(await invitationForSas(reservation.id, { fallbackCode: String(settings.portalCode || '').trim() }));
+}
+
+module.exports = { getSas, commitArrival, commitDeparture, getGateAccessStep };
 // Le repli d'historique de la règle 10 est de la logique pure sur une liste de changements : exposé
 // pour être épinglé sans monter tout le harnais du contrôleur.
 module.exports.__test = { foldGroupedPayment, buildStayPayment };

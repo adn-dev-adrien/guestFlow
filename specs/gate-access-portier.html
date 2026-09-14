@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>guestFlow et Portier</title>
+<style>
+:root{--paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--soft:#5C6153;--line:#DCD4C2;--sapin:#2E3B2A;--ocre:#B87B2A;
+--deep:#9A6318;--brique:#8E3B27;--vert:#5A6B48;--wash-ocre:#F2E6D2;--wash-sapin:#E3E5DB;--wash-brique:#EFDCD6;
+--serif:Georgia,"Times New Roman",serif;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:64rem;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:400;color:var(--sapin);line-height:1.2;margin:0}
+h1{font-size:2.05rem;text-transform:uppercase;letter-spacing:.05em}
+h2{font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;margin-top:3.2rem}
+p{margin:.7rem 0}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--deep)}
+.lede{font-size:1.08rem;color:var(--soft);max-width:48rem}
+code{font-family:var(--mono);font-size:.84em;background:var(--wash-ocre);padding:.08em .32em}
+.muted{color:var(--soft)} .small{font-size:.88rem}
+.box{background:var(--card);border:1px solid var(--line);padding:1.1rem 1.25rem;margin:1.2rem 0}
+.box.warm{background:var(--wash-ocre);border-left:3px solid var(--ocre)}
+.box.stop{background:var(--wash-brique);border-left:3px solid var(--brique)}
+ul.clean{list-style:none;padding:0;margin:.5rem 0} ul.clean li{position:relative;padding-left:1.1rem;margin:.5rem 0}
+ul.clean li::before{content:"";position:absolute;left:0;top:.62em;width:.4rem;height:.4rem;background:var(--ocre)}
+figure{margin:1.2rem 0 .6rem;background:var(--card);border:1px solid var(--line)}
+figcaption{padding:.75rem 1rem;border-top:1px solid var(--line);font-size:.92rem}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+svg.seq,svg.topo{display:block;width:100%;height:auto;min-width:820px}
+ol.msgs{margin:.4rem 0 0;padding-left:2.4rem;font-size:.93rem} ol.msgs li{margin:.42rem 0}
+ol.msgs li::marker{font-weight:700;color:var(--deep)}
+.kind{display:inline-block;font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.05rem .4rem;border:1px solid;vertical-align:.12em;margin-right:.15rem}
+.kind.send{color:var(--deep);border-color:var(--ocre);background:var(--wash-ocre)}
+.kind.chan{color:#fff;border-color:var(--sapin);background:var(--sapin)}
+.kind.resp{color:var(--soft);border-color:var(--line);background:var(--card)}
+.who{font-weight:700;white-space:nowrap}
+.after{font-size:.93rem;color:var(--soft);margin:.8rem 0 0;max-width:50rem}
+table.recap{border-collapse:collapse;width:100%;min-width:36rem;font-size:.9rem;background:var(--card)}
+table.recap th,table.recap td{text-align:left;padding:.5rem .65rem;border-bottom:1px solid var(--line);vertical-align:top}
+table.recap thead th{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--deep);background:var(--wash-ocre)}
+table.recap td:first-child{width:38%;color:var(--soft);font-style:italic}
+.short{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));margin-top:1rem}
+.short div{background:var(--card);border:1px solid var(--line);padding:.8rem .9rem;font-size:.93rem}
+.short b{display:block;font-family:var(--serif);font-weight:400;font-size:1.1rem;margin-bottom:.25rem;color:var(--sapin)}
+.demo{border:1px solid var(--line);background:var(--card);margin:1.2rem 0}
+.demo-head{background:var(--wash-sapin);border-bottom:1px solid var(--line);padding:.55rem .9rem;font-size:.72rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--sapin);display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem}
+.demo-head span:last-child{font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--soft)}
+.demo-body{padding:1.1rem}
+button,input[type=text]{font-family:var(--sans);font-size:.86rem;color:var(--ink);background:var(--card);border:1px solid var(--line);padding:.42rem .7rem}
+button{cursor:pointer} button:hover{background:var(--wash-ocre)} button[disabled]{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--ocre);border-color:var(--ocre);color:#fff;font-weight:700}
+button.danger{color:var(--brique);border-color:var(--brique)}
+.row{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+.seg button.on{background:var(--sapin);border-color:var(--sapin);color:#fff}
+.kgrid,.pgrid{display:grid;gap:1.2rem;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr))}
+.pgrid{margin-top:1rem;align-items:start}
+.klabel{font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--deep);margin:0 0 .4rem}
+.kline{font-size:.9rem;margin:.55rem 0 .3rem}
+.kphone{border:1px solid var(--line);padding:.5rem .7rem;margin:.5rem 0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.kphone .kline{width:100%;margin:0} .kphone.off{background:var(--paper)}
+.tag{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.05rem .4rem;border:1px solid}
+.tag.revoque{color:var(--brique);border-color:var(--brique)}
+ol.klog{list-style:none;padding:0;margin:.9rem 0 0;font-size:.86rem;max-height:14rem;overflow:auto}
+ol.klog li{padding:.3rem .5rem;border-left:3px solid var(--line);margin:.25rem 0;background:var(--paper)}
+ol.klog li.ok{border-color:var(--vert)} ol.klog li.ko{border-color:var(--brique);color:var(--brique)}
+.phone{position:relative;width:19rem;max-width:100%;margin:0 auto;background:#23291F;border-radius:2rem;padding:.5rem}
+.screen{background:var(--paper);border-radius:1.6rem;padding:1rem 1.1rem 1.2rem;min-height:31rem;display:flex;flex-direction:column;gap:.7rem}
+.bg-veil{position:absolute;inset:.5rem;border-radius:1.6rem;background:rgba(22,28,22,.82);color:#E8C286;display:flex;align-items:center;justify-content:center;text-align:center;font-size:.9rem}
+.bg-veil[hidden]{display:none}
+.brand{font-family:var(--serif);font-size:.78rem;letter-spacing:.28em;text-transform:uppercase;color:var(--deep);margin:0}
+.screen h4{font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.sub{font-size:.82rem;color:var(--soft);margin:0} .spacer{flex:1;min-height:.3rem}
+.caption{font-size:.72rem;color:var(--soft);text-align:center;margin:0}
+.track{width:100%;max-width:260px;margin:0 auto;height:52px;text-align:left;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:.72rem;color:var(--soft)}
+.icard{border:1px solid var(--ocre);background:var(--wash-ocre);padding:.65rem .75rem;font-size:.8rem}
+.ititle{font-weight:700;margin:0 0 .3rem;color:var(--deep)} .isteps{margin:.2rem 0 .4rem;padding-left:1.1rem} .isteps li{margin:.15rem 0}
+.ibtn{background:var(--ocre);border-color:var(--ocre);color:#fff;font-weight:700;width:100%;margin:.2rem 0}
+.ismall{font-size:.72rem;color:var(--soft);margin:.2rem 0}
+.icode{display:flex;gap:.4rem;align-items:center;justify-content:space-between;border-top:1px dashed var(--ocre);padding-top:.4rem;margin-top:.3rem}
+.icopy{padding:.2rem .5rem;font-size:.75rem} .ilater{border:0;background:none;color:var(--soft);font-size:.75rem;padding:.3rem 0}
+.pcode{font-family:var(--mono);font-size:1.2rem;letter-spacing:.18em;text-align:center;width:100%}
+.perr{color:var(--brique);font-size:.82rem;margin:.2rem 0;min-height:1em}
+fieldset{border:1px solid var(--line);padding:.8rem;margin:0 0 .8rem}
+legend{font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--deep);padding:0 .3rem}
+.rad{display:flex;gap:.4rem;align-items:center;font-size:.92rem;margin:.3rem 0}
+.homescreen{background:linear-gradient(160deg,#3F5A4A,#1E2A22);border-radius:1.6rem;padding:1.3rem 1rem;display:grid;grid-template-columns:repeat(4,1fr);gap:1rem .6rem;max-width:19rem;margin:0 auto}
+.hicon{display:flex;flex-direction:column;align-items:center;gap:.25rem;font-size:.66rem;color:#fff}
+.hsq{width:3.2rem;height:3.2rem;border-radius:.8rem;overflow:hidden} .hsq img{width:100%;height:100%;object-fit:cover;display:block}
+.hicon.mine .hsq{box-shadow:0 0 0 2px #E8C286}
+@media (max-width:40rem){h1{font-size:1.6rem}.wrap{padding:1.6rem 1rem 4rem}}
+
+code{overflow-wrap:anywhere}
+h3.sub3{font-size:1.12rem;text-transform:uppercase;letter-spacing:.05em;margin:2.2rem 0 .4rem}
+.kicker{font-size:.86rem;color:var(--soft);font-style:italic;margin-top:.3rem}
+table.recap.comp td:first-child,table.recap.three td:first-child,table.recap.reach td:first-child{width:auto;font-style:normal;color:var(--ink)}
+table.recap.comp td:first-child{font-weight:700}
+table.recap.comp tr.here td{background:var(--wash-sapin)}
+table.recap.comp tr.here td:first-child::after{content:" ← ce dépôt";font-weight:400;font-size:.78rem;color:var(--sapin)}
+table.recap.three td{width:33%}
+.sas{background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 2px 10px rgba(34,39,31,.08);overflow:hidden}
+.sas-top{background:var(--sapin);color:#fff;padding:.55rem .9rem;font-size:.86rem}
+.sas-steps{display:flex;flex-wrap:wrap;gap:.3rem;padding:.55rem .9rem;border-bottom:1px solid var(--line);font-size:.72rem}
+.sas-steps span{padding:.1rem .45rem;border:1px solid var(--line);border-radius:1rem;color:var(--soft)}
+.sas-steps .done{color:var(--vert);border-color:var(--vert)} .sas-steps .cur{background:var(--ocre);border-color:var(--ocre);color:#fff;font-weight:700}
+.sas-body{padding:1rem;display:flex;flex-direction:column;align-items:center;gap:.35rem;text-align:center;min-height:22rem}
+.sas-title{font-family:var(--serif);font-size:1.25rem;color:var(--sapin);margin:0;text-transform:uppercase;letter-spacing:.04em}
+.qr{width:190px;max-width:100%} .qr svg{display:block;width:100%;height:auto}
+.sas-code{font-family:var(--mono);font-size:1.7rem;letter-spacing:.14em;margin:.2rem 0;color:var(--ink)}
+.app{border:1px solid var(--line);background:#fff;margin-top:.8rem;border-radius:4px;overflow:hidden}
+.app-bar{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;background:var(--sapin);color:#fff;padding:.5rem .9rem;font-size:.86rem}
+.app-bar .who{margin-left:auto;font-size:.76rem;opacity:.85}
+.app-body{padding:.9rem}
+table.list{border-collapse:collapse;width:100%;min-width:44rem;font-size:.84rem}
+table.list th{text-align:left;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--deep);border-bottom:1px solid var(--line);padding:.35rem .4rem}
+table.list td{border-bottom:1px solid var(--line);padding:.45rem .4rem;vertical-align:top}
+table.list td.acts button{margin:.1rem .15rem .1rem 0;font-size:.74rem;padding:.25rem .45rem}
+table.list tr.susp td{background:var(--paper);color:var(--soft)}
+table.list tr.confirm td{background:var(--wash-ocre);border-left:3px solid var(--ocre)}
+table.list tr.confirm p{margin:.1rem 0 .4rem}
+table.list tr.confirm button{margin-right:.4rem}
+.tag{margin-left:.35rem;white-space:nowrap;display:inline-block}
+.tag.gf{color:var(--sapin);border-color:var(--sapin)} .tag.mine{color:var(--deep);border-color:var(--ocre)}
+.house{font-size:.86rem;font-weight:700;margin:0 0 .6rem} .house.up{color:var(--vert)} .house.down{color:var(--brique)}
+.tl{position:relative;height:34px;margin-top:.9rem;background:var(--paper);border:1px solid var(--line)}
+.tl-out{position:absolute;top:0;bottom:0;background:rgba(142,59,39,.55)}
+.tl-ping{position:absolute;top:6px;bottom:6px;width:2px;margin-left:-1px;background:var(--sapin)}
+.tl-now{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--ocre)}
+.tl-legend{margin-top:.25rem}
+.flabel{display:block;font-size:.8rem;font-weight:700;margin:.5rem 0 .2rem}
+input.wide{width:100%}
+input[type=text]{max-width:100%}
+pre.code{background:#22271F;color:#EDE6D6;font-family:var(--mono);font-size:.78rem;line-height:1.5;padding:.8rem 1rem;overflow-x:auto;margin:.3rem 0 1rem;white-space:pre}
+table.recap.reach td.mark{width:2rem;font-weight:700;text-align:center}
+table.recap.reach tr.yes td.mark{color:var(--vert)} table.recap.reach tr.no td.mark{color:var(--brique)}
+.kphone.can{border-left:3px solid var(--brique)} .kphone.cannot{border-left:3px solid var(--vert)}
+.kphone ul.clean{margin:.2rem 0;width:100%}
+.tag.wait{color:var(--deep);border-color:var(--ocre);background:var(--wash-ocre)} .tag.sent{color:var(--vert);border-color:var(--vert)} .tag.skip{color:var(--soft);border-color:var(--line)}
+table.recap.ab td:first-child{width:16%;font-style:normal;font-weight:700;color:var(--ink)} table.recap.ab td{width:42%}
+.ab th.rec{background:var(--wash-sapin);color:var(--sapin)}
+table.recap.abc{min-width:50rem} table.recap.abc td{width:29%}
+table.recap.abc td:first-child{width:13%;font-style:normal;font-weight:700;color:var(--ink)}
+.abc th.rec{background:var(--wash-sapin);color:var(--sapin)}
+table.recap.chk td:first-child{width:55%;font-style:normal;color:var(--ink)}
+table.recap.fg-sum{min-width:0;margin-top:.8rem} table.recap.fg-sum td:first-child{width:45%}
+.fg-steps label{display:flex;gap:.55rem;align-items:flex-start;font-size:.9rem;margin:.35rem 0;cursor:pointer}
+.fg-steps input{margin-top:.22rem;flex:none}
+#fg .klog{max-height:none}
+.klog li.warn{border-color:var(--ocre);color:var(--deep)}
+.klog li b{margin-right:.35rem}
+details.cmp{margin:1.4rem 0;border:1px solid var(--line);background:var(--card);padding:.7rem 1rem}
+details.cmp summary{cursor:pointer;font-weight:700;color:var(--sapin)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="eyebrow">Domaine Solio · accès portail v2 · dépôt guestFlow · 14 septembre 2026</p>
+<h1>guestFlow et Portier</h1>
+<p class="lede">La vue générale d’abord, puis ce que <strong>guestFlow</strong> fait dans la fonctionnalité :
+pousser les séjours à Portier, montrer le code et son QR dans le SAS, et t’ouvrir la liste des accès. Tes
+réponses du 14 septembre y sont intégrées. <strong>Aucun code n’a été écrit</strong> : ce document et
+<code>specs/gate-access-portier.md</code> sont ce qu’il faut valider.</p>
+
+<div class="short">
+  <div><b>Il pousse, il ne garde rien</b>Chaque séjour part vers Portier dès qu’il existe, change ou est annulé.
+    guestFlow ne stocke ni clé, ni code, ni téléphone.</div>
+  <div><b>Le QR du SAS installe l’accès</b>Il porte la même adresse que l’email. Un flash, et l’app du client
+    est prête, sans rien taper.</div>
+  <div><b>La liste, derrière ta connexion</b>Une page de guestFlow, réservée aux administrateurs. Portier n’a
+    pas de login à lui.</div>
+</div>
+
+<h2 id="vue">1 · La fonctionnalité en bref</h2>
+<p class="kicker">Cette partie est la même dans les quatre dépôts. La suite ne détaille que guestFlow.</p>
+<p>Un client du gîte ou de la lodge ouvre le portail depuis son téléphone, <strong>pour son séjour
+seulement</strong> (heure d’arrivée → départ + 1 h). Tu gardes tous les accès, de séjour ou faits à la main,
+dans une liste où chacun se modifie, se suspend ou se révoque.</p>
+<figure><div class="scroll"><svg class="topo" viewBox="0 0 960 370" role="img" aria-label="Portier et guestFlow sur la même machine ; le téléphone et la maison ouvrent chacun leur connexion vers Portier ; tu passes par guestFlow ; rien n’entre dans la maison." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-topo-ink" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22271F"/></marker>
+<marker id="f-topo-sapin" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E3B2A"/></marker>
+<marker id="f-topo-brique" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8E3B27"/></marker>
+</defs>
+<rect x="292" y="92" width="216" height="232" rx="6" fill="none" stroke="#5C6153" stroke-width="1.3" stroke-dasharray="6 5"/>
+<text x="400" y="84" text-anchor="middle" font-size="12" font-weight="700" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">même machine</text>
+<path d="M 180,116 Q 245,64 322,116" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="250" y="80" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">requêtes signées</text>
+<path d="M 620,116 Q 553,64 478,116" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="552" y="70" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">ouvre le canal</text>
+<text x="552" y="86" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">ping toutes les 10 min</text>
+<path d="M 478,168 Q 553,220 620,168" fill="none" stroke="#2E3B2A" stroke-width="3.2" marker-end="url(#f-topo-sapin)"/>
+<text x="552" y="222" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2E3B2A" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">pousse l’impulsion</text>
+<path d="M 705,116 Q 770,68 835,116" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="770" y="82" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">impulsion</text>
+<path d="M 835,168 Q 770,216 705,168" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="770" y="222" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">contact</text>
+<line x1="382" y1="262" x2="382" y2="172" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="372" y="214" text-anchor="end" font-size="12" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">séjours</text>
+<text x="372" y="230" text-anchor="end" font-size="12" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">tes actions</text>
+<line x1="418" y1="170" x2="418" y2="260" stroke="#22271F" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#f-topo-ink)"/>
+<text x="428" y="222" text-anchor="start" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">notification</text>
+<line x1="186" y1="288" x2="322" y2="288" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="254" y="278" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">ta connexion</text>
+<path d="M 790,340 Q 690,330 666,172" fill="none" stroke="#8E3B27" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#f-topo-brique)"/>
+<text x="704" y="296" text-anchor="middle" font-size="15" font-weight="700" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">✕</text>
+<text x="800" y="356" text-anchor="middle" font-size="12.5" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">rien n’entre dans la maison</text>
+<rect x="55" y="118" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="130" y="139" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Téléphone</text>
+<text x="130" y="157" text-anchor="middle" font-size="11" fill="#5C6153">app du client</text>
+<rect x="315" y="118" width="170" height="50" rx="3" fill="#E3E5DB" stroke="#2E3B2A" stroke-width="1.8"/>
+<text x="400" y="139" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portier</text>
+<text x="400" y="157" text-anchor="middle" font-size="11" fill="#5C6153">la liste des accès</text>
+<rect x="585" y="118" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="660" y="139" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Maison</text>
+<text x="660" y="157" text-anchor="middle" font-size="11" fill="#5C6153">Sowel</text>
+<rect x="795" y="118" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="870" y="139" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portail</text>
+<text x="870" y="157" text-anchor="middle" font-size="11" fill="#5C6153">nœud LoRa</text>
+<rect x="315" y="264" width="170" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="400" y="285" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">guestFlow</text>
+<text x="400" y="303" text-anchor="middle" font-size="11" fill="#5C6153">la page Accès portail</text>
+<rect x="35" y="264" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="110" y="285" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Toi</text>
+<text x="110" y="303" text-anchor="middle" font-size="11" fill="#5C6153">admin de guestFlow</text>
+</svg></div><figcaption>Portier et guestFlow tournent sur la même machine. <strong>Le téléphone et la maison ouvrent chacun leur connexion vers Portier</strong> ; tu passes par guestFlow. La flèche verte est le seul push vers la maison : il passe dans le canal que la maison a ouvert elle-même.</figcaption></figure>
+<div class="scroll"><table class="recap comp">
+  <thead><tr><th>Composant</th><th>Dépôt</th><th>Son rôle</th></tr></thead>
+  <tbody>
+  <tr class="here"><td>guestFlow</td><td><code>adn-dev-adrien/guestFlow</code></td><td>les réservations ; pousse
+    l’accès de chaque séjour à Portier ; la liste et les réglages, derrière ta connexion ; le code et son QR dans
+    le SAS ; les emails</td></tr>
+  <tr><td>Portier</td><td><code>adn-dev-adrien/portier</code> (privé)</td><td>les accès, leurs clés, le
+    journal, l’application des clients, le bout serveur du canal de la maison</td></tr>
+  <tr><td>Plugin Sowel</td><td><code>sowel-plugin-guest-access</code></td><td>ouvre et tient le
+    canal depuis la maison ; passe chaque commande à la recette</td></tr>
+  <tr><td>Recette Sowel</td><td><code>sowel-recipe-guest-gate</code></td><td>inchangée : pulse
+    le portail, rend l’issue et le contact</td></tr>
+  <tr><td>Hébergement</td><td><code>homelab</code> (privé)</td><td>où tourne Portier, ses ports,
+    le pare-feu, les proxys</td></tr>
+  </tbody>
+</table></div>
+
+<div class="box">
+  <p style="margin-top:0"><strong>Pas de polling.</strong> Rien ne demande « du nouveau ? » sur une horloge. Trois
+  choses tournent sur un minuteur, et aucune ne va chercher de données :</p>
+  <ul class="clean">
+    <li><strong>le ping du canal, toutes les 10 minutes</strong> — il vérifie que le canal est encore branché ;</li>
+    <li><strong>les reprises de guestFlow</strong> — son outbox et les emails qui attendent Portier — seulement tant que quelque chose échoue ;</li>
+    <li><strong>la purge quotidienne</strong> des séjours terminés depuis 7 jours.</li>
+  </ul>
+</div>
+
+<h3 class="sub3">Tes réponses du 14 septembre, et ce qu’elles changent</h3>
+<div class="scroll"><table class="recap">
+  <thead><tr><th>Ce que tu as répondu</th><th>Ce que la spec en fait</th><th>Où</th></tr></thead>
+  <tbody>
+  <tr><td>« Portier ok pour ce nom »</td><td>Le nom reste ; le dépôt s’appelle <code>portier</code>.</td><td>tous</td></tr>
+  <tr><td>« Oui une annulation révoque »</td><td>guestFlow pousse l’annulation, Portier révoque à l’instant. Une
+    réservation <strong>rétablie</strong> retrouve son accès, avec le même code.</td><td>guestFlow · Portier</td></tr>
+  <tr><td>« Joignable de partout, derrière guestFlow : un login guestFlow donne accès à Portier »</td><td>La liste
+    devient une <strong>page de guestFlow</strong> (Réglages → Accès portail), réservée aux administrateurs. Portier
+    n’a aucun login à lui et écrit dans son journal le compte qui a agi. <strong>Conséquence :</strong> ton mot de
+    passe guestFlow ouvre aussi le portail — un second facteur sur guestFlow devient souhaitable, dans sa propre
+    spec.</td><td>guestFlow · Portier</td></tr>
+  <tr><td>« Portier sur la même VM que guestFlow, sauf si c’est trop risqué »</td><td><strong>Sur la machine de
+    guestFlow.</strong> Une machine à part protégerait la clé maître, pas le portail, puisque guestFlow administre
+    déjà Portier. La condition — que guestFlow ne puisse ni lire les fichiers de Portier ni devenir root — est
+    remplie depuis le 14 septembre.</td><td>homelab</td></tr>
+  <tr><td>« On garde le code et le QR dans le SAS ; le QR encode le code pour paramétrer l’app d’un flash »</td>
+    <td>Le QR porte <strong>la même adresse que l’email</strong>, le code dans son fragment <code>#i=</code> :
+    flasher installe l’accès sans rien taper. Le code reste lisible à côté.</td><td>guestFlow · Portier</td></tr>
+  <tr><td>« On peut faire une clé par accès »</td><td>Tous les téléphones d’un séjour partagent la clé de l’accès.
+    <strong>On ne coupe plus un téléphone seul</strong> : « Régénérer l’accès » les arrête tous, et chacun se
+    réinstalle avec le nouveau code.</td><td>Portier · guestFlow</td></tr>
+  <tr><td>« Pas de merge de la PR 547, tes modifications vont être mises dedans »</td><td>La spec guestFlow est
+    sur la branche de la PR 547, qui passe en brouillon pour éviter un merge par erreur.</td><td>guestFlow</td></tr>
+  <tr><td>« Un HTML par dépôt : une vue générale et le composant en détail »</td><td>Ce document est l’un des
+    quatre.</td><td>tous</td></tr>
+  <tr><td>« Le ping du canal toutes les 10 minutes plutôt que 30 secondes »</td><td>Appliqué. <strong>Le prix
+    :</strong> une coupure silencieuse peut laisser le portail injoignable jusqu’à ~10 minutes ; un redémarrage
+    propre, quelques secondes. Pour que ça tienne, la maison passe par un nom interne, sans NAT.</td><td>plugin ·
+    homelab</td></tr>
+  <tr><td>« Oui on attend et on ré-essaye » — l’email J-7 quand Portier ne répond pas</td><td>L’email ne part
+    <strong>jamais sans son paragraphe portail</strong> : il passe « en attente de Portier » et réessaie après 1, 2,
+    5 et 15 minutes, puis toutes les 15 minutes. Au-delà d’une heure, une notification aux administrateurs.</td>
+    <td>guestFlow</td></tr>
+  <tr><td>« Dépôt sous adn-dev-adrien et en private » · « Ok pour la suppression de la branche »</td><td>Fait :
+    <code>adn-dev-adrien/portier</code> existe, privé ; la branche <code>spec/gate-access-portier</code> est
+    supprimée.</td><td>Portier · guestFlow</td></tr>
+  </tbody>
+</table></div>
+
+
+<h2 id="detail">2 · guestFlow en détail</h2>
+
+<h3 class="sub3">Comment un accès naît et change</h3>
+<figure><div class="scroll"><svg class="seq" viewBox="0 0 960 1037" role="img" aria-label="guestFlow pousse l’accès dès que la réservation existe, puis quand ses dates changent, quand elle est annulée ou rétablie. Tout le reste, tu le règles dans la page Accès portail." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-config-send" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#B87B2A"/></marker>
+<marker id="f-config-chan" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E3B2A"/></marker>
+<marker id="f-config-resp" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5C6153"/></marker>
+<marker id="f-config-human" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8A8F80"/></marker>
+</defs>
+<line x1="120" y1="56" x2="120" y2="1031" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="360" y1="56" x2="360" y2="1031" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="600" y1="56" x2="600" y2="1031" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="840" y1="56" x2="840" y2="1031" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<rect x="32" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="120" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Client</text>
+<text x="120" y="45" text-anchor="middle" font-size="11" fill="#5C6153">sa messagerie</text>
+<rect x="272" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">guestFlow</text>
+<text x="360" y="45" text-anchor="middle" font-size="11" fill="#5C6153">réservations</text>
+<rect x="512" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="600" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portier</text>
+<text x="600" y="45" text-anchor="middle" font-size="11" fill="#5C6153">même machine</text>
+<rect x="752" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="840" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Toi</text>
+<text x="840" y="45" text-anchor="middle" font-size="11" fill="#5C6153">page Accès portail</text>
+<rect x="250" y="78" width="220" height="42" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="96" text-anchor="middle" font-size="11" fill="#22271F">réservation créée : formulaire,</text>
+<text x="360" y="111" text-anchor="middle" font-size="11" fill="#22271F">devis, iCal ou paiement</text>
+<rect x="250" y="134" width="220" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="152" text-anchor="middle" font-size="11" fill="#22271F">outbox, dans la même transaction</text>
+<line x1="374" y1="196" x2="595" y2="196" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="187" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">PUT /svc/v1/stays/{id}</text>
+<text x="480" y="215" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">fenêtre · révision · signé</text>
+<circle cx="360" cy="196" r="10.5" fill="#B87B2A"/>
+<text x="360" y="199.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">1</text>
+<rect x="490" y="233" width="220" height="42" rx="3" fill="#E3E5DB" stroke="#2E3B2A"/>
+<text x="600" y="251" text-anchor="middle" font-size="11" fill="#22271F">accès créé</text>
+<text x="600" y="266" text-anchor="middle" font-size="11" fill="#22271F">sa clé est dérivée, pas stockée</text>
+<line x1="586" y1="310" x2="365" y2="310" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-config-resp)"/>
+<text x="480" y="301" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">applied</text>
+<circle cx="600" cy="310" r="10.5" fill="#5C6153"/>
+<text x="600" y="313.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">2</text>
+<rect x="260" y="347" width="200" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="365" text-anchor="middle" font-size="11" fill="#22271F">dates ou heures modifiées</text>
+<line x1="374" y1="409" x2="595" y2="409" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="400" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">PUT /svc/v1/stays/{id}</text>
+<text x="480" y="428" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">nouvelle fenêtre · révision plus haute</text>
+<circle cx="360" cy="409" r="10.5" fill="#B87B2A"/>
+<text x="360" y="412.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">3</text>
+<line x1="826" y1="467" x2="365" y2="467" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="600" y="458" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">« Prolonger jusqu’au… »</text>
+<text x="600" y="486" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">dans la page Accès portail</text>
+<circle cx="840" cy="467" r="10.5" fill="#B87B2A"/>
+<text x="840" y="470.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">4</text>
+<line x1="374" y1="525" x2="595" y2="525" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="516" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">PATCH /svc/v1/accesses/{id}</text>
+<text x="480" y="544" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">au nom de ton compte</text>
+<circle cx="360" cy="525" r="10.5" fill="#B87B2A"/>
+<text x="360" y="528.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">5</text>
+<rect x="495" y="562" width="210" height="42" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="600" y="580" text-anchor="middle" font-size="11" fill="#22271F">fenêtre en vigueur :</text>
+<text x="600" y="595" text-anchor="middle" font-size="11" fill="#22271F">la plus large des deux</text>
+<rect x="250" y="618" width="220" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="636" text-anchor="middle" font-size="11" fill="#22271F">08:00 — email J-7 à composer</text>
+<line x1="374" y1="680" x2="595" y2="680" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="671" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">GET …/invitation</text>
+<text x="480" y="699" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">lue au besoin, jamais stockée</text>
+<circle cx="360" cy="680" r="10.5" fill="#B87B2A"/>
+<text x="360" y="683.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">6</text>
+<line x1="586" y1="738" x2="365" y2="738" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-config-resp)"/>
+<text x="480" y="729" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">lien #i=… + code</text>
+<circle cx="600" cy="738" r="10.5" fill="#5C6153"/>
+<text x="600" y="741.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">7</text>
+<line x1="346" y1="796" x2="125" y2="796" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="240" y="787" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">email J-7</text>
+<text x="240" y="815" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">lien + code</text>
+<circle cx="360" cy="796" r="10.5" fill="#B87B2A"/>
+<text x="360" y="799.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">8</text>
+<rect x="270" y="833" width="180" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="851" text-anchor="middle" font-size="11" fill="#22271F">séjour annulé</text>
+<line x1="374" y1="895" x2="595" y2="895" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="886" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">POST …/stays/{id}/cancel</text>
+<text x="480" y="914" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">révoque · confirmé le 14/09</text>
+<circle cx="360" cy="895" r="10.5" fill="#B87B2A"/>
+<text x="360" y="898.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">9</text>
+<rect x="270" y="932" width="180" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="950" text-anchor="middle" font-size="11" fill="#22271F">réservation rétablie</text>
+<line x1="374" y1="994" x2="595" y2="994" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="985" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">PUT /svc/v1/stays/{id}</text>
+<text x="480" y="1013" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">révision plus haute : l’accès revient</text>
+<circle cx="360" cy="994" r="10.5" fill="#B87B2A"/>
+<text x="360" y="997.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">10</text>
+</svg></div><figcaption>guestFlow pousse l’accès dès que la réservation existe, puis quand ses dates changent, quand elle est annulée ou rétablie. Tout le reste, tu le règles dans la page Accès portail.</figcaption></figure>
+<ol class="msgs">
+<li value="1"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — guestFlow pousse l’accès au moment où la réservation existe, par la boucle locale de la machine. La requête porte la fenêtre déjà calculée (arrivée → départ + 1 h) et une signature dont la clé ne circule jamais. Si Portier ne répond pas, la ligne reste dans l’outbox et repart plus tard — rien ne tourne quand l’outbox est vide.</li>
+<li value="2"><span class="kind resp">Réponse</span> <span class="who">Portier → guestFlow</span> — Portier accuse réception. Une révision plus ancienne arrivée en retard serait ignorée.</li>
+<li value="3"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — le premier des deux changements permis : de nouvelles dates ou heures dans guestFlow.</li>
+<li value="4"><span class="kind send">Envoyé</span> <span class="who">Toi → guestFlow</span> — le second : ton changement manuel, fait dans guestFlow, derrière ta connexion.</li>
+<li value="5"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — guestFlow transmet ton geste à Portier en nommant ton compte, que Portier écrit dans son journal. Ta prolongation vit dans ses propres champs : une nouvelle date ne l’annule pas.</li>
+<li value="6"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — pour composer l’email, guestFlow demande l’invitation à ce moment-là et ne la garde pas.</li>
+<li value="7"><span class="kind resp">Réponse</span> <span class="who">Portier → guestFlow</span> — l’adresse porte le code dans son fragment, qui n’arrive jamais à un serveur ; le même lien sert au QR du SAS.</li>
+<li value="8"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Client</span> — l’email part comme aujourd’hui : à 08:00 si l’envoi automatique est activé, sinon à ton clic.</li>
+<li value="9"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — annulation, suppression ou retour en devis : l’accès est révoqué à l’instant.</li>
+<li value="10"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — la réservation revient : l’accès aussi, avec la même clé et le même code.</li>
+</ol>
+<p class="after"><strong>Supprimé dans la liste, un accès ne renaît pas.</strong> Les envois suivants de guestFlow
+pour cette réservation sont acceptés et ignorés ; la fiche affiche « Accès supprimé dans la liste » avec
+« Recréer ». <strong>Un envoi qui échoue depuis plus d’une heure se voit</strong> : un bandeau sur la page Accès
+portail et sur la fiche.</p>
+
+<h3 class="sub3">L’étape « Accès portail » du SAS</h3>
+<p>Le code reste, et le QR s’y ajoute. Flashe-le avec un téléphone, change l’invitation depuis la liste, puis
+essaie de flasher la capture de l’ancien QR, ou coupe Portier.</p>
+<div class="demo" id="sd">
+  <div class="demo-head"><span>Maquette manipulable</span><span>le QR est un vrai QR : flashé, il ouvre l’adresse, qui n’existe pas encore</span></div>
+  <div class="demo-body">
+    <div class="pgrid">
+      <div>
+        <div class="sas">
+          <div class="sas-top"><b>SAS d’arrivée</b> · Camille Roux · Gîte · 202609042</div>
+          <div class="sas-steps"><span class="done">Identité ✓</span><span class="done">Caution ✓</span><span class="cur">Accès portail</span><span>Récapitulatif</span></div>
+          <div class="sas-body" id="sd-body"></div>
+        </div>
+        <p class="klabel" style="margin-top:1rem">Dans la page Accès portail</p>
+        <div class="row">
+          <button id="sd-invite">Nouvelle invitation</button>
+          <button id="sd-regen" class="danger">Régénérer l’accès</button>
+          <button id="sd-portier">Couper Portier</button>
+          <button id="sd-reset">Recommencer</button>
+        </div>
+      </div>
+      <div>
+        <div class="row">
+          <button id="sd-flash" class="primary">Flasher le QR avec un nouveau téléphone</button>
+          <button id="sd-old">Flasher la capture de l’ancien QR</button>
+        </div>
+        <div class="row seg" id="sd-tabs" style="margin-top:.5rem"></div>
+        <div class="phone" style="margin-top:.6rem"><div class="screen" id="sd-screen"></div></div>
+        <ol class="klog" id="sd-log"></ol>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var QR = {"4K7M9QT2":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 31 31\" shape-rendering=\"crispEdges\"><path fill=\"#FDFAF3\" d=\"M0 0h31v31H0z\"/><path stroke=\"#22271F\" d=\"M1 1.5h7m1 0h2m2 0h2m1 0h6m1 0h7M1 2.5h1m5 0h1m1 0h1m2 0h2m1 0h2m2 0h1m3 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m2 0h2m1 0h2m2 0h1m1 0h1m3 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m2 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m2 0h2m1 0h3m1 0h1m2 0h1m2 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m3 0h1m1 0h1m3 0h1m1 0h3m1 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h4m2 0h1m2 0h1M1 9.5h1m1 0h2m1 0h3m3 0h2m3 0h4m2 0h1m2 0h1m1 0h2M1 10.5h3m1 0h1m2 0h6m4 0h4m1 0h3m3 0h1M1 11.5h4m1 0h3m1 0h1m1 0h3m2 0h2m2 0h2m2 0h1m1 0h2M1 12.5h4m1 0h1m2 0h1m2 0h2m5 0h1m1 0h1m1 0h1m5 0h1M2 13.5h2m1 0h1m1 0h2m2 0h2m1 0h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h2M1 14.5h1m4 0h1m7 0h1m1 0h1m3 0h1m2 0h1m3 0h3M2 15.5h3m1 0h3m1 0h3m2 0h1m2 0h5m1 0h1m2 0h3M1 16.5h1m3 0h1m2 0h2m1 0h1m1 0h2m1 0h1m5 0h4m2 0h1M3 17.5h2m1 0h2m3 0h3m1 0h2m3 0h3m1 0h3m1 0h1M4 18.5h3m1 0h5m3 0h1m1 0h1m2 0h1m2 0h1m1 0h3M1 19.5h1m1 0h1m1 0h1m1 0h1m1 0h2m1 0h1m2 0h4m2 0h1m2 0h2m1 0h1M3 20.5h1m1 0h2m4 0h1m2 0h1m1 0h1m1 0h1m2 0h1m5 0h1M2 21.5h4m1 0h1m1 0h1m2 0h3m2 0h11M9 22.5h3m1 0h1m5 0h1m1 0h1m3 0h5M1 23.5h7m1 0h1m1 0h1m3 0h1m1 0h1m2 0h2m1 0h1m1 0h2m1 0h1M1 24.5h1m5 0h1m1 0h1m4 0h1m1 0h1m2 0h1m1 0h1m3 0h2M1 25.5h1m1 0h3m1 0h1m2 0h4m4 0h1m2 0h5m1 0h2M1 26.5h1m1 0h3m1 0h1m1 0h1m1 0h1m2 0h3m3 0h3m2 0h2m2 0h1M1 27.5h1m1 0h3m1 0h1m1 0h2m2 0h2m3 0h2m1 0h1m2 0h1m2 0h1m1 0h1M1 28.5h1m5 0h1m8 0h2m3 0h1m1 0h2m1 0h1m1 0h1M1 29.5h7m1 0h3m1 0h1m2 0h1m2 0h5m4 0h1\"/></svg>","8RWD3HX6":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 31 31\" shape-rendering=\"crispEdges\"><path fill=\"#FDFAF3\" d=\"M0 0h31v31H0z\"/><path stroke=\"#22271F\" d=\"M1 1.5h7m1 0h3m2 0h2m2 0h2m3 0h7M1 2.5h1m5 0h1m7 0h4m1 0h1m2 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m2 0h2m2 0h7m2 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m4 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h2m2 0h3m3 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h1m3 0h2m5 0h1m2 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h2m1 0h1m1 0h5m2 0h1M1 9.5h1m3 0h1m1 0h7m1 0h1m2 0h1m1 0h7m2 0h1M3 10.5h1m2 0h1m1 0h2m1 0h1m2 0h3m1 0h2m2 0h8M1 11.5h1m4 0h2m1 0h2m1 0h3m1 0h1m1 0h1m4 0h1m1 0h1m3 0h1M3 12.5h1m2 0h1m1 0h1m1 0h1m2 0h1m2 0h1m1 0h7m1 0h1m1 0h2M1 13.5h4m2 0h2m1 0h1m5 0h3m2 0h1m2 0h1m3 0h1M1 14.5h3m2 0h1m1 0h1m5 0h3m1 0h2m3 0h7M3 15.5h2m2 0h2m5 0h1m1 0h1m2 0h1m1 0h1m4 0h2m1 0h1M2 16.5h1m2 0h2m2 0h3m2 0h1m1 0h4m2 0h1m5 0h2M5 17.5h4m1 0h1m1 0h1m3 0h1m1 0h2m1 0h2m5 0h1M1 18.5h2m1 0h2m2 0h1m1 0h1m1 0h1m2 0h5m3 0h4m1 0h2M3 19.5h1m1 0h3m2 0h2m1 0h1m2 0h1m2 0h1m1 0h1m1 0h1m3 0h1m1 0h1M3 20.5h1m1 0h1m2 0h3m2 0h3m1 0h2m3 0h2m4 0h2M1 21.5h2m1 0h2m1 0h1m1 0h1m4 0h2m2 0h1m1 0h7m2 0h1M9 22.5h1m1 0h1m2 0h3m2 0h3m3 0h1m3 0h1M1 23.5h7m1 0h2m5 0h1m3 0h2m1 0h1m1 0h3m1 0h1M1 24.5h1m5 0h1m2 0h2m1 0h1m4 0h4m3 0h1m2 0h1M1 25.5h1m1 0h3m1 0h1m1 0h2m1 0h5m1 0h1m1 0h7M1 26.5h1m1 0h3m1 0h1m2 0h1m4 0h2m1 0h2m1 0h2m1 0h1m4 0h1M1 27.5h1m1 0h3m1 0h1m2 0h3m2 0h2m2 0h4m3 0h4M1 28.5h1m5 0h1m4 0h5m1 0h2m1 0h1m3 0h2m1 0h2M1 29.5h7m1 0h2m1 0h1m2 0h2m1 0h1m2 0h6m1 0h1\"/></svg>","P2NC7VJ4":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 31 31\" shape-rendering=\"crispEdges\"><path fill=\"#FDFAF3\" d=\"M0 0h31v31H0z\"/><path stroke=\"#22271F\" d=\"M1 1.5h7m3 0h1m2 0h2m3 0h1m3 0h7M1 2.5h1m5 0h1m1 0h2m2 0h3m2 0h1m2 0h1m1 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h9m2 0h1m2 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m2 0h2m1 0h1m1 0h2m4 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m2 0h1m5 0h6m1 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m2 0h5m6 0h1m1 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h1m1 0h2m1 0h1m4 0h1m1 0h1M1 9.5h1m5 0h1m1 0h1m1 0h1m1 0h4m1 0h1m3 0h2m2 0h3M3 10.5h1m1 0h1m2 0h2m3 0h1m1 0h6m1 0h1m1 0h2m1 0h2M2 11.5h1m1 0h1m2 0h1m2 0h1m1 0h1m2 0h3m1 0h1m4 0h1M8 12.5h2m1 0h3m1 0h1m1 0h1m2 0h2m3 0h2M1 13.5h4m1 0h2m2 0h3m8 0h3m5 0h1M1 14.5h2m1 0h3m1 0h1m2 0h1m1 0h2m1 0h1m1 0h4m1 0h3m2 0h2M1 15.5h1m1 0h2m1 0h2m1 0h2m1 0h1m3 0h3m2 0h1m1 0h5M1 16.5h1m1 0h3m2 0h3m1 0h3m2 0h1m3 0h1m2 0h2m1 0h1m1 0h1M1 17.5h1m3 0h1m1 0h1m2 0h2m1 0h2m3 0h3m5 0h2M1 18.5h1m1 0h2m1 0h1m4 0h2m1 0h1m1 0h6m1 0h3m1 0h3M1 19.5h2m1 0h1m2 0h4m2 0h2m1 0h1m3 0h1m2 0h1m1 0h2m2 0h1M1 20.5h1m1 0h3m2 0h2m1 0h1m2 0h3m2 0h1m4 0h2M1 21.5h1m1 0h3m1 0h1m2 0h3m3 0h1m1 0h1m2 0h5m1 0h3M9 22.5h1m1 0h2m2 0h3m1 0h1m1 0h1m3 0h2M1 23.5h7m4 0h1m3 0h6m1 0h1m1 0h3M1 24.5h1m5 0h1m3 0h1m4 0h2m2 0h2m3 0h1m3 0h1M1 25.5h1m1 0h3m1 0h1m2 0h2m1 0h3m1 0h1m2 0h7m1 0h2M1 26.5h1m1 0h3m1 0h1m3 0h2m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1M1 27.5h1m1 0h3m1 0h1m2 0h2m1 0h1m1 0h4m1 0h9M1 28.5h1m5 0h1m2 0h1m1 0h1m1 0h2m6 0h1m1 0h1m1 0h2m1 0h1M1 29.5h7m1 0h3m2 0h1m3 0h1m1 0h1m2 0h3m1 0h1\"/></svg>"};
+  var CODES = ["4K7M9QT2", "8RWD3HX6", "P2NC7VJ4"];
+  var $ = function (id) { return document.getElementById(id); };
+  var s;
+  function start() { s = { idx: 0, old: null, gen: 1, phones: [], sel: -1, up: true, msg: null }; }
+  function dash(c) { return c.slice(0, 4) + "-" + c.slice(4); }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function say(ok, text) { var li = el("li", ok ? "ok" : "ko", (ok ? "✓ " : "✕ ") + text); $("sd-log").insertBefore(li, $("sd-log").firstChild); }
+
+  function drawSas() {
+    var b = $("sd-body"); b.textContent = "";
+    b.appendChild(el("p", "sas-title", "Accès portail"));
+    if (!s.up) {
+      b.appendChild(el("p", "perr", "Accès portail indisponible : Portier ne répond pas."));
+      var again = el("button", null, "Réessayer");
+      again.onclick = function () { say(false, "GET /svc/v1/stays/202609042/invitation → pas de réponse"); };
+      b.appendChild(again);
+      b.appendChild(el("p", "ismall", "Secours : le code du clavier du portail, inchangé."));
+      return;
+    }
+    b.appendChild(el("p", "sub", "Flashez pour installer l’accès au portail"));
+    var q = el("div", "qr"); q.innerHTML = QR[CODES[s.idx]]; b.appendChild(q);
+    b.appendChild(el("p", "sas-code", dash(CODES[s.idx])));
+    b.appendChild(el("p", "ismall", "Actif du 12/09 à 16:00 au 14/09 à 11:00"));
+  }
+
+  function drawTabs() {
+    var box = $("sd-tabs"); box.textContent = "";
+    s.phones.forEach(function (p, i) {
+      var t = el("button", i === s.sel ? "on" : "", p.name);
+      t.onclick = function () { s.sel = i; s.msg = null; draw(); };
+      box.appendChild(t);
+    });
+  }
+
+  function drawPhone() {
+    var sc = $("sd-screen"); sc.textContent = "";
+    sc.appendChild(el("p", "brand", "Domaine Solio"));
+    if (s.sel < 0) {
+      sc.appendChild(el("h4", null, "Accès portail"));
+      sc.appendChild(el("p", "sub", s.msg || "Aucun téléphone installé. Flashez le QR du SAS."));
+      return;
+    }
+    var p = s.phones[s.sel];
+    sc.appendChild(el("h4", null, "Bonjour Camille"));
+    sc.appendChild(el("p", "sub", "Gîte · du 12 au 14 septembre"));
+    sc.appendChild(el("div", "spacer"));
+    if (s.msg) sc.appendChild(el("p", s.msg.ok ? "caption" : "perr", s.msg.text));
+    sc.appendChild(el("p", "caption", "Le même geste ouvre et ferme"));
+    var t = el("button", "track", "»   Glisser pour actionner");
+    t.onclick = function () {
+      if (!s.up) { s.msg = { ok: false, text: "Service indisponible. Appelez le 06.15.73.93.37." }; say(false, p.name + " : POST /v1/open → pas de réponse de Portier"); }
+      else if (p.gen !== s.gen) { s.msg = { ok: false, text: "Votre accès a été renouvelé. Flashez le nouveau QR ou demandez le nouveau code." }; say(false, p.name + " : POST /v1/open → signature faite avec l’ancienne clé, refusée"); }
+      else { s.msg = { ok: true, text: "Silence : le portail bouge." }; say(true, p.name + " : POST /v1/open → « opened »"); }
+      draw();
+    };
+    sc.appendChild(t);
+  }
+
+  function draw() {
+    drawSas(); drawTabs(); drawPhone();
+    var changes = s.idx;
+    $("sd-invite").disabled = $("sd-regen").disabled = changes >= 2 || !s.up;
+    $("sd-flash").disabled = s.phones.length >= 3;
+    $("sd-old").disabled = s.old === null;
+    $("sd-portier").textContent = s.up ? "Couper Portier" : "Rétablir Portier";
+  }
+
+  $("sd-flash").onclick = function () {
+    if (!s.up) { s.sel = -1; s.msg = "Service indisponible. Appelez le 06.15.73.93.37."; say(false, "Nouveau téléphone : Portier ne répond pas, rien n’est installé"); draw(); return; }
+    var n = s.phones.length + 1;
+    s.phones.push({ name: "Téléphone " + n, gen: s.gen });
+    s.sel = s.phones.length - 1; s.msg = null;
+    say(true, "Téléphone " + n + " : ouvre https://guest.domainesolio.com/ — « #i=" + CODES[s.idx] + " » reste dans le téléphone");
+    say(true, "Téléphone " + n + " : POST /v1/enrol → clé de l’accès reçue, « #i=… » effacé de l’adresse");
+    draw();
+  };
+  $("sd-old").onclick = function () {
+    say(false, "Capture de l’ancien QR : POST /v1/enrol { " + CODES[s.old] + " } → 401 « Code incorrect ou expiré. »");
+    s.sel = -1; s.msg = "Code incorrect ou expiré."; draw();
+  };
+  $("sd-invite").onclick = function () {
+    s.old = s.idx; s.idx += 1; s.msg = null;
+    say(true, "Nouvelle invitation : le code devient " + dash(CODES[s.idx]) + ". Les téléphones installés continuent.");
+    draw();
+  };
+  $("sd-regen").onclick = function () {
+    s.old = s.idx; s.idx += 1; s.gen += 1; s.msg = null;
+    say(true, "Accès régénéré : nouvelle clé, nouveau code " + dash(CODES[s.idx]) + ". Les " + s.phones.length + " téléphone(s) installé(s) s’arrêtent.");
+    draw();
+  };
+  $("sd-portier").onclick = function () { s.up = !s.up; s.msg = null; say(s.up, s.up ? "Portier répond de nouveau" : "Portier ne répond plus"); draw(); };
+  $("sd-reset").onclick = function () { start(); $("sd-log").textContent = ""; draw(); };
+  start(); draw();
+}());
+</script>
+
+<p class="after">Le QR s’affiche <strong>à l’écran seulement</strong> : jamais dans un PDF, jamais en pièce jointe,
+jamais dans un journal. Tant que le séjour dure, c’est une clé. L’étape est visible par l’administrateur et par
+la réception, qui fait le SAS.</p>
+
+<h3 class="sub3">La page « Accès portail »</h3>
+<p>La liste validée le 14 septembre, installée dans guestFlow. Change de rôle, coupe la maison ou Portier, et
+essaie les deux régénérations : depuis qu’il y a une clé par accès, elles ne font pas la même chose.</p>
+<div class="demo" id="pg">
+  <div class="demo-head"><span>Maquette manipulable</span><span>guestFlow → Réglages → Accès portail</span></div>
+  <div class="demo-body">
+    <div class="row seg" id="pg-role"></div>
+    <div class="row seg" id="pg-sys" style="margin-top:.4rem"></div>
+    <div class="app">
+      <div class="app-bar"><b>guestFlow</b><span>Réglages › Accès portail</span><span class="who" id="pg-who"></span></div>
+      <div class="app-body" id="pg-body"></div>
+    </div>
+    <ol class="klog" id="pg-log"></ol>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var ROLES = { admin: "Administrateur", reception: "Réception", accountant: "Comptable" };
+  var SYS = { ok: "Tout va bien", house: "Maison injoignable", portier: "Portier injoignable" };
+  var ALPHA = "ABCDEFGHJKMNPQRSTVWXYZ0123456789";
+  function code() { var b = new Uint8Array(8); crypto.getRandomValues(b); var c = ""; for (var i = 0; i < 8; i += 1) c += ALPHA[b[i] % 32]; return c.slice(0, 4) + "-" + c.slice(4); }
+  var s;
+  function start() {
+    s = { role: "admin", sys: "ok", open: null, rows: [
+      { id: "A42", label: "Camille", kind: "gf", sub: "Gîte · 202609042", valid: "12/09 16:00 → 14/09 11:00", hours: "toutes", phones: 2, last: "il y a 3 h", code: "4K7M-9QT2", susp: false },
+      { id: "A57", label: "Léa", kind: "gf", sub: "Lodge · 202609051", valid: "19/09 17:00 → 22/09 11:00 · pas encore", hours: "toutes", phones: 0, last: "—", code: "8RWD-3HX6", susp: false },
+      { id: "M03", label: "Paul (voisin)", kind: "manual", sub: "créé le 02/05", valid: "permanent", hours: "08:00 → 20:00", phones: 1, last: "il y a 112 jours", code: "P2NC-7VJ4", susp: false }
+    ] };
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function say(ok, text) { $("pg-log").insertBefore(el("li", ok ? "ok" : "ko", (ok ? "✓ " : "✕ ") + text), $("pg-log").firstChild); }
+  function seg(box, map, key) {
+    box.textContent = "";
+    Object.keys(map).forEach(function (k) {
+      var b = el("button", s[key] === k ? "on" : "", map[k]);
+      b.onclick = function () { s[key] = k; s.open = null; draw(); };
+      box.appendChild(b);
+    });
+  }
+  function confirmText(r, act) {
+    var n = r.phones + " téléphone" + (r.phones > 1 ? "s" : "");
+    if (act === "invite") return "Le code et le QR de « " + r.label + " » changent. Les " + n + " déjà installé(s) continuent. L’ancien QR ne servira plus.";
+    if (act === "regen") return "Les " + n + " de « " + r.label + " » s’arrêtent et devront être réinstallés avec le nouveau code. C’est ainsi qu’on coupe un téléphone perdu.";
+    return r.kind === "gf"
+      ? "« " + r.label + " » disparaît de la liste. Les modifications de la réservation " + r.sub.split("· ")[1] + " seront ignorées ; seul « Recréer l’accès » sur la fiche le ramène."
+      : "« " + r.label + " » disparaît de la liste. Son journal reste.";
+  }
+  function apply(r, act) {
+    var actor = " — acteur : 1|adrien";
+    if (act === "invite") { r.code = code(); say(true, "POST /svc/v1/accesses/" + r.id + "/invite → code " + r.code + actor); }
+    if (act === "regen") { r.code = code(); say(true, "POST /svc/v1/accesses/" + r.id + "/regenerate → " + r.phones + " téléphone(s) arrêté(s), code " + r.code + actor); r.phones = 0; }
+    if (act === "delete") { s.rows = s.rows.filter(function (x) { return x !== r; }); say(true, "DELETE /svc/v1/accesses/" + r.id + actor); }
+  }
+  function row(tbody, r) {
+    var tr = el("tr", r.susp ? "susp" : "");
+    var who = el("td"); who.appendChild(el("b", null, r.label));
+    who.appendChild(el("span", "tag " + (r.kind === "gf" ? "gf" : "mine"), r.kind === "gf" ? "guestFlow" : "créé par moi"));
+    if (r.susp) who.appendChild(el("span", "tag revoque", "suspendu"));
+    who.appendChild(el("div", "ismall", r.sub + " · code " + r.code));
+    tr.appendChild(who);
+    tr.appendChild(el("td", null, r.valid));
+    tr.appendChild(el("td", null, r.hours));
+    tr.appendChild(el("td", null, String(r.phones)));
+    tr.appendChild(el("td", null, r.last));
+    var acts = el("td", "acts");
+    [["invite", "Nouvelle invitation", ""], ["regen", "Régénérer l’accès", "danger"], ["susp", r.susp ? "Reprendre" : "Suspendre", ""], ["delete", "Supprimer", "danger"]].forEach(function (a) {
+      var b = el("button", a[2], a[1]);
+      b.onclick = function () {
+        if (a[0] === "susp") { r.susp = !r.susp; s.open = null; say(true, "POST /svc/v1/accesses/" + r.id + "/" + (r.susp ? "suspend" : "resume") + " — acteur : 1|adrien"); draw(); return; }
+        s.open = { id: r.id, act: a[0] }; draw();
+      };
+      acts.appendChild(b);
+    });
+    tr.appendChild(acts);
+    tbody.appendChild(tr);
+    if (s.open && s.open.id === r.id) {
+      var cr = el("tr", "confirm"); var td = el("td"); td.colSpan = 6;
+      td.appendChild(el("p", null, confirmText(r, s.open.act)));
+      var ok = el("button", "primary", "Confirmer"); ok.onclick = function () { apply(r, s.open.act); s.open = null; draw(); };
+      var no = el("button", null, "Annuler"); no.onclick = function () { s.open = null; draw(); };
+      td.appendChild(ok); td.appendChild(no); cr.appendChild(td); tbody.appendChild(cr);
+    }
+  }
+  function draw() {
+    seg($("pg-role"), ROLES, "role"); seg($("pg-sys"), SYS, "sys");
+    $("pg-who").textContent = ROLES[s.role];
+    var b = $("pg-body"); b.textContent = "";
+    if (s.role !== "admin") {
+      var d = el("div", "box stop");
+      d.appendChild(el("p", null, "403 — Cette page est réservée aux administrateurs."));
+      d.appendChild(el("p", "ismall", "Le menu Réglages › Accès portail n’apparaît pas pour ce rôle. " + (s.role === "reception" ? "La réception garde le QR et le code dans le SAS." : "")));
+      b.appendChild(d); return;
+    }
+    if (s.sys === "portier") {
+      var p = el("div", "box stop");
+      p.appendChild(el("p", null, "Portier ne répond pas. La liste n’est pas affichée : rien de mis en cache n’est montré comme actuel."));
+      var again = el("button", null, "Réessayer"); again.onclick = function () { say(false, "GET /svc/v1/accesses → pas de réponse"); };
+      p.appendChild(again); b.appendChild(p); return;
+    }
+    b.appendChild(el("p", s.sys === "ok" ? "house up" : "house down", s.sys === "ok"
+      ? "● Maison connectée depuis 06:12 · portail fermé"
+      : "● Maison injoignable depuis 14:03 — les clients lisent « maison injoignable »"));
+    [["Actifs", false], ["Suspendus", true]].forEach(function (g) {
+      var rows = s.rows.filter(function (r) { return r.susp === g[1]; });
+      if (!rows.length) return;
+      b.appendChild(el("p", "klabel", g[0]));
+      var wrap = el("div", "scroll"); var t = el("table", "list"); var th = el("thead"); var hr = el("tr");
+      ["Accès", "Validité", "Heures", "Téléphones", "Dernier usage", ""].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+      th.appendChild(hr); t.appendChild(th); var tb = el("tbody"); rows.forEach(function (r) { row(tb, r); }); t.appendChild(tb);
+      wrap.appendChild(t); b.appendChild(wrap);
+    });
+    var reset = el("button", "ilater", "Remettre la démo à zéro"); reset.onclick = function () { start(); $("pg-log").textContent = ""; draw(); };
+    b.appendChild(reset);
+  }
+  start(); draw();
+}());
+</script>
+
+<p class="after">L’édition des dates et des heures, la création d’un accès et leurs refus sont <strong>ceux des
+maquettes du 14 septembre</strong> (<code>specs/guest-gate-access-maquettes.html</code>), inchangés. Deux choses
+seulement bougent : il n’y a plus de « Révoquer ce téléphone », et « Régénérer » devient deux gestes.</p>
+
+<h3 class="sub3">Le logo de l’application</h3>
+<div class="demo" id="ld">
+  <div class="demo-head"><span>Maquette manipulable</span><span>guestFlow → Réglages → Accès portail → Application des clients</span></div>
+  <div class="demo-body">
+    <div class="pgrid">
+      <div>
+        <fieldset>
+          <legend>Logo de l’application</legend>
+          <label class="rad"><input type="radio" name="ld-src" value="gf" checked> Logo de guestFlow (synchronisé)</label>
+          <p class="small muted" id="ld-sync">Logo de Réglages › Société, envoyé à Portier le 12/09 à 18:03.</p>
+          <label class="rad"><input type="radio" name="ld-src" value="custom"> Logo personnalisé</label>
+          <input type="file" id="ld-file" accept="image/png,image/svg+xml,image/jpeg" disabled>
+          <p class="perr" id="ld-err"></p>
+        </fieldset>
+        <button id="ld-push">Simuler : tu changes le logo de la société</button>
+        <p class="small" id="ld-msg"></p>
+        <div class="box warm small">Un iPhone qui a <strong>déjà</strong> installé l’app garde l’ancienne icône. Règle le logo avant l’arrivée des premiers clients.</div>
+      </div>
+      <div class="homescreen" id="ld-home"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function mono(bg, fg, letters) {
+    return "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="' + bg + '"/><text x="60" y="76" font-family="Georgia,serif" font-size="46" text-anchor="middle" fill="' + fg + '">' + letters + '</text></svg>');
+  }
+  var gfLogos = [mono("#2E3B2A", "#E8C286", "DS"), mono("#B87B2A", "#FDFAF3", "DS")];
+  var s = { src: "gf", gf: 0, custom: null };
+  var others = [["#5A7FA8", "Météo"], ["#8E3B27", "Photos"], ["#6B8E5A", "Plans"], ["#444", "Réglages"], ["#C9A13B", "Notes"], ["#3F6E6E", "Messages"], ["#7A5C8E", "Musique"]];
+  function draw() {
+    var home = $("ld-home"); home.textContent = "";
+    var icons = others.slice(0, 3).map(function (o) { return { bg: o[0], name: o[1] }; });
+    icons.push({ img: s.src === "custom" && s.custom ? s.custom : gfLogos[s.gf], name: "Portail", mine: true });
+    others.slice(3).forEach(function (o) { icons.push({ bg: o[0], name: o[1] }); });
+    icons.forEach(function (ic) {
+      var cell = document.createElement("div"); cell.className = "hicon" + (ic.mine ? " mine" : "");
+      var sq = document.createElement("div"); sq.className = "hsq";
+      if (ic.img) { var im = document.createElement("img"); im.src = ic.img; im.alt = ""; sq.appendChild(im); } else sq.style.background = ic.bg;
+      var nm = document.createElement("span"); nm.textContent = ic.name;
+      cell.appendChild(sq); cell.appendChild(nm); home.appendChild(cell);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="ld-src"]'), function (r) {
+    r.onchange = function () { s.src = r.value; $("ld-file").disabled = s.src !== "custom"; $("ld-msg").textContent = ""; draw(); };
+  });
+  $("ld-file").onchange = function () {
+    var f = this.files && this.files[0]; $("ld-err").textContent = "";
+    if (!f) return;
+    if (!/^image\/(png|svg\+xml|jpeg)$/.test(f.type)) { $("ld-err").textContent = "Refusé : PNG, SVG ou JPEG seulement."; return; }
+    if (f.size > 2 * 1024 * 1024) { $("ld-err").textContent = "Refusé : 2 Mo au plus."; return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var probe = new Image();
+      probe.onload = function () {
+        if (f.type !== "image/svg+xml" && (probe.naturalWidth < 512 || probe.naturalHeight < 512)) {
+          $("ld-err").textContent = "Refusé : au moins 512 × 512 px (" + probe.naturalWidth + " × " + probe.naturalHeight + " reçu)."; return;
+        }
+        s.custom = rd.result; draw();
+      };
+      probe.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  $("ld-push").onclick = function () {
+    s.gf = 1 - s.gf; $("ld-sync").textContent = "Envoyé à Portier à l’instant.";
+    $("ld-msg").textContent = s.src === "gf" ? "PUT /svc/v1/branding : Portier régénère les icônes." : "PUT /svc/v1/branding reçu et gardé par Portier, mais le logo personnalisé l’emporte.";
+    draw();
+  };
+  draw();
+}());
+</script>
+
+
+<h3 class="sub3">Ce que guestFlow reçoit de Portier</h3>
+<p>Une seule chose : un événement quand un septième téléphone s’installe sur un même accès. guestFlow l’envoie
+en notification à ses administrateurs — « 7 téléphones sur l’accès de Camille (Gîte · 202609042) ». C’est
+l’écart trouvé dans la PR 547, où la règle promettait une notification et le code n’affichait qu’un bandeau.
+L’adresse qui reçoit l’événement n’accepte que la boucle locale de la machine, avec une signature valable.</p>
+
+<h3 class="sub3">Ce qui quitte guestFlow, ce qui reste</h3>
+<div class="scroll"><table class="recap three">
+  <thead><tr><th>Part de guestFlow</th><th>Part dans Portier</th><th>Reste dans guestFlow</th></tr></thead>
+  <tbody><tr>
+    <td>les tables <code>gate_*</code> (jamais créées en production), les routes invité, le long-poll,
+      <code>GATE_API_KEY</code>, <code>GATE_SIGNING_SECRET</code>, l’hôte invité</td>
+    <td>l’alphabet des codes, la page invité avec sa glissière, les plafonds</td>
+    <td>le calcul de fenêtre et ses tests d’heure d’été, le cookie admin <code>__Host-</code>, l’étape « Accès
+      portail » du SAS, le paragraphe d’email</td>
+  </tr></tbody>
+</table></div>
+
+<h2>3 · L’email J-7 quand Portier ne répond pas</h2>
+<p>Tu as tranché : <strong>on attend et on réessaie</strong>. L’email ne part jamais sans son paragraphe portail.
+Coupe Portier avant 08:00, fais avancer l’heure, rétablis-le, ou clique « Envoyer » pendant la coupure.</p>
+<div class="demo" id="em">
+  <div class="demo-head"><span>Maquette manipulable</span><span>guestFlow → Historique des emails</span></div>
+  <div class="demo-body">
+    <div class="row">
+      <button id="em-portier" class="danger">Couper Portier</button>
+      <button id="em-a5">+5 min</button><button id="em-a15">+15 min</button>
+      <span class="kline" style="margin:0 .4rem">Heure : <b id="em-t">07:55</b> · minuteurs armés : <b id="em-timers">0</b></span>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <button id="em-manual">Envoyer à la main l’email J-2 de Paul</button>
+      <button id="em-cancel">Annuler la réservation de Léa</button>
+      <button id="em-reset">Recommencer</button>
+    </div>
+    <p class="perr" id="em-msg"></p>
+    <div class="app">
+      <div class="app-bar"><b>guestFlow</b><span>Historique des emails</span><span class="who" id="em-state">Portier répond</span></div>
+      <div class="app-body"><div class="scroll"><table class="list">
+        <thead><tr><th>Client</th><th>Email</th><th>Statut</th></tr></thead>
+        <tbody id="em-rows"></tbody>
+      </table></div></div>
+    </div>
+    <ol class="klog" id="em-log"></ol>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var BACK = [1, 2, 5, 15];
+  var s;
+  function start() {
+    s = { t: 7 * 60 + 55, up: true, passDone: false, msg: "", mails: [
+      { who: "Camille Roux", what: "J-7 · Gîte · arrivée le 21/09", auto: true, st: "planned" },
+      { who: "Léa Martin", what: "J-7 · Lodge · arrivée le 21/09", auto: true, st: "planned" },
+      { who: "Paul Durand", what: "J-2 · Gîte · envoi manuel", auto: false, st: "draft" }
+    ] };
+    $("em-log").textContent = "";
+  }
+  function hm(t) { var h = Math.floor(t / 60), m = t % 60; return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m; }
+  function say(ok, text) { var li = document.createElement("li"); li.className = ok ? "ok" : "ko"; li.textContent = hm(s.t) + " — " + text; $("em-log").insertBefore(li, $("em-log").firstChild); }
+  function attempt(m) {
+    if (s.up) { m.st = "sent"; m.at = s.t; say(true, "Email " + m.what.split(" ·")[0] + " de " + m.who + " parti, avec son lien portail lu dans Portier"); return; }
+    if (m.st !== "waiting") { m.st = "waiting"; m.since = s.t; m.tries = 0; say(false, "Portier ne répond pas : l’email de " + m.who + " passe en attente, rien n’est envoyé"); }
+    else { m.tries += 1; }
+    m.next = s.t + BACK[Math.min(m.tries, BACK.length - 1)];
+  }
+  function tick() {
+    s.t += 1;
+    if (!s.passDone && s.t >= 8 * 60) {
+      s.passDone = true; say(true, "Passe automatique de 08:00");
+      s.mails.forEach(function (m) { if (m.auto && m.st === "planned") attempt(m); });
+    }
+    s.mails.forEach(function (m) {
+      if (m.st !== "waiting") return;
+      if (s.t >= m.next) attempt(m);
+      if (m.st === "waiting" && !m.notified && s.t - m.since >= 60) {
+        m.notified = true;
+        say(false, "Notification aux administrateurs : « Email " + m.what.split(" ·")[0] + " de " + m.who.split(" ")[0] + " en attente : Portier ne répond pas depuis " + hm(m.since) + " »");
+      }
+    });
+  }
+  function advance(n) { for (var i = 0; i < n; i += 1) tick(); s.msg = ""; draw(); }
+  function badge(m) {
+    if (m.st === "planned") return ["tag", "Prévu à 08:00"];
+    if (m.st === "draft") return ["tag", "Brouillon"];
+    if (m.st === "sent") return ["tag sent", "Envoyé à " + hm(m.at)];
+    if (m.st === "skipped") return ["tag skip", "Ignoré — réservation annulée"];
+    return ["tag wait", "En attente de Portier · prochain essai à " + hm(m.next)];
+  }
+  function draw() {
+    $("em-t").textContent = hm(s.t);
+    $("em-timers").textContent = s.mails.some(function (m) { return m.st === "waiting"; }) ? "1" : "0";
+    $("em-portier").textContent = s.up ? "Couper Portier" : "Rétablir Portier";
+    $("em-state").textContent = s.up ? "Portier répond" : "Portier ne répond pas";
+    $("em-msg").textContent = s.msg;
+    var tb = $("em-rows"); tb.textContent = "";
+    s.mails.forEach(function (m) {
+      var tr = document.createElement("tr");
+      [m.who, m.what].forEach(function (x) { var td = document.createElement("td"); td.textContent = x; tr.appendChild(td); });
+      var td = document.createElement("td"); var b = badge(m); var sp = document.createElement("span");
+      sp.className = b[0]; sp.style.marginLeft = "0"; sp.textContent = b[1]; td.appendChild(sp); tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    $("em-manual").disabled = s.mails[2].st !== "draft";
+    $("em-cancel").disabled = ["planned", "waiting"].indexOf(s.mails[1].st) < 0;
+  }
+  $("em-portier").onclick = function () { s.up = !s.up; say(s.up, s.up ? "Portier répond de nouveau" : "Portier ne répond plus"); s.msg = ""; draw(); };
+  $("em-a5").onclick = function () { advance(5); };
+  $("em-a15").onclick = function () { advance(15); };
+  $("em-manual").onclick = function () {
+    var m = s.mails[2];
+    if (s.up) { attempt(m); s.msg = ""; }
+    else { attempt(m); s.msg = "Portier ne répond pas : l’email partira dès qu’il répond."; }
+    draw();
+  };
+  $("em-cancel").onclick = function () { var m = s.mails[1]; m.st = "skipped"; say(true, "Réservation de Léa annulée : son email en attente est abandonné, noté « ignoré »"); draw(); };
+  $("em-reset").onclick = function () { start(); draw(); };
+  start(); draw();
+}());
+</script>
+
+<p class="after">Un seul minuteur, armé seulement tant qu’un email attend. Un email dont la réservation est annulée
+pendant l’attente est abandonné et noté « ignoré ».</p>
+
+<h2>4 · Ce qu’on ne fait pas</h2>
+<div class="box stop">
+  <ul class="clean">
+    <li><strong>Pas de second facteur</strong> sur la connexion guestFlow dans cette spec. Il devient souhaitable,
+      puisque cette connexion mène au portail, mais il concerne tout guestFlow : sa propre spec.</li>
+    <li><strong>Pas d’envoi du lien par SMS</strong> depuis guestFlow.</li>
+    <li><strong>Rien des rouages de Portier</strong>, du canal ou de l’hébergement ici : ils ont leur document dans
+      leur dépôt.</li>
+  </ul>
+</div>
+
+<h2>5 · Les risques, dits franchement</h2>
+<div class="box">
+  <ul class="clean">
+    <li><strong>Ton mot de passe guestFlow ouvre le portail.</strong> C’est la conséquence directe de la liste
+      derrière ta connexion : qui l’a peut créer un accès permanent.</li>
+    <li><strong>guestFlow compromis administre Portier.</strong> Les freins qui restent hors de sa portée sont dans
+      la maison : l’interrupteur de la recette et le plafond de 30 impulsions par heure.</li>
+    <li><strong>Un envoi perdu serait un client bloqué</strong> : d’où l’outbox écrite dans la même transaction, et
+      le bandeau au-delà d’une heure d’échec.</li>
+  </ul>
+</div>
+
+<hr style="border:0;border-top:1px solid var(--line);margin:2.5rem 0">
+<p class="muted" style="font-size:.85rem">Document autonome : aucune police, aucun script et aucune image distante — il s’ouvre depuis le disque, sans réseau. Un des quatre résumés de la fonctionnalité, un par dépôt ; la vue générale est la même dans les quatre.</p>
+</div>
+</body>
+</html>

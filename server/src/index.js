@@ -13,6 +13,7 @@ const {
   shouldEnforceHttps,
   buildHelmetOptions,
   buildSessionCookieOptions,
+  sessionCookieName,
   PERMISSIONS_POLICY_VALUE,
 } = require('./utils/securityConfig');
 const { buildServer } = require('./utils/httpsBootstrap');
@@ -92,7 +93,9 @@ app.use(express.json({
 app.use(session({
   store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
   secret: getOrCreateSecret('GUESTFLOW_SESSION_SECRET', 32),
-  name: 'guestflow.sid',
+  // `__Host-` prefixed under HTTPS, so a sibling host of the domain cannot shadow it
+  // (specs/guest-gate-access.md §9). Deploying it logs the operator out once.
+  name: sessionCookieName({ httpsEnabled }),
   resave: false,
   saveUninitialized: false,
   rolling: true, // sliding 30-day expiration
@@ -112,6 +115,12 @@ try {
 getOrCreateSecret('PUBLIC_API_KEY', 32);
 logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
 
+// Gate access (specs/gate-access-portier.md §4.2). PORTIER_SVC_URL and PORTIER_KEY_GF are set by hand —
+// the key is shared with Portier, so it is never generated here. Without them guestFlow runs normally.
+logErrorMarker(require('./utils/portierClient').isConfigured()
+  ? 'Portier configured (PORTIER_SVC_URL + PORTIER_KEY_GF).'
+  : 'Portier not configured — PORTIER_SVC_URL / PORTIER_KEY_GF unset or invalid; gate access is off.');
+
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
@@ -119,6 +128,10 @@ require('./utils/vapid').ensureVapid();
 
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// Portier's events (specs/gate-access-portier.md §3.6). Outside `/api`, so no session guard applies: the
+// loopback socket and the signature guard it, in the controller. The edge proxy never forwards `/internal/`.
+app.use('/internal/portier', require('./routes/portierEvents'));
 
 // Public API (specs/public-api.md) — a SEPARATE tree from the internal `/api/*` admin API. It is
 // key-authenticated (X-API-Key / Bearer) and rate-limited inside its own router, and it never
@@ -194,6 +207,9 @@ app.use('/api/system', require('./routes/system'));
 // specs/neat-cancellation-insurance-subscription.md — Neat connection, mapping, retry/void.
 // Admin-only through the same deny-by-default role guard.
 app.use('/api/neat', require('./routes/neat'));
+// specs/gate-access-portier.md §3.4 — the owner's list of gate accesses, kept by Portier. Admin-only
+// through the same deny-by-default role guard.
+app.use('/api/portier', require('./routes/portier'));
 
 app.get('/api/version', (req, res) => {
   res.json({

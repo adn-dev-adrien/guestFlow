@@ -330,6 +330,13 @@ function startScheduledTasks() {
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
 
+  // Gate access (specs/gate-access-portier.md §3.1-§3.2). Nothing polls Portier: ONE drain of the outbox
+  // at boot (the deployment backfill, anything written while the server was down), and the retry timer
+  // of emails waiting for Portier re-armed from the log. Each keeps a timer only while something fails
+  // or waits.
+  setTimeout(() => require('./utils/portierSync').drain(), 20 * 1000);
+  require('./utils/portierEmailRetry').arm();
+
   // Online-payment polling: every 15 min (cheap; the manual "poll now" button covers on-demand checks).
   const PAYMENT_POLL_TICK = 15 * 60 * 1000;
   setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);

@@ -27,6 +27,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
+import GateAccessCard from '../components/GateAccessCard';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
@@ -3259,6 +3260,14 @@ export default function ReservationPage() {
           {hasExtrasSection && <ExtrasSection />}
 
           <FinanceSection />
+
+          {/* specs/gate-access-portier.md §3.2 — the compact card read from Portier. It renders nothing
+              for a devis or for a role the server keeps out, so it is mounted unconditionally. */}
+          <GateAccessCard
+            reservationId={editingReservationId}
+            cardSx={formSectionCardSx}
+            contentSx={formSectionContentSx}
+          />
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>

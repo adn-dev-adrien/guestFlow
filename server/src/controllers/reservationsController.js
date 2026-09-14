@@ -23,6 +23,7 @@ const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
+const portierSync = require('../utils/portierSync');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const neatSubscriptionsModel = require('../models/neatSubscriptionsModel');
@@ -835,7 +836,13 @@ function create(req, res) {
   const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: null });
   if (babyError) return res.status(400).json({ error: babyError });
 
-  const reservationId = model.insertReservation(req.body, quote, nightBlocks);
+  // specs/gate-access-portier.md §3.1 — the stay's push joins the insert's transaction: a reservation
+  // never exists without the outbox row that tells Portier about it.
+  const reservationId = db.transaction(() => {
+    const insertedId = model.insertReservation(req.body, quote, nightBlocks);
+    portierSync.pushStay(db, insertedId);
+    return insertedId;
+  })();
   model.addHistoryEntry(reservationId, 'create', [
     { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
   ]);
@@ -1167,7 +1174,15 @@ function update(req, res) {
     // accounting stops emitting a phantom entry for an échéance that no longer exists.
     ...(depositDisabledFlag ? { depositPaid: false, depositPaidDate: null } : {}),
   };
-  model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
+  // specs/gate-access-portier.md §3.1 — only dates, times or lodging concern the gate. Compared on the
+  // stored row after the write, inside its transaction, so whatever the model actually kept decides.
+  db.transaction(() => {
+    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
+    const after = model.getRow(id) || {};
+    const stayMoved = ['propertyId', 'startDate', 'endDate', 'checkInTime', 'checkOutTime']
+      .some((field) => String(storedPayment[field] ?? '') !== String(after[field] ?? ''));
+    if (stayMoved) portierSync.pushStay(db, id);
+  })();
 
   if (!pastReservationLocked && reservationOptions) model.replaceOptions(id, quote.optionLines);
   if (!pastReservationLocked) {
@@ -1414,7 +1429,12 @@ function remove(req, res) {
   if (existing.endDate < today && !settingsModel.allowEditPastReservations()) {
     return res.status(403).json({ error: 'Cette réservation est archivée (terminée) et ne peut plus être modifiée.' });
   }
-  model.remove(req.params.id);
+  // specs/gate-access-portier.md §3.1 — a deleted reservation revokes its access, in the same
+  // transaction as the delete.
+  db.transaction(() => {
+    model.remove(req.params.id);
+    portierSync.cancelStay(db, Number(req.params.id), 'deleted');
+  })();
   res.json({ ok: true });
   googleCalendarSync.scheduleDelete(Number(req.params.id));
 }

@@ -51,6 +51,7 @@ function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }
         all() { return []; },
       };
     },
+    transaction(fn) { return (...args) => fn(...args); },
   };
 
   const controllerModule = '../controllers/reservationsController';

@@ -427,6 +427,24 @@ const api = {
   getReservationSas: (id, mode) => request(
     `/reservations/${encodeURIComponent(id)}/sas${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
   ),
+  // Gate access (specs/gate-access-portier.md). The fiche card and the SAS step read Portier through
+  // guestFlow; the owner's list lives under `/portier/*`, admin-only. Portier's own words come back
+  // as `message` on a refusal (422) or an outage (502 / 503).
+  getReservationGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access`),
+  getSasGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/sas/gate-access`),
+  getPortierAccesses: ({ view = 'current', kind = 'all' } = {}) => request(
+    `/portier/accesses?view=${encodeURIComponent(view)}&kind=${encodeURIComponent(kind)}`,
+  ),
+  createPortierAccess: (body) => request('/portier/accesses', { method: 'POST', body }),
+  updatePortierAccess: (id, body) => request(`/portier/accesses/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  portierAccessAction: (id, action) => request(
+    `/portier/accesses/${encodeURIComponent(id)}/${encodeURIComponent(action)}`, { method: 'POST' },
+  ),
+  deletePortierAccess: (id) => request(`/portier/accesses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getPortierAccessEvents: (id) => request(`/portier/accesses/${encodeURIComponent(id)}/events`),
+  getPortierBranding: () => request('/portier/branding'),
+  setPortierBrandingSource: (formData) => request('/portier/branding/source', { method: 'PUT', body: formData }),
+
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
   // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the

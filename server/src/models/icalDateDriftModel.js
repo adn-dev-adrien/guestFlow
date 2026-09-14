@@ -20,6 +20,8 @@
  * Factory pattern (`buildModel(database)`) for unit-test isolation.
  */
 
+const portierSync = require('../utils/portierSync');
+
 function buildModel(database) {
   const selectPending = database.prepare(`
     SELECT id, reservationId, newStartDate, newEndDate
@@ -156,6 +158,8 @@ function buildModel(database) {
       reservation.startDate, reservation.endDate, drift.newStartDate, drift.newEndDate,
     ));
     ackApproved.run(id);
+    // specs/gate-access-portier.md §3.1 — approved dates move the gate access, in this transaction.
+    portierSync.pushStay(database, drift.reservationId);
     // reservationId feeds the controller's Google Calendar push hook (additive, spec rule 20).
     return { ok: true, reservationId: drift.reservationId };
   });

@@ -15,6 +15,8 @@
 
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
+const { gateAccessForEmail } = require('./portierInvitation');
+const portierEmailRetry = require('./portierEmailRetry');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { DIRECT_CHANNELS } = require('./platformNameFormat');
@@ -40,6 +42,8 @@ function isoToday(now = new Date()) {
  */
 async function performAutoEmailPass(deps) {
   const { database, templatesModel, logModel, settingsModel, emailServiceFactory } = deps;
+  const resolveGateAccess = deps.resolveGateAccess || gateAccessForEmail;
+  const emailRetry = deps.emailRetry || portierEmailRetry;
   const today = deps.today || isoToday();
 
   // 0. The master switch (specs/no-automatic-email-without-approval.md §3 rule 2). OFF → this pass is
@@ -140,6 +144,7 @@ async function performAutoEmailPass(deps) {
   let sentCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
+  let waitingCount = 0;
 
   for (const template of templates) {
     // An unknown anchor (a 'validUntil' template flipped to `auto` by hand — the devis queue is
@@ -152,7 +157,8 @@ async function performAutoEmailPass(deps) {
     const reservations = anchorQuery.statement.all(String(template.dayOffset), today, ...anchorQuery.extraParams);
     for (const reservation of reservations) {
       // Skip pairs we've already shipped.
-      if (logModel.existsFor(template.id, reservation.id, ['sent'])) {
+      // A pair already waiting for Portier is shipped by its retry, not by a second row.
+      if (logModel.existsFor(template.id, reservation.id, ['sent', 'waiting_portier'])) {
         skippedCount += 1;
         results.push({ templateId: template.id, reservationId: reservation.id, status: 'skipped-already-sent' });
         continue;
@@ -175,7 +181,16 @@ async function performAutoEmailPass(deps) {
       let arrivalComplementDetail = null;
       try { arrivalComplementDetail = reservationsModel.create(database).buildArrivalComplementDetail(reservation.id); }
       catch { arrivalComplementDetail = null; }
-      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail });
+      // specs/gate-access-portier.md §3.2 — the J-7 and J-2 passes put the code in the guest's hands;
+      // it is read from Portier now, and an email that needs it waits for it rather than leave without.
+      const gate = await resolveGateAccess({
+        reservation, texts: [template.subject, template.body, template.subjectEn, template.bodyEn],
+      });
+      const context = buildContext({
+        reservation, client, property, options, resources, customOptions,
+        bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail,
+        gateAccess: gate.gateAccess,
+      });
       const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(
         { subject: side.subject, body: side.body },
@@ -195,6 +210,13 @@ async function performAutoEmailPass(deps) {
         });
         failedCount += 1;
         results.push({ templateId: template.id, reservationId: reservation.id, status: 'failed', errorMessage: 'CLIENT_NO_EMAIL', emailLogId: row.id });
+        continue;
+      }
+
+      if (gate.wait) {
+        const row = emailRetry.queue({ templateId: template.id, reservationId: reservation.id, subject, recipientEmail: to });
+        waitingCount += 1;
+        results.push({ templateId: template.id, reservationId: reservation.id, status: 'waiting_portier', emailLogId: row.id });
         continue;
       }
 
@@ -230,7 +252,7 @@ async function performAutoEmailPass(deps) {
     }
   }
 
-  return { sentCount, skippedCount, failedCount, results };
+  return { sentCount, skippedCount, failedCount, waitingCount, results };
 }
 
 module.exports = {

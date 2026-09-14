@@ -403,6 +403,49 @@ pm2 startOrRestart ~/guestflow/ecosystem.config.js --update-env
 
 The application will be available on port 4000 by default.
 
+#### 🚪 Gate access — Portier
+
+Guests open the gate through **Portier**, a separate program on the same machine that keeps every
+access (`specs/gate-access-portier.md`, Portier `specs/contract.md`). guestFlow pushes each stay to
+it, reads the invitation for the emails, the SAS and the fiche, and shows the owner the list in
+Réglages › Accès portail. guestFlow stores no gate key, no code and no device. Two variables connect
+the two programs; both go in `server/.env.local` like the other secrets, and neither is generated
+here.
+
+| Variable | Example | Role |
+|---|---|---|
+| `PORTIER_SVC_URL` | `http://127.0.0.1:4102` | Portier's service listener, on the loopback. |
+| `PORTIER_KEY_GF` | 43 characters | The key shared with Portier (its `gf` credential): **base64url of 32 random bytes, without padding**. The HMAC key is the decoded bytes. |
+
+Generate the key once, and give Portier the same value:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+**Without them guestFlow runs normally.** The boot log says Portier is not configured, the SAS step
+and the Accès portail page say so, the emails leave without their gate paragraph, and every stay
+change still lands in the outbox (`portier_outbox`) — the first boot with both variables set sends
+it, in order.
+
+What the first deploy of this version does:
+
+- **A one-time backfill**: every reservation whose stay has not ended gets a stay push, and the
+  company logo a branding push. They leave at the first boot where Portier is configured, 20 s after
+  start.
+- **`email_log` is rebuilt once** to accept `waiting_portier` and `skipped`; every row keeps its id.
+- **Portier's events** arrive on `POST /internal/portier/v1/events`, accepted from the loopback
+  socket only and with a valid signature. **Never forward `/internal/` on a reverse proxy.** Portier's
+  default `GUESTFLOW_EVENTS_URL` (`http://127.0.0.1:4000/internal/portier/v1/events`) is right for the
+  production host (VM 104), where guestFlow runs with `HTTPS_ENABLED=false` behind Caddy and serves
+  plain HTTP on the loopback. Only a guestFlow serving HTTPS itself on `:4000` — the former Raspberry Pi
+  setup below — would need that address in `https://`.
+- Nothing polls: pushes and emails are retried only while they fail.
+
+⚠️ **The admin session cookie changes name** when `HTTPS_ENABLED=true`: it becomes
+`__Host-guestflow.sid`. The `__Host-` prefix stops a sibling host of the domain — Portier's guest app
+is one — from shadowing it. Single consequence: the operator is logged out once at deploy.
+
 #### 🔒 HTTPS — production setup
 
 GuestFlow's production stack on the Raspberry Pi runs Node **directly** on `:4000` over HTTPS

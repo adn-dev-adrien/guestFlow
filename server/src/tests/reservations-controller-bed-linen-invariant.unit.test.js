@@ -52,6 +52,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
     },
   };
   const dbMock = {
+    transaction(fn) { return (...args) => fn(...args); },
     prepare(sql) {
       const isSingleIdLookup = /SELECT\s+countsAsBedLinen\s+FROM\s+options\s+WHERE\s+id\s*=\s*\?/i.test(String(sql || ''));
       return {

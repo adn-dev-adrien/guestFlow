@@ -1783,6 +1783,15 @@ db.exec(`
   }
 }
 
+// specs/gate-access-portier.md §3.2 + §5 — email_log learns `waiting_portier` and `skipped`, with
+// nextAttemptAt / waitingSince / adminNotifiedAt. SQLite cannot alter a CHECK, so the table is rebuilt
+// in one transaction, every row carried over with its id; a no-op once done.
+{
+  const { runEmailLogPortierMigration } = require('./utils/emailLogPortierMigration');
+  const { rebuilt, rows } = db.transaction(() => runEmailLogPortierMigration(db))();
+  if (rebuilt) console.log(`[migration:email-log] waiting_portier + skipped statuses, ${rows} row(s) carried over`);
+}
+
 // Online payment links (specs/online-payments-qonto.md §5). One row per Qonto payment link issued
 // for a reservation/devis. `reference` reconciliation is by reservationId; the polling pass reads
 // `status='open'` rows and flips them to 'paid'. Amounts are stored in cents (integer, exact).
@@ -2438,6 +2447,52 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     });
     const { frozen, leftLive } = tx();
     console.log(`[migration:tourist-tax-freeze] froze ${frozen.length} collected/declared reservation(s); left ${leftLive.length} still-collectable one(s) live`);
+  }
+}
+
+// Gate access v2 (specs/gate-access-portier.md §5) — the outbox of pushes to Portier. The DDL lives
+// in utils/portierSchema.js so the unit tests build the very same table in memory.
+db.exec(require('./utils/portierSchema').PORTIER_OUTBOX_SQL);
+
+// ONE-SHOT — specs/guest-gate-access.md §3.6 rule 23. Puts the gate paragraph into the arrival
+// reminders of an instance that already has its own wording in the database; the default registry
+// only shapes a fresh install. Timid by construction — see utils/gateParagraphMigration.js.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'gate_access_paragraph_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runGateParagraphMigration } = require('./utils/gateParagraphMigration');
+    const tx = db.transaction(() => {
+      const result = runGateParagraphMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return result;
+    });
+    const touched = tx();
+    if (touched.length) {
+      console.log(`[migration:portail] paragraphe d'accès ajouté à ${touched.length} gabarit(s) : `
+        + touched.map((t) => `${t.stableKey}${t.fr ? ' fr' : ''}${t.en ? ' en' : ''}`).join(', '));
+    }
+  }
+}
+
+// ONE-SHOT — specs/gate-access-portier.md §3.1. The deployment backfill: every reservation whose stay
+// has not ended gets a stay push, and the company logo a branding push. From here on every write
+// pushes its own; these rows only cover what existed before. They wait in the outbox until Portier
+// is configured, and the boot drain sends them.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'portier_outbox_backfill_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { backfill } = require('./utils/portierSync');
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const tx = db.transaction(() => {
+      const result = backfill(db, { today, now });
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return result;
+    });
+    const { stays, branding } = tx();
+    console.log(`[migration:portier] outbox backfill: ${stays} stay(s), logo ${branding ? 'queued' : 'absent'}`);
   }
 }
 

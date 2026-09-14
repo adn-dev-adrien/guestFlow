@@ -37,7 +37,10 @@ function buildController({ stored, availabilityError = null, capacity, captures 
       };
     },
   };
-  const dbMock = { prepare() { return { get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }; } };
+  const dbMock = {
+    prepare() { return { get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }; },
+    transaction(fn) { return (...args) => fn(...args); },
+  };
   const cap = capacity || { maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 };
 
   return withMocks({

@@ -10,10 +10,15 @@
 
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
+const { gateAccessForEmail } = require('./portierInvitation');
+const portierEmailRetry = require('./portierEmailRetry');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const { autoSendAllowed } = require('./autoSendPolicy');
 
-async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
+async function sendReservationTemplateEmail({
+  database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext,
+  resolveGateAccess = gateAccessForEmail, emailRetry = portierEmailRetry,
+}) {
   const template = templatesModel.findByStableKey(stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
 
@@ -43,7 +48,16 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
 
   const settings = settingsModel.read();
   const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
-  const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
+  // specs/gate-access-portier.md §3.2 — a template carrying the gate paragraph reads it from Portier,
+  // and waits for it when Portier does not answer.
+  const gate = await resolveGateAccess({
+    reservation, texts: [template.subject, template.body, template.subjectEn, template.bodyEn],
+  });
+  const context = buildContext({
+    reservation, client, property, options, resources, customOptions,
+    bedLinenProvidedByDefault, settings, lang,
+    gateAccess: gate.gateAccess,
+  });
   // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
   const extra = extraContext || {};
@@ -53,6 +67,11 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   };
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, merged);
+
+  if (gate.wait) {
+    const row = emailRetry.queue({ templateId: template.id, reservationId: reservation.id, subject, recipientEmail: to });
+    return { sent: false, reason: 'waiting-portier', waiting: true, emailLogId: row && row.id };
+  }
 
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());

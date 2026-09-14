@@ -32,7 +32,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
       depositDueDate: null, balanceDueDate: null, nights: 2, error: null,
     }),
   };
-  const dbMock = { prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }) };
+  const dbMock = { prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }), transaction: (fn) => (...args) => fn(...args) };
 
   return withMocks({
     '../utils/pricing': pricingMock,
