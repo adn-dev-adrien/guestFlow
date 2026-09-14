@@ -21,7 +21,7 @@ where any of them can be edited, suspended or revoked.
 | Component | Repository | Owns |
 |---|---|---|
 | **guestFlow** | `adn-dev-adrien/guestFlow` | the reservations; pushes each stay's access to Portier; the owner's list and settings pages, behind guestFlow's login; the SAS step with the code and its QR; the emails |
-| **Portier** | `portier` (new) | the accesses, their keys, the journal, the guest web app, the server end of the house channel |
+| **Portier** | `adn-dev-adrien/portier` (private) | the accesses, their keys, the journal, the guest web app, the server end of the house channel |
 | **Sowel plugin** | `adn-dev-adrien/sowel-plugin-guest-access` | opens and holds the channel from the house; hands each command to the recipe |
 | **Sowel recipe** | `adn-dev-adrien/sowel-recipe-guest-gate` | unchanged: pulses the gate, reports the outcome and the contact |
 | **Hosting** | `homelab` (private) | where Portier runs, its ports, firewall rules and reverse proxies |
@@ -35,15 +35,16 @@ where any of them can be edited, suspended or revoked.
 | anything → the house | **nobody** | the house network accepts no incoming connection for this feature |
 
 **No polling.** Nothing asks « anything new? » on a timer. Three things run on a clock and none of
-them fetches data: the channel's keep-alive ping every **10 minutes**, guestFlow's outbox retry
-*only while a push is failing*, and the daily purge.
+them fetches data: the channel's keep-alive ping every **10 minutes**, guestFlow's retries — its
+outbox and the emails waiting for Portier — *only while something is failing*, and the daily purge.
 
 **Decided by Adrien on 2026-09-14:** the name Portier · guestFlow configures an access automatically
 when a reservation exists, and afterwards only a date/time change in guestFlow or a manual change in
 the list alters it · a cancellation revokes the access · the list is reachable from anywhere, behind
 guestFlow's login · Portier runs on guestFlow's machine · the SAS keeps the code and shows a QR that
-carries it · one key per access · the channel pings every 10 minutes · PR guestFlow#547 is not merged
-as it stands: this work lands in it.
+carries it · one key per access · the channel pings every 10 minutes · the J-7 email waits for Portier
+and retries · PR guestFlow#547 is not merged as it stands: this work lands in it · Portier's repository
+is private.
 ---
 
 ## 1. Context
@@ -94,7 +95,16 @@ login — without holding a single key that opens the gate by itself.
   list therefore reaches the next email without any message back to guestFlow.
 - The invitation is an address carrying the code in its fragment (`https://<guest host>/#i=<code>`)
   and the code itself. **The email paragraph of #547 stays**: the link and the code.
-- **Portier unreachable when an email is composed:** open question (§9).
+- **Portier unreachable when an email is composed → the email waits and retries** (decision
+  2026-09-14). It never leaves without its gate paragraph. Instead of `failed`, its log row becomes
+  `waiting_portier` with a next attempt — after 1, 2, 5 and 15 minutes, then every 15 minutes — until
+  Portier answers. One retry timer is armed while such rows exist, none otherwise.
+- **A wait longer than an hour notifies the admins**, once: « Email J-7 de Camille en attente : Portier
+  ne répond pas depuis 08:00 ». The email history shows « En attente de Portier » and the next attempt.
+- **A manual « Envoyer » while Portier is down** queues the email the same way and says so: « Portier
+  ne répond pas : l'email partira dès qu'il répond. »
+- A waiting email whose reservation is cancelled, or whose template is disabled meanwhile, is dropped
+  and logged `skipped`.
 - **The fiche** shows a compact card read from Portier: state, the window in force, the number of
   phones, the last use, and « Ouvrir dans la liste ».
 
@@ -155,6 +165,8 @@ login — without holding a single key that opens the gate by itself.
   ends with a cancelled access that never worked.
 - Dates changed while Portier is down → the push waits; the SAS and fiche say Portier is unreachable
   rather than show a window that may be stale.
+- Portier down at 08:00 and back at 08:40 → the waiting J-7 emails leave at the 08:45 attempt, in their
+  original order.
 - An access deleted in the list, then the reservation's dates change → Portier acknowledges and
   ignores the push; the fiche shows « Accès supprimé dans la liste » with « Recréer ».
 - A guest calls with the old code after « Nouvelle invitation » → the SAS and the fiche show the new
@@ -176,7 +188,8 @@ login — without holding a single key that opens the gate by itself.
 | `models/` | `propertyIcalModel.js` | T | pushes the stays an import created or moved |
 | `utils/` | `paymentPollRunner.js` | T | pushes a stay confirmed by payment |
 | `utils/` | `portierInvitation.js` | C | replaces `gateAccessCard.js`: reads the invitation, shapes it for the email, the SAS and the fiche |
-| `utils/` | `emailContextBuilder.js`, `emailAutoSendRunner.js`, `reservationEmailSender.js` | T | `gateAccessCode`, `gateAccessUrl` from Portier |
+| `utils/` | `emailContextBuilder.js`, `emailAutoSendRunner.js`, `reservationEmailSender.js` | T | `gateAccessCode`, `gateAccessUrl` from Portier; a Portier failure defers the email (`waiting_portier`) instead of failing it |
+| `utils/` | `portierEmailRetry.js` | C | the retry timer of waiting emails, armed only while some exist; the one-hour notification |
 | `controllers/` | `sasController.js` | T | the step reads the invitation and returns the QR as SVG (`qrcode`, pure JS) |
 | `routes/` | `portier.js` + `controllers/portierController.js` | C | `/api/portier/*`: an allowlist of Portier's owner routes, signed, with the acting user |
 | `middleware/` | `enforceRoleAccess.js` | T | `/api/portier/*` admin only; the SAS invitation read stays in reception's allowlist |
@@ -206,11 +219,12 @@ SAS step and the page say Portier is not configured, and the outbox keeps its ro
 
 ## 5. Data model
 
-One new table:
+One new table, one existing table extended:
 
 | Table | Columns |
 |---|---|
 | `portier_outbox` | `id, reservationId NULL, type (stay\|cancel\|branding), payload JSON, attempts, nextAttemptAt, lastError, createdAt, sentAt` |
+| the email log (existing) | new status `waiting_portier`; new columns `nextAttemptAt`, `waitingSince`, `adminNotifiedAt` |
 
 ## 6. UI / UX
 
@@ -221,6 +235,7 @@ Shown interactively in `specs/gate-access-portier.html`. Strings in French.
 | **SAS, step « Accès portail »** | « Flashez pour installer l'accès au portail », the QR, the code `4K7M-9QT2` under it, the window in force; the fallback code when Portier is unreachable |
 | **Réglages → Accès portail** | the house line, the list of 2026-09-14, « Nouvelle invitation » and « Régénérer l'accès » with their confirmations, the tab « Application des clients » |
 | **Fiche** | the compact card and « Ouvrir dans la liste » |
+| **Historique des emails** | « En attente de Portier · prochain essai à 08:15 » on a waiting email |
 | **Push notification** | « 7 téléphones sur l'accès de Camille (Gîte · 202609042) » |
 
 Responsive: the list follows guestFlow's table → cards swap; the SAS QR stays at least 180 px wide.
@@ -234,6 +249,8 @@ Responsive: the list follows guestFlow's table → cards swap; the SAS QR stays 
 - [ ] `/api/portier/*`: admin passes and names the actor; accountant and reception get `403`
 - [ ] `/internal/portier/v1/events`: refused from a non-loopback socket, refused unsigned, accepted signed; `devices_over_six` sends one push
 - [ ] the SAS step returns the QR of the invitation's address and never writes it to a log
+- [ ] Portier down: the J-7 email is not sent, becomes `waiting_portier`, is retried on the back-off, leaves once Portier answers, notifies the admins once after an hour; no timer is armed when nothing waits
+- [ ] a waiting email is dropped as `skipped` when its reservation is cancelled
 
 ### Manual
 - [ ] Create a reservation: it appears in the list within seconds, tagged « guestFlow »
@@ -241,6 +258,7 @@ Responsive: the list follows guestFlow's table → cards swap; the SAS QR stays 
 - [ ] Cancel it: the access is revoked; reinstate it: the same code works again
 - [ ] Flash the SAS QR with a phone: the app is set up without typing
 - [ ] Log in as reception: the SAS shows the QR, `/portail` is not reachable
+- [ ] Stop Portier at 07:55: the 08:00 J-7 email waits; start it again: the email leaves at the next attempt
 
 ## 8. Out of scope
 
@@ -254,8 +272,8 @@ Responsive: the list follows guestFlow's table → cards swap; the SAS QR stays 
 **Answered by Adrien on 2026-09-14:** cancellation revokes · the list behind guestFlow's login · the
 SAS keeps the code and its QR carries it · PR #547 is not merged as it stands; this work lands in it.
 
-**Still open:**
-- Q: Portier unreachable at 08:00 when the J-7 email is composed — does the email **wait** until Portier
-  answers (recommended: an email without its gate paragraph sends the guest to the gate with nothing),
-  or leave without the paragraph?
-  - A: —
+- Q: Portier unreachable at 08:00 when the J-7 email is composed — wait, or leave without the gate
+  paragraph?
+  - A (2026-09-14, Adrien): **wait and retry.** « Oui on attend et on ré-essaye. » (§3.2)
+
+Nothing is open on guestFlow's side.

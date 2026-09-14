@@ -136,6 +136,9 @@ table.recap.reach td.mark{width:2rem;font-weight:700;text-align:center}
 table.recap.reach tr.yes td.mark{color:var(--vert)} table.recap.reach tr.no td.mark{color:var(--brique)}
 .kphone.can{border-left:3px solid var(--brique)} .kphone.cannot{border-left:3px solid var(--vert)}
 .kphone ul.clean{margin:.2rem 0;width:100%}
+.tag.wait{color:var(--deep);border-color:var(--ocre);background:var(--wash-ocre)} .tag.sent{color:var(--vert);border-color:var(--vert)} .tag.skip{color:var(--soft);border-color:var(--line)}
+table.recap.ab td:first-child{width:16%;font-style:normal;font-weight:700;color:var(--ink)} table.recap.ab td{width:42%}
+.ab th.rec{background:var(--wash-sapin);color:var(--sapin)}
 </style>
 </head>
 <body>
@@ -215,7 +218,7 @@ dans une liste où chacun se modifie, se suspend ou se révoque.</p>
   <tr class="here"><td>guestFlow</td><td><code>adn-dev-adrien/guestFlow</code></td><td>les réservations ; pousse
     l’accès de chaque séjour à Portier ; la liste et les réglages, derrière ta connexion ; le code et son QR dans
     le SAS ; les emails</td></tr>
-  <tr><td>Portier</td><td><code>portier</code> (nouveau)</td><td>les accès, leurs clés, le
+  <tr><td>Portier</td><td><code>adn-dev-adrien/portier</code> (privé)</td><td>les accès, leurs clés, le
     journal, l’application des clients, le bout serveur du canal de la maison</td></tr>
   <tr><td>Plugin Sowel</td><td><code>sowel-plugin-guest-access</code></td><td>ouvre et tient le
     canal depuis la maison ; passe chaque commande à la recette</td></tr>
@@ -231,7 +234,7 @@ dans une liste où chacun se modifie, se suspend ou se révoque.</p>
   choses tournent sur un minuteur, et aucune ne va chercher de données :</p>
   <ul class="clean">
     <li><strong>le ping du canal, toutes les 10 minutes</strong> — il vérifie que le canal est encore branché ;</li>
-    <li><strong>la reprise de l’outbox de guestFlow</strong>, seulement tant qu’un envoi échoue ;</li>
+    <li><strong>les reprises de guestFlow</strong> — son outbox et les emails qui attendent Portier — seulement tant que quelque chose échoue ;</li>
     <li><strong>la purge quotidienne</strong> des séjours terminés depuis 7 jours.</li>
   </ul>
 </div>
@@ -248,10 +251,11 @@ dans une liste où chacun se modifie, se suspend ou se révoque.</p>
     n’a aucun login à lui et écrit dans son journal le compte qui a agi. <strong>Conséquence :</strong> ton mot de
     passe guestFlow ouvre aussi le portail — un second facteur sur guestFlow devient souhaitable, dans sa propre
     spec.</td><td>guestFlow · Portier</td></tr>
-  <tr><td>« Portier sur la même VM que guestFlow, sauf si c’est trop risqué »</td><td><strong>Pas trop risqué :
-    la VM 104</strong>, sous un utilisateur séparé. Une VM à part protégerait la clé maître, pas le portail,
-    puisque guestFlow administre déjà Portier. Pas de VM « petits outils ». Une vérification reste à faire sur la
-    machine.</td><td>homelab</td></tr>
+  <tr><td>« Portier sur la même VM que guestFlow, sauf si c’est trop risqué »</td><td><strong>La VM 104, à une
+    condition.</strong> Une VM à part protégerait la clé maître, pas le portail, puisque guestFlow administre déjà
+    Portier. Mais ta commande <code>sudo -n true</code> a <strong>réussi</strong> : guestFlow tourne sous
+    <code>adrien</code>, qui devient root sans mot de passe pour la maintenance. Il faut d’abord faire tourner
+    guestFlow sous son propre utilisateur — ou mettre Portier sur un petit LXC. <strong>À trancher.</strong></td><td>homelab</td></tr>
   <tr><td>« On garde le code et le QR dans le SAS ; le QR encode le code pour paramétrer l’app d’un flash »</td>
     <td>Le QR porte <strong>la même adresse que l’email</strong>, le code dans son fragment <code>#i=</code> :
     flasher installe l’accès sans rien taper. Le code reste lisible à côté.</td><td>guestFlow · Portier</td></tr>
@@ -266,10 +270,17 @@ dans une liste où chacun se modifie, se suspend ou se révoque.</p>
     :</strong> une coupure silencieuse peut laisser le portail injoignable jusqu’à ~10 minutes ; un redémarrage
     propre, quelques secondes. Pour que ça tienne, la maison passe par un nom interne, sans NAT.</td><td>plugin ·
     homelab</td></tr>
+  <tr><td>« Oui on attend et on ré-essaye » — l’email J-7 quand Portier ne répond pas</td><td>L’email ne part
+    <strong>jamais sans son paragraphe portail</strong> : il passe « en attente de Portier » et réessaie après 1, 2,
+    5 et 15 minutes, puis toutes les 15 minutes. Au-delà d’une heure, une notification aux administrateurs.</td>
+    <td>guestFlow</td></tr>
+  <tr><td>« Dépôt sous adn-dev-adrien et en private » · « Ok pour la suppression de la branche »</td><td>Fait :
+    <code>adn-dev-adrien/portier</code> existe, privé ; la branche <code>spec/gate-access-portier</code> est
+    supprimée.</td><td>Portier · guestFlow</td></tr>
   </tbody>
 </table></div>
-<p class="after"><strong>Une question reste ouverte</strong>, côté guestFlow : l’email J-7 quand Portier ne
-répond pas à 08:00.</p>
+<p class="after"><strong>Une question nouvelle</strong>, côté hébergement : guestFlow sous son propre utilisateur
+puis Portier sur la VM 104 (ma recommandation), ou Portier sur un petit LXC ?</p>
 
 
 <h2 id="detail">2 · guestFlow en détail</h2>
@@ -738,12 +749,112 @@ L’adresse qui reçoit l’événement n’accepte que la boucle locale de la m
   </tr></tbody>
 </table></div>
 
-<h2>3 · La question qui reste</h2>
-<div class="box warm">
-  <p style="margin:0"><strong>Portier ne répond pas à 08:00, au moment de composer l’email J-7.</strong> L’email
-  <strong>attend</strong> que Portier réponde (ma recommandation : un email sans son paragraphe envoie le client au
-  portail les mains vides), ou <strong>part sans</strong> le paragraphe portail ?</p>
+<h2>3 · L’email J-7 quand Portier ne répond pas</h2>
+<p>Tu as tranché : <strong>on attend et on réessaie</strong>. L’email ne part jamais sans son paragraphe portail.
+Coupe Portier avant 08:00, fais avancer l’heure, rétablis-le, ou clique « Envoyer » pendant la coupure.</p>
+<div class="demo" id="em">
+  <div class="demo-head"><span>Maquette manipulable</span><span>guestFlow → Historique des emails</span></div>
+  <div class="demo-body">
+    <div class="row">
+      <button id="em-portier" class="danger">Couper Portier</button>
+      <button id="em-a5">+5 min</button><button id="em-a15">+15 min</button>
+      <span class="kline" style="margin:0 .4rem">Heure : <b id="em-t">07:55</b> · minuteurs armés : <b id="em-timers">0</b></span>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <button id="em-manual">Envoyer à la main l’email J-2 de Paul</button>
+      <button id="em-cancel">Annuler la réservation de Léa</button>
+      <button id="em-reset">Recommencer</button>
+    </div>
+    <p class="perr" id="em-msg"></p>
+    <div class="app">
+      <div class="app-bar"><b>guestFlow</b><span>Historique des emails</span><span class="who" id="em-state">Portier répond</span></div>
+      <div class="app-body"><div class="scroll"><table class="list">
+        <thead><tr><th>Client</th><th>Email</th><th>Statut</th></tr></thead>
+        <tbody id="em-rows"></tbody>
+      </table></div></div>
+    </div>
+    <ol class="klog" id="em-log"></ol>
+  </div>
 </div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var BACK = [1, 2, 5, 15];
+  var s;
+  function start() {
+    s = { t: 7 * 60 + 55, up: true, passDone: false, msg: "", mails: [
+      { who: "Camille Roux", what: "J-7 · Gîte · arrivée le 21/09", auto: true, st: "planned" },
+      { who: "Léa Martin", what: "J-7 · Lodge · arrivée le 21/09", auto: true, st: "planned" },
+      { who: "Paul Durand", what: "J-2 · Gîte · envoi manuel", auto: false, st: "draft" }
+    ] };
+    $("em-log").textContent = "";
+  }
+  function hm(t) { var h = Math.floor(t / 60), m = t % 60; return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m; }
+  function say(ok, text) { var li = document.createElement("li"); li.className = ok ? "ok" : "ko"; li.textContent = hm(s.t) + " — " + text; $("em-log").insertBefore(li, $("em-log").firstChild); }
+  function attempt(m) {
+    if (s.up) { m.st = "sent"; m.at = s.t; say(true, "Email " + m.what.split(" ·")[0] + " de " + m.who + " parti, avec son lien portail lu dans Portier"); return; }
+    if (m.st !== "waiting") { m.st = "waiting"; m.since = s.t; m.tries = 0; say(false, "Portier ne répond pas : l’email de " + m.who + " passe en attente, rien n’est envoyé"); }
+    else { m.tries += 1; }
+    m.next = s.t + BACK[Math.min(m.tries, BACK.length - 1)];
+  }
+  function tick() {
+    s.t += 1;
+    if (!s.passDone && s.t >= 8 * 60) {
+      s.passDone = true; say(true, "Passe automatique de 08:00");
+      s.mails.forEach(function (m) { if (m.auto && m.st === "planned") attempt(m); });
+    }
+    s.mails.forEach(function (m) {
+      if (m.st !== "waiting") return;
+      if (s.t >= m.next) attempt(m);
+      if (m.st === "waiting" && !m.notified && s.t - m.since >= 60) {
+        m.notified = true;
+        say(false, "Notification aux administrateurs : « Email " + m.what.split(" ·")[0] + " de " + m.who.split(" ")[0] + " en attente : Portier ne répond pas depuis " + hm(m.since) + " »");
+      }
+    });
+  }
+  function advance(n) { for (var i = 0; i < n; i += 1) tick(); s.msg = ""; draw(); }
+  function badge(m) {
+    if (m.st === "planned") return ["tag", "Prévu à 08:00"];
+    if (m.st === "draft") return ["tag", "Brouillon"];
+    if (m.st === "sent") return ["tag sent", "Envoyé à " + hm(m.at)];
+    if (m.st === "skipped") return ["tag skip", "Ignoré — réservation annulée"];
+    return ["tag wait", "En attente de Portier · prochain essai à " + hm(m.next)];
+  }
+  function draw() {
+    $("em-t").textContent = hm(s.t);
+    $("em-timers").textContent = s.mails.some(function (m) { return m.st === "waiting"; }) ? "1" : "0";
+    $("em-portier").textContent = s.up ? "Couper Portier" : "Rétablir Portier";
+    $("em-state").textContent = s.up ? "Portier répond" : "Portier ne répond pas";
+    $("em-msg").textContent = s.msg;
+    var tb = $("em-rows"); tb.textContent = "";
+    s.mails.forEach(function (m) {
+      var tr = document.createElement("tr");
+      [m.who, m.what].forEach(function (x) { var td = document.createElement("td"); td.textContent = x; tr.appendChild(td); });
+      var td = document.createElement("td"); var b = badge(m); var sp = document.createElement("span");
+      sp.className = b[0]; sp.style.marginLeft = "0"; sp.textContent = b[1]; td.appendChild(sp); tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    $("em-manual").disabled = s.mails[2].st !== "draft";
+    $("em-cancel").disabled = ["planned", "waiting"].indexOf(s.mails[1].st) < 0;
+  }
+  $("em-portier").onclick = function () { s.up = !s.up; say(s.up, s.up ? "Portier répond de nouveau" : "Portier ne répond plus"); s.msg = ""; draw(); };
+  $("em-a5").onclick = function () { advance(5); };
+  $("em-a15").onclick = function () { advance(15); };
+  $("em-manual").onclick = function () {
+    var m = s.mails[2];
+    if (s.up) { attempt(m); s.msg = ""; }
+    else { attempt(m); s.msg = "Portier ne répond pas : l’email partira dès qu’il répond."; }
+    draw();
+  };
+  $("em-cancel").onclick = function () { var m = s.mails[1]; m.st = "skipped"; say(true, "Réservation de Léa annulée : son email en attente est abandonné, noté « ignoré »"); draw(); };
+  $("em-reset").onclick = function () { start(); draw(); };
+  start(); draw();
+}());
+</script>
+
+<p class="after">Un seul minuteur, armé seulement tant qu’un email attend. Un email dont la réservation est annulée
+pendant l’attente est abandonné et noté « ignoré ».</p>
 
 <h2>4 · Ce qu’on ne fait pas</h2>
 <div class="box stop">
