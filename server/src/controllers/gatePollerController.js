@@ -6,6 +6,7 @@
 
 const gateAccessModel = require('../models/gateAccessModel');
 const gateQueue = require('../utils/gateQueue');
+const gateSignature = require('../utils/gateSignature');
 const db = require('../database');
 
 const DEFAULT_WAIT_S = 25;
@@ -17,7 +18,15 @@ function parseWaitMs(raw) {
   return Math.min(seconds, MAX_WAIT_S) * 1000;
 }
 
-/** The shape the plugin hands to the recipe. Nothing about the guest beyond which stay pressed. */
+function signingSecret() {
+  return String(process.env.GATE_SIGNING_SECRET || '');
+}
+
+/**
+ * The shape the plugin hands to the recipe. Nothing about the guest beyond which stay pressed —
+ * plus a signature, which is what lets the house know this answer came from GuestFlow and not from
+ * whoever managed to answer as `192.168.0.24` (§4.4).
+ */
 function present(request) {
   if (!request) return null;
   const resolved = gateAccessModel.resolve(request.accessId);
@@ -30,12 +39,16 @@ function present(request) {
     propertyName = (property && property.name) || null;
     reservationNumber = (row && row.reservationNumber) || null;
   }
+  const reservationId = request.accessId && reservation ? reservation.id : null;
+  const signed = gateSignature.signRequest({ id: request.id, reservationId }, signingSecret());
   return {
     id: request.id,
-    reservationId: request.accessId && reservation ? reservation.id : null,
+    reservationId,
     reservationNumber,
     propertyName,
     requestedAt: request.requestedAt,
+    signedAt: signed.signedAt,
+    signature: signed.signature,
   };
 }
 
@@ -78,6 +91,27 @@ function reportResult(req, res) {
   const allowed = ['opened', 'already_open', 'refused', 'error'];
   if (!allowed.includes(status)) {
     return res.status(400).json({ error: { code: 'INVALID_STATUS', allowed } });
+  }
+
+  // The second factor (§4.4). The API key already got the caller through the door; this proves the
+  // answer was written by the house and not replayed from a captured call. A failure is a flat 401
+  // with no detail — the reason goes to the server log, because a caller who fails this does not
+  // get to learn which half they got wrong.
+  const check = gateSignature.verifyResult({
+    id: req.params.id,
+    status,
+    timestamp: req.get('x-gate-timestamp'),
+    signature: req.get('x-gate-signature'),
+  }, signingSecret());
+  if (!check.ok) {
+    // eslint-disable-next-line no-console -- the server log is the only place this belongs
+    console.error(`[portail] outcome refused for request ${req.params.id}: ${check.reason}`);
+    gateAccessModel.appendEvent({
+      kind: 'signature_ko',
+      reason: `issue non signée correctement (${check.reason})`,
+      ip: req.ip || null,
+    });
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
   }
 
   const detail = req.body && req.body.detail ? String(req.body.detail).slice(0, 300) : null;

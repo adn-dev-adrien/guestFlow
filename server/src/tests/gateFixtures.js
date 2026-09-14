@@ -154,10 +154,25 @@ function loadPollerController({ db, model } = {}) {
   return controller;
 }
 
-/** A request shaped for the poller routes: query, params, and the key headers. */
-function fakePollerReq({ query = {}, params = {}, body = {}, key = null } = {}) {
+/**
+ * A request shaped for the poller routes: query, params, and the headers.
+ *
+ * `sign` adds the second factor the house sends with an outcome (§4.4). It defaults to ON for a
+ * request carrying a status, because that is what production does — a test that had to remember to
+ * sign would eventually forget, and then prove nothing.
+ */
+function fakePollerReq({ query = {}, params = {}, body = {}, key = null, sign = null, secret = 'test-signing-secret', timestamp = null } = {}) {
   const headers = { host: 'guestflow.test' };
   if (key) headers.authorization = `Bearer ${key}`;
+
+  const shouldSign = sign === null ? !!(body && body.status) : sign;
+  if (shouldSign) {
+    const { sign: hmac } = require('../utils/gateSignature');
+    const at = timestamp ?? Date.now();
+    headers['x-gate-timestamp'] = String(at);
+    headers['x-gate-signature'] = hmac(`${params.id}.${body.status}.${at}`, secret);
+  }
+
   return {
     query, params, body, headers, ip: '192.168.0.26',
     socket: { remoteAddress: '192.168.0.26' },

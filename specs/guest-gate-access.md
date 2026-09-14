@@ -351,6 +351,62 @@ all**. The only network rule this needs is one line letting VM 102 reach VM 104
 (`IN ACCEPT -source 192.168.0.26 -p tcp -dport 4000` in `pve01/firewall/104.fw`)
 — the trusted machine calling the exposed one, never the reverse.
 
+### 4.4 The second factor on the GuestFlow ↔ Sowel channel
+
+Added 2026-09-14, after Adrien asked whether the channel was secure **in both
+directions**. It was not, and the gap was the interesting one.
+
+**What already held.** `GATE_API_KEY` proves the *house* to GuestFlow:
+constant-time comparison, fail-closed, a key distinct from the WordPress one. And
+GuestFlow can initiate nothing towards the house — VM 104 carries
+`OUT DROP -dest 192.168.0.0/24`, deliberately.
+
+**What did not.** Nothing proved *GuestFlow to the house*. The plugin polls
+`http://192.168.0.24:4000` in clear, on a LAN that also carries Zigbee
+coordinators, a 3D printer and whatever a guest brings. Anyone able to answer as
+that address — an ARP spoof from a compromised device — could hand the plugin a
+forged request, and the recipe would pulse the gate. **No key required**, because
+the key travels away from the house and never towards it.
+
+So both directions are now signed, with a **second secret that never appears on
+the wire** (`GATE_SIGNING_SECRET`, auto-generated like the others):
+
+| Direction | What is signed | Verified by |
+|---|---|---|
+| GuestFlow → house | `id.signedAt.reservationId` of the request handed over | the plugin, before anything is published — a published counter is what makes the recipe pulse |
+| house → GuestFlow | `id.status.timestamp` of the outcome, in `X-Gate-Signature` + `X-Gate-Timestamp` | `reportResult`, before the outcome is applied |
+
+Rules:
+
+31. **Both sides fail closed.** No signing secret configured means every call is
+    refused. A channel that silently drops its second factor when a variable is
+    missing is worse than one that never had it: nobody would notice. The plugin
+    goes further and reports itself *not configured* without the secret, so the
+    problem is visible in the integrations list rather than at 23 h in front of a
+    gate.
+32. **Every signature covers a timestamp**, and anything outside ±2 min is
+    refused. Both machines are NTP-synced; the window is for clock drift, and it
+    means a captured call cannot be replayed tomorrow.
+33. **The plugin remembers the request ids it has honoured** (bounded, last
+    1000). A replay inside the freshness window pulses nothing. The memory is a
+    bounded set and not a high-water mark on purpose: a restore of GuestFlow's
+    database from backup restarts the ids low, and a high-water mark would then
+    refuse everything.
+34. **A refused signature answers a flat `401`** with no detail, and writes the
+    reason to the journal (`signature_ko`) and the server log. A caller who fails
+    this does not get to learn which half they got wrong.
+35. **Why a signature rather than only TLS.** TLS should be there too — see the
+    README. But a bearer key is replayed in full on every call: whoever reads one
+    call can impersonate the caller for good. A signature is different in kind,
+    because the secret is never transmitted: reading a thousand calls still does
+    not let you forge the next one. The two protections fail in different ways,
+    which is the reason to hold both.
+
+**Still open, and deliberately named:** the transport itself. The recommended
+`base_url` is an internal HTTPS name rather than plain HTTP — the README carries
+the Caddy block for it. The signature is what makes plain HTTP survivable in the
+meantime, not a reason to keep it.
+
 ---
 
 ## 5. Data model
