@@ -239,8 +239,6 @@ can cut it at any time, and never has to change a printed code again.
 21. **Reservation fiche**: a « Accès portail » card — code, window, device
     count, last use, the full event journal, and two actions: *Régénérer* and
     *Révoquer*.
-22. **Departure SAS**: recap line « l'accès portail expire à HH:MM » plus a
-    *Révoquer maintenant* action.
 23. **Emails J-7 and J-2**: new context flags/tokens `hasGateAccess`,
     `gateAccessCode`, `gateAccessUrl`. The code and the link travel in the same
     message — no second channel, no PIN (decision 2026-09-09: the bar to clear
@@ -261,10 +259,11 @@ can cut it at any time, and never has to change a printed code again.
     gate**. Nothing in this feature is per-property except the label the guest
     reads: the access, the code, the window and the journal are per
     *reservation*.
-26. **The unlock screen has no property picker.** The code identifies the stay
-    on its own (§3.1 rule 2.bis); once unlocked, the page names the lodging
-    (« Le Gîte », « La Lodge ») so the guest can see at a glance they are on
-    their own access.
+26. **The unlock screen has no property picker**, and the unlocked page does not
+    name the lodging either (revised 2026-09-14 — « le petit mot Le Gîte ne sert
+    à rien ici »). The code identifies the stay on its own (§3.1 rule 2.bis),
+    and what tells a guest they are on their own access is their own first name
+    at the top of the screen. A guest knows where they are sleeping.
 27. **The session is bound to one access.** Entering a different code on the
     same phone replaces the session — the family that stayed at the Gîte last
     year and books the Lodge this year needs no clearing of anything.
@@ -300,6 +299,62 @@ can cut it at any time, and never has to change a printed code again.
 - Both lodgings press within the same seconds → two pulses, and the gate may end
   up closed again. Exactly what two people with two remotes would do, and the
   journal says who pressed when.
+
+### 3.9 The second factor on the GuestFlow ↔ Sowel channel
+
+Added 2026-09-14, after Adrien asked whether the channel was secure **in both
+directions**. It was not. What the two signatures cover, and why the second secret never
+travels, is in §4.4; what they must *do* is here.
+
+31. **Both sides fail closed.** No signing secret configured means every call is
+    refused. A channel that silently drops its second factor when a variable is
+    missing is worse than one that never had it: nobody would notice. The plugin
+    goes further and reports itself *not configured* without the secret, so the
+    problem is visible in the integrations list rather than at 23 h in front of a
+    gate.
+32. **Every signature covers a timestamp**, and anything outside ±2 min is
+    refused. Both machines are NTP-synced; the window is for clock drift, and it
+    means a captured call cannot be replayed tomorrow.
+33. **The plugin remembers the request ids it has honoured** (bounded, last
+    1000). A replay inside the freshness window pulses nothing. The memory is a
+    bounded set and not a high-water mark on purpose: a restore of GuestFlow's
+    database from backup restarts the ids low, and a high-water mark would then
+    refuse everything.
+34. **A refused signature answers a flat `401`** with no detail, and writes the
+    reason to the journal (`signature_ko`) and the server log. A caller who fails
+    this does not get to learn which half they got wrong.
+35. **Why a signature rather than only TLS.** TLS should be there too — see the
+    README. But a bearer key is replayed in full on every call: whoever reads one
+    call can impersonate the caller for good. A signature is different in kind,
+    because the secret is never transmitted: reading a thousand calls still does
+    not let you forge the next one. The two protections fail in different ways,
+    which is the reason to hold both.
+
+    > **Sans test** — c'est la justification d'un choix de conception, pas un
+    > comportement : il n'y a rien à affirmer qu'un test pourrait démentir.
+
+36. **The transport is HTTPS, and the plugin refuses anything else** (2026-09-14).
+    The signature and encryption do not do the same job: the signature stops
+    anyone *forging* a call, and does nothing to stop anyone *reading* one — the
+    stay code, the lodging and the guest's first name would cross the LAN in
+    clear. The plugin therefore refuses to start on a plain-HTTP address towards
+    another machine (`localhost` excepted, where there is no wire).
+
+    > **Sans test** — le refus vit dans le plugin, pas dans ce dépôt : il est épinglé
+    > par `sowel-plugin-guest-access/src/url-guard.test.ts` (5 tests, dont l'hôte qui
+    > CONTIENT « localhost » sans en être un). Rien ici ne peut l'affirmer.
+    The address is GuestFlow's **public name**, `https://guestflow.adn-dev.fr`,
+    and not a new internal one — Adrien's decision of 2026-08-27, already written
+    into the estate's internal Caddyfile: GuestFlow binds its push subscriptions
+    to the origin, so serving the same application under a second name would
+    break them. The Freebox hairpin was verified that day.
+37. **And it removes a rule rather than adding one.** The traffic now enters
+    through edge (`192.168.0.22`), which `104.fw` already allows. The firewall
+    line this feature was going to need — `IN ACCEPT -source 192.168.0.26` —
+    **is not needed at all**. One less hole for one more protection.
+
+    > **Sans test** — c'est une propriété du pare-feu de l'hyperviseur, hors de portée
+    > d'un test de ce dépôt ; elle se vérifie avec `pve-firewall compile` sur pve01.
 
 ---
 
@@ -410,47 +465,8 @@ the wire** (`GATE_SIGNING_SECRET`, auto-generated like the others):
 | GuestFlow → house | `id.signedAt.reservationId` of the request handed over | the plugin, before anything is published — a published counter is what makes the recipe pulse |
 | house → GuestFlow | `id.status.timestamp` of the outcome, in `X-Gate-Signature` + `X-Gate-Timestamp` | `reportResult`, before the outcome is applied |
 
-Rules:
-
-31. **Both sides fail closed.** No signing secret configured means every call is
-    refused. A channel that silently drops its second factor when a variable is
-    missing is worse than one that never had it: nobody would notice. The plugin
-    goes further and reports itself *not configured* without the secret, so the
-    problem is visible in the integrations list rather than at 23 h in front of a
-    gate.
-32. **Every signature covers a timestamp**, and anything outside ±2 min is
-    refused. Both machines are NTP-synced; the window is for clock drift, and it
-    means a captured call cannot be replayed tomorrow.
-33. **The plugin remembers the request ids it has honoured** (bounded, last
-    1000). A replay inside the freshness window pulses nothing. The memory is a
-    bounded set and not a high-water mark on purpose: a restore of GuestFlow's
-    database from backup restarts the ids low, and a high-water mark would then
-    refuse everything.
-34. **A refused signature answers a flat `401`** with no detail, and writes the
-    reason to the journal (`signature_ko`) and the server log. A caller who fails
-    this does not get to learn which half they got wrong.
-35. **Why a signature rather than only TLS.** TLS should be there too — see the
-    README. But a bearer key is replayed in full on every call: whoever reads one
-    call can impersonate the caller for good. A signature is different in kind,
-    because the secret is never transmitted: reading a thousand calls still does
-    not let you forge the next one. The two protections fail in different ways,
-    which is the reason to hold both.
-
-36. **The transport is HTTPS, and the plugin refuses anything else** (2026-09-14).
-    The signature and encryption do not do the same job: the signature stops
-    anyone *forging* a call, and does nothing to stop anyone *reading* one — the
-    stay code, the lodging and the guest's first name would cross the LAN in
-    clear. The plugin therefore refuses to start on a plain-HTTP address towards
-    another machine (`localhost` excepted, where there is no wire).
-    The address is GuestFlow's **public name**, `https://guestflow.adn-dev.fr`,
-    and not a new internal one — Adrien's decision of 2026-08-27, already written
-    into the estate's internal Caddyfile: GuestFlow binds its push subscriptions
-    to the origin, so serving the same application under a second name would
-    break them. The Freebox hairpin was verified that day.
-37. **And it removes a rule rather than adding one.** The traffic now enters
-    through edge (`192.168.0.22`), which `104.fw` already allows. The firewall
-    line this feature was going to need — `IN ACCEPT -source 192.168.0.26` —
-    **is not needed at all**. One less hole for one more protection.
+The rules these two signatures obey are functional, not architectural, so they live with
+the others: **§3.9**.
 
 ---
 
@@ -635,6 +651,15 @@ colour, confirmation dialog: « le lien déjà envoyé cessera de fonctionner »
 
 ## 8. Out of scope
 
+- **The departure SAS recap** (« l'accès portail expire à HH:MM » plus a
+  *Révoquer maintenant* action). It was rule 22 of §3.6 until 2026-09-14, when
+  the spec-coverage barrier pointed out that **nothing had ever been built for
+  it** — the exact failure that check exists to catch, and worth saying out loud
+  rather than quietly implementing. It is out for three reasons: the access dies
+  on its own an hour after check-out, the fiche already carries *Révoquer*, and
+  the owner has not seen that screen in an HTML mockup — which is the rule for
+  any new surface. The rule number stays vacant on purpose; renumbering would
+  break every citation around it.
 - **The Sowel plugin and the recipe** — their own repos, their own docs. This
   spec only fixes the contract (§4.3).
 - **Any equipment other than the gate.** The contract carries no equipment id

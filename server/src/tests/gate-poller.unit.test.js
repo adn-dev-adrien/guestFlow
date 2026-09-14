@@ -7,7 +7,10 @@ const {
 const requireGateApiKey = require('../middleware/requireGateApiKey');
 const gateQueue = require('../utils/gateQueue');
 
-// specs/guest-gate-access.md §4.3 and §4.4 — the two routes the house calls, the key it comes with,
+// specs/guest-gate-access.md §3.9 rules 33 and 34 — the replay memory (GuestFlow's half: an
+// outcome already applied changes nothing, and a captured one cannot come back tomorrow; the
+// plugin's own bounded set is pinned in its repo) and the flat 401 that leaves a journal line.
+// specs/guest-gate-access.md §4.3 — the two routes the house calls, the key it comes with,
 // and the signature that proves the answer was written by the house.
 
 // The fixture signs with this; the controller reads the environment.
