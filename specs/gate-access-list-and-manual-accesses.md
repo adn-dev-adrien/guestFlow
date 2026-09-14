@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft — **the HTML summary is what decides** (`specs/guest-gate-access-maquettes.html`); second round reviewed 2026-09-14 |
+| **Status** | **Superseded 2026-09-14** by [gate-access-portier.md](gate-access-portier.md): its rules move to Portier, its screens stay in guestFlow. Kept as the record of the list's second review |
 | **Branch** | `feature/gate-access-list` _(user-managed, not created yet)_ |
 | **Created** | 2026-09-14 |
 | **Author** | Adrien |

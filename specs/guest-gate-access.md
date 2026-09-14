@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (2026-09-10), revised 2026-09-14 — the gate's state no longer reaches the guest, and the button became a slide-to-confirm (§3.5 rules 17.bis, 18 and 19.ter). |
+| **Status** | Implemented (2026-09-10), revised 2026-09-14 — the gate's state no longer reaches the guest, and the button became a slide-to-confirm (§3.5 rules 17.bis, 18 and 19.ter). — **transport, activation and code model superseded by [gate-access-portier.md](gate-access-portier.md) on 2026-09-14** |
 | **Branch** | `feature/guest-gate-access` _(user-managed)_ |
 | **Created** | 2026-09-09 |
 | **Author** | Adrien |
