@@ -62,13 +62,15 @@ ol.steps li::before{content:counter(s);position:absolute;left:0;top:.05em;width:
 <p class="lede">
   Une pull request, deux paquets Sowel publiés, et un chantier montré mais volontairement pas
   commencé. Ce rapport dit ce qui est fait, ce qui attend ta main, et ce qui attend ta réponse.
+  <strong>Mis à jour après tes six corrections sur les maquettes</strong> — et après un contrôle de
+  la CI qui était rouge sans que je le regarde, ce qui a fait tomber une règle jamais construite.
 </p>
 
 <div class="kpi">
   <div><b>1</b><span>pull request</span></div>
-  <div><b>10</b><span>commits</span></div>
-  <div><b>57</b><span>fichiers touchés</span></div>
-  <div><b>4&nbsp;189</b><span>tests serveur</span></div>
+  <div><b>14</b><span>commits</span></div>
+  <div><b>59</b><span>fichiers touchés</span></div>
+  <div><b>4&nbsp;198</b><span>tests serveur</span></div>
   <div><b>1&nbsp;236</b><span>tests client</span></div>
   <div><b>61</b><span>tests Sowel</span></div>
 </div>
@@ -78,7 +80,7 @@ ol.steps li::before{content:counter(s);position:absolute;left:0;top:.05em;width:
 <div class="box">
   <h3>guestFlow #547 — <span class="tag wait">ouverte, à relire</span></h3>
   <p class="small muted" style="margin-top:.2rem">
-    <code>feature/guest-gate-access</code> → <code>master</code> · +7&nbsp;123 / −15 sur 57 fichiers ·
+    <code>feature/guest-gate-access</code> → <code>master</code> · +8&nbsp;152 / −15 sur 59 fichiers ·
     <a href="https://github.com/adn-dev-adrien/guestFlow/pull/547">github.com/adn-dev-adrien/guestFlow/pull/547</a>
   </p>
   <p>Elle contient <strong>toute la moitié guestFlow</strong> : le code de séjour, la page invité sur
@@ -97,6 +99,9 @@ ol.steps li::before{content:counter(s);position:absolute;left:0;top:.05em;width:
     <tr><td class="mono">0674330</td><td><strong>Ton renversement</strong> : la commande part toujours, plus d'écran de manœuvre, et plus rien à faire à la main au déploiement.</td></tr>
     <tr><td class="mono">558e171</td><td><strong>La double authentification</strong> du canal, dans les deux sens.</td></tr>
     <tr><td class="mono">c801f1d</td><td>Les maquettes du chantier suivant, montrées avant d'être codées.</td></tr>
+    <tr><td class="mono">13192a7</td><td><strong>Le transport passe en HTTPS</strong>, et la ligne de pare-feu disparaît.</td></tr>
+    <tr><td class="mono">3df6782</td><td><strong>Tes trois corrections d'écran</strong> : l'état du portail quitte l'application, le bouton devient une glissière, le pied « Le Gîte » s'en va.</td></tr>
+    <tr><td class="mono">2c2f7e9</td><td><strong>La barrière de couverture était rouge</strong> — et elle avait raison : une règle n'avait jamais été construite.</td></tr>
   </table>
 </div>
 
@@ -145,20 +150,60 @@ par source personnelle.</p>
   tout seul (il te déconnectera une fois).</p>
 </div>
 
-<h2>4 · Ce qui attend ta réponse, pas ta main</h2>
-<div class="box">
-  <p>Les accès pour les amis et la famille, la page de liste, et la glissière de confirmation sont
-  <strong>montrés et pas codés</strong> — c'est la règle que tu as posée. Les maquettes sont
-  manipulables dans <code>specs/guest-gate-access-maquettes.html</code>, la référence écrite dans
-  <code>specs/gate-access-list-and-manual-accesses.md</code>.</p>
-  <p>Quatre questions y attendent une réponse :</p>
+<h2>4 · Tes six corrections, et ce qu'elles ont donné</h2>
+<div class="box forest">
+  <p>Les trois qui portaient sur l'écran du client sont <strong>codées</strong> : la glissière était
+  déjà validée, tu l'as corrigée, elle est dans la PR. Les trois qui portent sur la page de liste
+  restent <strong>montrées et pas codées</strong> — c'est la règle que tu as posée, et les maquettes
+  sont à jour.</p>
+  <table>
+    <tr><th>Ta correction</th><th>État</th></tr>
+    <tr><td>L'état du portail ne doit plus apparaître dans l'application</td>
+        <td><span class="tag ok">codé</span> Pastille retirée, libellé refait, et le champ
+        <em>retiré de l'API invité</em> : la route était interrogeable par qui détient un code.</td></tr>
+    <tr><td>« Glisser pour ouvrir » ne convient pas</td>
+        <td><span class="tag ok">codé</span> « Glisser pour actionner ». Trois autres libellés sont à
+        un clic dans les maquettes — une ligne à changer si tu préfères.</td></tr>
+    <tr><td>Le mot « Le Gîte » ne sert à rien</td>
+        <td><span class="tag ok">codé</span> Supprimé de la page et de la spec.</td></tr>
+    <tr><td>Un accès automatique est prolongeable et supprimable depuis la liste</td>
+        <td><span class="tag wait">montré</span> « Supprimer » n'est plus grisé, « Modifier » ouvre
+        dates et horaires, et deux boutons simulent une réservation qui bouge.</td></tr>
+    <tr><td>guestFlow ne doit pas demander le retrait d'un accès</td>
+        <td><span class="tag wait">montré</span> Il ne le fait pas et ne peut pas le faire. Mais ta
+        mise en garde a trouvé le vrai défaut : la création <em>paresseuse</em>, qui faisait renaître
+        un accès supprimé. L'accès naîtra avec la réservation.</td></tr>
+    <tr><td>Les 90 jours en tête de liste, c'est du bruit</td>
+        <td><span class="tag wait">montré</span> Retiré : ni tri, ni étiquette. Reste la colonne
+        « dernier usage ».</td></tr>
+  </table>
+  <p class="small muted">Les maquettes manipulables : <code>specs/guest-gate-access-maquettes.html</code>.
+  La référence écrite : <code>specs/gate-access-list-and-manual-accesses.md</code>. Il n'y reste que
+  trois riens à trancher — le libellé exact, une ligne de légende, et un mot de vocabulaire sur la
+  fiche.</p>
+</div>
+
+<h2>4.bis · Un contrôle de la CI était rouge, et il avait raison</h2>
+<div class="box stop">
+  <p>Le dépôt porte une barrière que tu connais : <strong>une règle de spec qu'aucun test ne nomme
+  n'est pas une règle livrée</strong>. Elle était <strong>rouge sur cette PR depuis le premier
+  jour</strong>, et je ne l'avais pas regardée. Ce qu'elle disait, une fois lue :</p>
   <ul class="clean">
-    <li>Un accès créé par guestFlow <strong>ne se supprime pas</strong> (il renaîtrait) : d'accord,
-      ou il faut un « pas d'accès portail » sur la réservation ?</li>
-    <li>Les plages horaires <strong>tous les jours</strong>, sans choix de jours : suffisant ?</li>
-    <li>Un accès permanent inutilisé depuis 90 jours qui <strong>remonte en tête</strong> : utile ou bruit ?</li>
-    <li>La <strong>glissière</strong>, ou un appui long ?</li>
+    <li><strong>Une règle n'avait jamais été construite</strong> — la ligne de récapitulatif du SAS
+      de départ (« l'accès portail expire à HH:MM » et « Révoquer maintenant »). Elle n'existe nulle
+      part dans le code. C'est précisément ce que cette barrière a été écrite pour attraper. Elle
+      sort de la spec et passe en « hors périmètre », avec sa raison : l'accès meurt tout seul une
+      heure après le départ, la fiche porte déjà « Révoquer », et un nouvel écran se montre en HTML
+      avant d'être codé.</li>
+    <li><strong>La carte de la fiche n'avait aucun test.</strong> En l'écrivant, un défaut : un accès
+      révoqué proposait encore un lien à distribuer. Le code reste visible — le journal en a besoin —
+      le lien non. Huit tests épinglent maintenant ce que la carte porte.</li>
+    <li><strong>Le numéro de réservation a son assertion.</strong> La spec disait qu'il n'est pas un
+      secret ; c'est la première chose qu'on essaie. Un test dit maintenant qu'il n'ouvre rien.</li>
   </ul>
+  <p class="small">Le reste était de la citation mal écrite : « rules 25 (plusieurs accès…), 26 (…) »
+  ne crédite que la règle 25, la parenthèse coupant la liste. La spec lit désormais
+  <strong>36 règles sur 36 couvertes</strong>, dont trois déclarées sans test avec leur vraie raison.</p>
 </div>
 
 <h2>5 · Le transport : passé en HTTPS</h2>
@@ -182,7 +227,8 @@ par source personnelle.</p>
 <hr>
 <p class="small muted">
   Rapport autonome : aucune police, aucun script et aucune image distante. Versionné dans
-  <code>guestFlow/docs/rapports/acces-portail-etat.html</code>.
+  <code>guestFlow/docs/rapports/acces-portail-etat.html</code> — deuxième mise à jour du
+  14 septembre 2026, après tes corrections sur les maquettes.
 </p>
 
 </div>
