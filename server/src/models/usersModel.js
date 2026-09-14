@@ -83,6 +83,13 @@ function buildModel(database) {
     JOIN user_roles r ON r.userId = u.id
     WHERE u.isActive = 1 AND r.role = ?
   `);
+  const activeAdminIdsStmt = database.prepare(`
+    SELECT DISTINCT u.id
+    FROM users u
+    JOIN user_roles r ON r.userId = u.id
+    WHERE u.isActive = 1 AND r.role = ?
+    ORDER BY u.id
+  `);
 
   function loadRoles(userId) {
     return loadRolesStmt.all(Number(userId)).map((r) => r.role);
@@ -291,6 +298,11 @@ function buildModel(database) {
     },
 
     // Counts active admin users, used by the controller's last-admin guard.
+    // The recipients of the gate notifications (specs/gate-access-portier.md §3.2, §3.6).
+    listActiveAdminIds() {
+      return activeAdminIdsStmt.all(ADMIN).map((row) => Number(row.id));
+    },
+
     findActiveAdminCount() {
       return activeAdminCountStmt.get(ADMIN).n;
     },

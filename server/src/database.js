@@ -1783,6 +1783,15 @@ db.exec(`
   }
 }
 
+// specs/gate-access-portier.md §3.2 + §5 — email_log learns `waiting_portier` and `skipped`, with
+// nextAttemptAt / waitingSince / adminNotifiedAt. SQLite cannot alter a CHECK, so the table is rebuilt
+// in one transaction, every row carried over with its id; a no-op once done.
+{
+  const { runEmailLogPortierMigration } = require('./utils/emailLogPortierMigration');
+  const { rebuilt, rows } = db.transaction(() => runEmailLogPortierMigration(db))();
+  if (rebuilt) console.log(`[migration:email-log] waiting_portier + skipped statuses, ${rows} row(s) carried over`);
+}
+
 // Online payment links (specs/online-payments-qonto.md §5). One row per Qonto payment link issued
 // for a reservation/devis. `reference` reconciliation is by reservationId; the polling pass reads
 // `status='open'` rows and flips them to 'paid'. Amounts are stored in cents (integer, exact).

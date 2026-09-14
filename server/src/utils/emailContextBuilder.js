@@ -363,8 +363,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       // sitting in a context whose paragraph is hidden. Same condition as `hasGateAccess`.
       gateAccessCode: gateAccess && gateAccess.code && gateAccess.url ? gateAccess.code : '',
       gateAccessUrl: gateAccess && gateAccess.code && gateAccess.url ? gateAccess.url : '',
-      // The permanent address, the one behind the printed QR: it never changes and holds no secret,
-      // so it is what to dictate when a mail client has mangled the personal link.
+      // The guests' app address — the invitation link without its fragment: it holds no secret, so it
+      // is what to dictate when a mail client has mangled the personal link (specs/gate-access-portier.md §3.2).
       gateAccessBaseUrl: gateAccess && gateAccess.code && gateAccess.url && gateAccess.permanentUrl
         ? gateAccess.permanentUrl : '',
       startDate:    formatDateLong(r.startDate, L),

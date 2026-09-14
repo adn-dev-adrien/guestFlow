@@ -5,9 +5,9 @@
  *   end   = endDate   + checkOutTime + 1 h
  *
  * Both ends are **Europe/Paris wall clock**, because that is what is written on the contract and
- * what the guest reads. The window is recomputed from the live reservation on every request, never
- * frozen at creation: moving the dates or the times moves the access with them, with no operator
- * action (§3.2 rule 7).
+ * what the guest reads. It is computed from the live reservation and pushed to Portier whenever the
+ * dates, the times or the lodging change (specs/gate-access-portier.md §3.1): moving the dates moves
+ * the access with them, with no operator action (§3.2 rule 7).
  *
  * Why the conversion is not `new Date('2026-09-12T16:00')`: that parses in the *server's* zone.
  * The VM is on Europe/Paris today, but the app also runs in CI and on a laptop, and a booking
@@ -89,42 +89,18 @@ function wallClockToDate(dateStr, timeStr) {
 }
 
 /**
- * The window of an access, or `null` when the reservation cannot yield one (missing dates).
- *
- * `earlyOpenedAt` is the stamp the arrival SAS writes when the operator opens the access for a
- * guest who arrived early (§3.6 rule 20). It can only ever move the start EARLIER — it is a
- * courtesy, not a way to extend a stay past its end.
+ * The window of a stay, or `null` when the reservation cannot yield one (missing dates). Early
+ * opening and prolongation are the owner's, set in Portier's list: they never enter this computation
+ * (specs/gate-access-portier.md §3.1).
  */
-function computeWindow(reservation, { earlyOpenedAt = null } = {}) {
+function computeWindow(reservation) {
   if (!reservation) return null;
 
   const start = wallClockToDate(reservation.startDate, reservation.checkInTime || DEFAULT_CHECK_IN);
   const checkOut = wallClockToDate(reservation.endDate, reservation.checkOutTime || DEFAULT_CHECK_OUT);
   if (!start || !checkOut) return null;
 
-  const end = new Date(checkOut.getTime() + ONE_HOUR_MS);
-
-  let effectiveStart = start;
-  if (earlyOpenedAt) {
-    const early = new Date(earlyOpenedAt);
-    if (!Number.isNaN(early.getTime()) && early.getTime() < start.getTime()) effectiveStart = early;
-  }
-
-  return { start: effectiveStart, end, scheduledStart: start, checkOut };
-}
-
-/**
- * `'before' | 'active' | 'after' | 'unknown'` at a given instant. `unknown` means the reservation
- * carries no usable dates — the caller must treat it as closed, never as open.
- */
-function windowState(reservation, { now = new Date(), earlyOpenedAt = null } = {}) {
-  const window = computeWindow(reservation, { earlyOpenedAt });
-  if (!window) return 'unknown';
-  const at = now instanceof Date ? now.getTime() : new Date(now).getTime();
-  if (Number.isNaN(at)) return 'unknown';
-  if (at < window.start.getTime()) return 'before';
-  if (at > window.end.getTime()) return 'after';
-  return 'active';
+  return { start, end: new Date(checkOut.getTime() + ONE_HOUR_MS), checkOut };
 }
 
 module.exports = {
@@ -132,6 +108,5 @@ module.exports = {
   DEFAULT_CHECK_IN,
   DEFAULT_CHECK_OUT,
   computeWindow,
-  windowState,
   __test: { wallClockToDate, zoneOffsetMs },
 };
