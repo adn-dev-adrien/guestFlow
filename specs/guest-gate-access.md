@@ -346,10 +346,14 @@ bundle to draw one button would be indefensible here.
 | GET | `/public/v1/gate/requests?wait=25&state=closed` | — | `{ request: null }` or `{ request: { id, reservationId, reservationNumber, propertyName, requestedAt } }` | **Long-poll**: held open up to `wait` seconds, answers the instant a guest presses, one request at a time (§3.8 rule 29). `state` is what the plugin currently sees on the `closed` contact (`open`/`closed`/`unknown`) — this call is both the heartbeat and the state feed (§3.5 rule 19.bis) |
 | POST | `/public/v1/gate/requests/:id/result` | `{ status: "opened" \| "already_open" \| "refused" \| "error", detail? }` | `204` | Idempotent; a second call on a resolved request is a no-op |
 
-The Sowel plugin holds `GATE_API_KEY`; **GuestFlow holds no Sowel credential at
-all**. The only network rule this needs is one line letting VM 102 reach VM 104
-(`IN ACCEPT -source 192.168.0.26 -p tcp -dport 4000` in `pve01/firewall/104.fw`)
-— the trusted machine calling the exposed one, never the reverse.
+The Sowel plugin holds `GATE_API_KEY` and `GATE_SIGNING_SECRET`; **GuestFlow
+holds no Sowel credential at all**.
+
+**No network rule is needed** (revised 2026-09-14). An earlier version of this
+spec asked for one line letting VM 102 reach VM 104 directly. Since the plugin
+now goes through GuestFlow's public HTTPS name (§4.4 rules 36-37), the traffic
+enters through edge — already allowed by `104.fw` — and the direct hole never has
+to be opened.
 
 ### 4.4 The second factor on the GuestFlow ↔ Sowel channel
 
@@ -402,10 +406,21 @@ Rules:
     not let you forge the next one. The two protections fail in different ways,
     which is the reason to hold both.
 
-**Still open, and deliberately named:** the transport itself. The recommended
-`base_url` is an internal HTTPS name rather than plain HTTP — the README carries
-the Caddy block for it. The signature is what makes plain HTTP survivable in the
-meantime, not a reason to keep it.
+36. **The transport is HTTPS, and the plugin refuses anything else** (2026-09-14).
+    The signature and encryption do not do the same job: the signature stops
+    anyone *forging* a call, and does nothing to stop anyone *reading* one — the
+    stay code, the lodging and the guest's first name would cross the LAN in
+    clear. The plugin therefore refuses to start on a plain-HTTP address towards
+    another machine (`localhost` excepted, where there is no wire).
+    The address is GuestFlow's **public name**, `https://guestflow.adn-dev.fr`,
+    and not a new internal one — Adrien's decision of 2026-08-27, already written
+    into the estate's internal Caddyfile: GuestFlow binds its push subscriptions
+    to the origin, so serving the same application under a second name would
+    break them. The Freebox hairpin was verified that day.
+37. **And it removes a rule rather than adding one.** The traffic now enters
+    through edge (`192.168.0.22`), which `104.fw` already allows. The firewall
+    line this feature was going to need — `IN ACCEPT -source 192.168.0.26` —
+    **is not needed at all**. One less hole for one more protection.
 
 ---
 
