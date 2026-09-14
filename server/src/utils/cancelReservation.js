@@ -21,6 +21,7 @@
 
 const { buildCancellationRequalification } = require('./cancellationRequalification');
 const { isDirectChannel } = require('./platformNameFormat');
+const portierSync = require('./portierSync');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -76,6 +77,8 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
       { field: 'writtenOffBalance', label: 'Solde abandonné', from: null, to: writtenOffBalance },
     ]);
     reservationsModel.markCancelled(id, { reason: trimmedReason || cancellationReason, cancelledBy });
+    // specs/gate-access-portier.md §3.1 — a cancellation revokes the access (decision 2026-09-14).
+    portierSync.cancelStay(database, id, 'cancelled');
     if (requalification) {
       refundId = refundsModel.create(id, { ...requalification.refund, totalTtc: retainedDepositAmount });
       compensationId = compensationsModel.createReceived(requalification.compensation).id;

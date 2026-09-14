@@ -24,6 +24,8 @@ const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
 const emailAutoSendScheduler = require('../utils/emailAutoSendScheduler');
+const db = require('../database');
+const portierSync = require('../utils/portierSync');
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
@@ -254,7 +256,12 @@ function uploadLogo(req, res) {
     return res.status(400).json({ error: 'Aucun fichier fourni.' });
   }
   const logoPath = `/uploads/${req.file.filename}`;
-  settingsModel.updateLogoPath(logoPath);
+  // specs/gate-access-portier.md §3.5 — the guests' app icon follows the company logo, through the
+  // outbox like every push to Portier.
+  db.transaction(() => {
+    settingsModel.updateLogoPath(logoPath);
+    portierSync.pushBranding(db);
+  })();
   return res.json({ company: { logoPath } });
 }
 

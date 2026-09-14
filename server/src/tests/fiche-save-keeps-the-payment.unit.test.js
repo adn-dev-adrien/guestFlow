@@ -67,6 +67,7 @@ function buildController({ captures, storedRow = SETTLED_ROW }) {
   };
   const dbMock = {
     prepare: () => ({ get: () => undefined, run: () => ({ changes: 0 }), all: () => [] }),
+    transaction: (fn) => (...args) => fn(...args),
   };
 
   return withMocks({

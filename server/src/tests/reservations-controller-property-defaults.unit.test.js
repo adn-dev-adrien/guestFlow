@@ -89,7 +89,7 @@ function buildController(defaults, captures, carriedOptionIds = []) {
     } }),
     '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
     '../models/propertyOptionDefaultsModel': propertyOptionDefaultsModel,
-    '../database': { prepare: () => ({ run: () => null, get: () => null, all: () => [] }) },
+    '../database': { prepare: () => ({ run: () => null, get: () => null, all: () => [] }), transaction: (fn) => (...args) => fn(...args) },
   }, () => {
     delete require.cache[require.resolve(controllerModule)];
     return require(controllerModule);

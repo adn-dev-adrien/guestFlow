@@ -24,6 +24,7 @@ const bookingLinesModel = require('./bookingLinesModel');
 const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const portierSync = require('../utils/portierSync');
 
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
@@ -837,6 +838,9 @@ function createModel(database) {
       });
       // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
       assignReservationNumberIfMissing(database, reservationId);
+      // specs/gate-access-portier.md §3.1 — an accepted devis is a reservation: its stay goes to
+      // Portier in this very transaction. A confirmed online payment converts through here too.
+      portierSync.pushStay(database, reservationId);
 
       database.prepare("UPDATE reservations SET devisStatus = 'converted', convertedReservationId = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(reservationId, numId);
 
