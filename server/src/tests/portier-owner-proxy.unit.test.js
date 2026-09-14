@@ -12,6 +12,7 @@ const enforceRoleAccess = require('../middleware/enforceRoleAccess');
 const { buildController } = require('../controllers/portierController');
 const { PortierUnavailableError } = require('../utils/portierClient');
 const { PORTIER_OUTBOX_SQL } = require('../utils/portierSchema');
+const { eventView } = require('../utils/portierAccessView');
 
 const NOW = new Date('2026-09-13T09:00:00.000Z'); // 11:00 in Paris
 const ADMIN = { id: 7, email: 'adrien@example.com', roles: ['admin'] };
@@ -229,9 +230,13 @@ test('Portier down → 502 « Portier ne répond pas. »; not configured → 503
 });
 
 test('delete answers 204; the journal is read in words', async () => {
+  // The actor as Portier's journal shapes it: `{ id, email }`, or null (contract §3.3).
   const client = fakeClient([
     { status: 204, data: null },
-    { status: 200, data: { events: [{ id: 'e1', kind: 'invited', reason: '', source: 'owner', actor: '7|adrien@example.com', deviceId: null, at: '2026-09-13T07:30:00.000Z' }] } },
+    { status: 200, data: { events: [
+      { id: 2, kind: 'invited', reason: null, source: 'owner', actor: { id: 7, email: 'adrien@example.com' }, deviceId: null, at: '2026-09-13T07:30:00.000Z' },
+      { id: 1, kind: 'stay_created', reason: '2026-09-12T14:00:00.000Z → 2026-09-14T09:00:00.000Z', source: 'guestflow', actor: null, deviceId: null, at: '2026-09-01T10:00:00.000Z' },
+    ] } },
   ]);
   const controller = controllerWith(client);
   const removed = fakeRes();
@@ -239,7 +244,54 @@ test('delete answers 204; the journal is read in words', async () => {
   assert.deepEqual([removed.statusCode, removed.ended], [204, true]);
   const journal = fakeRes();
   await controller.events(request({ params: { id: STAY_ID } }), journal);
-  assert.deepEqual(journal.body.events, [{ id: 'e1', at: '13/09 à 09:30', text: 'Nouvelle invitation', who: 'adrien@example.com' }]);
+  assert.deepEqual(journal.body.events, [
+    { id: 2, at: '13/09 à 09:30', text: 'Nouvelle invitation', who: 'adrien@example.com' },
+    { id: 1, at: '01/09 à 12:00', text: 'Séjour reçu de guestFlow — du 12/09 à 16:00 au 14/09 à 11:00', who: 'guestFlow' },
+  ]);
+});
+
+test('every journal kind Portier writes reads in French, its reason too', () => {
+  // Kinds and reasons exactly as Portier's journal writes them (its src/, 2026-09-14).
+  const line = (kind, reason = null, source = 'portier', actor = null) => eventView({ id: 1, kind, reason, source, actor, deviceId: null, at: '2026-09-13T07:30:00.000Z' });
+  const owner = { id: 7, email: 'adrien@example.com' };
+  const texts = {
+    created: [line('created', 'Paul (voisin)', 'owner', owner), 'Accès créé — Paul (voisin)'],
+    edited: [line('edited', 'validFrom, validUntil, timeWindows', 'owner', owner), 'Accès modifié — début, fin, plages horaires'],
+    editedStay: [line('edited', 'earlyFrom, extendedUntil', 'owner', owner), 'Accès modifié — ouverture anticipée, prolongation'],
+    suspended: [line('suspended', null, 'owner', owner), 'Accès suspendu'],
+    resumed: [line('resumed', null, 'owner', owner), 'Accès repris'],
+    invited: [line('invited', null, 'owner', owner), 'Nouvelle invitation'],
+    regenerated: [line('regenerated', null, 'owner', owner), 'Accès régénéré'],
+    deleted: [line('deleted', null, 'owner', owner), 'Accès supprimé'],
+    recreated: [line('recreated', null, 'owner', owner), 'Accès recréé'],
+    stayUpdated: [line('stay_updated', '2026-09-22T14:00:00.000Z → 2026-09-26T09:00:00.000Z', 'guestflow'), 'Séjour modifié par guestFlow — du 22/09 à 16:00 au 26/09 à 11:00'],
+    cancelled: [line('stay_cancelled', 'cancelled', 'guestflow'), 'Réservation annulée'],
+    cancelDeleted: [line('stay_cancelled', 'deleted', 'guestflow'), 'Réservation supprimée'],
+    cancelDevis: [line('stay_cancelled', 'devis', 'guestflow'), 'Réservation repassée en devis'],
+    reinstated: [line('stay_reinstated', 'révision 12', 'guestflow'), 'Réservation rétablie — révision 12'],
+    refused: [line('stay_refused', 'window_too_long (réservation 42, révision 9)', 'guestflow'), 'Modification de guestFlow refusée — séjour de plus de 60 jours (réservation 42, révision 9)'],
+    ignored: [line('stay_ignored_deleted', 'révision 13', 'guestflow'), 'Modification de guestFlow ignorée : accès supprimé — révision 13'],
+    enrolled: [line('enrolled', 'nouveau téléphone · iPhone', 'guest'), 'Téléphone installé — nouveau téléphone · iPhone'],
+    opened: [line('open', 'opened', 'guest'), "Demande d'ouverture — portail actionné"],
+    shared: [line('open', 'opened · appui partagé', 'guest'), "Demande d'ouverture — portail actionné · appui partagé"],
+    outside: [line('open', 'outside_hours', 'guest'), "Demande d'ouverture — refusé : hors des plages horaires"],
+    noAnswer: [line('open', 'no_answer · never_sent', 'guest'), "Demande d'ouverture — pas de réponse de la maison · jamais transmis"],
+    busy: [line('open', 'refused · busy', 'guest'), "Demande d'ouverture — refusé par la maison · portail occupé"],
+    late: [line('late_result', 'arrivé après abandon · opened', 'house'), 'Réponse de la maison arrivée trop tard — portail actionné'],
+    overSix: [line('devices_over_six', '7 téléphones'), 'Plus de six téléphones — 7 téléphones'],
+    eventFailed: [line('event_failed', 'devices_over_six non remis à guestFlow : HTTP 500'), 'Alerte non remise à guestFlow — devices_over_six non remis à guestFlow : HTTP 500'],
+    purge: [line('purge', '1 séjours, 0 lignes de journal, 0 commandes'), 'Purge quotidienne — 1 séjours, 0 lignes de journal, 0 commandes'],
+    houseUp: [line('house_connected', 'plugin 1.0.0 · ping 600 s', 'house'), 'Maison connectée — plugin 1.0.0 · ping 600 s'],
+    houseDown: [line('house_disconnected', 'fermeture 1006'), 'Maison déconnectée — fermeture 1006'],
+    houseAuth: [line('house_auth_refused', 'authentification invalide', 'house'), 'Connexion de la maison refusée — authentification invalide'],
+    houseFrame: [line('house_frame_refused', 'trame rejouée', 'house'), 'Message de la maison refusé — trame rejouée'],
+    unknown: [line('something_new', 'x'), 'something_new — x'],
+  };
+  for (const [name, [view, text]] of Object.entries(texts)) assert.equal(view.text, text, name);
+  assert.equal(texts.edited[0].who, 'adrien@example.com', 'the acting user is named');
+  assert.equal(texts.enrolled[0].who, 'client');
+  assert.equal(texts.cancelled[0].who, 'guestFlow');
+  assert.equal(texts.overSix[0].who, 'Portier');
 });
 
 test('the custom logo: required, PNG/SVG/JPEG only, sent as base64 with its type', async () => {

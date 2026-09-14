@@ -222,8 +222,8 @@ Portier, in `server/.env.local` like the other secrets). Without them guestFlow 
 SAS step and the page say Portier is not configured, and the outbox keeps its rows.
 
 Checking an event needs `PORTIER_KEY_GF` only. Portier posts its events to `GUESTFLOW_EVENTS_URL`
-(default `http://127.0.0.1:4000/internal/portier/v1/events`); a guestFlow serving HTTPS on `:4000`
-needs that address in `https://` (§9).
+(default `http://127.0.0.1:4000/internal/portier/v1/events`), which is right in production: guestFlow
+runs with `HTTPS_ENABLED=false` behind Caddy and serves plain HTTP on the loopback (§9).
 
 ### 4.3 What leaves guestFlow from #547
 
@@ -303,11 +303,12 @@ SAS keeps the code and its QR carries it · PR #547 is not merged as it stands; 
   paragraph?
   - A (2026-09-14, Adrien): **wait and retry.** « Oui on attend et on ré-essaye. » (§3.2)
 
-**Open, found during the implementation (for the owner):**
-- Q: guestFlow's README says production serves HTTPS directly on `:4000`, while Portier's default
-  `GUESTFLOW_EVENTS_URL` is `http://127.0.0.1:4000/…`. Either Portier posts to `https://127.0.0.1:4000`
-  (and accepts guestFlow's certificate for that name), or guestFlow gets a plain loopback listener.
-  Hosting decision (homelab); until then `devices_over_six` pushes cannot arrive.
+- Q (found during the implementation): does guestFlow serve HTTPS itself on `:4000`, which would need
+  `GUESTFLOW_EVENTS_URL` in `https://`?
+  - A (2026-09-14, hosting): **no.** In production guestFlow runs with `HTTPS_ENABLED=false` behind
+    Caddy (homelab `vm104-guestflow/ecosystem.config.js`): it serves plain HTTP on `127.0.0.1:4000`, so
+    Portier's default `GUESTFLOW_EVENTS_URL=http://127.0.0.1:4000/internal/portier/v1/events` is the
+    right address. The README's HTTPS-on-`:4000` setup describes the former Raspberry Pi.
 
 ## 10. Implementation notes (2026-09-14)
 
@@ -352,6 +353,16 @@ Where the code differs from — or had to decide beyond — the text above:
   device, whatever their push preferences — reception and the accountant do not administer accesses.
 - **At boot**, one outbox drain runs 20 s after start and the waiting-email timer is re-armed from the
   log; otherwise a timer exists only while something fails or waits.
+- **Checked against the real Portier** (`feature/portier-v1`, local, scratch databases), not only a
+  stand-in: stay pushes (create, date change, cancel → revoked), the SAS QR (byte-identical to a QR of
+  Portier's invitation URL), enrolment counted on the list and the fiche, every owner action and every
+  422 reason of contract §3.2 in French, the logo push and both logo sources, the house line up and
+  down, `devices_over_six` over plain HTTP on the loopback, and a J-7 email that waited while Portier
+  was stopped and left at its next attempt once it was back. Two things only the real Portier showed:
+  its journal kinds and reasons (`stay_created`, `edited`, `stay_cancelled`, `open` with a press
+  outcome…) and its `actor`, which it parses into `{ id, email }` — the journal now reads both in
+  French and names the acting user's email. A received `devices_over_six` is logged with the access id
+  and the number of devices pushed (never the guest's name).
 - **guest-gate-access.md**: the rules whose code and tests left with #547 are declared « Sans test »
   under each rule, with where they went; rules 7-9 (the window) and 23 (the email paragraph) keep their
   tests.

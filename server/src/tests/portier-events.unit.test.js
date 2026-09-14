@@ -18,13 +18,14 @@ const SIG = '6ed21fa0ee69f5fde24a0c59bf1351f8e5a3108457f21aa2f98aed41c4470c78';
 
 function harness({ env = { PORTIER_KEY_GF: K_GF }, nowMs = Number(TS) + 5000 } = {}) {
   const pushes = [];
+  const logs = [];
   const controller = buildController({
     env,
     now: () => new Date(nowMs),
     notifyAdmins: async (payload) => { pushes.push(payload); return { admins: 1, sent: 1 }; },
-    logger: { warn() {} },
+    logger: { warn() {}, log: (line) => logs.push(line) },
   });
-  return { controller, pushes };
+  return { controller, pushes, logs };
 }
 
 // An override set to undefined means « absent » — a default must not put the header back.
@@ -50,7 +51,7 @@ function fakeRes() {
 }
 
 test('signed, from the loopback: 204, and ONE push to the admins with the owner\'s sentence', async () => {
-  const { controller, pushes } = harness();
+  const { controller, pushes, logs } = harness();
   for (const remoteAddress of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {
     const res = fakeRes();
     await controller.receiveEvent(eventRequest({ remoteAddress }), res);
@@ -58,6 +59,8 @@ test('signed, from the loopback: 204, and ONE push to the admins with the owner\
     assert.equal(res.ended, true);
   }
   assert.equal(pushes.length, 3, 'one push per event');
+  assert.equal(logs[0], '[portier] devices_over_six on access 6f1c2a9e-3b7d-4c55-9a10-2e8f4b6d7c01: 7 phones, push sent to 1 device(s) of 1 admin(s)');
+  assert.ok(!logs[0].includes('Camille'), 'the log names the access, never the guest');
   assert.deepEqual(pushes[0], {
     title: 'Accès portail',
     body: "7 téléphones sur l'accès de Camille (Gîte · 202609042)",

@@ -220,34 +220,116 @@ function listView({ accesses, house }, { view, kind, user, nowMs }) {
   };
 }
 
+// The journal kinds Portier writes (Portier `src/`: accesses/model.js, api/guest.js, channel/house.js,
+// events/guestflow.js, purge.js, portier.js). An unknown kind is shown as it comes.
 const EVENT_LABELS = {
+  // the owner, through guestFlow
   created: 'Accès créé',
-  stay_applied: 'Séjour reçu de guestFlow',
-  stay_ignored_deleted: 'Modification ignorée : accès supprimé',
-  cancelled: 'Réservation annulée',
-  reinstated: 'Réservation rétablie',
-  updated: 'Accès modifié',
+  edited: 'Accès modifié',
   suspended: 'Accès suspendu',
   resumed: 'Accès repris',
   invited: 'Nouvelle invitation',
   regenerated: 'Accès régénéré',
   deleted: 'Accès supprimé',
   recreated: 'Accès recréé',
+  // guestFlow's pushes
+  stay_created: 'Séjour reçu de guestFlow',
+  stay_updated: 'Séjour modifié par guestFlow',
+  stay_cancelled: 'Réservation annulée',
+  stay_reinstated: 'Réservation rétablie',
+  stay_refused: 'Modification de guestFlow refusée',
+  stay_ignored_deleted: 'Modification de guestFlow ignorée : accès supprimé',
+  // the phones
   enrolled: 'Téléphone installé',
-  enrol_refused: 'Installation refusée',
   open: "Demande d'ouverture",
-  opened: 'Portail actionné',
-  refused: 'Ouverture refusée',
+  late_result: 'Réponse de la maison arrivée trop tard',
+  devices_over_six: 'Plus de six téléphones',
+  // Portier itself and the house channel
+  event_failed: 'Alerte non remise à guestFlow',
+  purge: 'Purge quotidienne',
+  house_connected: 'Maison connectée',
+  house_disconnected: 'Maison déconnectée',
+  house_auth_refused: 'Connexion de la maison refusée',
+  house_frame_refused: 'Message de la maison refusé',
+};
+
+// `stay_cancelled` carries the cancel body's reason (contract §3.1); it names the line on its own.
+const CANCEL_LABELS = {
+  cancelled: 'Réservation annulée',
+  deleted: 'Réservation supprimée',
+  devis: 'Réservation repassée en devis',
+};
+
+// `edited` lists the fields the owner changed, as Portier names them.
+const FIELD_LABELS = {
+  label: 'nom',
+  validFrom: 'début',
+  validUntil: 'fin',
+  earlyFrom: 'ouverture anticipée',
+  extendedUntil: 'prolongation',
+  timeWindows: 'plages horaires',
+};
+
+// `open` and `late_result` carry a press outcome (contract §5), sometimes followed by the house's detail.
+const OUTCOME_LABELS = {
+  opened: 'portail actionné',
+  refused: 'refusé par la maison',
+  error: 'erreur de la maison',
+  unreachable: 'maison injoignable',
+  no_answer: 'pas de réponse de la maison',
+  revoked: 'refusé : accès révoqué',
+  suspended: 'refusé : accès suspendu',
+  before: 'refusé : pas encore actif',
+  after: 'refusé : accès terminé',
+  outside_hours: 'refusé : hors des plages horaires',
+  too_many: 'refusé : trop de demandes',
+  never_sent: 'jamais transmis',
+  expired: 'délai dépassé',
+  busy: 'portail occupé',
+  ceiling: 'plafond atteint',
+};
+
+// `stay_refused` carries the 422 reason of a stay push, then « (réservation N, révision M) ».
+const STAY_REFUSAL_LABELS = {
+  range_end_not_after_start: 'fin avant le début',
+  window_too_long: 'séjour de plus de 60 jours',
+  starts_too_far: 'séjour à plus de 18 mois',
 };
 
 const SOURCE_LABELS = { guest: 'client', owner: 'administrateur', guestflow: 'guestFlow', house: 'maison', portier: 'Portier' };
 
+function stayRange(reason) {
+  const [from, until] = String(reason).split(' → ');
+  if (!until || !parisParts(from) || !parisParts(until)) return reason;
+  return windowSentence({ from, until });
+}
+
+function outcomes(reason) {
+  return String(reason).split(' · ')
+    .filter((part) => part !== 'arrivé après abandon')
+    .map((part) => OUTCOME_LABELS[part] || part)
+    .join(' · ');
+}
+
+/** The journal line in words: what happened, the detail Portier gave, and who acted. */
+function eventText(event) {
+  const reason = event.reason == null ? '' : String(event.reason);
+  if (event.kind === 'stay_cancelled' && CANCEL_LABELS[reason]) return CANCEL_LABELS[reason];
+  let detail = reason;
+  if (event.kind === 'edited') detail = reason.split(', ').map((field) => FIELD_LABELS[field] || field).join(', ');
+  else if (event.kind === 'stay_created' || event.kind === 'stay_updated') detail = stayRange(reason);
+  else if (event.kind === 'open' || event.kind === 'late_result') detail = outcomes(reason);
+  else if (event.kind === 'stay_refused') detail = reason.replace(/^[a-z_]+/, (code) => STAY_REFUSAL_LABELS[code] || code);
+  return `${EVENT_LABELS[event.kind] || event.kind}${detail ? ` — ${detail}` : ''}`;
+}
+
 function eventView(event) {
-  const actor = String(event.actor || '').split('|')[1] || '';
+  // Portier parses the actor it journalled into `{ id, email }` (contract §3.3), or null.
+  const actor = event.actor && typeof event.actor === 'object' ? String(event.actor.email || '') : '';
   return {
     id: event.id,
     at: dayTime(event.at),
-    text: `${EVENT_LABELS[event.kind] || event.kind}${event.reason ? ` — ${event.reason}` : ''}`,
+    text: eventText(event),
     who: actor || SOURCE_LABELS[event.source] || '',
   };
 }

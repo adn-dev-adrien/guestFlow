@@ -436,8 +436,10 @@ What the first deploy of this version does:
 - **`email_log` is rebuilt once** to accept `waiting_portier` and `skipped`; every row keeps its id.
 - **Portier's events** arrive on `POST /internal/portier/v1/events`, accepted from the loopback
   socket only and with a valid signature. **Never forward `/internal/` on a reverse proxy.** Portier's
-  `GUESTFLOW_EVENTS_URL` defaults to `http://127.0.0.1:4000/internal/portier/v1/events`; when
-  guestFlow itself serves HTTPS on `:4000` (below), point it at the `https://` address.
+  default `GUESTFLOW_EVENTS_URL` (`http://127.0.0.1:4000/internal/portier/v1/events`) is right for the
+  production host (VM 104), where guestFlow runs with `HTTPS_ENABLED=false` behind Caddy and serves
+  plain HTTP on the loopback. Only a guestFlow serving HTTPS itself on `:4000` — the former Raspberry Pi
+  setup below — would need that address in `https://`.
 - Nothing polls: pushes and emails are retried only while they fail.
 
 ⚠️ **The admin session cookie changes name** when `HTTPS_ENABLED=true`: it becomes

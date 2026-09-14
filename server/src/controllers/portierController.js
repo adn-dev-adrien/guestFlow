@@ -230,12 +230,16 @@ function buildController({
     if (!verdict.ok) return res.status(401).json({ error: verdict.error });
     const event = req.body || {};
     if (event.type === 'devices_over_six') {
-      await notifyAdmins({
+      const pushed = await notifyAdmins({
         title: 'Accès portail',
         body: `${Number(event.count)} téléphones sur l'accès de ${String(event.label || '')}`,
         url: '/portail',
         tag: `guestflow-portier-devices-${String(event.accessId || '')}`,
       });
+      // No guest name in the log: the access id is enough to find the line in the list.
+      logger.log(`[portier] devices_over_six on access ${String(event.accessId || '?').slice(0, 36)}: `
+        + `${Number(event.count)} phones, push sent to ${Number((pushed && pushed.sent) || 0)} device(s) `
+        + `of ${Number((pushed && pushed.admins) || 0)} admin(s)`);
     } else {
       logger.warn(`[portier] event of unknown type ignored: ${String(event.type).slice(0, 40)}`);
     }
