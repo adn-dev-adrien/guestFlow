@@ -14,7 +14,17 @@
 
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
-const { buildGateAccessCard } = require('../utils/gateAccessCard');
+const { gateAccessForEmail } = require('../utils/portierInvitation');
+const portierEmailRetry = require('../utils/portierEmailRetry');
+const { clock } = require('../utils/portierAccessView');
+
+// What the history says next to a waiting or dropped email (specs/gate-access-portier.md §3.2, §6).
+const SKIP_REASONS = { RESERVATION_CANCELLED: 'réservation annulée', TEMPLATE_DISABLED: 'modèle désactivé' };
+function statusDetailOf(row) {
+  if (row.status === 'waiting_portier' && row.nextAttemptAt) return `prochain essai à ${clock(row.nextAttemptAt)}`;
+  if (row.status === 'skipped') return SKIP_REASONS[row.errorMessage] || '';
+  return '';
+}
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { autoSendAllowed } = require('../utils/autoSendPolicy');
@@ -87,7 +97,10 @@ function loadReservationGraph(database, reservationId) {
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
 
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel }) {
+function buildController({
+  database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel,
+  resolveGateAccess = gateAccessForEmail, emailRetry = portierEmailRetry,
+}) {
   function readSettings() {
     return settingsModel.read();
   }
@@ -105,7 +118,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return emailServiceFactory(smtp);
   }
 
-  function buildPreview(reservationId, templateId, overrides = {}, lang) {
+  // `gateAccess` is what Portier gave for this stay (null without one) — see `composeForSend`.
+  function buildPreview(reservationId, templateId, overrides = {}, lang, { gateAccess = null } = {}) {
     const template = templatesModel.findById(templateId);
     if (!template) return { error: 'TEMPLATE_NOT_FOUND', status: 404 };
     const graph = loadReservationGraph(database, reservationId);
@@ -123,7 +137,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
-      gateAccess:  buildGateAccessCard(graph.reservation.id),
+      gateAccess,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        useLang,
@@ -160,6 +174,21 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     };
   }
 
+  // specs/gate-access-portier.md §3.2 — the gate paragraph is read from Portier when the email is
+  // composed, never stored. `wait: true` when the template carries the paragraph and Portier cannot
+  // give it: the caller then sends nothing (the send waits, the preview simply shows no paragraph).
+  async function composeForSend(reservationId, templateId, overrides = {}, lang) {
+    const template = templatesModel.findById(templateId);
+    const reservation = template
+      ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId))
+      : null;
+    const gate = template && reservation
+      ? await resolveGateAccess({ reservation, texts: [template.subject, template.body, template.subjectEn, template.bodyEn] })
+      : { gateAccess: null, wait: false };
+    const result = buildPreview(reservationId, templateId, overrides, lang, { gateAccess: gate.gateAccess });
+    return gate.wait && !result.error ? { ...result, wait: true } : result;
+  }
+
   // Basic shape check — the authoritative guard before we store an operator-typed address
   // on the client record / hand it to the SMTP transport.
   function isValidEmail(value) {
@@ -177,12 +206,12 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
   // ---------- HTTP handlers ----------
 
-  function preview(req, res) {
+  async function preview(req, res) {
     const { reservationId, templateId, lang } = req.query || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
-    const result = buildPreview(Number(reservationId), Number(templateId), {}, lang);
+    const result = await composeForSend(Number(reservationId), Number(templateId), {}, lang);
     if (result.error) return res.status(result.status).json({ error: result.error });
     return res.json({
       to: result.to,
@@ -198,7 +227,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
-    const result = buildPreview(Number(reservationId), Number(templateId), overrides || {}, lang);
+    const result = await composeForSend(Number(reservationId), Number(templateId), overrides || {}, lang);
     if (result.error) return res.status(result.status).json({ error: result.error });
 
     // Resolve the recipient: the client's email on file wins; otherwise the operator may
@@ -222,6 +251,16 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         recipientEmail:  recipient,
       });
       return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', emailLogId: failed.id });
+    }
+
+    // specs/gate-access-portier.md §3.2 — Portier does not answer: the email is queued, not sent, and
+    // the operator is told. It leaves the « à envoyer » queue: it will go on its own.
+    if (result.wait) {
+      const waiting = emailRetry.queue({
+        templateId: Number(templateId), reservationId: Number(reservationId), subject: result.subject, recipientEmail: recipient,
+      });
+      if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+      return res.json({ ok: true, waitingPortier: true, emailLogId: waiting.id, message: portierEmailRetry.WAITING_MESSAGE });
     }
 
     try {
@@ -311,7 +350,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
-      gateAccess:  buildGateAccessCard(graph.reservation.id),
+      // A skipped email is only logged: it needs no gate paragraph, and never waits for Portier.
+      gateAccess:  null,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
@@ -337,7 +377,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   // Mark a pending email as sent OUTSIDE GuestFlow (e.g. via the platform's messaging)
   // — specs/mark-email-sent-manually.md. Logs status='sent', channel='manual'; no SMTP, no
   // recipient required. Mirrors acknowledge's idempotency + queue-dequeue.
-  function markSent(req, res) {
+  async function markSent(req, res) {
     const { templateId, reservationId } = req.params || {};
     if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
 
@@ -353,6 +393,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       return res.json({ ok: true, alreadyHandled: true });
     }
 
+    // The email left through the platform's messaging: the log records it with the paragraph Portier
+    // gives now, if it gives one — nothing here can wait.
+    const gate = await resolveGateAccess({ reservation: graph.reservation, texts: [template.subject, template.body] });
     const context = buildContext({
       reservation: graph.reservation,
       client:      graph.client,
@@ -361,7 +404,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
-      gateAccess:  buildGateAccessCard(graph.reservation.id),
+      gateAccess:  gate.gateAccess,
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(
@@ -391,7 +434,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       templateId:    templateId    != null ? Number(templateId)    : undefined,
       status,
     });
-    return res.json(result);
+    return res.json({ ...result, rows: result.rows.map((row) => ({ ...row, statusDetail: statusDetailOf(row) })) });
   }
 
   // Compact reservation list for the "Créer un email" picker
@@ -454,6 +497,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     preview, send, pending, acknowledge, markSent, history, queue, eligibleReservations,
     // Exposed for the scheduled task: it reuses the same render → send → log pipeline.
     buildPreview,
+    // …and for the retry of emails waiting for Portier (utils/portierEmailRetry.js).
+    composeForSend,
     smtpConfigured,
     buildEmailService,
   };

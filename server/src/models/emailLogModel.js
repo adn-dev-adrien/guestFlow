@@ -78,6 +78,65 @@ function buildModel(database) {
     return database.prepare(`SELECT ${SELECT_COLS} FROM email_log WHERE id = ?`).get(info.lastInsertRowid);
   }
 
+  // ── Waiting for Portier (specs/gate-access-portier.md §3.2) ─────────────────────────────────────
+  // Minimal test schemas predate the three columns; production gains them at boot
+  // (utils/emailLogPortierMigration.js).
+  let waitingColumns = null;
+  function hasWaitingColumns() {
+    if (waitingColumns === null) {
+      waitingColumns = database.prepare('PRAGMA table_info(email_log)').all().some((c) => c.name === 'nextAttemptAt');
+    }
+    return waitingColumns;
+  }
+
+  // The body is composed only once Portier answers, so a waiting row carries none yet.
+  function insertWaitingPortier({ templateId, reservationId, renderedSubject = '', recipientEmail = '', waitingSince, nextAttemptAt }) {
+    const info = database.prepare(`
+      INSERT INTO email_log
+        (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, waitingSince, nextAttemptAt)
+      VALUES (?, ?, datetime('now'), 'waiting_portier', 'smtp', '', ?, '', ?, ?, ?)
+    `).run(Number(templateId), Number(reservationId), String(renderedSubject), String(recipientEmail), String(waitingSince), String(nextAttemptAt));
+    return database.prepare(`SELECT ${SELECT_COLS}, nextAttemptAt, waitingSince FROM email_log WHERE id = ?`).get(info.lastInsertRowid);
+  }
+
+  // Oldest wait first: once Portier answers, the emails leave in the order they started waiting.
+  function listWaitingPortier() {
+    return database.prepare(`
+      SELECT l.id, l.templateId, l.reservationId, l.recipientEmail, l.renderedSubject,
+             l.waitingSince, l.nextAttemptAt, l.adminNotifiedAt,
+             t.name AS templateName, t.dayOffset AS templateDayOffset, t.enabled AS templateEnabled,
+             r.kind AS reservationKind, c.firstName AS clientFirstName
+        FROM email_log l
+        LEFT JOIN email_templates t ON t.id = l.templateId
+        LEFT JOIN reservations    r ON r.id = l.reservationId
+        LEFT JOIN clients         c ON c.id = r.clientId
+       WHERE l.status = 'waiting_portier'
+       ORDER BY l.waitingSince, l.id
+    `).all();
+  }
+
+  function rescheduleWaitingPortier(id, nextAttemptAt) {
+    database.prepare("UPDATE email_log SET nextAttemptAt = ? WHERE id = ? AND status = 'waiting_portier'")
+      .run(String(nextAttemptAt), Number(id));
+  }
+
+  function markWaitingPortierNotified(id, at) {
+    database.prepare('UPDATE email_log SET adminNotifiedAt = ? WHERE id = ?').run(String(at), Number(id));
+  }
+
+  // The wait ends: `sent`, `failed` or `skipped`. `sentAt` becomes the moment it ended.
+  function resolveWaitingPortier(id, { status, errorMessage = '', renderedSubject = null, renderedBody = null, recipientEmail = null }) {
+    database.prepare(`
+      UPDATE email_log
+         SET status = ?, errorMessage = ?,
+             renderedSubject = COALESCE(?, renderedSubject),
+             renderedBody = COALESCE(?, renderedBody),
+             recipientEmail = COALESCE(?, recipientEmail),
+             sentAt = datetime('now'), nextAttemptAt = NULL
+       WHERE id = ? AND status = 'waiting_portier'
+    `).run(String(status), String(errorMessage || ''), renderedSubject, renderedBody, recipientEmail, Number(id));
+  }
+
   // Pending manual emails — used by the dashboard widget AND the EmailPendingDialog
   // (§3 rule 8). Joins email_templates × reservations × clients × properties; filters
   // out devis, expired stays > 7 days in the past, already-sent and already-acknowledged
@@ -134,7 +193,7 @@ function buildModel(database) {
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id AND l.reservationId = r.id
-            AND l.status IN ('sent', 'acknowledged-skip')
+            AND l.status IN ('sent', 'acknowledged-skip', 'waiting_portier')
         )`;
 
   function listPending({ today, lookbackDays = 7, includeAutoTemplates = false }) {
@@ -180,7 +239,7 @@ function buildModel(database) {
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id AND l.reservationId = r.id
-            AND l.status IN ('sent', 'acknowledged-skip')
+            AND l.status IN ('sent', 'acknowledged-skip', 'waiting_portier')
         )
 
       UNION ALL
@@ -213,7 +272,7 @@ function buildModel(database) {
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id AND l.reservationId = r.id
-            AND l.status IN ('sent', 'acknowledged-skip')
+            AND l.status IN ('sent', 'acknowledged-skip', 'waiting_portier')
         )
 
       UNION ALL
@@ -261,6 +320,7 @@ function buildModel(database) {
       SELECT
         l.id, l.templateId, l.reservationId, l.sentAt, l.status, l.channel, l.errorMessage,
         l.renderedSubject, l.renderedBody, l.recipientEmail,
+        ${hasWaitingColumns() ? 'l.nextAttemptAt, l.waitingSince,' : ''}
         COALESCE(t.name, '') AS templateName,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(p.name, '') AS propertyName,
@@ -317,6 +377,11 @@ function buildModel(database) {
     purgeRealizedStays,
     findById,
     lastSentAt,
+    insertWaitingPortier,
+    listWaitingPortier,
+    rescheduleWaitingPortier,
+    markWaitingPortierNotified,
+    resolveWaitingPortier,
   };
 }
 

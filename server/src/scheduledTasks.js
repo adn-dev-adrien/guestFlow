@@ -289,30 +289,6 @@ function runTariffRecipeHorizonPass(reason = 'cron', deps = {}) {
   }
 }
 
-/**
- * Guest gate access housekeeping (specs/guest-gate-access.md §3.7 rule 24).
- *
- * Two jobs of very different urgency in one pass:
- *   - stale requests: a press nobody answered must read « timeout » on the guest's phone, not spin
- *     forever. The guest page also expires them on every status read, so this tick is the safety
- *     net for a request whose page was closed;
- *   - the purge: the clear code is nulled a week after the stay, requests go after a month, and the
- *     journal is kept a year — it is the only thing that answers "who came in that night".
- */
-function runGateHousekeepingPass(reason = 'cron') {
-  try {
-    const gateAccessModel = require('./models/gateAccessModel');
-    const expired = gateAccessModel.expireStaleRequests();
-    const purged = gateAccessModel.purge();
-    if (expired || purged.codes || purged.requests || purged.events) {
-      console.log(`[portail] housekeeping (${reason}): ${expired} request(s) timed out, `
-        + `${purged.codes} code(s) cleared, ${purged.requests} request(s) and ${purged.events} event(s) dropped`);
-    }
-  } catch (err) {
-    console.error('[portail] housekeeping failed:', err.message);
-  }
-}
-
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -354,11 +330,12 @@ function startScheduledTasks() {
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
 
-  // Guest gate access: a per-minute tick for the timeouts (a press left hanging must resolve on the
-  // guest's phone), and the purge rides along — it is guarded by dates, so running it often is free.
-  const GATE_HOUSEKEEPING_TICK = 60 * 1000;
-  setInterval(() => runGateHousekeepingPass('tick'), GATE_HOUSEKEEPING_TICK);
-  setTimeout(() => runGateHousekeepingPass('boot'), 115 * 1000);
+  // Gate access (specs/gate-access-portier.md §3.1-§3.2). Nothing polls Portier: ONE drain of the outbox
+  // at boot (the deployment backfill, anything written while the server was down), and the retry timer
+  // of emails waiting for Portier re-armed from the log. Each keeps a timer only while something fails
+  // or waits.
+  setTimeout(() => require('./utils/portierSync').drain(), 20 * 1000);
+  require('./utils/portierEmailRetry').arm();
 
   // Online-payment polling: every 15 min (cheap; the manual "poll now" button covers on-demand checks).
   const PAYMENT_POLL_TICK = 15 * 60 * 1000;
@@ -393,7 +370,6 @@ function startScheduledTasks() {
 }
 
 module.exports = {
-  runGateHousekeepingPass,
   startScheduledTasks,
   performAutoSync,
   performSchoolHolidaysSync,

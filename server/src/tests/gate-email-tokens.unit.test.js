@@ -13,10 +13,12 @@ const {
 // specs/guest-gate-access.md §3.6 rule 23 — the J-7 and J-2 passes are what put the code in the
 // guest's hands. These pin the three tokens and, above all, that a stay WITHOUT an access renders
 // no orphan paragraph: the emails go out for devis and cancellations too.
+// The paragraph is unchanged by specs/gate-access-portier.md §3.2; only its source moved: the
+// invitation Portier returns (the code in the link's fragment), read when the email is composed.
 
 const CARD = {
   code: '4K7M-9QT2',
-  url: 'https://guest.domainesolio.com/?c=4K7M9QT2',
+  url: 'https://guest.domainesolio.com/#i=4K7M9QT2',
   permanentUrl: 'https://guest.domainesolio.com',
 };
 
@@ -37,7 +39,7 @@ test('the three tokens carry the code, the personal link and the permanent addre
   const { vars, flags } = context(CARD);
   assert.equal(flags.hasGateAccess, true);
   assert.equal(vars.gateAccessCode, '4K7M-9QT2');
-  assert.equal(vars.gateAccessUrl, 'https://guest.domainesolio.com/?c=4K7M9QT2');
+  assert.equal(vars.gateAccessUrl, 'https://guest.domainesolio.com/#i=4K7M9QT2');
   assert.equal(vars.gateAccessBaseUrl, 'https://guest.domainesolio.com');
 });
 
@@ -59,7 +61,7 @@ test('both arrival reminders render the paragraph, in both languages', () => {
     ['J-2 EN', ARRIVAL_REMINDER_1D_BODY_EN],
   ]) {
     const rendered = renderTemplate({ subject: 'Votre séjour', body }, built).body;
-    assert.match(rendered, /guest\.domainesolio\.com\/\?c=4K7M9QT2/, `${name}: the link`);
+    assert.match(rendered, /guest\.domainesolio\.com\/#i=4K7M9QT2/, `${name}: the link`);
     assert.match(rendered, /4K7M-9QT2/, `${name}: the code`);
     assert.doesNotMatch(rendered, /\{\{/, `${name}: no token left unrendered`);
   }

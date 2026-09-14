@@ -53,6 +53,9 @@ const RECEPTION_MATCHERS = [
   { method: 'GET', re: /^\/reservations$/ },
   { method: 'GET', re: /^\/reservations\/\d+$/ },
   { method: 'GET', re: /^\/reservations\/\d+\/sas$/ },
+  // specs/gate-access-portier.md §3.3 — the SAS step « Accès portail »: the code and its QR, read from
+  // Portier. The owner's list (`/api/portier/*`) stays admin-only through the default deny below.
+  { method: 'GET', re: /^\/reservations\/\d+\/sas\/gate-access$/ },
   { method: 'GET', re: /^\/reservations\/\d+\/weather-alerts$/ },
   // SAS commits (caution + complement to collect at the door). Reachable, but the controller
   // additionally refuses a commit on an ALREADY-COMMITTED SAS for a reception-only requester

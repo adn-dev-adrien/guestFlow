@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { computeWindow, windowState, __test } = require('../utils/gateWindow');
+const { computeWindow, __test } = require('../utils/gateWindow');
 const { wallClockToDate } = __test;
 
 // specs/guest-gate-access.md §3.2 rules 7-9. Every assertion below is written in UTC instants on
@@ -97,54 +97,8 @@ test('midnight is a valid wall clock, and it is the right day', () => {
   assert.equal(at.toISOString(), '2026-06-30T22:00:00.000Z');
 });
 
-// --- the state the page renders ---
-test('windowState: before / active / after around the two ends', () => {
-  const reservation = stay();
-  const at = (iso) => windowState(reservation, { now: new Date(iso) });
-
-  assert.equal(at('2026-09-12T13:59:59.000Z'), 'before');
-  assert.equal(at('2026-09-12T14:00:00.000Z'), 'active', 'the first instant is inside');
-  assert.equal(at('2026-09-13T08:00:00.000Z'), 'active');
-  assert.equal(at('2026-09-14T09:00:00.000Z'), 'active', 'the last instant is still inside');
-  assert.equal(at('2026-09-14T09:00:01.000Z'), 'after');
-});
-
-test('windowState: no usable dates reads unknown — the caller must treat it as closed', () => {
-  assert.equal(windowState(null), 'unknown');
-  assert.equal(windowState(stay({ endDate: '' })), 'unknown');
-  assert.equal(windowState(stay(), { now: new Date('nope') }), 'unknown');
-});
-
-// --- the operator's early opening ---
-test('earlyOpenedAt opens the access before the check-in hour', () => {
-  const reservation = stay();
-  const earlyOpenedAt = '2026-09-12T11:00:00.000Z'; // 13:00 Paris, three hours early
-
-  assert.equal(windowState(reservation, { now: new Date('2026-09-12T12:00:00.000Z') }), 'before');
-  assert.equal(
-    windowState(reservation, { now: new Date('2026-09-12T12:00:00.000Z'), earlyOpenedAt }),
-    'active',
-  );
-
-  const { start, scheduledStart } = computeWindow(reservation, { earlyOpenedAt });
-  assert.equal(start.toISOString(), earlyOpenedAt);
-  assert.equal(scheduledStart.toISOString(), '2026-09-12T14:00:00.000Z', 'the contract hour is kept');
-});
-
-test('earlyOpenedAt can only ever move the start earlier — never extend the stay', () => {
-  const reservation = stay();
-  const late = '2026-09-13T08:00:00.000Z'; // a stamp inside the stay
-  const { start } = computeWindow(reservation, { earlyOpenedAt: late });
-  assert.equal(start.toISOString(), '2026-09-12T14:00:00.000Z', 'the check-in hour still wins');
-
-  const after = windowState(reservation, {
-    now: new Date('2026-09-14T10:00:00.000Z'),
-    earlyOpenedAt: '2026-09-14T09:59:00.000Z',
-  });
-  assert.equal(after, 'after', 'a stamp cannot resurrect an expired access');
-});
-
-test('a garbage earlyOpenedAt is ignored, not fatal', () => {
-  const { start } = computeWindow(stay(), { earlyOpenedAt: 'whenever' });
-  assert.equal(start.toISOString(), '2026-09-12T14:00:00.000Z');
+test('no usable dates yields no window — nothing is pushed for it', () => {
+  assert.equal(computeWindow(null), null);
+  assert.equal(computeWindow(stay({ endDate: '' })), null);
+  assert.equal(computeWindow(stay({ startDate: '12/09/2026' })), null);
 });

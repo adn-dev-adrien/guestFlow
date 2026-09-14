@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const controller = require('../controllers/reservationsController');
 const sasController = require('../controllers/sasController');
-const gateAccessController = require('../controllers/gateAccessController');
+const portierController = require('../controllers/portierController');
 const weatherController = require('../controllers/weatherController');
 const refundsController = require('../controllers/refundsController');
 const cancellationController = require('../controllers/reservationCancellationController');
@@ -15,15 +15,13 @@ router.get('/search', controller.search);
 router.get('/occupied-dates/:propertyId', controller.occupiedDates);
 router.get('/:id', controller.getById);
 router.get('/:id/history', controller.getHistory);
-// Guest gate access (specs/guest-gate-access.md §3.6). Admin-side: the card on the fiche, and the
-// two destructive buttons. The guest surface lives on another hostname entirely.
-router.get('/:id/gate-access', gateAccessController.getCard);
-router.post('/:id/gate-access/regenerate', gateAccessController.regenerate);
-router.post('/:id/gate-access/revoke', gateAccessController.revoke);
-router.post('/:id/gate-access/early-open', gateAccessController.earlyOpen);
+// Gate access (specs/gate-access-portier.md §3.2): the fiche's compact card, read from Portier.
+// Admin-only; every action on the access itself goes through the list (`/api/portier/*`).
+router.get('/:id/gate-access', portierController.reservationCard);
 
 // Arrival / departure SAS (specs/arrival-departure-sas.md)
 router.get('/:id/sas', sasController.getSas);
+router.get('/:id/sas/gate-access', sasController.getGateAccessStep);
 router.post('/:id/sas/arrival', sasController.commitArrival);
 router.post('/:id/sas/departure', sasController.commitDeparture);
 // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the background
