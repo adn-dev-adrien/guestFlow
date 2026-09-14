@@ -66,6 +66,8 @@ can cut it at any time, and never has to change a printed code again.
 1. **One access per reservation**, created lazily the first time it is needed
    (email rendering, SAS, or fiche display) and stored in `gate_accesses`
    (§5). A cancelled reservation (`cancelledAt` set) never gets one.
+
+   > **Sans test** — superseded on 2026-09-14 by gate-access-portier.md §3.1: the access is created in Portier by the stay push the moment the reservation exists, never lazily (tested there, `portier-outbox-hooks.unit.test.js`). No guestFlow code implements this rule any more.
 2. **The code is the only secret.** 8 characters drawn from Crockford base32
    minus the ambiguous ones (`ABCDEFGHJKMNPQRSTVWXYZ0123456789` — no I, L, O,
    U), displayed grouped as `4K7M-9QT2`, compared case-insensitively with the
@@ -75,6 +77,8 @@ can cut it at any time, and never has to change a printed code again.
    the code alone identifies the stay — there is no property picker on the
    unlock screen (§3.8). Minting draws again on collision with any non-expired,
    non-revoked access.
+
+   > **Sans test** — moved to Portier (Portier `specs/contract.md` §2): the code is derived there from the access key; guestFlow stores none and only shows what Portier returns.
 3. **Verification goes through a salted hash** (SHA-256 of the normalized code,
    per-row salt) — a submitted code is never compared to a stored clear value.
    The clear code is nevertheless kept alongside it in `gate_accesses.code`
@@ -82,17 +86,25 @@ can cut it at any time, and never has to change a printed code again.
    the operator has to be able to re-read it to dictate it over the phone, which
    a pure hash forbids. This is a deliberate trade — the value is a door code
    for a stay in progress, not a user credential, and it dies with the stay.
+
+   > **Sans test** — moved to Portier (gate-access-portier.md §1: « it stores no gate key, no code and no device »). No code is verified or kept in guestFlow any more.
 4. **The reservation number is never a secret.** It is sequential and printed on
    quotes, invoices and emails. It is displayed *next to* the code as a landmark
    (« séjour n° 2026-0142 ») and never accepted in its place.
+
+   > **Sans test** — moved to Portier: enrolment accepts the invitation code only (Portier `specs/contract.md` §5). guestFlow accepts no code at all.
 5. **Regenerating** the code (fiche or SAS) mints a new one, revokes every
    registered device (§3.4) and invalidates every link already sent.
+
+   > **Sans test** — superseded by gate-access-portier.md §3.4: two actions of the list, « Nouvelle invitation » and « Régénérer l'accès », carried out by Portier (the page's confirmations are tested in `GateAccessPage.list.test.jsx`).
 6. **Revoking** sets `revokedAt`; the access answers as if it never existed.
 6.bis **A code belongs to one reservation and dies with it.** A returning guest
    gets a brand-new code on their new booking — codes are never carried over,
    reused, or re-derived from the client, and the previous one stays dead
    whatever happens to the new one. The access row is keyed on `reservationId`,
    which makes this structural rather than a rule someone has to remember.
+
+   > **Sans test** — superseded by gate-access-portier.md §3.1 and §3.4: a cancellation pushes a cancel and Portier revokes; deletion is an action of the list, kept by Portier.
 
 ### 3.2 The validity window
 
@@ -129,17 +141,25 @@ can cut it at any time, and never has to change a printed code again.
       → the code form. The QR **never changes and carries no secret**: it is
       printed once (welcome book, plate at the gate, magnet) and never
       reprinted.
+
+    > **Sans test** — moved to Portier: the invitation link carries the code in its fragment (`/#i=<code>`, Portier `specs/contract.md` §3.1) and the guest app is Portier's. guestFlow serves no guest page any more.
 11. **A wrong code answers `401`** — deliberately, not `403` and not a `200`
     carrying an error. That is the status the CrowdSec scenario
     `http-generic-401-bf` counts on the edge proxy (same arrangement that
     protects the solio-map console). Changing it would silently disarm the ban.
+
+    > **Sans test** — moved to Portier: a wrong code answers `401 bad_code` on Portier's enrolment (Portier `specs/contract.md` §5).
 12. **Throttling**: 5 code attempts per 10 min per IP; a given code locks itself
     for 1 h after 10 failures across all IPs; 12 successful opens per hour per
     access. Every limit answers a uniform envelope that never says whether the
     code exists.
+
+    > **Sans test** — moved to Portier with its throttles (Portier `specs/contract.md` §5); guestFlow's gate limiters were removed.
 13. **The session is a signed httpOnly cookie** (`gate_sid`, `SameSite=Lax`,
     `Secure`), bound to the access, expiring at the end of the window. Losing it
     (private window, new phone) costs one code entry.
+
+    > **Sans test** — moved to Portier: no guest session exists in guestFlow; the phone holds its access key (Portier `specs/contract.md` §5).
 
 ### 3.4 Sharing with the family
 
@@ -147,12 +167,18 @@ can cut it at any time, and never has to change a printed code again.
     « Partager l'accès » button using the Web Share API, which shares the
     `?c=…` link through the guest's own apps (WhatsApp, SMS, AirDrop). Where the
     API is missing, it falls back to copy-to-clipboard.
+
+    > **Sans test** — moved to Portier's guest app (Portier `specs/portier.md` §3.4).
 15. **No hard device cap.** A cap would lock a legitimate brother-in-law out at
     23 h. Instead every device is registered in `gate_devices` (first seen, last
     seen, IP, user agent) and **beyond 6 devices the owner gets a push
     notification** (specs/pwa-push-notifications.md) — information, not a block.
+
+    > **Sans test** — superseded by gate-access-portier.md §3.6: Portier counts the devices and sends `devices_over_six`; guestFlow turns it into the push (tested there, `portier-events.unit.test.js`).
 16. Every attempt — successful or not — is journalled in `gate_events` with its
     reason, and rendered on the reservation fiche.
+
+    > **Sans test** — moved to Portier's journal, shown in the list (gate-access-portier.md §3.4).
 
 ### 3.5 Opening the gate
 
@@ -183,6 +209,8 @@ can cut it at any time, and never has to change a printed code again.
     - The refresh loop holds its redraw while a thumb is on the knob.
       Re-rendering under a drag cancels it silently, which reads as a gate that
       ignores you.
+
+    > **Sans test** — moved to Portier: the command and the slide belong to Portier's guest app (Portier `specs/portier.md` §3.4).
 18. The Sowel poller (§4.3) takes the request, and reports back `opened`,
     `refused` (the recipe is disarmed) or `error`.
     **The page shows almost nothing of this** (decision 2026-09-10, Adrien): no
@@ -198,6 +226,8 @@ can cut it at any time, and never has to change a printed code again.
     guest is already driving in. **A failure note replaces the previous one**
     rather than stacking: three refusals in a row must not build a wall of
     identical warnings under the slider.
+
+    > **Sans test** — moved to Portier: the house holds its channel to Portier; guestFlow no longer serves a poller (Portier `specs/portier.md` §3.5).
 19. **Availability is shown before the guest presses.** If no poller has been
     seen for more than 60 s, the button is disabled and the page says the
     service is unreachable and gives the phone number, instead of failing
@@ -220,6 +250,8 @@ can cut it at any time, and never has to change a printed code again.
     host, behind a session (`utils/gateAccessCard.js`). What the guest is handed
     is availability alone: whether a command would reach the house at all.
 
+    > **Sans test** — moved to Portier with the house channel and the gate contact (Portier `specs/portier.md` §3.5); guestFlow only shows the house line Portier returns (gate-access-portier.md §3.4).
+
 ### 3.6 Operator surfaces
 
 20. **Arrival SAS**: the « Code portail » step (specs/arrival-departure-sas.md
@@ -236,9 +268,13 @@ can cut it at any time, and never has to change a printed code again.
     automatic passes do.
     The global `portalCode` setting stays in place, unused by this flow, until
     the physical fallback is retired.
+
+    > **Sans test** — superseded by gate-access-portier.md §3.3: the SAS keeps the code, adds a QR of the invitation's address and activates nothing (tested there, `portier-sas-step.unit.test.js`, `SasGateAccessStep.test.jsx`).
 21. **Reservation fiche**: a « Accès portail » card — code, window, device
     count, last use, the full event journal, and two actions: *Régénérer* and
     *Révoquer*.
+
+    > **Sans test** — superseded by gate-access-portier.md §3.2: a compact card read from Portier, the actions living in the list (tested there, `GateAccessCard.test.jsx`).
 23. **Emails J-7 and J-2**: new context flags/tokens `hasGateAccess`,
     `gateAccessCode`, `gateAccessUrl`. The code and the link travel in the same
     message — no second channel, no PIN (decision 2026-09-09: the bar to clear
@@ -252,6 +288,8 @@ can cut it at any time, and never has to change a printed code again.
     `gate_events` for 1 year (the journal is the only thing that answers « who
     came in that night »).
 
+    > **Sans test** — moved to Portier's daily purge (Portier `specs/portier.md` §4.7); guestFlow's housekeeping pass was removed.
+
 ### 3.8 Two lodgings, one gate
 
 25. **Several accesses are live at once, by design.** Le Gîte and La Lodge each
@@ -259,14 +297,20 @@ can cut it at any time, and never has to change a printed code again.
     gate**. Nothing in this feature is per-property except the label the guest
     reads: the access, the code, the window and the journal are per
     *reservation*.
+
+    > **Sans test** — moved to Portier, which keeps one access per stay (Portier `specs/portier.md` §3.2).
 26. **The unlock screen has no property picker**, and the unlocked page does not
     name the lodging either (revised 2026-09-14 — « le petit mot Le Gîte ne sert
     à rien ici »). The code identifies the stay on its own (§3.1 rule 2.bis),
     and what tells a guest they are on their own access is their own first name
     at the top of the screen. A guest knows where they are sleeping.
+
+    > **Sans test** — moved to Portier's guest app (Portier `specs/portier.md` §3.4).
 27. **The session is bound to one access.** Entering a different code on the
     same phone replaces the session — the family that stayed at the Gîte last
     year and books the Lodge this year needs no clearing of anything.
+
+    > **Sans test** — moved to Portier: « one phone, one access at a time » (Portier `specs/portier.md` §3.4).
 28. **The command always goes out.** (Decision 2026-09-10, Adrien — it reverses
     what this spec said first, and the reversal is the right call.) The gate's
     state is never a reason to withhold a pulse: a guest who wants to **close**
@@ -284,13 +328,19 @@ can cut it at any time, and never has to change a printed code again.
     - The earlier design refused a pulse while the gate was not closed, so that a
       second guest could not close it on the first one's car. It was my idea, not
       a requirement, and it took away something a guest legitimately wants.
+
+    > **Sans test** — moved to Portier and the Sowel recipe: the command always goes out from Portier's guest app (Portier `specs/portier.md` §3.4).
 29. **Requests queue, they do not race.** `gate_requests` is served to the
     poller FIFO, one at a time; the plugin resolves a request before taking the
     next. Two guests pressing within the same second produce one pulse and two
     honest answers.
+
+    > **Sans test** — moved to Portier: one pulse at a time down the house channel (Portier `specs/contract.md` §6).
 30. **Ceilings are counted at both levels**: 12 opens per hour per access
     (§3.3 rule 12) *and* 30 per hour across the gate, so one compromised access
     cannot starve the other lodging.
+
+    > **Sans test** — moved to Portier with the throttles: 12 opens per hour per access, 30 for the gate (Portier `specs/contract.md` §5).
 
 **Edge cases:**
 - Contact stuck, or stale → nothing changes on the guest's screen, which no
@@ -312,17 +362,25 @@ travels, is in §4.4; what they must *do* is here.
     goes further and reports itself *not configured* without the secret, so the
     problem is visible in the integrations list rather than at 23 h in front of a
     gate.
+
+    > **Sans test** — the guestFlow ↔ Sowel channel no longer exists (gate-access-portier.md §4.3). Its successor, guestFlow's signed calls to Portier, refuses to run without PORTIER_KEY_GF — tested under that spec (`portier-client.unit.test.js`).
 32. **Every signature covers a timestamp**, and anything outside ±2 min is
     refused. Both machines are NTP-synced; the window is for clock drift, and it
     means a captured call cannot be replayed tomorrow.
+
+    > **Sans test** — the channel it signed no longer exists. The ±120 000 ms bound now belongs to Portier `specs/contract.md` §1, tested under gate-access-portier.md (`portier-contract-vectors.unit.test.js`, `portier-events.unit.test.js`).
 33. **The plugin remembers the request ids it has honoured** (bounded, last
     1000). A replay inside the freshness window pulses nothing. The memory is a
     bounded set and not a high-water mark on purpose: a restore of GuestFlow's
     database from backup restarts the ids low, and a high-water mark would then
     refuse everything.
+
+    > **Sans test** — the poller and its request ids are gone; the house channel is Portier's, with its own sequence rules (Portier `specs/contract.md` §6).
 34. **A refused signature answers a flat `401`** with no detail, and writes the
     reason to the journal (`signature_ko`) and the server log. A caller who fails
     this does not get to learn which half they got wrong.
+
+    > **Sans test** — the channel it guarded no longer exists (gate-access-portier.md §4.3). guestFlow's one incoming Portier request answers a flat `401` on a bad signature, tested under that spec (`portier-events.unit.test.js`).
 35. **Why a signature rather than only TLS.** TLS should be there too — see the
     README. But a bearer key is replayed in full on every call: whoever reads one
     call can impersonate the caller for good. A signature is different in kind,
