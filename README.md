@@ -403,52 +403,46 @@ pm2 startOrRestart ~/guestflow/ecosystem.config.js --update-env
 
 The application will be available on port 4000 by default.
 
-#### 🚪 Guest gate access — the variables
+#### 🚪 Gate access — Portier
 
-The guest page (`specs/guest-gate-access.md`) lives on **its own hostname**, and two variables are
-what make it exist. Without them it exists nowhere, deliberately: a deployment that forgets them
-loses the feature, and never serves the admin API on a public name.
+Guests open the gate through **Portier**, a separate program on the same machine that keeps every
+access (`specs/gate-access-portier.md`, Portier `specs/contract.md`). guestFlow pushes each stay to
+it, reads the invitation for the emails, the SAS and the fiche, and shows the owner the list in
+Réglages › Accès portail. guestFlow stores no gate key, no code and no device. Two variables connect
+the two programs; both go in `server/.env.local` like the other secrets, and neither is generated
+here.
 
 | Variable | Example | Role |
 |---|---|---|
-| `GUEST_HOST` | `guest.domainesolio.com` | The hostname(s), comma-separated, that serve the guest page. On that host, `/api/*`, `/public/v1/*` and the admin SPA answer **404**; everywhere else `/gate/v1/*` answers 404. In development: `guest.localhost:4000`. |
-| `GUEST_BASE_URL` | `https://guest.domainesolio.com` | The public origin used to build the links sent to guests (emails, fiche card). Derived from `GUEST_HOST` when absent. |
+| `PORTIER_SVC_URL` | `http://127.0.0.1:4102` | Portier's service listener, on the loopback. |
+| `PORTIER_KEY_GF` | 43 characters | The key shared with Portier (its `gf` credential): **base64url of 32 random bytes, without padding**. The HMAC key is the decoded bytes. |
 
-Two secrets auto-generate into `server/.env.local` on first boot, like `PUBLIC_API_KEY`:
+Generate the key once, and give Portier the same value:
 
-- **`GATE_API_KEY`** — what the Sowel `guest-access` plugin sends to come and fetch the open
-  requests. Copy it into the plugin's settings. Distinct from `PUBLIC_API_KEY` on purpose: the
-  site's key must not be able to drain the gate queue, and the house's key must not be able to read
-  the booking API.
-- **`GATE_SESSION_SECRET`** — signs the guest's session cookie. Rotating it costs every guest one
-  code entry, and nothing else.
-- **`GATE_SIGNING_SECRET`** — the **second factor** on the Sowel channel, and the only secret that
-  never travels. GuestFlow signs each request it hands over, the house signs each outcome it
-  reports, and both refuse what they cannot verify (spec §4.4). Copy it into the plugin alongside
-  `GATE_API_KEY`. **Both sides fail closed without it.**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
 
-Why it exists: the API key proves the *house* to GuestFlow, and nothing proved GuestFlow to the
-house. The plugin polls over the LAN, so anyone able to answer as this machine could have handed it
-a forged request — and a request is what makes the recipe pulse the gate. A bearer key is replayed
-in full on every call, so reading one call is enough to impersonate the caller; a signature never
-puts its secret on the wire.
+**Without them guestFlow runs normally.** The boot log says Portier is not configured, the SAS step
+and the Accès portail page say so, the emails leave without their gate paragraph, and every stay
+change still lands in the outbox (`portier_outbox`) — the first boot with both variables set sends
+it, in order.
 
-#### Transport: HTTPS, over GuestFlow's public name
+What the first deploy of this version does:
 
-The plugin **refuses to start** on a plain-HTTP address towards another machine. Point it at
-`https://guestflow.adn-dev.fr` — the public name, served by edge with a real certificate.
-
-Not a new internal name: GuestFlow binds its push subscriptions to the *origin*, so serving the same
-application under a second name would break them (decision of 2026-08-27, already written into the
-estate's internal Caddyfile). The Freebox hairpin was verified that day, so the domotique VM reaches
-edge by the public name without the traffic really leaving the network.
-
-**No firewall rule to add.** The traffic enters through edge (`192.168.0.22`), which `104.fw` already
-allows; the domotique VM never needs to reach guestFlow directly.
+- **A one-time backfill**: every reservation whose stay has not ended gets a stay push, and the
+  company logo a branding push. They leave at the first boot where Portier is configured, 20 s after
+  start.
+- **`email_log` is rebuilt once** to accept `waiting_portier` and `skipped`; every row keeps its id.
+- **Portier's events** arrive on `POST /internal/portier/v1/events`, accepted from the loopback
+  socket only and with a valid signature. **Never forward `/internal/` on a reverse proxy.** Portier's
+  `GUESTFLOW_EVENTS_URL` defaults to `http://127.0.0.1:4000/internal/portier/v1/events`; when
+  guestFlow itself serves HTTPS on `:4000` (below), point it at the `https://` address.
+- Nothing polls: pushes and emails are retried only while they fail.
 
 ⚠️ **The admin session cookie changes name** when `HTTPS_ENABLED=true`: it becomes
-`__Host-guestflow.sid`. The `__Host-` prefix stops a sibling host of the domain — the guest page is
-one — from shadowing it. Single consequence: the operator is logged out once at deploy.
+`__Host-guestflow.sid`. The `__Host-` prefix stops a sibling host of the domain — Portier's guest app
+is one — from shadowing it. Single consequence: the operator is logged out once at deploy.
 
 #### 🔒 HTTPS — production setup
 

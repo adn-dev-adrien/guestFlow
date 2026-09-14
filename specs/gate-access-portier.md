@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft — **the HTML summary is what decides** (`specs/gate-access-portier.html`); owner's answers of 2026-09-14 recorded |
+| **Status** | Implemented on guestFlow's side (2026-09-14) — the manual test plan (§7) waits for Portier. The HTML summary decided the UX (`specs/gate-access-portier.html`); owner's answers of 2026-09-14 recorded; deviations in §10 |
 | **Branch** | `feature/guest-gate-access` — PR #547, not merged as it stands: this work lands in it |
 | **Created** | 2026-09-14 · revised the same day with the owner's answers |
 | **Author** | Adrien |
@@ -165,8 +165,9 @@ login — without holding a single key that opens the gate by itself.
   ends with a cancelled access that never worked.
 - Dates changed while Portier is down → the push waits; the SAS and fiche say Portier is unreachable
   rather than show a window that may be stale.
-- Portier down at 08:00 and back at 08:40 → the waiting J-7 emails leave at the 08:45 attempt, in their
-  original order.
+- Portier down at 08:00 and back at 08:40 → the waiting J-7 emails leave at the next attempt of the
+  back-off above (08:53 — attempts fall at 08:01, 08:03, 08:08, 08:23, 08:38, 08:53), in their original
+  order.
 - An access deleted in the list, then the reservation's dates change → Portier acknowledges and
   ignores the push; the fiche shows « Accès supprimé dans la liste » with « Recréer ».
 - A guest calls with the old code after « Nouvelle invitation » → the SAS and the fiche show the new
@@ -180,25 +181,36 @@ login — without holding a single key that opens the gate by itself.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `utils/` | `portierClient.js` | C | signed calls to Portier's service API |
-| `utils/` | `portierSync.js` | C | `pushStay`, `cancelStay`, `pushBranding` write outbox rows in the caller's transaction; `drain()` sends them after commit |
-| `models/` | `portierOutboxModel.js` | C | the outbox rows |
-| `controllers/` | `reservationsController.js` | T | create, update, remove call `portierSync` beside `googleCalendarSync` |
-| `controllers/` | `devisController.js`, `reservationCancellationController.js` | T | the same hooks as Google Calendar |
-| `models/` | `propertyIcalModel.js` | T | pushes the stays an import created or moved |
-| `utils/` | `paymentPollRunner.js` | T | pushes a stay confirmed by payment |
-| `utils/` | `portierInvitation.js` | C | replaces `gateAccessCard.js`: reads the invitation, shapes it for the email, the SAS and the fiche |
+| `utils/` | `portierClient.js` | C | signed calls to Portier's service API; the event signature check; « not configured » without `PORTIER_SVC_URL` / `PORTIER_KEY_GF` |
+| `utils/` | `portierSchema.js` | C | the DDL of `portier_outbox`, shared by database.js and the tests |
+| `utils/` | `portierSync.js` | C | `pushStay`, `cancelStay`, `pushBranding` write outbox rows in the caller's transaction; `drain()` sends them after commit; the one-time `backfill`; the « failing for more than an hour » status |
+| `models/` | `portierOutboxModel.js` | C | the outbox rows (factory only — reached from models database.js loads) |
+| `controllers/` | `reservationsController.js` | T | create, update (dates, times or lodging only), remove: the model write and the push in one transaction |
+| `models/` | `devisModel.js` | T | `convertToReservation` pushes the new stay inside its transaction — the path of an accepted devis and of a confirmed online payment (`paymentPollRunner.js` needs no change) |
+| `utils/` | `cancelReservation.js` | T | the cancellation transaction writes the cancel |
+| `models/` | `propertyIcalModel.js` | T | pushes the stays an import created or moved, inside the sync's transaction |
+| `models/` | `icalDateDriftModel.js`, `icalCancellationModel.js` | T | an approved date drift pushes the stay; an approved platform cancellation (reservation deleted) pushes a cancel |
+| `utils/` | `portierInvitation.js` | C | replaces `gateAccessCard.js`: reads the invitation, shapes it for the email (or « wait »), the SAS (QR as SVG, `qrcode`) and the fiche card |
+| `utils/` | `portierAccessView.js` | C | the operator's wording on the Paris wall clock (validity, hours, last use, house line, confirmations, journal) and the editor's wall-clock values back to instants |
 | `utils/` | `emailContextBuilder.js`, `emailAutoSendRunner.js`, `reservationEmailSender.js` | T | `gateAccessCode`, `gateAccessUrl` from Portier; a Portier failure defers the email (`waiting_portier`) instead of failing it |
-| `utils/` | `portierEmailRetry.js` | C | the retry timer of waiting emails, armed only while some exist; the one-hour notification |
-| `controllers/` | `sasController.js` | T | the step reads the invitation and returns the QR as SVG (`qrcode`, pure JS) |
-| `routes/` | `portier.js` + `controllers/portierController.js` | C | `/api/portier/*`: an allowlist of Portier's owner routes, signed, with the acting user |
-| `middleware/` | `enforceRoleAccess.js` | T | `/api/portier/*` admin only; the SAS invitation read stays in reception's allowlist |
-| `routes/` | `portierEvents.js` | C | `/internal/portier/v1/events`, loopback and signature |
-| `controllers/` | `settingsController.js` | T | logo upload → `pushBranding` |
-| `utils/` | `gateWindow.js` | kept | the window pushed to Portier |
-| client | `pages/GateAccessPage.jsx` | C | the list, the house line, the « Application des clients » tab |
-| client | `components/sas/ReservationSasDialog.jsx` | T | code + QR |
-| client | `components/GateAccessCard.jsx` | T | the compact fiche card |
+| `controllers/` | `emailsController.js` | T | `composeForSend` reads the gate paragraph; « Envoyer » queues when it must wait; the history says « prochain essai à HH:MM » |
+| `models/` | `emailLogModel.js` | T | the waiting rows; `waiting_portier` counts as handled in the pending queue |
+| `utils/` | `emailLogPortierMigration.js` | C | the one-time rebuild of `email_log` (new statuses and columns) |
+| `utils/` | `portierEmailRetry.js` | C | the retry timer of waiting emails, armed only while some exist; the one-hour notification; the `skipped` drops |
+| `utils/` | `adminPush.js`, `models/usersModel.js` | C / T | a push to every active admin (`listActiveAdminIds`) |
+| `controllers/` | `sasController.js` | T | `GET /api/reservations/:id/sas/gate-access`: the step's own read; the SAS payload carries `gateAccess.configured` |
+| `routes/` | `portier.js` + `controllers/portierController.js` | C | `/api/portier/*`: an allowlist of Portier's owner routes, signed, with the acting user; `GET /api/reservations/:id/gate-access` (fiche card); the events receiver |
+| `middleware/` | `enforceRoleAccess.js` | T | `/api/portier/*` admin only (default deny); the SAS invitation read added to reception's allowlist |
+| `routes/` | `portierEvents.js` | C | `/internal/portier/v1/events`, loopback and signature, mounted outside `/api` |
+| `controllers/` | `settingsController.js` | T | logo upload → `pushBranding`, in the upload's transaction |
+| `scheduledTasks.js`, `index.js` | — | T | one outbox drain at boot, the waiting-email timer re-armed; the routes mounted; #547's guest tree, poller and secrets removed |
+| `utils/` | `gateWindow.js` | kept | the window pushed to Portier (its SAS early-opening and `windowState` removed with their only caller) |
+| client | `pages/GateAccessPage.jsx` | C | the list, the house line, creation and editing, the « Application des clients » tab |
+| client | `utils/gateAccessValidation.js` | C | the refusals shown while typing |
+| client | `components/sas/SasGateAccessStep.jsx`, `components/sas/ReservationSasDialog.jsx` | C / T | code + QR, and the fallback code |
+| client | `components/GateAccessCard.jsx` | C | the compact fiche card (replaces `components/reservation/GateAccessSection.jsx`) |
+| client | `pages/EmailHistoryPage.jsx`, `components/EmailManualSendDialog.jsx` | T | « En attente de Portier », and the sentence of a queued « Envoyer » |
+| client | `App.jsx`, `constants/roles.js`, `api.js` | T | the `/portail` route and menu entry (admin only), the API calls |
 
 Hooks mirror `googleCalendarSync` with one difference: Google Calendar is fire-and-forget corrected by
 a periodic reconcile; a gate access cannot wait for a reconcile, so pushes go through the outbox.
@@ -208,6 +220,10 @@ a periodic reconcile; a gate access cannot wait for a reconcile, so pushes go th
 `PORTIER_SVC_URL` (Portier's service listener on the loopback) and `PORTIER_KEY_GF` (shared with
 Portier, in `server/.env.local` like the other secrets). Without them guestFlow runs normally, the
 SAS step and the page say Portier is not configured, and the outbox keeps its rows.
+
+Checking an event needs `PORTIER_KEY_GF` only. Portier posts its events to `GUESTFLOW_EVENTS_URL`
+(default `http://127.0.0.1:4000/internal/portier/v1/events`); a guestFlow serving HTTPS on `:4000`
+needs that address in `https://` (§9).
 
 ### 4.3 What leaves guestFlow from #547
 
@@ -224,7 +240,15 @@ One new table, one existing table extended:
 | Table | Columns |
 |---|---|
 | `portier_outbox` | `id, reservationId NULL, type (stay\|cancel\|branding), payload JSON, attempts, nextAttemptAt, lastError, createdAt, sentAt` |
-| the email log (existing) | new status `waiting_portier`; new columns `nextAttemptAt`, `waitingSince`, `adminNotifiedAt` |
+| the email log (existing) | new statuses `waiting_portier` and `skipped`; new columns `nextAttemptAt`, `waitingSince`, `adminNotifiedAt` |
+
+- `portier_outbox.id` is `AUTOINCREMENT`: it is the revision, and a purged row must never lend its id to
+  a later push. Timestamps are ISO strings. `sentAt` means Portier answered; `lastError` then holds a
+  refusal (`refused 422 endsAt window_too_long`). Answered rows are purged after 30 days, by the drain.
+- A branding row stores the logo's path, and the bytes are read when it is sent.
+- `email_log`'s CHECK constraint forces a rebuild (utils/emailLogPortierMigration.js), in one
+  transaction at boot, every row carried over with its id. A waiting row has an empty body: the email
+  is composed only when Portier answers; `sentAt` becomes the moment the wait ended.
 
 ## 6. UI / UX
 
@@ -243,14 +267,17 @@ Responsive: the list follows guestFlow's table → cards swap; the SAS QR stays 
 ## 7. Test plan
 
 ### Unit
-- [ ] every hook (create, dates changed, lodging changed, devis accepted, iCal import, payment, cancellation, deletion, back to devis, reinstatement) writes one outbox row in the same transaction, and a rolled-back transaction writes none
-- [ ] a price or notes change writes no row
-- [ ] the drain sends in order per reservation, backs off on failure, arms no timer when empty
-- [ ] `/api/portier/*`: admin passes and names the actor; accountant and reception get `403`
-- [ ] `/internal/portier/v1/events`: refused from a non-loopback socket, refused unsigned, accepted signed; `devices_over_six` sends one push
-- [ ] the SAS step returns the QR of the invitation's address and never writes it to a log
-- [ ] Portier down: the J-7 email is not sent, becomes `waiting_portier`, is retried on the back-off, leaves once Portier answers, notifies the admins once after an hour; no timer is armed when nothing waits
-- [ ] a waiting email is dropped as `skipped` when its reservation is cancelled
+- [x] every hook (create, dates changed, lodging changed, devis accepted, iCal import, payment, cancellation, deletion) writes one outbox row in the same transaction, and a rolled-back transaction writes none — `portier-outbox-hooks.unit.test.js` (13). « Back to devis » and « reinstatement » have no write path to hook in guestFlow today (§10).
+- [x] a price or notes change writes no row — same file
+- [x] the drain sends in order per reservation, backs off on failure, arms no timer when empty — `portier-outbox-drain.unit.test.js` (8)
+- [x] `/api/portier/*`: admin passes and names the actor; accountant and reception get `403` — `portier-owner-proxy.unit.test.js` (13)
+- [x] `/internal/portier/v1/events`: refused from a non-loopback socket, refused unsigned, accepted signed; `devices_over_six` sends one push — `portier-events.unit.test.js` (4)
+- [x] the SAS step returns the QR of the invitation's address and never writes it to a log — `portier-sas-step.unit.test.js` (4)
+- [x] Portier down: the J-7 email is not sent, becomes `waiting_portier`, is retried on the back-off, leaves once Portier answers, notifies the admins once after an hour; no timer is armed when nothing waits — `portier-email-wait.unit.test.js` (8)
+- [x] a waiting email is dropped as `skipped` when its reservation is cancelled — same file
+- [x] the contract vectors `svc`, `svc_owner_get` (produced) and `evt` (verified) — `portier-contract-vectors.unit.test.js` (6); the client over a fake Portier — `portier-client.unit.test.js` (5)
+- [x] the `email_log` rebuild — `email-log-portier-migration.unit.test.js` (3)
+- [x] client: `GateAccessPage.list` (9), `GateAccessPage.editing` (5), `GateAccessPage.branding` (3), `GateAccessCard` (4), `SasGateAccessStep` (4), `EmailHistoryPage.portier-wait` (1), `EmailManualSendDialog.portier-wait` (1), `gateAccessValidation` (7)
 
 ### Manual
 - [ ] Create a reservation: it appears in the list within seconds, tagged « guestFlow »
@@ -276,4 +303,55 @@ SAS keeps the code and its QR carries it · PR #547 is not merged as it stands; 
   paragraph?
   - A (2026-09-14, Adrien): **wait and retry.** « Oui on attend et on ré-essaye. » (§3.2)
 
-Nothing is open on guestFlow's side.
+**Open, found during the implementation (for the owner):**
+- Q: guestFlow's README says production serves HTTPS directly on `:4000`, while Portier's default
+  `GUESTFLOW_EVENTS_URL` is `http://127.0.0.1:4000/…`. Either Portier posts to `https://127.0.0.1:4000`
+  (and accepts guestFlow's certificate for that name), or guestFlow gets a plain loopback listener.
+  Hosting decision (homelab); until then `devices_over_six` pushes cannot arrive.
+
+## 10. Implementation notes (2026-09-14)
+
+Where the code differs from — or had to decide beyond — the text above:
+
+- **Hooks sit where the transaction is.** A model that owns its transaction writes the push inside it
+  (`devisModel.convertToReservation`, `cancelReservation`, the iCal sync and the two iCal approvals);
+  the reservation form's controller wraps its model write and the push in one transaction. The online
+  payment converts through `devisModel`, so `paymentPollRunner.js` is unchanged.
+- **Two hooks of §7 have nothing to hook.** « Repasser en devis » (`POST /devis/from-reservation/:id`)
+  copies the reservation into a new devis and leaves the reservation live — no cancel is pushed, so the
+  contract's `devis` reason has no caller today. guestFlow has no way to reinstate a cancelled
+  reservation (`kind = 'cancelled'` is final). If either appears, it pushes like the others.
+- **Two more doors than listed** push too: an approved iCal date drift (a stay) and an approved iCal
+  cancellation, which deletes the reservation (a cancel, reason `deleted`).
+- **A refusal is not an outage.** A 4xx from Portier (a 422 `window_too_long`, say) closes the row with
+  its reason instead of retrying it forever and holding the reservation's next, valid push back. The
+  fiche's banner then reads « Portier a refusé la dernière modification : séjour de plus de 60 jours. »
+- **One knock per outage.** When Portier does not answer, the drain stops calling and gives every due
+  row its back-off, so each counts as failing and none is hammered.
+- **Which emails wait.** Only a template carrying the gate tokens reads Portier. It waits when Portier
+  does not answer **or answers 404** (the stay's push has not arrived yet); it leaves without the
+  paragraph when Portier is not configured, or when the access is revoked, deleted or finished. The
+  retry follows the back-off as stated (1, 2, 5, 15 min, then every 15 — the §3.2 edge case was
+  corrected accordingly, as the HTML mock already computed).
+- **A queued « Envoyer » is recomposed from the template** at retry: edits made in the send dialog
+  while Portier was down are not kept (the preview could not show the paragraph anyway). The preview
+  itself never waits — it renders without the paragraph. « Ignorer » never reads Portier; « Marquer
+  envoyé » reads it and never waits. Skip reasons: `RESERVATION_CANCELLED`, `TEMPLATE_DISABLED`.
+- **The SAS step reads Portier on its own** (`GET /api/reservations/:id/sas/gate-access`, in reception's
+  allowlist), so a slow Portier never holds the SAS back; the SAS payload only says whether Portier is
+  configured. Without Portier, the step still shows when a keypad code exists, and says Portier is not
+  configured.
+- **The page shapes nothing itself.** Filters (`view`, `kind`) and groups (« Actifs », « Suspendus »,
+  « Révoqués », « Séjours terminés ») are server-side; a finished stay shows no action and the
+  maquette's note; editors exchange Paris wall-clock values (`YYYY-MM-DDTHH:MM`) that the server turns
+  into instants. Not reproduced, because each would need date wording on the client: the maquette's
+  « Ce que portera la ligne » preview line, and the home-screen mock of the logo tab (only a preview of
+  a chosen custom file is shown). The logo choice is saved with the page bar's « Enregistrer ».
+- **Wording** follows guestFlow's « vous » where the mocks say « tu ».
+- **Notifications** (`devices_over_six`, the one-hour email wait) go to every active admin, device by
+  device, whatever their push preferences — reception and the accountant do not administer accesses.
+- **At boot**, one outbox drain runs 20 s after start and the waiting-email timer is re-armed from the
+  log; otherwise a timer exists only while something fails or waits.
+- **guest-gate-access.md**: the rules whose code and tests left with #547 are declared « Sans test »
+  under each rule, with where they went; rules 7-9 (the window) and 23 (the email paragraph) keep their
+  tests.
