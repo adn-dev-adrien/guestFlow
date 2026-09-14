@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accès portail — état des livraisons</title>
+<style>
+/* Rapport autonome : aucune police, aucun script, aucune image distante. */
+:root{
+  --paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--soft:#5C6153;--sapin:#2E3B2A;
+  --ocre:#B87B2A;--deep:#9A6318;--line:#DCD4C2;--vert:#5A6B48;--brique:#8E3B27;
+  --wash-ocre:#F2E6D2;--wash-sapin:#E3E5DB;--wash-brique:#EFDCD6;
+  --serif:Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:58rem;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3{font-family:var(--serif);font-weight:400;color:var(--sapin);margin:0;line-height:1.2}
+h1{font-size:2rem;text-transform:uppercase;letter-spacing:.05em}
+h2{font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;margin-top:2.8rem}
+h3{font-size:1.1rem;margin-top:1.4rem}
+p{margin:.7rem 0}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--deep)}
+.lede{font-size:1.05rem;color:var(--soft)}
+.muted{color:var(--soft)}
+.small{font-size:.88rem}
+code{font-family:var(--mono);font-size:.85em;background:var(--wash-ocre);padding:.1em .35em}
+a{color:var(--deep)}
+hr{border:0;border-top:1px solid var(--line);margin:2.4rem 0}
+.box{background:var(--card);border:1px solid var(--line);padding:1.1rem 1.2rem;margin:1rem 0}
+.box.warm{background:var(--wash-ocre);border-left:3px solid var(--ocre)}
+.box.forest{background:var(--wash-sapin);border-left:3px solid var(--sapin)}
+.box.stop{background:var(--wash-brique);border-left:3px solid var(--brique)}
+.box h3{margin-top:0}
+ul.clean{list-style:none;padding:0;margin:.6rem 0}
+ul.clean li{position:relative;padding-left:1.1rem;margin:.45rem 0}
+ul.clean li::before{content:"";position:absolute;left:0;top:.62em;width:.4rem;height:.4rem;background:var(--ocre)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;margin:1rem 0}
+th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--deep);background:var(--wash-ocre)}
+td.mono{font-family:var(--mono);font-size:.82rem;white-space:nowrap}
+.tag{display:inline-block;font-size:.64rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:.16rem .5rem;border:1px solid var(--line)}
+.tag.ok{color:var(--vert);border-color:var(--vert)}
+.tag.wait{color:var(--deep);border-color:var(--ocre);background:var(--wash-ocre)}
+.tag.stop{color:var(--brique);border-color:var(--brique)}
+.kpi{display:flex;flex-wrap:wrap;gap:1.6rem;margin:1.2rem 0;padding:1rem 1.2rem;background:var(--card);border:1px solid var(--line)}
+.kpi div{min-width:7rem}
+.kpi b{display:block;font-family:var(--serif);font-size:1.7rem;color:var(--sapin);line-height:1.1}
+.kpi span{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--soft)}
+ol.steps{counter-reset:s;list-style:none;padding:0}
+ol.steps li{counter-increment:s;position:relative;padding-left:2.3rem;margin:.7rem 0}
+ol.steps li::before{content:counter(s);position:absolute;left:0;top:.05em;width:1.6rem;height:1.6rem;border:1px solid var(--ocre);background:var(--wash-ocre);color:var(--deep);font-family:var(--serif);font-size:.85rem;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="eyebrow">Domaine Solio · 14 septembre 2026</p>
+<h1>Accès portail : état des livraisons</h1>
+<p class="lede">
+  Une pull request, deux paquets Sowel publiés, et un chantier montré mais volontairement pas
+  commencé. Ce rapport dit ce qui est fait, ce qui attend ta main, et ce qui attend ta réponse.
+</p>
+
+<div class="kpi">
+  <div><b>1</b><span>pull request</span></div>
+  <div><b>10</b><span>commits</span></div>
+  <div><b>57</b><span>fichiers touchés</span></div>
+  <div><b>4&nbsp;189</b><span>tests serveur</span></div>
+  <div><b>1&nbsp;236</b><span>tests client</span></div>
+  <div><b>50</b><span>tests Sowel</span></div>
+</div>
+
+<h2>1 · La pull request</h2>
+
+<div class="box">
+  <h3>guestFlow #547 — <span class="tag wait">ouverte, à relire</span></h3>
+  <p class="small muted" style="margin-top:.2rem">
+    <code>feature/guest-gate-access</code> → <code>master</code> · +7&nbsp;123 / −15 sur 57 fichiers ·
+    <a href="https://github.com/adn-dev-adrien/guestFlow/pull/547">github.com/adn-dev-adrien/guestFlow/pull/547</a>
+  </p>
+  <p>Elle contient <strong>toute la moitié guestFlow</strong> : le code de séjour, la page invité sur
+  son propre nom d'hôte, les deux routes que la maison appelle, la carte de la fiche, l'étape du SAS,
+  les emails, et la signature du canal. Tu la relis et tu fais le squash-merge — je ne merge jamais.</p>
+
+  <table>
+    <tr><th>Commit</th><th>Ce qu'il apporte</th></tr>
+    <tr><td class="mono">1a14927</td><td>Le code de séjour (8 caractères dictables, sans I/L/O/U) et sa fenêtre, testée sur les deux changements d'heure.</td></tr>
+    <tr><td class="mono">9d2b16f</td><td>Le modèle et la machine à états : cinq tables, la déduplication, le journal.</td></tr>
+    <tr><td class="mono">382fc4f</td><td>Les routes invité et les deux que la maison appelle. Cloisonnement d'hôte étanche dans les deux sens.</td></tr>
+    <tr><td class="mono">0a137b3</td><td>La page invité — 21 ko, l'identité du site, son registre nuit.</td></tr>
+    <tr><td class="mono">d411525</td><td>Tes surfaces : carte de la fiche, étape du SAS, lien dans les rappels J-7 et J-2.</td></tr>
+    <tr><td class="mono">a8fabb7</td><td>La spec passe à <em>Implemented</em> pour la moitié guestFlow.</td></tr>
+    <tr><td class="mono">45cbac7</td><td>Deux défauts trouvés en regardant l'écran : la manœuvre muette, et le cache qui pouvait servir l'ancien code une heure.</td></tr>
+    <tr><td class="mono">0674330</td><td><strong>Ton renversement</strong> : la commande part toujours, plus d'écran de manœuvre, et plus rien à faire à la main au déploiement.</td></tr>
+    <tr><td class="mono">558e171</td><td><strong>La double authentification</strong> du canal, dans les deux sens.</td></tr>
+    <tr><td class="mono">c801f1d</td><td>Les maquettes du chantier suivant, montrées avant d'être codées.</td></tr>
+  </table>
+</div>
+
+<h2>2 · Les deux paquets Sowel</h2>
+
+<p>Pas de pull request pour ceux-là : ce sont des <strong>dépôts neufs</strong>, créés dans
+<code>adn-dev-adrien</code> comme tes autres paquets perso. Il n'y a personne à qui demander une
+relecture — le premier commit <em>est</em> le paquet. Les releases sont publiées, donc installables
+par source personnelle.</p>
+
+<table>
+  <tr><th>Paquet</th><th>Version</th><th>Ce qu'il fait</th></tr>
+  <tr>
+    <td class="mono">sowel-plugin-guest-access</td>
+    <td><span class="tag ok">v0.2.0</span></td>
+    <td>Va chercher les demandes chez guestFlow (long-poll sortant), expose le compteur que la recette surveille, et <strong>refuse toute demande qu'il ne peut pas vérifier</strong>. 28 tests.</td>
+  </tr>
+  <tr>
+    <td class="mono">sowel-recipe-guest-gate</td>
+    <td><span class="tag ok">v0.1.0</span></td>
+    <td>Décide et actionne. Tuile « Accès invités » armable ; aucun contrôle de l'état du portail ; ne déclenche jamais sur sa première lecture de compteur. 28 tests.</td>
+  </tr>
+</table>
+
+<h2>3 · Ce qu'il te reste à faire</h2>
+<div class="box warm">
+  <ol class="steps">
+    <li><strong>Relire et merger #547.</strong> Le squash-merge t'appartient.</li>
+    <li><strong>Poser deux variables</strong> sur la VM 104 : <code>GUEST_HOST=guest.domainesolio.com</code>
+      et <code>GUEST_BASE_URL=https://guest.domainesolio.com</code>. Sans elles la page invité
+      n'existe nulle part — c'est volontaire. Dis-moi et je les pose au déploiement.</li>
+    <li><strong>Ajouter l'hôte Caddy</strong> <code>guest.domainesolio.com</code> → <code>192.168.0.24:4000</code>,
+      avec le filtre qui retire <code>c</code> du journal d'accès (le bloc est dans le README).</li>
+    <li><strong>Une ligne de pare-feu</strong> : <code>IN ACCEPT -source 192.168.0.26 -p tcp -dport 4000</code>
+      dans <code>104.fw</code> — la machine de confiance appelle l'exposée, jamais l'inverse.</li>
+    <li><strong>Installer les deux paquets</strong> par source personnelle, puis recopier
+      <code>GATE_API_KEY</code> <em>et</em> <code>GATE_SIGNING_SECRET</code> (auto-générés dans
+      <code>server/.env.local</code>) dans les réglages du plugin.</li>
+    <li><strong>Créer l'équipement</strong> lié au device du plugin, puis l'instance de recette avec
+      le portail en second slot.</li>
+    <li><strong>La répétition à deux téléphones</strong> — un séjour par logement — avant d'ouvrir
+      aux clients.</li>
+  </ol>
+  <p class="small muted">Tout le reste est automatique : les gabarits d'email déjà en base sont
+  traités par une migration à un coup, et le cookie de session admin passe en <code>__Host-</code>
+  tout seul (il te déconnectera une fois).</p>
+</div>
+
+<h2>4 · Ce qui attend ta réponse, pas ta main</h2>
+<div class="box">
+  <p>Les accès pour les amis et la famille, la page de liste, et la glissière de confirmation sont
+  <strong>montrés et pas codés</strong> — c'est la règle que tu as posée. Les maquettes sont
+  manipulables dans <code>specs/guest-gate-access-maquettes.html</code>, la référence écrite dans
+  <code>specs/gate-access-list-and-manual-accesses.md</code>.</p>
+  <p>Quatre questions y attendent une réponse :</p>
+  <ul class="clean">
+    <li>Un accès créé par guestFlow <strong>ne se supprime pas</strong> (il renaîtrait) : d'accord,
+      ou il faut un « pas d'accès portail » sur la réservation ?</li>
+    <li>Les plages horaires <strong>tous les jours</strong>, sans choix de jours : suffisant ?</li>
+    <li>Un accès permanent inutilisé depuis 90 jours qui <strong>remonte en tête</strong> : utile ou bruit ?</li>
+    <li>La <strong>glissière</strong>, ou un appui long ?</li>
+  </ul>
+</div>
+
+<h2>5 · Le seul point de sécurité encore ouvert</h2>
+<div class="box stop">
+  <p>Le transport entre la maison et guestFlow est en <strong>HTTP clair sur le LAN</strong>. La
+  signature rend cela survivable — le secret ne circule jamais, donc lire le trafic ne permet pas de
+  forger — mais elle ne chiffre rien.</p>
+  <p class="small">Le correctif est prêt et tient en trois lignes : un nom TLS servi
+  <em>sur le LAN</em> par le Caddy de la LXC 109, qui porte déjà le certificat
+  <code>*.maison.adn-dev.fr</code>. Le bloc est dans le README de guestFlow. À faire quand tu veux,
+  ce n'est pas bloquant.</p>
+</div>
+
+<hr>
+<p class="small muted">
+  Rapport autonome : aucune police, aucun script et aucune image distante. Versionné dans
+  <code>guestFlow/docs/rapports/acces-portail-etat.html</code>.
+</p>
+
+</div>
+</body>
+</html>
