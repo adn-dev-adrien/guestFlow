@@ -427,12 +427,23 @@ const api = {
   getReservationSas: (id, mode) => request(
     `/reservations/${encodeURIComponent(id)}/sas${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
   ),
-  // Guest gate access (specs/guest-gate-access.md §3.6). The card is read wherever the code has to
-  // be shown; reading it mints the access on first need, server-side.
-  getGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access`),
-  regenerateGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access/regenerate`, { method: 'POST' }),
-  revokeGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access/revoke`, { method: 'POST' }),
-  earlyOpenGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access/early-open`, { method: 'POST' }),
+  // Gate access (specs/gate-access-portier.md). The fiche card and the SAS step read Portier through
+  // guestFlow; the owner's list lives under `/portier/*`, admin-only. Portier's own words come back
+  // as `message` on a refusal (422) or an outage (502 / 503).
+  getReservationGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/gate-access`),
+  getSasGateAccess: (id) => request(`/reservations/${encodeURIComponent(id)}/sas/gate-access`),
+  getPortierAccesses: ({ view = 'current', kind = 'all' } = {}) => request(
+    `/portier/accesses?view=${encodeURIComponent(view)}&kind=${encodeURIComponent(kind)}`,
+  ),
+  createPortierAccess: (body) => request('/portier/accesses', { method: 'POST', body }),
+  updatePortierAccess: (id, body) => request(`/portier/accesses/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  portierAccessAction: (id, action) => request(
+    `/portier/accesses/${encodeURIComponent(id)}/${encodeURIComponent(action)}`, { method: 'POST' },
+  ),
+  deletePortierAccess: (id) => request(`/portier/accesses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getPortierAccessEvents: (id) => request(`/portier/accesses/${encodeURIComponent(id)}/events`),
+  getPortierBranding: () => request('/portier/branding'),
+  setPortierBrandingSource: (formData) => request('/portier/branding/source', { method: 'PUT', body: formData }),
 
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),

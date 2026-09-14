@@ -77,6 +77,8 @@ export const ROUTE_ROLES = Object.freeze({
   '/parametres/recettes':    [ADMIN],
   // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
   '/parametres/paiements':   [ADMIN],
+  // specs/gate-access-portier.md §3.4 — the list of gate accesses: admin only (reception keeps the SAS).
+  '/portail':                [ADMIN],
   '/account':                [ADMIN, ACCOUNTANT, RECEPTION],
 });
 

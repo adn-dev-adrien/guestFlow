@@ -77,6 +77,8 @@ import AccountingPage from './pages/AccountingPage';
 import PlatformAccountsPage from './pages/PlatformAccountsPage';
 import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import EmailHistoryPage from './pages/EmailHistoryPage';
+import GateAccessPage from './pages/GateAccessPage';
+import KeyIcon from '@mui/icons-material/Key';
 import ScrollToTop from './components/ScrollToTop';
 import UpdateProgressOverlay from './components/UpdateProgressOverlay';
 import AppVersionBadge from './components/AppVersionBadge';
@@ -102,7 +104,7 @@ const navItems = [
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/recettes', '/parametres/paiements', '/account'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/recettes', '/parametres/paiements', '/portail', '/account'];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -637,6 +639,20 @@ function NavContent({ onItemClick }) {
                     }} />
                   </ListItemButton>
                   )}
+                  {can('/portail') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/portail"
+                    onClick={(e) => onItemClick && onItemClick(e, '/portail')}
+                    selected={location.pathname === '/portail'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><KeyIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Accès portail" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
                   {can('/account') && (
                   <ListItemButton
                     component={Link}
@@ -874,6 +890,7 @@ function AppShell() {
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
+          <Route path="/portail" element={<GateAccessPage />} />
           {/* Legacy paths redirect to the unified "Gestion utilisateur" page. */}
           <Route path="/settings/password" element={<Navigate to="/account" replace />} />
           <Route path="/comptes" element={<Navigate to="/account" replace />} />
