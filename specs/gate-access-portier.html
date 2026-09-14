@@ -139,6 +139,18 @@ table.recap.reach tr.yes td.mark{color:var(--vert)} table.recap.reach tr.no td.m
 .tag.wait{color:var(--deep);border-color:var(--ocre);background:var(--wash-ocre)} .tag.sent{color:var(--vert);border-color:var(--vert)} .tag.skip{color:var(--soft);border-color:var(--line)}
 table.recap.ab td:first-child{width:16%;font-style:normal;font-weight:700;color:var(--ink)} table.recap.ab td{width:42%}
 .ab th.rec{background:var(--wash-sapin);color:var(--sapin)}
+table.recap.abc{min-width:50rem} table.recap.abc td{width:29%}
+table.recap.abc td:first-child{width:13%;font-style:normal;font-weight:700;color:var(--ink)}
+.abc th.rec{background:var(--wash-sapin);color:var(--sapin)}
+table.recap.chk td:first-child{width:55%;font-style:normal;color:var(--ink)}
+table.recap.fg-sum{min-width:0;margin-top:.8rem} table.recap.fg-sum td:first-child{width:45%}
+.fg-steps label{display:flex;gap:.55rem;align-items:flex-start;font-size:.9rem;margin:.35rem 0;cursor:pointer}
+.fg-steps input{margin-top:.22rem;flex:none}
+#fg .klog{max-height:none}
+.klog li.warn{border-color:var(--ocre);color:var(--deep)}
+.klog li b{margin-right:.35rem}
+details.cmp{margin:1.4rem 0;border:1px solid var(--line);background:var(--card);padding:.7rem 1rem}
+details.cmp summary{cursor:pointer;font-weight:700;color:var(--sapin)}
 </style>
 </head>
 <body>
@@ -251,11 +263,10 @@ dans une liste où chacun se modifie, se suspend ou se révoque.</p>
     n’a aucun login à lui et écrit dans son journal le compte qui a agi. <strong>Conséquence :</strong> ton mot de
     passe guestFlow ouvre aussi le portail — un second facteur sur guestFlow devient souhaitable, dans sa propre
     spec.</td><td>guestFlow · Portier</td></tr>
-  <tr><td>« Portier sur la même VM que guestFlow, sauf si c’est trop risqué »</td><td><strong>La VM 104, à une
-    condition.</strong> Une VM à part protégerait la clé maître, pas le portail, puisque guestFlow administre déjà
-    Portier. Mais ta commande <code>sudo -n true</code> a <strong>réussi</strong> : guestFlow tourne sous
-    <code>adrien</code>, qui devient root sans mot de passe pour la maintenance. Il faut d’abord faire tourner
-    guestFlow sous son propre utilisateur — ou mettre Portier sur un petit LXC. <strong>À trancher.</strong></td><td>homelab</td></tr>
+  <tr><td>« Portier sur la même VM que guestFlow, sauf si c’est trop risqué »</td><td><strong>Sur la machine de
+    guestFlow.</strong> Une machine à part protégerait la clé maître, pas le portail, puisque guestFlow administre
+    déjà Portier. La condition — que guestFlow ne puisse ni lire les fichiers de Portier ni devenir root — est
+    remplie depuis le 14 septembre.</td><td>homelab</td></tr>
   <tr><td>« On garde le code et le QR dans le SAS ; le QR encode le code pour paramétrer l’app d’un flash »</td>
     <td>Le QR porte <strong>la même adresse que l’email</strong>, le code dans son fragment <code>#i=</code> :
     flasher installe l’accès sans rien taper. Le code reste lisible à côté.</td><td>guestFlow · Portier</td></tr>
@@ -279,8 +290,6 @@ dans une liste où chacun se modifie, se suspend ou se révoque.</p>
     supprimée.</td><td>Portier · guestFlow</td></tr>
   </tbody>
 </table></div>
-<p class="after"><strong>Une question nouvelle</strong>, côté hébergement : guestFlow sous son propre utilisateur
-puis Portier sur la VM 104 (ma recommandation), ou Portier sur un petit LXC ?</p>
 
 
 <h2 id="detail">2 · guestFlow en détail</h2>
