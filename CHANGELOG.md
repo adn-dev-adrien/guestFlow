@@ -37,10 +37,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ### Deployment
 - Set `GUEST_HOST` and `GUEST_BASE_URL` (see README). Without them the guest page exists nowhere —
   fail-closed by design.
-- Copy `GATE_API_KEY`, auto-generated into `server/.env.local` at boot, into the Sowel
-  `guest-access` plugin.
+- Copy `GATE_API_KEY` **and `GATE_SIGNING_SECRET`**, both auto-generated into `server/.env.local` at
+  boot, into the Sowel `guest-access` plugin. Point that plugin at
+  `https://guestflow.adn-dev.fr` — it refuses plain HTTP.
 - On the reverse proxy, strip the `c` query parameter from the guest host's access log: the stay
   code travels in it.
+- **No firewall rule.** The plugin reaches GuestFlow through edge, already allowed by `104.fw`.
 
 ## [Unreleased]
 

@@ -433,36 +433,18 @@ a forged request — and a request is what makes the recipe pulse the gate. A be
 in full on every call, so reading one call is enough to impersonate the caller; a signature never
 puts its secret on the wire.
 
-#### Transport: prefer an internal HTTPS name
+#### Transport: HTTPS, over GuestFlow's public name
 
-The signature makes plain HTTP survivable, not desirable. Point the plugin at a TLS name served on
-the LAN rather than at `http://192.168.0.24:4000` — the internal Caddy (LXC 109) already holds a
-wildcard certificate for `*.maison.adn-dev.fr`:
+The plugin **refuses to start** on a plain-HTTP address towards another machine. Point it at
+`https://guestflow.adn-dev.fr` — the public name, served by edge with a real certificate.
 
-```caddy
-guestflow.maison.adn-dev.fr {
-	reverse_proxy 192.168.0.24:4000
-}
-```
+Not a new internal name: GuestFlow binds its push subscriptions to the *origin*, so serving the same
+application under a second name would break them (decision of 2026-08-27, already written into the
+estate's internal Caddyfile). The Freebox hairpin was verified that day, so the domotique VM reaches
+edge by the public name without the traffic really leaving the network.
 
-The traffic then stays on the LAN, encrypted, with a certificate the plugin validates — which also
-closes the spoofing route the signature only neutralises.
-
-On the reverse proxy, the guest host must strip the `c` query parameter from its access log — the
-stay code travels in it:
-
-```caddy
-guest.domainesolio.com {
-	log {
-		output file /var/log/caddy/access.log
-		format filter {
-			wrap json
-			fields { request>uri query { delete c } }
-		}
-	}
-	reverse_proxy 192.168.0.24:4000
-}
-```
+**No firewall rule to add.** The traffic enters through edge (`192.168.0.22`), which `104.fw` already
+allows; the domotique VM never needs to reach guestFlow directly.
 
 ⚠️ **The admin session cookie changes name** when `HTTPS_ENABLED=true`: it becomes
 `__Host-guestflow.sid`. The `__Host-` prefix stops a sibling host of the domain — the guest page is

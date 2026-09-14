@@ -70,7 +70,7 @@ ol.steps li::before{content:counter(s);position:absolute;left:0;top:.05em;width:
   <div><b>57</b><span>fichiers touchés</span></div>
   <div><b>4&nbsp;189</b><span>tests serveur</span></div>
   <div><b>1&nbsp;236</b><span>tests client</span></div>
-  <div><b>50</b><span>tests Sowel</span></div>
+  <div><b>61</b><span>tests Sowel</span></div>
 </div>
 
 <h2>1 · La pull request</h2>
@@ -111,8 +111,8 @@ par source personnelle.</p>
   <tr><th>Paquet</th><th>Version</th><th>Ce qu'il fait</th></tr>
   <tr>
     <td class="mono">sowel-plugin-guest-access</td>
-    <td><span class="tag ok">v0.2.0</span></td>
-    <td>Va chercher les demandes chez guestFlow (long-poll sortant), expose le compteur que la recette surveille, et <strong>refuse toute demande qu'il ne peut pas vérifier</strong>. 28 tests.</td>
+    <td><span class="tag ok">v0.3.0</span></td>
+    <td>Va chercher les demandes chez guestFlow (long-poll sortant), expose le compteur que la recette surveille, et <strong>refuse toute demande qu'il ne peut pas vérifier</strong> — comme il refuse de démarrer sans HTTPS. 33 tests.</td>
   </tr>
   <tr>
     <td class="mono">sowel-recipe-guest-gate</td>
@@ -130,11 +130,11 @@ par source personnelle.</p>
       n'existe nulle part — c'est volontaire. Dis-moi et je les pose au déploiement.</li>
     <li><strong>Ajouter l'hôte Caddy</strong> <code>guest.domainesolio.com</code> → <code>192.168.0.24:4000</code>,
       avec le filtre qui retire <code>c</code> du journal d'accès (le bloc est dans le README).</li>
-    <li><strong>Une ligne de pare-feu</strong> : <code>IN ACCEPT -source 192.168.0.26 -p tcp -dport 4000</code>
-      dans <code>104.fw</code> — la machine de confiance appelle l'exposée, jamais l'inverse.</li>
     <li><strong>Installer les deux paquets</strong> par source personnelle, puis recopier
       <code>GATE_API_KEY</code> <em>et</em> <code>GATE_SIGNING_SECRET</code> (auto-générés dans
-      <code>server/.env.local</code>) dans les réglages du plugin.</li>
+      <code>server/.env.local</code>) dans les réglages du plugin, avec
+      <code>https://guestflow.adn-dev.fr</code> comme adresse.
+      <span class="tag ok">aucune règle de pare-feu</span></li>
     <li><strong>Créer l'équipement</strong> lié au device du plugin, puis l'instance de recette avec
       le portail en second slot.</li>
     <li><strong>La répétition à deux téléphones</strong> — un séjour par logement — avant d'ouvrir
@@ -161,15 +161,22 @@ par source personnelle.</p>
   </ul>
 </div>
 
-<h2>5 · Le seul point de sécurité encore ouvert</h2>
-<div class="box stop">
-  <p>Le transport entre la maison et guestFlow est en <strong>HTTP clair sur le LAN</strong>. La
-  signature rend cela survivable — le secret ne circule jamais, donc lire le trafic ne permet pas de
-  forger — mais elle ne chiffre rien.</p>
-  <p class="small">Le correctif est prêt et tient en trois lignes : un nom TLS servi
-  <em>sur le LAN</em> par le Caddy de la LXC 109, qui porte déjà le certificat
-  <code>*.maison.adn-dev.fr</code>. Le bloc est dans le README de guestFlow. À faire quand tu veux,
-  ce n'est pas bloquant.</p>
+<h2>5 · Le transport : passé en HTTPS</h2>
+<div class="box forest">
+  <p>C'était le dernier point ouvert, il est fermé. Le plugin <strong>refuse de démarrer</strong> sur
+  une adresse en HTTP clair vers une autre machine — <code>localhost</code> excepté, là où il n'y a
+  pas de fil à écouter.</p>
+  <p>La signature et le chiffrement ne font pas le même travail : la signature empêche de
+  <em>forger</em>, elle n'empêche pas de <em>lire</em>. Sans TLS, le code du séjour, le logement et
+  le prénom du client traversaient le LAN en clair — sur un réseau qui porte aussi deux
+  coordinateurs Zigbee, une imprimante 3D et ce qu'un client apporte.</p>
+  <p>L'adresse est le <strong>nom public</strong>, <code>https://guestflow.adn-dev.fr</code>, et pas
+  un nouveau nom interne : c'est ta décision du 27 août, déjà inscrite dans le Caddyfile interne du
+  parc — guestFlow lie ses abonnements push à l'origine, un second nom les casserait. Le NAT
+  retourné de la Freebox avait été vérifié ce jour-là.</p>
+  <p class="small"><strong>Et ça retire une règle au lieu d'en ajouter une.</strong> Le trafic entre
+  par edge, que <code>104.fw</code> autorise déjà : la ligne de pare-feu que cette fonctionnalité
+  allait demander n'existe plus. Une protection de plus, un trou de moins.</p>
 </div>
 
 <hr>
