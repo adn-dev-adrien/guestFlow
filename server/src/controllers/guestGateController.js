@@ -66,7 +66,11 @@ function buildPayload({ resolved, runtime, settings, shareUrl }) {
       endsAt: window ? window.end.toISOString() : null,
       endsAtLabel: window ? DATE_TIME_FR.format(window.end) : null,
     },
-    gate: { state: runtime.gateState },
+    // NO gate state. It was here to label the button, and the button no longer says « ouvrir » or
+    // « fermer » (decision 2026-09-14, Adrien: « je ne veux plus le voir dans l'application »).
+    // Leaving the field would let any guest poll this route from 400 km away to learn whether the
+    // gate is standing open. The owner still sees the contact — on the reservation fiche, on the
+    // admin host, behind a session (utils/gateAccessCard.js).
     service: {
       available: runtime.available,
       phone: String((settings && settings.companyPhone) || '').trim() || null,
@@ -261,7 +265,6 @@ function readRequestStatus(req, res) {
     requestId: request.id,
     status: request.status,
     detail: request.detail || null,
-    gate: { state: gateAccessModel.readRuntime().gateState },
   });
 }
 

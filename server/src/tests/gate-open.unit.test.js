@@ -68,10 +68,11 @@ test('the happy path: one request, and a poller woken', () => {
   assert.ok(journal.deviceId, 'and it says which phone');
 });
 
-test('the gate already open: the command goes out anyway, and the button says « Fermer »', () => {
-  // Decision 2026-09-10 — the reversal. A guest who wants to close the gate behind them presses
-  // the same button; the state is information, never a veto. The earlier version of this test
-  // asserted the opposite, and the behaviour it pinned took away something guests legitimately do.
+test('the gate already open: the command goes out anyway, and the guest is never told it is open', () => {
+  // Decision 2026-09-10 — the reversal. A guest who wants to close the gate behind them slides the
+  // same slider; the state is information, never a veto. The earlier version of this test asserted
+  // the opposite, and the behaviour it pinned took away something guests legitimately do.
+  // Decision 2026-09-14 — the state stops reaching the guest at all.
   const { model, controller, cookie, queue, db } = setup();
   model.noteHeartbeat({ state: 'open' });
 
@@ -83,10 +84,18 @@ test('the gate already open: the command goes out anyway, and the button says «
   assert.equal(queue.notified, 1, 'the house is woken');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gate_requests').get().n, 1);
 
-  // And the page labels the button by what the pulse will do.
+  // And the page is handed nothing about the contact, even standing open.
   const session = fakeRes();
   controller.readSessionState(fakeReq({ cookie }), session);
-  assert.equal(session.body.gate.state, 'open');
+  assert.equal(session.statusCode, 200);
+  assert.equal(session.body.gate, undefined, 'the open gate must not be readable from a phone');
+
+  const status = fakeRes();
+  controller.readRequestStatus(
+    fakeReq({ cookie, params: { requestId: res.body.requestId } }), status,
+  );
+  assert.equal(status.body.status, 'pending');
+  assert.equal(status.body.gate, undefined, 'nor from the request it just created');
 });
 
 test('two presses in a row are one request, and wake one poller', () => {
