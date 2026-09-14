@@ -162,6 +162,17 @@ test('the page router, mounted at the root, STEPS ASIDE on the admin host', asyn
     const guestCss = await call('/gate/style.css', 'guest.domainesolio.com');
     assert.equal(guestCss.status, 200);
     assert.match(guestCss.raw, /--sapin/, 'the site\'s own tokens, not a copy');
+
+    // What the guest's phone actually downloads. Decision 2026-09-14, Adrien: « je ne veux plus
+    // voir l'état du portail dans l'application » — so the shipped script must not be ABLE to say
+    // it. A comment mentioning the words is fine; a template that renders them is not.
+    const guestJs = await call('/gate/app.js', 'guest.domainesolio.com');
+    assert.equal(guestJs.status, 200);
+    const code = guestJs.raw.replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, '');
+    assert.match(code, /Glisser pour/, 'the slide-to-confirm label is there');
+    assert.doesNotMatch(code, /Portail (ouvert|fermé)/, 'no state badge');
+    assert.doesNotMatch(code, /(Ouvrir|Fermer) le portail/, 'no state-revealing button label');
+    assert.doesNotMatch(code, /payload\.gate/, 'the page does not even read a gate state');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

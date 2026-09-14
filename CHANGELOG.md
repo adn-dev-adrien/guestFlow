@@ -11,6 +11,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   que tous les anciens clients connaissent reste en secours, rien de plus.
 - La commande part toujours : un client peut refermer le portail derrière lui, comme avec une
   télécommande.
+- Pour l'envoyer, il faut **glisser** un bouton jusqu'au bout — lâché avant, rien ne part. Un
+  téléphone dans une poche n'ouvre plus le portail.
+- **L'état du portail n'apparaît pas dans l'application du client.** Il est devant, il le voit ;
+  et il n'a pas à pouvoir vérifier depuis 400 km si le portail est resté ouvert.
 - Sur la fiche, une carte « Accès portail » ; dans le SAS d'arrivée, l'étape qui remplace le code
   unique ; dans les rappels J-7 et J-2, le lien et le code.
 
@@ -30,6 +34,17 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   above their sign-off, without rewriting a single existing character.
 
 ### Changed
+- **The command is a slide-to-confirm, not a tap** (`specs/guest-gate-access.md` §3.5 rule 17.bis):
+  the same gesture as the Sowel dashboard gate tile, geometry included. Released before the end,
+  nothing is sent — against the phone in a pocket and the child playing with the screen. A keyboard
+  confirms too (Enter, Space, →, End), and the slider returns to rest after 2 s: a rest, never a
+  lock, since a guest may command again to close the gate behind them.
+- **The gate's state no longer reaches the guest** (rule 19.ter). The badge is gone, the button
+  label with it — a button reading « Fermer le portail » is a state display wearing a verb — and the
+  field has been removed from the guest payload, because `GET /gate/v1/session` is pollable by
+  anyone holding a valid code. The label now names the movement: « Glisser pour actionner », over
+  one caption, « Le même geste ouvre et ferme ». The owner still sees the contact on the fiche.
+- **The lodging name leaves the guest page footer.** A guest knows where they are sleeping.
 - **The admin session cookie is `__Host-` prefixed under HTTPS.** The guest page is a sibling host
   of the admin app under the same registrable domain, and the prefix is what stops a cookie set
   there from shadowing the operator's session. **Deploying logs the operator out once.**

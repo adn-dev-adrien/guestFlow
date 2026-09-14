@@ -82,23 +82,6 @@ h1 {
 
 .sub { margin: 0; font-size: .95rem; color: var(--ink-soft); }
 
-.state {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .35rem .75rem;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink-soft);
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-.state .dot { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
-.state.is-open { color: var(--ocre-deep); border-color: var(--ocre); }
-
 button {
   font-family: Karla, Helvetica, Arial, sans-serif;
   cursor: pointer;
@@ -125,6 +108,76 @@ button {
   color: var(--ink-soft);
   cursor: not-allowed;
 }
+
+/* Slide-to-confirm. The gesture of the Sowel dashboard tile (Sowel spec 146), with its geometry
+   taken exactly as it is: a 50 px knob, 4 px of padding, and a track capped at 260 px and CENTRED.
+   Full width would put the start of the gesture in the corner furthest from the thumb of the hand
+   holding the phone — on a control whose whole purpose is one-handed use in front of a gate. */
+.slide {
+  position: relative;
+  width: 100%;
+  max-width: 260px;
+  height: 58px;
+  margin: 0 auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.slide-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  /* The literal first: `color-mix` is fine on a 2023 phone and absent on a 2021 one, and this page
+     is opened by whoever turns up at the gate. */
+  background: rgba(184, 123, 42, .16);
+  background: color-mix(in srgb, var(--ocre) 18%, transparent);
+}
+.slide-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The knob's width on the left, so a two-line label never slides under it. */
+  padding: 0 .6rem 0 58px;
+  text-align: center;
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+.slide-knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--ocre);
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  z-index: 2;
+}
+.slide-knob:focus-visible { outline: 2px solid var(--ocre-deep); outline-offset: 2px; }
+/* The knob keeps its colour once confirmed — in the night register `--ok` is a pale green that
+   would not carry white text. Only the words turn. */
+.slide.done .slide-label { color: var(--ok); }
+.slide.is-off { opacity: .5; }
+.slide.is-off .slide-knob { cursor: not-allowed; }
 
 .ghost {
   width: 100%;
@@ -177,17 +230,6 @@ input[type="text"]:focus { outline: 2px solid var(--ocre); outline-offset: 2px; 
   text-align: center;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
-}
-
-.lodging {
-  margin: 0;
-  padding-top: .8rem;
-  border-top: 1px solid var(--line);
-  font-size: .7rem;
-  font-weight: 700;
-  letter-spacing: .28em;
-  text-transform: uppercase;
-  color: var(--ocre-deep);
 }
 
 .code-recap { font-family: ui-monospace, Menlo, monospace; font-size: 1rem; letter-spacing: .1em; }

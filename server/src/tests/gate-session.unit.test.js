@@ -64,8 +64,10 @@ test('the right code opens a session and hands the page everything it renders', 
   assert.equal(res.body.stay.reservationNumber, '202609042');
   assert.equal(res.body.stay.endsAtLabel, '14/09 11:00');
   assert.equal(res.body.service.phone, '06.15.73.93.37');
-  assert.equal(res.body.gate.state, 'unknown', 'nothing has been heard from the house yet');
-  assert.equal(res.body.service.available, false);
+  assert.equal(res.body.service.available, false, 'nothing has been heard from the house yet');
+  // Decision 2026-09-14: the gate's state does not reach a guest. Not as a badge, and not as a
+  // field either — this route is pollable from anywhere with a valid code.
+  assert.equal(res.body.gate, undefined, 'no gate state in the guest payload');
   assert.match(res.cookie(), /^gate_sid=/, 'plain name over http — the __Host- prefix needs Secure');
 });
 

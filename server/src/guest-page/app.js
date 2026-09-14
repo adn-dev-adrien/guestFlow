@@ -7,15 +7,21 @@
 (function () {
   'use strict';
 
-  var TRAVEL_SECONDS = 34;          // measured on the real gate: how long the button stays inactive
+  /* The one line to change if the wording changes. The label deliberately says neither « ouvrir »
+   * nor « fermer » (decision 2026-09-14, Adrien): the gate's state has left this application, and a
+   * button reading « Fermer le portail » IS a state display wearing a verb. What is left must name
+   * the MOVEMENT without claiming to know its direction. */
+  var ACTION_LABEL = 'Glisser pour actionner';
+  var SLIDE_RESET_MS = 2000;        // back to rest after a send — a rest, never a lock
+
   var POLL_MS = 1000;               // while the gate travels
   var POLL_TIMEOUT_MS = 45000;
-  var REFRESH_MS = 20000;           // gate state + availability, while the page is visible
+  var REFRESH_MS = 20000;           // availability, while the page is visible
 
   var view = document.getElementById('view');
-  var lodging = document.getElementById('lodging');
   var refreshTimer = null;
   var state = null;
+  var busy = false;                 // a slide in progress: the refresh must not redraw under it
 
   // ---------- plumbing ----------
 
@@ -42,15 +48,6 @@
     nodes.filter(Boolean).forEach(function (node) { view.appendChild(node); });
   }
 
-  function setLodging(name) {
-    if (name) {
-      lodging.textContent = name;
-      lodging.hidden = false;
-    } else {
-      lodging.hidden = true;
-    }
-  }
-
   function greeting(payload) {
     var name = payload && payload.stay && payload.stay.guestLabel;
     var hour = new Date().getHours();
@@ -62,6 +59,106 @@
     var stay = (payload && payload.stay) || {};
     if (stay.startLabel && stay.endLabel) return 'Du ' + stay.startLabel + ' au ' + stay.endLabel;
     return null;
+  }
+
+  // ---------- the slide ----------
+
+  /**
+   * Slide-to-confirm, the gesture of the Sowel dashboard tile (Sowel spec 146). Mechanics taken as
+   * they are: drag the knob to the end, and **released before the end nothing is sent** — that is
+   * the whole point, against the phone in a pocket and the child playing with the screen.
+   *
+   * After a send it returns to rest after two seconds. That is a rest, not a lock: a guest must be
+   * able to command again to close the gate behind them (specs/guest-gate-access.md §3.8 r. 28).
+   */
+  function buildSlide(options) {
+    var KNOB = 50, PAD = 4;
+    var track = el('div', 'slide');
+    var fill = el('div', 'slide-fill');
+    var label = el('div', 'slide-label', options.label);
+    var knob = document.createElement('button');
+    knob.type = 'button';
+    knob.className = 'slide-knob';
+    knob.textContent = '\u00BB';
+    knob.setAttribute('aria-label', options.label);
+    track.appendChild(fill);
+    track.appendChild(label);
+    track.appendChild(knob);
+
+    var x = 0, dragging = false, startX = 0, done = false;
+    if (options.disabled) {
+      track.classList.add('is-off');
+      knob.disabled = true;
+    }
+
+    function max() { return Math.max(0, track.clientWidth - (KNOB + PAD * 2)); }
+    function place(value) {
+      x = Math.max(0, Math.min(value, max()));
+      knob.style.left = (PAD + x) + 'px';
+      fill.style.width = (PAD + x + KNOB) + 'px';
+    }
+    function rest() {
+      done = false;
+      dragging = false;
+      busy = false;
+      track.classList.remove('done');
+      label.textContent = options.label;
+      knob.textContent = '\u00BB';
+      place(0);
+    }
+    function confirm() {
+      if (done || options.disabled) return;
+      done = true;
+      dragging = false;
+      busy = true;                  // hold the refresh off until we are back at rest
+      track.classList.add('done');
+      label.textContent = 'Commande envoyée';
+      knob.textContent = '\u2713';
+      place(max());
+      options.onConfirm();
+      window.setTimeout(rest, SLIDE_RESET_MS);
+    }
+
+    // Pointer capture keeps the tracking outside the element, but it is NOT the only path: the
+    // moves are listened for on the window too. Some environments deliver nothing to the captured
+    // element, and a slider that only slides on some phones is not a slider.
+    function onMove(event) {
+      if (!dragging) return;
+      place(event.clientX - startX);
+      if (x >= max() - 2) confirm();
+    }
+    function release() {
+      if (!dragging) return;
+      dragging = false;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+      if (!done) { busy = false; place(0); }   // let go too early: nothing goes out
+    }
+    knob.addEventListener('pointerdown', function (event) {
+      if (done || options.disabled) return;
+      if (knob.setPointerCapture) knob.setPointerCapture(event.pointerId);
+      dragging = true;
+      busy = true;
+      startX = event.clientX - x;
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', release);
+      window.addEventListener('pointercancel', release);
+      event.preventDefault();
+    });
+    knob.addEventListener('pointermove', onMove);
+    knob.addEventListener('pointerup', release);
+
+    // A gesture nobody can perform is a gate nobody can open. A deliberate key press on a focused
+    // control is an intent, exactly like a completed drag — so Enter, Space, → and End all confirm.
+    knob.addEventListener('keydown', function (event) {
+      var keys = ['Enter', ' ', 'Spacebar', 'ArrowRight', 'End'];
+      if (keys.indexOf(event.key) === -1) return;
+      event.preventDefault();
+      confirm();
+    });
+
+    return { el: track, rest: rest };
   }
 
   // ---------- the code form ----------
@@ -109,7 +206,6 @@
       });
     });
 
-    setLodging(null);
     render([
       el('h1', null, 'Accès portail'),
       el('p', 'sub', 'Entrez le code qui figure dans votre email d’arrivée.'),
@@ -124,43 +220,39 @@
 
   function showActive(payload) {
     state = payload;
-    var badge = el('p', 'state' + (payload.gate.state === 'open' ? ' is-open' : ''));
-    badge.appendChild(el('span', 'dot'));
-    badge.appendChild(document.createTextNode(
-      payload.gate.state === 'open' ? 'Portail ouvert'
-        : payload.gate.state === 'closed' ? 'Portail fermé' : 'État inconnu',
-    ));
 
-    // The label says what the pulse will DO, read from the contact — a guest who wants to close the
-    // gate behind them should not have to press a button that claims to open it. When the state is
-    // unknown or stale it stays « Ouvrir » : that is the overwhelmingly common intent.
-    var press = el('button', 'press', payload.gate.state === 'open' ? 'Fermer le portail' : 'Ouvrir le portail');
-    var slot = el('div');
-    slot.style.display = 'flex';
-    slot.style.flexDirection = 'column';
-    slot.style.gap = '.6rem';
-    slot.appendChild(press);
+    // Everything a press can have to say lives here, and is REPLACED at each press rather than
+    // stacked: three failures in a row must not build a wall of identical warnings.
+    var notes = el('div');
+    notes.style.display = 'flex';
+    notes.style.flexDirection = 'column';
+    notes.style.gap = '.6rem';
 
-    // The ONE thing that greys the button out: the house is not answering, so nothing would happen.
-    // The gate's own state never does (decision 2026-09-10) — the command always goes out.
-    if (!payload.service.available) {
-      press.disabled = true;
-      slot.insertBefore(serviceDownNote(payload), press);
-    }
+    // The ONE thing that greys the gesture out: the house is not answering, so nothing would
+    // happen. The gate's own state never does (decision 2026-09-10) — the command always goes out,
+    // and since 2026-09-14 the page does not even say what the state is.
+    var down = !payload.service.available;
+    if (down) notes.appendChild(serviceDownNote(payload));
 
-    press.addEventListener('click', function () { requestOpen(press, slot, payload); });
+    var slide = buildSlide({
+      label: ACTION_LABEL,
+      disabled: down,
+      onConfirm: function () { requestOpen(notes, payload); },
+    });
 
     var share = el('button', 'ghost', 'Partager l’accès');
     share.disabled = !payload.share;
     share.addEventListener('click', function () { shareAccess(payload, share); });
 
-    setLodging(payload.stay.propertyName);
     render([
       el('h1', null, greeting(payload)),
       el('p', 'sub', stayLine(payload)),
-      badge,
       el('div', 'spacer'),
-      slot,
+      notes,
+      // The one line the removed badge leaves behind: it answers the only question the label does
+      // not, and it says nothing about the gate's actual state.
+      el('p', 'caption', 'Le même geste ouvre et ferme'),
+      slide.el,
       share,
       el('p', 'caption', payload.stay.endsAtLabel ? 'Actif jusqu’au ' + payload.stay.endsAtLabel : null),
     ]);
@@ -198,10 +290,8 @@
     tick();
     window.setInterval(tick, 1000);
 
-    var press = el('button', 'press', 'Ouvrir le portail');
-    press.disabled = true;
+    var slide = buildSlide({ label: ACTION_LABEL, disabled: true, onConfirm: function () {} });
 
-    setLodging(payload.stay.propertyName);
     render([
       el('h1', null, 'Bientôt'),
       el('p', 'sub', payload.stay.startLabel
@@ -211,13 +301,12 @@
       el('p', 'caption', 'dans'),
       counter,
       el('div', 'spacer'),
-      press,
+      slide.el,
       el('p', 'caption', 'Vous arrivez en avance ? Appelez-nous, nous ouvrons l’accès depuis la maison.'),
     ]);
   }
 
   function showFinished(payload) {
-    setLodging(null);
     var recap = payload && payload.stay && payload.stay.reservationNumber
       ? el('p', 'code-recap', 'Séjour n° ' + payload.stay.reservationNumber)
       : null;
@@ -231,21 +320,20 @@
     ]);
   }
 
-  // ---------- the press ----------
+  // ---------- the command ----------
 
-  function requestOpen(press, slot, payload) {
-    press.textContent = 'Envoi…';
+  function requestOpen(notes, payload) {
+    notes.textContent = '';
+    if (!state.service.available) notes.appendChild(serviceDownNote(payload));
 
     api('/open', { method: 'POST' }).then(function (result) {
       if (result.status !== 200) {
-        press.textContent = payload.gate.state === 'open' ? 'Fermer le portail' : 'Ouvrir le portail';
-        slot.appendChild(refusalNote(result, payload));
+        notes.appendChild(refusalNote(result, payload));
         return;
       }
-      watchQuietly(result.body.requestId, press, slot, payload);
+      watchQuietly(result.body.requestId, notes, payload);
     }).catch(function () {
-      press.textContent = payload.gate.state === 'open' ? 'Fermer le portail' : 'Ouvrir le portail';
-      slot.appendChild(el('p', 'note warn', 'Connexion perdue. Réessayez dans un instant.'));
+      notes.appendChild(el('p', 'note warn', 'Connexion perdue. Réessayez dans un instant.'));
     });
   }
 
@@ -263,25 +351,20 @@
   }
 
   /**
-   * After the press. Deliberately almost nothing (decision 2026-09-10): no progress bar, no
-   * countdown, no confirmation screen, and **no lock on the button** — a guest presses and puts the
-   * phone away, and the one who wants to close the gate behind them must be able to press again.
+   * After the slide. Deliberately almost nothing (decision 2026-09-10): no progress bar, no
+   * countdown, no confirmation screen, and **no lock** — a guest slides and puts the phone away,
+   * and the one who wants to close the gate behind them must be able to slide again.
    *
    * The request is still watched silently, and the page speaks ONLY on a failure: a refusal from
    * the house, an error, or no answer at all. Standing in front of a gate that was never going to
    * move, a guest deserves to be told.
    */
-  function watchQuietly(requestId, press, slot, payload) {
-    var label = press.textContent;
-    press.textContent = 'Demande envoyée';
-    // Half a second of grace, purely so the label is readable — not a lock.
-    window.setTimeout(function () { press.textContent = label; }, 1500);
-
+  function watchQuietly(requestId, notes, payload) {
     var startedAt = Date.now();
     var poll = window.setInterval(function () {
       if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
         window.clearInterval(poll);
-        slot.appendChild(el('p', 'note warn', 'Sans réponse de la maison. Réessayez, ou appelez-nous.'));
+        notes.appendChild(el('p', 'note warn', 'Sans réponse de la maison. Réessayez, ou appelez-nous.'));
         return;
       }
       api('/open/' + requestId).then(function (result) {
@@ -290,11 +373,11 @@
         window.clearInterval(poll);
         // opened / already_open: nothing to say. The gate is moving and the guest is driving in.
         if (status === 'refused') {
-          slot.appendChild(el('p', 'note warn', 'Commande refusée depuis la maison.'
+          notes.appendChild(el('p', 'note warn', 'Commande refusée depuis la maison.'
             + (result.body.detail ? ' (' + result.body.detail + ')' : '')));
           return;
         }
-        if (status === 'error' || status === 'timeout') slot.appendChild(serviceDownNote(payload));
+        if (status === 'error' || status === 'timeout') notes.appendChild(serviceDownNote(payload));
       }).catch(function () { /* one lost poll is not a failure — the next one answers */ });
     }, POLL_MS);
   }
@@ -363,13 +446,14 @@
       load();
     }
 
-    // The gate state and the availability go stale in a minute, so a page left open on a kitchen
-    // table must not offer a button that has since died.
+    // The availability goes stale in a minute, so a page left open on a kitchen table must not
+    // offer a gesture that has since died. `busy` holds the redraw off while a thumb is on the
+    // knob: re-rendering under a drag would silently cancel it.
     refreshTimer = window.setInterval(function () {
-      if (document.visibilityState === 'visible' && state) load();
+      if (document.visibilityState === 'visible' && state && !busy) load();
     }, REFRESH_MS);
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible' && state) load();
+      if (document.visibilityState === 'visible' && state && !busy) load();
     });
   }
 

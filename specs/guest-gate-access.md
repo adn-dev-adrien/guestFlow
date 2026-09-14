@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (2026-09-10) — the GuestFlow half. The Sowel plugin and recipe are still to be written, against the contract in §4.3. |
+| **Status** | Implemented (2026-09-10), revised 2026-09-14 — the gate's state no longer reaches the guest, and the button became a slide-to-confirm (§3.5 rules 17.bis, 18 and 19.ter). |
 | **Branch** | `feature/guest-gate-access` _(user-managed)_ |
 | **Created** | 2026-09-09 |
 | **Author** | Adrien |
@@ -162,20 +162,42 @@ can cut it at any time, and never has to change a printed code again.
     second press, and a guest is allowed to close the gate behind them (§3.8,
     decision 2026-09-10). What is left is the debounce of one fat-fingered tap
     and of a retried request — the same intent, never a second one.
+17.bis **What creates that row is not a tap — it is a slide-to-confirm**
+    (decision 2026-09-14, Adrien). The knob must be dragged to the end of the
+    track; released before it, **nothing is sent**. It is the same gesture as
+    the Sowel dashboard gate tile (Sowel spec 146), and its geometry is taken as
+    it is: a 50 px knob, 4 px of padding, and a track **capped at 260 px and
+    centred**. That cap was tuned by hand on a phone — full width puts the start
+    of the gesture in the corner furthest from the thumb of the hand holding the
+    device, on a control whose whole purpose is one-handed use in front of a
+    gate.
+    - The reason is the accidental command: a phone in a pocket, a child playing
+      with the screen, a tap while the page is still loading. A gate that opens
+      for nobody is the failure this rule exists to prevent.
+    - **A keyboard confirms too** — Enter, Space, → or End on the focused knob.
+      A gesture nobody can perform is a gate nobody can open, and a deliberate
+      key press on a focused control is as much an intent as a completed drag.
+    - **After a send it returns to rest after 2 s.** A rest, never a lock: rule
+      28 says a guest may command again to close the gate behind them, and a
+      locked control would contradict it.
+    - The refresh loop holds its redraw while a thumb is on the knob.
+      Re-rendering under a drag cancels it silently, which reads as a gate that
+      ignores you.
 18. The Sowel poller (§4.3) takes the request, and reports back `opened`,
     `refused` (the recipe is disarmed) or `error`.
     **The page shows almost nothing of this** (decision 2026-09-10, Adrien): no
     progress bar, no countdown, no « Portail ouvert » screen. A guest presses and
     puts the phone away — they are driving in, not watching a page. What remains
     is only for the case where it does not work:
-    - the button goes inactive for the length of the travel (34 s), so nobody
-      presses twice out of doubt — the server absorbs a duplicate anyway (rule
-      17), but an inviting button is a bad idea;
+    - the slider reads « Commande envoyée » and returns to rest after 2 s, and
+      that is the whole of the feedback on the happy path;
     - the request is watched **silently**, and the page speaks only on a failure:
       a refusal from the house, an error, or no answer at all. Standing in front
       of a gate that was never going to move, a guest deserves to be told.
     Nothing is said on success — `opened` included. The gate is moving and the
-    guest is already driving in.
+    guest is already driving in. **A failure note replaces the previous one**
+    rather than stacking: three refusals in a row must not build a wall of
+    identical warnings under the slider.
 19. **Availability is shown before the guest presses.** If no poller has been
     seen for more than 60 s, the button is disabled and the page says the
     service is unreachable and gives the phone number, instead of failing
@@ -185,11 +207,18 @@ can cut it at any time, and never has to change a printed code again.
     contact lives in Sowel, so every long-poll carries the state the plugin
     currently sees (`?state=open|closed|unknown`), stored in `gate_runtime`
     (§5) with its timestamp. That single call is the heartbeat *and* the state
-    feed — no second endpoint, no clock skew between the two. GuestFlow's copy
-    is **advisory**: it drives the badge and lets the page pre-empt a press
-    (§3.8 rule 28), while the authoritative refusal stays with the recipe,
-    which reads the contact at the instant it would pulse. A state older than
-    60 s renders as « état inconnu », never as « fermé ».
+    feed — no second endpoint, no clock skew between the two.
+19.ter **And that state stops at the operator** (decision 2026-09-14, Adrien:
+    « je ne veux plus le voir dans l'application »). It is **not** in the guest
+    payload — not as a badge, not as a field. Two reasons, and the second one
+    settles it:
+    - the label of the only control would otherwise have to follow it, and a
+      button reading « Fermer le portail » *is* a state display wearing a verb;
+    - `GET /gate/v1/session` is pollable by anyone holding a valid code, so the
+      field let a guest 400 km away watch whether the gate stands open.
+    The owner still sees the contact — on the reservation fiche, on the admin
+    host, behind a session (`utils/gateAccessCard.js`). What the guest is handed
+    is availability alone: whether a command would reach the house at all.
 
 ### 3.6 Operator surfaces
 
@@ -247,11 +276,12 @@ can cut it at any time, and never has to change a printed code again.
     - The trade-off is named and accepted: on a sequential gate, a second press
       during the travel **reverses it**. A remote has exactly that property, and
       nobody has ever asked for one that refuses to close.
-    - Neither guestFlow nor the recipe inspects `closed` to decide. The contact
-      is **information**, not a veto: the page reads it to label the button —
-      « Fermer le portail » when the gate stands open, « Ouvrir le portail »
-      otherwise or when the state is unknown — and that label is the whole of
-      what the state buys.
+    - Neither guestFlow nor the recipe inspects `closed` to decide, and since
+      2026-09-14 the guest page is not even handed it (rule 19.ter). The label
+      therefore names the **movement** without claiming to know its direction:
+      **« Glisser pour actionner »**, with one caption above it — « Le même geste
+      ouvre et ferme » — which answers the only question the label leaves open.
+      One constant, `ACTION_LABEL`, at the top of `app.js`.
     - The earlier design refused a pulse while the gate was not closed, so that a
       second guest could not close it on the first one's car. It was my idea, not
       a requirement, and it took away something a guest legitimately wants.
@@ -264,9 +294,9 @@ can cut it at any time, and never has to change a printed code again.
     cannot starve the other lodging.
 
 **Edge cases:**
-- Contact stuck, or stale → the button simply reads « Ouvrir le portail » and the
-  pulse goes out anyway. A wrong label is a small thing; a gate that refuses to
-  move is not.
+- Contact stuck, or stale → nothing changes on the guest's screen, which no
+  longer depends on the contact at all, and the pulse goes out. A gate that
+  refuses to move is the only real failure here.
 - Both lodgings press within the same seconds → two pulses, and the gate may end
   up closed again. Exactly what two people with two remotes would do, and the
   journal says who pressed when.
@@ -527,18 +557,22 @@ carries (`integrations/wordpress/solio-site/mu-plugins/gf-site-style.php`,
 - **Code form** (no session): the property photo, « Domaine Solio », one field
   in `text-transform: uppercase` with `inputmode: text`, the dash inserted as
   you type, one button. Error: « Code incorrect ou expiré. » — never more.
-- **Unlocked**: « Bonjour Camille », the stay dates, a badge reading the real
-  gate contact (**Portail ouvert** / **Portail fermé**), and a full-width button
-  at least 64 px high whose LABEL follows that state — « Fermer le portail » when
-  the gate stands open, « Ouvrir le portail » otherwise. Under it « Votre accès
-  est actif jusqu'au 14/09 à 11:00 » and « Partager l'accès ».
-- **Pressing**: the button reads « Demande envoyée » and stays inactive for the
-  travel time. No bar, no seconds, no confirmation screen — see §3.5 rule 18.
-  A failure, and only a failure, appends a line: the refusal, or the phone number
-  as a `tel:` link.
+- **Unlocked** (revised 2026-09-14): « Bonjour Camille », the stay dates, and —
+  at the bottom, where a thumb reaches — the caption « Le même geste ouvre et
+  ferme » over a **slide-to-confirm** reading « Glisser pour actionner » (§3.5
+  rule 17.bis). Under it « Actif jusqu'au 14/09 à 11:00 » and « Partager
+  l'accès ». **No gate-state badge** and **no lodging name in the footer**: both
+  removed on the owner's instruction, the first because the state has no
+  business on a guest's phone, the second because a guest knows where they are
+  sleeping.
+- **Sliding**: the label reads « Commande envoyée », then the knob returns to
+  rest after 2 s. No bar, no seconds, no confirmation screen — see §3.5 rule 18.
+  A failure, and only a failure, shows a line above the slider: the refusal, or
+  the phone number as a `tel:` link.
 - **Before the window**: « Votre accès sera actif le 12/09 à 16:00 » with a live
   countdown. **After**: « Votre séjour est terminé. Merci de votre visite. »
-- **Service down** (§3.5 rule 19): the button is disabled and greyed, with
+- **Service down** (§3.5 rule 19): the slider is greyed and its knob disabled —
+  dragging it to the end sends nothing — with
   « Ouverture à distance indisponible — appelez le 06.15.73.93.37 »,
   the number being a `tel:` link.
 - Installable: `manifest.webmanifest` + `apple-touch-icon`, with a discreet
@@ -587,9 +621,14 @@ colour, confirmation dialog: « le lien déjà envoyé cessera de fonctionner »
 - [ ] Permanent QR → code typed → same result; code remembered on reload.
 - [ ] Share to a second phone; both work; both appear in the journal.
 - [ ] Revoke while the guest page is open → the next press is refused.
-- [ ] Stop the Sowel plugin → the button greys out within 60 s.
-- [ ] Two lodgings occupied: the Gîte guest opens, the Lodge guest presses two
-      seconds later → one pulse, and the second phone reads « déjà ouvert ».
+- [ ] Stop the Sowel plugin → the slider greys out within 60 s, and dragging it
+      to the end sends nothing.
+- [ ] Release the knob at mid-track → no request is created. Check
+      `gate_requests` and the journal, not just the screen.
+- [ ] Nowhere on the guest page, in any state, does the gate's own state appear.
+- [ ] Two lodgings occupied: the Gîte guest opens, the Lodge guest slides two
+      seconds later → two honest requests, and neither phone is told anything
+      about the other (§3.8 rule 28).
 - [ ] The page in the night register, screen brightness low, outdoors.
 - [ ] Regression: the arrival SAS still completes end to end; the J-2 email
       still renders for a reservation with no access.
