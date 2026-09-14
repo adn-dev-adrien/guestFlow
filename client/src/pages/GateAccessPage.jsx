@@ -633,7 +633,7 @@ export default function GateAccessPage() {
               </Select>
             </FormControl>
             <Box sx={{ flex: 1 }} />
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreating(true)} disabled={creating} sx={TOUCH}>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreating(true)} disabled={creating} sx={{ ...TOUCH, whiteSpace: 'nowrap', flexShrink: 0 }}>
               Nouvel accès
             </Button>
           </Stack>
