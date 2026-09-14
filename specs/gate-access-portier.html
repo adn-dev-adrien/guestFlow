@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portier — accès portail v2</title>
+<style>
+:root{--paper:#F5F0E6;--card:#FDFAF3;--ink:#22271F;--soft:#5C6153;--line:#DCD4C2;--sapin:#2E3B2A;--ocre:#B87B2A;
+--deep:#9A6318;--brique:#8E3B27;--vert:#5A6B48;--wash-ocre:#F2E6D2;--wash-sapin:#E3E5DB;--wash-brique:#EFDCD6;
+--serif:Georgia,"Times New Roman",serif;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:64rem;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:400;color:var(--sapin);line-height:1.2;margin:0}
+h1{font-size:2.05rem;text-transform:uppercase;letter-spacing:.05em}
+h2{font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;margin-top:3.2rem}
+p{margin:.7rem 0}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--deep)}
+.lede{font-size:1.08rem;color:var(--soft);max-width:48rem}
+code{font-family:var(--mono);font-size:.84em;background:var(--wash-ocre);padding:.08em .32em}
+.muted{color:var(--soft)} .small{font-size:.88rem}
+.box{background:var(--card);border:1px solid var(--line);padding:1.1rem 1.25rem;margin:1.2rem 0}
+.box.warm{background:var(--wash-ocre);border-left:3px solid var(--ocre)}
+.box.stop{background:var(--wash-brique);border-left:3px solid var(--brique)}
+ul.clean{list-style:none;padding:0;margin:.5rem 0} ul.clean li{position:relative;padding-left:1.1rem;margin:.5rem 0}
+ul.clean li::before{content:"";position:absolute;left:0;top:.62em;width:.4rem;height:.4rem;background:var(--ocre)}
+figure{margin:1.2rem 0 .6rem;background:var(--card);border:1px solid var(--line)}
+figcaption{padding:.75rem 1rem;border-top:1px solid var(--line);font-size:.92rem}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+svg.seq,svg.topo{display:block;width:100%;height:auto;min-width:820px}
+ol.msgs{margin:.4rem 0 0;padding-left:2.4rem;font-size:.93rem} ol.msgs li{margin:.42rem 0}
+ol.msgs li::marker{font-weight:700;color:var(--deep)}
+.kind{display:inline-block;font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.05rem .4rem;border:1px solid;vertical-align:.12em;margin-right:.15rem}
+.kind.send{color:var(--deep);border-color:var(--ocre);background:var(--wash-ocre)}
+.kind.chan{color:#fff;border-color:var(--sapin);background:var(--sapin)}
+.kind.resp{color:var(--soft);border-color:var(--line);background:var(--card)}
+.who{font-weight:700;white-space:nowrap}
+.after{font-size:.93rem;color:var(--soft);margin:.8rem 0 0;max-width:50rem}
+table.recap{border-collapse:collapse;width:100%;min-width:36rem;font-size:.9rem;background:var(--card)}
+table.recap th,table.recap td{text-align:left;padding:.5rem .65rem;border-bottom:1px solid var(--line);vertical-align:top}
+table.recap thead th{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--deep);background:var(--wash-ocre)}
+table.recap td:first-child{width:38%;color:var(--soft);font-style:italic}
+.short{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));margin-top:1rem}
+.short div{background:var(--card);border:1px solid var(--line);padding:.8rem .9rem;font-size:.93rem}
+.short b{display:block;font-family:var(--serif);font-weight:400;font-size:1.1rem;margin-bottom:.25rem;color:var(--sapin)}
+.demo{border:1px solid var(--line);background:var(--card);margin:1.2rem 0}
+.demo-head{background:var(--wash-sapin);border-bottom:1px solid var(--line);padding:.55rem .9rem;font-size:.72rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--sapin);display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem}
+.demo-head span:last-child{font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--soft)}
+.demo-body{padding:1.1rem}
+button,input[type=text]{font-family:var(--sans);font-size:.86rem;color:var(--ink);background:var(--card);border:1px solid var(--line);padding:.42rem .7rem}
+button{cursor:pointer} button:hover{background:var(--wash-ocre)} button[disabled]{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--ocre);border-color:var(--ocre);color:#fff;font-weight:700}
+button.danger{color:var(--brique);border-color:var(--brique)}
+.row{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+.seg button.on{background:var(--sapin);border-color:var(--sapin);color:#fff}
+.kgrid,.pgrid{display:grid;gap:1.2rem;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr))}
+.pgrid{margin-top:1rem;align-items:start}
+.klabel{font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--deep);margin:0 0 .4rem}
+.kline{font-size:.9rem;margin:.55rem 0 .3rem}
+.kphone{border:1px solid var(--line);padding:.5rem .7rem;margin:.5rem 0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.kphone .kline{width:100%;margin:0} .kphone.off{background:var(--paper)}
+.tag{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.05rem .4rem;border:1px solid}
+.tag.revoque{color:var(--brique);border-color:var(--brique)}
+ol.klog{list-style:none;padding:0;margin:.9rem 0 0;font-size:.86rem;max-height:14rem;overflow:auto}
+ol.klog li{padding:.3rem .5rem;border-left:3px solid var(--line);margin:.25rem 0;background:var(--paper)}
+ol.klog li.ok{border-color:var(--vert)} ol.klog li.ko{border-color:var(--brique);color:var(--brique)}
+.phone{position:relative;width:19rem;max-width:100%;margin:0 auto;background:#23291F;border-radius:2rem;padding:.5rem}
+.screen{background:var(--paper);border-radius:1.6rem;padding:1rem 1.1rem 1.2rem;min-height:31rem;display:flex;flex-direction:column;gap:.7rem}
+.bg-veil{position:absolute;inset:.5rem;border-radius:1.6rem;background:rgba(22,28,22,.82);color:#E8C286;display:flex;align-items:center;justify-content:center;text-align:center;font-size:.9rem}
+.bg-veil[hidden]{display:none}
+.brand{font-family:var(--serif);font-size:.78rem;letter-spacing:.28em;text-transform:uppercase;color:var(--deep);margin:0}
+.screen h4{font-size:1.35rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.sub{font-size:.82rem;color:var(--soft);margin:0} .spacer{flex:1;min-height:.3rem}
+.caption{font-size:.72rem;color:var(--soft);text-align:center;margin:0}
+.track{width:100%;max-width:260px;margin:0 auto;height:52px;text-align:left;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:.72rem;color:var(--soft)}
+.icard{border:1px solid var(--ocre);background:var(--wash-ocre);padding:.65rem .75rem;font-size:.8rem}
+.ititle{font-weight:700;margin:0 0 .3rem;color:var(--deep)} .isteps{margin:.2rem 0 .4rem;padding-left:1.1rem} .isteps li{margin:.15rem 0}
+.ibtn{background:var(--ocre);border-color:var(--ocre);color:#fff;font-weight:700;width:100%;margin:.2rem 0}
+.ismall{font-size:.72rem;color:var(--soft);margin:.2rem 0}
+.icode{display:flex;gap:.4rem;align-items:center;justify-content:space-between;border-top:1px dashed var(--ocre);padding-top:.4rem;margin-top:.3rem}
+.icopy{padding:.2rem .5rem;font-size:.75rem} .ilater{border:0;background:none;color:var(--soft);font-size:.75rem;padding:.3rem 0}
+.pcode{font-family:var(--mono);font-size:1.2rem;letter-spacing:.18em;text-align:center;width:100%}
+.perr{color:var(--brique);font-size:.82rem;margin:.2rem 0;min-height:1em}
+fieldset{border:1px solid var(--line);padding:.8rem;margin:0 0 .8rem}
+legend{font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--deep);padding:0 .3rem}
+.rad{display:flex;gap:.4rem;align-items:center;font-size:.92rem;margin:.3rem 0}
+.homescreen{background:linear-gradient(160deg,#3F5A4A,#1E2A22);border-radius:1.6rem;padding:1.3rem 1rem;display:grid;grid-template-columns:repeat(4,1fr);gap:1rem .6rem;max-width:19rem;margin:0 auto}
+.hicon{display:flex;flex-direction:column;align-items:center;gap:.25rem;font-size:.66rem;color:#fff}
+.hsq{width:3.2rem;height:3.2rem;border-radius:.8rem;overflow:hidden} .hsq img{width:100%;height:100%;object-fit:cover;display:block}
+.hicon.mine .hsq{box-shadow:0 0 0 2px #E8C286}
+@media (max-width:40rem){h1{font-size:1.6rem}.wrap{padding:1.6rem 1rem 4rem}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="eyebrow">Domaine Solio · accès portail · spec v2 · 14 septembre 2026</p>
+<h1>Portier : du push, des clés, et l’app de la liste</h1>
+<p class="lede">Tu as refusé quatre choses de la version livrée : le polling, l’activation qui dépend des
+écrans de guestFlow, un code partagé en guise de preuve, et une page qui n’apprend pas à s’installer. Voici
+la spec qui les remplace. <strong>Aucun code n’a été écrit</strong> : ce document et la spec
+<code>specs/gate-access-portier.md</code> sont ce qu’il faut valider.</p>
+
+<div class="short">
+  <div class="p"><b>Du push, plus de polling</b>La maison ouvre un canal chiffré vers Portier et le garde
+    ouvert ; Portier y pousse l’impulsion à l’instant où la glissière arrive au bout.</div>
+  <div class="q"><b>Activation automatique</b>guestFlow pousse l’accès dans Portier dès que la réservation
+    existe. Plus de SAS pour activer. Ensuite, c’est Portier qui gère.</div>
+  <div class="n"><b>Une clé par téléphone</b>Dérivée d’une clé maître que seul Portier possède. Chaque
+    commande est signée avec elle, et chaque niveau se révoque côté serveur.</div>
+</div>
+
+<h2>1 · Tes demandes, et ce que la spec en fait</h2>
+<div class="scroll"><table class="recap">
+  <thead><tr><th>Ce que tu as demandé</th><th>Ce que la spec en fait</th></tr></thead>
+  <tbody>
+  <tr><td>« Je ne veux pas de polling, je veux un canal sécurisé et du push. »</td>
+      <td>La maison ouvre une <strong>WebSocket chiffrée</strong> vers Portier, authentifiée par un défi et
+      une signature sur chaque trame. Portier <strong>pousse</strong> les commandes dedans ; la maison
+      repousse les résultats et l’état du portail. guestFlow <strong>pousse</strong> la configuration.</td></tr>
+  <tr><td>« Activation automatique, pas besoin du SAS. »</td>
+      <td>guestFlow pousse l’accès <strong>dès que la réservation existe</strong> — formulaire, devis accepté,
+      import iCal ou paiement. « Ouvrir l’accès maintenant » quitte le SAS.</td></tr>
+  <tr><td>« Une app qui maintient la liste des accès ; ensuite c’est elle qui gère. »</td>
+      <td><strong>Portier</strong>, application séparée : les accès, les téléphones, les clés, le journal et
+      ta liste. guestFlow ne garde plus rien du portail.</td></tr>
+  <tr><td>« Les seuls changements : une date ou un horaire dans guestFlow, ou un changement manuel. »</td>
+      <td>Exactement ces deux-là, dans des champs séparés qui ne s’écrasent jamais. <strong>J’ajoute
+      l’annulation</strong> — sinon un séjour annulé garde un accès qui marche. À confirmer.</td></tr>
+  <tr><td>« L’état du lien, seulement quand l’app est au premier plan. »</td>
+      <td>Une vérification au démarrage et à chaque retour au premier plan. <strong>Aucun minuteur.</strong></td></tr>
+  <tr><td>« Une clé dans chaque requête, comparée à une clé maître, révocable. »</td>
+      <td>Une clé par téléphone, <strong>dérivée</strong> de la clé maître. La requête porte une signature,
+      pas la clé. Quatre niveaux de révocation, du téléphone seul à tout le parc.</td></tr>
+  <tr><td>« La page doit inviter et expliquer comment installer l’app. »</td>
+      <td>Une carte « Installer l’application » avec les étapes <strong>de la plateforme détectée</strong>,
+      et le code à copier pour le cas iPhone.</td></tr>
+  <tr><td>« Le logo de guestFlow, sinon un réglage dans l’app de la liste. »</td>
+      <td>guestFlow <strong>pousse son logo</strong> à Portier quand il change ; Portier a un réglage pour le
+      remplacer, et génère les icônes.</td></tr>
+  </tbody>
+</table></div>
+
+<h2>2 · La nouvelle architecture</h2>
+<figure><div class="scroll"><svg class="topo" viewBox="0 0 960 330" role="img" aria-label="Portier au centre : le téléphone, guestFlow, toi et la maison ouvrent chacun leur connexion vers lui ; Portier n’en ouvre aucune et pousse l’impulsion dans le canal que la maison tient ouvert." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-topo-ink" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22271F"/></marker>
+<marker id="f-topo-sapin" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E3B2A"/></marker>
+<marker id="f-topo-brique" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8E3B27"/></marker>
+</defs>
+<path d="M 180,110 Q 260,58 340,110" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="260" y="74" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">requêtes signées</text>
+<path d="M 620,110 Q 540,58 460,110" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="540" y="74" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">ouvre le canal (WSS)</text>
+<path d="M 460,162 Q 540,214 620,162" fill="none" stroke="#2E3B2A" stroke-width="3.2" marker-end="url(#f-topo-sapin)"/>
+<text x="540" y="216" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2E3B2A" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">pousse l’impulsion dans ce canal</text>
+<path d="M 705,110 Q 770,62 835,110" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="770" y="76" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">impulsion</text>
+<path d="M 835,162 Q 770,210 705,162" fill="none" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="770" y="216" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">contact</text>
+<line x1="400" y1="252" x2="400" y2="166" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="388" y="244" text-anchor="end" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">push de configuration</text>
+<line x1="150" y1="256" x2="336" y2="166" stroke="#22271F" stroke-width="2" marker-end="url(#f-topo-ink)"/>
+<text x="196" y="206" text-anchor="end" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">ta liste</text>
+<path d="M 477,284 Q 660,284 660,166" fill="none" stroke="#8E3B27" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#f-topo-brique)"/>
+<text x="618" y="262" text-anchor="middle" font-size="15" font-weight="700" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">✕</text>
+<text x="700" y="312" text-anchor="middle" font-size="12.5" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">guestFlow → maison : n’existe pas</text>
+<rect x="55.0" y="112" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="130" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Téléphone</text>
+<text x="130" y="151" text-anchor="middle" font-size="11" fill="#5C6153">app du client</text>
+<rect x="315.0" y="112" width="170" height="50" rx="3" fill="#E3E5DB" stroke="#2E3B2A" stroke-width="1.8"/>
+<text x="400" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portier</text>
+<text x="400" y="151" text-anchor="middle" font-size="11" fill="#5C6153">n’ouvre aucune connexion</text>
+<rect x="585.0" y="112" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="660" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Maison</text>
+<text x="660" y="151" text-anchor="middle" font-size="11" fill="#5C6153">Sowel</text>
+<rect x="795.0" y="112" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1"/>
+<text x="870" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portail</text>
+<text x="870" y="151" text-anchor="middle" font-size="11" fill="#5C6153">nœud LoRa</text>
+<rect x="325" y="258" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="400" y="279" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">guestFlow</text>
+<text x="400" y="297" text-anchor="middle" font-size="11" fill="#5C6153">VM 104</text>
+<rect x="35" y="258" width="150" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="110" y="279" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Toi</text>
+<text x="110" y="297" text-anchor="middle" font-size="11" fill="#5C6153">la liste, les réglages</text>
+</svg></div><figcaption>Portier est au centre et <strong>n’ouvre aucune connexion</strong> : le téléphone, guestFlow, toi et la maison viennent à lui. La flèche verte est le seul push vers la maison — il passe dans le canal que la maison a ouvert elle-même. guestFlow ne peut toujours pas joindre la maison.</figcaption></figure>
+<div class="box">
+  <p style="margin-top:0"><strong>Ce qui tourne encore sur une horloge, dit franchement.</strong> Trois choses,
+  et aucune ne demande de données :</p>
+  <ul class="clean">
+    <li><strong>Le ping du canal, toutes les 30 s.</strong> Sans lui, une connexion coupée en silence par la
+      Freebox aurait l’air vivante pendant des heures, et une glissade partirait dans le vide. Ce n’est pas une
+      question « as-tu quelque chose ? » : c’est le canal qui vérifie qu’il est encore branché.</li>
+    <li><strong>La reprise de l’outbox de guestFlow</strong>, seulement tant qu’un push échoue. Outbox vide,
+      rien ne tourne.</li>
+    <li><strong>La purge quotidienne</strong> des codes, sept jours après le séjour.</li>
+  </ul>
+  <p class="small muted" style="margin-bottom:0">Portier tourne sur un LXC à lui, avec le profil pare-feu de la
+  VM 104 : joignable depuis edge, fermé vers le réseau de la maison. Il est joint par son nom public, par le
+  même retour NAT de la Freebox que le plugin utilise aujourd’hui — aucune nouvelle règle.</p>
+</div>
+
+<h2>3 · Comment un accès naît et change</h2>
+<figure><div class="scroll"><svg class="seq" viewBox="0 0 960 938" role="img" aria-label="guestFlow pousse l’accès dès que la réservation existe, puis seulement quand ses dates changent ou qu’elle est annulée. Tout le reste se règle dans Portier." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-config-send" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#B87B2A"/></marker>
+<marker id="f-config-chan" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E3B2A"/></marker>
+<marker id="f-config-resp" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5C6153"/></marker>
+<marker id="f-config-human" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8A8F80"/></marker>
+</defs>
+<line x1="120" y1="56" x2="120" y2="932" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="360" y1="56" x2="360" y2="932" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="600" y1="56" x2="600" y2="932" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="840" y1="56" x2="840" y2="932" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<rect x="32" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="120" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Client</text>
+<text x="120" y="45" text-anchor="middle" font-size="11" fill="#5C6153">sa messagerie</text>
+<rect x="272" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">guestFlow</text>
+<text x="360" y="45" text-anchor="middle" font-size="11" fill="#5C6153">VM 104</text>
+<rect x="512" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="600" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portier</text>
+<text x="600" y="45" text-anchor="middle" font-size="11" fill="#5C6153">la liste des accès</text>
+<rect x="752" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="840" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Toi</text>
+<text x="840" y="45" text-anchor="middle" font-size="11" fill="#5C6153">dans Portier</text>
+<rect x="250" y="78" width="220" height="42" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="96" text-anchor="middle" font-size="11" fill="#22271F">réservation créée : formulaire,</text>
+<text x="360" y="111" text-anchor="middle" font-size="11" fill="#22271F">devis, iCal ou paiement</text>
+<rect x="250" y="134" width="220" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="152" text-anchor="middle" font-size="11" fill="#22271F">outbox, dans la même transaction</text>
+<line x1="374" y1="196" x2="595" y2="196" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="187" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">PUT /stays/{id}</text>
+<text x="480" y="215" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">fenêtre · révision 1 · signé</text>
+<circle cx="360" cy="196" r="10.5" fill="#B87B2A"/>
+<text x="360" y="199.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">1</text>
+<rect x="485" y="233" width="230" height="42" rx="3" fill="#E3E5DB" stroke="#2E3B2A"/>
+<text x="600" y="251" text-anchor="middle" font-size="11" fill="#22271F">accès créé</text>
+<text x="600" y="266" text-anchor="middle" font-size="11" fill="#22271F">aucune clé stockée : tout est dérivé</text>
+<line x1="586" y1="310" x2="365" y2="310" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-config-resp)"/>
+<text x="480" y="301" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">applied</text>
+<circle cx="600" cy="310" r="10.5" fill="#5C6153"/>
+<text x="600" y="313.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">2</text>
+<rect x="260" y="347" width="200" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="365" text-anchor="middle" font-size="11" fill="#22271F">dates ou heures modifiées</text>
+<line x1="374" y1="409" x2="595" y2="409" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="400" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">PUT /stays/{id}</text>
+<text x="480" y="428" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">nouvelle fenêtre · révision 2</text>
+<circle cx="360" cy="409" r="10.5" fill="#B87B2A"/>
+<text x="360" y="412.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">3</text>
+<line x1="586" y1="467" x2="365" y2="467" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-config-resp)"/>
+<text x="480" y="458" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">applied</text>
+<circle cx="600" cy="467" r="10.5" fill="#5C6153"/>
+<text x="600" y="470.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">4</text>
+<line x1="826" y1="525" x2="605" y2="525" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="720" y="516" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">« Prolonger jusqu’au… »</text>
+<text x="720" y="544" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">changement manuel</text>
+<circle cx="840" cy="525" r="10.5" fill="#B87B2A"/>
+<text x="840" y="528.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">5</text>
+<rect x="495" y="562" width="210" height="42" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="600" y="580" text-anchor="middle" font-size="11" fill="#22271F">fenêtre en vigueur :</text>
+<text x="600" y="595" text-anchor="middle" font-size="11" fill="#22271F">la plus large des deux</text>
+<rect x="250" y="618" width="220" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="636" text-anchor="middle" font-size="11" fill="#22271F">08:00 — email J-7 à composer</text>
+<line x1="374" y1="680" x2="595" y2="680" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="671" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">GET …/invitation</text>
+<text x="480" y="699" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">lue au besoin, jamais stockée</text>
+<circle cx="360" cy="680" r="10.5" fill="#B87B2A"/>
+<text x="360" y="683.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">6</text>
+<line x1="586" y1="738" x2="365" y2="738" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-config-resp)"/>
+<text x="480" y="729" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">lien + code</text>
+<circle cx="600" cy="738" r="10.5" fill="#5C6153"/>
+<text x="600" y="741.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">7</text>
+<line x1="346" y1="796" x2="125" y2="796" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="240" y="787" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">email J-7</text>
+<text x="240" y="815" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">lien ?i=… + code</text>
+<circle cx="360" cy="796" r="10.5" fill="#B87B2A"/>
+<text x="360" y="799.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">8</text>
+<rect x="260" y="833" width="200" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="851" text-anchor="middle" font-size="11" fill="#22271F">séjour annulé</text>
+<line x1="374" y1="895" x2="595" y2="895" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-config-send)"/>
+<text x="480" y="886" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">DELETE /stays/{id}</text>
+<text x="480" y="914" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">révoque l’accès</text>
+<circle cx="360" cy="895" r="10.5" fill="#B87B2A"/>
+<text x="360" y="898.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">9</text>
+</svg></div><figcaption>guestFlow pousse l’accès dès que la réservation existe, puis seulement quand ses dates changent ou qu’elle est annulée. Tout le reste se règle dans Portier.</figcaption></figure>
+<ol class="msgs">
+<li value="1"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — guestFlow pousse l’accès au moment où la réservation existe, quel que soit son chemin. La requête porte la fenêtre déjà calculée (arrivée → départ + 1 h) et une signature dont la clé ne circule jamais. Si Portier ne répond pas, la ligne reste dans l’outbox et repart plus tard — rien ne tourne quand l’outbox est vide.</li>
+<li value="2"><span class="kind resp">Réponse</span> <span class="who">Portier → guestFlow</span> — Portier accuse réception. Une révision plus ancienne arrivée en retard serait ignorée.</li>
+<li value="3"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — le seul changement que guestFlow peut encore pousser : de nouvelles dates ou heures.</li>
+<li value="4"><span class="kind resp">Réponse</span> <span class="who">Portier → guestFlow</span> — même accusé de réception.</li>
+<li value="5"><span class="kind send">Envoyé</span> <span class="who">Toi → Portier</span> — ton changement vit dans ses propres champs : guestFlow ne peut pas l’écraser, et une nouvelle date ne l’annule pas.</li>
+<li value="6"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — pour composer l’email, guestFlow demande l’invitation à ce moment-là, et ne la garde pas. Si tu la régénères dans Portier, l’email suivant porte la nouvelle, sans que Portier ait à prévenir guestFlow.</li>
+<li value="7"><span class="kind resp">Réponse</span> <span class="who">Portier → guestFlow</span> — le lien d’invitation et le code dictable, tous deux dérivés de la clé de l’accès.</li>
+<li value="8"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Client</span> — l’email part comme aujourd’hui : à 08:00 si l’envoi automatique est activé, sinon à ton clic.</li>
+<li value="9"><span class="kind send">Envoyé</span> <span class="who">guestFlow → Portier</span> — annulation, suppression ou retour en devis : l’accès est révoqué. <strong>Tu ne l’avais pas cité ; je l’ai ajouté, sinon un séjour annulé garde un accès qui marche.</strong> À confirmer.</li>
+</ol>
+<p class="after"><strong>Supprimé dans Portier, un accès ne renaît pas.</strong> Les pushes suivants de
+guestFlow pour cette réservation sont acceptés et ignorés ; seul « Recréer l’accès » dans Portier le ramène.
+C’est ce qui manquait à la version livrée.</p>
+
+<h2>4 · La clé</h2>
+<figure><div class="scroll"><svg class="topo" viewBox="0 0 960 290" role="img" aria-label="La clé maître engendre la clé de l’accès, qui engendre la clé de chaque téléphone et le code d’invitation ; chaque requête porte une signature faite avec la clé du téléphone." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-keys-ink" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22271F"/></marker>
+</defs>
+<rect x="25" y="96" width="170" height="54" rx="3" fill="#E3E5DB" stroke="#2E3B2A" stroke-width="1.4"/>
+<text x="110" y="119" text-anchor="middle" font-size="13.5" font-weight="700" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">K_master</text>
+<text x="110" y="138" text-anchor="middle" font-size="11" fill="#5C6153">fichier secret, Portier seul</text>
+<rect x="285" y="96" width="170" height="54" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1.4"/>
+<text x="370" y="119" text-anchor="middle" font-size="13.5" font-weight="700" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">K_access</text>
+<text x="370" y="138" text-anchor="middle" font-size="11" fill="#5C6153">une par accès</text>
+<rect x="545" y="96" width="170" height="54" rx="3" fill="#F5F0E6" stroke="#DCD4C2" stroke-width="1.4"/>
+<text x="630" y="119" text-anchor="middle" font-size="13.5" font-weight="700" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">K_device</text>
+<text x="630" y="138" text-anchor="middle" font-size="11" fill="#5C6153">une par téléphone</text>
+<rect x="780" y="96" width="170" height="54" rx="3" fill="#F2E6D2" stroke="#B87B2A" stroke-width="1.4"/>
+<text x="865" y="119" text-anchor="middle" font-size="13.5" font-weight="700" fill="#22271F">requête signée</text>
+<text x="865" y="138" text-anchor="middle" font-size="11" fill="#5C6153">la clé ne voyage pas</text>
+<line x1="195" y1="123" x2="285" y2="123" stroke="#22271F" stroke-width="2" marker-end="url(#f-keys-ink)"/>
+<text x="240" y="172" text-anchor="middle" font-size="11.5" fill="#5C6153" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">HMAC(·, id + génération)</text>
+<line x1="455" y1="123" x2="545" y2="123" stroke="#22271F" stroke-width="2" marker-end="url(#f-keys-ink)"/>
+<text x="500" y="172" text-anchor="middle" font-size="11.5" fill="#5C6153" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">HMAC(·, deviceId)</text>
+<line x1="715" y1="123" x2="780" y2="123" stroke="#22271F" stroke-width="2" marker-end="url(#f-keys-ink)"/>
+<text x="747.5" y="172" text-anchor="middle" font-size="11.5" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">signe</text>
+<line x1="370" y1="150" x2="370" y2="214" stroke="#22271F" stroke-width="2" marker-end="url(#f-keys-ink)"/>
+<rect x="285" y="216" width="170" height="50" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="370" y="237" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">code d’invitation</text>
+<text x="370" y="255" text-anchor="middle" font-size="11" fill="#5C6153">8 caractères dictables</text>
+<text x="110" y="60" text-anchor="middle" font-size="12" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">✕ rotation : tout meurt</text>
+<line x1="110" y1="68" x2="110" y2="94" stroke="#8E3B27" stroke-width="1.4" stroke-dasharray="3 3"/>
+<text x="370" y="60" text-anchor="middle" font-size="12" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">✕ génération +1 : l’accès et ses téléphones</text>
+<line x1="370" y1="68" x2="370" y2="94" stroke="#8E3B27" stroke-width="1.4" stroke-dasharray="3 3"/>
+<text x="630" y="60" text-anchor="middle" font-size="12" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">✕ révoquer : ce téléphone seul</text>
+<line x1="630" y1="68" x2="630" y2="94" stroke="#8E3B27" stroke-width="1.4" stroke-dasharray="3 3"/>
+<text x="560" y="245" text-anchor="start" font-size="12" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">✕ invitation +1 : plus de nouveau téléphone,</text>
+<text x="560" y="262" text-anchor="start" font-size="12" font-weight="600" fill="#8E3B27" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">les téléphones enrôlés continuent</text>
+</svg></div><figcaption>Une seule clé est gardée : la maître. Toutes les autres se recalculent à la demande, et chaque niveau se révoque sans toucher au-dessus.</figcaption></figure>
+<div class="demo" id="kd">
+  <div class="demo-head"><span>Démonstration réelle</span><span>de vrais HMAC-SHA256, calculés dans ton navigateur</span></div>
+  <div class="demo-body">
+    <div class="kgrid">
+      <div class="kcol">
+        <p class="klabel">Serveur — Portier</p>
+        <p class="kline">Clé maître <code id="kd-master">…</code></p>
+        <button id="kd-rotate" class="danger">Changer la clé maître</button>
+        <p class="kline">Accès « Camille Roux » · génération <b id="kd-agen">1</b></p>
+        <button id="kd-regen" class="danger">Régénérer l’accès</button>
+        <p class="kline">Invitation · génération <b id="kd-igen">1</b> · code <code id="kd-code">…</code></p>
+        <button id="kd-reinvite">Régénérer l’invitation</button>
+        <p class="small muted">Rien de tout ça n’est stocké, sauf la clé maître et deux compteurs.</p>
+      </div>
+      <div class="kcol" id="kd-phones"></div>
+    </div>
+    <div class="row" style="margin-top:.8rem">
+      <input type="text" id="kd-enrol-code" placeholder="Code d’invitation" maxlength="9">
+      <button id="kd-enrol">Enrôler un nouveau téléphone avec ce code</button>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <button id="kd-replay">Rejouer la dernière requête</button>
+      <button id="kd-tamper">Falsifier : changer l’appareil dans la dernière requête</button>
+    </div>
+    <ol class="klog" id="kd-log"></ol>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var log = $("kd-log");
+  function say(ok, text) {
+    var li = document.createElement("li");
+    li.className = ok ? "ok" : "ko";
+    li.textContent = (ok ? "✓ " : "✕ ") + text;
+    log.insertBefore(li, log.firstChild);
+  }
+  if (!window.crypto || !crypto.subtle) {
+    say(false, "Ce navigateur ne donne pas accès à WebCrypto ici : la démonstration ne peut pas calculer.");
+    return;
+  }
+  var enc = new TextEncoder();
+  var ALPHA = "ABCDEFGHJKMNPQRSTVWXYZ0123456789";
+  function rand(n) { var b = new Uint8Array(n); crypto.getRandomValues(b); return b; }
+  function hex(b) { return Array.prototype.map.call(b, function (x) { return ("0" + x.toString(16)).slice(-2); }).join(""); }
+  function hmac(raw, msg) {
+    return crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+      .then(function (k) { return crypto.subtle.sign("HMAC", k, enc.encode(msg)); })
+      .then(function (s) { return new Uint8Array(s); });
+  }
+  function code8(bytes) { var s = ""; for (var i = 0; i < 8; i += 1) s += ALPHA[bytes[i] % 32]; return s; }
+
+  var srv = { master: rand(32), agen: 1, igen: 1, revoked: {}, nonces: {} };
+  var phones = [];   // { id, label, key }  — la clé telle que le téléphone l'a reçue
+  var last = null;
+
+  function kAccess() { return hmac(srv.master, "access|A42|" + srv.agen); }
+  function kDevice(id) { return kAccess().then(function (ka) { return hmac(ka, "device|" + id); }); }
+  function invite() { return kAccess().then(function (ka) { return hmac(ka, "invite|" + srv.igen); }).then(code8); }
+
+  function refresh() {
+    $("kd-master").textContent = hex(srv.master).slice(0, 12) + "…";
+    $("kd-agen").textContent = srv.agen;
+    $("kd-igen").textContent = srv.igen;
+    invite().then(function (c) { $("kd-code").textContent = c.slice(0, 4) + "-" + c.slice(4); });
+    var box = $("kd-phones");
+    box.textContent = "";
+    var title = document.createElement("p"); title.className = "klabel"; title.textContent = "Téléphones — ce qu’ils détiennent";
+    box.appendChild(title);
+    phones.forEach(function (p) {
+      var card = document.createElement("div"); card.className = "kphone" + (srv.revoked[p.id] ? " off" : "");
+      var name = document.createElement("p"); name.className = "kline";
+      name.innerHTML = "<b></b> · clé <code></code>" + (srv.revoked[p.id] ? " · <span class=\"tag revoque\">révoqué</span>" : "");
+      name.querySelector("b").textContent = p.label;
+      name.querySelector("code").textContent = hex(p.key).slice(0, 10) + "…";
+      var go = document.createElement("button"); go.className = "primary"; go.textContent = "Glisser";
+      go.onclick = function () { send(p); };
+      var rv = document.createElement("button"); rv.textContent = "Révoquer ce téléphone";
+      rv.disabled = !!srv.revoked[p.id];
+      rv.onclick = function () { srv.revoked[p.id] = true; say(true, p.label + " révoqué : lui seul s’arrête."); refresh(); };
+      card.appendChild(name); card.appendChild(go); card.appendChild(rv);
+      box.appendChild(card);
+    });
+  }
+
+  function enrol(label) {
+    var id = hex(rand(8));
+    return kDevice(id).then(function (key) { phones.push({ id: id, label: label, key: key }); });
+  }
+
+  function verify(req, what) {
+    if (srv.revoked[req.device]) { say(false, what + " refusée : cet appareil est révoqué."); return Promise.resolve(); }
+    return kDevice(req.device).then(function (kd) {
+      return hmac(kd, "open|A42|" + req.device + "|" + req.ts + "|" + req.nonce);
+    }).then(function (expected) {
+      if (hex(expected) !== req.sig) {
+        say(false, what + " refusée : la signature ne correspond pas à ce que la clé maître permet de recalculer.");
+      } else if (srv.nonces[req.nonce]) {
+        say(false, what + " refusée : nonce déjà vu, c’est un rejeu.");
+      } else {
+        srv.nonces[req.nonce] = true;
+        say(true, what + " acceptée : signature " + req.sig.slice(0, 10) + "… recalculée depuis la clé maître → impulsion poussée.");
+      }
+    });
+  }
+
+  function send(p) {
+    var req = { device: p.id, ts: Date.now(), nonce: hex(rand(8)) };
+    return hmac(p.key, "open|A42|" + p.id + "|" + req.ts + "|" + req.nonce).then(function (sig) {
+      req.sig = hex(sig); last = req;
+      return verify(req, "Commande de « " + p.label + " »");
+    });
+  }
+
+  $("kd-rotate").onclick = function () { srv.master = rand(32); srv.nonces = {}; say(true, "Clé maître changée : toutes les clés dérivées sont mortes, invitations comprises."); refresh(); };
+  $("kd-regen").onclick = function () { srv.agen += 1; say(true, "Accès régénéré : ses téléphones et son invitation meurent, les autres accès ne bougent pas."); refresh(); };
+  $("kd-reinvite").onclick = function () { srv.igen += 1; say(true, "Invitation régénérée : plus de nouveau téléphone, ceux déjà enrôlés continuent."); refresh(); };
+  $("kd-replay").onclick = function () { if (last) verify(last, "Requête rejouée"); else say(false, "Aucune requête à rejouer : glisse d’abord."); };
+  $("kd-tamper").onclick = function () {
+    if (!last) { say(false, "Aucune requête à falsifier : glisse d’abord."); return; }
+    var other = phones.filter(function (p) { return p.id !== last.device; })[0];
+    verify({ device: other.id, ts: last.ts, nonce: hex(rand(8)), sig: last.sig }, "Requête falsifiée");
+  };
+  $("kd-enrol").onclick = function () {
+    var typed = $("kd-enrol-code").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    invite().then(function (c) {
+      if (typed !== c) { say(false, "Enrôlement refusé : code incorrect ou expiré (401)."); return; }
+      return enrol("Téléphone " + (phones.length + 1)).then(function () {
+        say(true, "Nouveau téléphone enrôlé. Révoquer un appareil ne suffit pas si la personne garde le lien : régénère aussi l’invitation.");
+        refresh();
+      });
+    });
+  };
+  enrol("iPhone de Camille").then(function () { return enrol("Android de Léo"); }).then(refresh);
+}());
+</script>
+
+
+<h2>5 · L’app du client : s’enrôler, s’installer, le premier plan</h2>
+<figure><div class="scroll"><svg class="seq" viewBox="0 0 960 813" role="img" aria-label="Le téléphone s’enrôle une fois : le code devient une clé qui ne quitte plus l’appareil. Ensuite, l’app ne vérifie son état qu’en revenant au premier plan." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-enrol-send" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#B87B2A"/></marker>
+<marker id="f-enrol-chan" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E3B2A"/></marker>
+<marker id="f-enrol-resp" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5C6153"/></marker>
+<marker id="f-enrol-human" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8A8F80"/></marker>
+</defs>
+<line x1="160" y1="56" x2="160" y2="807" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="480" y1="56" x2="480" y2="807" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="800" y1="56" x2="800" y2="807" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<rect x="72" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="160" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Un proche</text>
+<text x="160" y="45" text-anchor="middle" font-size="11" fill="#5C6153">son téléphone</text>
+<rect x="392" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="480" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Téléphone</text>
+<text x="480" y="45" text-anchor="middle" font-size="11" fill="#5C6153">du client</text>
+<rect x="712" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="800" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portier</text>
+<text x="800" y="45" text-anchor="middle" font-size="11" fill="#5C6153">guest.domainesolio.com</text>
+<line x1="494" y1="99" x2="795" y2="99" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-enrol-send)"/>
+<text x="640" y="90" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">touche le lien</text>
+<text x="640" y="118" text-anchor="middle" font-size="11" fill="#5C6153" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">GET /?i=CODE</text>
+<circle cx="480" cy="99" r="10.5" fill="#B87B2A"/>
+<text x="480" y="102.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">10</text>
+<line x1="786" y1="157" x2="485" y2="157" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-enrol-resp)"/>
+<text x="640" y="148" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">l’app web</text>
+<text x="640" y="176" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">manifeste · icône au logo guestFlow</text>
+<circle cx="800" cy="157" r="10.5" fill="#5C6153"/>
+<text x="800" y="160.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">11</text>
+<line x1="494" y1="215" x2="795" y2="215" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-enrol-send)"/>
+<text x="640" y="206" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">s’enrôle</text>
+<text x="640" y="234" text-anchor="middle" font-size="11" fill="#5C6153" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">POST /v1/enrol { code }</text>
+<circle cx="480" cy="215" r="10.5" fill="#B87B2A"/>
+<text x="480" y="218.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">12</text>
+<rect x="670" y="252" width="260" height="42" rx="3" fill="#E3E5DB" stroke="#2E3B2A"/>
+<text x="800" y="270" text-anchor="middle" font-size="11" fill="#22271F">code valable → deviceId neuf</text>
+<text x="800" y="285" text-anchor="middle" font-size="11" fill="#22271F">K_device = HMAC(K_access, deviceId)</text>
+<line x1="786" y1="329" x2="485" y2="329" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-enrol-resp)"/>
+<text x="640" y="320" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">K_device — une seule fois</text>
+<circle cx="800" cy="329" r="10.5" fill="#5C6153"/>
+<text x="800" y="332.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">13</text>
+<rect x="355" y="366" width="250" height="42" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="480" y="384" text-anchor="middle" font-size="11" fill="#22271F">clé non extractible (IndexedDB)</text>
+<text x="480" y="399" text-anchor="middle" font-size="11" fill="#22271F">code retiré de la barre d’adresse</text>
+<rect x="355" y="422" width="250" height="42" rx="3" fill="#F2E6D2" stroke="#B87B2A"/>
+<text x="480" y="440" text-anchor="middle" font-size="11" fill="#22271F">carte « Installer l’application »</text>
+<text x="480" y="455" text-anchor="middle" font-size="11" fill="#22271F">étapes + code à copier</text>
+<line x1="474" y1="499" x2="165" y2="499" stroke="#8A8F80" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round" marker-end="url(#f-enrol-human)"/>
+<text x="320" y="490" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">« Partager l’accès »</text>
+<text x="320" y="518" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">par SMS ou WhatsApp</text>
+<line x1="174" y1="557" x2="795" y2="557" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-enrol-send)"/>
+<text x="480" y="548" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">s’enrôle à son tour</text>
+<text x="480" y="576" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">son propre appareil, révocable seul</text>
+<circle cx="160" cy="557" r="10.5" fill="#B87B2A"/>
+<text x="160" y="560.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">14</text>
+<rect x="370" y="594" width="220" height="27" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="480" y="612" text-anchor="middle" font-size="11" fill="#22271F">l’app revient au premier plan</text>
+<line x1="494" y1="656" x2="795" y2="656" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-enrol-send)"/>
+<text x="640" y="647" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">vérifie son état</text>
+<text x="640" y="675" text-anchor="middle" font-size="11" fill="#5C6153" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">GET /v1/state · signé</text>
+<circle cx="480" cy="656" r="10.5" fill="#B87B2A"/>
+<text x="480" y="659.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">15</text>
+<line x1="786" y1="714" x2="485" y2="714" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-enrol-resp)"/>
+<text x="640" y="705" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">actif · maison joignable</text>
+<circle cx="800" cy="714" r="10.5" fill="#5C6153"/>
+<text x="800" y="717.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">16</text>
+<rect x="365" y="751" width="230" height="42" rx="3" fill="#E3E5DB" stroke="#2E3B2A"/>
+<text x="480" y="769" text-anchor="middle" font-size="11" fill="#22271F">en arrière-plan : aucun appel,</text>
+<text x="480" y="784" text-anchor="middle" font-size="11" fill="#22271F">aucun minuteur</text>
+</svg></div><figcaption>Le téléphone s’enrôle une fois : le code devient une clé qui ne quitte plus l’appareil. Ensuite, l’app ne vérifie son état qu’en revenant au premier plan.</figcaption></figure>
+<ol class="msgs">
+<li value="10"><span class="kind send">Envoyé</span> <span class="who">Client → Portier</span> — le lien de l’email porte l’invitation. Rien à télécharger : c’est une adresse web.</li>
+<li value="11"><span class="kind resp">Réponse</span> <span class="who">Portier → Client</span> — la page, son manifeste, et l’icône générée depuis le logo de guestFlow.</li>
+<li value="12"><span class="kind send">Envoyé</span> <span class="who">Client → Portier</span> — la page échange le code contre une clé d’appareil. Mauvais code : 401, et 5 essais par 10 minutes.</li>
+<li value="13"><span class="kind resp">Réponse</span> <span class="who">Portier → Client</span> — la clé de ce téléphone, envoyée une seule fois. Portier ne la stocke pas : il sait la recalculer depuis sa clé maître.</li>
+<li value="14"><span class="kind send">Envoyé</span> <span class="who">Proche → Portier</span> — le lien partagé enrôle le téléphone du proche comme un appareil distinct : tu peux le révoquer sans couper le reste de la famille.</li>
+<li value="15"><span class="kind send">Envoyé</span> <span class="who">Client → Portier</span> — au démarrage et à chaque retour au premier plan, jamais autrement. La requête est signée avec la clé de l’appareil.</li>
+<li value="16"><span class="kind resp">Réponse</span> <span class="who">Portier → Client</span> — l’accès (actif, pas encore, terminé, suspendu, révoqué), l’appareil, et si le canal de la maison est ouvert. Jamais l’état du portail.</li>
+</ol>
+<div class="demo" id="pd">
+  <div class="demo-head"><span>Maquette manipulable</span><span>change de téléphone, d’état, passe en arrière-plan, saisis un faux code</span></div>
+  <div class="demo-body">
+    <div class="row seg" id="pd-os"></div>
+    <div class="row seg" id="pd-st" style="margin-top:.4rem"></div>
+    <div class="pgrid">
+      <div class="phone"><div class="screen" id="pd-screen"></div><div class="bg-veil" id="pd-veil" hidden>En arrière-plan<br>aucun appel, aucun minuteur</div></div>
+      <div>
+        <button id="pd-fg" class="primary">Mettre l’app en arrière-plan</button>
+        <p class="kline" style="margin-top:.8rem">Appels réseau : <b id="pd-count">0</b> · minuteurs actifs : <b>0</b></p>
+        <ol class="klog" id="pd-log"></ol>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var OS = { ios: "iPhone · Safari", android: "Android · Chrome", other: "Autre navigateur" };
+  var ST = { browser: "Lien ouvert dans le navigateur", fresh: "App installée, 1er lancement", ready: "App installée, prête" };
+  var CODE = "4K7M9QT2";
+  var s = { os: "ios", st: "browser", fg: true, calls: 0, card: true, installed: false };
+
+  function call(text) {
+    s.calls += 1; $("pd-count").textContent = s.calls;
+    var li = document.createElement("li"); li.className = "ok"; li.textContent = text;
+    $("pd-log").insertBefore(li, $("pd-log").firstChild);
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function seg(box, map, key) {
+    box.textContent = "";
+    Object.keys(map).forEach(function (k) {
+      var b = el("button", s[key] === k ? "on" : "", map[k]);
+      b.onclick = function () { s[key] = k; if (key === "st") { s.card = true; if (k === "ready") call("GET /v1/state (signé) — démarrage de l’app"); } draw(); };
+      box.appendChild(b);
+    });
+  }
+  function slider(screen) {
+    screen.appendChild(el("p", "caption", "Le même geste ouvre et ferme"));
+    var t = el("button", "track", "»   Glisser pour actionner");
+    t.onclick = function () { call("POST /v1/open (signé) → « opened » dans la même réponse"); };
+    screen.appendChild(t);
+  }
+  function installCard(screen) {
+    if (!s.card) return;
+    var c = el("div", "icard");
+    c.appendChild(el("p", "ititle", "Installer l’application"));
+    var steps = el("ol", "isteps");
+    var list = s.os === "ios" ? ["Touchez « Partager » en bas de Safari", "Choisissez « Sur l’écran d’accueil »", "Ouvrez l’icône « Portail »"]
+      : s.os === "android" ? [] : ["Ouvrez le menu du navigateur", "Choisissez « Installer » ou « Ajouter à l’écran d’accueil »"];
+    list.forEach(function (t) { steps.appendChild(el("li", null, t)); });
+    if (s.os === "android") {
+      var inst = el("button", "ibtn", s.installed ? "Installée ✓" : "Installer l’application");
+      inst.disabled = s.installed;
+      inst.onclick = function () { s.installed = true; draw(); };
+      c.appendChild(inst);
+      c.appendChild(el("p", "ismall", "Sinon : menu ⋮ → « Installer l’application »."));
+    } else { c.appendChild(steps); }
+    if (s.os === "ios") {
+      var r = el("div", "icode");
+      r.appendChild(el("span", null, "Si l’app vous demande votre code : 4K7M-9QT2"));
+      var cp = el("button", "icopy", "Copier");
+      cp.onclick = function () { cp.textContent = "Copié ✓"; };
+      r.appendChild(cp); c.appendChild(r);
+    }
+    var later = el("button", "ilater", "Plus tard"); later.onclick = function () { s.card = false; draw(); };
+    c.appendChild(later);
+    screen.appendChild(c);
+  }
+  function draw() {
+    seg($("pd-os"), OS, "os"); seg($("pd-st"), ST, "st");
+    var sc = $("pd-screen"); sc.textContent = "";
+    sc.appendChild(el("p", "brand", "Domaine Solio"));
+    if (s.st === "fresh") {
+      sc.appendChild(el("h4", null, "Accès portail"));
+      sc.appendChild(el("p", "sub", "Saisissez votre code d’accès."));
+      var f = el("input"); f.type = "text"; f.placeholder = "XXXX-XXXX"; f.maxLength = 9; f.className = "pcode";
+      f.oninput = function () { var r = f.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8); f.value = r.length > 4 ? r.slice(0, 4) + "-" + r.slice(4) : r; };
+      var err = el("p", "perr", "");
+      var ok = el("button", "ibtn", "Valider");
+      ok.onclick = function () {
+        call("POST /v1/enrol { code }");
+        if (f.value.replace("-", "") !== CODE) { err.textContent = "Code incorrect ou expiré."; return; }
+        s.st = "ready"; draw();
+      };
+      sc.appendChild(f); sc.appendChild(ok); sc.appendChild(err);
+      sc.appendChild(el("div", "spacer"));
+      sc.appendChild(el("p", "caption", s.os === "android"
+        ? "Rare sur Android : l’app installée partage le stockage du navigateur."
+        : "Arrive quand l’iPhone isole l’app installée de Safari. Essayez 4K7M-9QT2."));
+      return;
+    }
+    sc.appendChild(el("h4", null, "Bonjour Camille"));
+    sc.appendChild(el("p", "sub", "Du 12 au 14 septembre · 4 personnes"));
+    sc.appendChild(el("div", "spacer"));
+    slider(sc);
+    sc.appendChild(el("p", "caption", "Actif jusqu’au 14/09 à 11:00"));
+    if (s.st === "browser") installCard(sc);
+  }
+  $("pd-fg").onclick = function () {
+    s.fg = !s.fg;
+    $("pd-veil").hidden = s.fg;
+    $("pd-fg").textContent = s.fg ? "Mettre l’app en arrière-plan" : "Ramener l’app au premier plan";
+    if (s.fg && s.st !== "fresh") call("GET /v1/state (signé) — retour au premier plan");
+  };
+  draw();
+}());
+</script>
+
+
+<h2>6 · L’ouverture, sans une seule question en boucle</h2>
+<figure><div class="scroll"><svg class="seq" viewBox="0 0 960 731" role="img" aria-label="Plus aucune question en boucle : la maison tient le canal ouvert, Portier y pousse l’impulsion, et le téléphone reçoit l’issue en réponse à sa propre requête." font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="f-open-send" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#B87B2A"/></marker>
+<marker id="f-open-chan" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2E3B2A"/></marker>
+<marker id="f-open-resp" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5C6153"/></marker>
+<marker id="f-open-human" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8A8F80"/></marker>
+</defs>
+<line x1="120" y1="56" x2="120" y2="725" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="360" y1="56" x2="360" y2="725" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="600" y1="56" x2="600" y2="725" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<line x1="840" y1="56" x2="840" y2="725" stroke="#DCD4C2" stroke-width="1.5" stroke-dasharray="3 4"/>
+<rect x="32" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="120" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Téléphone</text>
+<text x="120" y="45" text-anchor="middle" font-size="11" fill="#5C6153">app installée</text>
+<rect x="272" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portier</text>
+<text x="360" y="45" text-anchor="middle" font-size="11" fill="#5C6153">la liste des accès</text>
+<rect x="512" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="600" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Maison</text>
+<text x="600" y="45" text-anchor="middle" font-size="11" fill="#5C6153">Sowel : plugin + recette</text>
+<rect x="752" y="8" width="176" height="48" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="840" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="#22271F">Portail</text>
+<text x="840" y="45" text-anchor="middle" font-size="11" fill="#5C6153">pont LoRa + nœud</text>
+<line x1="586" y1="99" x2="365" y2="99" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-open-send)"/>
+<text x="480" y="90" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">ouvre le canal</text>
+<text x="480" y="118" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">WSS /house/v1 · défi signé</text>
+<circle cx="600" cy="99" r="10.5" fill="#B87B2A"/>
+<text x="600" y="102.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">17</text>
+<rect x="250" y="136" width="220" height="42" rx="3" fill="#E3E5DB" stroke="#2E3B2A"/>
+<text x="360" y="154" text-anchor="middle" font-size="11" fill="#22271F">canal authentifié</text>
+<text x="360" y="169" text-anchor="middle" font-size="11" fill="#22271F">ping / pong toutes les 30 s</text>
+<line x1="134" y1="213" x2="355" y2="213" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-open-send)"/>
+<text x="240" y="204" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">glissière au bout</text>
+<text x="240" y="232" text-anchor="middle" font-size="11" fill="#5C6153" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">POST /v1/open · signé</text>
+<circle cx="120" cy="213" r="10.5" fill="#B87B2A"/>
+<text x="120" y="216.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">18</text>
+<rect x="225" y="250" width="270" height="57" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="360" y="268" text-anchor="middle" font-size="11" fill="#22271F">re-dérive K_device depuis K_master</text>
+<text x="360" y="283" text-anchor="middle" font-size="11" fill="#22271F">compare · ±2 min · nonce jamais vu</text>
+<text x="360" y="298" text-anchor="middle" font-size="11" fill="#22271F">fenêtre · plages horaires · plafonds</text>
+<rect x="8" y="317" width="944" height="54" rx="4" fill="#F2E6D2"/>
+<line x1="374" y1="342" x2="595" y2="342" stroke="#2E3B2A" stroke-width="3" marker-end="url(#f-open-chan)"/>
+<text x="480" y="333" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#F2E6D2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">pulse { commandId }</text>
+<text x="480" y="361" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#F2E6D2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">dans le canal n°17 · 8 s max</text>
+<circle cx="360" cy="342" r="10.5" fill="#2E3B2A"/>
+<text x="360" y="345.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">19</text>
+<rect x="480" y="379" width="240" height="42" rx="3" fill="#F5F0E6" stroke="#DCD4C2"/>
+<text x="600" y="397" text-anchor="middle" font-size="11" fill="#22271F">trame signée · séquence</text>
+<text x="600" y="412" text-anchor="middle" font-size="11" fill="#22271F">plafond maison · recette armée ?</text>
+<line x1="614" y1="456" x2="835" y2="456" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-open-send)"/>
+<text x="720" y="447" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">impulsion</text>
+<text x="720" y="475" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">MQTT → pont signe → LoRa</text>
+<circle cx="600" cy="456" r="10.5" fill="#B87B2A"/>
+<text x="600" y="459.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">20</text>
+<line x1="586" y1="514" x2="365" y2="514" stroke="#2E3B2A" stroke-width="3" marker-end="url(#f-open-chan)"/>
+<text x="480" y="505" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">result « opened »</text>
+<text x="480" y="533" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">trame signée</text>
+<circle cx="600" cy="514" r="10.5" fill="#2E3B2A"/>
+<text x="600" y="517.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">21</text>
+<line x1="346" y1="572" x2="125" y2="572" stroke="#5C6153" stroke-width="1.4" marker-end="url(#f-open-resp)"/>
+<text x="240" y="563" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">« opened »</text>
+<text x="240" y="591" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">réponse à la même requête</text>
+<circle cx="360" cy="572" r="10.5" fill="#5C6153"/>
+<text x="360" y="575.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">22</text>
+<line x1="826" y1="630" x2="605" y2="630" stroke="#B87B2A" stroke-width="2.2" marker-end="url(#f-open-send)"/>
+<text x="720" y="621" text-anchor="middle" font-size="12.5" font-weight="600" fill="#22271F" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">contact : ouvert</text>
+<text x="720" y="649" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">à chaque changement</text>
+<circle cx="840" cy="630" r="10.5" fill="#B87B2A"/>
+<text x="840" y="633.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">23</text>
+<line x1="586" y1="688" x2="365" y2="688" stroke="#2E3B2A" stroke-width="3" marker-end="url(#f-open-chan)"/>
+<text x="480" y="679" text-anchor="middle" font-size="12" font-weight="600" fill="#22271F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">gate_state</text>
+<text x="480" y="707" text-anchor="middle" font-size="11" fill="#5C6153" stroke="#FDFAF3" stroke-width="5" stroke-linejoin="round" paint-order="stroke">pour ta liste, jamais le client</text>
+<circle cx="600" cy="688" r="10.5" fill="#2E3B2A"/>
+<text x="600" y="691.8" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF">24</text>
+</svg></div><figcaption>Plus aucune question en boucle : la maison tient le canal ouvert, Portier y pousse l’impulsion, et le téléphone reçoit l’issue en réponse à sa propre requête.</figcaption></figure>
+<ol class="msgs">
+<li value="17"><span class="kind send">Envoyé</span> <span class="who">Maison → Portier</span> — le plugin Sowel ouvre une WebSocket chiffrée vers Portier et répond à un défi avec une clé qui ne circule jamais. La connexion reste ouverte. C’est la maison qui l’ouvre : aucun trou dans le réseau de la maison.</li>
+<li value="18"><span class="kind send">Envoyé</span> <span class="who">Client → Portier</span> — une seule requête, signée avec la clé de l’appareil : identifiants, horodatage, nonce. La clé elle-même ne voyage pas.</li>
+<li value="19"><span class="kind chan">Poussé dans le canal</span> <span class="who">Portier → Maison</span> — <strong>le vrai push.</strong> Portier pousse la commande dans le canal que la maison tient ouvert, à l’instant où la requête est validée. Au-delà de 8 s, la maison ne l’exécute plus : le portail ne bouge jamais des minutes après que le client a renoncé.</li>
+<li value="20"><span class="kind send">Envoyé</span> <span class="who">Maison → Portail</span> — la recette pulse le portail comme aujourd’hui ; le pont LoRa signe la commande avant de l’émettre.</li>
+<li value="21"><span class="kind chan">Poussé dans le canal</span> <span class="who">Maison → Portier</span> — la maison repousse l’issue dans le même canal. « opened » veut dire « l’ordre est parti ».</li>
+<li value="22"><span class="kind resp">Réponse</span> <span class="who">Portier → Client</span> — Portier répond à la requête du téléphone, restée ouverte le temps de l’aller-retour — pas de question reposée. Silence en cas de succès, un message et le numéro sinon.</li>
+<li value="23"><span class="kind send">Envoyé</span> <span class="who">Portail → Maison</span> — le contact du portail change.</li>
+<li value="24"><span class="kind chan">Poussé dans le canal</span> <span class="who">Maison → Portier</span> — la maison pousse l’état à Portier, qui l’affiche dans ta liste. Il n’arrive jamais sur le téléphone du client.</li>
+</ol>
+<p class="after"><strong>Canal coupé au moment de la glissade :</strong> Portier répond tout de suite
+« maison injoignable », avec le numéro. Aucune commande n’est mise en attente pour plus tard.</p>
+
+<h2>7 · Le logo de l’application</h2>
+<div class="demo" id="ld">
+  <div class="demo-head"><span>Maquette manipulable</span><span>Portier → Réglages → Application des clients</span></div>
+  <div class="demo-body">
+    <div class="pgrid">
+      <div>
+        <fieldset>
+          <legend>Logo de l’application</legend>
+          <label class="rad"><input type="radio" name="ld-src" value="gf" checked> Logo de guestFlow (synchronisé)</label>
+          <p class="small muted" id="ld-sync">Reçu de guestFlow le 12/09 à 18:03.</p>
+          <label class="rad"><input type="radio" name="ld-src" value="custom"> Logo personnalisé</label>
+          <input type="file" id="ld-file" accept="image/png,image/svg+xml,image/jpeg" disabled>
+          <p class="perr" id="ld-err"></p>
+        </fieldset>
+        <button id="ld-push">Simuler : le logo change dans guestFlow</button>
+        <p class="small" id="ld-msg"></p>
+        <div class="box warm small">Un iPhone qui a <strong>déjà</strong> installé l’app garde l’ancienne icône. Règle le logo avant l’arrivée des premiers clients.</div>
+      </div>
+      <div class="homescreen" id="ld-home"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function mono(bg, fg, letters) {
+    return "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="' + bg + '"/><text x="60" y="76" font-family="Georgia,serif" font-size="46" text-anchor="middle" fill="' + fg + '">' + letters + '</text></svg>');
+  }
+  var gfLogos = [mono("#2E3B2A", "#E8C286", "DS"), mono("#B87B2A", "#FDFAF3", "DS")];
+  var s = { src: "gf", gf: 0, custom: null };
+  var others = [["#5A7FA8", "Météo"], ["#8E3B27", "Photos"], ["#6B8E5A", "Plans"], ["#444", "Réglages"], ["#C9A13B", "Notes"], ["#3F6E6E", "Messages"], ["#7A5C8E", "Musique"]];
+  function draw() {
+    var home = $("ld-home"); home.textContent = "";
+    var icons = others.slice(0, 3).map(function (o) { return { bg: o[0], name: o[1] }; });
+    icons.push({ img: s.src === "custom" && s.custom ? s.custom : gfLogos[s.gf], name: "Portail", mine: true });
+    others.slice(3).forEach(function (o) { icons.push({ bg: o[0], name: o[1] }); });
+    icons.forEach(function (ic) {
+      var cell = document.createElement("div"); cell.className = "hicon" + (ic.mine ? " mine" : "");
+      var sq = document.createElement("div"); sq.className = "hsq";
+      if (ic.img) { var im = document.createElement("img"); im.src = ic.img; im.alt = ""; sq.appendChild(im); } else sq.style.background = ic.bg;
+      var nm = document.createElement("span"); nm.textContent = ic.name;
+      cell.appendChild(sq); cell.appendChild(nm); home.appendChild(cell);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="ld-src"]'), function (r) {
+    r.onchange = function () { s.src = r.value; $("ld-file").disabled = s.src !== "custom"; $("ld-msg").textContent = ""; draw(); };
+  });
+  $("ld-file").onchange = function () {
+    var f = this.files && this.files[0]; $("ld-err").textContent = "";
+    if (!f) return;
+    if (!/^image\/(png|svg\+xml|jpeg)$/.test(f.type)) { $("ld-err").textContent = "Refusé : PNG, SVG ou JPEG seulement."; return; }
+    if (f.size > 2 * 1024 * 1024) { $("ld-err").textContent = "Refusé : 2 Mo au plus."; return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var probe = new Image();
+      probe.onload = function () {
+        if (f.type !== "image/svg+xml" && (probe.naturalWidth < 512 || probe.naturalHeight < 512)) {
+          $("ld-err").textContent = "Refusé : au moins 512 × 512 px (" + probe.naturalWidth + " × " + probe.naturalHeight + " reçu)."; return;
+        }
+        s.custom = rd.result; draw();
+      };
+      probe.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  $("ld-push").onclick = function () {
+    s.gf = 1 - s.gf; $("ld-sync").textContent = "Reçu de guestFlow à l’instant.";
+    $("ld-msg").textContent = s.src === "gf" ? "PUT /api/v1/branding reçu : icônes régénérées." : "PUT /api/v1/branding reçu et gardé, mais ignoré : le logo personnalisé l’emporte.";
+    draw();
+  };
+  draw();
+}());
+</script>
+
+
+<h2>8 · Ce qu’on ne fait pas</h2>
+<div class="box stop">
+  <ul class="clean">
+    <li><strong>Pas d’application native</strong> sur l’App Store ou le Play Store : l’app web installée est
+      l’application, et elle ne passe par aucune validation d’Apple ou de Google.</li>
+    <li><strong>Pas d’ouverture Bluetooth ou NFC</strong> devant le portail.</li>
+    <li><strong>Rien ne change</strong> au portail, au pont LoRa ni à la recette.</li>
+    <li><strong>Pas de jours de la semaine</strong> sur les plages horaires, comme tu l’as validé.</li>
+  </ul>
+</div>
+
+<h2>9 · Les risques, dits franchement</h2>
+<div class="box">
+  <ul class="clean">
+    <li><strong>Portier devient l’autorité du portail.</strong> Qui le compromet peut faire pulser. D’où les
+      freins qui restent <em>dans la maison</em>, hors de sa portée : l’interrupteur de la recette, un plafond
+      d’impulsions par heure, et le journal de Sowel.</li>
+    <li><strong>guestFlow compromis peut créer des accès de séjour.</strong> C’est le prix de l’activation
+      automatique. Les limites : fenêtre de 60 jours au plus, 18 mois d’avance au plus, étiquette « guestFlow »
+      dans ta liste, et aucun accès à tes accès manuels ni aux clés.</li>
+    <li><strong>La clé maître est le secret de tout.</strong> Si elle fuit, on la change et tout meurt — il faut
+      renvoyer une invitation à chaque client en cours. C’est pour ça qu’elle vit dans un fichier, pas en base.</li>
+    <li><strong>Un iPhone peut isoler l’app installée de Safari.</strong> Le parcours est conçu pour marcher dans
+      les deux cas ; le client retape alors son code une fois.</li>
+    <li><strong>C’est un nouveau service</strong> à héberger, sauvegarder et mettre à jour, avec sa propre base.</li>
+  </ul>
+</div>
+
+<h2>10 · Ce que devient la PR #547</h2>
+<div class="box warm">
+  <p style="margin-top:0"><strong>Je te recommande de ne pas la merger telle quelle.</strong> La plus grande
+  partie de ce qu’elle ajoute à guestFlow — les tables du portail, les routes invité, le long-poll, les deux
+  clés de la maison — serait retirée par cette spec.</p>
+  <p style="margin-bottom:0">Ce qui se garde et part dans Portier : l’alphabet des codes dictables, le calcul de
+  fenêtre testé sur les deux changements d’heure, la page invité avec sa glissière sans état, le cloisonnement
+  des noms d’hôte et les plafonds. Les deux paquets Sowel se gardent aussi : le plugin change de transport, la
+  recette ne change pas.</p>
+</div>
+
+<h2>11 · Ce que j’attends de toi</h2>
+<div class="box warm">
+  <ul class="clean">
+    <li>Le nom <strong>« Portier »</strong> pour l’app de la liste — ou un autre.</li>
+    <li><strong>L’annulation révoque l’accès</strong> : d’accord ?</li>
+    <li>Ta liste joignable <strong>de partout</strong> (identifiant + second facteur) ou <strong>depuis la maison
+      seulement</strong> ?</li>
+    <li>Portier sur <strong>son propre LXC</strong> (ma recommandation) ou sur la VM 104 ?</li>
+    <li>Portier injoignable à 08:00 : l’email J-7 <strong>attend</strong> (ma recommandation) ou part sans le
+      paragraphe portail ?</li>
+    <li>Le SAS : <strong>garder un affichage du code</strong> pour le client qui a perdu l’email, ou retirer
+      l’étape ?</li>
+    <li>Une clé <strong>par téléphone</strong> (ma recommandation) ou une par accès ?</li>
+    <li>La PR #547 : <strong>la fermer</strong> et reprendre ses pièces dans Portier ?</li>
+  </ul>
+</div>
+
+<hr style="border:0;border-top:1px solid var(--line);margin:2.5rem 0">
+<p class="muted" style="font-size:.85rem">Document autonome : aucune police, aucun script et aucune image
+distante — il s’ouvre depuis le disque, sans réseau. Les maquettes sont du vrai HTML ; la démonstration des clés
+calcule de vrais HMAC-SHA256 dans ton navigateur. Référence écrite :
+<code>guestFlow/specs/gate-access-portier.md</code>, branche <code>spec/gate-access-portier</code>.</p>
+
+</div>
+</body>
+</html>
