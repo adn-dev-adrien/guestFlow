@@ -29,6 +29,7 @@ const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
 const notificationService = require('../utils/notificationService');
 const googleCalendarSync = require('../utils/googleCalendarSync');
+const portierSync = require('../utils/portierSync');
 // Establishment closures (2026-06-06): every iCal event is checked against the
 // closure table BEFORE touching the local reservations table. Until this guard
 // landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
@@ -305,7 +306,9 @@ function createPropertyIcalModel(database) {
         // startDate/endDate are needed so the locked date-drift detector
         // (isLockedDateDrift / icalDateDriftModel) can compare the persisted dates against the
         // ones proposed by the source feed — see specs/ical-sync-override-locked-dates.md §3.
-        const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?');
+        // checkInTime/checkOutTime tell a re-sync that moved the stay from one that did not (the gate
+        // access follows the first only — specs/gate-access-portier.md §3.1).
+        const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked, startDate, endDate, checkInTime, checkOutTime FROM reservations WHERE id = ?');
         // Step ①bis (specs/ical-sync-mapping-resilience.md §3 rule 1) — the reservation row itself
         // stores the feed UID. If the mapping table lost its memory (2026-07-21 incident: one
         // degenerate empty fetch swept every mapping), this lookup re-claims the reservation
@@ -635,6 +638,8 @@ function createPropertyIcalModel(database) {
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
               createdCount += 1;
               createdReservationIds.push(reservationId);
+              // specs/gate-access-portier.md §3.1 — an imported stay is a stay: pushed in the sync's transaction.
+              portierSync.pushStay(database, reservationId);
               continue;
             }
 
@@ -674,6 +679,8 @@ function createPropertyIcalModel(database) {
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
               createdCount += 1;
               createdReservationIds.push(reservationId);
+              // specs/gate-access-portier.md §3.1 — an imported stay is a stay: pushed in the sync's transaction.
+              portierSync.pushStay(database, reservationId);
               continue;
             }
 
@@ -726,6 +733,14 @@ function createPropertyIcalModel(database) {
               payoutDueDateFor(event.endDate),
               mapping.reservationId,
             );
+            // specs/gate-access-portier.md §3.1 — a feed that moved the stay moves the access; the rest
+            // an event carries (guests, summary) does not concern the gate.
+            if (mappedReservation.startDate !== event.startDate
+              || mappedReservation.endDate !== event.endDate
+              || mappedReservation.checkInTime !== (property.defaultCheckIn || '15:00')
+              || mappedReservation.checkOutTime !== (property.defaultCheckOut || '10:00')) {
+              portierSync.pushStay(database, mapping.reservationId);
+            }
             // Keep the (pristine) reservation's option amounts in sync with the new stay — a per_night
             // default must follow the changed number of nights (specs/import-price-default-options.md §3).
             // Locked reservations never reach here, so no operator customisation is overwritten.

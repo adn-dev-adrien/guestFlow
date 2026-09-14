@@ -31,6 +31,8 @@
  * date-drift model.
  */
 
+const portierSync = require('../utils/portierSync');
+
 function buildModel(database) {
   // Bound to the SAME database so a test factory gets a matching pair. Its statements are
   // prepared lazily, so this stays a no-op on a schema without the compensations table.
@@ -197,6 +199,9 @@ function buildModel(database) {
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
     deleteImportEvents.run(cancellation.reservationId);
     deleteReservation.run(cancellation.reservationId);
+    // specs/gate-access-portier.md §3.1 — the platform cancelled and the operator approved: the
+    // reservation is deleted, so its access is revoked, in the same transaction.
+    portierSync.cancelStay(database, cancellation.reservationId, 'deleted');
     ackApproved.run(id);
     let compensationId = null;
     if (compensation) {

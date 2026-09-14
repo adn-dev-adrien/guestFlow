@@ -62,7 +62,7 @@ function buildController(captures) {
     }),
     '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
-    '../database': { prepare: () => ({ get: () => undefined, run: () => ({ changes: 0 }), all: () => [] }) },
+    '../database': { prepare: () => ({ get: () => undefined, run: () => ({ changes: 0 }), all: () => [] }), transaction: (fn) => (...args) => fn(...args) },
   }, () => {
     const p = '../controllers/reservationsController';
     delete require.cache[require.resolve(p)];
