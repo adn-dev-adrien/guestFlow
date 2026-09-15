@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (approved by delegation 2026-09-15) |
+| **Status** | Implemented (approved by delegation 2026-09-15) |
 | **Branch** | `feature/payment-polling-fair-use` |
 | **Created** | 2026-09-07 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#557](https://github.com/adn-dev-adrien/guestFlow/pull/557) — server suite 4100 pass / 0 fail (4082 before, +18) |
 
 ---
 
