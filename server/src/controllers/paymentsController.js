@@ -338,12 +338,14 @@ async function registerQontoWebhook(req, res) {
 
 // Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
+// A human asked, so the per-link cadence is bypassed (specs/payment-polling-fair-use.md rule 10).
 async function pollPaymentsNow(req, res) {
   try {
     const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
       ...buildPaymentEffectDeps(),
       qontoClient: client,
       getAccessToken: () => accessToken,
+      force: true,
     }));
     return res.json(summary);
   } catch (err) { return qontoError(res, err); }
