@@ -188,6 +188,8 @@ async function runPaymentPollPass(reason = 'cron') {
       qontoClient: client,
       getAccessToken: () => accessToken,
     }));
+    if (summary.retired > 0) console.log(`[payments] ${reason}: ${summary.retired} expired link(s) retired without a Qonto call`);
+    if (summary.stoppedBy) console.warn(`[payments] ${reason}: pass stopped by ${summary.stoppedBy} after ${summary.checked} link(s); the rest wait for the next tick`);
     if (summary.paid > 0) {
       console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
       // A paid link may just have flipped an insured reservation's acompte — subscribe now, not

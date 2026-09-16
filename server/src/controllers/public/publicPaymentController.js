@@ -152,6 +152,9 @@ async function status(req, res) {
     || paymentLinksModel.findOpenForReservation(id, mode === 'deposit' ? 'full' : 'deposit');
   if (link && link.qontoPaymentLinkId) {
     try {
+      // Exempt from the poll cadence (the guest is waiting on this page), but the call still counts
+      // towards it (specs/payment-polling-fair-use.md rules 4 and 10).
+      paymentLinksModel.touchPolled(link.id);
       const pay = await withAccessToken((client, accessToken) => client.getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId }));
       if (pay.paid) {
         await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });

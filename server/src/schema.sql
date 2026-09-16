@@ -251,6 +251,7 @@ CREATE TABLE IF NOT EXISTS payment_links (
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     paidAt TEXT,
     expiresAt TEXT,
+    lastPolledAt TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );

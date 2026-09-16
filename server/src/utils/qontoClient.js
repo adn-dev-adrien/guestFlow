@@ -11,7 +11,15 @@
  *
  * Amounts: Qonto uses `{ value, currency }` with `value` a decimal string ("90.00"). We keep cents
  * internally and format here. (Confirm the exact value format on first sandbox call.)
+ *
+ * Fair use (specs/payment-polling-fair-use.md rules 6–9): every request goes through `withRetry` — a
+ * `429`/`5xx` is retried with exponential back-off honouring `Retry-After`; a `429` that survives the
+ * budget is rethrown with `code: 'RATE_LIMITED'`. `config.retry` overrides the env-resolved options
+ * (tests inject `sleep`).
  */
+
+const { randomUUID } = require('crypto');
+const { withRetry, resolveRetryOptions } = require('./httpRetry');
 
 const SANDBOX_HOSTS = { oauth: 'https://oauth-sandbox.staging.qonto.co', api: 'https://thirdparty-sandbox.staging.qonto.co' };
 const PROD_HOSTS = { oauth: 'https://oauth.qonto.com', api: 'https://thirdparty.qonto.com' };
@@ -51,6 +59,7 @@ function buildQontoClient(config = {}) {
     throw new Error('qontoClient: no fetch implementation (Node 18+ global fetch or inject config.fetchImpl)');
   }
 
+  const retryOptions = { ...resolveRetryOptions(env), ...(config.retry || {}) };
   const stagingHeader = () => (sandbox && stagingToken ? { 'X-Qonto-Staging-Token': stagingToken } : {});
 
   function apiHeaders(accessToken) {
@@ -65,6 +74,7 @@ function buildQontoClient(config = {}) {
       const err = new Error(`Qonto ${context} failed (HTTP ${res.status})`);
       err.status = res.status;
       err.body = body;
+      err.retryAfter = res.headers && typeof res.headers.get === 'function' ? res.headers.get('retry-after') : null;
       // Log the real Qonto error (status + body incl. the trace_id) so failures are diagnosable in
       // PM2 without re-running probes. The body holds Qonto error codes, not secrets.
       // eslint-disable-next-line no-console
@@ -74,13 +84,29 @@ function buildQontoClient(config = {}) {
     return body || {};
   }
 
+  // The same `init` (headers included) is replayed on every attempt, which is what keeps an
+  // idempotency key stable across the retries of one call.
+  async function send(url, init, context) {
+    try {
+      return await withRetry(async () => readBody(await fetchImpl(url, init), context), {
+        onRetry: ({ attempt, delayMs, error }) => {
+          // eslint-disable-next-line no-console
+          console.warn(`[qonto] ${context} HTTP ${error.status}: retry ${attempt + 1}/${retryOptions.maxAttempts} in ${delayMs} ms`);
+        },
+        ...retryOptions,
+      });
+    } catch (err) {
+      if (err && err.status === 429) err.code = 'RATE_LIMITED';
+      throw err;
+    }
+  }
+
   async function postForm(path, params, context) {
-    const res = await fetchImpl(`${oauthBase}${path}`, {
+    return send(`${oauthBase}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...stagingHeader() },
       body: new URLSearchParams(params).toString(),
-    });
-    return readBody(res, context);
+    }, context);
   }
 
   return {
@@ -138,8 +164,10 @@ function buildQontoClient(config = {}) {
       // Where Qonto sends the payer back after a successful payment (the site success page). Only set
       // when provided — the exact field is confirmed in sandbox (specs/public-online-payment.md §9).
       if (redirectUrl) payload.payment_link.redirect_url = String(redirectUrl);
-      const res = await fetchImpl(`${apiBase}/v2/payment_links`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) });
-      const json = await readBody(res, 'create payment link');
+      // One key per creation call, replayed only by that call's retries (rule 8). Qonto documents the
+      // header for transfers but not for this endpoint; an unhonoured header is ignored.
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
+      const json = await send(`${apiBase}/v2/payment_links`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create payment link');
       const link = json.payment_link || json;
       // Money guard (specs/payment-links-vat.md §3 rule 5): the amount Qonto computed from the HT items
       // MUST equal what we intend to charge. On mismatch, fail loudly rather than present a wrong link.
@@ -160,8 +188,7 @@ function buildQontoClient(config = {}) {
     // when a guest pays (it does NOT flip to `paid` in sandbox) — the authoritative "paid" signal is on
     // the payments sub-resource (see getPaymentLinkPayments). The polling pass uses the latter.
     async getPaymentLink({ accessToken, id }) {
-      const res = await fetchImpl(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) });
-      const json = await readBody(res, 'get payment link');
+      const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get payment link');
       const link = json.payment_link || json;
       return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
     },
@@ -169,8 +196,7 @@ function buildQontoClient(config = {}) {
     // The payments made against a link (specs/online-payments-qonto.md §3.3). A payment with
     // `status: "paid"` is the real "the guest paid" signal. Returns `{ paid, paidPayment, payments }`.
     async getPaymentLinkPayments({ accessToken, id }) {
-      const res = await fetchImpl(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/payments`, { method: 'GET', headers: apiHeaders(accessToken) });
-      const json = await readBody(res, 'get payment link payments');
+      const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/payments`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get payment link payments');
       const payments = Array.isArray(json.payments) ? json.payments : [];
       const paidPayment = payments.find((p) => String(p.status || '').toLowerCase() === 'paid') || null;
       return { paid: Boolean(paidPayment), paidPayment, payments };
@@ -182,15 +208,13 @@ function buildQontoClient(config = {}) {
       const body = { callback_url: String(callbackUrl), types };
       if (secret) body.secret = String(secret);
       if (description) body.description = String(description);
-      const res = await fetchImpl(`${apiBase}/v2/webhook_subscriptions`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(body) });
-      const json = await readBody(res, 'create webhook subscription');
+      const json = await send(`${apiBase}/v2/webhook_subscriptions`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(body) }, 'create webhook subscription');
       const sub = json.webhook_subscription || json;
       return { id: sub.id, callbackUrl: sub.callback_url, types: sub.types, hasSecret: Boolean(sub.secret), raw: sub };
     },
 
     async listWebhookSubscriptions({ accessToken }) {
-      const res = await fetchImpl(`${apiBase}/v2/webhook_subscriptions`, { method: 'GET', headers: apiHeaders(accessToken) });
-      const json = await readBody(res, 'list webhook subscriptions');
+      const json = await send(`${apiBase}/v2/webhook_subscriptions`, { method: 'GET', headers: apiHeaders(accessToken) }, 'list webhook subscriptions');
       const subs = json.webhook_subscriptions || json.subscriptions || [];
       return subs.map((s) => ({ id: s.id, callbackUrl: s.callback_url, types: s.types }));
     },
@@ -198,8 +222,7 @@ function buildQontoClient(config = {}) {
     // List the organisation's bank accounts (the provider-connection form's account picker). Tolerates
     // both the flat `{ bank_accounts: [...] }` and the org-wrapped shape.
     async listBankAccounts({ accessToken }) {
-      const res = await fetchImpl(`${apiBase}/v2/bank_accounts`, { method: 'GET', headers: apiHeaders(accessToken) });
-      const json = await readBody(res, 'list bank accounts');
+      const json = await send(`${apiBase}/v2/bank_accounts`, { method: 'GET', headers: apiHeaders(accessToken) }, 'list bank accounts');
       const accounts = json.bank_accounts || (json.organization && json.organization.bank_accounts) || [];
       return accounts.map((a) => ({ id: a.id, name: a.name || '', iban: a.iban || '', main: Boolean(a.main) }));
     },
@@ -215,16 +238,14 @@ function buildQontoClient(config = {}) {
         user_website_url: userWebsiteUrl,
         business_description: businessDescription,
       };
-      const res = await fetchImpl(`${apiBase}/v2/payment_links/connections`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) });
-      const json = await readBody(res, 'connect provider');
+      const json = await send(`${apiBase}/v2/payment_links/connections`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) }, 'connect provider');
       const c = json.connection || json;
       return { status: c.status || 'not_connected', connectionLocation: c.connection_location || null, bankAccountId: c.bank_account_id || null, raw: c };
     },
 
     // Re-check the provider-connection status (after the user completes onboarding — no webhook needed).
     async getConnection({ accessToken }) {
-      const res = await fetchImpl(`${apiBase}/v2/payment_links/connections`, { method: 'GET', headers: apiHeaders(accessToken) });
-      const json = await readBody(res, 'get connection');
+      const json = await send(`${apiBase}/v2/payment_links/connections`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get connection');
       const c = json.connection || json;
       return { status: c.status || 'not_connected', bankAccountId: c.bank_account_id || null, raw: c };
     },

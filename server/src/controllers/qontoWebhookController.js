@@ -90,7 +90,9 @@ async function handleWebhook(req, res) {
   try {
     const qontoId = extractPaymentLinkId(req.body);
     const link = qontoId ? paymentLinksModel.findByQontoPaymentLinkId(qontoId) : null;
-    if (link && link.status === 'open' && link.qontoPaymentLinkId) {
+    // `expired` stays processable: the poll retires links on our own clock, and a payment confirmed
+    // after that must still land (specs/payment-polling-fair-use.md rule 2).
+    if (link && (link.status === 'open' || link.status === 'expired') && link.qontoPaymentLinkId) {
       const pay = await withQonto({ settings: settingsModel, origin: 'webhook' }, (client, accessToken) => client.getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId }));
       if (pay.paid) {
         await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });

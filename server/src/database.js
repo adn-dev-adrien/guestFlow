@@ -1807,6 +1807,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_payment_links_status ON payment_links(status);
 `);
 
+// Poll cadence stamp (specs/payment-polling-fair-use.md §5). NULL = never polled under the decaying
+// cadence, so every existing open link is due once on the first pass after the upgrade.
+{
+  const plCols = db.prepare('PRAGMA table_info(payment_links)').all().map((c) => c.name);
+  if (!plCols.includes('lastPolledAt')) db.exec('ALTER TABLE payment_links ADD COLUMN lastPolledAt TEXT');
+}
+
 // Bilingual templates (specs/email-language-fr-en.md): optional English subject/body. Additive +
 // idempotent; must run BEFORE the seed so fresh installs insert the EN side too.
 {
