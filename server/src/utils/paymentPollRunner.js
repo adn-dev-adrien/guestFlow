@@ -5,7 +5,7 @@
  * `processPaidLink` is the single idempotent effect of a PAID Qonto link — shared by the cron/on-demand
  * **poll** (`runPaymentPoll`) and the **webhook** (`qontoWebhookController`). Every dependency is
  * injected so it's unit-testable without network or the prod DB:
- *   - paymentLinksModel : listOpen() / markPaid() / updateStatus()
+ *   - paymentLinksModel : retireExpired() / listPollable() / touchPolled() / hasKnownExpiry() / markPaid() / updateStatus()
  *   - qontoClient       : getPaymentLink / getPaymentLinkPayments
  *   - getAccessToken()  : resolves a valid OAuth access token
  *   - devisModel        : convertToReservation(id)
@@ -112,21 +112,37 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
 }
 
-async function runPaymentPoll({ database, paymentLinksModel, qontoClient, getAccessToken, devisModel, sendConfirmation, checkConflict, notifyConflict }) {
-  const open = paymentLinksModel.listOpen();
-  const results = [];
+// One pass (specs/payment-polling-fair-use.md): retire links past a known expiry without calling Qonto,
+// then check only the open links the decaying cadence says are due (`force` = a human asked, every open
+// link). A rate limit that survives the client's back-off stops the pass: the links not yet examined
+// wait for the next tick instead of being requested into a `429`.
+async function runPaymentPoll({ database, paymentLinksModel, qontoClient, getAccessToken, devisModel, sendConfirmation, checkConflict, notifyConflict, force = false, now = new Date() }) {
+  const retired = paymentLinksModel.retireExpired({ now });
+  const results = retired.map((link) => ({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'expired', effect: 'retired-locally' }));
+  const pollable = paymentLinksModel.listPollable({ now, force });
   let accessToken = null;
+  let checked = 0;
+  let stoppedBy = null;
 
-  for (const link of open) {
+  for (const link of pollable) {
+    checked += 1;
     if (!link.qontoPaymentLinkId) { results.push({ id: link.id, status: 'skipped-no-remote-id' }); continue; }
     try {
       if (!accessToken) accessToken = await getAccessToken();
+      // Stamped with the pass start, not the call time, so the hourly tier fires every 4th tick
+      // instead of drifting to the 5th.
+      paymentLinksModel.touchPolled(link.id, now);
       // Authoritative "paid" signal = a paid payment on the link's payments sub-resource. The link's
       // own top-level status only goes open → processing on payment (it never reports `paid` in sandbox).
       const pay = await qontoClient.getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId });
       if (pay.paid) {
         const res = await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay.paidPayment, sendConfirmation, checkConflict, notifyConflict });
         results.push(res);
+        continue;
+      }
+      // With a known expiry the status call buys nothing: retireExpired closes the link on time.
+      if (paymentLinksModel.hasKnownExpiry(link)) {
+        results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'open' });
         continue;
       }
       // Not paid → only a terminal expired/cancelled link status changes our record; else stays open.
@@ -139,10 +155,11 @@ async function runPaymentPoll({ database, paymentLinksModel, qontoClient, getAcc
       }
     } catch (err) {
       results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'error', error: String(err && err.message || err) });
+      if (err && err.code === 'RATE_LIMITED') { stoppedBy = 'rate-limit'; break; }
     }
   }
 
-  return { checked: open.length, paid: results.filter((r) => r.status === 'paid').length, results };
+  return { checked, paid: results.filter((r) => r.status === 'paid').length, retired: retired.length, stoppedBy, results };
 }
 
 module.exports = { runPaymentPoll, processPaidLink, applyPaidEffect };
