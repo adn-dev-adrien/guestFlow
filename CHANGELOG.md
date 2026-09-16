@@ -4,6 +4,31 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-09-16
+
+### Summary
+- Réglages : un seul « Enregistrer » par page — la barre du haut devient le seul bouton qui écrit, et « Annuler » revient en arrière.
+- Le webhook Qonto s'enregistre tout seul : le champ « Secret du webhook » et son bouton disparaissent, plus rien à copier depuis Qonto.
+- Réglages → Paiements : une seule carte « Connexion bancaire », avec « Connexion » et « Test », inactives tant que la page n'est pas enregistrée.
+- Le port SMTP ne se saisit plus : il est déduit du mode de sécurité (587 en STARTTLS, 465 en TLS) à chaque enregistrement de la carte e-mail.
+- Les paiements sont réconciliés 3 fois par jour au lieu de 96 : le webhook confirme en temps réel, la page voyageur réconcilie à la demande.
+- Au premier passage après la mise à jour, un lien de paiement dont la date d'expiration est passée bascule en « expiré » ; aucune réservation ne bouge.
+
+### Changed
+- **Payment polling — fair use of the Qonto API** (spec `payment-polling-fair-use.md`, 2026-09-15). The 15-minute poll no longer spends two Qonto calls on every open payment link forever: a link past a real expiry date is closed locally without any call (Qonto's `0001-01-01T00:00:00Z` "no expiry" value is never read as expired), open links are checked every pass for 24 h, then hourly up to 7 days, then daily, and the link-status call is skipped when the expiry is known. Every Qonto request now retries `429`/`5xx` with exponential back-off (3 requests at most, `Retry-After` honoured, 60 s cap), a rate limit that survives stops the pass until the next tick, and payment-link creation carries an `X-Qonto-Idempotency-Key`. A payment confirmed on a link closed locally is still processed once (webhook included). The « Vérifier le paiement » button and the guest `/status` check bypass the cadence. Thresholds are configurable through `PAYMENT_POLL_*` and `QONTO_RETRY_*` environment variables. +18 server tests.
+- **Réglages — one Save per page** (spec `settings-one-save-and-automatic-webhook.md`, 2026-09-16). The « Assurance annulation (Neat) » card loses its three « Enregistrer » buttons and Réglages → Paiements loses its own: the action bar at the top of each page is now the only control that writes, it lights up for a change made inside any card, it saves only the blocks that changed, and the unsaved-changes guard covers the cards too. « Annuler » reverts them as well.
+- **Réglages → Paiements — one « Connexion bancaire » card** (same spec). « Application Qonto » and « Connexion bancaire (Qonto) » become a single card: the redirect URI to declare at Qonto comes first, then the credentials, then the date of the last verification, then two actions — « Connexion » (was « Reconnecter Qonto ») and « Test » (was « Tester la connexion »), both unavailable while the page holds unsaved changes, with a tooltip saying to save first. The called Qonto hosts, the mode, the credentials line and the provider line are gone: the diagnosis already names whichever of them is the problem.
+- **The SMTP port is no longer entered** (same spec, rule 5). It was the security mode said twice: the server derives it — 587 for STARTTLS, 465 for implicit TLS — and writes it on every save of the email settings. An installation on a non-standard port keeps it until that card is saved again.
+- **Payment polling — three passes a day instead of ninety-six** (spec `payment-polling-fair-use.md` rule 11, 2026-09-16). The reconciliation cron ticks every 8 hours rather than every 15 minutes: the webhook confirms payments in real time and the guest's success page reconciles on demand, so the cron only has to catch a webhook that never arrived. Configurable through `PAYMENT_POLL_TICK_MINUTES`.
+- **A successful Qonto authorisation is verified before the page comes back** (same spec, rule 14). GuestFlow runs a real connection test server-side and records its outcome, so Réglages → Paiements opens on the current state instead of the failure that preceded the repair — the « échec de connexion » seen during the 2026-09-15 production switch, which « Tester la connexion » cleared without changing a single setting.
+
+### Removed
+- **The Qonto webhook no longer has to be registered by hand** (spec `settings-one-save-and-automatic-webhook.md`, rules 6-11). The « Secret du webhook » field and the « Enregistrer le webhook » button are gone, along with `POST /api/payments/qonto/webhook/register`. GuestFlow now makes sure by itself that Qonto is subscribed to payment-link events at the address it answers on: after each successful authorisation and at the start of each reconciliation pass, costing no Qonto call while the recorded subscription still matches. It **adopts** a subscription Qonto already holds at that address — never creating a second one, never touching the secret it already signs with — and only creates one, with a secret it generates, when there is none. A secret typed into a form is a secret on a screen, which is exactly how the 2026-09-15 production switch had to pause.
+
+### Migration
+- **`payment_links.lastPolledAt`** (spec `payment-polling-fair-use.md`): additive `TEXT` column, added on startup when absent, `NULL` for existing rows (every open link is checked once on the first pass after the upgrade). No record is modified by the migration; on that first pass, open links already past a real expiry date flip from `open` to `expired`. Reservations, payment flags and amounts are untouched.
+- **`app_settings` gains `qontoWebhookSubscriptionId` and `qontoWebhookCallbackUrl`** (spec `settings-one-save-and-automatic-webhook.md` §5, 2026-09-16). Two additive columns, neither a secret: the id of the payment-link webhook subscription GuestFlow created or adopted, and the address it points at. Empty for existing rows, which means "nothing recorded" — so the first check after the update asks Qonto once, finds the subscription already in place, adopts it and records its id; every check after that is free. No existing value is rewritten: the stored webhook secret is left exactly as it is, which is what keeps a production subscription working.
+
 ## [2.15.0] - 2026-09-11
 
 ### Summary
