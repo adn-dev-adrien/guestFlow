@@ -169,6 +169,13 @@ strong,b{ font-weight:700; }
 .metaslider .flexslider{ background:transparent; }
 /* Pas de points de navigation sous les diaporamas : les fleches suffisent. */
 .metaslider .flex-control-nav{ display:none !important; }
+/* Legendes : sous la photo, sur le papier — et non en bandeau noir pose par-dessus,
+   qui masquerait le bas de l'image alors que les diapos ne sont pas recadrees. */
+.metaslider .flexslider .slides li .caption-wrap{ position:static; width:100%; max-width:100%;
+  margin:0; padding:0; background:none; opacity:1; filter:none; }
+.metaslider .flexslider .slides li .caption{ display:block; background:none; padding:14px 18px 0;
+  font-family:'Marcellus',Georgia,'Times New Roman',serif; font-size:1.02rem; line-height:1.5;
+  color:var(--gf-ink-soft); text-align:center; text-shadow:none; }
 
 /* ---- Bande immersive ciel etoile ---- */
 .gf-band-ciel{ position:relative; min-height:56vh; overflow:hidden; background:#060806; margin:56px 0 0; }
