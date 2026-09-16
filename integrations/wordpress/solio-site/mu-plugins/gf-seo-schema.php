@@ -135,6 +135,82 @@ function gf_seo_schema_image() {
 }
 
 /**
+ * Toutes les photos de la page, dans l’ordre du diaporama.
+ *
+ * Google demande au moins trois images pour un hebergement, et les moteurs de reponse
+ * lisent la legende pour savoir ce que montre chaque photo : le carrousel MetaSlider de
+ * la page fournit les deux. Le visuel de partage ouvre la liste, puis chaque diapo est
+ * decrite en ImageObject. Renvoie une simple URL quand il n’y a pas de diaporama, pour
+ * que les pages sans carrousel gardent le comportement d’avant.
+ *
+ * @return array|string|null
+ */
+function gf_seo_schema_galerie() {
+	$defaut = gf_seo_schema_image();
+
+	$id = is_singular() ? get_queried_object_id() : 0;
+	if ( ! $id || ! taxonomy_exists( 'ml-slider' ) ) {
+		return $defaut;
+	}
+
+	// Identifiant du diaporama, qu’il soit pose en code court ou en bloc.
+	$contenu = (string) get_post_field( 'post_content', $id );
+	if ( ! preg_match( '~metaslider[^\]\}]*?id=["\']?(\d+)~i', $contenu, $m ) ) {
+		return $defaut;
+	}
+
+	$diapos = get_posts(
+		array(
+			'post_type'        => 'ml-slide',
+			'post_status'      => 'publish',
+			'posts_per_page'   => 30,
+			'orderby'          => 'menu_order',
+			'order'            => 'ASC',
+			'suppress_filters' => false,
+			'tax_query'        => array(
+				array(
+					'taxonomy' => 'ml-slider',
+					'field'    => 'slug',
+					'terms'    => $m[1],
+				),
+			),
+		)
+	);
+	if ( ! $diapos ) {
+		return $defaut;
+	}
+
+	$images = array();
+	if ( $defaut ) {
+		$images[] = $defaut;
+	}
+
+	foreach ( $diapos as $diapo ) {
+		$piece = get_post_thumbnail_id( $diapo->ID );
+		$src   = $piece ? wp_get_attachment_image_src( $piece, 'full' ) : null;
+		if ( ! $src ) {
+			continue;
+		}
+		$url = gf_seo_absolute_url( $src[0] );
+		if ( in_array( $url, $images, true ) ) {
+			continue;
+		}
+		$images[] = gf_seo_compact(
+			array(
+				'@type'       => 'ImageObject',
+				'contentUrl'  => $url,
+				'width'       => $src[1] ? (int) $src[1] : null,
+				'height'      => $src[2] ? (int) $src[2] : null,
+				'caption'     => $diapo->post_excerpt ? wp_strip_all_tags( $diapo->post_excerpt ) : null,
+				'description' => get_post_meta( $piece, '_wp_attachment_image_alt', true ) ?: null,
+			)
+		);
+	}
+
+	return count( $images ) > 1 ? $images : $defaut;
+}
+
+/**
  * Noeud d’un hebergement : VacationRental pour le gite, Campground pour la tente.
  *
  * @param string $cle « gite » ou « lodge ».
@@ -194,7 +270,7 @@ function gf_seo_schema_hebergement( $cle ) {
 			'name'           => $l['nom'],
 			'url'            => $url,
 			'description'    => gf_seo_description(),
-			'image'          => gf_seo_schema_image(),
+			'image'          => gf_seo_schema_galerie(),
 			'telephone'      => $d['telephone'],
 			'address'        => gf_seo_schema_adresse(),
 			'geo'            => gf_seo_schema_geo(),
