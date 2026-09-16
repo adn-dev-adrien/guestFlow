@@ -65,7 +65,8 @@ const VAT_FIELDS = [
 // even though it lives in its own DB column — it's "the URL we put in the welcome email".
 const SMTP_FIELDS = [
   { input: 'host', column: 'smtpHost' },
-  { input: 'port', column: 'smtpPort', validator: validation.validateSmtpPort },
+  // No `port` entry on purpose: it is derived from `secure` below
+  // (specs/settings-one-save-and-automatic-webhook.md §3 rule 5). A port sent by a client is ignored.
   { input: 'secure', column: 'smtpSecure' },
   { input: 'username', column: 'smtpUsername' },
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
@@ -138,6 +139,20 @@ const TRIMMED_TEXT_COLUMNS = new Set([
   'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
 ]);
 
+/**
+ * The SMTP port follows the security mode
+ * (specs/settings-one-save-and-automatic-webhook.md §3 rule 5): 587 for STARTTLS, 465 for implicit
+ * TLS. It is not asked for any more, because it was the same answer twice.
+ *
+ * Only a save that touches the security mode rewrites it, so an installation sitting on a
+ * non-standard port keeps it until the email settings are saved again.
+ */
+function deriveSmtpPort(smtp, payload) {
+  if (!smtp || !Object.prototype.hasOwnProperty.call(smtp, 'secure')) return payload;
+  payload.smtpPort = validation.smtpPortForSecure(payload.smtpSecure === 1);
+  return payload;
+}
+
 function pickGroup(body, group) {
   const value = body && body[group];
   return value && typeof value === 'object' ? value : null;
@@ -198,6 +213,7 @@ function updateSettings(req, res) {
   applyGroup(quote, QUOTE_FIELDS);
   applyGroup(vat, VAT_FIELDS);
   applyGroup(smtp, SMTP_FIELDS);
+  deriveSmtpPort(smtp, payload);
   applyGroup(reservations, RESERVATIONS_FIELDS);
   applyGroup(laundry, LAUNDRY_FIELDS);
   applyGroup(linenStock, LINEN_STOCK_FIELDS);
@@ -327,4 +343,6 @@ module.exports = {
   updateLinenItems,
   getRepairAmounts,
   updateRepairAmounts,
+  // exported for tests
+  __test: { deriveSmtpPort, SMTP_FIELDS },
 };

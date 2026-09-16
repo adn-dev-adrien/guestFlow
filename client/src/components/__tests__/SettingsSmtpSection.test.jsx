@@ -13,7 +13,6 @@ import SettingsSmtpSection from '../SettingsSmtpSection';
 
 const COMPLETE = {
   host: 'smtp.gmail.com',
-  port: 587,
   secure: false,
   username: 'me@s.com',
   passwordSet: true,
@@ -41,8 +40,17 @@ function renderSection(props = {}) {
 test('renders the SMTP fields with their current values', () => {
   renderSection();
   expect(screen.getByDisplayValue('smtp.gmail.com')).toBeInTheDocument();
-  expect(screen.getByDisplayValue('587')).toBeInTheDocument();
   expect(screen.getByDisplayValue('https://guestflow.adn-dev.fr')).toBeInTheDocument();
+});
+
+// specs/settings-one-save-and-automatic-webhook.md §3 rule 5 — the port is not entered any more:
+// it is the security mode said twice, and the server derives it.
+test('rule 5: there is no port field, and the security select names both ports', () => {
+  renderSection();
+  expect(screen.queryByLabelText('Port')).not.toBeInTheDocument();
+  expect(screen.queryByDisplayValue('587')).not.toBeInTheDocument();
+  expect(screen.getByText('Le port est déduit : 587 en STARTTLS, 465 en TLS implicite.')).toBeInTheDocument();
+  expect(screen.getByLabelText('Sécurité')).toBeInTheDocument();
 });
 
 test('typing in the host field forwards (key, value) to onChange', async () => {

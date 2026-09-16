@@ -23,7 +23,9 @@ test('rule 10: invalid_client is a credentials problem, invalid_grant is an auth
 
   const lapsed = classifyQontoOutcome(qontoError(400, { error: 'invalid_grant' }), { configured: true });
   assert.equal(lapsed.state, 'reauth_required');
-  assert.match(lapsed.action, /Reconnecter Qonto/);
+  // The repair action names the button as it is labelled today
+  // (specs/settings-one-save-and-automatic-webhook.md rule 13 renamed it from « Reconnecter Qonto »).
+  assert.match(lapsed.action, /« Connexion »/);
 
   assert.notEqual(rejected.action, lapsed.action);
 });

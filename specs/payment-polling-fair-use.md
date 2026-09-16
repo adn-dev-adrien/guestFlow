@@ -100,6 +100,12 @@ double-processing a payment.
 10. An explicit human request bypasses the cadence: the operator's « Relancer la détection » button and
     the guest-facing `/status` reconciliation always call the provider for the link concerned. They
     still obey rules 6–8.
+11. The reconciliation pass runs **three times a day** — a tick of 8 hours, plus the existing pass shortly
+    after boot — instead of every 15 minutes. The webhook is the paid signal and the guest's own success
+    page reconciles on demand (`specs/public-online-payment.md` rules 6, 8–11); the cron exists to catch
+    a webhook that never arrived, which is a question of hours, not of minutes. The tick is
+    environment-configurable through `PAYMENT_POLL_TICK_MINUTES`, default `480`, with the same
+    "missing, non-numeric or non-positive falls back to the default" reading as rule 9.
 
 **Edge cases:**
 
@@ -117,15 +123,20 @@ double-processing a payment.
   savings there come from rules 3 and 6–7; rules 1 and 5 pay off wherever Qonto sends a real date
   (the sandbox does).
 - `createdAt` is SQLite's `datetime('now')` (`YYYY-MM-DD HH:MM:SS`, UTC, no zone marker) and is read as
-  UTC; `lastPolledAt` is an ISO-8601 string stamped with the **start time of the pass**, so the hourly
-  tier fires on every fourth 15-minute tick rather than drifting to the fifth.
+  UTC; `lastPolledAt` is an ISO-8601 string stamped with the **start time of the pass**, so a tier fires
+  on the first eligible tick rather than drifting to the next one.
+- Under rule 11's 8-hour tick the first two tiers of rule 3 coincide in practice: a link younger than
+  24 h and a link in the hourly tier are both due at every pass. Only the daily tier still skips passes
+  (one pass out of three). The tiers are kept as they are: they are expressed in time, not in ticks, so
+  they stay correct if the tick ever changes again, and they are what bounds the cost of a link that
+  Qonto gives no expiry for.
 - The webhook for a link already retired to `expired` → `qontoWebhookController` accepts `open` **and**
   `expired` links before re-reading the payments at Qonto, so rule 2 is reachable from the webhook.
 - A link cancelled in the Qonto app while its `expiresAt` is still in the future → detected on the next
   due pass only at the decayed cadence of rule 3, since rule 5 skips its status call. Accepted: a
   cancelled link is already unpayable, so the only cost is a stale local `open` until its expiry.
-- A poll pass aborted by rule 7 → `paymentPollInProgress` is released as it is today, and the next
-  15-minute tick retries from the start of the worklist. The link that hit the limit was already
+- A poll pass aborted by rule 7 → `paymentPollInProgress` is released as it is today, and the next tick
+  (8 hours later, rule 11) retries from the start of the worklist. The link that hit the limit was already
   stamped by rule 4 (the calls were made), so in the hourly or daily tier it waits for its next slot;
   the webhook stays the primary paid signal meanwhile. The cron logs the abort as a warning.
 - The manual poll (`POST /api/payments/poll`) takes no link id, so `force: true` bypasses the cadence
@@ -155,7 +166,8 @@ double-processing a payment.
 | `utils/` | `qontoClient.js` | T | Wraps every request in `withRetry`; sends `X-Qonto-Idempotency-Key` on link creation (rule 8); rethrows a surviving `429` with `code: 'RATE_LIMITED'` for rule 7; `config.retry` overrides the env options |
 | `utils/` | `paymentPollRunner.js` | T | Calls `retireExpired()`, iterates `listPollable()`, stamps `touchPolled()`, skips the second call per rule 5, aborts the pass on `RATE_LIMITED` (rule 7); summary gains `retired` and `stoppedBy` |
 | `utils/` | `paymentRequestService.js` | — | (none — it already stores `expiresAt`; the zero date is interpreted on read, so existing rows are covered too) |
-| `scheduledTasks.js` | — | T | Tick unchanged; logs the retired count and warns when a pass was stopped by a rate limit |
+| `utils/` | `paymentPollSchedule.js` | C | `resolvePaymentPollTickMs(env)` — the 8-hour tick of rule 11 and its env override, pure and unit-tested |
+| `scheduledTasks.js` | — | T | Takes its tick from `paymentPollSchedule` (rule 11); logs the retired count and warns when a pass was stopped by a rate limit |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE payment_links ADD COLUMN lastPolledAt TEXT` (column-presence check) |
 | `schema.sql` | `schema.sql` | T | Test fixture schema gains `lastPolledAt` |
 
@@ -239,6 +251,9 @@ Responsive behaviour: unchanged, no new layout. Sticky action bar: unchanged, no
 
 ### Server unit tests
 
+- [ ] `tests/payment-poll-tick.unit.test.js` — rule 11
+  - the default tick is 8 hours (three passes a day)
+  - `PAYMENT_POLL_TICK_MINUTES` overrides it; a missing, non-numeric, zero or negative value falls back
 - [x] `tests/payment-poll-fair-use.unit.test.js` — rules 1, 2, 3, 4, 5, 10 (9 tests)
   - a link past `expiresAt` is retired with zero provider calls, and its reservation is untouched
   - **a zero-date `expiresAt` (`0001-01-01T00:00:00Z`) is never retired and keeps its status call**, and
@@ -280,7 +295,8 @@ in-memory SQLite database instead._
 ## 8. Out of scope
 
 - Any change to the Qonto webhook subscription, its signature verification or its payload handling.
-- The 15-minute cron tick itself — the cadence is per link, the tick stays as it is.
+  _(Superseded on 2026-09-16: `specs/settings-one-save-and-automatic-webhook.md` makes the subscription
+  automatic. The signature verification and the payload handling are still untouched.)_
 - Retiring or archiving `paid` links, and any change to the accounting effects of a payment.
 - Mollie's Article 4 merchant obligations on the sales channel (contact details, prices, payment and
   complaint conditions on `domainesolio.com`) — a WordPress-side audit, deliberately deferred.

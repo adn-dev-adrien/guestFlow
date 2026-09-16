@@ -226,7 +226,7 @@ through.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `SettingsNeatSection.jsx` | C | « Assurance annulation (Neat) » self-contained card (Google-section family, card-local save): env select, credentials (MaskedTextField), margin %, test button, discovery selects, mapping table, status summary + counters. Mounted in `SettingsPage.jsx`. |
+| `components/` | `SettingsNeatSection.jsx` | C | « Assurance annulation (Neat) » card, owning its own data and its three endpoints: env select, credentials (MaskedTextField), margin %, test button, discovery selects, mapping table, status summary + counters. Mounted in `SettingsPage.jsx`. **Amended 2026-09-16** (`specs/settings-one-save-and-automatic-webhook.md` rules 1-3): its three « Enregistrer » buttons are gone — the card reports its dirty state through `onDirtyChange` and is written by the page's action bar through an imperative `save()`, which posts only the blocks that changed. |
 | `components/` | `SettingsPushNotificationsSection.jsx` | T | « Souscriptions Neat » preference row. |
 | `components/reservation/` | `OptionRow.jsx` | T | Renders the server-provided Neat status chip + « Réessayer » / « Résilier » actions on the flagged insurance card. No status derivation client-side. |
 | `pages/` | `ReservationPage.jsx` | T | Unpacks `res.neat`, owns the two actions (retry, confirmed void) and exposes them on the form context. `mockReservationForm.js` mirrors the new keys. |

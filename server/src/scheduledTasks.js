@@ -29,6 +29,8 @@ const devisModel = require('./models/devisModel');
 const { withQonto } = require('./utils/qontoService');
 const { runPaymentPoll } = require('./utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
+const { resolvePaymentPollTickMs } = require('./utils/paymentPollSchedule');
+const { ensureWebhookSubscription } = require('./utils/qontoWebhookRegistrar');
 
 // Google Calendar reconcile pass (specs/google-calendar-oauth-rework.md §3 rule 22).
 const googleCalendarSync = require('./utils/googleCalendarSync');
@@ -181,8 +183,13 @@ async function runPaymentPollPass(reason = 'cron') {
   if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
   paymentPollInProgress = true;
   try {
+    // The webhook is the paid signal; this pass is the safety net behind it. Making sure the
+    // subscription exists is therefore part of the safety net, not a separate chore
+    // (specs/settings-one-save-and-automatic-webhook.md rule 11). It costs no Qonto call once the
+    // subscription is recorded (rule 10), and it never throws.
+    await ensureWebhookSubscription({ settings: settingsModel });
     // Through `withQonto` so a broken connection is recorded and shown in Réglages → Paiements
-    // instead of failing silently every quarter of an hour (specs/qonto-settings-in-app.md rule 12).
+    // instead of failing silently every pass (specs/qonto-settings-in-app.md rule 12).
     const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
       ...buildPaymentEffectDeps(),
       qontoClient: client,
@@ -332,8 +339,10 @@ function startScheduledTasks() {
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
 
-  // Online-payment polling: every 15 min (cheap; the manual "poll now" button covers on-demand checks).
-  const PAYMENT_POLL_TICK = 15 * 60 * 1000;
+  // Online-payment polling: three passes a day (specs/payment-polling-fair-use.md rule 11). The
+  // webhook confirms in real time and the guest's success page reconciles on demand; this is the
+  // net that catches a webhook that never arrived.
+  const PAYMENT_POLL_TICK = resolvePaymentPollTickMs();
   setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
   setTimeout(() => runPaymentPollPass('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
 
