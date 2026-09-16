@@ -8,8 +8,10 @@
  * `passwordSet: boolean`).
  *
  * Props:
- *   values:      { host, port, secure, username, passwordSet, fromEmail, fromName, publicUrl,
+ *   values:      { host, secure, username, passwordSet, fromEmail, fromName, publicUrl,
  *                  passwordDraft?: string | undefined }
+ *                `port` is no longer entered here: the server derives it from `secure`
+ *                (specs/settings-one-save-and-automatic-webhook.md rule 5).
  *                passwordDraft semantics (mirrors GoogleCalendarSection's privateKeyDraft):
  *                  undefined → preserve the existing value on save
  *                  ''        → explicit clear
@@ -75,35 +77,21 @@ export default function SettingsSmtpSection({
             size="small"
           />
 
-          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <TextField
-              label="Port"
-              type="number"
-              value={v.port == null ? '' : v.port}
-              onChange={(e) => onChange('port', e.target.value === '' ? '' : Number(e.target.value))}
-              disabled={disabled}
-              error={Boolean(errors.smtpPort)}
-              helperText={errors.smtpPort || 'Souvent 587 (STARTTLS) ou 465 (TLS implicite)'}
-              size="small"
-              sx={{ width: { xs: '100%', sm: 200 } }}
-              slotProps={{
-                htmlInput: { min: 1, max: 65535 }
-              }}
-            />
-            <TextField
-              label="Sécurité"
-              select
-              value={v.secure ? 1 : 0}
-              onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
-              disabled={disabled}
-              size="small"
-              sx={{ width: { xs: '100%', sm: 280 } }}
-              helperText="STARTTLS (port 587) ou TLS implicite (port 465)"
-            >
-              <MenuItem value={0}>STARTTLS (port 587)</MenuItem>
-              <MenuItem value={1}>TLS implicite (port 465)</MenuItem>
-            </TextField>
-          </Box>
+          {/* No port field: the server derives it from the security mode
+              (specs/settings-one-save-and-automatic-webhook.md rule 5) — it was the same answer twice. */}
+          <TextField
+            label="Sécurité"
+            select
+            value={v.secure ? 1 : 0}
+            onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
+            disabled={disabled}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 280 } }}
+            helperText="Le port est déduit : 587 en STARTTLS, 465 en TLS implicite."
+          >
+            <MenuItem value={0}>STARTTLS (port 587)</MenuItem>
+            <MenuItem value={1}>TLS implicite (port 465)</MenuItem>
+          </TextField>
 
           <TextField
             label="Utilisateur SMTP"

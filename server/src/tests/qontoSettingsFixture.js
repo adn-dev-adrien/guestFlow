@@ -29,6 +29,8 @@ const DDL = `
     qontoLastErrorCode TEXT DEFAULT '',
     qontoLastErrorMessage TEXT DEFAULT '',
     qontoLastErrorOrigin  TEXT DEFAULT '',
+    qontoWebhookSubscriptionId TEXT DEFAULT '',
+    qontoWebhookCallbackUrl    TEXT DEFAULT '',
     createdAt TEXT, updatedAt TEXT
   );
 `;
@@ -49,4 +51,28 @@ function fakeRes() {
   return res;
 }
 
-module.exports = { DDL, freshSettings, fakeRes };
+/**
+ * Run `fn` with the global fetch replaced, so a suite exercises the real chain
+ * (`withQonto` → `getValidQontoAccessToken` → `qontoClient`) without a network call. The Qonto
+ * client is built inside `qontoService` from the resolved config, so this is the only seam.
+ */
+function withStubbedFetch(impl, fn) {
+  const original = globalThis.fetch;
+  globalThis.fetch = impl;
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => { globalThis.fetch = original; });
+}
+
+const jsonResponse = (body, { ok = true, status = 200 } = {}) => ({
+  ok, status, text: async () => JSON.stringify(body),
+});
+
+/** Credentials + a token that is still valid, i.e. a connection that needs no refresh call. */
+function connectedSettings(settings) {
+  settings.storeQontoCredentials({ clientId: 'cid', clientSecret: 'sec' });
+  settings.storeQontoTokens({ accessToken: 'at', refreshToken: 'rt', expiresAt: '2099-01-01T00:00:00Z' });
+  return settings;
+}
+
+module.exports = { DDL, freshSettings, fakeRes, withStubbedFetch, jsonResponse, connectedSettings };

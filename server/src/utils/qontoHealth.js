@@ -38,7 +38,7 @@ const STATES = {
     title: 'Autorisation à renouveler',
     explanation:
       "Les identifiants sont bons, mais l'autorisation donnée à GuestFlow n'est plus valable (expirée, révoquée, ou jamais accordée).",
-    action: 'Clique « Reconnecter Qonto » et accepte l\'accès dans la fenêtre Qonto.',
+    action: 'Clique « Connexion » et accepte l\'accès dans la fenêtre Qonto.',
   },
   provider_not_connected: {
     ok: false,
@@ -63,7 +63,7 @@ const STATES = {
     ok: false,
     title: 'À vérifier',
     explanation: "Les identifiants sont là et une autorisation est enregistrée, mais aucun appel réel n'a encore confirmé que ça marche.",
-    action: 'Clique « Tester la connexion ».',
+    action: 'Clique « Test ».',
   },
 };
 

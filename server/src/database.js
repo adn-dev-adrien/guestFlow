@@ -406,6 +406,13 @@ tryAddAppSettingsCol('qontoLastErrorAt',            "ALTER TABLE app_settings AD
 tryAddAppSettingsCol('qontoLastErrorCode',          "ALTER TABLE app_settings ADD COLUMN qontoLastErrorCode          TEXT DEFAULT ''");
 tryAddAppSettingsCol('qontoLastErrorMessage',       "ALTER TABLE app_settings ADD COLUMN qontoLastErrorMessage       TEXT DEFAULT ''");
 tryAddAppSettingsCol('qontoLastErrorOrigin',        "ALTER TABLE app_settings ADD COLUMN qontoLastErrorOrigin        TEXT DEFAULT ''");
+// 2026-09-16 — the payment-link webhook subscribes itself
+// (specs/settings-one-save-and-automatic-webhook.md §5). Neither column is a secret: an id and a
+// public URL. Together they are the record that lets the check cost zero Qonto calls (rule 10) —
+// empty means "nothing recorded", so the first check after the upgrade asks Qonto once and adopts
+// whatever subscription is already there (rule 8).
+tryAddAppSettingsCol('qontoWebhookSubscriptionId',  "ALTER TABLE app_settings ADD COLUMN qontoWebhookSubscriptionId  TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoWebhookCallbackUrl',     "ALTER TABLE app_settings ADD COLUMN qontoWebhookCallbackUrl     TEXT DEFAULT ''");
 // 2026-07-18 — Google Calendar OAuth rework (specs/google-calendar-oauth-rework.md §5). The OAuth
 // client id/secret live in .env.local; these columns hold the per-connection refresh token
 // (AES-256-GCM, masked on read) + non-secret connection metadata and last-sync state.

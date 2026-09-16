@@ -21,6 +21,7 @@ const ORIGINS = {
   poll: 'vérification automatique',
   'manual-link': 'lien créé à la main',
   webhook: 'notification Qonto',
+  'webhook-register': 'abonnement au webhook',
   admin: 'réglages',
 };
 
@@ -68,15 +69,21 @@ function recordQontoFailure({ settings = settingsModelDefault, error, origin = '
  *
  * Failures are re-thrown unchanged: callers keep their own error handling — the public tunnel keeps
  * answering its generic message (rule 14) — and the recording is a side effect they need not know about.
+ *
+ * `recordSuccess: false` is for housekeeping calls whose success says nothing the operator asked
+ * about — the webhook-subscription check
+ * (specs/settings-one-save-and-automatic-webhook.md rule 11). Without it, that check, running right
+ * after « Tester la connexion », would erase the diagnosis the test had just recorded and leave the
+ * page claiming a connection the test had refused. Failures are always recorded, whoever calls.
  */
-async function withQonto({ settings = settingsModelDefault, env = process.env, origin = 'admin' }, fn) {
+async function withQonto({ settings = settingsModelDefault, env = process.env, origin = 'admin', recordSuccess = true }, fn) {
   const config = resolveQontoConfig({ settings, env });
   try {
     if (!config.configured) throw notConfiguredError();
     const client = buildConfiguredQontoClient({ settings, env, config });
     const accessToken = await getValidQontoAccessToken({ settings, clientFactory: () => client });
     const result = await fn(client, accessToken, config);
-    recordQontoSuccess({ settings });
+    if (recordSuccess) recordQontoSuccess({ settings });
     return result;
   } catch (error) {
     recordQontoFailure({ settings, error, origin });

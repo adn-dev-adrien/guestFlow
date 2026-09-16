@@ -21,6 +21,7 @@ const {
   qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
 } = require('../utils/qontoService');
 const { resolveQontoConfig } = require('../utils/qontoConfig');
+const { ensureWebhookSubscription } = require('../utils/qontoWebhookRegistrar');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
@@ -53,6 +54,24 @@ function qontoAuthorize(req, res) {
   return res.redirect(client.getAuthorizeUrl({ redirectUri, state }));
 }
 
+/**
+ * What happens the moment an authorisation succeeds
+ * (specs/settings-one-save-and-automatic-webhook.md rules 11, 14).
+ *
+ * Storing a token proves nothing about the connection. The operator who had just repaired their
+ * credentials on 2026-09-15 landed on the failure that *preceded* the repair — the state was stale,
+ * not wrong, and « Tester la connexion » turned it green without changing a single setting. So we
+ * make that call ourselves, and the page opens on what is true now.
+ *
+ * Neither step can undo the authorisation: a failing test still leaves the tokens in place and shows
+ * its diagnosis, and `ensureWebhookSubscription` never throws.
+ */
+async function completeQontoAuthorization({ settings = settingsModel, env = process.env } = {}) {
+  const verified = await runQontoConnectionTest({ settings, env }).catch(() => null);
+  const webhook = await ensureWebhookSubscription({ settings, env });
+  return { verified, webhook };
+}
+
 async function qontoCallback(req, res) {
   const { code, state, error } = req.query;
   // Land back on the dedicated Paiements page (it reads ?qonto=… to show a success/error alert).
@@ -70,6 +89,8 @@ async function qontoCallback(req, res) {
     if (!tokens.refreshToken) return back('error');
     const expiresAt = tokens.expiresIn ? new Date(Date.now() + tokens.expiresIn * 1000).toISOString() : null;
     settingsModel.storeQontoTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt });
+
+    await completeQontoAuthorization();
     return back('connected');
   } catch {
     // The exact error is logged by the HTTP layer in qontoClient; never leak it to the URL.
@@ -319,23 +340,6 @@ function listReservationPaymentLinks(req, res) {
   return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
 }
 
-// Register (or report) the Qonto payment-link webhook subscription (specs/public-online-payment.md
-// §3bis). Builds the callback from the configured public URL + uses QONTO_WEBHOOK_SECRET so deliveries
-// are signed with the secret our endpoint verifies. One-shot admin action from the Paiements page.
-async function registerQontoWebhook(req, res) {
-  const secret = qontoConfig().webhookSecret;
-  if (!secret) return res.status(400).json({ error: 'WEBHOOK_SECRET_MISSING', message: 'Renseigne le secret du webhook dans Réglages → Paiements avant de l’enregistrer.' });
-  const base = settingsModel.publicUrl();
-  if (!base) return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres)." });
-  const callbackUrl = `${base.replace(/\/+$/, '')}/api/payments/qonto/webhook`;
-  try {
-    const sub = await withAccessToken((client, at) => client.createWebhookSubscription({
-      accessToken: at, callbackUrl, types: ['v1/payment-links'], secret, description: 'GuestFlow payment links',
-    }));
-    return res.json({ ok: true, id: sub.id, callbackUrl });
-  } catch (err) { return sendError(res, err); }
-}
-
 // Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
 // A human asked, so the per-link cadence is bypassed (specs/payment-polling-fair-use.md rule 10).
@@ -356,9 +360,9 @@ module.exports = {
   getQontoCredentials, updateQontoCredentials, testQontoConnection,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  registerQontoWebhook, sendBalanceRequestFor, sendDepositRequestFor,
+  sendBalanceRequestFor, sendDepositRequestFor,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents };
+module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, completeQontoAuthorization };
