@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Box, Typography } from '@mui/material';
 import api from '../api';
@@ -34,7 +34,7 @@ const EMPTY_FORM = {
   // Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). 12 = calendar year.
   accounting: { fiscalYearEndMonth: 12 },
   smtp: {
-    host: '', port: 587, secure: false,
+    host: '', secure: false,
     username: '',
     passwordSet: false,
     fromEmail: '', fromName: 'GuestFlow',
@@ -100,7 +100,9 @@ function buildPayloadFromDraft(draft, saved) {
   // SMTP — same per-field 3-way pattern as the other groups, with passwordDraft as the
   // masked secret (specs/admin-account-management.md M3).
   const smtpDirty = {};
-  for (const key of ['host', 'port', 'secure', 'username', 'fromEmail', 'fromName', 'publicUrl']) {
+  // No `port`: the server derives it from `secure`
+  // (specs/settings-one-save-and-automatic-webhook.md rule 5).
+  for (const key of ['host', 'secure', 'username', 'fromEmail', 'fromName', 'publicUrl']) {
     if (JSON.stringify(draft.smtp[key]) !== JSON.stringify(saved.smtp[key])) {
       smtpDirty[key] = draft.smtp[key];
     }
@@ -183,8 +185,17 @@ export default function SettingsPage() {
   const [draft, setDraft] = useState(EMPTY_FORM);
   const [updatedAtLabel, setUpdatedAtLabel] = useState(null);
 
+  // The Neat card keeps its own data and its own endpoints, but not its own Save
+  // (specs/settings-one-save-and-automatic-webhook.md rules 1-4): it tells the page when it holds
+  // unsaved changes, and the page writes it through this ref.
+  const neatRef = useRef(null);
+  const [neatDirty, setNeatDirty] = useState(false);
+  const handleNeatDirty = useCallback((dirty) => setNeatDirty(dirty), []);
+
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft, saved: savedForm, navigate,
+    draft: { ...draft, neatDirty },
+    saved: { ...savedForm, neatDirty: false },
+    navigate,
   });
 
   useEffect(() => {
@@ -258,20 +269,24 @@ export default function SettingsPage() {
     }
   };
 
+  /**
+   * One Save for the whole page (rules 1-3): the general form first, then each self-contained card
+   * that has something to write. A card refused mid-way stops the sequence, and what was already
+   * written stays written.
+   */
   const handleSave = async () => {
     setSaving(true);
     setErrors({});
     const payload = buildPayloadFromDraft(draft, savedForm);
-    if (Object.keys(payload).length === 0) {
-      setSaving(false);
-      return;
-    }
     try {
-      const updated = await api.updateSettings(payload);
-      const shaped = fromServer(updated);
-      setSavedForm(shaped);
-      setDraft(shaped);
-      setUpdatedAtLabel(updated && updated.updatedAtLabel);
+      if (Object.keys(payload).length > 0) {
+        const updated = await api.updateSettings(payload);
+        const shaped = fromServer(updated);
+        setSavedForm(shaped);
+        setDraft(shaped);
+        setUpdatedAtLabel(updated && updated.updatedAtLabel);
+      }
+      if (neatDirty && neatRef.current) await neatRef.current.save();
       showSuccess('Paramètres enregistrés.');
     } catch (err) {
       if (err && err.errors) {
@@ -287,6 +302,7 @@ export default function SettingsPage() {
   const handleCancel = () => {
     setDraft(savedForm);
     setErrors({});
+    if (neatRef.current) neatRef.current.reset();
   };
 
   const handleUploadLogo = async (file) => {
@@ -403,10 +419,11 @@ export default function SettingsPage() {
             <SettingsGoogleCalendarSection />
           </Box>
 
-          {/* Neat cancellation insurance (self-contained — card-local save, discovery + mapping;
-              specs/neat-cancellation-insurance-subscription.md §6.1). */}
+          {/* Neat cancellation insurance (self-contained data, discovery + mapping;
+              specs/neat-cancellation-insurance-subscription.md §6.1) — written by the bar's Save
+              (specs/settings-one-save-and-automatic-webhook.md rule 1). */}
           <Box sx={{ breakInside: 'avoid' }}>
-            <SettingsNeatSection />
+            <SettingsNeatSection ref={neatRef} onDirtyChange={handleNeatDirty} />
           </Box>
 
           <Box sx={{ breakInside: 'avoid' }}>
@@ -505,7 +522,6 @@ function mapClientKeyToErrorKey(group, key) {
   if (group === 'smtp') {
     return ({
       host: 'smtpHost',
-      port: 'smtpPort',
       fromEmail: 'smtpFromEmail',
       fromName: 'smtpFromName',
       publicUrl: 'publicUrl',

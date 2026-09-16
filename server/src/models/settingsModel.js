@@ -185,6 +185,11 @@ const COLUMNS = [
   'qontoLastErrorCode',
   'qontoLastErrorMessage',
   'qontoLastErrorOrigin',
+  // The payment-link webhook subscription GuestFlow created or adopted
+  // (specs/settings-one-save-and-automatic-webhook.md rules 8-10). Not secrets: an id and a public
+  // URL. Their only job is to make the next check free when nothing has moved.
+  'qontoWebhookSubscriptionId',
+  'qontoWebhookCallbackUrl',
   // Météo-France Vigilance API key (specs/checkin-weather-alerts.md). Encrypted (above); masked to
   // `meteoFranceApiKeySet` on read so the client only learns whether a key is configured.
   'meteoFranceApiKeyEncrypted',
@@ -513,6 +518,26 @@ function createSettingsModel(databaseInstance) {
       set('qontoStagingTokenEncrypted', stagingToken);
       set('qontoWebhookSecretEncrypted', webhookSecret);
       set('publicSiteOrigin', publicSiteOrigin, (v) => String(v).trim().replace(/\/+$/, ''));
+      if (Object.keys(payload).length) this.upsert(payload);
+    },
+
+    // ----- Payment-link webhook subscription
+    // (specs/settings-one-save-and-automatic-webhook.md §3 rules 8-10) -----
+
+    // What GuestFlow believes Qonto is subscribed to. Empty id = nothing recorded, which is what
+    // makes the next check reach Qonto instead of trusting the record.
+    qontoWebhookSubscription() {
+      const row = readRaw();
+      return {
+        id: String(row.qontoWebhookSubscriptionId || '').trim(),
+        callbackUrl: String(row.qontoWebhookCallbackUrl || '').trim(),
+      };
+    },
+
+    storeQontoWebhookSubscription({ id, callbackUrl } = {}) {
+      const payload = {};
+      if (id !== undefined) payload.qontoWebhookSubscriptionId = id == null ? '' : String(id).trim();
+      if (callbackUrl !== undefined) payload.qontoWebhookCallbackUrl = callbackUrl == null ? '' : String(callbackUrl).trim();
       if (Object.keys(payload).length) this.upsert(payload);
     },
 

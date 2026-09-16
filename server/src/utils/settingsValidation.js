@@ -131,6 +131,17 @@ function validateSmtpPort(value) {
   return null;
 }
 
+/**
+ * The SMTP port is not asked for any more: it IS the security mode, said twice
+ * (specs/settings-one-save-and-automatic-webhook.md §3 rule 5).
+ */
+const SMTP_PORT_STARTTLS = 587;
+const SMTP_PORT_IMPLICIT_TLS = 465;
+function smtpPortForSecure(secure) {
+  const implicit = secure === true || secure === 1 || secure === '1' || String(secure).toLowerCase() === 'true';
+  return implicit ? SMTP_PORT_IMPLICIT_TLS : SMTP_PORT_STARTTLS;
+}
+
 function validatePublicUrl(value) {
   if (value == null || value === '') return null;
   try {
@@ -176,6 +187,7 @@ module.exports = {
   validateVatRate,
   validateFiscalYearEndMonth,
   validateSmtpPort,
+  smtpPortForSecure,
   validatePublicUrl,
   validateLaundryWeekday,
   validateLinenStockCount,

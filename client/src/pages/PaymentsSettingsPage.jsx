@@ -2,8 +2,10 @@
  * PaymentsSettingsPage — dedicated "Paiements" settings page (specs/online-payments-qonto.md §3.1/§3.2).
  *
  * Sections (server-driven):
- *   1. Qonto bank connection — OAuth status + "Connecter Qonto" button. The OAuth callback returns here
- *      with ?qonto=connected|error|invalid_state.
+ *   1. Connexion bancaire — one card holding the credentials, the verified diagnosis and the two
+ *      actions « Connexion » / « Test » (specs/settings-one-save-and-automatic-webhook.md rules
+ *      12-13). The OAuth callback returns here with ?qonto=connected|error|invalid_state, having
+ *      already verified the connection server-side (rule 14).
  *   2. Provider connection — once OAuth is connected but the payment-links provider isn't enabled yet,
  *      a form (bank account / phone / website / description) calls connect-provider. A `pending`
  *      connection redirects to the Qonto/Mollie onboarding (KYC); the return lands here with
@@ -23,9 +25,17 @@ import { useToast } from '../components/DialogProvider';
 import ErrorAlert from '../components/ErrorAlert';
 import ConfirmDialog from '../components/ConfirmDialog';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
-import StatusCard from '../components/StatusCard';
-import QontoApplicationCard from '../components/QontoApplicationCard';
+import QontoConnectionCard from '../components/QontoConnectionCard';
 import api from '../api';
+
+/** An untouched secret stays `undefined`, which the server reads as "keep the stored one". */
+const EMPTY_CREDENTIALS = {
+  environment: undefined,
+  clientId: undefined,
+  clientSecret: undefined,
+  stagingToken: undefined,
+  publicSiteOrigin: undefined,
+};
 
 const offsetsToText = (arr) => (Array.isArray(arr) ? arr.join(', ') : '');
 
@@ -77,9 +87,11 @@ export default function PaymentsSettingsPage() {
   const [loadError, setLoadError] = useState(false);
   const { showSuccess, showError } = useToast();
 
-  // Qonto application settings + connection test (specs/qonto-settings-in-app.md §6).
+  // Qonto application settings + connection test (specs/qonto-settings-in-app.md §6). The draft
+  // lives here, not in the card, so the action bar's Save can write it
+  // (specs/settings-one-save-and-automatic-webhook.md rule 1).
   const [credentials, setCredentials] = useState(null);
-  const [savingCredentials, setSavingCredentials] = useState(false);
+  const [credentialsDraft, setCredentialsDraft] = useState(EMPTY_CREDENTIALS);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
@@ -88,10 +100,12 @@ export default function PaymentsSettingsPage() {
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
   const [connecting, setConnecting] = useState(false);
 
-  // Navigation guard on unsaved timing changes (specs/ds-sweep-settings.md §3.7).
+  // Navigation guard on unsaved changes (specs/ds-sweep-settings.md §3.7). It covers the credentials
+  // too: one Save for the page means one notion of "unsaved" for the page
+  // (specs/settings-one-save-and-automatic-webhook.md rule 4).
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: draft || {},
-    saved: savedDraft || {},
+    draft: { ...(draft || {}), credentials: credentialsDraft },
+    saved: { ...(savedDraft || {}), credentials: EMPTY_CREDENTIALS },
     navigate,
   });
 
@@ -148,47 +162,59 @@ export default function PaymentsSettingsPage() {
   const setField = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
   const setProviderField = (key, value) => setProviderForm((f) => ({ ...f, [key]: value }));
 
+  const credentialsTouched = Object.values(credentialsDraft).some((v) => v !== undefined);
+
+  /**
+   * One Save for the page (specs/settings-one-save-and-automatic-webhook.md rules 1-3): it writes
+   * the blocks that changed, and only those. Credentials go first because saving them may drop the
+   * OAuth tokens (specs/qonto-settings-in-app.md rule 15) and the message says so.
+   */
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        depositReminderOffsets: textToOffsets(draft.depositReminderOffsetsText),
-        balanceReminderOffsets: textToOffsets(draft.balanceReminderOffsetsText),
-      };
-      DAY_FIELDS.forEach((f) => { payload[f] = Number(draft[f]); });
-      const res = await api.updatePaymentSettings(payload);
-      const next = (d) => ({
-        ...d, ...res.timings,
-        depositReminderOffsetsText: offsetsToText(res.timings.depositReminderOffsets),
-        balanceReminderOffsetsText: offsetsToText(res.timings.balanceReminderOffsets),
-      });
-      setDraft(next);
-      setSavedDraft((prev) => next(prev || {}));
-      showSuccess('Délais enregistrés ✓');
+      const messages = [];
+
+      if (credentialsTouched) {
+        const payload = {};
+        Object.entries(credentialsDraft).forEach(([key, value]) => { if (value !== undefined) payload[key] = value; });
+        const res = await api.updateQontoCredentials(payload);
+        setCredentials(res);
+        setCredentialsDraft(EMPTY_CREDENTIALS);
+        setTestResult(null);
+        setQonto(await api.getQontoStatus());
+        messages.push(res.tokensCleared
+          ? 'Identifiants enregistrés — clique « Connexion » pour autoriser la nouvelle application'
+          : 'Identifiants Qonto enregistrés');
+      }
+
+      const timingsChanged = JSON.stringify(draft) !== JSON.stringify(savedDraft);
+      if (timingsChanged) {
+        const payload = {
+          depositReminderOffsets: textToOffsets(draft.depositReminderOffsetsText),
+          balanceReminderOffsets: textToOffsets(draft.balanceReminderOffsetsText),
+        };
+        DAY_FIELDS.forEach((f) => { payload[f] = Number(draft[f]); });
+        const res = await api.updatePaymentSettings(payload);
+        const next = (d) => ({
+          ...d, ...res.timings,
+          depositReminderOffsetsText: offsetsToText(res.timings.depositReminderOffsets),
+          balanceReminderOffsetsText: offsetsToText(res.timings.balanceReminderOffsets),
+        });
+        setDraft(next);
+        setSavedDraft((prev) => next(prev || {}));
+        messages.push('Délais enregistrés');
+      }
+
+      if (messages.length) showSuccess(`${messages.join(' · ')} ✓`);
     } catch (e) {
-      showError(e.message || "Échec de l'enregistrement (vérifie les valeurs).");
+      // Rule 3: whatever was written stays written, and what was refused stays in the form.
+      showError(e?.body?.message || e.message || "Échec de l'enregistrement (vérifie les valeurs).");
     } finally {
       setSaving(false);
     }
   };
 
-  // Saving the credentials may drop the OAuth tokens (rule 15) — refresh the status alongside.
-  const handleSaveCredentials = async (payload) => {
-    setSavingCredentials(true);
-    try {
-      const res = await api.updateQontoCredentials(payload);
-      setCredentials(res);
-      setTestResult(null);
-      setQonto(await api.getQontoStatus());
-      showSuccess(res.tokensCleared
-        ? 'Identifiants enregistrés ✓ — reconnecte Qonto pour autoriser la nouvelle application.'
-        : 'Identifiants Qonto enregistrés ✓');
-    } catch (e) {
-      showError(e?.body?.message || e.message || "Échec de l'enregistrement des identifiants.");
-    } finally {
-      setSavingCredentials(false);
-    }
-  };
+  const setCredentialField = (key, value) => setCredentialsDraft((d) => ({ ...d, [key]: value }));
 
   const handleTestConnection = async () => {
     setTesting(true);
@@ -202,15 +228,6 @@ export default function PaymentsSettingsPage() {
       showError(e?.body?.message || e.message || 'Impossible de tester la connexion.');
     } finally {
       setTesting(false);
-    }
-  };
-
-  const handleRegisterWebhook = async () => {
-    try {
-      await api.registerQontoWebhook();
-      showSuccess('Webhook Qonto enregistré ✓ (les paiements seront confirmés en temps réel)');
-    } catch (e) {
-      showError(e?.body?.message || e.message || "Échec de l'enregistrement du webhook (QONTO_WEBHOOK_SECRET + URL publique requis).");
     }
   };
 
@@ -267,41 +284,19 @@ export default function PaymentsSettingsPage() {
           />
         )}
 
-        <QontoApplicationCard
+        <QontoConnectionCard
           credentials={credentials}
+          draft={credentialsDraft}
+          onChange={setCredentialField}
+          badge={badge}
           health={health}
           testResult={testResult}
-          saving={savingCredentials}
+          lastCheckLabel={formatStamp(health.lastCheckAt)}
+          dirty={isDirty}
+          canConnect={Boolean(qonto.configured)}
           testing={testing}
-          onSave={handleSaveCredentials}
+          onConnect={() => { window.location.href = '/api/payments/qonto/authorize'; }}
           onTest={handleTestConnection}
-        />
-
-        <StatusCard
-          title="Connexion bancaire (Qonto)"
-          badge={badge}
-          items={[
-            { label: 'Mode', value: qonto.sandbox ? 'Sandbox (test)' : 'Production' },
-            { label: 'Identifiants', value: qonto.configured ? 'Configurés' : 'Manquants' },
-            { label: 'Provider de liens', value: providerEnabled ? 'Activé' : (qonto.connectionStatus || 'non connecté') },
-            { label: 'Dernière vérification', value: formatStamp(health.lastCheckAt), valuePlaceholder: 'jamais testée' },
-          ]}
-          actions={(
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
-              <Button
-                variant={connected ? 'outlined' : 'contained'}
-                disabled={!qonto.configured}
-                onClick={() => { window.location.href = '/api/payments/qonto/authorize'; }}
-              >
-                {connected ? 'Reconnecter Qonto' : 'Connecter Qonto'}
-              </Button>
-              {connected && (
-                <Button variant="outlined" onClick={handleRegisterWebhook}>
-                  Enregistrer le webhook
-                </Button>
-              )}
-            </Box>
-          )}
         />
 
         {connected && !providerEnabled && (

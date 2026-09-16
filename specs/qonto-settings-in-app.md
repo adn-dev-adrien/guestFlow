@@ -48,9 +48,12 @@ when it is broken.
 
 **Configuration**
 
-1. The Qonto application settings — environment, client id, client secret, sandbox staging token,
-   webhook secret — are entered in Réglages → Paiements and stored in `app_settings`. A saved value
-   takes effect on the next call to Qonto, with no file to edit and no restart.
+1. The Qonto application settings — environment, client id, client secret, sandbox staging token —
+   are entered in Réglages → Paiements and stored in `app_settings`. A saved value takes effect on the
+   next call to Qonto, with no file to edit and no restart.
+   _(Amended 2026-09-16: the **webhook secret** was in this list. It is no longer entered or shown —
+   the server generates it and subscribes Qonto by itself; see
+   `specs/settings-one-save-and-automatic-webhook.md` rules 6, 9.)_
 2. A value stored in the database wins over the environment variable of the same role. When the
    stored value is empty the environment variable is still used, so an installation configured
    through `.env.local` keeps working untouched.
@@ -195,6 +198,13 @@ the environment » — an installation that never opens the new form behaves exa
 
 ## 6. UI / UX
 
+> **Superseded 2026-09-16.** The two cards below became one, « Connexion bancaire », which drops the
+> webhook-secret field, the called hosts, the mode/credentials/provider summary lines and its own
+> Save button, and keeps the diagnosis, the redirect URI, the credentials, the date of the last
+> verification and two actions — « Connexion » and « Test ».
+> See `specs/settings-one-save-and-automatic-webhook.md` §6. The copy table below still describes
+> what each state says, which has not changed.
+
 **Réglages → Paiements**, above the existing « Connexion bancaire (Qonto) » card:
 
 - **Card « Application Qonto »** — `StatusCard` with a badge reading the verified state:
@@ -209,7 +219,7 @@ the environment » — an installation that never opens the new form behaves exa
     après avoir payé, ex. https://www.domainesolio.com ».
   - `URL de redirection à déclarer chez Qonto` — read-only `SummaryItem` + « Copier ».
   - Hosts derived from the environment, read-only.
-  - Actions: « Enregistrer » and « Tester la connexion ».
+  - Actions: « Enregistrer » and « Tester la connexion ». _(now « Connexion » and « Test », saved from the action bar — see the note above.)_
 - **Test result** — an alert under the card: green with « Connexion Qonto opérationnelle », or orange
   with the title, the explanation and the repair action from rule 10. Example for a rejected secret:
   « Le secret de l'application est refusé par Qonto (invalid_client). Recopie le Client secret depuis
@@ -225,11 +235,11 @@ the environment » — an installation that never opens the new form behaves exa
 |---|---|---|
 | `not_configured` | Identifiants manquants | Renseigne le Client ID et le Client secret de ton application Qonto. |
 | `credentials_rejected` | Identifiants refusés par Qonto | Recopie le Client secret depuis le portail Qonto, puis relance le test. |
-| `reauth_required` | Autorisation à renouveler | Clique « Reconnecter Qonto » et accepte l'accès. |
+| `reauth_required` | Autorisation à renouveler | Clique « Connexion » et accepte l'accès. _(le bouton s'appelait « Reconnecter Qonto » avant 2026-09-16)_ |
 | `provider_not_connected` | Provider de liens non activé | Renseigne le formulaire « Connexion du provider de liens » ci-dessous. |
 | `unreachable` | Qonto injoignable | Vérifie la connexion réseau du serveur, puis relance le test. |
 | `api_error` | Qonto a renvoyé une erreur | Relance le test dans quelques minutes ; si ça persiste, contacte le support Qonto avec ce détail. |
-| `unverified` | À vérifier | Clique « Tester la connexion ». |
+| `unverified` | À vérifier | Clique « Test ». _(« Tester la connexion » avant 2026-09-16)_ |
 | `ok` | Connexion opérationnelle | — |
 
 **Responsive:** the card is a single column on `xs` (fields full width, actions stacked with

@@ -1,29 +1,36 @@
 /**
- * SettingsNeatSection — « Assurance annulation (Neat) » card, self-contained
+ * SettingsNeatSection — « Assurance annulation (Neat) » card
  * (specs/neat-cancellation-insurance-subscription.md §6.1).
  *
- * Fetches its own state from GET /api/neat/settings and saves card-locally (never through the
- * page's global Save/Cancel), like the Google Calendar section. Everything shown here is derived
- * server-side (status, counters, contract fields, source catalogue) — the card renders and posts.
+ * Fetches its own state from GET /api/neat/settings; everything shown here is derived server-side
+ * (status, counters, contract fields, source catalogue) — the card renders and posts.
+ *
+ * It no longer carries its own Save buttons. Since
+ * specs/settings-one-save-and-automatic-webhook.md rule 1, the page's action bar is the only place
+ * that writes, so the card publishes two things upward: `onDirtyChange` so the bar knows it has
+ * something to save, and `save()` through a ref so the bar can write. Its three blocks keep their
+ * three endpoints — folding them into the general settings payload would put a second feature's
+ * shape inside it — and `save()` posts only the blocks that changed (rule 2).
  *
  * Blocks, top to bottom:
- *   1. credentials  — environment select, clientId, secret (MaskedTextField), margin %, save + test
+ *   1. credentials  — environment select, clientId, secret (MaskedTextField), margin %, + test
  *   2. selection    — sales channel / contract / payment method, fed by GET /api/neat/discovery
  *   3. mapping      — one row per contract serviceField, bound to a GuestFlow source
  *   4. summary      — SummaryItem lines + pending/failed counters
  *
- * Props: none.
+ * Props:
+ *   onDirtyChange {(dirty: boolean) => void}  fired whenever the card gains or loses unsaved changes
+ * Ref:
+ *   { save: () => Promise<void>, isDirty: () => boolean }
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import {
   Card, CardContent, Stack, Typography, Box, Button, Alert, CircularProgress, TextField,
   Select, MenuItem, FormControl, InputLabel, InputAdornment,
 } from '@mui/material';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
-import SaveIcon from '@mui/icons-material/Save';
 import api from '../api';
-import { useToast } from './DialogProvider';
 import MaskedTextField from './MaskedTextField';
 import StatusBadge from './StatusBadge';
 import SummaryItem from './SummaryItem';
@@ -48,8 +55,10 @@ function statusBadgeFor(settings) {
   return { status: 'success', label: 'Connectée' };
 }
 
-export default function SettingsNeatSection() {
-  const { showSuccess, showError } = useToast();
+/** The margin is stored as a number or null, and edited as a string: compare them on one form. */
+const marginText = (value) => (value === null || value === undefined ? '' : String(value));
+
+function SettingsNeatSection({ onDirtyChange }, ref) {
 
   const [settings, setSettings] = useState(null); // null = loading
   const [loadError, setLoadError] = useState(false);
@@ -69,8 +78,6 @@ export default function SettingsNeatSection() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
-  const [savingSelection, setSavingSelection] = useState(false);
-  const [savingMapping, setSavingMapping] = useState(false);
   const [actionResult, setActionResult] = useState(null); // { severity, message }
 
   const applySettings = useCallback((data) => {
@@ -78,7 +85,7 @@ export default function SettingsNeatSection() {
     setEnvironment(data.environment);
     setClientId(data.clientId || '');
     setSecretDraft(undefined);
-    setMarginDraft(data.marginPercent === null || data.marginPercent === undefined ? '' : String(data.marginPercent));
+    setMarginDraft(marginText(data.marginPercent));
     setChannelId(data.salesChannelId || '');
     setContractId(data.contractId || '');
     setPaymentMethodId(data.paymentMethodId || '');
@@ -96,20 +103,26 @@ export default function SettingsNeatSection() {
     load().catch(() => setLoadError(true));
   }, [load]);
 
-  const handleSaveCredentials = async () => {
-    setSaving(true);
-    setActionResult(null);
-    try {
-      const payload = { environment, clientId, marginPercent: marginDraft === '' ? null : marginDraft };
-      if (secretDraft !== undefined) payload.clientSecret = secretDraft;
-      applySettings(await api.updateNeatSettings(payload));
-      showSuccess('Réglages Neat enregistrés.');
-    } catch (e) {
-      showError(e.errors ? Object.values(e.errors).join(' ') : (e.message || 'Enregistrement impossible.'));
-    } finally {
-      setSaving(false);
-    }
-  };
+  // ----- What has changed, and how the page saves it (rules 1-3) -----
+
+  const credentialsDirty = Boolean(settings) && (
+    environment !== settings.environment
+    || clientId !== (settings.clientId || '')
+    || secretDraft !== undefined
+    || marginDraft !== marginText(settings.marginPercent)
+  );
+  const selectionDirty = Boolean(settings) && (
+    channelId !== (settings.salesChannelId || '')
+    || contractId !== (settings.contractId || '')
+    || paymentMethodId !== (settings.paymentMethodId || '')
+  );
+  const mappingDirty = Boolean(settings)
+    && JSON.stringify(mappingDraft || {}) !== JSON.stringify(settings.mapping || {});
+  const dirty = credentialsDirty || selectionDirty || mappingDirty;
+
+  useEffect(() => {
+    if (onDirtyChange) onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
 
   const handleTest = async () => {
     setTesting(true);
@@ -146,41 +159,73 @@ export default function SettingsNeatSection() {
     if (id) await loadDiscovery(id);
   };
 
-  const handleSaveSelection = async () => {
-    setSavingSelection(true);
-    setActionResult(null);
-    try {
-      applySettings(await api.updateNeatSelection({ salesChannelId: channelId, contractId, paymentMethodId }));
-      showSuccess('Canal, contrat et mode de paiement enregistrés.');
-    } catch (e) {
-      setActionResult({ severity: 'error', message: e.message || 'Sélection impossible.' });
-    } finally {
-      setSavingSelection(false);
-    }
-  };
 
   const updateMappingRow = (fieldId, patch) => {
     setMappingDraft((prev) => ({ ...prev, [fieldId]: { ...(prev[fieldId] || {}), ...patch } }));
     setMappingErrors((prev) => ({ ...prev, [fieldId]: undefined }));
   };
 
-  const handleSaveMapping = async () => {
-    setSavingMapping(true);
+  /**
+   * Write the blocks that changed, in the order the server expects them (rule 2). The drafts are
+   * read once, up front: the selection response refreshes the card's state mid-save, and the mapping
+   * the operator typed must survive that refresh.
+   *
+   * Throws on the first refusal so the page reports it (rule 3). Whatever was written before stays
+   * written, and the refused values stay in the form — a mapping refusal lands on the fields it
+   * concerns.
+   */
+  const save = async () => {
+    const drafts = { environment, clientId, secretDraft, marginDraft, channelId, contractId, paymentMethodId, mapping: mappingDraft };
     setActionResult(null);
+    setSaving(true);
     try {
-      applySettings(await api.updateNeatMapping(mappingDraft));
-      showSuccess('Mappage des champs enregistré.');
-    } catch (e) {
-      if (e.code === 'MAPPING_INVALID' && Array.isArray(e.errors)) {
-        setMappingErrors(Object.fromEntries(e.errors.map((err) => [err.fieldId, MAPPING_ERROR_LABELS[err.error] || err.error])));
-        setActionResult({ severity: 'error', message: 'Mappage incomplet — corrige les champs signalés.' });
-      } else {
-        setActionResult({ severity: 'error', message: e.message || 'Enregistrement du mappage impossible.' });
+      if (credentialsDirty) {
+        const payload = {
+          environment: drafts.environment,
+          clientId: drafts.clientId,
+          marginPercent: drafts.marginDraft === '' ? null : drafts.marginDraft,
+        };
+        if (drafts.secretDraft !== undefined) payload.clientSecret = drafts.secretDraft;
+        try {
+          applySettings(await api.updateNeatSettings(payload));
+        } catch (e) {
+          throw new Error(e.errors ? Object.values(e.errors).join(' ') : (e.message || 'Réglages Neat : enregistrement impossible.'));
+        }
+      }
+
+      if (selectionDirty) {
+        try {
+          applySettings(await api.updateNeatSelection({
+            salesChannelId: drafts.channelId, contractId: drafts.contractId, paymentMethodId: drafts.paymentMethodId,
+          }));
+        } catch (e) {
+          throw new Error(e.message || 'Neat : sélection impossible.');
+        }
+      }
+
+      if (mappingDirty) {
+        try {
+          applySettings(await api.updateNeatMapping(drafts.mapping));
+        } catch (e) {
+          if (e.code === 'MAPPING_INVALID' && Array.isArray(e.errors)) {
+            setMappingErrors(Object.fromEntries(e.errors.map((err) => [err.fieldId, MAPPING_ERROR_LABELS[err.error] || err.error])));
+            setActionResult({ severity: 'error', message: 'Mappage incomplet — corrige les champs signalés.' });
+            throw new Error('Mappage Neat incomplet — corrige les champs signalés.');
+          }
+          throw new Error(e.message || 'Neat : enregistrement du mappage impossible.');
+        }
       }
     } finally {
-      setSavingMapping(false);
+      setSaving(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    save,
+    isDirty: () => dirty,
+    // « Annuler » in the bar reverts this card too: one Save, one Cancel, one page.
+    reset: () => { if (settings) applySettings(settings); },
+  }));
 
   const badge = statusBadgeFor(settings);
   const credentialsSet = Boolean(settings && settings.status.credentialsSet);
@@ -270,18 +315,13 @@ export default function SettingsNeatSection() {
                   '& > *': { width: { xs: '100%', sm: 'auto' } },
                 }}
               >
-                <Button
-                  variant="contained"
-                  onClick={handleSaveCredentials}
-                  disabled={saving}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-                >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
-                </Button>
+                {/* No Save button: the page's action bar writes this card
+                    (specs/settings-one-save-and-automatic-webhook.md rule 1). « Tester la
+                    connexion » stays — it reads, it does not write. */}
                 <Button
                   variant="outlined"
                   onClick={handleTest}
-                  disabled={!credentialsSet || testing}
+                  disabled={!credentialsSet || testing || saving}
                   startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <TaskAltIcon />}
                 >
                   {testing ? 'Test en cours…' : 'Tester la connexion'}
@@ -354,17 +394,6 @@ export default function SettingsNeatSection() {
                               </Select>
                             </FormControl>
                           )}
-                          <Box>
-                            <Button
-                              variant="contained"
-                              onClick={handleSaveSelection}
-                              disabled={!channelId || !contractId || !paymentMethodId || savingSelection}
-                              startIcon={savingSelection ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                            >
-                              Enregistrer la sélection
-                            </Button>
-                          </Box>
                         </>
                       )}
                     </>
@@ -432,17 +461,6 @@ export default function SettingsNeatSection() {
                       );
                     })}
                   </Stack>
-                  <Box>
-                    <Button
-                      variant="contained"
-                      onClick={handleSaveMapping}
-                      disabled={savingMapping}
-                      startIcon={savingMapping ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-                      sx={{ width: { xs: '100%', sm: 'auto' } }}
-                    >
-                      Enregistrer le mappage
-                    </Button>
-                  </Box>
                 </>
               )}
 
@@ -475,3 +493,5 @@ export default function SettingsNeatSection() {
     </Card>
   );
 }
+
+export default forwardRef(SettingsNeatSection);

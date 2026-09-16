@@ -379,7 +379,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | POST | `/api/auth/change-password` | (unchanged) | 204 | When the user **had** `mustChangePassword=1` pre-change, the response also destroys the session. Client redirects to /login. |
 | POST | `/api/auth/login` | (unchanged) | (unchanged) | Touches `users.lastLoginAt` on success. |
 | GET | `/api/settings` | — | (extended) returns SMTP fields + `smtpPasswordSet: boolean` + `publicUrl` | admin only. |
-| PUT | `/api/settings` | (extended) `{ ..., smtpHost?, smtpPort?, smtpSecure?, smtpUsername?, smtpPassword?, smtpFromEmail?, smtpFromName?, publicUrl? }` | 200 (extended) | admin only. `smtpPassword` omitted → preserves existing. |
+| PUT | `/api/settings` | (extended) `{ ..., smtpHost?, smtpSecure?, smtpUsername?, smtpPassword?, smtpFromEmail?, smtpFromName?, publicUrl? }` | 200 (extended) | admin only. `smtpPassword` omitted → preserves existing. `smtpPort` is **not** accepted since 2026-09-16: it is derived from `smtpSecure` (`specs/settings-one-save-and-automatic-webhook.md` rule 5). |
 | POST | `/api/settings/smtp-test` | — | 200 `{ ok: true }` or 400 `{ error: 'SMTP_TEST_FAILED', detail }` | admin only. Sends a test mail to the current admin's email. |
 
 Error shapes (consistent with existing routes): `{ error: <ERROR_CODE>, message?: string, field?: string }`.
@@ -481,7 +481,8 @@ SMTP fields start empty — the new account-creation endpoint returns
 ### 6.4 SMTP section in `/parametres`
 
 - New card titled **Envoi d'emails (SMTP)**, in the same column flow as the other settings cards, *above* the "Sauvegarde" group.
-- Fields: SMTP Host, Port (number), Sécurité (`Select` with options *Aucun (STARTTLS)* / *TLS implicite*), Utilisateur, Mot de passe (MaskedTextField), Adresse expéditeur, Nom expéditeur, URL publique.
+- Fields: SMTP Host, Sécurité (`Select` with options *STARTTLS (port 587)* / *TLS implicite (port 465)*), Utilisateur, Mot de passe (MaskedTextField), Adresse expéditeur, Nom expéditeur, URL publique.
+  - **(2026-09-16)** The **Port** field is gone: it was the security mode said twice. The server derives `smtpPort` from `smtpSecure` on every save of this card — 587 for STARTTLS, 465 for implicit TLS — and a port sent by a client is ignored (`specs/settings-one-save-and-automatic-webhook.md` rule 5). An installation on a non-standard port keeps it until this card is saved again.
 - A help caption under URL publique: *"Cette URL est insérée dans les emails envoyés aux utilisateurs (ex. https://guestflow.adn-dev.fr)."*
 - "Envoyer un mail de test" button, disabled while any required SMTP field is empty. On click: calls `POST /api/settings/smtp-test`, shows success (*"Mail de test envoyé à <adminEmail>."*) or the error detail in a snackbar.
 - **(2026-08-17)** Server validation errors land **under their field**, replacing its helper text — *Adresse expéditeur* (`smtpFromEmail`) and, since rule 16b, *Nom expéditeur* (`smtpFromName`). Editing the field clears its error, so the mapping `smtp.fromName → smtpFromName` must exist in `mapClientKeyToErrorKey`, otherwise a stale message sticks until the next save.
