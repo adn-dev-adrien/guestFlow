@@ -12,6 +12,8 @@ const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const { autoSendAllowed } = require('./autoSendPolicy');
+const { MAIL, planStayMails } = require('./guestEmailSequence');
+const { sendSequenceMail } = require('./guestEmailSequenceRunner');
 
 async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
   const template = templatesModel.findByStableKey(stableKey);
@@ -74,12 +76,27 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
 
 /**
  * Curry the dependencies into a `sendConfirmation(reservationId)` function suitable for
- * `runPaymentPoll({ sendConfirmation })`. Defaults the stableKey to the confirmation template.
+ * `runPaymentPoll({ sendConfirmation })`.
+ *
+ * The confirmation is mail 1 of the guest email sequence (specs/guest-email-sequence.md rule 2): it
+ * goes through the same eligibility (direct channels, start date) and the same ledger as the daily
+ * pass, so the webhook, the poll and the 08:00 pass racing on one payment send it once.
+ * `ledger` / `preferences` are injectable for tests; production uses the default models.
  */
-function buildConfirmationSender({ database, templatesModel, logModel, settingsModel, emailServiceFactory, stableKey = 'reservation_confirmation' }) {
-  return (reservationId) => sendReservationTemplateEmail({
-    database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey,
-  });
+function buildConfirmationSender({ database, templatesModel, logModel, settingsModel, emailServiceFactory, ledger, preferences }) {
+  return async (reservationId) => {
+    const reservation = database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
+    if (!reservation) return { sent: false, reason: 'no-reservation' };
+    const client = reservation.clientId ? database.prepare('SELECT * FROM clients WHERE id = ?').get(reservation.clientId) : null;
+    const startDate = settingsModel.read().guestSequenceStartDate || null;
+    const plan = planStayMails({ reservation, client, startDate }).find((p) => p.stableKey === MAIL.CONFIRMATION);
+    if (plan.blocked) return { sent: false, reason: plan.blocked };
+    return sendSequenceMail({
+      database, templatesModel, logModel, settingsModel, emailServiceFactory,
+      ledger: ledger || require('../models/guestEmailSendsModel'),
+      preferences: preferences || require('../models/emailPreferencesModel'),
+    }, plan);
+  };
 }
 
 /**
@@ -96,13 +113,20 @@ function buildConfirmationSender({ database, templatesModel, logModel, settingsM
  */
 function buildGatedConfirmationSender({
   database, templatesModel, logModel, settingsModel, emailServiceFactory, queueModel,
-  stableKey = 'reservation_confirmation', onQueueError,
+  stableKey = 'reservation_confirmation', onQueueError, ledger, preferences,
 }) {
   const send = buildConfirmationSender({
-    database, templatesModel, logModel, settingsModel, emailServiceFactory, stableKey,
+    database, templatesModel, logModel, settingsModel, emailServiceFactory, ledger, preferences,
   });
   return async (reservationId) => {
-    if (autoSendAllowed(settingsModel)) return send(reservationId);
+    if (autoSendAllowed(settingsModel)) {
+      try {
+        return await send(reservationId);
+      } catch (err) {
+        if (onQueueError) onQueueError(err);
+        return { sent: false, reason: 'send-failed' };
+      }
+    }
     try {
       const template = templatesModel.findByStableKey(stableKey);
       // No template, or the operator disabled it → nothing to propose. Mirrors the `no-template`

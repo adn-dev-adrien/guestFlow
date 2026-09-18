@@ -3,7 +3,8 @@
 // Verifies the two-card layout, the template row-click → edit dialog wiring, and the
 // "Voir l'historique" navigation. The « Emails à envoyer » queue interactions (row → send,
 // client-name → reservation) are covered by the component suite; here we pin the page-level
-// routing + the seeded "Rappel arrivée — J-7" template surfacing end-to-end.
+// routing + the seeded J-7 template surfacing end-to-end (renamed « Séquence — J-7 préparation » by
+// specs/guest-email-sequence.md).
 import { test, expect } from '@playwright/test';
 
 test('Emails page shows the two cards and the seeded J-7 template', async ({ page }) => {
@@ -18,14 +19,14 @@ test('Emails page shows the two cards and the seeded J-7 template', async ({ pag
   await expect(page.getByRole('heading', { name: "Modèles d'emails" })).toBeVisible();
 
   // The default registry template seeded on boot.
-  await expect(page.getByText('Rappel arrivée — J-7')).toBeVisible();
+  await expect(page.getByText('Séquence — J-7 préparation')).toBeVisible();
 
   expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([]);
 });
 
 test('clicking a template row opens its edit dialog', async ({ page }) => {
   await page.goto('/emails');
-  await page.getByText('Rappel arrivée — J-7').click();
+  await page.getByText('Séquence — J-7 préparation').click();
   await expect(page.getByRole('heading', { name: 'Modifier le modèle' })).toBeVisible();
 });
 

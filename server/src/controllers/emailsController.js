@@ -15,78 +15,35 @@
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
-const reservationsModel = require('../models/reservationsModel');
+const { loadReservationGraph } = require('../utils/reservationEmailGraph');
 const { autoSendAllowed } = require('../utils/autoSendPolicy');
-
-// specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows
-// (options + resources + 3-way tourist-tax-in-complement + remainder, summing to the full amount).
-// Guarded: `getByIdWithDetails` needs the full schema, so on a minimal/legacy DB this returns null
-// and the context builder falls back to its inline partial list.
-function loadArrivalComplementDetail(database, reservationId) {
-  try {
-    return reservationsModel.create(database).buildArrivalComplementDetail(Number(reservationId));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Pull the enriched reservation graph the context builder consumes.
- * The cron + the controller share this loader so a regression on either path stays in
- * sync (no rendering drift between scheduled + manual sends).
- */
-// Loads a reservation OR a devis (the deposit_reminder targets devis) plus its client/property/options
-// graph, for rendering an email. Kind-agnostic on purpose — buildContext renders either.
-function loadReservationGraph(database, reservationId) {
-  const id = Number(reservationId);
-  const reservation = database.prepare(`
-    SELECT * FROM reservations
-    WHERE id = ?
-  `).get(id);
-  if (!reservation) return null;
-  const client = reservation.clientId
-    ? database.prepare('SELECT * FROM clients WHERE id = ?').get(reservation.clientId)
-    : null;
-  const property = reservation.propertyId
-    ? database.prepare('SELECT * FROM properties WHERE id = ?').get(reservation.propertyId)
-    : null;
-  // Joined options — surface `title` (+ `titleEn` for English emails) + `autoOptionType`.
-  const options = database.prepare(`
-    SELECT ro.*, o.title, o.titleEn, o.autoOptionType, o.displayToClient
-    FROM reservation_options ro
-    JOIN options o ON o.id = ro.optionId
-    WHERE ro.reservationId = ?
-  `).all(id);
-  // Joined resources — surface `name` (+ `nameEn` for English emails) for the resources list.
-  const resources = database.prepare(`
-    SELECT rr.*, res.name, res.nameEn
-    FROM reservation_resources rr
-    JOIN resources res ON res.id = rr.resourceId
-    WHERE rr.reservationId = ?
-  `).all(id);
-  // Custom (free-text) options — needed for the J-1 complement breakdown
-  // (specs/j1-complement-to-collect.md §3). `description` is the label, `amount` the value.
-  const customOptions = database.prepare(`
-    SELECT * FROM reservation_custom_options WHERE reservationId = ?
-  `).all(id);
-  // Does the reservation's PROPERTY provide bed linen by default? (specs/j1-linen-default-message.md
-  // §3 rule 1) — the bed-linen option is a default-offered option for that property.
-  const bedLinenProvidedByDefault = reservation.propertyId
-    ? Boolean(database.prepare(`
-        SELECT 1 FROM property_option_defaults d
-        JOIN options o ON o.id = d.optionId
-        WHERE d.propertyId = ? AND o.autoOptionType = 'bed_linen' AND d.offered = 1
-        LIMIT 1
-      `).get(reservation.propertyId))
-    : false;
-  const arrivalComplementDetail = loadArrivalComplementDetail(database, id);
-  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail };
-}
+const {
+  SEQUENCE_STABLE_KEYS, SEASON_STABLE_KEYS, stayDedupKey, seasonDedupKey, seasonKeyOf,
+  __test: { addDays },
+} = require('../utils/guestEmailSequence');
+const { sequenceContextFor, nextSeasonDate } = require('../utils/sequenceRenderContext');
 
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
 
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel }) {
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel, ledger, preferences }) {
+  // specs/guest-email-sequence.md rules 12-13bis — the ledger key a sequence email is sent under
+  // from this controller. Null for every other template (payment emails keep their own rules).
+  // A season email sent by hand counts for the season that just passed or is coming.
+  function sequencePlanFor(template, graph) {
+    if (!ledger || !template || !SEQUENCE_STABLE_KEYS.includes(template.stableKey)) return null;
+    const stableKey = template.stableKey;
+    const reservationId = Number(graph.reservation.id);
+    const clientId = graph.client ? Number(graph.client.id) : null;
+    if (!SEASON_STABLE_KEYS.includes(stableKey)) {
+      return { stableKey, dedupKey: stayDedupKey(stableKey, reservationId), reservationId, clientId, seasonKey: null };
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const sendDate = nextSeasonDate(stableKey, addDays(today, -60));
+    const seasonKey = seasonKeyOf(stableKey, sendDate);
+    return { stableKey, dedupKey: seasonDedupKey(stableKey, clientId, seasonKey), reservationId, clientId, seasonKey, sendDate };
+  }
+
   function readSettings() {
     return settingsModel.read();
   }
@@ -123,6 +80,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
+      stayFacts:   graph.stayFacts,
+      sequence:    sequenceContextFor({
+        stableKey: template.stableKey, reservation: graph.reservation, client: graph.client,
+        settings: readSettings(), preferences, sendDate: (sequencePlanFor(template, graph) || {}).sendDate,
+      }),
       settings:    readSettings(),
       lang:        useLang,
     });
@@ -148,6 +110,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return {
       ok: true,
       template,
+      graph,
       reservationId: Number(reservationId),
       clientId: graph.client?.id || null,
       to: String(graph.client?.email || '').trim(),
@@ -192,7 +155,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   async function send(req, res) {
-    const { reservationId, templateId, overrides, lang } = req.body || {};
+    const { reservationId, templateId, overrides, lang, confirmResend } = req.body || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
@@ -208,6 +171,20 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!recipient) return res.status(404).json({ error: 'CLIENT_NO_EMAIL' });
     if (!isValidEmail(recipient)) return res.status(400).json({ error: 'INVALID_EMAIL' });
 
+    // Sequence email: one send per ledger key, whatever the path (rule 13). A deliberate resend is
+    // the only exception and must say so (rule 13bis) — it gets a key of its own.
+    const plan = sequencePlanFor(result.template, result.graph);
+    if (plan) {
+      const existing = ledger.findByKey(plan.dedupKey);
+      if (existing && existing.status !== 'failed') {
+        if (confirmResend !== true) {
+          return res.status(409).json({ error: 'ALREADY_SENT', sentAt: existing.sentAt || existing.claimedAt, status: existing.status });
+        }
+        plan.dedupKey = ledger.nextResendKey(plan.dedupKey);
+      }
+      if (!ledger.claim(plan)) return res.status(409).json({ error: 'ALREADY_SENT' });
+    }
+
     if (!smtpConfigured()) {
       // Audit trail: log the failure so the operator sees the trace on the history page.
       const failed = logModel.insert({
@@ -219,6 +196,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedBody:    result.body,
         recipientEmail:  recipient,
       });
+      if (plan) ledger.markFailed(plan.dedupKey, 'EMAIL_NOT_CONFIGURED');
       return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', emailLogId: failed.id });
     }
 
@@ -238,6 +216,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedBody:    result.body,
         recipientEmail:  recipient,
       });
+      if (plan) ledger.markSent(plan.dedupKey, { recipientEmail: recipient, emailLogId: row.id });
       // A manually-queued pair leaves the queue once sent (specs/manual-email-from-template.md §3 rule 7).
       if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
       return res.json({ ok: true, emailLogId: row.id, sentAt: row.sentAt });
@@ -251,6 +230,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedBody:    result.body,
         recipientEmail:  recipient,
       });
+      if (plan) ledger.markFailed(plan.dedupKey, String(err?.message || 'unknown'));
       const code = err?.code === 'EMAIL_NOT_CONFIGURED' ? 409 : 500;
       return res.status(code).json({
         error: err?.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : 'EMAIL_SEND_FAILED',
@@ -294,6 +274,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     // Skipping always removes the pair from the manual queue, even when it was previously
     // sent/acknowledged (a re-queued pair must still be dismissable).
     if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+    // A skipped sequence email is closed in the ledger: the sequence never sends it afterwards.
+    const skipPlan = sequencePlanFor(template, graph);
+    if (skipPlan) ledger.recordOutsideSend({ ...skipPlan, status: 'skipped', note: 'ignoré par l\'opérateur' });
 
     // Idempotent: a second acknowledge for the same pair is a no-op (the pending list
     // already filters out any pair with an existing 'sent' or 'acknowledged-skip' row).
@@ -345,6 +328,10 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
 
     // Always dequeue, even if already handled (a re-queued pair must still leave the list).
     if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+    const manualPlan = sequencePlanFor(template, graph);
+    if (manualPlan) {
+      ledger.recordOutsideSend({ ...manualPlan, status: 'sent', recipientEmail: String(graph.client?.email || '').trim(), note: 'envoyé hors GuestFlow' });
+    }
 
     if (logModel.existsFor(Number(templateId), Number(reservationId), ['sent', 'acknowledged-skip'])) {
       return res.json({ ok: true, alreadyHandled: true });

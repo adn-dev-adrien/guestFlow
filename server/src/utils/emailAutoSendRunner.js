@@ -19,6 +19,7 @@ const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { DIRECT_CHANNELS } = require('./platformNameFormat');
 const { autoSendAllowed } = require('./autoSendPolicy');
+const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
 
 // Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
 // platformNameFormat.js — adding a channel there reaches this pass for free. Same pattern as
@@ -57,7 +58,11 @@ async function performAutoEmailPass(deps) {
 
   // 1. List every enabled auto template once. Manual templates are out of the cron's scope —
   // they surface on the dashboard pending list instead.
-  const templates = templatesModel.listEnabled().filter((t) => t.sendMode === 'auto');
+  // The six guest-sequence templates have their own scheduler and ledger (specs/guest-email-sequence.md
+  // rule 19): this legacy dayOffset pass never touches them, so a sequence email has one sender only.
+  const templates = templatesModel.listEnabled()
+    .filter((t) => t.sendMode === 'auto')
+    .filter((t) => !SEQUENCE_STABLE_KEYS.includes(t.stableKey));
   if (templates.length === 0) {
     return { sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
   }

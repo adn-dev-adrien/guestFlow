@@ -88,6 +88,12 @@ function shapeResponse(row) {
     // the operator. OFF unless explicitly turned on — a missing column reads as OFF.
     emails: {
       autoSendEnabled: Number(row.emailAutoSendEnabled) === 1,
+      // specs/guest-email-sequence.md §6.2 — read-only: set by the server on first activation.
+      sequenceStartDate: row.guestSequenceStartDate || null,
+      googleReviewUrl: row.googleReviewUrl || '',
+      instagramUrl: row.instagramUrl || '',
+      poolSeasonStart: row.poolSeasonStart || '06-15',
+      poolSeasonEnd: row.poolSeasonEnd || '08-31',
     },
     // Weather alerts block (specs/checkin-weather-alerts.md). The key itself is never returned; the
     // row comes from settingsModel.read() which substitutes the encrypted blob with the boolean flag.

@@ -153,6 +153,17 @@ function validatePublicUrl(value) {
   }
 }
 
+// Pool season bound, « MM-DD » (specs/guest-email-sequence.md §5). Empty keeps the default.
+function validateMonthDay(value) {
+  if (value == null || value === '') return null;
+  const match = String(value).match(/^(\d{2})-(\d{2})$/);
+  if (!match) return 'Format attendu : MM-JJ (ex. 06-15).';
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(2024, month, 0)).getUTCDate()) return 'Date invalide.';
+  return null;
+}
+
 // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sunday … 6=Saturday,
 // JavaScript Date.getDay() convention. Returns a French error message on out-of-range.
 function validateLaundryWeekday(value) {
@@ -189,6 +200,7 @@ module.exports = {
   validateSmtpPort,
   smtpPortForSecure,
   validatePublicUrl,
+  validateMonthDay,
   validateLaundryWeekday,
   validateLinenStockCount,
   // exported for tests

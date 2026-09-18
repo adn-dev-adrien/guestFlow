@@ -126,6 +126,10 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // crux: the admin guard can neither expose nor block it.
 app.use('/public/v1', require('./routes/public'));
 
+// Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
+// emails. Public by nature (a guest opens it from an email): no session, no API key, own limiter.
+app.use('/preferences', require('./routes/emailPreferences'));
+
 // Global API rate limit (per IP), except the public iCal export feed (polled by external services).
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
@@ -188,6 +192,7 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 // specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
 app.use('/api/emails',          require('./routes/emails'));
+app.use('/api/email-sequence',  require('./routes/emailSequence'));
 // specs/self-update-and-releases.md — version probe + self-update control. Admin-only: the role
 // guard above is deny-by-default for every non-admin role, so no allowlist entry is needed.
 app.use('/api/system', require('./routes/system'));
