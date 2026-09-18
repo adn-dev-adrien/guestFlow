@@ -6,7 +6,7 @@
 | **Branch** | `feature/guest-email-sequence` _(Claude-managed)_ |
 | **Created** | 2026-09-18 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #561 |
 | **Decision record** | `docs/specs/2026-09-18-guest-email-sequence.html` — the interactive review (rendered mails on real cases, the decisions below) |
 | **Related** | `specs/email-automation.md`, `specs/no-automatic-email-without-approval.md`, `specs/email-history-rolling-window.md`, `specs/guest-gate-access.md` (PR #547, see rule 34) |
 
