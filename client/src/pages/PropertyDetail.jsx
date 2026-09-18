@@ -39,11 +39,13 @@ import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import { useToast } from '../components/DialogProvider';
 import IcalExportCard from '../components/IcalExportCard';
+import HelpedTextField from '../components/HelpedTextField';
 import api from '../api';
 
 // Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
 // formatPropertyWithArticle: the apostrophe form elides, the others get a space).
-const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
+// « à » is for names that carry their own article: « à La Granja » (specs/guest-email-sequence.md §5).
+const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
 // Exported for non-regression unit tests (pages/__tests__/PropertyDetail.helpers.test.js).
 export function previewWithArticle(name, article) {
   const n = String(name || '').trim();
@@ -61,6 +63,7 @@ const NEW_DEFAULTS = {
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   publicDepositEnabled: false,
   defaultCautionAmount: 500,
+  emailHook: '', emailHookEn: '', parkingDistanceMeters: 0, hasWifi: true, hasFilterCoffeeMaker: false,
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
@@ -187,6 +190,10 @@ export default function PropertyDetail() {
       balanceDaysBefore: p.balanceDaysBefore, cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
       publicDepositEnabled: Boolean(p.publicDepositEnabled),
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
+      emailHook: p.emailHook || '', emailHookEn: p.emailHookEn || '',
+      parkingDistanceMeters: p.parkingDistanceMeters ?? 0,
+      hasWifi: p.hasWifi == null ? true : Boolean(p.hasWifi),
+      hasFilterCoffeeMaker: Boolean(p.hasFilterCoffeeMaker),
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
       touristTaxPercentage: p.touristTaxPercentage ?? 0,
@@ -1008,6 +1015,61 @@ export default function PropertyDetail() {
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5, ml: 0.5 }}>
                     Le site encaisse l'acompte à la réservation ; le solde est demandé par email à l'échéance. Sinon, le séjour est payé en une fois.
                   </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* specs/guest-email-sequence.md §6.2 — the property facts the guest emails read. */}
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Dans les mails clients</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Repris par la séquence de mails : l&apos;accroche ouvre le mail J-7, le reste adapte les conseils de bagages et d&apos;arrivée.
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <HelpedTextField
+                  label="Accroche du mail J-7"
+                  value={form.emailHook || ''}
+                  onChange={(v) => updateField('emailHook', v)}
+                  helperText="Une phrase après « Plus qu'une semaine, et vous serez … ». Ex. : Chaque matin, le soleil s'y lève sur la vallée."
+                  multiline
+                  minRows={2}
+                  size="small"
+                />
+                <HelpedTextField
+                  label="Accroche (anglais)"
+                  value={form.emailHookEn || ''}
+                  onChange={(v) => updateField('emailHookEn', v)}
+                  helperText="Pour les clients qui reçoivent leurs mails en anglais."
+                  multiline
+                  minRows={2}
+                  size="small"
+                />
+                <TextField
+                  label="Distance du parking (m)"
+                  type="number"
+                  value={form.parkingDistanceMeters ?? 0}
+                  onChange={(e) => updateField('parkingDistanceMeters', e.target.value)}
+                  onFocus={handleZeroFocus}
+                  helperText="0 si l'on se gare devant. Sinon, les mails conseillent de voyager léger."
+                  size="small"
+                  fullWidth
+                  slotProps={{ htmlInput: { min: 0, step: 50 } }}
+                />
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 0, sm: 3 } }}>
+                  <FormControlLabel
+                    control={<Switch checked={Boolean(form.hasWifi)} onChange={(e) => updateField('hasWifi', e.target.checked)} />}
+                    label="Wifi dans le logement"
+                    sx={{ minHeight: 44 }}
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={Boolean(form.hasFilterCoffeeMaker)} onChange={(e) => updateField('hasFilterCoffeeMaker', e.target.checked)} />}
+                    label="Cafetière familiale (café moulu)"
+                    sx={{ minHeight: 44 }}
+                  />
                 </Box>
               </Box>
             </CardContent>

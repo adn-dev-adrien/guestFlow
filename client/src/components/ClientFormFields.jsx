@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Box, TextField, Autocomplete, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Box, TextField, Autocomplete, FormControl, InputLabel, Select, MenuItem, FormControlLabel, Switch, FormHelperText } from '@mui/material';
 import FormRow from './FormRow';
 import DroppableTextField from './DroppableTextField';
 import api from '../api';
+import StatusBadge from './StatusBadge';
+import { displayDate } from '../utils/formatters';
 
 const PARSE_ERROR_HELPER = 'Analyse impossible';
 
@@ -144,6 +146,26 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
           <MenuItem value="en">English</MenuItem>
         </Select>
       </FormControl>
+      {/* specs/guest-email-sequence.md rules 9-10 — the operator's switch, and the guest's own
+          unsubscribe (read-only here: only the guest can undo it from the link). */}
+      <Box>
+        <FormControlLabel
+          control={(
+            <Switch
+              checked={Number(form.postStayEmailsDisabled) === 1 || form.postStayEmailsDisabled === true}
+              onChange={(e) => setForm({ ...form, postStayEmailsDisabled: e.target.checked ? 1 : 0 })}
+            />
+          )}
+          label="Ne pas envoyer les mails après séjour"
+          sx={{ minHeight: 44 }}
+        />
+        <FormHelperText sx={{ mt: 0 }}>Remerciement, bons cadeau et vœux ne lui seront pas envoyés.</FormHelperText>
+        {form.marketingUnsubscribedAt ? (
+          <Box sx={{ mt: 1 }}>
+            <StatusBadge status="neutral" label={`Désinscrit des nouvelles le ${displayDate(form.marketingUnsubscribedAt)}`} />
+          </Box>
+        ) : null}
+      </Box>
       <TextField label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} fullWidth multiline rows={3} />
     </Box>
   );

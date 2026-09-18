@@ -1,12 +1,13 @@
 /**
- * EmailHistoryPage — paginated log of every send / failure / acknowledged-skip.
- * See specs/email-automation.md §6.5.
+ * EmailHistoryPage — paginated log of every send / failure / acknowledged-skip
+ * (specs/email-automation.md §6.5), and the « Simulation » tab of the guest email sequence
+ * (specs/guest-email-sequence.md §6.2).
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, TableRow, TableCell, Typography, Stack, FormControl, InputLabel,
-  Select, MenuItem, Button, TextField, IconButton, Tooltip,
+  Select, MenuItem, Button, TextField, IconButton, Tooltip, Tabs, Tab,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ReplayIcon from '@mui/icons-material/Replay';
@@ -15,6 +16,7 @@ import DataPageScaffold from '../components/DataPageScaffold';
 import StatusBadge from '../components/StatusBadge';
 import EmailLogViewDialog from '../components/EmailLogViewDialog';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
+import EmailSequenceSimulation from '../components/EmailSequenceSimulation';
 import api from '../api';
 import { displayDateTime } from '../utils/formatters';
 
@@ -34,6 +36,7 @@ function EmailStatusBadge({ status, channel }) {
 }
 
 export default function EmailHistoryPage() {
+  const [view, setView] = useState('history');
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -67,12 +70,22 @@ export default function EmailHistoryPage() {
 
   const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
 
+  const tabs = (
+    <Tabs value={view} onChange={(_, v) => setView(v)} variant="fullWidth" sx={{ maxWidth: 420, minHeight: 44 }}>
+      <Tab value="history" label="Historique" sx={{ minHeight: 44 }} />
+      <Tab value="simulation" label="Simulation" sx={{ minHeight: 44 }} />
+    </Tabs>
+  );
+
+  if (view === 'simulation') return <Box><EmailSequenceSimulation tabs={tabs} /></Box>;
+
   return (
     <Box>
       <DataPageScaffold
         title="Historique des emails"
         topContent={(
           <Box>
+            <Box sx={{ mb: 1.5 }}>{tabs}</Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Historique des emails pour les séjours en cours et à venir. Les envois sont automatiquement
               retirés 3 jours après la date d&apos;arrivée.

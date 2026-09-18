@@ -26,6 +26,9 @@ const settingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
 const { performAutoEmailPass, isoToday } = require('./emailAutoSendRunner');
 const { autoSendAllowed } = require('./autoSendPolicy');
+const guestEmailSendsModel = require('../models/guestEmailSendsModel');
+const emailPreferencesModel = require('../models/emailPreferencesModel');
+const { runSequencePass } = require('./guestEmailSequenceRunner');
 
 const TICK_INTERVAL = 60 * 1000;
 // Boot passes stagger themselves so a restart doesn't run every job at once; the other
@@ -50,6 +53,21 @@ async function runPass(reason = 'cron') {
       emailServiceFactory: createEmailService,
     });
     const { blocked, sentCount, skippedCount, failedCount } = result;
+    // specs/guest-email-sequence.md rule 17 — the sequence rides the same daily pass and the same
+    // switch. Its own guard runs inside; a failure there must not hide the legacy pass's result.
+    if (!blocked) {
+      try {
+        const sequence = await runSequencePass({
+          database: db, ledger: guestEmailSendsModel, templatesModel: emailTemplatesModel, logModel: emailLogModel,
+          settingsModel, emailServiceFactory: createEmailService, preferences: emailPreferencesModel,
+        });
+        if (sequence.sent > 0 || sequence.failed > 0) {
+          console.log(`[guest-email-sequence] ${reason}: ${sequence.sent} sent, ${sequence.failed} failed`);
+        }
+      } catch (err) {
+        console.error('[guest-email-sequence] unexpected error:', err);
+      }
+    }
     if (blocked) {
       // The timer only exists while the switch is ON, so this means the two went out of step — a
       // settings row written outside the controller, a read that failed closed. Worth a line: it

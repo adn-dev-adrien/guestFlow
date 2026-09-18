@@ -49,7 +49,7 @@ test('renders + sends the confirmation email and logs it as sent', async () => {
   assert.equal(r.sent, true);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, 'jean@x.fr');
-  assert.match(sent[0].subject, /Confirmation/i);
+  assert.match(sent[0].subject, /est confirmé/i);  // specs/guest-email-sequence.md §6.1
   assert.match(sent[0].text, /Jean/);          // {{clientFirstName}}
   assert.match(sent[0].text, /Gite des Pins/);  // {{propertyName}}
   assert.match(sent[0].text, /300/);            // {{finalPrice}}
