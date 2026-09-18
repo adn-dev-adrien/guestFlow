@@ -50,6 +50,9 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ. |
 | `apache/uploads.htaccess` | Sert les jumeaux WebP par négociation de contenu. À déposer dans `wp-content/uploads/.htaccess`. |
 | `apache/roboto.css` | Feuille de la police auto-hébergée. Va dans `wp-content/uploads/fonts/`. |
+| `mu-plugins/gf-footer.php` | Style du pied de page « nuit » : manifeste, liens, mention légale, crédit ADN Dev. |
+| `template-parts/footer.html` | Balisage du pied de page : contenu de la *template part* WordPress n° 86. |
+| `brand/solio-logo-negatif.png` + `.webp` | Salamandre en négatif (ivoire vers ocre) pour le fond sombre du pied de page. Va dans `wp-content/uploads/brand/`. |
 
 ## La réservation
 
@@ -91,6 +94,34 @@ absolu masquerait le bas de l'image. La légende est du texte rendu par le serve
 Google comme par les robots d'IA, et elle est reprise telle quelle dans le `ImageObject` du
 JSON-LD. Le texte alternatif, lui, décrit la photo pour qui ne la voit pas — les deux ne disent
 pas la même chose et ne doivent pas être copiés l'un sur l'autre.
+
+## Le pied de page
+
+Le balisage vit dans la *template part* n° 86 (un bloc HTML), le style dans `gf-footer.php`.
+
+**Le crédit ADN Dev** coupe un filet sous la mention légale : l'hélice du logo ADN Dev, vectorisée
+et passée dans le dégradé de la salamandre (lichen vers ocre), puis « Cousu main par ADN Dev ».
+Le lien mène à `https://adn-dev.fr` dans un nouvel onglet, sans `nofollow`. Au survol l'hélice
+fait un tour sur elle-même, sauf si le visiteur a demandé moins d'animations. L'hélice est un SVG
+en ligne : aucune requête de plus, et le dégradé suit la palette.
+
+**Le logo Solio est en négatif.** Le PNG d'origine n'a pas de transparence et formait un carré
+blanc sur le fond de nuit ; le détourer ne suffit pas, le corps vert très sombre de la salamandre
+disparaît alors dans le fond. `solio-logo.png` reste en place pour tout autre usage.
+
+Sur téléphone, le pied de page réserve 104 px sous le crédit dès que la page porte le bouton
+flottant « Réserver » (`.gf-resa-declencheur`), qui le masquait sinon.
+
+Pour republier le balisage, il faut **couper le filtrage HTML de WordPress** : lancé en ligne de
+commande, `wp_update_post` s'exécute sans utilisateur, donc sans le droit `unfiltered_html`, et
+`kses` retire le SVG en silence.
+
+```bash
+scp template-parts/footer.html adrien@192.168.0.23:/tmp/footer.html
+ssh adrien@192.168.0.23 'docker cp /tmp/footer.html wp_app:/tmp/footer.html \
+  && docker exec wp_app php -r "require \"/var/www/html/wp-load.php\"; kses_remove_filters();
+     wp_update_post([\"ID\" => 86, \"post_content\" => wp_slash(file_get_contents(\"/tmp/footer.html\"))]);"'
+```
 
 ## Ce qui est intentionnellement absent
 
