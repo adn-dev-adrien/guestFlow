@@ -3,6 +3,9 @@
 //
 // Dates are all relative to today: the "not over yet" filter (rule 2) is the one rule a fixed
 // calendar would silently stop exercising.
+//
+// Rule 10 is covered by its testable half — no existing event changes shape. Its other half, that
+// this makes the change a Y and not an X, is a versioning judgement no assertion can hold.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -70,7 +73,7 @@ function valueOf(lines, key) {
   return line === undefined ? null : line.slice(key.length + 1);
 }
 
-test('a closure of the property is exported with its stored dates, untouched', () => {
+test('rules 1 + 4 + 7 — a closure of the property is exported with its stored dates, untouched', () => {
   const { db, model } = freshModel();
   const start = day(40);
   const end = day(47);
@@ -86,7 +89,7 @@ test('a closure of the property is exported with its stored dates, untouched', (
   assert.equal(valueOf(closure, 'TRANSP'), 'OPAQUE');
 });
 
-test('a global closure (propertyId IS NULL) appears in every property feed', () => {
+test('rule 1 — a global closure (propertyId IS NULL) appears in every property feed', () => {
   const { db, model } = freshModel();
   const id = addClosure(db, { propertyId: null, startDate: day(30), endDate: day(60) });
 
@@ -97,7 +100,7 @@ test('a global closure (propertyId IS NULL) appears in every property feed', () 
   }
 });
 
-test("another property's closure never leaks into this feed", () => {
+test("rule 1 — another property's closure never leaks into this feed", () => {
   const { db, model } = freshModel();
   addClosure(db, { propertyId: ESTIVA, label: 'Travaux Estiva', startDate: day(10), endDate: day(15) });
 
@@ -105,7 +108,7 @@ test("another property's closure never leaks into this feed", () => {
   assert.equal(closureEvents(model.exportProperty(ESTIVA)).length, 1);
 });
 
-test('a closure that is over is filtered out, one still running is not', () => {
+test('rule 2 — a closure that is over is filtered out, one still running is not', () => {
   const { db, model } = freshModel();
   addClosure(db, { propertyId: GRANJA, label: 'Travaux de printemps', startDate: day(-30), endDate: day(-10) });
   const running = addClosure(db, { propertyId: GRANJA, label: 'Panne de chaudière', startDate: day(-1), endDate: day(6) });
@@ -119,7 +122,7 @@ test('a closure that is over is filtered out, one still running is not', () => {
   assert.equal(valueOf(found[0], 'DTSTART'), compact(day(-1)));
 });
 
-test('SUMMARY prefixes the label, and collapses when the label is the default or blank', () => {
+test('rule 3 — SUMMARY prefixes the label, and collapses when the label is the default or blank', () => {
   const cases = [
     ['Fermeture hivernale', 'Fermeture — Fermeture hivernale'],
     ['Fermeture établissement', 'Fermeture'],
@@ -135,7 +138,7 @@ test('SUMMARY prefixes the label, and collapses when the label is the default or
   }
 });
 
-test('a label carrying a comma or a semicolon is escaped', () => {
+test('rule 3 — a label carrying a comma or a semicolon is escaped', () => {
   const { db, model } = freshModel();
   addClosure(db, { propertyId: GRANJA, label: 'Travaux, phase 2; aile nord', startDate: day(5), endDate: day(9) });
 
@@ -144,7 +147,7 @@ test('a label carrying a comma or a semicolon is escaped', () => {
   assert.equal(valueOf(closure, 'SUMMARY'), 'Fermeture — Travaux\\, phase 2\\; aile nord');
 });
 
-test('a closure event carries no guest data and no ATTENDEE', () => {
+test('rule 6 — a closure event carries no guest data and no ATTENDEE', () => {
   const { db, model } = freshModel();
   addClosure(db, { propertyId: GRANJA, startDate: day(5), endDate: day(9) });
 
@@ -154,7 +157,7 @@ test('a closure event carries no guest data and no ATTENDEE', () => {
   assert.equal(valueOf(closure, 'DESCRIPTION'), 'Période de fermeture — aucune réservation possible.');
 });
 
-test('closure UIDs live in their own namespace, next to the reservations', () => {
+test('rule 5 — closure UIDs live in their own namespace, next to the reservations', () => {
   const { db, model } = freshModel();
   addClosure(db, { propertyId: GRANJA, startDate: day(5), endDate: day(9) });
 
@@ -187,4 +190,42 @@ test('a devis is still never exported, closures or not', () => {
   const uids = events(model.exportProperty(GRANJA)).map((lines) => valueOf(lines, 'UID'));
 
   assert.equal(uids.length, 2, 'one reservation + one closure, never the devis');
+});
+
+test('rule 8 — closures come after the reservations, ordered by startDate', () => {
+  const { db, model } = freshModel();
+  const late = addClosure(db, { propertyId: GRANJA, label: 'Fermeture hivernale', startDate: day(60), endDate: day(90) });
+  const early = addClosure(db, { propertyId: null, label: 'Ravalement', startDate: day(5), endDate: day(9) });
+
+  const uids = events(model.exportProperty(GRANJA)).map((lines) => valueOf(lines, 'UID'));
+
+  assert.deepEqual(uids, [
+    'reservation-1@guestflow.local',
+    `closure-${early}@guestflow.local`,
+    `closure-${late}@guestflow.local`,
+  ]);
+});
+
+test('rule 9 — a deleted closure simply stops being in the feed', () => {
+  const { db, model } = freshModel();
+  const id = addClosure(db, { propertyId: GRANJA, startDate: day(5), endDate: day(9) });
+  assert.equal(closureEvents(model.exportProperty(GRANJA)).length, 1);
+
+  db.prepare('DELETE FROM establishment_closures WHERE id = ?').run(id);
+
+  // The feed is rebuilt on every request, so the platform unblocks the dates on its next fetch with
+  // no bookkeeping on our side.
+  assert.deepEqual(closureEvents(model.exportProperty(GRANJA)), []);
+});
+
+test('rule 10 — an existing reservation event keeps its exact shape once closures are exported', () => {
+  const { db, model } = freshModel();
+  const reservationBefore = events(model.exportProperty(GRANJA))[0];
+
+  addClosure(db, { propertyId: GRANJA, startDate: day(5), endDate: day(9) });
+  addClosure(db, { propertyId: null, startDate: day(60), endDate: day(90) });
+
+  // Additive for every consumer: the feed gains events, it changes none of the ones a platform has
+  // already mapped.
+  assert.deepEqual(events(model.exportProperty(GRANJA))[0], reservationBefore);
 });

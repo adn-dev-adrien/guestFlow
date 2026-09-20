@@ -6,7 +6,7 @@
 | **Branch** | `feature/ical-export-closures` _(Claude-managed)_ |
 | **Created** | 2026-09-20 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#564](https://github.com/adn-dev-adrien/guestFlow/pull/564) |
 
 ---
 
@@ -95,7 +95,7 @@ iCal feed, with no per-channel manual re-declaration.
 |---|---|---|---|
 | `routes/` | — | — | (none — `/api/ical/export/:token` is unchanged, still public per [index.js:147](../server/src/index.js#L147)) |
 | `controllers/` | — | — | (none — `icalController.exportIcal` already just returns what the model builds) |
-| `models/` | `models/icalModel.js` | T | `exportProperty` also emits the closure events: resolves today, calls the closures model, appends one `VEVENT` per closure. Gains two private pure helpers, `closureSummary(label)` (rule 3 + the default-label edge case) and `buildClosureEvent(closure)` (the line block). |
+| `models/` | `models/icalModel.js` | T | `exportProperty` also emits the closure events: resolves today, calls the closures model, appends one `VEVENT` per closure. Gains two private pure helpers, `closureSummary(label)` (rule 3 + the default-label edge case) and `closureEventLines(closure)` (the line block). |
 | `models/` | `models/establishmentClosuresModel.js` | — | **Unchanged, and deliberately so:** `list({ propertyId, from })` already returns exactly the right rows (global ∪ per-property, `endDate > from`, ordered by `startDate`). `icalModel` builds it against its own database handle via the `create(db)` factory, which keeps `establishment_closures` accessed from its one owning model and keeps `buildModel(db)` unit-testable on an in-memory schema. |
 | `middleware/` | — | — | (none) |
 | `utils/` | — | — | (none — the ISO "today" is `new Date().toISOString().slice(0, 10)`, consistent with the rest of the model) |
@@ -161,6 +161,14 @@ appended to `ical-model.unit.test.js`.
   - [ ] no `ATTENDEE` on a closure event (rule 6)
   - [ ] a label with `,` / `;` is escaped (edge case)
   - [ ] with no applicable closure, the feed is identical to the reservations-only output (edge case)
+  - [ ] closure events come after the reservations, ordered by `startDate` (rule 8)
+  - [ ] a deleted closure simply stops appearing (rule 9)
+  - [ ] an existing reservation event keeps its exact shape once closures are exported (rule 10)
+
+Every rule is cited by the test that covers it (`rule N` in the test title), as
+`scripts/check-spec-coverage.mjs` requires — the `spec rules` CI gate fails a PR that adds a rule no
+test names. Rule 10's other half, that this makes the change a **Y** and not an **X**, is a
+versioning judgement no assertion can hold; the behaviour it rests on is the one tested.
 - [ ] `tests/ical-model.unit.test.js` — still green: the devis exclusion and the reservation event
       are untouched (its DDL gains the `establishment_closures` table).
 
@@ -206,9 +214,9 @@ Delivered 2026-09-20 on `feature/ical-export-closures`.
 | Item | Result |
 |---|---|
 | `models/icalModel.js` | Requires `establishmentClosuresModel`, builds it from the same handle via `create(database)`. Adds `closureSummary()` and `closureEventLines()` (both pure) and the `closures.list({ propertyId, from: today })` call at the end of `exportProperty`. The reservation block is unchanged. |
-| `tests/ical-export-closures.unit.test.js` | **10 tests**, one per rule, all dates relative to today so the "not over yet" filter keeps being exercised. |
+| `tests/ical-export-closures.unit.test.js` | **13 tests**, one per rule (each citing its number), all dates relative to today so the "not over yet" filter keeps being exercised. |
 | `tests/ical-model.unit.test.js` | DDL only: `establishment_closures` added so the model can be built. Its 3 tests unchanged and green. |
-| Server suite | **4201 tests, 0 failure** (`cd server && npm test`) — 4191 before. |
+| Server suite | **4204 tests, 0 failure** (`cd server && npm test`) — 4191 before. |
 | Client | Untouched, as planned. No Vitest or Playwright run: nothing renders differently. |
 
 **Verified on a real feed** (throwaway DB built by `database.js`, one reservation + three closures):
