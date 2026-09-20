@@ -45,6 +45,7 @@ function render(stableKey, lang) {
   return renderTemplate(side, context);
 }
 
+// rule 30 — each mail is rendered in the client's language, FR and EN alike.
 test('the six templates render in French and English with no token left behind', () => {
   for (const key of SEQUENCE_STABLE_KEYS) {
     for (const lang of ['fr', 'en']) {

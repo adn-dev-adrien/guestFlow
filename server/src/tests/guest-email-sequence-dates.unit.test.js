@@ -19,6 +19,7 @@ function plan(reservation) {
   return byKey;
 }
 
+// rules 2-5 — the due date of each stay mail: the booking day, J-7, J-2, and departure + 1.
 test('a stay booked months ahead: confirmation on the booking day, J-7, J-2 and J+1 on their dates', () => {
   const p = plan({ createdAt: '2027-03-02 10:12:00', startDate: '2027-07-10', endDate: '2027-07-17' });
   assert.equal(p[MAIL.CONFIRMATION].sendDate, '2027-03-02');
@@ -28,6 +29,7 @@ test('a stay booked months ahead: confirmation on the booking day, J-7, J-2 and 
   for (const entry of Object.values(p)) assert.equal(entry.blocked, null, entry.stableKey);
 });
 
+// rules 3-4 — booked less than 7 (resp. 2) days before arrival: the reminder folds into the confirmation.
 test('one-night stay booked the day before: J-7 and J-2 fold into the confirmation', () => {
   const reservation = { createdAt: '2026-10-01 18:00:00', startDate: '2026-10-02', endDate: '2026-10-03' };
   const p = plan(reservation);
@@ -57,6 +59,7 @@ test('booked 3 days before arrival: the J-2 leaves and the confirmation stays sh
   assert.equal(isLastMinute(reservation), false);
 });
 
+// rule 5 — the J+1 is read at send time, so an edited departure date moves it.
 test('a shortened stay moves the J+1 with the new departure date', () => {
   const before = plan({ createdAt: '2027-03-02', startDate: '2027-07-10', endDate: '2027-07-17' });
   const after = plan({ createdAt: '2027-03-02', startDate: '2027-07-10', endDate: '2027-07-14' });
@@ -65,6 +68,7 @@ test('a shortened stay moves the J+1 with the new departure date', () => {
   assert.equal(after[MAIL.J1].dedupKey, before[MAIL.J1].dedupKey, 'same key: a J+1 already sent is never re-sent');
 });
 
+// rule 11 — the shape of the two dedup keys the ledger holds.
 test('dedup keys: one per (mail, reservation), one per (mail, client, season)', () => {
   assert.equal(stayDedupKey(MAIL.J7, 42), 'arrival_reminder_7d:r42');
   assert.equal(seasonDedupKey(MAIL.NOVEMBER, 7, seasonKeyOf(MAIL.NOVEMBER, '2027-11-15')), 'season_gift_vouchers:c7:2027-11');

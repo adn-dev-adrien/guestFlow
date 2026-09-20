@@ -189,6 +189,8 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     says what was found and offers to send it back; otherwise it says we set everything aside.
 34. **Gate access** — when PR #547 (`specs/guest-gate-access.md` rule 23) lands, the J-2 « Pour
     venir » block carries the gate code and link. Whichever branch merges second wires it.
+    > **Sans test** — nothing to test here yet: the rule commits the branch that merges second to
+    > wire the two together, and the test lands with that wiring, in the J-2 render suite.
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not
@@ -516,7 +518,7 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
 
 ## 7. Test plan
 
-### Server unit tests (one file per subject — 73 new tests)
+### Server unit tests (one file per subject — 75 new tests)
 - [x] `tests/guest-email-sequence-dates.unit.test.js` (9) — send dates; booked the day before / exactly 7 / exactly 2 / 3 days before; one-night stay; shortened stay (same key, new date); dedup keys; season dates; 29 February deadline.
 - [x] `tests/guest-email-sequence-exclusions.unit.test.js` (13) — cancelled; channel rules; no email; before activation / stay ended before activation; client flag; unsubscribe (season only); non-candidates; relay addresses; upcoming stay; 30-day rule; latest stay; cap.
 - [x] `tests/guest-email-ledger.unit.test.js` (8) — claim once; failed re-claimable, sent/skipped never; resend keys; cap count; stale claims; `email_log` purge without effect; upgrade backfill + force-sync; start date on upgrade.
@@ -525,9 +527,12 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
 - [x] `tests/guest-email-templates-render.unit.test.js` (6) — the six templates FR + EN, no token left, no stray blank line, unsubscribe on 5–6 only, content rules.
 - [x] `tests/email-preferences-public.unit.test.js` (6) — token; GET changes nothing; POST idempotent; unknown token neutral; language; link.
 - [x] `tests/emails-controller-sequence-ledger.unit.test.js` (5) — 409 `ALREADY_SENT`; confirmed resend; skip / mark-sent close the key; payment emails untouched; preview.
+- [x] `tests/guest-email-sequence-cli.unit.test.js` (2) — the simulation CLI run for real on a database
+  file: the target is byte-identical afterwards and leaves no `-wal` / `-journal` behind, even when
+  `DB_PATH` names it; no `SIMULATION_DB_PATH`, no run.
 - [x] Touched: `email-template-renderer` (J-7/J-2 body section rewritten for the new copy), `default-email-templates-registry`, `default-email-templates-seed`, `confirmation-email-gate`, `reservation-email-sender`.
 
-Full server suite: 4 189 tests, all green.
+Full server suite: 4 191 tests, all green.
 
 ### Client
 - [x] Vitest (11 new): `EmailSequenceSimulation.render.test.jsx` (5), `EmailManualSendDialog.already-sent.test.jsx` (2), `ClientFormFields.post-stay-emails.test.jsx` (3), `ReservationLostItemsCard.test.jsx` (1). Full suite green.

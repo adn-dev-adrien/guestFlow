@@ -11,6 +11,7 @@ const { freshDb, seedProperty, seedClient, seedReservation } = require('./guestE
 
 const KEY = { dedupKey: 'guest_thanks_j1:r1', stableKey: 'guest_thanks_j1', reservationId: 1, clientId: 1 };
 
+// rules 11-12 — one row per dedup key, claimed before SMTP opens; the second claim loses.
 test('a key is claimed once: the second claim loses, whatever its origin', () => {
   const ledger = guestEmailSendsModel.buildModel(freshDb());
   assert.equal(ledger.claim(KEY), true);
@@ -18,6 +19,7 @@ test('a key is claimed once: the second claim loses, whatever its origin', () =>
   assert.equal(ledger.findByKey(KEY.dedupKey).status, 'claimed');
 });
 
+// rule 12 — a failed row may be re-claimed; a claimed, sent or skipped one never.
 test('a failed send can be claimed again; a sent or skipped one never', () => {
   const ledger = guestEmailSendsModel.buildModel(freshDb());
   ledger.claim(KEY);
@@ -43,6 +45,7 @@ test('a deliberate resend gets a key of its own and never touches the original r
   assert.equal(ledger.findByKey(KEY.dedupKey).status, 'sent');
 });
 
+// rule 12bis — a skipped key does not count toward the yearly cap.
 test('yearly cap count: post-stay emails sent to the client since the date, resends and skips excluded', () => {
   const db = freshDb();
   const ledger = guestEmailSendsModel.buildModel(db);
@@ -59,6 +62,7 @@ test('yearly cap count: post-stay emails sent to the client since the date, rese
   assert.equal(ledger.countPostStayContacts(1, '2027-08-01 00:00:00'), 1);
 });
 
+// rule 14 — a claim older than an hour is reported, never silently re-sent.
 test('a claim left open is reported as stale after an hour, never silently re-sent', () => {
   const db = freshDb();
   const ledger = guestEmailSendsModel.buildModel(db);

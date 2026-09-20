@@ -18,10 +18,12 @@ function season(stableKey, stays, { client = CLIENT, sendDate, startDate = '2026
   return planSeasonMail({ stableKey, client, stays, sendDate, startDate });
 }
 
+// rule 1 — a cancelled stay leaves the sequence from the moment it is cancelled.
 test('a cancelled stay receives nothing', () => {
   for (const entry of Object.values(stay({ kind: 'cancelled' }))) assert.equal(entry.blocked, 'cancelled', entry.stableKey);
 });
 
+// rule 2 — the confirmation is a direct-channel mail; the others serve every channel.
 test('confirmation: direct channels only; the other mails go to every channel', () => {
   for (const platform of ['direct', 'Lodgify', '']) assert.equal(stay({ platform })[MAIL.CONFIRMATION].blocked, null, platform);
   for (const platform of ['Airbnb', 'Booking', 'GitesDeFrance']) {
@@ -67,6 +69,7 @@ test('unsubscribe blocks the season mails only, never the stay mails', () => {
   assert.equal(season(MAIL.JANUARY, [STAY], { client, sendDate: '2028-01-06' }).blocked, 'unsubscribed');
 });
 
+// rules 6-7 — the November and January population: a past stay, and nothing coming up.
 test('season mails: a client who never stayed is not a candidate at all', () => {
   assert.equal(season(MAIL.NOVEMBER, [{ ...STAY, startDate: '2027-12-20', endDate: '2027-12-27' }], { sendDate: '2027-11-15' }), null);
   assert.equal(season(MAIL.NOVEMBER, [], { sendDate: '2027-11-15' }), null);
@@ -86,6 +89,7 @@ test('season mails: a reservation in progress or upcoming holds them back', () =
   assert.equal(season(MAIL.NOVEMBER, [STAY, inProgress], { sendDate: '2027-11-15' }).blocked, 'upcomingStay');
 });
 
+// rules 6-7 — the 30-day rule belongs to November alone.
 test('November skips a stay that ended less than 30 days before; January does not apply that rule', () => {
   const recent = { ...STAY, startDate: '2027-10-20', endDate: '2027-10-25' };
   assert.equal(season(MAIL.NOVEMBER, [recent], { sendDate: '2027-11-15' }).blocked, 'recentStay');
@@ -102,6 +106,7 @@ test('season mails carry the latest past stay (for « Vous étiez venus … ») 
   assert.equal(entry.dedupKey, 'season_new_year:c1:2028-01');
 });
 
+// rule 8 — at most three post-stay contacts over any rolling 365 days.
 test('yearly cap: the 4th post-stay contact within 365 days is refused', () => {
   assert.equal(capReached(2), false);
   assert.equal(capReached(3), true);

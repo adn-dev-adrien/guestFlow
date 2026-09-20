@@ -33,6 +33,7 @@ function setup({ settings = settingsStub(), mail = mailer() } = {}) {
 // Arrival on 10 July 2027: J-7 due on 3 July.
 const J7_DUE = '2027-07-03';
 
+// rules 15 + 18 — the sequence sends only once the operator turns automatic sending ON.
 test('switch OFF: the pass sends nothing at all', async () => {
   const { db, deps, mail } = setup({ settings: settingsStub({ autoSend: false }) });
   seedReservation(db);
@@ -48,6 +49,7 @@ test('never activated (no start date): the pass sends nothing', async () => {
   assert.equal(mail.sent.length, 0);
 });
 
+// rule 19 — one scheduler per sequence mail: the legacy pass and the queue stand aside.
 test('the J-7 leaves on its day, once: a second pass the same day sends nothing', async () => {
   const { db, deps, mail } = setup();
   const rid = seedReservation(db);
@@ -62,6 +64,7 @@ test('the J-7 leaves on its day, once: a second pass the same day sends nothing'
   assert.equal(mail.sent.length, 1, 'never twice');
 });
 
+// rule 17 — today's mails, plus those due in the last 2 days and still unclaimed.
 test('catch-up: a mail missed yesterday leaves today; one missed 3 days ago does not', async () => {
   const { db, deps, mail } = setup();
   seedReservation(db);
