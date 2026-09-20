@@ -27,7 +27,8 @@ test('a client set to English drives the J-2 preview to English; French clients 
   const frRes = await request.get(`/api/emails/preview?reservationId=${reservation.id}&templateId=${templateId}`);
   const fr = await frRes.json();
   expect(fr.lang).toBe('fr');
-  expect(fr.body).toMatch(/Votre séjour/);
+  // specs/guest-email-sequence.md §6.1 — the J-2 of the guest sequence.
+  expect(fr.body).toMatch(/Dans deux jours, vous poserez vos valises/);
   expect(fr.body).toMatch(/juillet 2099/);
 
   // Switch the CLIENT to English → English preview (body + composed date), no French leakage.
@@ -35,9 +36,9 @@ test('a client set to English drives the J-2 preview to English; French clients 
   const enRes = await request.get(`/api/emails/preview?reservationId=${reservation.id}&templateId=${templateId}`);
   const en = await enRes.json();
   expect(en.lang).toBe('en');
-  expect(en.body).toMatch(/Your stay/);
+  expect(en.body).toMatch(/In two days, you will be putting your bags down/);
   expect(en.body).toMatch(/July 2099/);
-  expect(en.body).not.toMatch(/Votre séjour/);
+  expect(en.body).not.toMatch(/Dans deux jours/);
 
   // The reservation fiche no longer carries the email-language selector (it moved to the client fiche).
   await page.goto(`/reservations/${reservation.id}`);

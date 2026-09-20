@@ -98,6 +98,10 @@ orphan-client cleanup; unavailable/cancelled iCal events filtered out.
 | `routes/` | `properties.js` | T | Thin: mount upload middleware + the 21 routes → the two controllers; keep the multer error middleware. No SQL/logic/iCal left. No `__test`/`syncIcalSource` export. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Import `syncSourceAndRecord` from `propertyIcalModel`; drop the inline status-update duplication. |
 | `utils/` | `pricing.js` · `textFormatters.js` · `uploadSafety.js` | — | Reused (`normalizeDateRanges`, `parseRuleDateRanges`, `buildProgressivePreview`, `sentenceCase`, `safeUpload*`). |
+
+> **Amended 2026-09-18** (specs/guest-email-sequence.md §5): the property **name** is no longer passed
+> through `sentenceCase` on create/update — it is a proper name, trimmed and kept as typed (« La Granja »,
+> « L'Estiva »). Season and document labels still are.
 | `tests/` | `properties-ical.unit.test.js` | T | Re-point imports to `utils/icalParser`. Same cases. |
 | `tests/` | `property-ical-sync.unit.test.js` | C | **New** — in-memory DB + stubbed `fetch` returning a crafted `.ics`: assert create → update (hash change) → **locked-skip** (no overwrite when `icalSyncLocked=1`) → stale removal. Directly guards the anti-overbooking contract. |
 | `tests/` | `properties-model.unit.test.js` | C | **New** — pricing overlap detection, `applyTo` (copy + `replaceExisting` + `409` conflict), `getByIdWithDetails` shape, options linkage. |

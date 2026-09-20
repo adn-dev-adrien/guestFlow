@@ -136,6 +136,14 @@ const COLUMNS = [
   // a caller: `utils/autoSendPolicy` is the single place that decides whether an automatic send may
   // happen at all.
   'emailAutoSendEnabled',
+  // Guest email sequence (specs/guest-email-sequence.md §5). `guestSequenceStartDate` is written once,
+  // by the settings controller, the first time automatic sending is turned on: no sequence email
+  // dated before it is ever sent. The rest feeds the email copy.
+  'guestSequenceStartDate',
+  'googleReviewUrl',
+  'instagramUrl',
+  'poolSeasonStart',
+  'poolSeasonEnd',
   // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sun .. 6=Sat, default
   // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
   // (400 INVALID_WEEKDAY).
@@ -241,6 +249,8 @@ const STRING_DEFAULT_OVERRIDES = {
   paymentDepositReminderOffsets: '[-5,0]',
   paymentBalanceReminderOffsets: '[-10,-5,0]',
   neatEnvironment: 'staging',
+  poolSeasonStart: '06-15',
+  poolSeasonEnd: '08-31',
 };
 
 const DEFAULTS = COLUMNS.reduce((acc, col) => {

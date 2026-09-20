@@ -60,6 +60,13 @@ const EMPTY_FORM = {
   // email leaves GuestFlow only on the operator's click unless this is turned on.
   emails: {
     autoSendEnabled: false,
+    // Guest email sequence (specs/guest-email-sequence.md §6.2). `sequenceStartDate` is read-only:
+    // the server sets it the first time automatic sending is turned on.
+    sequenceStartDate: null,
+    googleReviewUrl: '',
+    instagramUrl: '',
+    poolSeasonStart: '06-15',
+    poolSeasonEnd: '08-31',
   },
   // Weather alerts (specs/checkin-weather-alerts.md). The Météo-France key is a masked secret; the
   // server returns only `apiKeySet`. apiKeyDraft: same 3-way semantics as smtp.passwordDraft.
@@ -453,6 +460,7 @@ export default function SettingsPage() {
               values={draft.emails}
               onChange={updateGroup('emails')}
               disabled={loading || saving}
+              errors={errors}
             />
           </Box>
 
@@ -535,6 +543,14 @@ function mapClientKeyToErrorKey(group, key) {
   if (group === 'notifications') {
     return ({
       recipientEmail: 'notificationRecipientEmail',
+    })[key];
+  }
+  if (group === 'emails') {
+    return ({
+      googleReviewUrl: 'googleReviewUrl',
+      instagramUrl: 'instagramUrl',
+      poolSeasonStart: 'poolSeasonStart',
+      poolSeasonEnd: 'poolSeasonEnd',
     })[key];
   }
   return null;

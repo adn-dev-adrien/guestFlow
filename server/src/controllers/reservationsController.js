@@ -1224,6 +1224,18 @@ function receptionStatusLock(reservationId, body, now = new Date()) {
 
 // NOTE: updatePayment deliberately has no Google hook — payment/caution/SAS fields don't
 // appear in the calendar event (spec rule 21).
+// specs/guest-email-sequence.md rule 33 — « Objets oubliés », quoted by the J+1 email.
+const LOST_ITEMS_MAX = 500;
+function updateLostItems(req, res) {
+  const raw = req.body ? req.body.lostItems : undefined;
+  if (raw != null && typeof raw !== 'string') return res.status(400).json({ error: 'INVALID_LOST_ITEMS' });
+  const text = String(raw || '').trim();
+  if (text.length > LOST_ITEMS_MAX) return res.status(400).json({ error: 'LOST_ITEMS_TOO_LONG', max: LOST_ITEMS_MAX });
+  const id = Number(req.params.id);
+  if (!model.getBasic(id)) return res.status(404).json({ error: 'Réservation non trouvée' });
+  return res.json(model.updateLostItems(id, text));
+}
+
 function updatePayment(req, res) {
   // specs/reception-role-checkin-only.md §3.5 rule 10 — a reception-only user may flip ONLY the
   // check-in/out status flags through this endpoint; every financial field in the same payload is
@@ -1421,5 +1433,5 @@ function remove(req, res) {
 
 module.exports = {
   suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
-  create, update, updatePayment, settleArrivalPayment, remove,
+  create, update, updatePayment, updateLostItems, settleArrivalPayment, remove,
 };

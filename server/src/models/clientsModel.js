@@ -68,6 +68,19 @@ function createModel(database) {
     try { return database.prepare('PRAGMA table_info(clients)').all().some((c) => c.name === 'emailLanguage'); }
     catch { return false; }
   })();
+  // specs/guest-email-sequence.md rule 10 — optional in minimal schemas, like emailLanguage.
+  const HAS_POST_STAY_FLAG = (() => {
+    try { return database.prepare('PRAGMA table_info(clients)').all().some((c) => c.name === 'postStayEmailsDisabled'); }
+    catch { return false; }
+  })();
+  // Written only when the payload carries the field: an older form that doesn't send it keeps the
+  // stored value.
+  function writePostStayFlag(id, payload) {
+    if (!HAS_POST_STAY_FLAG || !payload || !Object.prototype.hasOwnProperty.call(payload, 'postStayEmailsDisabled')) return;
+    const value = payload.postStayEmailsDisabled === true || payload.postStayEmailsDisabled === 1 || payload.postStayEmailsDisabled === '1' ? 1 : 0;
+    database.prepare('UPDATE clients SET postStayEmailsDisabled = ? WHERE id = ?').run(value, Number(id));
+  }
+
   function list(q) {
     if (q) {
       const s = `%${q}%`;
@@ -167,6 +180,7 @@ function createModel(database) {
     const vals = '@lastName, @firstName, @streetNumber, @street, @postalCode, @city, @address, @phone, @email, @notes'
       + (HAS_EMAIL_LANGUAGE ? ', @emailLanguage' : '');
     const result = database.prepare(`INSERT INTO clients (${cols}) VALUES (${vals})`).run(fields);
+    writePostStayFlag(result.lastInsertRowid, payload);
     return findById(result.lastInsertRowid);
   }
 
@@ -180,6 +194,7 @@ function createModel(database) {
           updatedAt=datetime('now')
       WHERE id=@id
     `).run({ ...fields, id: Number(id) });
+    writePostStayFlag(id, payload);
     return findById(id);
   }
 

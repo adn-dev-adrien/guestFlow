@@ -63,6 +63,7 @@ const emptyClient = {
   email: '',
   notes: '',
   emailLanguage: 'fr',
+  postStayEmailsDisabled: 0,
 };
 
 function getTodayDateKey() {
