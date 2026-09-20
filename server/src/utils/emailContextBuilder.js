@@ -99,7 +99,7 @@ function normaliseLang(v) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, gateInvitation = null }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   const stayContent = buildStayContent({
     reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
@@ -419,6 +419,11 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Email sender display name (Settings → Envoi d'emails → "Nom expéditeur"); falls back
       // to the legal company name when blank. Used for the email signature.
       senderName:   safeStr(settings.smtpFromName).trim() || safeStr(settings.companyName),
+      // Gate access (specs/gate-access-sowel-connector.md §3.4). The local copy of the invitation,
+      // pushed by the house: composing an email therefore NEVER reaches it, and waits for nothing.
+      // Empty when there is no access — the template's paragraph is then skipped by its flag.
+      gateAccessCode: safeStr(gateInvitation && gateInvitation.code),
+      gateAccessUrl:  safeStr(gateInvitation && gateInvitation.url),
     },
     flags: {
       ...stayContent.flags,
@@ -439,6 +444,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       hasNordicBath,
       hasBabyBedNotice,
       hasPaymentLink: false, // overridden per-send via extraContext when a payment link is attached
+      // A code with no link is still useful (it can be dictated); a link with no code is not.
+      hasGateAccess: Boolean(gateInvitation && gateInvitation.code),
     },
   };
 }

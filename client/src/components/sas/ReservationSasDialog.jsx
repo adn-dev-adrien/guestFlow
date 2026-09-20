@@ -55,6 +55,7 @@ import LoadingState from '../LoadingState';
 import ErrorAlert from '../ErrorAlert';
 import { useToast } from '../DialogProvider';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
+import SasGateAccessStep from './SasGateAccessStep';
 import OfferableLine from './OfferableLine';
 import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
 import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
@@ -564,7 +565,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
-        data.portalCode ? 'portal' : null,
+        (data.portalCode || data.gateAccess?.available) ? 'portal' : null,
         cautionStep ? 'caution' : null,
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
@@ -1180,12 +1181,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       }
       case 'portal':
+        // specs/gate-access-sowel-connector.md §3.4 — the step shows the access the house
+        // configured (code + QR) as soon as there is one, and falls back to the keypad code.
         return (
-          <Stack spacing={1.5} sx={{ alignItems: 'center', py: 1 }}>
-            <Typography variant="body1">Code du portail à communiquer au client :</Typography>
-            {/* Portal code = digits → kpiValue role (sans, tabular — amounts/codes never serif), h3-sized. */}
-            <Typography variant="kpiValue" sx={{ fontSize: '2.6rem', letterSpacing: 2 }}>{data.portalCode}</Typography>
-          </Stack>
+          <SasGateAccessStep
+            reservationId={r.id}
+            available={Boolean(data.gateAccess && data.gateAccess.available)}
+            portalCode={data.portalCode}
+          />
         );
       case 'weather':
         return <SasWeatherAlertPage alerts={weatherAlerts} />;

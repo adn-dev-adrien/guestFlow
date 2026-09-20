@@ -346,7 +346,32 @@ function updateRepairAmounts(req, res) {
   return res.json(repairAmountsModel.replaceAll(items));
 }
 
+/**
+ * GET /settings/gate-connector — is the house talking to guestFlow?
+ * (specs/gate-access-sowel-connector.md §3.5)
+ *
+ * No secret leaves here. Both keys live in `server/.env.local` and are read from it, like
+ * `PUBLIC_API_KEY`: a key an API can hand back is a key a stolen session can read. What is useful,
+ * and cannot be guessed otherwise, is the DATE of the last exchange.
+ */
+function getGateConnector(_req, res) {
+  const configured = Boolean(
+    String(process.env.GATE_API_KEY || '').trim() && String(process.env.GATE_SIGNING_SECRET || '').trim(),
+  );
+  let invitations = 0;
+  let lastReceivedAt = null;
+  try {
+    const model = require('../models/gateInvitationModel').model();
+    invitations = model.count();
+    lastReceivedAt = model.lastReceivedAt();
+  } catch {
+    // Missing table (minimal schema) — the connector has simply never spoken.
+  }
+  return res.json({ configured, invitations, lastReceivedAt });
+}
+
 module.exports = {
+  getGateConnector,
   getSettings,
   updateSettings,
   uploadLogo,

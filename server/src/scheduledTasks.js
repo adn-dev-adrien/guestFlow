@@ -131,6 +131,17 @@ function runEmailHistoryPurge(reason = 'cron') {
   }
 }
 
+// Gate access: deletes feed rows that are both superseded and old. Never one without the other — a
+// consumer that has fallen behind must still be able to catch up on the latest state of everything.
+function runGateFeedPurge(reason = 'cron') {
+  try {
+    const { deleted } = require('./utils/gateStayFeed').feed().purge();
+    if (deleted > 0) console.log(`[gate-feed-purge] ${reason}: removed ${deleted} superseded row(s)`);
+  } catch (err) {
+    console.error('[gate-feed-purge] error:', err && err.message ? err.message : err);
+  }
+}
+
 // Hourly tick, once-per-local-day guard (the window only moves day-by-day).
 function tickEmailHistoryPurge() {
   const today = isoToday(new Date());
@@ -327,6 +338,13 @@ function startScheduledTasks() {
   const EMAIL_HISTORY_PURGE_TICK = 60 * 60 * 1000; // 1 hour
   setInterval(tickEmailHistoryPurge, EMAIL_HISTORY_PURGE_TICK);
   setTimeout(tickEmailHistoryPurge, 100 * 1000);
+
+  // Gate access (specs/gate-access-sowel-connector.md §3.1): the stay feed is computed on read, so
+  // it needs no timer at all — only its superseded rows are purged, once a day. A deployment has
+  // nothing to backfill: the house's first read publishes everything.
+  const GATE_FEED_PURGE_TICK = 24 * 60 * 60 * 1000; // 1 day
+  setInterval(runGateFeedPurge, GATE_FEED_PURGE_TICK);
+  setTimeout(runGateFeedPurge, 120 * 1000);
 
   // Arrival/departure push: per-minute tick. First pass 95 s after boot (firstRun → stamps the day's
   // already-passed events without sending). Then each minute it pushes events as they cross their time.

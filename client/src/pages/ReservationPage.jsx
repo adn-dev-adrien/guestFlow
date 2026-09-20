@@ -27,6 +27,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
+import GateAccessCard from '../components/GateAccessCard';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
@@ -3263,6 +3264,14 @@ export default function ReservationPage() {
           {hasExtrasSection && <ExtrasSection />}
 
           <FinanceSection />
+
+          {/* specs/gate-access-sowel-connector.md §3.4 — what the house configured for this
+              stay. Read-only: every action lives in Sowel. */}
+          <GateAccessCard
+            reservationId={editingReservationId}
+            cardSx={formSectionCardSx}
+            contentSx={formSectionContentSx}
+          />
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>

@@ -112,6 +112,14 @@ try {
 getOrCreateSecret('PUBLIC_API_KEY', 32);
 logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
 
+// Gate access (specs/gate-access-sowel-connector.md §3.3). TWO secrets, and a key distinct from
+// the site's: the WordPress proxy has no business reading who sleeps here tonight. The key proves
+// the caller, the signature proves the call — and the signing secret never travels. Neither is ever
+// logged; the operator reads them from .env.local and copies them into the Sowel plugin.
+getOrCreateSecret('GATE_API_KEY', 32);
+getOrCreateSecret('GATE_SIGNING_SECRET', 32);
+logErrorMarker('GATE_API_KEY + GATE_SIGNING_SECRET ready in server/.env.local — copy them into the Sowel guest-access plugin.');
+
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
@@ -124,6 +132,10 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // key-authenticated (X-API-Key / Bearer) and rate-limited inside its own router, and it never
 // passes through the `/api` session guard below. The distinct `/public/v1` path is the safety
 // crux: the admin guard can neither expose nor block it.
+// The gate-access connector, BEFORE the generic public tree: it carries its own key and its own
+// signature, and must not go through the WordPress proxy's one (routes/public/gate.js).
+app.use('/public/v1/gate', require('./routes/public/gate'));
+
 app.use('/public/v1', require('./routes/public'));
 
 // Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
