@@ -1,1 +1,0 @@
-- **A platform booking at a property that includes cleaning** (iCal import, no option line) was told « le ménage n'a pas été réservé, il reste à votre charge ». The guest emails now read the property's included options (spec `guest-email-sequence.md` rule 20).

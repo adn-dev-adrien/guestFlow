@@ -4,6 +4,31 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-09-20
+
+### Summary
+- Six mails clients (confirmation, J-7, J-2, J+1, 15 novembre, 6 janvier) : rien ne part tant que tu n'as pas activé l'envoi automatique.
+- La mise à jour réécrit les modèles confirmation, J-7 et J-2 : les retouches faites dans l'application sur ces trois-là sont perdues.
+- Un registre d'envoi garantit un seul envoi par séjour et par mail ; « Renvoyer » demande désormais une confirmation explicite.
+- Emails › Historique › Simulation montre ce qui partirait, à qui et quand, sans rien envoyer ni écrire.
+- Nouveaux réglages : avis Google, Instagram, saison piscine ; accroche et équipements par logement ; « Objets oubliés » sur la fiche.
+- Corrigé : une réservation iCal dans un logement où le ménage est inclus n'annonce plus le ménage à la charge du voyageur.
+
+### Added
+- **Guest email sequence** (spec `guest-email-sequence.md`, 2026-09-18). Six emails, written with Adrien: confirmation (direct bookings), J-7, J-2, J+1 thank-you with one review request (the platform used, then Google), 15 November gift vouchers and 6 January greetings, each with a dated gift. Their content follows what each property includes and what the guest booked: an included or booked option is never proposed again, prices are unit prices, options are offered in the J-7 only. Nothing leaves before automatic sending is turned on, and then only for stays still to come — never retroactively. +75 server tests, +11 client tests.
+- **Send ledger** — one send per (email, reservation) or (email, client, season), claimed before SMTP opens and never purged: the daily pass, the payment confirmation, « Envoyer », « Ignorer » and « Marquer envoyé » all go through it. A deliberate resend asks for confirmation.
+- **Simulation** — Emails › Historique › Simulation, and `scripts/simulate-guest-email-sequence.mjs` (read-only, for a copy of production): what would leave, to whom, when, or why not.
+- **Unsubscribe** from the season emails through a public page (`/preferences/emails`); a client switch « Ne pas envoyer les mails après séjour »; « Objets oubliés » on the reservation, quoted by the J+1; property facts for the emails (hook, parking distance, wifi, family coffee maker); Google review link, Instagram link and pool season in Réglages.
+
+### Changed
+- **Confirmation, J-7 and J-2 rewritten** as mails 1-3 of the guest sequence (spec `guest-email-sequence.md`); the three templates are overwritten once by the upgrade. Property names keep the casing typed by the operator, and « à » joins the name articles (« à La Granja »).
+
+### Fixed
+- **A platform booking at a property that includes cleaning** (iCal import, no option line) was told « le ménage n'a pas été réservé, il reste à votre charge ». The guest emails now read the property's included options (spec `guest-email-sequence.md` rule 20).
+
+### Migration
+- **Guest email sequence** (spec `guest-email-sequence.md` §5): new table `guest_email_sends` (never purged); new columns `clients.postStayEmailsDisabled`, `clients.marketingUnsubscribedAt`, `clients.emailPreferencesToken`, `reservations.lostItems`, `properties.emailHook`, `emailHookEn`, `parkingDistanceMeters`, `hasWifi`, `hasFilterCoffeeMaker`, `app_settings.guestSequenceStartDate`, `googleReviewUrl`, `instagramUrl`, `poolSeasonStart`, `poolSeasonEnd`. One-shot `guest_email_sequence_v1`: overwrites the confirmation / J-7 / J-2 templates (in-app edits of those three are lost), copies the sequence emails already sent into the ledger, and starts the sequence on the upgrade day if automatic sending is already on.
+
 ## [2.16.0] - 2026-09-16
 
 ### Summary
