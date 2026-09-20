@@ -177,7 +177,8 @@ The operator can:
     **au** Gite / **à la** Tente / **à l'**Aventura Lodge". The correct article cannot be
     inferred from an arbitrary accommodation / brand name (gender isn't derivable from
     spelling; brand names aren't in any lexicon), so it is an **operator-chosen attribute
-    on the property**: `properties.nameArticle ∈ { 'au', 'à la', "à l'", 'aux' }`, default
+    on the property**: `properties.nameArticle ∈ { 'au', 'à la', "à l'", 'aux', 'à' }` (« à » added
+    2026-09-18 for names carrying their own article — « à La Granja », specs/guest-email-sequence.md §5), default
     `'au'`. The context builder exposes a `{{propertyWithArticle}}` token = article + name,
     where the apostrophe form **elides** (glued, no space) and the others get a space.
     `{{propertyName}}` (plain name) stays available for lines like "- Logement : …". The

@@ -33,6 +33,7 @@ router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', controller.update);
 router.patch('/:id/payment', controller.updatePayment);
+router.patch('/:id/lost-items', controller.updateLostItems);
 // specs/single-payment-from-the-fiche.md §4.3 — record (or undo) the single arrival payment
 // without running the SAS: `{ mode: 'card' | 'cash' | 'undo', date }`.
 router.post('/:id/arrival-payment', controller.settleArrivalPayment);

@@ -24,6 +24,7 @@ const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
 const emailAutoSendScheduler = require('../utils/emailAutoSendScheduler');
+const { isoToday } = require('../utils/emailAutoSendRunner');
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
@@ -94,6 +95,11 @@ const NOTIFICATIONS_FIELDS = [
 // the payment confirmation is queued for review instead of being mailed.
 const EMAILS_FIELDS = [
   { input: 'autoSendEnabled', column: 'emailAutoSendEnabled' },
+  // Guest email sequence copy (specs/guest-email-sequence.md §6.2).
+  { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
+  { input: 'instagramUrl', column: 'instagramUrl', validator: validation.validatePublicUrl },
+  { input: 'poolSeasonStart', column: 'poolSeasonStart', validator: validation.validateMonthDay },
+  { input: 'poolSeasonEnd', column: 'poolSeasonEnd', validator: validation.validateMonthDay },
 ];
 
 // Laundry group (specs/weekly-bed-linen-tracking.md). Single field: weekday index.
@@ -137,6 +143,7 @@ const INTEGER_COUNT_COLUMNS = new Set([
 // deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
 const TRIMMED_TEXT_COLUMNS = new Set([
   'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
+  'googleReviewUrl', 'instagramUrl', 'poolSeasonStart', 'poolSeasonEnd',
 ]);
 
 /**
@@ -249,6 +256,12 @@ function updateSettings(req, res) {
 
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
+  }
+
+  // specs/guest-email-sequence.md rule 16 — the first time automatic sending is turned on fixes the
+  // day the sequence starts from; it is never moved afterwards, so no past stay is ever mailed.
+  if (payload.emailAutoSendEnabled === 1 && !settingsModel.read().guestSequenceStartDate) {
+    payload.guestSequenceStartDate = isoToday();
   }
 
   settingsModel.upsert(payload);

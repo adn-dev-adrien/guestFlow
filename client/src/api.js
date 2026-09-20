@@ -532,8 +532,16 @@ const api = {
 
   previewEmail: ({ reservationId, templateId }) =>
     request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}`),
-  sendEmail:    ({ reservationId, templateId, overrides }) =>
-    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides } }),
+  // `confirmResend` — explicit resend of a guest-sequence email already sent (specs/guest-email-sequence.md
+  // rule 13bis); without it the server answers 409 ALREADY_SENT.
+  sendEmail:    ({ reservationId, templateId, overrides, confirmResend }) =>
+    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend) } }),
+  // Guest email sequence simulation (specs/guest-email-sequence.md §4.3) — nothing sent, nothing written.
+  getEmailSequenceSimulation: ({ from, to }) =>
+    request(`/email-sequence/simulation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // « Objets oubliés » on a reservation, quoted by the J+1 email (rule 33).
+  updateReservationLostItems: (id, lostItems) =>
+    request(`/reservations/${id}/lost-items`, { method: 'PATCH', body: { lostItems } }),
   getPendingEmails:          () => request('/emails/pending'),
   acknowledgePendingEmail:   ({ templateId, reservationId }) =>
     request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),

@@ -14,6 +14,7 @@ const { formatCurrency } = require('./devisHelpers');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isCleaningOption } = require('./cleaningOption');
 const { resolveCancelOn } = require('./paymentSchedule');
+const { buildStayContent } = require('./stayContentContext');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -98,7 +99,11 @@ function normaliseLang(v) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null }) {
+  // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
+  const stayContent = buildStayContent({
+    reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
+  });
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
   // drop them up-front so every option-derived list/flag/complement line below ignores them.
   options = (options || []).filter(isClientVisibleOption);
@@ -348,6 +353,9 @@ function buildContext({ reservation, client, property, options = [], resources =
 
   return {
     vars: {
+      // specs/guest-email-sequence.md §3.5 — composed per-property paragraphs of the sequence. Spread
+      // first so no existing token can ever be shadowed by them.
+      ...stayContent.vars,
       // Client
       clientFirstName: safeStr(c.firstName),
       clientLastName:  safeStr(c.lastName),
@@ -413,6 +421,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       senderName:   safeStr(settings.smtpFromName).trim() || safeStr(settings.companyName),
     },
     flags: {
+      ...stayContent.flags,
       hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
       // An acompte actually collected — the cancellation notice only mentions a retained sum when
       // there is one (rule 27: an unpaid acompte keeps nothing).

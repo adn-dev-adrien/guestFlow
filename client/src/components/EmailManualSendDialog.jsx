@@ -13,6 +13,8 @@ import {
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
+import ConfirmDialog from './ConfirmDialog';
+import { displayDateTime } from '../utils/formatters';
 
 function offsetLabel(n) {
   const num = Number(n);
@@ -44,6 +46,9 @@ export default function EmailManualSendDialog({
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  // specs/guest-email-sequence.md rule 13bis — a sequence email already sent is only re-sent after an
+  // explicit confirmation; the server's 409 carries the date it left.
+  const [alreadySentAt, setAlreadySentAt] = useState(null);
 
   // Load template list once when the dialog opens.
   useEffect(() => {
@@ -95,7 +100,7 @@ export default function EmailManualSendDialog({
 
   const recipient = to || manualEmail.trim();
 
-  const handleSend = async () => {
+  const handleSend = async (confirmResend = false) => {
     if (!recipient) {
       setError('Renseigne une adresse email destinataire.');
       return;
@@ -109,12 +114,15 @@ export default function EmailManualSendDialog({
         // When the client has no email on file, pass the operator-typed one — the server
         // sends to it AND saves it on the client record.
         overrides: { subject, body, ...(to ? {} : { to: manualEmail.trim() }) },
+        confirmResend,
       });
       if (onSent) onSent(res);
       if (onClose) onClose();
     } catch (e) {
       const message = e?.message || 'Échec de l\'envoi.';
-      if (message.includes('EMAIL_NOT_CONFIGURED')) {
+      if (message === 'ALREADY_SENT') {
+        setAlreadySentAt(e.sentAt || '');
+      } else if (message.includes('EMAIL_NOT_CONFIGURED')) {
         setError('SMTP non configuré. Configure les paramètres SMTP dans /settings avant d\'envoyer des emails.');
       } else if (message.includes('CLIENT_NO_EMAIL')) {
         setError('Renseigne une adresse email destinataire.');
@@ -235,7 +243,7 @@ export default function EmailManualSendDialog({
       <DialogActions>
         <Button onClick={onClose} disabled={sending}>Annuler</Button>
         <Button
-          onClick={handleSend}
+          onClick={() => handleSend(false)}
           variant="contained"
           disabled={sendDisabled}
           startIcon={sending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
@@ -243,6 +251,15 @@ export default function EmailManualSendDialog({
           Envoyer
         </Button>
       </DialogActions>
+      <ConfirmDialog
+        open={alreadySentAt !== null}
+        title="Déjà envoyé"
+        message={`Ce mail a déjà été envoyé${alreadySentAt ? ` le ${displayDateTime(alreadySentAt)}` : ''}. Le renvoyer quand même ?`}
+        confirmLabel="Renvoyer"
+        confirmColor="primary"
+        onClose={() => setAlreadySentAt(null)}
+        onConfirm={() => { setAlreadySentAt(null); handleSend(true); }}
+      />
     </Dialog>
   );
 }

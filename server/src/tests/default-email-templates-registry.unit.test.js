@@ -85,42 +85,36 @@ test('every {{#if flag}} the registry uses is supported by the context builder',
 
 // ---- the shipped J-7 reminder is asserted explicitly — protects the body Adrien validated ----
 
-test('arrival_reminder_7d is shipped with the canonical body string + 7-day offset + manual mode', () => {
+// specs/guest-email-sequence.md §6.1 — the J-7 and J-2 are mails 2 and 3 of the guest sequence.
+test('arrival_reminder_7d is the sequence J-7: canonical body, 7-day offset, per-property paragraphs', () => {
   const def = DEFAULT_TEMPLATES.find((d) => d.stableKey === 'arrival_reminder_7d');
   assert.ok(def);
   assert.equal(def.body, ARRIVAL_REMINDER_7D_BODY);
   assert.equal(def.dayOffset, -7);
-  assert.equal(def.sendMode, 'manual');
+  assert.equal(def.anchor, 'start');
+  assert.equal(def.sendMode, 'auto');
   assert.equal(def.enabled, true);
-  // Sanity: the body uses every conditional flag the spec mentioned.
-  assert.ok(def.body.includes('{{#if hasOptions}}'),         'hasOptions block present');
-  assert.ok(def.body.includes('{{#if hasBedLinenOption}}'),  'hasBedLinenOption block present');
-  assert.ok(def.body.includes('{{#if cautionNotBanked}}'),   'cautionNotBanked block present');
-  assert.ok(def.body.includes('{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}'), 'reservation number recall present');
+  assert.ok(def.body.includes('{{#if hasBedsParagraph}}{{bedsParagraph}}'), 'bed configuration block present');
+  assert.ok(def.body.includes('{{#if hasBabyParagraph}}{{babyParagraph}}'), 'baby cot block present');
+  assert.ok(def.body.includes('{{#if hasLocalProducts}}{{localProductsParagraph}}'), 'local products block present');
+  assert.ok(def.body.includes('https://map.domainesolio.com'), 'map link written in full');
+  assert.ok(!def.body.includes('heure d\'arrivée'), 'the arrival time is asked in the J-2, not here');
 });
 
-// ---- the arrival reminder is now shipped at J-2 (specs/j1-arrival-reminder-email.md) ----
-
-test('arrival_reminder_1d is shipped at J-2 with the GPS + nordic-bath copy (stableKey kept legacy)', () => {
+test('arrival_reminder_1d is the sequence J-2 (stableKey kept legacy): arrival time, access map, no bath', () => {
   const def = DEFAULT_TEMPLATES.find((d) => d.stableKey === 'arrival_reminder_1d');
   assert.ok(def);
   assert.equal(def.body, ARRIVAL_REMINDER_1D_BODY);
-  assert.equal(def.dayOffset, -2, 'reminder moved from J-1 to J-2');
-  assert.equal(def.name, 'Rappel arrivée — J-2');
-  assert.equal(def.subject, 'Votre arrivée approche {{propertyWithArticle}}');
-  assert.equal(def.sendMode, 'manual');
-  assert.equal(def.enabled, true);
-  // Copy guarantees: uses the stay date, never « demain ».
+  assert.equal(def.dayOffset, -2);
+  assert.equal(def.anchor, 'start');
+  assert.equal(def.sendMode, 'auto');
   assert.ok(!def.body.includes('demain'), 'J-2 copy must not say « demain »');
-  assert.ok(def.body.includes('le {{startDate}} {{propertyWithArticle}}'), 'opens with the stay date');
-  assert.ok(def.body.includes('Domaine Solio'), 'GPS line present');
-  // specs/j2-email-coffee-and-sas-complement.md — the coffee/capsule line (FR + EN).
-  assert.ok(def.body.includes('machine à capsules (type Nespresso)'), 'FR coffee/capsule line present');
-  assert.ok(def.bodyEn.includes('capsule machine (Nespresso-compatible)'), 'EN coffee/capsule line present');
-  // Conditional blocks the spec mentioned.
-  assert.ok(def.body.includes('{{#if hasNordicBath}}{{nordicBathReminder}}'), 'nordic-bath block present');
-  assert.ok(def.body.includes('{{#if hasCleaningOption}}{{else}}'), 'cleaning-by-default notice present');
-  assert.ok(def.body.includes('{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}'), 'reservation number recall present');
+  assert.ok(def.body.includes('https://domainesolio.com/contact/'), 'access map next to the GPS line');
+  assert.ok(def.body.includes('vers quelle heure vous pensez arriver'), 'arrival time asked');
+  assert.ok(!def.body.includes('nordique'), 'the nordic bath is not repeated in the J-2');
+  assert.ok(!def.body.includes('rendu au départ'), 'the caution cheque is never said to be returned');
+  assert.ok(def.body.includes('{{cleaningParagraph}}'), 'cleaning paragraph composed per property');
+  assert.ok(!def.body.includes('{{#if hasReservationNumber}}'), 'no reservation-number recap in the J-2');
 });
 
 // ---- both shipped reminders carry an English translation (specs/email-language-fr-en.md) ----

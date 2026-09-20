@@ -8,6 +8,8 @@ const manualQueueModel = require('../models/emailManualQueueModel');
 const settingsModel  = require('../models/settingsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const { createEmailService } = require('../utils/emailService');
+const ledger = require('../models/guestEmailSendsModel');
+const preferences = require('../models/emailPreferencesModel');
 
 const controller = buildController({
   database: db,
@@ -17,6 +19,8 @@ const controller = buildController({
   settingsModel,
   paymentLinksModel,
   emailServiceFactory: createEmailService,
+  ledger,
+  preferences,
 });
 
 router.get('/preview', controller.preview);

@@ -127,175 +127,104 @@ test('whitespace around the variable name is tolerated', () => {
   assert.equal(out.body, 'Hello Jean');
 });
 
-// End-to-end (specs/j7-email-baby-beds.md): the shipped J-7 body renders the baby-bed notice
-// driven by the context builder's hasBabyBedNotice flag + babyBedNotice var.
+// End-to-end: the shipped J-7 and J-2 bodies (mails 2 and 3 of specs/guest-email-sequence.md §6.1)
+// rendered through the real context builder, with the property facts the sequence reads.
 const { buildContext } = require('../utils/emailContextBuilder');
-const { ARRIVAL_REMINDER_7D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
+const { ARRIVAL_REMINDER_7D_BODY, ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
 
-function j7Input(reservationOver) {
-  return buildContext({
-    reservation: {
-      startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00',
-      adults: 2, children: 0, teens: 0, finalPrice: 300, ...reservationOver,
-    },
-    client: { firstName: 'Jean', lastName: 'Dupont' },
-    property: { name: 'Gite', nameArticle: 'au' },
-    options: [],
-    settings: { companyName: 'GF', smtpFromName: 'GF' },
-  });
-}
+// Catalogue ids: 8 bed linen, 9 bath linen, 7 cleaning (L'Estiva includes all three), 3 cleaning
+// (La Granja, paid), 33 baby cot.
+const OPTION_META = {
+  3: { id: 3, title: 'Ménage', autoOptionType: 'cleaning' },
+  7: { id: 7, title: 'Ménage', autoOptionType: 'cleaning' },
+  8: { id: 8, title: 'Linge de lit', autoOptionType: 'bed_linen' },
+  9: { id: 9, title: 'Linge de toilette', autoOptionType: 'bathroom_linen' },
+  33: { id: 33, title: 'Lit bébé', autoOptionType: 'baby_bed' },
+};
+const GRANJA_FACTS = {
+  optionMeta: OPTION_META,
+  defaults: [{ optionId: 8, offered: 1 }],
+  available: [
+    { ...OPTION_META[3], price: 80 }, { ...OPTION_META[9], price: 8 }, { ...OPTION_META[33], price: 5 },
+  ],
+};
+const ESTIVA_FACTS = {
+  optionMeta: OPTION_META,
+  defaults: [{ optionId: 7, offered: 1 }, { optionId: 8, offered: 1 }, { optionId: 9, offered: 1 }],
+  available: [{ ...OPTION_META[33], price: 5 }],
+};
 
-test('J-7 body: babies + a baby bed → notice with the provided bed appears', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 1, babyBeds: 1 }));
-  assert.match(out.body, /un lit bébé vous est fourni/);
-});
-
-test('J-7 body: babies but no baby bed → "bring one" notice appears', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 1, babyBeds: 0 }));
-  assert.match(out.body, /ne disposons plus de lit bébé/);
-  assert.match(out.body, /apporter un/);
-});
-
-test('J-7 body: no babies → no baby-bed notice at all', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 0, babyBeds: 0 }));
-  assert.doesNotMatch(out.body, /lit bébé/);
-});
-
-// ── J-1 reminder body (specs/j1-arrival-reminder-email.md §3 + §6) ───────────────
-
-const { ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
-
-function j1Input({ reservation = {}, property = {}, options = [], resources = [], customOptions = [], bedLinenProvidedByDefault = false } = {}) {
-  return buildContext({
+function render(body, { reservation = {}, property = {}, options = [], facts = GRANJA_FACTS } = {}) {
+  const context = buildContext({
     reservation: {
       startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '16:00', checkOutTime: '10:00',
-      adults: 2, children: 0, teens: 0, babies: 0, finalPrice: 300,
+      adults: 2, children: 0, teens: 0, babies: 0, doubleBeds: 1, singleBeds: 2, finalPrice: 300,
       cautionAmount: 500, cautionReceived: 0, ...reservation,
     },
     client: { firstName: 'Jean', lastName: 'Dupont' },
-    // specs/caution-live-from-property.md §3 — caution is live from the property until received.
-    property: { name: 'Gite', nameArticle: 'au', defaultCautionAmount: 500, ...property },
+    property: { name: 'La Granja', nameArticle: 'à', defaultCautionAmount: 500, ...property },
     options,
-    resources,
-    customOptions,
-    bedLinenProvidedByDefault,
+    stayFacts: facts,
     settings: { companyName: 'GF', smtpFromName: 'GF', companyPhone: '0102' },
   });
+  return renderTemplate({ subject: 'x', body }, context);
 }
 
-test('J-1 body: caution not received + no linen + no cleaning → all three reminders render', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    resources: [{ name: 'Bain nordique' }],
-  }));
-  assert.match(out.body, /chèque de caution de 500,00 €/);
-  assert.match(out.body, /linge de lit n'est pas inclus/);
-  assert.match(out.body, /ménage de fin de séjour n'a pas été réservé/);
-  assert.match(out.body, /Équipements réservés : Bain nordique/);
+test('J-7 body: the bed configuration is announced with the beds made up', () => {
+  const out = render(ARRIVAL_REMINDER_7D_BODY);
+  assert.match(out.body, /Nous préparerons les lits ainsi : 1 lit double et 2 lits simples/);
   assert.deepEqual(out.missingVariables, []);
 });
 
-test('J-1 body: caution received + linen + cleaning booked → none of the three reminders render', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { cautionAmount: 500, cautionReceived: 1 },
-    options: [
-      { title: 'Linge de lit', autoOptionType: 'bed_linen' },
-      { title: 'Ménage', autoOptionType: 'cleaning' },
-    ],
-  }));
-  assert.doesNotMatch(out.body, /chèque de caution/);
-  assert.doesNotMatch(out.body, /n'est pas inclus/);
-  assert.doesNotMatch(out.body, /à votre charge/);
-  // Renamed label; linen kept in the list (paid add-on, property not linen-by-default).
-  assert.match(out.body, /Option\(s\) réservée\(s\) : Linge de lit, Ménage/);
+test('J-7 body: a baby with the cot booked → the cot and its linen are confirmed', () => {
+  const out = render(ARRIVAL_REMINDER_7D_BODY, { reservation: { babies: 1 }, options: [{ optionId: 33, offered: 0, title: 'Lit bébé' }] });
+  assert.match(out.body, /Le lit bébé sera installé avant votre arrivée, avec son linge/);
 });
 
-test('J-1 body: no resources → no "Équipements réservés" line', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ resources: [] }));
-  assert.doesNotMatch(out.body, /Équipements réservés/);
+test('J-7 body: a baby without the cot → the cot is proposed at its unit price', () => {
+  const out = render(ARRIVAL_REMINDER_7D_BODY, { reservation: { babies: 1 } });
+  assert.match(out.body, /nous pouvons installer un lit bébé avec son linge \(5 € pour le séjour\)/);
 });
 
-test('J-1 body: linen provided by default → "lits faits" line, linen dropped from the list, no "bring your own"', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    bedLinenProvidedByDefault: true,
-    options: [
-      { title: 'Linge de lit', autoOptionType: 'bed_linen' },
-      { title: 'Petit déjeuner', autoOptionType: 'breakfast' },
-    ],
-  }));
-  assert.match(out.body, /les lits seront faits à votre arrivée/);
-  assert.doesNotMatch(out.body, /n'est pas inclus/);
-  assert.match(out.body, /Option\(s\) réservée\(s\) : Petit déjeuner/); // linen removed
-  assert.doesNotMatch(out.body, /Linge de lit/);
+test('J-7 body: no baby → no cot sentence at all', () => {
+  const out = render(ARRIVAL_REMINDER_7D_BODY);
+  assert.doesNotMatch(out.body, /lit bébé/);
 });
 
-test('J-1 body: linen-by-default with linen as the only option → the options line is hidden', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    bedLinenProvidedByDefault: true,
-    options: [{ title: 'Linge de lit', autoOptionType: 'bed_linen' }],
-  }));
-  assert.match(out.body, /les lits seront faits à votre arrivée/);
-  assert.doesNotMatch(out.body, /Option\(s\) réservée\(s\)/);
+test('J-7 body: towels are proposed at La Granja, never at L\'Estiva where they are included', () => {
+  assert.match(render(ARRIVAL_REMINDER_7D_BODY).body, /Vos serviettes de toilette\. Si vous préférez voyager plus léger/);
+  const estiva = render(ARRIVAL_REMINDER_7D_BODY, { property: { name: 'L\'Estiva' }, facts: ESTIVA_FACTS });
+  assert.doesNotMatch(estiva.body, /serviettes de toilette/);
 });
 
-test('J-2 body: opens with the stay date (never « demain ») + GPS line', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input());
-  assert.doesNotMatch(out.body, /demain/);
-  assert.match(out.body, /nous vous accueillons le .*juillet 2026 au Gite/);
-  assert.match(out.body, /recherchez simplement « Domaine Solio » sur votre GPS/);
+test('J-2 body: caution cheque asked while not received, never said to be returned', () => {
+  const owed = render(ARRIVAL_REMINDER_1D_BODY);
+  assert.match(owed.body, /chèque de caution de 500,00 €, que nous vous demanderons à l'arrivée/);
+  assert.doesNotMatch(owed.body, /rendu/);
+  const received = render(ARRIVAL_REMINDER_1D_BODY, { reservation: { cautionReceived: 1 } });
+  assert.doesNotMatch(received.body, /chèque de caution/);
 });
 
-test('J-2 body: recalls the reservation number when set, omits the line when blank', () => {
-  const withN = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ reservation: { reservationNumber: '2026-07-042' } }));
-  assert.match(withN.body, /N° de réservation : 2026-07-042/);
-  const blank = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ reservation: { reservationNumber: '' } }));
-  assert.doesNotMatch(blank.body, /N° de réservation/);
+test('J-2 body: La Granja without cleaning → the gentle reminder with the sign and the option still open', () => {
+  const out = render(ARRIVAL_REMINDER_1D_BODY);
+  assert.match(out.body, /vous n'avez pas choisi l'option ménage/);
+  assert.match(out.body, /un petit panneau dans le logement/);
+  assert.deepEqual(out.missingVariables, []);
 });
 
-test('J-2 body: nordic bath booked → gear reminder renders; absent → it does not', () => {
-  const withBath = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    resources: [{ name: 'Bain nordique', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }],
-  }));
-  assert.match(withBath.body, /maillot de bain, un peignoir ou une serviette/);
-  assert.match(withBath.body, /une paire de tongs/);
-  assert.match(withBath.body, /Votre créneau est réservé le .*juillet 2026 de 18:00 à 19:30/);
-
-  const noBath = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ resources: [{ name: 'Lit bébé' }] }));
-  assert.doesNotMatch(noBath.body, /maillot de bain/);
+test('J-2 body: an iCal booking at L\'Estiva with no option line is NOT told cleaning is on them', () => {
+  const out = render(ARRIVAL_REMINDER_1D_BODY, { property: { name: 'L\'Estiva' }, facts: ESTIVA_FACTS });
+  assert.match(out.body, /Le ménage de fin de séjour est pour nous/);
+  assert.doesNotMatch(out.body, /n'avez pas choisi l'option ménage/);
 });
 
-test('J-2 body: operator "Ménage" option without a tag is detected by name → no "at your charge" line', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    property: { defaultCautionAmount: 0 },
-    options: [{ title: 'Ménage de fin de séjour' }], // no autoOptionType — the bug case
-  }));
-  assert.doesNotMatch(out.body, /à votre charge/);
+test('J-2 body: an unpaid complement is one sentence with its amount, no itemised total', () => {
+  const out = render(ARRIVAL_REMINDER_1D_BODY, { reservation: { complementAmount: 45, complementPaid: 0 } });
+  assert.match(out.body, /Un complément de 45 € reste à régler sur place à votre arrivée/);
+  assert.doesNotMatch(out.body, /Total/);
 });
 
-// ── J-1 complement to collect (specs/j1-complement-to-collect.md) ────────────────
-
-test('J-1 body: unpaid complement renders the notice with the matched items', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { complementAmount: 55, complementPaid: 0 }, property: { defaultCautionAmount: 0 },
-    options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 }],
-    resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
-  }));
-  assert.match(out.body, /Un complément est à régler directement sur place à votre arrivée :/);
-  assert.match(out.body, /- Petit déjeuner : 15,00 €/);
-  assert.match(out.body, /- Bain nordique : 40,00 €/);
-  assert.match(out.body, /Total : 55,00 €/);
-});
-
-test('J-1 body: a paid complement renders no complement notice', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { complementAmount: 55, complementPaid: 1 }, property: { defaultCautionAmount: 0 },
-  }));
-  assert.doesNotMatch(out.body, /Un complément de/);
-});
-
-test('J-1 body: complement with no itemised lines shows the amount only', () => {
-  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { complementAmount: 30, complementPaid: 0 }, property: { defaultCautionAmount: 0 },
-  }));
-  assert.match(out.body, /Un complément de 30,00 € est à régler/);   // one-line sentence, no itemised list
-  assert.doesNotMatch(out.body, /Total :/);
+test('J-2 body: the family coffee maker is mentioned only where the property has one', () => {
+  assert.match(render(ARRIVAL_REMINDER_1D_BODY, { property: { hasFilterCoffeeMaker: 1 } }).body, /grande cafetière familiale/);
+  assert.doesNotMatch(render(ARRIVAL_REMINDER_1D_BODY).body, /cafetière familiale/);
 });

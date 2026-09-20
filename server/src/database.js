@@ -2455,6 +2455,27 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// specs/guest-email-sequence.md §5 — the send ledger of the guest email sequence, and the data its
+// emails read. The ledger is NOT email_log: email_log is purged 3 days after arrival, the ledger never
+// is, and its UNIQUE dedupKey is what makes a second send impossible (rules 11-12).
+require('./utils/guestEmailSequenceSchema').applyGuestEmailSequenceSchema(db);
+// One-shot: rewrite the confirmation / J-7 / J-2 bodies (Adrien validated the new copy and asked to
+// overwrite), then seed the ledger from every sequence email already sent so none leaves twice.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'guest_email_sequence_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runGuestEmailSequenceMigration } = require('./utils/migrateGuestEmailSequence');
+    const tx = db.transaction(() => {
+      const result = runGuestEmailSequenceMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return result;
+    });
+    const { templatesSynced, ledgerBackfilled } = tx();
+    console.log(`[migration:guest-email-sequence] ${templatesSynced} template(s) rewritten, ${ledgerBackfilled} past send(s) copied to the ledger`);
+  }
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

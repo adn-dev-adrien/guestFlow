@@ -1,0 +1,1 @@
+- **Confirmation, J-7 and J-2 rewritten** as mails 1-3 of the guest sequence (spec `guest-email-sequence.md`); the three templates are overwritten once by the upgrade. Property names keep the casing typed by the operator, and « à » joins the name articles (« à La Granja »).

@@ -37,7 +37,9 @@ test('fresh DB: every registry entry is inserted exactly once', () => {
   const row = db.prepare("SELECT * FROM email_templates WHERE stableKey = 'arrival_reminder_7d'").get();
   assert.ok(row, 'arrival_reminder_7d landed in the DB');
   assert.equal(row.dayOffset, -7);
-  assert.equal(row.sendMode, 'manual');
+  // Sequence templates ship `auto` (specs/guest-email-sequence.md §3.4): they still send nothing
+  // until the operator turns automatic sending on.
+  assert.equal(row.sendMode, 'auto');
   assert.equal(row.enabled, 1);
 });
 

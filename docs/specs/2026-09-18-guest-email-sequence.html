@@ -1,0 +1,596 @@
+<title>Séquence mails Solio</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --incl:#E1EBD3; --booked:#F3E1C1; --offer:#ECE6D8; --chg:#F7D9CF; --keep:#DCE6EE;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --incl:#2B3A26; --booked:#443520; --offer:#2C2A22; --chg:#4A2A22; --keep:#23313B;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 31px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 13px/1.3 var(--sans);margin:0 0 8px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.lead{color:var(--muted);max-width:800px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12.5px;border:1px solid var(--line);white-space:nowrap}
+.incl{background:var(--incl)} .booked{background:var(--booked)} .offer{background:var(--offer)} .chg{background:var(--chg)} .keep{background:var(--keep)}
+.o-new{background:var(--incl)} .o-merge{background:var(--booked)} .o-same{background:var(--offer)}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:3px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.plain{border-collapse:collapse;width:100%;font-size:14px;min-width:620px}
+table.plain th,table.plain td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+table.plain th{font-size:12.5px;color:var(--muted);font-weight:600}
+code{font-family:var(--mono);font-size:12.5px}
+.summary li{margin:4px 0}
+
+/* simulator */
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+.presets button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;min-height:44px;cursor:pointer;font:inherit;text-align:left}
+.presets button b{display:block;font-size:14px}
+.presets button span{font-size:12.5px;color:var(--muted)}
+.presets button[aria-pressed=true]{border-color:var(--sapin);box-shadow:inset 0 0 0 1px var(--sapin)}
+.sim{display:grid;grid-template-columns:310px 1fr;gap:16px;align-items:start}
+@media (max-width:920px){.sim{grid-template-columns:1fr}}
+.sim>*{min-width:0}
+.controls label.f{display:block;font-size:13px;color:var(--muted);margin:10px 0 3px}
+.controls input[type=date],.controls select,.controls input[type=number]{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;min-height:42px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.row3 small{display:block;font-size:11.5px;color:var(--muted);text-align:center}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;min-height:44px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;cursor:pointer;font:inherit}
+.seg button[aria-pressed=true]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.chk{display:flex;gap:8px;align-items:center;margin:4px 0;font-size:14px;min-height:30px}
+.chk input{width:18px;height:18px;flex:none}
+.chk.dis{opacity:.6}
+.err{color:var(--ko);font-size:13.5px;margin-top:8px;font-weight:600}
+.timeline{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px}
+.timeline th,.timeline td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.timeline th{font-size:12px;color:var(--muted)}
+.timeline tr[data-k]{cursor:pointer}
+.timeline tr[data-k]:hover td{background:var(--paper)}
+.timeline tr.sel td{background:var(--offer)}
+.st-ok{color:var(--ok);font-weight:600;white-space:nowrap} .st-ko{color:var(--ko);font-weight:600;white-space:nowrap} .st-op{color:var(--ocre);font-weight:600;white-space:nowrap}
+.mail{margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
+.mail .hd{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13.5px;color:var(--muted);display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.mail .hd b{color:var(--ink)}
+.mail pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word;font:13.5px/1.6 var(--mono);color:var(--ink)}
+.mail pre .b-incl{background:var(--incl)} .mail pre .b-booked{background:var(--booked)} .mail pre .b-offer{background:var(--offer)} .mail pre .b-chg{background:var(--chg)} .mail pre .b-keep{background:var(--keep)}
+.vseg{display:flex;gap:4px}
+.vseg button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;padding:6px 10px;min-height:36px;cursor:pointer;font:inherit;font-size:13px}
+.vseg button[aria-pressed=true]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+.dropped{padding:18px;color:var(--ko)}
+
+/* decisions */
+.q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.q h4{margin:0 0 4px;font:600 16px/1.35 var(--sans)}
+.q .ctx{color:var(--muted);font-size:13.5px;margin-bottom:8px}
+.q label{display:flex;gap:10px;align-items:flex-start;padding:7px 8px;border-radius:6px;cursor:pointer;min-height:40px}
+.q label:hover{background:var(--paper)}
+.q input{margin-top:3px;width:18px;height:18px;flex:none}
+.q .rec{font-size:12px;color:var(--ok);font-weight:600;margin-left:4px}
+.q.unanswered{border-color:var(--ocre)}
+textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:13.5px/1.5 var(--mono)}
+#prompt{min-height:320px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.btn{border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);border-radius:8px;padding:10px 16px;min-height:44px;cursor:pointer;font:inherit;font-weight:600}
+.btn.ghost{background:transparent;color:var(--sapin)}
+#copied{color:var(--ok);font-weight:600;align-self:center}
+#progress{font-size:13.5px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+<h1>Séquence mails clients</h1>
+<div class="meta">Compte rendu · version 3 du 18/09/2026 · résumé de la spec <code>specs/guest-email-sequence.md</code> · GuestFlow, Domaine Solio · à valider avant toute ligne de code</div>
+
+<div class="card">
+<h3>Version 3 : tes arbitrages sont appliqués</h3>
+<ul class="tight summary">
+  <li><b>Six mails</b> : confirmation (directs seulement), J-7, J-2, J+1, bons cadeau, vœux. Le J+7 est supprimé.</li>
+  <li><b>Envoi automatique, uniquement pour ce qui est à venir.</b> Le jour où tu actives l'envoi devient la date de départ de la séquence. Aucun mail daté d'avant ne part, et un séjour terminé avant cette date ne reçoit rien (pas de J+1, pas de mails de saison).</li>
+  <li><b>J+1</b> : lien Instagram (« Si vous êtes nostalgiques de votre séjour… ») et objets oubliés, saisis sur la fiche.</li>
+  <li><b>Une case sur la fiche client</b> : « Ne pas envoyer les mails après séjour ».</li>
+  <li><b>Cadeaux</b> : une planche du terroir offerte au bénéficiaire (bon commandé avant le 15 décembre), le petit-déjeuner du premier matin (séjour réservé avant fin février).</li>
+  <li><b>Accès portail</b> : il ira dans le J-2 dès que la PR #547 sera mergée.</li>
+</ul>
+<h3 style="margin-top:14px">Rappel de la version 2</h3>
+<ul class="tight summary">
+  <li><b>Le ton.</b> Chaque mail est réécrit pour être plus doux : l'émotion vient d'abord, l'information ensuite. On y retrouve le domaine (le soleil qui se lève sur La Granja et se couche sur L'Estiva, les animaux, les saisons), et les options sont proposées comme un allègement, jamais comme une vente.</li>
+  <li><b>Confirmation.</b> Le montant du séjour revient. Le bain nordique offert y figure (1 h 30 à La Granja, 1 h à L'Estiva, pour tous les séjours). Plus de caution, plus de ménage, plus d'options : le client vient de payer.</li>
+  <li><b>Paiement.</b> Tout se règle en totalité à la réservation. Les demandes et relances d'acompte et de solde sortent du calendrier.</li>
+  <li><b>J-7.</b> Lit bébé proposé ou confirmé, avec son linge. Serviettes et produits de nos fournisseurs locaux présentés comme un moyen de voyager plus léger, à leur prix de vente en magasin. https://map.domainesolio.com et un mot discret sur les animations enfants. À L'Estiva : voyager léger, parking à 300 m, pas de lampe de poche.</li>
+  <li><b>J-2.</b> Lien vers le plan d'accès (https://domainesolio.com/contact/). On y demande l'heure d'arrivée. Caution sans « rendue au départ ». Ménage rappelé avec douceur, en citant le panneau du logement. Options réservées dites une par une, avec chaleur. Plus de chiens, plus de bain nordique, plus de « à toute heure raisonnable ».</li>
+  <li><b>Novembre et janvier.</b> Prix « à partir de » par logement, et un cadeau de notre part, différent dans chaque mail, avec une date limite.</li>
+  <li><b>J+1.</b> Remerciement chaleureux. L'avis se demande sur la plateforme utilisée, et Google est proposé en plus. En direct, seulement Google.</li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<h2>1. Les mails, à lire sur des cas réels</h2>
+<p class="lead">Choisis un cas, puis change le logement, le canal, les dates, les voyageurs ou les options réservées. Le calendrier et le texte se recalculent. Clique une ligne pour lire le mail. Pour la confirmation, le J-7 et le J-2, tu peux comparer avec le mail envoyé aujourd'hui.</p>
+<div class="presets" id="presets"></div>
+
+<div class="sim">
+  <div class="card controls">
+    <h3>La réservation</h3>
+    <label class="f">Logement</label>
+    <div class="seg" id="propSeg"><button data-v="granja">La Granja</button><button data-v="estiva">L'Estiva</button></div>
+    <label class="f" for="channel">Canal</label>
+    <select id="channel">
+      <option value="direct">Direct (site, téléphone)</option>
+      <option value="gdf">Gîtes de France</option>
+      <option value="airbnb">Airbnb</option>
+      <option value="booking">Booking</option>
+    </select>
+    <label class="f" for="activation">Séquence activée le</label><input type="date" id="activation">
+    <label class="f" for="booked">Réservée et payée le</label><input type="date" id="booked">
+    <label class="f" for="start">Arrivée</label><input type="date" id="start">
+    <label class="f" for="end">Départ</label><input type="date" id="end">
+    <label class="f">Voyageurs</label>
+    <div class="row3">
+      <div><input type="number" id="adults" min="1" max="15" aria-label="Adultes"><small>adultes</small></div>
+      <div><input type="number" id="children" min="0" max="12" aria-label="Enfants"><small>enfants</small></div>
+      <div><input type="number" id="babies" min="0" max="3" aria-label="Bébés"><small>bébés</small></div>
+    </div>
+    <label class="f">Lits installés</label>
+    <div class="row3">
+      <div><input type="number" id="doubleBeds" min="0" max="8" aria-label="Lits doubles"><small>doubles</small></div>
+      <div><input type="number" id="singleBeds" min="0" max="12" aria-label="Lits simples"><small>simples</small></div>
+      <div></div>
+    </div>
+    <div class="err" id="err" role="alert" hidden></div>
+    <h3 style="margin-top:18px">Options réservées</h3>
+    <div id="opts"></div>
+    <h3 style="margin-top:18px">Ce qui se passe</h3>
+    <label class="chk"><input type="checkbox" id="complement"> Reste un complément à régler sur place</label>
+    <label class="chk"><input type="checkbox" id="cautionIn"> Caution déjà reçue</label>
+    <label class="chk"><input type="checkbox" id="cancelled"> Séjour annulé</label>
+    <label class="chk"><input type="checkbox" id="noPostStay"> Client : « Ne pas envoyer les mails après séjour »</label>
+    <label class="f" for="lostItems">Objets oubliés (fiche réservation)</label><input type="text" id="lostItems" placeholder="ex. un doudou lapin bleu" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;min-height:42px">
+    <label class="chk"><input type="checkbox" id="unsub"> S'est désinscrit</label>
+    <label class="chk"><input type="checkbox" id="nextStay"> A déjà une nouvelle résa à venir</label>
+  </div>
+  <div>
+    <div class="card">
+      <h3>Calendrier de cette réservation</h3>
+      <div class="tblwrap"><table class="timeline" id="timeline"></table></div>
+      <p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">Envoi automatique une fois la simulation validée. Rien avant la date d'activation. Au plus 3 contacts après séjour sur 365 jours glissants (J+1, novembre, janvier). La désinscription ne bloque que novembre et janvier ; la case client bloque aussi le J+1.</p>
+    </div>
+    <div class="legend"><span class="pill incl">compris</span><span class="pill booked">réservé / propre au séjour</span><span class="pill offer">proposé en douceur</span><span class="pill chg">propre au logement</span></div>
+    <div class="mail" id="mail"></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>2. Ce que chaque logement change dans les mails</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>La Granja (« Gite » dans GuestFlow)</h3>
+    <ul class="tight">
+      <li><span class="pill incl">compris</span> Lits faits, 1 h 30 de bain nordique</li>
+      <li><span class="pill offer">en douceur au J-7</span> Serviettes, lit bébé si un bébé voyage sans lit réservé, jus et bières de producteurs locaux, planche, petit-déjeuner</li>
+      <li><span class="pill offer">en douceur au J-2</span> Ménage, s'il n'est pas pris. Le logement se rend comme on l'a trouvé, et un panneau explique ce qui est attendu.</li>
+      <li>Accroche : le soleil qui se lève sur la vallée.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>L'Estiva (« Aventura lodge » dans GuestFlow)</h3>
+    <ul class="tight">
+      <li><span class="pill incl">compris</span> Lits faits, linge de toilette, ménage, 1 h de bain nordique</li>
+      <li><span class="pill offer">en douceur au J-7</span> Lit bébé, jus et bières, planche, repas des trappeurs, petit-déjeuner</li>
+      <li><span class="pill chg">propre au lieu</span> Voyager léger (parking à 300 m, dernier bout à pied), pas de wifi assumé, ménage compris rappelé au J-2</li>
+      <li>Accroche : les couchers de soleil.</li>
+    </ul>
+  </div>
+</div>
+<div class="note"><b>À vérifier :</b> les options disponibles par logement viennent de ma base de dev du 22/08, et je n'ai pas accès à la prod. En particulier, le repas des trappeurs réservé à L'Estiva et les prix des jus et des bières (5 € le litre, 6,50 € la bouteille) sont à confirmer. À l'implémentation, rien n'est codé en dur : chaque mail lit les options par défaut et les prix du logement. Cela corrige au passage le bug actuel, où une résa Airbnb à L'Estiva reçoit « ménage à votre charge ».</div>
+
+<!-- ============================================================ -->
+<h2>3. Les mails déjà dans GuestFlow</h2>
+<div class="tblwrap"><table class="plain">
+<tr><th>Mail</th><th>Aujourd'hui</th><th>Devenir</th></tr>
+<tr><td>Confirmation (« paiement reçu »)</td><td>Au paiement en ligne</td><td><span class="pill o-merge">fusionné : mail 1</span> Même moment, puisque le paiement se fait à la réservation.</td></tr>
+<tr><td>Rappel J-7</td><td>Arrivée - 7 jours, file à valider</td><td><span class="pill o-merge">fusionné : mail 2</span> La configuration des lits et le lit bébé sont repris.</td></tr>
+<tr><td>Rappel J-2</td><td>Arrivée - 2 jours, file à valider</td><td><span class="pill o-merge">fusionné : mail 3</span> GPS, caution, complément et Nespresso sont repris.</td></tr>
+<tr><td>Demande et relance d'acompte, demande et relance de solde, avis d'annulation pour solde impayé</td><td>Boutons et file, réservations directes uniquement</td><td><span class="pill o-same">hors séquence</span> Plus utilisés depuis le passage au paiement total à la réservation. Je n'y touche pas : ils restent dans le code, inactifs en pratique.</td></tr>
+<tr><td>Demande de paiement intégral</td><td>Bouton, pour une résa saisie à la main</td><td><span class="pill o-same">inchangé</span> C'est le lien de paiement quand tu crées une résa toi-même. Il reste en dehors de la séquence.</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2>4. Ce qui ne bouge pas depuis la version 1</h2>
+<div class="grid2">
+  <div class="card"><h3>Idempotence</h3>
+    <ul class="tight">
+      <li>Un registre d'envoi séparé, <code>guest_email_sends</code>, jamais purgé. Clé unique : (mail, réservation) pour les mails 1 à 5, (mail, client, saison) pour novembre et janvier.</li>
+      <li>La clé est réservée avant l'envoi. Si elle existe déjà, rien ne part, quel que soit le chemin (file, bouton, automatique, paiement). Un échec SMTP la libère, un succès jamais.</li>
+      <li>Pourquoi : l'<code>email_log</code> actuel est purgé 3 jours après l'arrivée et n'a pas de contrainte d'unicité. Un J+1 y serait effacé puis reproposé.</li>
+    </ul></div>
+  <div class="card"><h3>Simulation et tests</h3>
+    <ul class="tight">
+      <li>Une page et une commande qui montrent ce qui partirait, pour qui et quand, ou pourquoi rien ne part. Même code que l'envoi réel, sans SMTP et sans écriture. Passage sur une copie des réservations réelles récentes.</li>
+      <li>Cas testés :
+        <ul class="tight">
+          <li>séjour d'une nuit ;</li>
+          <li>réservation la veille, dans les 7 jours, ou à J-2 pile ;</li>
+          <li>séjour annulé ;</li>
+          <li>séjour écourté (le J+1 suit le nouveau départ) ;</li>
+          <li>plafond de 3 contacts par an ;</li>
+          <li>fenêtre de 30 jours pour novembre ;</li>
+          <li>désinscription sans effet sur les mails 1 à 5 ;</li>
+          <li>deux envois simultanés.</li>
+        </ul></li>
+    </ul></div>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Les 3 questions encore ouvertes</h2>
+<p class="lead">Tout le reste est tranché (spec §9, « Resolved »). Coche une réponse par question, le prompt en bas de page se construit à mesure.</p>
+<div id="questions"></div>
+<div class="q"><h4>Remarques libres</h4><div class="ctx">Un mot à changer dans un mail, une tournure qui ne te ressemble pas, un cas oublié.</div>
+<textarea id="free" placeholder="Facultatif"></textarea></div>
+
+<h3 style="margin-top:22px">Prompt à me recoller</h3>
+<div id="progress"></div>
+<textarea id="prompt" readonly></textarea>
+<div class="btns"><button class="btn" id="copy">Copier le prompt</button><button class="btn ghost" id="recoAll">Tout mettre sur mes recommandations</button><span id="copied" hidden>Copié</span></div>
+</div>
+
+<script>
+(function(){
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+/* ---------------- data ---------------- */
+const PROPS={
+  granja:{name:"La Granja",art:"à La Granja",isLodge:false,bath:"1 h 30",included:{towels:false,cleaning:false},
+    hook:"Chaque matin, le soleil s'y lève sur la vallée : c'est sans doute le plus beau moment de la journée.",
+    available:["toilette","litbebe","jus","biere","planche","petitdej","menage","animation"]},
+  estiva:{name:"L'Estiva",art:"à L'Estiva",isLodge:true,bath:"1 h",included:{towels:true,cleaning:true},
+    hook:"Le soir, les journées s'y terminent face au soleil couchant, quand la prairie devient dorée.",
+    available:["litbebe","jus","biere","planche","trappeurs","petitdej","animation"]}
+};
+const OPTS={toilette:"Linge de toilette",litbebe:"Lit bébé",jus:"Jus du Pressoir du Pilat",biere:"Bières de la Brasserie du Pilat",
+  planche:"Planche du terroir",trappeurs:"Le repas des trappeurs",petitdej:"Petit-déjeuner",menage:"Ménage de fin de séjour",animation:"Animation avec les animaux"};
+// Warm J-2 sentence for each booked option.
+const NOTED={
+  petitdej:"Le petit-déjeuner vous attendra chaque matin au bâtiment d'accueil.",
+  litbebe:"Le lit bébé sera installé avant votre arrivée, avec son linge.",
+  toilette:"Vos serviettes de toilette seront prêtes, vous n'aurez qu'à poser vos sacs.",
+  planche:"Votre planche du terroir sera prête pour un premier apéritif sur la terrasse.",
+  jus:"Les jus du Pressoir du Pilat vous attendront au frais.",
+  biere:"Les bières de la Brasserie du Pilat vous attendront au frais.",
+  trappeurs:"Pour le repas des trappeurs, nous conviendrons du soir ensemble à votre arrivée.",
+  animation:"Pour le moment avec les animaux, nous choisirons l'heure ensemble sur place."
+};
+const PRESETS=[
+ {id:"famille",t:"Famille à La Granja, juillet",d:"Direct, 7 nuits, 2 enfants, petit-déjeuner",
+  v:{activation:"2026-09-28",lostItems:"",prop:"granja",channel:"direct",booked:"2027-03-02",start:"2027-07-10",end:"2027-07-17",adults:2,children:2,babies:0,doubleBeds:1,singleBeds:2,opts:["petitdej"]},sel:"j7"},
+ {id:"bebe",t:"Jeunes parents à L'Estiva",d:"Direct, bébé sans lit réservé",
+  v:{activation:"2026-09-28",lostItems:"",prop:"estiva",channel:"direct",booked:"2027-02-14",start:"2027-05-21",end:"2027-05-24",adults:2,children:0,babies:1,doubleBeds:1,singleBeds:0,opts:[]},sel:"j7"},
+ {id:"gdf",t:"Gîtes de France, La Granja",d:"Bébé avec lit réservé, bières, sans ménage",
+  v:{activation:"2026-09-28",lostItems:"un doudou lapin bleu",prop:"granja",channel:"gdf",booked:"2027-01-10",start:"2027-04-17",end:"2027-04-24",adults:4,children:1,babies:1,doubleBeds:2,singleBeds:1,opts:["litbebe","biere"]},sel:"j2"},
+ {id:"airbnb",t:"Airbnb à L'Estiva",d:"Import iCal, aucune ligne d'option",
+  v:{activation:"2026-09-28",lostItems:"",prop:"estiva",channel:"airbnb",booked:"2027-02-11",start:"2027-06-18",end:"2027-06-21",adults:2,children:1,babies:0,doubleBeds:1,singleBeds:1,opts:[]},sel:"j1"},
+ {id:"lastmin",t:"Dernière minute",d:"Réservée la veille, 1 nuit",
+  v:{activation:"2026-09-28",lostItems:"",prop:"granja",channel:"direct",booked:"2026-10-01",start:"2026-10-02",end:"2026-10-03",adults:2,children:0,babies:0,doubleBeds:1,singleBeds:0,opts:[]},sel:"confirm"},
+ {id:"cancel",t:"Séjour annulé",d:"Plus rien ne part après l'annulation",
+  v:{activation:"2026-09-28",lostItems:"",prop:"estiva",channel:"direct",booked:"2027-01-05",start:"2027-06-05",end:"2027-06-08",adults:2,children:0,babies:0,doubleBeds:1,singleBeds:0,opts:[],cancelled:true},sel:"j7"}
+];
+const st={prop:"granja",booked:new Set(),sel:"confirm",ver:"new",preset:null};
+// Lowest season nightly price per property (server/src/recipes: gite-2027 « Très basse », aventura-lodge-2026 « Basse »).
+const FROM={granja:"319 €",estiva:"179 €"};
+const GIFTS={
+  nov:{panier:{label:"Un panier de bienvenue de nos producteurs locaux, dans le séjour de la personne qui reçoit le bon",text:"nous glisserons dans le séjour de la personne qui le reçoit un panier de bienvenue de nos producteurs locaux : jus du Pressoir du Pilat et bières de la Brasserie du Pilat."},
+       planche:{label:"Une planche du terroir offerte au premier apéritif du bénéficiaire",text:"nous offrirons à la personne qui le reçoit une planche du terroir pour son premier apéritif au domaine."},
+       bonus:{label:"10 % de valeur en plus sur le bon",text:"nous ajoutons 10 % à sa valeur, pour un séjour encore un peu plus doux."}},
+  jan:{petitdej:{label:"Le petit-déjeuner du premier matin offert à toute la famille",text:"le petit-déjeuner du premier matin vous sera offert, pour toute la famille."},
+       depart:{label:"Le départ tardif offert, pour une dernière matinée sans se presser",text:"nous vous offrons le départ tardif, pour profiter d'une dernière matinée sans vous presser."},
+       panier:{label:"Un panier de bienvenue de nos producteurs locaux à l'arrivée",text:"nous vous accueillerons avec un panier de nos producteurs locaux : jus du Pressoir du Pilat et bières de la Brasserie du Pilat."}}
+};
+let giftNov="planche", giftJan="petitdej", q1j1=false;
+
+/* ---------------- dates ---------------- */
+const D=(s)=>{const [y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d));};
+const add=(d,n)=>new Date(d.getTime()+n*864e5);
+const days=(a,b)=>Math.round((b-a)/864e5);
+const MO=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const MOS=["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+const WD=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const dn=(d)=>d.getUTCDate()===1?"1er":d.getUTCDate();
+const longFr=(d)=>`${WD[d.getUTCDay()]} ${dn(d)} ${MO[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+const shortFr=(d)=>`${dn(d)} ${MOS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+
+/* ---------------- controls ---------------- */
+const FIELDS=["activation","lostItems","channel","booked","start","end","adults","children","babies","doubleBeds","singleBeds"];
+const CHECKS=["complement","cautionIn","cancelled","noPostStay","unsub","nextStay"];
+$("presets").innerHTML=PRESETS.map(p=>`<button data-p="${p.id}"><b>${esc(p.t)}</b><span>${esc(p.d)}</span></button>`).join("");
+$("presets").addEventListener("click",e=>{const b=e.target.closest("button");if(b)loadPreset(b.dataset.p);});
+function loadPreset(id){
+  const p=PRESETS.find(x=>x.id===id);st.preset=id;st.prop=p.v.prop;st.booked=new Set(p.v.opts);st.sel=p.sel;st.ver="new";
+  FIELDS.forEach(f=>{$(f).value=p.v[f]??"";});CHECKS.forEach(c=>{$(c).checked=Boolean(p.v[c]);});
+  render();
+}
+$("propSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;st.prop=b.dataset.v;
+  st.booked=new Set([...st.booked].filter(id=>PROPS[st.prop].available.includes(id)));render();});
+[...FIELDS,...CHECKS].forEach(id=>$(id).addEventListener("input",render));
+function renderOpts(){
+  const p=PROPS[st.prop];const inc=["Linge de lit",`Bain nordique ${p.bath}`];
+  if(p.included.towels)inc.push("Linge de toilette");if(p.included.cleaning)inc.push("Ménage de fin de séjour");
+  $("opts").innerHTML=inc.map(l=>`<label class="chk dis"><input type="checkbox" checked disabled> ${l} <span class="pill incl">compris</span></label>`).join("")
+    +p.available.map(id=>`<label class="chk"><input type="checkbox" data-o="${id}" ${st.booked.has(id)?"checked":""}> ${OPTS[id]}</label>`).join("");
+  $("opts").querySelectorAll("input[data-o]").forEach(i=>i.addEventListener("change",()=>{i.checked?st.booked.add(i.dataset.o):st.booked.delete(i.dataset.o);render();}));
+  $("propSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===st.prop)));
+  $("presets").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.p===st.preset)));
+}
+
+/* ---------------- context (what the server computes) ---------------- */
+function ctx(){
+  const p=PROPS[st.prop],has=(id)=>st.booked.has(id);
+  const n=(id)=>Math.max(0,Number($(id).value)||0);
+  const x={p,has,s:D($("start").value),e:D($("end").value),b:D($("booked").value),channel:$("channel").value,
+    adults:n("adults"),children:n("children"),babies:n("babies"),doubleBeds:n("doubleBeds"),singleBeds:n("singleBeds")};
+  CHECKS.forEach(c=>x[c]=$(c).checked);
+  x.act=D($("activation").value);x.lostItems=$("lostItems").value.trim();
+  x.direct=x.channel==="direct";x.relay=x.channel==="airbnb"||x.channel==="booking";
+  x.platformName={gdf:"votre espace Gîtes de France",airbnb:"Airbnb",booking:"Booking"}[x.channel]||"";
+  x.nights=days(x.s,x.e);x.lead=days(x.b,x.s);
+  x.canOrder=(id)=>p.available.includes(id)&&!has(id);
+  x.towelsCovered=p.included.towels||has("toilette");
+  x.reserved=[...st.booked].map(id=>OPTS[id]);
+  const y=x.s.getUTCFullYear();x.pool=x.s<=D(`${y}-08-31`)&&x.e>D(`${y}-06-15`);
+  x.summer=x.s.getUTCMonth()>=5&&x.s.getUTCMonth()<=7;
+  const g=[];if(x.adults)g.push(`${x.adults} adulte${x.adults>1?"s":""}`);if(x.children)g.push(`${x.children} enfant${x.children>1?"s":""}`);if(x.babies)g.push(`${x.babies} bébé${x.babies>1?"s":""}`);
+  x.guestCount=g.length>1?g.slice(0,-1).join(", ")+" et "+g[g.length-1]:(g[0]||"");
+  const bc=[];if(x.doubleBeds)bc.push(`${x.doubleBeds} lit${x.doubleBeds>1?"s":""} double${x.doubleBeds>1?"s":""}`);if(x.singleBeds)bc.push(`${x.singleBeds} lit${x.singleBeds>1?"s":""} simple${x.singleBeds>1?"s":""}`);
+  x.bedConfig=bc.length>1?bc.slice(0,-1).join(", ")+" et "+bc[bc.length-1]:(bc[0]||"");
+  x.deadline=add(x.s,-3);
+  return x;
+}
+
+/* ---------------- rendering helpers ---------------- */
+const S=(c,t)=>`<span class="${c}">${esc(t)}</span>`;
+const L=(...a)=>a.filter(v=>v!==null&&v!==false&&v!==undefined).map(v=>String(v).includes("<span")?v:esc(v)).join("\n");
+const SIGN="Adrien et Sophie", PHONE="06 00 00 00 00", NUM="- N° de réservation : GF-2027-0142";
+const joinFr=(a)=>a.length>1?a.slice(0,-1).join(", ")+" et "+a[a.length-1]:(a[0]||"");
+
+const MAILS={
+ confirm:{t:"1. Confirmation",o:"merge",subj:(x,v)=>v==="old"?"Confirmation de votre réservation":`Votre séjour ${x.p.art} est confirmé`,
+  old:(x)=>L(`Bonjour Camille,`,``,`Nous avons bien reçu votre paiement : votre réservation ${x.p.art} est confirmée. Merci !`,``,`Récapitulatif de votre séjour :`,NUM,`- Logement : ${x.p.name}`,`- Arrivée  : le ${longFr(x.s)} à partir de 16 h`,`- Départ   : le ${longFr(x.e)} avant 10 h`,x.reserved.length?`- Option(s) réservée(s) : ${x.reserved.join(", ")}`:null,`- Montant du séjour : 1 240,00 €`,``,`Vous recevrez les informations pratiques d'arrivée à l'approche de votre séjour. Pour toute question, répondez simplement à cet email ou appelez-nous au ${PHONE}.`,``,`À très bientôt,`,SIGN),
+  body:(x)=>{
+   const lastMinute=x.lead<=2;
+   const onsite=[S("b-incl","- Les lits faits à votre arrivée")];
+   if(x.p.included.towels)onsite.push(S("b-incl","- Le linge de toilette"));
+   onsite.push(S("b-incl",`- ${x.p.bath} de bain nordique privatif`));
+   onsite.push("- Les 13 hectares du domaine, le sentier de balade et les animaux, en toute liberté");
+   if(x.pool)onsite.push("- La piscine, partagée avec l'autre hébergement du domaine");
+   return L(`Bonjour Camille,`,``,
+    `Merci pour votre confiance. Votre séjour ${x.p.art} est confirmé : nous vous attendons le ${longFr(x.s)}, et nous nous réjouissons déjà de vous accueillir au domaine.`,``,
+    lastMinute?S("b-chg",`Vous arrivez très bientôt, alors voici dès maintenant l'essentiel :\n- Tapez « Domaine Solio » dans votre GPS : 215 côte de Japperenard, 07290 Satillieu (plan d'accès : https://domainesolio.com/contact/)\n- Nous vous accueillons au bâtiment d'accueil, près de la piscine, à partir de 16 h\n- Pensez aux maillots de bain et aux serviettes pour profiter du bain nordique`)+"\n":null,
+    `Votre séjour :`,NUM,`- Logement : ${x.p.name}`,`- Voyageurs : ${x.guestCount}`,`- Arrivée : le ${longFr(x.s)} à partir de 16 h`,`- Départ : le ${longFr(x.e)} avant 10 h`,
+    x.reserved.length?S("b-booked",`- Option(s) réservée(s) : ${x.reserved.join(", ")}`):null,
+    `- Montant du séjour : 1 240,00 €`,``,
+    `Ce qui vous attend sur place :`,...onsite,``,
+    `Une question d'ici là ? Répondez simplement à ce mail, ou appelez-nous au ${PHONE}.`,``,
+    `À très bientôt,`,SIGN);}},
+
+ j7:{t:"2. J-7 · préparation",o:"merge",subj:(x,v)=>v==="old"?`Votre séjour ${x.p.art} approche`:`Plus qu'une semaine avant ${x.p.name}`,
+  old:(x)=>L(`Bonjour Camille,`,``,`Votre séjour ${x.p.art} approche, nous nous réjouissons de vous accueillir.`,``,`Rappel des informations de votre séjour :`,NUM,`- Logement : ${x.p.name}`,`- Arrivée  : le ${longFr(x.s)} à partir de 16 h`,`- Départ   : le ${longFr(x.e)} avant 10 h`,`- Options choisies : ${joinFr(["Linge de lit",...(x.p.included.towels?["Linge de toilette","Ménage"]:[]),...x.reserved])}`,``,`Afin de préparer au mieux votre arrivée, pourriez-vous nous indiquer votre heure d'arrivée estimée ?`,``,`Vous avez souscrit à l'option linge de lit. La configuration prévue pour le logement est : ${x.bedConfig}.`,`Si cette configuration ne vous convient pas, n'hésitez pas à nous le faire savoir avant votre arrivée afin que nous puissions ajuster la mise en place.`,``,x.babies?`Vous voyagez avec un bébé : ${x.has("litbebe")?"un lit bébé vous est fourni.":"nous ne disposons plus de lit bébé disponible pour vos dates. Merci de prévoir d'en apporter un."}\n`:null,`Nous restons à votre disposition pour toute question ; n'hésitez pas à nous joindre par retour de cet email ou au ${PHONE}.`,``,`À très bientôt,`,SIGN),
+  body:(x)=>{
+   // Beds + baby
+   const beds=x.bedConfig?`Nous préparerons les lits ainsi : ${x.bedConfig}. Si une autre installation vous convient mieux, dites-le nous simplement : l'essentiel est que chacun dorme bien.`:null;
+   let baby=null;
+   if(x.babies&&x.has("litbebe"))baby=S("b-booked","Le lit bébé sera installé avant votre arrivée, avec son linge : vous n'aurez rien à apporter pour lui.");
+   else if(x.babies&&x.canOrder("litbebe"))baby=S("b-offer","Pour le plus petit, nous pouvons installer un lit bébé avec son linge (5 € pour le séjour) : de quoi laisser le lit parapluie à la maison et gagner un peu de place dans le coffre.");
+   // Suitcase
+   const bag=[`- Maillots de bain et serviettes pour le bain nordique${x.pool?", et pour la piscine":""}`,`- Des chaussures fermées pour les sentiers du domaine`];
+   if(!x.towelsCovered)bag.push(S("b-offer","- Vos serviettes de toilette. Si vous préférez voyager plus léger, et ne pas rentrer avec une machine à lancer, nous pouvons aussi les préparer pour vous (8 € par personne)."));
+   const travelLight=x.p.isLodge?S("b-chg","Un conseil pour les valises : voyagez léger. Le parking se trouve à 300 mètres de L'Estiva, et le dernier bout se fait à pied, à travers la prairie. Un sac souple se porte bien mieux qu'une grosse valise à roulettes."):null;
+   const wifi=x.p.isLodge?S("b-chg","À L'Estiva, pas de wifi : c'est un choix, pour mieux profiter du reste. Le réseau mobile est en revanche disponible sur l'ensemble du domaine."):null;
+   // Local products
+   const local=[];
+   if(x.canOrder("jus"))local.push("les jus du Pressoir du Pilat (5 € le litre)");
+   if(x.canOrder("biere"))local.push("les bières de la Brasserie du Pilat (6,50 € la bouteille)");
+   const extras=[];
+   if(x.canOrder("planche"))extras.push("une planche du terroir pour le premier apéritif (à partir de 17 €)");
+   if(x.canOrder("trappeurs"))extras.push("le repas des trappeurs (25 € par personne)");
+   if(x.canOrder("petitdej"))extras.push("le petit-déjeuner, à retirer chaque matin au bâtiment d'accueil (8 € par personne et par jour)");
+   let localPara=null;
+   if(local.length||extras.length){
+     const parts=[];
+     if(local.length)parts.push(`Pour alléger les courses, nous travaillons avec des producteurs locaux : ${joinFr(local)}. Nous vous les proposons à leur prix de vente en magasin, et ils peuvent vous attendre au frais à votre arrivée.`);
+     if(extras.length)parts.push(`${local.length?"De la même façon, ":"Pour alléger les courses, "}nous pouvons prévoir ${joinFr(extras)}.`);
+     parts.push(`Il suffit de nous le dire d'ici le ${longFr(x.deadline)}.`);
+     localPara=S("b-offer",parts.join(" "));
+   }
+   const map=`Pour commencer à rêver votre séjour, nous avons rassemblé nos adresses préférées autour du domaine : balades, baignades, marchés, villages, visites. Tout est sur https://map.domainesolio.com`;
+   const kids=x.children?S("b-offer","Et si vos enfants aiment les animaux, il y a aussi quelques beaux moments à partager avec ceux du domaine : nous vous en parlerons sur place."):null;
+   return L(`Bonjour Camille,`,``,
+    `Plus qu'une semaine, et vous serez ${x.p.art}. ${x.p.hook}`,``,
+    `Voici quelques mots pour vous aider à préparer vos valises tranquillement.`,``,
+    beds, baby, beds||baby?``:null,
+    `Dans vos bagages :`,...bag,``,
+    travelLight, wifi, travelLight?``:null,
+    localPara, localPara?``:null,
+    S("b-offer","Vous fêtez un événement, vous aimeriez un coup de main pour les préparatifs, ou simplement vous alléger de l'intendance ? N'hésitez pas à nous en parler : nous avons plusieurs formules à vous proposer."),``,
+    map, kids, ``,
+    `Nous préparons tout pour vous accueillir. Une question ? Répondez simplement à ce mail, ou appelez-nous au ${PHONE}.`,``,
+    `À la semaine prochaine,`,SIGN);}},
+
+ j2:{t:"3. J-2 · arrivée",o:"merge",subj:(x,v)=>v==="old"?`Votre arrivée ${x.p.art}`:`À ${WD[x.s.getUTCDay()]}, ${x.p.art}`,
+  old:(x)=>L(`Bonjour Camille,`,``,`C'est avec grand plaisir que nous vous accueillons le ${longFr(x.s)} ${x.p.art} !`,`Voici les informations utiles avant votre arrivée.`,``,`Votre séjour :`,NUM,`- Logement : ${x.p.name}`,`- Arrivée  : le ${longFr(x.s)} à partir de 16 h`,`- Départ   : le ${longFr(x.e)} avant 10 h`,x.reserved.length?`- Option(s) réservée(s) : ${x.reserved.join(", ")}`:null,``,
+    `Pour vous rendre sur place, recherchez simplement « Domaine Solio » sur votre GPS.`,`La cafetière du logement est une machine à capsules (type Nespresso).`,``,
+    x.cautionIn?null:`Pour finaliser votre arrivée, pensez à prévoir un chèque de caution de 500,00 € à nous remettre sur place.\n`,
+    `Pour votre confort, les lits seront faits à votre arrivée.\n`,
+    x.has("menage")?null:(x.p.included.cleaning?(x.relay?S("b-chg","Le ménage de fin de séjour n'a pas été réservé : il reste à votre charge avant le départ. N'hésitez pas si vous souhaitez l'ajouter, nous nous en occupons volontiers.   ← FAUX : le ménage est compris à L'Estiva (bug actuel sur les résas importées)")+"\n":null)
+      :`Le ménage de fin de séjour n'a pas été réservé : il reste à votre charge avant le départ. N'hésitez pas si vous souhaitez l'ajouter, nous nous en occupons volontiers.\n`),
+    `Nous restons à votre entière disposition d'ici là — répondez simplement à cet email ou appelez-nous au ${PHONE}.`,``,`Très belles vacances, et à très bientôt !`,SIGN),
+  body:(x)=>{
+   let cleaning;
+   if(x.p.included.cleaning)cleaning=S("b-incl","Le ménage de fin de séjour est pour nous : profitez de votre dernière matinée sans y penser.");
+   else if(x.has("menage"))cleaning=S("b-booked","Vous avez choisi l'option ménage : profitez de votre dernière matinée, nous nous occupons du reste.");
+   else cleaning=S("b-offer","Pour rappel, vous n'avez pas choisi l'option ménage : nous vous demanderons donc de rendre le logement comme vous l'avez trouvé. Rien de compliqué, un petit panneau dans le logement vous indique ce qui est attendu. Et si, une fois sur place, vous préférez garder votre dernière matinée pour vous, l'option reste possible : il suffit de nous le dire.");
+   const noted=[...st.booked].filter(id=>NOTED[id]).map(id=>NOTED[id]);
+   return L(`Bonjour Camille,`,``,
+    `Dans deux jours, vous poserez vos valises ${x.p.art}. De notre côté, nous finissons de tout préparer pour vous accueillir. Voici simplement l'essentiel pour venir jusqu'à nous, le reste se découvrira sur place.`,``,
+    `Pour venir`,
+    `- Tapez « Domaine Solio » dans votre GPS (215 côte de Japperenard, 07290 Satillieu), ou retrouvez le plan d'accès sur notre site : https://domainesolio.com/contact/`,
+    `- Les 400 derniers mètres suivent le chemin du domaine : roulez doucement, il arrive qu'un animal traverse.`,
+    x.p.isLodge?S("b-chg","- Garez-vous au parking, à 300 mètres de L'Estiva : le reste du chemin se fait à pied."):null,``,
+    `Votre arrivée`,
+    `- Le ${longFr(x.s)}, à partir de 16 h. Nous vous accueillons au bâtiment d'accueil, près de la piscine.`,
+    S("b-chg","- Pouvez-vous nous dire vers quelle heure vous pensez arriver ? Un simple mot en réponse à ce mail, et nous serons là pour vous recevoir."),
+    x.cautionIn?null:`- Pensez à prendre le chèque de caution de 500 €, que nous vous demanderons à l'arrivée.`,
+    x.complement?S("b-booked","- Un complément de 45 € reste à régler sur place à votre arrivée."):null,``,
+    noted.length?S("b-booked",noted.join("\n"))+"\n":null,
+    x.p.isLodge?`Dans le logement, une machine Nespresso à capsules vous attend pour le café du matin.`
+      :S("b-chg",`Dans la maison, vous trouverez une machine Nespresso à capsules, et aussi une grande cafetière familiale pour le café moulu.`),
+    x.pool?`La piscine vous attend aussi pour les après-midi ensoleillés.`:null,``,
+    S("b-chg",`Le jour du départ, le ${longFr(x.e)}, nous vous retrouverons à l'accueil avant 10 h pour récupérer les clés et vous dire au revoir.`),
+    cleaning,``,
+    `Un imprévu ou un retard sur la route ? Appelez-nous au ${PHONE}.`,``,
+    `Bonne route, nous avons hâte de vous accueillir,`,SIGN);}},
+
+ j1:{t:"4. J+1 · merci et avis",o:"new",subj:()=>"Merci pour ces jours au Domaine Solio",body:(x)=>{
+   const review=x.direct
+     ?S("b-booked","Si vous en avez envie, quelques mots sur notre page Google nous aideraient beaucoup : https://g.page/r/CfWqZ_XdtQ5zEBM/review. C'est souvent grâce à ces avis que d'autres familles osent venir jusqu'ici.")
+     :S("b-booked",`Si ce n'est pas déjà fait, quelques mots sur ${x.platformName} nous aideraient beaucoup : c'est souvent grâce à ces avis que d'autres familles osent venir jusqu'ici. Et si vous avez envie d'en dire un peu plus, votre message est aussi le bienvenu sur notre page Google : https://g.page/r/CfWqZ_XdtQ5zEBM/review`);
+   return L(`Bonjour Camille,`,``,
+    `Merci d'avoir choisi le Domaine Solio pour ces quelques jours. ${x.p.name} est bien silencieuse depuis votre départ, et les animaux ont l'air de se demander où sont passés leurs visiteurs.`,``,
+    `Nous espérons que vous êtes bien rentrés, avec un peu du calme d'ici dans vos bagages.`,``,
+    review,``,
+    `Et si quelque chose a manqué à votre séjour, même un détail, nous aimerions vraiment le savoir : il suffit de répondre à ce mail. C'est ainsi que le domaine s'améliore, un séjour après l'autre.`,``,
+    x.lostItems?S("b-booked",`Nous avons retrouvé ${x.lostItems} après votre départ : dites-nous si nous vous le renvoyons.`):`Un objet oublié ? Dites-le nous, nous mettons tout de côté.`,``,
+    S("b-chg","Si vous êtes nostalgiques de votre séjour, n'hésitez pas à nous suivre sur les réseaux sociaux : https://www.instagram.com/domainesolio"),``,
+    `Le domaine change de visage à chaque saison : les agneaux au printemps, les longues soirées d'été, les couleurs de l'automne, le bain nordique qui fume dans l'air froid de l'hiver. Si l'envie vous prend d'en découvrir une autre, vous serez toujours les bienvenus.`,``,
+    `Avec toute notre amitié,`,SIGN);}},
+ nov:{t:"5. Bons cadeau",o:"new",subj:()=>"Offrir un peu du Domaine Solio",body:(x)=>L(`Bonjour Camille,`,``,
+    `Ici, l'automne a pris ses quartiers. Les arbres ont changé de couleur, les premiers feux crépitent à La Granja, et les animaux ont sorti leur manteau d'hiver.`,``,
+    `C'est aussi le moment où l'on commence à chercher ce qui fera plaisir à ceux qu'on aime. Alors, une fois par an et sans insister, voici notre idée : offrir quelques jours de calme, ici.`,``,
+    S("b-chg",`Nos bons cadeau sont valables un an : une ou plusieurs nuits à La Granja, à partir de ${FROM.granja} la nuit, ou à L'Estiva, à partir de ${FROM.estiva} la nuit, ou simplement un montant, que la personne utilise comme elle le souhaite.`)+" "+esc("Nous les préparons par mail ou imprimés, prêts à glisser sous le sapin."),``,
+    S("b-offer",`Et pour tout bon cadeau commandé avant le ${longFr(x.novDeadline)}, ${GIFTS.nov[giftNov].text}`),``,
+    `Belle fin d'automne,`,SIGN,``,`Ne plus recevoir nos nouvelles : [lien de désinscription]`)},
+ jan:{t:"6. Vœux et dates",o:"new",subj:(x)=>`Belle année ${x.janYear}, depuis le Domaine Solio`,body:(x)=>L(`Bonjour Camille,`,``,
+    `Nous vous souhaitons une très belle année ${x.janYear}, douce, lumineuse, et pleine de moments partagés.`,``,
+    `Ici, l'hiver a posé son silence sur les 13 hectares : le feu crépite à La Granja, le bain nordique fume dans l'air froid, et chaque matin les animaux attendent leur foin.`,``,
+    `Le calendrier ${x.janYear} est ouvert, ponts de printemps compris. Vous étiez venus ${x.p.art} en ${MO[x.s.getUTCMonth()]} ${x.s.getUTCFullYear()} : si une période vous fait envie, écrivez-nous simplement. Les week-ends prolongés partent vite, et nous serions tellement heureux de vous retrouver.`,``,
+    S("b-offer",`Et pour vous remercier de votre fidélité : si vous réservez avant le ${longFr(x.janDeadline)}, ${GIFTS.jan[giftJan].text}`),``,
+    `À très bientôt, peut-être,`,SIGN,``,`Ne plus recevoir nos nouvelles : [lien de désinscription]`)}
+};
+
+/* ---------------- schedule ---------------- */
+function schedule(x){
+  const rows=[];const R=(k,date,status,why)=>rows.push({k,date,status,why});
+  const beforeAct=(d)=>d<x.act;
+  const endedBefore=x.e<x.act;
+  if(!x.direct)R("confirm",x.b,"ko","Réservations directes uniquement");
+  else if(beforeAct(x.b))R("confirm",x.b,"ko","Réservée avant l'activation de la séquence");
+  else R("confirm",x.b,"ok","Au paiement, fait à la réservation");
+  const j7=add(x.s,-7),j2=add(x.s,-2);
+  const pre=(k,d,tooEarly,why)=>{ if(x.cancelled)R(k,d,"ko","Séjour annulé"); else if(d<=x.b)R(k,d,"ko",why); else if(beforeAct(d))R(k,d,"ko","Date antérieure à l'activation : jamais d'envoi rétroactif"); else R(k,d,"ok",""); };
+  pre("j7",j7,0,"Réservée moins de 7 jours avant l'arrivée");
+  pre("j2",j2,0,"Réservée la veille ou l'avant-veille : la confirmation porte l'essentiel");
+  const cand=[];const j1=add(x.e,1);
+  if(x.cancelled)R("j1",j1,"ko","Séjour annulé");
+  else if(endedBefore)R("j1",j1,"ko","Séjour terminé avant l'activation");
+  else if(x.noPostStay)R("j1",j1,"ko","Case client « pas de mails après séjour »");
+  else cand.push({k:"j1",date:j1,why:x.direct?"Avis Google":`Avis ${x.channel==="gdf"?"Gîtes de France":x.channel==="airbnb"?"Airbnb":"Booking"}, puis Google`});
+  let nov=D(`${x.e.getUTCFullYear()}-11-15`);if(nov<=x.e)nov=D(`${x.e.getUTCFullYear()+1}-11-15`);
+  x.novDeadline=D(`${nov.getUTCFullYear()}-12-15`);
+  const season=(d)=>x.cancelled?"Séjour annulé":endedBefore?"Séjour terminé avant l'activation":(x.noPostStay&&!q1j1)?"Case client « pas de mails après séjour »":x.unsub?"Désinscrit":x.relay?"Adresse relais Airbnb / Booking":x.nextStay?"Nouvelle réservation à venir":null;
+  const nb=season()||(days(x.e,nov)<30?`Parti il y a ${days(x.e,nov)} jours, moins de 30`:null);
+  if(nb)R("nov",nov,"ko",nb);else cand.push({k:"nov",date:nov,why:"Avec lien de désinscription"});
+  const jan=D(`${x.e.getUTCFullYear()+1}-01-06`);x.janYear=jan.getUTCFullYear();
+  x.janDeadline=new Date(Date.UTC(x.janYear,2,0));
+  const jb=season();
+  if(jb)R("jan",jan,"ko",jb);else cand.push({k:"jan",date:jan,why:"Avec lien de désinscription"});
+  cand.forEach(c=>R(c.k,c.date,"ok",c.why));
+  return rows.sort((a,b)=>a.date-b.date);
+}
+
+/* ---------------- render ---------------- */
+function render(){
+  renderOpts();
+  const err=$("err");const fail=(m)=>{err.hidden=false;err.textContent=m;$("timeline").innerHTML="";$("mail").innerHTML="";};
+  const s=$("start").value,e=$("end").value,b=$("booked").value;
+  if(!s||!e||!b)return fail("Refusé : les trois dates sont requises.");
+  if(D(e)<=D(s))return fail("Refusé : le départ doit être au moins une nuit après l'arrivée.");
+  if(D(b)>D(s))return fail("Refusé : une réservation ne peut pas être prise après l'arrivée.");
+  if((Number($("adults").value)||0)<1)return fail("Refusé : il faut au moins un adulte.");
+  if(st.booked.has("litbebe")&&!(Number($("babies").value)>0))return fail("Refusé : un lit bébé est réservé sans bébé sur la réservation.");
+  err.hidden=true;
+  const x=ctx();const rows=schedule(x);
+  if(!rows.some(r=>r.k===st.sel))st.sel=rows[0].k;
+  const OR={new:'<span class="pill o-new">nouveau</span>',merge:'<span class="pill o-merge">fusionné</span>'};
+  const ST={ok:'<span class="st-ok">part</span>',ko:'<span class="st-ko">ne part pas</span>'};
+  $("timeline").innerHTML=`<tr><th>Date</th><th>Mail</th><th>Origine</th><th>Statut</th><th>Pourquoi</th></tr>`+rows.map(r=>
+    `<tr data-k="${r.k}" class="${r.k===st.sel?"sel":""}"><td style="white-space:nowrap">${shortFr(r.date)}</td><td>${MAILS[r.k].t}</td><td>${OR[MAILS[r.k].o]}</td><td>${ST[r.status]}</td><td>${esc(r.why||"")}</td></tr>`).join("");
+  $("timeline").querySelectorAll("tr[data-k]").forEach(tr=>tr.addEventListener("click",()=>{st.sel=tr.dataset.k;if(!MAILS[st.sel].old)st.ver="new";render();}));
+  const r=rows.find(r=>r.k===st.sel),m=MAILS[st.sel];
+  const ver=m.old?st.ver:"new";
+  const vseg=m.old?`<div class="vseg"><button data-v="old" aria-pressed="${ver==="old"}">Aujourd'hui</button><button data-v="new" aria-pressed="${ver==="new"}">Proposé</button></div>`:"";
+  const head=`<div class="hd"><div><b>${m.t}</b> · ${longFr(r.date)} · ${x.nights} nuit${x.nights>1?"s":""} ${x.p.art}<br>Objet : <b>${esc(m.subj(x,ver))}</b></div>${vseg}</div>`;
+  const content=(r.status==="ko"&&ver==="new")?`<div class="dropped"><b>Ce mail ne part pas.</b> ${esc(r.why)}. En simulation, il apparaît avec cette raison, et aucune trace d'envoi n'est écrite.</div>`:`<pre>${ver==="old"?m.old(x):m.body(x)}</pre>`;
+  $("mail").innerHTML=head+content;
+  $("mail").querySelectorAll(".vseg button").forEach(bt=>bt.addEventListener("click",()=>{st.ver=bt.dataset.v;render();}));
+}
+
+/* ---------------- decisions → prompt ---------------- */
+const QUESTIONS=[
+ {id:"q1",t:"La case client « Ne pas envoyer les mails après séjour » bloque quoi ?",c:"Tu as demandé de pouvoir désactiver le mail d'après séjour pour un client précis. La spec suppose qu'elle bloque les trois mails d'après séjour. Dans le simulateur, la case suit cette hypothèse.",
+  o:[["all","Le J+1, les bons cadeau et les vœux",1],["j1","Seulement le J+1 (bons cadeau et vœux restent, sauf désinscription)"]]},
+ {id:"q2",t:"La piscine dans les mails ?",c:"Tu n'as pas coché le bloc « saison piscine », mais tu avais validé la mention sans horaires. Garder la mention demande juste deux dates dans Réglages (par défaut du 15/06 au 31/08).",
+  o:[["keep","La garder, avec la saison réglable dans Réglages",1],["drop","La retirer de tous les mails"]]},
+ {id:"q3",t:"Le bouton « Renvoyer » de l'historique, sur un mail de la séquence déjà envoyé ?",c:"Le registre empêche tout second envoi automatique. Reste le renvoi à la main, par exemple quand un client dit ne pas avoir reçu son J-2.",
+  o:[["confirm","Autorisé après une confirmation explicite, et tracé comme renvoi",1],["block","Refusé dans tous les cas"]]}
+];
+$("questions").innerHTML=QUESTIONS.map((q,i)=>`<div class="q" id="box-${q.id}"><h4>${i+1}. ${esc(q.t)}</h4><div class="ctx">${esc(q.c)}</div>`+
+  q.o.map(([v,l,rec])=>`<label><input type="${q.multi?"checkbox":"radio"}" name="${q.id}" value="${v}"><span>${esc(l)}${rec?'<span class="rec">recommandé</span>':""}</span></label>`).join("")+`</div>`).join("");
+function buildPrompt(){
+  const lines=["Questions ouvertes de la spec guest-email-sequence (CR v3) :",""];
+  let answered=0;
+  QUESTIONS.forEach((q,i)=>{
+    const picked=[...document.querySelectorAll(`input[name=${q.id}]:checked`)].map(inp=>q.o.find(o=>o[0]===inp.value)[1]);
+    const box=$("box-"+q.id);
+    if(picked.length){answered++;box.classList.remove("unanswered");}else box.classList.add("unanswered");
+    lines.push(`${i+1}. ${q.t}\n   → ${picked.length?picked.join(" ; "):(q.multi?"aucun":"(pas tranché)")}`);
+  });
+  const free=$("free").value.trim();
+  if(free)lines.push("","Remarques :",free);
+  lines.push("","Intègre ces réponses dans la spec, passe-la en Approved, crée la branche et lance l'implémentation selon le plan.");
+  $("prompt").value=lines.join("\n");
+  $("progress").textContent=`${answered} / ${QUESTIONS.length} questions tranchées`;
+}
+$("questions").addEventListener("change",(e)=>{
+  if(e.target.name==="q1"){ $("noPostStay").parentElement.lastChild.textContent=e.target.value==="j1"?" Client : « Ne pas envoyer le mail J+1 »":" Client : « Ne pas envoyer les mails après séjour »"; q1j1=e.target.value==="j1"; render(); }
+  buildPrompt();});
+$("free").addEventListener("input",buildPrompt);
+$("recoAll").addEventListener("click",()=>{QUESTIONS.forEach(q=>{document.querySelectorAll(`input[name=${q.id}]`).forEach(inp=>{const o=q.o.find(o=>o[0]===inp.value);inp.checked=Boolean(o[2]);});});q1j1=false;render();buildPrompt();});
+$("copy").addEventListener("click",async()=>{
+  const t=$("prompt");let ok=false;
+  try{await navigator.clipboard.writeText(t.value);ok=true;}catch(_){t.select();try{ok=document.execCommand("copy");}catch(__){ok=false;}}
+  const c=$("copied");c.textContent=ok?"Copié":"Sélectionné : fais Cmd+C";c.hidden=false;setTimeout(()=>{c.hidden=true;},2500);
+});
+
+loadPreset("famille");
+buildPrompt();
+})();
+</script>

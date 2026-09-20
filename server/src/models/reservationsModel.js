@@ -1100,6 +1100,13 @@ function createReservationsModel(database) {
       return database.prepare('SELECT id FROM reservations WHERE id = ?').get(reservationId);
     },
 
+    // specs/guest-email-sequence.md rule 33 — free text quoted by the J+1 « merci » email.
+    updateLostItems(reservationId, text) {
+      database.prepare("UPDATE reservations SET lostItems = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(String(text || '').trim(), Number(reservationId));
+      return database.prepare('SELECT lostItems FROM reservations WHERE id = ?').get(Number(reservationId));
+    },
+
     // The just-assigned/overridden number, returned to the client after create/update so the fiche
     // field repopulates. Empty string when the column is absent (minimal schema) or unset.
     getReservationNumber(reservationId) {

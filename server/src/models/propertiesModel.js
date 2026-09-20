@@ -30,7 +30,25 @@ function toBit(v) {
 
 // Canonical French articles for "votre séjour <article> <name>" in client emails
 // (specs/email-automation.md §3 rule 13). Anything off-list falls back to 'au'.
-const VALID_NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
+// « à » introduces a name that carries its own article (« à La Granja », « à L'Estiva ») —
+// specs/guest-email-sequence.md §5.
+const VALID_NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
+// A property name is a proper name: trimmed, never re-cased — sentence-casing turned « La Granja »
+// into « La granja » (specs/guest-email-sequence.md §5).
+function propertyName(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+// specs/guest-email-sequence.md §6.2 — the facts the guest emails read. Each is written only when
+// the payload carries it, so an older client form never resets them.
+const EMAIL_FACT_FIELDS = [
+  { key: 'emailHook', coerce: (v) => String(v == null ? '' : v).trim() },
+  { key: 'emailHookEn', coerce: (v) => String(v == null ? '' : v).trim() },
+  { key: 'parkingDistanceMeters', coerce: (v) => Math.max(0, Math.round(Number(v) || 0)) },
+  { key: 'hasWifi', coerce: toBit },
+  { key: 'hasFilterCoffeeMaker', coerce: toBit },
+];
+
 function normalizeNameArticle(value) {
   const v = String(value || '').trim();
   return VALID_NAME_ARTICLES.includes(v) ? v : 'au';
@@ -245,6 +263,17 @@ function computeDateRangeAssignment(rules, selection) {
 }
 
 function createPropertiesModel(database) {
+  const propertyCols = (() => {
+    try { return new Set(database.prepare('PRAGMA table_info(properties)').all().map((c) => c.name)); }
+    catch { return new Set(); }
+  })();
+  function writeEmailFacts(id, body = {}) {
+    for (const { key, coerce } of EMAIL_FACT_FIELDS) {
+      if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
+      database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
+    }
+  }
+
   function findPricingRuleOverlap(propertyId, dateRanges, excludeRuleId = null) {
     if (!dateRanges.length) return null;
     let sql = 'SELECT id, label, startDate, endDate, dateRanges FROM pricing_rules WHERE propertyId = ?';
@@ -439,7 +468,7 @@ function createPropertiesModel(database) {
         INSERT INTO properties (name, nameArticle, photo, maxGuests, maxBabies, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit, welcomePackCost, singleBeds, doubleBeds, depositPercent, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, publicDepositEnabled)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        sentenceCase(body.name),
+        propertyName(body.name),
         normalizeNameArticle(body.nameArticle),
         photo,
         body.maxGuests || 2,
@@ -490,6 +519,8 @@ function createPropertiesModel(database) {
         database.ensureDefaultTimedOptionsForProperty(Number(propertyId));
       }
 
+      writeEmailFacts(propertyId, body);
+
       return { id: propertyId };
     },
 
@@ -502,7 +533,7 @@ function createPropertiesModel(database) {
         UPDATE properties SET name=?, nameArticle=?, photo=?, maxGuests=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDueDays=?, balanceDaysBefore=?, cancelAfterBalanceDueDays=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, publicDepositEnabled=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
-        sentenceCase(body.name),
+        propertyName(body.name),
         normalizeNameArticle(body.nameArticle),
         photo,
         body.maxGuests || 2,
@@ -534,6 +565,8 @@ function createPropertiesModel(database) {
         toBit(body.publicDepositEnabled),
         id,
       );
+
+      writeEmailFacts(id, body);
 
       if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
         removeUploadedFile(existing.photo);

@@ -12,20 +12,27 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { buildGatedConfirmationSender } = require('../utils/reservationEmailSender');
+const guestEmailSendsModel = require('../models/guestEmailSendsModel');
 
 const DDL = `
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY, kind TEXT DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
-    startDate TEXT, endDate TEXT, emailLanguage TEXT
+    startDate TEXT, endDate TEXT, emailLanguage TEXT, platform TEXT DEFAULT 'direct', createdAt TEXT
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, emailLanguage TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
   CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, quantity INTEGER);
-  CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, titleEn TEXT, autoOptionType TEXT);
+  CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, titleEn TEXT, autoOptionType TEXT, displayToClient INTEGER DEFAULT 1);
   CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER);
   CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, nameEn TEXT);
   CREATE TABLE reservation_custom_options (reservationId INTEGER, description TEXT, amount REAL);
   CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER);
+  CREATE TABLE guest_email_sends (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, dedupKey TEXT NOT NULL UNIQUE, stableKey TEXT NOT NULL,
+    reservationId INTEGER, clientId INTEGER, seasonKey TEXT, status TEXT NOT NULL,
+    claimedAt TEXT NOT NULL DEFAULT (datetime('now')), sentAt TEXT, recipientEmail TEXT NOT NULL DEFAULT '',
+    errorMessage TEXT NOT NULL DEFAULT '', emailLogId INTEGER
+  );
 `;
 
 const CONFIRMATION = {
@@ -38,7 +45,7 @@ function fixture({ autoSendEnabled, template = CONFIRMATION } = {}) {
   db.exec(DDL);
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Léa', 'Roy', 'lea@r.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
-  db.prepare("INSERT INTO reservations (id, clientId, propertyId, startDate, endDate) VALUES (500, 1, 1, '2026-08-10', '2026-08-12')").run();
+  db.prepare("INSERT INTO reservations (id, clientId, propertyId, startDate, endDate, createdAt) VALUES (500, 1, 1, '2026-08-10', '2026-08-12', '2026-07-01 10:00:00')").run();
 
   const queued = [];
   const logged = [];
@@ -49,10 +56,13 @@ function fixture({ autoSendEnabled, template = CONFIRMATION } = {}) {
     logModel: { insert: (row) => { logged.push(row); return { id: logged.length }; } },
     settingsModel: {
       emailAutoSendEnabled: () => autoSendEnabled,
-      read: () => ({ companyName: 'Solio' }),
+      // The sequence is active since before the booking (specs/guest-email-sequence.md rule 16).
+      read: () => ({ companyName: 'Solio', guestSequenceStartDate: '2026-06-01' }),
       decryptedSmtpSettings: () => ({ host: 'smtp', fromEmail: 'f@x' }),
     },
     emailServiceFactory: () => ({ isConfigured: true, send: async (msg) => { sent.push(msg); } }),
+    ledger: guestEmailSendsModel.buildModel(db),
+    preferences: { ensureToken: () => '' },
     queueModel: {
       // Same idempotency contract as the real model's INSERT OR IGNORE.
       add: (templateId, reservationId) => {

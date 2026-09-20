@@ -30,6 +30,7 @@ import FinanceSection from '../components/reservation/FinanceSection';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
+import ReservationLostItemsCard from '../components/ReservationLostItemsCard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
@@ -137,6 +138,8 @@ export default function ReservationPage() {
   const { confirm, alert } = useAppDialogs();
   // Pure-info confirmations toast instead of modaling (specs/ds-components.md §3.2).
   const { showSuccess } = useToast();
+  // « Objets oubliés » lives outside the form: it is edited after departure (guest-email-sequence rule 33).
+  const [initialLostItems, setInitialLostItems] = useState('');
   const from = getFromParam(searchParams);
   
   // Check if in devis mode
@@ -741,6 +744,7 @@ export default function ReservationPage() {
           setExcludeReservationIdForDevis(null);
 
           const importedBlankPrice = res.sourceType === 'ical' && res.totalPrice == null && res.finalPrice == null;
+          setInitialLostItems(res.lostItems || '');
           setForm({
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
@@ -3273,6 +3277,10 @@ export default function ReservationPage() {
               />
             </CardContent>
           </Card>
+
+          {reservationId ? (
+            <ReservationLostItemsCard reservationId={reservationId} initialValue={initialLostItems} />
+          ) : null}
         </Box>
         </ReservationFormProvider>
         </Box>
