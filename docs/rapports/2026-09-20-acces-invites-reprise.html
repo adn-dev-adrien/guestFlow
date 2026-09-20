@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Accès invités — reprise du 20/09</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --vert:#E1EBD3; --ambre:#F3E1C1; --gris:#ECE6D8;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --vert:#2B3A26; --ambre:#443520; --gris:#2C2A22;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 31px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 13px/1.3 var(--sans);margin:0 0 8px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+a{color:var(--ocre)}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.lead{color:var(--muted);max-width:820px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12.5px;border:1px solid var(--line);white-space:nowrap}
+.v{background:var(--vert)} .a{background:var(--ambre)} .g{background:var(--gris)}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:4px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.plain{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+table.plain th,table.plain td{border-bottom:1px solid var(--line);padding:9px 6px;text-align:left;vertical-align:top}
+table.plain th{font-size:12.5px;color:var(--muted);font-weight:600}
+code{font-family:var(--mono);font-size:12.5px}
+pre{font-family:var(--mono);font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto;margin:10px 0}
+.check{list-style:none;margin:0;padding:0}
+.check li{border:1px solid var(--line);background:var(--card);border-radius:8px;margin:8px 0;padding:0}
+.check label{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;min-height:44px;cursor:pointer}
+.check input{margin-top:3px;width:18px;height:18px;flex:none;accent-color:var(--sapin)}
+.check .t{font-weight:600}
+.check .d{display:block;font-weight:400;color:var(--muted);font-size:13.5px;margin-top:3px}
+.check li:has(input:checked){background:var(--vert)}
+.check li:has(input:checked) .t{text-decoration:line-through;text-decoration-color:var(--muted)}
+.prog{display:flex;align-items:center;gap:12px;margin:14px 0 4px;flex-wrap:wrap}
+.bar{flex:1;min-width:180px;height:8px;background:var(--gris);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;width:0;background:var(--sapin);transition:width .2s}
+.prog b{font-variant-numeric:tabular-nums}
+button.reset{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;min-height:40px;cursor:pointer;font:inherit}
+</style>
+<div class="wrap">
+
+<h1>Accès invités — reprise du 20 septembre</h1>
+<p class="meta">Les patchs de la session web appliqués, les quatre suites passées, les quatre PR ouvertes. Ce qui reste demande un téléphone et le portail.</p>
+
+<p class="lead">La session web ne pouvait pas pousser (403). Le travail est arrivé en patchs <code>git format-patch</code>.
+Ils sont appliqués, corrigés là où la base avait bougé, et poussés. Rien n'est fusionné : tu relis et tu fais les squash-merge,
+et la PR chez Marc attend son accord.</p>
+
+<h2>Les quatre dépôts</h2>
+<div class="tblwrap">
+<table class="plain">
+<tr><th>Dépôt</th><th>PR</th><th>Tests</th><th>CI</th><th>Ce qu'il porte</th></tr>
+<tr>
+  <td><b>mchacher/sowel</b><br><code>feat/plugin-pages-and-public-tree</code></td>
+  <td><a href="https://github.com/mchacher/sowel/pull/969">#969</a></td>
+  <td>2 618 back<br>1 122 UI</td>
+  <td><span class="pill v">verte</span></td>
+  <td>Spec 180 : trois capacités <b>génériques</b>. Une page de plugin dans l'UI, un arbre anonyme <code>/p/&lt;id&gt;/*</code>, un <code>dataDir</code> qui survit aux mises à jour. Le cœur n'apprend aucun domaine.</td>
+</tr>
+<tr>
+  <td><b>sowel-plugin-guest-access</b> v1.1.0</td>
+  <td><a href="https://github.com/adn-dev-adrien/sowel-plugin-guest-access/pull/2">#2</a></td>
+  <td>162 + tsc</td>
+  <td><span class="pill g">pas de CI</span></td>
+  <td>Les accès, les codes, les horaires, le journal, la page de gestion, la page des clients, le connecteur guestFlow.</td>
+</tr>
+<tr>
+  <td><b>sowel-recipe-guest-gate</b> v0.2.0</td>
+  <td><a href="https://github.com/adn-dev-adrien/sowel-recipe-guest-gate/pull/1">#1</a></td>
+  <td>28</td>
+  <td><span class="pill g">pas de CI</span></td>
+  <td>Décide et pulse, rapporte l'issue et le contact. Rien de ce qui décide n'actionne.</td>
+</tr>
+<tr>
+  <td><b>guestFlow</b></td>
+  <td><a href="https://github.com/adn-dev-adrien/guestFlow/pull/563">#563</a></td>
+  <td>4 246 serveur<br>1 297 client<br><b>68 Playwright</b></td>
+  <td><span class="pill v">verte</span></td>
+  <td>Le fil de séjours calculé à la lecture, la copie de l'invitation, le code et son QR dans le SAS, la fiche et les mails.</td>
+</tr>
+</table>
+</div>
+
+<div class="note"><b>La suite Playwright a tourné.</b> Elle n'avait jamais été lancée parce qu'il faut l'app entière debout — or elle <i>est</i> le job « smoke » de la CI guestFlow. Sur #563 : <b>68 tests, tous verts en 1 min 42</b>. Ce point de la liste est clos.</div>
+
+<h2>Ce qui a dû être corrigé en poussant</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>1 · La base de guestFlow avait bougé</h3>
+    <p>Le patch visait un master antérieur à la séquence de mails (#561, fusionnée depuis). Rebranché sur <code>origin/master</code>, trois conflits d'union résolus à la main : les exports du contrôleur des réservations, la signature de <code>buildContext</code> et les <code>require</code> de l'expéditeur de mails. Aucune logique arbitrée — la séquence de mails et l'invitation cohabitent.</p>
+  </div>
+  <div class="card">
+    <h3>2 · La CI du cœur exige trois documents</h3>
+    <p><code>check-specs-complete.sh</code> refuse tout nouveau dossier de spec sans <code>spec.md</code> + <code>architecture.md</code> + <code>plan.md</code>. Le patch n'apportait que le premier. Les deux autres ont été écrits d'après le code livré : l'architecture réelle des trois surfaces, et le plan de test par module derrière les 44 cas.</p>
+  </div>
+  <div class="card">
+    <h3>3 · CodeQL bloquait la PR du cœur</h3>
+    <p>Deux alertes hautes sur <code>queryOf</code> : les clés de la query string étaient écrites dynamiquement dans la carte remise au plugin. <b>Ni un garde-fou par liste, ni <code>Object.create(null)</code> ne le taisent</b> — c'est l'écriture <code>out[key] = v</code> qui est signalée. <code>Object.fromEntries</code> la fait disparaître. Un cas de test en plus (24 maintenant).</p>
+  </div>
+  <div class="card">
+    <h3>4 · Les commits étaient signés « Claude »</h3>
+    <p>Héritage du <code>format-patch</code>. Réécrits à ton nom sur les trois dépôts <code>adn-dev-adrien</code>, trailer <code>Co-Authored-By</code> conservé. Le commit de la PR du cœur, lui, était déjà à ton nom et n'a pas été touché.</p>
+  </div>
+</div>
+
+<h2>L'adresse des clients</h2>
+<p>Le cœur sert la page sous <code>/p/guest-access/</code>, un chemin qu'il impose. Ce n'est pas une adresse à lire dans un e-mail.
+Le choix retenu est un <b>alias</b>, pas une redirection : une 301 ferait apparaître <code>sowel.adn-dev.fr</code> dans la barre d'adresse du client dès l'ouverture.</p>
+<pre>acces.domainesolio.com {
+    rewrite * /p/guest-access{uri}
+    reverse_proxy sowel:3000
+}</pre>
+<p>Côté plugin, deux réglages : <code>guest_base_url = https://acces.domainesolio.com</code> et <code>guest_path = /</code>.</p>
+<div class="alert"><b>La réécriture doit couvrir tout l'arbre, pas seulement <code>/</code>.</b> La page appelle <code>app.js</code>, <code>style.css</code>, <code>icon.svg</code> et <code>enrol</code> relativement à elle-même : une règle qui ne prend que la racine donne une page nue qui a l'air de marcher. C'est exactement ce que le test au téléphone, plus bas, vérifie.</div>
+<p>Le code reste dans le fragment (<code>#i=CODE</code>) dans toutes les variantes — un fragment n'est jamais envoyé à un serveur, donc aucun journal n'en voit passer. Côté guestFlow le lien est opaque : il stocke et affiche la chaîne qu'on lui pousse, il n'en construit, n'analyse ni ne réécrit jamais aucune.</p>
+
+<h2>Ce qui reste — le plan de test manuel</h2>
+<p class="lead">Plugin <code>specs/guest-access.md</code> §6, guestFlow <code>specs/gate-access-sowel-connector.md</code> §7. À dérouler avant de fusionner. Coche au fur et à mesure.</p>
+
+<div class="prog"><div class="bar"><i id="fill"></i></div><b id="count">0 / 8</b><button class="reset" id="reset">Tout décocher</button></div>
+
+<ul class="check" id="list">
+  <li><label><input type="checkbox"><span><span class="t">Installer le plugin sur l'instance</span><span class="d">Source personnelle, puis installation. Il déclare <code>sowelVersion &gt;= 1.72.0</code> : tant que la PR 969 n'est pas dans une release, le bouton reste grisé — c'est voulu, la page n'aurait nulle part où s'afficher.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Ouvrir l'accès public</span><span class="d">Administration → Plugins → la fiche du plugin, bloc « Accès public ». Tant qu'il est fermé, <code>/p/guest-access/</code> répond le même 404 qu'un plugin qui ne déclare rien. L'ouverture est journalisée.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Recopier les deux secrets de guestFlow</span><span class="d"><code>GATE_API_KEY</code> et <code>GATE_SIGNING_SECRET</code>, auto-générés dans <code>server/.env.local</code> au premier démarrage, vers les réglages du plugin. Aucun des deux n'est jamais journalisé ni renvoyé par une API.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Vérifier le lien depuis un téléphone, sur l'alias</span><span class="d">La page doit arriver <b>stylée</b> et la glissière doit fonctionner. C'est ce qui prouve que la réécriture couvre plus que la racine — une page nue signifie que <code>rewrite</code> ne prend que <code>/</code>.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Flasher le QR devant le portail</span><span class="d">Depuis le SAS. Un flash doit installer l'accès sans rien taper, et l'impulsion partir. 5G confirmée sur place.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Éteindre Sowel et vérifier que l'e-mail J-7 part quand même</span><span class="d">C'est la contrainte structurante. guestFlow compose depuis sa copie locale de l'invitation : il ne doit rien attendre de la maison.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Contrôler le rôle réception</span><span class="d">Ce qu'il voit, et surtout ce qu'il ne voit pas, sur la fiche et dans le SAS.</span></span></label></li>
+  <li><label><input type="checkbox"><span><span class="t">Répétition à deux téléphones</span><span class="d">Un séjour par logement, deux appuis à 2 s d'intervalle. Le plugin absorbe le double appui dans sa fenêtre de 2 s ; la recette ne déduplique pas, c'est le seul endroit qui peut distinguer un doigt qui ripe de deux intentions.</span></span></label></li>
+</ul>
+
+<h2>Et après</h2>
+<ul class="tight">
+  <li><b>Les trois squash-merge</b> sont à toi. On ne fusionne jamais soi-même.</li>
+  <li><b>La PR 969</b> est à présenter à Marc. Toute la CI passe, CodeQL compris, mais elle ne se fusionne pas sans son accord.</li>
+  <li><b>Le bump du registre Sowel</b> (<code>plugins/registry.json</code> + <code>scripts/backfill-registry-sha256.mjs</code>, spec 089) une fois le plugin v1.1.0 publié en release.</li>
+  <li><b>La PR 547</b> (v1 long-poll puis v2 « Portier ») est fermée, avec un commentaire qui renvoie vers #563. La branche reste : les deux specs y sont toujours lisibles.</li>
+</ul>
+
+</div>
+<script>
+(function(){
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#list input'));
+  var fill = document.getElementById('fill'), count = document.getElementById('count');
+  function render(){
+    var n = boxes.filter(function(b){return b.checked}).length;
+    count.textContent = n + ' / ' + boxes.length;
+    fill.style.width = (n / boxes.length * 100) + '%';
+  }
+  boxes.forEach(function(b){ b.addEventListener('change', render); });
+  document.getElementById('reset').addEventListener('click', function(){
+    boxes.forEach(function(b){ b.checked = false; }); render();
+  });
+  render();
+})();
+</script>
+</html>
