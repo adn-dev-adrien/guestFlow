@@ -135,3 +135,17 @@ test('and when what it sent is no longer showable', async () => {
   assert.equal(step.status, 'unusable');
   assert.equal(step.state, 'revoked');
 });
+
+test('the link is taken as it comes: an alias of the house is shown unchanged', async () => {
+  // Rule 10 — the address belongs to the house. A gîte that fronts Sowel with a name of its own
+  // pushes `https://acces.domainesolio.com/#i=CODE`, and nothing here may recognise, rebuild or
+  // « fix » it into the `/p/guest-access/` shape.
+  const { db, model } = setup();
+  const url = 'https://acces.domainesolio.com/#i=4K7M9QT2';
+  model.upsert(invitation({ url }));
+
+  const step = await view.sasStep(db, 42);
+  assert.equal(step.url, url);
+  assert.ok(step.qrDataUri.startsWith('data:image/png;base64,'));
+  assert.equal(view.ficheCard(db, 42).url, url);
+});

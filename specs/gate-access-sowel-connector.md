@@ -89,7 +89,12 @@ waiting on a machine it cannot reach.
 9. For each stay access, the house pushes the code, the link, the state, the window in force, the
    number of phones and the last use. guestFlow **replaces** what it had: the house is authoritative.
 10. **It is a copy.** Nothing here opens a gate: a stale code left lying around would be refused by
-    the house, which is the only one that decides.
+    the house, which is the only one that decides. The link is **opaque here**: the house composes it
+    from its own two settings and may serve its guests' page under a name of its own
+    (`https://acces.domainesolio.com/#i=CODE` rather than `<sowel>/p/guest-access/#i=CODE` — plugin
+    spec rule 18). guestFlow stores and shows the string it is handed and never builds, parses or
+    rewrites one; a host or a path hard-coded here would be a second source of truth for an address
+    only the house knows.
 11. A batch is taken **whole or not at all**: a partial answer would let the house believe everything
     went through, and the next push would not carry it again.
 
@@ -233,13 +238,14 @@ Strings in French. Responsive: the three surfaces are `Stack`/`SummaryItem` layo
 
 ## 7. Test plan
 
-### Server unit tests (43 new, plus the 11 of `gateWindow` taken from #547)
+### Server unit tests (44 new, plus the 11 of `gateWindow` taken from #547)
 - [x] `gate-stay-feed.unit.test.js` (12) — publication, date and hour changes, cancellation, a
       deletion discovered on its own, a stay drifting away, devis ignored, pagination, cursor, purge
 - [x] `gate-connector-auth.unit.test.js` (12) — signature vectors, failing closed, wrong key, wrong
       secret, replay, cursor altered in flight, body altered in flight, X-API-Key, the site's key
-- [x] `gate-invitation-copy.unit.test.js` (11) — replacement, invalid row, non-showable states,
-      missing table, the fiche's card, the window on the Paris clock, the SAS step and its QR
+- [x] `gate-invitation-copy.unit.test.js` (12) — replacement, invalid row, non-showable states,
+      missing table, the fiche's card, the window on the Paris clock, the SAS step and its QR, an
+      alias link shown unchanged
 - [x] `gate-email-tokens.unit.test.js` (4) — tokens present, absent, code without link, link without code
 - [x] `gate-reception-read.unit.test.js` (4) — reception reads, never writes; the accountant stays out
 - [x] `gate-window.unit.test.js` (11, taken from #547) — both DST transitions
