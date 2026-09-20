@@ -2,9 +2,18 @@
 // Moved out of database.js. The export advertises ONLY real reservations (kind='reservation'); a devis
 // (kind='devis') must never appear in the public feed, or external platforms would treat a tentative
 // quote as booked and block real reservations.
+//
+// It also advertises the establishment closures that apply to the property (specs/ical-export-closures.md).
+// Without them a platform happily sells a period the operator declared closed, and the sync guard added
+// in 2026-06 can only drop the incoming booking — the guest keeps a confirmation for a stay that leaves
+// no trace at all in GuestFlow. Exporting the closure prevents the sale instead.
 
 const crypto = require('crypto');
 const db = require('../database');
+const establishmentClosuresModel = require('./establishmentClosuresModel');
+
+const DEFAULT_CLOSURE_LABEL = 'Fermeture établissement';
+const CLOSURE_DESCRIPTION = 'Période de fermeture — aucune réservation possible.';
 
 function formatIcalDate(date) {
   const year = date.getUTCFullYear();
@@ -18,7 +27,38 @@ function escapeIcalText(text) {
   return text.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
 
+// The platform displays SUMMARY as-is in its own calendar, next to real guests: the prefix is what
+// tells the operator, looking at Booking, that the block is not a booking. A label left at the DB
+// default would read "Fermeture — Fermeture établissement", so it collapses to the prefix alone.
+function closureSummary(label) {
+  const trimmed = String(label || '').trim();
+  if (!trimmed || trimmed === DEFAULT_CLOSURE_LABEL) return 'Fermeture';
+  return `Fermeture — ${trimmed}`;
+}
+
+function closureEventLines(closure) {
+  return [
+    'BEGIN:VEVENT',
+    // Own UID namespace, stable across fetches: the platform updates the same block instead of
+    // stacking duplicates, and it can never collide with a reservation's.
+    `UID:closure-${closure.id}@guestflow.local`,
+    `DTSTAMP:${formatIcalDate(new Date())}`,
+    // Closures use the reservation convention — start inclusive, end exclusive — so both columns go
+    // in untouched: a closure 2026-11-01 → 2027-03-01 blocks the nights of 1 Nov through 28 Feb and
+    // leaves 1 March bookable.
+    `DTSTART:${formatIcalDate(new Date(closure.startDate))}`,
+    `DTEND:${formatIcalDate(new Date(closure.endDate))}`,
+    `SUMMARY:${escapeIcalText(closureSummary(closure.label))}`,
+    `DESCRIPTION:${CLOSURE_DESCRIPTION}`,
+    // No ATTENDEE: a closure has no guest.
+    'TRANSP:OPAQUE',
+    'END:VEVENT',
+  ];
+}
+
 function createIcalModel(database) {
+  const closures = establishmentClosuresModel.create(database);
+
   const model = {
     propertyExists(propertyId) {
       return !!database.prepare('SELECT id FROM properties WHERE id = ?').get(Number(propertyId));
@@ -53,7 +93,8 @@ function createIcalModel(database) {
       return newToken;
     },
 
-    // Build the property's iCal feed. Only real reservations (kind='reservation') are exported.
+    // Build the property's iCal feed: real reservations (kind='reservation', never a devis) followed
+    // by the closures that apply to this property.
     exportProperty(propertyId) {
       const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
       if (!property) return null;
@@ -92,6 +133,12 @@ function createIcalModel(database) {
         lines.push('TRANSP:OPAQUE');
         lines.push('END:VEVENT');
       });
+
+      // `list` already scopes to this property's own closures ∪ the global ones, drops those that are
+      // over (endDate > from — an ongoing closure stays, which is the one that matters most) and
+      // orders by startDate. Nothing to re-derive here.
+      closures.list({ propertyId, from: new Date().toISOString().slice(0, 10) })
+        .forEach((closure) => lines.push(...closureEventLines(closure)));
 
       lines.push('END:VCALENDAR');
       return lines.join('\r\n');

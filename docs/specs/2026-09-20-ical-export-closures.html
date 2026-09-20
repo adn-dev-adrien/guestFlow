@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Fermetures dans le flux iCal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --closed:#F3E1C1; --free:#E1EBD3; --resa:#DCE6EE; --hl:#ECE6D8;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --closed:#443520; --free:#2B3A26; --resa:#23313B; --hl:#2C2A22;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 31px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 13px/1.3 var(--sans);margin:0 0 8px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.lead{color:var(--muted);max-width:780px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12.5px;border:1px solid var(--line);white-space:nowrap}
+.pill.on{background:var(--free)} .pill.off{background:var(--closed)}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:4px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.good{border-left:4px solid var(--ok);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+code{font-family:var(--mono);font-size:12.5px}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.plain{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+table.plain th,table.plain td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+table.plain th{font-size:12.5px;color:var(--muted);font-weight:600}
+
+/* simulateur */
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
+.presets button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;min-height:44px;cursor:pointer;font:inherit;text-align:left}
+.presets button b{display:block;font-size:14px}
+.presets button span{font-size:12.5px;color:var(--muted)}
+.presets button[aria-pressed=true]{border-color:var(--sapin);box-shadow:inset 0 0 0 1px var(--sapin)}
+.sim{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+@media (max-width:900px){.sim{grid-template-columns:1fr}}
+.sim>*{min-width:0}
+label.f{display:block;font-size:13px;color:var(--muted);margin:12px 0 3px}
+input[type=text],input[type=date],select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;min-height:42px}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;min-height:44px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;cursor:pointer;font:inherit;font-size:13.5px;padding:4px 6px}
+.seg button[aria-pressed=true]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.err{color:var(--ko);font-size:13.5px;margin-top:10px;font-weight:600}
+.feeds{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.feed{flex:1 1 220px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--paper)}
+.feed b{display:block;font-size:13.5px;margin-bottom:4px}
+.feed .st{font-size:13px;font-weight:600}
+.feed .st.in{color:var(--ok)} .feed .st.out{color:var(--muted)}
+.feed .why{font-size:12.5px;color:var(--muted);margin-top:3px}
+.strip{display:flex;gap:3px;flex-wrap:nowrap;overflow-x:auto;padding:4px 0 8px;-webkit-overflow-scrolling:touch}
+.day{flex:none;width:44px;border:1px solid var(--line);border-radius:6px;padding:4px 2px;text-align:center;background:var(--paper)}
+.day .dn{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.day .dd{font-size:15px;font-weight:600;line-height:1.2}
+.day .mo{font-size:10.5px;color:var(--muted)}
+.day.closed{background:var(--closed);border-color:var(--ocre)}
+.day.edge{box-shadow:inset 0 0 0 2px var(--sapin)}
+.gap{flex:none;align-self:center;color:var(--muted);font-size:13px;padding:0 6px}
+.marks{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:2px 0 14px}
+.marks b{color:var(--ink)}
+pre.ics{margin:0;padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;white-space:pre-wrap;word-break:break-word;font:12.5px/1.65 var(--mono);overflow-x:auto}
+pre.ics .dim{color:var(--muted)}
+pre.ics .hl{background:var(--closed);border-radius:3px}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0;font-size:12.5px;color:var(--muted);align-items:center}
+.sw{display:inline-block;width:13px;height:13px;border-radius:3px;border:1px solid var(--line);vertical-align:-2px;margin-right:4px}
+.vseg{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.vseg button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;padding:6px 10px;min-height:38px;cursor:pointer;font:inherit;font-size:13px}
+.vseg button[aria-pressed=true]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.bk{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper)}
+.bk .hd{padding:8px 12px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.bk .bd{padding:12px}
+.bkrow{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--closed);margin-bottom:6px}
+.bkrow .lbl{font-weight:600;font-size:14px}
+.bkrow .dt{font-size:12.5px;color:var(--muted);margin-left:auto;text-align:right}
+.dec{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.dec h4{margin:0 0 4px;font:600 16px/1.35 var(--sans)}
+.dec .ctx{color:var(--muted);font-size:13.5px}
+.dec .ans{margin-top:8px;font-size:14px}
+.dec .ans b{color:var(--ok)}
+</style>
+<div class="wrap">
+
+<h1>Les fermetures dans le flux iCal</h1>
+<div class="meta">
+  Spec <code>specs/ical-export-closures.md</code> · statut <b>Implemented</b> · 20 septembre 2026 ·
+  à valider avant implémentation
+</div>
+<p class="lead">
+  Une période déclarée fermée dans GuestFlow bloquerait les dates sur toutes les plateformes qui lisent
+  le flux du logement, sans avoir à la reposer canal par canal.
+</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Ce qui marche déjà</h3>
+    <p>GuestFlow est bien le centre du maillage iCal. Le flux d'un logement
+    (<code>/api/ical/export/&lt;token&gt;</code>) contient <b>toutes</b> ses réservations, quelle que
+    soit leur origine — directes, Booking, Airbnb, Gîtes de France, GreenGo. Une plateforme qui
+    s'abonne à ce seul lien voit l'occupation complète.</p>
+  </div>
+  <div class="card">
+    <h3>Le trou</h3>
+    <p>Les <b>fermetures</b> ne sortent pas. <code>exportProperty</code> ne lit que la table
+    <code>reservations</code> ; la table <code>establishment_closures</code> bloque partout <i>à
+    l'intérieur</i> de GuestFlow — calendrier, disponibilités, découpe des recettes tarifaires — et
+    nulle part à l'extérieur. Une plateforme vend donc encore une fermeture hivernale.</p>
+  </div>
+</div>
+
+<div class="alert">
+  <b>Et le garde-fou d'import perd la réservation.</b> Depuis juin 2026, la synchro entrante
+  <b>écarte silencieusement</b> tout événement couvert par une fermeture — le bon choix contre le
+  surbooking, mais concrètement : le client a réservé sur Booking, il a sa confirmation en main, et il
+  n'existe <b>aucune trace</b> dans GuestFlow. Exporter la fermeture empêche la vente au lieu de la
+  jeter après coup. C'est le vrai motif de cette spec.
+</div>
+
+<h2>Essayez</h2>
+<p class="lead">
+  Modifiez la fermeture à gauche : les deux flux, les nuits réellement bloquées et le fichier
+  <code>.ics</code> se recalculent. Les deux points subtils sont là — la <b>fin exclusive</b> (la
+  dernière nuit bloquée est la veille de la date de fin) et le filtre <b>« pas terminée »</b>
+  (déplacez « aujourd'hui » au-delà de la fin).
+</p>
+
+<div class="presets" id="presets"></div>
+
+<div class="sim">
+  <div class="card">
+    <h3>La fermeture</h3>
+    <label class="f" for="lbl">Libellé</label>
+    <input type="text" id="lbl" value="Fermeture hivernale">
+    <label class="f" for="d1">Début (première nuit fermée)</label>
+    <input type="date" id="d1" value="2026-11-01">
+    <label class="f" for="d2">Fin (première nuit de nouveau libre)</label>
+    <input type="date" id="d2" value="2027-03-01">
+    <label class="f">Portée</label>
+    <div class="seg">
+      <button type="button" data-scope="global" aria-pressed="true">Tous les logements</button>
+      <button type="button" data-scope="granja" aria-pressed="false">La Granja seule</button>
+    </div>
+    <label class="f" for="today">Aujourd'hui (pour tester le filtre)</label>
+    <input type="date" id="today" value="2026-09-20">
+    <div class="err" id="err" hidden></div>
+  </div>
+
+  <div class="card">
+    <h3>Ce que reçoivent les plateformes</h3>
+    <div class="feeds" id="feeds"></div>
+
+    <h3>Les nuits bloquées</h3>
+    <div class="strip" id="strip"></div>
+    <div class="marks" id="marks"></div>
+
+    <div class="vseg">
+      <button type="button" data-view="ics" aria-pressed="true">Le fichier .ics</button>
+      <button type="button" data-view="bk" aria-pressed="false">Vu côté plateforme</button>
+    </div>
+    <div id="out"></div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--closed)"></span>nuit fermée</span>
+      <span><span class="sw" style="background:var(--paper)"></span>nuit vendable</span>
+      <span>bordure épaisse = première et dernière nuit fermée</span>
+    </div>
+  </div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="tblwrap">
+<table class="plain">
+  <tr><th>Règle</th><th>Comportement</th><th>Pourquoi</th></tr>
+  <tr>
+    <td><b>Portée</b></td>
+    <td>Le flux d'un logement porte ses fermetures propres <b>et</b> toutes les fermetures globales.</td>
+    <td>C'est déjà le découpage de <code>establishmentClosuresModel.list()</code> : on le réutilise, on
+    n'écrit pas de SQL neuf.</td>
+  </tr>
+  <tr>
+    <td><b>Filtre</b></td>
+    <td>Seules les fermetures <b>non terminées</b> (<code>endDate &gt; aujourd'hui</code>). Une fermeture
+    <i>en cours</i> part, évidemment.</td>
+    <td>Les plateformes n'ont rien à faire du passé, et le flux ne grossit pas indéfiniment.</td>
+  </tr>
+  <tr>
+    <td><b>Dates</b></td>
+    <td><code>DTSTART</code> = début, <code>DTEND</code> = fin, sans décalage.</td>
+    <td>Les fermetures utilisent déjà la convention des réservations : début inclus, <b>fin exclue</b>.
+    Rien à convertir, donc rien à se tromper.</td>
+  </tr>
+  <tr>
+    <td><b>Libellé</b></td>
+    <td><code>SUMMARY</code> = <code>Fermeture — &lt;libellé&gt;</code>.</td>
+    <td>Le préfixe évite de confondre le blocage avec un vrai client quand tu regardes le calendrier
+    dans Booking.</td>
+  </tr>
+  <tr>
+    <td><b>Identité</b></td>
+    <td><code>UID</code> = <code>closure-&lt;id&gt;@guestflow.local</code>.</td>
+    <td>Espace de noms distinct des réservations, stable d'une synchro à l'autre : la plateforme met à
+    jour le même blocage au lieu d'en empiler.</td>
+  </tr>
+  <tr>
+    <td><b>Données</b></td>
+    <td>Ni <code>ATTENDEE</code>, ni nom : une description fixe.</td>
+    <td>Une fermeture n'a pas de client.</td>
+  </tr>
+  <tr>
+    <td><b>Suppression</b></td>
+    <td>Fermeture supprimée → l'événement disparaît à la synchro suivante, la plateforme rouvre seule.</td>
+    <td>Le flux est reconstruit à chaque requête : rien à maintenir.</td>
+  </tr>
+</table>
+</div>
+
+<div class="good">
+  <b>Le chantier est petit.</b> Un seul fichier touché — <code>server/src/models/icalModel.js</code> —
+  plus un fichier de tests neuf. Aucune migration, aucune modification de schéma, aucun écran, aucun
+  changement de signature d'API : le flux gagne des événements, il n'en change aucun. Côté versionnage
+  c'est donc un <b>Y</b>, pas un X.
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+  <li><b>Pousser les fermetures par les API des plateformes.</b> On remplit le flux iCal ; un canal qui
+  ignore son import iCal restera à poser à la main.</li>
+  <li><b>Un interrupteur « bloquer sur les plateformes » par fermeture.</b> Écarté : une colonne en base,
+  un champ dans le formulaire, et une case qu'on oublie de cocher le jour où ça compte.</li>
+  <li><b>Exporter les devis.</b> Toujours exclus volontairement : une option posée ne doit pas bloquer
+  les plateformes.</li>
+  <li><b>La question des données client dans le flux.</b> Les événements de <i>réservation</i>, eux,
+  portent le nom du client en <code>SUMMARY</code> et son e-mail en <code>ATTENDEE</code>, et ça part
+  chez Booking et Airbnb. Soulevé aujourd'hui, ça mérite sa propre spec — pas traité ici.</li>
+</ul>
+
+<h2>Le risque</h2>
+<p>
+  Faible, et d'un seul type : <b>trop bloquer</b>. Si une fermeture est mal saisie, elle ne gêne plus
+  seulement le calendrier interne — elle retire les dates de la vente sur tous les canaux à la fois. La
+  contrepartie est que l'erreur se corrige aussi vite qu'elle se propage : supprimer la fermeture rouvre
+  partout à la synchro suivante.
+</p>
+<div class="note">
+  Le décalage de propagation reste celui de l'iCal : GuestFlow importe toutes les 5 minutes, mais chaque
+  plateforme vient chercher le flux à <i>son</i> rythme (de l'heure à quelques heures). Une fermeture
+  posée n'est pas opposable à la minute — ce n'est pas propre à cette spec, c'est la limite du protocole.
+</div>
+
+<h2>Arbitrages</h2>
+<div class="dec">
+  <h4>Que voient les plateformes comme libellé ?</h4>
+  <div class="ctx">Le libellé interne se retrouve tel quel dans l'interface de Booking ou d'Airbnb.</div>
+  <div class="ans">Tranché le 20/09/2026 → <b>« Fermeture — &lt;libellé&gt; »</b>. Si le libellé est vide
+  ou resté au défaut, le résumé est simplement <code>Fermeture</code>, pas
+  <code>Fermeture — Fermeture établissement</code>.</div>
+</div>
+<div class="dec">
+  <h4>Quelles fermetures partent ?</h4>
+  <div class="ctx">Toutes, seulement les futures, ou une case à cocher par fermeture ?</div>
+  <div class="ans">Tranché le 20/09/2026 → <b>celles qui ne sont pas terminées</b>
+  (<code>endDate &gt; aujourd'hui</code>). Pas de réglage, pas de colonne, pas d'oubli possible.</div>
+</div>
+
+<script>
+(function(){
+  var S = { lbl:'Fermeture hivernale', d1:'2026-11-01', d2:'2027-03-01', scope:'global', today:'2026-09-20', view:'ics' };
+  var DEFAULT_LABEL = 'Fermeture établissement';
+  var PROPS = [{ key:'granja', name:'La Granja' }, { key:'estiva', name:"L'Estiva" }];
+
+  var PRESETS = [
+    { id:'hiver', t:'Fermeture hivernale', s:'globale, 4 mois, à venir', v:{ lbl:'Fermeture hivernale', d1:'2026-11-01', d2:'2027-03-01', scope:'global', today:'2026-09-20' } },
+    { id:'raval', t:'Ravalement de façade', s:'un seul logement', v:{ lbl:'Ravalement de façade', d1:'2026-10-05', d2:'2026-10-12', scope:'granja', today:'2026-09-20' } },
+    { id:'passee', t:'Une fermeture terminée', s:'ne part plus dans le flux', v:{ lbl:'Travaux de printemps', d1:'2026-03-02', d2:'2026-03-16', scope:'global', today:'2026-09-20' } },
+    { id:'cours', t:'Une fermeture en cours', s:'commencée hier, elle part', v:{ lbl:'Panne de chaudière', d1:'2026-09-19', d2:'2026-09-26', scope:'granja', today:'2026-09-20' } },
+    { id:'defaut', t:'Libellé laissé par défaut', s:'le résumé se réduit', v:{ lbl:DEFAULT_LABEL, d1:'2026-12-24', d2:'2026-12-27', scope:'global', today:'2026-09-20' } }
+  ];
+
+  var $ = function(id){ return document.getElementById(id); };
+  function d(s){ return new Date(s + 'T00:00:00Z'); }
+  function iso(x){ return x.toISOString().slice(0,10); }
+  function add(s, n){ var x = d(s); x.setUTCDate(x.getUTCDate() + n); return iso(x); }
+  function compact(s){ return s.replace(/-/g,''); }
+  function nights(a, b){ return Math.round((d(b) - d(a)) / 86400000); }
+  var DN = ['dim','lun','mar','mer','jeu','ven','sam'];
+  var MO = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+  function human(s){ var x = d(s); return x.getUTCDate() + ' ' + MO[x.getUTCMonth()] + ' ' + x.getUTCFullYear(); }
+
+  // Les deux règles métier de la spec, en clair.
+  function escapeIcalText(t){ return String(t||'').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;'); }
+  function closureSummary(label){
+    var l = String(label||'').trim();
+    return (!l || l === DEFAULT_LABEL) ? 'Fermeture' : 'Fermeture — ' + l;
+  }
+
+  function validate(){
+    if (!S.d1 || !S.d2 || !S.today) return 'Renseignez les trois dates.';
+    if (S.d2 <= S.d1) return 'La date de fin doit être postérieure au début : une fermeture dure au moins une nuit.';
+    return null;
+  }
+
+  function renderPresets(){
+    $('presets').innerHTML = PRESETS.map(function(p){
+      return '<button type="button" data-preset="' + p.id + '" aria-pressed="false"><b>' + p.t + '</b><span>' + p.s + '</span></button>';
+    }).join('');
+    $('presets').addEventListener('click', function(e){
+      var b = e.target.closest('button[data-preset]'); if (!b) return;
+      var p = PRESETS.filter(function(x){ return x.id === b.dataset.preset; })[0];
+      Object.keys(p.v).forEach(function(k){ S[k] = p.v[k]; });
+      $('lbl').value = S.lbl; $('d1').value = S.d1; $('d2').value = S.d2; $('today').value = S.today;
+      document.querySelectorAll('[data-scope]').forEach(function(x){ x.setAttribute('aria-pressed', String(x.dataset.scope === S.scope)); });
+      render();
+    });
+  }
+
+  function markPresets(){
+    document.querySelectorAll('[data-preset]').forEach(function(b){
+      var p = PRESETS.filter(function(x){ return x.id === b.dataset.preset; })[0];
+      var same = Object.keys(p.v).every(function(k){ return S[k] === p.v[k]; });
+      b.setAttribute('aria-pressed', String(same));
+    });
+  }
+
+  function renderFeeds(inFeed, why){
+    $('feeds').innerHTML = PROPS.map(function(p){
+      var included = inFeed && (S.scope === 'global' || S.scope === p.key);
+      var reason = included ? 'événement <code>closure-7</code> présent'
+        : (!inFeed ? why : 'fermeture propre à ' + PROPS.filter(function(q){ return q.key === S.scope; })[0].name);
+      return '<div class="feed"><b>Flux ' + p.name + '</b>' +
+        '<div class="st ' + (included ? 'in' : 'out') + '">' + (included ? 'dates bloquées' : 'inchangé') + '</div>' +
+        '<div class="why">' + reason + '</div></div>';
+    }).join('');
+  }
+
+  function renderStrip(){
+    var first = S.d1, last = add(S.d2, -1), total = nights(S.d1, S.d2);
+    var days = [], i;
+    function cell(date){
+      var closed = date >= first && date <= last;
+      var edge = date === first || date === last;
+      var x = d(date);
+      return '<div class="day' + (closed ? ' closed' : '') + (edge ? ' edge' : '') + '">' +
+        '<div class="dn">' + DN[x.getUTCDay()] + '</div>' +
+        '<div class="dd">' + x.getUTCDate() + '</div>' +
+        '<div class="mo">' + MO[x.getUTCMonth()] + '</div></div>';
+    }
+    if (total <= 12) {
+      for (i = -2; i < total + 2; i++) days.push(cell(add(S.d1, i)));
+    } else {
+      for (i = -2; i < 4; i++) days.push(cell(add(S.d1, i)));
+      days.push('<div class="gap">… ' + (total - 8) + ' nuits …</div>');
+      for (i = total - 4; i < total + 2; i++) days.push(cell(add(S.d1, i)));
+    }
+    $('strip').innerHTML = days.join('');
+    $('marks').innerHTML =
+      '<span>Première nuit fermée : <b>' + human(first) + '</b></span>' +
+      '<span>Dernière nuit fermée : <b>' + human(last) + '</b></span>' +
+      '<span>De nouveau vendable le : <b>' + human(S.d2) + '</b></span>' +
+      '<span><b>' + total + '</b> nuit' + (total > 1 ? 's' : '') + '</span>';
+  }
+
+  function renderIcs(inFeed){
+    var head = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//GuestFlow//EN', 'CALSCALE:GREGORIAN',
+      'X-WR-CALNAME:La Granja', 'X-WR-TIMEZONE:Europe/Paris'
+    ];
+    var resa = [
+      'BEGIN:VEVENT', 'UID:reservation-1841@guestflow.local', 'DTSTAMP:' + compact(S.today),
+      'DTSTART:20261010', 'DTEND:20261014', 'SUMMARY:Marie Vasseur',
+      'DESCRIPTION:Plateforme: booking\\nAdultes: 2, Enfants: 0',
+      'ATTENDEE:mailto:m.vasseur@example.fr', 'TRANSP:OPAQUE', 'END:VEVENT'
+    ];
+    var clo = [
+      'BEGIN:VEVENT', 'UID:closure-7@guestflow.local', 'DTSTAMP:' + compact(S.today),
+      'DTSTART:' + compact(S.d1), 'DTEND:' + compact(S.d2),
+      'SUMMARY:' + escapeIcalText(closureSummary(S.lbl)),
+      'DESCRIPTION:Période de fermeture — aucune réservation possible.',
+      'TRANSP:OPAQUE', 'END:VEVENT'
+    ];
+    function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    var out = head.map(esc).join('\n') + '\n'
+      + '<span class="dim">' + resa.map(esc).join('\n') + '</span>\n'
+      + (inFeed ? '<span class="hl">' + clo.map(esc).join('\n') + '</span>\n' : '')
+      + 'END:VCALENDAR';
+    var note = inFeed ? '' : '<p style="font-size:13px;color:var(--muted);margin:10px 0 0">'
+      + 'La fermeture n\'apparaît pas : elle est terminée au regard de la date du jour. Le flux est '
+      + 'exactement celui d\'aujourd\'hui.</p>';
+    $('out').innerHTML = '<pre class="ics">' + out + '</pre>' + note;
+  }
+
+  function renderBooking(inFeed){
+    var body = inFeed
+      ? '<div class="bkrow"><span class="lbl">' + closureSummary(S.lbl).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>'
+        + '<span class="dt">' + human(S.d1) + ' → ' + human(add(S.d2, -1)) + '<br>' + nights(S.d1, S.d2) + ' nuits indisponibles</span></div>'
+      : '<p style="margin:0;color:var(--muted);font-size:13.5px">Aucun blocage importé pour cette période.</p>';
+    $('out').innerHTML = '<div class="bk"><div class="hd">Calendrier de la plateforme — ce qu\'elle affiche après avoir lu le flux</div>'
+      + '<div class="bd">'
+      + '<div class="bkrow" style="background:var(--resa)"><span class="lbl">Marie Vasseur</span>'
+      + '<span class="dt">10 oct 2026 → 13 oct 2026<br>réservation importée</span></div>'
+      + body + '</div></div>';
+  }
+
+  function render(){
+    markPresets();
+    var e = validate();
+    $('err').hidden = !e; $('err').textContent = e || '';
+    if (e) { $('feeds').innerHTML = ''; $('strip').innerHTML = ''; $('marks').innerHTML = ''; $('out').innerHTML = ''; return; }
+
+    var inFeed = S.d2 > S.today;
+    var why = 'terminée le ' + human(S.d2) + ' — filtrée';
+    renderFeeds(inFeed, why);
+    renderStrip();
+    if (S.view === 'ics') renderIcs(inFeed); else renderBooking(inFeed);
+  }
+
+  ['lbl','d1','d2','today'].forEach(function(id){
+    $(id).addEventListener('input', function(){ S[id] = this.value; render(); });
+  });
+  document.querySelectorAll('[data-scope]').forEach(function(b){
+    b.addEventListener('click', function(){
+      S.scope = b.dataset.scope;
+      document.querySelectorAll('[data-scope]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      render();
+    });
+  });
+  document.querySelectorAll('[data-view]').forEach(function(b){
+    b.addEventListener('click', function(){
+      S.view = b.dataset.view;
+      document.querySelectorAll('[data-view]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      render();
+    });
+  });
+
+  renderPresets();
+  render();
+})();
+</script>
+</div>
+</html>

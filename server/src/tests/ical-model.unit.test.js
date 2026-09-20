@@ -12,6 +12,10 @@ const DDL = `
     propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT, platform TEXT, adults INTEGER, children INTEGER
   );
   CREATE TABLE ical_tokens (propertyId INTEGER, token TEXT);
+  CREATE TABLE establishment_closures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, label TEXT, startDate TEXT, endDate TEXT,
+    createdAt TEXT, updatedAt TEXT
+  );
 `;
 
 function freshModel() {
