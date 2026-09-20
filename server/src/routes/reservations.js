@@ -21,6 +21,10 @@ router.post('/:id/sas/departure', sasController.commitDeparture);
 // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the background
 // when the check-in opens; never blocks the wizard, degrades to an empty list on any failure.
 router.get('/:id/weather-alerts', weatherController.getReservationAlerts);
+// Gate access (specs/gate-access-sowel-connector.md §3.4): the local copy of the invitation, for
+// the SAS step (code + QR) and the fiche's card. A read and nothing else — the gate belongs to the
+// house, and Sowel carries the actions.
+router.get('/:id/gate-access', controller.gateAccess);
 // Remboursements (specs/reservation-refunds.md §4.3). Admin-only through the standard role guard;
 // deliberately reachable on a past-locked reservation — an early departure is discovered after the stay.
 router.get('/:id/refunds', refundsController.list);

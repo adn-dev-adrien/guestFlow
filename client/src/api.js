@@ -197,6 +197,11 @@ const api = {
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),
+  // Gate access (specs/gate-access-sowel-connector.md §3.4): the local copy of the invitation —
+  // the fiche's card and the SAS step (code + QR). Read-only: every action lives in Sowel.
+  getReservationGateAccess: (id) => request(`/reservations/${id}/gate-access`),
+  // The gate-access connector's state (specs/gate-access-sowel-connector.md §3.5). No secret.
+  getGateConnector: () => request('/settings/gate-connector'),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),

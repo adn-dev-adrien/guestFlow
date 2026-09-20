@@ -22,6 +22,7 @@ const { sasLockReason } = require('../utils/sasEditWindow');
 const { stayDueAtArrival } = require('../utils/reservationSettlement');
 const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
 const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
+const gateInvitationView = require('../utils/gateInvitationView');
 
 // specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
 // has never been committed: a past, future or already-committed SAS is refused. The rule depends on
@@ -209,6 +210,10 @@ function getSas(req, res) {
     reservation: isReceptionOnly(req.user) ? toReceptionReservationView(reservation) : reservation,
     receptionLock,
     portalCode: String(settings.portalCode || '').trim(),
+    // Gate access (specs/gate-access-sowel-connector.md §3.4). The SAS payload says ONLY whether
+    // there is an invitation to show: the step reads the code and its QR through its own route, so
+    // rendering a QR never holds the SAS open.
+    gateAccess: { available: Boolean(gateInvitationView.usableInvitation(require('../database'), reservation.id)) },
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected
     // « ajouté », and « Non merci » removes it (specs/sas-upsells-activate-catalogue-option.md §3.2).
     cleaning: { included: cleaningIncluded, price: cleaningPrice, sasOrigin: upsells.cleaning.sasOrigin },

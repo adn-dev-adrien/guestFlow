@@ -19,6 +19,7 @@ import SettingsNotificationsSection from '../components/SettingsNotificationsSec
 import SettingsEmailAutomationSection from '../components/SettingsEmailAutomationSection';
 import SettingsWeatherSection from '../components/SettingsWeatherSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
+import SettingsGateAccessSection from '../components/SettingsGateAccessSection';
 import SettingsSystemUpdateSection from '../components/SettingsSystemUpdateSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
@@ -478,6 +479,12 @@ export default function SettingsPage() {
 
           {/* Version installée + mise à jour (specs/self-update-and-releases.md §6.4). Self-contained
               and admin-only — not part of the global settings form, nothing to save here. */}
+          {/* Gate access (specs/gate-access-sowel-connector.md §3.5) — the connector's state,
+              read-only: everything that is decided lives in Sowel. */}
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsGateAccessSection />
+          </Box>
+
           <Box sx={{ breakInside: 'avoid' }}>
             <SettingsSystemUpdateSection />
           </Box>

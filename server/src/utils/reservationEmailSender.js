@@ -14,6 +14,7 @@ const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const { autoSendAllowed } = require('./autoSendPolicy');
 const { MAIL, planStayMails } = require('./guestEmailSequence');
 const { sendSequenceMail } = require('./guestEmailSequenceRunner');
+const { usableInvitation } = require('./gateInvitationView');
 
 async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
   const template = templatesModel.findByStableKey(stableKey);
@@ -45,7 +46,12 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
 
   const settings = settingsModel.read();
   const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
-  const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
+  const context = buildContext({
+    reservation, client, property, options, resources, customOptions,
+    bedLinenProvidedByDefault, settings, lang,
+    // The local copy of the gate-access invitation — nothing to reach, nothing to wait for.
+    gateInvitation: usableInvitation(database, reservation.id),
+  });
   // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
   const extra = extraContext || {};
