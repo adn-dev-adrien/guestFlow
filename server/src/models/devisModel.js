@@ -116,9 +116,21 @@ function createModel(database) {
   }
 
   // ---- payment schedule ----
+  function readDepositEnabled(propertyId) {
+    try {
+      const row = database.prepare('SELECT depositEnabled FROM properties WHERE id = ?').get(Number(propertyId));
+      return row ? row.depositEnabled : undefined;
+    } catch { return undefined; }
+  }
+
   function resolvePaymentSchedule(row, property) {
     const totalStayPrice = roundMoney(Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0));
-    const depositPercent = Number(property?.depositPercent || 0);
+    // specs/property-deposit-switch.md rule 8 — a logement whose « Acompte » switch is OFF derives no
+    // acompte at all. Undefined (a property read without the column) counts as ON, like the engine.
+    const propertyDepositOff = property?.depositEnabled !== undefined
+      && property?.depositEnabled !== null
+      && Number(property.depositEnabled) !== 1;
+    const depositPercent = propertyDepositOff ? 0 : Number(property?.depositPercent || 0);
     // The acompte/solde SPLIT belongs to the pricing engine (specs/tourist-tax-on-solde.md rule 1: the
     // acompte is computed on the accommodation alone, the whole tourist tax rides on the solde), and
     // `create`/`update` already store what it decided. Re-deriving it here from the tax-INCLUSIVE total
@@ -190,7 +202,10 @@ function createModel(database) {
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
     const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
-    const schedule = resolvePaymentSchedule(row, property);
+    // specs/property-deposit-switch.md rule 8 — the switch feeds the schedule without widening the
+    // property payload the fiche receives. Read apart and defensively: several unit suites build
+    // their own minimal `properties` table, and a missing column means « acompte activé ».
+    const schedule = resolvePaymentSchedule(row, { ...property, depositEnabled: readDepositEnabled(row.propertyId) });
     // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
     // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
     // operator still deserves to see the date their quote would carry.

@@ -313,7 +313,7 @@ column (spec rule 34bis) — legacy rows have every net column `NULL`, so the gr
 "gross up the season price", exactly today's contract.
 
 All wrapped in the file's established idempotency pattern — a `PRAGMA table_info(…)` guard block, as
-used for `publicDepositEnabled` at [database.js:393](../../server/src/database.js#L393). Every default
+used for `depositEnabled` at [database.js:393](../../server/src/database.js#L393). Every default
 reproduces current behaviour, so no backfill and no data risk.
 
 Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside the existing

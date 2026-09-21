@@ -61,7 +61,7 @@ const NEW_DEFAULTS = {
   extraGuestPriceUnit: 'per_stay',
   singleBeds: 0, doubleBeds: 0,
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
-  publicDepositEnabled: false,
+  depositEnabled: false,
   defaultCautionAmount: 500,
   emailHook: '', emailHookEn: '', parkingDistanceMeters: 0, hasWifi: true, hasFilterCoffeeMaker: false,
   touristTaxPerDayPerPerson: 0,
@@ -188,7 +188,7 @@ export default function PropertyDetail() {
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDueDays: p.depositDueDays,
       balanceDaysBefore: p.balanceDaysBefore, cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
-      publicDepositEnabled: Boolean(p.publicDepositEnabled),
+      depositEnabled: Boolean(p.depositEnabled),
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       emailHook: p.emailHook || '', emailHookEn: p.emailHookEn || '',
       parkingDistanceMeters: p.parkingDistanceMeters ?? 0,
@@ -979,43 +979,62 @@ export default function PropertyDetail() {
         </Box>{/* fin colonne gauche */}
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
-        {/* Acompte & Solde */}
+        {/* specs/property-deposit-switch.md §6 — the switch opens the card and decides whether this
+            logement has an acompte at all; the settings that survive its absence live next door. */}
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Acompte & Solde</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Acompte</Typography>
+              <FormControlLabel
+                control={<Switch checked={Boolean(form.depositEnabled)} onChange={(e) => updateField('depositEnabled', e.target.checked)} />}
+                label="Acompte"
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5, ml: 0.5 }}>
+                {form.depositEnabled
+                  ? "Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée."
+                  : 'Le séjour est payé en une fois, à la réservation.'}
+              </Typography>
+              {form.depositEnabled && (
+                <Box sx={{ display: 'flex', gap: 2, mt: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   {/* specs/payment-schedule-and-cancellation.md §3.1 — the acompte is due from the
                       BOOKING, not from the arrival: this is a delay after the reservation is taken. */}
                   <TextField label="Acompte (jours après réservation)" type="number" value={form.depositDueDays ?? 7} onChange={(e) => updateField('depositDueDays', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 30} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 </Box>
-                <Box>
-                  <TextField
-                    label="Annulation (jours après échéance du solde)"
-                    type="number"
-                    value={form.cancelAfterBalanceDueDays ?? 7}
-                    onChange={(e) => updateField('cancelAfterBalanceDueDays', e.target.value)}
-                    onFocus={handleZeroFocus}
-                    fullWidth
-                    size="small"
-                    helperText="Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre d'indemnité."
-                  />
-                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* Paiement & Caution */}
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Paiement & Caution</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  label="Solde (jours avant)"
+                  type="number"
+                  value={form.balanceDaysBefore ?? 30}
+                  onChange={(e) => updateField('balanceDaysBefore', e.target.value)}
+                  onFocus={handleZeroFocus}
+                  fullWidth
+                  size="small"
+                  helperText="Échéance du solde — ou du paiement unique quand l'acompte est désactivé."
+                />
+                <TextField
+                  label="Annulation (jours après échéance du solde)"
+                  type="number"
+                  value={form.cancelAfterBalanceDueDays ?? 7}
+                  onChange={(e) => updateField('cancelAfterBalanceDueDays', e.target.value)}
+                  onFocus={handleZeroFocus}
+                  fullWidth
+                  size="small"
+                  helperText="Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre d'indemnité."
+                />
                 <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
                   htmlInput: { step: 50 }
                 }} />
-                <Box>
-                  <FormControlLabel
-                    control={<Switch checked={Boolean(form.publicDepositEnabled)} onChange={(e) => updateField('publicDepositEnabled', e.target.checked)} />}
-                    label="Acompte en ligne (site web)"
-                  />
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5, ml: 0.5 }}>
-                    Le site encaisse l'acompte à la réservation ; le solde est demandé par email à l'échéance. Sinon, le séjour est payé en une fois.
-                  </Typography>
-                </Box>
               </Box>
             </CardContent>
           </Card>

@@ -7,6 +7,7 @@
 | **Created** | 2026-07-03 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+| **Superseded in part** | [property-deposit-switch.md](property-deposit-switch.md) _(2026-09-20)_ — the toggle created here is renamed `depositEnabled` and now governs the acompte **everywhere**, not just on the website. Rules 1–2 and §5 below are amended accordingly; everything else (the deposit link, the balance cron, the plugin) stands. |
 | **Related** | [public-online-payment.md](public-online-payment.md) (UC2 full payment — this spec adds a per-property mode on top), [online-payments-qonto.md](online-payments-qonto.md) (links/poll/emails), [tourist-tax-on-solde.md](tourist-tax-on-solde.md) (deposit base excludes the tax), [payment-links-vat.md](payment-links-vat.md) (VAT items on the same links) |
 
 ---
@@ -46,9 +47,16 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
 1. **New per-property toggle « Acompte en ligne »** (`properties.publicDepositEnabled`, boolean,
    **default OFF** — decision 2026-07-03: no silent behavior change at deploy). Shown in the existing
    « Acompte & Solde » card on the property page, next to `depositPercent`.
+   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rules 1, 9-11): the
+   column is `properties.depositEnabled`, the label is « Acompte » tout court, and it lives at the top
+   of a card of its own — the toggle is no longer website-only._
 2. **The server decides the payment mode** — never the client. Effective mode for a quote/devis:
    `deposit` when the property has `publicDepositEnabled=1` **and** the computed `depositAmount > 0`
    (a `depositPercent` of 0 or a zero deposit falls back to `full`); otherwise `full`.
+   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rules 2, 7): the
+   column is `depositEnabled`, and a disabled property now has a zero deposit by construction — the
+   engine sees to it — so the second condition can no longer fire on its own. It stays as the
+   defensive read for a missing column or an unknown property._
 3. **Public quote** (`POST /public/v1/quote` and the booking-request receipt): the payload gains
    `payment.mode: 'deposit'|'full'`. The `deposit`/`balance` blocks are included **only when
    `mode='deposit'`** — in `full` mode they are omitted entirely, so the site cannot display Acompte /
@@ -125,7 +133,7 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `database.js` | `database.js` | T | Idempotent `ALTER TABLE properties ADD COLUMN publicDepositEnabled INTEGER NOT NULL DEFAULT 0` (pattern of `platformTakesDeposit`), + mirror in `schema.sql` baseline (line ~261). |
+| `database.js` | `database.js` | T | Idempotent `ALTER TABLE properties ADD COLUMN publicDepositEnabled INTEGER NOT NULL DEFAULT 0` (pattern of `platformTakesDeposit`), + mirror in `schema.sql` baseline (line ~261). _Renamed `depositEnabled` on 2026-09-20 — the same block now carries a `RENAME COLUMN` path._ |
 | `models/` | `propertiesModel.js` | T | Add the column to the **positional** INSERT/UPDATE lists (4 synchronized edits — column list + values, create + update); coerce to 0/1 (multipart sends strings). |
 | `controllers/public/` | `publicQuoteController.js` | T | Compute `payment.mode` (rule 2) and strip/include `deposit`/`balance` blocks accordingly. |
 | `utils/` | `publicProjections.js` | T | `toPublicQuote` gains `payment.mode`; deposit/balance conditional. (Deliberate, documented exception to the "deposit config never leaves the building" note — the mode + amounts are needed by the checkout.) |
@@ -183,6 +191,8 @@ into the `wp_app` container (see memory `wp-plugin-deploy-gap`, incident 2026-07
 - **`properties.publicDepositEnabled INTEGER NOT NULL DEFAULT 0`** — idempotent ALTER in
   `database.js` **and** `schema.sql` baseline (both required, migrations-baseline convention).
   Existing rows default to 0 → behavior unchanged until the operator opts in.
+  _Renamed `properties.depositEnabled` on 2026-09-20 by
+  [property-deposit-switch.md](property-deposit-switch.md) §5, values preserved._
 - New seeded email template `balance_request` (FR/EN) — additive, `email_templates` rows created by
   the existing registry seeding (idempotent by stableKey).
 - No new table. `payment_links.type='balance'` already valid.
@@ -214,7 +224,7 @@ into the `wp_app` container (see memory `wp-plugin-deploy-gap`, incident 2026-07
 - [x] `public-payment-mode.unit.test.js` — rule 2: deposit only when opted in AND deposit>0; defensive (missing column/unknown property → full); `depositPaymentCents` reads the RAW stored column (anti-drift, pins the enrichDevis trap); deposit VAT components.
 - [x] `public-projections.unit.test.js` — rule 3: `payment.mode` exposed; deposit/balance blocks present ONLY in deposit mode, absent (with mode='full') by default.
 - [x] `balance-request-runner.unit.test.js` — eligibility (balancePaid=0, positive balance, due date reached, paid deposit link on the converted devis), send-once dedup, failed-send retry, disabled-template no-op.
-- [x] `property-public-deposit-toggle.unit.test.js` — create/update coerce string/boolean/number `publicDepositEnabled` to a 0/1 bit ("false" → 0).
+- [x] `property-public-deposit-toggle.unit.test.js` — create/update coerce string/boolean/number `publicDepositEnabled` to a 0/1 bit ("false" → 0). _Renamed `property-deposit-enabled-column.unit.test.js` on 2026-09-20 with the column._
 - [x] `payment-request-service` — type `balance` resolves `balance_request` (INVALID_TYPE now only for unsupported types); full suite 1983 green.
 - Note: `applyPaidEffect` already converts + sets `depositPaid` only for a paid deposit link (covered by existing payment-poll-runner tests) — unchanged by this spec.
 

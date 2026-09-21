@@ -485,12 +485,18 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   }
 }
 
-// Per-property « Acompte en ligne » toggle (specs/public-online-deposit.md §5). Default 0 → existing
-// behaviour (single online full payment) is unchanged until the operator opts a property in.
+// Per-property « Acompte » switch. Born website-only as `publicDepositEnabled`
+// (specs/public-online-deposit.md §5), it now governs the acompte everywhere — admin fiches and
+// devis included (specs/property-deposit-switch.md rule 1), so it carries the name it deserves.
+// The RENAME preserves every stored value; `ADD COLUMN` is the fresh-database path.
 {
   const propCols = db.prepare("PRAGMA table_info(properties)").all().map((c) => c.name);
-  if (!propCols.includes('publicDepositEnabled')) {
-    db.exec('ALTER TABLE properties ADD COLUMN publicDepositEnabled INTEGER NOT NULL DEFAULT 0');
+  if (!propCols.includes('depositEnabled')) {
+    if (propCols.includes('publicDepositEnabled')) {
+      db.exec('ALTER TABLE properties RENAME COLUMN publicDepositEnabled TO depositEnabled');
+    } else {
+      db.exec('ALTER TABLE properties ADD COLUMN depositEnabled INTEGER NOT NULL DEFAULT 0');
+    }
   }
 }
 
