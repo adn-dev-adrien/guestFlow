@@ -27,6 +27,8 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
+const icalExportRangesModel = require('./icalExportRangesModel');
+const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const notificationService = require('../utils/notificationService');
 const googleCalendarSync = require('../utils/googleCalendarSync');
 // Establishment closures (2026-06-06): every iCal event is checked against the
@@ -235,7 +237,10 @@ function createPropertyIcalModel(database) {
           setEmptyFeedStreak.run(0, source.id);
           throw fetchError;
         }
-        const events = parseIcsEvents(icsText);
+        // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
+        // « CLOSED - Not available », real reservations included: keep them, the echo filter sorts them.
+        const isBookingFeed = normalizePlatformKey(source.platformKey || source.platformLabel || source.name) === 'booking';
+        const events = parseIcsEvents(icsText, { keepUnavailable: isBookingFeed });
 
         // Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rules 3-4). A feed that
         // suddenly parses to 0 events while this source still holds mappings would wipe the whole
@@ -488,12 +493,60 @@ function createPropertyIcalModel(database) {
           WHERE id = ?
         `);
 
+        // specs/lodgify-decommission.md §3 rules 1-4 — a channel's native feed takes over the stays
+        // that another source (the Lodgify relay) imported for it. Guarded: a minimal test schema
+        // without `kind` or `ical_superseded_events` simply has no takeover step.
+        let takeover = null;
+        try {
+          takeover = {
+            findCandidates: database.prepare(`
+              SELECT id, sourceIcalSourceId FROM reservations
+              WHERE propertyId = ? AND sourceType = 'ical' AND kind = 'reservation'
+                AND startDate = ? AND endDate = ?
+                AND ifnull(sourceIcalSourceId, -1) != ?
+                AND lower(trim(platform)) = lower(trim(?))
+            `),
+            moveSource: database.prepare(`
+              UPDATE reservations
+              SET sourceIcalSourceId = ?, sourcePlatformKey = ?, sourceIcalEventUid = ?, updatedAt = datetime('now')
+              WHERE id = ?
+            `),
+            listOtherMappings: database.prepare('SELECT sourceId, eventUid FROM ical_import_events WHERE reservationId = ? AND sourceId != ?'),
+            supersede: database.prepare(`
+              INSERT OR REPLACE INTO ical_superseded_events (sourceId, eventUid, reservationId, supersededBySourceId)
+              VALUES (?, ?, ?, ?)
+            `),
+            isSuperseded: database.prepare('SELECT 1 FROM ical_superseded_events WHERE sourceId = ? AND eventUid = ?'),
+            sourceLabel: database.prepare('SELECT platformLabel, name FROM ical_sources WHERE id = ?'),
+          };
+        } catch { takeover = null; }
+
+        // specs/lodgify-decommission.md §3 rules 6-8 — what GuestFlow already holds on this property,
+        // against which a Booking event is judged an echo: stays from any other origin, closures, and
+        // the ranges that left the export less than 72 h ago (Booking has not re-read the feed yet).
+        let bookingCover = null;
+        if (isBookingFeed) {
+          const exportRanges = icalExportRangesModel.create(database);
+          exportRanges.refresh(source.propertyId);
+          bookingCover = [
+            ...database.prepare(`
+              SELECT startDate, endDate FROM reservations
+              WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
+            `).all(source.propertyId, source.id),
+            ...closuresModel.list({ propertyId: source.propertyId }),
+            ...exportRanges.listActiveTombstones(source.propertyId),
+          ];
+        }
+
         let createdCount = 0;
         let updatedCount = 0;
         let unchangedCount = 0;
         let lockedCount = 0;
         let removedCount = 0;
         let skippedClosureCount = 0;
+        let takenOverCount = 0;
+        let echoSkippedCount = 0;
+        const conflictReservationIds = [];
         // IDs of GENUINELY-new reservations created in THIS sync run — drives the per-reservation
         // email notification post-commit (specs/site-booking-notifications.md §3 rule 7). Not a
         // "created today" query, so a re-sync of already-known rows never re-notifies.
@@ -525,6 +578,13 @@ function createPropertyIcalModel(database) {
             );
             if (coveringClosure) {
               skippedClosureCount += 1;
+              continue;
+            }
+
+            // A stay this source used to relay, now owned by the channel's native feed (rule 2):
+            // never re-import it while this (retired) source is still active.
+            if (takeover && takeover.isSuperseded.get(source.id, event.uid)) {
+              unchangedCount += 1;
               continue;
             }
 
@@ -574,13 +634,54 @@ function createPropertyIcalModel(database) {
             //       the heuristic cannot tell which one moved → we fall through to step 4
             //       + INSERT and let the cancellation alert flow surface the orphans for
             //       manual arbitration.
-            if (!mapping && summaryNormalized) {
+            // Not on a Booking feed: every Booking event shares the summary « CLOSED - Not available »,
+            // so a cancelled stay A and a new stay B arriving in the same sync would hand A's fiche to B
+            // (specs/lodgify-decommission.md §3 rule 4bis — the exact-dates re-claim covers Booking).
+            if (!mapping && summaryNormalized && !isBookingFeed) {
               const sameSummaryCandidates = listSameSourceMappingsBySummary.all(source.id, summaryNormalized);
               const staleCandidates = sameSummaryCandidates.filter((c) => !seenUids.has(c.eventUid));
               if (staleCandidates.length === 1) {
                 const candidate = staleCandidates[0];
                 mapping = { reservationId: Number(candidate.reservationId), eventHash: candidate.eventHash };
                 previousUid = String(candidate.eventUid || '');
+              }
+            }
+
+            // Takeover (specs/lodgify-decommission.md §3 rules 1-3) — the same stay, same platform, same
+            // exact dates, imported by another source: this feed becomes its owner. Runs before the
+            // Booking echo filter, which would otherwise mistake it for an echo. The stay is left
+            // untouched (a native feed carries less than the relay did: no name, no guest count).
+            if (!mapping && takeover) {
+              const candidates = takeover.findCandidates.all(source.propertyId, event.startDate, event.endDate, source.id, platformName);
+              if (candidates.length === 1) {
+                const claimedId = Number(candidates[0].id);
+                const previous = takeover.sourceLabel.get(candidates[0].sourceIcalSourceId) || {};
+                takeover.listOtherMappings.all(claimedId, source.id).forEach((old) => {
+                  takeover.supersede.run(old.sourceId, old.eventUid, claimedId, source.id);
+                  deleteMapping.run(old.sourceId, old.eventUid);
+                });
+                takeover.moveSource.run(source.id, source.platformKey, event.uid, claimedId);
+                upsertMapping.run(source.id, event.uid, claimedId, eventHash, event.startDate, event.endDate, summaryNormalized);
+                addReservationHistoryEntry(claimedId, 'update', [{
+                  field: 'sourceIcalSourceId',
+                  label: 'Origine',
+                  from: `Import iCal (${previous.platformLabel || previous.name || 'Source inconnue'})`,
+                  to: `Import iCal (${source.platformLabel || source.name || 'Source inconnue'})`,
+                }]);
+                takenOverCount += 1;
+                continue;
+              }
+            }
+
+            // Booking only — the feed has no guest name, so a stay whose UID Booking re-issued can only
+            // be recognised by its exact dates among this source's stays that left the feed.
+            if (!mapping && isBookingFeed) {
+              const ownStale = listSourceReservationsByDates
+                .all(source.id, event.startDate, event.endDate)
+                .filter((row) => !seenUids.has(String(row.sourceIcalEventUid || '')));
+              if (ownStale.length === 1) {
+                mapping = { reservationId: Number(ownStale[0].id), eventHash: null };
+                previousUid = String(ownStale[0].sourceIcalEventUid || '');
               }
             }
 
@@ -600,6 +701,18 @@ function createPropertyIcalModel(database) {
             // (`icalOriginalSummary`, used for cross-UID dedup) and the platform/sourceType identify the
             // booking as an import. The note is reserved for the operator's own free text.
             const notes = '';
+
+            // Booking echo filter (rules 6-8): every night already held → Booking is mirroring
+            // GuestFlow, skip; some nights held → create, but flag the conflict — never drop it.
+            let bookingConflict = false;
+            if (!mapping && bookingCover) {
+              const verdict = classifyBookingEvent(event, bookingCover);
+              if (verdict === 'echo') {
+                echoSkippedCount += 1;
+                continue;
+              }
+              bookingConflict = verdict === 'partial';
+            }
 
             if (!mapping) {
               // Resolve the iCal client only where it is actually persisted (insert branches);
@@ -633,6 +746,10 @@ function createPropertyIcalModel(database) {
               assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
+              if (bookingConflict) {
+                database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?').run(new Date().toISOString(), reservationId);
+                conflictReservationIds.push(reservationId);
+              }
               createdCount += 1;
               createdReservationIds.push(reservationId);
               continue;
@@ -799,6 +916,9 @@ function createPropertyIcalModel(database) {
           lockedCount,
           removedCount,
           skippedClosureCount,
+          takenOverCount,
+          echoSkippedCount,
+          conflictReservationIds,
           rawIcal: icsText,
           parsedEvents: events,
         };
@@ -814,7 +934,8 @@ function createPropertyIcalModel(database) {
       if (!String(source.url || '').trim()) {
         return {
           createdCount: 0, updatedCount: 0, unchangedCount: 0, lockedCount: 0,
-          removedCount: 0, skippedClosureCount: 0, createdReservationIds: [], skipped: true,
+          removedCount: 0, skippedClosureCount: 0, takenOverCount: 0, echoSkippedCount: 0,
+          conflictReservationIds: [], createdReservationIds: [], skipped: true,
         };
       }
       try {
@@ -828,6 +949,9 @@ function createPropertyIcalModel(database) {
           unchanged: result.unchangedCount,
           locked: result.lockedCount,
           skippedClosure: result.skippedClosureCount,
+          takenOver: result.takenOverCount || 0,
+          echoSkipped: result.echoSkippedCount || 0,
+          conflicts: (result.conflictReservationIds || []).length,
         });
         database.prepare(`
           UPDATE ical_sources
@@ -844,7 +968,9 @@ function createPropertyIcalModel(database) {
           // `skippedClosureCount` (2026-06-06) — events dropped because they fell on a
           // declared establishment closure. Surfaced for operator visibility in
           // `ical_sources.lastSyncMessage`.
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}, ${result.unchangedCount} inchangé(s)`,
+          // specs/lodgify-decommission.md §3 rule 13 — takeovers, Booking echoes and conflicts only
+          // appear when non-zero, like the closure count.
+          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${result.echoSkippedCount > 0 ? `, ${result.echoSkippedCount} écho(s) ignoré(s)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}, ${result.unchangedCount} inchangé(s)`,
           syncCounts,
           result.createdCount + result.updatedCount,
           source.id,
@@ -852,13 +978,20 @@ function createPropertyIcalModel(database) {
         // Best-effort, post-commit, per-reservation notification for genuinely-new iCal imports
         // (specs/site-booking-notifications.md §3 rule 7). Fire-and-forget so a slow/unconfigured
         // SMTP never delays or breaks the sync; the service swallows its own errors.
+        // A Booking stay created in conflict gets the conflict alert instead (specs/lodgify-decommission.md
+        // §3 rule 8) — one notification per stay, the one that asks for action.
+        const conflictIds = new Set(result.conflictReservationIds || []);
         for (const reservationId of result.createdReservationIds || []) {
-          Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
+          if (conflictIds.has(reservationId)) {
+            Promise.resolve(notificationService.notifyBookingConflict(reservationId, { origin: 'ical' })).catch(() => {});
+          } else {
+            Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
+          }
         }
         // Bookings changed → debounced Google Calendar reconcile, triggered here so every
         // caller (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) gets the same
         // low-latency push (specs/google-calendar-oauth-rework.md rule 20). Fire-and-forget.
-        if (result.createdCount + result.updatedCount + result.removedCount > 0) {
+        if (result.createdCount + result.updatedCount + result.removedCount + (result.takenOverCount || 0) > 0) {
           googleCalendarSync.scheduleReconcile();
         }
         return result;

@@ -165,7 +165,7 @@ function isWellFormedIcs(icsText) {
   return /BEGIN:VCALENDAR/i.test(String(icsText || ''));
 }
 
-function parseIcsEvents(icsText) {
+function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
   const lines = unfoldIcsLines(icsText);
   const events = [];
   let current = null;
@@ -221,7 +221,10 @@ function parseIcsEvents(icsText) {
         status,
       };
     })
-    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && !isUnavailableIcalEvent(event.summary, event.description));
+    // `keepUnavailable` — Booking.com labels every taken date « CLOSED - Not available », real
+    // reservations included, so its feed must not lose them here (specs/lodgify-decommission.md §3 rule 5).
+    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED'
+      && (keepUnavailable || !isUnavailableIcalEvent(event.summary, event.description)));
 }
 
 function buildEventHash(event) {

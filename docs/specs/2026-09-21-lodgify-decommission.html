@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Sortie de Lodgify</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --closed:#F3E1C1; --free:#E1EBD3; --resa:#DCE6EE; --booking:#D6DDF0; --tomb:#E7DCE8;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --closed:#443520; --free:#2B3A26; --resa:#23313B; --booking:#262E48; --tomb:#3A2D3C;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --closed:#443520; --free:#2B3A26; --resa:#23313B; --booking:#262E48; --tomb:#3A2D3C;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 31px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 13px/1.3 var(--sans);margin:0 0 8px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.lead{color:var(--muted);max-width:780px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:4px 0}
+ol.tight{margin:4px 0 0;padding-left:22px} ol.tight li{margin:6px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+.good{border-left:4px solid var(--ok);background:var(--card);padding:12px 14px;border-radius:6px;margin:12px 0}
+code{font-family:var(--mono);font-size:12.5px}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.plain{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+table.plain th,table.plain td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+table.plain th{font-size:12.5px;color:var(--muted);font-weight:600}
+
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
+.presets button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;min-height:44px;cursor:pointer;font:inherit;text-align:left}
+.presets button b{display:block;font-size:14px}
+.presets button span{font-size:12.5px;color:var(--muted)}
+.presets button[aria-pressed=true]{border-color:var(--sapin);box-shadow:inset 0 0 0 1px var(--sapin)}
+.sim{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+@media (max-width:900px){.sim{grid-template-columns:1fr}}
+.sim>*{min-width:0}
+label.f{display:block;font-size:13px;color:var(--muted);margin:12px 0 3px}
+input[type=number],select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;min-height:42px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 auto;min-height:44px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;cursor:pointer;font:inherit;font-size:13.5px;padding:4px 8px}
+.seg button[aria-pressed=true]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.err{color:var(--ko);font-size:13.5px;margin-top:10px;font-weight:600}
+.strip{display:flex;gap:3px;overflow-x:auto;padding:4px 0 8px;-webkit-overflow-scrolling:touch}
+.day{flex:none;width:46px;border:1px solid var(--line);border-radius:6px;padding:4px 2px;text-align:center;background:var(--paper);cursor:pointer;font:inherit;color:var(--ink);min-height:62px}
+.day .dn{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase}
+.day .dd{display:block;font-size:15px;font-weight:600;line-height:1.3}
+.day .tg{display:block;font-size:10px;color:var(--muted);line-height:1.2}
+.day.greengo{background:var(--resa)} .day.closure{background:var(--closed)}
+.day.cancelled{background:var(--tomb)} .day.lodgify{background:var(--booking)}
+.evrow{display:flex;gap:3px;overflow-x:auto;padding:0 0 4px}
+.evcell{flex:none;width:46px;height:12px;border-radius:3px}
+.evcell.on{background:var(--sapin)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--muted);align-items:center}
+.sw{display:inline-block;width:13px;height:13px;border-radius:3px;border:1px solid var(--line);vertical-align:-2px;margin-right:4px}
+.verdict{margin-top:14px;padding:14px;border-radius:8px;border:1px solid var(--line);background:var(--paper)}
+.verdict b.v{display:block;font:600 19px/1.3 var(--serif);margin-bottom:4px}
+.verdict.ok b.v{color:var(--ok)} .verdict.ko b.v{color:var(--ko)} .verdict.mid b.v{color:var(--ocre)}
+.verdict .d{font-size:14px;color:var(--muted)}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Sortie de Lodgify</h1>
+<div class="meta">Spec <code>specs/lodgify-decommission.md</code> · brouillon du 21/09/2026 · à valider</div>
+<p class="lead">Booking, Airbnb et Abritel repassent en gestion directe : calendrier synchronisé par iCal avec GuestFlow, prix et promotions saisis dans chaque extranet. Lodgify n'est résilié qu'une fois tout vérifié.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Aujourd'hui</h3>
+    <ul class="tight">
+      <li>Lodgify pousse prix et disponibilités vers Airbnb, Booking et Abritel.</li>
+      <li>GuestFlow ne lit que le flux Lodgify pour ces trois canaux. Les réservations Booking ou Airbnb y arrivent sous « Lodgify », et tu les renommes à la main.</li>
+      <li>Le paiement direct passe déjà par WordPress + GuestFlow : Lodgify ne sert plus qu'à piloter les canaux.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Ce qui déjà marche sans Lodgify</h3>
+    <ul class="tight">
+      <li>Le flux exporté par GuestFlow porte toutes les réservations et, depuis la PR #564, les fermetures.</li>
+      <li>Désactiver une source iCal arrête sa synchro sans toucher aux réservations.</li>
+      <li>Gîtes de France, GreenGo et Abracadaroom tournent déjà comme ça.</li>
+    </ul>
+  </div>
+</div>
+<div class="alert"><b>Deux pièges qui demandent du code.</b><br>
+1. <b>Booking appelle toutes ses dates prises « CLOSED - Not available », vraies réservations comprises.</b> GuestFlow ignore ce libellé exprès, car sur Airbnb il veut dire « bloqué par l'hôte ». Sur Booking, il ferait disparaître toutes les réservations, et les autres canaux resteraient ouverts sur ces dates.<br>
+2. <b>Les réservations futures sont rattachées au flux Lodgify.</b> Les flux natifs les présentent sous un autre identifiant, sans nom de client. Chaque réservation en cours serait alors dupliquée au premier import.</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="grid2">
+  <div class="card"><h3>Reprise</h3><p>Un événement natif qui tombe <b>exactement</b> sur les dates d'une réservation importée par une autre source, <b>avec la même plateforme</b>, reprend cette réservation au lieu d'en créer une. L'ancien lien Lodgify est effacé et la reprise est notée dans l'historique.</p></div>
+  <div class="card"><h3>Flux Booking</h3><p>Chaque événement Booking est une réservation potentielle. Il est écarté comme <b>écho</b> si toutes ses nuits sont déjà prises dans GuestFlow : séjour d'un autre canal, fermeture, ou séjour annulé récemment qui n'a pas encore quitté le calendrier Booking.</p></div>
+  <div class="card"><h3>Retrait de Lodgify</h3><p>Les deux sources Lodgify sont <b>désactivées</b>, jamais supprimées : pas d'alerte d'annulation, l'historique est conservé. La plateforme « Lodgify » reste pour les 17 réservations passées.</p></div>
+  <div class="card"><h3>Abritel</h3><p>La plateforme est créée à <b>15 %</b> de commission, pour que ses réservations n'arrivent plus sans commission.</p></div>
+</div>
+
+<h2>Essayer la règle Booking</h2>
+<p class="lead">Choisis un cas, ou peins toi-même les nuits : sélectionne un pinceau, puis clique sur les jours. La barre verte foncée représente l'événement que le flux Booking envoie.</p>
+<div class="presets" id="presets"></div>
+<div class="sim">
+  <div class="card">
+    <h3>Pinceau</h3>
+    <div class="seg" id="brush"></div>
+    <label class="f" for="evStart">Arrivée de l'événement Booking</label>
+    <select id="evStart"></select>
+    <label class="f" for="evEnd">Départ</label>
+    <select id="evEnd"></select>
+    <label class="f" for="age">Séjour annulé il y a (heures)</label>
+    <input type="number" id="age" min="0" max="500" step="1" value="10">
+    <div id="formErr" class="err" role="alert"></div>
+    <h3 style="margin-top:18px">Arbitrages (Q1, Q2)</h3>
+    <label class="f">Q1 — nuits en partie déjà prises</label>
+    <div class="seg" id="q1"></div>
+    <label class="f">Q2 — un séjour annulé couvre l'écho pendant</label>
+    <div class="seg" id="q2"></div>
+  </div>
+  <div class="card">
+    <h3>Calendrier du logement</h3>
+    <div class="strip" id="strip"></div>
+    <div class="evrow" id="evrow" aria-label="Événement Booking"></div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--resa)"></i>Séjour GreenGo</span>
+      <span><i class="sw" style="background:var(--closed)"></i>Fermeture</span>
+      <span><i class="sw" style="background:var(--tomb)"></i>Séjour annulé</span>
+      <span><i class="sw" style="background:var(--booking)"></i>Résa Booking passée par Lodgify</span>
+      <span><i class="sw" style="background:var(--sapin)"></i>Événement du flux Booking</span>
+    </div>
+    <div id="verdict" class="verdict" aria-live="polite"></div>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+  <li><b>Aucune poussée de prix, de promotion ou de séjour minimum.</b> GuestFlow reste un hub iCal. Les tarifs se saisissent dans chaque extranet, comme pour GreenGo et Abracadaroom.</li>
+  <li>Pas de nom de client sur les réservations Booking : le flux n'en contient pas. Il arrive par l'e-mail de confirmation.</li>
+  <li>Pas de remplacement de Lodgify par un autre channel manager.</li>
+  <li>La plateforme historique « Lodgify » n'est ni renommée ni fusionnée.</li>
+</ul>
+
+<h2>Les risques</h2>
+<div class="tblwrap"><table class="plain">
+<tr><th>Risque</th><th>Parade</th></tr>
+<tr><td><b>Abritel</b> : si l'annonce a été créée par Lodgify, la déconnexion peut la désactiver ou lui faire perdre ses avis.</td><td>Vérifié en <b>premier</b>, avant tout geste. En cas de doute, transfert par le support Vrbo.</td></tr>
+<tr><td><b>Booking</b> peut vider le plan tarifaire standard quand on retire le fournisseur de connectivité.</td><td>Relever tous les réglages avant, puis ressaisir dans la foulée.</td></tr>
+<tr><td>Synchro iCal plus lente (plusieurs heures) que l'API : risque de double réservation un peu plus élevé.</td><td>Un chevauchement n'est jamais écarté en silence : badge de conflit et notification (Q1).</td></tr>
+<tr><td>Une réservation de canal encore classée « Lodgify » ne sera pas reprise et apparaîtra en double.</td><td>Reclassement dans GuestFlow avant la bascule (étape 2 du déroulé).</td></tr>
+<tr><td>Un blocage posé à la main dans l'extranet Booking arrivera comme une réservation « Booking ».</td><td>Ne bloquer que dans GuestFlow (Réglages → Fermetures) : la fermeture part vers tous les canaux.</td></tr>
+</table></div>
+
+<h2>Le jour J</h2>
+<ol class="tight">
+  <li>Sauvegarde de la base de prod, et captures des calendriers des canaux sur 12 mois.</li>
+  <li><b>Abritel d'abord</b> : vérifier à qui appartient l'annonce AB 2622643.</li>
+  <li>Dans GuestFlow, reclasser les réservations futures « Lodgify » qui viennent d'un canal. Créer la plateforme Abritel à 15 %.</li>
+  <li>Relever les réglages de chaque canal : prix, plans dérivés, promos, séjours minimum, fenêtre de réservation.</li>
+  <li>Un canal à la fois (Booking, puis Airbnb, puis Abritel) :
+    <ul class="tight">
+      <li>le déconnecter de Lodgify ;</li>
+      <li>ressaisir les prix si besoin ;</li>
+      <li>lui faire importer le flux GuestFlow ;</li>
+      <li>brancher son flux dans GuestFlow et lire le résultat : des reprises, aucune création sur une date déjà prise.</li>
+    </ul></li>
+  <li><b>Dans la même séance</b>, désactiver les deux sources Lodgify.</li>
+  <li>Tester par devis sur chaque canal : une date prise ailleurs est indisponible, une date libre a le bon prix.</li>
+  <li>Surveiller le tableau de bord pendant 72 h.</li>
+  <li><b>Seulement ensuite</b>, résilier Lodgify.</li>
+</ol>
+
+<h2>Arbitrages en attente</h2>
+<div class="note"><b>Q1 — Nuits en partie déjà prises.</b> Recommandé : <b>créer la réservation Booking avec le badge de conflit</b>. Un chevauchement réel ne doit jamais disparaître en silence. L'autre option (alerte seule) laisse le calendrier sans la réservation tant que tu n'as pas tranché.</div>
+<div class="note"><b>Q2 — Durée de couverture d'un séjour annulé.</b> Recommandé : <b>72 h</b>, le temps que Booking relise le flux GuestFlow et libère les dates. Trop court, un séjour GreenGo annulé revient quelques heures comme fausse résa Booking. Trop long, une vraie résa Booking prise sur ces dates juste après l'annulation serait écartée.</div>
+<div class="note"><b>Q3 — À vérifier le jour J, pas à trancher.</b> On ne peut lire le vrai flux Booking qu'après avoir retiré le fournisseur de connectivité. On le lit avant de désactiver Lodgify.</div>
+
+</div>
+<script>
+(function(){
+  var N = 14, BASE = new Date(2027, 6, 1);
+  var DN = ['dim','lun','mar','mer','jeu','ven','sam'];
+  var BR = [
+    {k:'free', l:'Libre'}, {k:'greengo', l:'GreenGo'}, {k:'closure', l:'Fermeture'},
+    {k:'cancelled', l:'Annulé'}, {k:'lodgify', l:'Booking via Lodgify'}
+  ];
+  var TAG = {free:'', greengo:'GreenGo', closure:'fermé', cancelled:'annulé', lodgify:'Booking'};
+  var PRESETS = [
+    {t:'Écho GreenGo', s:'Booking renvoie un séjour GreenGo', n:fill({3:'greengo',4:'greengo',5:'greengo'}), a:3, b:6},
+    {t:'Vraie résa Booking', s:'Nuits libres dans GuestFlow', n:fill({}), a:7, b:10},
+    {t:'Reprise', s:'Résa Booking importée par Lodgify', n:fill({2:'lodgify',3:'lodgify',4:'lodgify',5:'lodgify'}), a:2, b:6},
+    {t:'Annulation récente', s:'GreenGo annulé il y a 10 h', n:fill({8:'cancelled',9:'cancelled'}), a:8, b:10, age:10},
+    {t:'Chevauchement', s:'Écho + une nuit de plus', n:fill({4:'greengo',5:'greengo'}), a:4, b:7},
+    {t:'Écho + fermeture', s:'Blocs accolés fusionnés', n:fill({9:'greengo',10:'greengo',11:'closure',12:'closure',13:'closure'}), a:9, b:14}
+  ];
+  function fill(m){ var a=[]; for(var i=0;i<N;i++) a.push(m[i]||'free'); return a; }
+  var st = {nights: fill({}), a:3, b:6, age:10, brush:'greengo', q1:'create', q2:72, preset:-1};
+
+  function date(i){ var d=new Date(BASE); d.setDate(d.getDate()+i); return d; }
+  function lbl(i){ var d=date(i); return DN[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1); }
+
+  function segs(id, items, cur, on){
+    var el=document.getElementById(id); el.innerHTML='';
+    items.forEach(function(it){
+      var b=document.createElement('button'); b.type='button'; b.textContent=it.l;
+      b.setAttribute('aria-pressed', String(it.k===cur));
+      b.onclick=function(){ on(it.k); render(); };
+      el.appendChild(b);
+    });
+  }
+
+  function classify(){
+    var a=st.a, b=st.b, n=st.nights;
+    // takeover: a contiguous lodgify block exactly equal to [a,b)
+    var exact = n[a]==='lodgify' && (a===0 || n[a-1]!=='lodgify') && (b===N || n[b]!=='lodgify');
+    for (var i=a;i<b;i++) if (n[i]!=='lodgify') exact=false;
+    if (exact) return {c:'ok', v:'Reprise', d:'La réservation Booking importée par Lodgify est rattachée au flux Booking natif. Pas de doublon, le lien Lodgify est effacé et la reprise est notée dans l’historique.'};
+    var covered=0, tombUsed=false, tombExpired=false, lodg=false;
+    for (var j=a;j<b;j++){
+      var s=n[j];
+      if (s==='greengo'||s==='closure') covered++;
+      else if (s==='cancelled'){ if (st.age < st.q2){ covered++; tombUsed=true; } else tombExpired=true; }
+      else if (s==='lodgify'){ lodg=true; }
+    }
+    var len=b-a;
+    if (lodg) return {c:'ko', v:'Pas de reprise : dates différentes', d:'Une réservation passée par Lodgify touche ces nuits mais pas avec exactement les mêmes dates. La reprise exige des dates identiques, donc GuestFlow la traite comme un chevauchement : '+(st.q1==='create'?'réservation Booking créée avec badge de conflit.':'alerte, rien n’est créé.')};
+    if (covered===len) return {c:'ok', v:'Écho ignoré', d:'Toutes les nuits sont déjà prises dans GuestFlow'+(tombUsed?' (dont un séjour annulé il y a '+st.age+' h, couvert '+st.q2+' h)':'')+'. Booking ne fait que renvoyer ce qu’il a importé : rien n’est créé.'};
+    if (covered===0) return {c:'mid', v:'Nouvelle réservation Booking', d:(tombExpired?'Le séjour annulé date de plus de '+st.q2+' h et ne couvre plus ces nuits. ':'')+'Ces nuits sont libres dans GuestFlow : c’est une vraie réservation Booking. Elle est créée au nom de « Booking » puis exportée vers les autres canaux.'};
+    return {c:'ko', v: st.q1==='create' ? 'Créée avec badge de conflit' : 'Alerte seule', d: covered+' nuit(s) sur '+len+' sont déjà prises. Ce peut être deux séjours accolés que Booking a fusionnés, ou un vrai surbooking. '+(st.q1==='create'?'La réservation est créée et signalée (badge sur la fiche et le calendrier, notification).':'Une alerte est levée, mais le calendrier reste sans cette réservation tant que tu n’as pas tranché.')};
+  }
+
+  function render(){
+    var p=document.getElementById('presets'); p.innerHTML='';
+    PRESETS.forEach(function(pr, i){
+      var b=document.createElement('button'); b.type='button';
+      b.setAttribute('aria-pressed', String(st.preset===i));
+      b.innerHTML='<b>'+pr.t+'</b><span>'+pr.s+'</span>';
+      b.onclick=function(){ st.nights=pr.n.slice(); st.a=pr.a; st.b=pr.b; if(pr.age!=null){st.age=pr.age; document.getElementById('age').value=pr.age;} st.preset=i; render(); };
+      p.appendChild(b);
+    });
+    segs('brush', BR, st.brush, function(k){ st.brush=k; });
+    segs('q1', [{k:'create',l:'Créer + conflit'},{k:'alert',l:'Alerte seule'}], st.q1, function(k){ st.q1=k; });
+    segs('q2', [{k:24,l:'24 h'},{k:72,l:'72 h'},{k:168,l:'7 j'}], st.q2, function(k){ st.q2=k; });
+
+    var s=document.getElementById('strip'); s.innerHTML='';
+    for (var i=0;i<N;i++){ (function(i){
+      var d=date(i), b=document.createElement('button'); b.type='button';
+      b.className='day '+st.nights[i];
+      b.setAttribute('aria-label', 'Nuit du '+lbl(i)+' : '+(TAG[st.nights[i]]||'libre'));
+      b.innerHTML='<span class="dn">'+DN[d.getDay()]+'</span><span class="dd">'+d.getDate()+'</span><span class="tg">'+TAG[st.nights[i]]+'</span>';
+      b.onclick=function(){ st.nights[i]=st.brush; st.preset=-1; render(); };
+      s.appendChild(b);
+    })(i); }
+
+    var sa=document.getElementById('evStart'), sb=document.getElementById('evEnd');
+    sa.innerHTML=''; sb.innerHTML='';
+    for (var k=0;k<=N;k++){
+      if (k<N){ var o=document.createElement('option'); o.value=k; o.textContent=lbl(k); sa.appendChild(o); }
+      if (k>0){ var o2=document.createElement('option'); o2.value=k; o2.textContent=lbl(k); sb.appendChild(o2); }
+    }
+    sa.value=st.a; sb.value=st.b;
+
+    var err=document.getElementById('formErr'), v=document.getElementById('verdict');
+    var ev=document.getElementById('evrow'); ev.innerHTML='';
+    for (var m=0;m<N;m++){ var c=document.createElement('div'); c.className='evcell'+(m>=st.a&&m<st.b?' on':''); ev.appendChild(c); }
+    if (!(st.b>st.a)){
+      err.textContent='Refusé : le départ doit être après l’arrivée. Un événement iCal couvre au moins une nuit.';
+      v.className='verdict ko'; v.innerHTML='<b class="v">Événement invalide</b><div class="d">GuestFlow rejette un événement sans nuit, comme il le fait déjà pour tous les flux.</div>';
+      return;
+    }
+    if (!(st.age>=0)){
+      err.textContent='Refusé : l’ancienneté d’une annulation est un nombre d’heures positif.';
+      v.className='verdict ko'; v.innerHTML='<b class="v">Saisie invalide</b>';
+      return;
+    }
+    err.textContent='';
+    var r=classify();
+    v.className='verdict '+r.c; v.innerHTML='<b class="v">'+r.v+'</b><div class="d">'+r.d+'</div>';
+  }
+
+  document.getElementById('evStart').onchange=function(e){ st.a=Number(e.target.value); st.preset=-1; render(); };
+  document.getElementById('evEnd').onchange=function(e){ st.b=Number(e.target.value); st.preset=-1; render(); };
+  document.getElementById('age').oninput=function(e){ var x=e.target.value; st.age = x==='' ? NaN : Number(x); st.preset=-1; render(); };
+  st.nights=PRESETS[0].n.slice(); st.a=PRESETS[0].a; st.b=PRESETS[0].b; st.preset=0;
+  render();
+})();
+</script>
+</body>
+</html>
