@@ -145,6 +145,8 @@ const api = {
 
   // Options
   getOptions: () => request('/options'),
+  // The options catalogue page: without the early / late options edited on each property (rule 15).
+  getCatalogueOptions: () => request('/options?view=catalogue'),
   createOption: (data) => request('/options', { method: 'POST', body: data }),
   updateOption: (id, data) => request(`/options/${id}`, { method: 'PUT', body: data }),
   deleteOption: (id) => request(`/options/${id}`, { method: 'DELETE' }),
@@ -214,7 +216,8 @@ const api = {
   // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over. `total`
   // null restores the computed total; the réduction / pourboire is derived and clamped server-side.
   adjustArrivalPayment: (id, total) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode: 'adjust', total } }),
-  deleteReservation: (id) => request(`/reservations/${id}`, { method: 'DELETE' }),
+  // `unlockPast` — an admin's per-fiche unlock of a past reservation (specs/settings-rationalization.md rule 17a).
+  deleteReservation: (id, { unlockPast = false } = {}) => request(`/reservations/${id}${unlockPast ? '?unlockPast=1' : ''}`, { method: 'DELETE' }),
 
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
   // payload, so the fiche only calls these two on a mutation.

@@ -574,7 +574,7 @@ export default function OptionsPage({ barCenter }) {
         );
       }}
       loadItems={async () => {
-        const [items, properties] = await Promise.all([api.getOptions(), api.getProperties()]);
+        const [items, properties] = await Promise.all([api.getCatalogueOptions(), api.getProperties()]);
         return { items, properties };
       }}
       createItem={(data) => api.createOption(data)}

@@ -326,3 +326,52 @@ test('rule 17: listSettings reports each platform\'s real tourist-tax mode, depo
   assert.equal(rows.get('direct').touristTaxCollection, null);
   assert.equal(rows.get('Airbnb').payoutDueDays, 10);
 });
+
+// ---------- rule 23a — the property form is validated server-side ----------
+
+const { validatePropertyInput } = require('../utils/propertyValidation');
+
+test('rule 23a: at least one bed, and the beds must sleep the guests — checked when capacity changes', () => {
+  assert.equal(validatePropertyInput({ maxGuests: '2', doubleBeds: '0', singleBeds: '0' }).doubleBeds, 'Il faut au moins un lit.');
+  assert.match(validatePropertyInput({ maxGuests: '6', doubleBeds: '1', singleBeds: '2' }).maxGuests, /Seulement 4 couchages pour 6/);
+  assert.deepEqual(validatePropertyInput({ maxGuests: '6', doubleBeds: '2', singleBeds: '2' }), {});
+  // An unrelated edit of a property already stored in that state is not blocked.
+  const stored = { maxGuests: 6, doubleBeds: 1, singleBeds: 2 };
+  assert.deepEqual(validatePropertyInput({ maxGuests: '6', doubleBeds: '1', singleBeds: '2', defaultCautionAmount: '400' }, stored), {});
+});
+
+test('rule 23a: deposit %, tax %, amounts and included guests are bounded', () => {
+  const errors = validatePropertyInput({
+    maxGuests: '4', depositEnabled: 'true', depositPercent: '100',
+    touristTaxPercentage: '120', defaultCautionAmount: '-5', basePriceIncludedGuests: '5', name: '  ',
+  }, { maxGuests: 4, doubleBeds: 2, singleBeds: 0 });
+  assert.ok(errors.depositPercent);
+  assert.ok(errors.touristTaxPercentage);
+  assert.ok(errors.defaultCautionAmount);
+  assert.match(errors.basePriceIncludedGuests, /capacité \(4\)/);
+  assert.ok(errors.name);
+  // Deposit OFF → its percentage is not judged (it is kept, not used).
+  assert.equal(validatePropertyInput({ depositEnabled: 'false', depositPercent: '100' }).depositPercent, undefined);
+});
+
+// ---------- rule 17c — the J-7 hooks are written alone ----------
+
+const propertiesModel = require('../models/propertiesModel');
+
+function propertiesDb() {
+  const db = baselineDb();
+  require('../utils/guestEmailSequenceSchema').applyGuestEmailSequenceSchema(db);
+  db.exec("INSERT INTO properties (id, name, maxGuests, defaultCautionAmount) VALUES (1, 'La Granja', 6, 500), (2, 'L''Estiva', 4, 400)");
+  return db;
+}
+
+test('rule 17c: saving the hooks writes the two hook columns and nothing else', () => {
+  const db = propertiesDb();
+  const model = propertiesModel.buildModel(db);
+  const result = model.saveEmailHooks([{ propertyId: 1, emailHook: ' Le soleil se lève. ', emailHookEn: 'The sun rises.' }]);
+  assert.equal(result.data.find((h) => h.propertyId === 1).emailHook, 'Le soleil se lève.');
+  const row = db.prepare('SELECT defaultCautionAmount, maxGuests FROM properties WHERE id = 1').get();
+  assert.deepEqual({ ...row }, { defaultCautionAmount: 500, maxGuests: 6 });
+  assert.equal(model.saveEmailHooks([{ propertyId: 99, emailHook: 'x' }]).status, 400);
+  assert.equal(model.saveEmailHooks('nope').status, 400);
+});

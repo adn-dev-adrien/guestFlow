@@ -1,45 +1,21 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router';
-import {
-  Box, Typography, Card, CardContent, TextField, Button,
-  TableBody, TableCell, TableHead, TableRow,
-  IconButton, Chip,
-  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, FormHelperText,
-  Tooltip, useMediaQuery, useTheme
-} from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router';
+import { Box, Tabs, Tab } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import UploadIcon from '@mui/icons-material/Upload';
-import SyncIcon from '@mui/icons-material/Sync';
-import AddIcon from '@mui/icons-material/Add';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import ScheduleIcon from '@mui/icons-material/Schedule';
-import FiberNewIcon from '@mui/icons-material/FiberNew';
-import AutorenewIcon from '@mui/icons-material/Autorenew';
-import CancelIcon from '@mui/icons-material/Cancel';
-import LockIcon from '@mui/icons-material/Lock';
-import RemoveIcon from '@mui/icons-material/Remove';
-import EventBusyIcon from '@mui/icons-material/EventBusy';
-import PlatformColorPicker from '../components/PlatformColorPicker';
 import { TIME_OPTIONS } from '../constants/timeOptions';
-import { PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR, normalizePlatformKey } from '../constants/platforms';
-import { displayDate, formatCurrency } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
-import TableCard from '../components/TableCard';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import { useToast } from '../components/DialogProvider';
-import IcalExportCard from '../components/IcalExportCard';
-import HelpedTextField from '../components/HelpedTextField';
+import PropertyGeneralTab from '../components/property/PropertyGeneralTab';
+import PropertyTariffTab from '../components/property/PropertyTariffTab';
+import PropertyPaymentTab from '../components/property/PropertyPaymentTab';
+import PropertyStayTab from '../components/property/PropertyStayTab';
+import PropertyPlatformsTab from '../components/property/PropertyPlatformsTab';
+import PropertyDocumentsTab from '../components/property/PropertyDocumentsTab';
 import api from '../api';
 
 // Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
@@ -59,11 +35,11 @@ const NEW_DEFAULTS = {
   basePriceIncludedGuests: 0,
   extraGuestPrice: 0,
   extraGuestPriceUnit: 'per_stay',
-  singleBeds: 0, doubleBeds: 0,
+  singleBeds: 0, doubleBeds: 1,
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   depositEnabled: false,
   defaultCautionAmount: 500,
-  emailHook: '', emailHookEn: '', parkingDistanceMeters: 0, hasWifi: true, hasFilterCoffeeMaker: false,
+  parkingDistanceMeters: 0, hasWifi: true, hasFilterCoffeeMaker: false,
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
@@ -72,25 +48,25 @@ const NEW_DEFAULTS = {
   defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
 };
 
-const DEFAULT_ICAL_COLOR = DEFAULT_PLATFORM_COLOR;
-
-// Visual breakdown of a sync result (specs/platforms-and-ical-rework.md §6): one icon + count per
-// category, mirroring the legacy free-text message so no info is lost. `always` items render even at 0
-// (greyed) to keep the row stable; rarer ones appear only when non-zero.
-const SYNC_COUNT_CATEGORIES = [
-  { key: 'created', label: 'Créé(s)', Icon: FiberNewIcon, color: 'success.main', always: true },
-  { key: 'updated', label: 'Mis à jour', Icon: AutorenewIcon, color: 'info.main', always: true },
-  { key: 'removed', label: 'Annulation(s) à valider', Icon: CancelIcon, color: 'warning.main', always: true },
-  { key: 'locked', label: 'Verrouillé(s)', Icon: LockIcon, color: 'text.secondary', always: true },
-  { key: 'unchanged', label: 'Inchangé(s)', Icon: RemoveIcon, color: 'text.secondary', always: true },
-  { key: 'skippedClosure', label: 'Ignoré(s) (fermeture)', Icon: EventBusyIcon, color: 'text.secondary', always: false },
+// specs/settings-rationalization.md rule 21 — the property page is split into tabs; the tab lives in
+// `?tab=`. Every form field belongs to one tab, so a tab can show that it holds an unsaved change
+// (amber dot) or a field the server refused (red dot).
+export const PROPERTY_TABS = [
+  { key: 'general', label: 'Général' },
+  { key: 'tarifs', label: 'Tarifs' },
+  { key: 'paiement', label: 'Paiement & caution' },
+  { key: 'sejour', label: 'Séjour' },
+  { key: 'plateformes', label: 'Plateformes & iCal' },
+  { key: 'documents', label: 'Documents' },
 ];
-
-// Show only the END of a (long) iCal URL — the trailing path/filename is the part that distinguishes
-// one feed from another. Leading "…" + the last `max` chars. Full URL stays available via the title.
-const shortenUrlEnd = (url, max = 30) => {
-  const u = String(url || '');
-  return u.length > max ? `…${u.slice(-(max - 1))}` : u;
+export const FIELD_TAB = {
+  name: 'general', nameArticle: 'general', maxGuests: 'general', maxBabies: 'general',
+  doubleBeds: 'general', singleBeds: 'general', defaultCheckIn: 'general', defaultCheckOut: 'general', cleaningHours: 'general',
+  basePriceIncludedGuests: 'tarifs', extraGuestPrice: 'tarifs', extraGuestPriceUnit: 'tarifs', touristTaxMode: 'tarifs',
+  touristTaxPerDayPerPerson: 'tarifs', touristTaxPercentage: 'tarifs', touristTaxDepartmentPercentage: 'tarifs', touristTaxFixedAmount: 'tarifs',
+  depositEnabled: 'paiement', depositPercent: 'paiement', depositDueDays: 'paiement', balanceDaysBefore: 'paiement',
+  cancelAfterBalanceDueDays: 'paiement', defaultCautionAmount: 'paiement',
+  parkingDistanceMeters: 'sejour', hasWifi: 'sejour', hasFilterCoffeeMaker: 'sejour',
 };
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -131,8 +107,6 @@ export default function PropertyDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = getFromParam(location.search);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   // Saves used to succeed SILENTLY on this page — toast the outcome (specs/ds-components.md §3.2).
   const { showSuccess, showError } = useToast();
   const dirtyRef = useRef(false);
@@ -144,22 +118,17 @@ export default function PropertyDetail() {
   const [dirty, setDirty] = useState(isNew);
   const [saving, setSaving] = useState(false);
   const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
-  const [docType, setDocType] = useState('contract');
-  const [docName, setDocName] = useState('');
-  const [docFile, setDocFile] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = PROPERTY_TABS.some((t) => t.key === searchParams.get('tab')) ? searchParams.get('tab') : 'general';
+  const selectTab = (next) => setSearchParams((prev) => {
+    const params = new URLSearchParams(prev);
+    if (next === 'general') params.delete('tab'); else params.set('tab', next);
+    return params;
+  }, { replace: true });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoValidationError, setPhotoValidationError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
-  // Plateformes & iCal (specs/platforms-and-ical-rework.md): the merged list (built-ins ∪ DB +
-  // this property's source config + global colour) drives the whole section.
-  const [platformRows, setPlatformRows] = useState([]);
-  const [editingKey, setEditingKey] = useState(null);
-  const [editDraft, setEditDraft] = useState({ url: '', touristTaxCollection: 'platform', platformTakesDeposit: 0, payoutDueDays: 10 });
-  const [savingKey, setSavingKey] = useState(null);
-  const [busyKey, setBusyKey] = useState(null);     // tax/disable toggle or single sync in flight
-  const [syncingAll, setSyncingAll] = useState(false);
-  const [addingPlatform, setAddingPlatform] = useState(false);
-  const [newPlatformName, setNewPlatformName] = useState('');
   const [timedOptions, setTimedOptions] = useState({ early: null, late: null });
   const [initialTimedOptions, setInitialTimedOptions] = useState({ early: null, late: null });
   const [timedOptionsSaving, setTimedOptionsSaving] = useState(false);
@@ -190,7 +159,6 @@ export default function PropertyDetail() {
       balanceDaysBefore: p.balanceDaysBefore, cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
       depositEnabled: Boolean(p.depositEnabled),
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
-      emailHook: p.emailHook || '', emailHookEn: p.emailHookEn || '',
       parkingDistanceMeters: p.parkingDistanceMeters ?? 0,
       hasWifi: p.hasWifi == null ? true : Boolean(p.hasWifi),
       hasFilterCoffeeMaker: Boolean(p.hasFilterCoffeeMaker),
@@ -250,14 +218,6 @@ export default function PropertyDetail() {
     setInitialTimedOptions(loadedTimedOptions);
   }, [id, isNew]);
 
-  // Merged platform list (built-ins ∪ DB + this property's source config + global colour). Loaded
-  // independently of `load()` so a sync/colour/tax change can refresh just this section.
-  const loadPlatforms = useCallback(async () => {
-    if (isNew) return;
-    const res = await api.getPropertyPlatforms(id);
-    setPlatformRows(res.platforms || []);
-  }, [id, isNew]);
-
   const updateTimedOptionField = (kind, field, value) => {
     setTimedOptions((prev) => {
       const option = prev[kind];
@@ -308,7 +268,6 @@ export default function PropertyDetail() {
   }, [canManageExtras, timedOptions, id, load]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadPlatforms(); }, [loadPlatforms]);
 
   // Warn on browser close/refresh
   useEffect(() => {
@@ -391,6 +350,7 @@ export default function PropertyDetail() {
   const updateField = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     setDirty(true);
+    if (errors[field]) setErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
   };
 
   const handleZeroFocus = (e) => {
@@ -405,6 +365,7 @@ export default function PropertyDetail() {
     setTimedOptions({ ...initialTimedOptions });
     setPhotoFile(null);
     setPhotoValidationError('');
+    setErrors({});
   };
 
   const handlePhotoFileChange = (event) => {
@@ -429,6 +390,7 @@ export default function PropertyDetail() {
       return;
     }
     setSaving(true);
+    setErrors({});
     try {
       if (isNew) {
         const fd = new FormData();
@@ -456,9 +418,16 @@ export default function PropertyDetail() {
       await load();
       showSuccess('Logement enregistré.');
     } catch (err) {
-      // Route the save failure to a toast — NOT the photo-validation field (which is reserved for
-      // the local file-format check). specs/ds-sweep-reservations.md rule 10.
-      showError(err?.message || "Impossible d'enregistrer le logement.");
+      // A refused field lands under its input and lights its tab (rule 23a); anything else toasts —
+      // NOT the photo-validation field (reserved for the local file-format check).
+      if (err && err.errors) {
+        setErrors(err.errors);
+        const firstTab = PROPERTY_TABS.find((t) => Object.keys(err.errors).some((f) => FIELD_TAB[f] === t.key));
+        if (firstTab) selectTab(firstTab.key);
+        showError('Enregistrement refusé : corrigez les champs en rouge.');
+      } else {
+        showError(err?.message || "Impossible d'enregistrer le logement.");
+      }
     } finally {
       setSaving(false);
     }
@@ -473,350 +442,29 @@ export default function PropertyDetail() {
     }
   };
 
-  const handleUploadDoc = async () => {
-    if (!canManageExtras) return;
-    if (!docFile) return;
-    const fd = new FormData();
-    fd.append('file', docFile);
-    fd.append('type', docType);
-    fd.append('name', docName || docFile.name);
-    await api.uploadDocument(id, fd);
-    setDocFile(null);
-    setDocName('');
-    load();
-  };
-
-  // ── Plateformes & iCal handlers (specs/platforms-and-ical-rework.md) ───────────────────────────
-
-  // Upsert this property's source row for a platform (configure-on-demand): create when no row
-  // exists yet, otherwise update. `changes` overrides url / disabled. (The tourist-tax mode is GLOBAL
-  // per platform — set via api.setPlatformTouristTax, not stored on the per-property source.)
-  const upsertPlatformSource = async (row, changes = {}) => {
-    const payload = {
-      platformKey: row.platformKey,
-      platformLabel: row.platformLabel,
-      url: changes.url !== undefined ? changes.url : (row.url || ''),
-      disabled: changes.disabled !== undefined ? changes.disabled : Boolean(row.disabled),
-    };
-    if (row.sourceId) await api.updatePropertyIcalSource(id, row.sourceId, payload);
-    else await api.createPropertyIcalSource(id, payload);
-  };
-
-  const handleSetPlatformColor = async (row, hex) => {
-    if (!canManageExtras) return;
-    setPlatformRows((prev) => prev.map((r) => (r.platformKey === row.platformKey ? { ...r, color: hex } : r)));
-    try {
-      await api.setPlatformColor(row.platformLabel, hex);
-      // Recolour the calendar/planning/finance views live (same module map App.js seeds from
-      // GET /properties/platform-colors). Keyed by the label normalised the way getPlatformColor
-      // looks up reservation.platform — so the change shows without a full reload.
-      const slug = normalizePlatformKey(row.platformLabel);
-      if (slug) PLATFORM_COLORS[slug] = hex;
-    } catch {
-      await loadPlatforms(); // revert to server truth on failure
-    }
-  };
-
-  // The tourist-tax mode is GLOBAL per platform — setting it here applies to every property.
-  const handleSetTaxMode = async (row, value) => {
-    if (!canManageExtras || row.isDirect) return;
-    setBusyKey(row.platformKey);
-    try {
-      await api.setPlatformTouristTax(row.platformLabel, value);
-      await loadPlatforms();
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  // specs/platform-deposit-toggle.md — the acompte flag is GLOBAL per platform — applies to every property.
-  const handleSetDepositMode = async (row, value) => {
-    if (!canManageExtras || row.isDirect) return;
-    setBusyKey(row.platformKey);
-    try {
-      await api.setPlatformDepositMode(row.platformLabel, value === 1 || value === '1');
-      await loadPlatforms();
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const handleToggleDisabled = async (row) => {
-    if (!canManageExtras) return;
-    setBusyKey(row.platformKey);
-    try {
-      await upsertPlatformSource(row, { disabled: !row.disabled });
-      await loadPlatforms();
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const startEditPlatform = (row) => {
-    setEditingKey(row.platformKey);
-    setEditDraft({
-      url: row.url || '',
-      touristTaxCollection: row.touristTaxCollection || 'platform',
-      platformTakesDeposit: row.platformTakesDeposit ? 1 : 0,
-      payoutDueDays: row.payoutDueDays ?? 10,
-    });
-  };
-
-  const cancelEditPlatform = () => setEditingKey(null);
-
-  const handleSavePlatform = async (row) => {
-    if (!canManageExtras) return;
-    const url = (editDraft.url || '').trim();
-    if (url && !/^https?:\/\//i.test(url)) return; // UX guard; the server validates authoritatively
-    setSavingKey(row.platformKey);
-    try {
-      // The tourist-tax mode is GLOBAL — persist it separately from the per-property URL/disabled.
-      if (!row.isDirect && editDraft.touristTaxCollection !== (row.touristTaxCollection || 'platform')) {
-        await api.setPlatformTouristTax(row.platformLabel, editDraft.touristTaxCollection);
-      }
-      // The acompte flag is GLOBAL too — persist when changed.
-      if (!row.isDirect && (editDraft.platformTakesDeposit ? 1 : 0) !== (row.platformTakesDeposit ? 1 : 0)) {
-        await api.setPlatformDepositMode(row.platformLabel, Boolean(editDraft.platformTakesDeposit));
-      }
-      // The payout delay is GLOBAL too. Only an integer in range is sent; anything else leaves the
-      // stored value alone (the server validates authoritatively either way).
-      const payoutDraft = Number(editDraft.payoutDueDays);
-      if (!row.isDirectChannel
-        && Number.isInteger(payoutDraft) && payoutDraft >= 0 && payoutDraft <= 365
-        && payoutDraft !== (row.payoutDueDays ?? 10)) {
-        await api.setPlatformPayoutDueDays(row.platformLabel, payoutDraft);
-      }
-      await upsertPlatformSource(row, { url });
-      await loadPlatforms();
-      setEditingKey(null);
-    } finally {
-      setSavingKey(null);
-    }
-  };
-
-  const handleSyncPlatform = async (row) => {
-    if (!canManageExtras || !row.sourceId || !row.url) return;
-    setBusyKey(row.platformKey);
-    try {
-      await api.syncPropertyIcalSource(id, row.sourceId);
-      await loadPlatforms();
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const handleDeletePlatformSource = async (row) => {
-    if (!canManageExtras || !row.sourceId || row.isBuiltIn) return; // default platforms are never removable
-
-    await api.deletePropertyIcalSource(id, row.sourceId);
-    if (editingKey === row.platformKey) setEditingKey(null);
-    await loadPlatforms();
-  };
-
-  const handleSyncAllIcalSources = async () => {
-    if (!canManageExtras) return;
-    setSyncingAll(true);
-    try {
-      await api.syncAllPropertyIcalSources(id);
-      await loadPlatforms();
-    } finally {
-      setSyncingAll(false);
-    }
-  };
-
-  const handleAddPlatform = async () => {
-    if (!canManageExtras) return;
-    const name = newPlatformName.trim();
-    if (!name) return;
-    // Upsert the platform into the registry (empty colour ⇒ tracks the built-in / grey default).
-    await api.setPlatformColor(name, '');
-    setNewPlatformName('');
-    setAddingPlatform(false);
-    await loadPlatforms();
-  };
-
-  // Platform name as a colour-filled chip (its background = the platform's calendar colour). Clicking
-  // it opens the palette. Greyed when the platform is disabled.
-  const renderPlatformName = (row) => (
-    <PlatformColorPicker
-      color={row.color || DEFAULT_ICAL_COLOR}
-      disabled={!canManageExtras}
-      showSwatch={false}
-      onChange={(hex) => handleSetPlatformColor(row, hex)}
-      label={(
-        <Chip
-          label={row.platformLabel}
-          size="small"
-          sx={{
-            fontWeight: 600,
-            bgcolor: row.disabled ? 'action.disabledBackground' : (row.color || DEFAULT_ICAL_COLOR),
-            color: row.disabled ? 'text.disabled' : 'common.white',
-          }}
-        />
-      )}
-    />
-  );
-
-  // Taxe de séjour (specs/per-platform-tourist-tax-three-way.md): a 3-way Select — live in read mode
-  // (persists on change), draft in edit mode. `direct` has no platform-tax notion → "—".
-  //   platform          → the platform collects it AND remits it to the commune (we never touch it).
-  //   platform_reversed → the platform collects it then reverses it to us → we remit (Suivi + compta).
-  //   owner             → we collect it at arrival (complément, SAS) → we remit (Suivi + compta).
-  const renderTaxControl = (row, editing) => {
-    if (row.isDirect) return <Typography variant="caption" color="text.secondary">—</Typography>;
-    const value = editing ? editDraft.touristTaxCollection : (row.touristTaxCollection || 'platform');
-    const onChange = editing
-      ? (e) => setEditDraft((d) => ({ ...d, touristTaxCollection: e.target.value }))
-      : (e) => handleSetTaxMode(row, e.target.value);
-    return (
-      <FormControl size="small" sx={{ minWidth: 168 }} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)}>
-        <Select
-          value={value}
-          onChange={onChange}
-          aria-label="Mode de collecte de la taxe de séjour"
-        >
-          <MenuItem value="platform">Plateforme → commune</MenuItem>
-          <MenuItem value="platform_reversed">Plateforme → vous</MenuItem>
-          <MenuItem value="owner">À l'arrivée</MenuItem>
-        </Select>
-      </FormControl>
-    );
-  };
-
-  // Acompte (specs/platform-deposit-toggle.md): a Oui/Non Select — live in read mode (persists on
-  // change), draft in edit mode. `direct` has its own deposit flow → "—". GLOBAL per platform.
-  //   Non (default) → no acompte, everything in the solde (legacy behaviour).
-  //   Oui           → the platform's reservations use the normal acompte/solde split.
-  const renderDepositControl = (row, editing) => {
-    if (row.isDirect) return <Typography variant="caption" color="text.secondary">—</Typography>;
-    const value = editing ? (editDraft.platformTakesDeposit ? 1 : 0) : (row.platformTakesDeposit ? 1 : 0);
-    const onChange = editing
-      ? (e) => setEditDraft((d) => ({ ...d, platformTakesDeposit: Number(e.target.value) }))
-      : (e) => handleSetDepositMode(row, Number(e.target.value));
-    return (
-      <FormControl size="small" sx={{ minWidth: 96 }} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)}>
-        <Select value={value} onChange={onChange} aria-label="Acompte sur cette plateforme">
-          <MenuItem value={0}>Non</MenuItem>
-          <MenuItem value={1}>Oui</MenuItem>
-        </Select>
-      </FormControl>
-    );
-  };
-
-  // Virement (specs/platform-payout-due-date.md §3.4): how many days after the guest leaves the
-  // platform is expected to pay. Drives the solde deadline of that platform's reservations and,
-  // past it, the dashboard's « Virement plateforme en retard » alert. GLOBAL per platform.
-  // Own channels (direct, Lodgify) are paid by the guest → no payout to wait for → "—".
-  // Read mode shows the value; unlike the two Selects beside it a free-typed number has no discrete
-  // "changed" moment, so it is edited in the row's edit mode and saved with it.
-  const renderPayoutControl = (row, editing) => {
-    if (row.isDirectChannel) return <Typography variant="caption" color="text.secondary">—</Typography>;
-    const stored = row.payoutDueDays ?? 10;
-    if (!editing) {
-      return <Typography variant="body2" sx={{ color: 'text.secondary' }}>{`${stored} j`}</Typography>;
-    }
-    return (
-      <TextField
-        size="small"
-        type="number"
-        value={editDraft.payoutDueDays ?? stored}
-        onChange={(e) => setEditDraft((d) => ({ ...d, payoutDueDays: e.target.value }))}
-        onFocus={handleZeroFocus}
-        disabled={!canManageExtras}
-        slotProps={{ htmlInput: { min: 0, max: 365, 'aria-label': 'Virement reçu sous (jours)' } }}
-        sx={{ width: 96 }}
-      />
-    );
-  };
-
-  // A single status glyph (used for error / never-synced / counts-less success).
-  const syncGlyph = (Icon, color, tip) => (
-    <Tooltip title={tip}>
-      <Box component="span" aria-label={tip} sx={{ color, display: 'inline-flex', verticalAlign: 'middle' }}><Icon fontSize="small" /></Box>
-    </Tooltip>
-  );
-
-  // Sync "État": on success, a per-category icon + count breakdown (créé / màj / annulation / verrouillé /
-  // inchangé / ignoré) — visual but lossless; error → red icon (+message); never synced → grey schedule.
-  // Empty for a manual-entry platform (no URL → nothing to sync).
-  const renderSyncStatus = (row) => {
-    if (!row.url) return null;
-    if (row.lastSyncStatus === 'error') return syncGlyph(ErrorIcon, 'error.main', row.lastSyncMessage || 'Erreur de synchronisation');
-    if (row.lastSyncStatus !== 'success') return syncGlyph(ScheduleIcon, 'text.disabled', 'Jamais synchronisé');
-
-    const counts = row.syncCounts;
-    if (!counts) return syncGlyph(CheckCircleIcon, 'success.main', row.lastSyncMessage || 'Synchronisé');
-    const shown = SYNC_COUNT_CATEGORIES.filter((c) => c.always || Number(counts[c.key]) > 0);
-    return (
-      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-        {shown.map(({ key, label, Icon, color }) => {
-          const n = Number(counts[key]) || 0;
-          return (
-            <Tooltip key={key} title={label}>
-              <Box component="span" aria-label={`${label} : ${n}`} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, color: n > 0 ? color : 'text.disabled' }}>
-                <Icon fontSize="small" />
-                <Typography variant="caption" sx={{ fontWeight: 600, color: n > 0 ? 'text.primary' : 'text.disabled' }}>{n}</Typography>
-              </Box>
-            </Tooltip>
-          );
-        })}
-      </Box>
-    );
-  };
-
-  // Per-row action buttons (shared by the desktop table + the mobile cards).
-  const renderPlatformActions = (row) => {
-    const isEditing = editingKey === row.platformKey;
-    const isBusy = busyKey === row.platformKey;
-    const isSaving = savingKey === row.platformKey;
-    const hasUrl = Boolean(row.url);
-    if (isEditing) {
-      return (
-        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-          <Tooltip title="Enregistrer">
-            <span><IconButton size="small" color="primary" aria-label="Enregistrer" onClick={() => handleSavePlatform(row)} disabled={!canManageExtras || isSaving}><CheckIcon fontSize="small" /></IconButton></span>
-          </Tooltip>
-          <Tooltip title="Annuler">
-            <span><IconButton size="small" aria-label="Annuler" onClick={cancelEditPlatform} disabled={isSaving}><CloseIcon fontSize="small" /></IconButton></span>
-          </Tooltip>
-        </Box>
-      );
-    }
-    return (
-      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        {hasUrl && row.sourceId && (
-          <Tooltip title="Synchroniser">
-            <span><IconButton size="small" color="info" aria-label="Synchroniser" onClick={() => handleSyncPlatform(row)} disabled={!canManageExtras || isBusy}><SyncIcon fontSize="small" /></IconButton></span>
-          </Tooltip>
-        )}
-        <Tooltip title={row.disabled ? 'Réactiver' : 'Désactiver'}>
-          <span><IconButton size="small" color={row.disabled ? 'warning' : 'default'} aria-label={row.disabled ? 'Réactiver' : 'Désactiver'} onClick={() => handleToggleDisabled(row)} disabled={!canManageExtras || isBusy}>{row.disabled ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}</IconButton></span>
-        </Tooltip>
-        {!row.isDirect && (
-          <Tooltip title="Modifier">
-            <span><IconButton size="small" aria-label="Modifier" onClick={() => startEditPlatform(row)} disabled={!canManageExtras}><EditIcon fontSize="small" /></IconButton></span>
-          </Tooltip>
-        )}
-        {row.sourceId && !row.isBuiltIn && (
-          <Tooltip title="Réinitialiser la configuration">
-            <span><IconButton size="small" color="error" aria-label="Réinitialiser la configuration" onClick={() => handleDeletePlatformSource(row)} disabled={!canManageExtras}><DeleteIcon fontSize="small" /></IconButton></span>
-          </Tooltip>
-        )}
-      </Box>
-    );
-  };
-
   if (loadError) {
     return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
   }
   if (!property) return <Box><PageActionBar title="Logement" /><LoadingState label="Chargement du logement…" /></Box>;
 
   const showSaveCancel = isNew || pageDirty;
+  const tabState = (key) => {
+    const fields = Object.keys(FIELD_TAB).filter((f) => FIELD_TAB[f] === key);
+    if (fields.some((f) => errors[f])) return 'error';
+    const changed = fields.some((f) => String(form[f] ?? '') !== String(originalForm[f] ?? ''))
+      || (key === 'general' && Boolean(photoFile))
+      || (key === 'sejour' && timedOptionsDirty);
+    return changed ? 'dirty' : '';
+  };
+  const tabDot = (state) => (state ? (
+    <Box component="span" aria-label={state === 'error' ? 'erreur' : 'modifié'} sx={{ width: 8, height: 8, borderRadius: '50%', ml: 0.75, bgcolor: state === 'error' ? 'error.main' : 'warning.main' }} />
+  ) : null);
+  const common = { form, errors, updateField, onZeroFocus: handleZeroFocus };
 
   return (
     <Box>
       <PageActionBar
-        title={isNew ? 'Nouveau logement' : 'Logement'}
+        title={isNew ? 'Nouveau logement' : (property.name || 'Logement')}
         titleOnXs
         {...(showSaveCancel ? {
           onSave: handleSaveProperty,
@@ -832,760 +480,59 @@ export default function PropertyDetail() {
           color: 'error',
         }] : []}
       />
-      {/* Two explicit columns on lg+ (1 below): left = Informations + Horaires,
-          right = Acompte + Options horaires + Options par défaut — the split keeps both columns
-          roughly the same height. The cards pack their fields 3-per-row, which needs the full
-          width below lg (at md the sidebar leaves each column too narrow and labels ellipse).
-          alignItems flex-start keeps each column at its own height. Wide / table cards go
-          full-width below. */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3, alignItems: 'flex-start' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-        {/* Infos */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Informations</Typography>
-              {/* Name is the first form field (specs/ds-sweep-reservations.md rule 9) — the bar shows
-                  a static title; this drives it. */}
-              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'flex-start', mb: 2 }}>
-                <TextField
-                  label="Nom du logement"
-                  value={form.name || ''}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  fullWidth
-                  size="small"
-                  autoFocus={isNew}
-                />
-                <TextField
-                  select
-                  label="Article du nom (emails clients)"
-                  value={form.nameArticle || 'au'}
-                  onChange={(e) => updateField('nameArticle', e.target.value)}
-                  size="small"
-                  fullWidth
-                  helperText={previewWithArticle(form.name, form.nameArticle)
-                    ? `Aperçu : « votre séjour ${previewWithArticle(form.name, form.nameArticle)} »`
-                    : 'Utilisé pour « votre séjour … » dans les emails clients.'}
-                >
-                  {NAME_ARTICLES.map((a) => (
-                    <MenuItem key={a} value={a}>{a}</MenuItem>
-                  ))}
-                </TextField>
-              </Box>
-              {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
-                    {property.photo ? 'Changer la photo' : 'Ajouter une photo'}
-                    <input type="file" hidden accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handlePhotoFileChange} />
-                  </Button>
-                  {photoFile && <Typography variant="body2" sx={{ mt: 1 }}>{photoFile.name}</Typography>}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
-                    {SUPPORTED_PHOTO_FORMATS_TEXT}
-                  </Typography>
-                  {photoValidationError && (
-                    <Typography variant="body2" color="error" sx={{ mt: 0.75 }}>
-                      {photoValidationError}
-                    </Typography>
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Max voyageurs" type="number" value={form.maxGuests ?? 0} onChange={(e) => updateField('maxGuests', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="Adultes, ados et enfants de plus de 2 ans" slotProps={{
-                    htmlInput: { min: 0 }
-                  }} />
-                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="0 à 2 ans, ne comptent pas dans la capacité" slotProps={{
-                    htmlInput: { min: 0 }
-                  }} />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                    htmlInput: { min: 0 }
-                  }} />
-                  <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                    htmlInput: { min: 0 }
-                  }} />
-                  <TextField
-                    label="Capacité incluse dans le prix de base"
-                    type="number"
-                    value={form.basePriceIncludedGuests ?? 0}
-                    onChange={(e) => updateField('basePriceIncludedGuests', e.target.value)}
-                    onFocus={handleZeroFocus}
-                    fullWidth
-                    size="small"
-                    helperText="Nombre de personnes incluses avant surcoût"
-                    slotProps={{
-                      htmlInput: { min: 0, step: 1 }
-                    }}
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField
-                    label="Supplément par personne (€)"
-                    type="number"
-                    value={form.extraGuestPrice ?? 0}
-                    onChange={(e) => updateField('extraGuestPrice', e.target.value)}
-                    onFocus={handleZeroFocus}
-                    fullWidth
-                    size="small"
-                    helperText="Ex: 15 pour facturer 15€ par personne supplémentaire"
-                    slotProps={{
-                      htmlInput: { min: 0, step: 0.01 }
-                    }}
-                  />
-                  <FormControl fullWidth size="small">
-                    <InputLabel id="extra-guest-unit-label">Unité du supplément</InputLabel>
-                    <Select
-                      labelId="extra-guest-unit-label"
-                      label="Unité du supplément"
-                      value={form.extraGuestPriceUnit ?? 'per_stay'}
-                      onChange={(e) => updateField('extraGuestPriceUnit', e.target.value)}
-                    >
-                      <MenuItem value="per_stay">par séjour</MenuItem>
-                      <MenuItem value="per_night">par nuit</MenuItem>
-                    </Select>
-                    <FormHelperText>« par nuit » suit la dégressivité de la saison</FormHelperText>
-                  </FormControl>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
+      <Box sx={{ maxWidth: 980, mx: 'auto', px: { xs: 0, sm: 1 } }}>
+        <Tabs
+          value={tab}
+          onChange={(_, next) => selectTab(next)}
+          variant="scrollable"
+          allowScrollButtonsMobile
+          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        >
+          {PROPERTY_TABS
+            .filter((t) => !isNew || ['general', 'tarifs', 'paiement', 'sejour'].includes(t.key))
+            .map((t) => (
+              <Tab key={t.key} value={t.key} label={<Box sx={{ display: 'inline-flex', alignItems: 'center' }}>{t.label}{tabDot(tabState(t.key))}</Box>} />
+            ))}
+        </Tabs>
 
-        {/* Horaires & Ménage */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Horaires & Ménage</Typography>
-              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Heure d'arrivée</InputLabel>
-                  <Select value={form.defaultCheckIn || '15:00'} label="Heure d'arrivée" onChange={(e) => updateField('defaultCheckIn', e.target.value)}>
-                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Heure de départ</InputLabel>
-                  <Select value={form.defaultCheckOut || '10:00'} label="Heure de départ" onChange={(e) => updateField('defaultCheckOut', e.target.value)}>
-                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                  </Select>
-                </FormControl>
-                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                  htmlInput: { min: 0, step: 0.5 }
-                }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
-        </Box>{/* fin colonne gauche */}
-
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-        {/* specs/property-deposit-switch.md §6 — the switch opens the card and decides whether this
-            logement has an acompte at all; the settings that survive its absence live next door. */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Acompte</Typography>
-              <FormControlLabel
-                control={<Switch checked={Boolean(form.depositEnabled)} onChange={(e) => updateField('depositEnabled', e.target.checked)} />}
-                label="Acompte"
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5, ml: 0.5 }}>
-                {form.depositEnabled
-                  ? "Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée."
-                  : 'Le séjour est payé en une fois, à la réservation.'}
-              </Typography>
-              {form.depositEnabled && (
-                <Box sx={{ display: 'flex', gap: 2, mt: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  {/* specs/payment-schedule-and-cancellation.md §3.1 — the acompte is due from the
-                      BOOKING, not from the arrival: this is a delay after the reservation is taken. */}
-                  <TextField label="Acompte (jours après réservation)" type="number" value={form.depositDueDays ?? 7} onChange={(e) => updateField('depositDueDays', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* Paiement & Caution */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Paiement & Caution</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField
-                  label="Solde (jours avant)"
-                  type="number"
-                  value={form.balanceDaysBefore ?? 30}
-                  onChange={(e) => updateField('balanceDaysBefore', e.target.value)}
-                  onFocus={handleZeroFocus}
-                  fullWidth
-                  size="small"
-                  helperText="Échéance du solde — ou du paiement unique quand l'acompte est désactivé."
-                />
-                <TextField
-                  label="Annulation (jours après échéance du solde)"
-                  type="number"
-                  value={form.cancelAfterBalanceDueDays ?? 7}
-                  onChange={(e) => updateField('cancelAfterBalanceDueDays', e.target.value)}
-                  onFocus={handleZeroFocus}
-                  fullWidth
-                  size="small"
-                  helperText="Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé. L'acompte encaissé est alors conservé à titre d'indemnité."
-                />
-                <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                  htmlInput: { step: 50 }
-                }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* specs/guest-email-sequence.md §6.2 — the property facts the guest emails read. */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Dans les mails clients</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Repris par la séquence de mails : l&apos;accroche ouvre le mail J-7, le reste adapte les conseils de bagages et d&apos;arrivée.
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <HelpedTextField
-                  label="Accroche du mail J-7"
-                  value={form.emailHook || ''}
-                  onChange={(v) => updateField('emailHook', v)}
-                  helperText="Une phrase après « Plus qu'une semaine, et vous serez … ». Ex. : Chaque matin, le soleil s'y lève sur la vallée."
-                  multiline
-                  minRows={2}
-                  size="small"
-                />
-                <HelpedTextField
-                  label="Accroche (anglais)"
-                  value={form.emailHookEn || ''}
-                  onChange={(v) => updateField('emailHookEn', v)}
-                  helperText="Pour les clients qui reçoivent leurs mails en anglais."
-                  multiline
-                  minRows={2}
-                  size="small"
-                />
-                <TextField
-                  label="Distance du parking (m)"
-                  type="number"
-                  value={form.parkingDistanceMeters ?? 0}
-                  onChange={(e) => updateField('parkingDistanceMeters', e.target.value)}
-                  onFocus={handleZeroFocus}
-                  helperText="0 si l'on se gare devant. Sinon, les mails conseillent de voyager léger."
-                  size="small"
-                  fullWidth
-                  slotProps={{ htmlInput: { min: 0, step: 50 } }}
-                />
-                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 0, sm: 3 } }}>
-                  <FormControlLabel
-                    control={<Switch checked={Boolean(form.hasWifi)} onChange={(e) => updateField('hasWifi', e.target.checked)} />}
-                    label="Wifi dans le logement"
-                    sx={{ minHeight: 44 }}
-                  />
-                  <FormControlLabel
-                    control={<Switch checked={Boolean(form.hasFilterCoffeeMaker)} onChange={(e) => updateField('hasFilterCoffeeMaker', e.target.checked)} />}
-                    label="Cafetière familiale (café moulu)"
-                    sx={{ minHeight: 44 }}
-                  />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
-
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Options horaires automatiques</Typography>
-              {[
-                { key: 'early', title: 'Arrivée anticipée', hint: 'Ajoutée automatiquement si arrivée avant l\'heure par défaut.' },
-                { key: 'late', title: 'Départ tardif', hint: 'Ajoutée automatiquement si départ après l\'heure par défaut.' },
-              ].map((entry) => {
-                const option = timedOptions[entry.key];
-                if (!option) return null;
-                return (
-                  <Box key={entry.key} sx={{ mb: 2.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.title}</Typography>
-                        <Typography variant="caption" color="text.secondary">{entry.hint}</Typography>
-                      </Box>
-                      <FormControlLabel
-                        control={<Switch checked={Boolean(option.autoEnabled)} onChange={(e) => updateTimedOptionField(entry.key, 'autoEnabled', e.target.checked)} />}
-                        label={option.autoEnabled ? 'Actif' : 'Inactif'}
-                      />
-                    </Box>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5, mt: 1 }}>
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Tarification</InputLabel>
-                        <Select
-                          value={option.autoPricingMode || 'fixed'}
-                          label="Tarification"
-                          onChange={(e) => updateTimedOptionField(entry.key, 'autoPricingMode', e.target.value)}
-                        >
-                          <MenuItem value="fixed">Prix fixe</MenuItem>
-                          <MenuItem value="proportional">Proportionnel au prix de nuit</MenuItem>
-                        </Select>
-                      </FormControl>
-
-                      <TextField
-                        size="small"
-                        type="number"
-                        label="Prix fixe (€)"
-                        value={option.price ?? 0}
-                        onChange={(e) => updateTimedOptionField(entry.key, 'price', e.target.value)}
-                        disabled={(option.autoPricingMode || 'fixed') !== 'fixed'}
-                        fullWidth
-                        slotProps={{
-                          htmlInput: { min: 0, step: 1 }
-                        }}
-                      />
-
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Seuil nuit complète</InputLabel>
-                        <Select
-                          value={option.autoFullNightThreshold || (entry.key === 'early' ? '10:00' : '17:00')}
-                          label="Seuil nuit complète"
-                          onChange={(e) => updateTimedOptionField(entry.key, 'autoFullNightThreshold', e.target.value)}
-                        >
-                          {TIME_OPTIONS.map((time) => <MenuItem key={`${entry.key}-${time}`} value={time}>{time}</MenuItem>)}
-                        </Select>
-                      </FormControl>
-                    </Box>
-                  </Box>
-                );
-              })}
-
-            </CardContent>
-          </Card>
-        </Box>
-
-        </Box>{/* fin colonne droite */}
-      </Box>{/* fin wrapper 2 colonnes */}
-
-      {/* Full-width section: wide / table-bearing cards */}
-      <Box>
-        {/* Pricing */}
-        <Box sx={{ mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Tarification</Typography>
-              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', lineHeight: 2 }}>Taxe de séjour</Typography>
-              
-              <FormControl fullWidth size="small" sx={{ mt: 1.25, mb: 1.5 }}>
-                <InputLabel>Mode de calcul</InputLabel>
-                <Select
-                  label="Mode de calcul"
-                  value={form.touristTaxMode ?? 'per_day_per_person'}
-                  onChange={(e) => updateField('touristTaxMode', e.target.value)}
-                >
-                  <MenuItem value="per_day_per_person">Par jour et par adulte</MenuItem>
-                  <MenuItem value="percentage_accommodation">% du montant hébergement</MenuItem>
-                  <MenuItem value="percentage_and_fixed">% + montant fixe</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, mb: 2 }}>
-                {form.touristTaxMode === 'per_day_per_person' && (
-                  <TextField
-                    label="Taxe (€/jour/adulte)"
-                    type="number"
-                    value={form.touristTaxPerDayPerPerson ?? 0}
-                    onChange={(e) => updateField('touristTaxPerDayPerPerson', e.target.value)}
-                    onFocus={handleZeroFocus}
-                    fullWidth
-                    size="small"
-                    slotProps={{
-                      htmlInput: { min: 0, step: 0.01 }
-                    }}
-                  />
-                )}
-                
-                {form.touristTaxMode === 'percentage_accommodation' && (
-                  <>
-                    <TextField
-                      label="Pourcentage commune (%)"
-                      type="number"
-                      value={form.touristTaxPercentage ?? 0}
-                      onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
-                      onFocus={handleZeroFocus}
-                      fullWidth
-                      size="small"
-                      helperText="Appliqué au prix moyen HT de la nuit par occupant"
-                      slotProps={{
-                        htmlInput: { min: 0, step: 0.01 }
-                      }}
-                    />
-                    <TextField
-                      label="Pourcentage additionnel départemental (%)"
-                      type="number"
-                      value={form.touristTaxDepartmentPercentage ?? 0}
-                      onChange={(e) => updateField('touristTaxDepartmentPercentage', e.target.value)}
-                      onFocus={handleZeroFocus}
-                      fullWidth
-                      size="small"
-                      helperText="Pourcentage additionnel appliqué sur la part communale"
-                      slotProps={{
-                        htmlInput: { min: 0, step: 0.01 }
-                      }}
-                    />
-                  </>
-                )}
-                
-                {form.touristTaxMode === 'percentage_and_fixed' && (
-                  <>
-                    <TextField
-                      label="Pourcentage commune (%)"
-                      type="number"
-                      value={form.touristTaxPercentage ?? 0}
-                      onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
-                      onFocus={handleZeroFocus}
-                      fullWidth
-                      size="small"
-                      helperText="Appliqué au prix moyen HT de la nuit par occupant"
-                      slotProps={{
-                        htmlInput: { min: 0, step: 0.01 }
-                      }}
-                    />
-                    <TextField
-                      label="Pourcentage additionnel départemental (%)"
-                      type="number"
-                      value={form.touristTaxDepartmentPercentage ?? 0}
-                      onChange={(e) => updateField('touristTaxDepartmentPercentage', e.target.value)}
-                      onFocus={handleZeroFocus}
-                      fullWidth
-                      size="small"
-                      helperText="Pourcentage additionnel appliqué sur la part communale"
-                      slotProps={{
-                        htmlInput: { min: 0, step: 0.01 }
-                      }}
-                    />
-                    <TextField
-                      label="Montant fixe (€)"
-                      type="number"
-                      value={form.touristTaxFixedAmount ?? 0}
-                      onChange={(e) => updateField('touristTaxFixedAmount', e.target.value)}
-                      onFocus={handleZeroFocus}
-                      fullWidth
-                      size="small"
-                      helperText="Montant fixe par nuit et par adulte, ajouté au pourcentage"
-                      slotProps={{
-                        htmlInput: { min: 0, step: 0.01 }
-                      }}
-                    />
-                  </>
-                )}
-              </Box>
-
-              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', lineHeight: 2 }}>TVA (tous les montants en TTC)</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Les taux de TVA (hébergement et standard) sont communs à tous les logements et se règlent
-                dans <strong>Paramètres → Taux de TVA</strong>.
-              </Typography>
-
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }}>Gestion des saisons tarifaires</Typography>
-                <Button
-                  size="small"
-                  variant="contained"
-                  disabled={!canManageExtras}
-                  onClick={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}`))}
-                >
-                  Gestion tarifaire
-                </Button>
-              </Box>
-              {/* specs/tariff-recipes/spec.md §3.5 rule 29 — read-only echo of the active recipe;
-                  it is chosen and applied on the tariff page. */}
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Recette tarifaire :{' '}
-                {property?.tariffRecipeId
-                  ? <strong>{property.tariffRecipeId}{property.tariffRecipeVersion ? ` (v${property.tariffRecipeVersion})` : ''}</strong>
-                  : <strong>aucune — saisons manuelles</strong>}
-              </Typography>
-              <TableCard minWidth={700}>
-
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Saison</TableCell>
-                      <TableCell>Dates</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Tarif base</TableCell>
-                      <TableCell>Min nuits</TableCell>
-                      <TableCell>Couleur</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {[...(property.pricingRules || [])]
-                      .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
-                      .map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell>{r.label}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                            {getSortedSeasonRanges(r).map((range, index) => (
-                              <Typography key={`${r.id}-range-${index}`} variant="body2" sx={{ lineHeight: 1.25 }}>
-                                {displayDate(range.startDate)} → {displayDate(range.endDate)}
-                              </Typography>
-                            ))}
-                          </Box>
-                        </TableCell>
-                        <TableCell>{(r.pricingMode || 'fixed') === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
-                        <TableCell>{formatCurrency(Number(r.pricePerNight || 0))}</TableCell>
-                        <TableCell>{r.minNights}</TableCell>
-                        <TableCell>
-                          <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: (t) => r.color || t.palette.primary.main }} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {(!property.pricingRules || property.pricingRules.length === 0) && (
-                      <TableRow><TableCell colSpan={6} align="center">Aucune saison tarifaire</TableCell></TableRow>
-                    )}
-                  </TableBody>
-
-              </TableCard>
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* Documents */}
-        <Box sx={{ mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Documents</Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                {(property.documents || []).map((d) => (
-                  <Chip
-                    key={d.id}
-                    label={`${d.name} (${d.type})`}
-                    onDelete={canManageExtras ? async () => { await api.deleteDocument(id, d.id); load(); } : undefined}
-                    component="a" href={d.filePath} target="_blank" clickable
-                  />
-                ))}
-              </Box>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Type</InputLabel>
-                  <Select value={docType} label="Type" onChange={(e) => setDocType(e.target.value)}>
-                    <MenuItem value="contract">Contrat</MenuItem>
-                    <MenuItem value="rules">Règlement</MenuItem>
-                    <MenuItem value="other">Autre</MenuItem>
-                  </Select>
-                </FormControl>
-                <TextField size="small" label="Nom" value={docName} onChange={(e) => setDocName(e.target.value)} disabled={!canManageExtras} />
-                <Button variant="outlined" component="label" startIcon={<UploadIcon />} disabled={!canManageExtras}>
-                  Fichier
-                  <input type="file" hidden onChange={(e) => setDocFile(e.target.files[0])} />
-                </Button>
-                {docFile && <Typography variant="body2">{docFile.name}</Typography>}
-                <Button variant="contained" size="small" onClick={handleUploadDoc} disabled={!canManageExtras || !docFile}>Envoyer</Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* iCal Export */}
-        {!isNew && (
-          <Box sx={{ mb: 3 }}>
-            <IcalExportCard propertyId={property.id} propertyName={property.name} />
-          </Box>
+        {tab === 'general' && (
+          <PropertyGeneralTab
+            {...common}
+            property={property}
+            isNew={isNew}
+            photoFile={photoFile}
+            photoValidationError={photoValidationError}
+            onPhotoChange={handlePhotoFileChange}
+            nameArticles={NAME_ARTICLES}
+            previewWithArticle={previewWithArticle}
+            photoFormatsText={SUPPORTED_PHOTO_FORMATS_TEXT}
+            timeOptions={TIME_OPTIONS}
+          />
         )}
-
-        {/* Plateformes & iCal (specs/platforms-and-ical-rework.md) */}
-        <Box sx={{ mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                <Typography variant="sectionHeader">Plateformes &amp; iCal</Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Button variant="text" startIcon={<AddIcon />} onClick={() => setAddingPlatform((v) => !v)} disabled={!canManageExtras}>
-                    Ajouter une plateforme
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<SyncIcon />}
-                    onClick={handleSyncAllIcalSources}
-                    disabled={!canManageExtras || syncingAll || !platformRows.some((r) => r.url)}
-                  >
-                    {syncingAll ? 'Synchronisation…' : 'Synchroniser tout'}
-                  </Button>
-                </Box>
-              </Box>
-              {/* specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » mode is global per
-                  platform; the colour + URL are per platform too (colour global, URL per property). */}
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                Le mode de « Taxe de séjour » et la couleur sont communs à tous les logements ; l'URL iCal est propre à ce logement.
-              </Typography>
-
-              {addingPlatform && (
-                <Box sx={{ display: 'flex', gap: 1, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField
-                    size="small"
-                    label="Nom de la plateforme"
-                    value={newPlatformName}
-                    onChange={(e) => setNewPlatformName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddPlatform(); }}
-                    placeholder="ex: Vrbo"
-                    autoFocus
-                    fullWidth
-                    disabled={!canManageExtras}
-                  />
-                  <Button variant="contained" onClick={handleAddPlatform} disabled={!canManageExtras || !newPlatformName.trim()}>Ajouter</Button>
-                  <Button variant="text" onClick={() => { setAddingPlatform(false); setNewPlatformName(''); }}>Annuler</Button>
-                </Box>
-              )}
-
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                Cliquez sur le nom ou le carré de couleur pour changer la couleur d&apos;affichage sur le calendrier.
-                Une URL iCal vide signifie une saisie manuelle (pas de synchronisation).
-              </Typography>
-
-              {platformRows.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">Chargement…</Typography>
-              ) : isMobile ? (
-                /* Mobile: one stacked card per platform (no horizontal scroll). */
-                <Box>
-                  {platformRows.map((row) => {
-                    const isEditing = editingKey === row.platformKey;
-                    const hasUrl = Boolean(row.url);
-                    const muted = Boolean(row.disabled);
-                    return (
-                      <Card key={row.platformKey} variant="outlined" sx={{ mb: 1.5, opacity: muted ? 0.75 : 1 }}>
-                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
-                            {renderPlatformName(row)}
-                            {renderPlatformActions(row)}
-                          </Box>
-                          {!row.isDirect && (
-                            <Box sx={{ mb: 1 }}>
-                              {isEditing ? (
-                                <TextField
-                                  size="small"
-                                  fullWidth
-                                  label="URL iCal"
-                                  value={editDraft.url}
-                                  onChange={(e) => setEditDraft((d) => ({ ...d, url: e.target.value }))}
-                                  disabled={!canManageExtras}
-                                  placeholder="https://…  (laisser vide = saisie manuelle)"
-                                />
-                              ) : (
-                                <Typography variant="body2" title={row.url || ''} noWrap sx={{ color: muted ? 'text.disabled' : 'text.secondary' }}>
-                                  {row.url ? shortenUrlEnd(row.url, 40) : 'Saisie manuelle (pas d’URL iCal)'}
-                                </Typography>
-                              )}
-                            </Box>
-                          )}
-                          {!row.isDirect && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary">Taxe de séjour :</Typography>
-                              {renderTaxControl(row, isEditing)}
-                            </Box>
-                          )}
-                          {!row.isDirect && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary">Acompte :</Typography>
-                              {renderDepositControl(row, isEditing)}
-                            </Box>
-                          )}
-                          {!row.isDirectChannel && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary">Virement reçu sous :</Typography>
-                              {renderPayoutControl(row, isEditing)}
-                            </Box>
-                          )}
-                          {hasUrl && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                              {renderSyncStatus(row)}
-                              <Typography variant="caption" color="text.secondary">
-                                {row.lastSyncAt ? `Dernière synchro : ${displayDate(row.lastSyncAt.slice(0, 10))}` : 'Jamais synchronisé'}
-                              </Typography>
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </Box>
-              ) : (
-                /* Desktop / tablet: table. */
-                <TableCard minWidth={760}>
-
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Plateforme</TableCell>
-                        <TableCell>URL iCal</TableCell>
-                        <TableCell>Taxe de séjour</TableCell>
-                        <TableCell>Acompte</TableCell>
-                        <TableCell>Virement sous</TableCell>
-                        <TableCell>Dernière synchro</TableCell>
-                        <TableCell>État</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {platformRows.map((row) => {
-                        const isEditing = editingKey === row.platformKey;
-                        const hasUrl = Boolean(row.url);
-                        const muted = Boolean(row.disabled);
-                        const textColor = muted ? 'text.disabled' : 'text.primary';
-                        const editingUrl = isEditing && !row.isDirect;
-                        return (
-                          <React.Fragment key={row.platformKey}>
-                            {/* When editing, the URL moves to its own full-width row below; drop the
-                                main row's bottom border so the two read as one taller editing block. */}
-                            <TableRow sx={{ opacity: muted ? 0.75 : 1, '& > td': editingUrl ? { borderBottom: 'none' } : undefined }}>
-                              <TableCell>{renderPlatformName(row)}</TableCell>
-                              <TableCell sx={{ maxWidth: 220 }}>
-                                {row.isDirect ? (
-                                  <Typography variant="caption" color="text.secondary">—</Typography>
-                                ) : editingUrl ? (
-                                  <Typography variant="caption" color="text.secondary">Édition ci-dessous</Typography>
-                                ) : (
-                                  <Typography variant="body2" noWrap title={row.url || ''} sx={{ color: textColor }}>
-                                    {row.url ? shortenUrlEnd(row.url) : '—'}
-                                  </Typography>
-                                )}
-                              </TableCell>
-                              <TableCell>{renderTaxControl(row, isEditing)}</TableCell>
-                              <TableCell>{renderDepositControl(row, isEditing)}</TableCell>
-                              <TableCell>{renderPayoutControl(row, isEditing)}</TableCell>
-                              <TableCell>
-                                <Typography variant="caption" sx={{ color: textColor }}>
-                                  {hasUrl ? (row.lastSyncAt ? displayDate(row.lastSyncAt.slice(0, 10)) : '—') : ''}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>{renderSyncStatus(row)}</TableCell>
-                              <TableCell align="right">{renderPlatformActions(row)}</TableCell>
-                            </TableRow>
-                            {editingUrl && (
-                              <TableRow sx={{ opacity: muted ? 0.75 : 1 }}>
-                                <TableCell colSpan={8} sx={{ pt: 0 }}>
-                                  <TextField
-                                    size="small"
-                                    fullWidth
-                                    autoFocus
-                                    label="URL iCal"
-                                    value={editDraft.url}
-                                    onChange={(e) => setEditDraft((d) => ({ ...d, url: e.target.value }))}
-                                    disabled={!canManageExtras}
-                                    placeholder="https://…"
-                                    helperText="Laisser vide = saisie manuelle (pas de synchronisation iCal)"
-                                  />
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </TableBody>
-
-                </TableCard>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
-
+        {tab === 'tarifs' && (
+          <PropertyTariffTab
+            {...common}
+            property={property}
+            canManage={canManageExtras}
+            getSortedSeasonRanges={getSortedSeasonRanges}
+            onOpenTariffs={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
+          />
+        )}
+        {tab === 'paiement' && <PropertyPaymentTab {...common} />}
+        {tab === 'sejour' && (
+          <PropertyStayTab
+            {...common}
+            timedOptions={timedOptions}
+            updateTimedOptionField={updateTimedOptionField}
+            timeOptions={TIME_OPTIONS}
+          />
+        )}
+        {tab === 'plateformes' && !isNew && (
+          <PropertyPlatformsTab propertyId={property.id} propertyName={property.name} canManage={canManageExtras} />
+        )}
+        {tab === 'documents' && !isNew && (
+          <PropertyDocumentsTab propertyId={id} documents={property.documents || []} canManage={canManageExtras} onChanged={load} />
+        )}
       </Box>
       <UnsavedChangesDialog
         open={navGuardOpen}

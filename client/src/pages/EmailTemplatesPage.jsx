@@ -18,6 +18,7 @@ import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import EmailComposeDialog from '../components/EmailComposeDialog';
 import ClientFormFields from '../components/ClientFormFields';
+import PropertyHooksEditor from '../components/PropertyHooksEditor';
 import api from '../api';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PageActionBar from '../components/PageActionBar';
@@ -97,6 +98,8 @@ const emptyTemplate = {
 
 // A template's own mode is the only switch for automatic sending (specs/settings-rationalization.md
 // rule 17b): « Automatique » leaves by itself at 08:00, « Manuel » waits in « Emails à envoyer ».
+const J7_STABLE_KEY = 'arrival_reminder_7d';
+
 function sendModeChip(row) {
   if (row.sendMode !== 'auto') {
     return <Chip label="Manuel" size="small" color="info" variant="outlined" />;
@@ -121,6 +124,9 @@ export default function EmailTemplatesPage() {
   const [open, setOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(emptyTemplate);
+  // J-7 hooks per property, edited with the J-7 template (specs/settings-rationalization.md rule 17c).
+  const [hooks, setHooks] = useState(null);
+  const [savedHooks, setSavedHooks] = useState(null);
   const bodyRef = useRef(null);
   const subjectRef = useRef(null);
   const bodyEnRef = useRef(null);
@@ -254,6 +260,13 @@ export default function EmailTemplatesPage() {
     } else {
       setForm(emptyTemplate);
     }
+    setHooks(null);
+    setSavedHooks(null);
+    if (row && row.stableKey === J7_STABLE_KEY) {
+      api.getPropertyEmailHooks()
+        .then((list) => { setHooks(list || []); setSavedHooks(list || []); })
+        .catch(() => { setHooks([]); setSavedHooks([]); });
+    }
     setOpen(true);
   };
 
@@ -297,6 +310,9 @@ export default function EmailTemplatesPage() {
         await api.updateEmailTemplate(form.id, payload);
       } else {
         await api.createEmailTemplate(payload);
+      }
+      if (hooks && JSON.stringify(hooks) !== JSON.stringify(savedHooks)) {
+        await api.savePropertyEmailHooks(hooks.map(({ propertyId, emailHook, emailHookEn }) => ({ propertyId, emailHook, emailHookEn })));
       }
       handleClose();
       // A template change (subject/body/offset/mode/enabled) reshapes the manual queue and
@@ -605,6 +621,13 @@ export default function EmailTemplatesPage() {
               <Typography variant="body2">{form.enabled ? 'Modèle activé' : 'Modèle désactivé'}</Typography>
             </Box>
           </FormControl>
+
+          {form.stableKey === J7_STABLE_KEY ? (
+            <PropertyHooksEditor
+              hooks={hooks}
+              onChange={(propertyId, key, value) => setHooks((list) => list.map((h) => (h.propertyId === propertyId ? { ...h, [key]: value } : h)))}
+            />
+          ) : null}
 
           {form.stableKey ? (
             <Typography variant="caption" color="text.secondary">
