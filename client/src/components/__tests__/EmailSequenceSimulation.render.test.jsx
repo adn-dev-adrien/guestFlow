@@ -28,7 +28,7 @@ const RESULT = {
   counts: { send: 1, blocked: 1, alreadySent: 1, toCheck: 0 },
   startDate: null,
   assumedStartDate: '2026-09-18',
-  autoSendEnabled: false,
+  autoMailKeys: [],
 };
 
 beforeEach(() => {
@@ -46,16 +46,17 @@ test('lists each email with its status and the server\'s reason', async () => {
   expect(screen.getByText(/1 mail partirait sur la période, sur 3 examinés/)).toBeInTheDocument();
 });
 
-test('says nothing leaves while automatic sending is off', async () => {
+// specs/settings-rationalization.md rule 17b — each sequence mail follows its own template's mode.
+test('says nothing leaves by itself while every sequence template is « Manuel »', async () => {
   api.getEmailSequenceSimulation.mockResolvedValue(RESULT);
   render(<EmailSequenceSimulation tabs={null} />);
-  expect(await screen.findByText(/Envoi automatique désactivé/)).toBeInTheDocument();
+  expect(await screen.findByText(/Aucun mail de la séquence en mode « Automatique »/)).toBeInTheDocument();
 });
 
-test('shows the start date once automatic sending is on', async () => {
-  api.getEmailSequenceSimulation.mockResolvedValue({ ...RESULT, autoSendEnabled: true, startDate: '2026-09-28', assumedStartDate: null });
+test('shows the start date and how many mails leave by themselves', async () => {
+  api.getEmailSequenceSimulation.mockResolvedValue({ ...RESULT, autoMailKeys: ['arrival_reminder_7d', 'arrival_reminder_1d'], startDate: '2026-09-28', assumedStartDate: null });
   render(<EmailSequenceSimulation tabs={null} />);
-  expect(await screen.findByText(/Envoi automatique actif depuis le 28\/09\/2026/)).toBeInTheDocument();
+  expect(await screen.findByText(/Séquence active depuis le 28\/09\/2026 : 2 mails en mode « Automatique »/)).toBeInTheDocument();
 });
 
 test('an empty period shows the empty state', async () => {

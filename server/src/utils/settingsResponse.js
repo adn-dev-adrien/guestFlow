@@ -60,8 +60,9 @@ function shapeResponse(row) {
     },
     // SMTP block. The password is masked: the row comes from settingsModel.read(), which
     // substitutes smtpPasswordEncrypted with the boolean smtpPasswordSet. `fromEmail`, `username` and
-    // `fromName` are the operator's OVERRIDES ('' = derived); `effective` is what GuestFlow actually
-    // sends with (specs/settings-rationalization.md rule 12). No port: it follows `secure` (rule 11).
+    // `fromName` are the operator's OVERRIDES ('' = derived); `derived` is what each one falls back to
+    // when left empty (specs/settings-rationalization.md rule 12) — the form shows it as « = … ».
+    // No port: it follows `secure` (rule 11).
     smtp: {
       host: safeStr(row.smtpHost).trim(),
       secure: Number(row.smtpSecure) === 1,
@@ -70,21 +71,21 @@ function shapeResponse(row) {
       fromEmail: safeStr(row.smtpFromEmail).trim(),
       fromName: safeStr(row.smtpFromName).trim(),
       publicUrl: safeStr(row.publicUrl).trim(),
-      effective: {
-        fromEmail: identity.fromEmail,
-        username: identity.username,
-        fromName: identity.fromName,
+      derived: {
+        fromEmail: safeStr(row.companyEmail).trim(),
+        username: identity.fromEmail,
+        fromName: resolveEmailIdentity({ companyName: row.companyName }).fromName,
       },
     },
     // Booking notifications block (specs/site-booking-notifications.md §4.3). `enabled` defaults ON
-    // (only an explicit 0 turns it off). `recipientEmail` is the override ('' = the sending address);
-    // `effectiveRecipient` is where the emails actually go.
+    // (only an explicit 0 turns it off). `recipientEmail` is the override; `derivedRecipient` is where
+    // the emails go when it is left empty — the sending address.
     notifications: {
       enabled: Number(row.notificationsEnabled) !== 0,
       // Per-channel switch for the iCal/platform new-reservation email; default ON.
       icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
       recipientEmail: safeStr(row.notificationRecipientEmail).trim(),
-      effectiveRecipient: identity.recipient,
+      derivedRecipient: identity.fromEmail,
     },
     // Guest-email content (specs/guest-email-sequence.md §6.2). Automatic sending is decided per
     // template since specs/settings-rationalization.md rule 17b — there is no master switch here.

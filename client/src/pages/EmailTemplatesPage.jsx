@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box, Card, TableRow, TableCell,
   IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
-  Select, MenuItem, TextField, Tooltip, Alert, FormHelperText,
+  Select, MenuItem, TextField, Tooltip, FormHelperText,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -95,17 +95,13 @@ const emptyTemplate = {
   enabled: true,
 };
 
-// « Automatique » only means something while automatic sending is authorised in Réglages. When it is
-// not, the chip says so rather than promising a send that will never happen
-// (specs/no-automatic-email-without-approval.md §3 rule 8). `autoSendBlocked` is computed server-side.
+// A template's own mode is the only switch for automatic sending (specs/settings-rationalization.md
+// rule 17b): « Automatique » leaves by itself at 08:00, « Manuel » waits in « Emails à envoyer ».
 function sendModeChip(row) {
   if (row.sendMode !== 'auto') {
     return <Chip label="Manuel" size="small" color="info" variant="outlined" />;
   }
-  if (row.autoSendBlocked) {
-    return <Chip label="Auto désactivé" size="small" color="warning" variant="outlined" />;
-  }
-  return <Chip label="Auto" size="small" color="success" variant="outlined" />;
+  return <Chip label="Automatique" size="small" color="success" variant="outlined" />;
 }
 
 function describeOffset(n) {
@@ -119,9 +115,6 @@ export default function EmailTemplatesPage() {
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
-  // At least one enabled « Automatique » template that will not actually leave on its own
-  // (specs/no-automatic-email-without-approval.md §3 rule 8). Decided server-side, per row.
-  const autoSendBlocked = items.some((t) => t.autoSendBlocked);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const { showError } = useToast();
@@ -365,29 +358,13 @@ export default function EmailTemplatesPage() {
         <ErrorAlert message="Impossible de charger les modèles d'emails." onRetry={reload} sx={{ mt: 2, mb: 1 }} />
       )}
 
-      {autoSendBlocked && (
-        <Alert
-          severity="warning"
-          sx={{ mt: 2, mb: 1 }}
-          action={(
-            <Button color="inherit" size="small" onClick={() => navigate('/settings')}>
-              Modifier ce réglage
-            </Button>
-          )}
-        >
-          <strong>L'envoi automatique est désactivé.</strong> Les modèles en mode « Automatique » ne
-          partent pas seuls : ils vous sont proposés ci-dessous, dans « Emails à envoyer ».
-        </Alert>
-      )}
 
       {pending.length > 0 && (
         <Card sx={{ mb: 3 }}>
           <Box sx={{ px: 2, pt: 2 }}>
             <Typography variant="sectionHeader">Emails à envoyer</Typography>
             <Typography variant="caption" color="text.secondary">
-              {autoSendBlocked
-                ? "Modèles dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours, et emails ajoutés manuellement. L'envoi automatique étant désactivé, les modèles « Automatique » sont proposés ici."
-                : "Modèles en mode manuel dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours, et emails ajoutés manuellement."}
+              Modèles en mode manuel dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours, et emails ajoutés manuellement.
             </Typography>
           </Box>
           <EmailPendingList
@@ -544,12 +521,12 @@ export default function EmailTemplatesPage() {
                 value={form.sendMode}
                 onChange={(e) => setForm({ ...form, sendMode: e.target.value })}
               >
-                <MenuItem value="manual">Manuel (revue sur dashboard)</MenuItem>
-                <MenuItem value="auto">Automatique (envoi à 08:00)</MenuItem>
+                <MenuItem value="manual">Manuel : attend ma validation</MenuItem>
+                <MenuItem value="auto">Automatique : part seul à 08:00</MenuItem>
               </Select>
-              {autoSendBlocked && form.sendMode === 'auto' ? (
+              {form.sendMode === 'auto' ? (
                 <FormHelperText>
-                  L'envoi automatique est désactivé dans les Réglages — cet email sera proposé, pas envoyé.
+                  Cet email partira sans votre validation, à sa date.
                 </FormHelperText>
               ) : null}
             </FormControl>

@@ -1,5 +1,5 @@
 /**
- * SettingsQuoteSection — "Paramètres des devis" card.
+ * SettingsQuoteSection — « Devis » card of Paramètres → Établissement.
  *
  * Props:
  *   values:    { footerText, footerTextEn, validityDays }
@@ -27,7 +27,7 @@ export default function SettingsQuoteSection({
         <Stack spacing={2}>
           <Box>
             <Typography variant="sectionHeader">
-              Paramètres des devis
+              Devis
             </Typography>
           </Box>
 

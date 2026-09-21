@@ -1,5 +1,5 @@
 /**
- * SettingsBillableAmountsSection — « Tarifs facturables » form (Réglages → Tarifs).
+ * SettingsBillableAmountsSection — « Facturables au SAS » form (Options & ressources, third tab).
  * specs/extinguisher-seal-and-repair-amounts.md; presentational since the phase-3 sweep
  * (specs/ds-sweep-settings.md §3.1 rule 1): BillableAmountsPage owns load/save/dirty/guard and the
  * canonical bar-level « Enregistrer » — this section only renders the two editable lists.
@@ -17,7 +17,6 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 export default function SettingsBillableAmountsSection({ linen, setLinen, repairs, setRepairs, disabled = false }) {
   const addLinen = (category) => setLinen((l) => [...l, { label: '', price: 0, category }]);
@@ -54,13 +53,9 @@ export default function SettingsBillableAmountsSection({ linen, setLinen, repair
     <Card variant="outlined" sx={{ mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack spacing={2}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ReceiptLongIcon color="action" />
-            <Typography variant="sectionHeader">Tarifs facturables</Typography>
-          </Box>
           <FormHelperText sx={{ m: 0 }}>
             Montants pouvant être facturés au client pendant le SAS (check-in / check-out) : prix du linge
-            manquant et montants de réparation. Enregistrement via la barre d'actions en haut de page.
+            manquant et montants de réparation.
           </FormHelperText>
 
           {/* Prix du linge (moved from the linen-stock page) */}

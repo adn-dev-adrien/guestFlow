@@ -9,11 +9,11 @@ dayjs.locale('fr');
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,
-  ListItemText, Box, IconButton, useMediaQuery, Collapse,
+  ListItemText, Box, IconButton, useMediaQuery, Collapse, Divider,
   CircularProgress, Card, CardContent
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
@@ -22,20 +22,12 @@ import ChangePasswordForm from './components/ChangePasswordForm';
 import UserManagementPage from './pages/UserManagementPage';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
-import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import EventIcon from '@mui/icons-material/Event';
-import ExtensionIcon from '@mui/icons-material/Extension';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import DateRangeIcon from '@mui/icons-material/DateRange';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SettingsIcon from '@mui/icons-material/Settings';
-import PaymentsIcon from '@mui/icons-material/Payments';
-import SellIcon from '@mui/icons-material/Sell';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -48,6 +40,7 @@ import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
+import { SETTINGS_MENU, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
@@ -65,9 +58,14 @@ import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
 import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
-import SettingsPage from './pages/SettingsPage';
+import EstablishmentSettingsPage from './pages/settings/EstablishmentSettingsPage';
+import PlatformsSettingsPage from './pages/settings/PlatformsSettingsPage';
+import VatFiscalSettingsPage from './pages/settings/VatFiscalSettingsPage';
+import EmailSettingsPage from './pages/settings/EmailSettingsPage';
+import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage';
+import SystemSettingsPage from './pages/settings/SystemSettingsPage';
+import AccountPage from './pages/AccountPage';
 import LinenStockPage from './pages/LinenStockPage';
-import BillableAmountsPage from './pages/BillableAmountsPage';
 import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
 import OptionsResourcesPage from './pages/OptionsResourcesPage';
 import PaymentsSettingsPage from './pages/PaymentsSettingsPage';
@@ -93,7 +91,9 @@ const navItems = [
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
   { label: 'Emails', path: '/emails', icon: <MailOutlineIcon /> },
-  { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
+  // « Clients » is the guest directory, not a setting (specs/settings-rationalization.md rule 5).
+  { label: 'Clients', path: '/clients', icon: <PeopleIcon /> },
+  { label: 'Paramètres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
 // Children-of-each-parent map — keeps the parent visibility decision in one place. Hard-coded
@@ -102,7 +102,7 @@ const navItems = [
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/recettes', '/parametres/paiements', '/account'];
+const SETTINGS_CHILDREN  = ['/settings', ...SETTINGS_PATHS];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -176,15 +176,7 @@ function NavContent({ onItemClick }) {
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
-    if (
-      location.pathname === '/settings'
-      || location.pathname === '/options'
-      || location.pathname === '/resources'
-      || location.pathname === '/clients'
-      || location.pathname === '/school-holidays'
-      || location.pathname === '/establishment-closures'
-      || location.pathname === '/account'
-    ) {
+    if (isSettingsPath(location.pathname) && !location.pathname.startsWith('/properties')) {
       setSettingsMenuOpen(true);
       setCalendarMenuOpen(false);
       setEmailsMenuOpen(false);
@@ -233,18 +225,7 @@ function NavContent({ onItemClick }) {
                   setEmailsMenuOpen(false);
                   setSettingsMenuOpen(false);
                 } else if (item.path === '/settings') {
-                  setSettingsMenuOpen(
-                    location.pathname === '/settings'
-                                    || location.pathname === '/options'
-                      || location.pathname === '/resources'
-                      || location.pathname === '/clients'
-                      || location.pathname === '/school-holidays'
-                      || location.pathname === '/establishment-closures'
-                      || location.pathname === '/account'
-                      || location.pathname.startsWith('/properties')
-                      ? true
-                      : (prev) => !prev
-                  );
+                  setSettingsMenuOpen(isSettingsPath(location.pathname) ? true : (prev) => !prev);
                   setCalendarMenuOpen(false);
                   setEmailsMenuOpen(false);
                   setFinanceMenuOpen(false);
@@ -267,16 +248,7 @@ function NavContent({ onItemClick }) {
                   : item.path === '/finance'
                     ? (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite'))
                     : item.path === '/settings'
-                      ? (
-                        location.pathname === '/settings'
-                                        || location.pathname === '/options'
-                        || location.pathname === '/resources'
-                        || location.pathname === '/clients'
-                        || location.pathname === '/school-holidays'
-                        || location.pathname === '/establishment-closures'
-                        || location.pathname === '/account'
-                        || location.pathname.startsWith('/properties')
-                      )
+                      ? isSettingsPath(location.pathname)
                       : location.pathname === item.path
               }
               sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
@@ -471,186 +443,66 @@ function NavContent({ onItemClick }) {
             {item.path === '/settings' && (
               <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                  {can('/settings') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/settings"
-                    onClick={(e) => onItemClick && onItemClick(e, '/settings')}
-                    selected={location.pathname === '/settings'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><SettingsIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Générale" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/properties') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/properties"
-                    onClick={(e) => {
-                      setSettingsPropertiesMenuOpen((prev) => !prev);
-                      if (onItemClick) onItemClick(e, '/properties');
-                    }}
-                    selected={location.pathname.startsWith('/properties')}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><HomeWorkIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Logements" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                    <Box
-                      component="span"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setSettingsPropertiesMenuOpen((prev) => !prev);
-                      }}
-                      sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                    >
-                      {settingsPropertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                    </Box>
-                  </ListItemButton>
-                  )}
-                  {can('/properties') && (
-                  <Collapse in={settingsPropertiesMenuOpen} timeout="auto" unmountOnExit>
-                    <List disablePadding sx={{ px: 1, pb: 0.25 }}>
-                      {properties.map((p) => (
+                  {/* specs/settings-rationalization.md rules 1-2 — entries by family, a thin divider
+                      between families; the list lives in constants/settingsMenu.js. */}
+                  {SETTINGS_MENU.map((entry, index) => {
+                    if (!entry) return <Divider key={`settings-divider-${index}`} sx={{ mx: 2, my: 0.5 }} />;
+                    if (!can(entry.path)) return null;
+                    const isProperties = entry.path === PROPERTIES_PATH;
+                    return (
+                      <Box key={entry.path}>
                         <ListItemButton
-                          key={`settings-property-${p.id}`}
                           component={Link}
-                          to={`/properties/${p.id}`}
-                          onClick={(e) => onItemClick && onItemClick(e, `/properties/${p.id}`)}
-                          selected={location.pathname === `/properties/${p.id}`}
-                          sx={{ pl: 9, py: 0.65, borderRadius: 2, mb: 0.25 }}
+                          to={entry.path}
+                          onClick={(e) => {
+                            if (isProperties) setSettingsPropertiesMenuOpen((prev) => !prev);
+                            if (onItemClick) onItemClick(e, entry.path);
+                          }}
+                          selected={isEntrySelected(entry, location.pathname)}
+                          sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                         >
-                          <ListItemText
-                            primary={p.name}
-                            slotProps={{
-                              primary: {
-                                variant: 'body2',
-                                noWrap: true,
-                              }
-                            }}
-                          />
+                          <ListItemIcon sx={{ minWidth: 34 }}><entry.Icon fontSize="small" /></ListItemIcon>
+                          <ListItemText primary={entry.label} slotProps={{
+                            primary: { variant: 'body2', noWrap: true }
+                          }} />
+                          {isProperties && (
+                            <Box
+                              component="span"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSettingsPropertiesMenuOpen((prev) => !prev);
+                              }}
+                              sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                            >
+                              {settingsPropertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                            </Box>
+                          )}
                         </ListItemButton>
-                      ))}
-                    </List>
-                  </Collapse>
-                  )}
-                  {can('/parametres/options-ressources') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/parametres/options-ressources"
-                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/options-ressources')}
-                    selected={location.pathname === '/parametres/options-ressources'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><ExtensionIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Options & ressources" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/clients') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/clients"
-                    onClick={(e) => onItemClick && onItemClick(e, '/clients')}
-                    selected={location.pathname === '/clients'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><PeopleIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Clients" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/parametres/vacances-fermetures') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/parametres/vacances-fermetures"
-                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/vacances-fermetures')}
-                    selected={location.pathname === '/parametres/vacances-fermetures'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Vacances & fermetures" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/parametres/stock-blanchisserie') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/parametres/stock-blanchisserie"
-                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/stock-blanchisserie')}
-                    selected={location.pathname === '/parametres/stock-blanchisserie'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Blanchisserie" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/parametres/tarifs') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/parametres/tarifs"
-                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/tarifs')}
-                    selected={location.pathname === '/parametres/tarifs'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><SellIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Tarifs facturables" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/parametres/recettes') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/parametres/recettes"
-                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/recettes')}
-                    selected={location.pathname === '/parametres/recettes'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><MenuBookIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Recettes tarifaires" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/parametres/paiements') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/parametres/paiements"
-                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/paiements')}
-                    selected={location.pathname === '/parametres/paiements'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><PaymentsIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Paiements" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/account') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/account"
-                    onClick={(e) => onItemClick && onItemClick(e, '/account')}
-                    selected={location.pathname === '/account'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><AdminPanelSettingsIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Gestion utilisateur" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
+                        {isProperties && (
+                          <Collapse in={settingsPropertiesMenuOpen} timeout="auto" unmountOnExit>
+                            <List disablePadding sx={{ px: 1, pb: 0.25 }}>
+                              {properties.map((p) => (
+                                <ListItemButton
+                                  key={`settings-property-${p.id}`}
+                                  component={Link}
+                                  to={`/properties/${p.id}`}
+                                  onClick={(e) => onItemClick && onItemClick(e, `/properties/${p.id}`)}
+                                  selected={location.pathname === `/properties/${p.id}`}
+                                  sx={{ pl: 9, py: 0.65, borderRadius: 2, mb: 0.25 }}
+                                >
+                                  <ListItemText
+                                    primary={p.name}
+                                    slotProps={{ primary: { variant: 'body2', noWrap: true } }}
+                                  />
+                                </ListItemButton>
+                              ))}
+                            </List>
+                          </Collapse>
+                        )}
+                      </Box>
+                    );
+                  })}
                 </List>
               </Collapse>
             )}
@@ -658,6 +510,19 @@ function NavContent({ onItemClick }) {
         );
       })}
       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+        {/* « Mon compte » — every role (specs/settings-rationalization.md rule 6). */}
+        <ListItemButton
+          component={Link}
+          to="/mon-compte"
+          onClick={(e) => onItemClick && onItemClick(e, '/mon-compte')}
+          selected={location.pathname === '/mon-compte'}
+          sx={{ py: 0.75, borderRadius: 2, mx: 1 }}
+        >
+          <ListItemIcon sx={{ minWidth: 34 }}><AccountCircleIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary="Mon compte" slotProps={{
+            primary: { variant: 'body2' }
+          }} />
+        </ListItemButton>
         <ListItemButton onClick={() => logout()} sx={{ py: 0.75, borderRadius: 2, mx: 1 }}>
           <ListItemIcon sx={{ minWidth: 34 }}><LogoutIcon fontSize="small" /></ListItemIcon>
           <ListItemText primary="Se déconnecter" slotProps={{
@@ -692,40 +557,20 @@ function AppShell() {
   // Non-admin roles are confined client-side to their allowed surface (the server already 403s every
   // other endpoint, but we redirect so they don't see empty shells). A user who also holds admin
   // keeps the full app. Combined non-admin roles get the union of their allowed paths.
-  // - Accountant → /comptabilite* + /account (specs/admin-account-management.md).
-  // - Reception  → / + /planning + /account (specs/reception-role-checkin-only.md).
+  // - Accountant → /comptabilite* + /mon-compte (specs/admin-account-management.md).
+  // - Reception  → / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
   useEffect(() => {
     if (!user || userHasRole(user, ADMIN)) return;
     const isAccountant = userHasRole(user, ACCOUNTANT);
     const isReception = userHasRole(user, RECEPTION);
     if (!isAccountant && !isReception) return;
     const path = location.pathname;
-    const allowed = (isAccountant && (path.startsWith('/comptabilite') || path === '/account'))
-      || (isReception && (path === '/' || path === '/planning' || path === '/account'));
+    const own = path === '/mon-compte' || path === '/account';
+    const allowed = (isAccountant && (path.startsWith('/comptabilite') || own))
+      || (isReception && (path === '/' || path === '/planning' || own));
     if (allowed) return;
     navigate(isReception ? '/' : '/comptabilite', { replace: true });
   }, [user, location.pathname, navigate]);
-
-  useEffect(() => {
-    let isMounted = true;
-    api.getSettings()
-      .then((settings) => {
-        if (!isMounted) return;
-        if (settings?.companyLogoPath) {
-          // Replace the default favicon (favicon.ico + favicon.svg from index.html) with the company
-          // logo. Remove the defaults first so an SVG-capable browser doesn't keep preferring favicon.svg.
-          document.querySelectorAll("link[rel~='icon']").forEach((el) => el.remove());
-          const link = document.createElement('link');
-          link.rel = 'icon';
-          link.href = settings.companyLogoPath;
-          document.head.appendChild(link);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -868,16 +713,25 @@ function AppShell() {
           <Route path="/resource-planning" element={<ResourcePlanningPage />} />
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          {/* Paramètres (specs/settings-rationalization.md rule 2). */}
+          <Route path="/settings" element={<Navigate to="/settings/etablissement" replace />} />
+          <Route path="/settings/etablissement" element={<EstablishmentSettingsPage />} />
+          <Route path="/settings/plateformes" element={<PlatformsSettingsPage />} />
+          <Route path="/settings/tva-exercice" element={<VatFiscalSettingsPage />} />
+          <Route path="/settings/emails" element={<EmailSettingsPage />} />
+          <Route path="/settings/integrations" element={<IntegrationsSettingsPage />} />
+          <Route path="/settings/systeme" element={<SystemSettingsPage />} />
+          <Route path="/settings/utilisateurs" element={<UserManagementPage />} />
           <Route path="/parametres/stock-blanchisserie" element={<LinenStockPage />} />
-          <Route path="/parametres/tarifs" element={<BillableAmountsPage />} />
+          <Route path="/parametres/tarifs" element={<Navigate to="/parametres/options-ressources?tab=sas" replace />} />
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
-          {/* Legacy paths redirect to the unified "Gestion utilisateur" page. */}
-          <Route path="/settings/password" element={<Navigate to="/account" replace />} />
-          <Route path="/comptes" element={<Navigate to="/account" replace />} />
-          <Route path="/account" element={<UserManagementPage />} />
+          {/* « Mon compte » — every role (rule 6). Legacy paths redirect to it. */}
+          <Route path="/mon-compte" element={<AccountPage />} />
+          <Route path="/settings/password" element={<Navigate to="/mon-compte" replace />} />
+          <Route path="/comptes" element={<Navigate to="/mon-compte" replace />} />
+          <Route path="/account" element={<Navigate to="/mon-compte" replace />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
           <Route path="/comptabilite/plateformes" element={<PlatformAccountsPage />} />
           <Route path="/emails"            element={<EmailTemplatesPage />} />

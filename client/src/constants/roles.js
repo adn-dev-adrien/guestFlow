@@ -45,7 +45,7 @@ export function isReceptionOnly(user) {
 // server's 403 (and the client-side AccountantConfinement guard sends them home).
 export const ROUTE_ROLES = Object.freeze({
   // specs/reception-role-checkin-only.md — the reception role sees only the finance-free home
-  // (arrivals/departures), the Planning (+ SAS), and its own account page.
+  // (arrivals/departures), the Planning (+ SAS), and « Mon compte ».
   '/':                       [ADMIN, RECEPTION],
   '/planning':               [ADMIN, RECEPTION],
   '/calendar':               [ADMIN],
@@ -72,12 +72,19 @@ export const ROUTE_ROLES = Object.freeze({
   '/parametres/options-ressources':  [ADMIN],
   '/parametres/vacances-fermetures': [ADMIN],
   '/parametres/stock-blanchisserie': [ADMIN],
-  // Dedicated « Tarifs facturables » page (prix du linge manquant + montants de réparation SAS).
-  '/parametres/tarifs':      [ADMIN],
   '/parametres/recettes':    [ADMIN],
-  // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
+  // specs/online-payments-qonto.md — dedicated payments page (Qonto connection).
   '/parametres/paiements':   [ADMIN],
-  '/account':                [ADMIN, ACCOUNTANT, RECEPTION],
+  // specs/settings-rationalization.md rule 2 — the pages split out of the former « Générale ».
+  '/settings/etablissement': [ADMIN],
+  '/settings/plateformes':   [ADMIN],
+  '/settings/tva-exercice':  [ADMIN],
+  '/settings/emails':        [ADMIN],
+  '/settings/integrations':  [ADMIN],
+  '/settings/systeme':       [ADMIN],
+  '/settings/utilisateurs':  [ADMIN],
+  // Rule 6 — « Mon compte » (my information, my password) for every role.
+  '/mon-compte':             [ADMIN, ACCOUNTANT, RECEPTION],
 });
 
 export function canSeeRoute(user, path) {
@@ -87,8 +94,8 @@ export function canSeeRoute(user, path) {
 }
 
 // `paths` is the set of children a parent submenu wraps. The parent is visible iff at least one
-// child is visible (so an accountant viewing "Paramètres" because they can reach /account doesn't
-// see the parent vanish when admin-only children are filtered out).
+// child is visible (so a role that reaches one child of a submenu keeps the parent even when the
+// admin-only children are filtered out).
 export function canSeeAnyRoute(user, paths) {
   return paths.some((path) => canSeeRoute(user, path));
 }

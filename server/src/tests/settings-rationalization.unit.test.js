@@ -164,12 +164,20 @@ test('rule 12: the settings model sends with the resolved identity', () => {
   assert.equal(model.notificationSettings().recipientEmail, 'contact@solio.fr');
 });
 
-test('rule 12: GET /settings returns the overrides and the effective values side by side', () => {
-  const shaped = shapeResponse({ companyEmail: 'contact@solio.fr', companyName: 'Domaine Solio', smtpUsername: 'login-42' });
-  assert.equal(shaped.smtp.fromEmail, '', 'no override');
+test('rule 12: GET /settings returns each override and what it falls back to when left empty', () => {
+  const shaped = shapeResponse({
+    companyEmail: 'contact@solio.fr', companyName: 'Domaine Solio',
+    smtpFromEmail: 'no-reply@solio.fr', smtpUsername: 'login-42',
+  });
+  assert.equal(shaped.smtp.fromEmail, 'no-reply@solio.fr');
   assert.equal(shaped.smtp.username, 'login-42');
-  assert.deepEqual(shaped.smtp.effective, { fromEmail: 'contact@solio.fr', username: 'login-42', fromName: 'Domaine Solio' });
-  assert.equal(shaped.notifications.effectiveRecipient, 'contact@solio.fr');
+  assert.equal(shaped.smtp.fromName, '', 'no override');
+  assert.deepEqual(shaped.smtp.derived, {
+    fromEmail: 'contact@solio.fr', // the contact email
+    username: 'no-reply@solio.fr', // the sending address in force
+    fromName: 'Domaine Solio', // the company name
+  });
+  assert.equal(shaped.notifications.derivedRecipient, 'no-reply@solio.fr');
   assert.equal('port' in shaped.smtp, false);
 });
 
@@ -299,4 +307,22 @@ test('rule 17a: the unlock flag means nothing coming from another role', () => {
   reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, body: { unlockPast: true }, user: reception }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(captures.removed, undefined);
+});
+
+// ---------- rule 17 — the Plateformes page reads every setting as stored ----------
+
+const platformsModel = require('../models/platformsModel');
+
+test('rule 17: listSettings reports each platform\'s real tourist-tax mode, deposit and payout', () => {
+  const db = baselineDb();
+  db.exec(`INSERT INTO platforms (name, commissionPercent, collectsTouristTax, touristTaxRemittedByPlatform, platformTakesDeposit)
+    VALUES ('direct', 5, 1, 1, 0), ('Airbnb', 15.5, 1, 1, 0), ('Abracadaroom', 20, 0, 0, 0), ('Lodgify', 5, 1, 0, 1)`);
+  const rows = new Map(platformsModel.create(db).listSettings().map((p) => [p.name, p]));
+  assert.equal(rows.get('Airbnb').touristTaxCollection, 'platform');
+  assert.equal(rows.get('Abracadaroom').touristTaxCollection, 'owner');
+  assert.equal(rows.get('Lodgify').touristTaxCollection, 'platform_reversed');
+  assert.equal(rows.get('Lodgify').takesDeposit, true);
+  assert.equal(rows.get('Lodgify').payoutDueDays, null, 'an own channel has no payout');
+  assert.equal(rows.get('direct').touristTaxCollection, null);
+  assert.equal(rows.get('Airbnb').payoutDueDays, 10);
 });

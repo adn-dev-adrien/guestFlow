@@ -128,7 +128,6 @@ export default function SchoolHolidaysPage({ barCenter }) {
       <PageActionBar
         center={barCenter}
         title="Vacances scolaires"
-        backTo="/settings"
         actionsBefore={[
           {
             icon: <SyncIcon />,

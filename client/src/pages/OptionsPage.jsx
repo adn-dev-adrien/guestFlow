@@ -543,7 +543,7 @@ export default function OptionsPage({ barCenter }) {
   return (
     <PricedItemsPage
       barCenter={barCenter}
-      pageTitle="Options de sejour"
+      pageTitle="Options de séjour"
       itemLabel="option"
       emptyForm={emptyOption}
       priceTypes={OPTION_PRICE_TYPES}

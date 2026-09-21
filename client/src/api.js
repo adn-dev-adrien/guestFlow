@@ -193,6 +193,12 @@ const api = {
   // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),
+  // Paramètres → Plateformes (specs/settings-rationalization.md rule 17).
+  getPlatformSettings: () => request('/platforms/settings'),
+  savePlatformSettings: (platforms) => request('/platforms/settings', { method: 'PUT', body: { platforms } }),
+  // J-7 hooks per property, edited from the J-7 template (rule 17c).
+  getPropertyEmailHooks: () => request('/properties/email-hooks'),
+  savePropertyEmailHooks: (hooks) => request('/properties/email-hooks', { method: 'PUT', body: { hooks } }),
   getReservation: (id) => request(`/reservations/${id}`),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
