@@ -37,6 +37,10 @@ property's deposit %), like a direct booking.
    split: `depositAmount = depositPercent(property) × preArrival`, `balanceAmount = remainder` — the
    same chain as direct bookings (so `depositAmountOverride`, `depositPaid`, `depositDisabled` all
    apply as usual).
+   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rule 6): the
+   logement's own « Acompte » switch outranks this one. On a property with `depositEnabled = 0` a
+   platform set to « Oui » still produces no acompte — unless one was already encaissé, which is
+   never rewritten._
 4. **Commission interaction (the « solde = net » invariant is preserved).** For a platform with a
    per-reservation commission (`platformCommissionAmount > 0`), the stored acompte + solde are the
    operator's **net** amounts: `acompte + solde = preArrival − commission`. The acompte is the
