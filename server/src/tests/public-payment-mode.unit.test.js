@@ -20,6 +20,8 @@ function seed({ enabled = 0, depositAmount = 90 } = {}) {
   return db;
 }
 
+// specs/property-deposit-switch.md rule 7 — the mode resolver keeps its shape after the rename: the
+// deposit is still required to be positive, which is now also guaranteed upstream by the engine.
 test('mode = deposit only when the property opted in AND the deposit is positive', () => {
   assert.equal(resolvePublicPaymentMode(seed({ enabled: 1 }), 1, 9000), 'deposit');
   assert.equal(resolvePublicPaymentMode(seed({ enabled: 0 }), 1, 9000), 'full', 'not opted in → full');

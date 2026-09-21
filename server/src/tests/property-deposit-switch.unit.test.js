@@ -70,6 +70,7 @@ const BASE = {
   discountPercent: 0, customPrice: '',
 };
 
+// Rule 3 — ON restores today's behaviour in full.
 test('switch ON: the acompte is the usual percentage of the pre-arrival total', () => {
   const db = freshDb({ depositEnabled: 1, depositPercent: 30 });
   const q = calculateReservationQuote({ ...BASE, db, bookingDate: '2026-03-01' });
@@ -79,6 +80,7 @@ test('switch ON: the acompte is the usual percentage of the pre-arrival total', 
   db.close();
 });
 
+// Rule 2 — OFF means this logement has no acompte, whatever `depositPercent` says.
 test('switch OFF: no acompte at all — the solde absorbs the stay and the deadline disappears', () => {
   const db = freshDb({ depositEnabled: 0, depositPercent: 30 });
   const q = calculateReservationQuote({ ...BASE, db, bookingDate: '2026-03-01' });
@@ -130,6 +132,7 @@ test('switch OFF applies to a platform that takes the acompte too (rule 6)', () 
   db.close();
 });
 
+// Rule 3 again, on the platform chain: `platformTakesDeposit` keeps its meaning when the switch is ON.
 test('switch ON keeps the platform rules intact — regression', () => {
   const db = freshDb({ depositEnabled: 1, depositPercent: 30 });
   const takes = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb', platformTakesDeposit: 1 });

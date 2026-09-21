@@ -1,5 +1,8 @@
-// specs/property-deposit-switch.md §6 — the « Acompte » switch opens its card and decides what the
-// card shows; the settings that survive its absence live in « Paiement & Caution », always visible.
+// specs/property-deposit-switch.md rules 9-13 — the « Acompte & Solde » card splits in two (rule 9):
+// « Acompte » opens on its switch and reveals its two settings only when ON (rule 10), while
+// « Paiement & Caution » stays visible whatever the switch (rule 11) and says what « Solde (jours
+// avant) » means without an acompte (rule 12). Showing and hiding is local UI state only — the form
+// keeps sending what it holds (rule 13).
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -55,10 +58,12 @@ const renderWith = async (depositEnabled) => {
   await screen.findByDisplayValue('Le Moulin');
 };
 
+// Rule 11 — the three settings of « Paiement & Caution », plus the wording of rule 12.
 const alwaysThere = () => {
   expect(screen.getByLabelText(/Solde \(jours avant\)/)).toHaveValue(30);
   expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
+  expect(screen.getByText(/ou du paiement unique quand l'acompte est désactivé/)).toBeInTheDocument();
 };
 
 beforeEach(() => {
@@ -70,8 +75,10 @@ beforeEach(() => {
   api.getPropertyPlatforms.mockResolvedValue({ platforms: [] });
 });
 
+// Rules 9-10 — the card exists, and OFF it holds the switch and nothing else.
 test('switch OFF: the acompte card holds nothing but the switch and its caption', async () => {
   await renderWith(0);
+  expect(screen.getByText('Paiement & Caution')).toBeInTheDocument();
   expect(screen.getByRole('switch', { name: 'Acompte' })).not.toBeChecked();
   expect(screen.getByText(/payé en une fois/)).toBeInTheDocument();
   expect(screen.queryByLabelText(/% acompte/)).toBeNull();
@@ -79,6 +86,7 @@ test('switch OFF: the acompte card holds nothing but the switch and its caption'
   alwaysThere();
 });
 
+// Rule 10 — ON reveals the two settings that only mean something with an acompte.
 test('switch ON: the two acompte settings appear, the rest stays put', async () => {
   await renderWith(1);
   expect(screen.getByRole('switch', { name: 'Acompte' })).toBeChecked();
@@ -88,6 +96,8 @@ test('switch ON: the two acompte settings appear, the rest stays put', async () 
   alwaysThere();
 });
 
+// Rule 13 — the reveal is local UI state: the form keeps its values and keeps sending them, so the
+// server stays the only thing that decides what a hidden acompte setting is worth.
 test('flipping the switch reveals the fields and saves depositEnabled', async () => {
   await renderWith(0);
   fireEvent.click(screen.getByRole('switch', { name: 'Acompte' }));
@@ -100,4 +110,16 @@ test('flipping the switch reveals the fields and saves depositEnabled', async ()
   const [, fd] = api.updateProperty.mock.calls[0];
   expect(fd.get('depositEnabled')).toBe('true');
   expect(fd.get('publicDepositEnabled')).toBeNull();
+});
+
+test('a hidden acompte setting is still carried by the payload — nothing is dropped (rule 13)', async () => {
+  await renderWith(0);
+  fireEvent.change(screen.getByLabelText(/Caution par défaut/), { target: { value: '750' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer' }));
+
+  await waitFor(() => expect(api.updateProperty).toHaveBeenCalledTimes(1));
+  const [, fd] = api.updateProperty.mock.calls[0];
+  expect(fd.get('depositEnabled')).toBe('false');
+  expect(fd.get('depositPercent')).toBe('30');
+  expect(fd.get('depositDueDays')).toBe('7');
 });

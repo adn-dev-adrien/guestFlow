@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented _(2026-09-21)_ — server (rename migration, engine gate, legacy devis derivation) + client (card split) + tests (server 4199 green, client 1283 green, Playwright 68 green). |
+| **Status** | Implemented _(2026-09-21)_ — server (rename migration, engine gate, legacy devis derivation) + client (card split) + tests (server 4199 green, client 1284 green, Playwright 68 green). |
 | **Branch** | `feature/property-deposit-switch` |
 | **Created** | 2026-09-20 |
 | **Author** | Adrien |
@@ -180,6 +180,14 @@ recompute, paid ones never.
 
 ### PropertyDetail — right column, top
 
+**Avant / après** (captures réelles de la page du logement « Gite », 2026-09-21) :
+
+![Avant : une tuile « Acompte & Solde » de six champs, le bouton en dernier. Après : une tuile « Acompte » réduite à son bouton, et une tuile « Paiement & Caution » qui garde le solde, l'annulation et la caution.](https://raw.githubusercontent.com/adn-dev-adrien/guestFlow/assets/screenshots/property-deposit-switch/avant-apres.png)
+
+![Après, acompte activé : le bouton révèle « % acompte » et « Acompte (jours après réservation) ».](https://raw.githubusercontent.com/adn-dev-adrien/guestFlow/assets/screenshots/property-deposit-switch/acompte-active.png)
+
+Le même découpage en texte :
+
 ```
 ACOMPTE OFF                              ACOMPTE ON
 ┌─ Acompte ──────────────────────┐       ┌─ Acompte ──────────────────────┐
@@ -227,18 +235,20 @@ Other labels and helper texts are carried over unchanged (`% acompte`,
       with `depositPaid = 1` → stored split preserved; enabled property → the 30 % split, unchanged;
       a `depositAmountOverride` on a disabled property → still 0 (rule 5 precedence); platform +
       `platformTakesDeposit = 1` on a disabled property → 0 (rule 6); a property row without the
-      column → the 30 % split (edge case).
+      column → the 30 % split (edge case). Rules 2-3 are the two halves of the switch itself.
 - [x] `tests/property-deposit-enabled-column.unit.test.js` — renamed from
       `property-public-deposit-toggle.unit.test.js`: `create`/`update` coerce `'true'` / `'false'` /
       `1` / absent to the right bit on `depositEnabled`.
-- [x] `tests/public-payment-mode.unit.test.js` — updated to the renamed column (rule 7), same
-      assertions.
+- [x] `tests/public-payment-mode.unit.test.js` — rule 7: the mode resolver keeps its shape after the
+      rename, same assertions.
 - [x] `tests/devis-*` — the legacy derivation of rule 8 is covered by the last case of the engine test, which calls `resolvePaymentSchedule` directly.
 
 ### Client unit tests
-- [x] `pages/__tests__/PropertyDetail.deposit-switch.test.jsx` — the switch is the first control of
-      the « Acompte » card; OFF hides `% acompte` and `Acompte (jours après réservation)`; ON reveals
-      them; `Solde (jours avant)`, `Annulation` and `Caution par défaut` are present in both states.
+- [x] `pages/__tests__/PropertyDetail.deposit-switch.test.jsx` — rules 9-13: the switch is the first
+      control of the « Acompte » card; OFF hides `% acompte` and `Acompte (jours après réservation)`;
+      ON reveals them; `Solde (jours avant)` (with its rule-12 helper), `Annulation` and `Caution par
+      défaut` are present in both states; and a hidden acompte setting is still carried by the saved
+      payload — the reveal is UI state, nothing more.
 
 ### Manual UI verification
 - [x] Happy path: « Gite » with the switch OFF → the acompte card shows the switch and its caption
