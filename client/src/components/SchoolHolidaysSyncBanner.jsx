@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Alert, AlertTitle, Button, CircularProgress, IconButton, Typography, Tooltip } from '@mui/material';
-import SettingsIcon from '@mui/icons-material/Settings';
+import { Alert, AlertTitle, Button, CircularProgress, Typography } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 
 function timeAgoFromNow(iso) {
@@ -17,7 +16,7 @@ function timeAgoFromNow(iso) {
   return `il y a ${diffD} j`;
 }
 
-export default function SchoolHolidaysSyncBanner({ syncState, onSync, onOpenSettings, busy }) {
+export default function SchoolHolidaysSyncBanner({ syncState, onSync, busy }) {
   const status = syncState?.lastSyncStatus || 'never';
   const isError = status === 'error';
   const severity = isError ? 'warning' : 'info';
@@ -53,16 +52,10 @@ export default function SchoolHolidaysSyncBanner({ syncState, onSync, onOpenSett
       }
     >
       <AlertTitle sx={{ mb: 0.5 }}>{primary}</AlertTitle>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="caption" color="text.secondary">
-          Sync auto tous les {intervalDays} j · horizon {horizonMonths} mois
-        </Typography>
-        <Tooltip title="Modifier les paramètres de synchronisation">
-          <IconButton size="small" onClick={onOpenSettings} sx={{ p: 0.25 }}>
-            <SettingsIcon fontSize="inherit" sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
-      </Box>
+      {/* Fixed cadence (specs/settings-rationalization.md rule 13) — informative only. */}
+      <Typography variant="caption" color="text.secondary">
+        Synchronisation automatique tous les {intervalDays} jours, sur {horizonMonths} mois.
+      </Typography>
     </Alert>
   );
 }

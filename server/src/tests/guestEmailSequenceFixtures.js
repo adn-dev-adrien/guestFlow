@@ -45,17 +45,26 @@ function seedReservation(db, {
   return Number(info.lastInsertRowid);
 }
 
-/** A settings model stand-in: the switch, the start date and the copy settings. */
-function settingsStub({ autoSend = true, startDate = '2026-01-01', ...extra } = {}) {
+/** A settings model stand-in: the start date and the copy settings. */
+function settingsStub({ startDate = '2026-01-01', ...extra } = {}) {
   const row = {
     companyName: 'Domaine Solio', companyPhone: '06 00 00 00 00', smtpFromName: 'Adrien et Sophie',
     guestSequenceStartDate: startDate, publicUrl: 'https://guestflow.example', ...extra,
   };
   return {
     read: () => row,
-    emailAutoSendEnabled: () => autoSend,
     decryptedSmtpSettings: () => ({ host: 'smtp', fromEmail: 'f@x' }),
   };
+}
+
+/**
+ * Puts the six sequence templates in one mode. They ship « manual »; a template's own mode is what
+ * lets it leave by itself (specs/settings-rationalization.md rule 17b).
+ */
+function setSequenceMode(db, mode) {
+  const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
+  const stmt = db.prepare('UPDATE email_templates SET sendMode = ? WHERE stableKey = ?');
+  for (const key of SEQUENCE_STABLE_KEYS) stmt.run(mode, key);
 }
 
 /** A mailer that records every message; `failWith` makes it throw, `delayMs` makes it slow. */
@@ -72,4 +81,4 @@ function mailer({ failWith = null, delayMs = 0 } = {}) {
   return { sent, factory };
 }
 
-module.exports = { freshDb, seedProperty, seedClient, seedReservation, settingsStub, mailer };
+module.exports = { freshDb, seedProperty, seedClient, seedReservation, settingsStub, setSequenceMode, mailer };

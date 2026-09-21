@@ -1,10 +1,13 @@
 // Behavior / non-regression tests for the PropertyDetail page itself (load → populate → save,
-// dirty-reveals-actions, cancel-reverts, new-property guard, iCal create). Mocks the API, the
+// dirty-reveals-actions, cancel-reverts, new-property guard). The page is split into tabs
+// (specs/settings-rationalization.md rule 21): the tabs have their own suites
+// (PropertyDetail.tabs, components/property/__tests__/*). Mocks the API, the
 // router hooks, usePlatforms, and the two heavy child cards so the test exercises ONLY this page's
 // own logic — the payloads it sends and the affordances it shows.
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
 
 // Mutable router state shared with the hoisted react-router mock.
@@ -44,6 +47,11 @@ import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
 
+const renderPage = () => render(
+  <MemoryRouter><DialogProvider><PropertyDetail /></DialogProvider></MemoryRouter>,
+);
+const openTab = (label) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(label) }));
+
 const PROPERTY = {
   id: 5, name: 'Le Moulin', nameArticle: 'au',
   maxGuests: 3, maxBabies: 1,
@@ -73,10 +81,9 @@ beforeEach(() => {
 // ── load → populate ──────────────────────────────────────────────────────
 
 test('existing property: loads via api.getProperty and populates the form', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  renderPage();
   expect(await screen.findByDisplayValue('Le Moulin')).toBeInTheDocument(); // name field value (first form field)
   expect(api.getProperty).toHaveBeenCalledWith('5');
-  expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
   // specs/property-capacity-single-total.md — one total instead of adultes/enfants buckets.
   expect(screen.getByLabelText(/Max voyageurs/)).toHaveValue(3);
   expect(screen.getByLabelText(/Max bébés/)).toHaveValue(1);
@@ -86,7 +93,9 @@ test('existing property: loads via api.getProperty and populates the form', asyn
   // delays: the acompte counts from the BOOKING, the solde from the arrival, the cancellation from
   // the solde deadline. This fixture has the « Acompte » switch OFF, so only the last two are on
   // screen — the switch and what it reveals live in PropertyDetail.deposit-switch.test.jsx.
-  expect(screen.getByLabelText(/Solde \(jours avant\)/)).toHaveValue(30);
+  openTab('Paiement');
+  expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
+  expect(screen.getByLabelText(/jours avant l'arrivée/)).toHaveValue(30);
   expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
   expect(screen.queryByLabelText(/Acompte \(jours avant\)/)).toBeNull();
   // Not dirty → Save/Cancel hidden; the destructive action is always available.
@@ -97,9 +106,10 @@ test('existing property: loads via api.getProperty and populates the form', asyn
 // ── dirty reveals actions + save sends a FormData payload ─────────────────
 
 test('editing a field reveals Save and persists via api.updateProperty (FormData)', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  renderPage();
   await screen.findByDisplayValue('Le Moulin');
 
+  openTab('Paiement');
   fireEvent.change(screen.getByLabelText(/Caution par défaut/), { target: { value: '750' } });
   const saveBtn = await screen.findByRole('button', { name: 'Enregistrer' });
   fireEvent.click(saveBtn);
@@ -113,9 +123,10 @@ test('editing a field reveals Save and persists via api.updateProperty (FormData
 });
 
 test('Cancel reverts the edits and clears the dirty actions', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  renderPage();
   await screen.findByDisplayValue('Le Moulin');
 
+  openTab('Paiement');
   const caution = screen.getByLabelText(/Caution par défaut/);
   fireEvent.change(caution, { target: { value: '750' } });
   expect(caution).toHaveValue(750);
@@ -130,7 +141,7 @@ test('Cancel reverts the edits and clears the dirty actions', async () => {
 
 test('new property: Create is disabled until a name is set, then posts a FormData + navigates', async () => {
   routerState.id = 'new';
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  renderPage();
 
   const createBtn = screen.getByRole('button', { name: 'Créer le logement' });
   expect(createBtn).toBeDisabled();
@@ -145,124 +156,4 @@ test('new property: Create is disabled until a name is set, then posts a FormDat
   expect(fd).toBeInstanceOf(FormData);
   expect(fd.get('name')).toBe('La Cabane');
   await waitFor(() => expect(routerState.navigate).toHaveBeenCalledWith('/properties/9', { replace: true }));
-});
-
-// ── Plateformes & iCal (specs/platforms-and-ical-rework.md) ───────────────
-
-test('Plateformes & iCal: renders the merged platform list (built-ins incl. direct)', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledWith('5'));
-
-  expect(screen.getByText('Plateformes & iCal')).toBeInTheDocument();
-  expect(await screen.findByText('Airbnb')).toBeInTheDocument();
-  expect(screen.getByText('Direct')).toBeInTheDocument();
-  // No URL set on any platform → "Synchroniser tout" is disabled.
-  expect(screen.getByRole('button', { name: 'Synchroniser tout' })).toBeDisabled();
-});
-
-test('Plateformes & iCal: inline-editing a platform URL upserts the source + reloads the list', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Airbnb');
-
-  // The Airbnb row (only non-direct platform here) → enter inline edit, set a URL, save.
-  // In edit mode the URL moves to its own full-width row, labelled "URL iCal".
-  fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
-  fireEvent.change(screen.getByLabelText(/URL iCal/i), {
-    target: { value: 'https://airbnb.test/cal.ics' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-
-  await waitFor(() => expect(api.createPropertyIcalSource).toHaveBeenCalledTimes(1));
-  const [propId, payload] = api.createPropertyIcalSource.mock.calls[0];
-  expect(propId).toBe('5');
-  expect(payload.url).toBe('https://airbnb.test/cal.ics');
-  expect(payload.platformKey).toBe('airbnb');
-  // The platform list reloads after the upsert (initial load + reload).
-  await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledTimes(2));
-});
-
-test('Plateformes & iCal: the « Taxe de séjour » Select persists the GLOBAL 3-way mode', async () => {
-  // specs/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform;
-  // choosing « Plateforme → vous » (platform_reversed) calls the global setter (applies everywhere).
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Airbnb');
-
-  // Only the non-direct (Airbnb) row has the tax Select; direct shows "—".
-  const select = screen.getByLabelText('Mode de collecte de la taxe de séjour');
-  fireEvent.mouseDown(select);
-  fireEvent.click(await screen.findByRole('option', { name: 'Plateforme → vous' }));
-
-  await waitFor(() => expect(api.setPlatformTouristTax).toHaveBeenCalledTimes(1));
-  const [label, mode] = api.setPlatformTouristTax.mock.calls[0];
-  expect(label).toBe('Airbnb');
-  expect(mode).toBe('platform_reversed');
-});
-
-test('Plateformes & iCal: clicking a platform name chip opens the colour palette', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Airbnb');
-
-  // The platform name chip is the colour trigger ("Changer la couleur"); clicking it opens the palette.
-  const triggers = screen.getAllByRole('button', { name: 'Changer la couleur' });
-  fireEvent.click(triggers[0]);
-  expect(await screen.findByText('Couleur sur le calendrier')).toBeInTheDocument();
-});
-
-test('Plateformes & iCal: a configured DEFAULT platform cannot be deleted; a custom one can', async () => {
-  // A built-in (Airbnb) and a custom (Vrbo) platform, both configured (sourceId set). Only the custom
-  // one exposes the "Réinitialiser la configuration" (delete) action.
-  api.getPropertyPlatforms.mockResolvedValue({
-    platforms: [
-      { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: 'https://a/c.ics', collectsTouristTax: 1, disabled: 0, sourceId: 10, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
-      { platformKey: 'vrbo', platformLabel: 'Vrbo', color: '#757575', isDirect: false, isBuiltIn: false, url: 'https://v/c.ics', collectsTouristTax: 1, disabled: 0, sourceId: 11, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
-    ],
-  });
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Vrbo');
-
-  // Exactly one delete affordance — the custom platform's. The built-in (Airbnb), though configured, has none.
-  const deletes = screen.queryAllByRole('button', { name: 'Réinitialiser la configuration' });
-  expect(deletes).toHaveLength(1);
-});
-
-// ── Délai de virement plateforme (specs/platform-payout-due-date.md §3.4) ─────────────────────
-
-// specs/platform-payout-due-date.md rules 35 + 37
-test('Plateformes & iCal: the payout delay is shown per platform and hidden on own channels', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Airbnb');
-  // Airbnb carries a delay; « Direct » has no payout to wait for.
-  expect(screen.getByText('10 j')).toBeInTheDocument();
-  expect(screen.queryByLabelText('Virement reçu sous (jours)')).toBeNull();
-});
-
-test('Plateformes & iCal: editing the payout delay persists it GLOBALLY for the platform', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Airbnb');
-
-  fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
-  fireEvent.change(screen.getByLabelText('Virement reçu sous (jours)'), { target: { value: '3' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-
-  await waitFor(() => expect(api.setPlatformPayoutDueDays).toHaveBeenCalledTimes(1));
-  expect(api.setPlatformPayoutDueDays).toHaveBeenCalledWith('Airbnb', 3);
-});
-
-test('Plateformes & iCal: an unchanged payout delay is not re-sent on save', async () => {
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByDisplayValue('Le Moulin');
-  await screen.findByText('Airbnb');
-
-  fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-
-  await waitFor(() => expect(api.createPropertyIcalSource).toHaveBeenCalled());
-  expect(api.setPlatformPayoutDueDays).not.toHaveBeenCalled();
 });

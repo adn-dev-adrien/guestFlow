@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
 
 import PlatformPriceCard from '../PlatformPriceCard';
@@ -7,13 +8,13 @@ import api from '../../api';
 
 // specs/platform-price-from-commission.md + specs/tariff-recipes/spec.md §3.6 rules 31-34 —
 // the « Prix plateformes » grid: one row per channel (Direct first), whole-euro prices per season,
-// extra-guest column, editable commission %.
+// extra-guest column. The commission % is read-only here: it is edited on Paramètres → Plateformes
+// (specs/settings-rationalization.md rule 19).
 
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getPlatformPrices: vi.fn(),
-    setPlatformCommission: vi.fn().mockResolvedValue({}),
   },
 }));
 
@@ -37,7 +38,9 @@ const GRID = {
   ],
 };
 
-beforeEach(() => { vi.clearAllMocks(); vi.useRealTimers(); });
+const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
+
+beforeEach(() => { vi.clearAllMocks(); });
 
 test('renders one row per channel, Direct first with its caption, whole-euro prices', async () => {
   api.getPlatformPrices.mockResolvedValue(GRID);
@@ -79,27 +82,11 @@ test('platforms but no seasons → seasons hint', async () => {
   expect(await screen.findByText(/Aucune saison tarifaire/i)).toBeInTheDocument();
 });
 
-test('editing a commission % PUTs (debounced) then refetches the grid — Direct editable too', async () => {
-  vi.useFakeTimers();
+test('the commission is shown read-only, with a link to the Plateformes page', async () => {
   api.getPlatformPrices.mockResolvedValue(GRID);
   render(<PlatformPriceCard propertyId={1} />);
-  await act(async () => { await vi.runOnlyPendingTimersAsync(); }); // resolve initial load
-  const directPct = screen.getByLabelText('Commission Direct');
-  expect(directPct).not.toBeDisabled();
-  const airbnbPct = screen.getByLabelText('Commission Airbnb');
-  fireEvent.change(airbnbPct, { target: { value: '18' } });
-  // debounce window
-  await act(async () => { await vi.advanceTimersByTimeAsync(650); });
-  expect(api.setPlatformCommission).toHaveBeenCalledWith(2, 18);
-  // re-fetch after persist (initial + reload)
-  expect(api.getPlatformPrices).toHaveBeenCalledTimes(2);
-});
-
-test('a synthetic Direct row (no platforms row yet) renders with its % input disabled', async () => {
-  api.getPlatformPrices.mockResolvedValue({
-    platforms: [{ id: 'direct', name: 'Direct', commissionPercent: 0, isDirect: true }, GRID.platforms[1]],
-    seasons: GRID.seasons,
-  });
-  render(<PlatformPriceCard propertyId={1} />);
-  expect(await screen.findByLabelText('Commission Direct')).toBeDisabled();
+  expect(await screen.findByLabelText('Commission Airbnb')).toHaveTextContent('15.5 %');
+  expect(screen.getByLabelText('Commission Direct')).toHaveTextContent('5 %');
+  expect(screen.queryByRole('spinbutton')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Plateformes' })).toHaveAttribute('href', '/settings/plateformes');
 });

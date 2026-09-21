@@ -10,7 +10,8 @@
  *      a form (bank account / phone / website / description) calls connect-provider. A `pending`
  *      connection redirects to the Qonto/Mollie onboarding (KYC); the return lands here with
  *      ?provider=callback, which re-checks the status.
- *   3. Délais & relances — deposit/balance reminder & deadline durations, editable.
+ *   The « Délais & relances » card is gone: nothing read those values
+ *   (specs/settings-rationalization.md rule 9).
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -37,8 +38,6 @@ const EMPTY_CREDENTIALS = {
   publicSiteOrigin: undefined,
 };
 
-const offsetsToText = (arr) => (Array.isArray(arr) ? arr.join(', ') : '');
-
 // Where a recorded Qonto failure came from (specs/qonto-settings-in-app.md §3 rule 12).
 const ORIGIN_LABELS = {
   test: 'test de connexion',
@@ -64,23 +63,12 @@ const normalizeFrPhone = (raw) => {
   if (/^0\d{9}$/.test(p)) return `+33${p.slice(1)}`;
   return p;
 };
-const textToOffsets = (txt) => String(txt || '')
-  .split(',').map((s) => s.trim()).filter((s) => s !== '')
-  .map(Number).filter((n) => Number.isInteger(n));
-
-const DAY_FIELDS = [
-  'depositAbandonOffset', 'depositLinkExpiryDays',
-  'balanceAbandonOffset', 'balanceLinkExpiryDays',
-];
-
 const EMPTY_PROVIDER_FORM = { bankAccountId: '', phone: '', websiteUrl: 'https://domainesolio.com', businessDescription: '' };
 
 export default function PaymentsSettingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [qonto, setQonto] = useState(null);
-  const [draft, setDraft] = useState(null);
-  const [savedDraft, setSavedDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   // Load failures stay persistent (ErrorAlert); action failures toast
   // (specs/ds-sweep-settings.md §3.3 — the old single `error` state mixed both).
@@ -104,8 +92,8 @@ export default function PaymentsSettingsPage() {
   // too: one Save for the page means one notion of "unsaved" for the page
   // (specs/settings-one-save-and-automatic-webhook.md rule 4).
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: { ...(draft || {}), credentials: credentialsDraft },
-    saved: { ...(savedDraft || {}), credentials: EMPTY_CREDENTIALS },
+    draft: { credentials: credentialsDraft },
+    saved: { credentials: EMPTY_CREDENTIALS },
     navigate,
   });
 
@@ -113,13 +101,6 @@ export default function PaymentsSettingsPage() {
     const data = await api.getPaymentSettings();
     setQonto(data.qonto);
     setCredentials(data.credentials);
-    const shaped = {
-      ...data.timings,
-      depositReminderOffsetsText: offsetsToText(data.timings.depositReminderOffsets),
-      balanceReminderOffsetsText: offsetsToText(data.timings.balanceReminderOffsets),
-    };
-    setDraft(shaped);
-    setSavedDraft(shaped);
     return data.qonto;
   }, []);
 
@@ -159,7 +140,6 @@ export default function PaymentsSettingsPage() {
       .catch(() => setBankAccounts([])); // a load failure shows an empty picker + a hint
   }, [needsProvider, bankAccounts]);
 
-  const setField = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
   const setProviderField = (key, value) => setProviderForm((f) => ({ ...f, [key]: value }));
 
   const credentialsTouched = Object.values(credentialsDraft).some((v) => v !== undefined);
@@ -185,24 +165,6 @@ export default function PaymentsSettingsPage() {
         messages.push(res.tokensCleared
           ? 'Identifiants enregistrés — clique « Connexion » pour autoriser la nouvelle application'
           : 'Identifiants Qonto enregistrés');
-      }
-
-      const timingsChanged = JSON.stringify(draft) !== JSON.stringify(savedDraft);
-      if (timingsChanged) {
-        const payload = {
-          depositReminderOffsets: textToOffsets(draft.depositReminderOffsetsText),
-          balanceReminderOffsets: textToOffsets(draft.balanceReminderOffsetsText),
-        };
-        DAY_FIELDS.forEach((f) => { payload[f] = Number(draft[f]); });
-        const res = await api.updatePaymentSettings(payload);
-        const next = (d) => ({
-          ...d, ...res.timings,
-          depositReminderOffsetsText: offsetsToText(res.timings.depositReminderOffsets),
-          balanceReminderOffsetsText: offsetsToText(res.timings.balanceReminderOffsets),
-        });
-        setDraft(next);
-        setSavedDraft((prev) => next(prev || {}));
-        messages.push('Délais enregistrés');
       }
 
       if (messages.length) showSuccess(`${messages.join(' · ')} ✓`);
@@ -250,10 +212,10 @@ export default function PaymentsSettingsPage() {
     }
   };
 
-  if (!draft || !qonto || !credentials) {
+  if (!qonto || !credentials) {
     return (
       <Box>
-        <PageActionBar title="Paiements" backTo="/settings" />
+        <PageActionBar title="Paiements en ligne" />
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
       </Box>
     );
@@ -274,7 +236,14 @@ export default function PaymentsSettingsPage() {
 
   return (
     <Box>
-      <PageActionBar title="Paiements" backTo="/settings" onSave={handleSave} saveDisabled={!isDirty} saveBusy={saving} />
+      <PageActionBar
+        title="Paiements en ligne"
+        onSave={handleSave}
+        saveDisabled={!isDirty}
+        saveBusy={saving}
+        onCancel={() => setCredentialsDraft(EMPTY_CREDENTIALS)}
+        cancelDisabled={!isDirty || saving}
+      />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 900, mx: 'auto' }}>
         {loadError && <ErrorAlert message="Impossible de charger les paramètres de paiement." onRetry={() => window.location.reload()} />}
 
@@ -344,30 +313,6 @@ export default function PaymentsSettingsPage() {
           </Card>
         )}
 
-        <Card variant="outlined">
-          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Typography variant="sectionHeader" sx={{ display: 'block', mb: 1 }}>Délais &amp; relances</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Tout en jours. Les relances sont des décalages par rapport à la date d'échéance
-              (négatif = avant, 0 = le jour J). Plusieurs relances séparées par des virgules.
-            </Typography>
-            <Stack spacing={2}>
-              <Typography variant="subtitle2">Acompte</Typography>
-              <TextField label="Relances (ex. -5, 0)" value={draft.depositReminderOffsetsText} onChange={(e) => setField('depositReminderOffsetsText', e.target.value)} fullWidth size="small" />
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField type="number" label="Abandon après échéance (j)" value={draft.depositAbandonOffset} onChange={(e) => setField('depositAbandonOffset', e.target.value)} fullWidth size="small" />
-                <TextField type="number" label="Expiration du lien après échéance (j)" value={draft.depositLinkExpiryDays} onChange={(e) => setField('depositLinkExpiryDays', e.target.value)} fullWidth size="small" />
-              </Stack>
-
-              <Typography variant="subtitle2" sx={{ pt: 1 }}>Solde</Typography>
-              <TextField label="Relances (ex. -10, -5, 0)" value={draft.balanceReminderOffsetsText} onChange={(e) => setField('balanceReminderOffsetsText', e.target.value)} fullWidth size="small" />
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField type="number" label="Abandon après échéance (j)" value={draft.balanceAbandonOffset} onChange={(e) => setField('balanceAbandonOffset', e.target.value)} fullWidth size="small" />
-                <TextField type="number" label="Expiration du lien après échéance (j)" value={draft.balanceLinkExpiryDays} onChange={(e) => setField('balanceLinkExpiryDays', e.target.value)} fullWidth size="small" />
-              </Stack>
-            </Stack>
-          </CardContent>
-        </Card>
       </Box>
       <ConfirmDialog
         open={guardDialogOpen}

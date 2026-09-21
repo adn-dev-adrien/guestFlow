@@ -135,7 +135,6 @@ export default function TariffRecipesPage() {
     <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
       <PageActionBar
         title="Recettes tarifaires"
-        backTo="/settings"
         actionsBefore={[{
           icon: <AddIcon />,
           tooltip: 'Déclarer un changement tarifaire',

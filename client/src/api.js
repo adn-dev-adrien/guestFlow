@@ -145,6 +145,8 @@ const api = {
 
   // Options
   getOptions: () => request('/options'),
+  // The options catalogue page: without the early / late options edited on each property (rule 15).
+  getCatalogueOptions: () => request('/options?view=catalogue'),
   createOption: (data) => request('/options', { method: 'POST', body: data }),
   updateOption: (id, data) => request(`/options/${id}`, { method: 'PUT', body: data }),
   deleteOption: (id) => request(`/options/${id}`, { method: 'DELETE' }),
@@ -193,6 +195,12 @@ const api = {
   // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),
+  // Paramètres → Plateformes (specs/settings-rationalization.md rule 17).
+  getPlatformSettings: () => request('/platforms/settings'),
+  savePlatformSettings: (platforms) => request('/platforms/settings', { method: 'PUT', body: { platforms } }),
+  // J-7 hooks per property, edited from the J-7 template (rule 17c).
+  getPropertyEmailHooks: () => request('/properties/email-hooks'),
+  savePropertyEmailHooks: (hooks) => request('/properties/email-hooks', { method: 'PUT', body: { hooks } }),
   getReservation: (id) => request(`/reservations/${id}`),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
@@ -208,7 +216,8 @@ const api = {
   // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over. `total`
   // null restores the computed total; the réduction / pourboire is derived and clamped server-side.
   adjustArrivalPayment: (id, total) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode: 'adjust', total } }),
-  deleteReservation: (id) => request(`/reservations/${id}`, { method: 'DELETE' }),
+  // `unlockPast` — an admin's per-fiche unlock of a past reservation (specs/settings-rationalization.md rule 17a).
+  deleteReservation: (id, { unlockPast = false } = {}) => request(`/reservations/${id}${unlockPast ? '?unlockPast=1' : ''}`, { method: 'DELETE' }),
 
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
   // payload, so the fiche only calls these two on a mutation.
@@ -254,8 +263,6 @@ const api = {
   deleteSchoolHoliday: (id) => request(`/school-holidays/${id}`, { method: 'DELETE' }),
   unlockSchoolHoliday: (id) => request(`/school-holidays/${id}/unlock`, { method: 'PUT' }),
   syncSchoolHolidays: () => request('/school-holidays/sync', { method: 'POST' }),
-  updateSchoolHolidaysSyncSettings: ({ syncIntervalDays, syncHorizonMonths }) =>
-    request('/school-holidays/sync-settings', { method: 'PUT', body: { syncIntervalDays, syncHorizonMonths } }),
 
   // Public holidays — server-computed for the given years; returns [{ date, label }].
   getPublicHolidays: (years) => request(`/public-holidays?years=${[...new Set(years)].join(',')}`),
@@ -287,7 +294,6 @@ const api = {
   sendPushTest: () => request('/push/test', { method: 'POST' }),
   // Online payments (specs/online-payments-qonto.md). Qonto connection state + configurable timings.
   getPaymentSettings: () => request('/payments/settings'),
-  updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
   getQontoStatus: () => request('/payments/qonto/status'),
   // The Qonto application settings + the connection test (specs/qonto-settings-in-app.md §4.3).
   // Secrets travel one way only: written here, never read back.

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, TableContainer, Stack, Switch, TextField, Link as MuiLink,
+  TableCell, TableBody, TableContainer, Stack, Switch, TextField,
   CircularProgress, Button, Tooltip,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
@@ -15,8 +15,6 @@ import LoadingState from '../components/LoadingState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import { useToast } from '../components/DialogProvider';
-import { useAuth } from '../hooks/useAuth';
-import { userHasRole, ADMIN } from '../constants/roles';
 
 /**
  * PlatformAccountsPage — `/comptabilite/plateformes`.
@@ -44,8 +42,6 @@ function normalizeAccount(value) {
 
 export default function PlatformAccountsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isAdmin = userHasRole(user, ADMIN);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,13 +52,15 @@ export default function PlatformAccountsPage() {
   const [loadError, setLoadError] = useState(false);
   const { showSuccess, showError } = useToast();
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
-  const [vatRateCommission, setVatRateCommission] = useState(20);
+  // The two accounting VAT rates are edited here since specs/settings-rationalization.md rule 14,
+  // next to the accounts that use them (admin and accountant alike). Kept as typed strings.
+  const [savedVatRateCommission, setSavedVatRateCommission] = useState('20');
+  const [vatRateCommission, setVatRateCommission] = useState('20');
+  const [savedVatRateCompensation, setSavedVatRateCompensation] = useState('0');
   // specs/cancellation-compensation.md §3.3 rule 19 — the produit account for a platform indemnity.
-  // Editable here (it is a chart-of-accounts setting); its VAT rate is read-only, like the
-  // commission one, because rates live in Réglages → Général.
   const [savedCompensationAccount, setSavedCompensationAccount] = useState('75880000');
   const [compensationAccount, setCompensationAccount] = useState('75880000');
-  const [vatRateCompensation, setVatRateCompensation] = useState(0);
+  const [vatRateCompensation, setVatRateCompensation] = useState('0');
   const [savedPlatforms, setSavedPlatforms] = useState([]);
   const [defaultAccount, setDefaultAccount] = useState('622600');
   const [platforms, setPlatforms] = useState([]);
@@ -75,10 +73,12 @@ export default function PlatformAccountsPage() {
         if (!mounted) return;
         setSavedDefaultAccount(data.defaultAccount || '622600');
         setDefaultAccount(data.defaultAccount || '622600');
-        setVatRateCommission(Number(data.vatRateCommission ?? 20));
+        setSavedVatRateCommission(String(data.vatRateCommission ?? 20));
+        setVatRateCommission(String(data.vatRateCommission ?? 20));
         setSavedCompensationAccount(data.cancellationCompensationAccount || '75880000');
         setCompensationAccount(data.cancellationCompensationAccount || '75880000');
-        setVatRateCompensation(Number(data.vatRateCancellationCompensation ?? 0));
+        setSavedVatRateCompensation(String(data.vatRateCancellationCompensation ?? 0));
+        setVatRateCompensation(String(data.vatRateCancellationCompensation ?? 0));
         const sortedPlatforms = (data.platforms || []).map((p) => ({
           ...p,
           commissionAccountNumber: p.commissionAccountNumber || '',
@@ -96,14 +96,16 @@ export default function PlatformAccountsPage() {
 
   // Same fields the old manual comparator watched — projected so the guard's deep-equal doesn't
   // trip on unrelated platform metadata (specs/ds-sweep-settings.md §3.7).
-  const dirtyProjection = (account, compensation, list) => ({
+  const dirtyProjection = (account, compensation, list, vatCommission, vatCompensation) => ({
     account,
     compensation,
+    vatCommission,
+    vatCompensation,
     rows: (list || []).map((x) => ({ id: x.id, c: x.commissionAccountNumber || '', v: Boolean(x.hasVatOnCommission) })),
   });
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: dirtyProjection(defaultAccount, compensationAccount, platforms),
-    saved: dirtyProjection(savedDefaultAccount, savedCompensationAccount, savedPlatforms),
+    draft: dirtyProjection(defaultAccount, compensationAccount, platforms, vatRateCommission, vatRateCompensation),
+    saved: dirtyProjection(savedDefaultAccount, savedCompensationAccount, savedPlatforms, savedVatRateCommission, savedVatRateCompensation),
     navigate,
   });
 
@@ -121,6 +123,15 @@ export default function PlatformAccountsPage() {
     }
   }
 
+  function handleVatChange(setter, errorKey) {
+    return (value) => {
+      setter(value);
+      if (errors[errorKey]) {
+        setErrors((prev) => { const next = { ...prev }; delete next[errorKey]; return next; });
+      }
+    };
+  }
+
   function updatePlatformField(id, field, value) {
     setPlatforms((prev) => prev.map((p) => p.id === id ? ({ ...p, [field]: value }) : p));
     if (errors[`platform-${id}-${field}`]) {
@@ -135,6 +146,8 @@ export default function PlatformAccountsPage() {
       const payload = {
         defaultAccount,
         cancellationCompensationAccount: compensationAccount,
+        vatRateCommission,
+        vatRateCancellationCompensation: vatRateCompensation,
         platforms: platforms
           .filter((p) => !p.isDirect)
           .map((p) => ({
@@ -148,6 +161,10 @@ export default function PlatformAccountsPage() {
       setDefaultAccount(result.defaultAccount);
       setSavedCompensationAccount(result.cancellationCompensationAccount);
       setCompensationAccount(result.cancellationCompensationAccount);
+      setSavedVatRateCommission(String(result.vatRateCommission));
+      setVatRateCommission(String(result.vatRateCommission));
+      setSavedVatRateCompensation(String(result.vatRateCancellationCompensation));
+      setVatRateCompensation(String(result.vatRateCancellationCompensation));
       const sortedPlatforms = (result.platforms || []).map((p) => ({
         ...p,
         commissionAccountNumber: p.commissionAccountNumber || '',
@@ -156,11 +173,13 @@ export default function PlatformAccountsPage() {
       setPlatforms(sortedPlatforms);
       showSuccess('Configuration enregistrée.');
     } catch (err) {
-      const apiErrors = err?.body?.errors;
+      const apiErrors = err?.errors || err?.body?.errors;
       if (apiErrors) {
         const next = {};
         if (apiErrors.defaultAccount) next.defaultAccount = apiErrors.defaultAccount;
         if (apiErrors.cancellationCompensationAccount) next.compensationAccount = apiErrors.cancellationCompensationAccount;
+        if (apiErrors.vatRateCommission) next.vatRateCommission = apiErrors.vatRateCommission;
+        if (apiErrors.vatRateCancellationCompensation) next.vatRateCompensation = apiErrors.vatRateCancellationCompensation;
         if (Array.isArray(apiErrors.platforms)) {
           for (const row of apiErrors.platforms) {
             if (row.account) next[`platform-${row.id}-account`] = row.account;
@@ -179,6 +198,8 @@ export default function PlatformAccountsPage() {
   function handleCancel() {
     setDefaultAccount(savedDefaultAccount);
     setCompensationAccount(savedCompensationAccount);
+    setVatRateCommission(savedVatRateCommission);
+    setVatRateCompensation(savedVatRateCompensation);
     setPlatforms(savedPlatforms);
     setErrors({});
   }
@@ -280,13 +301,16 @@ export default function PlatformAccountsPage() {
                   slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
                   disabled={saving}
                 />
-                <Typography variant="body2" color="text.secondary">
-                  TVA appliquée aux indemnités : <strong>{vatRateCompensation} %</strong>
-                  {vatRateCompensation === 0 ? ' (hors champ)' : ''}
-                  {isAdmin
-                    ? <>{' '}(<MuiLink component="button" type="button" onClick={() => navigate('/settings')} sx={{ verticalAlign: 'baseline' }}>ouvrir les Réglages</MuiLink>)</>
-                    : <em> &nbsp;(réservé à un administrateur)</em>}
-                </Typography>
+                <TextField
+                  label="TVA sur indemnités d'annulation (%)"
+                  value={vatRateCompensation}
+                  onChange={(e) => handleVatChange(setVatRateCompensation, 'vatRateCompensation')(e.target.value)}
+                  error={Boolean(errors.vatRateCompensation)}
+                  helperText={errors.vatRateCompensation || "0 % = hors champ de TVA (recommandé). À changer seulement si votre comptable le demande."}
+                  sx={{ maxWidth: { sm: 320 } }}
+                  slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+                  disabled={saving}
+                />
               </Stack>
             </CardContent>
           </Card>
@@ -297,12 +321,20 @@ export default function PlatformAccountsPage() {
                 <Box>
                   <Typography variant="sectionHeader">Par plateforme</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    TVA déductible commissions appliquée: <strong>{vatRateCommission} %</strong>
-                    {isAdmin
-                      ? <>{' '}(<MuiLink component="button" type="button" onClick={() => navigate('/settings')} sx={{ verticalAlign: 'baseline' }}>modifiable dans Réglages → Général</MuiLink>)</>
-                      : <em> &nbsp;(modifiable par un administrateur)</em>}
+                    Compte commission et TVA déductible, plateforme par plateforme.
                   </Typography>
                 </Box>
+                <TextField
+                  label="TVA déductible sur commissions (%)"
+                  value={vatRateCommission}
+                  onChange={(e) => handleVatChange(setVatRateCommission, 'vatRateCommission')(e.target.value)}
+                  error={Boolean(errors.vatRateCommission)}
+                  helperText={errors.vatRateCommission || 'Appliquée aux plateformes cochées « TVA déductible ».'}
+                  size="small"
+                  sx={{ width: { xs: '100%', sm: 260 } }}
+                  slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+                  disabled={saving}
+                />
               </Box>
               {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
               <TableContainer>

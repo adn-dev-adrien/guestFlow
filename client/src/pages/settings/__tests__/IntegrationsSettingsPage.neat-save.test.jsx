@@ -1,6 +1,7 @@
 /**
- * SettingsPage — the action bar is the only thing that writes.
- * See specs/settings-one-save-and-automatic-webhook.md §3 rules 1 and 4.
+ * IntegrationsSettingsPage — the action bar is the only thing that writes.
+ * See specs/settings-one-save-and-automatic-webhook.md §3 rules 1 and 4; the Neat card moved from the
+ * former « Générale » page to Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
  *
  * The Neat card keeps its own data and its own endpoints; what it gave up is its three « Enregistrer »
  * buttons. This suite checks the seam: a change made inside the card lights up the bar, the bar's
@@ -12,7 +13,7 @@ import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
-vi.mock('../../api', () => ({
+vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getSettings: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('../../api', () => ({
   },
 }));
 
-vi.mock('../../components/DialogProvider', () => {
+vi.mock('../../../components/DialogProvider', () => {
   const stableToast = { showSuccess: vi.fn(), showError: vi.fn() };
   return {
     __esModule: true,
@@ -41,20 +42,15 @@ vi.mock('../../components/DialogProvider', () => {
   };
 });
 
-vi.mock('../../components/SettingsGoogleCalendarSection', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/SettingsPushNotificationsSection', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/SettingsSystemUpdateSection', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../../components/SettingsGoogleCalendarSection', () => ({ __esModule: true, default: () => null }));
 
-import api from '../../api';
-import SettingsPage from '../SettingsPage';
-import { CONFIGURED_SETTINGS } from '../../components/__tests__/neatSectionFixtures';
+import api from '../../../api';
+import IntegrationsSettingsPage from '../IntegrationsSettingsPage';
+import { CONFIGURED_SETTINGS } from '../../../components/__tests__/neatSectionFixtures';
 
 function settingsPayload(over = {}) {
   return {
     company: { name: 'Domaine Solio' },
-    quote: {}, vat: {}, accounting: {}, smtp: {}, reservations: {}, laundry: {},
-    notifications: { enabled: true, icalReservationEnabled: true, recipientEmail: '' },
-    emails: { autoSendEnabled: false },
     weather: { apiKeySet: false },
     updatedAtLabel: 'aujourd’hui',
     ...over,
@@ -73,7 +69,7 @@ beforeEach(() => {
 function renderPage() {
   return render(
     <MemoryRouter>
-      <SettingsPage />
+      <IntegrationsSettingsPage />
     </MemoryRouter>,
   );
 }
@@ -98,17 +94,18 @@ test('rule 1: a change inside the Neat card enables the bar’s Save, which writ
 });
 
 // Rule 1 — the two halves of the page are saved by the same press.
-test('rule 1: one press writes the general form and the Neat card together', async () => {
+test('rule 1: one press writes the weather key and the Neat card together', async () => {
   renderPage();
   await screen.findByText('Connectée — staging');
 
   fireEvent.change(screen.getByLabelText('Marge sur la prime Neat (%)'), { target: { value: '18' } });
-  fireEvent.change(screen.getByLabelText('Raison sociale'), { target: { value: 'Domaine Solio SARL' } });
+  fireEvent.change(screen.getByLabelText('Clé API Météo-France (Vigilance)'), { target: { value: 'k-123' } });
   await waitFor(() => expect(saveButton()).toBeEnabled());
 
   await act(async () => { fireEvent.click(saveButton()); });
 
   await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1));
+  expect(api.updateSettings.mock.calls[0][0]).toEqual({ weather: { apiKey: 'k-123' } });
   expect(api.updateNeatSettings).toHaveBeenCalledTimes(1);
 });
 

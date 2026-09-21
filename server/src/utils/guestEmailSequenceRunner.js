@@ -11,9 +11,9 @@
  * opening SMTP (rule 12): a key another path already holds sends nothing.
  */
 
-const { autoSendAllowed } = require('./autoSendPolicy');
+const { stableKeyAutoSends } = require('./autoSendPolicy');
 const {
-  MAIL_LABELS, REASONS, POST_STAY_STABLE_KEYS, planStayMails, planSeasonMail, seasonSendDates, capReached,
+  MAIL_LABELS, REASONS, POST_STAY_STABLE_KEYS, SEQUENCE_STABLE_KEYS, planStayMails, planSeasonMail, seasonSendDates, capReached,
   __test: { addDays },
 } = require('./guestEmailSequence');
 
@@ -190,9 +190,19 @@ async function sendSequenceMail(deps, plan, opts = {}) {
 
 // ---------------------------------------------------------------- the daily pass
 
+/**
+ * The sequence mails whose template sends by itself (specs/settings-rationalization.md rule 17b).
+ * A « manual » one is never sent by this pass: it waits in the pending queue.
+ */
+function autoMailKeys(templatesModel) {
+  if (!templatesModel) return [];
+  return SEQUENCE_STABLE_KEYS.filter((key) => stableKeyAutoSends(templatesModel, key));
+}
+
 async function runSequencePass(deps, { today = isoToday() } = {}) {
-  const { database, ledger, settingsModel } = deps;
-  if (!autoSendAllowed(settingsModel)) return { blocked: true, sent: 0, failed: 0, results: [] };
+  const { database, ledger, settingsModel, templatesModel } = deps;
+  const autoKeys = new Set(autoMailKeys(templatesModel));
+  if (autoKeys.size === 0) return { blocked: true, sent: 0, failed: 0, results: [] };
   const startDate = settingsModel.read().guestSequenceStartDate;
   if (!startDate) return { blocked: true, sent: 0, failed: 0, results: [] };
 
@@ -204,7 +214,7 @@ async function runSequencePass(deps, { today = isoToday() } = {}) {
   const results = [];
   let sent = 0;
   let failed = 0;
-  for (const entry of plan.filter((e) => e.status === 'send')) {
+  for (const entry of plan.filter((e) => e.status === 'send' && autoKeys.has(e.stableKey))) {
     const outcome = await sendSequenceMail(deps, entry);
     if (outcome.sent) sent += 1;
     else if (outcome.reason !== 'already-sent') failed += 1;
@@ -219,7 +229,7 @@ async function runSequencePass(deps, { today = isoToday() } = {}) {
  * What the sequence would send between `from` and `to` (rule 31). No SMTP, no ledger write. Before
  * activation, the start date is assumed to be today so the operator sees what activating would do.
  */
-function simulate({ database, ledger, settingsModel }, { from, to, today = isoToday() }) {
+function simulate({ database, ledger, settingsModel, templatesModel }, { from, to, today = isoToday() }) {
   const settings = settingsModel.read();
   const startDate = settings.guestSequenceStartDate || today;
   const entries = planWindow({ database, ledger, from, to, startDate });
@@ -266,7 +276,8 @@ function simulate({ database, ledger, settingsModel }, { from, to, today = isoTo
     counts,
     startDate: settings.guestSequenceStartDate || null,
     assumedStartDate: settings.guestSequenceStartDate ? null : startDate,
-    autoSendEnabled: autoSendAllowed(settingsModel),
+    // The sequence mails that leave on their own; the others are proposed in the pending queue.
+    autoMailKeys: autoMailKeys(templatesModel),
   };
 }
 

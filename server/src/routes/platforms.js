@@ -8,6 +8,10 @@ const router = express.Router();
 const controller = require('../controllers/platformsController');
 
 router.get('/', controller.listNames);
+// specs/settings-rationalization.md rule 17 — the « Plateformes » settings page: every per-platform
+// commercial setting read and written in one go. Static path, declared before the `/:key` routes.
+router.get('/settings', controller.listSettings);
+router.put('/settings', controller.saveSettings);
 // specs/platform-price-from-commission.md — non-direct platforms + their commission %, and the
 // per-platform commission % editor used by the property tarif page.
 router.get('/with-commission', controller.listWithCommission);

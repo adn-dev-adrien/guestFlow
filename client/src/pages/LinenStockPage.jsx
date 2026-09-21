@@ -96,8 +96,7 @@ export default function LinenStockPage() {
   return (
     <Box>
       <PageActionBar
-        title="Blanchisserie"
-        backTo="/parametres"
+        title="Linge"
         onSave={handleSave}
         saveDisabled={loading || saving || !isDirty}
         saveBusy={saving}

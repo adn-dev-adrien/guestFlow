@@ -4,7 +4,7 @@
  * Single field: which weekday Adrien drops the dirty linen at / picks the clean linen from
  * the laundry. Drives the LaundryDayCard on PlanningPage (specs/weekly-bed-linen-tracking.md).
  *
- * Mirrors the shape of SettingsReservationLockSection (Card → Stack → h6 → caption) so the
+ * Mirrors the shape of the other settings cards (Card → Stack → h6 → caption) so the
  * page rhythm stays consistent.
  *
  * Props:

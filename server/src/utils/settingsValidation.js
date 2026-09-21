@@ -123,14 +123,6 @@ function validateFiscalYearEndMonth(value) {
 }
 
 // SMTP validators (specs/admin-account-management.md M3).
-function validateSmtpPort(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  if (!Number.isInteger(n)) return 'Doit être un entier entre 1 et 65535.';
-  if (n < 1 || n > 65535) return 'Doit être un entier entre 1 et 65535.';
-  return null;
-}
-
 /**
  * The SMTP port is not asked for any more: it IS the security mode, said twice
  * (specs/settings-one-save-and-automatic-webhook.md §3 rule 5).
@@ -197,7 +189,6 @@ module.exports = {
   validateQuoteValidityDays,
   validateVatRate,
   validateFiscalYearEndMonth,
-  validateSmtpPort,
   smtpPortForSecure,
   validatePublicUrl,
   validateMonthDay,

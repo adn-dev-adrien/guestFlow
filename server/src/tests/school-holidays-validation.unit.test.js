@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validatePeriod, validateSyncSettings } = require('../utils/schoolHolidaysValidation');
+const { validatePeriod } = require('../utils/schoolHolidaysValidation');
 
 // ---------- validatePeriod ----------
 
@@ -65,30 +65,4 @@ test('validatePeriod: start === end is valid (one-day holiday)', () => {
 test('validatePeriod: all three zones empty rejected mentioning "au moins une zone"', () => {
   const err = validatePeriod({ label: 'X' });
   assert.match(err, /au moins une zone/);
-});
-
-// ---------- validateSyncSettings ----------
-
-test('validateSyncSettings: defaults are valid', () => {
-  assert.equal(validateSyncSettings({ syncIntervalDays: 60, syncHorizonMonths: 24 }), null);
-});
-
-test('validateSyncSettings: syncIntervalDays = 0 rejected', () => {
-  const err = validateSyncSettings({ syncIntervalDays: 0, syncHorizonMonths: 24 });
-  assert.match(err, /1 et 365/);
-});
-
-test('validateSyncSettings: syncIntervalDays = 366 rejected', () => {
-  const err = validateSyncSettings({ syncIntervalDays: 366, syncHorizonMonths: 24 });
-  assert.match(err, /1 et 365/);
-});
-
-test('validateSyncSettings: syncHorizonMonths = 61 rejected', () => {
-  const err = validateSyncSettings({ syncIntervalDays: 60, syncHorizonMonths: 61 });
-  assert.match(err, /1 et 60/);
-});
-
-test('validateSyncSettings: non-integer rejected', () => {
-  const err = validateSyncSettings({ syncIntervalDays: 30.5, syncHorizonMonths: 24 });
-  assert.match(err, /1 et 365/);
 });

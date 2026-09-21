@@ -29,7 +29,7 @@ function recordingSettings(initialOverrides = {}) {
   const state = { ...fakeNeatSettings().neatConfig(), ...initialOverrides };
   const colToKey = {
     neatEnvironment: 'environment', neatClientId: 'clientId', neatClientSecretEncrypted: 'clientSecret',
-    neatStoreId: 'storeId', neatSalesChannelId: 'salesChannelId', neatSalesChannelLabel: 'salesChannelLabel',
+    neatSalesChannelId: 'salesChannelId', neatSalesChannelLabel: 'salesChannelLabel',
     neatContractId: 'contractId', neatContractLabel: 'contractLabel', neatPaymentMethodId: 'paymentMethodId',
     neatPaymentMethodKind: 'paymentMethodKind', neatPaymentMethodLabel: 'paymentMethodLabel',
     neatFieldMappingJson: 'fieldMappingJson', neatContractFieldsJson: 'contractFieldsJson',

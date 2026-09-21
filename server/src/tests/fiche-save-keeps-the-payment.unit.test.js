@@ -93,7 +93,7 @@ function buildController({ captures, storedRow = SETTLED_ROW }) {
         return () => null;
       },
     }),
-    '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
     '../database': dbMock,
   }, () => {

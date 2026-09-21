@@ -15,6 +15,7 @@ const { isClientVisibleOption } = require('./optionVisibility');
 const { isCleaningOption } = require('./cleaningOption');
 const { resolveCancelOn } = require('./paymentSchedule');
 const { buildStayContent } = require('./stayContentContext');
+const { resolveEmailIdentity } = require('./emailIdentity');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -416,9 +417,9 @@ function buildContext({ reservation, client, property, options = [], resources =
       companyName:  safeStr(settings.companyName),
       companyPhone: safeStr(settings.companyPhone),
       companyEmail: safeStr(settings.companyEmail),
-      // Email sender display name (Settings → Envoi d'emails → "Nom expéditeur"); falls back
-      // to the legal company name when blank. Used for the email signature.
-      senderName:   safeStr(settings.smtpFromName).trim() || safeStr(settings.companyName),
+      // Email sender display name — the resolved identity (specs/settings-rationalization.md rule 12):
+      // the override, else the legal company name. Used for the email signature.
+      senderName:   resolveEmailIdentity(settings).fromName,
     },
     flags: {
       ...stayContent.flags,

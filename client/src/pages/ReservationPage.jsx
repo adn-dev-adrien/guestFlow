@@ -4,7 +4,7 @@ import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
   MenuItem, Typography, Chip, Stack, Card, CardContent,
   useMediaQuery,
-  ToggleButton, ToggleButtonGroup, Tooltip
+  ToggleButton, ToggleButtonGroup, Tooltip, Alert
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -56,6 +56,8 @@ import {
 import { formatCurrency, displayDate } from '../utils/formatters';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import { useAuth } from '../hooks/useAuth';
+import { ADMIN, userHasRole } from '../constants/roles';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -131,6 +133,13 @@ const EMPTY_CLIENT = {
 
 export default function ReservationPage() {
   const { reservationId } = useParams();
+  const { user: currentUser } = useAuth();
+  const isAdmin = userHasRole(currentUser, ADMIN);
+  // Per-fiche unlock of a past reservation (specs/settings-rationalization.md rule 17a): an admin
+  // clicks « Déverrouiller cette fiche »; it lasts as long as this fiche is open and every write it
+  // sends carries `unlockPast`. Leaving or reloading the fiche puts the lock back.
+  const [pastUnlocked, setPastUnlocked] = useState(false);
+  const unlockPayload = pastUnlocked ? { unlockPast: true } : {};
   const editingReservationId = reservationId ? Number(reservationId) : null;
   const navigate = useNavigate();
   const location = useLocation();
@@ -723,19 +732,11 @@ export default function ReservationPage() {
         
         // Load reservation details if editing
         if (reservationId) {
-          // Fetch the reservation AND the global settings in parallel — we need
-          // `settings.reservations.allowEditPastReservations` to know whether the past-edition
-          // lock applies (specs/admin-unlock-past-reservations.md). The setting is small and
-          // cached server-side; an extra parallel fetch is cheaper than threading it through
-          // an app-wide context for a feature only one page consumes.
-          const [res, settings] = await Promise.all([
-            api.getReservation(reservationId),
-            api.getSettings(),
-          ]);
+          const res = await api.getReservation(reservationId);
           const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
           const isPast = Boolean(res.startDate && res.startDate <= todayStr);
-          const adminUnlock = Boolean(settings?.reservations?.allowEditPastReservations);
-          setExistingReservationLocked(isPast && !adminUnlock);
+          setExistingReservationLocked(isPast);
+          setPastUnlocked(false);
           const { options: catalogueOptions } = await loadPropertyContext(res.propertyId, props);
 
           // Load all reservations for this property to check conflicts
@@ -2245,6 +2246,7 @@ export default function ReservationPage() {
         }
       } else if (reservationId) {
         await api.updateReservation(reservationId, {
+          ...unlockPayload,
           propertyId: Number(selectedProp),
           clientId: form.clientId,
           // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
@@ -2321,6 +2323,7 @@ export default function ReservationPage() {
         return true;
       } else {
         await api.createReservation({
+          ...unlockPayload,
           propertyId: Number(selectedProp),
           clientId: form.clientId,
           // Optional override; blank → the server generates the AAAA-MM-### number.
@@ -2427,7 +2430,7 @@ export default function ReservationPage() {
 
   const handleDeleteReservation = async () => {
     if (!reservationId) return;
-    const isLockedReservation = Boolean(existingReservationLocked);
+    const isLockedReservation = Boolean(existingReservationLocked && !pastUnlocked);
     if (isLockedReservation) {
       await alert({
         title: 'Suppression impossible',
@@ -2443,7 +2446,7 @@ export default function ReservationPage() {
     });
     if (!ok) return;
     try {
-      await api.deleteReservation(reservationId);
+      await api.deleteReservation(reservationId, { unlockPast: pastUnlocked });
       navigateBackWithFrom(navigate, from);
     } catch (err) {
       await alert({ title: 'Erreur', message: err.message });
@@ -2854,7 +2857,10 @@ export default function ReservationPage() {
   const departureMin = form.startDate || '';
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
-  const isReservationLocked = Boolean(reservationId && existingReservationLocked);
+  const isReservationLocked = Boolean(reservationId && existingReservationLocked && !pastUnlocked);
+  const todayIso = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  // A new reservation dated in the past can only be recorded by an admin who unlocks it.
+  const pastNewReservation = Boolean(!reservationId && !isDevisMode && form.startDate && form.startDate < todayIso);
   const lockedSectionSx = isReservationLocked ? { opacity: 0.55, pointerEvents: 'none' } : undefined;
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
@@ -3163,9 +3169,31 @@ export default function ReservationPage() {
         {/* Colonne gauche : Formulaire */}
         <Box>
         {isReservationLocked && (
-          <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
-            Cette réservation est passée ou en cours : seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution restent modifiables.
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <Typography variant="body2" color="warning.main" sx={{ flex: 1 }}>
+              Cette réservation est passée ou en cours : seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution restent modifiables.
+            </Typography>
+            {isAdmin && (
+              <Button size="small" variant="outlined" color="warning" onClick={() => setPastUnlocked(true)}>
+                Déverrouiller cette fiche
+              </Button>
+            )}
+          </Box>
+        )}
+        {pastUnlocked && (
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            Fiche déverrouillée : dates, logement et suppression sont modifiables. Le verrou revient dès que vous quittez la fiche.
+          </Alert>
+        )}
+        {pastNewReservation && isAdmin && !pastUnlocked && (
+          <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 1, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <Typography variant="body2" color="warning.main" sx={{ flex: 1 }}>
+              L&apos;arrivée est dans le passé : pour enregistrer une réservation passée, déverrouillez la fiche.
+            </Typography>
+            <Button size="small" variant="outlined" color="warning" onClick={() => setPastUnlocked(true)}>
+              Déverrouiller cette fiche
+            </Button>
+          </Box>
         )}
 
         <Box

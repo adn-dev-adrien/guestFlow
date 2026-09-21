@@ -43,14 +43,14 @@ const DDL = `
   CREATE TABLE reservation_custom_options (reservationId INTEGER, description TEXT, amount REAL, inComplement INTEGER DEFAULT 0, offered INTEGER DEFAULT 0, sortOrder INTEGER);
 `;
 
-function fixture({ autoSendEnabled = true } = {}) {
+function fixture({ autoTemplate = true } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
 
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@d.fr'), (2, 'Marc', 'Nul', '')").run();
   // J-7 templates: ONE auto, ONE manual.
-  db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (10, 'Auto J-7',  'A', 'B', -7, 'auto',   1)").run();
+  db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (10, 'Auto J-7',  'A', 'B', -7, ?,        1)").run(autoTemplate ? 'auto' : 'manual');
   db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Man  J-7',  'A', 'B', -7, 'manual', 1)").run();
   db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (12, 'OffAuto',   'A', 'B', -7, 'auto',   0)").run();
 
@@ -67,9 +67,6 @@ function fixture({ autoSendEnabled = true } = {}) {
     templatesModel: buildTemplatesModel(db),
     logModel:       buildLogModel(db),
     settingsModel:  {
-      // Master switch (specs/no-automatic-email-without-approval.md §3 rule 1). ON by default in
-      // this fixture: most tests here describe what the pass does once it is allowed to run.
-      emailAutoSendEnabled() { return autoSendEnabled; },
       read() { return { companyName: 'Demo', companyPhone: '01', companyEmail: 'd@x' }; },
       decryptedSmtpSettings() { return { host: 'smtp', port: 587, secure: false, user: 'u', password: 'p', fromEmail: 'f@x', fromName: 'Demo' }; },
     },
@@ -194,15 +191,14 @@ test('runner: EMAIL_NOT_CONFIGURED bubbles through with the right errorMessage m
   const row = f.db.prepare("SELECT errorMessage FROM email_log WHERE reservationId = 100").get();
   assert.equal(row.errorMessage, 'EMAIL_NOT_CONFIGURED');
 });
-
 // ---------------------------------------------------------------------------------------------
-// Master switch — specs/no-automatic-email-without-approval.md §3 rule 2.
-// The pass must not merely refrain from sending: it must not render, not connect, not log. What it
-// leaves behind is what the operator will find in « Emails à envoyer ».
+// No « auto » template — specs/settings-rationalization.md rule 17b (the template's own mode is the
+// only switch). The pass must not merely refrain from sending: it must not render, not connect, not
+// log. What it leaves behind is what the operator will find in « Emails à envoyer ».
 // ---------------------------------------------------------------------------------------------
 
-test('switch OFF: the pass does nothing at all', async () => {
-  const f = fixture({ autoSendEnabled: false });
+test('no « auto » template: the pass does nothing at all', async () => {
+  const f = fixture({ autoTemplate: false });
   let serviceBuilt = false;
   const res = await performAutoEmailPass({
     database: f.db, templatesModel: f.templatesModel, logModel: f.logModel,
@@ -219,27 +215,26 @@ test('switch OFF: the pass does nothing at all', async () => {
   // No SMTP transport was ever built — the pass returned before touching the mail layer.
   assert.equal(serviceBuilt, false);
   // And no trace in the history: nothing was attempted, so there is nothing to report as failed.
-  // This is what keeps « Historique » an honest record of send attempts.
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n, 0);
 });
 
-test('switch OFF then ON: the same fixture sends once allowed', async () => {
-  // Same data, same day — only the operator's authorisation changes. Guards against a guard that
-  // accidentally depends on something else (a template flag, a date, a dedup row).
-  const blocked = fixture({ autoSendEnabled: false });
+test('the same fixture sends once its template is switched to « auto »', async () => {
+  // Same data, same day — only the template's mode changes. Guards against a guard that
+  // accidentally depends on something else (a date, a dedup row, a settings column).
+  const manual = fixture({ autoTemplate: false });
   const first = await performAutoEmailPass({
-    database: blocked.db, templatesModel: blocked.templatesModel, logModel: blocked.logModel,
-    settingsModel: blocked.settingsModel,
+    database: manual.db, templatesModel: manual.templatesModel, logModel: manual.logModel,
+    settingsModel: manual.settingsModel,
     emailServiceFactory: fakeEmailServiceFactory(),
     today: '2026-07-03',
   });
   assert.equal(first.sentCount, 0);
 
-  const allowed = fixture({ autoSendEnabled: true });
+  const auto = fixture({ autoTemplate: true });
   const sent = [];
   const second = await performAutoEmailPass({
-    database: allowed.db, templatesModel: allowed.templatesModel, logModel: allowed.logModel,
-    settingsModel: allowed.settingsModel,
+    database: auto.db, templatesModel: auto.templatesModel, logModel: auto.logModel,
+    settingsModel: auto.settingsModel,
     emailServiceFactory: fakeEmailServiceFactory({ sendImpl: async (msg) => { sent.push(msg); } }),
     today: '2026-07-03',
   });
@@ -248,12 +243,13 @@ test('switch OFF then ON: the same fixture sends once allowed', async () => {
   assert.equal(sent.length, 1);
 });
 
-test('switch missing entirely: a settings model that never heard of it sends nothing', async () => {
-  // A settings model built before the column existed (or a stub in a future test) must fail closed.
+test('a templates model that cannot be read sends nothing', async () => {
   const f = fixture();
   const res = await performAutoEmailPass({
-    database: f.db, templatesModel: f.templatesModel, logModel: f.logModel,
-    settingsModel: { read: () => ({ companyName: 'Demo' }), decryptedSmtpSettings: () => ({}) },
+    database: f.db,
+    templatesModel: { listEnabled: () => { throw new Error('boom'); } },
+    logModel: f.logModel,
+    settingsModel: f.settingsModel,
     emailServiceFactory: fakeEmailServiceFactory(),
     today: '2026-07-03',
   });

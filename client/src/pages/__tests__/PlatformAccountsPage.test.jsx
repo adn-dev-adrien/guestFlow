@@ -88,20 +88,35 @@ test("Direct row is rendered with disabled inputs + the 'Pas de commission' capt
   expect(screen.getByText(/Pas de commission sur les réservations directes/i)).toBeInTheDocument();
 });
 
-test("vatRateCommission caption shows the rate; admin sees the 'modifiable' link", async () => {
+// specs/settings-rationalization.md rule 14 — the two accounting VAT rates are edited here, next to
+// the accounts that use them, by the admin and the accountant alike.
+test('both accounting VAT rates are editable fields, and a save sends them', async () => {
+  const user = userEvent.setup();
+  api.savePlatformAccounts.mockResolvedValue(SAMPLE_GET);
   renderPage();
-  // The rate is rendered inside a <strong>, the wrapping caption is the parent Typography.
-  await screen.findByText('20 %');
-  // Admin: the "modifiable" link is rendered as a clickable button.
-  expect(screen.getByRole('button', { name: /modifiable dans Réglages → Général/i })).toBeInTheDocument();
+  const commission = await screen.findByLabelText(/TVA déductible sur commissions/i);
+  expect(commission).toHaveValue('20');
+  expect(screen.getByLabelText(/TVA sur indemnités d'annulation/i)).toHaveValue('0');
+
+  await user.clear(commission);
+  await user.type(commission, '19,6');
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(api.savePlatformAccounts).toHaveBeenCalled());
+  expect(api.savePlatformAccounts.mock.calls[0][0].vatRateCommission).toBe('19,6');
+  expect(api.savePlatformAccounts.mock.calls[0][0].vatRateCancellationCompensation).toBe('0');
 });
 
-test("accountant sees plain italic text instead of the 'modifiable' link", async () => {
-  setAuth({ roles: ['accountant'] });
+test('a VAT rate refused by the server shows its message under the field', async () => {
+  const user = userEvent.setup();
+  api.savePlatformAccounts.mockRejectedValue(Object.assign(new Error('PLATFORM_ACCOUNTS_INVALID'), {
+    errors: { vatRateCommission: 'Doit être un nombre entre 0 et 100.' },
+  }));
   renderPage();
-  await screen.findByText('20 %');
-  expect(screen.getByText(/modifiable par un administrateur/i)).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /modifiable dans Réglages/i })).not.toBeInTheDocument();
+  const commission = await screen.findByLabelText(/TVA déductible sur commissions/i);
+  await user.clear(commission);
+  await user.type(commission, '120');
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  expect(await screen.findByText('Doit être un nombre entre 0 et 100.')).toBeInTheDocument();
 });
 
 test('saving forwards the normalized payload (Direct row excluded, hasVat as boolean)', async () => {
@@ -279,6 +294,7 @@ test('the accountant may edit the compensation account (it is a chart-of-account
   renderPage();
   const field = await screen.findByLabelText(/Compte indemnités d'annulation/i);
   expect(field).not.toBeDisabled();
-  // …but the VAT rate stays read-only for them.
-  expect(screen.getByText(/réservé à un administrateur/i)).toBeInTheDocument();
+  // …and so are the VAT rates (rule 14).
+  expect(screen.getByLabelText(/TVA sur indemnités d'annulation/i)).not.toBeDisabled();
+  expect(screen.getByLabelText(/TVA déductible sur commissions/i)).not.toBeDisabled();
 });

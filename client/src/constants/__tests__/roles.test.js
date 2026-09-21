@@ -74,11 +74,11 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   // specs/accountant-accounting-export.md rule 22 — la barre latérale d'un comptable est minimale :
   // Comptabilité, son mot de passe, et se déconnecter. Tout le reste lui est fermé, et c'est cette
   // table — pas un `hidden` d'affichage — qui le décide.
-  test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, and /account', () => {
+  test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, and /mon-compte', () => {
     // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — accountant gains
     // access to the dedicated per-platform commission config page.
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(accountant, p));
-    expect(visible.sort()).toEqual(['/account', '/comptabilite', '/comptabilite/plateformes']);
+    expect(visible.sort()).toEqual(['/comptabilite', '/comptabilite/plateformes', '/mon-compte']);
   });
 
   test('multi-role admin+accountant: admin scope (everything) wins', () => {
@@ -87,10 +87,10 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
     }
   });
 
-  test('reception sees ONLY /, /planning and /account (specs/reception-role-checkin-only.md)', () => {
+  test('reception sees ONLY /, /planning and /mon-compte (specs/reception-role-checkin-only.md)', () => {
     const reception = { roles: ['reception'] };
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(reception, p));
-    expect(visible.sort()).toEqual(['/', '/account', '/planning']);
+    expect(visible.sort()).toEqual(['/', '/mon-compte', '/planning']);
     // Never the finance / clients / settings surfaces.
     for (const path of ['/finance', '/clients', '/comptabilite', '/settings', '/devis', '/emails', '/calendar']) {
       expect(canSeeRoute(reception, path)).toBe(false);
@@ -110,7 +110,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   });
 
   test('null user → false', () => {
-    expect(canSeeRoute(null, '/account')).toBe(false);
+    expect(canSeeRoute(null, '/mon-compte')).toBe(false);
   });
 });
 
@@ -119,8 +119,8 @@ describe('canSeeAnyRoute', () => {
   const accountant = { roles: ['accountant'] };
 
   test('returns true when at least one path is visible', () => {
-    // Settings group: accountant can reach /account but not /properties, /options, etc.
-    expect(canSeeAnyRoute(accountant, ['/settings', '/options', '/account'])).toBe(true);
+    // Finance group: accountant reaches /comptabilite but not /finance.
+    expect(canSeeAnyRoute(accountant, ['/finance', '/comptabilite'])).toBe(true);
   });
 
   test('returns false when no path is visible', () => {

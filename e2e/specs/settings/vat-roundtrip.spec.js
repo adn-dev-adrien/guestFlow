@@ -1,12 +1,13 @@
 // @ts-check
-// Test 4/24 — settings/vat-roundtrip (spec §3.4 row 3). Open Settings → General, change
+// Test 4/24 — settings/vat-roundtrip (spec §3.4 row 3). Open Paramètres → TVA & exercice, change
 // the VAT rate, save, reload, assert the change persisted. Pins `single-vat-rate` +
 // `settings`.
 import { test, expect } from '@playwright/test';
 
-test('VAT rate round-trip via Settings → General', async ({ page }) => {
-  await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: 'Paramètres', exact: true })).toBeVisible();
+test('VAT rate round-trip via Paramètres → TVA & exercice', async ({ page }) => {
+  // Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).
+  await page.goto('/settings/tva-exercice');
+  await expect(page.getByRole('heading', { name: 'TVA & exercice' })).toBeVisible();
 
   // The "Taux de TVA (%)" field lives in the VAT section (specs/single-vat-rate.md §6.1).
   // After PR #105 there is only ONE such field (single editable rate).

@@ -62,7 +62,7 @@ function buildController(captures, { kind = 'cancelled' } = {}) {
         return () => null;
       },
     }),
-    '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
     '../database': { prepare: () => ({ get: () => ({ kind }), run: () => ({ changes: 0 }), all: () => [] }) },
   }, () => {

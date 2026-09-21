@@ -20,7 +20,7 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 const { readNeatConfig } = require('../utils/neatGuestPricing');
 
 const EMPTY_CFG = {
-  environment: 'staging', clientId: '', clientSecret: '', storeId: '', salesChannelId: '',
+  environment: 'staging', clientId: '', clientSecret: '', salesChannelId: '',
   salesChannelLabel: '', contractId: '', contractLabel: '', paymentMethodId: '',
   paymentMethodKind: '', paymentMethodLabel: '', fieldMappingJson: '', contractFieldsJson: '',
   marginPercent: null,
@@ -100,7 +100,6 @@ function createNeatController({
         environment: cfg.environment,
         clientId: cfg.clientId,
         clientSecretSet: Boolean(cfg.clientSecret),
-        storeId: cfg.storeId,
         salesChannelId: cfg.salesChannelId,
         salesChannelLabel: cfg.salesChannelLabel,
         contractId: cfg.contractId,

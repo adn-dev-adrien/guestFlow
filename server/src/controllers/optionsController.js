@@ -2,8 +2,16 @@
 
 const model = require('../models/optionsModel');
 
+// The early-arrival / late-departure options are edited on each property (specs/settings-rationalization.md
+// rule 15): the catalogue view (`?view=catalogue`) leaves them out; every other caller gets them all.
+const PROPERTY_EDITED_AUTO_OPTIONS = ['early_check_in', 'late_check_out'];
+
 function list(req, res) {
-  res.json(model.list());
+  const options = model.list();
+  if (req.query && req.query.view === 'catalogue') {
+    return res.json(options.filter((o) => !PROPERTY_EDITED_AUTO_OPTIONS.includes(o.autoOptionType)));
+  }
+  return res.json(options);
 }
 
 function getOne(req, res) {

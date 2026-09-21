@@ -30,9 +30,8 @@ router.get('/qonto/bank-accounts', ctrl.qontoBankAccounts);
 router.post('/qonto/connect-provider', ctrl.qontoConnectProvider);
 router.get('/qonto/refresh-connection', ctrl.qontoRefreshConnection);
 
-// Paiements settings page: configurable timings + the Qonto connection state.
+// Paiements settings page: the Qonto connection state.
 router.get('/settings', ctrl.getSettings);
-router.put('/settings', ctrl.updateSettings);
 
 // Payment links on a reservation/devis + the manual poll trigger (specs/online-payments-qonto.md §3.4 / §7).
 router.post('/reservations/:id/payment-links', ctrl.createReservationPaymentLink);

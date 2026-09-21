@@ -1,7 +1,7 @@
 /**
- * SettingsSmtpSection — "Envoi d'emails (SMTP)" card in /parametres.
+ * SettingsSmtpSection — « Envoi » card of Paramètres → Emails & notifications.
  * Pure presentational: drives onChange / onChangePassword / onSendTest callbacks.
- * See specs/admin-account-management.md M3.
+ * See specs/admin-account-management.md M3 and specs/settings-rationalization.md rules 11-12.
  */
 
 import React from 'react';
@@ -14,11 +14,11 @@ import SettingsSmtpSection from '../SettingsSmtpSection';
 const COMPLETE = {
   host: 'smtp.gmail.com',
   secure: false,
-  username: 'me@s.com',
+  username: '',
   passwordSet: true,
-  fromEmail: 'me@s.com',
-  fromName: 'GuestFlow',
-  publicUrl: 'https://guestflow.adn-dev.fr',
+  fromEmail: '',
+  fromName: '',
+  derived: { fromEmail: 'me@s.com', username: 'me@s.com', fromName: 'Domaine Solio' },
 };
 
 function renderSection(props = {}) {
@@ -37,26 +37,32 @@ function renderSection(props = {}) {
   return { onChange, onChangePassword, onSendTest };
 }
 
-test('renders the SMTP fields with their current values', () => {
+test('renders the host, and the derived identity until it is overridden', () => {
   renderSection();
   expect(screen.getByDisplayValue('smtp.gmail.com')).toBeInTheDocument();
-  expect(screen.getByDisplayValue('https://guestflow.adn-dev.fr')).toBeInTheDocument();
+  expect(screen.getByLabelText("Adresse d'envoi")).toHaveValue('me@s.com');
+  expect(screen.getByLabelText('Nom affiché')).toHaveValue('Domaine Solio');
+  expect(screen.queryByLabelText(/URL publique/)).not.toBeInTheDocument();
 });
 
-// specs/settings-one-save-and-automatic-webhook.md §3 rule 5 — the port is not entered any more:
-// it is the security mode said twice, and the server derives it.
-test('rule 5: there is no port field, and the security select names both ports', () => {
+test('an override is shown as typed, with a way back to the derived value', () => {
+  renderSection({ values: { ...COMPLETE, fromEmail: 'no-reply@s.com' } });
+  expect(screen.getByLabelText("Adresse d'envoi")).toHaveValue('no-reply@s.com');
+  expect(screen.getByRole('button', { name: 'Revenir à la valeur déduite' })).toBeInTheDocument();
+});
+
+// specs/settings-rationalization.md rule 11 — the port is not entered: it follows the security mode.
+test('rule 11: there is no port field; the port in use is stated under the security select', () => {
   renderSection();
   expect(screen.queryByLabelText('Port')).not.toBeInTheDocument();
-  expect(screen.queryByDisplayValue('587')).not.toBeInTheDocument();
-  expect(screen.getByText('Le port est déduit : 587 en STARTTLS, 465 en TLS implicite.')).toBeInTheDocument();
+  expect(screen.getByText('Port utilisé : 587 (déduit).')).toBeInTheDocument();
   expect(screen.getByLabelText('Sécurité')).toBeInTheDocument();
 });
 
 test('typing in the host field forwards (key, value) to onChange', async () => {
   const user = userEvent.setup();
   const { onChange } = renderSection({ values: { ...COMPLETE, host: '' } });
-  await user.type(screen.getByLabelText(/Hôte SMTP/), 'x');
+  await user.type(screen.getByLabelText(/Serveur SMTP/), 'x');
   expect(onChange).toHaveBeenCalledWith('host', 'x');
 });
 
@@ -69,12 +75,12 @@ test('surfaces a server-side validation error on the host field', () => {
 // `From:` header) — the message has to land under the field, not vanish into a toast.
 test('surfaces the header-injection error on the sender-name field', () => {
   const message = 'Caractère interdit (retour à la ligne ou caractère de contrôle).';
-  renderSection({ errors: { smtpFromName: message } });
+  renderSection({ values: { ...COMPLETE, fromName: 'Bad\nName' }, errors: { smtpFromName: message } });
   expect(screen.getByText(message)).toBeInTheDocument();
   expect(screen.queryByText(/Nom affiché aux destinataires/)).not.toBeInTheDocument();
 });
 
-test('the test button is enabled when host, fromEmail and a saved password are present', () => {
+test('the test button is enabled when host, a (derived) sending address and a saved password are present', () => {
   renderSection();
   expect(screen.getByRole('button', { name: /Envoyer un mail de test/ })).toBeEnabled();
 });
@@ -114,6 +120,6 @@ test('renders the test result alert', () => {
 
 test('every field is disabled when the section is disabled', () => {
   renderSection({ disabled: true });
-  expect(screen.getByLabelText(/Hôte SMTP/)).toBeDisabled();
+  expect(screen.getByLabelText(/Serveur SMTP/)).toBeDisabled();
   expect(screen.getByRole('button', { name: /Envoyer un mail de test/ })).toBeDisabled();
 });

@@ -3,9 +3,10 @@
 // closing month, save, reload, assert it persisted, then check /finance reads its exercise from it.
 import { test, expect } from '@playwright/test';
 
-test('closing month round-trip via Settings → General, then applied on /finance', async ({ page }) => {
-  await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: 'Paramètres', exact: true })).toBeVisible();
+test('closing month round-trip via Paramètres → TVA & exercice, then applied on /finance', async ({ page }) => {
+  // Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).
+  await page.goto('/settings/tva-exercice');
+  await expect(page.getByRole('heading', { name: 'TVA & exercice' })).toBeVisible();
 
   // « Exercice comptable » card — a Select, not a text field (specs §6.1).
   const monthSelect = page.getByRole('combobox', { name: /Mois de clôture/i });

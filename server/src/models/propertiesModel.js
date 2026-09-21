@@ -49,6 +49,8 @@ const EMAIL_FACT_FIELDS = [
   { key: 'hasFilterCoffeeMaker', coerce: toBit },
 ];
 
+const EMAIL_HOOK_MAX_LENGTH = 300;
+
 function normalizeNameArticle(value) {
   const v = String(value || '').trim();
   return VALID_NAME_ARTICLES.includes(v) ? v : 'au';
@@ -304,6 +306,38 @@ function createPropertiesModel(database) {
 
     list() {
       return database.prepare('SELECT * FROM properties ORDER BY name').all();
+    },
+
+    // J-7 hooks (specs/settings-rationalization.md rule 17c) — edited from the J-7 template dialog,
+    // one FR / EN pair per property. Written through writeEmailFacts so no other column moves.
+    listEmailHooks() {
+      if (!propertyCols.has('emailHook')) return [];
+      return database.prepare(`
+        SELECT id AS propertyId, name, COALESCE(emailHook, '') AS emailHook, COALESCE(emailHookEn, '') AS emailHookEn
+          FROM properties ORDER BY name COLLATE NOCASE
+      `).all();
+    },
+
+    saveEmailHooks(hooks) {
+      if (!Array.isArray(hooks)) return { error: 'La liste des accroches est invalide.', status: 400 };
+      const known = new Set(database.prepare('SELECT id FROM properties').all().map((r) => r.id));
+      for (const h of hooks) {
+        if (!h || !known.has(Number(h.propertyId))) return { error: 'Logement inconnu.', status: 400 };
+        for (const key of ['emailHook', 'emailHookEn']) {
+          if (h[key] != null && String(h[key]).length > EMAIL_HOOK_MAX_LENGTH) {
+            return { error: `Une accroche ne dépasse pas ${EMAIL_HOOK_MAX_LENGTH} caractères.`, status: 400 };
+          }
+        }
+      }
+      database.transaction(() => {
+        for (const h of hooks) {
+          const body = {};
+          if (h.emailHook !== undefined) body.emailHook = h.emailHook;
+          if (h.emailHookEn !== undefined) body.emailHookEn = h.emailHookEn;
+          writeEmailFacts(h.propertyId, body);
+        }
+      })();
+      return { data: this.listEmailHooks() };
     },
 
     getPlatformColors() {

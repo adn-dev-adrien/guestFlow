@@ -69,7 +69,7 @@ test('the bar save persists BOTH lists in one action and toasts the outcome', as
   expect(api.updateRepairAmounts).toHaveBeenCalledWith([
     { repairKey: 'extinguisher_seal', label: 'Plomb extincteur', price: 0 },
   ]);
-  expect(await screen.findByText('Tarifs facturables enregistrés.')).toBeInTheDocument(); // toast
+  expect(await screen.findByText('Montants facturables enregistrés.')).toBeInTheDocument(); // toast
 });
 
 test('a failed load renders the retryable ErrorAlert (no silent catch)', async () => {

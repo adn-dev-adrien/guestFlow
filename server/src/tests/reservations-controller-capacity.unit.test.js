@@ -57,7 +57,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
       if (k === 'totalsByReservation') return () => ({ book: 0 });
       return () => null;
     } }),
-    '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
     '../utils/googleCalendarSync': { schedulePush: () => null },
     '../database': dbMock,

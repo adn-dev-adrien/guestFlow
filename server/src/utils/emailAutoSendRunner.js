@@ -18,7 +18,7 @@ const { buildContext }   = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { DIRECT_CHANNELS } = require('./platformNameFormat');
-const { autoSendAllowed } = require('./autoSendPolicy');
+const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
 
 // Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
@@ -43,14 +43,14 @@ async function performAutoEmailPass(deps) {
   const { database, templatesModel, logModel, settingsModel, emailServiceFactory } = deps;
   const today = deps.today || isoToday();
 
-  // 0. The master switch (specs/no-automatic-email-without-approval.md §3 rule 2). OFF → this pass is
-  // a no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
-  // row is written. The day's due templates are not lost — `emailLogModel.listPending` surfaces them
-  // in the « à valider » queue instead, where one click sends them.
-  // Defence in depth since rule 2b: the scheduler does not register a timer while the switch is off,
-  // so nothing should reach this guard. It stays because a pass that mails guests must decide for
-  // itself, whatever scheduled it — and the caller shuts the timer down on `blocked`.
-  if (!autoSendAllowed(settingsModel)) {
+  // 0. No template in « auto » mode (specs/settings-rationalization.md rule 17b) → this pass is a
+  // no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
+  // row is written. The day's due « manual » templates are not lost — `emailLogModel.listPending`
+  // surfaces them in the « à valider » queue, where one click sends them.
+  // Defence in depth: the scheduler does not register a timer while no template is auto. It stays
+  // because a pass that mails guests must decide for itself, whatever scheduled it — and the caller
+  // shuts the timer down on `blocked`.
+  if (!anyTemplateAutoSends(templatesModel)) {
     return { blocked: true, sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
   }
 
@@ -61,7 +61,7 @@ async function performAutoEmailPass(deps) {
   // The six guest-sequence templates have their own scheduler and ledger (specs/guest-email-sequence.md
   // rule 19): this legacy dayOffset pass never touches them, so a sequence email has one sender only.
   const templates = templatesModel.listEnabled()
-    .filter((t) => t.sendMode === 'auto')
+    .filter(templateAutoSends)
     .filter((t) => !SEQUENCE_STABLE_KEYS.includes(t.stableKey));
   if (templates.length === 0) {
     return { sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };

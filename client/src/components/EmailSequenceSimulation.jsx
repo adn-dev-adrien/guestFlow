@@ -53,9 +53,12 @@ export default function EmailSequenceSimulation({ tabs }) {
   const rows = result ? result.rows : [];
   const willSend = result ? result.counts.send : 0;
 
-  const banner = result && (result.autoSendEnabled
-    ? <Alert severity="success">Envoi automatique actif depuis le {displayDate(result.startDate)} : les mails « Part » partiront à leur date, à 8 h.</Alert>
-    : <Alert severity="info">Envoi automatique désactivé : rien ne part tant qu&apos;il n&apos;est pas activé dans Réglages. La simulation suppose une activation aujourd&apos;hui.</Alert>);
+  // Each sequence mail leaves by itself only when its template is « Automatique »
+  // (specs/settings-rationalization.md rule 17b); the server lists which ones.
+  const autoCount = result ? (result.autoMailKeys || []).length : 0;
+  const banner = result && (autoCount > 0 && result.startDate
+    ? <Alert severity="success">Séquence active depuis le {displayDate(result.startDate)} : {autoCount} mail{autoCount > 1 ? 's' : ''} en mode « Automatique » partiront à leur date, à 8 h. Les autres vous seront proposés.</Alert>
+    : <Alert severity="info">Aucun mail de la séquence en mode « Automatique » : rien ne part seul, tout vous est proposé dans « Emails à envoyer ». La simulation montre ce qui partirait.</Alert>);
 
   return (
     <DataPageScaffold

@@ -4,6 +4,7 @@ const model = require('../models/propertiesModel');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
+const { validatePropertyInput } = require('../utils/propertyValidation');
 
 // Map a model result ({ data } | { error, status, conflictingRule?, code? }) to an HTTP response.
 function respond(res, result) {
@@ -34,12 +35,31 @@ function platformColors(req, res) {
   res.json(model.getPlatformColors());
 }
 
+// GET/PUT /api/properties/email-hooks — the J-7 hooks, edited from the J-7 template
+// (specs/settings-rationalization.md rule 17c).
+function emailHooks(req, res) {
+  res.json(model.listEmailHooks());
+}
+
+function saveEmailHooks(req, res) {
+  return respond(res, model.saveEmailHooks(req.body && req.body.hooks));
+}
+
 function progressivePreview(req, res) {
   const { pricePerNight, progressiveTiers, maxNights } = req.body;
   res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
 }
 
+// specs/settings-rationalization.md rule 23a — refused before anything is written, one message per field.
+function refuseInvalid(res, body, existing) {
+  const errors = validatePropertyInput(body || {}, existing);
+  if (Object.keys(errors).length === 0) return false;
+  res.status(400).json({ error: 'PROPERTY_INVALID', errors });
+  return true;
+}
+
 async function create(req, res) {
+  if (refuseInvalid(res, req.body, null)) return;
   try {
     res.json(await model.create(req.body, req.file));
   } catch (err) {
@@ -52,6 +72,7 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
+  if (refuseInvalid(res, req.body, model.getByIdWithDetails(req.params.id))) return;
   try {
     res.json(await model.update(req.params.id, req.body, req.file));
   } catch (err) {
@@ -105,7 +126,7 @@ function setOptions(req, res) {
 }
 
 module.exports = {
-  list, getOne, platformColors, progressivePreview,
+  list, getOne, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
   addDocument, deleteDocument, setOptions,

@@ -38,16 +38,4 @@ function validatePeriod(period = {}) {
   return null;
 }
 
-function validateSyncSettings(settings = {}) {
-  const { syncIntervalDays, syncHorizonMonths } = settings;
-
-  if (!Number.isInteger(syncIntervalDays) || syncIntervalDays < 1 || syncIntervalDays > 365) {
-    return 'La fréquence de synchronisation doit être un entier entre 1 et 365 jours.';
-  }
-  if (!Number.isInteger(syncHorizonMonths) || syncHorizonMonths < 1 || syncHorizonMonths > 60) {
-    return "L'horizon de synchronisation doit être un entier entre 1 et 60 mois.";
-  }
-  return null;
-}
-
-module.exports = { validatePeriod, validateSyncSettings, ZONE_KEYS };
+module.exports = { validatePeriod, ZONE_KEYS };

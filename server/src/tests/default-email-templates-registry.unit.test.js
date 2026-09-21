@@ -92,7 +92,7 @@ test('arrival_reminder_7d is the sequence J-7: canonical body, 7-day offset, per
   assert.equal(def.body, ARRIVAL_REMINDER_7D_BODY);
   assert.equal(def.dayOffset, -7);
   assert.equal(def.anchor, 'start');
-  assert.equal(def.sendMode, 'auto');
+  assert.equal(def.sendMode, 'manual', 'ships manual — only its own mode lets it leave alone');
   assert.equal(def.enabled, true);
   assert.ok(def.body.includes('{{#if hasBedsParagraph}}{{bedsParagraph}}'), 'bed configuration block present');
   assert.ok(def.body.includes('{{#if hasBabyParagraph}}{{babyParagraph}}'), 'baby cot block present');
@@ -107,7 +107,7 @@ test('arrival_reminder_1d is the sequence J-2 (stableKey kept legacy): arrival t
   assert.equal(def.body, ARRIVAL_REMINDER_1D_BODY);
   assert.equal(def.dayOffset, -2);
   assert.equal(def.anchor, 'start');
-  assert.equal(def.sendMode, 'auto');
+  assert.equal(def.sendMode, 'manual', 'ships manual — only its own mode lets it leave alone');
   assert.ok(!def.body.includes('demain'), 'J-2 copy must not say « demain »');
   assert.ok(def.body.includes('https://domainesolio.com/contact/'), 'access map next to the GPS line');
   assert.ok(def.body.includes('vers quelle heure vous pensez arriver'), 'arrival time asked');

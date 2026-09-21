@@ -543,7 +543,7 @@ export default function OptionsPage({ barCenter }) {
   return (
     <PricedItemsPage
       barCenter={barCenter}
-      pageTitle="Options de sejour"
+      pageTitle="Options de séjour"
       itemLabel="option"
       emptyForm={emptyOption}
       priceTypes={OPTION_PRICE_TYPES}
@@ -574,7 +574,7 @@ export default function OptionsPage({ barCenter }) {
         );
       }}
       loadItems={async () => {
-        const [items, properties] = await Promise.all([api.getOptions(), api.getProperties()]);
+        const [items, properties] = await Promise.all([api.getCatalogueOptions(), api.getProperties()]);
         return { items, properties };
       }}
       createItem={(data) => api.createOption(data)}

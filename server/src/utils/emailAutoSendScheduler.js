@@ -1,22 +1,19 @@
 /**
- * Email auto-send scheduler — owns the 08:00 pass's timer, and owns it conditionally: while
- * automatic sending is off, no timer exists at all (specs/no-automatic-email-without-approval.md
- * §3 rule 2b).
+ * Email auto-send scheduler — owns the 08:00 pass's timer, and owns it conditionally: while no
+ * template is in « auto » mode, no timer exists at all (specs/no-automatic-email-without-approval.md
+ * §3 rule 2b, specs/settings-rationalization.md rule 17b).
  *
- * The switch ships OFF, so on a default installation this module registers nothing: no interval, no
- * settings read, no log line. The previous shape registered the per-minute tick unconditionally and
- * had every tick from 08:00 to midnight open the pass, read `app_settings` and bail out — ~960
- * no-op passes a day for a feature nobody turned on.
+ * Templates ship « manual », so on a default installation this module registers nothing: no
+ * interval, no read, no log line.
  *
  * Two entry points drive it, and they are the only ones:
- *   - `scheduledTasks.startScheduledTasks()` at boot   → `syncWithSettings({ boot: true })`;
- *   - `settingsController.updateSettings()` on a write → `syncWithSettings()`.
- * Authorising automatic sending therefore takes effect immediately, without a restart — the
- * transition itself runs the day's catch-up pass, which is what the released day-slot used to buy.
+ *   - `scheduledTasks.startScheduledTasks()` at boot          → `syncWithTemplates({ boot: true })`;
+ *   - `emailTemplatesController` on a template write/delete  → `syncWithTemplates()`.
+ * Switching a template to « auto » therefore takes effect immediately, without a restart — the
+ * transition itself runs the day's catch-up pass.
  *
- * `performAutoEmailPass` keeps its own guard: a scheduler that got out of step with the setting must
- * still send nothing. That guard is now defence in depth rather than the day's normal path, so a
- * blocked pass shuts the timer back down instead of retrying every minute.
+ * `performAutoEmailPass` and `runSequencePass` keep their own per-template guard: a scheduler that
+ * got out of step with the templates must still send nothing but « auto » templates.
  */
 
 const db = require('../database');
@@ -25,7 +22,7 @@ const emailTemplatesModel = require('../models/emailTemplatesModel');
 const settingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
 const { performAutoEmailPass, isoToday } = require('./emailAutoSendRunner');
-const { autoSendAllowed } = require('./autoSendPolicy');
+const { anyTemplateAutoSends } = require('./autoSendPolicy');
 const guestEmailSendsModel = require('../models/guestEmailSendsModel');
 const emailPreferencesModel = require('../models/emailPreferencesModel');
 const { runSequencePass } = require('./guestEmailSequenceRunner');
@@ -53,8 +50,8 @@ async function runPass(reason = 'cron') {
       emailServiceFactory: createEmailService,
     });
     const { blocked, sentCount, skippedCount, failedCount } = result;
-    // specs/guest-email-sequence.md rule 17 — the sequence rides the same daily pass and the same
-    // switch. Its own guard runs inside; a failure there must not hide the legacy pass's result.
+    // specs/guest-email-sequence.md rule 17 — the sequence rides the same daily pass. Its own
+    // per-template guard runs inside; a failure there must not hide the legacy pass's result.
     if (!blocked) {
       try {
         const sequence = await runSequencePass({
@@ -69,10 +66,10 @@ async function runPass(reason = 'cron') {
       }
     }
     if (blocked) {
-      // The timer only exists while the switch is ON, so this means the two went out of step — a
-      // settings row written outside the controller, a read that failed closed. Worth a line: it
-      // can happen at most once a day now, and the tick stops the scheduler right after.
-      console.warn(`[email-auto-send] ${reason}: envoi automatique désactivé — passe annulée, planification arrêtée`);
+      // The timer only exists while a template is « auto », so this means the two went out of step —
+      // a template written outside the controller, a read that failed closed. Worth a line: it can
+      // happen at most once a day, and the tick stops the scheduler right after.
+      console.warn(`[email-auto-send] ${reason}: aucun modèle en envoi automatique — passe annulée, planification arrêtée`);
     } else if (sentCount > 0 || failedCount > 0) {
       console.log(`[email-auto-send] ${reason}: ${sentCount} sent, ${skippedCount} skipped, ${failedCount} failed`);
     }
@@ -104,8 +101,9 @@ function tick(deps = {}) {
     .then(() => run('daily 08:00 pass'))
     .then((result) => {
       if (!result || !result.blocked) return;
-      // Give the slot back before shutting down: re-authorising later the same day must run today's
-      // pass, not wait for tomorrow 08:00 by which point today's templates no longer match.
+      // Give the slot back before shutting down: switching a template to « auto » later the same day
+      // must run today's pass, not wait for tomorrow 08:00 by which point today's templates no longer
+      // match.
       lastRunDate = previous;
       stop();
     })
@@ -120,7 +118,7 @@ function isRunning() {
  * Registers the per-minute tick. No-op when it is already running.
  * @param {{ boot?: boolean, now?: Date, run?: Function }} deps — `boot` delays the first tick by
  *   90 s (startup breathing room); any other start runs it immediately, because the operator just
- *   authorised automatic sending and expects today's mail to leave today.
+ *   switched a template to « auto » and expects today's mail to leave today.
  * @returns {boolean} true when this call started the timer.
  */
 function start(deps = {}) {
@@ -149,17 +147,17 @@ function stop() {
 }
 
 /**
- * Aligns the timer with the setting. The single entry point for boot and for a settings write.
- * @param {{ boot?: boolean, settingsModel?: object, now?: Date, run?: Function }} deps
+ * Aligns the timer with the templates. The single entry point for boot and for a template write.
+ * @param {{ boot?: boolean, templatesModel?: object, now?: Date, run?: Function }} deps
  * @returns {boolean} true when the call changed the timer's state.
  */
-function syncWithSettings(deps = {}) {
-  const model = deps.settingsModel || settingsModel;
-  return autoSendAllowed(model) ? start(deps) : stop();
+function syncWithTemplates(deps = {}) {
+  const model = deps.templatesModel || emailTemplatesModel;
+  return anyTemplateAutoSends(model) ? start(deps) : stop();
 }
 
 module.exports = {
-  syncWithSettings,
+  syncWithTemplates,
   start,
   stop,
   isRunning,

@@ -109,7 +109,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
       if (k === 'addHistoryEntry') return () => null;
       return () => null;
     } }),
-    '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': propertyOptionDefaultsModel,
     '../database': dbMock,
   }, () => {

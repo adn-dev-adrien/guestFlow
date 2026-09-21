@@ -87,7 +87,7 @@ function buildController(defaults, captures, carriedOptionIds = []) {
       if (k === 'addHistoryEntry') return () => null;
       return () => null;
     } }),
-    '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': propertyOptionDefaultsModel,
     '../database': { prepare: () => ({ run: () => null, get: () => null, all: () => [] }) },
   }, () => {
