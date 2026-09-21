@@ -134,41 +134,56 @@ test('GET: 404 on unknown id', () => {
   assert.equal(r.statusCode, 404);
 });
 
-// ---- autoSendBlocked (specs/no-automatic-email-without-approval.md §3 rule 8) ----
-// The Emails page must be able to say « this one says Automatique but nothing will leave ». The
-// server computes it; React only renders it.
+// ---- automatic sending per template (specs/settings-rationalization.md rule 17b) ----
+// No « Auto désactivé » flag any more: a template's mode is the only switch. Every write re-aligns the
+// 08:00 scheduler, and the first SEQUENCE template switched to « auto » fixes the sequence start date.
 
-const settingsWith = (allowed) => ({ emailAutoSendEnabled: () => allowed });
+function recordingSettings(initial = {}) {
+  const state = { ...initial };
+  return { state, read: () => ({ ...state }), upsert(p) { Object.assign(state, p); } };
+}
 
-test('GET list: an enabled auto template is flagged blocked while the switch is off', () => {
+function recordingScheduler() {
+  return { syncs: 0, syncWithTemplates() { this.syncs += 1; } };
+}
+
+test('GET list: the rows are returned as stored, with no blocked flag', () => {
   const model = fakeModel([
-    { name: 'Auto on',  subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto',   enabled: true },
-    { name: 'Auto off', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto',   enabled: false },
-    { name: 'Manuel',   subject: 'S', body: 'B', dayOffset: -7, sendMode: 'manual', enabled: true },
+    { name: 'Auto on', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto', enabled: true },
   ]);
   const r = res();
-  buildController(model, settingsWith(false)).list({}, r);
-
-  assert.deepEqual(r.body.map((t) => t.autoSendBlocked), [true, false, false]);
-  // The rows are otherwise untouched — the flag is additive.
-  assert.equal(r.body[0].name, 'Auto on');
+  buildController(model, recordingSettings()).list({}, r);
+  assert.equal('autoSendBlocked' in r.body[0], false);
   assert.equal(r.body[0].sendMode, 'auto');
 });
 
-test('GET list: nothing is flagged once automatic sending is authorised', () => {
+test('a sequence template switched to « auto » fixes the start date once; the scheduler follows every write', () => {
   const model = fakeModel([
-    { name: 'Auto on', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto', enabled: true },
+    { stableKey: 'arrival_reminder_7d', name: 'J-7', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'manual', enabled: true },
   ]);
-  const r = res();
-  buildController(model, settingsWith(true)).list({}, r);
-  assert.equal(r.body[0].autoSendBlocked, false);
+  const settings = recordingSettings();
+  const scheduler = recordingScheduler();
+  let day = '2026-10-01';
+  const ctl = buildController(model, settings, { scheduler, today: () => day });
+  const id = model.list()[0].id;
+
+  ctl.update({ params: { id }, body: { sendMode: 'auto' } }, res());
+  assert.equal(settings.state.guestSequenceStartDate, '2026-10-01');
+  assert.equal(scheduler.syncs, 1);
+
+  day = '2026-11-15';
+  ctl.update({ params: { id }, body: { sendMode: 'manual' } }, res());
+  ctl.update({ params: { id }, body: { sendMode: 'auto' } }, res());
+  assert.equal(settings.state.guestSequenceStartDate, '2026-10-01', 'never moved afterwards');
+  assert.equal(scheduler.syncs, 3);
 });
 
-test('GET list: no settings model at all → treated as blocked, never as authorised', () => {
+test('a non-sequence template switched to « auto » does not start the sequence', () => {
   const model = fakeModel([
-    { name: 'Auto on', subject: 'S', body: 'B', dayOffset: -7, sendMode: 'auto', enabled: true },
+    { stableKey: null, name: 'Libre', subject: 'S', body: 'B', dayOffset: -3, sendMode: 'manual', enabled: true },
   ]);
-  const r = res();
-  buildController(model).list({}, r);
-  assert.equal(r.body[0].autoSendBlocked, true);
+  const settings = recordingSettings();
+  const ctl = buildController(model, settings, { scheduler: recordingScheduler() });
+  ctl.update({ params: { id: model.list()[0].id }, body: { sendMode: 'auto' } }, res());
+  assert.equal(settings.state.guestSequenceStartDate, undefined);
 });

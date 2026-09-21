@@ -1,8 +1,8 @@
 /**
- * BillableAmountsPage — `/parametres/tarifs`
+ * BillableAmountsPage — the « Facturables au SAS » tab of Options & ressources
+ * (specs/settings-rationalization.md rule 2; `/parametres/tarifs` redirects there).
  *
- * Dedicated page for the « Tarifs facturables » (prix du linge manquant + montants de réparation
- * facturés dans le SAS). The page OWNS the data (load / one bar-level save for both lists / dirty
+ * The prices billable during the SAS: missing linen and repair amounts. The page OWNS the data (load / one bar-level save for both lists / dirty
  * guard — specs/ds-sweep-settings.md §3.1 rule 1: the two content « Enregistrer » rows moved into
  * the canonical PageActionBar); `SettingsBillableAmountsSection` renders the form.
  */
@@ -18,7 +18,7 @@ import { useToast } from '../components/DialogProvider';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import api from '../api';
 
-export default function BillableAmountsPage() {
+export default function BillableAmountsPage({ barCenter }) {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [linen, setLinen] = useState([]);
@@ -71,7 +71,7 @@ export default function BillableAmountsPage() {
       ]);
       setLinen(l); setSavedLinen(l);
       setRepairs(r); setSavedRepairs(r);
-      showSuccess('Tarifs facturables enregistrés.');
+      showSuccess('Montants facturables enregistrés.');
     } catch (e) {
       showError(e.message || "Échec de l'enregistrement.");
     } finally {
@@ -87,8 +87,8 @@ export default function BillableAmountsPage() {
   return (
     <Box>
       <PageActionBar
-        title="Tarifs facturables"
-        backTo="/parametres"
+        title="Facturables au SAS"
+        center={barCenter}
         onSave={handleSave}
         saveDisabled={loading || saving || !isDirty}
         saveBusy={saving}

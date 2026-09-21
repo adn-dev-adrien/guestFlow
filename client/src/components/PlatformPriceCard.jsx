@@ -4,19 +4,19 @@
  *
  * One row per sales channel — the Direct row first (its displayed price covers the welcome pack after
  * the booking-engine fee), then the commissioned platforms — with, per tariff season, the whole-euro
- * price to configure on that channel, plus a « Personne supp. » column. The commission % is editable
- * per channel (global, persisted). All gross math is server-side; this component only renders + PUTs
- * the %.
+ * price to configure on that channel, plus a « Personne supp. » column. The commission % is shown
+ * read-only: it is global per channel and edited on Paramètres → Plateformes
+ * (specs/settings-rationalization.md rule 19). All gross math is server-side; this only renders.
  *
  * Props:
  *   propertyId  — number, required.
  *   refreshKey  — any. Change it (e.g. after editing a season's price) to re-fetch the grid.
  *   onError     — optional (err) => void.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link as RouterLink } from 'react-router';
 import {
-  Card, CardContent, Box, Typography, TableHead, TableBody, TableRow, TableCell,
-  TextField, InputAdornment,
+  Card, CardContent, Box, Typography, TableHead, TableBody, TableRow, TableCell, Link,
 } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
@@ -31,16 +31,12 @@ const euro = (value) => (value == null ? '—' : `${value} €`);
 export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
   const [data, setData] = useState({ platforms: [], seasons: [] });
   const [loading, setLoading] = useState(true);
-  // Local draft of the % inputs (so typing is smooth); keyed by platformId.
-  const [pctDraft, setPctDraft] = useState({});
-  const debounceRef = useRef({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.getPlatformPrices(propertyId);
       setData(res || { platforms: [], seasons: [] });
-      setPctDraft(Object.fromEntries((res?.platforms || []).map((p) => [p.id, String(p.commissionPercent ?? 0)])));
     } catch (err) {
       if (onError) onError(err); else console.error('[PlatformPriceCard]', err);
     } finally {
@@ -49,20 +45,6 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
   }, [propertyId, onError]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
-
-  const onPctChange = (platformId, raw) => {
-    setPctDraft((d) => ({ ...d, [platformId]: raw }));
-    clearTimeout(debounceRef.current[platformId]);
-    debounceRef.current[platformId] = setTimeout(async () => {
-      const value = Math.max(0, Math.min(99.99, Number(raw) || 0));
-      try {
-        await api.setPlatformCommission(platformId, value);
-        await load();
-      } catch (err) {
-        if (onError) onError(err); else console.error('[PlatformPriceCard]', err);
-      }
-    }, 600);
-  };
 
   const { platforms, seasons } = data;
   const hasCommissioned = platforms.some((p) => !p.isDirect);
@@ -93,7 +75,8 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Prix /nuit à afficher sur chaque canal (arrondi à l'euro supérieur) pour <strong>netter</strong> la
-          cible après commission. Le taux de commission est commun à tous les logements.
+          cible après commission. Le taux de commission est commun à tous les logements : il se règle
+          dans <Link component={RouterLink} to="/settings/plateformes">Plateformes</Link>.
         </Typography>
 
         {loading && <LoadingState py={2} label="Chargement…" />}
@@ -139,18 +122,7 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <TextField
-                        value={pctDraft[p.id] ?? ''}
-                        onChange={(e) => onPctChange(p.id, e.target.value)}
-                        size="small"
-                        type="number"
-                        disabled={typeof p.id !== 'number'}
-                        slotProps={{
-                          input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
-                          htmlInput: { min: 0, max: 99.99, step: 0.5, 'aria-label': `Commission ${p.name}` },
-                        }}
-                        sx={{ width: 100 }}
-                      />
+                      <Typography variant="body2" aria-label={`Commission ${p.name}`}>{`${Number(p.commissionPercent ?? 0)} %`}</Typography>
                     </TableCell>
                     {seasons.map((s) => (
                       <TableCell key={s.ruleId} align="right" sx={{ fontWeight: 600 }}>

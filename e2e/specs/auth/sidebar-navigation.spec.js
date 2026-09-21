@@ -12,12 +12,20 @@ const ROUTES = [
   { url: '/finance',                     heading: 'Suivi financier' },
   { url: '/comptabilite',                heading: 'Comptabilité' },
   { url: '/devis',                       heading: 'Devis' },
-  { url: '/settings',                    heading: 'Paramètres', exact: true },
+  // Paramètres pages (specs/settings-rationalization.md rule 2).
+  { url: '/settings/etablissement',      heading: 'Établissement', exact: true },
+  { url: '/settings/plateformes',        heading: 'Plateformes', exact: true },
+  { url: '/settings/tva-exercice',       heading: 'TVA & exercice' },
+  { url: '/settings/emails',             heading: 'Emails & notifications' },
+  { url: '/settings/integrations',       heading: 'Intégrations' },
+  { url: '/settings/systeme',            heading: 'Système', exact: true },
+  { url: '/settings/utilisateurs',       heading: 'Utilisateurs' },
+  { url: '/mon-compte',                  heading: 'Mon compte' },
   { url: '/properties',                  heading: 'Logements' },
   { url: '/clients',                     heading: 'Clients' },
   { url: '/school-holidays',             heading: 'Vacances scolaires' },
   { url: '/establishment-closures',      heading: /Fermetures/ },
-  { url: '/parametres/stock-blanchisserie', heading: 'Blanchisserie' },
+  { url: '/parametres/stock-blanchisserie', heading: 'Linge' },
 ];
 
 for (const { url, heading, exact = false } of ROUTES) {

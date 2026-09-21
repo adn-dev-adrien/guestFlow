@@ -3,16 +3,17 @@ const assert = require('node:assert/strict');
 
 const scheduler = require('../utils/emailAutoSendScheduler');
 
-// specs/no-automatic-email-without-approval.md §3 rule 2b — while automatic sending is off, no timer
-// is registered at all: the switch ships off, and a feature nobody turned on must not tick. Turning
-// it on starts the timer AND runs the day's pass, without a restart.
+// specs/no-automatic-email-without-approval.md §3 rule 2b + specs/settings-rationalization.md
+// rule 17b — while no template is « auto », no timer is registered at all: templates ship « manual »,
+// and a feature nobody turned on must not tick. Switching a template to « auto » starts the timer AND
+// runs the day's pass, without a restart.
 
 function at(year, month, day, hour) {
   return new Date(year, month - 1, day, hour, 0, 0);
 }
 
-const settingsOn = { emailAutoSendEnabled: () => true };
-const settingsOff = { emailAutoSendEnabled: () => false };
+const autoTemplates = { listEnabled: () => [{ enabled: 1, sendMode: 'auto' }] };
+const manualTemplates = { listEnabled: () => [{ enabled: 1, sendMode: 'manual' }] };
 
 const SENT = { sentCount: 1, skippedCount: 0, failedCount: 0, results: [] };
 const BLOCKED = { blocked: true, sentCount: 0, skippedCount: 0, failedCount: 0, results: [] };
@@ -35,12 +36,12 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 // Each test uses its own fake day: the module's once-per-day guard is keyed by local date, so
 // distinct dates keep the cases independent without reaching into the module's state.
 
-test('switch off at boot: nothing is scheduled and no pass runs', async () => {
+test('no « auto » template at boot: nothing is scheduled and no pass runs', async () => {
   let runs = 0;
   const run = () => { runs += 1; return Promise.resolve(SENT); };
 
-  const changed = scheduler.syncWithSettings({
-    boot: true, settingsModel: settingsOff, now: at(2026, 4, 1, 9), run,
+  const changed = scheduler.syncWithTemplates({
+    boot: true, templatesModel: manualTemplates, now: at(2026, 4, 1, 9), run,
   });
   await settle();
 
@@ -49,13 +50,13 @@ test('switch off at boot: nothing is scheduled and no pass runs', async () => {
   assert.equal(runs, 0);
 });
 
-test('switch on at boot: the timer is registered, the first pass waits for the boot delay', async () => {
+test('an « auto » template at boot: the timer is registered, the first pass waits for the boot delay', async () => {
   let runs = 0;
   const run = () => { runs += 1; return Promise.resolve(SENT); };
 
   try {
-    const changed = scheduler.syncWithSettings({
-      boot: true, settingsModel: settingsOn, now: at(2026, 4, 2, 9), run,
+    const changed = scheduler.syncWithTemplates({
+      boot: true, templatesModel: autoTemplates, now: at(2026, 4, 2, 9), run,
     });
     await settle();
 
@@ -67,12 +68,12 @@ test('switch on at boot: the timer is registered, the first pass waits for the b
   }
 });
 
-test('authorising mid-day starts the timer and runs the day\'s pass straight away', async () => {
+test('switching a template to « auto » mid-day starts the timer and runs the day\'s pass straight away', async () => {
   let runs = 0;
   const run = () => { runs += 1; return Promise.resolve(SENT); };
 
   try {
-    scheduler.syncWithSettings({ settingsModel: settingsOn, now: at(2026, 4, 3, 14), run });
+    scheduler.syncWithTemplates({ templatesModel: autoTemplates, now: at(2026, 4, 3, 14), run });
     await settle();
 
     assert.equal(scheduler.isRunning(), true);
@@ -87,9 +88,9 @@ test('a second sync while already running neither duplicates the timer nor re-ru
   const run = () => { runs += 1; return Promise.resolve(SENT); };
 
   try {
-    scheduler.syncWithSettings({ settingsModel: settingsOn, now: at(2026, 4, 4, 14), run });
+    scheduler.syncWithTemplates({ templatesModel: autoTemplates, now: at(2026, 4, 4, 14), run });
     await settle();
-    const changed = scheduler.syncWithSettings({ settingsModel: settingsOn, now: at(2026, 4, 4, 15), run });
+    const changed = scheduler.syncWithTemplates({ templatesModel: autoTemplates, now: at(2026, 4, 4, 15), run });
     await settle();
 
     assert.equal(changed, false, 'already running → no-op');
@@ -99,15 +100,15 @@ test('a second sync while already running neither duplicates the timer nor re-ru
   }
 });
 
-test('revoking the authorisation clears the timer', async () => {
+test('switching the last « auto » template back to « manual » clears the timer', async () => {
   const run = () => Promise.resolve(SENT);
 
-  scheduler.syncWithSettings({ settingsModel: settingsOn, now: at(2026, 4, 5, 14), run });
+  scheduler.syncWithTemplates({ templatesModel: autoTemplates, now: at(2026, 4, 5, 14), run });
   await settle();
   assert.equal(scheduler.isRunning(), true);
 
   const lines = await captureLog(async () => {
-    const changed = scheduler.syncWithSettings({ settingsModel: settingsOff, now: at(2026, 4, 5, 15), run });
+    const changed = scheduler.syncWithTemplates({ templatesModel: manualTemplates, now: at(2026, 4, 5, 15), run });
     await settle();
     assert.equal(changed, true);
   });
@@ -136,14 +137,14 @@ test('a blocked pass gives the day back and shuts the scheduler down', async () 
   const run = () => { runs += 1; return Promise.resolve(BLOCKED); };
 
   try {
-    scheduler.syncWithSettings({ settingsModel: settingsOn, now: at(2026, 4, 8, 9), run });
+    scheduler.syncWithTemplates({ templatesModel: autoTemplates, now: at(2026, 4, 8, 9), run });
     await settle();
 
     assert.equal(runs, 1);
     assert.equal(scheduler.isRunning(), false, 'the switch and the timer went out of step — resync by stopping');
 
     // The day was not consumed: re-authorising later the same day still runs today's pass.
-    scheduler.syncWithSettings({ settingsModel: settingsOn, now: at(2026, 4, 8, 11), run: () => Promise.resolve(SENT) });
+    scheduler.syncWithTemplates({ templatesModel: autoTemplates, now: at(2026, 4, 8, 11), run: () => Promise.resolve(SENT) });
     await settle();
     assert.equal(scheduler.isRunning(), true);
   } finally {

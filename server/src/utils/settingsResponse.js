@@ -5,6 +5,8 @@
  * with the OAuth rework — see specs/google-calendar-oauth-rework.md.
  */
 
+const { resolveEmailIdentity } = require('./emailIdentity');
+
 function formatUpdatedAtLabel(updatedAt) {
   if (!updatedAt) return null;
   // SQLite "datetime('now')" returns "YYYY-MM-DD HH:MM:SS" in UTC.
@@ -22,6 +24,7 @@ function formatUpdatedAtLabel(updatedAt) {
 }
 
 function shapeResponse(row) {
+  const identity = resolveEmailIdentity(row);
   const safeStr = (v) => String(v == null ? '' : v);
 
   return {
@@ -43,12 +46,11 @@ function shapeResponse(row) {
     },
     quote: {
       footerText: safeStr(row.quoteFooterText),
+      footerTextEn: safeStr(row.quoteFooterTextEn),
       validityDays: Number(row.quoteValidityDays) || 30,
     },
     vat: {
       rate: row.vatRate == null ? 10 : Number(row.vatRate),
-      rateCommission: row.vatRateCommission == null ? 20 : Number(row.vatRateCommission),
-      rateCancellationCompensation: row.vatRateCancellationCompensation == null ? 0 : Number(row.vatRateCancellationCompensation),
     },
     // Accounting block (specs/fiscal-year-and-nights-sold.md §4.3). `fiscalYearEndMonth` is the month
     // the books are closed on; 12 (calendar year) when unset. Every annual window of the Suivi
@@ -56,39 +58,39 @@ function shapeResponse(row) {
     accounting: {
       fiscalYearEndMonth: row.fiscalYearEndMonth == null ? 12 : Number(row.fiscalYearEndMonth),
     },
-    // SMTP block for the account-management flow (specs/admin-account-management.md). The password
-    // is masked: the row already comes from settingsModel.read() which substitutes
-    // smtpPasswordEncrypted with the boolean smtpPasswordSet. We never echo cleartext or ciphertext.
+    // SMTP block. The password is masked: the row comes from settingsModel.read(), which
+    // substitutes smtpPasswordEncrypted with the boolean smtpPasswordSet. `fromEmail`, `username` and
+    // `fromName` are the operator's OVERRIDES ('' = derived); `derived` is what each one falls back to
+    // when left empty (specs/settings-rationalization.md rule 12) — the form shows it as « = … ».
+    // No port: it follows `secure` (rule 11).
     smtp: {
       host: safeStr(row.smtpHost).trim(),
-      port: row.smtpPort == null ? 587 : Number(row.smtpPort),
       secure: Number(row.smtpSecure) === 1,
       username: safeStr(row.smtpUsername).trim(),
       passwordSet: Boolean(row.smtpPasswordSet),
       fromEmail: safeStr(row.smtpFromEmail).trim(),
-      fromName: safeStr(row.smtpFromName).trim() || 'GuestFlow',
+      fromName: safeStr(row.smtpFromName).trim(),
       publicUrl: safeStr(row.publicUrl).trim(),
+      derived: {
+        fromEmail: safeStr(row.companyEmail).trim(),
+        username: identity.fromEmail,
+        fromName: resolveEmailIdentity({ companyName: row.companyName }).fromName,
+      },
     },
     // Booking notifications block (specs/site-booking-notifications.md §4.3). `enabled` defaults ON
-    // (only an explicit 0 turns it off). `recipientEmail` empty → the service falls back to the SMTP
-    // sender. The email link reuses `smtp.publicUrl`.
+    // (only an explicit 0 turns it off). `recipientEmail` is the override; `derivedRecipient` is where
+    // the emails go when it is left empty — the sending address.
     notifications: {
       enabled: Number(row.notificationsEnabled) !== 0,
       // Per-channel switch for the iCal/platform new-reservation email; default ON.
       icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
       recipientEmail: safeStr(row.notificationRecipientEmail).trim(),
+      derivedRecipient: identity.fromEmail,
     },
-    // Reservations block — admin escape hatch for past-reservation editing.
-    // See specs/admin-unlock-past-reservations.md.
-    reservations: {
-      allowEditPastReservations: Number(row.allowEditPastReservations) === 1,
-    },
-    // Automatic guest email (specs/no-automatic-email-without-approval.md §4.3). The master switch
-    // that decides whether the 08:00 cron and the payment-confirmation path may mail a guest without
-    // the operator. OFF unless explicitly turned on — a missing column reads as OFF.
+    // Guest-email content (specs/guest-email-sequence.md §6.2). Automatic sending is decided per
+    // template since specs/settings-rationalization.md rule 17b — there is no master switch here.
     emails: {
-      autoSendEnabled: Number(row.emailAutoSendEnabled) === 1,
-      // specs/guest-email-sequence.md §6.2 — read-only: set by the server on first activation.
+      // Read-only: set by the server when a sequence template first goes « auto ».
       sequenceStartDate: row.guestSequenceStartDate || null,
       googleReviewUrl: row.googleReviewUrl || '',
       instagramUrl: row.instagramUrl || '',

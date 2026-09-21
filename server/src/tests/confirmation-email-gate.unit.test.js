@@ -1,10 +1,11 @@
 /**
- * The confirmation email fired by a confirmed online payment, under the automatic-send master switch
- * (specs/no-automatic-email-without-approval.md §3 rule 4).
+ * The confirmation email fired by a confirmed online payment, gated by the confirmation template's
+ * own mode (specs/no-automatic-email-without-approval.md §3 rule 4, specs/settings-rationalization.md
+ * rule 17b).
  *
- * A paid link is not an operator action: nobody read that email before it left. With the switch off,
- * the confirmation must be PROPOSED — queued for review — and never sent. With it on, the historical
- * behaviour is untouched.
+ * A paid link is not an operator action: nobody read that email before it left. With the template in
+ * « manual », the confirmation must be PROPOSED — queued for review — and never sent. In « auto », it
+ * leaves straight away.
  */
 
 const test = require('node:test');
@@ -41,6 +42,9 @@ const CONFIRMATION = {
 };
 
 function fixture({ autoSendEnabled, template = CONFIRMATION } = {}) {
+  const stored = template && autoSendEnabled !== undefined
+    ? { ...template, sendMode: autoSendEnabled ? 'auto' : 'manual' }
+    : template;
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Léa', 'Roy', 'lea@r.fr')").run();
@@ -52,10 +56,9 @@ function fixture({ autoSendEnabled, template = CONFIRMATION } = {}) {
   const sent = [];
   const sender = buildGatedConfirmationSender({
     database: db,
-    templatesModel: { findByStableKey: (k) => (template && template.stableKey === k ? template : undefined) },
+    templatesModel: { findByStableKey: (k) => (stored && stored.stableKey === k ? stored : undefined) },
     logModel: { insert: (row) => { logged.push(row); return { id: logged.length }; } },
     settingsModel: {
-      emailAutoSendEnabled: () => autoSendEnabled,
       // The sequence is active since before the booking (specs/guest-email-sequence.md rule 16).
       read: () => ({ companyName: 'Solio', guestSequenceStartDate: '2026-06-01' }),
       decryptedSmtpSettings: () => ({ host: 'smtp', fromEmail: 'f@x' }),
@@ -76,7 +79,7 @@ function fixture({ autoSendEnabled, template = CONFIRMATION } = {}) {
   return { sender, queued, logged, sent };
 }
 
-test('switch ON: the confirmation is mailed straight away, nothing is queued', async () => {
+test('template « auto »: the confirmation is mailed straight away, nothing is queued', async () => {
   const f = fixture({ autoSendEnabled: true });
   const res = await f.sender(500);
 
@@ -86,12 +89,12 @@ test('switch ON: the confirmation is mailed straight away, nothing is queued', a
   assert.deepEqual(f.queued, []);
 });
 
-test('switch OFF: nothing is sent, the confirmation waits in the queue', async () => {
+test('template « manual »: nothing is sent, the confirmation waits in the queue', async () => {
   const f = fixture({ autoSendEnabled: false });
   const res = await f.sender(500);
 
   assert.equal(res.sent, false);
-  assert.equal(res.reason, 'auto-send-disabled');
+  assert.equal(res.reason, 'template-manual');
   assert.equal(res.queued, true);
   assert.equal(f.sent.length, 0, 'no mail left the building');
   assert.deepEqual(f.queued, ['31/500']);
@@ -99,7 +102,7 @@ test('switch OFF: nothing is sent, the confirmation waits in the queue', async (
   assert.deepEqual(f.logged, []);
 });
 
-test('switch OFF: the webhook and the poll cron racing on one payment queue it once', async () => {
+test('template « manual »: the webhook and the poll cron racing on one payment queue it once', async () => {
   const f = fixture({ autoSendEnabled: false });
   await f.sender(500);
   const second = await f.sender(500);
@@ -108,7 +111,7 @@ test('switch OFF: the webhook and the poll cron racing on one payment queue it o
   assert.deepEqual(f.queued, ['31/500'], 'but only one row exists');
 });
 
-test('switch OFF: a disabled confirmation template is not queued either', async () => {
+test('a disabled confirmation template is not queued either', async () => {
   // « Désactivé » is a deliberate « never send this ». Queuing it would push the operator to send by
   // hand exactly what they turned off.
   const f = fixture({ autoSendEnabled: false, template: { ...CONFIRMATION, enabled: 0 } });
@@ -118,7 +121,7 @@ test('switch OFF: a disabled confirmation template is not queued either', async 
   assert.deepEqual(f.queued, []);
 });
 
-test('switch OFF: a missing confirmation template is a no-op, not a crash', async () => {
+test('a missing confirmation template is a no-op, not a crash', async () => {
   const f = fixture({ autoSendEnabled: false, template: null });
   const res = await f.sender(500);
 
@@ -134,7 +137,7 @@ test('a queue failure never breaks the payment flow', async () => {
     database: db,
     templatesModel: { findByStableKey: () => CONFIRMATION },
     logModel: { insert: () => ({ id: 1 }) },
-    settingsModel: { emailAutoSendEnabled: () => false, read: () => ({}), decryptedSmtpSettings: () => ({}) },
+    settingsModel: { read: () => ({}), decryptedSmtpSettings: () => ({}) },
     emailServiceFactory: () => ({ isConfigured: true, send: async () => {} }),
     queueModel: { add: () => { throw new Error('database is locked'); } },
     onQueueError: (err) => errors.push(err.message),
@@ -146,9 +149,9 @@ test('a queue failure never breaks the payment flow', async () => {
   assert.deepEqual(errors, ['database is locked']);
 });
 
-test('a settings model that never heard of the switch does not mail the guest', async () => {
+test('a template stored without any mode does not mail the guest', async () => {
   const f = fixture({ autoSendEnabled: undefined });
-  // `emailAutoSendEnabled()` returns undefined → not an explicit yes → fail closed.
+  // No `sendMode` → not an explicit « auto » → fail closed.
   const res = await f.sender(500);
   assert.equal(res.sent, false);
   assert.equal(f.sent.length, 0);

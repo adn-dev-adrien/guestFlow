@@ -23,8 +23,6 @@ const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
-const emailAutoSendScheduler = require('../utils/emailAutoSendScheduler');
-const { isoToday } = require('../utils/emailAutoSendRunner');
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
@@ -53,32 +51,22 @@ const QUOTE_FIELDS = [
 // standard) — collapsed because every revenue stream on GuestFlow is invoiced at 10 %.
 const VAT_FIELDS = [
   { input: 'rate', column: 'vatRate', validator: validation.validateVatRate },
-  // accounting-platform-commission-and-no-deposit.md §3.7 rule 17b — sits alongside the
-  // existing single VAT rate in the same Settings card.
-  { input: 'rateCommission', column: 'vatRateCommission', validator: validation.validateVatRate },
-  // specs/cancellation-compensation.md §3.3 rule 16 — 0 % by default: an indemnity paid after a
-  // désistement is outside the scope of VAT. Same card, same validator as the other two rates.
-  { input: 'rateCancellationCompensation', column: 'vatRateCancellationCompensation', validator: validation.validateVatRate },
+  // The commission and cancellation-indemnity rates are edited on Plan comptable, next to the
+  // accounts that use them (specs/settings-rationalization.md rule 14).
 ];
 
 // SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask
-// semantics, like the Google privateKey). `publicUrl` is part of the SMTP group on the client UX
-// even though it lives in its own DB column — it's "the URL we put in the welcome email".
+// semantics). `username`, `fromEmail` and `fromName` are overrides: '' means « derived from
+// Établissement » (specs/settings-rationalization.md rule 12). `publicUrl` is shown on the Système
+// page but stays in this group of the API.
 const SMTP_FIELDS = [
   { input: 'host', column: 'smtpHost' },
-  // No `port` entry on purpose: it is derived from `secure` below
-  // (specs/settings-one-save-and-automatic-webhook.md §3 rule 5). A port sent by a client is ignored.
+  // No `port` entry on purpose: it follows `secure` (specs/settings-rationalization.md rule 11).
   { input: 'secure', column: 'smtpSecure' },
   { input: 'username', column: 'smtpUsername' },
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
   { input: 'fromName', column: 'smtpFromName', validator: validation.validateHeaderSafeText },
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
-];
-
-// Reservations group — single admin escape-hatch toggle for past reservations.
-// See specs/admin-unlock-past-reservations.md.
-const RESERVATIONS_FIELDS = [
-  { input: 'allowEditPastReservations', column: 'allowEditPastReservations' },
 ];
 
 // Booking-notifications group (specs/site-booking-notifications.md §4.3). `enabled` is a Switch
@@ -90,12 +78,9 @@ const NOTIFICATIONS_FIELDS = [
   { input: 'recipientEmail', column: 'notificationRecipientEmail', validator: validation.validateEmail },
 ];
 
-// Automatic guest email (specs/no-automatic-email-without-approval.md §4.3). Single master switch
-// (BOOL int). OFF means GuestFlow only ever PROPOSES a guest email — the 08:00 cron sends nothing and
-// the payment confirmation is queued for review instead of being mailed.
+// Guest email sequence copy (specs/guest-email-sequence.md §6.2). Whether an email leaves on its own
+// is decided per template (specs/settings-rationalization.md rule 17b), not here.
 const EMAILS_FIELDS = [
-  { input: 'autoSendEnabled', column: 'emailAutoSendEnabled' },
-  // Guest email sequence copy (specs/guest-email-sequence.md §6.2).
   { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
   { input: 'instagramUrl', column: 'instagramUrl', validator: validation.validatePublicUrl },
   { input: 'poolSeasonStart', column: 'poolSeasonStart', validator: validation.validateMonthDay },
@@ -127,7 +112,7 @@ const ACCOUNTING_FIELDS = [
 
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
-const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled', 'notifyIcalReservationEnabled', 'emailAutoSendEnabled']);
+const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
 
 // Columns that must be coerced to a non-negative integer floor at the boundary (defensive
 // against the form sending strings or decimals). The validator already rejects out-of-range
@@ -146,20 +131,6 @@ const TRIMMED_TEXT_COLUMNS = new Set([
   'googleReviewUrl', 'instagramUrl', 'poolSeasonStart', 'poolSeasonEnd',
 ]);
 
-/**
- * The SMTP port follows the security mode
- * (specs/settings-one-save-and-automatic-webhook.md §3 rule 5): 587 for STARTTLS, 465 for implicit
- * TLS. It is not asked for any more, because it was the same answer twice.
- *
- * Only a save that touches the security mode rewrites it, so an installation sitting on a
- * non-standard port keeps it until the email settings are saved again.
- */
-function deriveSmtpPort(smtp, payload) {
-  if (!smtp || !Object.prototype.hasOwnProperty.call(smtp, 'secure')) return payload;
-  payload.smtpPort = validation.smtpPortForSecure(payload.smtpSecure === 1);
-  return payload;
-}
-
 function pickGroup(body, group) {
   const value = body && body[group];
   return value && typeof value === 'object' ? value : null;
@@ -177,7 +148,6 @@ function updateSettings(req, res) {
   const vat = pickGroup(body, 'vat');
   const accounting = pickGroup(body, 'accounting');
   const smtp = pickGroup(body, 'smtp');
-  const reservations = pickGroup(body, 'reservations');
   const laundry = pickGroup(body, 'laundry');
   const linenStock = pickGroup(body, 'linenStock');
   const notifications = pickGroup(body, 'notifications');
@@ -197,7 +167,7 @@ function updateSettings(req, res) {
           const err = validator(value);
           if (err) errors[column] = err;
         }
-        // Boolean-shaped columns (smtpSecure, allowEditPastReservations…) come from a
+        // Boolean-shaped columns (smtpSecure, notificationsEnabled…) come from a
         // Switch on the client; normalize to 0/1 for SQLite.
         if (BOOLEAN_INT_COLUMNS.has(column)) {
           payload[column] = (value === true || value === 1 || value === '1') ? 1 : 0;
@@ -220,8 +190,6 @@ function updateSettings(req, res) {
   applyGroup(quote, QUOTE_FIELDS);
   applyGroup(vat, VAT_FIELDS);
   applyGroup(smtp, SMTP_FIELDS);
-  deriveSmtpPort(smtp, payload);
-  applyGroup(reservations, RESERVATIONS_FIELDS);
   applyGroup(laundry, LAUNDRY_FIELDS);
   applyGroup(linenStock, LINEN_STOCK_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
@@ -258,21 +226,7 @@ function updateSettings(req, res) {
     return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
   }
 
-  // specs/guest-email-sequence.md rule 16 — the first time automatic sending is turned on fixes the
-  // day the sequence starts from; it is never moved afterwards, so no past stay is ever mailed.
-  if (payload.emailAutoSendEnabled === 1 && !settingsModel.read().guestSequenceStartDate) {
-    payload.guestSequenceStartDate = isoToday();
-  }
-
   settingsModel.upsert(payload);
-
-  // The 08:00 auto-send pass is scheduled only while the switch is on, so flipping it here is what
-  // starts or stops the timer — no restart (specs/no-automatic-email-without-approval.md §3 rule 2b).
-  // Turning it on also runs the day's pass straight away: the operator authorised the automation to
-  // have today's mail leave today, not tomorrow.
-  if (Object.prototype.hasOwnProperty.call(payload, 'emailAutoSendEnabled')) {
-    emailAutoSendScheduler.syncWithSettings();
-  }
 
   const row = settingsModel.read();
   return res.json(shapeResponse(row));
@@ -357,5 +311,5 @@ module.exports = {
   getRepairAmounts,
   updateRepairAmounts,
   // exported for tests
-  __test: { deriveSmtpPort, SMTP_FIELDS },
+  __test: { SMTP_FIELDS },
 };

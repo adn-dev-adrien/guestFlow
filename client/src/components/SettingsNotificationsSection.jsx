@@ -3,22 +3,23 @@
  *
  * Master switch + recipient address for the booking notification emails
  * (specs/site-booking-notifications.md §6). When ON (default), GuestFlow emails the operator on a
- * new website devis and on a new iCal reservation. Emails are sent FROM the SMTP sender; an empty
- * recipient falls back to that sender. The link in the email reuses the SMTP "URL publique".
+ * new website devis and on a new iCal reservation. The recipient is DERIVED from the sending address
+ * unless overridden (specs/settings-rationalization.md rule 12).
  *
  * Persisted in app_settings.notificationsEnabled (0/1) + notificationRecipientEmail.
  * Mirrors the visual shape of the other Settings sections (Card → Stack → h6 → caption).
  *
  * Props:
- *   values:   { enabled: boolean, icalReservationEnabled: boolean, recipientEmail: string }
+ *   values:   { enabled, icalReservationEnabled, recipientEmail ('' = derived), derivedRecipient }
  *   errors:   { notificationRecipientEmail?: string }
  *   onChange: (key, value) => void
  *   disabled: boolean
  */
 import React from 'react';
 import {
-  Card, CardContent, Stack, Typography, FormControlLabel, Switch, Box, TextField,
+  Card, CardContent, Stack, Typography, FormControlLabel, Switch, Box,
 } from '@mui/material';
+import DerivedValueField from './DerivedValueField';
 
 export default function SettingsNotificationsSection({
   values = { enabled: true, icalReservationEnabled: true, recipientEmail: '' },
@@ -32,11 +33,11 @@ export default function SettingsNotificationsSection({
         <Stack spacing={2}>
           <Box>
             <Typography variant="sectionHeader">
-              Notifications de réservation
+              Mes notifications
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Recevez un email à chaque nouvelle demande de devis depuis le site et à chaque nouvelle
-              réservation importée (iCal). Les emails sont envoyés depuis l'adresse expéditrice SMTP.
+              réservation importée (iCal).
             </Typography>
           </Box>
 
@@ -64,19 +65,19 @@ export default function SettingsNotificationsSection({
             sx={{ alignSelf: 'flex-start' }}
           />
 
-          <TextField
-            label="Adresse de réception des notifications"
-            type="email"
-            value={values.recipientEmail || ''}
-            onChange={(e) => onChange('recipientEmail', e.target.value)}
-            disabled={disabled || !values.enabled}
-            error={Boolean(errors.notificationRecipientEmail)}
-            helperText={
-              errors.notificationRecipientEmail
-              || "Si vide, l'adresse expéditrice SMTP est utilisée."
-            }
-            fullWidth
-          />
+          {values.enabled ? (
+            <DerivedValueField
+              label="Reçues sur"
+              type="email"
+              value={values.recipientEmail || ''}
+              derivedValue={values.derivedRecipient}
+              derivedFrom="l'adresse d'envoi"
+              overrideLabel="Autre adresse"
+              onChange={(val) => onChange('recipientEmail', val)}
+              error={errors.notificationRecipientEmail}
+              disabled={disabled}
+            />
+          ) : null}
         </Stack>
       </CardContent>
     </Card>

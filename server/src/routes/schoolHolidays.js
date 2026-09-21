@@ -4,8 +4,6 @@ const ctrl = require('../controllers/schoolHolidaysController');
 // Static sub-paths must come BEFORE the /:id catchalls.
 router.get('/', ctrl.list);
 router.post('/sync', ctrl.sync);
-router.get('/sync-settings', ctrl.getSyncSettings);
-router.put('/sync-settings', ctrl.updateSyncSettings);
 
 router.post('/', ctrl.create);
 router.put('/:id/unlock', ctrl.unlock);

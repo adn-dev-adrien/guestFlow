@@ -51,7 +51,7 @@ function buildController({ captures, prev = {} }) {
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': reservationsModelMock,
-    '../models/settingsModel': { read: () => ({}), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
     '../database': dbMock,
   }, () => {

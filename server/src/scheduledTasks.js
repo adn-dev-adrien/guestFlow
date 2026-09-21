@@ -311,16 +311,16 @@ function startScheduledTasks() {
     performAutoSync().catch(err => console.error('[iCal Sync] Erreur lors de la première synchro:', err));
   }, 30000);
 
-  // School holidays: hourly tick that checks the configured interval and triggers a sync if due.
-  // Reads fresh state every tick so config changes (PUT /sync-settings) take effect without restart.
+  // School holidays: hourly tick that checks the fixed interval and triggers a sync if due
+  // (specs/settings-rationalization.md rule 13).
   const SCHOOL_HOLIDAYS_TICK = 60 * 60 * 1000; // 1 hour
   setInterval(() => tickSchoolHolidaysSync('hourly tick'), SCHOOL_HOLIDAYS_TICK);
   setTimeout(() => tickSchoolHolidaysSync('boot'), 60 * 1000);
 
-  // Email auto-send: no timer at all unless the operator authorised automatic sending. Turning the
-  // switch on in Réglages starts it (and runs the day's pass) without a restart — the scheduler is
-  // re-synced by settingsController on every write.
-  emailAutoSendScheduler.syncWithSettings({ boot: true });
+  // Email auto-send: no timer at all unless a template is « auto ». Switching one to « auto » in Emails
+  // starts it (and runs the day's pass) without a restart — the scheduler is re-synced by
+  // emailTemplatesController on every write (specs/settings-rationalization.md rule 17b).
+  emailAutoSendScheduler.syncWithTemplates({ boot: true });
 
   // Email-history purge: hourly tick (once-per-day guard) + a boot pass 100 s after start, so the rolling
   // window is trimmed without waiting a full day after a restart.

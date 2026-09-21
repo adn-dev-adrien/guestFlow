@@ -11,7 +11,6 @@ import ErrorAlert from '../components/ErrorAlert';
 import SchoolHolidayFormFields from '../components/SchoolHolidayFormFields';
 import SchoolHolidaysTimeline from '../components/SchoolHolidaysTimeline';
 import SchoolHolidaysSyncBanner from '../components/SchoolHolidaysSyncBanner';
-import SchoolHolidaysSyncSettingsDialog from '../components/SchoolHolidaysSyncSettingsDialog';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 
@@ -33,7 +32,6 @@ export default function SchoolHolidaysPage({ barCenter }) {
   const [form, setForm] = useState(emptyForm);
   const [validationError, setValidationError] = useState('');
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -125,16 +123,11 @@ export default function SchoolHolidaysPage({ barCenter }) {
     }
   };
 
-  const handleSettingsSaved = async () => {
-    await reload();
-  };
-
   return (
     <Box>
       <PageActionBar
         center={barCenter}
         title="Vacances scolaires"
-        backTo="/settings"
         actionsBefore={[
           {
             icon: <SyncIcon />,
@@ -156,7 +149,6 @@ export default function SchoolHolidaysPage({ barCenter }) {
         <SchoolHolidaysSyncBanner
           syncState={syncState}
           onSync={triggerSync}
-          onOpenSettings={() => setSettingsOpen(true)}
           busy={syncing}
         />
 
@@ -198,13 +190,6 @@ export default function SchoolHolidaysPage({ barCenter }) {
 
         <SchoolHolidayFormFields form={form} setField={setField} validationError={validationError} />
       </FormDialog>
-
-      <SchoolHolidaysSyncSettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        initial={syncState}
-        onSaved={handleSettingsSaved}
-      />
     </Box>
   );
 }

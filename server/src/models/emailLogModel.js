@@ -9,10 +9,10 @@
  *   insert({ templateId, reservationId, status, errorMessage?, renderedSubject,
  *            renderedBody, recipientEmail }) → created row
  *   existsFor(templateId, reservationId, statuses[]) → boolean
- *   listPending({ today, lookbackDays, includeAutoTemplates })
- *                               → candidates not yet acted on (joins reservation + client + property).
- *                                 `includeAutoTemplates` also proposes the `auto` templates, for when
- *                                 automatic sending is switched off and the cron sends nothing.
+ *   listPending({ today, lookbackDays })
+ *                               → « manual » candidates not yet acted on (joins reservation + client
+ *                                 + property). « auto » templates leave on their own and are never
+ *                                 proposed (specs/settings-rationalization.md rule 17b).
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
@@ -27,12 +27,10 @@ const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', '
 // The request whose departure unlocks each anchor's reminder (rule 40bis).
 const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDate: 'balance_request' };
 
-// Which templates the review queue proposes (specs/no-automatic-email-without-approval.md §3 rule 3).
-// Normally the `manual` ones — the `auto` ones are the 08:00 cron's business. But when automatic
-// sending is switched off the cron sends nothing, so the `auto` templates would silently vanish;
-// they are proposed here instead. Literal constants, never user input: no injection surface.
+// Which templates the review queue proposes (specs/no-automatic-email-without-approval.md §3 rule 3):
+// the `manual` ones — each `auto` template is sent by the 08:00 pass, since its own mode is the only
+// switch (specs/settings-rationalization.md rule 17b). Literal constant, never user input.
 const SEND_MODE_MANUAL_ONLY = "t.sendMode = 'manual'";
-const SEND_MODE_MANUAL_AND_AUTO = "t.sendMode IN ('manual', 'auto')";
 
 // specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
 // today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
@@ -137,11 +135,8 @@ function buildModel(database) {
             AND l.status IN ('sent', 'acknowledged-skip')
         )`;
 
-  function listPending({ today, lookbackDays = 7, includeAutoTemplates = false }) {
-    // `includeAutoTemplates` mirrors the master switch: OFF → the cron sends nothing, so its due
-    // templates are proposed here for the operator to send by hand
-    // (specs/no-automatic-email-without-approval.md §3 rule 3).
-    const sendModePredicate = includeAutoTemplates ? SEND_MODE_MANUAL_AND_AUTO : SEND_MODE_MANUAL_ONLY;
+  function listPending({ today, lookbackDays = 7 }) {
+    const sendModePredicate = SEND_MODE_MANUAL_ONLY;
     // Event-/action-triggered templates (confirmation on payment, deposit request on host action — see
     // utils/reservationEmailSender) are sent programmatically, never from this date-driven queue.
     const notEvent = EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ');

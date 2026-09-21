@@ -11,7 +11,7 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
-const { autoSendAllowed } = require('./autoSendPolicy');
+const { stableKeyAutoSends } = require('./autoSendPolicy');
 const { MAIL, planStayMails } = require('./guestEmailSequence');
 const { sendSequenceMail } = require('./guestEmailSequenceRunner');
 
@@ -100,13 +100,13 @@ function buildConfirmationSender({ database, templatesModel, logModel, settingsM
 }
 
 /**
- * Same confirmation sender, gated by the master switch
- * (specs/no-automatic-email-without-approval.md §3 rule 4).
+ * Same confirmation sender, gated by the confirmation template's own mode
+ * (specs/no-automatic-email-without-approval.md §3 rule 4, specs/settings-rationalization.md rule 17b).
  *
  * A confirmed online payment is not an operator action — nobody read that email before it left. So:
- *   switch ON  → send immediately, as before;
- *   switch OFF → send nothing and queue the (template, reservation) pair, which puts the
- *                confirmation in « Emails à envoyer » for the operator to review and send.
+ *   template « auto »   → send immediately;
+ *   template « manual » → send nothing and queue the (template, reservation) pair, which puts the
+ *                         confirmation in « Emails à envoyer » for the operator to review and send.
  *
  * `queueModel.add` is idempotent (INSERT OR IGNORE), so the webhook and the poll cron racing on the
  * same payment propose it once. Never throws: an email must not break a payment flow.
@@ -119,7 +119,7 @@ function buildGatedConfirmationSender({
     database, templatesModel, logModel, settingsModel, emailServiceFactory, ledger, preferences,
   });
   return async (reservationId) => {
-    if (autoSendAllowed(settingsModel)) {
+    if (stableKeyAutoSends(templatesModel, stableKey)) {
       try {
         return await send(reservationId);
       } catch (err) {
@@ -133,7 +133,7 @@ function buildGatedConfirmationSender({
       // early return of the sender: a disabled template is a deliberate « don't send this ».
       if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
       queueModel.add(template.id, Number(reservationId));
-      return { sent: false, reason: 'auto-send-disabled', queued: true };
+      return { sent: false, reason: 'template-manual', queued: true };
     } catch (err) {
       if (onQueueError) onQueueError(err);
       return { sent: false, reason: 'queue-failed' };

@@ -4,55 +4,32 @@ import { vi } from 'vitest';
 
 import SettingsVatSection from '../SettingsVatSection';
 
-// specs/accounting-platform-commission-and-no-deposit.md §3.7 rule 17b + §7.3.
-// The Taux de TVA card now has TWO fields:
-//   - "Taux de TVA (%)" → `values.rate` (default 10, applies to revenue 70xxx)
-//   - "TVA déductible commissions (%)" → `values.rateCommission` (default 20, applies to
-//     commission VAT 44566000 when a platform's Switch is ON)
+// specs/single-vat-rate.md — one stay VAT rate. The commission and cancellation-indemnity rates
+// moved to Plan comptable (specs/settings-rationalization.md rule 14).
 
-test('renders both VAT fields with the provided values', () => {
-  render(<SettingsVatSection values={{ rate: 10, rateCommission: 20 }} onChange={vi.fn()} />);
-  expect(screen.getByLabelText(/^Taux de TVA \(%\)/i)).toHaveValue(10);
-  expect(screen.getByLabelText(/TVA déductible commissions \(%\)/i)).toHaveValue(20);
+test('renders the stay VAT rate only', () => {
+  render(<SettingsVatSection values={{ rate: 5.5 }} onChange={vi.fn()} />);
+  expect(screen.getByLabelText(/^Taux de TVA \(%\)/i)).toHaveValue(5.5);
+  expect(screen.queryByLabelText(/commissions/i)).toBeNull();
+  expect(screen.queryByLabelText(/indemnités/i)).toBeNull();
 });
 
-test('falls back to default values when `values` is partial', () => {
-  // Settings boot before the API responds — `values` may be missing one or both fields.
+test('falls back to 10 % before the settings load', () => {
   render(<SettingsVatSection values={{}} onChange={vi.fn()} />);
-  // Defaults: rate = 10 (existing), rateCommission = 20 (the new commission VAT default).
   expect(screen.getByLabelText(/^Taux de TVA \(%\)/i)).toHaveValue(10);
-  expect(screen.getByLabelText(/TVA déductible commissions \(%\)/i)).toHaveValue(20);
 });
 
-test("editing the commission VAT field fires onChange with key='rateCommission'", () => {
+test('editing the rate fires onChange with key="rate"; a blank input sends an empty string', () => {
   const onChange = vi.fn();
-  render(<SettingsVatSection values={{ rate: 10, rateCommission: 20 }} onChange={onChange} />);
-  fireEvent.change(screen.getByLabelText(/TVA déductible commissions \(%\)/i), { target: { value: '19.6' } });
-  expect(onChange).toHaveBeenCalledWith('rateCommission', 19.6);
+  render(<SettingsVatSection values={{ rate: 10 }} onChange={onChange} />);
+  const field = screen.getByLabelText(/^Taux de TVA \(%\)/i);
+  fireEvent.change(field, { target: { value: '20' } });
+  expect(onChange).toHaveBeenLastCalledWith('rate', 20);
+  fireEvent.change(field, { target: { value: '' } });
+  expect(onChange).toHaveBeenLastCalledWith('rate', '');
 });
 
-test("editing the revenue VAT field fires onChange with key='rate' (no regression)", () => {
-  const onChange = vi.fn();
-  render(<SettingsVatSection values={{ rate: 10, rateCommission: 20 }} onChange={onChange} />);
-  fireEvent.change(screen.getByLabelText(/^Taux de TVA \(%\)/i), { target: { value: '5.5' } });
-  expect(onChange).toHaveBeenCalledWith('rate', 5.5);
-});
-
-test('surfaces validation errors on the commission field via the errors prop', () => {
-  // The settings controller returns errors keyed by column name (`vatRateCommission`).
-  render(
-    <SettingsVatSection
-      values={{ rate: 10, rateCommission: 20 }}
-      errors={{ vatRateCommission: 'Doit être un nombre entre 0 et 100.' }}
-      onChange={vi.fn()}
-    />
-  );
+test('surfaces a server validation error under the field', () => {
+  render(<SettingsVatSection values={{ rate: 10 }} errors={{ vatRate: 'Doit être un nombre entre 0 et 100.' }} onChange={vi.fn()} />);
   expect(screen.getByText('Doit être un nombre entre 0 et 100.')).toBeInTheDocument();
-});
-
-test('blank input sends an empty string (not NaN) — defensive for cleared fields', () => {
-  const onChange = vi.fn();
-  render(<SettingsVatSection values={{ rate: 10, rateCommission: 20 }} onChange={onChange} />);
-  fireEvent.change(screen.getByLabelText(/TVA déductible commissions \(%\)/i), { target: { value: '' } });
-  expect(onChange).toHaveBeenCalledWith('rateCommission', '');
 });

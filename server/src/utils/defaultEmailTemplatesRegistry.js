@@ -344,9 +344,10 @@ const FULL_REQUEST_BODY_EN = [
 ].join('\n');
 
 const DEFAULT_TEMPLATES = Object.freeze([
-  // Guest email sequence (specs/guest-email-sequence.md §3.1). `sendMode` is informative for these
-  // six: they are scheduled by utils/guestEmailSequenceRunner and sent through the ledger, never by
-  // the legacy dayOffset pass nor the pending queue once automatic sending is on (rule 19).
+  // Guest email sequence (specs/guest-email-sequence.md §3.1). Scheduled by
+  // utils/guestEmailSequenceRunner and sent through the ledger. They ship « manual »: each one
+  // leaves on its own only once the operator switches ITS template to « auto »
+  // (specs/settings-rationalization.md rule 17b) — until then it waits in the pending queue.
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
     name:      'Séquence — J-7 préparation',
@@ -356,7 +357,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    ARRIVAL_REMINDER_7D_BODY_EN,
     anchor:    'start',
     dayOffset: -7,
-    sendMode:  'auto',
+    sendMode:  'manual',
     enabled:   true,
   }),
   Object.freeze({
@@ -368,7 +369,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    ARRIVAL_REMINDER_1D_BODY_EN,
     anchor:    'start',
     dayOffset: -2,
-    sendMode:  'auto',
+    sendMode:  'manual',
     enabled:   true,
   }),
   Object.freeze({
@@ -380,7 +381,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    RESERVATION_CONFIRMATION_BODY_EN,
     anchor:    'created',  // the booking day (payment is taken at booking); also sent on payment
     dayOffset: 0,
-    sendMode:  'auto',
+    sendMode:  'manual',
     enabled:   true,
   }),
   Object.freeze({
@@ -392,7 +393,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    SEQUENCE.J1_BODY_EN,
     anchor:    'end',
     dayOffset: 1,
-    sendMode:  'auto',
+    sendMode:  'manual',
     enabled:   true,
   }),
   Object.freeze({
@@ -404,7 +405,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    SEQUENCE.NOVEMBER_BODY_EN,
     anchor:    'season',
     dayOffset: 0,
-    sendMode:  'auto',
+    sendMode:  'manual',
     enabled:   true,
   }),
   Object.freeze({
@@ -416,7 +417,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    SEQUENCE.JANUARY_BODY_EN,
     anchor:    'season',
     dayOffset: 0,
-    sendMode:  'auto',
+    sendMode:  'manual',
     enabled:   true,
   }),
   Object.freeze({

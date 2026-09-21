@@ -28,7 +28,6 @@ const { sendReservationTemplateEmail } = require('../utils/reservationEmailSende
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const { createEmailService } = require('../utils/emailService');
-const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimingsValidation');
 const { validateProviderConnection } = require('../utils/paymentProviderValidation');
 const { formatCurrency } = require('../utils/devisHelpers');
 
@@ -125,30 +124,13 @@ async function testQontoConnection(req, res) {
 
 // ----- Paiements settings page (specs/online-payments-qonto.md §3.1) -----
 
-// `payment` + Capitalize(key): depositReminderOffsets → paymentDepositReminderOffsets, etc.
-function timingColumn(key) {
-  return `payment${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-}
-
-// Everything the Paiements page renders: the parsed timings + the Qonto connection state.
+// Everything the Paiements page renders: the Qonto connection state. The « Délais & relances »
+// timings are gone — nothing read them (specs/settings-rationalization.md rule 9).
 function getSettings(req, res) {
   return res.json({
-    timings: settingsModel.paymentTimings(),
     qonto: statusPayload(),
     credentials: qontoCredentialsPayload({ settings: settingsModel }),
   });
-}
-
-// Update the (partial) timings: validate, then persist offset arrays as JSON + the rest as columns.
-function updateSettings(req, res) {
-  const { ok, errors, value } = validatePaymentTimings(req.body || {});
-  if (!ok) return res.status(400).json({ error: 'VALIDATION_FAILED', messages: errors });
-  const payload = {};
-  for (const [key, val] of Object.entries(value)) {
-    payload[timingColumn(key)] = OFFSET_FIELDS.includes(key) ? JSON.stringify(val) : val;
-  }
-  settingsModel.upsert(payload);
-  return res.json({ timings: settingsModel.paymentTimings() });
 }
 
 // ----- Qonto payment-links provider connection (specs/online-payments-qonto.md §3.2) -----
@@ -356,7 +338,7 @@ async function pollPaymentsNow(req, res) {
 }
 
 module.exports = {
-  qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
+  qontoAuthorize, qontoCallback, qontoStatus, getSettings,
   getQontoCredentials, updateQontoCredentials, testQontoConnection,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,

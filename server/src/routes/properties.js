@@ -8,6 +8,8 @@ const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require(
 // Properties
 router.get('/', ctrl.list);
 router.get('/platform-colors', ctrl.platformColors);
+router.get('/email-hooks', ctrl.emailHooks);
+router.put('/email-hooks', ctrl.saveEmailHooks);
 router.get('/:id', ctrl.getOne);
 router.post('/:id/pricing/progressive-preview', ctrl.progressivePreview);
 router.post('/', handlePhotoUpload, ctrl.create);

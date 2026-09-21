@@ -76,9 +76,10 @@ export default function SettingsCompanySection({
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <HelpedTextField
-              label="Email professionnel"
+              label="Email de contact"
               value={v.email || ''}
               onChange={set('email')}
+              helperText="Affiché sur les devis. C'est aussi l'adresse d'envoi des emails, sauf si vous en choisissez une autre."
               error={errors.companyEmail}
               disabled={disabled}
             />

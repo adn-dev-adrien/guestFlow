@@ -14,8 +14,6 @@ const DDL = `
   CREATE TABLE app_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     googleCalendarId TEXT DEFAULT '',
-    googleServiceAccountEmail TEXT DEFAULT '',
-    googleServiceAccountPrivateKey TEXT DEFAULT '',
     companyName TEXT DEFAULT '',
     companyAddress TEXT DEFAULT '',
     companyEmail TEXT DEFAULT '',
@@ -31,15 +29,14 @@ const DDL = `
     vatRate REAL NOT NULL DEFAULT 10,
     defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600',
     vatRateCommission REAL NOT NULL DEFAULT 20,
+    vatRateCancellationCompensation REAL NOT NULL DEFAULT 0,
     smtpHost TEXT DEFAULT '',
-    smtpPort INTEGER DEFAULT 587,
     smtpSecure INTEGER NOT NULL DEFAULT 0,
     smtpUsername TEXT DEFAULT '',
     smtpPasswordEncrypted TEXT DEFAULT '',
     smtpFromEmail TEXT DEFAULT '',
     smtpFromName TEXT DEFAULT 'GuestFlow',
     publicUrl TEXT DEFAULT '',
-    allowEditPastReservations INTEGER NOT NULL DEFAULT 0,
     laundryWeekday INTEGER NOT NULL DEFAULT 2,
     bedLinenStockSingle INTEGER NOT NULL DEFAULT 0,
     bedLinenStockDouble INTEGER NOT NULL DEFAULT 0,
@@ -150,15 +147,24 @@ test('saveAll: write targeting the Direct row is silently ignored', () => {
   assert.equal(direct.hasVatOnCommission, false);
 });
 
-test('vatRateCommission is exposed on GET but NOT writable through this endpoint', () => {
-  const { model, db } = freshModel();
-  // Side-channel update to the global VAT rate (the canonical PUT /api/settings path).
-  db.prepare('UPDATE app_settings SET vatRateCommission = 19.6 WHERE id = 1').run();
-  const out = model.getAll();
-  assert.equal(out.vatRateCommission, 19.6);
-  // saveAll with a stray vatRateCommission in the body: ignored, the rate stays at 19.6.
-  model.saveAll({ defaultAccount: '622600', platforms: [], vatRateCommission: 5 });
+test('the two accounting VAT rates are edited here (specs/settings-rationalization.md rule 14)', () => {
+  const { model } = freshModel();
+  const res = model.saveAll({ defaultAccount: '622600', platforms: [], vatRateCommission: '19,6', vatRateCancellationCompensation: 5.5 });
+  assert.equal(res.ok, true);
   assert.equal(model.getAll().vatRateCommission, 19.6);
+  assert.equal(model.getAll().vatRateCancellationCompensation, 5.5);
+  // Absent key ⇒ untouched.
+  model.saveAll({ defaultAccount: '622600', platforms: [] });
+  assert.equal(model.getAll().vatRateCommission, 19.6);
+});
+
+test('an accounting VAT rate out of 0-100 or empty refuses the whole save', () => {
+  const { model } = freshModel();
+  const res = model.saveAll({ defaultAccount: '62260001', platforms: [], vatRateCommission: 120, vatRateCancellationCompensation: '' });
+  assert.equal(res.status, 400);
+  assert.ok(res.error.vatRateCommission);
+  assert.ok(res.error.vatRateCancellationCompensation);
+  assert.notEqual(model.getAll().defaultAccount, '62260001', 'nothing was written');
 });
 
 test('saveAll round-trips empty platforms (no-op on per-platform rows)', () => {

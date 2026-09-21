@@ -108,7 +108,8 @@ test('upgrade migration: copies past sends into the ledger and rewrites the thre
   const row = db.prepare("SELECT body, sendMode FROM email_templates WHERE stableKey = 'arrival_reminder_7d'").get();
   assert.notEqual(row.body, 'old copy');
   assert.match(row.body, /Plus qu'une semaine/);
-  assert.equal(row.sendMode, 'auto');
+  // The registry ships the sequence « manual » (specs/settings-rationalization.md rule 17b).
+  assert.equal(row.sendMode, 'manual');
   assert.equal(result.templatesSynced, 3);
 });
 

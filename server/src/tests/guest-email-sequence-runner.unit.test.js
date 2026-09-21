@@ -12,10 +12,11 @@ const emailPreferencesModel = require('../models/emailPreferencesModel');
 const { runSequencePass, sendSequenceMail, planWindow, simulate } = require('../utils/guestEmailSequenceRunner');
 const { buildConfirmationSender } = require('../utils/reservationEmailSender');
 const { stayDedupKey, MAIL } = require('../utils/guestEmailSequence');
-const { freshDb, seedProperty, seedClient, seedReservation, settingsStub, mailer } = require('./guestEmailSequenceFixtures');
+const { freshDb, seedProperty, seedClient, seedReservation, settingsStub, setSequenceMode, mailer } = require('./guestEmailSequenceFixtures');
 
-function setup({ settings = settingsStub(), mail = mailer() } = {}) {
+function setup({ settings = settingsStub(), mail = mailer(), auto = true } = {}) {
   const db = freshDb();
+  if (auto) setSequenceMode(db, 'auto');
   seedProperty(db);
   seedClient(db);
   const deps = {
@@ -33,13 +34,26 @@ function setup({ settings = settingsStub(), mail = mailer() } = {}) {
 // Arrival on 10 July 2027: J-7 due on 3 July.
 const J7_DUE = '2027-07-03';
 
-// rules 15 + 18 — the sequence sends only once the operator turns automatic sending ON.
-test('switch OFF: the pass sends nothing at all', async () => {
-  const { db, deps, mail } = setup({ settings: settingsStub({ autoSend: false }) });
+// rules 15 + 18 — the sequence sends only the mails whose template is « auto »
+// (specs/settings-rationalization.md rule 17b).
+test('every sequence template « manual »: the pass sends nothing at all', async () => {
+  const { db, deps, mail } = setup({ auto: false });
   seedReservation(db);
   const result = await runSequencePass(deps, { today: J7_DUE });
   assert.equal(result.blocked, true);
   assert.equal(mail.sent.length, 0);
+});
+
+test('one template « auto », the others « manual »: only that mail leaves', async () => {
+  const { db, deps, mail } = setup({ auto: false });
+  db.prepare("UPDATE email_templates SET sendMode = 'auto' WHERE stableKey = ?").run(MAIL.CONFIRMATION);
+  // Booked on 1 July: on the 3rd the confirmation (caught up, « auto ») and the J-7 (« manual ») are
+  // both due — only the confirmation leaves; the J-7 waits in the pending queue.
+  seedReservation(db, { createdAt: '2027-07-01 09:00:00' });
+  const result = await runSequencePass(deps, { today: J7_DUE });
+  assert.equal(result.sent, 1);
+  assert.equal(mail.sent.length, 1);
+  assert.match(mail.sent[0].subject, /est confirmé/);
 });
 
 test('never activated (no start date): the pass sends nothing', async () => {
@@ -148,7 +162,7 @@ test('yearly cap: with 3 post-stay contacts already sent this year, the next J+1
 });
 
 test('simulation: lists what would leave and why not, writes nothing, assumes today before activation', () => {
-  const { db, deps } = setup({ settings: settingsStub({ startDate: null, autoSend: false }) });
+  const { db, deps } = setup({ settings: settingsStub({ startDate: null }), auto: false });
   seedReservation(db, { createdAt: '2026-09-01 10:00:00', startDate: '2026-10-02', endDate: '2026-10-03' });
   seedReservation(db, { kind: 'cancelled', startDate: '2026-10-20', endDate: '2026-10-22' });
   const before = { ledger: db.prepare('SELECT COUNT(*) AS n FROM guest_email_sends').get().n, log: db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n };
@@ -157,7 +171,7 @@ test('simulation: lists what would leave and why not, writes nothing, assumes to
 
   assert.equal(result.startDate, null);
   assert.equal(result.assumedStartDate, '2026-09-18');
-  assert.equal(result.autoSendEnabled, false);
+  assert.deepEqual(result.autoMailKeys, [], 'every sequence template ships « manual »');
   const j7 = result.rows.find((r) => r.mailKey === MAIL.J7 && r.date === '2026-09-25');
   assert.equal(j7.status, 'send');
   assert.equal(j7.mailLabel, 'J-7 · préparation');

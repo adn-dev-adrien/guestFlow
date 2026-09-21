@@ -22,6 +22,19 @@ const db = require('../database');
 const platformsModel = require('./platformsModel');
 const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('../constants/accounting');
+const { validateVatRate } = require('../utils/settingsValidation');
+
+// The two accounting VAT rates live on this page since specs/settings-rationalization.md rule 14,
+// next to the accounts that use them. Absent key ⇒ untouched; present ⇒ a number from 0 to 100.
+const VAT_RATE_FIELDS = [
+  { input: 'vatRateCommission', column: 'vatRateCommission' },
+  { input: 'vatRateCancellationCompensation', column: 'vatRateCancellationCompensation' },
+];
+
+function validateRequiredVatRate(value) {
+  if (value == null || String(value).trim() === '') return 'Taux requis (0 à 100 %).';
+  return validateVatRate(String(value).replace(',', '.'));
+}
 
 // Validates a French chart-of-accounts code. We accept 6 to 8 digits:
 //   - 6 digits = generic bucket account (`622600` is the default).
@@ -53,9 +66,8 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
         isDirect: String(p.name).toLowerCase() === 'direct',
       }));
       // specs/cancellation-compensation.md §3.3 rule 19 — the produit account credited when a
-      // platform pays an indemnity for a cancelled stay. Editable here (it IS a chart-of-accounts
-      // setting); its VAT rate is read-only on this page like `vatRateCommission`, because rates
-      // live in Settings → Général → Taux de TVA.
+      // platform pays an indemnity for a cancelled stay, and its VAT rate (editable here since
+      // specs/settings-rationalization.md rule 14).
       const cancellationCompensationAccount = (settingsRow && settingsRow.cancellationCompensationAccount)
         || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT;
       const vatRateCancellationCompensation = settingsRow && settingsRow.vatRateCancellationCompensation != null
@@ -82,6 +94,13 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
         const compensationErr = validateAccountNumber(body.cancellationCompensationAccount, { required: true });
         if (compensationErr) errors.cancellationCompensationAccount = compensationErr;
       }
+      const vatRates = {};
+      for (const { input, column } of VAT_RATE_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(body, input)) continue;
+        const err = validateRequiredVatRate(body[input]);
+        if (err) errors[input] = err;
+        else vatRates[column] = Number(String(body[input]).replace(',', '.'));
+      }
       const platformList = Array.isArray(body.platforms) ? body.platforms : [];
       const perPlatformErrors = [];
       for (const p of platformList) {
@@ -101,6 +120,7 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
           ...(editsCompensationAccount
             ? { cancellationCompensationAccount: String(body.cancellationCompensationAccount).trim() }
             : {}),
+          ...vatRates,
         });
         // 2) Per-platform rows. Direct row writes are silently ignored by platformsModel.update.
         for (const p of platformList) {

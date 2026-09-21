@@ -1,20 +1,14 @@
 /**
- * SettingsVatSection — "Taux de TVA" card.
+ * SettingsVatSection — « TVA des séjours » card of Paramètres → TVA & exercice.
  *
- * Two global VAT rates:
- *   - `rate` (default 10) — uniform rate applied to every revenue stream (accommodation,
- *     options, resources, custom options). Single-rate model per specs/single-vat-rate.md §6.1.
- *   - `rateCommission` (default 20) — VAT rate applied to platform commissions whose row on
- *     `/comptabilite/plateformes` carries `hasVatOnCommission = 1`. Spec:
- *     accounting-platform-commission-and-no-deposit.md §3.7 rule 17b.
- *   - `rateCancellationCompensation` (default 0) — VAT rate applied to the indemnity a platform pays
- *     for a cancelled stay. 0 = outside the scope of VAT, the shipped default. Spec:
- *     cancellation-compensation.md §3.3 rule 16.
+ * One rate, applied to every revenue stream (accommodation, options, resources, custom options —
+ * specs/single-vat-rate.md §6.1). The commission and cancellation-indemnity rates are edited on
+ * Plan comptable, next to the accounts that use them (specs/settings-rationalization.md rule 14).
  *
  * Props:
- *   values:    { rate, rateCommission, rateCancellationCompensation }
- *   errors:    { vatRate?, vatRateCommission?, vatRateCancellationCompensation? }
- *   onChange:  (key, value) => void   // 'rate' | 'rateCommission' | 'rateCancellationCompensation'
+ *   values:    { rate }
+ *   errors:    { vatRate? }
+ *   onChange:  (key, value) => void   // 'rate'
  *   disabled:  boolean
  */
 import React from 'react';
@@ -33,7 +27,7 @@ export default function SettingsVatSection({
         <Stack spacing={2}>
           <Box>
             <Typography variant="sectionHeader">
-              Taux de TVA
+              TVA des séjours
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Appliqué à l'ensemble des prestations : hébergement, options, ressources.
@@ -49,36 +43,6 @@ export default function SettingsVatSection({
             disabled={disabled}
             error={Boolean(errors.vatRate)}
             helperText={errors.vatRate || '10 % par défaut.'}
-            sx={{ maxWidth: { sm: 320 } }}
-            slotProps={{
-              htmlInput: { min: 0, max: 100, step: 0.5 }
-            }}
-          />
-
-          <TextField
-            label="TVA déductible commissions (%)"
-            type="number"
-            value={v.rateCommission ?? 20}
-            onChange={(e) => onChange('rateCommission', e.target.value === '' ? '' : Number(e.target.value))}
-            fullWidth
-            disabled={disabled}
-            error={Boolean(errors.vatRateCommission)}
-            helperText={errors.vatRateCommission || "Taux appliqué aux commissions plateforme marquées 'TVA déductible' dans le Plan comptable."}
-            sx={{ maxWidth: { sm: 320 } }}
-            slotProps={{
-              htmlInput: { min: 0, max: 100, step: 0.5 }
-            }}
-          />
-
-          <TextField
-            label="TVA sur indemnités d'annulation (%)"
-            type="number"
-            value={v.rateCancellationCompensation ?? 0}
-            onChange={(e) => onChange('rateCancellationCompensation', e.target.value === '' ? '' : Number(e.target.value))}
-            fullWidth
-            disabled={disabled}
-            error={Boolean(errors.vatRateCancellationCompensation)}
-            helperText={errors.vatRateCancellationCompensation || "0 % = indemnité hors champ de TVA (recommandé). À changer seulement si votre comptable demande à la soumettre à TVA."}
             sx={{ maxWidth: { sm: 320 } }}
             slotProps={{
               htmlInput: { min: 0, max: 100, step: 0.5 }

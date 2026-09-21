@@ -1,28 +1,23 @@
 /**
- * SettingsSmtpSection — "Envoi d'emails (SMTP)" card in /parametres.
+ * SettingsSmtpSection — « Envoi » card of Paramètres → Emails & notifications.
  *
- * Configures the SMTP transport used by the account-management flow
- * (specs/admin-account-management.md M3) to email temporary passwords to newly-created or
- * reset-password users. The password field uses MaskedTextField — the cleartext only leaves the
- * UI on save, and the server-side encrypted blob is never returned (the server only sends back a
- * `passwordSet: boolean`).
+ * The SMTP transport GuestFlow sends every email with. The password uses MaskedTextField — the
+ * cleartext only leaves the UI on save, and the server never returns it (only `passwordSet`).
+ * The sending address, SMTP login and sender name are DERIVED unless overridden
+ * (specs/settings-rationalization.md rule 12): each one is a DerivedValueField showing what it
+ * falls back to (`values.derived`, computed by the server). No port field: it follows the security
+ * mode (rule 11). The public URL moved to the Système page.
  *
  * Props:
- *   values:      { host, secure, username, passwordSet, fromEmail, fromName, publicUrl,
- *                  passwordDraft?: string | undefined }
- *                `port` is no longer entered here: the server derives it from `secure`
- *                (specs/settings-one-save-and-automatic-webhook.md rule 5).
- *                passwordDraft semantics (mirrors GoogleCalendarSection's privateKeyDraft):
- *                  undefined → preserve the existing value on save
- *                  ''        → explicit clear
- *                  'value'   → store
- *   errors:      { smtpHost?, smtpPort?, smtpFromEmail?, smtpFromName?, publicUrl? }
- *                (server-side validation)
- *   onChange:    (key, value) => void   — key is one of the `values` field names
- *   onChangePassword: (value: string | undefined) => void   — passwordDraft setter
+ *   values:      { host, secure, username, passwordSet, fromEmail, fromName,
+ *                  derived: { fromEmail, username, fromName }, passwordDraft?: string | undefined }
+ *                passwordDraft: undefined → preserve, '' → clear, 'value' → store
+ *   errors:      { smtpHost?, smtpFromEmail?, smtpFromName? } (server-side validation)
+ *   onChange:    (key, value) => void
+ *   onChangePassword: (value: string | undefined) => void
  *   onSendTest:  () => Promise          — triggers POST /api/settings/smtp-test
  *   testing:     boolean                — spinner on the test button
- *   testResult:  { severity, message } | null
+ *   testResult:  { severity, message, onClose } | null
  *   disabled:    boolean
  */
 import React from 'react';
@@ -31,6 +26,7 @@ import {
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import MaskedTextField from './MaskedTextField';
+import DerivedValueField from './DerivedValueField';
 
 export default function SettingsSmtpSection({
   values,
@@ -43,14 +39,16 @@ export default function SettingsSmtpSection({
   disabled = false,
 }) {
   const v = values || {};
+  const derived = v.derived || {};
   const setEvt = (k) => (e) => onChange(k, e.target.value);
 
-  // The "Envoyer un mail de test" button is disabled until the SMTP block is complete in the draft:
-  // a host, a fromEmail and either a saved password (passwordSet) or a draft password.
+  // « Envoyer un mail de test » needs a host, a sending address (override or derived) and a
+  // password — saved (passwordSet) or typed in the draft.
   const hasPassword = v.passwordSet || (v.passwordDraft && v.passwordDraft.trim() !== '');
+  const sendingAddress = String(v.fromEmail || '').trim() || String(derived.fromEmail || '').trim();
   const canTest = !disabled && !testing
     && String(v.host || '').trim() !== ''
-    && String(v.fromEmail || '').trim() !== ''
+    && sendingAddress !== ''
     && hasPassword;
 
   return (
@@ -58,49 +56,59 @@ export default function SettingsSmtpSection({
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack spacing={2}>
           <Box>
-            <Typography variant="sectionHeader">
-              Envoi d'emails
-            </Typography>
+            <Typography variant="sectionHeader">Envoi</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Configuration pour l'envoie d'email depuis l'application.
+              Le serveur qui envoie les emails de GuestFlow.
             </Typography>
           </Box>
 
-          <TextField
-            label="Hôte SMTP"
-            value={v.host || ''}
-            onChange={setEvt('host')}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Serveur SMTP"
+              value={v.host || ''}
+              onChange={setEvt('host')}
+              disabled={disabled}
+              error={Boolean(errors.smtpHost)}
+              helperText={errors.smtpHost || 'Exemple : smtp.gmail.com'}
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label="Sécurité"
+              select
+              value={v.secure ? 1 : 0}
+              onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
+              disabled={disabled}
+              size="small"
+              fullWidth
+              helperText={`Port utilisé : ${v.secure ? 465 : 587} (déduit).`}
+            >
+              <MenuItem value={0}>STARTTLS</MenuItem>
+              <MenuItem value={1}>TLS implicite</MenuItem>
+            </TextField>
+          </Stack>
+
+          <DerivedValueField
+            label="Adresse d'envoi"
+            type="email"
+            value={v.fromEmail || ''}
+            derivedValue={derived.fromEmail}
+            derivedFrom="l'email de contact de l'Établissement"
+            overrideLabel="Utiliser une autre adresse"
+            onChange={(val) => onChange('fromEmail', val)}
+            error={errors.smtpFromEmail}
+            helperText="Adresse affichée comme expéditeur."
             disabled={disabled}
-            error={Boolean(errors.smtpHost)}
-            helperText={errors.smtpHost || 'Exemple : smtp.gmail.com'}
-            fullWidth
-            size="small"
           />
 
-          {/* No port field: the server derives it from the security mode
-              (specs/settings-one-save-and-automatic-webhook.md rule 5) — it was the same answer twice. */}
-          <TextField
-            label="Sécurité"
-            select
-            value={v.secure ? 1 : 0}
-            onChange={(e) => onChange('secure', Number(e.target.value) === 1)}
-            disabled={disabled}
-            size="small"
-            sx={{ width: { xs: '100%', sm: 280 } }}
-            helperText="Le port est déduit : 587 en STARTTLS, 465 en TLS implicite."
-          >
-            <MenuItem value={0}>STARTTLS (port 587)</MenuItem>
-            <MenuItem value={1}>TLS implicite (port 465)</MenuItem>
-          </TextField>
-
-          <TextField
-            label="Utilisateur SMTP"
+          <DerivedValueField
+            label="Identifiant SMTP"
             value={v.username || ''}
-            onChange={setEvt('username')}
+            derivedValue={derived.username}
+            derivedFrom="l'adresse d'envoi"
+            overrideLabel="Identifiant différent"
+            onChange={(val) => onChange('username', val)}
             disabled={disabled}
-            helperText="Souvent identique à l'adresse expéditeur."
-            fullWidth
-            size="small"
           />
 
           <MaskedTextField
@@ -111,37 +119,16 @@ export default function SettingsSmtpSection({
             helperText="Pour Gmail, utilisez un mot de passe d'application."
           />
 
-          <TextField
-            label="Adresse expéditeur"
-            value={v.fromEmail || ''}
-            onChange={setEvt('fromEmail')}
-            disabled={disabled}
-            error={Boolean(errors.smtpFromEmail)}
-            helperText={errors.smtpFromEmail || 'Adresse affichée comme « From » dans les emails envoyés.'}
-            fullWidth
-            size="small"
-          />
-
-          <TextField
-            label="Nom expéditeur"
+          <DerivedValueField
+            label="Nom affiché"
             value={v.fromName || ''}
-            onChange={setEvt('fromName')}
+            derivedValue={derived.fromName}
+            derivedFrom="la raison sociale"
+            overrideLabel="Autre nom"
+            onChange={(val) => onChange('fromName', val)}
+            error={errors.smtpFromName}
+            helperText="Nom affiché aux destinataires."
             disabled={disabled}
-            error={Boolean(errors.smtpFromName)}
-            helperText={errors.smtpFromName || 'Nom affiché aux destinataires (par défaut : GuestFlow).'}
-            fullWidth
-            size="small"
-          />
-
-          <TextField
-            label="URL publique de l'application"
-            value={v.publicUrl || ''}
-            onChange={setEvt('publicUrl')}
-            disabled={disabled}
-            error={Boolean(errors.publicUrl)}
-            helperText={errors.publicUrl || "Cette URL est insérée dans les emails envoyés aux utilisateurs (ex. https://guestflow.adn-dev.fr)."}
-            fullWidth
-            size="small"
           />
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

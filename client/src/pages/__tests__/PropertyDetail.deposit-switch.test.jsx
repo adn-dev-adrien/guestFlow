@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
 
 const routerState = vi.hoisted(() => ({ id: '5', navigate: () => {} }));
@@ -54,13 +55,14 @@ const property = (depositEnabled) => ({
 
 const renderWith = async (depositEnabled) => {
   api.getProperty.mockResolvedValue(property(depositEnabled));
-  render(<DialogProvider><PropertyDetail /></DialogProvider>);
+  render(<MemoryRouter><DialogProvider><PropertyDetail /></DialogProvider></MemoryRouter>);
   await screen.findByDisplayValue('Le Moulin');
+  fireEvent.click(screen.getByRole('tab', { name: /Paiement/ }));
 };
 
 // Rule 11 — the three settings of « Paiement & Caution », plus the wording of rule 12.
 const alwaysThere = () => {
-  expect(screen.getByLabelText(/Solde \(jours avant\)/)).toHaveValue(30);
+  expect(screen.getByLabelText(/jours avant l'arrivée/)).toHaveValue(30);
   expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
   expect(screen.getByText(/ou du paiement unique quand l'acompte est désactivé/)).toBeInTheDocument();
@@ -78,8 +80,9 @@ beforeEach(() => {
 // Rules 9-10 — the card exists, and OFF it holds the switch and nothing else.
 test('switch OFF: the acompte card holds nothing but the switch and its caption', async () => {
   await renderWith(0);
-  expect(screen.getByText('Paiement & Caution')).toBeInTheDocument();
-  expect(screen.getByRole('switch', { name: 'Acompte' })).not.toBeChecked();
+  // Switch OFF: a single payment — the card is titled after it (specs/settings-rationalization.md rule 21).
+  expect(screen.getAllByText('Paiement & caution')).toHaveLength(2); // the tab + the card title
+  expect(screen.getByRole('switch', { name: 'Demander un acompte' })).not.toBeChecked();
   expect(screen.getByText(/payé en une fois/)).toBeInTheDocument();
   expect(screen.queryByLabelText(/% acompte/)).toBeNull();
   expect(screen.queryByLabelText(/Acompte \(jours après réservation\)/)).toBeNull();
@@ -89,7 +92,7 @@ test('switch OFF: the acompte card holds nothing but the switch and its caption'
 // Rule 10 — ON reveals the two settings that only mean something with an acompte.
 test('switch ON: the two acompte settings appear, the rest stays put', async () => {
   await renderWith(1);
-  expect(screen.getByRole('switch', { name: 'Acompte' })).toBeChecked();
+  expect(screen.getByRole('switch', { name: 'Demander un acompte' })).toBeChecked();
   expect(screen.getByText(/payé en deux fois/)).toBeInTheDocument();
   expect(screen.getByLabelText(/% acompte/)).toHaveValue(30);
   expect(screen.getByLabelText(/Acompte \(jours après réservation\)/)).toHaveValue(7);
@@ -100,7 +103,7 @@ test('switch ON: the two acompte settings appear, the rest stays put', async () 
 // server stays the only thing that decides what a hidden acompte setting is worth.
 test('flipping the switch reveals the fields and saves depositEnabled', async () => {
   await renderWith(0);
-  fireEvent.click(screen.getByRole('switch', { name: 'Acompte' }));
+  fireEvent.click(screen.getByRole('switch', { name: 'Demander un acompte' }));
 
   expect(await screen.findByLabelText(/% acompte/)).toHaveValue(30);
   expect(screen.getByText(/payé en deux fois/)).toBeInTheDocument();

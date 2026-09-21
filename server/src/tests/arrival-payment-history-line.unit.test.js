@@ -66,7 +66,7 @@ function buildController(captures, { settled, row = DUE } = {}) {
         return () => null;
       },
     }),
-    '../models/settingsModel': { read: () => ({}), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
     '../database': { prepare: () => ({ get: () => undefined, run: () => ({ changes: 0 }), all: () => [] }) },
   }, () => {

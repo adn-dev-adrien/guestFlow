@@ -235,7 +235,15 @@ function createPlatformsModel(database) {
     getTouristTaxCollection(name) {
       const slug = platformSlug(name);
       if (slug === DIRECT_NAME) return 'owner'; // direct: we collect + remit (no platform notion)
-      const row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      // The tax flags are read here, not through `stmts.listAll`, which does not select them
+      // (they are absent on minimal test DBs) — without them every platform read as 'platform'.
+      let row;
+      try {
+        row = database.prepare('SELECT name, collectsTouristTax, touristTaxRemittedByPlatform FROM platforms').all()
+          .find((p) => platformSlug(p.name) === slug);
+      } catch (_) {
+        return 'platform';
+      }
       if (!row) return 'platform';
       return flagsToTouristTaxCollection(row.collectsTouristTax, row.touristTaxRemittedByPlatform);
     },
@@ -327,6 +335,26 @@ function createPlatformsModel(database) {
       const value = normalizePayoutDueDays(days);
       database.prepare('UPDATE platforms SET payoutDueDays = ? WHERE id = ?').run(value, row.id);
       return { id: row.id, name: row.name, payoutDueDays: value };
+    },
+
+    // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
+    // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
+    // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
+    listSettings() {
+      return stmts.listAll.all().map((p) => {
+        const isDirect = platformSlug(p.name) === DIRECT_NAME;
+        const ownChannel = isDirectChannel(p.name);
+        return {
+          id: p.id,
+          name: p.name,
+          isDirect,
+          color: resolveColor(p.name, p.color),
+          commissionPercent: Number(p.commissionPercent) || 0,
+          takesDeposit: isDirect ? null : this.getDepositMode(p.name) === 1,
+          touristTaxCollection: isDirect ? null : this.getTouristTaxCollection(p.name),
+          payoutDueDays: ownChannel ? null : this.getPayoutDueDays(p.name),
+        };
+      });
     },
 
     // Custom colour OVERRIDES only (platforms with a non-NULL `color`), keyed by slug. Consumed by the
