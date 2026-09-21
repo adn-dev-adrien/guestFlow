@@ -40,6 +40,7 @@ const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
+const gateInvitationView = require('../utils/gateInvitationView');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -1431,7 +1432,26 @@ function remove(req, res) {
   googleCalendarSync.scheduleDelete(Number(req.params.id));
 }
 
+/**
+ * GET /reservations/:id/gate-access — the local copy of the invitation
+ * (specs/gate-access-sowel-connector.md §3.4).
+ *
+ * One route for both surfaces: the fiche's card and the SAS step, which needs the QR on top. No
+ * action here — holding, revoking and regenerating happen in Sowel, the only place where they can
+ * be applied.
+ */
+async function gateAccess(req, res) {
+  const reservationId = Number(req.params.id);
+  if (!Number.isInteger(reservationId) || reservationId <= 0) {
+    return res.status(400).json({ error: 'Identifiant invalide' });
+  }
+  const db = require('../database');
+  const card = gateInvitationView.ficheCard(db, reservationId);
+  const sas = await gateInvitationView.sasStep(db, reservationId);
+  return res.json({ card, sas });
+}
+
 module.exports = {
   suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
-  create, update, updatePayment, updateLostItems, settleArrivalPayment, remove,
+  create, update, updatePayment, updateLostItems, settleArrivalPayment, remove, gateAccess,
 };

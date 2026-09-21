@@ -25,4 +25,8 @@ router.delete('/logo', settingsController.deleteLogo);
 
 router.post('/smtp-test', settingsController.sendSmtpTest);
 
+// Gate access (specs/gate-access-sowel-connector.md §3.5): the connector's state, read-only. It
+// returns NO secret — both keys are read from server/.env.local, like the site's one.
+router.get('/gate-connector', settingsController.getGateConnector);
+
 module.exports = router;

@@ -14,6 +14,7 @@
 
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
+const { usableInvitation } = require('../utils/gateInvitationView');
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 const { loadReservationGraph } = require('../utils/reservationEmailGraph');
 const { autoSendAllowed } = require('../utils/autoSendPolicy');
@@ -87,6 +88,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       }),
       settings:    readSettings(),
       lang:        useLang,
+      // The local copy of the invitation: composing an email never reaches the house.
+      gateInvitation: usableInvitation(database, reservationId),
     });
 
     // Payment-link templates (e.g. deposit_reminder) re-offer the existing OPEN link for the devis —
@@ -295,6 +298,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
+      gateInvitation: usableInvitation(database, reservationId),
     });
     const side = pickTemplateSide(template, normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage));
     const { subject, body } = renderTemplate(
@@ -346,6 +350,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
       settings:    readSettings(),
+      gateInvitation: usableInvitation(database, reservationId),
     });
     const { subject, body } = renderTemplate(
       { subject: template.subject, body: template.body },

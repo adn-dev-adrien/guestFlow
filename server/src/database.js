@@ -2361,6 +2361,44 @@ db.exec(`
   );
 `);
 
+// ---------- GATE ACCESS — the Sowel connector (specs/gate-access-sowel-connector.md) ----------
+// Two tables, and no rule at all: the gate belongs to the house (sowel-plugin-guest-access).
+//
+//   gate_stay_feed     what guestFlow PUBLISHES — one numbered snapshot per stay change. The number
+//                      is the consumer's cursor: it never goes backwards, and a replayed page
+//                      changes nothing there. Rows are appended by the reconciler
+//                      (utils/gateStayFeed.js) at read time, not by hooks in the write paths —
+//                      which is what makes a « forgotten hook » impossible.
+//   gate_invitations   what guestFlow RECEIVES — the code and the link of each access, pushed by
+//                      the house. It is a COPY: nothing here is authoritative and nothing here
+//                      opens a gate. It exists so the J-7 email, the SAS and the fiche know what to
+//                      display without having to reach the house, which accepts nothing inbound.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS gate_stay_feed (
+    revision INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    state TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (state IN ('active', 'cancelled', 'deleted'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_gate_stay_feed_reservation ON gate_stay_feed (reservationId, revision);
+
+  CREATE TABLE IF NOT EXISTS gate_invitations (
+    reservationId INTEGER PRIMARY KEY,
+    accessId TEXT,
+    state TEXT NOT NULL,
+    code TEXT,
+    url TEXT,
+    validFrom TEXT,
+    validUntil TEXT,
+    devices INTEGER NOT NULL DEFAULT 0,
+    lastUsedAt TEXT,
+    updatedAt TEXT,
+    receivedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Data repair (specs/sas-bath-linen-ghost-line.md §3 rule 3): erase the billing lines the removed
 // « linge de toilette réglé en fin de séjour » flow left in the end-of-stay complement. Naturally
 // idempotent (a filter — once dropped, nothing matches), so it needs no `migrations` guard and keeps

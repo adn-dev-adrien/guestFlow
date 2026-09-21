@@ -54,6 +54,9 @@ const RECEPTION_MATCHERS = [
   { method: 'GET', re: /^\/reservations\/\d+$/ },
   { method: 'GET', re: /^\/reservations\/\d+\/sas$/ },
   { method: 'GET', re: /^\/reservations\/\d+\/weather-alerts$/ },
+  // Gate access (specs/gate-access-sowel-connector.md §3.4): reception runs the SAS, so it reads
+  // the code and its QR. A read — everything that changes an access lives in Sowel.
+  { method: 'GET', re: /^\/reservations\/\d+\/gate-access$/ },
   // SAS commits (caution + complement to collect at the door). Reachable, but the controller
   // additionally refuses a commit on an ALREADY-COMMITTED SAS for a reception-only requester
   // (403 SAS_ALREADY_COMMITTED, specs/reception-sas-lock-after-commit.md §3.1) — a state-based rule
