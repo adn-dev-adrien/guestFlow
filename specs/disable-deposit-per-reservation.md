@@ -34,6 +34,11 @@ For each reservation, Adrien can flip a single switch in the reservation page to
    - The pricing engine respects the flag on every recompute (no fallback to `property.depositPercent`).
    - The accounting export emits **zero deposit lines** for this reservation (the existing `WHERE depositPaid = 1 ...` filter does the job — no special-case needed).
 3. When `depositDisabled = 0` (default): current behaviour is preserved, no change anywhere.
+   _Amended 2026-09-20 ([property-deposit-switch.md](property-deposit-switch.md) rules 2, 4-5): the
+   logement now carries an « Acompte » switch of its own, and `depositEnabled = 0` produces the same
+   zero acompte for every reservation of that property. The two are not interchangeable — this flag
+   zeroes a **paid** acompte on purpose (the platform took it, it never hit the bank), the property
+   switch never does._
 4. The switch is shown only in the reservation page (`FinanceSection`) next to the "Acompte" title. No confirmation dialog; the toggle is reversible (flip OFF restores the standard pricing computation; the engine will recompute deposit from `property.depositPercent` like for a brand-new reservation, since the original deposit value isn't preserved by Adrien's choice).
 5. **Reversibility caveat (documented in the UI hint):** flipping OFF→ON loses the original deposit/balance split because Variant A was chosen over a flag-plus-preserved-values design. Going back ON→OFF re-derives the split from the property's `depositPercent`, which may differ from what was there originally if it was a manual override. Acceptable for the platform-handles-deposit use case where the original split was irrelevant anyway.
 6. The flag is included in the existing 14-field allowlist of `pastReservationLocked` so that an admin who realises *after the fact* that a past reservation was a platform booking can still disable the deposit without needing the broader "unlock past reservations" toggle (the two features compose).

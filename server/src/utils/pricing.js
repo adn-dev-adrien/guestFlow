@@ -2292,6 +2292,18 @@ function calculateReservationQuote({
   let resolvedDepositAmount = autoDepositAmount;
   let resolvedBalanceAmount = autoBalanceAmount;
 
+  // specs/property-deposit-switch.md rules 2, 5-6 — the logement's « Acompte » switch. OFF, this
+  // property has no acompte at all: the solde absorbs the whole pre-arrival total, on a direct
+  // booking as on a platform one. A row read without the column (a minimal test DB) counts as ON,
+  // so a suite that never heard of the flag keeps its behaviour; real rows are NOT NULL DEFAULT 0.
+  // Rule 4: the gate never rewrites an acompte that was already ENCAISSÉ — that money produced an
+  // accounting entry, and collapsing it into the solde afterwards would desynchronise the export.
+  // Hence its position below the `depositPaid` branches, unlike `depositDisabled` which outranks
+  // them on purpose ("the platform took it, it never hit my bank").
+  const propertyDepositOff = property.depositEnabled !== undefined
+    && property.depositEnabled !== null
+    && Number(property.depositEnabled) !== 1;
+
   // Platform reservations are always paid in a single bank transfer — no deposit/balance
   // split (specs/accounting-platform-commission-and-no-deposit.md §3.3 rules 5–7). The boot
   // migration collapses legacy platform deposits into the balance, and the engine here
@@ -2334,6 +2346,9 @@ function calculateReservationQuote({
     } else if (depositPaid && balancePaid) {
       resolvedDepositAmount = roundMoney(depositAmount);
       resolvedBalanceAmount = roundMoney(balanceAmount);
+    } else if (propertyDepositOff && !depositPaid) {
+      resolvedDepositAmount = 0;
+      resolvedBalanceAmount = roundMoney(preArrivalAmount);
     } else {
       let dep;
       if (depositPaid) {
@@ -2365,6 +2380,11 @@ function calculateReservationQuote({
   } else if (depositPaid) {
     resolvedDepositAmount = roundMoney(depositAmount);
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - resolvedDepositAmount));
+  } else if (propertyDepositOff) {
+    // Above the manual override on purpose (rule 5): with the switch OFF the property page offers no
+    // acompte setting at all, so a frozen override would be an amount nobody can see or explain.
+    resolvedDepositAmount = 0;
+    resolvedBalanceAmount = roundMoney(preArrivalAmount);
   } else if (depositAmountOverride !== null && depositAmountOverride !== undefined && depositAmountOverride !== '') {
     // Manual deposit override (specs/editable-deposit-amount.md rule 3-4). Freeze the deposit at the
     // operator's value, clamped to [0, preArrival] so the balance can never go negative; the balance

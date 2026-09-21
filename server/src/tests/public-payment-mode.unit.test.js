@@ -10,11 +10,11 @@ const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents 
 function seed({ enabled = 0, depositAmount = 90 } = {}) {
   const db = new Database(':memory:');
   db.exec(`
-    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, publicDepositEnabled INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, depositEnabled INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE reservations (id INTEGER PRIMARY KEY, propertyId INTEGER, depositAmount REAL);
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL);
   `);
-  db.prepare('INSERT INTO properties (id, name, publicDepositEnabled) VALUES (1, ?, ?)').run('Gite', enabled);
+  db.prepare('INSERT INTO properties (id, name, depositEnabled) VALUES (1, ?, ?)').run('Gite', enabled);
   db.prepare('INSERT INTO reservations (id, propertyId, depositAmount) VALUES (10, 1, ?)').run(depositAmount);
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   return db;
@@ -36,7 +36,7 @@ test('a last-minute devis (no acompte) makes the website ask for the whole stay'
 
 test('mode is defensive: a missing column / unknown property → full (never throws)', () => {
   const db = new Database(':memory:');
-  db.exec('CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT)'); // no publicDepositEnabled column
+  db.exec('CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT)'); // no depositEnabled column
   db.prepare('INSERT INTO properties (id, name) VALUES (1, ?)').run('Gite');
   assert.equal(resolvePublicPaymentMode(db, 1, 9000), 'full');
   assert.equal(resolvePublicPaymentMode(seed({ enabled: 1 }), 999, 9000), 'full', 'unknown property → full');

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Le bouton Acompte</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --on:#2E3B2A; --off:#B9B2A2;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A; --on:#9DB286; --off:#565F55;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1060px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 31px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 13px/1.3 var(--sans);margin:0 0 10px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.lead{color:var(--muted);max-width:760px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:4px 0}
+code{font-family:var(--mono);font-size:12.5px}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.plain{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+table.plain th,table.plain td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+table.plain th{font-size:12.5px;color:var(--muted);font-weight:600}
+.hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+
+/* ---- maquette : les tuiles du logement ---- */
+.stage{background:var(--paper);border:1px dashed var(--line);border-radius:12px;padding:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.tile:last-child{margin-bottom:0}
+.tiletitle{font:600 12.5px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);margin:0 0 12px}
+.sw{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;min-height:44px}
+.sw input{position:absolute;opacity:0;width:0;height:0}
+.track{width:40px;height:22px;border-radius:99px;background:var(--off);position:relative;transition:background .18s;flex:0 0 auto}
+.knob{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .18s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw input:checked+.track{background:var(--on)}
+.sw input:checked+.track .knob{left:21px}
+.sw input:focus-visible+.track{outline:2px solid var(--ocre);outline-offset:2px}
+.swlabel{font-size:15px}
+.caption{color:var(--muted);font-size:12.8px;margin:2px 0 0 50px}
+.fields{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+.f{flex:1 1 190px;min-width:0}
+.f label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.f input{width:100%;background:var(--field);color:var(--ink);border:1px solid var(--fieldline);border-radius:6px;padding:9px 10px;font:inherit;font-size:14px}
+.f .fh{color:var(--muted);font-size:12px;margin-top:4px}
+.col{display:block}
+.hidden{display:none}
+.reveal{animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.badge{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-left:8px;vertical-align:middle}
+
+/* ---- simulateur fiche ---- */
+.ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+.ctl .g{display:flex;flex-direction:column;gap:5px}
+.ctl label{font-size:12px;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--fieldline);border-radius:8px;overflow:hidden}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-size:13.5px;padding:9px 12px;cursor:pointer;min-height:40px}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.lines{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.line{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.line:last-child{border-bottom:0}
+.line .l{color:var(--muted)}
+.line .r{font-variant-numeric:tabular-nums;font-weight:600}
+.line.gone{opacity:.45}
+.line.gone .r{font-weight:400;font-style:italic}
+.verdict{margin-top:12px;font-size:13.5px;color:var(--muted)}
+.verdict b{color:var(--ink)}
+</style>
+<div class="wrap">
+
+<h1>Le bouton « Acompte » d'un logement</h1>
+<div class="meta">Résumé pour décision · 20/09/2026 · spec de référence : <code>specs/property-deposit-switch.md</code></div>
+<p class="lead">Tu m'as demandé de replier la tuile acompte quand l'acompte est désactivé, et de remonter
+le bouton en haut. En ouvrant le code, ce bouton s'est révélé plus petit que son nom : il ne parle
+qu'au site web. Voilà ce que je propose d'en faire.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Le bouton ne gouverne presque rien</h3>
+    <p><code>publicDepositEnabled</code> décide d'une seule chose : sur le site, le client paie-t-il
+    tout ou juste l'acompte. Une fiche créée dans l'admin, elle, découpe toujours 30 % / 70 % à partir
+    de <code>depositPercent</code> — bouton ou pas.</p>
+    <p class="hint">Concrètement : tes deux logements sont sur « OFF », le site encaisse tout… et
+    chaque fiche directe porte quand même un acompte et un solde.</p>
+  </div>
+  <div class="card">
+    <h3>La tuile n'a pas de hiérarchie</h3>
+    <p>Six champs côte à côte : deux qui ne veulent dire quelque chose que s'il y a un acompte, trois
+    qui s'appliquent dans tous les cas — et le bouton qui tranche entre les deux mondes est le
+    <b>dernier</b>, sous les champs qu'il commande.</p>
+  </div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<p>Le bouton devient le seul endroit où tu décides si ce logement a un acompte. OFF, le séjour est
+payé en une fois — partout, pas seulement sur le site. Et la tuile se coupe en deux : ce qui dépend
+de l'acompte, et ce qui s'applique toujours.</p>
+
+<div class="stage" id="stage">
+  <div class="tile">
+    <p class="tiletitle">Acompte</p>
+    <label class="sw">
+      <input type="checkbox" id="swDeposit">
+      <span class="track"><span class="knob"></span></span>
+      <span class="swlabel">Acompte</span>
+    </label>
+    <p class="caption" id="cap">Le séjour est payé en une fois, à la réservation.</p>
+    <div class="fields hidden" id="depFields">
+      <div class="f"><label for="pc">% acompte</label><input id="pc" type="number" value="30"></div>
+      <div class="f"><label for="dd">Acompte (jours après réservation)</label><input id="dd" type="number" value="7"></div>
+    </div>
+  </div>
+  <div class="tile">
+    <p class="tiletitle">Paiement &amp; Caution</p>
+    <div class="fields col">
+      <div class="f"><label for="bd">Solde (jours avant)</label><input id="bd" type="number" value="30">
+        <p class="fh">Échéance du solde — ou du paiement unique quand l'acompte est désactivé.</p></div>
+      <div class="f" style="margin-top:12px"><label for="ca">Annulation (jours après échéance du solde)</label><input id="ca" type="number" value="7">
+        <p class="fh">Délai avant de pouvoir annuler un séjour dont le solde n'est pas réglé.</p></div>
+      <div class="f" style="margin-top:12px"><label for="cau">Caution par défaut (€)</label><input id="cau" type="number" value="500"></div>
+    </div>
+  </div>
+</div>
+<p class="hint">Clique le bouton : c'est la maquette réelle du comportement. Rien d'autre ne bouge sur
+la page du logement.</p>
+
+<h2>Ce que ça change sur l'argent</h2>
+<p>Le moteur de prix applique la même bascule que le « Acompte désactivé » qui existe déjà par
+réservation — avec une garde en plus : <b>un acompte déjà encaissé n'est jamais réécrit</b>. Il est
+parti de la banque du client et il a produit une écriture comptable ; l'effacer désynchroniserait
+l'export.</p>
+
+<div class="card">
+  <div class="ctl">
+    <div class="g"><label>Le logement</label>
+      <div class="seg" role="group">
+        <button type="button" data-prop="0" aria-pressed="true">Acompte OFF</button>
+        <button type="button" data-prop="1" aria-pressed="false">Acompte ON</button>
+      </div>
+    </div>
+    <div class="g"><label>La réservation</label>
+      <div class="seg" role="group">
+        <button type="button" data-res="new" aria-pressed="true">À venir, rien payé</button>
+        <button type="button" data-res="paid" aria-pressed="false">Acompte déjà encaissé</button>
+      </div>
+    </div>
+  </div>
+  <div class="lines" id="lines"></div>
+  <p class="verdict" id="verdict"></p>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+  <li><b>Aucune migration de l'existant.</b> Les fiches gardent les montants annoncés au client. Deux
+  réservations en prod portent un acompte non encaissé sur un logement qui passera « OFF » : leur
+  acompte ne basculera dans le solde qu'à la prochaine modification de la fiche, pas avant.</li>
+  <li><b>On ne renomme pas « solde » en « paiement »</b> dans la fiche, la compta et les mails. Le mot
+  du domaine reste <i>solde</i> ; seul un texte d'aide explique qu'il porte le paiement unique quand
+  il n'y a pas d'acompte.</li>
+  <li><b>Pas de bouton inverse par réservation.</b> On peut désactiver l'acompte sur une fiche ; on ne
+  pourra pas le rallumer sur un logement qui l'a éteint.</li>
+  <li>Le site et le plugin WordPress : rien à faire, ils lisent déjà le mode décidé par le serveur.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="alert">
+  <p style="margin:0"><b>La colonne est renommée</b> — <code>publicDepositEnabled</code> devient
+  <code>depositEnabled</code>, parce que son ancien nom ne dit plus ce qu'elle fait. Le renommage
+  préserve les valeurs (tes deux logements restent à 0). Le champ change de nom dans l'API
+  <code>/api/properties</code> ; client et serveur voyagent dans la même archive, donc aucun
+  consommateur ne peut se retrouver en retard. <code>/public/v1</code> n'est pas touché.</p>
+</div>
+<div class="note">
+  <p style="margin:0"><b>Le défaut devient « pas d'acompte ».</b> La colonne vaut déjà 0 partout, et
+  un logement créé demain naîtra donc sans acompte. C'est ce que fait Solio aujourd'hui, mais c'est
+  bien un changement de comportement par rapport au 30 % implicite : il est noté en <i>Migration</i>
+  au changelog.</p>
+</div>
+
+<h2>Les arbitrages, déjà tranchés</h2>
+<div class="tblwrap">
+<table class="plain">
+  <tr><th>Question</th><th>Ta réponse</th></tr>
+  <tr><td>Le bouton pilote tout l'acompte, ou c'est un repli visuel ?</td>
+      <td><b>Tout l'acompte.</b> L'écran ne doit pas dire « désactivé » pendant qu'un devis affiche un acompte.</td></tr>
+  <tr><td>La caution et le délai d'annulation partent avec la tuile ?</td>
+      <td><b>Non</b> — ils sortent dans leur propre tuile, toujours visible.</td></tr>
+  <tr><td>Et « Solde (jours avant) », qui fixe encore l'échéance du paiement unique ?</td>
+      <td><b>Deux tuiles.</b> Il rejoint la caution dans « Paiement &amp; Caution ».</td></tr>
+</table>
+</div>
+
+<h2>Ce que je vérifierai avant de te rendre la main</h2>
+<ul class="tight">
+  <li>Le moteur, en test unitaire : logement OFF → acompte 0 et solde = total ; acompte déjà encaissé → rien ne bouge ; logement ON → le 30 % / 70 % d'aujourd'hui, intact.</li>
+  <li>La page du logement, en test client : le bouton en premier, les deux champs qui apparaissent et disparaissent, la caution toujours là.</li>
+  <li>Dans le navigateur : une réservation directe créée bouton OFF ne montre qu'une échéance ; bouton ON, les deux reviennent. Et la même page à 390 px.</li>
+  <li>Les suites complètes : serveur, Vitest client, Playwright.</li>
+</ul>
+
+</div>
+<script>
+(function(){
+  var sw=document.getElementById('swDeposit'), cap=document.getElementById('cap'), df=document.getElementById('depFields');
+  function paint(){
+    var on=sw.checked;
+    cap.textContent=on
+      ? "Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l'arrivée."
+      : "Le séjour est payé en une fois, à la réservation.";
+    if(on){df.classList.remove('hidden');df.classList.add('reveal');}
+    else{df.classList.add('hidden');df.classList.remove('reveal');}
+  }
+  sw.addEventListener('change',paint); paint();
+
+  var state={prop:0,res:'new'}, TOTAL=1240.00, PCT=0.30;
+  var lines=document.getElementById('lines'), verdict=document.getElementById('verdict');
+  function eur(n){return n.toFixed(2).replace('.',',')+' €';}
+  function row(l,r,gone){return '<div class="line'+(gone?' gone':'')+'"><span class="l">'+l+'</span><span class="r">'+r+'</span></div>';}
+  function render(){
+    var dep, bal, why;
+    if(state.res==='paid'){
+      dep=Math.round(TOTAL*PCT*100)/100; bal=Math.round((TOTAL-dep)*100)/100;
+      why=state.prop===1
+        ? "Le découpage habituel. Rien de particulier."
+        : "Le logement n'a plus d'acompte, mais celui-ci est <b>encaissé</b> : le moteur garde le découpage stocké, dates comprises. Une écriture comptable existe déjà en face.";
+    } else if(state.prop===1){
+      dep=Math.round(TOTAL*PCT*100)/100; bal=Math.round((TOTAL-dep)*100)/100;
+      why="Découpage automatique : "+(PCT*100)+" % de l'hébergement à la réservation, le reste avant l'arrivée.";
+    } else {
+      dep=0; bal=TOTAL;
+      why="Le logement n'a pas d'acompte et rien n'est encaissé : le solde absorbe tout, et l'échéance d'acompte disparaît.";
+    }
+    var noDep=(dep===0);
+    lines.innerHTML=
+      row('Total du séjour TTC', eur(TOTAL))+
+      (noDep
+        ? row('Acompte', 'aucun', true)
+        : row('Acompte — échéance J+7', eur(dep)))+
+      row(noDep?'Paiement — 30 jours avant l’arrivée':'Solde — 30 jours avant l’arrivée', eur(bal))+
+      (noDep
+        ? row('Échéances à suivre','1')
+        : row('Échéances à suivre','2'));
+    verdict.innerHTML=why;
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-prop],[data-res]'),function(b){
+    b.addEventListener('click',function(){
+      var k=b.hasAttribute('data-prop')?'prop':'res';
+      var v=b.hasAttribute('data-prop')?Number(b.getAttribute('data-prop')):b.getAttribute('data-res');
+      state[k]=v;
+      Array.prototype.forEach.call(b.parentNode.children,function(s){s.setAttribute('aria-pressed', String(s===b));});
+      render();
+    });
+  });
+  render();
+})();
+</script>
+</html>

@@ -84,8 +84,8 @@ test('existing property: loads via api.getProperty and populates the form', asyn
   expect(screen.queryByLabelText(/Max enfants/)).toBeNull();
   // specs/payment-schedule-and-cancellation.md §3 — the schedule is driven by three per-property
   // delays: the acompte counts from the BOOKING, the solde from the arrival, the cancellation from
-  // the solde deadline.
-  expect(screen.getByLabelText(/Acompte \(jours après réservation\)/)).toHaveValue(7);
+  // the solde deadline. This fixture has the « Acompte » switch OFF, so only the last two are on
+  // screen — the switch and what it reveals live in PropertyDetail.deposit-switch.test.jsx.
   expect(screen.getByLabelText(/Solde \(jours avant\)/)).toHaveValue(30);
   expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
   expect(screen.queryByLabelText(/Acompte \(jours avant\)/)).toBeNull();

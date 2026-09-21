@@ -1,8 +1,10 @@
 /**
  * Per-property public payment mode (specs/public-online-deposit.md). The SERVER decides — never the
  * client — whether a website guest pays the FULL stay now or an ACOMPTE now with the solde collected
- * later by an emailed link. Effective mode = 'deposit' when the property has `publicDepositEnabled=1`
- * AND the computed deposit is > 0; else 'full'.
+ * later by an emailed link. Effective mode = 'deposit' when the property has `depositEnabled=1`
+ * AND the computed deposit is > 0; else 'full'. Since specs/property-deposit-switch.md the second
+ * condition can no longer fire on its own — the engine already zeroes the acompte of a disabled
+ * property — but it stays as the defensive read for a missing column or an unknown property.
  *
  * The deposit amount charged online is the STORED devis `depositAmount` column (accommodation-based,
  * the tourist tax rides on the solde per specs/tourist-tax-on-solde.md) — read RAW, NOT via
@@ -29,8 +31,8 @@ function depositPaymentCents(database, devisId, fallbackRow) {
 function resolvePublicPaymentMode(database, propertyId, depositCents) {
   if (Math.round(Number(depositCents || 0)) <= 0) return 'full';
   try {
-    const p = database.prepare('SELECT publicDepositEnabled FROM properties WHERE id = ?').get(Number(propertyId));
-    return p && Number(p.publicDepositEnabled) === 1 ? 'deposit' : 'full';
+    const p = database.prepare('SELECT depositEnabled FROM properties WHERE id = ?').get(Number(propertyId));
+    return p && Number(p.depositEnabled) === 1 ? 'deposit' : 'full';
   } catch { return 'full'; }
 }
 
