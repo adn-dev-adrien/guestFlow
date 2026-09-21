@@ -150,6 +150,7 @@ one place.
 16. **Moved — public URL** from the SMTP card to « Système » (it is used by emails, OAuth callbacks and
     Qonto webhooks, not only SMTP). Still typed, never guessed from a request host: behind Caddy a LAN
     request would record a LAN address (see `wordpress-deploy-topology` memory).
+    > **Sans test** — a field moved from one card to another; its storage and validation are unchanged.
 
 17a. **Past-reservation unlock becomes per reservation** (decided 2026-09-21, Q1). The global
     `allowEditPastReservations` switch and its column go. A past reservation's page shows, to an admin
@@ -192,6 +193,7 @@ one place.
 19. The commission % field leaves `PlatformPriceCard` (pricing page), which shows it read-only with the
     same link.
 20. Accounting columns (account number, deductible VAT) stay on « Plan comptable ».
+    > **Sans test** — nothing moves: it records that these columns are deliberately left out of « Plateformes ».
 
 ### 3.D Property page
 
@@ -351,14 +353,15 @@ The interactive before/after is the reference:
 - [x] `emailIdentity`: each derived value and each override (rule 12)
 - [x] SMTP normalisation keeps every effective value (§5)
 - [x] Port derived from the security mode (rule 11)
-- [x] `GET /api/settings` returns `footerTextEn` (bug 2)
+- [x] `GET /api/settings` returns `footerTextEn` (rule 23, bug 2)
+- [x] The options catalogue view leaves out early arrival / late departure (rule 15)
 - [x] Platform settings endpoint validates commission and payout (rule 17)
 - [x] Accountant can PUT the two VAT rates on plan comptable (rule 14)
 - [x] `unlockPast` lets an admin edit a past reservation, is ignored for reception, and nothing is unlocked without it (rule 17a)
 - [x] Migration with the switch OFF sets every template to `manual`; nothing is sent by the 08:00 pass afterwards; an `auto` template is sent; a read error sends nothing (rule 17b)
 - [x] Sequence start date set on the first sequence template switched to `auto`, never moved afterwards (rule 17b)
 
-Delivered: 25 tests in the feature file; server suite 4193 tests green.
+Delivered: 26 tests in the feature file; server suite 4194 tests green.
 
 ### Client (Vitest) + E2E
 - [x] Property tabs: dirty / invalid dots, deposit fields shown only when on, recipe hides extra-guest fields

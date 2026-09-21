@@ -76,7 +76,7 @@ test('a field refused by the server shows its message and brings its tab forward
   expect(screen.getByRole('tab', { name: /Paiement/ })).toContainElement(screen.getByLabelText('erreur'));
 });
 
-test('with a tariff recipe, the extra-guest price is read-only and each season shows its own', async () => {
+test('rule 22: with a tariff recipe, the extra-guest price is read-only and each season shows its own', async () => {
   api.getProperty.mockResolvedValue({
     ...PROPERTY,
     tariffRecipeId: 'aventura-lodge-2026',
@@ -88,7 +88,7 @@ test('with a tariff recipe, the extra-guest price is read-only and each season s
   expect(screen.getByText('Voyageur suppl.')).toBeInTheDocument();
 });
 
-test('without a recipe, the extra-guest fields stay editable', async () => {
+test('rule 22: without a recipe, the extra-guest fields stay editable', async () => {
   renderAt('/properties/5?tab=tarifs');
   expect(await screen.findByLabelText(/Supplément par personne/)).toHaveValue(15);
   expect(screen.getByText('Saisons saisies à la main.')).toBeInTheDocument();

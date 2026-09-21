@@ -122,7 +122,7 @@ test('rule 13: the sync cadence is 60 days / 24 months whatever the legacy colum
 
 // ---------- bug 2 — the English devis footer round-trips ----------
 
-test('bug 2: GET /settings returns the English devis footer', () => {
+test('rule 23 (bug 2): GET /settings returns the English devis footer', () => {
   const shaped = shapeResponse({ quoteFooterText: 'Merci', quoteFooterTextEn: 'Thank you' });
   assert.equal(shaped.quote.footerText, 'Merci');
   assert.equal(shaped.quote.footerTextEn, 'Thank you');
@@ -374,4 +374,36 @@ test('rule 17c: saving the hooks writes the two hook columns and nothing else', 
   assert.deepEqual({ ...row }, { defaultCautionAmount: 500, maxGuests: 6 });
   assert.equal(model.saveEmailHooks([{ propertyId: 99, emailHook: 'x' }]).status, 400);
   assert.equal(model.saveEmailHooks('nope').status, 400);
+});
+
+// ---------- rule 15 — the options catalogue leaves out the per-property auto-options ----------
+
+function optionsControllerWith(rows) {
+  const modelPath = require.resolve('../models/optionsModel');
+  const controllerPath = require.resolve('../controllers/optionsController');
+  const saved = require.cache[modelPath];
+  delete require.cache[controllerPath];
+  require.cache[modelPath] = { id: modelPath, filename: modelPath, loaded: true, exports: { list: () => rows } };
+  try {
+    return require('../controllers/optionsController');
+  } finally {
+    delete require.cache[controllerPath];
+    if (saved) require.cache[modelPath] = saved; else delete require.cache[modelPath];
+  }
+}
+
+function listed(controller, query) {
+  let body;
+  controller.list({ query }, { json: (value) => { body = value; return value; } });
+  return body.map((o) => o.id);
+}
+
+test('rule 15: the catalogue view hides early arrival / late departure; every other caller gets them', () => {
+  const controller = optionsControllerWith([
+    { id: 1, autoOptionType: null },
+    { id: 2, autoOptionType: 'early_check_in' },
+    { id: 3, autoOptionType: 'late_check_out' },
+  ]);
+  assert.deepEqual(listed(controller, { view: 'catalogue' }), [1]);
+  assert.deepEqual(listed(controller, {}), [1, 2, 3]);
 });
