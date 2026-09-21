@@ -34,6 +34,16 @@ function platformColors(req, res) {
   res.json(model.getPlatformColors());
 }
 
+// GET/PUT /api/properties/email-hooks — the J-7 hooks, edited from the J-7 template
+// (specs/settings-rationalization.md rule 17c).
+function emailHooks(req, res) {
+  res.json(model.listEmailHooks());
+}
+
+function saveEmailHooks(req, res) {
+  return respond(res, model.saveEmailHooks(req.body && req.body.hooks));
+}
+
 function progressivePreview(req, res) {
   const { pricePerNight, progressiveTiers, maxNights } = req.body;
   res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
@@ -105,7 +115,7 @@ function setOptions(req, res) {
 }
 
 module.exports = {
-  list, getOne, platformColors, progressivePreview,
+  list, getOne, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
   addDocument, deleteDocument, setOptions,

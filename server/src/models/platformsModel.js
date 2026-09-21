@@ -329,6 +329,26 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, payoutDueDays: value };
     },
 
+    // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
+    // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
+    // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
+    listSettings() {
+      return stmts.listAll.all().map((p) => {
+        const isDirect = platformSlug(p.name) === DIRECT_NAME;
+        const ownChannel = isDirectChannel(p.name);
+        return {
+          id: p.id,
+          name: p.name,
+          isDirect,
+          color: resolveColor(p.name, p.color),
+          commissionPercent: Number(p.commissionPercent) || 0,
+          takesDeposit: isDirect ? null : this.getDepositMode(p.name) === 1,
+          touristTaxCollection: isDirect ? null : this.getTouristTaxCollection(p.name),
+          payoutDueDays: ownChannel ? null : this.getPayoutDueDays(p.name),
+        };
+      });
+    },
+
     // Custom colour OVERRIDES only (platforms with a non-NULL `color`), keyed by slug. Consumed by the
     // calendar colour endpoint as `customColors` (the client already knows the built-in defaults).
     colorMap() {

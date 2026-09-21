@@ -9,15 +9,19 @@
  *   - `enabled` accepts boolean / 0 / 1 / 'true' / 'false'.
  *   - `stableKey` in the payload is ALWAYS ignored (set only by the registry seed).
  *
- * `list()` decorates every row with `autoSendBlocked`: true when the template is enabled, set to
- * `auto`, and the operator has not authorised automatic sending
- * (specs/no-automatic-email-without-approval.md §3 rule 8).
+ * A template's mode is the only switch for automatic sending (specs/settings-rationalization.md
+ * rule 17b). So every write:
+ *   - fixes the guest-sequence start date the first time a SEQUENCE template goes « auto »
+ *     (specs/guest-email-sequence.md rule 16 — never moved afterwards, so no past stay is mailed);
+ *   - re-aligns the 08:00 scheduler, which only runs while one template is « auto ».
  *
  * Exports a default controller bound to the production model + a `buildController(model)`
  * factory for tests.
  */
 
-const { autoSendAllowed } = require('../utils/autoSendPolicy');
+const { templateAutoSends } = require('../utils/autoSendPolicy');
+const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
+const { isoToday } = require('../utils/emailAutoSendRunner');
 
 const DAY_OFFSET_MIN = -90;
 const DAY_OFFSET_MAX = 90;
@@ -57,18 +61,24 @@ function validateForUpdate(payload) {
   return errors;
 }
 
-function buildController(model, settingsModel) {
-  // « This template says Automatique, but nothing will leave on its own. » Computed here rather than
-  // recombined in React from two payloads (specs/no-automatic-email-without-approval.md §3 rule 8).
-  function decorate(row) {
-    const blocked = Boolean(row.enabled)
-      && String(row.sendMode) === 'auto'
-      && !autoSendAllowed(settingsModel);
-    return { ...row, autoSendBlocked: blocked };
+/**
+ * @param {object} model          — emailTemplatesModel
+ * @param {object} settingsModel  — reads/writes `guestSequenceStartDate`
+ * @param {{ scheduler?: { syncWithTemplates: Function }, today?: () => string }} deps
+ */
+function buildController(model, settingsModel, deps = {}) {
+  const today = deps.today || (() => isoToday());
+
+  function afterWrite(row) {
+    if (row && SEQUENCE_STABLE_KEYS.includes(row.stableKey) && templateAutoSends(row)
+      && settingsModel && !settingsModel.read().guestSequenceStartDate) {
+      settingsModel.upsert({ guestSequenceStartDate: today() });
+    }
+    if (deps.scheduler) deps.scheduler.syncWithTemplates();
   }
 
   function list(req, res) {
-    return res.json(model.list().map(decorate));
+    return res.json(model.list());
   }
 
   function getOne(req, res) {
@@ -91,6 +101,7 @@ function buildController(model, settingsModel) {
       sendMode:  String(req.body.sendMode).toLowerCase(),
       enabled:   coerceEnabled(req.body.enabled),
     });
+    afterWrite(row);
     return res.status(201).json(row);
   }
 
@@ -109,12 +120,14 @@ function buildController(model, settingsModel) {
       sendMode:  req.body.sendMode  === undefined ? undefined : String(req.body.sendMode).toLowerCase(),
       enabled:   coerceEnabled(req.body.enabled),
     });
+    afterWrite(row);
     return res.json(row);
   }
 
   function remove(req, res) {
     const ok = model.remove(req.params.id);
     if (!ok) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    afterWrite(null);
     return res.json({ ok: true });
   }
 
@@ -123,7 +136,9 @@ function buildController(model, settingsModel) {
 
 const defaultController = (() => {
   try {
-    return buildController(require('../models/emailTemplatesModel'), require('../models/settingsModel'));
+    // The real scheduler is required lazily: it pulls the database and the SMTP layer in.
+    const scheduler = { syncWithTemplates: () => require('../utils/emailAutoSendScheduler').syncWithTemplates() };
+    return buildController(require('../models/emailTemplatesModel'), require('../models/settingsModel'), { scheduler });
   } catch {
     return null;
   }

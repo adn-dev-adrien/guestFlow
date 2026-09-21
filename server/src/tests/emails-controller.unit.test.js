@@ -51,11 +51,8 @@ const DDL = `
 `;
 
 function fakeSettings(extra = {}) {
-  const { autoSendEnabled = true, ...rest } = extra;
+  const { ...rest } = extra;
   return {
-    // Master switch (specs/no-automatic-email-without-approval.md §3 rule 1). Default ON here so the
-    // queue keeps its historical shape unless a test says otherwise.
-    emailAutoSendEnabled() { return autoSendEnabled; },
     read() {
       return { companyName: 'Demo', companyPhone: '01', companyEmail: 'd@x', smtpHost: 'smtp.x', smtpFromEmail: 'from@x', ...rest };
     },
@@ -315,20 +312,9 @@ test('pending: routes through logModel.listPending', () => {
   assert.equal(r.body[0].reservationId, 100);
 });
 
-test('pending: with automatic sending off, the auto templates join the review queue', () => {
-  // specs/no-automatic-email-without-approval.md §3 rule 3 — the cron sends nothing, so its due
-  // templates must surface here instead of disappearing.
-  const { db, templatesModel, logModel, settingsModel } = makeFixture({ settings: { autoSendEnabled: false } });
-  db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'S', 'B', -7, 'auto', 1)").run();
-  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
-
-  const r = res();
-  ctl.pending({ query: { today: isoOffset(0) } }, r);
-  assert.deepEqual(r.body.map((row) => row.templateId).sort(), [10, 11]);
-});
-
-test('pending: with automatic sending on, the auto templates stay the cron\'s business', () => {
-  const { db, templatesModel, logModel, settingsModel } = makeFixture({ settings: { autoSendEnabled: true } });
+test('pending: an « auto » template stays the 08:00 pass\'s business, never proposed', () => {
+  // specs/settings-rationalization.md rule 17b — the template's own mode is the only switch.
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'S', 'B', -7, 'auto', 1)").run();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
 
@@ -338,8 +324,8 @@ test('pending: with automatic sending on, the auto templates stay the cron\'s bu
 });
 
 test('send: an auto template proposed in the queue still sends on the operator\'s click', () => {
-  // Rule 6 — an explicit click IS the approval, whatever the master switch says.
-  const { db, templatesModel, logModel, settingsModel } = makeFixture({ settings: { autoSendEnabled: false } });
+  // Rule 6 — an explicit click IS the approval, whatever the template's mode says.
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (11, 'Auto J-7', 'Sujet {{clientFirstName}}', 'Hello', -7, 'auto', 1)").run();
   const sent = [];
   const ctl = buildController({

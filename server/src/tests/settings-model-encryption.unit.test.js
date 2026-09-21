@@ -43,7 +43,6 @@ function makeDb() {
       smtpFromEmail TEXT DEFAULT '',
       smtpFromName TEXT DEFAULT 'GuestFlow',
       publicUrl TEXT DEFAULT '',
-      allowEditPastReservations INTEGER NOT NULL DEFAULT 0,
       laundryWeekday INTEGER NOT NULL DEFAULT 2,
       bedLinenStockSingle INTEGER NOT NULL DEFAULT 0,
       bedLinenStockDouble INTEGER NOT NULL DEFAULT 0,

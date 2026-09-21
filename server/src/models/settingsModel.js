@@ -8,7 +8,7 @@
  *   read()                      → full row (defaults applied; SMTP password NEVER returned in clear)
  *   upsert(payload)             → writes only the keys present in payload (per-field 3-way)
  *   updateLogoPath(path)        → single-column update of companyLogoPath
- *   smtpConfigured()            → true when smtpHost AND smtpFromEmail are filled
+ *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled
  *   publicUrl()                 → the configured public URL (string, never null)
  *   decryptedSmtpSettings()     → { host, port, secure, user, password, fromEmail, fromName }
  *                                  with the password decrypted on the fly — used by the email
@@ -18,6 +18,7 @@
 const db = require('../database');
 const { encrypt, decrypt, isEncrypted, safeDecrypt } = require('../utils/encryption');
 const { smtpPortForSecure } = require('../utils/settingsValidation');
+const { resolveEmailIdentity } = require('../utils/emailIdentity');
 
 // PM2-visible marker emitted when an encrypted value can't be decrypted with the current
 // `GUESTFLOW_ENCRYPTION_KEY` — typically because a previous deploy regenerated
@@ -126,18 +127,8 @@ const COLUMNS = [
   'notificationRecipientEmail',
   // Per-channel switch for the new-iCal-reservation email (INTEGER 0/1, default 1). See spec §3 rule 9b.
   'notifyIcalReservationEnabled',
-  // Admin-only escape hatch for past reservations (see specs/admin-unlock-past-reservations.md).
-  // Stored as INTEGER (0/1) to mirror smtpSecure; the model's `allowEditPastReservations()`
-  // helper casts to boolean for the controller, but read() returns the raw integer for the
-  // API payload — consistent with smtpSecure (no surprise cast at the boundary).
-  'allowEditPastReservations',
-  // Master switch for automatic guest email (specs/no-automatic-email-without-approval.md §3 rule 1).
-  // INTEGER 0/1, default 0 — read through `emailAutoSendEnabled()`, never inspected column-side by
-  // a caller: `utils/autoSendPolicy` is the single place that decides whether an automatic send may
-  // happen at all.
-  'emailAutoSendEnabled',
   // Guest email sequence (specs/guest-email-sequence.md §5). `guestSequenceStartDate` is written once,
-  // by the settings controller, the first time automatic sending is turned on: no sequence email
+  // by the email-templates controller, the first time a sequence template goes « auto »: no sequence email
   // dated before it is ever sent. The rest feeds the email copy.
   'guestSequenceStartDate',
   'googleReviewUrl',
@@ -217,8 +208,6 @@ const NUMERIC_DEFAULTS = {
   smtpSecure: 0,
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,
-  allowEditPastReservations: 0,
-  emailAutoSendEnabled: 0,
   laundryWeekday: 2,
   bedLinenStockSingle: 0,
   bedLinenStockDouble: 0,
@@ -230,7 +219,6 @@ const NUMERIC_DEFAULTS = {
 };
 
 const STRING_DEFAULT_OVERRIDES = {
-  smtpFromName: 'GuestFlow',
   neatEnvironment: 'staging',
   poolSeasonStart: '06-15',
   poolSeasonEnd: '08-31',
@@ -359,42 +347,28 @@ function createSettingsModel(databaseInstance) {
     smtpConfigured() {
       const row = readRaw();
       const host = String(row.smtpHost || '').trim();
-      const fromEmail = String(row.smtpFromEmail || '').trim();
-      return Boolean(host) && Boolean(fromEmail);
+      return Boolean(host) && Boolean(resolveEmailIdentity(row).fromEmail);
     },
 
     publicUrl() {
       return String(readRaw().publicUrl || '').trim();
     },
 
-    // Booking-notification config (specs/site-booking-notifications.md). Sender is always the SMTP
-    // fromEmail; `recipientEmail` is the configurable TO (empty → caller falls back to fromEmail).
+    // Booking-notification config (specs/site-booking-notifications.md). Sender and recipient are
+    // the resolved identity (specs/settings-rationalization.md rule 12): the recipient falls back to
+    // the sending address, which falls back to the contact email.
     // `enabled` defaults ON (NaN/undefined on a partially-migrated DB → still ON, the safe default).
     notificationSettings() {
       const row = readRaw();
+      const identity = resolveEmailIdentity(row);
       return {
         enabled: Number(row.notificationsEnabled) !== 0,
         // Per-channel switch for the iCal/platform new-reservation email; default ON (only an explicit 0 disables).
         icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
-        recipientEmail: String(row.notificationRecipientEmail || '').trim(),
-        fromEmail: String(row.smtpFromEmail || '').trim(),
+        recipientEmail: identity.recipient,
+        fromEmail: identity.fromEmail,
         publicUrl: String(row.publicUrl || '').trim(),
       };
-    },
-
-    // Admin escape hatch — when true, both reservation-controller locks (PUT field allowlist
-    // + DELETE 403) are dropped for past reservations. Default-driven by the column's NOT NULL
-    // DEFAULT 0 (see database.js migration). See specs/admin-unlock-past-reservations.md.
-    allowEditPastReservations() {
-      return Number(readRaw().allowEditPastReservations) === 1;
-    },
-
-    // Is GuestFlow allowed to send a guest email with nobody in the loop? OFF unless the operator
-    // turned it on (specs/no-automatic-email-without-approval.md §3 rule 1). A missing column — a
-    // partially-migrated database — reads as OFF: the safe default is « ask me ». Consumed through
-    // `utils/autoSendPolicy.autoSendAllowed`, not directly.
-    emailAutoSendEnabled() {
-      return Number(readRaw().emailAutoSendEnabled) === 1;
     },
 
     // ----- Qonto connection (specs/online-payments-qonto.md §3.1) -----
@@ -718,20 +692,21 @@ function createSettingsModel(databaseInstance) {
           passwordDecryptFailed = true;
         }
       }
+      const identity = resolveEmailIdentity(row);
       return {
         host: String(row.smtpHost || '').trim(),
         // Derived, never stored (specs/settings-rationalization.md rule 11).
         port: smtpPortForSecure(row.smtpSecure),
         secure: Number(row.smtpSecure) === 1,
-        user: String(row.smtpUsername || '').trim(),
+        user: identity.username,
         password,
         // True when an encrypted blob exists in DB but can't be decrypted with the current
         // GUESTFLOW_ENCRYPTION_KEY. Consumed by `utils/emailService` to mark the service
         // as not configured (rather than crashing or silently sending without auth), and by
         // the client to display an actionable "re-enter the SMTP password" hint.
         passwordDecryptFailed,
-        fromEmail: String(row.smtpFromEmail || '').trim(),
-        fromName: String(row.smtpFromName || '').trim() || 'GuestFlow',
+        fromEmail: identity.fromEmail,
+        fromName: identity.fromName,
       };
     },
 

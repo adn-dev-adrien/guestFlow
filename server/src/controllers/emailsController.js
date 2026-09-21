@@ -16,12 +16,12 @@ const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 const { loadReservationGraph } = require('../utils/reservationEmailGraph');
-const { autoSendAllowed } = require('../utils/autoSendPolicy');
 const {
   SEQUENCE_STABLE_KEYS, SEASON_STABLE_KEYS, stayDedupKey, seasonDedupKey, seasonKeyOf,
   __test: { addDays },
 } = require('../utils/guestEmailSequence');
 const { sequenceContextFor, nextSeasonDate } = require('../utils/sequenceRenderContext');
+const { resolveEmailIdentity } = require('../utils/emailIdentity');
 
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
@@ -53,7 +53,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       return settingsModel.smtpConfigured();
     }
     const s = readSettings();
-    return Boolean(String(s.smtpHost || '').trim()) && Boolean(String(s.smtpFromEmail || '').trim());
+    return Boolean(String(s.smtpHost || '').trim()) && Boolean(resolveEmailIdentity(s).fromEmail);
   }
 
   function buildEmailService() {
@@ -242,11 +242,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function pending(req, res) {
     const today = (req.query && req.query.today) || new Date().toISOString().slice(0, 10);
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
-    // Automatic sending off → the cron sends nothing, so the day's `auto` templates are proposed
-    // here instead of vanishing (specs/no-automatic-email-without-approval.md §3 rule 3).
-    const dateDriven = logModel.listPending({
-      today, lookbackDays, includeAutoTemplates: !autoSendAllowed(settingsModel),
-    });
+    // Only the « manual » templates are proposed: an « auto » one leaves on its own
+    // (specs/settings-rationalization.md rule 17b).
+    const dateDriven = logModel.listPending({ today, lookbackDays });
     // Manually-queued pairs are shown unconditionally (they bypass the sent/ack filter — that is
     // what allows a deliberate resend, specs/manual-email-from-template.md §3 rule 6). Merge +
     // dedup by (templateId, reservationId): the manual flag wins so the UI can badge the row.

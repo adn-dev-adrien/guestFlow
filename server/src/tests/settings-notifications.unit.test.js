@@ -63,12 +63,14 @@ test('upsert persists the toggle + recipient and surfaces them', () => {
   assert.equal(shaped.notifications.recipientEmail, 'owner@example.com');
 });
 
-test('recipient falls back to the SMTP sender via notificationSettings (fromEmail surfaced)', () => {
+test('recipient falls back to the SMTP sender, resolved by notificationSettings', () => {
+  // specs/settings-rationalization.md rule 12 — the model resolves the recipient itself.
   const { model } = freshModel();
   model.upsert({ smtpFromEmail: 'noreply@example.com' });
   const notif = model.notificationSettings();
-  assert.equal(notif.recipientEmail, '', 'no explicit recipient');
-  assert.equal(notif.fromEmail, 'noreply@example.com', 'sender available for the fallback');
+  assert.equal(notif.recipientEmail, 'noreply@example.com', 'no override → the sending address');
+  assert.equal(notif.fromEmail, 'noreply@example.com');
+  assert.equal(shapeResponse(model.read()).notifications.recipientEmail, '', 'the override stays empty');
 });
 
 test('partial/old DB without the columns still defaults to enabled ON (no crash)', () => {

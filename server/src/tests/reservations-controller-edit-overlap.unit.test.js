@@ -64,7 +64,7 @@ function buildController({ stored, availabilityError = null, capacity, captures 
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       return () => null;
     } }),
-    '../models/settingsModel': { read: () => ({ allowEditPastReservations: 0 }), allowEditPastReservations: () => false },
+    '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
     '../database': dbMock,
   }, () => {

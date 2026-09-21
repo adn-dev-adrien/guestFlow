@@ -339,7 +339,7 @@ tryAddAppSettingsCol('smtpSecure',            "ALTER TABLE app_settings ADD COLU
 tryAddAppSettingsCol('smtpUsername',          "ALTER TABLE app_settings ADD COLUMN smtpUsername TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLUMN smtpPasswordEncrypted TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpFromEmail',         "ALTER TABLE app_settings ADD COLUMN smtpFromEmail TEXT DEFAULT ''");
-tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT 'GuestFlow'");
+tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT ''");
 tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLUMN publicUrl TEXT DEFAULT ''");
 // 2026-06-11 — booking notifications (specs/site-booking-notifications.md §5). Master switch
 // (default ON) + the address notifications are sent TO. Sender stays smtpFromEmail; an empty
@@ -412,14 +412,6 @@ tryAddAppSettingsCol('googleLastSyncDetail',             "ALTER TABLE app_settin
 // service-account era (the new picker only writes it once connected). Clearing it forces the
 // post-connect « Configuration en cours » step instead of silently syncing to the old target.
 db.prepare("UPDATE app_settings SET googleCalendarId = '', googleCalendarSummary = '' WHERE id = 1 AND googleCalendarId != '' AND googleOAuthRefreshTokenEncrypted = ''").run();
-// Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
-// wrong property assigned). OFF by default; the existing server-side lock keeps holding.
-// See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
-tryAddAppSettingsCol('allowEditPastReservations', "ALTER TABLE app_settings ADD COLUMN allowEditPastReservations INTEGER NOT NULL DEFAULT 0");
-// Master switch for every AUTOMATIC guest email (specs/no-automatic-email-without-approval.md §5).
-// OFF by default — on fresh installs AND on upgrade: a guest email leaves GuestFlow only when the
-// operator sends it, unless this is explicitly turned on in Réglages.
-tryAddAppSettingsCol('emailAutoSendEnabled', "ALTER TABLE app_settings ADD COLUMN emailAutoSendEnabled INTEGER NOT NULL DEFAULT 0");
 if (!appSettingsCols.includes('vatRateAccommodation')) {
   const propColsNow = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
   let acc = 10;
@@ -2459,10 +2451,13 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 }
 
 // ---------- SETTINGS RATIONALIZATION ----------
-// Drops the settings nothing reads any more (specs/settings-rationalization.md §5). Idempotent.
+// Derived email identity, per-template automatic sending, dropped settings
+// (specs/settings-rationalization.md §5). Idempotent.
 {
   const { runSettingsRationalizationMigration } = require('./utils/settingsRationalizationMigration');
-  const { dropped } = runSettingsRationalizationMigration(db);
+  const { identityNormalised, templatesSetToManual, dropped } = runSettingsRationalizationMigration(db);
+  if (identityNormalised) console.log('[migration:settings-rationalization] email identity now derived from Établissement');
+  if (templatesSetToManual) console.log(`[migration:settings-rationalization] ${templatesSetToManual} email template(s) set back to « manual »`);
   if (dropped.length) console.log(`[migration:settings-rationalization] dropped ${dropped.join(', ')}`);
 }
 

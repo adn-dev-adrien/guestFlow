@@ -35,7 +35,7 @@ const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsMod
 const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
 const platformsModel = require('../models/platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
-const { isReceptionOnly } = require('../constants/roles');
+const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
@@ -670,6 +670,18 @@ async function calculatePrice(req, res) {
   res.json(quote);
 }
 
+/**
+ * Per-reservation unlock of the past-reservation lock (specs/settings-rationalization.md rule 17a).
+ * An admin's request carrying `unlockPast: true` (or `?unlockPast=1`, for a DELETE without body)
+ * lifts the lock for that request only — the fiche asked for it after an explicit « Déverrouiller ».
+ * Any other role, or no flag, keeps the lock: the server stays authoritative.
+ */
+function pastUnlockRequested(req) {
+  if (!userHasRole(req.user, ADMIN)) return false;
+  return (req.body && req.body.unlockPast === true)
+    || (req.query && String(req.query.unlockPast) === '1');
+}
+
 function create(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
@@ -816,12 +828,12 @@ function create(req, res) {
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
-  // The model rejects `startDate < today` by default. When the admin escape hatch is ON
-  // (Paramètres → Réservations passées), that single guard is lifted so backfilling /
-  // correcting a past reservation is possible. Overlap / capacity / closures still apply.
+  // The model rejects `startDate < today` by default. An admin who unlocked the fiche lifts that
+  // single guard, so backfilling a past reservation is possible (rule 17a). Overlap / capacity /
+  // closures still apply.
   const validationError = model.validateAvailability(
     propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks,
-    { allowPastDates: settingsModel.allowEditPastReservations() },
+    { allowPastDates: pastUnlockRequested(req) },
   );
   if (validationError) return res.status(409).json(validationError);
 
@@ -950,11 +962,11 @@ function update(req, res) {
   req.body.babyBeds   = effectiveBabyBeds;
 
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
-  // `pastReservationLocked` gates the 14-field allowlist below. An admin can drop this
-  // lock by toggling `allowEditPastReservations` in Paramètres (see
-  // specs/admin-unlock-past-reservations.md). Default is OFF — the lock holds as before.
+  // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
+  // only, after « Déverrouiller cette fiche » (specs/settings-rationalization.md rule 17a).
+  const pastUnlocked = pastUnlockRequested(req);
   const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= getTodayIsoDate())
-    && !settingsModel.allowEditPastReservations();
+    && !pastUnlocked;
 
   const existingReservation = model.getForUpdate(id);
   const canReuseLockedPricing = !refreshPricingToCurrent
@@ -1115,13 +1127,12 @@ function update(req, res) {
       && sameNum(prev.adults, adults) && sameNum(prev.children, children)
       && sameNum(prev.teens, teens) && sameNum(prev.babies, babies);
 
-    // Same logic as the `create` flow: lift the model-level "no past startDate" guard when
-    // the admin escape hatch is ON, so the user can keep a past startDate while editing
-    // unrelated fields. See specs/admin-unlock-past-reservations.md.
+    // Same logic as the `create` flow: lift the model-level "no past startDate" guard when the
+    // admin unlocked the fiche, so a past startDate can be kept while editing unrelated fields.
     if (!placementUnchanged) {
       const validationError = model.validateAvailability(
         propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks,
-        { allowPastDates: settingsModel.allowEditPastReservations() },
+        { allowPastDates: pastUnlocked },
       );
       if (validationError) return res.status(409).json(validationError);
     }
@@ -1421,9 +1432,9 @@ function remove(req, res) {
   const existing = model.getForArchiveCheck(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
   const today = new Date().toISOString().split('T')[0];
-  // Same admin escape hatch as `update`: when `allowEditPastReservations` is ON the past-end
-  // rejection is dropped. See specs/admin-unlock-past-reservations.md.
-  if (existing.endDate < today && !settingsModel.allowEditPastReservations()) {
+  // Same per-reservation unlock as `update` (rule 17a): an admin who unlocked the fiche may delete a
+  // stay that has ended.
+  if (existing.endDate < today && !pastUnlockRequested(req)) {
     return res.status(403).json({ error: 'Cette réservation est archivée (terminée) et ne peut plus être modifiée.' });
   }
   model.remove(req.params.id);
