@@ -249,7 +249,7 @@ footer{padding:30px 0 50px;color:var(--muted);font-size:.85rem}
 
 <section class="block" id="simu">
   <h2>Avant / après : manipulez les deux versions</h2>
-  <p class="lead">Les deux versions sont cliquables. Dans « Après », le sous-menu Paramètres garde son format habituel (texte, sans icônes), mais ses entrées sont rangées par famille, et chaque page tient sur un écran. Ouvrez <b>Logements → Gîte</b> pour voir la fiche en onglets : un point orange marque un onglet modifié, un point rouge un onglet en erreur. Autre essai : changez l'email de contact dans Établissement, puis ouvrez Emails &amp; notifications, l'adresse d'envoi a suivi.</p>
+  <p class="lead">Les deux versions sont cliquables. Dans « Après », le sous-menu Paramètres garde son format habituel (petite icône et texte, comme les autres sous-menus), mais ses entrées sont rangées par famille, et chaque page tient sur un écran. Ouvrez <b>Logements → Gîte</b> pour voir la fiche en onglets : un point orange marque un onglet modifié, un point rouge un onglet en erreur. Autre essai : changez l'email de contact dans Établissement, puis ouvrez Emails &amp; notifications, l'adresse d'envoi a suivi.</p>
   <div class="controls">
     <div class="seg" id="segMode"><button data-mode="before">Avant</button><button data-mode="after" class="on">Après</button></div>
     <div class="seg" id="segDev"><button data-dev="desktop" class="on">Ordinateur</button><button data-dev="mobile">Mobile</button></div>
@@ -329,7 +329,7 @@ footer{padding:30px 0 50px;color:var(--muted);font-size:.85rem}
 
   <div class="q"><b>4. Fiche logement</b>
     <div class="opts">
-      <div class="opt rec"><span class="ttl">Onglets</span><span class="rtag">Retenu</span><p class="small">Général · Tarifs · Paiement &amp; caution · Séjour &amp; emails · Plateformes &amp; iCal · Documents. Chaque onglet tient sur un écran.</p></div>
+      <div class="opt rec"><span class="ttl">Onglets</span><span class="rtag">Retenu</span><p class="small">Général · Tarifs · Paiement &amp; caution · Séjour · Plateformes &amp; iCal · Documents. Chaque onglet tient sur un écran.</p></div>
       <div class="opt"><span class="ttl">Une page avec sommaire fixe</span><p class="small">Tout reste sur une page, avec un sommaire cliquable.</p></div>
     </div>
   </div>
@@ -399,10 +399,10 @@ const TAXSHORT={platform:'Taxe : plateforme',platform_reversed:'Taxe : plateform
 
 /* settings pages (après) */
 const GROUPS=[
-  ['etab','Établissement'],['logements','Logements'],['plat','Plateformes'],null,
-  ['options','Options & ressources'],['recettes','Recettes tarifaires'],['vacances','Vacances & fermetures'],['linge','Linge'],null,
-  ['paiements','Paiements en ligne'],['tva','TVA & exercice'],['emails','Emails & notifications'],['integ','Intégrations'],null,
-  ['users','Utilisateurs'],['systeme','Système']];
+  ['etab','Établissement','▥'],['logements','Logements','⌂'],['plat','Plateformes','▭'],null,
+  ['options','Options & ressources','✚'],['recettes','Recettes tarifaires','▤'],['vacances','Vacances & fermetures','▦'],['linge','Linge','◍'],null,
+  ['paiements','Paiements en ligne','¤'],['tva','TVA & exercice','%'],['emails','Emails & notifications','@'],['integ','Intégrations','⇄'],null,
+  ['users','Utilisateurs','♙'],['systeme','Système','⚙︎']];
 const PAGE_TITLE={};GROUPS.forEach(i=>{if(i)PAGE_TITLE[i[0]]=i[1]});
 const FORM_PAGES=['etab','tva','emails','linge','plat','systeme'];
 
@@ -606,7 +606,7 @@ function afterSidebar(){
   const it=(route,label,ic)=>`<div class="it${a.route===route?' on':''}" data-nav="a:${route}"><span class="ic">${ic}</span>${label}</div>`;
   const sub=g=>{if(!g)return '<div style="height:1px;background:var(--divider);margin:5px 12px"></div>';
     const on=inSet&&a.page===g[0]&&!(g[0]==='logements'&&a.prop);
-    let h=`<div class="it${on?' on':''}" data-act="page:${g[0]}"><span class="ic">·</span>${g[1]}${isDirty(g[0])?'<span style="color:var(--warn);margin-left:4px">●</span>':''}</div>`;
+    let h=`<div class="it${on?' on':''}" data-act="page:${g[0]}"><span class="ic">${g[2]}</span>${g[1]}${isDirty(g[0])?'<span style="color:var(--warn);margin-left:4px">●</span>':''}</div>`;
     if(g[0]==='logements')h+=`<div class="sub2">${Object.keys(data.props).map(k=>`<div class="it${inSet&&a.prop===k?' on':''}" data-act="prop:${k}"><span class="ic">·</span>${esc(data.props[k].name)}${isDirty(k)?'<span style="color:var(--warn);margin-left:4px">●</span>':''}</div>`).join('')}</div>`;
     return h};
   return `<div class="side${S.drawer?' open':''}">

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved _(2026-09-21)_ |
+| **Status** | Implemented _(2026-09-21)_ |
 | **Branch** | `feature/settings-rationalization` _(one PR, see §10)_ |
 | **Created** | 2026-09-21 |
 | **Author** | Adrien |
@@ -82,8 +82,8 @@ one place.
 
 ### 3.A Navigation
 
-1. **The « Paramètres » sidebar submenu keeps its current format** (decided 2026-09-21): plain text
-   entries with the « · » bullet, no icons, unfolding under « Paramètres » in the sidebar exactly as
+1. **The « Paramètres » sidebar submenu keeps its current format** (decided 2026-09-21): a small MUI
+   icon + text per entry, like every other sidebar submenu, unfolding under « Paramètres » exactly as
    today, with the property sub-list under « Logements ». No second navigation column, no settings
    home page. Clicking « Paramètres » opens « Établissement ». On `xs` the submenu lives in the drawer,
    as today.
@@ -103,7 +103,7 @@ one place.
    | | TVA & exercice | `/settings/tva-exercice` | VAT rate + closing month |
    | Communication | Emails & notifications | `/settings/emails` | Sending, automation, email content, operator notifications, push |
    | Connexions | Intégrations | `/settings/integrations` | Google Agenda, Neat, Météo-France status cards |
-   | Administration | Utilisateurs | `/account` → `/settings/utilisateurs` | Admin user table |
+   | Administration | Utilisateurs | `/settings/utilisateurs` | Admin user table |
    | | Système | `/settings/systeme` | Version & updates, public URL |
 
    13 entries (10 today): more, but each is one short page, where « Générale » used to hold 13 cards.
@@ -111,12 +111,14 @@ one place.
 4. **Each page owns its Save.** The single 13-card save disappears; a page saves only its own fields,
    through the existing `PUT /api/settings` (partial payload, already supported).
 5. **« Clients » leaves « Paramètres»** and becomes a top-level sidebar entry.
-6. **« Mon compte »** (my information, my password — every role) moves to a user entry at the bottom of
+6. **« Mon compte »** (`/mon-compte` — my information, my password — every role) moves to a user entry at the bottom of
    the sidebar, above « Se déconnecter ». « Utilisateurs » keeps only the admin table.
 7. **Roles are unchanged**: every settings page is admin-only; « Plan comptable » stays under « Suivi
    financier » for the accountant; « Mon compte » stays reachable by every role.
-8. Old URLs redirect (`/parametres/tarifs` → Options & ressources, tab Facturables; `/account` →
-   `/settings/utilisateurs` for an admin, « Mon compte » otherwise).
+8. Old URLs redirect: `/settings` → Établissement; `/parametres/tarifs` → Options & ressources, tab
+   Facturables (`?tab=sas`); `/account`, `/comptes` and `/settings/password` → `/mon-compte` for every
+   role (the old page mixed « my account » with the admin table; « Mon compte » is the part every role
+   was looking for).
 
 ### 3.B Settings removed, derived or fixed
 
@@ -168,6 +170,10 @@ one place.
     - `guestSequenceStartDate` is set the first time a **sequence** template is switched to `auto`
       (instead of the first time the switch was turned on); same guarantee — stays before that date
       never receive the sequence.
+    - The guest sequence runner plans only the sequence templates that are `auto` (by `stableKey`);
+      the sequence simulation reports which templates would leave (`autoMailKeys`).
+    - The registry now ships the sequence templates as `manual`, so a fresh database never mails a
+      guest before the operator chose to.
     - The « Auto désactivé » chip of the templates list disappears; a template shows « Automatique » or
       « Manuel », nothing else.
 17c. **Moved — the J-7 hook** (`properties.emailHook` / `emailHookEn`) leaves the property page. The
@@ -217,10 +223,14 @@ one place.
     so a refused Save points to the right tab.
 22. The extra-guest price fields are hidden (read-only summary) when a tariff recipe is attached — the
     recipe's seasons override them (`pricing.js:686`).
-23a. **Validation on the property** (server-side, mirrored as UX hints): at least one bed; beds must
-    sleep at least `maxGuests` (2 per double, 1 per single); guests included in the base price between
-    1 and `maxGuests`; deposit % strictly between 0 and 100 (100 % means « turn the deposit off »);
-    tourist-tax percentages 0–100; an iCal URL is empty or `https://`.
+23a. **Validation on the property** (`utils/propertyValidation.js`, server-side; the refusal
+    `400 PROPERTY_INVALID` carries per-field messages shown under each field): at least one bed; beds
+    must sleep at least `maxGuests` (2 per double, 1 per single); guests included in the base price
+    between 0 and `maxGuests`; deposit % strictly between 0 and 100 when the deposit is on (100 % means
+    « turn the deposit off »); tourist-tax percentages 0–100; amounts ≥ 0. The bed / capacity check
+    runs only when one of those three fields changes, so a property already stored in a questionable
+    state stays savable for an unrelated edit. An iCal URL is empty or `http(s)://` (already enforced
+    by `propertyIcalModel`).
 
 ### 3.E Bugs fixed
 
@@ -243,7 +253,11 @@ one place.
 | `models/` | `settingsModel.js` | T | Remove `paymentTimings()` and dead columns; expose effective email identity |
 | `utils/` | `emailIdentity.js` | C | Resolves sending address, login, sender name, recipient from Établissement + overrides |
 | `utils/` | `paymentTimingsValidation.js` | D | Deleted |
-| `utils/` | `settingsResponse.js` | T | Return `footerTextEn`; return `{ value, derivedFrom }` for the email identity |
+| `utils/` | `propertyValidation.js` | C | Property form validation (rule 23a) |
+| `utils/` | `settingsRationalizationMigration.js` | C | One-shot steps: identity normalisation, templates back to manual, column drops |
+| `controllers/` | `propertiesController.js` + `propertiesModel.js` | T | Validation on create / update; `GET/PUT /api/properties/email-hooks` |
+| `controllers/` | `optionsController.js` | T | `?view=catalogue` leaves out the per-property auto-options (rule 15) |
+| `utils/` | `settingsResponse.js` | T | Return `footerTextEn`; return `smtp.derived` and `notifications.derivedRecipient` next to the stored overrides |
 | `controllers/` | `paymentsController.js` | T | Remove the timings GET/PUT |
 | `controllers/` | `reservationsController.js` | T | Replace the `allowEditPastReservations` read by the per-request `unlockPast` flag, admin only (rule 17a) |
 | `utils/` | `autoSendPolicy.js`, `emailAutoSendScheduler.js`, `emailAutoSendRunner.js`, `reservationEmailSender.js`, `guestEmailSequenceRunner.js` | T | Per-template decision, no master switch (rule 17b) |
@@ -262,7 +276,11 @@ one place.
 | `pages/` | `SettingsPage.jsx` | D | Split into the pages below |
 | `pages/` | `settings/EstablishmentSettingsPage.jsx` (incl. devis), `VatFiscalSettingsPage.jsx`, `EmailSettingsPage.jsx`, `IntegrationsSettingsPage.jsx`, `SystemSettingsPage.jsx`, `PlatformsSettingsPage.jsx` | C | One page per group, each with its own `PageActionBar` and save; they compose the existing `Settings*Section` cards |
 | `pages/` | `AccountPage.jsx` | C | « Mon compte » split out of `UserManagementPage` |
-| `pages/` | `PropertyDetail.jsx` | T | Tabs; global platform columns read-only |
+| `pages/` | `PropertyDetail.jsx` | T | Tabs kept in `?tab=`, dots per tab, one save; field → tab map (`FIELD_TAB`) |
+| `components/` | `property/Property{General,Tariff,Payment,Stay,Platforms,Documents}Tab.jsx` | C | One file per tab (specific to the property page); Platforms and Documents load and save on their own |
+| `components/` | `PropertyHooksEditor.jsx` | C | FR / EN hook per property, used in the J-7 template dialog |
+| `components/` | `PlatformPriceCard.jsx` | T | Commission read-only with a link to Plateformes |
+| `hooks/` + `components/` | `useSettingsForm.js`, `SettingsFormPage.jsx` | C | Load / diff / save / cancel of the settings a page owns, with the dirty-form guard |
 | `pages/` | `PaymentsSettingsPage.jsx` | T | Qonto only; Cancel added |
 | `pages/` | `EmailTemplatesPage.jsx` | T | « Accroche par logement » block in the J-7 template dialog (rule 17c); « Auto désactivé » chip removed (rule 17b) |
 | `pages/` | `ReservationPage.jsx` | T | « Déverrouiller cette fiche » in the past-stay banner (admin), local unlock state, `unlockPast` on writes |
@@ -286,13 +304,16 @@ one place.
 
 | Method | Endpoint | Change |
 |---|---|---|
-| GET/PUT | `/api/settings` | `smtp.port` removed; `smtp.username` / `fromEmail` / `fromName` / `notifications.recipientEmail` return `{ value, override }`; `quote.footerTextEn` returned; `vat.rateCommission` / `rateCancellationCompensation` removed |
+| GET/PUT | `/api/settings` | `smtp.port` removed; `smtp.username` / `fromEmail` / `fromName` / `notifications.recipientEmail` are the stored overrides (`''` = derived), with `smtp.derived { fromEmail, username, fromName }` and `notifications.derivedRecipient`; `quote.footerTextEn` returned; `vat.rateCommission` / `rateCancellationCompensation` removed |
 | GET/PUT | `/api/payments/settings` | Timings removed (route deleted if nothing remains) |
 | GET/PUT | `/api/accounting/platform-accounts` | Gains `vatRateCommission`, `vatRateCancellationCompensation` |
 | GET/PUT | `/api/platforms/settings` | **New** (admin): all platforms with colour, commission, deposit, tax collection, payout |
 | GET/PUT | `/api/school-holidays/sync-settings` | Removed |
 | GET/PUT | `/api/settings` | `reservations.allowEditPastReservations` removed |
-| PUT/DELETE | `/api/reservations/:id` (+ the other past-locked writes) | Accept `unlockPast: true`, honoured for an admin only |
+| POST/PUT/DELETE | `/api/reservations(/:id)` | Accept `unlockPast: true` in the body (`?unlockPast=1` on DELETE), honoured for an admin only |
+| GET/PUT | `/api/properties/email-hooks` | **New** (admin): `[{ propertyId, name, emailHook, emailHookEn }]`; PUT writes only those two columns |
+| POST/PUT | `/api/properties(/:id)` | 400 `{ error: 'PROPERTY_INVALID', errors: { field: message } }` (rule 23a) |
+| GET | `/api/options?view=catalogue` | Leaves out `early_check_in` / `late_check_out` |
 
 ## 5. Data model
 
@@ -316,7 +337,7 @@ entry records both.
 The interactive before/after is the reference:
 [settings-rationalization/avant-apres.html](settings-rationalization/avant-apres.html).
 
-- **Desktop (`md+`)**: the sidebar submenu as today (text, « · » bullets, no icons) with thin
+- **Desktop (`md+`)**: the sidebar submenu as today (small MUI icon + text) with thin
   dividers between families; the page on the right, max width 880 px, one column of cards.
 - **Mobile (`xs`)**: the same submenu in the drawer; a page opens full width. No masonry anywhere.
 - **Action bar**: every page has `<PageActionBar title=… onSave onCancel />`; pages without a form
@@ -326,26 +347,34 @@ The interactive before/after is the reference:
 ## 7. Test plan
 
 ### Server unit tests (`server/src/tests/settings-rationalization.unit.test.js`)
-- [ ] Dead columns absent after migration on a DB that has them; migration idempotent (rules 9-10)
-- [ ] `emailIdentity`: each derived value and each override (rule 12)
-- [ ] SMTP normalisation keeps every effective value (§5)
-- [ ] Port derived from the security mode (rule 11)
-- [ ] `GET /api/settings` returns `footerTextEn` (bug 2)
-- [ ] Platform settings endpoint validates commission and payout (rule 17)
-- [ ] Accountant can PUT the two VAT rates on plan comptable (rule 14)
-- [ ] `unlockPast` lets an admin edit a past reservation, is ignored for reception, and nothing is unlocked without it (rule 17a)
-- [ ] Migration with the switch OFF sets every template to `manual`; nothing is sent by the 08:00 pass afterwards; an `auto` template is sent; a read error sends nothing (rule 17b)
-- [ ] Sequence start date set on the first sequence template switched to `auto`, never moved afterwards (rule 17b)
+- [x] Dead columns absent after migration on a DB that has them; migration idempotent (rules 9-10)
+- [x] `emailIdentity`: each derived value and each override (rule 12)
+- [x] SMTP normalisation keeps every effective value (§5)
+- [x] Port derived from the security mode (rule 11)
+- [x] `GET /api/settings` returns `footerTextEn` (bug 2)
+- [x] Platform settings endpoint validates commission and payout (rule 17)
+- [x] Accountant can PUT the two VAT rates on plan comptable (rule 14)
+- [x] `unlockPast` lets an admin edit a past reservation, is ignored for reception, and nothing is unlocked without it (rule 17a)
+- [x] Migration with the switch OFF sets every template to `manual`; nothing is sent by the 08:00 pass afterwards; an `auto` template is sent; a read error sends nothing (rule 17b)
+- [x] Sequence start date set on the first sequence template switched to `auto`, never moved afterwards (rule 17b)
+
+Delivered: 25 tests in the feature file; server suite 4193 tests green.
 
 ### Client (Vitest) + E2E
-- [ ] Property tabs: dirty / invalid dots, deposit fields shown only when on, recipe hides extra-guest fields
-- [ ] Each settings page saves only its own fields
-- [ ] Playwright: every old URL redirects; back arrows of Linge and Tarifs land on a real page
+- [x] Property tabs: dirty / invalid dots, deposit fields shown only when on, recipe hides extra-guest fields
+- [x] Each settings page saves only its own fields
+- [x] Playwright: every old URL redirects; back arrows of Linge and Tarifs land on a real page
+      (`e2e/specs/settings/settings-redirects.spec.js`)
+
+Delivered: new suites `DerivedValueField`, `PlatformsSettingsPage`, `AccountPage`,
+`EmailSettingsPage.identity`, `IntegrationsSettingsPage.neat-save`, `PropertyDetail.tabs`,
+`PropertyPlatformsTab`, `PropertyDocumentsTab`, `EmailTemplatesPage.property-hooks`; client suite
+177 files / 1287 tests green.
 
 ### Manual UI verification
-- [ ] Desktop / tablet / mobile of the settings area and of the property tabs
-- [ ] Send an SMTP test with no override; with a login override
-- [ ] Change Airbnb's colour on « Plateformes », see it on both properties
+- [x] Desktop / tablet / mobile of the settings area and of the property tabs
+- [ ] Send an SMTP test with no override; with a login override — not run locally (no SMTP server on the dev machine); the derived / override fields were exercised in the browser
+- [x] Change a platform's settings on « Plateformes », see them as read-only chips on the property page
 
 ## 8. Out of scope
 
