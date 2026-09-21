@@ -206,19 +206,3 @@ test('getSyncState returns defaults on a fresh DB', () => {
   assert.equal(s.lastSyncAt, null);
 });
 
-test('updateSyncSettings persists config without touching state', () => {
-  const m = freshModel();
-  m.setSyncResult({
-    lastSyncAt: '2026-05-27T10:00:00Z',
-    lastSyncStatus: 'success',
-    lastSyncMessage: 'OK',
-    lastImportedCount: 8,
-  });
-  m.updateSyncSettings({ syncIntervalDays: 30, syncHorizonMonths: 12 });
-  const s = m.getSyncState();
-  assert.equal(s.syncIntervalDays, 30);
-  assert.equal(s.syncHorizonMonths, 12);
-  assert.equal(s.lastSyncStatus, 'success');
-  assert.equal(s.lastSyncAt, '2026-05-27T10:00:00Z');
-  assert.equal(s.lastImportedCount, 8);
-});

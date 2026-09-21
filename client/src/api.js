@@ -254,8 +254,6 @@ const api = {
   deleteSchoolHoliday: (id) => request(`/school-holidays/${id}`, { method: 'DELETE' }),
   unlockSchoolHoliday: (id) => request(`/school-holidays/${id}/unlock`, { method: 'PUT' }),
   syncSchoolHolidays: () => request('/school-holidays/sync', { method: 'POST' }),
-  updateSchoolHolidaysSyncSettings: ({ syncIntervalDays, syncHorizonMonths }) =>
-    request('/school-holidays/sync-settings', { method: 'PUT', body: { syncIntervalDays, syncHorizonMonths } }),
 
   // Public holidays — server-computed for the given years; returns [{ date, label }].
   getPublicHolidays: (years) => request(`/public-holidays?years=${[...new Set(years)].join(',')}`),
@@ -287,7 +285,6 @@ const api = {
   sendPushTest: () => request('/push/test', { method: 'POST' }),
   // Online payments (specs/online-payments-qonto.md). Qonto connection state + configurable timings.
   getPaymentSettings: () => request('/payments/settings'),
-  updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
   getQontoStatus: () => request('/payments/qonto/status'),
   // The Qonto application settings + the connection test (specs/qonto-settings-in-app.md §4.3).
   // Secrets travel one way only: written here, never read back.

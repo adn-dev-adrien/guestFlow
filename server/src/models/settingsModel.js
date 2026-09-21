@@ -17,6 +17,7 @@
 
 const db = require('../database');
 const { encrypt, decrypt, isEncrypted, safeDecrypt } = require('../utils/encryption');
+const { smtpPortForSecure } = require('../utils/settingsValidation');
 
 // PM2-visible marker emitted when an encrypted value can't be decrypted with the current
 // `GUESTFLOW_ENCRYPTION_KEY` — typically because a previous deploy regenerated
@@ -110,7 +111,6 @@ const COLUMNS = [
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.
   'smtpHost',
-  'smtpPort',
   'smtpSecure',
   'smtpUsername',
   'smtpPasswordEncrypted',
@@ -159,15 +159,6 @@ const COLUMNS = [
   'towelStockSmall',
   // Bath mat as a 7th linen type (specs/laundry-bath-mat.md §3 rule 7). Stock shared across properties.
   'towelStockBathMat',
-  // Online payments — operator-configurable reminder/deadline durations (specs/online-payments-qonto.md
-  // §3.1 + §5). The two *Offsets are JSON arrays of day-deltas; the rest are integer day-counts. Read
-  // through `paymentTimings()` which parses + applies defaults so no caller hard-codes a duration.
-  'paymentDepositReminderOffsets',
-  'paymentDepositAbandonOffset',
-  'paymentDepositLinkExpiryDays',
-  'paymentBalanceReminderOffsets',
-  'paymentBalanceAbandonOffset',
-  'paymentBalanceLinkExpiryDays',
   // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
   // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
   'qontoAccessTokenEncrypted',
@@ -206,7 +197,6 @@ const COLUMNS = [
   'neatEnvironment',
   'neatClientId',
   'neatClientSecretEncrypted',
-  'neatStoreId',
   'neatSalesChannelId',
   'neatSalesChannelLabel',
   'neatContractId',
@@ -224,7 +214,6 @@ const NUMERIC_DEFAULTS = {
   vatRate: 10,
   vatRateCommission: 20,
   vatRateCancellationCompensation: 0,
-  smtpPort: 587,
   smtpSecure: 0,
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,
@@ -238,16 +227,10 @@ const NUMERIC_DEFAULTS = {
   towelStockMedium: 0,
   towelStockSmall: 0,
   towelStockBathMat: 0,
-  paymentDepositAbandonOffset: 1,
-  paymentDepositLinkExpiryDays: 1,
-  paymentBalanceAbandonOffset: 1,
-  paymentBalanceLinkExpiryDays: 1,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
   smtpFromName: 'GuestFlow',
-  paymentDepositReminderOffsets: '[-5,0]',
-  paymentBalanceReminderOffsets: '[-10,-5,0]',
   neatEnvironment: 'staging',
   poolSeasonStart: '06-15',
   poolSeasonEnd: '08-31',
@@ -412,33 +395,6 @@ function createSettingsModel(databaseInstance) {
     // `utils/autoSendPolicy.autoSendAllowed`, not directly.
     emailAutoSendEnabled() {
       return Number(readRaw().emailAutoSendEnabled) === 1;
-    },
-
-    // Single source of truth for every payment reminder/deadline duration (no caller hard-codes a
-    // delay — specs/online-payments-qonto.md §3.1). Parses the JSON offset arrays and applies the
-    // documented defaults when a value is missing or malformed (partially-migrated DB, bad input).
-    paymentTimings() {
-      const row = readRaw();
-      const num = (v, fallback) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : fallback;
-      };
-      const offsets = (v, fallback) => {
-        try {
-          const parsed = JSON.parse(v);
-          if (!Array.isArray(parsed)) return fallback;
-          const cleaned = parsed.map(Number).filter(Number.isFinite);
-          return cleaned.length ? cleaned : fallback;
-        } catch { return fallback; }
-      };
-      return {
-        depositReminderOffsets: offsets(row.paymentDepositReminderOffsets, [-5, 0]),
-        depositAbandonOffset: num(row.paymentDepositAbandonOffset, 1),
-        depositLinkExpiryDays: num(row.paymentDepositLinkExpiryDays, 1),
-        balanceReminderOffsets: offsets(row.paymentBalanceReminderOffsets, [-10, -5, 0]),
-        balanceAbandonOffset: num(row.paymentBalanceAbandonOffset, 1),
-        balanceLinkExpiryDays: num(row.paymentBalanceLinkExpiryDays, 1),
-      };
     },
 
     // ----- Qonto connection (specs/online-payments-qonto.md §3.1) -----
@@ -730,7 +686,6 @@ function createSettingsModel(databaseInstance) {
         environment: String(row.neatEnvironment || 'staging') === 'production' ? 'production' : 'staging',
         clientId: String(row.neatClientId || '').trim(),
         clientSecret,
-        storeId: String(row.neatStoreId || ''),
         salesChannelId: String(row.neatSalesChannelId || ''),
         salesChannelLabel: String(row.neatSalesChannelLabel || ''),
         contractId: String(row.neatContractId || ''),
@@ -765,7 +720,8 @@ function createSettingsModel(databaseInstance) {
       }
       return {
         host: String(row.smtpHost || '').trim(),
-        port: Number(row.smtpPort) || 587,
+        // Derived, never stored (specs/settings-rationalization.md rule 11).
+        port: smtpPortForSecure(row.smtpSecure),
         secure: Number(row.smtpSecure) === 1,
         user: String(row.smtpUsername || '').trim(),
         password,

@@ -43,6 +43,7 @@ function shapeResponse(row) {
     },
     quote: {
       footerText: safeStr(row.quoteFooterText),
+      footerTextEn: safeStr(row.quoteFooterTextEn),
       validityDays: Number(row.quoteValidityDays) || 30,
     },
     vat: {

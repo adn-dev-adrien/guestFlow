@@ -1,11 +1,11 @@
 /**
  * School holidays controller — orchestrates list/create/update/delete, sync trigger,
- * and sync settings management. Wraps validation + locking semantics.
+ * with a fixed cadence (specs/settings-rationalization.md rule 13). Wraps validation + locking semantics.
  */
 
 const model = require('../models/schoolHolidaysModel');
 const { sentenceCase } = require('../utils/textFormatters');
-const { validatePeriod, validateSyncSettings } = require('../utils/schoolHolidaysValidation');
+const { validatePeriod } = require('../utils/schoolHolidaysValidation');
 const { runSync } = require('../utils/schoolHolidaysSync');
 
 function readPeriodBody(body = {}) {
@@ -17,18 +17,6 @@ function readPeriodBody(body = {}) {
     zoneB_end: body.zoneB_end || null,
     zoneC_start: body.zoneC_start || null,
     zoneC_end: body.zoneC_end || null,
-  };
-}
-
-function readSyncSettingsBody(body = {}) {
-  const toInt = (v) => {
-    if (v === null || v === undefined || v === '') return NaN;
-    const n = Number(v);
-    return Number.isInteger(n) ? n : NaN;
-  };
-  return {
-    syncIntervalDays: toInt(body.syncIntervalDays),
-    syncHorizonMonths: toInt(body.syncHorizonMonths),
   };
 }
 
@@ -99,24 +87,6 @@ async function sync(req, res) {
   }
 }
 
-function getSyncSettings(req, res) {
-  const state = model.getSyncState();
-  res.json({
-    syncIntervalDays: state.syncIntervalDays,
-    syncHorizonMonths: state.syncHorizonMonths,
-  });
-}
-
-function updateSyncSettings(req, res) {
-  const settings = readSyncSettingsBody(req.body);
-  const error = validateSyncSettings(settings);
-  if (error) {
-    return res.status(400).json({ error, code: 'INVALID_SYNC_SETTINGS' });
-  }
-  model.updateSyncSettings(settings);
-  res.json({ ok: true, ...settings });
-}
-
 module.exports = {
   list,
   create,
@@ -124,6 +94,4 @@ module.exports = {
   unlock,
   remove,
   sync,
-  getSyncSettings,
-  updateSyncSettings,
 };

@@ -35,7 +35,6 @@ const DDL = `
     defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600',
     vatRateCommission REAL NOT NULL DEFAULT 20,
     smtpHost TEXT DEFAULT '',
-    smtpPort INTEGER DEFAULT 587,
     smtpSecure INTEGER NOT NULL DEFAULT 0,
     smtpUsername TEXT DEFAULT '',
     smtpPasswordEncrypted TEXT DEFAULT '',
@@ -146,7 +145,6 @@ test('settingsModel.decryptedSmtpSettings returns the shape the email service ex
   const { model } = freshModel();
   model.upsert({
     smtpHost: 'smtp.example.com',
-    smtpPort: 465,
     smtpSecure: 1,
     smtpUsername: 'noreply@example.com',
     smtpPasswordEncrypted: 'real-secret',

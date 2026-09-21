@@ -182,8 +182,6 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS app_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     googleCalendarId TEXT DEFAULT '',
-    googleServiceAccountEmail TEXT DEFAULT '',
-    googleServiceAccountPrivateKey TEXT DEFAULT '',
     companyName TEXT DEFAULT '',
     companyAddress TEXT DEFAULT '',
     companyEmail TEXT DEFAULT '',
@@ -337,7 +335,6 @@ tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN 
 // SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
 // Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
 tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");
-tryAddAppSettingsCol('smtpPort',              "ALTER TABLE app_settings ADD COLUMN smtpPort INTEGER DEFAULT 587");
 tryAddAppSettingsCol('smtpSecure',            "ALTER TABLE app_settings ADD COLUMN smtpSecure INTEGER NOT NULL DEFAULT 0");
 tryAddAppSettingsCol('smtpUsername',          "ALTER TABLE app_settings ADD COLUMN smtpUsername TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLUMN smtpPasswordEncrypted TEXT DEFAULT ''");
@@ -368,19 +365,6 @@ tryAddAppSettingsCol('towelStockSmall',     "ALTER TABLE app_settings ADD COLUMN
 // Bath mat as a 7th linen type (specs/laundry-bath-mat.md §5). Stock shared across properties,
 // 0 = "type not tracked", same convention as the other six.
 tryAddAppSettingsCol('towelStockBathMat',   "ALTER TABLE app_settings ADD COLUMN towelStockBathMat   INTEGER NOT NULL DEFAULT 0");
-// Online payments — all reminder/deadline durations are operator-configurable (no hard-coded delay).
-// Offsets are stored as a JSON array of day-deltas relative to the relevant due date (negative = before,
-// 0 = the due day, positive = after). See specs/online-payments-qonto.md §3.1 + §5.
-tryAddAppSettingsCol('paymentDepositReminderOffsets',  "ALTER TABLE app_settings ADD COLUMN paymentDepositReminderOffsets  TEXT DEFAULT '[-5,0]'");
-tryAddAppSettingsCol('paymentDepositAbandonOffset',    "ALTER TABLE app_settings ADD COLUMN paymentDepositAbandonOffset    INTEGER NOT NULL DEFAULT 1");
-tryAddAppSettingsCol('paymentDepositLinkExpiryDays',   "ALTER TABLE app_settings ADD COLUMN paymentDepositLinkExpiryDays   INTEGER NOT NULL DEFAULT 1");
-tryAddAppSettingsCol('paymentBalanceReminderOffsets',  "ALTER TABLE app_settings ADD COLUMN paymentBalanceReminderOffsets  TEXT DEFAULT '[-10,-5,0]'");
-tryAddAppSettingsCol('paymentBalanceAbandonOffset',    "ALTER TABLE app_settings ADD COLUMN paymentBalanceAbandonOffset    INTEGER NOT NULL DEFAULT 1");
-tryAddAppSettingsCol('paymentBalanceLinkExpiryDays',   "ALTER TABLE app_settings ADD COLUMN paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1");
-// (The last-minute threshold + full-payment due date are NOT stored here — they derive from the
-// property's own "Acompte & solde" settings, i.e. balanceDaysBefore. See specs/online-payments-qonto.md
-// §3.7. Older prod DBs may carry orphan paymentLastMinuteDays / paymentFullPaymentDueDaysBefore
-// columns from PR #178; they are unused and harmless.)
 // Qonto connection (specs/online-payments-qonto.md §3.1). The OAuth client id/secret live in
 // .env.local; these columns hold the per-connection OAuth tokens (AES-256-GCM, masked on read) +
 // non-secret provider-connection metadata.
@@ -424,13 +408,6 @@ tryAddAppSettingsCol('googleCalendarSummary',            "ALTER TABLE app_settin
 tryAddAppSettingsCol('googleLastSyncAt',                 "ALTER TABLE app_settings ADD COLUMN googleLastSyncAt                 TEXT DEFAULT ''");
 tryAddAppSettingsCol('googleLastSyncOk',                 "ALTER TABLE app_settings ADD COLUMN googleLastSyncOk                 INTEGER DEFAULT NULL");
 tryAddAppSettingsCol('googleLastSyncDetail',             "ALTER TABLE app_settings ADD COLUMN googleLastSyncDetail             TEXT DEFAULT ''");
-// One-shot clear of the legacy service-account credentials: the SA auth mechanism is removed by
-// the OAuth rework (columns physically kept for schema parity; the model no longer reads them).
-// Idempotent — the WHERE clauses make re-runs no-ops; guarded so a future drop of the dead
-// columns from schema.sql doesn't crash fresh installs at boot.
-if (appSettingsCols.includes('googleServiceAccountEmail') && appSettingsCols.includes('googleServiceAccountPrivateKey')) {
-  db.prepare("UPDATE app_settings SET googleServiceAccountEmail = '', googleServiceAccountPrivateKey = '' WHERE id = 1 AND (googleServiceAccountEmail != '' OR googleServiceAccountPrivateKey != '')").run();
-}
 // A calendar id stored while NO OAuth connection exists is necessarily a leftover from the
 // service-account era (the new picker only writes it once connected). Clearing it forces the
 // post-connect « Configuration en cours » step instead of silently syncing to the old target.
@@ -2304,7 +2281,6 @@ db.exec(`
   addNeat('neatEnvironment', "ALTER TABLE app_settings ADD COLUMN neatEnvironment TEXT NOT NULL DEFAULT 'staging'");
   addNeat('neatClientId', "ALTER TABLE app_settings ADD COLUMN neatClientId TEXT DEFAULT ''");
   addNeat('neatClientSecretEncrypted', "ALTER TABLE app_settings ADD COLUMN neatClientSecretEncrypted TEXT DEFAULT ''");
-  addNeat('neatStoreId', "ALTER TABLE app_settings ADD COLUMN neatStoreId TEXT DEFAULT ''");
   addNeat('neatSalesChannelId', "ALTER TABLE app_settings ADD COLUMN neatSalesChannelId TEXT DEFAULT ''");
   addNeat('neatSalesChannelLabel', "ALTER TABLE app_settings ADD COLUMN neatSalesChannelLabel TEXT DEFAULT ''");
   addNeat('neatContractId', "ALTER TABLE app_settings ADD COLUMN neatContractId TEXT DEFAULT ''");
@@ -2480,6 +2456,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     const { templatesSynced, ledgerBackfilled } = tx();
     console.log(`[migration:guest-email-sequence] ${templatesSynced} template(s) rewritten, ${ledgerBackfilled} past send(s) copied to the ledger`);
   }
+}
+
+// ---------- SETTINGS RATIONALIZATION ----------
+// Drops the settings nothing reads any more (specs/settings-rationalization.md §5). Idempotent.
+{
+  const { runSettingsRationalizationMigration } = require('./utils/settingsRationalizationMigration');
+  const { dropped } = runSettingsRationalizationMigration(db);
+  if (dropped.length) console.log(`[migration:settings-rationalization] dropped ${dropped.join(', ')}`);
 }
 
 // ---------- REJEU DU BASELINE ----------

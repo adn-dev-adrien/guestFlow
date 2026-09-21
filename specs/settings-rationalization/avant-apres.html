@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ménage des paramètres</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244a37; --primary-soft:#e6efe9;
+  --secondary:#C99038; --secondary-soft:#f7ecd9;
+  --bg:#F8F5EF; --paper:#FFFFFF; --text:#27251F; --muted:#6E6A5E;
+  --divider:rgba(60,54,36,.12); --shadow:0 3px 16px rgba(60,54,36,.09);
+  --error:#B3261E; --error-soft:#fbe9e7; --warn:#9a6700; --warn-soft:#fff4d6;
+  --ok:#2e7d32; --ok-soft:#e8f5e9; --info:#1f5f8b; --info-soft:#e3f0f8;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 var(--sans)}
+a{color:var(--primary)}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.25}
+h1{font-size:2rem;margin:.2em 0 .3em}
+h2{font-size:1.45rem;margin:0 0 .6em}
+h3{font-size:1.1rem;margin:1.2em 0 .4em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+header.top{padding:28px 0 8px}
+.meta{color:var(--muted);font-size:.9rem}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;background:var(--secondary-soft);color:#7a5512}
+nav.toc{position:sticky;top:0;z-index:30;background:rgba(248,245,239,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--divider)}
+nav.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+nav.toc a{white-space:nowrap;text-decoration:none;color:var(--muted);font-weight:600;font-size:.88rem;padding:6px 10px;border-radius:8px}
+nav.toc a:hover{background:var(--paper);color:var(--text)}
+section.block{padding:34px 0 10px}
+.lead{font-size:1.05rem;max-width:760px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:18px 0}
+.kpi{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.kpi .v{font-size:1.7rem;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:1rem;color:var(--muted);font-weight:600}
+.kpi .l{color:var(--muted);font-size:.88rem}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+.card h3{margin-top:0}
+ul.tight{margin:.3em 0;padding-left:1.2em}
+ul.tight li{margin:.25em 0}
+code{font-size:.85em;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+
+/* ---------- simulator controls ---------- */
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0 14px}
+.seg{display:inline-flex;background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:600 .9rem var(--sans);color:var(--muted);padding:7px 14px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--primary);color:#fff}
+.seg.before-on button.on{background:#8a5a1b}
+label.chk{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:.9rem;color:var(--muted);cursor:pointer}
+.hint{color:var(--muted);font-size:.88rem}
+.stage{display:flex;justify-content:center}
+.device{background:#d9d3c6;border-radius:18px;padding:10px;width:100%;transition:max-width .25s}
+.device.mobile{max-width:410px;border-radius:34px;padding:14px 10px}
+.device.desktop{max-width:1180px}
+
+/* ---------- mock app ---------- */
+.app{--a-bg:#F8F5EF;background:var(--a-bg);border-radius:10px;overflow:hidden;height:720px;display:flex;flex-direction:column;position:relative;font-size:14px}
+.device.mobile .app{height:760px;border-radius:24px}
+.appbar{background:var(--primary);color:#fff;height:48px;display:flex;align-items:center;gap:10px;padding:0 14px;flex:0 0 auto}
+.appbar .logo{font-family:var(--serif);font-weight:700;font-size:1.05rem}
+.appbar .burger{display:none;border:0;background:transparent;color:#fff;font-size:20px;cursor:pointer;width:36px;height:36px;border-radius:8px}
+.device.mobile .appbar .burger{display:inline-block}
+.body{flex:1;display:flex;min-height:0}
+.side{width:218px;flex:0 0 218px;background:var(--paper);border-right:1px solid var(--divider);overflow-y:auto;padding:8px 6px;display:flex;flex-direction:column}
+.device.mobile .side{position:absolute;top:48px;bottom:0;left:0;z-index:20;box-shadow:4px 0 24px rgba(0,0,0,.18);transform:translateX(-105%);transition:transform .2s}
+.device.mobile .side.open{transform:none}
+.side .it{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;color:var(--text);cursor:pointer;font-weight:500;user-select:none}
+.side .it:hover{background:rgba(60,54,36,.05)}
+.side .it.on{background:var(--primary-soft);color:var(--primary);font-weight:700}
+.side .it .ic{width:18px;text-align:center;opacity:.75}
+.side .sub{padding-left:22px}
+.side .sub .it{font-size:.9em;padding:5px 10px}
+.side .sub2{padding-left:16px}
+.side .grow{flex:1}
+.side .count{margin-left:auto;font-size:.72rem;background:var(--secondary-soft);color:#7a5512;border-radius:999px;padding:0 7px;font-weight:700}
+.main{flex:1;overflow-y:auto;min-width:0;position:relative}
+.bar{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--divider);display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:54px}
+.bar .t{font-family:var(--serif);font-weight:600;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .sub{font-size:.78rem;font-style:italic;color:var(--muted)}
+.bar .sub.dirty{color:var(--warn)}
+.bar .sp{flex:1}
+.ib{width:38px;height:38px;border-radius:10px;border:1px solid var(--divider);background:var(--paper);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--text);flex:0 0 auto}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib[disabled]{opacity:.38;cursor:not-allowed}
+.ib.back{border:0}
+.content{padding:16px;max-width:880px;margin:0 auto}
+.device.mobile .content{padding:12px}
+.acard{background:var(--paper);border-radius:12px;box-shadow:0 2px 10px rgba(60,54,36,.08);padding:14px 16px;margin-bottom:14px;position:relative}
+.acard h4{font-family:var(--serif);font-weight:600;font-size:1rem;margin:0 0 4px}
+.acard .desc{color:var(--muted);font-size:.84rem;margin:0 0 10px}
+.masonry{columns:2;column-gap:14px}
+.masonry .acard{break-inside:avoid}
+.device.mobile .masonry{columns:1}
+.fld{margin:10px 0;position:relative}
+.fld label{display:block;font-size:.76rem;color:var(--muted);font-weight:600;margin-bottom:3px}
+.fld input,.fld select,.fld textarea{width:100%;font:inherit;border:1px solid rgba(60,54,36,.25);border-radius:9px;padding:8px 10px;background:#fff;color:var(--text)}
+.fld textarea{min-height:58px;resize:vertical}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:transparent}
+.fld .help{font-size:.76rem;color:var(--muted);margin-top:3px;min-height:1em}
+.fld.err input,.fld.err select,.fld.err textarea{border-color:var(--error);background:#fffafa}
+.fld.err .help{color:var(--error);font-weight:600}
+.flash{animation:flash 1.6s ease}
+@keyframes flash{0%,40%{box-shadow:0 0 0 4px rgba(201,144,56,.55);border-radius:10px}100%{box-shadow:none}}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.device.mobile .row2{grid-template-columns:1fr}
+.derived{border:1px dashed rgba(47,93,70,.45);background:var(--primary-soft);border-radius:9px;padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.derived .val{font-weight:600}
+.derived .from{font-size:.76rem;color:var(--muted)}
+.linkbtn{border:0;background:none;color:var(--primary);font:600 .8rem var(--sans);cursor:pointer;padding:2px 0;text-decoration:underline}
+.sw{display:flex;align-items:center;gap:10px;margin:10px 0;cursor:pointer;user-select:none}
+.sw .track{width:38px;height:22px;border-radius:999px;background:#c9c3b6;position:relative;flex:0 0 auto;transition:background .15s}
+.sw .track::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw.on .track{background:var(--primary)}
+.sw.on .track::after{left:19px}
+.sw.dis{opacity:.45;pointer-events:none}
+.btn{border:1px solid var(--primary);background:var(--paper);color:var(--primary);font:600 .85rem var(--sans);padding:7px 12px;border-radius:9px;cursor:pointer}
+.btn.fill{background:var(--primary);color:#fff}
+.btn.sm{padding:4px 9px;font-size:.78rem}
+.btn[disabled]{border-color:#c9c3b6;color:#a8a294;cursor:not-allowed;background:#f4f1ea}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;font-weight:700;border-radius:999px;padding:2px 9px}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-soft);color:var(--ok)}
+.b-warn{background:var(--warn-soft);color:var(--warn)}
+.b-off{background:#eee;color:#666}
+.alert{border-radius:10px;padding:9px 12px;font-size:.85rem;margin:8px 0}
+.alert.warn{background:var(--warn-soft);color:#6b4a00}
+.alert.info{background:var(--info-soft);color:var(--info)}
+.alert.err{background:var(--error-soft);color:var(--error)}
+table.t{width:100%;border-collapse:collapse;font-size:.86rem}
+table.t th{text-align:left;font-size:.74rem;color:var(--muted);font-weight:700;padding:6px 6px;border-bottom:1px solid var(--divider)}
+table.t td{padding:6px;border-bottom:1px solid var(--divider);vertical-align:middle}
+table.t input,table.t select{width:100%;font:inherit;border:1px solid rgba(60,54,36,.25);border-radius:7px;padding:5px 6px}
+table.t .err input{border-color:var(--error);background:#fffafa}
+table.t .emsg{color:var(--error);font-size:.72rem;font-weight:600}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.12)}
+.chip{display:inline-block;font-size:.74rem;background:rgba(60,54,36,.07);border-radius:999px;padding:1px 8px;margin:1px 2px;white-space:nowrap}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--divider);margin:-4px 0 14px;overflow-x:auto}
+.tabs button{border:0;background:none;font:600 .86rem var(--sans);color:var(--muted);padding:9px 12px;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button.on{color:var(--primary);border-bottom-color:var(--primary)}
+.center-tabs{display:flex;gap:2px;margin:0 auto}
+.center-tabs button{border:0;background:none;font:600 .84rem var(--sans);color:var(--muted);padding:6px 10px;border-bottom:2px solid transparent;cursor:pointer}
+.center-tabs button.on{color:var(--primary);border-bottom-color:var(--primary)}
+.list-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--divider);cursor:pointer}
+.list-item:hover{background:rgba(60,54,36,.04)}
+.muted{color:var(--muted)}
+.small{font-size:.8rem}
+
+
+/* annotations */
+.anno{display:none}
+.show-notes .anno{display:inline-flex}
+.anno{align-items:center;gap:4px;font:700 .7rem/1.3 var(--sans);border-radius:6px;padding:2px 7px;margin:3px 4px 0 0;vertical-align:middle}
+.anno.dead{background:#fde2e0;color:#8c1d18}
+.anno.dup{background:#fff0c9;color:#6b4a00}
+.anno.move{background:#e3f0f8;color:#1f5f8b}
+.anno.bug{background:#8c1d18;color:#fff}
+.anno.fixed{background:var(--ok-soft);color:var(--ok)}
+.show-notes .cardnote{display:block}
+.cardnote{display:none;position:absolute;top:-9px;right:10px}
+
+/* toast + modal */
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:#27251F;color:#fff;padding:9px 14px;border-radius:10px;font-weight:600;font-size:.86rem;z-index:50;box-shadow:var(--shadow);max-width:90%;text-align:center}
+.toast.err{background:var(--error)}
+.modal-bg{position:absolute;inset:0;background:rgba(39,37,31,.38);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:14px;max-width:520px;width:100%;padding:18px;box-shadow:var(--shadow);max-height:92%;overflow-y:auto}
+.modal h4{font-family:var(--serif);margin:0 0 6px;font-size:1.1rem}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btn.danger{border-color:var(--error);color:var(--error)}
+.nf{text-align:center;padding:70px 20px}
+.nf .big{font-size:3rem}
+.scrollmeter{text-align:center;padding:18px 0 8px;font-size:.8rem;color:var(--muted);font-weight:600}
+
+/* change table */
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.filters button{border:1px solid var(--divider);background:var(--paper);border-radius:999px;padding:5px 12px;font:600 .82rem var(--sans);cursor:pointer;color:var(--muted)}
+.filters button.on{background:var(--text);color:#fff;border-color:var(--text)}
+.ctable{width:100%;border-collapse:collapse;background:var(--paper);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);font-size:.88rem}
+.ctable th{background:#f1ece2;text-align:left;padding:9px 10px;font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ctable td{padding:9px 10px;border-top:1px solid var(--divider);vertical-align:top}
+.ctable td.k{white-space:nowrap}
+@media(max-width:760px){
+  .ctable thead{display:none}
+  .ctable tr{display:block;border-top:1px solid var(--divider);padding:8px 4px}
+  .ctable td{display:block;border:0;padding:3px 8px}
+  .ctable td::before{content:attr(data-h);display:block;font-size:.7rem;color:var(--muted);font-weight:700;text-transform:uppercase}
+}
+.tag{display:inline-block;border-radius:6px;padding:1px 8px;font-size:.74rem;font-weight:700}
+.tag.sup{background:#fde2e0;color:#8c1d18}
+.tag.ded{background:var(--primary-soft);color:var(--primary)}
+.tag.fix{background:#ece6f5;color:#51367a}
+.tag.dep{background:#e3f0f8;color:#1f5f8b}
+.tag.bug{background:#8c1d18;color:#fff}
+.tag.mas{background:#fff0c9;color:#6b4a00}
+
+.steps{counter-reset:s;display:grid;gap:10px}
+.step{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:14px 16px 14px 56px;position:relative}
+.step::before{counter-increment:s;content:counter(s);position:absolute;left:16px;top:14px;width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
+.step b{font-family:var(--serif);font-size:1.02rem}
+.q{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.q .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:760px){.q .opts{grid-template-columns:1fr}}
+.opt{border:1px solid var(--divider);border-radius:12px;padding:12px}
+.opt.rec{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+.opt .ttl{font-weight:700}
+.opt .rtag{font-size:.7rem;background:var(--primary);color:#fff;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:2px}
+.mini{border:1px solid var(--divider);border-radius:10px;padding:10px;margin-top:8px;background:#fbf9f5;font-size:.86rem}
+footer{padding:30px 0 50px;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+
+<header class="top wrap">
+  <span class="pill">Spec validée le 21 septembre 2026</span>
+  <h1>Ménage des paramètres de GuestFlow</h1>
+  <div class="meta">21 septembre 2026 · référence versionnée : <code>specs/settings-rationalization.md</code> · audit du code et d'une copie locale de la base de production</div>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#constat">Constat</a>
+  <a href="#simu">Avant / après</a>
+  <a href="#changes">Réglage par réglage</a>
+  <a href="#nonfait">Ce qu'on ne fait pas</a>
+  <a href="#risques">Risques</a>
+  <a href="#arbitrages">Arbitrages</a>
+  <a href="#phases">Livraison</a>
+</div></nav>
+
+<main class="wrap">
+
+<section class="block" id="constat">
+  <h2>Le constat</h2>
+  <p class="lead">Chaque spec a posé sa carte là où c'était pratique sur le moment. Résultat : un menu de 10 entrées, une page « Générale » de 13 cartes, des réglages qui ne servent à rien, et la même adresse e-mail saisie quatre fois.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="v">10 <small>+1</small></div><div class="l">entrées de configuration dans le menu, sans ordre lisible (dont « Plan comptable » rangé sous Suivi financier), plus la liste des logements</div></div>
+    <div class="kpi"><div class="v">13 <small>cartes · ~45 champs</small></div><div class="l">sur la seule page « Générale », avec un seul bouton Enregistrer pour tout</div></div>
+    <div class="kpi"><div class="v">6 <small>champs</small></div><div class="l">« Délais &amp; relances » qu'on peut modifier sans que rien ne change : aucun code ne les relit</div></div>
+    <div class="kpi"><div class="v">×4</div><div class="l">la même adresse : email pro, expéditeur, utilisateur SMTP, destinataire des notifications</div></div>
+    <div class="kpi"><div class="v">3 <small>pages</small></div><div class="l">pour régler une plateforme, dont la fiche d'<em>un</em> logement qui modifie en douce l'autre</div></div>
+    <div class="kpi"><div class="v">7 <small>bugs</small></div><div class="l">trouvés en chemin, dont deux flèches retour qui mènent à « Page introuvable »</div></div>
+  </div>
+</section>
+
+<section class="block" id="simu">
+  <h2>Avant / après : manipulez les deux versions</h2>
+  <p class="lead">Les deux versions sont cliquables. Dans « Après », le sous-menu Paramètres garde son format habituel (texte, sans icônes), mais ses entrées sont rangées par famille, et chaque page tient sur un écran. Ouvrez <b>Logements → Gîte</b> pour voir la fiche en onglets : un point orange marque un onglet modifié, un point rouge un onglet en erreur. Autre essai : changez l'email de contact dans Établissement, puis ouvrez Emails &amp; notifications, l'adresse d'envoi a suivi.</p>
+  <div class="controls">
+    <div class="seg" id="segMode"><button data-mode="before">Avant</button><button data-mode="after" class="on">Après</button></div>
+    <div class="seg" id="segDev"><button data-dev="desktop" class="on">Ordinateur</button><button data-dev="mobile">Mobile</button></div>
+    <label class="chk"><input type="checkbox" id="chkNotes" checked> Étiquettes d'explication</label>
+  </div>
+  <div class="hint" id="simHint"></div>
+  <div class="stage"><div class="device desktop" id="device"><div class="app" id="app"></div></div></div>
+</section>
+
+<section class="block" id="changes">
+  <h2>Réglage par réglage</h2>
+  <p class="lead">Chaque ligne est vérifiée dans le code. Les réglages qui restent tels quels (raison sociale, SIRET, IBAN, taux de TVA, mois de clôture, identifiants Qonto, Neat, Google…) changent seulement de page ; ils n'apparaissent pas ici.</p>
+  <div class="filters" id="filters"></div>
+  <table class="ctable" id="ctable"><thead><tr><th>Type</th><th>Réglage</th><th>Aujourd'hui</th><th>Demain</th><th>Pourquoi</th></tr></thead><tbody></tbody></table>
+</section>
+
+<section class="block" id="nonfait">
+  <h2>Ce qu'on ne fait pas</h2>
+  <div class="cols2">
+    <div class="card"><h3>Hors périmètre</h3>
+      <ul class="tight">
+        <li><b>Le code portail reste</b> dans Établissement : l'accès portail par séjour (PR guest-gate-access) le garde comme secours physique.</li>
+        <li><b>Aucun calcul ne change.</b> On déplace, on supprime ce qui est mort, on déduit ce qui est saisi en double ; aucun montant, aucune échéance ne bouge.</li>
+        <li><b>Les prix d'option par logement</b> restent dans la fenêtre de l'option (les rapatrier sur la fiche logement serait un autre chantier).</li>
+        <li><b>La taxe de séjour reste par logement</b> : les deux logements n'ont pas le même mode (par personne vs pourcentage), ce n'est donc pas un doublon.</li>
+      </ul></div>
+    <div class="card"><h3>Gardés volontairement</h3>
+      <ul class="tight">
+        <li><b>L'URL publique reste saisie à la main</b> (elle déménage dans Système). La déduire de l'adresse du navigateur enregistrerait une IP du réseau local, et on sait déjà que ça casse les liens hors du domaine.</li>
+        <li><b>Le taux de TVA des séjours</b> reste modifiable : c'est un choix fiscal, pas une constante.</li>
+        <li><b>La saison piscine</b> reste un réglage (dans « Contenu des mails ») : les dates bougent d'une année sur l'autre.</li>
+        <li><b>Les numéros de compte comptables</b> restent sur Plan comptable, chez la comptable.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section class="block" id="risques">
+  <h2>Risques</h2>
+  <div class="cols2">
+    <div class="card"><h3>Suppression de colonnes</h3><p>12 colonnes et une table disparaissent de la base. Aucune n'est lue par le code, et la migration vérifie leur présence avant de les supprimer. Une sauvegarde prise avant l'installation permet de revenir en arrière.</p></div>
+    <div class="card"><h3>Adresse d'envoi déduite</h3><p>Si l'email de contact change, l'adresse d'envoi suit. Or Gmail refuse un expéditeur qu'il ne connaît pas. Parade : le test SMTP est proposé dès que l'adresse d'envoi effective change, et la migration conserve toute valeur qui différait déjà.</p></div>
+    <div class="card"><h3>Liens et favoris</h3><p>Les anciennes adresses (<code>/parametres/tarifs</code>, <code>/account</code>…) redirigent vers leur nouvelle place. Les tests Playwright couvrent chaque redirection.</p></div>
+    <div class="card"><h3>Taille du chantier</h3><p>Une seule PR, donc une grosse relecture et une seule installation. Les commits sont ordonnés par thème, et chaque ancienne adresse est couverte par un test.</p></div>
+  </div>
+</section>
+
+<section class="block" id="arbitrages">
+  <h2>Arbitrages en attente</h2>
+  <p class="lead">Tranchés le 21 septembre 2026 : les quatre choix encadrés ont été retenus.</p>
+
+  <div class="q"><b>1. Déverrouiller une réservation passée</b>
+    <p class="muted small">Aujourd'hui, c'est un interrupteur global dans « Générale ». Il est resté allumé dans la copie de production : toutes les réservations passées sont modifiables depuis on ne sait quand.</p>
+    <div class="opts">
+      <div class="opt rec"><span class="ttl">Bouton sur la fiche</span><span class="rtag">Retenu</span>
+        <p class="small">Un bouton « Déverrouiller » sur la fiche passée. Il ne vaut que pour cette fiche et se referme dès qu'on la quitte. L'interrupteur global disparaît.</p>
+        <div class="mini" id="unlockDemo"></div></div>
+      <div class="opt"><span class="ttl">Interrupteur global, déplacé dans Système</span>
+        <p class="small">Même comportement qu'aujourd'hui, plus visible : un bandeau orange rappelle en haut de chaque page que le verrou est levé.</p>
+        <div class="mini"><div class="alert warn" style="margin:0">⚠︎ Les réservations passées sont modifiables. <u>Remettre le verrou</u></div></div></div>
+    </div>
+  </div>
+
+  <div class="q"><b>2. TVA sur commissions (20 %) et sur indemnités d'annulation (0 %)</b>
+    <div class="opts">
+      <div class="opt rec"><span class="ttl">Déménager dans Plan comptable</span><span class="rtag">Retenu</span><p class="small">Ces deux taux ne servent qu'aux écritures comptables. Ils rejoignent les numéros de compte qui les utilisent, et la comptable peut les modifier.</p></div>
+      <div class="opt"><span class="ttl">Figer dans le code</span><p class="small">20 % et 0 % en dur. Plus simple, mais la spec d'origine les avait laissés modifiables au cas où la comptable demande un autre traitement.</p></div>
+    </div>
+  </div>
+
+  <div class="q"><b>3. « Acompte » par plateforme</b>
+    <p class="muted small">Depuis la branche en cours, l'interrupteur « Acompte » du logement gouverne tout l'acompte. Seule Lodgify a le drapeau plateforme à Oui.</p>
+    <div class="opts">
+      <div class="opt rec"><span class="ttl">Le garder, sur la page Plateformes</span><span class="rtag">Retenu</span><p class="small">Il reste utile si une plateforme encaisse un jour un acompte. Il est simplement rangé au même endroit que les autres réglages de plateforme.</p></div>
+      <div class="opt"><span class="ttl">Le supprimer</span><p class="small">Le logement décide seul. Une colonne de moins, mais on perd la distinction Lodgify / OTA dans le moteur de prix.</p></div>
+    </div>
+  </div>
+
+  <div class="q"><b>4. Fiche logement</b>
+    <div class="opts">
+      <div class="opt rec"><span class="ttl">Onglets</span><span class="rtag">Retenu</span><p class="small">Général · Tarifs · Paiement &amp; caution · Séjour &amp; emails · Plateformes &amp; iCal · Documents. Chaque onglet tient sur un écran.</p></div>
+      <div class="opt"><span class="ttl">Une page avec sommaire fixe</span><p class="small">Tout reste sur une page, avec un sommaire cliquable.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="phases">
+  <h2>Une seule PR</h2>
+  <p class="lead">Tout part ensemble, en commits ordonnés pour que la relecture suive le fil.</p>
+  <div class="steps">
+    <div class="step"><b>Ménage serveur et bugs.</b> Suppression des champs sans effet et des colonnes mortes, sync des vacances figée, pied de devis anglais, flèches retour, favicon, défaut du solde.</div>
+    <div class="step"><b>Adresse unique et réglages déplacés.</b> Adresse d'envoi déduite, TVA commissions vers Plan comptable, URL publique vers Système, interrupteur d'envoi automatique remplacé par le mode des modèles.</div>
+    <div class="step"><b>Sous-menu Paramètres réorganisé.</b> « Générale » découpée en pages, Clients et Mon compte déplacés, page Plateformes.</div>
+    <div class="step"><b>Fiche logement en onglets.</b> Accroches vers le modèle J-7, documents ajoutés à part, déverrouillage par fiche sur les réservations passées.</div>
+  </div>
+</section>
+
+</main>
+<footer class="wrap">Maquette autonome : aucune ressource externe. Les données affichées sont celles de la copie locale, secrets masqués.</footer>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= data ================= */
+const MONTHS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const DAYS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const clone=o=>JSON.parse(JSON.stringify(o));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const data={
+  etab:{name:'Domaine Solio',address:'Lieu-dit Solio\n20000 Corse',email:'contact@domainesolio.com',phone:'06 00 00 00 00',siret:'91234567800012',tva:'FR12912345678',bankName:'SOLIO',bic:'QNTOFRP1XXX',iban:'FR76 1695 8000 0112 3456 7890 123',portal:'5071',validity:15,fr:'',en:'We look forward to welcoming you at Domaine Solio.'},
+  devis:{validity:15,fr:'',en:'We look forward to welcoming you at Domaine Solio.'},
+  tva:{rate:10,month:9},
+  emails:{host:'smtp.gmail.com',secure:'starttls',fromOv:'',userOv:'',nameOv:'',pwd:'set',
+          auto:false,review:'https://g.page/r/domainesolio/review',insta:'https://instagram.com/domainesolio',poolStart:'06-15',poolEnd:'08-31',
+          notif:true,notifIcal:false,recipOv:'',push:false},
+  linge:{day:2,double:12,single:14,baby:3,large:18,medium:0,small:18,bathmat:0},
+  plat:{rows:[
+    {n:'Airbnb',c:'#FF5A5F',com:'15.5',dep:'non',tax:'platform',pay:'10'},
+    {n:'Booking',c:'#003580',com:'15',dep:'non',tax:'platform',pay:'10'},
+    {n:'Lodgify',c:'#FEC700',com:'5',dep:'oui',tax:'owner',pay:'10'},
+    {n:'Greengo',c:'#4CAF50',com:'14.5',dep:'non',tax:'platform',pay:'10'},
+    {n:'Abracadaroom',c:'#9C27B0',com:'20',dep:'non',tax:'owner',pay:'10'},
+    {n:'Gîtes de France',c:'#2196F3',com:'0',dep:'non',tax:'platform_reversed',pay:'10'}]},
+  systeme:{url:'https://guestflow.adn-dev.fr',unlock:true},
+  compta:{vatCom:20,vatInd:0}
+};
+data.props={
+ propG:{name:'Gîte',article:'le',maxGuests:'6',maxBabies:'1',doubleBeds:'2',singleBeds:'2',checkIn:'16:00',checkOut:'10:00',cleaning:'3',
+  recipe:'',extraIncluded:'4',extraPrice:'0',extraUnit:'per_stay',taxMode:'per_day_per_person',taxPerDay:'1.20',taxPct:'0',taxDept:'0',taxFixed:'0',
+  depositEnabled:false,depositPct:'30',depositDays:'7',balanceDays:'30',cancelDays:'7',caution:'500',
+  hook:'Chaque matin, le soleil s\'y lève sur la vallée.',hookEn:'Every morning the sun rises over the valley.',parking:'0',wifi:true,coffee:true,
+  earlyOn:true,earlyMode:'proportional',earlyPrice:'20',earlyThr:'10:00',lateOn:true,lateMode:'proportional',latePrice:'20',lateThr:'17:00',
+  src:[{pl:'Airbnb',url:'https://www.airbnb.fr/calendar/ical/1398…ics',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Gîtes de France',url:'https://reservation.itea.fr/iCal_2888…ics',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Greengo',url:'https://calendars.greengo.voyage/calendar/6f6a…',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Abracadaroom',url:'https://vacation.unicstay.com/api/v1/calendar/services/5837',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Lodgify',url:'https://www.lodgify.com/347a…ics',sync:'synchronisé aujourd\'hui à 07:01',on:true}],
+  docs:[['Contrat','Contrat de location'],['Règlement','Règlement intérieur']]},
+ propL:{name:'Aventura Lodge',article:"l'",maxGuests:'4',maxBabies:'1',doubleBeds:'1',singleBeds:'2',checkIn:'16:00',checkOut:'10:00',cleaning:'2',
+  recipe:'aventura-lodge-2026',extraIncluded:'2',extraPrice:'15',extraUnit:'per_night',taxMode:'percentage_accommodation',taxPerDay:'1.20',taxPct:'5',taxDept:'10',taxFixed:'0',
+  depositEnabled:false,depositPct:'30',depositDays:'7',balanceDays:'30',cancelDays:'7',caution:'400',
+  hook:'La forêt commence au pas de la porte.',hookEn:'The forest starts at the doorstep.',parking:'300',wifi:true,coffee:false,
+  earlyOn:true,earlyMode:'proportional',earlyPrice:'20',earlyThr:'10:00',lateOn:true,lateMode:'proportional',latePrice:'20',lateThr:'15:00',
+  src:[{pl:'Lodgify',url:'https://www.lodgify.com/2886…ics',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Greengo',url:'https://calendars.greengo.voyage/calendar/e057…ics',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Abracadaroom',url:'https://vacation.unicstay.com/api/v1/calendar/services/5912',sync:'synchronisé aujourd\'hui à 07:01',on:true},{pl:'Booking',url:'',sync:'',on:true}],
+  docs:[['Contrat','Contrat de location']]}
+};
+const ORIG=clone(data);
+const TAX={platform:'Plateforme (collecte et reverse)',platform_reversed:'Plateforme, reversée par vous',owner:'Vous, à l\'arrivée'};
+const TAXSHORT={platform:'Taxe : plateforme',platform_reversed:'Taxe : plateforme → vous',owner:'Taxe : vous'};
+
+/* settings pages (après) */
+const GROUPS=[
+  ['etab','Établissement'],['logements','Logements'],['plat','Plateformes'],null,
+  ['options','Options & ressources'],['recettes','Recettes tarifaires'],['vacances','Vacances & fermetures'],['linge','Linge'],null,
+  ['paiements','Paiements en ligne'],['tva','TVA & exercice'],['emails','Emails & notifications'],['integ','Intégrations'],null,
+  ['users','Utilisateurs'],['systeme','Système']];
+const PAGE_TITLE={};GROUPS.forEach(i=>{if(i)PAGE_TITLE[i[0]]=i[1]});
+const FORM_PAGES=['etab','tva','emails','linge','plat','systeme'];
+
+/* ================= state ================= */
+const S={mode:'after',dev:'desktop',notes:true,drawer:false,
+  before:{route:'general',sub:null,tab:'options',vtab:'holidays',syncDlg:false,timings:null,timingsSaved:null},
+  after:{route:'settings',page:'etab',prop:null,ptab:'general',otab:'options',vtab:'holidays',fin:false,docName:'',docErr:false},
+  drafts:{},errors:{},toast:null,modal:null};
+FORM_PAGES.forEach(p=>S.drafts[p]=clone(data[p]));
+S.drafts.compta=clone(data.compta);
+Object.keys(data.props).forEach(k=>S.drafts[k]=clone(data.props[k]));
+S.before.timings={dr:'-5, 0',da:'1',de:'1',br:'-10, -5, 0',ba:'1',be:'1'};
+S.before.timingsSaved=clone(S.before.timings);
+
+/* ================= derived (email identity) ================= */
+function effFrom(){const d=S.drafts.emails;return d.fromOv||data.etab.email}
+function effUser(){const d=S.drafts.emails;return d.userOv||effFrom()}
+function effName(){const d=S.drafts.emails;return d.nameOv||data.etab.name}
+function effRecip(){const d=S.drafts.emails;return d.recipOv||effFrom()}
+
+/* ================= validation ================= */
+const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function validate(p){
+  if(p.startsWith('prop'))return validateProp(S.drafts[p]);
+  const d=S.drafts[p],e={};
+  if(p==='etab'){
+    if(!d.name.trim())e.name='La raison sociale est obligatoire (en-tête du devis).';
+    if(!EMAIL.test(d.email.trim()))e.email='Adresse invalide : elle sert aussi d\'adresse d\'envoi des emails.';
+    if(!/^\d{14}$/.test(d.siret.replace(/\s/g,'')))e.siret='Le SIRET compte exactement 14 chiffres.';
+    if(d.tva.trim()&&!/^FR[0-9A-Z]{2}\d{9}$/.test(d.tva.replace(/\s/g,'').toUpperCase()))e.tva='Format attendu : FR + 2 caractères + 9 chiffres.';
+    if(!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(d.iban.replace(/\s/g,'').toUpperCase()))e.iban='IBAN invalide (ex. FR76 3000 6000 0112 3456 7890 189).';
+    if(!/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(d.bic.replace(/\s/g,'').toUpperCase()))e.bic='Le BIC compte 8 ou 11 caractères.';
+  }
+  if(p==='etab'){const v=Number(d.validity);if(!Number.isInteger(v)||v<1||v>365)e.validity='Entre 1 et 365 jours.'}
+  if(p==='tva'){const v=Number(d.rate);if(d.rate===''||isNaN(v)||v<0||v>100)e.rate='Un pourcentage entre 0 et 100.'}
+  if(p==='emails'){
+    if(!d.host.trim())e.host='Le serveur SMTP est obligatoire pour envoyer.';
+    ['fromOv','userOv','recipOv'].forEach(k=>{if(d[k]&&k!=='userOv'&&!EMAIL.test(d[k]))e[k]='Adresse invalide.'});
+    ['review','insta'].forEach(k=>{if(d[k]&&!/^https:\/\/\S+\.\S+/.test(d[k]))e[k]='Un lien complet, commençant par https://'});
+    ['poolStart','poolEnd'].forEach(k=>{const m=/^(\d{2})-(\d{2})$/.exec(d[k]||'');const ok=m&&+m[1]>=1&&+m[1]<=12&&+m[2]>=1&&+m[2]<=new Date(2024,+m[1],0).getDate();if(!ok)e[k]='Format MM-JJ, date réelle (ex. 06-15).'});
+    if(!e.poolStart&&!e.poolEnd&&d.poolStart>=d.poolEnd)e.poolEnd='La fermeture doit suivre l\'ouverture.';
+  }
+  if(p==='linge'){['double','single','baby','large','medium','small','bathmat'].forEach(k=>{const v=Number(d[k]);if(d[k]===''||!Number.isInteger(v)||v<0)e[k]='Un nombre entier ≥ 0.'})}
+  if(p==='plat'){d.rows.forEach((r,i)=>{const c=Number(String(r.com).replace(',','.'));if(r.com===''||isNaN(c)||c<0||c>100)e['com'+i]='0 à 100 %';const y=Number(r.pay);if(r.pay===''||!Number.isInteger(y)||y<0||y>90)e['pay'+i]='0 à 90 j'})}
+  if(p==='systeme'){
+    if(!/^https:\/\/[^\s/]+/.test(d.url))e.url='L\'URL doit commencer par https:// : elle part dans les emails.';
+    else if(/^https:\/\/(\d{1,3}\.){3}\d{1,3}/.test(d.url))e.url='Refusé : une adresse IP ne marche pas hors du réseau local. Utilisez le nom de domaine.';
+  }
+  if(p==='compta'){['vatCom','vatInd'].forEach(k=>{const v=Number(d[k]);if(d[k]===''||isNaN(v)||v<0||v>100)e[k]='0 à 100 %'})}
+  return e;
+}
+function savedOf(p){return p==='compta'?data.compta:p.startsWith('prop')?data.props[p]:data[p]}
+function titleOf(p){return p==='compta'?'Plan comptable':p.startsWith('prop')?data.props[p].name:PAGE_TITLE[p]}
+function isDirty(p){return p&&S.drafts[p]&&JSON.stringify(S.drafts[p])!==JSON.stringify(savedOf(p))}
+function currentFormPage(){
+  if(S.mode!=='after')return null;
+  const a=S.after;
+  if(a.route==='settings'&&a.page==='logements'&&a.prop)return a.prop;
+  if(a.route==='settings'&&FORM_PAGES.includes(a.page))return a.page;
+  if(a.route==='compta')return 'compta';
+  return null;
+}
+
+/* ================= helpers (render) ================= */
+function fld(p,k,label,opts={}){
+  const d=S.drafts[p];const err=S.errors[p]&&S.errors[p][k];
+  const v=opts.value!==undefined?opts.value:d[k];
+  let input;
+  if(opts.type==='textarea')input=`<textarea data-f="${p}.${k}" id="f-${p}-${k}">${esc(v)}</textarea>`;
+  else if(opts.type==='select')input=`<select data-f="${p}.${k}" id="f-${p}-${k}">${opts.options.map(o=>`<option value="${esc(o[0])}"${String(o[0])===String(v)?' selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
+  else input=`<input data-f="${p}.${k}" id="f-${p}-${k}" value="${esc(v)}" ${opts.inputmode?`inputmode="${opts.inputmode}"`:''} ${opts.ph?`placeholder="${esc(opts.ph)}"`:''}>`;
+  return `<div class="fld${err?' err':''}" id="w-${p}-${k}"><label for="f-${p}-${k}">${label}</label>${input}<div class="help" id="h-${p}-${k}" data-base="${esc(opts.help||'')}">${esc(err||opts.help||'')}</div></div>`;
+}
+function sw(on,label,act,dis){return `<div class="sw${on?' on':''}${dis?' dis':''}" data-act="${act}"><span class="track"></span><span>${label}</span></div>`}
+function anno(kind,txt){return `<span class="anno ${kind}">${txt}</span>`}
+function cardnote(kind,txt){return `<span class="cardnote"><span class="anno ${kind}" style="display:inline-flex">${txt}</span></span>`}
+function bar(o){
+  const p=o.form;const dirty=p&&isDirty(p);
+  const sub=o.subtitle!==undefined?o.subtitle:(p?(dirty?'<span class="sub dirty">Modifications non enregistrées</span>':'<span class="sub">Tout est enregistré</span>'):'');
+  const back=o.back?`<button class="ib back" data-act="${o.back}" title="Retour" aria-label="Retour">←</button>`:'';
+  const center=o.center&&S.dev==='desktop'?o.center:'<span class="sp"></span>';
+  const extra=(o.extra||[]).map(x=>`<button class="ib" data-act="${x[0]}" title="${esc(x[1])}" aria-label="${esc(x[1])}">${x[2]}</button>`).join('');
+  const save=o.save?`<button class="ib save" data-act="${o.save}" title="Enregistrer" aria-label="Enregistrer" ${o.saveDisabled?'disabled':''}>✓</button>`:'';
+  const cancel=o.cancel?`<button class="ib" data-act="${o.cancel}" title="Annuler" aria-label="Annuler" ${o.cancelDisabled?'disabled':''}>↺</button>`:'';
+  return `<div class="bar" id="bar">${back}<div style="min-width:0"><div class="t">${o.title}</div>${sub}</div>${center}${extra}${save}${cancel}${o.after||''}</div>${S.dev==='mobile'&&o.center?`<div style="background:#fff;border-bottom:1px solid var(--divider);padding:0 8px">${o.center}</div>`:''}`;
+}
+function formBar(p,title,back){const dirty=isDirty(p);return bar({title,form:p,back,save:'save:'+p,cancel:'cancel:'+p,saveDisabled:!dirty,cancelDisabled:!dirty})}
+
+/* ================= AVANT ================= */
+function beforeSidebar(){
+  const r=S.before.route;
+  const it=(route,label,ic,extra='')=>`<div class="it${r===route?' on':''}" data-nav="b:${route}"><span class="ic">${ic}</span>${label}${extra}</div>`;
+  return `<div class="side${S.drawer?' open':''}">
+  ${it('dash','Tableau de bord','▦')}${it('planning','Planning','▤')}${it('cal','Calendrier','▣')}
+  ${it('finance','Suivi financier','€')}<div class="sub">${it('compta','Plan comptable','·')}</div>
+  ${it('devisp','Devis','📄')}${it('mails','Emails','✉︎')}
+  <div class="it" style="font-weight:700"><span class="ic">⚙︎</span>Parametres<span class="count">10</span></div>
+  <div class="sub">
+    ${it('general','Générale','·')}
+    ${it('logements','Logements','·')}<div class="sub2">${it('gite','Gîte','·')}${it('lodge','Aventura Lodge','·')}</div>
+    ${it('optres','Options & ressources','·')}
+    ${it('clients','Clients','·',anno('move','pas un réglage'))}
+    ${it('vacances','Vacances & fermetures','·')}
+    ${it('blanch','Blanchisserie','·')}
+    ${it('tarifs','Tarifs facturables','·')}
+    ${it('recettes','Recettes tarifaires','·')}
+    ${it('paiements','Paiements','·')}
+    ${it('users','Gestion utilisateur','·')}
+  </div><div class="grow"></div>${it('logout','Se déconnecter','⎋')}</div>`;
+}
+function fake(label,val,note){return `<div class="fld"><label>${label}</label><input value="${esc(val)}">${note?`<div>${note}</div>`:''}</div>`}
+function fakeSw(on,label,note){return `<div class="sw${on?' on':''}" data-act="noop"><span class="track"></span><span>${label}</span></div>${note||''}`}
+function beforeGeneral(){
+  const e=ORIG.etab;
+  const cards=[
+`<div class="acard"><h4>Informations sur votre activité</h4><p class="desc">Ces informations apparaissent sur vos devis.</p>
+ <div class="fld"><label>Logo de votre activité</label><div class="muted small">▢ logo.png · Remplacer · Supprimer</div></div>
+ ${fake('Raison sociale',e.name)}${fake('Adresse',e.address.replace('\n',', '))}
+ ${fake('Email professionnel',e.email,anno('dup','même adresse ×4'))}${fake('Téléphone',e.phone)}
+ ${fake('SIRET',e.siret)}${fake('TVA intracommunautaire',e.tva)}
+ ${fake('Nom de la banque',e.bankName)}${fake('BIC',e.bic)}${fake('IBAN',e.iban)}
+ ${fake('Code portail',e.portal,anno('move','accueil, pas identité'))}</div>`,
+`<div class="acard"><h4>Paramètres des devis</h4>${fake('Validité d\'un devis (en jours)','15')}
+ ${fake('Pied de page du devis (français)','')}${fake('Pied de page du devis (anglais)','',anno('bug','bug : se recharge toujours vide'))}</div>`,
+`<div class="acard"><h4>Taux de TVA</h4><p class="desc">Appliqué à l'ensemble des prestations.</p>${fake('Taux de TVA (%)','10')}
+ ${fake('TVA déductible commissions (%)','20',anno('move','→ Plan comptable'))}${fake('TVA sur indemnités d\'annulation (%)','0',anno('move','→ Plan comptable'))}</div>`,
+`<div class="acard"><h4>Exercice comptable</h4>${fake('Mois de clôture','Septembre')}</div>`,
+`<div class="acard"><h4>Réservations passées</h4><p class="desc">Par défaut, les réservations dont la date d'arrivée est atteinte sont verrouillées… Pensez à le désactiver une fois la correction effectuée.</p>${fakeSw(true,'Autoriser la modification des réservations passées',anno('dup','resté allumé en production'))}</div>`,
+`<div class="acard"><h4>Google Agenda</h4><span class="badge b-ok">Connecté</span><div class="small muted" style="margin-top:6px">Compte : adrien@… · Dernière synchro : aujourd'hui 07:00</div><div style="margin-top:8px"><button class="btn sm">Synchroniser</button> <button class="btn sm">Changer d'agenda</button> <button class="btn sm">Déconnecter</button></div>${anno('move','→ Intégrations')}</div>`,
+`<div class="acard"><h4>Assurance annulation (Neat)</h4><span class="badge b-off">Non configurée</span>${fake('Environnement','staging')}${fake('Identifiant client (clientId)','')}${fake('Secret client','')}${fake('Marge sur la prime Neat (%)','')}${anno('dead','champ caché mort : neatStoreId')}${anno('move','→ Intégrations')}</div>`,
+`<div class="acard"><h4>Envoi d'emails</h4><p class="desc">Configuration pour l'envoie d'email depuis l'application.</p>
+ ${fake('Hôte SMTP','smtp.gmail.com')}${fake('Sécurité','STARTTLS (port 587)')}
+ ${fake('Utilisateur SMTP',e.email,anno('dup','= email pro'))}${fake('Mot de passe SMTP','••••••••')}
+ ${fake('Adresse expéditeur',e.email,anno('dup','= email pro'))}${fake('Nom expéditeur',e.name,anno('dup','= raison sociale'))}
+ ${fake('URL publique de l\'application',ORIG.systeme.url,anno('move','pas un réglage SMTP → Système'))}<button class="btn sm">Envoyer un mail de test</button></div>`,
+`<div class="acard"><h4>Notifications de réservation</h4>${fakeSw(false,'Activer les notifications par email')}${fakeSw(false,'Email à chaque nouvelle réservation plateforme (iCal)')}${fake('Adresse de réception des notifications',e.email,anno('dup','= adresse expéditeur'))}</div>`,
+`<div class="acard"><h4>Envoi automatique des emails</h4>${fakeSw(false,'Autoriser GuestFlow à envoyer les emails sans validation')}<div class="small muted">Séquence de mails clients : pas encore activée…</div>${fake('Lien d\'avis Google','https://g.page/r/…')}${fake('Lien Instagram','https://instagram.com/…')}<div class="row2">${fake('Piscine ouverte du (MM-JJ)','06-15')}${fake('au (MM-JJ)','08-31')}</div></div>`,
+`<div class="acard"><h4>Alertes météo</h4>${fake('Clé API Météo-France (Vigilance)','••••••••')}${anno('move','→ Intégrations')}</div>`,
+`<div class="acard"><h4>Notifications push (cet appareil)</h4><button class="btn sm fill">Activer sur cet appareil</button></div>`,
+`<div class="acard"><h4>Système et mises à jour</h4><div class="small">Version installée : <b>2.17.0</b> · à jour</div><div style="margin-top:8px"><button class="btn sm">Vérifier maintenant</button></div></div>`
+  ];
+  return bar({title:'Paramètres',subtitle:'<span class="sub">Dernière mise à jour : 20/09/2026</span>',save:'noop',cancel:'noop',saveDisabled:true,cancelDisabled:true})+
+   `<div class="content" style="max-width:1100px">
+   ${S.notes?`<div class="alert warn">Un seul bouton Enregistrer pour 13 cartes et environ 45 champs. Sur mobile, cette page fait à peu près ${S.dev==='mobile'?'22':'9'} écrans de défilement.</div>`:''}
+   <div class="masonry">${cards.join('')}</div><div class="scrollmeter">▼ fin de la page « Générale »</div></div>`;
+}
+function beforePaiements(){
+  const t=S.before.timings,dirty=JSON.stringify(t)!==JSON.stringify(S.before.timingsSaved);
+  const f=(k,l)=>`<div class="fld"><label>${l}</label><input data-bt="${k}" value="${esc(t[k])}"></div>`;
+  return bar({title:'Paiements',back:'b:nav:general',subtitle:dirty?'<span class="sub dirty">Modifications non enregistrées</span>':'',save:'b:savetimings',saveDisabled:!dirty,after:S.notes?anno('bug','pas de bouton Annuler'):''})+
+  `<div class="content"><div class="acard"><h4>Connexion bancaire</h4><span class="badge b-ok">Connecté</span><div class="small muted" style="margin-top:6px">Environnement · Client ID · Client secret · Jeton bac à sable · Origine publique du site</div></div>
+  <div class="acard">${cardnote('dead','6 champs sans effet')}<h4>Délais &amp; relances</h4><p class="desc">Tout en jours. Les relances sont des décalages par rapport à la date d'échéance…</p>
+  <b class="small">Acompte</b>${f('dr','Relances (ex. -5, 0)')}<div class="row2">${f('da','Abandon après échéance (j)')}${f('de','Expiration du lien après échéance (j)')}</div>
+  <b class="small">Solde</b>${f('br','Relances (ex. -10, -5, 0)')}<div class="row2">${f('ba','Abandon après échéance (j)')}${f('be','Expiration du lien après échéance (j)')}</div>
+  ${S.notes?'<div class="alert err">Modifiez une valeur puis enregistrez : l\'enregistrement réussit, mais aucune logique ne relit ces champs. Les échéances viennent du logement, les relances des modèles d\'email, l\'expiration du lien de Qonto.</div>':''}</div></div>`;
+}
+function beforeProperty(name){
+  const rows=ORIG.plat.rows.slice(0,4);
+  return bar({title:name,back:'b:nav:logements',subtitle:'',extra:[['noop','Supprimer','🗑']]})+
+  `<div class="content">${S.notes?`<div class="alert warn">Une seule longue page de 10 cartes (1 606 lignes de code). La gestion tarifaire est un bouton tout en bas.</div>`:''}
+  <div class="acard"><h4>Informations</h4><div class="row2">${fake('Nom',name)}${fake('Max voyageurs','6')}</div><div class="row2">${fake('Lits doubles','2')}${fake('Lits simples','2')}</div><div class="row2">${fake('Capacité incluse dans le prix de base','2')}${fake('Supplément par personne','15 €/nuit',anno('dup','écrasé par la recette'))}</div></div>
+  <div class="acard"><h4>Horaires &amp; ménage</h4><div class="row2">${fake('Heure d\'arrivée','16:00')}${fake('Heure de départ','10:00')}</div></div>
+  <div class="acard"><h4>Acompte</h4>${fakeSw(false,'Acompte')}</div>
+  <div class="acard"><h4>Paiement &amp; caution</h4><div class="row2">${fake('Solde (jours avant)','30')}${fake('Caution par défaut','400 €')}</div></div>
+  <div class="acard"><h4>Dans les mails clients</h4>${fake('Accroche J-7 (FR)','…')}</div>
+  <div class="acard"><h4>Options horaires automatiques</h4><div class="small">Arrivée anticipée · Départ tardif</div></div>
+  <div class="acard"><h4>Tarification</h4><div class="small">Taxe de séjour : pourcentage · TVA : voir « Paramètres → Taux de TVA » ${anno('bug','cette section n\'existe pas')}</div><div style="margin-top:8px"><button class="btn sm">Gestion tarifaire</button> ${anno('dup','enterré en bas')}</div></div>
+  <div class="acard"><h4>Documents</h4><div class="small muted">2 fichiers</div></div>
+  <div class="acard">${cardnote('dup','réglages GLOBAUX édités sur un logement')}<h4>Plateformes &amp; iCal</h4><p class="desc">La couleur, la taxe de séjour, l'acompte et le virement sont communs à tous les logements.</p>
+  <div style="overflow-x:auto"><table class="t"><tr><th>Plateforme</th><th>Couleur</th><th>URL iCal</th><th>Taxe de séjour</th><th>Acompte</th><th>Virement sous</th></tr>
+  ${rows.map(r=>`<tr><td>${r.n}</td><td><span class="dot" style="background:${r.c}"></span></td><td><input value="https://…/ical/${r.n.toLowerCase()}.ics"></td><td><select><option>${TAXSHORT[r.tax].replace('Taxe : ','')}</option></select></td><td><select><option>${r.dep==='oui'?'Oui':'Non'}</option></select></td><td><input value="${r.pay} j" style="width:60px"></td></tr>`).join('')}</table></div>
+  ${S.notes?'<div class="small" style="margin-top:6px;color:var(--error);font-weight:600">Changer la couleur d\'Airbnb ici la change aussi sur l\'autre logement. La commission, elle, se règle sur une 3ᵉ page (Gestion tarifaire).</div>':''}</div></div>`;
+}
+function beforeSimple(title,body,o={}){return bar(Object.assign({title},o))+`<div class="content">${body}</div>`}
+function beforeMain(){
+  const r=S.before.route;
+  if(r==='general')return beforeGeneral();
+  if(r==='paiements')return beforePaiements();
+  if(r==='gite')return beforeProperty('Gîte');
+  if(r==='lodge')return beforeProperty('Aventura Lodge');
+  if(r==='404')return `<div class="nf"><div class="big">🧭</div><h3>Page introuvable</h3><p class="muted">L'adresse <code>/parametres</code> n'existe pas.</p>${S.notes?anno('bug','la flèche retour de Blanchisserie et de Tarifs facturables mène ici'):''}<p><button class="btn" data-nav="b:general">Retour à l'accueil</button></p></div>`;
+  if(r==='blanch')return beforeSimple('Blanchisserie',`<div class="acard"><h4>Linge &amp; blanchisserie</h4>${fake('Jour de blanchisserie','Mardi')}</div><div class="row2"><div class="acard"><h4>Parures de lit</h4>${fake('Doubles','12')}${fake('Simples','14')}${fake('Bébé','3')}</div><div class="acard"><h4>Serviettes</h4>${fake('Grandes','18')}${fake('Moyennes','0')}${fake('Petites','18')}${fake('Tapis de bain','0')}</div></div>`,{back:'b:404',save:'noop',cancel:'noop',saveDisabled:true,cancelDisabled:true,after:S.notes?anno('bug','← essayez la flèche'):''});
+  if(r==='tarifs')return beforeSimple('Tarifs facturables',`<div class="acard"><h4>Tarifs facturables</h4><p class="desc">${anno('dup','titre répété')}</p><b class="small">Prix du linge</b><div class="small">Drap housse 15 € · Housse de couette 25 € · Taie 5 € · Grande serviette 12 €…</div><b class="small">Montants de réparation</b><div class="small">Plomb extincteur 35 € · Extincteur utilisé 120 € ${anno('dup','doublon sans clé')}</div></div>`,{back:'b:404',save:'noop',cancel:'noop',saveDisabled:true,cancelDisabled:true,after:S.notes?anno('bug','← essayez la flèche'):''});
+  if(r==='optres'){const t=S.before.tab;const tabs=`<div class="center-tabs"><button class="${t==='options'?'on':''}" data-act="b:tab:options">Options</button><button class="${t==='res'?'on':''}" data-act="b:tab:res">Ressources</button></div>`;
+    return bar({title:t==='options'?'Options de sejour':'Ressources',center:tabs,extra:[['noop','Nouvelle','＋']],after:S.notes&&t==='options'?anno('bug','accent manquant'):''})+`<div class="content"><div class="acard"><table class="t"><tr><th>Nom</th><th>Prix</th></tr>${(t==='options'?[['Arrivée anticipée','20 €',1],['Départ tardif','20 €',1],['Arrivée anticipée','25 €',1],['Départ tardif','25 €',1],['Petit déjeuner','12 €/pers.'],['Linge de lit','15 €/lit'],['Linge de toilette','8 €/pers.'],['Lit bébé','offert'],['Assurance annulation','Neat']]:[['Bain nordique','30 €/h'],['Barbecue','offert']]).map(x=>`<tr><td>${x[0]} ${x[2]&&S.notes?anno('dup','doublon non supprimable'):''}</td><td>${x[1]}</td></tr>`).join('')}</table></div></div>`}
+  if(r==='vacances'){const t=S.before.vtab;const tabs=`<div class="center-tabs"><button class="${t==='holidays'?'on':''}" data-act="b:vtab:holidays">Vacances scolaires</button><button class="${t==='closures'?'on':''}" data-act="b:vtab:closures">Fermetures</button></div>`;
+    if(t==='holidays')return bar({title:'Vacances scolaires',back:'b:nav:general',center:tabs,extra:[['b:syncdlg','Réglages de synchronisation','⚙︎'],['noop','Synchroniser','⟳']]})+`<div class="content"><div class="alert info">Synchronisé il y a 12 jours · prochaine synchro dans 48 jours ${S.notes?anno('move','⚙︎ ouvre 2 réglages à figer'):''}</div><div class="acard"><div class="small">Toussaint · Noël · Hiver · Printemps · Été (zones A/B/C)</div></div></div>`;
+    return bar({title:'Fermetures',center:tabs,extra:[['noop','Ajouter une fermeture','＋']],after:S.notes?anno('bug','pas de flèche retour ici'):''})+`<div class="content"><div class="acard"><table class="t"><tr><th>Logement</th><th>Libellé</th><th>Début</th><th>Fin</th></tr><tr><td>Gîte</td><td>Fermeture hivernale</td><td>01/11</td><td>31/03</td></tr></table></div></div>`}
+  if(r==='users')return beforeSimple('Gestion utilisateur',`<div class="acard"><h4>Mes informations</h4>${fake('Nom','Adrien')}${fake('Email','adrien@…')}</div><div class="acard"><h4>Mon mot de passe</h4>${fake('Mot de passe actuel','')}</div><div class="acard">${cardnote('move','profil perso + admin mélangés')}<h4>Gestion des comptes</h4><table class="t"><tr><th>Nom</th><th>Rôle</th><th>Statut</th></tr><tr><td>Adrien</td><td>Admin</td><td>Actif</td></tr><tr><td>Réception</td><td>Réception</td><td>Actif</td></tr><tr><td>Comptable</td><td>Comptable</td><td>Actif</td></tr></table></div>`,{extra:[['noop','Ajouter un compte','＋']]});
+  if(r==='compta')return beforeSimple('Plan comptable',`<div class="acard"><h4>Compte par défaut</h4>${fake('Compte commission','622600')}</div><div class="acard"><h4>Indemnités d'annulation</h4>${fake('Compte','75880000')}<div class="small">TVA : 0 % <a href="#" data-nav="b:general">modifier dans Paramètres</a> ${anno('move','lue ici, éditée ailleurs')}</div></div><div class="acard"><h4>Par plateforme</h4><table class="t"><tr><th>Plateforme</th><th>Compte</th><th>TVA déductible</th></tr><tr><td>Airbnb</td><td>62260300</td><td>Non</td></tr><tr><td>Greengo</td><td>62260600</td><td>Oui (20 %)</td></tr></table></div>`,{back:'b:nav:general',save:'noop',cancel:'noop',saveDisabled:true,cancelDisabled:true});
+  const simple={logements:['Logements','<div class="row2"><div class="acard list-item" data-nav="b:gite"><b>Gîte</b></div><div class="acard list-item" data-nav="b:lodge"><b>Aventura Lodge</b></div></div>'],
+    clients:['Clients','<div class="acard"><div class="small">Annuaire des clients : à venir / passés, recherche…</div></div>'],
+    recettes:['Recettes tarifaires','<div class="acard"><h4>aventura-lodge-2026</h4><div class="small muted">Livrée · utilisée par Aventura Lodge</div></div><div class="acard"><h4>gite-2027</h4><div class="small muted">Livrée · utilisée par Gîte</div></div>']};
+  if(simple[r])return beforeSimple(simple[r][0],simple[r][1]);
+  return `<div class="nf"><div class="big">▦</div><h3>Hors périmètre</h3><p class="muted">Cette page ne change pas. Ouvrez une entrée de « Paramètres ».</p></div>`;
+}
+
+/* ================= APRÈS ================= */
+function afterSidebar(){
+  const a=S.after;const inSet=a.route==='settings';
+  const it=(route,label,ic)=>`<div class="it${a.route===route?' on':''}" data-nav="a:${route}"><span class="ic">${ic}</span>${label}</div>`;
+  const sub=g=>{if(!g)return '<div style="height:1px;background:var(--divider);margin:5px 12px"></div>';
+    const on=inSet&&a.page===g[0]&&!(g[0]==='logements'&&a.prop);
+    let h=`<div class="it${on?' on':''}" data-act="page:${g[0]}"><span class="ic">·</span>${g[1]}${isDirty(g[0])?'<span style="color:var(--warn);margin-left:4px">●</span>':''}</div>`;
+    if(g[0]==='logements')h+=`<div class="sub2">${Object.keys(data.props).map(k=>`<div class="it${inSet&&a.prop===k?' on':''}" data-act="prop:${k}"><span class="ic">·</span>${esc(data.props[k].name)}${isDirty(k)?'<span style="color:var(--warn);margin-left:4px">●</span>':''}</div>`).join('')}</div>`;
+    return h};
+  return `<div class="side${S.drawer?' open':''}">
+  ${it('dash','Tableau de bord','▦')}${it('planning','Planning','▤')}${it('cal','Calendrier','▣')}
+  ${it('finance','Suivi financier','€')}${a.fin||a.route==='compta'?`<div class="sub">${it('compta','Plan comptable','·')}</div>`:''}
+  ${it('devisp','Devis','📄')}${it('mails','Emails','✉︎')}${it('clients','Clients','☺')}
+  <div class="it" data-nav="a:settings" style="font-weight:700"><span class="ic">⚙︎</span>Paramètres</div>
+  ${inSet?`<div class="sub">${GROUPS.map(sub).join('')}</div>`:''}
+  <div class="grow"></div>
+  ${it('account','Mon compte','◉')}${it('logout','Se déconnecter','⎋')}</div>`;
+}
+function backToList(){return null}
+
+function pEtab(){const p='etab';return formBar(p,'Établissement',backToList())+`<div class="content">
+ <div class="acard"><h4>Identité</h4><p class="desc">En-tête et pied de page de vos devis.</p>
+ <div class="fld"><label>Logo</label><div class="small muted">▢ logo.png · sert aussi d'icône d'onglet · <button class="linkbtn">Remplacer</button></div></div>
+ ${fld(p,'name','Raison sociale',{help:'Sert aussi de nom d\'expéditeur des emails.'})}${fld(p,'address','Adresse',{type:'textarea',help:'Sert aussi à localiser les alertes météo.'})}
+ <div class="row2">${fld(p,'siret','SIRET',{inputmode:'numeric',help:'14 chiffres.'})}${fld(p,'tva','TVA intracommunautaire',{help:'Vide si non assujetti.'})}</div></div>
+ <div class="acard"><h4>Contact</h4><div class="row2">${fld(p,'email','Email de contact',{help:'Affiché sur les devis, et adresse d\'envoi des emails.'})}${fld(p,'phone','Téléphone')}</div></div>
+ <div class="acard"><h4>Coordonnées bancaires</h4><div class="row2">${fld(p,'bankName','Nom de la banque')}${fld(p,'bic','BIC')}</div>${fld(p,'iban','IBAN')}</div>
+ <div class="acard"><h4>Accueil</h4>${fld(p,'portal','Code portail',{help:'Communiqué au client dans le SAS d\'arrivée.'})}</div>
+ <div class="acard"><h4>Devis</h4>${fld(p,'validity','Validité d\'un nouveau devis (jours)',{inputmode:'numeric',help:'Entre 1 et 365.'})}${fld(p,'fr','Pied de page (français)',{type:'textarea',help:'Vide : message par défaut.'})}${fld(p,'en','Pied de page (anglais)',{type:'textarea',help:'Devis en anglais. Vide : message anglais par défaut.'})}${S.notes?anno('fixed','corrigé : le texte anglais enregistré s\'affiche enfin'):''}</div></div>`}
+function pTva(){const p='tva';const m=Number(S.drafts.tva.month);const start=(m%12)+1;const last=new Date(2024,m,0).getDate();
+ const hint=m===12?'L\'exercice suit l\'année civile.':`L'exercice va du 1er ${MONTHS[start-1].toLowerCase()} au ${last} ${MONTHS[m-1].toLowerCase()}.`;
+ return formBar(p,'TVA & exercice',backToList())+`<div class="content"><div class="acard"><h4>TVA des séjours</h4>${fld(p,'rate','Taux de TVA (%)',{inputmode:'decimal',help:'Hébergement, options et ressources.'})}
+ ${S.notes?`<div class="small muted">Les taux sur commissions et indemnités sont maintenant sur <a href="#" data-nav="a:compta">Plan comptable</a>. ${anno('move','déplacés')}</div>`:''}</div>
+ <div class="acard"><h4>Exercice comptable</h4>${fld(p,'month','Mois de clôture',{type:'select',options:MONTHS.map((x,i)=>[i+1,x]),help:hint})}</div></div>`}
+function derivedField(p,ovKey,label,effective,fromLabel,show){
+  const d=S.drafts[p];const open=d[ovKey]!==''||S.after['open_'+ovKey];
+  if(open)return fld(p,ovKey,label,{ph:effective,help:'Vide : '+fromLabel+'.'})+`<button class="linkbtn" data-act="ov:${ovKey}:close">Revenir à la valeur déduite</button>`;
+  return `<div class="fld" id="w-${p}-${ovKey}"><label>${label}</label><div class="derived"><span class="val">${esc(effective)}</span><span class="from">= ${fromLabel}</span><span class="sp" style="flex:1"></span><button class="linkbtn" data-act="ov:${ovKey}:open">${show}</button></div></div>`;
+}
+function pEmails(){const p='emails',d=S.drafts.emails;
+ const port=d.secure==='tls'?465:587;
+ return formBar(p,'Emails & notifications',backToList())+`<div class="content">
+ <div class="acard"><h4>Envoi</h4><p class="desc">Le serveur qui envoie les emails de GuestFlow.</p>
+  <div class="row2">${fld(p,'host','Serveur SMTP',{help:'Ex. smtp.gmail.com'})}${fld(p,'secure','Sécurité',{type:'select',options:[['starttls','STARTTLS'],['tls','TLS implicite']],help:'Port utilisé : '+port+' (déduit).'})}</div>
+  ${derivedField(p,'fromOv','Adresse d\'envoi',effFrom(),'email de contact de l\'Établissement','Utiliser une autre adresse')}
+  ${derivedField(p,'userOv','Identifiant SMTP',effUser(),'adresse d\'envoi','Identifiant différent')}
+  <div class="fld"><label>Mot de passe SMTP</label><div class="derived" style="background:#fff;border-style:solid;border-color:rgba(60,54,36,.25)"><span>••••••••••</span><span class="sp" style="flex:1"></span><button class="linkbtn">Modifier</button></div><div class="help">Pour Gmail : un mot de passe d'application.</div></div>
+  ${derivedField(p,'nameOv','Nom affiché',effName(),'raison sociale','Autre nom')}
+  <button class="btn sm" data-act="smtptest">Envoyer un mail de test</button>
+  ${S.notes?`<div style="margin-top:8px">${anno('dup','4 saisies → 1')}${anno('dead','port : déduit')}${anno('move','URL publique → Système')}</div>`:''}</div>
+ ${S.notes?`<div class="acard" style="border:1px dashed #d9a3a0;box-shadow:none"><b class="small">« Envoyer les emails clients sans ma validation » : interrupteur supprimé</b><div class="small muted">Chaque modèle décide seul avec son mode Automatique / Manuel, dans <a href="#" data-nav="a:mails">Emails</a>. À la mise à jour, tous les modèles passent en Manuel : rien ne part sans vous.</div></div>`:''}
+ <div class="acard"><h4>Contenu des mails</h4><div class="row2">${fld(p,'review','Lien d\'avis Google',{help:'Mail de remerciement (J+1).'})}${fld(p,'insta','Lien Instagram',{help:'Mail J+1.'})}</div>
+  <div class="row2">${fld(p,'poolStart','Piscine ouverte du',{help:'MM-JJ'})}${fld(p,'poolEnd','au',{help:'MM-JJ'})}</div></div>
+ <div class="acard"><h4>Mes notifications</h4>${sw(d.notif,'Email à chaque demande de devis du site','tg:notif')}${sw(d.notifIcal,'Email à chaque réservation plateforme (iCal)','tg:notifIcal',!d.notif)}
+  ${d.notif?derivedField(p,'recipOv','Reçues sur',effRecip(),'adresse d\'envoi','Autre adresse'):''}
+  <div style="border-top:1px solid var(--divider);margin-top:10px;padding-top:10px">${sw(d.push,'Notifications push sur cet appareil','tg:push')}</div></div></div>`}
+function pLinge(){const p='linge';const n=(k,l)=>fld(p,k,l,{inputmode:'numeric'});
+ return formBar(p,'Linge',backToList())+`<div class="content"><div class="acard"><h4>Blanchisserie</h4>${fld(p,'day','Jour de blanchisserie',{type:'select',options:[1,2,3,4,5,6,0].map(i=>[i,DAYS[i]]),help:'Le Planning affiche ce jour-là les parures à apporter et à récupérer.'})}</div>
+ <div class="acard"><h4>Stock</h4><p class="desc">Jeux complets possédés, partagés entre les logements. 0 = non suivi.</p><div class="row2"><div><b class="small">Parures de lit</b>${n('double','Doubles')}${n('single','Simples')}${n('baby','Bébé')}</div><div><b class="small">Serviettes</b>${n('large','Grandes')}${n('medium','Moyennes')}${n('small','Petites')}${n('bathmat','Tapis de bain')}</div></div></div>
+ ${S.notes?`<div class="small muted">Le prix du linge manquant est dans <a href="#" data-act="page:options">Options &amp; ressources → Facturables au SAS</a>. ${anno('fixed','flèche retour réparée')}</div>`:''}</div>`}
+function pPlat(){const p='plat',d=S.drafts.plat,er=S.errors.plat||{};
+ const mob=S.dev==='mobile';
+ const row=(r,i)=>{
+  const com=`<div class="${er['com'+i]?'err':''}"><input data-f="plat.rows.${i}.com" id="f-plat-com${i}" value="${esc(r.com)}" inputmode="decimal"><div class="emsg" id="h-plat-com${i}">${esc(er['com'+i]||'')}</div></div>`;
+  const pay=`<div class="${er['pay'+i]?'err':''}"><input data-f="plat.rows.${i}.pay" id="f-plat-pay${i}" value="${esc(r.pay)}" inputmode="numeric"><div class="emsg" id="h-plat-pay${i}">${esc(er['pay'+i]||'')}</div></div>`;
+  const col=`<input type="color" data-f="plat.rows.${i}.c" value="${esc(r.c)}" style="width:42px;height:30px;padding:1px">`;
+  const dep=`<select data-f="plat.rows.${i}.dep"><option value="non"${r.dep==='non'?' selected':''}>Non</option><option value="oui"${r.dep==='oui'?' selected':''}>Oui</option></select>`;
+  const tax=`<select data-f="plat.rows.${i}.tax">${Object.keys(TAX).map(k=>`<option value="${k}"${r.tax===k?' selected':''}>${TAX[k]}</option>`).join('')}</select>`;
+  if(mob)return `<div class="acard"><h4><span class="dot" style="background:${r.c}"></span>${r.n}</h4><div class="row2"><div class="fld"><label>Couleur</label>${col}</div><div class="fld"><label>Commission (%)</label>${com}</div><div class="fld"><label>Encaisse un acompte</label>${dep}</div><div class="fld"><label>Virement sous (jours)</label>${pay}</div></div><div class="fld"><label>Taxe de séjour</label>${tax}</div></div>`;
+  return `<tr><td><span class="dot" style="background:${r.c}"></span><b>${r.n}</b></td><td>${col}</td><td style="width:90px">${com}</td><td style="width:80px">${dep}</td><td>${tax}</td><td style="width:80px">${pay}</td></tr>`;};
+ return formBar(p,'Plateformes',backToList())+`<div class="content" style="max-width:980px">
+ <div class="alert info">Ces réglages valent pour <b>tous</b> les logements. Chaque fiche logement ne garde que ses flux iCal. Les comptes comptables restent sur <a href="#" data-nav="a:compta">Plan comptable</a>.</div>
+ ${mob?d.rows.map(row).join(''):`<div class="acard" style="overflow-x:auto"><table class="t"><tr><th>Plateforme</th><th>Couleur</th><th>Commission %</th><th>Acompte</th><th>Taxe de séjour</th><th>Virement (j)</th></tr>${d.rows.map(row).join('')}</table></div>`}
+ ${S.notes?`<div>${anno('move','rassemblé depuis 3 pages : fiche logement, gestion tarifaire, plan comptable')}</div>`:''}</div>`}
+function pSysteme(){const p='systeme',d=S.drafts.systeme;
+ return formBar(p,'Système',backToList())+`<div class="content">
+ <div class="acard"><h4>Version</h4><div>Version installée : <b>2.17.0</b> <span class="badge b-ok">à jour</span></div><div style="margin-top:8px"><button class="btn sm">Vérifier maintenant</button> <button class="btn sm">Historique</button></div></div>
+ <div class="acard"><h4>Adresse de l'application</h4>${fld(p,'url','URL publique',{help:'Utilisée dans les emails, le retour Google et les notifications Qonto.'})}</div>
+ ${S.notes?`<div class="acard" style="border:1px dashed #d9a3a0;box-shadow:none"><b class="small">Réservations passées : interrupteur supprimé</b><div class="small muted">Remplacé par « Déverrouiller cette fiche » sur la réservation elle-même, qui se referme quand on la quitte (arbitrage n°1).</div></div>`:''}</div>`}
+function pCompta(){const p='compta';return formBar(p,'Plan comptable',null)+`<div class="content">
+ <div class="acard"><h4>Compte par défaut</h4><div class="fld"><label>Compte commission</label><input value="622600"></div></div>
+ <div class="acard"><h4>TVA</h4>${S.notes?anno('move','arrivés depuis Paramètres'):''}<div class="row2">${fld(p,'vatCom','TVA déductible sur commissions (%)',{inputmode:'decimal',help:'Plateformes marquées « TVA déductible » ci-dessous.'})}${fld(p,'vatInd','TVA sur indemnités d\'annulation (%)',{inputmode:'decimal',help:'0 % = hors champ (recommandé).'})}</div></div>
+ <div class="acard"><h4>Par plateforme</h4><table class="t"><tr><th>Plateforme</th><th>Compte</th><th>TVA déductible</th></tr><tr><td>Airbnb</td><td>62260300</td><td>Non</td></tr><tr><td>Greengo</td><td>62260600</td><td>Oui</td></tr></table></div></div>`}
+function pIntegrations(){return bar({title:'Intégrations',back:backToList()})+`<div class="content">
+ ${[['Google Agenda','Connecté','b-ok','adrien@domainesolio.com · synchro 07:00','Gérer'],['Assurance annulation (Neat)','Non configurée','b-off','En attente du compte de service API','Configurer'],['Alertes météo (Météo-France)','Clé enregistrée','b-ok','Vigilance orange/rouge dans le SAS','Modifier la clé']].map(c=>`<div class="acard" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:180px"><h4>${c[0]}</h4><div class="small muted">${c[3]}</div></div><span class="badge ${c[2]}">${c[1]}</span><button class="btn sm">${c[4]}</button></div>`).join('')}
+ <div class="small muted">Chaque carte ouvre sa configuration dans une fenêtre ; rien à enregistrer sur cette page.</div></div>`}
+function pPaiements(){return bar({title:'Paiements en ligne',back:backToList()})+`<div class="content"><div class="acard"><h4>Connexion bancaire (Qonto)</h4><span class="badge b-ok">Connecté</span>
+ <div class="small muted" style="margin-top:6px">Environnement · Client ID · Client secret · Origine publique du site · Dernière vérification : aujourd'hui</div><div style="margin-top:8px"><button class="btn sm">Tester</button> <button class="btn sm">Reconnecter</button></div></div>
+ ${S.notes?`<div class="acard" style="border:1px dashed #d9a3a0;box-shadow:none"><b class="small">Délais &amp; relances : supprimé</b><div class="small muted">Les échéances se règlent sur le logement (onglet Paiement &amp; caution), les relances dans les modèles d'email.</div></div>`:''}</div>`}
+function pOptions(){const t=S.after.otab;const tabs=`<div class="center-tabs"><button class="${t==='options'?'on':''}" data-act="otab:options">Options</button><button class="${t==='res'?'on':''}" data-act="otab:res">Ressources</button><button class="${t==='sas'?'on':''}" data-act="otab:sas">Facturables au SAS</button></div>`;
+ let body;
+ if(t==='options')body=`<div class="acard"><table class="t"><tr><th>Nom</th><th>Prix</th></tr>${[['Petit déjeuner','12 €/pers.'],['Linge de lit','15 €/lit'],['Linge de toilette','8 €/pers.'],['Lit bébé','offert'],['Assurance annulation','Neat']].map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table>${S.notes?`<div style="margin-top:6px">${anno('fixed','Arrivée anticipée / Départ tardif : réglés sur chaque logement, plus en double ici')}</div>`:''}</div>`;
+ else if(t==='res')body=`<div class="acard"><table class="t"><tr><th>Nom</th><th>Prix</th></tr><tr><td>Bain nordique</td><td>30 €/h</td></tr><tr><td>Barbecue</td><td>offert</td></tr></table></div>`;
+ else body=`<div class="acard"><h4>Linge manquant</h4><div class="small">Drap housse 15 € · Housse de couette 25 € · Taie 5 € · Grande serviette 12 € · …</div></div><div class="acard"><h4>Réparations</h4><div class="small">Plomb extincteur 35 € · Extincteur utilisé 120 €</div></div>${S.notes?anno('move','ancienne entrée « Tarifs facturables »'):''}`;
+ return bar({title:'Options & ressources',back:backToList(),center:tabs,extra:[['noop','Nouveau','＋']]})+`<div class="content">${body}</div>`}
+function pVacances(){const t=S.after.vtab;const tabs=`<div class="center-tabs"><button class="${t==='holidays'?'on':''}" data-act="vtab:holidays">Vacances scolaires</button><button class="${t==='closures'?'on':''}" data-act="vtab:closures">Fermetures</button></div>`;
+ return bar({title:'Vacances & fermetures',back:backToList(),center:tabs,extra:t==='holidays'?[['noop','Synchroniser maintenant','⟳'],['noop','Ajouter une période','＋']]:[['noop','Ajouter une fermeture','＋']]})+`<div class="content">
+ ${t==='holidays'?`<div class="alert info">Synchronisation automatique tous les 60 jours, sur 24 mois. ${S.notes?anno('fixed','fixé : plus de fenêtre de réglage'):''}</div><div class="acard"><div class="small">Toussaint · Noël · Hiver · Printemps · Été (zones A/B/C)</div></div>`:`<div class="acard"><table class="t"><tr><th>Logement</th><th>Libellé</th><th>Début</th><th>Fin</th></tr><tr><td>Gîte</td><td>Fermeture hivernale</td><td>01/11</td><td>31/03</td></tr></table></div>`}</div>`}
+function pRecettes(){return bar({title:'Recettes tarifaires',back:backToList(),extra:[['noop','Déclarer un changement tarifaire','＋']]})+`<div class="content"><div class="acard"><h4>aventura-lodge-2026</h4><div class="small muted">Livrée · utilisée par Aventura Lodge</div></div><div class="acard"><h4>gite-2027</h4><div class="small muted">Livrée · utilisée par Gîte</div></div><div class="acard"><h4>Journal des changements</h4><div class="small muted">12/08/2026 · recette · 13-14/08 · plateformes</div></div></div>`}
+function pUsers(){return bar({title:'Utilisateurs',back:backToList(),extra:[['noop','Ajouter un compte','＋']]})+`<div class="content"><div class="acard"><table class="t"><tr><th>Nom</th><th>Rôle</th><th>Statut</th></tr><tr><td>Adrien</td><td>Admin</td><td><span class="badge b-ok">Actif</span></td></tr><tr><td>Réception</td><td>Réception</td><td><span class="badge b-ok">Actif</span></td></tr><tr><td>Comptable</td><td>Comptable</td><td><span class="badge b-ok">Actif</span></td></tr></table>${S.notes?`<div style="margin-top:6px">${anno('move','mon profil et mon mot de passe → « Mon compte », en bas du menu')}</div>`:''}</div></div>`}
+
+/* ---------- PROPERTY PAGE (après) ---------- */
+const PROP_TABS=[['general','Général'],['tarifs','Tarifs'],['paiement','Paiement & caution'],['sejour','Séjour'],['plat','Plateformes & iCal'],['docs','Documents']];
+const TAB_OF={name:'general',article:'general',maxGuests:'general',maxBabies:'general',doubleBeds:'general',singleBeds:'general',checkIn:'general',checkOut:'general',cleaning:'general',
+ extraIncluded:'tarifs',extraPrice:'tarifs',extraUnit:'tarifs',taxMode:'tarifs',taxPerDay:'tarifs',taxPct:'tarifs',taxDept:'tarifs',taxFixed:'tarifs',
+ depositEnabled:'paiement',depositPct:'paiement',depositDays:'paiement',balanceDays:'paiement',cancelDays:'paiement',caution:'paiement',
+ parking:'sejour',wifi:'sejour',coffee:'sejour',earlyOn:'sejour',earlyMode:'sejour',earlyPrice:'sejour',earlyThr:'sejour',lateOn:'sejour',lateMode:'sejour',latePrice:'sejour',lateThr:'sejour',
+ src:'plat',docs:'docs'};
+function tabOfKey(k){if(/^url\d+$/.test(k))return 'plat';return TAB_OF[k]}
+const HOURS=['08:00','09:00','10:00','11:00','12:00','14:00','15:00','16:00','17:00','18:00'];
+const isInt=v=>/^\d+$/.test(String(v).trim());
+const num=v=>Number(String(v).replace(',','.'));
+const isNum=v=>String(v).trim()!==''&&!isNaN(num(v));
+function validateProp(d){
+ const e={};
+ if(!d.name.trim())e.name='Le nom est obligatoire.';
+ if(!isInt(d.maxGuests)||+d.maxGuests<1)e.maxGuests='Au moins 1 voyageur.';
+ if(!isInt(d.maxBabies))e.maxBabies='Un nombre entier ≥ 0.';
+ ['doubleBeds','singleBeds'].forEach(k=>{if(!isInt(d[k]))e[k]='Un nombre entier ≥ 0.'});
+ if(!e.doubleBeds&&!e.singleBeds&&+d.doubleBeds+ +d.singleBeds<1)e.doubleBeds='Il faut au moins un lit.';
+ if(!e.maxGuests&&!e.doubleBeds&&!e.singleBeds&&(2*d.doubleBeds+ +d.singleBeds)<+d.maxGuests)e.maxGuests=`Seulement ${2*d.doubleBeds+ +d.singleBeds} couchages pour ${d.maxGuests} voyageurs.`;
+ if(!isNum(d.cleaning)||num(d.cleaning)<0||num(d.cleaning)>12)e.cleaning='Entre 0 et 12 heures.';
+ if(!d.recipe){
+  if(!isInt(d.extraIncluded)||+d.extraIncluded<1)e.extraIncluded='Au moins 1 personne.';
+  else if(!e.maxGuests&&+d.extraIncluded>+d.maxGuests)e.extraIncluded=`Pas plus que la capacité (${d.maxGuests}).`;
+  if(!isNum(d.extraPrice)||num(d.extraPrice)<0)e.extraPrice='Un montant ≥ 0 €.';
+ }
+ if(d.taxMode==='per_day_per_person'){if(!isNum(d.taxPerDay)||num(d.taxPerDay)<0)e.taxPerDay='Un montant ≥ 0 €.'}
+ else{['taxPct','taxDept'].forEach(k=>{if(!isNum(d[k])||num(d[k])<0||num(d[k])>100)e[k]='Entre 0 et 100 %.'});
+  if(d.taxMode==='percentage_and_fixed'&&(!isNum(d.taxFixed)||num(d.taxFixed)<0))e.taxFixed='Un montant ≥ 0 €.'}
+ if(d.depositEnabled){
+  if(!isNum(d.depositPct)||num(d.depositPct)<=0||num(d.depositPct)>=100)e.depositPct='Entre 1 et 99 %. Pour 100 %, désactivez l\'acompte.';
+  if(!isInt(d.depositDays))e.depositDays='Un nombre de jours ≥ 0.';
+ }
+ if(!isInt(d.balanceDays)||+d.balanceDays>365)e.balanceDays='Entre 0 et 365 jours.';
+ if(!isInt(d.cancelDays))e.cancelDays='Un nombre de jours ≥ 0.';
+ if(!isNum(d.caution)||num(d.caution)<0)e.caution='Un montant ≥ 0 €.';
+ if(!isInt(d.parking))e.parking='En mètres, un entier ≥ 0.';
+ ['early','late'].forEach(x=>{if(d[x+'On']&&d[x+'Mode']==='fixed'&&(!isNum(d[x+'Price'])||num(d[x+'Price'])<0))e[x+'Price']='Un montant ≥ 0 €.';
+  if(d[x+'On']&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(d[x+'Thr']))e[x+'Thr']='Une heure HH:MM.'});
+ d.src.forEach((s,i)=>{if(s.url&&!/^https:\/\/\S+\.\S+/.test(s.url))e['url'+i]='Un lien complet en https://, ou vide pour une saisie manuelle.'});
+ return e;
+}
+function tabState(p,tab){
+ const d=S.drafts[p],sv=data.props[p],er=validate(p);
+ const keys=Object.keys(TAB_OF).filter(k=>TAB_OF[k]===tab);
+ const dirty=keys.some(k=>JSON.stringify(d[k])!==JSON.stringify(sv[k]));
+ const bad=Object.keys(er).some(k=>tabOfKey(k)===tab);
+ return bad?'bad':dirty?'dirty':'';
+}
+function tabDot(st){return st==='bad'?'<span style="color:var(--error)"> ●</span>':st==='dirty'?'<span style="color:var(--warn)"> ●</span>':''}
+function seasonsTable(rows){return `<table class="t"><tr><th>Saison</th><th>Prix de base / nuit</th><th>Min. nuits</th></tr>${rows.map(r=>`<tr><td><span class="dot" style="background:${r[3]}"></span>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table>`}
+function pProperty(){
+ const p=S.after.prop,d=S.drafts[p],t=S.after.ptab,dirty=isDirty(p);
+ const sel=(k,label,opts,help)=>fld(p,k,label,{type:'select',options:opts,help});
+ const n=(k,label,help)=>fld(p,k,label,{inputmode:'decimal',help});
+ let body='';
+ if(t==='general')body=`<div class="acard"><h4>Identité</h4><div class="row2">${fld(p,'name','Nom du logement')}${sel('article','Article du nom (emails clients)',[['le','le'],['la','la'],["l'","l'"]],'« Votre séjour dans '+(d.article==="l'"?"l'":d.article+' ')+esc(d.name)+' »')}</div></div>
+  <div class="acard"><h4>Capacité</h4><div class="row2">${n('maxGuests','Max voyageurs','Adultes, ados et enfants de plus de 2 ans.')}${n('maxBabies','Max bébés','0 à 2 ans, hors capacité.')}</div><div class="row2">${n('doubleBeds','Lits doubles')}${n('singleBeds','Lits simples')}</div></div>
+  <div class="acard"><h4>Horaires &amp; ménage</h4><div class="row2">${sel('checkIn','Heure d\'arrivée',HOURS.map(h=>[h,h]))}${sel('checkOut','Heure de départ',HOURS.map(h=>[h,h]))}</div>${n('cleaning','Temps de ménage (heures)','Réserve le créneau entre deux séjours.')}</div>`;
+ if(t==='tarifs'){
+  const seasons=p==='propG'?[['Très basse','252 €',2,'#669c35'],['Basse','303 €',2,'#0042aa'],['Moyenne','326 €',2,'#942192'],['Haute','382 €',2,'#ff9300'],['Très haute','537,50 €',2,'#ff2600']]:[['Basse saison','179 €',1,'#5B8C6E'],['Moyenne saison','216 €',1,'#D9A441'],['Haute saison','247 €',1,'#C25B4E']];
+  body=`<div class="acard"><h4>Saisons et prix</h4>
+   <div class="derived" style="margin-bottom:10px"><span class="val">${d.recipe?'Recette '+esc(d.recipe):'Saisons saisies à la main'}</span><span class="from">${d.recipe?'fixe les saisons, les prix, les séjours minimum et le supplément voyageur':'aucune recette appliquée'}</span><span style="flex:1"></span><button class="btn sm fill" data-act="opentarif">Ouvrir la gestion tarifaire</button></div>
+   ${seasonsTable(seasons)}${S.notes?`<div style="margin-top:6px">${anno('fixed','la gestion tarifaire n\'est plus un bouton caché en bas de page')}</div>`:''}</div>
+  <div class="acard"><h4>Voyageurs supplémentaires</h4>${d.recipe
+   ?`<div class="derived"><span class="val">15 € par nuit au-delà de 2 personnes</span><span class="from">= fixé par la recette, saison par saison</span></div>${S.notes?`<div style="margin-top:6px">${anno('fixed','champ masqué : la recette l\'écrasait de toute façon')}</div>`:''}`
+   :`<div class="row2">${n('extraIncluded','Personnes incluses dans le prix','Au-delà, le supplément s\'applique.')}${n('extraPrice','Supplément par personne (€)','0 = pas de supplément.')}</div>${sel('extraUnit','Unité du supplément',[['per_night','par nuit'],['per_stay','par séjour']])}`}</div>
+  <div class="acard"><h4>Taxe de séjour</h4>${sel('taxMode','Mode de calcul',[['per_day_per_person','Par jour et par adulte'],['percentage_accommodation','% du montant hébergement'],['percentage_and_fixed','% + montant fixe']],'Selon le classement du logement.')}
+   ${d.taxMode==='per_day_per_person'?n('taxPerDay','Taxe (€ / jour / adulte)'):`<div class="row2">${n('taxPct','Pourcentage commune (%)','Sur le prix moyen HT de la nuit par occupant.')}${n('taxDept','Additionnel départemental (%)','Sur la part communale.')}</div>${d.taxMode==='percentage_and_fixed'?n('taxFixed','Montant fixe (€ / nuit / adulte)'):''}`}
+   <div class="small muted">Qui collecte la taxe sur chaque plateforme se règle dans <a href="#" data-act="page:plat">Plateformes</a>. TVA des séjours : ${data.tva.rate} % (<a href="#" data-act="page:tva">TVA &amp; exercice</a>).</div></div>`;
+ }
+ if(t==='paiement')body=`<div class="acard"><h4>Acompte</h4>${sw(d.depositEnabled,'Demander un acompte','ptg:depositEnabled')}
+   <div class="small muted">${d.depositEnabled?'Le séjour est payé en deux fois : un acompte à la réservation, le solde avant l\'arrivée.':'Le séjour est payé en une fois, à la réservation.'}</div>
+   ${d.depositEnabled?`<div class="row2">${n('depositPct','Acompte (%)')}${n('depositDays','Acompte dû (jours après la réservation)')}</div>`:''}</div>
+  <div class="acard"><h4>${d.depositEnabled?'Solde':'Paiement'} &amp; caution</h4><div class="row2">${n('balanceDays',d.depositEnabled?'Solde dû (jours avant l\'arrivée)':'Paiement dû (jours avant l\'arrivée)')}${n('cancelDays','Annulation si impayé (jours après l\'échéance)',d.depositEnabled?'L\'acompte encaissé est conservé.':'')}</div>${n('caution','Caution par défaut (€)')}
+   ${S.notes?`<div class="small muted">Les relances de paiement se règlent dans les modèles d'email : c'étaient les champs sans effet de l'ancienne page Paiements. ${anno('dead','supprimés')}</div>`:''}</div>`;
+ if(t==='sejour'){
+  const auto=(x,title)=>`<div style="border-top:1px solid var(--divider);padding-top:8px;margin-top:8px"><b class="small">${title}</b>${sw(d[x+'On'],d[x+'On']?'Proposée':'Non proposée','ptg:'+x+'On')}
+   ${d[x+'On']?`<div class="row2">${sel(x+'Mode','Tarification',[['proportional','Proportionnel au prix de la nuit'],['fixed','Prix fixe']])}${d[x+'Mode']==='fixed'?n(x+'Price','Prix fixe (€)'):`<div class="fld"><label>Prix</label><div class="derived"><span class="from">calculé à partir du prix de la nuit</span></div></div>`}</div>${fld(p,x+'Thr','Seuil nuit complète',{help:x==='early'?'Une arrivée avant cette heure est facturée comme une nuit.':'Un départ après cette heure est facturé comme une nuit.'})}`:''}</div>`;
+  body=`<div class="acard"><h4>Équipements &amp; accès</h4><p class="desc">Repris dans les mails clients (liste des affaires à prévoir, conseils d'accès).</p>
+   <div class="row2">${n('parking','Distance du parking (m)','0 si l\'on se gare devant.')}<div>${sw(d.wifi,'Wifi dans le logement','ptg:wifi')}${sw(d.coffee,'Cafetière familiale (café moulu)','ptg:coffee')}</div></div>
+   ${S.notes?`<div style="margin-top:6px">${anno('move','l\'accroche du J-7 se règle maintenant dans le modèle J-7 (Emails)')}</div>`:''}</div>
+  <div class="acard"><h4>Arrivée anticipée &amp; départ tardif</h4><p class="desc">Proposés au client dans le devis et le SAS.</p>${auto('early','Arrivée anticipée')}${auto('late','Départ tardif')}
+   ${S.notes?`<div style="margin-top:6px">${anno('fixed','n\'apparaissent plus en double dans le catalogue d\'options')}</div>`:''}</div>`;
+ }
+ if(t==='plat'){
+  const er=S.errors[p]||{};
+  const used=d.src.map(s=>s.pl);const free=data.plat.rows.map(r=>r.n).filter(x=>!used.includes(x));
+  body=`<div class="alert info">Commission, acompte, taxe de séjour et virement valent pour tous les logements : ils se modifient dans <a href="#" data-act="page:plat">Plateformes</a>. Ici, seulement les calendriers de ce logement.</div>
+  <div class="acard"><h4>Calendriers importés</h4>
+  ${d.src.map((s,i)=>{const r=data.plat.rows.find(x=>x.n===s.pl)||{c:'#999',com:'?',dep:'?',tax:'platform',pay:'?'};
+   return `<div style="border-top:1px solid var(--divider);padding:10px 0"><div style="${s.on?'':'opacity:.45;filter:grayscale(1)'}"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="dot" style="background:${r.c}"></span><b>${s.pl}</b><span class="chip">${esc(r.com)} %</span><span class="chip">Acompte : ${r.dep}</span><span class="chip">${TAXSHORT[r.tax]}</span><span class="chip">Virement ${r.pay} j</span>${s.on?'':'<span class="chip" style="background:#e0ddd6">Désactivé</span>'}</div>
+    <div class="fld${er['url'+i]?' err':''}" id="w-${p}-url${i}" style="margin:6px 0 0"><label for="f-${p}-url${i}">URL iCal</label><input data-f="${p}.src.${i}.url" id="f-${p}-url${i}" value="${esc(s.url)}" placeholder="vide = saisie manuelle"><div class="help" id="h-${p}-url${i}" data-base="${s.url?'✓ '+esc(s.sync):'Saisie manuelle : pas de synchronisation.'}">${esc(er['url'+i]||(s.url?'✓ '+s.sync:'Saisie manuelle : pas de synchronisation.'))}</div></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"><button class="btn sm" data-act="srcsync:${i}" ${s.on&&s.url?'':'disabled'}>Synchroniser</button><button class="btn sm${s.on?'':' fill'}" data-act="srcon:${i}">${s.on?'Désactiver':'Réactiver'}</button><button class="btn sm danger" data-act="srcrm:${i}">Retirer</button></div></div>`}).join('')}
+  ${free.length?`<div style="border-top:1px solid var(--divider);padding-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="newsrc" style="font:inherit;border:1px solid rgba(60,54,36,.25);border-radius:9px;padding:6px 8px">${free.map(x=>`<option>${x}</option>`).join('')}</select><button class="btn sm" data-act="srcadd">＋ Ajouter un calendrier</button></div>`:''}</div>
+  <div class="acard"><h4>Export iCal</h4><p class="desc">À coller dans les plateformes pour qu'elles bloquent les dates prises ailleurs.</p><div class="derived" style="background:#fff;border-style:solid;border-color:rgba(60,54,36,.25)"><span class="small" style="word-break:break-all">https://guestflow.adn-dev.fr/ical/${p==='propG'?'gite':'lodge'}/••••••.ics</span><span style="flex:1"></span><button class="linkbtn" data-act="copyical">Copier</button></div></div>
+  ${S.notes?anno('fixed','changez une couleur ou une commission dans Plateformes : ces étiquettes suivent'):''}`;
+ }
+ if(t==='docs'){const a=S.after,de=a.docErrs||{};
+  body=`<div class="acard"><h4>Documents</h4><p class="desc">Un document ajouté ou retiré s'enregistre tout de suite, sans passer par le bouton de la barre.</p>
+  <table class="t"><tr><th>Type</th><th>Nom</th><th></th></tr>${d.docs.length?d.docs.map((x,i)=>`<tr><td><span class="chip">${esc(x[0])}</span></td><td>${esc(x[1])}<div class="small muted">${esc(x[2]||x[1]+'.pdf')}</div></td><td style="text-align:right"><button class="btn sm danger" data-act="docrm:${i}">Retirer</button></td></tr>`).join(''):'<tr><td colspan="3" class="small muted">Aucun document.</td></tr>'}</table>
+  ${a.docOpen?`<div style="border:1px solid var(--divider);border-radius:10px;padding:10px 12px;margin-top:10px;background:#fbf9f5"><b class="small">Nouveau document</b>
+    <div class="row2"><div class="fld"><label for="doctype">Type</label><select id="doctype">${['Contrat','Règlement','Autre'].map(o=>`<option${a.docType===o?' selected':''}>${o}</option>`).join('')}</select></div>
+    <div class="fld${de.name?' err':''}"><label for="docname">Nom</label><input id="docname" value="${esc(a.docName||'')}" placeholder="ex. Contrat de location 2027"><div class="help">${de.name||''}</div></div></div>
+    <div class="fld${de.file?' err':''}"><label>Fichier</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="btn sm" style="margin:0">Parcourir…<input type="file" id="docfile" accept=".pdf,.doc,.docx,.jpg,.png" style="display:none"></label><span class="small ${a.docFile?'':'muted'}">${a.docFile?esc(a.docFile):'Aucun fichier choisi'}</span></div><div class="help">${de.file||'PDF, Word ou image.'}</div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn sm" data-act="doccancel">Annuler</button><button class="btn sm fill" data-act="docsave">Enregistrer</button></div></div>`
+   :`<div style="margin-top:10px"><button class="btn sm" data-act="docopen">＋ Ajouter un document</button></div>`}</div>`;}
+ const tabs=`<div class="tabs" id="ptabs">${PROP_TABS.map(x=>`<button class="${t===x[0]?'on':''}" data-act="ptab:${x[0]}" id="ptab-${x[0]}">${x[1]}<span class="tdot">${tabDot(tabState(p,x[0]))}</span></button>`).join('')}</div>`;
+ return bar({title:esc(data.props[p].name),back:'a:props',form:p,save:'save:'+p,cancel:'cancel:'+p,saveDisabled:!dirty,cancelDisabled:!dirty,extra:[['noop','Supprimer le logement','🗑']]})+`<div class="content">${tabs}${body}</div>`;
+}
+function pLogements(){
+ if(S.after.prop)return pProperty();
+ return bar({title:'Logements',extra:[['noop','Nouveau logement','＋']]})+`<div class="content"><div class="row2">${Object.keys(data.props).map(k=>{const x=data.props[k];return `<div class="acard list-item" data-act="prop:${k}" style="display:block"><div style="height:70px;border-radius:8px;background:linear-gradient(135deg,#cfe0d5,#e8dcc4);margin-bottom:8px"></div><b>${esc(x.name)}</b><div class="small muted">${x.maxGuests} voyageurs · ${x.recipe?'recette '+esc(x.recipe):'saisons manuelles'}</div></div>`}).join('')}</div></div>`;
+}
+const TPL=[['Séquence — Confirmation','Le jour de la réservation'],['Séquence — J-7 préparation','7 jours avant l\'arrivée','j7'],['Séquence — J-2 arrivée','2 jours avant l\'arrivée'],['Séquence — J+1 merci et avis','Le lendemain du départ'],['Séquence — Bons cadeau','15 novembre'],['Séquence — Vœux et dates','6 janvier'],['Demande de paiement intégral','Au clic']];
+function pMails(){
+ const m=S.after.tplModes||(S.after.tplModes=TPL.map(()=> 'manual'));
+ return bar({title:'Emails',extra:[['noop','Nouveau modèle','＋']]})+`<div class="content">
+ <div class="acard"><h4>Emails à envoyer</h4><div class="small muted">3 emails attendent votre validation.</div></div>
+ <div class="acard"><h4>Modèles d'emails</h4>${S.notes?`<div class="alert info" style="margin-top:0">Après la mise à jour, tous les modèles sont en « Manuel ». Passer un modèle en « Automatique » suffit à l'envoyer seul : il n'y a plus d'interrupteur général. ${anno('move','remplace l\'interrupteur de Paramètres')}</div>`:''}
+ <table class="t"><tr><th>Modèle</th><th>Quand</th><th>Mode</th></tr>${TPL.map((x,i)=>`<tr class="list-item" data-act="tpl:${i}" style="display:table-row"><td><b>${x[0]}</b></td><td class="small">${x[1]}</td><td><span class="badge ${m[i]==='auto'?'b-ok':'b-off'}">${m[i]==='auto'?'Automatique':'Manuel'}</span></td></tr>`).join('')}</table>
+ <div class="small muted" style="margin-top:6px">Cliquez sur « Séquence — J-7 préparation » pour voir les accroches par logement.</div></div></div>`;
+}
+function tplModal(i){
+ const x=TPL[i],m=S.after.tplModes[i],pr=data.props;
+ const hooks=x[2]==='j7'?`<div style="border-top:1px solid var(--divider);margin-top:10px;padding-top:8px"><b class="small">Accroche par logement</b><div class="small muted">Insérée par <code>{{propertyHook}}</code>, après « Plus qu'une semaine, et vous serez … ». Vide : la phrase est omise.</div>
+   ${Object.keys(pr).map(k=>`<div style="margin-top:8px"><b class="small">${esc(pr[k].name)}</b><div class="row2"><div class="fld" style="margin:4px 0"><label>Français</label><input id="hk-${k}" value="${esc(pr[k].hook)}"></div><div class="fld" style="margin:4px 0"><label>Anglais</label><input id="hken-${k}" value="${esc(pr[k].hookEn)}"></div></div></div>`).join('')}
+   ${S.notes?anno('move','vient de la fiche logement'):''}</div>`:'';
+ return `<h4>Modifier le modèle</h4><div class="fld"><label>Nom du modèle</label><input value="${esc(x[0])}"></div>
+  <div class="fld"><label>Mode d'envoi</label><select id="tplmode"><option value="manual"${m==='manual'?' selected':''}>Manuel : attend ma validation</option><option value="auto"${m==='auto'?' selected':''}>Automatique : part seul à 08:00</option></select></div>
+  <div class="fld"><label>Sujet</label><input value="${x[2]==='j7'?'Plus qu\'une semaine avant votre séjour':'…'}"></div>
+  <div class="fld"><label>Corps du message</label><textarea>${x[2]==='j7'?'Bonjour {{clientFirstName}},\n\nPlus qu\'une semaine, et vous serez {{propertyArticle}} {{propertyName}}. {{propertyHook}}\n…':'…'}</textarea></div>
+  ${hooks}<div class="acts"><button class="btn" data-act="modal:stay">Annuler</button><button class="btn fill" data-act="tplsave:${i}">Enregistrer</button></div>`;
+}
+function settingsPage(){
+ const pg=S.after.page;
+ return ({etab:pEtab,tva:pTva,emails:pEmails,linge:pLinge,plat:pPlat,systeme:pSysteme,integ:pIntegrations,paiements:pPaiements,options:pOptions,vacances:pVacances,recettes:pRecettes,users:pUsers,logements:pLogements})[pg]();
+}
+function afterMain(){
+ const a=S.after;
+ if(a.route==='settings')return settingsPage();
+ if(a.route==='compta')return pCompta();
+ if(a.route==='account')return bar({title:'Mon compte',save:'noop',saveDisabled:true})+`<div class="content"><div class="acard"><h4>Mes informations</h4>${fake('Nom','Adrien')}${fake('Email','adrien@…')}</div><div class="acard"><h4>Mon mot de passe</h4>${fake('Mot de passe actuel','')}${fake('Nouveau mot de passe','')}</div>${S.notes?anno('move','accessible à tous les rôles, hors Paramètres'):''}</div>`;
+ if(a.route==='mails')return pMails();
+ if(a.route==='clients')return bar({title:'Clients',extra:[['noop','Nouveau client','＋']]})+`<div class="content"><div class="acard"><div class="small">Annuaire des clients : à venir / passés, recherche…</div>${S.notes?anno('move','entrée principale du menu'):''}</div></div>`;
+ return `<div class="nf"><div class="big">▦</div><h3>Hors périmètre</h3><p class="muted">Cette page ne change pas. Ouvrez « Paramètres ».</p></div>`;
+}
+
+/* ================= render ================= */
+const app=document.getElementById('app');
+function render(){
+ const dev=document.getElementById('device');
+ dev.className='device '+S.dev;
+ app.classList.toggle('show-notes',S.notes);
+ document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
+ document.getElementById('segMode').classList.toggle('before-on',S.mode==='before');
+ document.querySelectorAll('#segDev button').forEach(b=>b.classList.toggle('on',b.dataset.dev===S.dev));
+ document.getElementById('simHint').textContent=S.mode==='before'
+  ?'Avant : essayez Paramètres → Paiements (modifiez une relance et enregistrez), Blanchisserie (flèche retour), Gîte (tableau des plateformes).'
+  :'Après : ouvrez Paramètres → Logements → Gîte. Essayez 0 lit, un acompte à 100 %, une URL iCal sans https, puis Enregistrer. Ou un SIRET à 13 chiffres dans Établissement.';
+ const main=document.querySelector('#app .main');const scroll=main?main.scrollTop:0;
+ app.innerHTML=`<div class="appbar"><button class="burger" data-act="drawer" aria-label="Menu">☰</button><span class="logo">GuestFlow</span><span style="flex:1"></span><span class="small" style="opacity:.8">${S.mode==='before'?'version actuelle':'version proposée'}</span></div>
+  <div class="body">${S.mode==='before'?beforeSidebar():afterSidebar()}<div class="main" id="main">${S.mode==='before'?beforeMain():afterMain()}</div></div>
+  ${S.toast?`<div class="toast${S.toast.err?' err':''}">${esc(S.toast.msg)}</div>`:''}
+  ${S.modal?`<div class="modal-bg"><div class="modal">${S.modal.html}</div></div>`:''}
+  ${S.before.syncDlg&&S.mode==='before'?`<div class="modal-bg"><div class="modal"><h4>Réglages de synchronisation</h4>${fake('Fréquence (jours)','60')}${fake('Horizon (mois)','24')}${S.notes?anno('move','deux valeurs que personne ne change : figées dans le code'):''}<div class="acts"><button class="btn" data-act="b:closesync">Fermer</button></div></div></div>`:''}`;
+ const m=document.getElementById('main');if(m&&S.keepScroll)m.scrollTop=scroll;S.keepScroll=false;
+ renderUnlockDemo();
+}
+let toastTimer;
+function toast(msg,err){S.toast={msg,err};clearTimeout(toastTimer);toastTimer=setTimeout(()=>{S.toast=null;S.keepScroll=true;render()},2600);S.keepScroll=true;render()}
+
+/* live refresh without losing focus */
+function refreshLive(p){
+ S.errors[p]=validate(p);const e=S.errors[p];
+ document.querySelectorAll(`[data-f^="${p}."]`).forEach(el=>{
+  const key=el.dataset.f.split('.').slice(1).join('.');
+  let k=key.replace(/^src\.(\d+)\.url$/,'url$1');if(p==='plat'){const m=/rows\.(\d+)\.(com|pay)/.exec(key);if(!m)return;k=m[2]+m[1];
+   const wrap=el.parentElement;wrap.classList.toggle('err',!!e[k]);const h=document.getElementById('h-plat-'+k);if(h)h.textContent=e[k]||'';return}
+  const w=document.getElementById(`w-${p}-${k}`),h=document.getElementById(`h-${p}-${k}`);
+  if(w)w.classList.toggle('err',!!e[k]);
+  if(h)h.textContent=e[k]||h.dataset.base||'';
+ });
+ if(p.startsWith('prop'))PROP_TABS.forEach(x=>{const b=document.querySelector('#ptab-'+x[0]+' .tdot');if(b)b.innerHTML=tabDot(tabState(p,x[0]))});
+ const barEl=document.getElementById('bar');
+ if(barEl){const dirty=isDirty(p);barEl.querySelectorAll('.ib.save,.ib[data-act^="cancel:"]').forEach(b=>b.disabled=!dirty);
+  const sub=barEl.querySelector('.sub');if(sub){sub.className='sub'+(dirty?' dirty':'');sub.textContent=dirty?'Modifications non enregistrées':'Tout est enregistré'}}
+}
+function setPath(obj,path,val){const ks=path.split('.');let o=obj;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=val}
+
+/* navigation with dirty guard */
+function guard(fn){
+ const p=currentFormPage();
+ if(p&&isDirty(p)){
+  S.modal={html:`<h4>Modifications non enregistrées</h4><p>Vous avez des modifications non enregistrées sur « ${esc(titleOf(p))} ». Quitter sans enregistrer ?</p><div class="acts"><button class="btn" data-act="modal:stay">Rester</button><button class="btn danger" data-act="modal:leave">Quitter sans enregistrer</button></div>`,leave:()=>{S.drafts[p]=clone(savedOf(p));S.errors[p]={};fn()}};
+  render();return;
+ }
+ fn();
+}
+function goAfter(route){guard(()=>{
+ const a=S.after;S.drawer=false;
+ if(route==='settings'){a.route='settings';a.page='etab';a.prop=null}
+ else if(route==='finance'){a.fin=!a.fin}
+ else{a.route=route}
+ render();document.getElementById('main').scrollTop=0;
+})}
+function goPage(pg,field){guard(()=>{
+ const a=S.after;a.route='settings';a.page=pg;S.drawer=false;if(pg==='logements')a.prop=null;
+ render();const m=document.getElementById('main');m.scrollTop=0;
+ if(field){const w=document.getElementById(`w-${pg}-${field}`)||document.getElementById(`f-${pg}-${field}`)||document.getElementById(`f-plat-${field}0`);
+  if(w){const wrap=w.classList.contains('fld')?w:(w.closest('.fld')||w.parentElement);wrap.scrollIntoView({block:'center'});wrap.classList.add('flash');const inp=wrap.querySelector('input,select,textarea');if(inp)inp.focus({preventScroll:true})}}
+})}
+
+/* ================= events ================= */
+document.getElementById('segMode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.mode=b.dataset.mode;S.drawer=false;S.modal=null;render()});
+document.getElementById('segDev').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.dev=b.dataset.dev;S.drawer=false;render()});
+document.getElementById('chkNotes').addEventListener('change',e=>{S.notes=e.target.checked;S.keepScroll=true;render()});
+
+app.addEventListener('input',e=>{
+ const t=e.target;
+ if(t.id==='docname'){S.after.docName=t.value;return}
+ if(t.id==='doctype'){S.after.docType=t.value;return}
+ if(t.dataset.bt){S.before.timings[t.dataset.bt]=t.value;const dirty=JSON.stringify(S.before.timings)!==JSON.stringify(S.before.timingsSaved);const b=document.querySelector('#bar .ib.save');if(b)b.disabled=!dirty;return}
+ if(t.dataset.f){const [p,...rest]=t.dataset.f.split('.');setPath(S.drafts[p],rest.join('.'),t.value);
+  if(t.type==='color')return;
+  if(t.tagName==='SELECT'){S.errors[p]=validate(p);S.keepScroll=true;render();return}
+  refreshLive(p)}
+});
+app.addEventListener('change',e=>{const t=e.target;if(t.id==='docfile'){S.after.docFile=t.files&&t.files[0]?t.files[0].name:'';if(S.after.docErrs)delete S.after.docErrs.file;S.keepScroll=true;render();return}if(t.dataset.f&&t.type==='color'){const [p,...rest]=t.dataset.f.split('.');setPath(S.drafts[p],rest.join('.'),t.value);S.keepScroll=true;render()}});
+app.addEventListener('click',e=>{
+ const n=e.target.closest('[data-nav]'),a=e.target.closest('[data-act]');
+ if(n){e.preventDefault();const v=n.dataset.nav;
+  if(v.startsWith('b:')){S.before.route=v.slice(2);S.drawer=false;if(S.before.route==='compta'||S.before.route==='finance'){} render();document.getElementById('main').scrollTop=0;return}
+  if(v.startsWith('a:'))goAfter(v.slice(2));return}
+ if(!a)return;e.preventDefault();const v=a.dataset.act;
+ if(v==='noop')return;
+ if(v==='a:props'){guard(()=>{S.after.prop=null;render()});return}
+ if(v==='drawer'){S.drawer=!S.drawer;S.keepScroll=true;render();return}
+ if(v==='modal:stay'){S.modal=null;S.keepScroll=true;render();return}
+ if(v.startsWith('tpl:')){S.modal={html:tplModal(+v.slice(4))};S.keepScroll=true;render();return}
+ if(v.startsWith('tplsave:')){const i=+v.slice(8);S.after.tplModes[i]=document.getElementById('tplmode').value;
+  Object.keys(data.props).forEach(k=>{const f=document.getElementById('hk-'+k),g=document.getElementById('hken-'+k);if(f){data.props[k].hook=f.value;S.drafts[k].hook=f.value}if(g){data.props[k].hookEn=g.value;S.drafts[k].hookEn=g.value}});
+  S.modal=null;toast(S.after.tplModes[i]==='auto'?'Modèle enregistré : il partira seul à 08:00.':'Modèle enregistré.');return}
+ if(v==='modal:leave'){const f=S.modal.leave;S.modal=null;f();return}
+ if(v.startsWith('b:')){
+  const x=v.slice(2);
+  if(x.startsWith('nav:')){S.before.route=x.slice(4);render();return}
+  if(x==='404'){S.before.route='404';render();return}
+  if(x.startsWith('tab:')){S.before.tab=x.slice(4);render();return}
+  if(x.startsWith('vtab:')){S.before.vtab=x.slice(5);render();return}
+  if(x==='syncdlg'){S.before.syncDlg=true;S.keepScroll=true;render();return}
+  if(x==='closesync'){S.before.syncDlg=false;S.keepScroll=true;render();return}
+  if(x==='savetimings'){S.before.timingsSaved=clone(S.before.timings);toast('Paramètres enregistrés… mais aucun rappel, aucun délai ne changera.');return}
+  return}
+ if(v.startsWith('page:')){goPage(v.slice(5));return}
+ if(v.startsWith('goto:')){const [,pg,f]=v.split(':');goPage(pg,f);return}
+ if(v.startsWith('save:')){const p=v.slice(5);S.errors[p]=validate(p);
+  if(Object.keys(S.errors[p]).length){S.keepScroll=true;toast('Enregistrement refusé : corrigez les champs en rouge.',true);return}
+  if(p==='compta')data.compta=clone(S.drafts.compta);else if(p.startsWith('prop'))data.props[p]=clone(S.drafts[p]);else data[p]=clone(S.drafts[p]);
+  if(p.startsWith('prop')){toast('Logement enregistré.');return}
+  toast(p==='etab'&&!S.drafts.emails.fromOv?'Enregistré. L\'adresse d\'envoi suit : '+data.etab.email:'Enregistré.');return}
+ if(v.startsWith('cancel:')){const p=v.slice(7);S.drafts[p]=clone(savedOf(p));S.errors[p]={};S.keepScroll=true;render();return}
+ if(v.startsWith('tg:')){const k=v.slice(3);const p=k==='unlock'?'systeme':'emails';S.drafts[p][k]=!S.drafts[p][k];S.keepScroll=true;render();return}
+ if(v.startsWith('ov:')){const [,k,op]=v.split(':');if(op==='open'){S.after['open_'+k]=true}else{S.after['open_'+k]=false;S.drafts.emails[k]=''}S.errors.emails=validate('emails');S.keepScroll=true;render();return}
+ if(v==='smtptest'){toast('Email de test envoyé à '+effFrom()+' (depuis '+effUser()+').');return}
+ if(v.startsWith('otab:')){S.after.otab=v.slice(5);render();return}
+ if(v.startsWith('vtab:')){S.after.vtab=v.slice(5);render();return}
+ if(v.startsWith('prop:')){const k=v.slice(5),a=S.after;if(a.route==='settings'&&a.prop===k)return;guard(()=>{a.route='settings';a.page='logements';a.prop=k;a.ptab='general';S.drawer=false;render();document.getElementById('main').scrollTop=0});return}
+ if(v.startsWith('ptab:')){S.after.ptab=v.slice(5);S.keepScroll=true;render();return}
+ const P=S.after.prop,D=P&&S.drafts[P];
+ if(v.startsWith('ptg:')){const k=v.slice(4);D[k]=!D[k];S.errors[P]=validate(P);S.keepScroll=true;render();return}
+ if(v.startsWith('srcsync:')){toast('Calendrier '+D.src[+v.slice(8)].pl+' synchronisé.');return}
+ if(v.startsWith('srcon:')){const s=D.src[+v.slice(6)];s.on=!s.on;S.keepScroll=true;render();return}
+ if(v.startsWith('srcrm:')){D.src.splice(+v.slice(6),1);S.errors[P]=validate(P);S.keepScroll=true;render();return}
+ if(v==='srcadd'){const x=document.getElementById('newsrc').value;D.src.push({pl:x,url:'',sync:'',on:true});S.keepScroll=true;render();const i=D.src.length-1;const f=document.getElementById('f-'+P+'-url'+i);if(f)f.focus();return}
+ if(v.startsWith('docrm:')){const i=+v.slice(6);D.docs.splice(i,1);data.props[P].docs.splice(i,1);toast('Document retiré.');return}
+ if(v==='docopen'){Object.assign(S.after,{docOpen:true,docName:'',docFile:'',docType:'Contrat',docErrs:{}});S.keepScroll=true;render();const f=document.getElementById('docname');if(f)f.focus();return}
+ if(v==='doccancel'){S.after.docOpen=false;S.keepScroll=true;render();return}
+ if(v==='docsave'){const a=S.after,er={};a.docType=document.getElementById('doctype').value;if(!(a.docName||'').trim())er.name='Donnez un nom au document.';if(!a.docFile)er.file='Choisissez le fichier sur votre ordinateur.';a.docErrs=er;
+  if(Object.keys(er).length){S.keepScroll=true;render();return}
+  const row=[a.docType,a.docName.trim(),a.docFile];D.docs.push(row);data.props[P].docs.push(clone(row));a.docOpen=false;toast('Document ajouté.');return}
+ if(v==='opentarif'){toast('Ouvre la page Gestion tarifaire, qui ne change pas.');return}
+ if(v==='copyical'){toast('Lien d\'export copié.');return}
+});
+
+/* ================= arbitrage 1 demo ================= */
+const U={open:true,unlocked:false};
+function renderUnlockDemo(){
+ const el=document.getElementById('unlockDemo');if(!el)return;
+ if(!U.open){el.innerHTML=`<div class="small muted">Vous avez quitté la fiche : le verrou s'est remis tout seul.</div><button class="btn sm" data-u="reopen" style="margin-top:6px">Rouvrir la fiche Carpier</button>`;return}
+ el.innerHTML=`<div class="small"><b>Carpier · 12 → 19 août</b></div>`+(U.unlocked
+  ?`<div class="alert warn" style="margin:6px 0">Déverrouillée pour cette fiche : dates, logement et suppression modifiables.</div><div class="row2"><div class="fld" style="margin:4px 0"><label>Arrivée</label><input value="2026-08-12"></div><div class="fld" style="margin:4px 0"><label>Départ</label><input value="2026-08-19"></div></div><button class="btn sm" data-u="leave">Quitter la fiche</button>`
+  :`<div class="alert info" style="margin:6px 0">🔒 Séjour passé : seuls le client, les prix et les paiements sont modifiables.</div><div class="row2"><div class="fld" style="margin:4px 0"><label>Arrivée</label><input value="2026-08-12" disabled></div><div class="fld" style="margin:4px 0"><label>Départ</label><input value="2026-08-19" disabled></div></div><button class="btn sm fill" data-u="unlock">Déverrouiller cette fiche</button>`);
+}
+document.getElementById('unlockDemo').addEventListener('click',e=>{const b=e.target.closest('[data-u]');if(!b)return;const u=b.dataset.u;
+ if(u==='unlock')U.unlocked=true;if(u==='leave'){U.open=false;U.unlocked=false}if(u==='reopen')U.open=true;renderUnlockDemo()});
+
+/* ================= change table ================= */
+const CH=[
+ ['sup','Relances, abandon après échéance, expiration du lien (acompte et solde) : 6 champs','Paiements › Délais & relances','—','Aucune logique ne les relit (paymentsController.js:136,151). Les échéances viennent du logement, les relances des modèles d\'email, l\'expiration du lien de Qonto.'],
+ ['sup','5 colonnes et 1 table sans lecteur','invisibles à l\'écran','—','paymentLastMinuteDays, paymentFullPaymentDueDaysBefore, googleServiceAccount ×2 (vidées au démarrage), neatStoreId (jamais écrit), table payment_methods (reste de la fonctionnalité annulée).'],
+ ['ded','Port SMTP','colonne stockée','déduit de la sécurité (587 / 465)','Déjà réécrit à chaque enregistrement (settingsController.js:157-160).'],
+ ['ded','Adresse expéditeur','Envoi d\'emails, saisie','= email de contact, sauf autre adresse','Même valeur que l\'email pro en production.'],
+ ['ded','Utilisateur SMTP','Envoi d\'emails, saisie','= adresse d\'envoi, sauf identifiant différent','Même valeur en production ; c\'est le cas de Gmail et de Google Workspace.'],
+ ['ded','Nom expéditeur','Envoi d\'emails, « GuestFlow » par défaut','= raison sociale, sauf autre nom','Le serveur retombe déjà sur la raison sociale (emailContextBuilder.js:421).'],
+ ['ded','Adresse de réception des notifications','Notifications, saisie','= adresse d\'envoi, sauf autre adresse','Le serveur retombe déjà dessus (notificationService.js:68).'],
+ ['fix','Fréquence de synchro des vacances (60 j) et horizon (24 mois)','fenêtre ⚙︎ sur Vacances scolaires','figés dans le code','Deux valeurs techniques que personne n\'a de raison de changer.'],
+ ['dep','TVA déductible sur commissions, TVA sur indemnités','Générale › Taux de TVA','Plan comptable','Elles ne servent qu\'aux écritures, et Plan comptable les affichait déjà en lecture seule avec un lien (arbitrage n°2).'],
+ ['dep','Couleur, taxe de séjour, acompte, virement d\'une plateforme','fiche de chaque logement','Plateformes (nouvelle page)','Réglages globaux : les changer depuis le Gîte changeait aussi le Lodge.'],
+ ['dep','Commission % d\'une plateforme','Gestion tarifaire d\'un logement','Plateformes','Même raison ; la page tarifaire l\'affiche en lecture seule.'],
+ ['dep','URL publique de l\'application','Envoi d\'emails','Système','Elle sert aussi au retour Google et aux notifications Qonto, pas seulement au SMTP.'],
+ ['sup','Réservations passées (interrupteur global)','Générale','bouton « Déverrouiller cette fiche », qui se referme en quittant','Resté allumé en production (arbitrage n°1).'],
+ ['dep','Google Agenda, Neat, Météo-France','Générale','Intégrations','Des connexions avec un statut, pas des champs de formulaire.'],
+ ['dep','Notifications push','Générale','Emails & notifications','Avec les autres notifications.'],
+ ['sup','Envoyer les emails clients sans ma validation (interrupteur général)','Emails & notifications','le mode Automatique / Manuel de chaque modèle','Il doublait le mode de chaque modèle. La migration repasse tous les modèles en Manuel : rien ne part sans vous.'],
+ ['dep','Accroche du mail J-7 (FR / EN)','fiche logement','modèle J-7, dans Emails, une par logement','Le texte d\'un mail se règle avec le mail.'],
+ ['dep','Validité et pieds de page des devis','Générale › Paramètres des devis','Établissement, carte Devis','Même document que l\'en-tête : raison sociale, adresse, banque.'],
+ ['dep','Tarifs facturables (linge manquant, réparations)','entrée de menu à part','Options & ressources › Facturables au SAS','Un catalogue de prix de plus, rangé avec les autres.'],
+ ['dep','Clients','Paramètres','menu principal','C\'est l\'annuaire des clients, pas un réglage.'],
+ ['dep','Mes informations, mon mot de passe','Gestion utilisateur','Mon compte (bas du menu)','Pour tous les rôles ; « Utilisateurs » ne garde que l\'administration.'],
+ ['dep','Gestion tarifaire','bouton en bas de la fiche logement','onglet Tarifs','Le point d\'entrée le plus utilisé de la fiche.'],
+ ['mas','Arrivée anticipée, Départ tardif','catalogue d\'options, une fois par logement, non supprimables','seulement sur la fiche logement','Doublons qui encombrent le catalogue (OptionsPage.jsx:706).'],
+ ['mas','Supplément voyageur du logement','toujours affiché','masqué quand une recette s\'applique','La recette l\'écrase par saison (pricing.js:686).'],
+ ['bug','Flèche retour de Blanchisserie et de Tarifs facturables','mène à « Page introuvable »','retour aux Paramètres','backTo="/parametres" vise une route qui n\'existe pas.'],
+ ['bug','Pied de devis anglais','se recharge toujours vide','affiché','Écrit par le serveur, jamais renvoyé (settingsResponse.js:44-47).'],
+ ['bug','Favicon après changement de logo','code jamais exécuté','corrigé','App.jsx lit settings.companyLogoPath, l\'API renvoie company.logoPath.'],
+ ['bug','Délai de solde d\'un nouveau logement','7 j en base, 30 j à l\'écran','30 j partout','Défauts divergents entre database.js et PropertyDetail.jsx:63.'],
+ ['bug','Fermetures sans flèche retour ; Paiements sans Annuler','incohérent','aligné','Même barre d\'action partout.'],
+ ['bug','« Paramètres → Taux de TVA », « Options de sejour »','libellés faux','corrigés','La section s\'appelle autrement ; accent manquant.']
+];
+const TAGS={all:['Tout',''],sup:['Supprimé','sup'],ded:['Déduit','ded'],fix:['Figé','fix'],dep:['Déplacé','dep'],mas:['Masqué','mas'],bug:['Corrigé','bug']};
+let filt='all';
+function renderChanges(){
+ document.getElementById('filters').innerHTML=Object.keys(TAGS).map(k=>`<button class="${filt===k?'on':''}" data-k="${k}">${TAGS[k][0]} <span style="opacity:.6">${k==='all'?CH.length:CH.filter(c=>c[0]===k).length}</span></button>`).join('');
+ document.querySelector('#ctable tbody').innerHTML=CH.filter(c=>filt==='all'||c[0]===filt).map(c=>`<tr><td class="k" data-h="Type"><span class="tag ${TAGS[c[0]][1]}">${TAGS[c[0]][0]}</span></td><td data-h="Réglage"><b>${esc(c[1])}</b></td><td data-h="Aujourd'hui">${esc(c[2])}</td><td data-h="Demain">${esc(c[3])}</td><td data-h="Pourquoi" class="muted">${esc(c[4])}</td></tr>`).join('');
+}
+document.getElementById('filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;filt=b.dataset.k;renderChanges()});
+
+render();renderChanges();
+})();
+</script>
+</body>
+</html>

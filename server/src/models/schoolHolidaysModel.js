@@ -8,6 +8,10 @@
 
 const productionDb = require('../database');
 
+// Fixed sync cadence (specs/settings-rationalization.md rule 13).
+const SYNC_INTERVAL_DAYS = 60;
+const SYNC_HORIZON_MONTHS = 24;
+
 function createModel(db) {
   // ---------- CRUD ----------
 
@@ -192,8 +196,12 @@ function createModel(db) {
   // ---------- Sync state singleton ----------
 
   const getStateStmt = db.prepare('SELECT * FROM school_holidays_sync_state WHERE id = 1');
+  // The cadence is fixed in code (specs/settings-rationalization.md rule 13): the legacy
+  // `syncIntervalDays` / `syncHorizonMonths` columns are ignored whatever they hold.
   function getSyncState() {
-    return getStateStmt.get();
+    const row = getStateStmt.get();
+    if (!row) return row;
+    return { ...row, syncIntervalDays: SYNC_INTERVAL_DAYS, syncHorizonMonths: SYNC_HORIZON_MONTHS };
   }
 
   const setResultStmt = db.prepare(`
@@ -204,15 +212,6 @@ function createModel(db) {
   `);
   function setSyncResult({ lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount }) {
     setResultStmt.run(lastSyncAt, lastSyncStatus, lastSyncMessage || '', lastImportedCount || 0);
-  }
-
-  const setSettingsStmt = db.prepare(`
-    UPDATE school_holidays_sync_state
-       SET syncIntervalDays = ?, syncHorizonMonths = ?, updatedAt = datetime('now')
-     WHERE id = 1
-  `);
-  function updateSyncSettings({ syncIntervalDays, syncHorizonMonths }) {
-    setSettingsStmt.run(syncIntervalDays, syncHorizonMonths);
   }
 
   return {
@@ -229,9 +228,10 @@ function createModel(db) {
     deleteStaleAutoRows,
     getSyncState,
     setSyncResult,
-    updateSyncSettings,
   };
 }
 
 module.exports = createModel(productionDb);
 module.exports.create = createModel;
+module.exports.SYNC_INTERVAL_DAYS = SYNC_INTERVAL_DAYS;
+module.exports.SYNC_HORIZON_MONTHS = SYNC_HORIZON_MONTHS;
