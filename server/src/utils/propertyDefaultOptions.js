@@ -6,14 +6,21 @@
  * Single source of truth so the public live quote, the booking-request devis and the admin devis all
  * apply property defaults IDENTICALLY (specs/public-api.md, devis §3.3 rules 11–13). Pure: the caller
  * injects `defaultsModel` (with `listForProperty(propertyId)` → [{ optionId, offered }]).
+ *
+ * A default is added with quantity 1, unless the caller's `quantityFor(optionId)` says otherwise:
+ * on the public flow a per-person card option counts PORTIONS, so its default is one per guest —
+ * what it billed back when the quantity meant séances (specs/site-meal-portions.md rule 5).
  */
-function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel) {
+function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel, { quantityFor } = {}) {
   const defaults = defaultsModel.listForProperty(propertyId);
   if (!defaults || defaults.length === 0) return payload;
   const existing = new Set((payload.selectedOptions || []).map((o) => Number(o.optionId)));
   const toAdd = defaults
     .filter((d) => !existing.has(Number(d.optionId)))
-    .map((d) => ({ optionId: Number(d.optionId), quantity: 1 }));
+    .map((d) => ({
+      optionId: Number(d.optionId),
+      quantity: typeof quantityFor === 'function' ? Math.max(1, Number(quantityFor(Number(d.optionId))) || 1) : 1,
+    }));
   if (toAdd.length === 0) return payload;
   // A default with offered=true means the line is included in the price (no extra charge).
   const existingOfferedIds = new Set((payload.offeredOptionIds || []).map((id) => Number(id)));
