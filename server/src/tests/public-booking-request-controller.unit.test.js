@@ -40,6 +40,7 @@ function buildController({
   captures,
 } = {}) {
   const dbMock = {
+    transaction: (fn) => (...args) => fn(...args),
     prepare(sql) {
       const s = String(sql || '');
       return {
@@ -78,6 +79,13 @@ function buildController({
     '../../models/devisModel': devisModelMock,
     './publicCatalogController': catalogMock,
     './publicQuoteController': quoteMock,
+    // CGV (specs/terms-acceptance-record.md): a published version, accepted by validBody() — the
+    // enforcement itself is covered by terms-acceptance.unit.test.js.
+    '../../models/settingsModel': { termsSettings: () => ({ requireTermsAcceptance: true }), upsert: () => {} },
+    '../../models/termsModel': {
+      getCurrent: () => ({ id: 1, version: 1 }),
+      insertAcceptance: (row) => { captures.termsAcceptance = row; },
+    },
     // publicInputValidation + publicHttp load for real (the security validation + the envelope).
   }, () => {
     delete require.cache[require.resolve(controllerModule)];
@@ -93,6 +101,7 @@ function validBody(over = {}) {
     options: [],
     guest: { firstName: 'Marie', lastName: 'Durand', email: 'marie@example.com', phone: '+33612345678' },
     message: 'Bonjour',
+    termsVersion: 1,
     ...over,
   };
 }

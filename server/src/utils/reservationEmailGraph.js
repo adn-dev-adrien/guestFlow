@@ -21,6 +21,23 @@ function loadArrivalComplementDetail(database, reservationId) {
   }
 }
 
+// specs/terms-acceptance-record.md rule 26 — the CGV version `{{cgvUrl}}` points at: the one the guest
+// accepted, else the current one, else null. Guarded like the loader above: a minimal/legacy schema
+// without the CGV tables simply yields no link.
+function loadTermsVersion(database, reservationId) {
+  try {
+    const accepted = database.prepare(`
+      SELECT v.version FROM terms_acceptances a JOIN terms_versions v ON v.id = a.termsVersionId
+       WHERE a.reservationId = ? ORDER BY a.id DESC LIMIT 1
+    `).get(Number(reservationId));
+    if (accepted) return accepted.version;
+    const current = database.prepare('SELECT MAX(version) AS v FROM terms_versions').get();
+    return current && current.v ? current.v : null;
+  } catch {
+    return null;
+  }
+}
+
 function loadReservationGraph(database, reservationId) {
   const id = Number(reservationId);
   const reservation = database.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
@@ -62,7 +79,8 @@ function loadReservationGraph(database, reservationId) {
     : false;
   const arrivalComplementDetail = loadArrivalComplementDetail(database, id);
   const stayFacts = loadStayFacts(database, reservation);
-  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts };
+  const termsVersion = loadTermsVersion(database, id);
+  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts, termsVersion };
 }
 
-module.exports = { loadReservationGraph, loadArrivalComplementDetail };
+module.exports = { loadReservationGraph, loadArrivalComplementDetail, loadTermsVersion };

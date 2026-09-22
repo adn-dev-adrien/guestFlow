@@ -27,6 +27,7 @@ const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const neatSubscriptionsModel = require('../models/neatSubscriptionsModel');
 const neatController = require('./neatController');
+const termsController = require('./termsController');
 const { repriceQuoteWithNeatSync, repriceQuoteWithNeatLive } = require('../utils/neatGuestPricing');
 const { buildNeatClient } = require('../utils/neatClient');
 const refundsModel = require('../models/refundsModel');
@@ -491,6 +492,8 @@ function getById(req, res) {
     // specs/neat-cancellation-insurance-subscription.md §3.3 — the Neat subscription state of this
     // stay, shaped for display (chip + actions); null when there is nothing to show.
     neat: neatController.buildFicheBlock(reservation),
+    // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance, ready to print.
+    cgv: termsController.buildFicheBlock(reservation),
   });
 }
 

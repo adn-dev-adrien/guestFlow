@@ -81,6 +81,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       arrivalComplementDetail: graph.arrivalComplementDetail,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       stayFacts:   graph.stayFacts,
+      termsVersion: graph.termsVersion,
       sequence:    sequenceContextFor({
         stableKey: template.stableKey, reservation: graph.reservation, client: graph.client,
         settings: readSettings(), preferences, sendDate: (sequencePlanFor(template, graph) || {}).sendDate,
@@ -291,6 +292,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
+      termsVersion: graph.termsVersion,
       settings:    readSettings(),
       lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
     });
@@ -343,6 +345,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       resources:   graph.resources,
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
+      termsVersion: graph.termsVersion,
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(

@@ -2461,6 +2461,62 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (dropped.length) console.log(`[migration:settings-rationalization] dropped ${dropped.join(', ')}`);
 }
 
+// ---------- CGV (specs/terms-acceptance-record.md §5) ----------
+// The draft the operator edits, the published versions (insert-only: a version is never edited nor
+// deleted — it is what a guest accepted), and the acceptances recorded on public booking requests.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS terms_draft (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      markdownFr TEXT NOT NULL DEFAULT '',
+      markdownEn TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT
+    );
+
+  CREATE TABLE IF NOT EXISTS terms_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version INTEGER NOT NULL UNIQUE,
+      markdownFr TEXT NOT NULL,
+      markdownEn TEXT NOT NULL,
+      htmlFr TEXT NOT NULL,
+      htmlEn TEXT NOT NULL,
+      variablesJson TEXT NOT NULL,
+      contentHash TEXT NOT NULL,
+      publishedAt TEXT NOT NULL,
+      publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+
+  CREATE TABLE IF NOT EXISTS terms_acceptances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reservationId INTEGER NOT NULL,
+      termsVersionId INTEGER NOT NULL,
+      acceptedAt TEXT NOT NULL,
+      ip TEXT,
+      userAgent TEXT,
+      pluginVersion TEXT,
+      FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
+      FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
+    );
+  CREATE INDEX IF NOT EXISTS idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
+`);
+// Enforcement ON from the first start (rule 15, X release) — the emergency switch of rule 17.
+tryAddAppSettingsCol('requireTermsAcceptance', 'ALTER TABLE app_settings ADD COLUMN requireTermsAcceptance INTEGER NOT NULL DEFAULT 1');
+tryAddAppSettingsCol('lastSeenPluginVersion', "ALTER TABLE app_settings ADD COLUMN lastSeenPluginVersion TEXT DEFAULT ''");
+// One-shot: the confirmation email links to the CGV the guest accepted (rules 26-27).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'terms_cgv_url_confirmation_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runConfirmationCgvLinkMigration } = require('./utils/migrateConfirmationCgvLink');
+    const tx = db.transaction(() => {
+      const updated = runConfirmationCgvLinkMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return updated;
+    });
+    const updated = tx();
+    console.log(`[migration:terms-cgv-url] ${updated} confirmation template field(s) now link to the accepted CGV`);
+  }
+}
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

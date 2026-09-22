@@ -73,6 +73,8 @@ final class GF_Blocks
             'nonce'             => wp_create_nonce('wp_rest'),
             'defaultPropertyId' => (int) $s->get('default_property_id', 0),
             'bookingPageUrl'    => (string) $s->get('booking_page_url', ''),
+            // specs/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
+            'cgvPageUrl'        => esc_url_raw($s->get_cgv_page_url()),
             'configured'        => $s->is_configured(),
             'i18n'              => [
                 'loading'         => __('Chargement…', 'guestflow-booking'),
@@ -156,6 +158,11 @@ final class GF_Blocks
                 'insuranceYes'     => __('Oui, j’assure mon séjour', 'guestflow-booking'),
                 'insuranceNo'      => __('Non merci', 'guestflow-booking'),
                 'insuranceRequired' => __('Merci d’indiquer si vous souhaitez l’assurance annulation.', 'guestflow-booking'),
+                // CGV checkbox (specs/terms-acceptance-record.md rules 10-13).
+                'cgvAcceptBefore' => __('J’ai lu et j’accepte les ', 'guestflow-booking'),
+                'cgvAcceptLink'   => __('conditions générales de location', 'guestflow-booking'),
+                'cgvAcceptAfter'  => __(' (version %d).', 'guestflow-booking'),
+                'cgvRequired'     => __('Acceptez d’abord les conditions générales de location.', 'guestflow-booking'),
                 // Collapsible option categories (specs/option-categories.md §6.3)
                 'showCategory'    => __('Voir les %d options', 'guestflow-booking'),
                 'showOthers'      => __('Voir les %d autres', 'guestflow-booking'),
