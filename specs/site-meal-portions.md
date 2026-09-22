@@ -92,9 +92,13 @@ named correctly, and pays exactly that count.
    inclus) » for a meal — the parenthesis names only the extra lunches the times actually add.
 9. The summary line reads « Petit déjeuner × 8 — 64,00 € » (title × portions), unchanged code, new
    meaning.
+   > **Sans test** — ligne rendue par le plugin WordPress (`view.js`), hors des suites JS scannées
+   > (server, client, e2e) ; vérifiée au navigateur dans le harnais du plugin.
 10. The Solio mu-plugins stop rewriting the unit and drop the « N repas × P personnes » note: the
     GuestFlow labels are now right on their own. `gf_seo_unite_affichee` loses its breakfast/repas
     branch.
+    > **Sans test** — code PHP des mu-plugins du site Solio, déployés à la main hors de ce dépôt ;
+    > vérifié à la relecture et au rendu du tiroir.
 
 **Existing devis (data)**
 

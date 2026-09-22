@@ -174,6 +174,7 @@ test('a per-group card option is not capped and still bills its quantity', () =>
   assert.equal(line.totalPrice, 1350);
 });
 
+// rule 4 — the back office keeps billing scheduled occurrences × served covers.
 test('the admin flow is untouched: occurrences still drive the billed units', () => {
   const q = calculateReservationQuote({
     db: seedDb(),
