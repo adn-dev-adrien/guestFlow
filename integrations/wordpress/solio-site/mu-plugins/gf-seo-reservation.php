@@ -618,12 +618,16 @@ CSS;
 	precedent.addEventListener( 'click', function () { aller( etape - 1 ); } );
 	// « Suivant » descend d'abord aux options ; un second appui (ou un visiteur deja en bas)
 	// passe au recapitulatif.
+	// La cible est plafonnee au defilement possible : sur un grand ecran, l'ecran 1 ne peut pas
+	// descendre jusqu'aux options, et le bouton relancait sans fin un defilement sans effet.
 	suivant.addEventListener( 'click', function () {
 		if ( etape === 1 ) {
 			var sections = ecrans[0].querySelectorAll( '.gf-section' );
 			var options  = sections.length > 1 ? sections[1] : sections[0];
-			if ( options && ecrans[0].scrollTop < options.offsetTop - 140 ) {
-				ecrans[0].scrollTo( { top: Math.max( 0, options.offsetTop - 60 ), behavior: 'smooth' } );
+			var bas      = ecrans[0].scrollHeight - ecrans[0].clientHeight;
+			var cible    = options ? Math.max( 0, Math.min( options.offsetTop - 60, bas ) ) : 0;
+			if ( options && ecrans[0].scrollTop < cible - 80 ) {
+				ecrans[0].scrollTo( { top: cible, behavior: 'smooth' } );
 				return;
 			}
 		}
