@@ -79,7 +79,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 3. The takeover runs **before** the Booking echo filter (rule 6): a Booking stay imported through
    Lodgify is a real Booking booking, not an echo, and must be claimed by the native Booking feed.
 4. A reservation whose platform is still `Lodgify` but which really came from a channel is **not**
-   claimed — the platform equality is the safety. The runbook (§10 step 2) has the operator relabel
+   claimed — the platform equality is the safety. The runbook (§10 step 3) has the operator relabel
    those before the switch. On a Booking feed such a stay is covered, hence skipped as an echo (no
    duplicate, but no link either); on Airbnb or Abritel it is created next to the old one.
 4bis. **Booking re-issuing a UID.** The Booking feed has no guest name, so the summary fallbacks are
@@ -123,14 +123,17 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 10. A Lodgify source is retired by setting it **inactive** (`isActive = 0`, existing toggle), never by
     deleting it or emptying its URL: an inactive source is not synced, so its mappings raise no
     cancellation alert, and its past reservations keep their origin for the history.
+    > **Sans test** — an operator action on the existing `isActive` toggle; that inactive sources are never synced is pre-existing behaviour (`scheduledTasks.performAutoSync` selects `isActive = 1`), covered by its own suites.
 11. The `Lodgify` platform row stays: 17 reservations and their accounting entries reference it, and
     `isDirectChannel()` keeps counting it as an own channel. No new reservation is filed under it.
+    > **Sans test** — nothing is changed: the row and `isDirectChannel()` stay as they are.
 
 ### D. Abritel
 
 12. `Abritel` is created as a platform (Paramètres → Plateformes, existing UI) with a **15 %**
     commission (« Performance – 2 », measured 2026-08-17), so native Abritel bookings stop landing
     without commission (open item since 2026-08-14).
+    > **Sans test** — configuration done by the operator in the existing Plateformes screen (runbook step 3), no code.
 
 **Edge cases:**
 - Booking event exactly equal to a closure → echo, skipped (covered by rule 6).
@@ -214,7 +217,7 @@ tombstone is written for anything removed before that.
 
 **Data impact:** additive table, empty at start. Takeover rewrites `sourceIcalSourceId`,
 `sourceIcalEventUid` and the mapping rows of reservations it claims — logged in
-`reservation_history`, and a production DB backup is taken before the switch (§10 step 0).
+`reservation_history`, and a production DB backup is taken before the switch (§10 step 1).
 
 ## 6. UI / UX
 
@@ -225,7 +228,7 @@ Mobile behaviour unchanged (text wraps as today).
 
 ## 7. Test plan
 
-### Server unit tests — `tests/lodgify-decommission-native-feeds.unit.test.js` (18 tests)
+### Server unit tests — `tests/lodgify-decommission-native-feeds.unit.test.js` (19 tests)
 - [x] `classifyBookingEvent`: echo / partial / free, back-to-back departure day, merged adjacent ranges (2).
 - [x] Booking `CLOSED` event on free dates creates a Booking reservation (rules 5, 9).
 - [x] Booking echo of a GreenGo stay is skipped and counted (rule 6).
@@ -239,6 +242,7 @@ Mobile behaviour unchanged (text wraps as today).
 - [x] Still-active Lodgify neither re-imports nor cancels a taken-over stay (rule 2bis).
 - [x] No takeover when still labelled `Lodgify`, when the platform differs, or with two candidates (rules 1, 4).
 - [x] Conflict e-mail copy names the Booking feed (rule 8).
+- [x] Recorded sync message and counts name the Booking echoes; zero counters stay silent (rule 13).
 
 `tests/property-ical-dedup.unit.test.js` — its schema gains `kind`, `bookingConflictAt` and the three
 tables, because its Booking source now goes through the Booking path.
@@ -262,7 +266,7 @@ tables, because its Booking source now goes through the Booking path.
 - Q2: Tombstone window — 72 h?
   - A: **Resolved 2026-09-21** — 72 hours.
 - Q3: Does Booking's native export really carry reservations as `CLOSED - Not available` for these two properties? It cannot be read before the connectivity provider is removed.
-  - A: _to verify on day J, step 4 of the runbook, before any Lodgify source is set inactive._
+  - A: _to verify on day J, step 5 of the runbook, before any Lodgify source is set inactive._
 
 ---
 
@@ -270,16 +274,16 @@ tables, because its Booking source now goes through the Booking path.
 
 Order matters: a channel is never left without a sync path, and Lodgify is cancelled last.
 
-0. **Backup** the production database; screenshot each channel's calendar for the next 12 months.
-1. **Check Abritel first.** In the Abritel partner space, find out whether listing AB 2622643
+1. **Backup** the production database; screenshot each channel's calendar for the next 12 months.
+2. **Check Abritel first.** In the Abritel partner space, find out whether listing AB 2622643
    (property 123465737) is owned by the Lodgify integration. If disconnecting would deactivate it or
    drop its reviews, stop and ask Vrbo support for a transfer to a direct owner account before going
    further on this channel.
-2. **Relabel in GuestFlow** every future reservation filed under `Lodgify` that actually came from
+3. **Relabel in GuestFlow** every future reservation filed under `Lodgify` that actually came from
    Booking, Airbnb or Abritel (rule 4). Create the `Abritel` platform at 15 % (rule 12).
-3. **Record every channel's current settings** (standard price, derived plans, promotions, minimum
+4. **Record every channel's current settings** (standard price, derived plans, promotions, minimum
    stays, booking window) — Booking may reset the standard plan when the provider is removed.
-4. **Per channel, one at a time — Booking, then Airbnb, then Abritel:**
+5. **Per channel, one at a time — Booking, then Airbnb, then Abritel:**
    1. Disconnect it in Lodgify (`channels/manager/<canal>`), and on Booking remove the connectivity
       provider in the extranet.
    2. Re-enter prices and availability in the extranet if they were reset.
@@ -287,12 +291,12 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
    4. Copy the channel's own export URL into the matching GuestFlow source (Booking #11/#12, a new
       Abritel source, Airbnb for the Lodge), sync it, and read the result: takeovers expected, no
       creation on a date already held.
-5. **Once the three native feeds are synced, set both Lodgify sources inactive** (rule 10). Not
+6. **Once the three native feeds are synced, set both Lodgify sources inactive** (rule 10). Not
    urgent to the minute: taken-over UIDs are superseded (rule 2bis).
-6. **Test by quote** on each channel: a date held by another channel must be unavailable; a free date
+7. **Test by quote** on each channel: a date held by another channel must be unavailable; a free date
    must price as recorded in step 3.
-7. Watch the dashboard for 72 h (new iCal reservations, cancellation alerts, conflict badges).
-8. **Only then** cancel the Lodgify subscription.
+8. Watch the dashboard for 72 h (new iCal reservations, cancellation alerts, conflict badges).
+9. **Only then** cancel the Lodgify subscription.
 
 After the switch, `.claude/skills/platform-tariff-rollout/references/platforms.md` must be updated:
 Airbnb, Booking and Abritel become consoles of their own, no longer « nourris par Lodgify ».
@@ -301,5 +305,5 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 
 ## 11. Implementation progress
 
-- 2026-09-21 — server implementation, 18 unit tests, rehearsed on a production copy, spec synced (Implemented). No client code: the
+- 2026-09-21 — server implementation, 19 unit tests, rehearsed on a production copy, spec synced (Implemented). No client code: the
   sync message is server-built text.

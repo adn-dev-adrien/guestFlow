@@ -300,6 +300,27 @@ test('rule 1 — two candidates on the same dates: no takeover, the data is alre
   assert.equal(r.takenOverCount, 0);
 });
 
+// ---------- sync result reporting (rule 13) ----------
+
+test('rule 13 — the recorded sync message and counts name the Booking echoes', async () => {
+  const { db, model } = fresh();
+  db.exec(`ALTER TABLE ical_sources ADD COLUMN url TEXT;
+    ALTER TABLE ical_sources ADD COLUMN lastSyncAt TEXT; ALTER TABLE ical_sources ADD COLUMN lastSyncStatus TEXT;
+    ALTER TABLE ical_sources ADD COLUMN lastSyncMessage TEXT; ALTER TABLE ical_sources ADD COLUMN lastSyncCounts TEXT;
+    ALTER TABLE ical_sources ADD COLUMN lastImportedCount INTEGER; ALTER TABLE ical_sources ADD COLUMN updatedAt TEXT;`);
+  stubFetch([{ uid: 'G1', start: '20270703', end: '20270706', summary: 'Jean Dupont' }]);
+  await model.syncSource(GREENGO);
+  stubFetch([closed('B-echo', '20270703', '20270706')]);
+  await model.syncSourceAndRecord(BOOKING);
+  const row = db.prepare('SELECT lastSyncMessage, lastSyncCounts FROM ical_sources WHERE id = ?').get(BOOKING.id);
+  assert.match(row.lastSyncMessage, /1 écho\(s\) ignoré\(s\)/);
+  assert.doesNotMatch(row.lastSyncMessage, /reprise|en conflit/, 'zero counters stay silent');
+  assert.deepEqual(
+    (({ takenOver, echoSkipped, conflicts }) => ({ takenOver, echoSkipped, conflicts }))(JSON.parse(row.lastSyncCounts)),
+    { takenOver: 0, echoSkipped: 1, conflicts: 0 },
+  );
+});
+
 // ---------- conflict notification copy (rule 8) ----------
 
 test('rule 8 — the conflict e-mail says it comes from the Booking feed, not from an online payment', () => {
