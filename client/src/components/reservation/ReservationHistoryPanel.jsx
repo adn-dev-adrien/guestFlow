@@ -26,6 +26,8 @@ const HISTORY_EVENT_TITLES = {
   update: 'Modification',
   sas_arrival: 'SAS arrivée',
   sas_departure: 'SAS départ',
+  // specs/terms-acceptance-record.md rule 20.
+  terms_accepted: 'CGV acceptées en ligne',
 };
 
 const KIND_PREFIX = {

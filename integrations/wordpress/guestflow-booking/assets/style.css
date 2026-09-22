@@ -93,6 +93,10 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-success { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 1rem; }
 .gf-btn { background: var(--gf-accent); color: #fff; border: none; border-radius: 8px; padding: .7rem 1.2rem; font: inherit; cursor: pointer; min-height: 44px; }
 .gf-btn[disabled] { opacity: .5; cursor: not-allowed; }
+/* CGV acceptance (specs/terms-acceptance-record.md rule 10): the whole line is the hit area. */
+.gf-cgv-accept { display: flex; gap: .6rem; align-items: flex-start; margin: .9rem 0 .4rem; cursor: pointer; line-height: 1.45; }
+.gf-cgv-accept input { width: 20px; height: 20px; margin: .1rem 0 0; flex: 0 0 auto; }
+.gf-cgv-accept a { text-decoration: underline; }
 .gf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 /* Properties */

@@ -507,6 +507,14 @@ const api = {
   googleCalendarSyncNow: () => request('/google-calendar/sync-now', { method: 'POST' }),
   testGoogleCalendarConnection: () => request('/google-calendar/test-connection', { method: 'POST' }),
 
+  // CGV — draft, preview, publication, versions, enforcement (specs/terms-acceptance-record.md §4.4).
+  getTerms: () => request('/terms'),
+  saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
+  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload }),
+  publishTerms: () => request('/terms/publish', { method: 'POST' }),
+  updateTermsEnforcement: (requireTermsAcceptance) => request('/terms/enforcement', { method: 'PUT', body: { requireTermsAcceptance } }),
+  getTermsVersion: (version) => request(`/terms/versions/${version}`),
+
   // Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §4.3).
   getNeatSettings: () => request('/neat/settings'),
   updateNeatSettings: (payload) => request('/neat/settings', { method: 'PUT', body: payload }),

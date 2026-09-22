@@ -10,6 +10,7 @@
 import BusinessIcon from '@mui/icons-material/Business';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import GavelIcon from '@mui/icons-material/Gavel';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import DateRangeIcon from '@mui/icons-material/DateRange';
@@ -27,6 +28,7 @@ export const SETTINGS_MENU = [
   { path: '/settings/etablissement', label: 'Établissement', Icon: BusinessIcon },
   { path: PROPERTIES_PATH, label: 'Logements', Icon: HomeWorkIcon },
   { path: '/settings/plateformes', label: 'Plateformes', Icon: StorefrontIcon },
+  { path: '/parametres/conditions-generales', label: 'Conditions générales', Icon: GavelIcon },
   null,
   { path: '/parametres/options-ressources', label: 'Options & ressources', Icon: ExtensionIcon, matches: ['/options', '/resources'] },
   { path: '/parametres/recettes', label: 'Recettes tarifaires', Icon: MenuBookIcon },

@@ -20,6 +20,8 @@ const ROUTES = [
   { url: '/settings/integrations',       heading: 'Intégrations' },
   { url: '/settings/systeme',            heading: 'Système', exact: true },
   { url: '/settings/utilisateurs',       heading: 'Utilisateurs' },
+  // specs/terms-acceptance-record.md — the CGV page.
+  { url: '/parametres/conditions-generales', heading: 'Conditions générales' },
   { url: '/mon-compte',                  heading: 'Mon compte' },
   { url: '/properties',                  heading: 'Logements' },
   { url: '/clients',                     heading: 'Clients' },

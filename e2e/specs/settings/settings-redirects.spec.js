@@ -21,7 +21,7 @@ for (const { from, to, heading } of REDIRECTS) {
 test('the Paramètres submenu lists the new pages; Clients and Mon compte sit outside it', async ({ page }) => {
   await page.goto('/settings/etablissement');
   const nav = page.getByRole('navigation').first().or(page.locator('.MuiDrawer-root').first());
-  for (const label of ['Établissement', 'Logements', 'Plateformes', 'Options & ressources', 'Recettes tarifaires',
+  for (const label of ['Établissement', 'Logements', 'Plateformes', 'Conditions générales', 'Options & ressources', 'Recettes tarifaires',
     'Vacances & fermetures', 'Linge', 'Paiements en ligne', 'TVA & exercice', 'Emails & notifications',
     'Intégrations', 'Utilisateurs', 'Système']) {
     await expect(nav.getByRole('link', { name: label, exact: true }).first()).toBeVisible();

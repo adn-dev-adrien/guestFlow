@@ -199,6 +199,8 @@ app.use('/api/system', require('./routes/system'));
 // specs/neat-cancellation-insurance-subscription.md — Neat connection, mapping, retry/void.
 // Admin-only through the same deny-by-default role guard.
 app.use('/api/neat', require('./routes/neat'));
+// specs/terms-acceptance-record.md — the CGV the operator writes and publishes. Admin-only.
+app.use('/api/terms', require('./routes/terms'));
 
 app.get('/api/version', (req, res) => {
   res.json({
