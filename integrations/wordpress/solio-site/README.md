@@ -62,7 +62,9 @@ suit le défilement. Le bloc n'est ni dupliqué ni modifié : c'est exactement l
 
 Le tiroir se parcourt en **deux écrans** : « Votre séjour » (dates, voyageurs et options, le
 total se mettant à jour en direct) puis « Récapitulatif » (le détail chiffré, les coordonnées et
-l'acceptation des CGV, qui conditionne l'envoi). Au retour de la page de paiement Qonto
+la case d'acceptation des CGV). Cette case appartient au plugin GuestFlow (≥ 1.8.0), qui l'envoie
+avec la demande : GuestFlow horodate l'acceptation, garde la version acceptée, et refuse toute
+demande qui ne la porte pas (`specs/terms-acceptance-record.md`). Le tiroir ne fait que l'habiller. Au retour de la page de paiement Qonto
 (`?gf_payment=…`), le moteur reste dans la page plutôt que dans un tiroir fermé.
 
 Deux détails qui comptent : le tiroir n'est jamais en `display:none` (il est décalé hors écran
@@ -71,6 +73,13 @@ il porte l'attribut `inert` tant qu'il est fermé, pour rester hors de la naviga
 
 Un lien `href="#reserver"` ou un attribut `data-gf-reserver` posé n'importe où dans la page
 ouvre le même tiroir — utile pour un bouton d'appel à l'action dans le corps du texte.
+
+## Les conditions générales
+
+Le texte des CGV s'écrit et se publie dans GuestFlow (Paramètres → Conditions générales), en
+français et en anglais. La page `/cgv/` ne contient que le shortcode `[guestflow_cgv]` : elle affiche
+la version en vigueur, ou une version précise avec `?v=N` (le lien de la case et du mail de
+confirmation). Une version publiée ne change plus ; pour corriger une phrase, on publie la suivante.
 
 ## Où chaque information apparaît — une seule fois
 
@@ -82,7 +91,7 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 | Superficie, saison, horaires, animaux, bébés, bain nordique | l'encadré « L'essentiel » (le wifi n'y figure que lorsqu'il n'y en a pas) |
 | Équipements détaillés | la grille de pictogrammes (`gf-amenities`) |
 | Prix des options | la carte « à la carte » de `/reserver/` (`[solio_surdemande]`), via GuestFlow |
-| Montant des cautions | `[solio_caution]`, lu dans les faits — les CGV ne le codent jamais en dur |
+| Montant des cautions | `[solio_caution]`, lu dans les faits ; dans les CGV, `{{cautions}}`, lu dans GuestFlow (caution par défaut de chaque logement) — les deux doivent dire la même chose |
 | Contexte géographique | uniquement les deux pages de logement et `/acces/` |
 | Ce que montre chaque photo | la légende de la diapo, sous l'image du carrousel |
 

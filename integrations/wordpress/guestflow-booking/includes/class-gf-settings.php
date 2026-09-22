@@ -40,6 +40,8 @@ final class GF_Settings
             'availability_cache_ttl' => 300,
             'default_property_id'    => 0,
             'booking_page_url'       => '',
+            'cgv_page_url'           => '',
+            'trusted_proxies'        => '',
         ];
     }
 
@@ -53,6 +55,28 @@ final class GF_Settings
     {
         $all = $this->all();
         return array_key_exists($key, $all) ? $all[$key] : $fallback;
+    }
+
+    /** Page showing [guestflow_cgv]; the booking checkbox links to it (default: /cgv/). */
+    public function get_cgv_page_url(): string
+    {
+        $url = trim((string) $this->get('cgv_page_url', ''));
+        return $url !== '' ? $url : home_url('/cgv/');
+    }
+
+    /** Reverse proxies in front of WordPress whose X-Forwarded-For is believed (visitor IP). */
+    public function get_trusted_proxies(): array
+    {
+        return self::parse_ip_list((string) $this->get('trusted_proxies', ''));
+    }
+
+    /** Valid IP addresses found in a comma / space / newline separated list. */
+    public static function parse_ip_list(string $raw): array
+    {
+        $parts = preg_split('/[\s,;]+/', $raw) ?: [];
+        return array_values(array_unique(array_filter($parts, static function ($ip) {
+            return filter_var($ip, FILTER_VALIDATE_IP) !== false;
+        })));
     }
 
     public function get_base_url(): string
@@ -132,6 +156,8 @@ final class GF_Settings
         $out['availability_cache_ttl'] = max(0, (int) ($input['availability_cache_ttl'] ?? 300));
         $out['default_property_id']    = max(0, (int) ($input['default_property_id'] ?? 0));
         $out['booking_page_url']       = esc_url_raw(trim((string) ($input['booking_page_url'] ?? '')));
+        $out['cgv_page_url']           = esc_url_raw(trim((string) ($input['cgv_page_url'] ?? '')));
+        $out['trusted_proxies']        = implode(', ', self::parse_ip_list((string) ($input['trusted_proxies'] ?? '')));
 
         // Key field: empty submission keeps the existing key (the field is masked); a non-empty
         // value replaces it. When the constant is set, the option key is irrelevant.
@@ -221,6 +247,22 @@ final class GF_Settings
                             <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[booking_page_url]" id="gf_booking_page" type="url" class="regular-text"
                                    value="<?php echo esc_attr($o['booking_page_url']); ?>" placeholder="https://exemple.com/reserver" />
                             <p class="description"><?php echo esc_html__("Les cartes de logements pointent vers cette page avec ?property=ID.", 'guestflow-booking'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="gf_cgv_page"><?php echo esc_html__('Page des conditions générales', 'guestflow-booking'); ?></label></th>
+                        <td>
+                            <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[cgv_page_url]" id="gf_cgv_page" type="url" class="regular-text"
+                                   value="<?php echo esc_attr($o['cgv_page_url']); ?>" placeholder="<?php echo esc_attr(home_url('/cgv/')); ?>" />
+                            <p class="description"><?php echo esc_html__("La page qui contient le shortcode [guestflow_cgv]. La case « J'ai lu et j'accepte » du formulaire de réservation y renvoie, sur la version affichée. Vide : /cgv/.", 'guestflow-booking'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="gf_trusted_proxies"><?php echo esc_html__('Proxys de confiance', 'guestflow-booking'); ?></label></th>
+                        <td>
+                            <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[trusted_proxies]" id="gf_trusted_proxies" type="text" class="regular-text"
+                                   value="<?php echo esc_attr($o['trusted_proxies']); ?>" placeholder="192.168.0.21" />
+                            <p class="description"><?php echo esc_html__("Adresses IP des reverse proxys placés devant WordPress (séparées par des virgules). Sans elles, GuestFlow reçoit l'adresse du proxy au lieu de celle du visiteur : la preuve d'acceptation des CGV et la limite anti-spam en dépendent.", 'guestflow-booking'); ?></p>
                         </td>
                     </tr>
                     <tr>

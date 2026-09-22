@@ -8,6 +8,14 @@ const lines = (...l) => l.join('\n');
 
 // ---------------------------------------------------------------- 1. Confirmation
 
+// specs/terms-acceptance-record.md rule 27 — the CGV of the stay, pinned to the version the guest
+// accepted (the current one for a booking taken by phone). The whole paragraph disappears while no
+// version is published. Exported: utils/migrateConfirmationCgvLink.js inserts the same paragraph into
+// stored templates.
+const CGV_SENTENCE_FR = 'Vous retrouverez à tout moment les conditions générales de votre séjour ici : {{cgvUrl}}';
+const CGV_SENTENCE_EN = 'You can find the terms and conditions of your stay here at any time: {{cgvUrl}}';
+const cgvParagraph = (sentence) => `{{#if hasCgvUrl}}${sentence}\n\n{{/if}}`;
+
 const CONFIRMATION_SUBJECT = 'Votre séjour {{propertyWithArticle}} est confirmé';
 const CONFIRMATION_SUBJECT_EN = 'Your stay at {{propertyWithArticle}} is confirmed';
 
@@ -37,7 +45,7 @@ const CONFIRMATION_BODY = lines(
   '{{/if}}- Les 13 hectares du domaine, le sentier de balade et les animaux, en toute liberté',
   '{{#if stayOverlapsPool}}- La piscine, partagée avec l\'autre hébergement du domaine',
   '{{/if}}',
-  'Une question d\'ici là ? Répondez simplement à ce mail, ou appelez-nous au {{companyPhone}}.',
+  `${cgvParagraph(CGV_SENTENCE_FR)}Une question d'ici là ? Répondez simplement à ce mail, ou appelez-nous au {{companyPhone}}.`,
   '',
   'À très bientôt,',
   '{{senderName}}',
@@ -69,7 +77,7 @@ const CONFIRMATION_BODY_EN = lines(
   '{{/if}}- The 13 hectares of the domain, the walking trail and the animals, freely',
   '{{#if stayOverlapsPool}}- The pool, shared with the other accommodation of the domain',
   '{{/if}}',
-  'Any question until then? Simply reply to this email, or call us on {{companyPhone}}.',
+  `${cgvParagraph(CGV_SENTENCE_EN)}Any question until then? Simply reply to this email, or call us on {{companyPhone}}.`,
   '',
   'See you very soon,',
   '{{senderName}}',
@@ -333,6 +341,7 @@ const JANUARY_BODY_EN = lines(
 );
 
 module.exports = {
+  CGV_SENTENCE_FR, CGV_SENTENCE_EN, cgvParagraph,
   CONFIRMATION_SUBJECT, CONFIRMATION_SUBJECT_EN, CONFIRMATION_BODY, CONFIRMATION_BODY_EN,
   J7_SUBJECT, J7_SUBJECT_EN, J7_BODY, J7_BODY_EN,
   J2_SUBJECT, J2_SUBJECT_EN, J2_BODY, J2_BODY_EN,

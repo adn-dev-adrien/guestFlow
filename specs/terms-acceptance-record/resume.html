@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CGV et preuve d’acceptation</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244a37; --primary-soft:#e6efe9;
+  --secondary:#C99038; --secondary-soft:#f7ecd9; --ocre:#B87B2A;
+  --bg:#F8F5EF; --paper:#FFFFFF; --text:#27251F; --muted:#6E6A5E;
+  --divider:rgba(60,54,36,.12); --shadow:0 3px 16px rgba(60,54,36,.09);
+  --error:#B3261E; --error-soft:#fbe9e7; --warn:#9a6700; --warn-soft:#fff4d6;
+  --ok:#2e7d32; --ok-soft:#e8f5e9; --info:#1f5f8b; --info-soft:#e3f0f8;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 var(--sans)}
+a{color:var(--primary)}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.25}
+h1{font-size:2rem;margin:.2em 0 .3em}
+h2{font-size:1.45rem;margin:0 0 .6em}
+h3{font-size:1.08rem;margin:1.1em 0 .4em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+header.top{padding:28px 0 8px}
+.meta{color:var(--muted);font-size:.9rem}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;background:var(--secondary-soft);color:#7a5512}
+nav.toc{position:sticky;top:0;z-index:30;background:rgba(248,245,239,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--divider)}
+nav.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+nav.toc a{white-space:nowrap;text-decoration:none;color:var(--muted);font-weight:600;font-size:.88rem;padding:6px 10px;border-radius:8px}
+nav.toc a:hover{background:var(--paper);color:var(--text)}
+section.block{padding:30px 0 8px}
+.lead{font-size:1.05rem;max-width:780px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
+.kpi{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.kpi .v{font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .l{color:var(--muted);font-size:.88rem}
+.kpi.bad .v{color:var(--error)} .kpi.warn .v{color:var(--warn)}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cols2>*,.cols3>*{min-width:0}
+@media(max-width:820px){.cols2,.cols3{grid-template-columns:1fr}}
+.card{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+.card h3{margin-top:0}
+ul.tight{margin:.3em 0;padding-left:1.2em} ul.tight li{margin:.25em 0}
+code{font:.84em var(--mono);background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+
+/* flow */
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:stretch;margin:14px 0}
+.flow .node{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:14px}
+.flow .node b{display:block;font-family:var(--serif);font-size:1.05rem;margin-bottom:4px}
+.flow .node small{color:var(--muted)}
+.flow .arr{align-self:center;color:var(--muted);font-size:1.4rem}
+@media(max-width:820px){.flow{grid-template-columns:1fr}.flow .arr{transform:rotate(90deg);justify-self:center}}
+.tag{display:inline-block;font:600 .72rem var(--sans);padding:1px 7px;border-radius:6px;margin:2px 3px 0 0}
+.tag.new{background:var(--ok-soft);color:var(--ok)} .tag.gone{background:var(--error-soft);color:var(--error)}
+.tag.same{background:rgba(60,54,36,.07);color:var(--muted)}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--paper);border:1px dashed var(--divider);border-radius:12px;padding:10px 14px;margin:12px 0}
+.controls .lbl{font-size:.8rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--divider);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:600 .86rem var(--sans);color:var(--muted);padding:6px 10px;border-radius:7px;cursor:pointer}
+.seg button.on{background:var(--paper);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn-ghost{border:1px solid var(--divider);background:var(--paper);border-radius:9px;padding:7px 11px;font:600 .85rem var(--sans);cursor:pointer;color:var(--text)}
+.btn-ghost:hover{border-color:var(--primary)}
+.switch{position:relative;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:.9rem}
+.switch input{position:absolute;opacity:0}
+.switch .t{width:38px;height:22px;border-radius:11px;background:#c9c4b7;position:relative;transition:.15s}
+.switch .t::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.switch input:checked + .t{background:var(--primary)}
+.switch input:checked + .t::after{left:19px}
+.switch input:focus-visible + .t{outline:2px solid var(--primary);outline-offset:2px}
+
+/* site mockup */
+.site{background:#FBF7F0;border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;max-width:460px}
+.site .hd{background:#2b2a26;color:#f4ecdc;padding:10px 16px;font:600 .9rem var(--serif);display:flex;justify-content:space-between}
+.site .bd{padding:16px}
+.site h4{font:600 1.15rem var(--serif);margin:0 0 10px}
+.recap{border-top:1px solid #e6dccb;border-bottom:1px solid #e6dccb;padding:8px 0;margin-bottom:12px;font-size:.9rem}
+.recap div{display:flex;justify-content:space-between;padding:2px 0}
+.recap .tot{font-weight:700;border-top:1px dashed #e6dccb;margin-top:4px;padding-top:6px}
+.fld{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.fld input{width:100%;border:1px solid #d9ccb5;border-radius:6px;padding:8px;font:inherit;background:#fff}
+.cgv{display:flex;gap:10px;align-items:flex-start;margin:14px 0 6px;font-size:.9rem;padding:4px 0;cursor:pointer}
+.cgv input{margin-top:2px;width:20px;height:20px;accent-color:var(--ocre);flex:0 0 auto}
+.cgv a{color:#9A6318}
+.inline-warn{background:var(--warn-soft);color:#6b4800;border-left:3px solid var(--warn);padding:8px 10px;border-radius:6px;font-size:.86rem;margin:6px 0}
+.inline-err{background:var(--error-soft);color:var(--error);border-left:3px solid var(--error);padding:8px 10px;border-radius:6px;font-size:.86rem;margin:6px 0}
+.site .go{width:100%;border:0;background:var(--ocre);color:#fff;font:700 1rem var(--sans);padding:12px;border-radius:8px;cursor:pointer;min-height:44px}
+.site .go:disabled{background:#d6c3a2;cursor:not-allowed}
+.site .go:hover:not(:disabled){background:#9A6318}
+.ok-box{background:var(--ok-soft);color:#1d5a20;border-radius:8px;padding:10px;font-size:.9rem;margin-top:10px}
+.note{font-size:.82rem;color:var(--muted);margin-top:8px}
+
+/* what server receives */
+pre.json{background:#1f1e1b;color:#e9e4d8;border-radius:10px;padding:12px;font:12.5px/1.5 var(--mono);overflow-x:auto;margin:0;min-height:120px;white-space:pre}
+pre.json .k{color:#9fc7ae} pre.json .s{color:#e8c07d} pre.json .c{color:#8b867a}
+
+/* app mockup */
+.app{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.app .bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--divider);flex-wrap:wrap}
+.app .bar b{font-family:var(--serif);font-size:1.1rem}
+.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:.76rem;font-weight:600;border:1px solid}
+.chip.info{color:var(--info);border-color:var(--info)} .chip.wp{color:var(--primary);border-color:var(--primary)}
+.app .body{padding:14px}
+.client{border:1px solid var(--divider);border-radius:10px;padding:12px 14px}
+.client .nm{font-weight:700}
+.client .sub{color:var(--muted);font-size:.88rem}
+.tline{margin-top:10px;font-size:.9rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.tline.rec .dot{background:var(--ok)} .tline.miss{color:var(--warn)} .tline.miss .dot{background:var(--warn)}
+.linkbtn{border:0;background:none;color:var(--primary);font:600 .88rem var(--sans);cursor:pointer;text-decoration:underline;padding:0}
+.list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.list button{border:1px solid var(--divider);background:var(--bg);border-radius:8px;padding:6px 10px;font:600 .82rem var(--sans);cursor:pointer}
+.list button.on{border-color:var(--primary);background:var(--primary-soft)}
+.empty{color:var(--muted);font-size:.9rem;padding:12px;border:1px dashed var(--divider);border-radius:10px;text-align:center}
+
+/* dialog */
+.dlg-bg{position:fixed;inset:0;background:rgba(20,18,14,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+.dlg-bg.open{display:flex}
+.dlg{background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.dlg .h{padding:14px 18px;border-bottom:1px solid var(--divider);display:flex;justify-content:space-between;align-items:center}
+.dlg .h b{font-family:var(--serif);font-size:1.1rem}
+.dlg .c{padding:14px 18px}
+.dlg .f{padding:10px 18px;border-top:1px solid var(--divider);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+@media(max-width:600px){.dlg-bg{padding:0}.dlg{max-width:none;height:100%;max-height:none;border-radius:0}}
+.si{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;font-size:.9rem;padding:4px 0;border-bottom:1px solid rgba(60,54,36,.06)}
+.si span:first-child{color:var(--muted)}
+.si span:last-child{word-break:break-all}
+@media(max-width:600px){.si{grid-template-columns:1fr}}
+.snap{border:1px solid var(--divider);border-radius:8px;padding:12px;background:#fdfbf7;font-size:.86rem;margin-top:10px}
+.snap h5{font:600 1rem var(--serif);margin:0 0 6px}
+.btn{border:0;border-radius:8px;padding:9px 14px;font:600 .88rem var(--sans);cursor:pointer;min-height:40px}
+.btn.p{background:var(--primary);color:#fff} .btn.o{background:#fff;border:1px solid var(--divider)}
+
+/* settings card */
+table.v{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:8px}
+table.v th{text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--divider);padding:6px}
+table.v td{border-bottom:1px solid rgba(60,54,36,.06);padding:6px;font-variant-numeric:tabular-nums}
+@media(max-width:600px){table.v thead{display:none}table.v tr{display:block;border-bottom:1px solid var(--divider);padding:6px 0}table.v td{display:flex;justify-content:space-between;border:0;padding:2px 6px}table.v td::before{content:attr(data-l);color:var(--muted)}}
+
+/* decisions */
+.q{background:var(--paper);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.q h3{margin:0 0 6px}
+.q .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+@media(max-width:700px){.q .opts{grid-template-columns:1fr}}
+.opt{border:1px solid var(--divider);border-radius:10px;padding:10px 12px;font-size:.9rem}
+.opt.rec{border-color:var(--primary);background:var(--primary-soft)}
+.opt b{display:block;margin-bottom:2px}
+footer{padding:30px 0 50px;color:var(--muted);font-size:.85rem}
+
+/* editor */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--divider);margin-bottom:10px}
+.tabs button{border:0;background:none;padding:8px 12px;font:600 .88rem var(--sans);color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--primary);border-bottom-color:var(--primary)}
+.ed{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ed>*{min-width:0}
+@media(max-width:820px){.ed{grid-template-columns:1fr}}
+.ed textarea{width:100%;min-height:230px;border:1px solid var(--divider);border-radius:8px;padding:10px;font:13px/1.5 var(--mono);resize:vertical}
+.prev{border:1px solid var(--divider);border-radius:8px;padding:10px 14px;background:#fdfbf7;font-size:.9rem;min-height:230px}
+.prev h4{font:600 1.05rem var(--serif);margin:.2em 0 .4em}
+.prev ul{padding-left:1.2em;margin:.3em 0}
+.prev .unk{background:var(--error-soft);color:var(--error);border-radius:4px;padding:0 3px}
+.abar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--divider);flex-wrap:wrap}
+.abar b{font-family:var(--serif);font-size:1.1rem;margin-right:auto}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--divider);background:#fff;cursor:pointer;font-size:1.05rem;display:inline-flex;align-items:center;justify-content:center}
+.ib.save{background:var(--primary);color:#fff;border-color:var(--primary)}
+.ib.pub{border-color:var(--ok);color:var(--ok)}
+.ib:disabled{opacity:.4;cursor:not-allowed}
+.vars{font-size:.82rem;color:var(--muted);margin-top:8px}
+.vars code{cursor:pointer}
+.mail{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);max-width:560px}
+.mail .mh{padding:10px 16px;border-bottom:1px solid var(--divider);font-size:.85rem;color:var(--muted)}
+.mail .mb{padding:16px;font-size:.93rem}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;position:relative;padding:10px 12px 10px 48px;background:var(--paper);border-radius:12px;box-shadow:var(--shadow);margin-bottom:8px}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:10px;width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.steps li.down{border-left:4px solid var(--error)}
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <span class="pill">Spec à valider · 21/09/2026 · arbitrages intégrés</span>
+  <h1>Des CGV tenues dans GuestFlow, et la preuve de leur acceptation</h1>
+  <p class="meta">Spec de référence : <code>specs/terms-acceptance-record.md</code> · branche <code>feature/terms-acceptance-record</code> · <b>version X</b> (serveur) · plugin 1.8.0</p>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#constat">Constat</a><a href="#propose">Ce qu'on propose</a><a href="#editeur">Rédiger</a><a href="#site">Le site</a>
+  <a href="#fiche">La fiche</a><a href="#mail">Le mail</a><a href="#bascule">Mise en prod</a><a href="#pas">Ce qu'on ne fait pas</a>
+  <a href="#risque">Risques</a><a href="#arbitrages">Reste à trancher</a>
+</div></nav>
+
+<main class="wrap">
+
+<section class="block" id="constat">
+  <h2>Constat</h2>
+  <p class="lead">La case « J'ai lu et j'accepte… » du site sert seulement à <b>activer le bouton</b>. Elle vient du mu-plugin, pas du moteur de réservation : <b>rien n'est transmis à GuestFlow</b>, et le serveur accepte une demande même si la case n'est pas cochée.</p>
+  <div class="kpis">
+    <div class="kpi bad"><div class="v">0</div><div class="l">trace de l'heure d'acceptation ou du texte accepté</div></div>
+    <div class="kpi warn"><div class="v">modifiable</div><div class="l">la page /cgv/ change dès qu'on la modifie ou qu'une caution change : elle ne prouve pas ce que le client a vu</div></div>
+    <div class="kpi bad"><div class="v">5 / h</div><div class="l">limite anti-spam appliquée à <b>tout le site</b> : dès la 6ᵉ demande dans l'heure, les vrais clients sont refusés (corrigé ici)</div></div>
+  </div>
+</section>
+
+<section class="block" id="propose">
+  <h2>Ce qu'on propose</h2>
+  <div class="flow">
+    <div class="node"><b>GuestFlow rédige</b><small>Les CGV sont écrites en Markdown, en français et en anglais, avec des variables ({{cautions}}, {{siret}}…). Publier une version la fige : son texte et son empreinte ne changeront plus.</small><br><span class="tag new">Paramètres → Conditions générales</span></div>
+    <div class="arr">→</div>
+    <div class="node"><b>Le site affiche</b><small>La page <code>/cgv/</code> n'est plus que le shortcode <code>[guestflow_cgv]</code>. Le moteur de réservation affiche la case avec le numéro de version. Le proxy transmet l'IP et le navigateur du visiteur.</small><br><span class="tag new">plugin 1.8.0</span><span class="tag gone">case du mu-plugin</span></div>
+    <div class="arr">→</div>
+    <div class="node"><b>GuestFlow prouve</b><small>Il horodate avec sa propre horloge, relie l'acceptation à la version, refuse toute demande sans acceptation et envoie dans le mail de confirmation le lien vers la version acceptée.</small><br><span class="tag new">terms_acceptances</span><span class="tag new">{{cgvUrl}}</span></div>
+  </div>
+</section>
+
+<section class="block" id="editeur">
+  <h2>Rédiger et publier (Paramètres → Conditions générales)</h2>
+  <p>Modifiez le texte : l'aperçu remplit les variables. Tapez une variable inconnue, par exemple <code>{{penalite}}</code>, pour voir la publication se bloquer. Publiez, puis changez une caution pour voir l'alerte « élément cité modifié ».</p>
+  <div class="controls">
+    <span class="lbl">Fait dans GuestFlow</span>
+    <button class="btn-ghost" id="bumpFact">Caution de La Granja : <span id="cautionNow">500</span> € → <span id="cautionNext">600</span> €</button>
+  </div>
+  <div class="app">
+    <div class="abar"><b>Conditions générales</b>
+      <button class="ib pub" id="pubBtn" title="Publier la version">⇪</button>
+      <button class="ib save" title="Enregistrer le brouillon">✓</button>
+      <button class="ib" title="Annuler">↺</button>
+    </div>
+    <div class="body">
+      <div id="staleBox"></div>
+      <div id="edMsg"></div>
+      <div class="tabs" id="langTabs"><button data-l="fr" class="on">Français</button><button data-l="en">English</button></div>
+      <div class="ed">
+        <div><textarea id="md" aria-label="Texte des CGV en Markdown"></textarea>
+          <div class="vars">Variables : <code>{{raisonSociale}}</code> <code>{{adresse}}</code> <code>{{siret}}</code> <code>{{email}}</code> <code>{{telephone}}</code> <code>{{cautions}}</code></div></div>
+        <div class="prev" id="prev"></div>
+      </div>
+      <h3>Versions publiées</h3>
+      <div id="versions"></div>
+      <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label class="switch"><input type="checkbox" id="swRequire" checked><span class="t"></span>Exiger l'acceptation des CGV sur le site</label>
+        <span class="note" style="margin:0">Interrupteur de secours, activé par défaut.</span>
+      </div>
+      <div id="swWarn"></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="site">
+  <h2>Le site : le récapitulatif du tiroir</h2>
+  <p>Essayez de réserver sans cocher la case, puis en la cochant. Publiez une nouvelle version pendant que le formulaire est ouvert, ou remettez le plugin en 1.7.0.</p>
+  <div class="controls">
+    <span class="lbl">Plugin installé</span>
+    <div class="seg" id="segPlugin"><button data-v="1.7.0">1.7.0 (actuel)</button><button data-v="1.8.0" class="on">1.8.0</button></div>
+    <button class="btn-ghost" id="pubDuring">Publier une version pendant que le client remplit le formulaire</button>
+  </div>
+  <div class="cols2">
+    <div class="site">
+      <div class="hd"><span>Domaine Solio · La Granja</span><span>Récapitulatif</span></div>
+      <div class="bd">
+        <h4>Votre séjour</h4>
+        <div class="recap">
+          <div><span>12 → 15 octobre 2026 · 3 nuits</span><span>612,00 €</span></div>
+          <div><span>2 adultes · bain nordique offert</span><span>0,00 €</span></div>
+          <div class="tot"><span>Total</span><span>612,00 €</span></div>
+        </div>
+        <div class="fld"><input id="fName" value="Camille" aria-label="Prénom"><input id="lName" value="Martin" aria-label="Nom"></div>
+        <div id="cgvWrap"></div>
+        <div id="siteMsg"></div>
+        <button class="go" id="goBtn">Réserver et payer</button>
+        <div class="note" id="siteNote"></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Ce que GuestFlow reçoit et répond</h3>
+      <pre class="json" id="wire"><span class="c">// Cliquez sur « Réserver et payer »</span></pre>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="fiche">
+  <h2>La fiche de la demande</h2>
+  <p>Une ligne de plus dans le bloc client. « Détails » affiche toute la preuve, y compris le texte figé.</p>
+  <div class="list" id="ficheList"></div>
+  <div class="app">
+    <div class="bar"><b>Modifier le devis</b><span class="chip wp">WordPress</span><span class="chip info">Valide jusqu'au 05/10/2026</span></div>
+    <div class="body" id="ficheBody"></div>
+  </div>
+</section>
+
+<section class="block" id="mail">
+  <h2>Le mail de confirmation</h2>
+  <p>Une phrase est ajoutée au modèle « Confirmation de réservation », en français et en anglais. Le lien pointe vers la page CGV <b>épinglée sur la version acceptée</b>. Le mode d'envoi du modèle ne change pas.</p>
+  <div class="mail"><div class="mh">À : camille.martin@example.fr · Objet : Votre séjour à La Granja est confirmé</div>
+    <div class="mb" id="mailBody"></div></div>
+</section>
+
+<section class="block" id="bascule">
+  <h2>Mise en production (version X)</h2>
+  <p>La réservation en ligne est coupée entre les étapes 1 et 3. Ces étapes se font d'une traite, en heure creuse.</p>
+  <ol class="steps">
+    <li class="down"><b>Installer la release.</b> Le site répond « Réservations momentanément indisponibles » tant qu'aucune version des CGV n'est publiée.</li>
+    <li class="down"><b>Publier la version 1.</b> Je prépare le brouillon à partir du texte actuel de <code>/cgv/</code>, en remplaçant les valeurs écrites en dur par des variables. Tu le relis, puis tu publies.</li>
+    <li class="down"><b>Mettre le plugin en 1.8.0</b> depuis WordPress, renseigner « Proxys de confiance » (Caddy de l'edge), remplacer le contenu de <code>/cgv/</code> par <code>[guestflow_cgv]</code> et déployer le mu-plugin sans sa case.</li>
+    <li><b>Réserver de bout en bout</b> : case, paiement Qonto, ligne sur la fiche, lien dans le mail.</li>
+  </ol>
+</section>
+
+<section class="block" id="pas">
+  <h2>Ce qu'on ne fait pas</h2>
+  <div class="card"><ul class="tight">
+    <li>L'acceptation pour les devis créés dans l'app (réservations par téléphone ou e-mail).</li>
+    <li>Un PDF des CGV joint au mail : tu as choisi le lien vers la version en ligne.</li>
+    <li>La publication programmée à une date future.</li>
+    <li>Les plateformes (Airbnb, Booking, Gîtes de France), qui appliquent leurs propres conditions.</li>
+  </ul></div>
+</section>
+
+<section class="block" id="risque">
+  <h2>Risques</h2>
+  <div class="cols3">
+    <div class="card"><h3>Coupure de la réservation</h3>La version X refuse toute demande venant d'un plugin 1.7.x, et toute demande tant qu'aucune version n'est publiée. L'ordre des étapes ci-dessus est donc impératif. L'interrupteur de secours permet de rouvrir la réservation en une seconde.</div>
+    <div class="card"><h3>IP derrière Caddy</h3>Si « Proxys de confiance » n'est pas renseigné, GuestFlow enregistre l'IP de Caddy, et la limite anti-spam retombe à 5 demandes par heure pour tout le site. À vérifier sur .23 à l'étape 4.</div>
+    <div class="card"><h3>Lien et « support durable »</h3>Un lien dépend de la disponibilité du site. Or la jurisprudence penche plutôt pour un texte que le client garde en main. Ton choix est noté. Joindre un PDF plus tard serait un petit ajout, puisque le HTML est déjà figé.</div>
+  </div>
+</section>
+
+<section class="block" id="arbitrages">
+  <h2>Reste à trancher</h2>
+  
+    <div class="opts">
+      <div class="opt rec"><b>Première famille, après Plateformes (proposé)</b>À côté d'Établissement, car les CGV engagent l'établissement.</div>
+      <div class="opt"><b>Avec Emails &amp; notifications</b>Au plus près de ce qui part chez le client.</div>
+    </div></div>
+  <p class="note">Déjà tranchés le 21/09 : GuestFlow est l'éditeur (Markdown FR + EN avec variables), l'IP et le navigateur sont enregistrés, le lien vers la version acceptée part dans le mail de confirmation, l'exigence est activée d'emblée, et la limite anti-spam est corrigée dans cette même spec.</p>
+</section>
+
+</main>
+
+<div class="dlg-bg" id="dlgBg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+  <div class="dlg">
+    <div class="h"><b id="dlgTitle">Acceptation des CGV</b><button class="btn o" id="dlgX" aria-label="Fermer">✕</button></div>
+    <div class="c" id="dlgBody"></div>
+    <div class="f"><button class="btn o" id="dlgSnap">Voir le texte accepté</button><button class="btn p" id="dlgClose">Fermer</button></div>
+  </div>
+</div>
+
+<div class="dlg-bg" id="cfBg" role="dialog" aria-modal="true" aria-labelledby="cfT">
+  <div class="dlg" style="max-width:420px;height:auto">
+    <div class="h"><b id="cfT">Publier les conditions générales ?</b></div>
+    <div class="c" id="cfTxt"></div>
+    <div class="f"><button class="btn o" id="cfNo">Annuler</button><button class="btn p" id="cfOk">Publier</button></div>
+  </div>
+</div>
+
+<footer class="wrap">Maquette autonome : les données sont simulées dans la page et rien n'est envoyé. La raison sociale, l'adresse, le SIRET et le texte des CGV sont des exemples.</footer>
+
+<script>
+(function(){
+  var FACTS = { raisonSociale:'SAS Domaine Solio', adresse:'Lieu-dit Solio, 20100 Sartène', siret:'912 345 678 00017', email:'contact@domainesolio.com', telephone:'+33 4 95 00 00 00' };
+  var S = {
+    caution:{ 'La Granja':500, "L'Estiva":300 },
+    md:{
+      fr:"## Conditions générales de location\n\nLe domaine est exploité par {{raisonSociale}} ({{siret}}), {{adresse}}.\n\n### Article 4 — Caution\n\nUne caution est demandée à l'arrivée :\n\n{{cautions}}\n\nElle est restituée sous 7 jours.\n\n### Article 6 — Annulation\n\nToute annulation plus de 30 jours avant l'arrivée donne lieu au remboursement intégral.",
+      en:"## Terms and conditions\n\nThe estate is run by {{raisonSociale}} ({{siret}}), {{adresse}}.\n\n### Article 4 — Deposit\n\nA security deposit is required on arrival:\n\n{{cautions}}\n\nIt is returned within 7 days.\n\n### Article 6 — Cancellation\n\nAny cancellation more than 30 days before arrival is refunded in full."
+    },
+    lang:'fr', versions:[], plugin:'1.8.0', require:true, demandes:[], selected:null, seq:22301, formVersion:null
+  };
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  var pad = function(n){ return (n<10?'0':'')+n; };
+  function paris(d){ return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' à '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+  function day(d){ return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear(); }
+  function vars(){ var v = Object.assign({}, FACTS); v.cautions = Object.keys(S.caution).map(function(k){ return '- '+k+' : '+S.caution[k]+' €'; }).join('\n'); return v; }
+  function render(md){
+    var v = vars(), unknown = [];
+    var txt = md.replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, function(m, k){ if (v[k]!==undefined) return v[k]; if (unknown.indexOf(k)<0) unknown.push(k); return '\u0001'+k+'\u0002'; });
+    var html = '', inList = false;
+    txt.split('\n').forEach(function(line){
+      var e = esc(line).replace(/\u0001(\w+)\u0002/g,'<span class="unk">{{$1}}</span>');
+      if (/^- /.test(line)){ if(!inList){ html+='<ul>'; inList=true; } html+='<li>'+e.slice(2)+'</li>'; return; }
+      if (inList){ html+='</ul>'; inList=false; }
+      if (/^#{2,3} /.test(line)) html+='<h4>'+e.replace(/^#+ /,'')+'</h4>';
+      else if (line.trim()) html+='<p>'+e+'</p>';
+    });
+    if (inList) html+='</ul>';
+    return { html:html, unknown:unknown };
+  }
+  function hash(str){ var out=''; for (var r=0;r<8;r++){ var h=(0x811c9dc5^Math.imul(r+1,2654435761))>>>0; for (var i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; } out+=('00000000'+h.toString(16)).slice(-8); } return out; }
+  function current(){ return S.versions[S.versions.length-1] || null; }
+
+  /* ---- editor ---- */
+  function renderEditor(){
+    $('md').value = S.md[S.lang];
+    renderPreview();
+  }
+  function renderPreview(){
+    var r = render(S.md[S.lang]);
+    $('prev').innerHTML = r.html;
+    var all = render(S.md.fr).unknown.concat(render(S.md.en).unknown).filter(function(x,i,a){return a.indexOf(x)===i;});
+    var cur = current();
+    var unchanged = cur && cur.mdFr===S.md.fr && cur.mdEn===S.md.en && JSON.stringify(cur.vars)===JSON.stringify(vars());
+    var b = $('pubBtn');
+    b.disabled = all.length>0 || !!unchanged;
+    var n = S.versions.length+1;
+    b.title = all.length ? 'Variables inconnues : '+all.join(', ') : (unchanged ? 'Rien de nouveau depuis la version '+cur.n : 'Publier la version '+n);
+    $('edMsg').innerHTML = all.length ? '<div class="inline-err">Publication impossible, variable(s) inconnue(s) : '+all.map(function(x){return '{{'+x+'}}';}).join(', ')+'</div>' : '';
+    var st = '';
+    if (cur){
+      var changed = Object.keys(vars()).filter(function(k){ return cur.vars[k]!==vars()[k]; });
+      if (changed.length) st = '<div class="inline-warn">Un élément cité a changé depuis la version '+cur.n+' ('+changed.map(function(k){return '{{'+k+'}}';}).join(', ')+') : publiez une nouvelle version pour l’intégrer. D’ici là, le site affiche toujours la version '+cur.n+', telle qu’elle a été publiée.</div>';
+    }
+    $('staleBox').innerHTML = st;
+  }
+  $('md').addEventListener('input', function(){ S.md[S.lang] = this.value; renderPreview(); });
+  Array.prototype.forEach.call(document.querySelectorAll('#langTabs button'), function(b){
+    b.onclick = function(){ S.lang = b.getAttribute('data-l'); Array.prototype.forEach.call(document.querySelectorAll('#langTabs button'), function(x){ x.classList.toggle('on', x===b); }); renderEditor(); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.vars code'), function(c){
+    c.title='Insérer'; c.onclick = function(){ var t=$('md'); var p=t.selectionStart||t.value.length; t.value=t.value.slice(0,p)+c.textContent+t.value.slice(p); S.md[S.lang]=t.value; renderPreview(); t.focus(); };
+  });
+  function publish(skipSite){
+    var fr = render(S.md.fr), en = render(S.md.en);
+    var v = { n:S.versions.length+1, at:new Date(), mdFr:S.md.fr, mdEn:S.md.en, htmlFr:fr.html, htmlEn:en.html, vars:vars(), hash:hash(fr.html+en.html), count:0 };
+    S.versions.push(v);
+    renderPreview(); renderVersions(); if (!skipSite) renderCgv(); renderFiche();
+    return v;
+  }
+  $('pubBtn').onclick = function(){
+    var n = S.versions.length+1;
+    $('cfTxt').textContent = 'La version '+n+' sera figée et proposée aux clients dès maintenant.';
+    $('cfBg').classList.add('open'); $('cfOk').focus();
+  };
+  $('cfOk').onclick = function(){ $('cfBg').classList.remove('open'); publish(); };
+  $('cfNo').onclick = function(){ $('cfBg').classList.remove('open'); };
+  $('bumpFact').onclick = function(){
+    S.caution['La Granja'] += 100; $('cautionNow').textContent = S.caution['La Granja']; $('cautionNext').textContent = S.caution['La Granja']+100;
+    renderPreview();
+  };
+  function renderVersions(){
+    var w = $('versions');
+    if (!S.versions.length){ w.innerHTML = '<div class="inline-err">Aucune version publiée : la réservation en ligne est fermée. Publiez vos conditions générales pour la rouvrir.</div>'; return; }
+    w.innerHTML = '<table class="v"><thead><tr><th>Version</th><th>Publiée le</th><th>Empreinte</th><th>Acceptations</th></tr></thead><tbody>'+
+      S.versions.slice().reverse().map(function(x){ return '<tr><td data-l="Version">v'+x.n+(x===current()?' · en vigueur':'')+'</td><td data-l="Publiée le">'+paris(x.at)+'</td><td data-l="Empreinte"><code>'+x.hash.slice(0,12)+'</code></td><td data-l="Acceptations">'+x.count+'</td></tr>'; }).join('')+'</tbody></table>';
+  }
+  $('swRequire').onchange = function(){
+    S.require = this.checked;
+    $('swWarn').innerHTML = S.require ? '' : '<div class="inline-warn">Exigence désactivée : les demandes sans acceptation sont de nouveau créées, sans preuve. À réserver aux urgences.</div>';
+  };
+
+  /* ---- site ---- */
+  var caseCgv = null;
+  function renderCgv(){
+    var w = $('cgvWrap'); w.innerHTML='';
+    var cur = current();
+    S.formVersion = cur ? cur.n : null;
+    var l = document.createElement('label'); l.className='cgv';
+    var vtxt = (S.plugin==='1.8.0' && cur) ? ' (version '+cur.n+')' : '';
+    l.innerHTML = '<input type="checkbox"> <span>J’ai lu et j’accepte les <a href="#" onclick="return false">conditions générales de location</a>'+vtxt+'.</span>';
+    w.appendChild(l); caseCgv = l.querySelector('input');
+    caseCgv.addEventListener('change', function(){ $('siteMsg').innerHTML=''; syncBtn(); });
+    syncBtn();
+  }
+  function syncBtn(){
+    var b = $('goBtn');
+    if (S.plugin==='1.7.0'){ b.disabled = !caseCgv.checked; $('siteNote').textContent='Case du mu-plugin : elle grise le bouton, mais ne transmet rien.'; }
+    else { b.disabled = false; $('siteNote').textContent='Case du plugin : le bouton reste cliquable pour pouvoir expliquer un refus.'; }
+  }
+  function j(k,v){ return '  <span class="k">"'+k+'"</span>: '+v; }
+  function str(v){ return '<span class="s">"'+esc(v)+'"</span>'; }
+  function reply(lines, text, err){ lines.push(''); lines.push('<span class="c">← '+text+'</span>'); $('wire').innerHTML = lines.join('\n'); if (err) $('siteMsg').innerHTML = '<div class="inline-err">'+err+'</div>'; }
+
+  $('goBtn').addEventListener('click', function(){
+    var msg = $('siteMsg'); msg.innerHTML='';
+    if (S.plugin==='1.8.0' && !caseCgv.checked){
+      msg.innerHTML = '<div class="inline-warn">Acceptez d’abord les conditions générales de location.</div>';
+      $('wire').innerHTML = '<span class="c">// Rien n’est envoyé : le plugin refuse au clic.</span>'; return;
+    }
+    var withTerms = S.plugin==='1.8.0';
+    var lines = ['<span class="c">X-GuestFlow-Plugin: '+S.plugin+(withTerms?'\nX-GuestFlow-Visitor-IP: 86.242.17.203':'')+'</span>','{', j('propertyId','3')+',', j('guest','{ … '+esc($('fName').value+' '+$('lName').value)+' … }')+','];
+    if (withTerms) lines.push(j('termsVersion', S.formVersion===null?'null':String(S.formVersion))+',');
+    else lines.push('  <span class="c">// aucune information sur les CGV</span>');
+    lines.push(j('_hp',str('')), '}');
+    var cur = current();
+    if (S.require && !cur) return reply(lines, '503 TERMS_NOT_CONFIGURED', 'Les réservations en ligne sont momentanément indisponibles.');
+    if (S.require && !withTerms) return reply(lines, '422 TERMS_NOT_ACCEPTED · aucun client, aucun devis créé', 'Vous devez accepter les conditions générales de location.');
+    if (withTerms && cur && S.formVersion!==cur.n){
+      reply(lines, '409 TERMS_OUTDATED · version en vigueur : '+cur.n, 'Les conditions générales ont été mises à jour. Merci de les relire et de les accepter à nouveau.');
+      var keep = msg.innerHTML; renderCgv(); msg.innerHTML = keep; return;
+    }
+    var now = new Date();
+    var d = { id:++S.seq, name:$('fName').value+' '+$('lName').value, plugin:S.plugin, acc:null };
+    if (withTerms && cur){ cur.count++; d.acc = { at:now, v:cur, ip:'86.242.17.203', ua:'Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1' }; }
+    reply(lines, d.acc ? '201 · acceptation enregistrée : v'+cur.n+' le '+now.toISOString()+' (horloge serveur)' : '201 · devis créé sans acceptation (exigence désactivée)');
+    S.demandes.unshift(d); S.selected = d.id;
+    msg.innerHTML = '<div class="ok-box">Redirection vers le paiement Qonto…</div>';
+    caseCgv.checked = false; syncBtn();
+    renderFiche(); renderVersions(); renderMail();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#segPlugin button'), function(b){
+    b.onclick = function(){ S.plugin = b.getAttribute('data-v'); Array.prototype.forEach.call(document.querySelectorAll('#segPlugin button'), function(x){ x.classList.toggle('on', x===b); }); $('siteMsg').innerHTML=''; renderCgv(); };
+  });
+  $('pubDuring').onclick = function(){
+    var f = S.formVersion;
+    var fr = render(S.md.fr);
+    if (fr.unknown.length){ $('siteMsg').innerHTML = '<div class="inline-warn">Corrigez d’abord les variables inconnues dans l’éditeur.</div>'; return; }
+    S.md.fr = S.md.fr.replace(/sous \d+ jours|sous 7 jours/, 'sous '+(8+S.versions.length)+' jours');
+    var v = publish(true);
+    renderEditor();
+    $('siteMsg').innerHTML = '<div class="note">Version '+v.n+' publiée dans GuestFlow. Le formulaire du client affiche toujours la version '+(f===null?'—':f)+'.</div>';
+  };
+
+  /* ---- fiche ---- */
+  function renderFiche(){
+    var list = $('ficheList'); list.innerHTML='';
+    S.demandes.forEach(function(d){ var b=document.createElement('button'); b.textContent='D-'+d.id+' · '+d.name; if(d.id===S.selected) b.className='on'; b.onclick=function(){ S.selected=d.id; renderFiche(); renderMail(); }; list.appendChild(b); });
+    var d = S.demandes.filter(function(x){return x.id===S.selected;})[0];
+    if (!d){ $('ficheBody').innerHTML = '<div class="empty">Envoyez une demande depuis la maquette du site ci-dessus.</div>'; return; }
+    var line = d.acc ? '<div class="tline rec"><span class="dot"></span>CGV v'+d.acc.v.n+' acceptées le '+paris(d.acc.at)+' <button class="linkbtn" id="openDet">Détails</button></div>'
+                     : '<div class="tline miss"><span class="dot"></span>CGV : aucune acceptation enregistrée</div>';
+    $('ficheBody').innerHTML = '<div class="client"><div class="nm">'+esc(d.name)+'</div><div class="sub">camille.martin@example.fr · +33 6 12 34 56 78 · Demande D-'+d.id+'</div>'+line+'</div>';
+    var o = $('openDet'); if (o) o.onclick = function(){ openDlg(d); };
+  }
+  var dlgD = null;
+  function openDlg(d){
+    dlgD = d; var a = d.acc;
+    $('dlgBody').innerHTML =
+      '<div class="si"><span>Acceptées le</span><span>'+paris(a.at)+' (heure de Paris)</span></div>'+
+      '<div class="si"><span>Horodatage UTC</span><span>'+a.at.toISOString()+'</span></div>'+
+      '<div class="si"><span>Version</span><span>v'+a.v.n+' publiée le '+paris(a.v.at)+' · '+a.v.hash.slice(0,12)+'</span></div>'+
+      '<div class="si"><span>Adresse IP</span><span>'+a.ip+'</span></div>'+
+      '<div class="si"><span>Navigateur</span><span>'+esc(a.ua)+'</span></div>'+
+      '<div class="si"><span>Plugin</span><span>guestflow-booking '+d.plugin+'</span></div><div id="snapBox"></div>';
+    $('dlgSnap').style.display=''; $('dlgBg').classList.add('open'); $('dlgClose').focus();
+  }
+  function closeDlg(){ $('dlgBg').classList.remove('open'); $('cfBg').classList.remove('open'); }
+  $('dlgClose').onclick = closeDlg; $('dlgX').onclick = closeDlg;
+  $('dlgBg').addEventListener('click', function(e){ if (e.target===this) closeDlg(); });
+  document.addEventListener('keydown', function(e){ if (e.key==='Escape') closeDlg(); });
+  $('dlgSnap').onclick = function(){
+    if (!dlgD) return;
+    $('snapBox').innerHTML = '<div class="snap">'+dlgD.acc.v.htmlFr+'<p class="note">Texte figé à la publication de la v'+dlgD.acc.v.n+', même si le brouillon ou une caution ont changé depuis.</p></div>';
+    this.style.display='none';
+  };
+
+  /* ---- mail ---- */
+  function renderMail(){
+    var d = S.demandes.filter(function(x){return x.id===S.selected;})[0];
+    var cur = current();
+    var v = d && d.acc ? d.acc.v.n : (cur ? cur.n : 1);
+    var first = d ? esc(d.name.split(' ')[0]) : 'Camille';
+    $('mailBody').innerHTML = '<p>Bonjour '+first+',</p><p>Votre séjour à La Granja du 12 au 15 octobre est confirmé, nous nous réjouissons de vous accueillir.</p><p>…</p>'+
+      '<p style="background:var(--ok-soft);border-radius:6px;padding:6px 8px">Vous retrouverez à tout moment les conditions générales que vous avez acceptées ici : <a href="#" onclick="return false">https://domainesolio.com/cgv/?v='+v+'</a></p><p>À très bientôt,<br>Domaine Solio</p>';
+  }
+
+  renderEditor(); renderVersions(); renderCgv(); renderFiche(); renderMail();
+})();
+</script>
+</body>
+</html>

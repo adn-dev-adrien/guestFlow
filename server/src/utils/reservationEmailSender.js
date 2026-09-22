@@ -10,6 +10,7 @@
 
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
+const { loadTermsVersion } = require('./reservationEmailGraph');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const { stableKeyAutoSends } = require('./autoSendPolicy');
 const { MAIL, planStayMails } = require('./guestEmailSequence');
@@ -45,7 +46,8 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
 
   const settings = settingsModel.read();
   const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
-  const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
+  const termsVersion = loadTermsVersion(database, reservation.id);
+  const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang, termsVersion });
   // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
   const extra = extraContext || {};

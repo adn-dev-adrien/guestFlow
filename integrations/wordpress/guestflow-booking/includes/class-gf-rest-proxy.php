@@ -13,6 +13,8 @@ if (!defined('ABSPATH')) {
 
 final class GF_Rest_Proxy
 {
+    private const TERMS_CURRENT_TTL = 60;
+
     private const NS = 'guestflow/v1';
     private static ?GF_Rest_Proxy $instance = null;
 
@@ -57,6 +59,18 @@ final class GF_Rest_Proxy
             'methods'             => 'GET',
             'permission_callback' => $public,
             'callback'            => [$this, 'get_availability'],
+        ]);
+        // CGV (specs/terms-acceptance-record.md §3.2): the current version the booking block offers,
+        // and a published version by number (immutable).
+        register_rest_route(self::NS, '/terms', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_terms'],
+        ]);
+        register_rest_route(self::NS, '/terms/(?P<version>\d+)', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_terms_version'],
         ]);
         register_rest_route(self::NS, '/quote', [
             'methods'             => 'POST',
@@ -129,6 +143,18 @@ final class GF_Rest_Proxy
         return $this->proxy_get("/properties/{$id}/availability", $query, (int) GF_Settings::instance()->get('availability_cache_ttl', 300));
     }
 
+    /** Short TTL: a new publication must reach the form quickly (a stale one is answered 409 anyway). */
+    public function get_terms(WP_REST_Request $request): WP_REST_Response
+    {
+        return $this->proxy_get('/terms', [], self::TERMS_CURRENT_TTL);
+    }
+
+    public function get_terms_version(WP_REST_Request $request): WP_REST_Response
+    {
+        $version = (int) $request['version'];
+        return $this->proxy_get("/terms/{$version}", [], (int) GF_Settings::instance()->get('cache_ttl', 600));
+    }
+
     // ----- write / compute handlers (no cache) -----
 
     public function post_quote(WP_REST_Request $request): WP_REST_Response
@@ -141,6 +167,9 @@ final class GF_Rest_Proxy
     public function post_booking_request(WP_REST_Request $request): WP_REST_Response
     {
         $body = (array) $request->get_json_params();
+        // The browser only says which version was ticked (`termsVersion`). The proof around it — who,
+        // from where — is added by GuestFlow from the headers this server sets, never from the body.
+        unset($body['termsAcceptance'], $body['acceptedAt']);
         $res = GF_Api_Client::instance()->post('/booking-requests', $body);
         return $this->relay($res);
     }

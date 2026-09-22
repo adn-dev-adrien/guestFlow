@@ -1,0 +1,1 @@
+- **Breaking for the WordPress site (X release)** — from this version GuestFlow refuses every public booking request that does not carry the CGV acceptance: the plugin must be updated to 1.8.0 and a first CGV version published the same day (rollout in `specs/terms-acceptance-record.md` §3.8).

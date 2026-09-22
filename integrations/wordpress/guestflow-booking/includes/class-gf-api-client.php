@@ -35,6 +35,34 @@ final class GF_Api_Client
         return $this->request('POST', $path, ['body' => $body]);
     }
 
+    /**
+     * The visitor's address: REMOTE_ADDR, unless it is one of the trusted reverse proxies — then the
+     * right-most X-Forwarded-For entry that is not itself a trusted proxy (the left part of that
+     * header is written by the client and cannot be believed).
+     */
+    public static function visitor_ip(array $trusted): string
+    {
+        $remote = isset($_SERVER['REMOTE_ADDR']) ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
+        if ($remote === '' || !in_array($remote, $trusted, true)) {
+            return filter_var($remote, FILTER_VALIDATE_IP) !== false ? $remote : '';
+        }
+        $forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? (string) $_SERVER['HTTP_X_FORWARDED_FOR'] : '';
+        $hops = array_reverse(array_map('trim', explode(',', $forwarded)));
+        foreach ($hops as $hop) {
+            if ($hop === '' || in_array($hop, $trusted, true)) {
+                continue;
+            }
+            return filter_var($hop, FILTER_VALIDATE_IP) !== false ? $hop : '';
+        }
+        return '';
+    }
+
+    private static function visitor_user_agent(): string
+    {
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+        return substr(preg_replace('/[\r\n]+/', ' ', $ua), 0, 512);
+    }
+
     private function request(string $method, string $path, array $opts = []): array
     {
         $settings = GF_Settings::instance();
@@ -56,9 +84,14 @@ final class GF_Api_Client
             // Default true (secure). Operators can turn this off for a trusted local/LAN GuestFlow
             // using a self-signed certificate (see GF_Settings::get_ssl_verify).
             'sslverify' => $settings->get_ssl_verify(),
+            // The visitor behind this server-to-server call (specs/terms-acceptance-record.md §3.6):
+            // GuestFlow records it with a CGV acceptance and counts its rate limits per visitor.
             'headers'   => [
-                'Authorization' => 'Bearer ' . $key,
-                'Accept'        => 'application/json',
+                'Authorization'          => 'Bearer ' . $key,
+                'Accept'                 => 'application/json',
+                'X-GuestFlow-Plugin'     => GF_BOOKING_VERSION,
+                'X-GuestFlow-Visitor-IP' => self::visitor_ip($settings->get_trusted_proxies()),
+                'X-GuestFlow-Visitor-UA' => self::visitor_user_agent(),
             ],
         ];
         if (isset($opts['body'])) {

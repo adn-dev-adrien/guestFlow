@@ -28,6 +28,7 @@ import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
+import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import ReservationLostItemsCard from '../components/ReservationLostItemsCard';
@@ -199,6 +200,8 @@ export default function ReservationPage() {
   // specs/neat-cancellation-insurance-subscription.md §3.3 — the server-shaped Neat subscription
   // block (chip + actions on the insurance card); null when there is nothing to show.
   const [neatBlock, setNeatBlock] = useState(null);
+  // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance block, shaped by the server.
+  const [cgvBlock, setCgvBlock] = useState(null);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   // Bumped after any server-side finance mutation the live quote depends on — un remboursement, une
   // note en séjour, le report du complément en fin de séjour — pour que l'effet de devis re-tourne et
@@ -849,6 +852,7 @@ export default function ReservationPage() {
             collectedTtc: Number(res.collectedTtc || 0),
           });
           setNeatBlock(res.neat || null);
+          setCgvBlock(res.cgv || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -871,6 +875,7 @@ export default function ReservationPage() {
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
         } else if (editingDevisId) {
           const devis = await api.getDevisById(editingDevisId);
+          setCgvBlock(devis.cgv || null);
           const { options: catalogueOptions } = await loadPropertyContext(devis.propertyId, props);
 
           const allRes = await api.getReservations({ propertyId: devis.propertyId });
@@ -3248,6 +3253,7 @@ export default function ReservationPage() {
                         + Créer un nouveau client
                       </Button>
                     </Box>
+                    <TermsAcceptanceLine block={cgvBlock} />
                   </>
                 ) : (
                   <>

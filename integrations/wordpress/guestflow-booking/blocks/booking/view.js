@@ -53,13 +53,17 @@
       GF.api('GET', '/properties/' + propertyId),
       showOptions ? GF.api('GET', '/properties/' + propertyId + '/options') : Promise.resolve({ status: 200, body: { data: { ungrouped: [], groups: [] } } }),
       showOptions ? GF.api('GET', '/properties/' + propertyId + '/resources') : Promise.resolve({ status: 200, body: { data: [] } }),
+      // The CGV version the guest will accept (specs/terms-acceptance-record.md rule 10). Absent when
+      // nothing is published: GuestFlow then refuses the request itself, with its own message.
+      GF.api('GET', '/terms'),
     ]).then(function (r) {
       if (r[0].status < 200 || r[0].status >= 300 || !r[0].body || !r[0].body.data) {
         container.innerHTML = '';
         container.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(r[0])));
         return;
       }
-      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || {}, (r[2].body && r[2].body.data) || [], payOnline);
+      var termsData = (r[3].status >= 200 && r[3].status < 300 && r[3].body && r[3].body.data) || null;
+      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || {}, (r[2].body && r[2].body.data) || [], payOnline, termsData);
     });
   }
 
@@ -116,7 +120,7 @@
     poll();
   }
 
-  function build(container, propertyId, detail, options, resources, payOnline) {
+  function build(container, propertyId, detail, options, resources, payOnline, termsData) {
     var f = {}; // field refs
     var debounceTimer = null;
     var lastQuote = null;
@@ -574,13 +578,36 @@
       GF.el('div', { class: 'gf-hp' }, GF.el('label', {}, 'Ne pas remplir', f.hp))
     );
 
+    // CGV acceptance (specs/terms-acceptance-record.md rules 10-13): never pre-ticked; the version
+    // travels with the request and GuestFlow records it. Rebuilt when GuestFlow answers that a newer
+    // version was published meanwhile.
+    var terms = termsData ? { version: termsData.version } : null;
+    var cgvBox = GF.el('div', {});
+    var cgvNotice = GF.el('div', {});
+    function paintCgv() {
+      cgvBox.innerHTML = '';
+      if (!terms) return;
+      var link = GF.cgvPageUrl + (GF.cgvPageUrl.indexOf('?') >= 0 ? '&' : '?') + 'v=' + terms.version;
+      f.cgv = GF.el('input', { type: 'checkbox', onChange: function () { cgvNotice.innerHTML = ''; } });
+      cgvBox.appendChild(GF.el('label', { class: 'gf-cgv-accept' },
+        f.cgv,
+        GF.el('span', {},
+          GF.t('cgvAcceptBefore'),
+          GF.el('a', { href: link, target: '_blank', rel: 'noopener' }, GF.t('cgvAcceptLink')),
+          GF.t('cgvAcceptAfter', terms.version)
+        )
+      ));
+      cgvBox.appendChild(cgvNotice);
+    }
+    paintCgv();
+
     var submitLabel = payOnline ? GF.t('payOnline') : GF.t('sendRequest');
     f.submit = GF.el('button', { class: 'gf-btn', type: 'button', disabled: 'disabled', onClick: submit }, submitLabel);
     var feedback = GF.el('div', {});
 
     var form = GF.el('div', { class: 'gf-booking' },
       GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
-      calBox, datesRow, guestsBox, supplementsBox, insuranceBox, summary, warn, contact, f.submit, feedback
+      calBox, datesRow, guestsBox, supplementsBox, insuranceBox, summary, warn, contact, cgvBox, f.submit, feedback
     );
     container.innerHTML = '';
     container.appendChild(form);
@@ -712,17 +739,25 @@
         if (insuranceBox && insuranceBox.scrollIntoView) insuranceBox.scrollIntoView({ block: 'center' });
         return;
       }
-      var stay = gatherStay();
       var first = f.firstName.value.trim(), last = f.lastName.value.trim(), email = f.email.value.trim(), phone = f.phone.value.trim();
       if (!first || !last || !email || !phone) {
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('requiredFields')));
         return;
       }
+      // Same refusal-on-click as the insurance answer: the button always says why it is inert.
+      if (terms && !f.cgv.checked) {
+        cgvNotice.innerHTML = '';
+        cgvNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('cgvRequired')));
+        if (cgvBox.scrollIntoView) cgvBox.scrollIntoView({ block: 'center' });
+        return;
+      }
+      var stay = gatherStay();
       var body = Object.assign({}, stay, {
         guest: { firstName: first, lastName: last, email: email, phone: phone },
         message: f.message.value.trim(),
         _hp: f.hp.value,
       });
+      if (terms) body.termsVersion = terms.version;
       f.submit.disabled = true;
       f.submit.textContent = payOnline ? GF.t('preparingPayment') : GF.t('sending');
       GF.api('POST', '/booking-requests', body).then(function (res) {
@@ -734,6 +769,16 @@
         }
         f.submit.disabled = false;
         f.submit.textContent = submitLabel;
+        // A newer CGV version was published while the guest was filling the form (rule 13): offer
+        // that one, unticked, and let GuestFlow's message say why.
+        var err = res.body && res.body.error;
+        if (err && err.code === 'TERMS_OUTDATED' && err.details && err.details[0] && err.details[0].currentVersion) {
+          terms = { version: err.details[0].currentVersion };
+          paintCgv();
+          cgvNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.errorMessage(res)));
+          if (cgvBox.scrollIntoView) cgvBox.scrollIntoView({ block: 'center' });
+          return;
+        }
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.errorMessage(res)));
       });
     }

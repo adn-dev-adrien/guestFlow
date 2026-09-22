@@ -618,6 +618,38 @@ CREATE TABLE IF NOT EXISTS neat_subscriptions (
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
   );
 
+CREATE TABLE IF NOT EXISTS terms_draft (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    markdownFr TEXT NOT NULL DEFAULT '',
+    markdownEn TEXT NOT NULL DEFAULT '',
+    updatedAt TEXT
+  );
+
+CREATE TABLE IF NOT EXISTS terms_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version INTEGER NOT NULL UNIQUE,
+    markdownFr TEXT NOT NULL,
+    markdownEn TEXT NOT NULL,
+    htmlFr TEXT NOT NULL,
+    htmlEn TEXT NOT NULL,
+    variablesJson TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    publishedAt TEXT NOT NULL,
+    publishedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
+  );
+
+CREATE TABLE IF NOT EXISTS terms_acceptances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    termsVersionId INTEGER NOT NULL,
+    acceptedAt TEXT NOT NULL,
+    ip TEXT,
+    userAgent TEXT,
+    pluginVersion TEXT,
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
+  );
+
 CREATE TABLE IF NOT EXISTS neat_price_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     environment TEXT NOT NULL,
@@ -732,6 +764,8 @@ CREATE INDEX IF NOT EXISTS idx_reservations_startDate ON reservations(startDate)
 CREATE INDEX IF NOT EXISTS idx_resource_bookings_date ON resource_bookings(date);
 
 CREATE INDEX IF NOT EXISTS idx_neat_subscriptions_due ON neat_subscriptions (status, nextAttemptAt);
+
+CREATE INDEX IF NOT EXISTS idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
 
 CREATE INDEX IF NOT EXISTS idx_resource_bookings_propertyId ON resource_bookings(propertyId);
 

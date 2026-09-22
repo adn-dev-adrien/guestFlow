@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 /**
  * Rate limiters (per IP). Windows/maxes are env-configurable.
@@ -32,17 +32,29 @@ const loginLimiter = rateLimit({
 const ONE_HOUR = 60 * 60 * 1000;
 
 /**
+ * Public limiters count per website VISITOR, not per caller (specs/terms-acceptance-record.md rule 24):
+ * every public call comes from the one WordPress host, so keying on `req.ip` capped the whole site at
+ * the per-visitor budget. `req.visitor` is set by middleware/visitorContext.js AFTER the API-key check,
+ * so the relayed address is only ever honoured for the authenticated proxy.
+ */
+function publicVisitorKey(req) {
+  return ipKeyGenerator(req.visitor?.ip || req.ip);
+}
+
+/**
  * Public API limiters (specs/public-api.md §3 rule 9). The public surface is consumed by a single
  * trusted proxy, so the limits are intentionally tighter than the admin SPA's `apiLimiter`.
  *
- * - publicApiLimiter: broad protection across all `/public/v1` routes (default 600 / 15 min / IP).
- * - bookingRequestLimiter: anti-spam on the only public write (default 5 / hour / IP). The
- *   per-API-key cap from the spec is enforced upstream by the proxy + the honeypot; here we cap by
- *   IP since the proxy forwards the visitor's IP via `trust proxy`.
+ * - publicApiLimiter: broad protection across all `/public/v1` routes (default 600 / 15 min / visitor).
+ * - bookingRequestLimiter: anti-spam on the only public write (default 5 / hour / visitor), next to
+ *   the honeypot.
  *
- * Both emit the uniform public error envelope so the client parses one shape everywhere.
+ * All three key on the relayed visitor (publicVisitorKey below) and run after the API-key check.
+ *
+ * They emit the uniform public error envelope so the client parses one shape everywhere.
  */
 const publicApiLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
   windowMs: Number(process.env.PUBLIC_API_RATELIMIT_WINDOW_MS) || FIFTEEN_MIN,
   max: Number(process.env.PUBLIC_API_RATELIMIT_MAX) || 600,
   standardHeaders: true,
@@ -51,6 +63,7 @@ const publicApiLimiter = rateLimit({
 });
 
 const bookingRequestLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
   windowMs: Number(process.env.BOOKING_REQUEST_RATELIMIT_WINDOW_MS) || ONE_HOUR,
   max: Number(process.env.BOOKING_REQUEST_RATELIMIT_MAX) || 5,
   standardHeaders: true,
@@ -66,6 +79,7 @@ const bookingRequestLimiter = rateLimit({
  * ample headroom for reloads while blocking abusive bursts.
  */
 const paymentStatusLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
   windowMs: Number(process.env.PAYMENT_STATUS_RATELIMIT_WINDOW_MS) || (5 * 60 * 1000),
   max: Number(process.env.PAYMENT_STATUS_RATELIMIT_MAX) || 120,
   standardHeaders: true,

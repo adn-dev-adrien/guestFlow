@@ -1,6 +1,6 @@
 <?php
 /**
- * Bootstrap singleton — wires the settings page, the REST proxy, and the blocks.
+ * Bootstrap singleton — wires the settings page, the REST proxy, the blocks and the shortcodes.
  * Holds no logic itself; just composes the pieces on the right WordPress hooks.
  */
 
@@ -25,5 +25,6 @@ final class GF_Plugin
         GF_Settings::instance()->boot();
         GF_Rest_Proxy::instance()->boot();
         GF_Blocks::instance()->boot();
+        GF_Shortcodes::instance()->boot();
     }
 }

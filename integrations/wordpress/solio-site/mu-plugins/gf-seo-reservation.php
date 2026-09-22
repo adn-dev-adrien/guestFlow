@@ -273,13 +273,14 @@ add_action(
 	border-radius: 8px; font-size: .92rem; }
 .gf-resa-supp-ligne span:last-child { font-weight: 700; white-space: nowrap; }
 
-/* ---------- Notice d'assurance et CGV ---------- */
+/* ---------- Notice d'assurance et case des CGV ---------- */
 .gf-resa-notice-lien { margin: 10px 0 0; font-size: .88rem; }
 .gf-resa-notice-lien a { color: #9A6318; }
-.gf-resa-cgv { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0 6px;
-	font-size: .9rem; line-height: 1.5; cursor: pointer; }
-.gf-resa-cgv input { margin-top: 3px; width: 17px; height: 17px; accent-color: #B87B2A; flex: 0 0 auto; }
-.gf-resa-cgv a { color: #9A6318; }
+/* La case d'acceptation des CGV est rendue par le plugin GuestFlow (>= 1.8.0), qui enregistre
+   l'acceptation : ici on ne fait que l'habiller aux couleurs du site. */
+.gf-cgv-accept { font-size: .9rem; line-height: 1.5; margin: 18px 0 6px; }
+.gf-cgv-accept input { accent-color: #B87B2A; }
+.gf-cgv-accept a { color: #9A6318; }
 
 /* ---------- Barre de navigation ---------- */
 .gf-resa-nav {
@@ -339,7 +340,6 @@ CSS;
 	var champsDates  = [];
 	var boutonMoteur = null;
 	var derniereCle  = '';
-	var caseCgv      = null;
 	var pret         = false;
 
 	/* ---------- Repartition des blocs du moteur dans les deux ecrans ---------- */
@@ -398,17 +398,6 @@ CSS;
 			lien.className = 'gf-resa-notice-lien';
 			lien.innerHTML = '<a href="/wp-content/uploads/2026/09/notice-assurance-annulation-neat.pdf" target="_blank" rel="noopener">Consulter la notice d\u2019assurance (PDF)</a>';
 			assurance.appendChild( lien );
-		}
-
-		// Acceptation des CGV, obligatoire avant l'envoi (ecran recapitulatif).
-		if ( ! ecrans[1].querySelector( '.gf-resa-cgv input' ) ) {
-			var cgv = document.createElement( 'label' );
-			cgv.className = 'gf-resa-cgv';
-			cgv.innerHTML = '<input type="checkbox" /> <span>J\u2019ai lu et j\u2019accepte les '
-				+ '<a href="/cgv/" target="_blank" rel="noopener">conditions g\u00e9n\u00e9rales de location</a>.</span>';
-			ecrans[1].appendChild( cgv );
-			caseCgv = cgv.querySelector( 'input' );
-			caseCgv.addEventListener( 'change', majNav );
 		}
 
 		pret = true;
@@ -607,10 +596,10 @@ CSS;
 		}
 
 		if ( derniere && boutonMoteur ) {
-			// L'envoi exige le devis complet ET l'acceptation des CGV.
-			valider.disabled = boutonMoteur.disabled || ( caseCgv && ! caseCgv.checked );
+			// L'envoi exige le devis complet. La case des CGV appartient au moteur : c'est lui qui
+			// refuse au clic tant qu'elle n'est pas cochee, et qui dit pourquoi.
+			valider.disabled = boutonMoteur.disabled;
 			valider.textContent = boutonMoteur.textContent || 'Réserver';
-			valider.title = ( caseCgv && ! caseCgv.checked ) ? 'Acceptez d’abord les conditions générales' : '';
 		}
 
 		filItems.forEach( function ( li ) {

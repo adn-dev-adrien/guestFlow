@@ -19,7 +19,10 @@ function financeError(body) {
   });
 }
 
-function createController(model, { googleCalendarSync = require('../utils/googleCalendarSync') } = {}) {
+function createController(model, {
+  googleCalendarSync = require('../utils/googleCalendarSync'),
+  termsFicheBlock = (devis) => require('./termsController').buildFicheBlock(devis),
+} = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {
     if (result.error) return res.status(result.status || 400).json({ error: result.error });
@@ -33,7 +36,8 @@ function createController(model, { googleCalendarSync = require('../utils/google
   function getOne(req, res) {
     const devis = model.findById(req.params.id);
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
-    return res.json(devis);
+    // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
+    return res.json({ ...devis, cgv: termsFicheBlock(devis) });
   }
 
   function updateStatus(req, res) {

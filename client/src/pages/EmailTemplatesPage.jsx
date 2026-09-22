@@ -66,6 +66,8 @@ const VARIABLE_BUTTONS = [
   { label: 'Société',          token: '{{companyName}}' },
   { label: 'Nom expéditeur',   token: '{{senderName}}' },
   { label: 'Téléphone société',token: '{{companyPhone}}' },
+  // specs/terms-acceptance-record.md rule 26 — the CGV of the stay, pinned to the accepted version.
+  { label: 'Lien CGV',         token: '{{cgvUrl}}' },
 ];
 
 const CONDITION_BUTTONS = [
@@ -79,6 +81,7 @@ const CONDITION_BUTTONS = [
   { label: 'Si options',            token: '{{#if hasOptions}}' },
   { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
   { label: 'Si ressources',         token: '{{#if hasResources}}' },
+  { label: 'Si CGV publiées',        token: '{{#if hasCgvUrl}}' },
   { label: 'Sinon',                 token: '{{else}}' },
   { label: 'Fin si',                token: '{{/if}}' },
 ];

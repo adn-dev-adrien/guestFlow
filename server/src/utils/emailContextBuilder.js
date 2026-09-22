@@ -89,6 +89,12 @@ function normaliseLang(v) {
   return String(v || '').toLowerCase() === 'en' ? 'en' : 'fr';
 }
 
+function buildCgvUrl(settings, termsVersion) {
+  const origin = String(settings.publicSiteOrigin || process.env.PUBLIC_SITE_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (!origin || !termsVersion) return '';
+  return `${origin}/cgv/?v=${termsVersion}`;
+}
+
 /**
  * @param {{
  *   reservation: object,           // reservations row
@@ -100,7 +106,7 @@ function normaliseLang(v) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   const stayContent = buildStayContent({
     reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
@@ -420,10 +426,14 @@ function buildContext({ reservation, client, property, options = [], resources =
       // Email sender display name — the resolved identity (specs/settings-rationalization.md rule 12):
       // the override, else the legal company name. Used for the email signature.
       senderName:   resolveEmailIdentity(settings).fromName,
+      // specs/terms-acceptance-record.md rule 26 — the online CGV pinned to the version the guest
+      // accepted (else the current one). Empty when no version is published or no site is known.
+      cgvUrl: buildCgvUrl(settings, termsVersion),
     },
     flags: {
       ...stayContent.flags,
       hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
+      hasCgvUrl: Boolean(buildCgvUrl(settings, termsVersion)),
       // An acompte actually collected — the cancellation notice only mentions a retained sum when
       // there is one (rule 27: an unpaid acompte keeps nothing).
       hasRetainedDeposit: retainedDepositAmount > 0,

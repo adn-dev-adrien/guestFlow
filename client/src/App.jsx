@@ -64,6 +64,7 @@ import VatFiscalSettingsPage from './pages/settings/VatFiscalSettingsPage';
 import EmailSettingsPage from './pages/settings/EmailSettingsPage';
 import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage';
 import SystemSettingsPage from './pages/settings/SystemSettingsPage';
+import TermsSettingsPage from './pages/settings/TermsSettingsPage';
 import AccountPage from './pages/AccountPage';
 import LinenStockPage from './pages/LinenStockPage';
 import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
@@ -727,6 +728,7 @@ function AppShell() {
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
+          <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />
           {/* « Mon compte » — every role (rule 6). Legacy paths redirect to it. */}
           <Route path="/mon-compte" element={<AccountPage />} />
           <Route path="/settings/password" element={<Navigate to="/mon-compte" replace />} />
