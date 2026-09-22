@@ -59,14 +59,14 @@ function book({ visitorIp, key = API_KEY, ua } = {}) {
   return fetch(`${baseUrl}/public/v1/booking-requests`, { method: 'POST', headers, body: '{}' });
 }
 
-test('two visitors through the one proxy address get separate booking budgets', async () => {
+test('rule 24 — two visitors through the one proxy address get separate booking budgets', async () => {
   assert.equal((await book({ visitorIp: '203.0.113.1' })).status, 201);
   assert.equal((await book({ visitorIp: '203.0.113.1' })).status, 201);
   assert.equal((await book({ visitorIp: '203.0.113.1' })).status, 429, 'visitor A exhausted its own budget');
   assert.equal((await book({ visitorIp: '203.0.113.2' })).status, 201, 'visitor B is not affected');
 });
 
-test('the controller receives the relayed visitor (IP, browser, plugin version)', async () => {
+test('rule 25 — the controller receives the relayed visitor (IP, browser, plugin version)', async () => {
   seen.length = 0;
   await book({ visitorIp: '2001:db8::7', ua: 'Mozilla/5.0 (iPhone)' });
   assert.deepEqual(seen[0], { ip: '2001:db8::7', userAgent: 'Mozilla/5.0 (iPhone)', pluginVersion: '1.8.0' });
@@ -78,7 +78,7 @@ test('a malformed relayed IP is dropped, not trusted', async () => {
   assert.equal(seen[0].ip, '');
 });
 
-test('without the API key → 401, and the call is not counted against the visitor', async () => {
+test('rule 24 — without the API key → 401, and the call is not counted against the visitor', async () => {
   for (let i = 0; i < 5; i += 1) {
     assert.equal((await book({ visitorIp: '203.0.113.9', key: 'wrong' })).status, 401);
   }

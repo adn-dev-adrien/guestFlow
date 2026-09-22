@@ -18,7 +18,7 @@ function ctx(settings, termsVersion) {
   return buildContext({ reservation: { id: 1 }, client: null, property: null, settings, termsVersion });
 }
 
-test('cgvUrl — site origin + /cgv/?v=N, trailing slash tolerated', () => {
+test('rule 26 — cgvUrl: site origin + /cgv/?v=N, trailing slash tolerated', () => {
   const c = ctx({ publicSiteOrigin: 'https://domainesolio.com/' }, 3);
   assert.equal(c.vars.cgvUrl, 'https://domainesolio.com/cgv/?v=3');
   assert.equal(c.flags.hasCgvUrl, true);
@@ -33,7 +33,7 @@ test('cgvUrl — empty (and the paragraph gone) when no version is published', (
   assert.ok(!/\n\n\n/.test(body), 'no blank line left behind');
 });
 
-test('the default confirmation renders the paragraph before « Une question »', () => {
+test('rule 27 — the default confirmation renders the paragraph before « Une question »', () => {
   const { body } = renderTemplate({ subject: '', body: CONFIRMATION_BODY }, ctx({ publicSiteOrigin: 'https://domainesolio.com' }, 2));
   assert.match(body, /de votre séjour ici : https:\/\/domainesolio\.com\/cgv\/\?v=2\n\nUne question/);
 });
@@ -50,7 +50,7 @@ function dbWithVersions() {
   return db;
 }
 
-test('loadTermsVersion — the accepted version wins over the current one', () => {
+test('rule 26 — loadTermsVersion: the accepted version wins over the current one', () => {
   const db = dbWithVersions();
   assert.equal(loadTermsVersion(db, 1), 1);
   assert.equal(loadTermsVersion(db, 2), 2, 'no acceptance (booked by phone) → current version');
@@ -61,7 +61,7 @@ test('loadTermsVersion — a schema without the CGV tables yields no link', () =
   assert.equal(loadTermsVersion(db, 1), null);
 });
 
-test('migration — inserted before « Une question », once; EN handled; idempotent', () => {
+test('rule 27 — migration inserted before « Une question », once; EN handled; idempotent', () => {
   const db = new Database(':memory:');
   db.exec('CREATE TABLE email_templates (id INTEGER PRIMARY KEY, stableKey TEXT, body TEXT, bodyEn TEXT, updatedAt TEXT)');
   db.prepare("INSERT INTO email_templates (id, stableKey, body, bodyEn) VALUES (1, 'reservation_confirmation', ?, ?)")

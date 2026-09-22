@@ -77,10 +77,12 @@ exact version accepted.
    `GET /public/v1/terms/:version` returns a given published version; unknown → `404 TERMS_NOT_FOUND`;
    nothing published → `503 TERMS_NOT_CONFIGURED`. Both carry `currentVersion`. No draft is ever exposed.
 8. A new plugin shortcode **`[guestflow_cgv]`** renders the current version with the FR/EN switch the
+    > **Sans test** — PHP shortcode `[guestflow_cgv]`: the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
    site already uses (`.gf-cgv-lang` / `.gf-cgv-switch`), or version N when the URL carries `?v=N`
    (then headed « Version N du JJ/MM/AAAA — la version en vigueur est la N' », with a link). The
    WordPress `/cgv/` page's content becomes that single shortcode.
 9. The plugin caches the current version for **60 s** (the shortcode and the proxy route the booking
+    > **Sans test** — plugin transient cache: the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
    block reads) and a numbered version for the usual read TTL (it never changes). A publication reaches
    the site within a minute; the booking flow never relies on that cache (rule 13).
 
@@ -92,9 +94,11 @@ exact version accepted.
     page. The link opens `<page des CGV>?v=N` in a new tab — the page is the plugin setting « Page des
     conditions générales » (a URL, `/cgv/` when empty). The block reads N from `GET /terms` when it loads;
     when nothing is published it shows no checkbox and GuestFlow answers the request with rule 16.
+    > **Sans test** — booking-block checkbox (view.js): the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
 11. The checkbox is **never pre-ticked**. Clicking the submit button while it is unticked refuses on
     click with an inline message (« Acceptez d'abord les conditions générales de location. ») and
     scrolls to it — the same pattern as the mandatory insurance answer.
+    > **Sans test** — refusal on click in view.js: the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
 12. The body sent by the browser carries `termsVersion: N` only. The proof around it (visitor IP,
     User-Agent, plugin version) travels in headers set by the PHP proxy (rule 23), never in the body; the
     proxy drops any `termsAcceptance` / `acceptedAt` key the browser might send, and GuestFlow ignores
@@ -105,6 +109,7 @@ exact version accepted.
     générales ont été mises à jour. Merci de les relire et de les accepter à nouveau. »
 14. The site mu-plugin's own checkbox (`gf-seo-reservation.php` lines 403-411 and its hook in `majNav`)
     is **removed**.
+    > **Sans test** — removal of code in the Solio mu-plugin (no test harness); checked by reading, to confirm in the Solio drawer at rollout step (4).
 
 ### 3.4 Enforcement
 
@@ -148,6 +153,7 @@ exact version accepted.
     « Proxys de confiance » list (empty by default; set to the edge Caddy on Solio), in which case the
     right-most `X-Forwarded-For` entry not in that list. It sends it on **every** proxied call as
     `X-GuestFlow-Visitor-IP`, and the User-Agent as `X-GuestFlow-Visitor-UA` (≤ 512 chars).
+    > **Sans test** — visitor IP resolution in `class-gf-api-client.php`: the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
 24. GuestFlow trusts those headers **only on an API-key-authenticated request**. `bookingRequestLimiter`
     and `paymentStatusLimiter` key on the visitor IP when present, on `req.ip` otherwise. To make that
     safe, `requirePublicApiKey` moves **before** `publicApiLimiter`, and `publicApiLimiter` keys the same
@@ -179,6 +185,7 @@ exact version accepted.
     1.8.0 from WordPress, set « Proxys de confiance », replace the `/cgv/` page content with
     `[guestflow_cgv]`, deploy the mu-plugin without its checkbox. (4) Test booking end to end.
     Window of unavailability: between (1) and (3), to be done in one sitting, off-peak.
+    > **Sans test** — production procedure, not behaviour of the code.
 
 **Edge cases:**
 - Honeypot filled → fake success, nothing stored.
@@ -343,7 +350,7 @@ interactive mock-up validated on 2026-09-22.
 
 ## 7. Test plan
 
-### Server unit tests (+41)
+### Server unit tests (+45)
 - [x] `tests/terms-renderer.unit.test.js` (9) — raw HTML escaped, `javascript:` links inert, attribute
       break-out impossible, subset, variables, `{{cautions}}` list, hash.
 - [x] `tests/terms-publishing.unit.test.js` (11) — empty / unknown variable / nothing new refused,
@@ -352,6 +359,8 @@ interactive mock-up validated on 2026-09-22.
 - [x] `tests/terms-acceptance.unit.test.js` (9) — 422 / 409 / 503 with nothing written, 201 with server
       clock + relayed visitor + plugin version, client-supplied fields ignored, emergency switch (with and
       without acceptance), rollback when the devis fails, honeypot.
+- [x] `tests/terms-public-reads.unit.test.js` (4) — current version (no Markdown source), a given
+      version, 503 with nothing published, 404 for an unknown / malformed version.
 - [x] `tests/public-visitor-ip-limiter.unit.test.js` (4) — two visitors through one proxy address,
       visitor relayed to the controller (IPv6 too), malformed IP dropped, 401 not counted.
 - [x] `tests/email-cgv-url.unit.test.js` (8) — `{{cgvUrl}}` / `hasCgvUrl`, paragraph gone without a

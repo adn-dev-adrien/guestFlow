@@ -65,7 +65,7 @@ test('publishing the same text twice is refused — nothing new since version N'
   assert.match(again.error, /version 1/);
 });
 
-test('a new text gets the next number; the previous version is untouched', () => {
+test('rules 3, 5 — a new text gets the next number and becomes current; the previous version is untouched', () => {
   const deps = freshDeps();
   deps.termsModel.saveDraft({ fr: FR, en: EN });
   const v1 = termsController.publishDraft(deps).version;
@@ -95,7 +95,7 @@ test('a fact the text does not quote never raises the stale warning', () => {
   assert.deepEqual(termsController.buildOverview(deps).staleVariables, []);
 });
 
-test('the overview lists versions newest first with their acceptance count', () => {
+test('rule 6 — the overview lists versions newest first with their acceptance count', () => {
   const deps = freshDeps();
   deps.termsModel.saveDraft({ fr: FR, en: EN });
   const v1 = termsController.publishDraft(deps).version;
@@ -110,7 +110,7 @@ test('the overview lists versions newest first with their acceptance count', () 
   assert.equal(o.requireTermsAcceptance, true);
 });
 
-test('fiche block — recorded (Paris time), missing, not applicable; history entry written', () => {
+test('rules 20-22 — fiche block recorded (Paris time), missing, not applicable; history entry written', () => {
   const deps = freshDeps();
   deps.termsModel.saveDraft({ fr: FR, en: EN });
   const v1 = termsController.publishDraft(deps, { now: new Date('2026-09-01T10:00:00Z') }).version;
@@ -136,7 +136,7 @@ test('fiche block — recorded (Paris time), missing, not applicable; history en
   assert.match(history[0].changedFields, /Version 1 acceptée/);
 });
 
-test('deleting the reservation deletes its acceptance, never the version', () => {
+test('rule 19 — deleting the reservation deletes its acceptance, never the version', () => {
   const deps = freshDeps();
   deps.db.pragma('foreign_keys = ON');
   deps.termsModel.saveDraft({ fr: FR, en: EN });

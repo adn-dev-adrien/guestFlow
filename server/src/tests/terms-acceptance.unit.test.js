@@ -132,7 +132,7 @@ test('rules 1, 18 — current version accepted → 201, acceptance with server c
   assert.deepEqual(captures.settingsUpsert, { lastSeenPluginVersion: '1.8.0' });
 });
 
-test('a client-supplied acceptedAt or termsAcceptance never reaches the record', () => {
+test('rule 12 — a client-supplied acceptedAt or termsAcceptance never reaches the record', () => {
   const captures = {};
   const res = fakeRes();
   buildController({ captures }).create({
