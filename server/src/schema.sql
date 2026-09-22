@@ -154,6 +154,32 @@ CREATE TABLE IF NOT EXISTS ical_import_events (
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
   );
 
+CREATE TABLE IF NOT EXISTS ical_export_ranges (
+    propertyId INTEGER NOT NULL,
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
+    PRIMARY KEY (propertyId, startDate, endDate)
+  );
+
+CREATE TABLE IF NOT EXISTS ical_export_tombstones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER NOT NULL,
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
+    removedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+CREATE INDEX IF NOT EXISTS idx_ical_export_tombstones_property ON ical_export_tombstones(propertyId, removedAt);
+
+CREATE TABLE IF NOT EXISTS ical_superseded_events (
+    sourceId INTEGER NOT NULL,
+    eventUid TEXT NOT NULL,
+    reservationId INTEGER NOT NULL,
+    supersededBySourceId INTEGER NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (sourceId, eventUid)
+  );
+
 CREATE TABLE IF NOT EXISTS ical_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     propertyId INTEGER NOT NULL,

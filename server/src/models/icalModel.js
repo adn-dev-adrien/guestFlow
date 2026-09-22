@@ -11,6 +11,7 @@
 const crypto = require('crypto');
 const db = require('../database');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+const icalExportRangesModel = require('./icalExportRangesModel');
 
 const DEFAULT_CLOSURE_LABEL = 'Fermeture établissement';
 const CLOSURE_DESCRIPTION = 'Période de fermeture — aucune réservation possible.';
@@ -141,6 +142,13 @@ function createIcalModel(database) {
         .forEach((closure) => lines.push(...closureEventLines(closure)));
 
       lines.push('END:VCALENDAR');
+      // specs/lodgify-decommission.md §3 rule 7 — remember what was just served, so a stay that later
+      // leaves the feed leaves a tombstone for the Booking echo filter. Never allowed to break the feed.
+      try {
+        icalExportRangesModel.create(database).refresh(propertyId);
+      } catch (err) {
+        console.warn(`[ical-export] export snapshot not refreshed for property ${propertyId}: ${err.message}`);
+      }
       return lines.join('\r\n');
     },
   };

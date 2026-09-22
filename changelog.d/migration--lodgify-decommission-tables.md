@@ -1,0 +1,1 @@
+- Three new tables, created empty at startup, no existing data touched: `ical_export_ranges` (what each property's iCal feed last published), `ical_export_tombstones` (ranges that left the feed, kept 7 days) and `ical_superseded_events` (Lodgify-relayed UIDs taken over by a native feed).

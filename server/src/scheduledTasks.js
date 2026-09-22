@@ -2,6 +2,7 @@ const db = require('./database');
 
 // Canonical anti-overbooking sync engine (+ source status recording) lives in the iCal model.
 const propertyIcalModel = require('./models/propertyIcalModel');
+const icalExportRangesModel = require('./models/icalExportRangesModel');
 
 // School holidays auto-sync (spec school-holidays §3 rules 15+).
 const schoolHolidaysModel = require('./models/schoolHolidaysModel');
@@ -76,6 +77,8 @@ async function performAutoSync() {
       }
     }
 
+    // specs/lodgify-decommission.md §3 rule 7 — tombstones only matter for 72 h; keep a week.
+    icalExportRangesModel.purge();
   } catch (error) {
     console.error('[iCal Sync] Erreur critique:', error);
   } finally {

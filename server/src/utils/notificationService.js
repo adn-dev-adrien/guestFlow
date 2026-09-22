@@ -233,13 +233,33 @@ function buildNotificationService({
     }
   }
 
-  function buildConflictEmail(resa, publicUrl) {
+  // `origin` — 'payment' (a paid online booking landed on taken dates) or 'ical' (a Booking.com feed
+  // event overlaps nights already held, specs/lodgify-decommission.md §3 rule 8).
+  const CONFLICT_COPY = {
+    payment: {
+      title: 'Conflit de dates — paiement en ligne',
+      lines: [
+        'Un paiement en ligne a été réglé pour un séjour dont les dates ne sont plus disponibles.',
+        'La réservation a été créée (le client a payé) mais ses dates chevauchent une autre réservation.',
+        'Action requise : remboursement ou relogement.',
+      ],
+    },
+    ical: {
+      title: 'Conflit de dates — flux Booking',
+      lines: [
+        'Le flux iCal de Booking.com annonce un séjour qui chevauche des nuits déjà prises dans GuestFlow.',
+        'La réservation Booking a été créée pour ne rien perdre : ce peut être deux séjours accolés ou un surbooking.',
+        'Action requise : vérifier dans l\'extranet Booking, puis supprimer le doublon ou reloger.',
+      ],
+    },
+  };
+
+  function buildConflictEmail(resa, publicUrl, origin = 'payment') {
+    const copy = CONFLICT_COPY[origin] || CONFLICT_COPY.payment;
     const guest = `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
-    const subject = `⚠️ Conflit de dates — paiement en ligne (${resa.propertyName || ''})`;
+    const subject = `⚠️ ${copy.title} (${resa.propertyName || ''})`;
     const lines = [
-      'Un paiement en ligne a été réglé pour un séjour dont les dates ne sont plus disponibles.',
-      'La réservation a été créée (le client a payé) mais ses dates chevauchent une autre réservation.',
-      'Action requise : remboursement ou relogement.',
+      ...copy.lines,
       '',
       `Logement : ${resa.propertyName || ''}`,
       `Client : ${guest || '—'}`,
@@ -252,18 +272,18 @@ function buildNotificationService({
 
   // Admin alert when a paid online full-payment was converted onto now-unavailable dates
   // (specs/public-online-payment.md §3 rule 5). Best-effort: never throws.
-  async function notifyBookingConflict(reservationId) {
+  async function notifyBookingConflict(reservationId, { origin = 'payment' } = {}) {
     try {
       const resa = loadReservation(reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
       await pushNewReservation({
-        title: '⚠️ Conflit de dates — paiement en ligne',
+        title: `⚠️ ${(CONFLICT_COPY[origin] || CONFLICT_COPY.payment).title}`,
         body: [`${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim(), resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · '),
         url: `/reservations/${Number(resa.id)}`,
       });
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
-      const { subject, text } = buildConflictEmail(resa, ctx.publicUrl);
+      const { subject, text } = buildConflictEmail(resa, ctx.publicUrl, origin);
       return await deliver({ recipient: ctx.recipient, subject, text });
     } catch (err) {
       logger.warn('[notificationService.notifyBookingConflict]', err && err.message ? err.message : err);

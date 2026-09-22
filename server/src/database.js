@@ -2329,6 +2329,39 @@ db.exec(`
   );
 `);
 
+// specs/lodgify-decommission.md §5 — Booking.com feed echo filter and Lodgify takeover:
+//   - ical_export_ranges      the ranges each property's export last published (snapshot);
+//   - ical_export_tombstones  ranges that left the export, covering Booking's echo for 72 h;
+//   - ical_superseded_events  a retired source's UIDs taken over by a native feed, so that source
+//                             never re-imports them while it is still active.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ical_export_ranges (
+      propertyId INTEGER NOT NULL,
+      startDate TEXT NOT NULL,
+      endDate TEXT NOT NULL,
+      PRIMARY KEY (propertyId, startDate, endDate)
+    );
+
+  CREATE TABLE IF NOT EXISTS ical_export_tombstones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      propertyId INTEGER NOT NULL,
+      startDate TEXT NOT NULL,
+      endDate TEXT NOT NULL,
+      removedAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+  CREATE INDEX IF NOT EXISTS idx_ical_export_tombstones_property ON ical_export_tombstones(propertyId, removedAt);
+
+  CREATE TABLE IF NOT EXISTS ical_superseded_events (
+      sourceId INTEGER NOT NULL,
+      eventUid TEXT NOT NULL,
+      reservationId INTEGER NOT NULL,
+      supersededBySourceId INTEGER NOT NULL,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (sourceId, eventUid)
+    );
+`);
+
 // Data repair (specs/sas-bath-linen-ghost-line.md §3 rule 3): erase the billing lines the removed
 // « linge de toilette réglé en fin de séjour » flow left in the end-of-stay complement. Naturally
 // idempotent (a filter — once dropped, nothing matches), so it needs no `migrations` guard and keeps
