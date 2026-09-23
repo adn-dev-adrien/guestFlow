@@ -6,7 +6,7 @@
 | **Branch** | `feature/ds-tabs` |
 | **Created** | 2026-09-23 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | https://github.com/adn-dev-adrien/guestFlow/pull/577 |
 
 ---
 
