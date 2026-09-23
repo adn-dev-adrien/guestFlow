@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.10.0
+Stable tag: 1.11.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,11 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.11.0 =
+* Modifier ses dates sans tout refaire : une fois l'arrivée posée, cliquer une date plus tard déplace le départ — le séjour s'allonge ou se raccourcit d'un clic. Cliquer l'arrivée recommence ; un bouton « ✕ Effacer » vide les deux champs.
+* Le calendrier ne se ferme plus après l'arrivée : les dates antérieures et celles situées au-delà d'une nuit déjà prise restent cliquables et posent une nouvelle arrivée.
+* « Séjour trop court » garde la période choisie à l'écran et invite à cliquer une date plus tard, au lieu d'effacer le départ 400 ms après le clic.
 
 = 1.10.0 =
 * Séjour trop court : le calendrier garde son message (« Séjour trop court (minimum 3 nuits) ») au lieu de le remplacer aussitôt par « Sélectionnez votre date de départ ». Même correction quand la période choisie contient une nuit déjà prise.

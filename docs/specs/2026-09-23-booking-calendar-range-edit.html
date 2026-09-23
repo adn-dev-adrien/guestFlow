@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Rallonger son séjour dans le tunnel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:40px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:6px 0}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+
+/* ---- panneaux comparatifs ---- */
+.panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(318px,1fr));gap:16px;align-items:start}
+.pane{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.pane.bad{border-color:color-mix(in srgb,var(--ko) 45%,var(--line))}
+.pane.good{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.pane h4{margin:0 0 2px;font:600 12px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.pane .sub{font-size:12.5px;color:var(--muted);margin:0 0 12px;min-height:2.6em}
+
+/* ---- calendrier (reprend les classes du widget) ---- */
+.cal-box{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--field)}
+.cal-topbar{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px;font-weight:600}
+.cal-topbar strong{font-size:14.5px}
+.cal-clear{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;
+  font:inherit;font-size:12.5px;padding:6px 10px;min-height:34px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.cal-clear:disabled{opacity:.35;cursor:not-allowed}
+.cal-clear:not(:disabled):hover{background:color-mix(in srgb,var(--ko) 12%,var(--field));border-color:var(--ko);color:var(--ko)}
+.cal-wrap{display:flex;flex-wrap:wrap;gap:14px}
+.cal-month{flex:1 1 230px;min-width:220px}
+.cal-title{text-align:center;font-weight:600;margin-bottom:5px;font-size:13.5px;text-transform:capitalize}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-dow{text-align:center;font-size:.68rem;color:var(--muted);padding:2px 0;text-transform:uppercase}
+.cal-day{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:13px;border-radius:8px;
+  border:0;background:color-mix(in srgb,var(--lichen) 12%,var(--field));color:inherit;cursor:pointer;padding:0;font-family:inherit}
+.cal-day.empty{background:transparent;cursor:default}
+.cal-day:disabled{background:transparent;color:color-mix(in srgb,var(--muted) 60%,transparent);cursor:not-allowed;text-decoration:line-through}
+.cal-day:hover:not(:disabled):not(.empty){background:color-mix(in srgb,var(--lichen) 30%,var(--field))}
+.cal-day.range{background:color-mix(in srgb,var(--lichen) 25%,var(--field));border-radius:0}
+.cal-day.edge{background:var(--sapin);color:var(--paper);font-weight:700}
+.cal-day.blocked{text-decoration:line-through}
+.cal-hint{text-align:center;font-weight:600;color:var(--sapin);margin-top:8px;min-height:2.4em;font-size:12.5px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.cal-hint.err{color:var(--ko)}
+
+/* ---- récap dates ---- */
+.recap{display:flex;gap:8px;margin:10px 0 0;flex-wrap:wrap}
+.recap .f{flex:1 1 120px;min-width:110px}
+.recap label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.recap .v{border:1px solid var(--fieldline);border-radius:8px;padding:8px 9px;background:var(--field);font-size:13.5px;
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recap .v.set{font-weight:600}
+.nights{margin-top:8px;font-size:13px;color:var(--muted)}
+.nights b{color:var(--ink)}
+.cta{margin-top:10px;width:100%;border:0;border-radius:9px;padding:11px;font:inherit;font-weight:600;font-size:14px;
+  background:var(--sapin);color:var(--paper);cursor:pointer;min-height:44px}
+.cta:disabled{background:color-mix(in srgb,var(--muted) 35%,transparent);color:var(--muted);cursor:not-allowed}
+
+/* ---- journal ---- */
+.log{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.log h5{margin:0 0 6px;font:600 10.5px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.log ol{margin:0;padding-left:16px;font-size:12.5px;color:var(--muted);min-height:4.5em}
+.log li{margin:3px 0}
+.log li b{color:var(--ink);font-weight:600}
+.log li.ko b{color:var(--ko)}
+.log li.ok b{color:var(--ok)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.tools button{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);font:inherit;
+  font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer;min-height:40px}
+.tools button:hover{background:color-mix(in srgb,var(--lichen) 15%,var(--field))}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0 0}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:13px;height:13px;border-radius:4px;display:inline-block}
+</style>
+<div class="wrap">
+
+<h1>Rallonger son séjour dans le tunnel</h1>
+<p class="meta">23 septembre 2026 · widget de réservation WordPress · <span class="muted">maquette cliquable — arbitrages tranchés, implémenté (plugin 1.11.0)</span></p>
+
+<p>Un visiteur choisit 2&nbsp;nuits sur un logement qui en demande 3. Le serveur refuse, et à partir de là
+il ne sait plus comment déplacer son départ&nbsp;: la plupart de ses clics lui reprennent l'arrivée qu'il
+venait de poser. La maquette ci-dessous rejoue exactement cette situation, à gauche comme aujourd'hui,
+à droite comme on propose de le corriger.</p>
+
+<h2>Le constat</h2>
+<div class="alert">
+<p style="margin:0 0 8px"><b>Deux règles du calendrier se combinent mal.</b></p>
+<ul class="tight" style="margin:0">
+  <li><b>Une période complète se jette au clic suivant.</b> Dès qu'arrivée + départ sont posés, n'importe quel
+  clic recommence une arrivée. Allonger un séjour de 2 à 5&nbsp;nuits demande donc de re-cliquer l'arrivée,
+  <em>puis</em> le nouveau départ — sans que rien ne le dise.</li>
+  <li><b>Le refus « séjour trop court » efface le départ</b> <span class="muted">(<code>view.js:698</code>)</span>,
+  400&nbsp;ms après le clic. L'écran bouge tout seul&nbsp;: la case qu'on vient de choisir se vide, et le message
+  rouge demande de re-choisir un départ qu'on croyait avoir choisi.</li>
+</ul>
+</div>
+
+<h2>Essayez les deux versions</h2>
+<p class="muted" style="font-size:13.5px">Logement fictif&nbsp;: <b>minimum 3&nbsp;nuits</b>, nuits du 17 au 19&nbsp;octobre déjà réservées.
+Les deux panneaux démarrent sur le cas qui coince&nbsp;: 12&nbsp;→&nbsp;14&nbsp;octobre, deux nuits, refusé.
+<b>Essayez de partir le 17&nbsp;octobre.</b></p>
+
+<div class="tools">
+  <button type="button" data-scenario="short">↺ Rejouer « séjour trop court »</button>
+  <button type="button" data-scenario="ok">Partir d'un séjour valide (12 → 16 oct.)</button>
+  <button type="button" data-scenario="empty">Repartir de zéro</button>
+</div>
+
+<div class="panes">
+  <div class="pane bad" id="pane-current">
+    <h4>Aujourd'hui</h4>
+    <p class="sub">Une période complète est jetée au clic suivant, et le refus vide le départ tout seul.</p>
+  </div>
+  <div class="pane good" id="pane-proposed">
+    <h4>Proposé</h4>
+    <p class="sub">L'arrivée reste posée&nbsp;: tout clic après elle déplace le départ. Cliquer l'arrivée, ou la croix, recommence.</p>
+  </div>
+</div>
+
+<div class="legend">
+  <span><i class="sw" style="background:var(--sapin)"></i> arrivée / départ</span>
+  <span><i class="sw" style="background:color-mix(in srgb,var(--lichen) 25%,var(--field))"></i> nuits du séjour</span>
+  <span><i class="sw" style="background:color-mix(in srgb,var(--lichen) 12%,var(--field))"></i> disponible</span>
+  <span><i class="sw" style="background:transparent;border:1px solid var(--fieldline)"></i> indisponible</span>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="card">
+<ul class="tight" style="margin:0">
+  <li><b>Tant qu'une arrivée est posée, un clic postérieur est un départ</b> — qu'un départ existe déjà ou non.
+  Le séjour s'allonge ou se raccourcit d'un seul clic, sans repasser par l'arrivée.</li>
+  <li><b>Cliquer la date d'arrivée remet tout à zéro</b> et redemande une arrivée. C'est la sortie explicite,
+  au même endroit que l'entrée.</li>
+  <li><b>Cliquer une date antérieure à l'arrivée pose une nouvelle arrivée</b> — le geste naturel quand on
+  remonte dans le calendrier.</li>
+  <li><b>Les dates situées au-delà d'une nuit déjà réservée restent cliquables</b>&nbsp;: elles ne peuvent pas
+  être un départ, alors elles posent une nouvelle arrivée, avec le message qui l'explique. Aujourd'hui elles
+  sont grisées, et le calendrier a l'air mort à partir de la première nuit prise.</li>
+  <li><b>Une croix « Effacer les dates »</b> dans la barre du calendrier, active seulement quand une date est
+  posée&nbsp;: un deuxième chemin de sortie, visible sans avoir à deviner.</li>
+  <li><b>Le refus « séjour trop court » ne vide plus rien.</b> La période reste affichée, le message dit combien
+  de nuits il manque, le bouton de réservation reste désactivé — et le clic suivant déplace le départ.</li>
+  <li><b>Une phrase d'aide permanente sous le calendrier</b> dit ce que fait le prochain clic, selon l'état&nbsp;:
+  choisir l'arrivée, choisir le départ, ou modifier le départ.</li>
+</ul>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<div class="card">
+<ul class="tight" style="margin:0">
+  <li>Pas de champs de date saisissables&nbsp;: les dates restent posées <em>uniquement</em> au calendrier
+  (<code>specs/wp-booking-widget-redesign.md</code> règle 3).</li>
+  <li>Pas de glisser-déposer des bords de la période&nbsp;: illisible au doigt, et deux gestes de plus à tester.</li>
+  <li>Pas de nuits grisées d'avance selon le minimum de séjour&nbsp;: le minimum dépend de la période et le
+  widget ne le connaît qu'après un premier devis. Le message reste la voie de vérité.</li>
+  <li>Aucun changement côté serveur&nbsp;: <code>/quote</code>, le calcul du minimum et les disponibilités ne bougent pas.</li>
+</ul>
+</div>
+
+<h2>Le risque</h2>
+<p>Il est faible et local&nbsp;: tout tient dans <code>onPick</code> et le rendu des cases de
+<a href="../../integrations/wordpress/guestflow-booking/blocks/booking/view.js">blocks/booking/view.js</a>, plus deux
+libellés. Le seul vrai piège est la case « indisponible »&nbsp;: une date située après l'arrivée mais dont la
+période traverse une nuit réservée ne peut pas être un départ. Elle reste donc refusée comme aujourd'hui,
+avec le message « ces dates incluent une nuit indisponible », et le clic repose une arrivée à cet endroit.
+C'est le seul cas où le clic ne fait pas ce que la phrase d'aide annonce.</p>
+
+<h2>Arbitrages tranchés le 23/09</h2>
+<div class="card">
+<ul class="tight" style="margin:0">
+  <li><b>Un clic à l'intérieur de la période raccourcit le séjour.</b> Une seule règle à retenir&nbsp;:
+  après l'arrivée, c'est un départ.</li>
+  <li><b>La croix est à côté des champs Arrivée / Départ</b>, pas dans la barre du calendrier — la
+  maquette ci-dessus la montre encore à son ancienne place.</li>
+  <li><b>Le refus « trop court » garde la période affichée</b>, et le bouton reste refusé.</li>
+</ul>
+</div>
+
+<h2>Ce que le site a révélé en plus</h2>
+<div class="alert">
+<p style="margin:0 0 8px"><b>Sur domainesolio.com, les dates choisies étaient invisibles.</b> Mesuré le
+23/09 en pilotant la vraie page&nbsp;: la case d'arrivée avait pour fond <code>rgba(0, 0, 0, 0)</code>.</p>
+<ul class="tight" style="margin:0">
+  <li>Le tiroir déplace les blocs du moteur hors du conteneur qui déclarait ses couleurs&nbsp;: tous les
+  <code>var(--gf-accent)</code> tombaient dans le vide, donc l'arrivée, le départ et les nuits du séjour
+  s'affichaient sur fond transparent. C'est en place depuis la refonte de septembre, et c'est
+  probablement la première raison pour laquelle choisir des dates semblait impossible.</li>
+  <li>L'ancien mu-plugin <code>gf-booking.php</code>, qui n'affiche plus rien, imprime toujours sa
+  feuille de style&nbsp;: elle repeignait le refus en vert au lieu du rouge et écrasait tous les champs
+  d'une ligne, ce qui rognait les dates. <b>Le vrai correctif est de le supprimer du Pi</b> ; en
+  attendant, le tiroir reprend la main sur ces trois points.</li>
+</ul>
+</div>
+
+</div>
+<script>
+(function () {
+  var MIN_NIGHTS = 3;
+  var TODAY = '2026-09-23';
+  var BLOCKED = { '2026-10-17': 1, '2026-10-18': 1, '2026-10-19': 1 };
+  var MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var DOW = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  var VIEW = [{ y: 2026, m: 9 }, { y: 2026, m: 10 }];
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function iso(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
+  function addDays(ds, n) { var p = ds.split('-'); var t = new Date(+p[0], +p[1] - 1, +p[2] + n); return iso(t.getFullYear(), t.getMonth(), t.getDate()); }
+  function nightsBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
+  function frDate(ds) { var p = ds.split('-'); return (+p[2]) + ' ' + MONTHS[+p[1] - 1].slice(0, 3) + '.'; }
+  function isBlocked(ds) { return !!BLOCKED[ds]; }
+  function rangeHasBlocked(a, b) { for (var d = a; d < b; d = addDays(d, 1)) { if (isBlocked(d)) return true; } return false; }
+
+  function el(tag, attrs) {
+    var n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') n.textContent = attrs[k];
+      else if (k === 'html') n.innerHTML = attrs[k];
+      else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      else if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+    });
+    for (var i = 2; i < arguments.length; i++) { if (arguments[i]) n.appendChild(arguments[i]); }
+    return n;
+  }
+
+  function Pane(host, mode) {
+    var state = { start: null, end: null, hint: '', err: false, log: [] };
+    var months = el('div', { class: 'cal-wrap' });
+    var hint = el('div', { class: 'cal-hint' });
+    var clear = el('button', { type: 'button', class: 'cal-clear', 'aria-label': 'Effacer les dates',
+      onclick: function () { note('Croix « Effacer » → tout est vidé', 'ok'); state.start = null; state.end = null; draw(); } }, document.createTextNode('✕ Effacer'));
+    var topbar = el('div', { class: 'cal-topbar' }, el('strong', { text: 'Choisissez vos dates' }));
+    if (mode === 'proposed') topbar.appendChild(clear);
+    var startV = el('div', { class: 'v' });
+    var endV = el('div', { class: 'v' });
+    var nights = el('div', { class: 'nights' });
+    var cta = el('button', { type: 'button', class: 'cta', text: 'Réserver' });
+    var logList = el('ol');
+
+    host.appendChild(el('div', { class: 'cal-box' }, topbar, months, hint));
+    host.appendChild(el('div', { class: 'recap' },
+      el('div', { class: 'f' }, el('label', { text: 'Arrivée' }), startV),
+      el('div', { class: 'f' }, el('label', { text: 'Départ' }), endV)));
+    host.appendChild(nights);
+    host.appendChild(cta);
+    host.appendChild(el('div', { class: 'log' }, el('h5', { text: 'Ce qui vient de se passer' }), logList));
+
+    function note(txt, kind) {
+      state.log.unshift({ txt: txt, kind: kind || '' });
+      state.log = state.log.slice(0, 4);
+    }
+
+    function monthGrid(y, m) {
+      var grid = el('div', { class: 'cal-grid' });
+      DOW.forEach(function (d) { grid.appendChild(el('div', { class: 'cal-dow', text: d })); });
+      var lead = (new Date(y, m, 1).getDay() + 6) % 7;
+      for (var i = 0; i < lead; i++) grid.appendChild(el('div', { class: 'cal-day empty' }));
+      var days = new Date(y, m + 1, 0).getDate();
+      for (var d = 1; d <= days; d++) {
+        var ds = iso(y, m, d);
+        var s = state.start, e = state.end, disabled;
+        if (ds < TODAY) disabled = true;
+        else if (mode === 'current') {
+          var pickingStart = (!s || e);
+          disabled = pickingStart ? isBlocked(ds) : (ds < s || rangeHasBlocked(s, ds));
+        } else {
+          // Seules les nuits réellement réservées sont fermées : une date qui traverse l'une d'elles
+          // reste cliquable et repose une arrivée, sinon la moitié du calendrier meurt.
+          disabled = isBlocked(ds) && ds !== s;
+        }
+        var cls = 'cal-day' + (isBlocked(ds) ? ' blocked' : '');
+        if (s && ds === s) cls += ' edge';
+        if (e && ds === e) cls += ' edge';
+        if (s && e && ds > s && ds < e) cls += ' range';
+        grid.appendChild(el('button', {
+          type: 'button', class: cls, disabled: disabled ? 'disabled' : null, text: String(d),
+          onclick: (function (x) { return function () { pick(x); }; })(ds),
+        }));
+      }
+      return el('div', { class: 'cal-month' }, el('div', { class: 'cal-title', text: MONTHS[m] + ' ' + y }), grid);
+    }
+
+    function pick(ds) {
+      var s = state.start, e = state.end;
+      state.hint = ''; state.err = false;
+      if (mode === 'current') {
+        if (s && !e && ds === s) { note('Clic sur l’arrivée → arrivée annulée'); state.start = null; }
+        else if (!s || e) {
+          if (e) note('Clic du ' + frDate(ds) + ' → la période est jetée, ' + frDate(ds) + ' devient la NOUVELLE arrivée', 'ko');
+          else note('Clic du ' + frDate(ds) + ' → arrivée posée');
+          state.start = ds; state.end = null;
+        }
+        else if (ds <= s) { note('Clic avant l’arrivée → nouvelle arrivée'); state.start = ds; state.end = null; }
+        else if (rangeHasBlocked(s, ds)) { note('Période traversant une nuit réservée → refusée', 'ko'); state.start = ds; state.end = null; state.hint = 'Ces dates incluent une nuit indisponible. Choisissez une autre période.'; state.err = true; }
+        else { note('Départ posé au ' + frDate(ds), 'ok'); state.end = ds; }
+      } else {
+        if (s && ds === s) { note('Clic sur l’arrivée → on recommence au choix de l’arrivée', 'ok'); state.start = null; state.end = null; }
+        else if (!s || ds < s) { note('Clic du ' + frDate(ds) + ' → arrivée posée'); state.start = ds; state.end = null; }
+        else if (rangeHasBlocked(s, ds)) { note('Période traversant une nuit réservée → refusée', 'ko'); state.start = ds; state.end = null; state.hint = 'Ces dates incluent une nuit indisponible. Choisissez une autre période.'; state.err = true; }
+        else { note((e ? 'Départ déplacé au ' : 'Départ posé au ') + frDate(ds) + ' — l’arrivée ne bouge pas', 'ok'); state.end = ds; }
+      }
+      draw();
+    }
+
+    // Le serveur répond après coup : c'est lui qui juge le minimum de séjour.
+    function quote() {
+      if (!state.start || !state.end) return;
+      if (nightsBetween(state.start, state.end) >= MIN_NIGHTS) return;
+      state.err = true;
+      state.hint = 'Séjour trop court (minimum ' + MIN_NIGHTS + ' nuits).';
+      if (mode === 'current') {
+        state.end = null;
+        note('Réponse du serveur → le départ est effacé tout seul', 'ko');
+        state.hint += ' Sélectionnez votre date de départ.';
+      } else {
+        note('Réponse du serveur → période gardée, il manque ' + (MIN_NIGHTS - nightsBetween(state.start, state.end)) + ' nuit(s)', 'ko');
+        state.hint += ' Cliquez une date plus tard pour allonger le séjour.';
+      }
+    }
+
+    function draw(skipQuote) {
+      if (!skipQuote) quote();
+      months.innerHTML = '';
+      VIEW.forEach(function (v) { months.appendChild(monthGrid(v.y, v.m)); });
+      if (!state.hint) {
+        if (!state.start) state.hint = 'Sélectionnez votre date d’arrivée';
+        else if (!state.end) state.hint = 'Sélectionnez votre date de départ';
+        else state.hint = mode === 'proposed'
+          ? 'Cliquez une autre date pour changer le départ, ou l’arrivée pour recommencer.'
+          : '';
+      }
+      hint.textContent = state.hint;
+      hint.className = 'cal-hint' + (state.err ? ' err' : '');
+      clear.disabled = !state.start && !state.end;
+      startV.textContent = state.start ? frDate(state.start) : '—';
+      endV.textContent = state.end ? frDate(state.end) : '—';
+      startV.className = 'v' + (state.start ? ' set' : '');
+      endV.className = 'v' + (state.end ? ' set' : '');
+      var n = (state.start && state.end) ? nightsBetween(state.start, state.end) : 0;
+      nights.innerHTML = n ? '<b>' + n + ' nuit' + (n > 1 ? 's' : '') + '</b> — minimum ' + MIN_NIGHTS + ' nuits'
+        : '<span>minimum ' + MIN_NIGHTS + ' nuits sur ce logement</span>';
+      cta.disabled = !(n >= MIN_NIGHTS);
+      logList.innerHTML = '';
+      state.log.forEach(function (l) { logList.appendChild(el('li', { class: l.kind, html: '<b>' + l.txt + '</b>' })); });
+    }
+
+    return {
+      reset: function (s, e, msg) {
+        state.start = s; state.end = e; state.hint = ''; state.err = false;
+        state.log = msg ? [{ txt: msg, kind: '' }] : [];
+        draw();
+      },
+    };
+  }
+
+  var panes = [Pane(document.getElementById('pane-current'), 'current'),
+               Pane(document.getElementById('pane-proposed'), 'proposed')];
+
+  var SCENARIOS = {
+    short: ['2026-10-12', '2026-10-14', 'Départ posé au 14 oct. — 2 nuits'],
+    ok: ['2026-10-12', '2026-10-16', 'Départ posé au 16 oct. — 4 nuits, séjour valide'],
+    empty: [null, null, ''],
+  };
+  function play(key) {
+    var s = SCENARIOS[key];
+    panes.forEach(function (p) { p.reset(s[0], s[1], s[2]); });
+  }
+  document.querySelectorAll('[data-scenario]').forEach(function (b) {
+    b.addEventListener('click', function () { play(b.dataset.scenario); });
+  });
+  play('short');
+})();
+</script>
+</html>

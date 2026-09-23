@@ -64,6 +64,8 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    the calendar's error hint rather than invented a second time. With no engine message, the fallback
    is « Choisissez vos dates d'arrivée et de départ dans le calendrier. »
    A `title` attribute does not count: it never appears on a touch screen.
+   *(2026-09-23 — amended by rule 13: the engine's error hint now decides on its own, before the state
+   of the two date fields.)*
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 2 — le repli et la vraie raison du moteur.
 7. « Réserver » on screen 2 mirrors the engine's own submit button, label and disabled state included.
    The CGV checkbox belongs to the engine: it refuses on click and says why (never a greyed button).
@@ -87,6 +89,28 @@ button says why it is greyed, and the engine's own refinements never flicker on 
     observer that triggered it would call it forever. This includes the reason line of rule 6 — writing
     an identical `textContent` still counts as a mutation.
 > **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; une boucle infinie se verrait au premier essai ; §7 points 1 à 5 ont tous tourné sans figer la page.
+
+### The engine's own look, inside the drawer (added 2026-09-23)
+
+11. Two date fields filled **no longer prove** the stay is sellable: since the engine keeps a refused
+    period on screen (`specs/wp-booking-widget-redesign.md` rule 26), « Suivant » must read the
+    engine's error hint **first** and only fall back to the state of the fields. Without this, a stay
+    the server refuses would open screen 2, where nothing repeats the refusal.
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 6 — 1 nuit sur un minimum de 2, les deux dates remplies, « Suivant » gris et porteur de la phrase du moteur.
+12. The drawer **re-declares the engine's CSS variables** (`--gf-accent`, `--gf-muted`, `--gf-border`,
+    `--gf-blocked`) on its own panel, in the site's palette. It moves the engine's blocks out of the
+    `.gf-block` container that declared them, so every `var(--gf-accent)` inside the drawer resolved to
+    nothing: **the chosen period was painted with an invalid background, i.e. invisible**, and the
+    engine's borders fell back to `currentColor`. This was live from the September redesign until
+    2026-09-23 — and it is the largest part of why picking dates felt impossible.
+> **Sans test** — cascade CSS d'un mu-plugin WordPress ; vérifié §7 point 7 — fond de l'arrivée mesuré à `rgb(184, 123, 42)` au lieu de `rgba(0, 0, 0, 0)`.
+13. The drawer **also overrides what the muted `gf-booking.php` mu-plugin still prints**: that
+    un-versioned file no longer renders anything but keeps emitting its stylesheet, after the engine's
+    own, where `.gf-cal-hint { color: #5a6b48 }` swallowed the refusal red and `.gf-field { flex: 1 1 0 }`
+    squeezed every field of a row onto one line, clipping the dates. The drawer restores a red error
+    hint and a `150 px` basis for the engine's fields. **Deleting that mu-plugin from the Pi is the real
+    fix**; these two rules are what keeps the funnel readable until then.
+> **Sans test** — cascade CSS d'un mu-plugin WordPress ; vérifié §7 points 7 et 8 — refus mesuré à `rgb(163, 58, 42)`, dates entières à 420 px comme à 1200 px.
 
 ## 4. Architecture
 
@@ -154,6 +178,17 @@ locally (Playwright, 420 px). Done 2026-09-23:
    T+0 ms to T+1500 ms — no flicker.
 5. **One** press on « Suivant » lands on screen 2; the sticky bar appears with « Retour » and
    « Payer en ligne ».
+
+Added 2026-09-23 (rules 11-13), same method, at 420 px and 1200 px:
+
+6. A 1-night pick on a 2-night minimum leaves both date fields filled and « Suivant » grey, carrying
+   « Séjour trop court (minimum 2 nuits). Cliquez une date plus tard pour allonger le séjour. » A click
+   on a later date lengthens the stay and enables the button; « ✕ Effacer » empties both fields and
+   greys it again.
+7. The arrival cell computes to `rgb(184, 123, 42)` (was `rgba(0, 0, 0, 0)`) and the refusal hint to
+   `rgb(163, 58, 42)` (was `rgb(90, 107, 72)`, the engine's ordinary green).
+8. The date fields read `03/10/2026` / `07/10/2026` whole at 420 px (189 px wide) and at 1200 px
+   (204 px), with no horizontal overflow.
 
 ## 8. Out of scope
 
