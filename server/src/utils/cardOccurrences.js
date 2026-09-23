@@ -1,9 +1,11 @@
 /**
  * Card-option occurrences — server-side twin of `client/src/utils/cardOccurrences.js`.
  *
- * A card option (`options.showsPlanningCard = 1`) is billed by the MOMENTS it is served on, never by
- * a raw quantity: `quantity = number of occurrences`, `billedUnits = occurrences × persons`
- * (specs/option-planning-card.md §3.4). The reservation form owns that grid in the browser; the
+ * A card option (`options.showsPlanningCard = 1`) is billed by the MOMENTS it is served on once they
+ * are placed: `quantity = number of occurrences`, `billedUnits = occurrences × persons`
+ * (specs/option-planning-card.md §3.4). Before that it is billed on the portions it was sold at and
+ * flagged « à planifier » — an empty grid never removes it
+ * (specs/unscheduled-card-option.md). The reservation form owns that grid in the browser; the
  * arrival SAS now sells the same options (specs/sas-breakfast-and-catering-upsell.md), so the
  * candidate grid and its presence rules must exist server-side too — the wizard sends the chosen
  * moments and the server re-derives quantity, units and price (CLAUDE.md §6.0).
