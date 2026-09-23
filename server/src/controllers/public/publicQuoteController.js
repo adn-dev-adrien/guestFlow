@@ -13,7 +13,7 @@ const { getTodayIsoDate } = require('../../utils/reservationHelpers');
 const optionsModel = require('../../models/optionsModel');
 const resourcesModel = require('../../models/resourcesModel');
 const { validateStayInput } = require('../../utils/publicInputValidation');
-const { toPublicQuote, toPublicCancellationInsurance } = require('../../utils/publicProjections');
+const { toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits } = require('../../utils/publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { resolvePublicPaymentMode } = require('../../utils/publicPaymentMode');
 const { mergePropertyDefaultsIntoPayload } = require('../../utils/propertyDefaultOptions');
@@ -23,6 +23,7 @@ const neatSubscriptionsModel = require('../../models/neatSubscriptionsModel');
 const { resolveInsurancePricing, buildQuoteSnapshot, isNeatPricingActive } = require('../../utils/neatGuestPricing');
 const { buildNeatClient } = require('../../utils/neatClient');
 const { ok, fail } = require('./publicHttp');
+const { isPerPersonCardOption } = require('../../utils/mealPortions');
 
 /** Reject any option id that is not applicable to the property. Returns an error list or null. */
 function checkOptionApplicability(propertyId, options) {
@@ -42,6 +43,17 @@ function checkResourceApplicability(propertyId, resources) {
     .filter((r) => !applicable.has(Number(r.resourceId)))
     .map((r) => ({ field: 'resources', issue: `resource ${r.resourceId} is not available for this property` }));
   return errors.length ? errors : null;
+}
+
+/**
+ * The quantity a property DEFAULT takes on the public flow: one portion per guest for a per-person
+ * card option (specs/site-meal-portions.md rule 5), 1 for everything else.
+ */
+function defaultPortionQuantity(input, optionId) {
+  const option = optionsModel.listForProperty(Number(input.propertyId))
+    .find((o) => Number(o.id) === Number(optionId));
+  if (!isPerPersonCardOption(option)) return 1;
+  return Math.max(1, Number(input.adults || 1) + Number(input.children || 0) + Number(input.teens || 0));
 }
 
 function buildEngineQuote(input) {
@@ -67,6 +79,7 @@ function buildEngineQuote(input) {
     },
     Number(input.propertyId),
     propertyOptionDefaultsModel,
+    { quantityFor: (optionId) => defaultPortionQuantity(input, optionId) },
   );
   return calculateReservationQuote({
     db,
@@ -91,7 +104,8 @@ function buildEngineQuote(input) {
     selectedResources: (input.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
     // Public/site flow: planning-card options are billed by quantity (unschedulable on the site) —
-    // the operator fixes the slots later (specs/public-planning-options.md).
+    // the operator fixes the slots later (specs/public-planning-options.md). A per-person one counts
+    // portions, capped by what the stay can serve (specs/site-meal-portions.md).
     planningCardAsQuantity: true,
     // Neat-derived insurance price (see resolveNeatPricing) — absent on the first run.
     cancellationInsurancePriceOverride: input.cancellationInsurancePriceOverride,
@@ -151,6 +165,25 @@ async function resolveNeatPricing(input, engineQuote) {
   );
 }
 
+/**
+ * The portion caps this stay imposes (specs/site-meal-portions.md rule 7). The engine does not echo
+ * the times it was given, so they come from the validated input, falling back to the property's own
+ * default check-in / check-out — exactly what the engine itself used.
+ */
+function buildOptionLimits(input, engineQuote) {
+  return toPublicOptionLimits({
+    options: optionsModel.listForProperty(Number(input.propertyId)),
+    persons: Number(engineQuote.persons || 0),
+    nights: Number(engineQuote.nights || 0),
+    checkInTime: input.checkInTime,
+    checkOutTime: input.checkOutTime,
+    property: {
+      defaultCheckIn: engineQuote.defaultCheckIn,
+      defaultCheckOut: engineQuote.defaultCheckOut,
+    },
+  });
+}
+
 async function quote(req, res) {
   const v = validateStayInput(req.body);
   if (!v.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Données de devis invalides.', v.errors);
@@ -184,7 +217,10 @@ async function quote(req, res) {
   return ok(res, toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
     cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, neatPricing),
+    optionLimits: buildOptionLimits(v.value, engineQuote),
   }));
 }
 
-module.exports = { quote, buildEngineQuote, checkOptionApplicability, checkResourceApplicability };
+module.exports = {
+  quote, buildEngineQuote, buildOptionLimits, checkOptionApplicability, checkResourceApplicability,
+};

@@ -63,10 +63,21 @@ test('toPublicOption strips linen/towel internals; tiers only for progressive', 
   assert.equal('towelLargePerPerson' in o, false);
   assert.equal('progressiveTiers' in o, false); // not a progressive priceType
 
-  // Planning-card option: billed by séance on the site → séance-based labels from the backend.
-  const planning = toPublicOption({ id: 6, title: 'Petit déjeuner', priceType: 'per_person_per_night', price: 8, showsPlanningCard: 1 });
-  assert.equal(planning.priceUnitLabel, 'par personne et par séance');
-  assert.equal(planning.quantityLabel, 'Nombre de séances');
+  // Per-person planning-card option: billed by PORTION on the site → portion labels from the
+  // backend (specs/site-meal-portions.md rule 6). A breakfast says so; any other meal counts covers.
+  const planning = toPublicOption({
+    id: 6, title: 'Petit déjeuner', priceType: 'per_person_per_night', price: 8, showsPlanningCard: 1, autoOptionType: 'breakfast',
+  });
+  assert.equal(planning.priceUnitLabel, 'par petit déjeuner');
+  assert.equal(planning.quantityLabel, 'Nombre de petits déjeuners');
+
+  const meal = toPublicOption({ id: 16, title: 'Le repas des trappeurs', priceType: 'per_person_per_night', price: 25, showsPlanningCard: 1 });
+  assert.equal(meal.priceUnitLabel, 'par couvert');
+  assert.equal(meal.quantityLabel, 'Nombre de couverts');
+
+  const groupCard = toPublicOption({ id: 7, title: 'Balade nocturne', priceType: 'per_stay', price: 45, showsPlanningCard: 1 });
+  assert.equal(groupCard.priceUnitLabel, 'par séance');
+  assert.equal(groupCard.quantityLabel, 'Nombre de séances');
 
   const perStay = toPublicOption({ id: 3, title: 'Ménage', priceType: 'per_stay', price: 80 });
   assert.equal(perStay.priceUnitLabel, 'au séjour');

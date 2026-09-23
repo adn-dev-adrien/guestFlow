@@ -31,6 +31,7 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 // Property default-options merge — shared with the public live quote so preview == devis (the function
 // moved to utils/propertyDefaultOptions; re-exported via __test for the existing devis tests).
 const { mergePropertyDefaultsIntoPayload, carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
+const { isPerPersonCardOption } = require('../utils/mealPortions');
 const settingsModel = require('./settingsModel');
 const neatSubscriptionsModel = require('./neatSubscriptionsModel');
 const { repriceQuoteWithNeatSync } = require('../utils/neatGuestPricing');
@@ -579,6 +580,12 @@ function createModel(database) {
     return { ok: true, data: findById(id) };
   }
 
+  function defaultPortionQuantity(database, payload, optionId) {
+    const option = database.prepare('SELECT * FROM options WHERE id = ?').get(Number(optionId));
+    if (!isPerPersonCardOption(option)) return 1;
+    return Math.max(1, Number(payload.adults || 1) + Number(payload.children || 0) + Number(payload.teens || 0));
+  }
+
   function create(payload) {
     if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
       return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
@@ -589,7 +596,16 @@ function createModel(database) {
     // Server-side enforcement of property option defaults (specs/devis-pdf-and-tourist-tax-fixes.md §3.3
     // rules 11–13). Idempotent: if the client already shipped the default optionId we leave it alone.
     const defaultsModel = propertyOptionDefaultsModel.buildModel(database);
-    const payloadWithDefaults = mergePropertyDefaultsIntoPayload(payload, Number(payload.propertyId), defaultsModel);
+    const payloadWithDefaults = mergePropertyDefaultsIntoPayload(
+      payload,
+      Number(payload.propertyId),
+      defaultsModel,
+      // Public/site devis only: a per-person card default counts one portion per guest
+      // (specs/site-meal-portions.md rule 5). Admin devis keep the plain quantity 1.
+      payload.planningCardAsQuantity
+        ? { quantityFor: (optionId) => defaultPortionQuantity(database, payload, optionId) }
+        : {},
+    );
 
     const quote = computeQuote(payloadWithDefaults, null, property);
     const devisNumber = database.generateDevisNumber();

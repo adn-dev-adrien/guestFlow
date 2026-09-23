@@ -282,16 +282,23 @@
     // ---- stepper (− n +), the single quantity control of the widget (spec §3.6-7, ≥44px) ----
     function stepper(get, set, min, max) {
       var val = GF.el('span', { class: 'gf-step-val' }, String(get()));
-      function apply(v) { set(v); val.textContent = String(v); scheduleQuote(); }
+      function ceiling() { return (typeof max === 'function') ? max() : (max == null ? 99 : max); }
+      // Repaint WITHOUT asking for a new quote: the quote itself is what tells us the number moved
+      // (a cap lowered it), and re-quoting from here would loop.
+      function repaint() {
+        val.textContent = String(get());
+        inc.disabled = get() >= ceiling();
+      }
+      function apply(v) { set(v); repaint(); scheduleQuote(); }
       var dec = GF.el('button', { type: 'button', class: 'gf-step-btn', 'aria-label': '−', onClick: function () { apply(Math.max(min, get() - 1)); } }, '−');
       var inc = GF.el('button', {
         type: 'button', class: 'gf-step-btn', 'aria-label': '+',
-        onClick: function () {
-          var mx = (typeof max === 'function') ? max() : (max == null ? 99 : max);
-          apply(Math.min(mx, get() + 1));
-        },
+        onClick: function () { apply(Math.min(ceiling(), get() + 1)); },
       }, '+');
-      return GF.el('span', { class: 'gf-step' }, dec, val, inc);
+      var node = GF.el('span', { class: 'gf-step' }, dec, val, inc);
+      node.gfRepaint = repaint;
+      repaint();
+      return node;
     }
 
     // Uniform row: [title + subtitle] … [price italic] [stepper] — one layout for guests, options
@@ -371,6 +378,11 @@
       )
     );
 
+    // Per-option server caps and the nodes that render them. Filled by each quote, read by the
+    // steppers: a cap is a stay's property, not the catalogue's (specs/site-meal-portions.md).
+    var optionCaps = {};
+    var optionNodes = {};
+
     // ---- Options & suppléments — ONE uniform list (spec §3.7-14) ----
     var supplementsList = GF.el('div', { class: 'gf-lines' });
     var groupsHolder = GF.el('div', {});
@@ -400,17 +412,29 @@
         }, 'ⓘ'));
       }
       // No « à planifier » note on options — it belongs to host-scheduled resources only (spec §3.9).
-      var max = progressive ? function () { return Math.max(1, persons()); } : null;
+      // The cap of a per-person card option (« 12 petits déjeuners au maximum ») is the server's to
+      // decide and arrives with each quote, so it is read at click time from `optionCaps`
+      // (specs/site-meal-portions.md rules 7-8).
+      var max = function () {
+        var server = optionCaps[o.id];
+        if (progressive) return Math.max(1, persons());
+        return server == null ? 99 : server;
+      };
+      // Where that cap explains itself, once the stay has dates and guests.
+      var hint = GF.el('div', { class: 'gf-line-note', style: 'display:none' }, '');
+      extras.push(hint);
+      var step = stepper(
+        function () { return state.opt[o.id]; },
+        function (v) { state.opt[o.id] = v; if (onChange) onChange(); },
+        0,
+        max
+      );
+      optionNodes[o.id] = { step: step, hint: hint, onChange: onChange };
       return line(
         GF.el('span', {}, titleGroup),
         o.quantityLabel || null,
         priceText(o),
-        stepper(
-          function () { return state.opt[o.id]; },
-          function (v) { state.opt[o.id] = v; if (onChange) onChange(); },
-          0,
-          max
-        ),
+        step,
         extras
       );
     }
@@ -501,6 +525,9 @@
 
     function renderSupplements() {
       supplementsList.innerHTML = '';
+      // The rows are rebuilt from scratch here, so the registry must not keep pointing at the old
+      // nodes (this runs when the party changes, which is also when the caps move).
+      optionNodes = {};
       pickable.forEach(function (o) { supplementsList.appendChild(optionLine(o)); });
       supplements.forEach(function (r) {
         if (!(r.id in state.res)) state.res[r.id] = 0;
@@ -685,7 +712,30 @@
       });
     }
 
+    // What the server priced and what it allows (specs/site-meal-portions.md rules 3 + 8). The
+    // quantity comes back lowered when the stay can't serve what was asked — the drawer follows it
+    // rather than showing a number the price no longer matches.
+    function applyOptionLimits(q) {
+      (q.options || []).forEach(function (o) {
+        var node = optionNodes[o.optionId];
+        if (!node || state.opt[o.optionId] === o.quantity) return;
+        state.opt[o.optionId] = o.quantity;
+        node.step.gfRepaint();
+        if (node.onChange) node.onChange();
+      });
+      optionCaps = {};
+      (q.optionLimits || []).forEach(function (l) { optionCaps[l.optionId] = l.maxQuantity; });
+      Object.keys(optionNodes).forEach(function (id) {
+        var node = optionNodes[id];
+        var limit = (q.optionLimits || []).filter(function (l) { return String(l.optionId) === String(id); })[0];
+        node.hint.textContent = limit ? limit.hint : '';
+        node.hint.style.display = limit ? 'block' : 'none';
+        node.step.gfRepaint();
+      });
+    }
+
     function drawSummary(q) {
+      applyOptionLimits(q);
       summary.innerHTML = '';
       function sline(label, value, cls) { return GF.el('div', { class: 'gf-summary-line ' + (cls || '') }, GF.el('span', {}, label), GF.el('span', {}, value)); }
       summary.appendChild(sline(q.nights + ' ' + GF.t('nights'), GF.euro(q.accommodationTotal)));

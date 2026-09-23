@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.8.0
+Stable tag: 1.9.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,10 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.9.0 =
+* Petits déjeuners et repas : le nombre saisi est le nombre de petits déjeuners (ou de couverts) facturés, et non plus un nombre de séances multiplié par le nombre de personnes. Les libellés viennent de GuestFlow : « Nombre de petits déjeuners », « 8,00 € · par petit déjeuner ».
+* Une note sous la ligne rappelle le maximum que le séjour peut servir (« Jusqu'à 12 — 4 personnes × 3 matins ») et le « + » s'y arrête. Si le groupe se réduit, le nombre suit tout seul.
 
 = 1.8.0 =
 * Conditions générales : le formulaire de réservation affiche lui-même la case « J'ai lu et j'accepte les conditions générales de location (version N) », jamais pré-cochée. Sans elle, le bouton explique pourquoi il refuse. GuestFlow enregistre l'acceptation (heure du serveur, version, adresse IP, navigateur) et refuse toute demande qui ne la porte pas.

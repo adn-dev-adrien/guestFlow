@@ -22,7 +22,38 @@ const { checkGuestCapacity } = require('../../utils/capacity');
 const { generateToken } = require('../../utils/publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
+const optionsModel = require('../../models/optionsModel');
+const { isPerPersonCardOption, portionCap, portionWording } = require('../../utils/mealPortions');
 const { ok, fail } = require('./publicHttp');
+
+/**
+ * Per-person card options asked for beyond `persons × servings` (specs/site-meal-portions.md rule 3).
+ * Returns the French refusal + the usual `details` shape, or null when everything fits.
+ */
+function checkPortionCaps(input, engineQuote) {
+  const asked = new Map((input.options || []).map((o) => [Number(o.optionId), Number(o.quantity || 0)]));
+  if (!asked.size) return null;
+  const options = optionsModel.listForProperty(Number(input.propertyId)).filter(isPerPersonCardOption);
+  for (const option of options) {
+    const quantity = asked.get(Number(option.id));
+    if (!(quantity > 0)) continue;
+    const limit = portionCap({
+      option,
+      persons: Number(engineQuote.persons || 0),
+      nights: Number(engineQuote.nights || 0),
+      checkInTime: input.checkInTime,
+      checkOutTime: input.checkOutTime,
+      property: { defaultCheckIn: engineQuote.defaultCheckIn, defaultCheckOut: engineQuote.defaultCheckOut },
+    });
+    if (quantity > limit.cap) {
+      return {
+        message: portionWording(option).refusal({ ...limit, nights: Number(engineQuote.nights || 0) }),
+        details: [{ field: 'options', issue: `option ${option.id} quantity ${quantity} exceeds ${limit.cap}` }],
+      };
+    }
+  }
+  return null;
+}
 
 function create(req, res) {
   // Honeypot: a filled `_hp` means a bot. Respond like a success WITHOUT persisting anything, so a
@@ -70,6 +101,14 @@ function create(req, res) {
     return fail(res, 409, 'MIN_NIGHTS', `Séjour trop court : minimum ${engineQuote.requiredMinNights} nuit(s).`);
   }
 
+  // Portions over what the stay can serve are REFUSED here, where the live quote only clamps
+  // (specs/site-meal-portions.md rule 3): this request becomes the devis the guest pays, so it is
+  // never quietly altered.
+  const portionError = checkPortionCaps(v.value, engineQuote);
+  if (portionError) {
+    return fail(res, 422, 'VALIDATION_FAILED', portionError.message, portionError.details);
+  }
+
   const visitor = req.visitor || {};
   const persist = db.transaction(() => {
     // Resolve-or-create the client by normalized email (never overwrite an existing name/phone).
@@ -99,8 +138,9 @@ function create(req, res) {
       selectedOptions: v.value.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
       selectedResources: (v.value.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
       platform: 'direct',
-      // Public/site devis: planning-card options are billed by quantity + left unscheduled for the operator
-      // to arrange (specs/public-planning-options.md).
+      // Public/site devis: planning-card options are billed by quantity + left unscheduled for the
+      // operator to arrange (specs/public-planning-options.md); a per-person one counts portions,
+      // already checked against the stay's cap above (specs/site-meal-portions.md).
       planningCardAsQuantity: true,
       notes: String(req.body.message || '').trim(),
     });

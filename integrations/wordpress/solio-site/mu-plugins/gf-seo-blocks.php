@@ -246,9 +246,11 @@ add_shortcode( 'solio_tarifs_nuits', 'gf_seo_shortcode_tarifs_nuits' );
 
 /**
  * Unite de prix telle qu'affichee au client (specs cote site, 2026-09-06) : « au séjour » ne dit
- * rien a personne — on montre juste le prix ; les repas sont « par repas » ; les animations
- * degressives le disent ; les animaux sauvages se paient a la session. Pur affichage, le moteur
- * de reservation calcule avec les vraies unites GuestFlow.
+ * rien a personne — on montre juste le prix ; les animations degressives le disent ; les animaux
+ * sauvages se paient a la session. Les repas et petits dejeuners nomment eux-memes leur unite
+ * depuis GuestFlow (« par petit déjeuner », « par couvert ») : plus rien a reecrire ici
+ * (specs/site-meal-portions.md rule 10). Pur affichage, le moteur de reservation calcule avec les
+ * vraies unites GuestFlow.
  */
 function gf_seo_unite_affichee( $titre, $unite ) {
 	$t = gf_seo_normalise( $titre );
@@ -257,9 +259,6 @@ function gf_seo_unite_affichee( $titre, $unite ) {
 	}
 	if ( false !== strpos( $t, 'visite animaux' ) || false !== strpos( $t, 'enfants bain nordique' ) ) {
 		return 'par personne · tarif dégressif';
-	}
-	if ( 0 === strpos( $t, 'petit dejeuner' ) || 0 === strpos( $t, 'repas' ) ) {
-		return str_ireplace( 'par séance', 'par repas', $unite );
 	}
 	return trim( str_ireplace( 'au séjour', '', $unite ) );
 }

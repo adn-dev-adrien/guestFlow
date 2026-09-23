@@ -480,8 +480,6 @@ CSS;
 				} else if ( t.indexOf( 'visite animaux' ) !== -1 || t.indexOf( 'enfants + bain nordique' ) !== -1 ) {
 					p = p.replace( /par participant/gi, 'par personne' );
 					if ( p.indexOf( 'd\u00e9gressif' ) === -1 ) { p += ' \u00b7 tarif d\u00e9gressif'; }
-				} else if ( t.indexOf( 'petit dejeuner' ) === 0 || t.indexOf( 'repas' ) === 0 ) {
-					p = p.replace( /par s\u00e9ance/gi, 'par repas' );
 				} else {
 					// Planches, boissons, balade nocturne… : juste le prix.
 					p = p.replace( /\s*\u00b7?\s*au s\u00e9jour/gi, '' );
@@ -489,41 +487,8 @@ CSS;
 				if ( p !== prixEl.textContent ) { prixEl.textContent = p; }
 			}
 
-			// Un repas est servi pour toute la tablee : des qu'on en ajoute, on affiche
-			// le compte reel (nombre de repas x nombre de convives), comme GuestFlow.
-			if ( t.indexOf( 'petit dejeuner' ) === 0 || t.indexOf( 'repas' ) === 0 ) {
-				var note = ligne.querySelector( '.gf-resa-note-repas' );
-				var qte  = 0;
-				if ( step ) { qte = parseInt( ( step.querySelector( '.gf-step-val' ) || {} ).textContent, 10 ) || 0; }
-				if ( qte > 0 ) {
-					var pers  = compterConvives();
-					// Le titre porte parfois le glyphe du bouton d'info (\u24d8) : on l'ecarte.
-					var recap = ligneRecap( texteEl.textContent.replace( /\u24d8/g, '' ).trim() );
-					var msg = qte + ' repas \u00d7 ' + pers + ' personne' + ( pers > 1 ? 's' : '' )
-						+ ( recap ? ' \u2014 ' + recap.prix : '' );
-					if ( ! note ) {
-						note = document.createElement( 'div' );
-						note.className = 'gf-line-note gf-resa-note-repas';
-						ligne.appendChild( note );
-					}
-					if ( note.textContent !== msg ) { note.textContent = msg; }
-				} else if ( note ) {
-					note.remove();
-				}
-			}
 		} );
 		majSupplementsHoraires();
-	}
-
-	// Adultes + ados + enfants : le compte que le moteur applique aux repas (bebes exclus).
-	function compterConvives() {
-		var total = 0;
-		ecrans[0].querySelectorAll( '.gf-line' ).forEach( function ( ligne ) {
-			var titre = ligne.querySelector( '.gf-line-title' );
-			if ( ! titre || ! /^(Adultes|Ados|Enfants)$/.test( titre.textContent.trim() ) ) { return; }
-			total += parseInt( ( ligne.querySelector( '.gf-step-val' ) || {} ).textContent, 10 ) || 0;
-		} );
-		return total;
 	}
 
 	// Retrouve une ligne du recapitulatif du moteur par le debut de son libelle.

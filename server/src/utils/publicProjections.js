@@ -1,3 +1,7 @@
+const {
+  isPerPersonCardOption, portionCap, portionWording,
+} = require('./mealPortions');
+
 /**
  * Public projections (specs/public-api.md §3 rule 5). Pure functions that map internal rows /
  * engine output to the deliberately reduced PUBLIC shape. They are the single place that decides
@@ -51,16 +55,18 @@ function toPublicPropertyDetail(row) {
 // Human-readable price-basis + quantity labels for the site — computed SERVER-SIDE from priceType +
 // showsPlanningCard so it is the single source of truth: adding an option needs NO website change, the
 // plugin just renders these strings (specs/public-planning-options.md). A planning-card option is
-// billed by SÉANCE on the site (the visitor's quantity = number of sessions), so its labels differ
-// from the back-office occurrence model.
-function optionPriceLabels(priceType, showsPlanningCard) {
+// billed by the visitor's quantity on the site, so its labels differ from the back-office occurrence
+// model: a PER-PERSON one counts PORTIONS — breakfasts, covers (specs/site-meal-portions.md rule 6) —
+// and the others still count séances.
+function optionPriceLabels(priceType, showsPlanningCard, option = null) {
   const pt = String(priceType || '');
   const perPerson = pt.indexOf('per_person') === 0;
   if (showsPlanningCard) {
-    return {
-      priceUnitLabel: perPerson ? 'par personne et par séance' : 'par séance',
-      quantityLabel: 'Nombre de séances',
-    };
+    if (perPerson) {
+      const words = portionWording(option);
+      return { priceUnitLabel: words.priceUnitLabel, quantityLabel: words.quantityLabel };
+    }
+    return { priceUnitLabel: 'par séance', quantityLabel: 'Nombre de séances' };
   }
   const MAP = {
     per_person: 'par personne',
@@ -77,7 +83,7 @@ function optionPriceLabels(priceType, showsPlanningCard) {
 
 function toPublicOption(row) {
   if (!row) return null;
-  const labels = optionPriceLabels(row.priceType, row.showsPlanningCard);
+  const labels = optionPriceLabels(row.priceType, row.showsPlanningCard, row);
   const out = {
     id: Number(row.id),
     title: row.title,
@@ -225,7 +231,26 @@ function toPublicAvailability({ propertyId, from, to, blockedDates }) {
  * (range vs blocked dates) and injected. EXCLUDES VAT net breakdowns, accounting buckets, override
  * flags, and resource lines.
  */
-function toPublicQuote(quote, { available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null }) {
+/**
+ * The cap on every per-person planning-card option applicable to this stay, with the French hint the
+ * drawer prints under its stepper (specs/site-meal-portions.md rules 3 + 7-8). The widget caps its
+ * « + » with it, which is what spares the visitor a 422 at submit time.
+ */
+function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutTime, property }) {
+  if (!Array.isArray(options) || !(Number(nights) > 0) || !(Number(persons) > 0)) return [];
+  return options.filter(isPerPersonCardOption).map((option) => {
+    const limit = portionCap({ option, persons, nights, checkInTime, checkOutTime, property });
+    return {
+      optionId: Number(option.id),
+      maxQuantity: limit.cap,
+      hint: portionWording(option).hint(limit),
+    };
+  });
+}
+
+function toPublicQuote(quote, {
+  available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
+}) {
   const base = {
     propertyId: Number(quote.property?.id ?? quote.propertyId),
     startDate,
@@ -248,6 +273,9 @@ function toPublicQuote(quote, { available, startDate, endDate, paymentMode = 'fu
       offered: Boolean(o.offered),
     })),
     optionsTotal: Number(quote.optionsTotal || 0),
+    // How many portions each per-person card option can still take for this stay (rule 7). Empty
+    // until the stay has dates and guests.
+    optionLimits: Array.isArray(optionLimits) ? optionLimits : [],
     resources: (quote.resourceLines || []).map((r) => ({
       resourceId: Number(r.resourceId),
       name: r.name,
@@ -287,6 +315,7 @@ module.exports = {
   toPublicProperty,
   toPublicPropertyDetail,
   toPublicOption,
+  toPublicOptionLimits,
   toPublicCancellationInsurance,
   toPublicResource,
   toPublicAvailability,
