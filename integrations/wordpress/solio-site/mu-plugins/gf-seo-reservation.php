@@ -5,10 +5,14 @@
  * Le moteur de reservation est ouvert par un bouton flottant en bas a droite, dans un tiroir
  * venant de la droite, et decoupe en deux ecrans qui defilent horizontalement :
  *
- *   1. Votre séjour   dates, voyageurs et options — le total se met a jour en direct
+ *   1. Votre séjour   dates, voyageurs et options
  *   2. Récapitulatif  le recapitulatif chiffre et les coordonnees
  *
  * Le bouton flottant affiche le prix « des X €/nuit » lu dans les faits.
+ *
+ * « Suivant » vit EN BAS du contenu de l'ecran 1, pas dans une barre collante : c'est ce qui
+ * oblige le visiteur a passer devant les options avant de l'atteindre. Il ne fait qu'une chose,
+ * passer a l'ecran suivant. La barre collante ne sert donc qu'au recapitulatif.
  *
  * Point important : les blocs du moteur GuestFlow ne sont ni copies ni reconstruits, ils sont
  * simplement DEPLACES dans les deux ecrans. Les gestionnaires d’evenements et l’etat interne
@@ -52,7 +56,7 @@ add_filter(
 		$titre = $l ? $l['nom'] : 'Votre séjour';
 
 		$etapes = array(
-			array( 'Votre séjour', 'Dates, voyageurs et options — le total se met à jour en direct.' ),
+			array( 'Votre séjour', '' ),
 			array( 'Récapitulatif', 'Vérifiez votre séjour et laissez-nous vos coordonnées : nous répondons en direct, sans intermédiaire.' ),
 		);
 		$prix = ( $l && ! empty( $l['prix_min_nuit'] ) )
@@ -98,7 +102,9 @@ add_filter(
 				<?php foreach ( $etapes as $i => $e ) : ?>
 					<section class="gf-resa-etape" data-etape="<?php echo esc_attr( $i + 1 ); ?>"
 						aria-label="<?php echo esc_attr( $e[0] ); ?>">
-						<p class="gf-resa-consigne"><?php echo esc_html( $e[1] ); ?></p>
+						<?php if ( '' !== $e[1] ) : ?>
+							<p class="gf-resa-consigne"><?php echo esc_html( $e[1] ); ?></p>
+						<?php endif; ?>
 					</section>
 				<?php endforeach; ?>
 			</div>
@@ -108,9 +114,6 @@ add_filter(
 		<nav class="gf-resa-nav" aria-label="Étapes de la réservation">
 			<button type="button" class="gf-resa-precedent" hidden>
 				<span aria-hidden="true">←</span> Retour
-			</button>
-			<button type="button" class="gf-resa-suivant" disabled>
-				Suivant <span aria-hidden="true">→</span>
 			</button>
 			<button type="button" class="gf-resa-valider" hidden disabled>Réserver</button>
 		</nav>
@@ -295,10 +298,29 @@ add_action(
 }
 .gf-resa-precedent { border: 1px solid #d8ded0; background: #fff; color: #2f3a26; }
 .gf-resa-precedent:hover { background: #f4f6f0; }
-.gf-resa-suivant, .gf-resa-valider {
+.gf-resa-valider {
 	margin-left: auto; border: 0; background: #B87B2A; color: #fff; min-width: 150px;
 }
-.gf-resa-suivant:hover:not(:disabled), .gf-resa-valider:hover:not(:disabled) { background: #9A6318; }
+.gf-resa-valider:hover:not(:disabled) { background: #9A6318; }
+/* L'ecran 1 n'a rien a mettre dans la barre : son bouton est en bas de son contenu. */
+.gf-resa-nav[hidden] { display: none; }
+
+/* ---------- Pied de l'ecran 1 : « Suivant » au bout du contenu ---------- */
+/* Il est place la, et pas dans la barre collante, pour que l'atteindre suppose d'etre
+   descendu jusqu'aux options. */
+.gf-resa-pied { margin: 26px 0 4px; }
+.gf-resa-suivant-bas {
+	width: 100%; border: 0; border-radius: 4px; background: #B87B2A; color: #fff;
+	font: 700 .85rem/1 Karla, Helvetica, Arial, sans-serif;
+	text-transform: uppercase; letter-spacing: .1em;
+	cursor: pointer; padding: 15px 18px; min-height: 48px; transition: background .18s ease, opacity .18s ease;
+}
+.gf-resa-suivant-bas:hover:not(:disabled) { background: #9A6318; }
+.gf-resa-suivant-bas:disabled { opacity: .45; cursor: not-allowed; }
+.gf-resa-suivant-bas:focus-visible { outline: 2px solid #2f3a26; outline-offset: 2px; }
+/* Un bouton grise ne dit pas pourquoi : cette ligne le dit a sa place. */
+.gf-resa-raison { margin: 9px 0 0; font-size: .88rem; line-height: 1.45; color: #9A6318; text-align: center; }
+.gf-resa-raison[hidden] { display: none; }
 .gf-resa-nav button:disabled { opacity: .45; cursor: not-allowed; }
 .gf-resa-nav button:focus-visible { outline: 2px solid #2f3a26; outline-offset: 2px; }
 
@@ -312,7 +334,7 @@ body.gf-resa-ouverte { overflow: hidden; }
 	.gf-resa-fil-nom { font-size: .78rem; }
 	.gf-resa-etape { padding: 16px 16px 22px; }
 	.gf-resa-nav { padding: 10px 16px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
-	.gf-resa-suivant, .gf-resa-valider { min-width: 0; flex: 1 1 auto; }
+	.gf-resa-valider { min-width: 0; flex: 1 1 auto; }
 }
 @media (prefers-reduced-motion: reduce) {
 	.gf-resa-panneau, .gf-resa-fond, .gf-resa-piste, .gf-resa-declencheur { transition: none; }
@@ -332,8 +354,8 @@ CSS;
 	var piste       = racine.querySelector( '.gf-resa-piste' );
 	var ecrans      = Array.prototype.slice.call( racine.querySelectorAll( '.gf-resa-etape' ) );
 	var filItems    = Array.prototype.slice.call( racine.querySelectorAll( '.gf-resa-fil li' ) );
+	var nav         = racine.querySelector( '.gf-resa-nav' );
 	var precedent   = racine.querySelector( '.gf-resa-precedent' );
-	var suivant     = racine.querySelector( '.gf-resa-suivant' );
 	var valider     = racine.querySelector( '.gf-resa-valider' );
 
 	var etape        = 1;
@@ -341,6 +363,8 @@ CSS;
 	var boutonMoteur = null;
 	var derniereCle  = '';
 	var pret         = false;
+	var suivantBas   = null;
+	var raisonBas    = null;
 
 	/* ---------- Repartition des blocs du moteur dans les deux ecrans ---------- */
 
@@ -359,6 +383,22 @@ CSS;
 
 		champsDates  = ecrans[0].querySelectorAll( '.gf-ro' );
 		boutonMoteur = ecrans[1].querySelector( '.gf-btn' );
+
+		// « Suivant » en fin d'ecran 1 : il est construit ici, une fois les blocs du moteur
+		// deplaces, pour rester le dernier element de l'ecran.
+		var pied = document.createElement( 'div' );
+		pied.className = 'gf-resa-pied';
+		suivantBas = document.createElement( 'button' );
+		suivantBas.type = 'button';
+		suivantBas.className = 'gf-resa-suivant-bas';
+		suivantBas.innerHTML = 'Suivant <span aria-hidden="true">\u2192</span>';
+		raisonBas = document.createElement( 'p' );
+		raisonBas.className = 'gf-resa-raison';
+		raisonBas.hidden = true;
+		pied.appendChild( suivantBas );
+		pied.appendChild( raisonBas );
+		ecrans[0].appendChild( pied );
+		suivantBas.addEventListener( 'click', function () { aller( 2 ); } );
 
 		if ( boutonMoteur ) {
 			valider.textContent = boutonMoteur.textContent || 'Réserver';
@@ -380,14 +420,20 @@ CSS;
 		affinerOptions();
 		// Le moteur reconstruit ses lignes (premier devis, changement de voyageurs…) : on
 		// rejoue l'affinage a chaque mutation, il est idempotent.
-		// Throttle et non debounce : le moteur mute en continu pendant un devis, un debounce
-		// classique ne se declencherait jamais.
+		//
+		// L'affinage est IMMEDIAT, pas differe : un MutationObserver s'execute a la fin de la
+		// tache courante, donc avant le prochain rendu du navigateur. Le moteur qui reconstruit
+		// ses lignes et l'affinage qui y replace les interrupteurs tiennent dans la meme image —
+		// c'est ce qui evite de voir clignoter le compteur nu quand on change le nombre
+		// d'adultes. Le differe de 200 ms reste en filet pour les mutations qui arrivent en
+		// rafale pendant un devis.
 		var affinage = null;
 		var replanifier = function () {
+			affiner();
 			if ( affinage ) { return; }
-			affinage = window.setTimeout( function () { affinage = null; affinerOptions(); }, 200 );
+			affinage = window.setTimeout( function () { affinage = null; affiner(); }, 200 );
 		};
-		new MutationObserver( replanifier ).observe( ecrans[0], { childList: true, subtree: true } );
+		new MutationObserver( replanifier ).observe( ecrans[0], { childList: true, characterData: true, subtree: true } );
 		// Un changement d'horaire ne mute que le recapitulatif (ecran 2) : on l'ecoute aussi.
 		new MutationObserver( replanifier ).observe( ecrans[1], { childList: true, characterData: true, subtree: true } );
 
@@ -548,16 +594,37 @@ CSS;
 		return !! a && !! b && a !== '—' && b !== '—';
 	}
 
+	// Pourquoi « Suivant » est grise. Le moteur ecrit sa propre raison dans l'indication du
+	// calendrier (« Séjour trop court (minimum 3 nuits) », une nuit indisponible…) : on la reprend
+	// telle quelle plutot que d'en inventer une seconde, qui divergerait.
+	function raisonSuivant() {
+		if ( datesCompletes() ) { return ''; }
+		var indication = ecrans[0].querySelector( '.gf-cal-hint-error' );
+		var texte = indication ? indication.textContent.trim() : '';
+		return texte || 'Choisissez vos dates d’arrivée et de départ dans le calendrier.';
+	}
+
+	function affiner() {
+		affinerOptions();
+		majNav();
+	}
+
 	function majNav() {
 		precedent.hidden = ( etape === 1 );
 
 		var derniere = ( etape === 2 );
-		suivant.hidden = derniere;
+		// L'ecran 1 porte son bouton en bas de son contenu : la barre collante ne sert qu'au
+		// recapitulatif, et disparait plutot que de rester vide.
+		nav.hidden = ! derniere;
 		valider.hidden = ! derniere;
 
-		if ( etape === 1 ) {
-			suivant.disabled = ! datesCompletes();
-			suivant.title = suivant.disabled ? 'Choisissez d’abord vos dates' : '';
+		if ( suivantBas ) {
+			var raison = raisonSuivant();
+			suivantBas.disabled = !! raison;
+			// Ecrire un texte identique compte quand meme comme une mutation : sans ce garde,
+			// l'observateur rappellerait majNav sans fin.
+			if ( raisonBas.textContent !== raison ) { raisonBas.textContent = raison; }
+			raisonBas.hidden = ! raison;
 		}
 
 		if ( derniere && boutonMoteur ) {
@@ -581,23 +648,6 @@ CSS;
 	}
 
 	precedent.addEventListener( 'click', function () { aller( etape - 1 ); } );
-	// « Suivant » descend d'abord aux options ; un second appui (ou un visiteur deja en bas)
-	// passe au recapitulatif.
-	// La cible est plafonnee au defilement possible : sur un grand ecran, l'ecran 1 ne peut pas
-	// descendre jusqu'aux options, et le bouton relancait sans fin un defilement sans effet.
-	suivant.addEventListener( 'click', function () {
-		if ( etape === 1 ) {
-			var sections = ecrans[0].querySelectorAll( '.gf-section' );
-			var options  = sections.length > 1 ? sections[1] : sections[0];
-			var bas      = ecrans[0].scrollHeight - ecrans[0].clientHeight;
-			var cible    = options ? Math.max( 0, Math.min( options.offsetTop - 60, bas ) ) : 0;
-			if ( options && ecrans[0].scrollTop < cible - 80 ) {
-				ecrans[0].scrollTo( { top: cible, behavior: 'smooth' } );
-				return;
-			}
-		}
-		aller( etape + 1 );
-	} );
 
 	// Les dates completes activent « Suivant » : voyageurs et options partagent l'ecran 1,
 	// il n'y a plus de glissement automatique.

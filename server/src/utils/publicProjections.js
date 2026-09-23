@@ -172,6 +172,58 @@ function resourcePriceLabels(priceType) {
 }
 
 /**
+ * « 1 h 30 » from 90 minutes. Hours are what an hourly resource is sold in, so a bare minute count
+ * would read as a different unit from the price beside it.
+ */
+function hoursLabel(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes || 0)));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (hours && rest) return `${hours} h ${String(rest).padStart(2, '0')}`;
+  if (hours) return `${hours} h`;
+  return `${rest} min`;
+}
+
+/**
+ * What a stay gets for free on an hourly resource, as a ready-to-render sentence
+ * (`property_resource_prices.freeMinutes` — the nordic bath's offered hour). Null when nothing is
+ * offered. The site renders it as-is: raising the allowance in GuestFlow changes the website copy
+ * with no deploy (CLAUDE.md §6.0).
+ */
+function resourceFreeLabel(freeMinutes) {
+  const minutes = Math.max(0, Math.round(Number(freeMinutes || 0)));
+  if (!minutes) return null;
+  return `${hoursLabel(minutes)} ${offeredAgreement(minutes)} par séjour`;
+}
+
+/**
+ * « 1 h 30 offerte », « 2 h offertes », « 30 min offertes ». The agreement follows the unit the
+ * label is actually written in: an hour and a half is still ONE hour, thirty minutes are thirty.
+ */
+function offeredAgreement(minutes) {
+  const plural = minutes < 60 ? minutes > 1 : minutes >= 120;
+  return plural ? 'offertes' : 'offerte';
+}
+
+/**
+ * The same allowance seen from a priced quote line: how much of what was ordered is NOT billed.
+ * Null when the line is billed in full, and null when it is free in full — there the amount column
+ * already says « Offert » and repeating it beside the title would say the same thing twice.
+ */
+function resourceOfferedNote(quantity, billedUnits, totalPrice) {
+  const ordered = Math.max(0, Number(quantity || 0));
+  const billed = Math.max(0, Number(billedUnits == null ? quantity : billedUnits));
+  const free = roundHours(ordered - billed);
+  if (free <= 0 || Number(totalPrice || 0) <= 0) return null;
+  const minutes = Math.round(free * 60);
+  return `${hoursLabel(minutes)} ${offeredAgreement(minutes)}`;
+}
+
+function roundHours(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+/**
  * Public resource projection: only the fields a visitor needs to pick an add-on resource. `price` is
  * the EFFECTIVE per-property price (resolved by resourcesModel.list). Stock/quantity, opening hours,
  * slot config and internal flags are NOT exposed.
@@ -191,6 +243,10 @@ function toPublicResource(row) {
     // Hourly resources (bain nordique) are allocated by the host on the planning: the site shows the
     // « À planifier avec l'hôte » note for these, and ONLY these (spec §3.10).
     showsSchedulingNote: String(row.priceType || '') === 'per_hour',
+    // What this property offers on the resource before billing starts. The engine already applies it
+    // (pricing.applyPerHourFreeMinutes); until this field existed nothing SAID it, so the visitor read
+    // « 30,00 € · par heure » on an hour that costs nothing.
+    freeLabel: resourceFreeLabel(row.freeMinutes),
   };
 }
 
@@ -280,6 +336,9 @@ function toPublicQuote(quote, {
       resourceId: Number(r.resourceId),
       name: r.name,
       quantity: Number(r.quantity || 0),
+      // What is actually charged once the free allowance is taken off, and the sentence that says so.
+      billedQuantity: Number(r.billedUnits == null ? (r.quantity || 0) : r.billedUnits),
+      offeredNote: resourceOfferedNote(r.quantity, r.billedUnits, r.totalPrice),
       unitPrice: Number(r.unitPrice || 0),
       total: Number(r.totalPrice || 0),
       offered: Boolean(r.offered),
@@ -318,6 +377,8 @@ module.exports = {
   toPublicOptionLimits,
   toPublicCancellationInsurance,
   toPublicResource,
+  resourceFreeLabel,
+  resourceOfferedNote,
   toPublicAvailability,
   toPublicQuote,
   collapseToRanges,

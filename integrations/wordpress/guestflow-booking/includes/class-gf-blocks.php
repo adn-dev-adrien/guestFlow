@@ -128,7 +128,7 @@ final class GF_Blocks
                 'balanceDueBefore' => __('Solde à régler avant le %s', 'guestflow-booking'),
                 'balanceEmailFollows' => __('Un email vous sera envoyé pour régler le solde à l’échéance.', 'guestflow-booking'),
                 // Planning-card options (specs/public-planning-options.md)
-                'toBeScheduled'   => __('À planifier avec l’hôte — nous vous contacterons pour convenir de l’horaire.', 'guestflow-booking'),
+                'toBeScheduled'   => __('À planifier avec l’hôte.', 'guestflow-booking'),
                 'moreInfo'        => __('Plus d’infos', 'guestflow-booking'),
                 // Unified widget (specs/wp-booking-widget-redesign.md)
                 'selectDates'     => __('Choisissez vos dates', 'guestflow-booking'),
