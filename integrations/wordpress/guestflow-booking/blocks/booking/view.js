@@ -221,8 +221,16 @@
         calMonths.innerHTML = '';
         for (var i = 0; i < 2; i++) calMonths.appendChild(monthGrid(addMonths(calBase, i)));
         if (hint) { setHint(hint.msg, hint.isError); return; }
-        setHint(state.start && !state.end ? GF.t('pickDeparture') : (!state.start ? GF.t('pickArrival') : ''));
+        setHint(defaultHint());
       });
+    }
+
+    // What the next click will do, spelled out. A complete range is still editable — nothing else
+    // on screen says so, and a visitor who had to guess ended up rebuilding the whole selection.
+    function defaultHint() {
+      if (!state.start) return GF.t('pickArrival');
+      if (!state.end) return GF.t('pickDeparture');
+      return GF.t('changeDeparture');
     }
 
     function setHint(msg, isError) {
@@ -244,8 +252,10 @@
       var today = todayIso();
       for (var d = 1; d <= days; d++) {
         var ds = year + '-' + pad(month + 1) + '-' + pad(d);
-        var pickingStart = (!state.start || state.end);
-        var disabled = ds < today || (pickingStart ? isBlocked(ds) : (ds < state.start || rangeHasBlocked(state.start, ds)));
+        // Only a night that is actually taken is closed. A date sitting before the arrival, or one
+        // whose range would cross a taken night, stays clickable and lands a new arrival: closing
+        // them killed half the calendar as soon as an arrival was picked.
+        var disabled = ds < today || isBlocked(ds);
         var cls = 'gf-cal-day';
         if (state.start && ds === state.start) cls += ' gf-edge';
         if (state.end && ds === state.end) cls += ' gf-edge';
@@ -260,18 +270,27 @@
       return GF.el('div', { class: 'gf-cal-month' }, GF.el('div', { class: 'gf-cal-title' }, label), grid);
     }
 
+    // The arrival anchors the selection (spec §3.4): once it is set, every later date is a
+    // departure — whether one was already chosen or not — so a stay is lengthened or shortened in
+    // one click. Clicking the arrival itself is the way out: it starts the choice over.
     function onPick(ds) {
-      if (state.start && !state.end && ds === state.start) { state.start = null; afterDatesChange(); return; }
-      if (!state.start || state.end) { state.start = ds; state.end = null; afterDatesChange(); return; }
-      if (ds <= state.start) { state.start = ds; state.end = null; afterDatesChange(); return; }
+      if (state.start && ds === state.start) { clearDates(); return; }
+      if (!state.start || ds < state.start) { state.start = ds; state.end = null; afterDatesChange(); return; }
       if (rangeHasBlocked(state.start, ds)) { state.start = ds; state.end = null; afterDatesChange({ msg: GF.t('rangeBlocked'), isError: true }); return; }
       state.end = ds;
+      afterDatesChange();
+    }
+
+    function clearDates() {
+      state.start = null;
+      state.end = null;
       afterDatesChange();
     }
 
     function afterDatesChange(hint) {
       f.startDisplay.value = state.start ? frDate(state.start) : '—';
       f.endDisplay.value = state.end ? frDate(state.end) : '—';
+      f.clearDates.disabled = !state.start && !state.end;
       renderCal(hint);
       scheduleQuote();
     }
@@ -282,9 +301,18 @@
     f.checkInTime = GF.el('input', { type: 'time', value: state.checkInTime, onInput: function () { state.checkInTime = f.checkInTime.value; scheduleQuote(); } });
     f.checkOutTime = GF.el('input', { type: 'time', value: state.checkOutTime, onInput: function () { state.checkOutTime = f.checkOutTime.value; scheduleQuote(); } });
 
+    // Second way out of a selection, sitting next to the values it clears (the first is clicking
+    // the arrival in the grid). Disabled while there is nothing to clear.
+    f.clearDates = GF.el('button', {
+      type: 'button', class: 'gf-dates-clear', disabled: 'disabled',
+      title: GF.t('clearDates'), 'aria-label': GF.t('clearDates'),
+      onClick: function () { clearDates(); },
+    }, '✕', GF.el('span', {}, GF.t('clearDatesShort')));
+
     var datesRow = GF.el('div', { class: 'gf-row' },
       GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('startDate')), f.startDisplay),
       GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('endDate')), f.endDisplay),
+      GF.el('div', { class: 'gf-field gf-field-clear' }, f.clearDates),
       GF.el('div', { class: 'gf-field gf-field-time' }, GF.el('label', {}, GF.t('checkInTime')), f.checkInTime),
       GF.el('div', { class: 'gf-field gf-field-time' }, GF.el('label', {}, GF.t('checkOutTime')), f.checkOutTime)
     );
@@ -708,13 +736,13 @@
           return;
         }
         var q = res.body.data;
-        // Min-nights breach: clear the departure and steer back to the calendar (spec §3.4).
+        // Min-nights breach: the chosen period stays on screen (spec §3.4). Clearing the departure
+        // moved the page under the visitor 400 ms after their click, and the next click then had to
+        // rebuild what they had just chosen; now that same click simply pushes the departure later.
         if (q.minNightsBreached) {
-          state.end = null;
-          f.endDisplay.value = '—';
-          renderCal({ msg: GF.t('minNights', q.minNights), isError: true });
+          renderCal({ msg: GF.t('minNights', q.minNights) + ' ' + GF.t('minNightsExtend'), isError: true });
           summary.innerHTML = '';
-          summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('pickDeparture')));
+          summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('minNights', q.minNights)));
           warn.innerHTML = '';
           f.submit.disabled = true;
           lastQuote = null;

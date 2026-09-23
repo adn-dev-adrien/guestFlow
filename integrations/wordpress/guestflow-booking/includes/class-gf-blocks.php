@@ -135,6 +135,11 @@ final class GF_Blocks
                 'pickArrival'     => __('Sélectionnez votre date d’arrivée', 'guestflow-booking'),
                 'pickDeparture'   => __('Sélectionnez votre date de départ', 'guestflow-booking'),
                 'rangeBlocked'    => __('Ces dates incluent une nuit indisponible. Choisissez une autre période.', 'guestflow-booking'),
+                // specs/wp-booking-widget-redesign.md §3 rules 29-31 — a complete range stays editable.
+                'changeDeparture' => __('Cliquez une autre date pour changer le départ, ou l’arrivée pour recommencer.', 'guestflow-booking'),
+                'minNightsExtend' => __('Cliquez une date plus tard pour allonger le séjour.', 'guestflow-booking'),
+                'clearDates'      => __('Effacer les dates', 'guestflow-booking'),
+                'clearDatesShort' => __('Effacer', 'guestflow-booking'),
                 'travelers'       => __('Voyageurs', 'guestflow-booking'),
                 'guestsUnit'      => __('voyageurs', 'guestflow-booking'),
                 'babiesUnit'      => __('bébés', 'guestflow-booking'),
