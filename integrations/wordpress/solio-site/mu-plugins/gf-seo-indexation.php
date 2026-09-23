@@ -169,13 +169,13 @@ function gf_seo_llms_txt() {
 	$l[] = '- Arrivée entre 16h00 et 19h00, départ avant 10h00, hébergements non-fumeurs';
 	$l[] = '- Piscine extérieure partagée, non chauffée, ouverte de mi-juin à fin août';
 	$l[] = '- Bain nordique privatisé, par créneau d’1 h, eau chauffée autour de ' . $d['bain_temperature']
-		. ' °C ; un créneau offert dès 3 nuits à La Granja uniquement, sinon à partir de 30 € l’heure ; pensé pour les adultes';
+		. ' °C ; une heure offerte à chaque séjour dans les deux hébergements, créneaux suivants à partir de 30 € l’heure ; pensé pour les adultes';
 	$l[] = '- Label : ' . $d['label_cavalier'] . ' — ' . implode( ', ', $d['cavalier_equipements'] )
 		. ', pas de box, ' . $d['cavalier_tarif'] . ' € par cheval et par nuit';
 	$l[] = '- Gare la plus proche : ' . $d['gare'] . ' ; transfert possible sur demande, ' . $d['transfert_gare'] . ' €';
 	$l[] = '- Événements : ' . $d['evenements'];
 	$l[] = '- Garde d’enfants : ' . $d['garde_enfants'];
-	$l[] = '- Privatisation complète du domaine possible de mai à septembre seulement, le lodge fermant hors saison';
+	$l[] = '- Privatisation complète du domaine possible du 1er avril au 14 octobre seulement, le lodge fermant hors saison';
 	$l[] = '- Distances : ' . implode( ' ; ', array_map(
 		function ( $x ) {
 			return $x['lieu'] . ' ' . $x['valeur'];

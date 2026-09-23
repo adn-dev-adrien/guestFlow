@@ -63,7 +63,7 @@ function gf_seo_domaine() {
 function gf_seo_equipements_domaine() {
 	return array(
 		'Piscine extérieure partagée, non chauffée, de mi-juin à fin août',
-		'Bain nordique extérieur privatisé, sur réservation par créneau d’1 h',
+		'Bain nordique extérieur privatisé, par créneau d’1 h — une heure offerte à chaque séjour',
 		'Barbecue et cuisine d’été',
 		'Sentier de balade de 2 km sur le domaine',
 		'Animaux de la ferme en accès libre',
@@ -112,7 +112,7 @@ function gf_seo_lodgings() {
 			'accessible_pmr_note'  => 'non adapté aux personnes à mobilité réduite — maison sur trois niveaux',
 
 			'caution'              => 500,
-			'bain_nordique'        => 'sur le domaine, à quelques pas — 1 créneau d’1 h offert dès 3 nuits',
+			'bain_nordique'        => 'sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour',
 			'equipements'          => array(
 				'Cuisine pensée pour les grandes tablées : four, lave-vaisselle, très grand réfrigérateur, micro-ondes, cafetière Nespresso, grille-pain',
 				'Poêle à bois, bois fourni',
@@ -147,7 +147,7 @@ function gf_seo_lodgings() {
 			'superficie_m2'        => 24,          // Surface sous toile ; sanitaires sur la terrasse.
 			'superficie_detail'    => '24 m² sous la tente, plus 50 m² de terrasse où se trouvent la salle d’eau et les toilettes',
 			'terrasse_m2'          => 50,
-			'saison'               => 'ouvert de mai à septembre',
+			'saison'               => 'ouvert du 1er avril au 14 octobre',
 			'checkin'              => '16:00',
 			'checkin_fin'          => '19:00',
 			'checkout'             => '10:00',
@@ -158,7 +158,7 @@ function gf_seo_lodgings() {
 			'accessible_pmr_note'  => 'non adapté aux personnes à mobilité réduite — accès nature à pied sur 300 m',
 
 			'caution'              => 400,
-			'bain_nordique'        => 'sur le domaine, privatisé, sur réservation par créneau d’1 h',
+			'bain_nordique'        => 'sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour',
 			'equipements'          => array(
 				'Tente safari sur terrasse bois montée sur pilotis',
 				'Kitchenette : plaque de cuisson, micro-ondes, réfrigérateur, cafetière',
@@ -200,7 +200,7 @@ function gf_seo_faq( $cle ) {
 			array( 'q' => 'À quelle heure arrive-t-on et repart-on ?',
 				'r' => 'Arrivée entre 16h et 19h, départ avant 10h. Le gîte est non-fumeur.' ),
 			array( 'q' => 'Le bain nordique est-il privatif ?',
-				'r' => 'Oui, entièrement : le bain se trouve sur le domaine, à quelques pas, et se réserve par créneau d’1 h. Un créneau est offert dès 3 nuits ; les suivants sont à partir de 30 € l’heure.' ),
+				'r' => 'Oui, entièrement : le bain se trouve sur le domaine, à quelques pas, et se réserve par créneau d’1 h. Un créneau est offert à chaque séjour ; les suivants sont à partir de 30 € l’heure.' ),
 			array( 'q' => 'Peut-on venir en hiver ?',
 				'r' => 'Oui, le gîte est ouvert toute l’année, isolé en laine de bois et chauffé au poêle. La piscine, elle, ouvre de mi-juin à fin août.' ),
 			array( 'q' => 'La piscine est-elle privée ?',
@@ -229,11 +229,11 @@ function gf_seo_faq( $cle ) {
 			array( 'q' => 'À quelle heure arrive-t-on et repart-on ?',
 				'r' => 'Arrivée entre 16h et 19h, départ avant 10h. Parking gratuit, puis 300 mètres à pied : le lodge n’est pas accessible en fauteuil roulant.' ),
 			array( 'q' => 'Le bain nordique est-il inclus ?',
-				'r' => 'Le bain se trouve sur le domaine, à quelques pas de la tente : privatisé, sur réservation par créneau d’1 h, à partir de 30 € l’heure.' ),
+				'r' => 'Oui, une heure par séjour vous est offerte. Le bain se trouve sur le domaine, à quelques pas de la tente, privatisé le temps de votre créneau ; les suivants sont à partir de 30 € l’heure.' ),
 			array( 'q' => 'Les chiens sont-ils acceptés ?',
 				'r' => 'Non : la tente est installée au milieu d’un enclos où vivent chèvres et moutons. Les enfants, eux, sont les bienvenus.' ),
 			array( 'q' => 'La tente est-elle ouverte en hiver ?',
-				'r' => 'Non, elle se loue de mai à septembre. Hors saison, les nuits ardéchoises sont trop fraîches sous la toile — La Granja, elle, est ouverte toute l’année.' ),
+				'r' => 'Non, elle se loue du 1er avril au 14 octobre. Hors saison, les nuits ardéchoises sont trop fraîches sous la toile — La Granja, elle, est ouverte toute l’année.' ),
 			array( 'q' => 'Combien coûte une nuit ?',
 				'r' => 'À partir de %prix%, dégressif selon la durée. Le prix exact s’affiche dès que vous choisissez vos dates.' ),
 		),
@@ -257,7 +257,7 @@ function gf_seo_faq( $cle ) {
 			array( 'q' => 'Le bain nordique est-il privatif ?',
 				'r' => 'Oui, entièrement : un créneau d’1 h rien que pour vous.' ),
 			array( 'q' => 'Est-il inclus dans le séjour ?',
-				'r' => 'Un créneau est offert à La Granja à partir de 3 nuits — uniquement là. Sinon, il se réserve à partir de 30 € l’heure.' ),
+				'r' => 'Oui : un créneau d’1 h est offert à chaque séjour, dans les deux hébergements. Les créneaux suivants se réservent à partir de 30 € l’heure.' ),
 			array( 'q' => 'Les enfants peuvent-ils y aller ?',
 				'r' => 'À 38 °C, il est pensé pour les adultes. Mais si vous nous demandez une eau plus douce, les enfants peuvent en profiter avec vous.' ),
 			array( 'q' => 'À quelle température est l’eau ?',
@@ -274,7 +274,7 @@ function gf_seo_faq( $cle ) {
 			array( 'q' => 'Qu’est-ce que cela comprend ?',
 				'r' => 'Les deux hébergements, donc tout le domaine : prairie, forêt, sentier, piscine en saison, bain nordique et animaux.' ),
 			array( 'q' => 'À quelle période ?',
-				'r' => 'De mai à septembre, le lodge fermant hors saison. Le reste de l’année, le gîte seul reste disponible.' ),
+				'r' => 'Du 1er avril au 14 octobre, le lodge fermant hors saison. Le reste de l’année, le gîte seul reste disponible.' ),
 			array( 'q' => 'Y a-t-il un tarif dégressif ?',
 				'r' => 'Oui, à partir de 3 nuits. Écrivez-nous pour un devis, nous répondons directement.' ),
 			array( 'q' => 'Peut-on organiser un mariage ou un séminaire ?',

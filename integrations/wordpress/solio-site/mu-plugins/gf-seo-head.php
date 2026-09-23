@@ -65,7 +65,7 @@ function gf_seo_pages() {
 		'bain-nordique-ardeche' => array(
 			'fil'         => 'Bain nordique',
 			'title'       => 'Bain nordique privatif en Ardèche verte — Domaine Solio',
-			'description' => 'Un bain nordique extérieur réservé par créneau d’1 h, entièrement privatisé, face aux prairies du domaine. Un créneau offert dès 3 nuits à La Granja, sinon à partir de 30 € l’heure.',
+			'description' => 'Un bain nordique extérieur privatisé, par créneau d’1 h face aux prairies. Une heure offerte à chaque séjour, les créneaux suivants à 30 € l’heure.',
 		),
 
 		'autour-de-nous'        => array(
