@@ -50,6 +50,8 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-line-sub { font-size: .82rem; color: var(--gf-muted); font-style: italic; }
 .gf-line-price { font-style: italic; color: var(--gf-muted); font-size: .95rem; white-space: nowrap; }
 .gf-line-note { font-size: .82rem; color: #92400e; background: #fffbeb; border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
+/* What the stay gets for free on this line — green, so it never reads as a warning like gf-line-note. */
+.gf-line-free { font-size: .82rem; font-weight: 600; color: #166534; background: #f0fdf4; border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
 .gf-line-desc { font-size: .85rem; color: #475569; margin-top: .3rem; }
 .gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gf-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
 

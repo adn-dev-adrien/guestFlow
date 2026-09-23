@@ -22,7 +22,9 @@
   function addDaysIso(s, n) { var d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return isoOf(d); }
   function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
   function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
-  function frDate(s) { var d = new Date(s + 'T00:00:00'); return d.getDate() + ' ' + MONTHS_FR[d.getMonth()] + ' ' + d.getFullYear(); }
+  // Numeric month on purpose: the read-only date fields sit two-per-row in a narrow drawer, and
+  // « 28 septembre 2026 » was clipped mid-word where « 28/09/2026 » fits whole.
+  function frDate(s) { var d = new Date(s + 'T00:00:00'); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear(); }
 
   function queryParam(name) {
     try { return new URLSearchParams(window.location.search).get(name); } catch (e) { return null; }
@@ -209,11 +211,16 @@
       renderCal();
     }
 
-    function renderCal() {
+    // `hint` overrides the default « pick a date » nudge. It is NOT optional sugar: availability
+    // resolves asynchronously, so a caller that set an error message before calling renderCal saw it
+    // wiped one microtask later by the default — which is how a refused stay ended up greying the
+    // next button while saying only « Sélectionnez votre date de départ ».
+    function renderCal(hint) {
       var windowEnd = isoOf(addMonths(calBase, 2));
       ensureAvailability(windowEnd).then(function () {
         calMonths.innerHTML = '';
         for (var i = 0; i < 2; i++) calMonths.appendChild(monthGrid(addMonths(calBase, i)));
+        if (hint) { setHint(hint.msg, hint.isError); return; }
         setHint(state.start && !state.end ? GF.t('pickDeparture') : (!state.start ? GF.t('pickArrival') : ''));
       });
     }
@@ -221,6 +228,9 @@
     function setHint(msg, isError) {
       calHint.textContent = msg || '';
       calHint.className = 'gf-cal-hint' + (isError ? ' gf-cal-hint-error' : '');
+      // A refusal the visitor never scrolls to explains nothing. The calendar is two months tall on
+      // a phone, so a date picked low in the grid can leave the message off-screen.
+      if (isError && calHint.scrollIntoView) calHint.scrollIntoView({ block: 'nearest' });
     }
 
     function monthGrid(monthDate) {
@@ -254,15 +264,15 @@
       if (state.start && !state.end && ds === state.start) { state.start = null; afterDatesChange(); return; }
       if (!state.start || state.end) { state.start = ds; state.end = null; afterDatesChange(); return; }
       if (ds <= state.start) { state.start = ds; state.end = null; afterDatesChange(); return; }
-      if (rangeHasBlocked(state.start, ds)) { state.start = ds; state.end = null; afterDatesChange(); setHint(GF.t('rangeBlocked'), true); return; }
+      if (rangeHasBlocked(state.start, ds)) { state.start = ds; state.end = null; afterDatesChange({ msg: GF.t('rangeBlocked'), isError: true }); return; }
       state.end = ds;
       afterDatesChange();
     }
 
-    function afterDatesChange() {
+    function afterDatesChange(hint) {
       f.startDisplay.value = state.start ? frDate(state.start) : '—';
       f.endDisplay.value = state.end ? frDate(state.end) : '—';
-      renderCal();
+      renderCal(hint);
       scheduleQuote();
     }
 
@@ -532,6 +542,10 @@
       supplements.forEach(function (r) {
         if (!(r.id in state.res)) state.res[r.id] = 0;
         var extras = [];
+        // The offered allowance, worded by the server (« 1 h offerte par séjour »). It belongs on the
+        // row, not only in the summary: the visitor decides here, and a price alone read as « every
+        // hour costs 30 € ».
+        if (r.freeLabel) extras.push(GF.el('div', { class: 'gf-line-free' }, r.freeLabel));
         if (r.showsSchedulingNote) extras.push(GF.el('div', { class: 'gf-line-note' }, GF.t('toBeScheduled')));
         supplementsList.appendChild(line(
           r.name || '',
@@ -698,8 +712,7 @@
         if (q.minNightsBreached) {
           state.end = null;
           f.endDisplay.value = '—';
-          renderCal();
-          setHint(GF.t('minNights', q.minNights), true);
+          renderCal({ msg: GF.t('minNights', q.minNights), isError: true });
           summary.innerHTML = '';
           summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('pickDeparture')));
           warn.innerHTML = '';
@@ -743,7 +756,10 @@
         summary.appendChild(sline(o.title + ' ×' + o.quantity, o.offered ? GF.t('offered') : GF.euro(o.total)));
       });
       (q.resources || []).forEach(function (r) {
-        summary.appendChild(sline((r.name || '') + ' ×' + r.quantity, r.offered ? GF.t('offered') : GF.euro(r.total)));
+        // `offeredNote` carries the partial case (2 h ordered, 1 h free); a line that costs nothing at
+        // all reads « Offert » in the amount column rather than « 0,00 € », which looked like a bug.
+        var label = (r.name || '') + ' ×' + r.quantity + (r.offeredNote ? ' · ' + r.offeredNote : '');
+        summary.appendChild(sline(label, (r.offered || !r.total) ? GF.t('offered') : GF.euro(r.total)));
       });
       if (q.touristTax && q.touristTax.total) summary.appendChild(sline(GF.t('touristTax'), GF.euro(q.touristTax.total)));
       // Headline total = totalStayPrice (tax-INCLUSIVE) — what the guest actually pays online.

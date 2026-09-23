@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.9.0
+Stable tag: 1.10.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,12 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.10.0 =
+* Séjour trop court : le calendrier garde son message (« Séjour trop court (minimum 3 nuits) ») au lieu de le remplacer aussitôt par « Sélectionnez votre date de départ ». Même correction quand la période choisie contient une nuit déjà prise.
+* Ressources offertes : une ligne vendue à l'heure annonce ce que le séjour reçoit sans payer (« 1 h offerte par séjour »), et le récapitulatif écrit « Offert » plutôt que « 0,00 € ». Le libellé vient de GuestFlow : changer l'offre ne demande aucune mise à jour du plugin.
+* Les dates d'arrivée et de départ s'écrivent en chiffres (« 28/09/2026 »), qui tiennent en entier dans un champ étroit.
+* La note des ressources à planifier se limite à « À planifier avec l'hôte. »
 
 = 1.9.0 =
 * Petits déjeuners et repas : le nombre saisi est le nombre de petits déjeuners (ou de couverts) facturés, et non plus un nombre de séances multiplié par le nombre de personnes. Les libellés viennent de GuestFlow : « Nombre de petits déjeuners », « 8,00 € · par petit déjeuner ».

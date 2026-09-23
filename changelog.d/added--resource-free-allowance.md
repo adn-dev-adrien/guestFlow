@@ -1,0 +1,3 @@
+- Site de réservation : une ressource vendue à l'heure annonce ce que le séjour reçoit sans payer — « 1 h offerte par séjour » sous la ligne du bain nordique — et le récapitulatif écrit « Bain nordique ×2 · 1 h offerte » puis « Offert » plutôt que « 0,00 € » pour une ligne entièrement offerte. Le moteur de prix facturait déjà cette heure zéro euro, mais rien ne le disait : le client lisait « 30,00 € · par heure ».
+- Le libellé est écrit par GuestFlow à partir de la gratuité configurée sur le logement : la changer met le site à jour sans nouvelle version du plugin.
+- Plugin WordPress 1.10.0 : reprend ces corrections et affiche la gratuité.

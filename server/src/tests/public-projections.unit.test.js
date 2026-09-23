@@ -112,12 +112,14 @@ test('toPublicAvailability dedupes, sorts, and adds ranges', () => {
 test('toPublicResource keeps id/name/price/priceType; strips stock & slot internals', () => {
   const r = toPublicResource({
     id: 3, name: 'Bain nordique', note: 'Détente sous les étoiles', priceType: 'per_hour', price: 55,
-    // internals that must NOT leak:
+    // `freeMinutes` DOES reach the visitor, but as a sentence rather than a number
+    // (specs/wp-booking-widget-redesign.md rule 23). The rest must not leak:
     quantity: 2, isComplex: 1, freeMinutes: 90, openDays: '[1,2,3]', slotDuration: 60, basePrice: 50,
   });
   assert.deepEqual(r, {
     id: 3, name: 'Bain nordique', description: 'Détente sous les étoiles', priceType: 'per_hour', price: 55,
     priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures", showsSchedulingNote: true,
+    freeLabel: '1 h 30 offerte par séjour',
   });
 });
 
