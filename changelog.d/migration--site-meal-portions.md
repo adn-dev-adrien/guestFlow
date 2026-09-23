@@ -1,1 +1,0 @@
-- Devis du site enregistrés avant ce changement : la quantité des lignes d'option par personne à carte planning non planifiées est alignée sur les unités déjà facturées (`quantity = billedUnits`). Sans cela, réimprimer le PDF ou ouvrir un lien de paiement aurait recalculé ces devis à la baisse. Montants inchangés, migration idempotente.

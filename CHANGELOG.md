@@ -4,6 +4,41 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-09-23
+
+### Summary
+- Le tunnel de réservation du site ne bloque plus : « Suivant » est en bas de l'écran 1 et dit pourquoi il est grisé.
+- Un séjour trop court affiche enfin sa raison — le message existait, le calendrier l'effaçait aussitôt.
+- La 1re heure de bain nordique s'affiche comme offerte, sur la ligne et au récapitulatif ; elle l'était déjà au prix.
+- Petits déjeuners et repas se saisissent en portions facturées (1 = 1 petit déjeuner), avec leur maximum par séjour.
+- Mettre à jour le plugin WordPress en 1.10.0 depuis Extensions → Mises à jour, sinon le site garde l'ancien affichage.
+- Onglets unifiés dans toute l'application, et le titre de page revient sur mobile.
+
+### Added
+- **An hourly resource announces what the stay gets for free** (spec `wp-booking-widget-redesign.md` rules 21-23). « 1 h offerte par séjour » now sits on the nordic bath's row, and the summary reads « Bain nordique ×2 · 1 h offerte », then « Offert » rather than « 0,00 € » for a line that costs nothing. The engine already billed that hour at zero — nothing said so, so the visitor read « 30,00 € · par heure » and believed every hour was charged. Both sentences are written by the server (`freeLabel` on the public catalogue, `billedQuantity` + `offeredNote` on the quote line), so raising the allowance on the property changes the website copy with no plugin release. +9 server tests.
+
+### Changed
+- **One tab pattern across the whole application** (spec `ds-tabs.md`, 2026-09-23). A single `PageTabs` component replaces the four renderings that coexisted: page tabs now live in the sticky bar (centred on wide screens, second line of the same block on mobile) and card tabs share one typography and rhythm. Sentence-case labels, 44 px touch targets, fir-green indicator. Touches the property page, Options & ressources, Vacances & fermetures, Clients, the email history, the finance overview, the CGV page and the archive dialog. +13 client tests, +2 E2E tests.
+- **Breakfasts and meals are ordered in billed portions** (spec `site-meal-portions.md`). The number entered on the website is the number of portions charged (1 = one breakfast), no longer a session count multiplied by the party size. The labels come from GuestFlow (« Nombre de petits déjeuners », « 8,00 € · par petit déjeuner », « par couvert » for other meals). Every per-person planning-card option now carries its cap for the stay — guests × mornings for breakfast, guests × meals for the rest (2 a day, +1 when arrival is before noon, +1 when departure is after noon). The live quote lowers a quantity above the cap; a booking request above it is refused.
+- **Solio website: the nordic bath is one hour offered with every stay, in both lodgings** — it read « offered from 3 nights at La Granja only, otherwise from 30 € an hour ». The facts file, the page `<head>` descriptions and `llms.txt` now say the same thing.
+- **Solio website: L'Estiva's season reads « 1 April → 14 October »**, matching the `aventura-lodge-2026` recipe closure (15 October → 31 March). It said « May to September ».
+- **E2E suite: the client port is configurable** (`E2E_CLIENT_PORT`, default 3000). The test server now refuses to start on a busy port (`--strictPort`) instead of running the suite against a neighbour's application.
+- **WordPress plugin 1.9.0 then 1.10.0** — the « + » stops at the cap with a note under the row, quantities follow a shrinking stay or party, and 1.10.0 carries the booking-funnel fixes below.
+
+### Fixed
+- **The booking drawer's « Suivant » does one thing** (spec `site-booking-drawer.md`, new). It moves to the end of screen 1's content — reaching it means having passed the options — and it goes to the summary, nothing else. It also used to scroll to the options and only advance on a second press; when the engine rebuilt its rows after a party change, the scroll target moved and the button re-scrolled forever. The sticky bottom bar now belongs to the summary screen only.
+- **A greyed « Suivant » says why**, right under itself: « Séjour trop court (minimum 2 nuits). », « Ces dates incluent une nuit indisponible. » or, failing that, « Choisissez vos dates d'arrivée et de départ dans le calendrier. » The reason is the engine's own, not a second one written beside it — the old `title` attribute never showed on a touch screen.
+- **A refusal written under the calendar survives the re-render that follows it** (spec `wp-booking-widget-redesign.md` rules 19-20). `renderCal()` resolves availability asynchronously and then wrote its own « Sélectionnez votre date de départ », wiping « Séjour trop court (minimum 2 nuits) » one microtask later: the departure was cleared and nothing said why. Same fix for a range containing a blocked night; an error hint now scrolls itself into view.
+- **Arrival and departure dates are written in figures** (« 28/09/2026 »). Two read-only fields side by side in a 560 px drawer clipped « 28 septembre 2026 » mid-word.
+- **The « Linge de toilette » and « Ménage » switches no longer flicker** back to a bare stepper for two tenths of a second whenever the party changes. The drawer re-dresses the engine's rows inside the MutationObserver callback, so the rebuild and the re-dressing land in the same frame.
+- The scheduling note on a resource is cut back to « À planifier avec l'hôte. », and screen 1 loses its instruction line.
+- **The page title is back on mobile** (spec `ds-tabs.md`). On « Options & ressources » and « Vacances & fermetures » the tab strip sat above the action bar, which hides its title on a small screen: the page showed only tabs and an anonymous action button.
+- **A planning-card option sold without its moments** — the breakfast or meal of a booking that came from the website — is no longer erased when the fiche opens or saves: it keeps the portions it was sold at and reads « à planifier » until the host places the slots. Only the option's own switch removes it now; emptying the moments grid no longer does. When the planning no longer matches what the guest was billed, the pricing summary says so (« planifié 2 · vendu 6 ») for as long as the two differ.
+- **The pricing engine's replays** (tourist-tax tracking, per-instalment contribution capture, Neat insurance) now pass the stored moments through: every card line vanished from them, scheduled or not. On production data, 635 € of option lines missing from the replays and 9.74 € of over-declared tourist tax across 7 stays.
+
+### Migration
+- **Website devis saved before this change**: the quantity of unscheduled per-person planning-card option lines is aligned on the units already billed (`quantity = billedUnits`). Without it, re-printing the PDF or opening a payment link would have recomputed those devis downwards. Amounts unchanged, migration idempotent.
+
 ## [3.0.0] - 2026-09-22
 
 ### Summary
