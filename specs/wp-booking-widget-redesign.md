@@ -26,10 +26,10 @@ One single, professional booking widget on each lodging page: pick the dates on 
 ## 3. Functional rules
 
 ### Dates
-1. The widget embeds its own 2-month availability calendar (prev/next navigation). Arrival is picked first, then departure; selecting a new range restarts cleanly (same interaction as the current mu-plugin calendar).
-2. Blocked dates and past dates are disabled. A departure pick that would span a blocked night is refused client-side (`rangeHasBlocked`), and the server quote remains authoritative: `available === false` or `minNightsBreached` keeps the submit button disabled. **No unavailable range can ever be submitted.**
+1. The widget embeds its own 2-month availability calendar (prev/next navigation). Arrival is picked first, then departure. *Amended 2026-09-23 (rule 24): a complete range is no longer thrown away by the next click — the arrival anchors the selection until it is clicked again or the dates are cleared.*
+2. Past dates and taken nights are disabled. A departure pick that would span a blocked night is refused client-side (`rangeHasBlocked`) — *amended 2026-09-23 (rule 25): refused, not hidden; the date stays clickable and lands a new arrival* — and the server quote remains authoritative: `available === false` or `minNightsBreached` keeps the submit button disabled. **No unavailable range can ever be submitted.**
 3. The « Arrivée » and « Départ » fields are **read-only displays**, filled exclusively from the calendar. No manual typing. The date is written **in figures** (`28/09/2026`) — amended 2026-09-23: the two fields sit side by side in a 560 px drawer, where « 28 septembre 2026 » was clipped mid-word.
-4. Min-nights violations show the server's `minNights` message under the calendar and clear the departure selection. **That message must survive the calendar re-render** (rule 19).
+4. Min-nights violations show the server's `minNights` message under the calendar. **That message must survive the calendar re-render** (rule 19). *Amended 2026-09-23 (rule 26): the refused period stays on screen instead of being cleared.*
 5. Arrival/departure **time** selects (defaults from the property's `defaultCheckIn`/`defaultCheckOut`) are kept, as in the current popup.
 
 ### Guests
@@ -58,6 +58,18 @@ One single, professional booking widget on each lodging page: pick the dates on 
 22. The summary names the free share of a partly-offered line (« Bain nordique ×2 · 1 h offerte ») and writes **« Offert »**, not « 0,00 € », for a line that costs nothing.
 > **Sans test** — même partage que la règle 21 : `offeredNote` est testé côté serveur, le rendu du récapitulatif est vérifié §7 point 8.
 23. Both sentences are **written by the server** (`freeLabel` on the catalogue projection, `offeredNote` on the quote line) — raising the allowance in GuestFlow changes the website copy with no plugin release. The site never derives an allowance from `quantity − billedQuantity` itself.
+
+### Changing your dates without starting over (added 2026-09-23)
+24. Once an arrival is set, **every later date is a departure** — whether a departure was already chosen or not. The stay is lengthened or shortened in one click and the arrival never moves on its own. Clicking the **arrival itself** clears both dates and asks for an arrival again; a date **before** the arrival sets a new arrival. Before this, any click on a complete range restarted from the arrival, so extending a stay by one night meant rebuilding the whole selection with nothing on screen saying so.
+> **Sans test** — logique de `onPick` dans `view.js`, qu'aucune suite de ce dépôt n'exécute ; vérifiée §7 points 9 et 12 (banc d'essai puis site réel).
+25. Only past dates and **nights that are actually taken** are disabled. A date sitting before the arrival, and a date whose range would cross a taken night, stay clickable: the first sets a new arrival, the second sets one too and says why (`rangeBlocked`). Closing them made the calendar look dead from the first taken night onwards, with no visible way back.
+> **Sans test** — rendu des cases dans `view.js` ; vérifié §7 point 9 (10 oct. et 22 oct. cliquables, une nuit prise ne l'est pas).
+26. A min-nights refusal **keeps the chosen period on screen**: the hint carries the server's `minNights` message followed by « Cliquez une date plus tard pour allonger le séjour. », the summary repeats the server's message, and the submit stays disabled. Clearing the departure moved the page under the visitor 400 ms after their click — and the next click then had to rebuild what they had just chosen.
+> **Sans test** — enchaînement devis → rendu dans `view.js` ; vérifié §7 points 9 et 12 (1 nuit sur un minimum de 2, période conservée, bouton refusé).
+27. A **« ✕ Effacer » button sits beside the read-only date fields**, disabled while there is nothing to clear. It is the second way out of a selection — the first being a click on the arrival — and the one a visitor can see without guessing.
+> **Sans test** — bouton rendu par `view.js` ; vérifié §7 points 9, 11 et 12 (désactivé à vide, vide les deux champs, lisible à 420 px).
+28. The hint under the calendar **always says what the next click does**: « Sélectionnez votre date d'arrivée », « Sélectionnez votre date de départ », or « Cliquez une autre date pour changer le départ, ou l'arrivée pour recommencer. » once the range is complete.
+> **Sans test** — chaîne d'affichage de `view.js` ; vérifiée §7 points 9 et 12.
 
 ### Design
 15. Typography and controls sized for confident reading (~1rem titles, ≥44 px touch targets), consistent with the site's brand green; stepper buttons visibly tappable (the mu-plugin's `.gf-step` look is the starting point, polished).
@@ -127,6 +139,12 @@ No schema change.
   3. Baby-beds stepper appears only with Bébés ≥ 1, capped, sent as `babyBeds`.
   4. Qonto payment button states (full & deposit) unchanged.
   5. Mobile + tablet + desktop rendering.
+- **2026-09-23 — changing one's dates (rules 24-28)**, verified twice: in a local harness that loads the plugin's real `view.js`, `runtime.js` and `style.css` against a stubbed API (2-night minimum, nights 17-19 October taken), then against `domainesolio.com/la-granja/` with the engine, the drawer and the new i18n strings substituted locally.
+  9. Harness: arrival → departure → a later date lengthens the stay, an earlier one shortens it, a date before the arrival becomes the new arrival, a click on the arrival clears both, the ✕ clears both, a taken night refuses, a range crossing one lands an arrival with its message. No console error.
+  10. Harness: a 2-night pick on a 3-night minimum keeps `12/10/2026 → 14/10/2026` on screen with « Séjour trop court (minimum 3 nuits). Cliquez une date plus tard pour allonger le séjour. », the summary showing the same refusal and « Réserver » disabled; clicking the 16th prices 4 nights and enables it.
+  11. Harness at 390 px and on the site at 420 px: no horizontal scroll, ✕ button 44 px tall, date fields whole.
+  12. Live site (La Granja, 2-night minimum): 1 night refused with both dates still filled and the drawer's « Suivant » grey carrying the engine's sentence; extending to 4 nights enables it; ✕ empties the two fields and greys « Suivant » again.
+  13. Live site: the selected period is **visible** — arrival and departure in ocre, nights in between tinted — and the refusal is red (see `specs/site-booking-drawer.md` rules 14-15).
 - **2026-09-23 amendments — verified on the live site** (Playwright against `domainesolio.com/la-granja/`, the drawer/engine/API payloads substituted locally):
   6. A 1-night pick on a 2-night minimum leaves « Séjour trop court (minimum 2 nuits). » under the calendar **and** under the drawer's next button, instead of « Sélectionnez votre date de départ ».
   7. Date fields read `28/09/2026` / `03/10/2026`, whole, at 420 px.

@@ -37,6 +37,13 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-field label { font-size: .8rem; color: var(--gf-muted); }
 .gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gf-border); border-radius: 8px; font: inherit; width: 100%; }
 .gf-field input.gf-ro { background: #f5f6f4; color: #333; font-weight: 600; pointer-events: none; }
+/* « Effacer les dates » — beside the date recap, bottom-aligned with the read-only inputs. */
+.gf-field-clear { flex: 0 0 auto; align-self: flex-end; }
+.gf-dates-clear { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: 44px;
+  padding: .55rem .85rem; border: 1px solid var(--gf-border); border-radius: 8px; background: #fff; color: inherit;
+  font: inherit; font-size: .9rem; cursor: pointer; white-space: nowrap; }
+.gf-dates-clear:disabled { opacity: .4; cursor: not-allowed; }
+.gf-dates-clear:not(:disabled):hover { border-color: #b3261e; color: #b3261e; background: #fdf4f3; }
 
 /* Sections (Voyageurs / Options & suppléments) */
 .gf-section { margin: 1.1rem 0; }
@@ -114,6 +121,8 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
   .gf-props { grid-template-columns: 1fr; }
   .gf-field { flex-basis: 100%; }
   .gf-field-time { flex: 1 1 40%; }
+  .gf-field-clear { flex-basis: 100%; }
+  .gf-dates-clear { width: 100%; }
   /* Stack each row on small screens: full-width title, then price (left) + stepper (right). */
   .gf-line-head { gap: .35rem .5rem; flex-wrap: wrap; }
   .gf-line-main { flex: 1 1 100%; }

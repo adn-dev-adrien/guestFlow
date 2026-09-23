@@ -230,9 +230,23 @@ add_action(
    reduire sous la largeur de leur contenu et debordent dans un panneau etroit. */
 .gf-resa-etape .gf-field { min-width: 0; }
 .gf-resa-etape .gf-row { flex-wrap: wrap; }
+/* Le mu-plugin gf-booking.php, devenu muet mais toujours charge, impose « .gf-field { flex:1 1 0 } »
+   apres la feuille du moteur : tous les champs tenaient alors sur une seule ligne, rognes au tiers
+   de leur texte. On leur rend une largeur de base, et le bouton d'effacement garde la sienne. */
+.gf-resa-etape .gf-row > .gf-field { flex: 1 1 150px; }
+.gf-resa-etape .gf-row > .gf-field-clear { flex: 0 0 auto; }
 .gf-resa-consigne { margin: 0 0 14px; color: #7d8a6f; font-size: .9rem; }
 /* Conteneur d'origine du moteur, vide une fois ses blocs repartis. */
 .gf-resa-corps > .gf-booking-block:empty { display: none; }
+/* Les blocs du moteur quittent le conteneur .gf-block qui declarait ses variables de couleur :
+   sans cette reprise, la periode choisie s'affichait sur fond transparent — donc invisible — et
+   les bordures du moteur tombaient sur currentColor. Les valeurs sont celles de la DA du site. */
+.gf-resa-panneau { --gf-accent: #B87B2A; --gf-muted: #7d8a6f; --gf-border: #E4DCC9; --gf-blocked: #F3F1EA; }
+/* L'ancien mu-plugin gf-booking.php n'affiche plus rien mais imprime toujours sa feuille de style,
+   dont « .gf-cal-hint { color:#5a6b48 } » passait devant le rouge du moteur : un refus s'affichait
+   dans la couleur d'une indication ordinaire. */
+.gf-resa-panneau .gf-cal-hint { color: var(--gf-accent); }
+.gf-resa-panneau .gf-cal-hint-error { color: #A33A2A; }
 /* Les blocs deplaces occupent toute la largeur de l'ecran, sans cadre propre. */
 .gf-resa-etape > * { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; }
 .gf-resa-etape .gf-booking-name { display: none; }
@@ -598,10 +612,14 @@ CSS;
 	// calendrier (« Séjour trop court (minimum 3 nuits) », une nuit indisponible…) : on la reprend
 	// telle quelle plutot que d'en inventer une seconde, qui divergerait.
 	function raisonSuivant() {
-		if ( datesCompletes() ) { return ''; }
+		// L'indication rouge fait foi meme quand les deux dates sont posees : depuis que le moteur
+		// garde la periode refusee a l'ecran (minimum de nuits), des champs remplis ne prouvent
+		// plus que le sejour est vendable.
 		var indication = ecrans[0].querySelector( '.gf-cal-hint-error' );
 		var texte = indication ? indication.textContent.trim() : '';
-		return texte || 'Choisissez vos dates d’arrivée et de départ dans le calendrier.';
+		if ( texte ) { return texte; }
+		if ( datesCompletes() ) { return ''; }
+		return 'Choisissez vos dates d’arrivée et de départ dans le calendrier.';
 	}
 
 	function affiner() {
