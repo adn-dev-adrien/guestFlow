@@ -1,0 +1,3 @@
+- Site de réservation : quand un séjour est trop court, le calendrier garde son message (« Séjour trop court (minimum 2 nuits). ») au lieu de le remplacer aussitôt par « Sélectionnez votre date de départ » — la date de départ était effacée et le client n'avait aucun moyen de savoir pourquoi. Même correction quand la période choisie contient une nuit déjà prise. Un message de refus fait aussi défiler jusqu'à lui.
+- Site de réservation : les dates d'arrivée et de départ s'écrivent en chiffres (« 28/09/2026 »), qui tiennent en entier dans un champ étroit ; « 28 septembre 2026 » était coupé en plein milieu.
+- Site de réservation : la note des ressources à planifier se limite à « À planifier avec l'hôte. »
