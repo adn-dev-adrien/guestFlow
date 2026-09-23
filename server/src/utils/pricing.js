@@ -3,6 +3,7 @@ const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
+const { portionCap, clampPortions } = require('./mealPortions');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
@@ -1584,17 +1585,25 @@ function calculateReservationQuote({
       const isCancellationInsurance = Number(option.isCancellationInsurance || 0) === 1;
       if (option.showsPlanningCard && priceType !== 'percent_of_stay' && !isCancellationInsurance) {
         // PUBLIC/site flow (planningCardAsQuantity): the visitor can't schedule the slots, so the
-        // selected QUANTITY stands in for the occurrence count — bill quantity × (perPerson ? persons :
-        // 1) × unitPrice and leave the line UNSCHEDULED (empty cardOccurrences; the operator fixes the
-        // real slots later). Admin flow: the scheduled occurrences drive the billed quantity as before.
+        // selected QUANTITY is what gets billed and the line stays UNSCHEDULED (empty
+        // cardOccurrences; the operator fixes the real slots later). For a PER-PERSON option the
+        // quantity counts PORTIONS — one breakfast, one cover — never séances to multiply by the
+        // party (specs/site-meal-portions.md rule 1), and it is held to what the stay can serve
+        // (rule 3). Admin flow: the scheduled occurrences drive the billed quantity as before.
         const perPerson = String(priceType).includes('per_person');
         const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
           ? Number(optionUnitOverrides[optionId])
           : lockedUnitPriceOr(locked, Number(option.price || 0));
         if (planningCardAsQuantity) {
-          const qty = Math.max(0, Number(selected?.quantity || 0));
+          const asked = Math.max(0, Number(selected?.quantity || 0));
+          const portions = perPerson
+            ? clampPortions(asked, portionCap({
+              option, persons, nights, checkInTime, checkOutTime, property,
+            }).cap)
+            : { quantity: asked, clampedFrom: null };
+          const qty = portions.quantity;
           if (qty <= 0) return null;
-          const billedUnits = roundMoney(qty * (perPerson ? persons : 1));
+          const billedUnits = roundMoney(qty);
           const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
           return {
             optionId,
@@ -1608,6 +1617,9 @@ function calculateReservationQuote({
             priceType,
             cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
             toBeScheduled: true,
+            // What the visitor asked for when the cap lowered it, so the quote can tell the drawer
+            // to follow its own number down (null when nothing was held back).
+            clampedFrom: portions.clampedFrom,
             ...applyOfferedToLine(unscheduledFree.realTotal, offeredOptionIdSet.has(optionId)),
             ...pickContribsAndForce(selected, locked),
           };

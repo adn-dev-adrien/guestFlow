@@ -54,13 +54,15 @@ function quote(db, over) {
   return calculateReservationQuote({ db, ...STAY, ...over });
 }
 
-test('public flow: per-person planning option billed quantity × persons × unitPrice (occurrence count)', () => {
+// specs/site-meal-portions.md rule 1 — the quantity counts PORTIONS since 2026-09-22; it used to
+// count séances and get multiplied by the party.
+test('public flow: per-person planning option billed quantity × unitPrice (portions)', () => {
   const q = quote(seedDb(), { selectedOptions: [{ optionId: 6, quantity: 2 }], planningCardAsQuantity: true });
   const line = q.optionLines.find((l) => l.optionId === 6);
   assert.ok(line, 'the planning-card option is billed, not dropped');
   assert.equal(line.quantity, 2);
-  assert.equal(line.billedUnits, 4); // 2 séances × 2 personnes
-  assert.equal(line.totalPrice, 32); // 4 × 8 €
+  assert.equal(line.billedUnits, 2); // 2 petits déjeuners, pas 2 séances × 2 personnes
+  assert.equal(line.totalPrice, 16); // 2 × 8 €
   assert.deepEqual(line.cardOccurrences, [], 'left unscheduled');
   assert.equal(line.toBeScheduled, true);
 });
