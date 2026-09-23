@@ -4,6 +4,21 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-09-23
+
+### Summary
+- Site : une fois l'arrivée posée, cliquer une date plus tard allonge ou raccourcit le séjour ; le calendrier se bloquait à la première nuit prise.
+- Le message « Séjour trop court » reste à l'écran au lieu de s'effacer tout seul, et « ✕ Effacer » repart d'un calendrier vierge.
+- Tiroir de réservation du site : les dates choisies redeviennent visibles — elles s'affichaient sur fond transparent depuis la refonte de septembre.
+- Un séjour refusé par le moteur n'ouvre plus l'écran du récapitulatif.
+- Mettre à jour le plugin WordPress en 1.11.0 depuis Extensions → Mises à jour, sinon le site garde l'ancien calendrier.
+
+### Fixed
+- **Booking funnel — changing your dates without rebuilding the stay** (spec `wp-booking-widget-redesign.md` rules 24-28, plugin 1.11.0). Once the arrival is set, any later date moves the departure: the stay lengthens or shortens in one click instead of starting again from a blank arrival. Clicking the arrival starts a new range, a « ✕ Effacer » button empties both fields, and dates before the arrival or beyond a taken night stay clickable — the calendar used to die from the first booked night onwards.
+- **« Séjour trop court » no longer clears the departure** (spec `wp-booking-widget-redesign.md` rule 26). The refused range stays on screen with « Cliquez une date plus tard pour allonger le séjour. »; the screen no longer rewrote itself 400 ms after the click.
+- **The website's booking drawer shows the chosen dates again** (spec `site-booking-drawer.md` rules 12-13). The drawer lifts the engine's blocks out of the container that declared their colours: since September's redesign, arrival and departure were painted on a transparent background, which is to say invisible. The drawer now owns those variables, and gives the refusal back its red and the date fields back their width — all three confiscated by the stylesheet of the `gf-booking.php` mu-plugin still loaded on the site.
+- **The drawer's « Suivant » follows the engine's refusal** (spec `site-booking-drawer.md` rule 11) rather than the mere presence of two dates: a stay the engine refuses no longer opens the summary screen.
+
 ## [3.1.0] - 2026-09-23
 
 ### Summary
