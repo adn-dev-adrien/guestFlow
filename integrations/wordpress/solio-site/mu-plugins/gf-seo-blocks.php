@@ -260,6 +260,11 @@ function gf_seo_unite_affichee( $titre, $unite ) {
 	if ( false !== strpos( $t, 'visite animaux' ) || false !== strpos( $t, 'enfants bain nordique' ) ) {
 		return 'par personne · tarif dégressif';
 	}
+	// Le prix du bain nordique ne court qu'a partir du deuxieme creneau : la premiere heure est
+	// offerte a chaque sejour. Sans ce rappel, la carte se lit comme si l'heure etait payante.
+	if ( false !== strpos( $t, 'bain nordique' ) ) {
+		return trim( $unite ) . ', au-delà de l’heure offerte';
+	}
 	return trim( str_ireplace( 'au séjour', '', $unite ) );
 }
 
