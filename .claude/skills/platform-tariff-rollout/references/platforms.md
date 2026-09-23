@@ -976,3 +976,63 @@ Domaine Solio : space **25232**, pitch type **27908**, compte `contact@domaineso
     puis le bouton « Supprimer » du pied du seau, qui passe par un `confirm()` natif. Le premier clic
     sur la photo de couverture n'a pas pris chez moi — recompter les sélectionnées avant de valider.
 
+
+---
+
+## Un fait commercial vit dans PLUSIEURS champs par plateforme — relevé le 2026-09-23
+
+Exercice : faire dire à toutes les annonces « 1 h de bain nordique offerte à chaque séjour ». Ce qui
+paraissait être une phrase à changer s'est révélé être **quatorze champs répartis sur cinq
+back-offices**, et trois versions contradictoires de la même règle selon le canal : **1 h 30** sur
+Lodgify (gîte), **45 min** sur Abracadaroom (gîte), **« une séance »** sans durée ailleurs, et
+« offert dès 3 nuits » sur le site. **Ne jamais corriger le premier champ trouvé et s'arrêter :
+relire l'annonce PUBLIQUE de bout en bout, c'est elle qui révèle les champs oubliés.**
+
+Là où le bain se décrit, par plateforme :
+
+| Plateforme | Champs à visiter |
+|---|---|
+| Lodgify | description de l'hébergement (une par langue ; l'anglais du Gîte ne parlait pas du bain) ; les **Suppléments** de `pricing/<id>`, qui ne servent que le site de réservation directe de Lodgify |
+| Airbnb | « Description du logement », « Mon logement », « Accès des voyageurs », « Autres informations à noter » — **chacun en FR et EN**, et les deux versions divergent (celle du Lodge était déjà juste, celle du Gîte annonçait 1,5 h) |
+| Abracadaroom | description (onglet Infos générales) **plus** les trois blocs de l'onglet TARIFS : « le prix comprend », « ne comprend pas », « extra / supplément ». Chaque bloc a ses onglets FR/EN/ES/NL ; ici seul le FR est rempli |
+| GreenGo | description du **logement** (`annonce/accommodation/<id>/description`), présentation de l'**établissement** (`longDescription`, page Profil Hôte) et les **Points forts** |
+| Booking | rien n'est éditable : la description est générée. Seul levier, `request_change.html` → champ `fine_print` |
+
+## GreenGo — les points forts : un titre trop long bloque l'enregistrement EN SILENCE
+
+Le formulaire d'un point fort limite le titre à **50 caractères**. Au-delà, « Valider » ne fait
+rien : pas de message, pas de requête, la modale reste ouverte. Le point fort « Parenthèse
+bien-être & aventure enfants au Domaine de Solio » (59 caractères) était **inmodifiable depuis sa
+création** — toute correction de son texte était perdue sans que rien ne le dise. Symptôme à
+reconnaître : après « Valider », recharger la page et relire ; si l'ancien texte revient, ouvrir la
+modale et **chercher le compteur `59/50`** avant de suspecter la synchronisation.
+
+**Le libellé « Inclus » de la page publique porte sur le TITRE du point fort, pas sur son texte.**
+Un point fort marqué « Incluse dans le prix de la nuitée = Oui » affiche `Inclus` à côté de son
+titre. Si le titre nomme un ensemble plus large que ce qui est réellement offert (« Une parenthèse
+de bien-être au cœur de la nature » alors que seule l'heure de bain l'est), **le voyageur lit que
+tout est compris**. Nommer dans le titre exactement ce qui est offert : « Bain nordique privatif :
+1 h offerte par séjour ».
+
+**La page publique garde l'ancien titre en cache.** Une présentation d'établissement modifiée
+apparaissait en moins d'une minute, un titre de point fort était encore l'ancien vingt minutes plus
+tard. Le back-office relu après rechargement fait foi ; prévoir une re-vérification différée.
+
+## Booking — une demande `fine_print` n'accuse jamais réception, et se duplique facilement
+
+Confirmé le 2026-09-23 sur les deux établissements. Le champ « À savoir » est masqué tant qu'on n'a
+pas cliqué « Demander une modification » **dans le bloc « La rubrique À savoir »** (le bouton du même
+nom existe aussi pour la description et pour chaque hébergement — viser le bloc, pas le libellé).
+Après envoi, le champ se vide et **rien ne confirme** : la preuve est une ligne « Content - request
+change request » horodatée dans `inbox.html`, onglet **Envoyés**. Un `element.click()` en JavaScript
+soumet bel et bien le formulaire, même quand rien ne bouge à l'écran : rejouer l'envoi « pour être
+sûr » crée un doublon (deux demandes identiques à une minute d'intervalle, 2026-09-23). **Vérifier
+l'onglet Envoyés avant de renvoyer.**
+
+## Gîtes de France — l'espace propriétaire ne touche pas au texte de l'annonce
+
+`prop.itea.fr` (Bureau Propriétaire ITEA, compte propriétaire 3118, gîte 309700) donne planning,
+photos, tarifs, promotions, synchronisation iCal, widgets et statistiques — **aucune page de
+descriptif**. « Pour toute modification, veuillez contacter Gîtes de France Ardèche » : le contenu
+éditorial appartient au relais départemental, et passe donc par un message, pas par un formulaire.
+C'est le seul des six canaux qui ne se pilote pas.
