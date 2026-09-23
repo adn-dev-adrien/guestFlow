@@ -957,3 +957,22 @@ Domaine Solio : space **25232**, pitch type **27908**, compte `contact@domaineso
     désactivé tout seul et n'a plus rien importé pendant neuf mois, pendant que la réservation
     instantanée restait active. **Toujours vérifier la date de dernière synchronisation**, pas la
     seule présence d'une ligne.
+
+12. **Les photos : six seaux, un téléverseur parallèle, et un ordre à remettre à la main.**
+    `…/host/space/<spaceId>/media` porte six zones FilePond (`#bucket-button-2` … `-7`) :
+    l'emplacement lui-même, Espace commun, Équipements, Biodiversité, Activités, Activités durables.
+    `setInputFiles` sur `#bucket-button-N input[type=file]` marche, par lots de 3-4 ; au-delà d'une
+    vingtaine de secondes d'attente la session Playwright peut lâcher, donc lot par lot. **Les
+    identifiants `data-media-id` ne suivent pas l'ordre des fichiers** — les envois partent en
+    parallèle et l'ordre d'arrivée décide. Ne jamais supposer la correspondance : la vérifier en
+    comparant chaque image publiée à son fichier source (télécharger la vignette, réduire les deux à
+    8×8 en gris avec `sips`, prendre la plus proche — la bonne est à un ordre de grandeur de la
+    deuxième). **La première photo du premier seau est la photo de couverture.**
+13. **Réordonner : le glisser-déposer SortableJS ne cède pas à la souris synthétique.** Le seau porte
+    `data-sort-url` (`/space-media/sort/<spaceId>`) ; un `fetch` même-origine avec `mediaId` et
+    `sorting[]` dans l'ordre voulu renvoie `{"status":"success"}` et persiste. C'est exactement ce que
+    le `onEnd` du composant envoie.
+14. **Supprimer une photo** : cliquer chaque vignette (un vrai clic, la classe devient `is-selected`),
+    puis le bouton « Supprimer » du pied du seau, qui passe par un `confirm()` natif. Le premier clic
+    sur la photo de couverture n'a pas pris chez moi — recompter les sélectionnées avant de valider.
+
