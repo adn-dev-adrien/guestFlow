@@ -16,13 +16,16 @@ import { createTheme } from '@mui/material/styles';
 
 const SERIF = "'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif";
 const SANS = "'Inter', sans-serif";
+// Shared by the palette and by the component overrides below (which run before the theme exists).
+const FIR = '#2F5D46';
+const INK_MUTED = '#6E6A5E';
 
 const theme = createTheme({
   palette: {
-    primary: { main: '#2F5D46' },
+    primary: { main: FIR },
     secondary: { main: '#C99038' },
     background: { default: '#F8F5EF', paper: '#ffffff' },
-    text: { primary: '#27251F', secondary: '#6E6A5E' },
+    text: { primary: '#27251F', secondary: INK_MUTED },
     success: { main: '#3E7D54', soft: '#E6EFE7' },
     warning: { main: '#8F6A1D', soft: '#F6EDD7' },
     error: { main: '#A8433A', soft: '#F7E8E5' },
@@ -45,6 +48,28 @@ const theme = createTheme({
       defaultProps: {
         // Custom role variants need an element mapping; kpiLabel is a caption-like block.
         variantMapping: { pageTitle: 'h1', sectionHeader: 'h2', kpiValue: 'p', kpiLabel: 'p' },
+      },
+    },
+    // Tabs — house style for every strip, whatever draws it (specs/ds-tabs.md rules 5, 6, 9).
+    // Structure and behaviour live in the PageTabs component.
+    MuiTabs: {
+      styleOverrides: {
+        root: { minHeight: 44 },
+        indicator: { height: 2, borderRadius: '2px 2px 0 0' },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontFamily: SANS,
+          fontSize: '0.9rem',
+          fontWeight: 500,
+          minHeight: 44,
+          padding: '0 14px',
+          color: INK_MUTED,
+          '&.Mui-selected': { color: FIR, fontWeight: 600 },
+        },
       },
     },
     MuiButton: {

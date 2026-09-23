@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, MenuItem, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Divider, Tabs, Tab,
+  TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Divider,
   Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -14,6 +14,7 @@ import OperationalPaymentsTable from '../components/OperationalPaymentsTable';
 import FinanceBreakdownDialog from '../components/FinanceBreakdownDialog';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
+import PageTabs from '../components/PageTabs';
 import ErrorAlert from '../components/ErrorAlert';
 import StatusBadge from '../components/StatusBadge';
 import PlatformChip from '../components/PlatformChip';
@@ -372,10 +373,16 @@ export default function FinancePage() {
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="sectionHeader">Revenu par logement</Typography>
-                <Tabs value={chartTab} onChange={(_, nextTab) => setChartTab(nextTab)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 1 }}>
-                  <Tab value="period" label="Sur la période" />
-                  <Tab value="year" label="Depuis le début de l'exercice" />
-                </Tabs>
+                <PageTabs
+                  value={chartTab}
+                  onChange={setChartTab}
+                  variant="card"
+                  ariaLabel="Période du graphique"
+                  items={[
+                    { value: 'period', label: 'Sur la période' },
+                    { value: 'year', label: "Depuis le début de l'exercice" },
+                  ]}
+                />
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
                   {chartTab === 'period'
                     ? `Période du ${displayDate(from)} au ${displayDate(to)} · montants TTC`
@@ -436,18 +443,18 @@ export default function FinancePage() {
               </Box>
             </Box>
 
-            <Tabs
+            <PageTabs
               value={activeTab}
-              onChange={(_, nextTab) => setFinanceViewTab(nextTab)}
-              variant="scrollable"
-              allowScrollButtonsMobile
-              sx={{ mt: 1.5, mb: 2 }}
-            >
-              {hasOverdue && <Tab value="overdue" label="Paiements en retard" />}
-              <Tab value="pending" label="Paiements en attente" />
-              <Tab value="upcoming" label="Réservations à venir" />
-              <Tab value="period" label="Réservations période" />
-            </Tabs>
+              onChange={setFinanceViewTab}
+              variant="card"
+              ariaLabel="Vues financières"
+              items={[
+                ...(hasOverdue ? [{ value: 'overdue', label: 'Paiements en retard' }] : []),
+                { value: 'pending', label: 'Paiements en attente' },
+                { value: 'upcoming', label: 'Réservations à venir' },
+                { value: 'period', label: 'Réservations période' },
+              ]}
+            />
 
             {activeTab === 'overdue' && (
               <TableContainer>

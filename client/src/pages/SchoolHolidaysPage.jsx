@@ -21,7 +21,7 @@ const emptyForm = {
   zoneC_start: '', zoneC_end: '',
 };
 
-export default function SchoolHolidaysPage({ barCenter }) {
+export default function SchoolHolidaysPage({ barTabs }) {
   const { confirm } = useAppDialogs();
   const [periods, setPeriods] = useState([]);
   const [syncState, setSyncState] = useState(null);
@@ -126,7 +126,7 @@ export default function SchoolHolidaysPage({ barCenter }) {
   return (
     <Box>
       <PageActionBar
-        center={barCenter}
+        tabs={barTabs}
         title="Vacances scolaires"
         actionsBefore={[
           {

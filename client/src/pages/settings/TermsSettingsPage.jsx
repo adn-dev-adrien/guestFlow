@@ -8,11 +8,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Card, CardContent, Chip, FormControlLabel, Stack, Switch, Tab, Table, TableBody,
-  TableCell, TableHead, TableRow, Tabs, Typography, useMediaQuery,
+  TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import PublishIcon from '@mui/icons-material/Publish';
 import PageActionBar from '../../components/PageActionBar';
+import PageTabs from '../../components/PageTabs';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingState from '../../components/LoadingState';
@@ -209,9 +210,13 @@ export default function TermsSettingsPage() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Le brouillon n’est jamais visible sur le site. « Publier » le fige en version {overview.nextVersion}, qui ne pourra plus être modifiée.
             </Typography>
-            <Tabs value={lang} onChange={(e, v) => setLang(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-              {LANGS.map((l) => <Tab key={l.key} value={l.key} label={l.label} />)}
-            </Tabs>
+            <PageTabs
+              value={lang}
+              onChange={setLang}
+              variant="card"
+              ariaLabel="Langue du brouillon"
+              items={LANGS.map((l) => ({ value: l.key, label: l.label }))}
+            />
             <MarkdownEditorField
               key={lang}
               label={lang === 'fr' ? 'Texte en français (Markdown)' : 'Texte en anglais (Markdown)'}

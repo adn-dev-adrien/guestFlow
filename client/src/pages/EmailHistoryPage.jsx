@@ -7,12 +7,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, TableRow, TableCell, Typography, Stack, FormControl, InputLabel,
-  Select, MenuItem, Button, TextField, IconButton, Tooltip, Tabs, Tab,
+  Select, MenuItem, Button, TextField, IconButton, Tooltip,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ReplayIcon from '@mui/icons-material/Replay';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DataPageScaffold from '../components/DataPageScaffold';
+import PageTabs from '../components/PageTabs';
 import StatusBadge from '../components/StatusBadge';
 import EmailLogViewDialog from '../components/EmailLogViewDialog';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
@@ -71,10 +72,16 @@ export default function EmailHistoryPage() {
   const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
 
   const tabs = (
-    <Tabs value={view} onChange={(_, v) => setView(v)} variant="fullWidth" sx={{ maxWidth: 420, minHeight: 44 }}>
-      <Tab value="history" label="Historique" sx={{ minHeight: 44 }} />
-      <Tab value="simulation" label="Simulation" sx={{ minHeight: 44 }} />
-    </Tabs>
+    <PageTabs
+      value={view}
+      onChange={setView}
+      items={[
+        { value: 'history', label: 'Historique' },
+        { value: 'simulation', label: 'Simulation' },
+      ]}
+      variant="card"
+      ariaLabel="Historique et simulation"
+    />
   );
 
   if (view === 'simulation') return <Box><EmailSequenceSimulation tabs={tabs} /></Box>;

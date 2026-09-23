@@ -8,10 +8,10 @@
 const { request } = require('@playwright/test');
 const path = require('path');
 
-// Hit the API through the CRA proxy host (`localhost:3000`) so the cached storageState
-// cookie — bound to that origin by globalSetup — gets sent. Hitting the backend directly
-// at `127.0.0.1:4000` would silently drop the cookie and every call would 401.
-const SERVER_URL = 'http://localhost:3000';
+// Hit the API through the client dev proxy so the cached storageState cookie — bound to that
+// origin by globalSetup — gets sent. Hitting the backend directly at `127.0.0.1:4000` would
+// silently drop the cookie and every call would 401.
+const { CLIENT_URL: SERVER_URL } = require('../clientUrl');
 const STORAGE_STATE = path.join(__dirname, '..', '.auth', 'admin.json');
 
 async function withRequest(fn) {

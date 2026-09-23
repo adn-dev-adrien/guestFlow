@@ -13,6 +13,10 @@
  *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
  *   center?      ReactNode      (rendered CENTERED in the bar; hidden on xs — too tight on mobile)
+ *   tabs?        ReactNode      (a <PageTabs> node — CENTERED in the bar on sm+, and folded onto a
+ *                                SECOND ROW of the same sticky block on xs. Implies titleOnXs, so a
+ *                                page with tabs always shows its title. Mutually exclusive with
+ *                                `center`; see specs/ds-tabs.md rules 2-3.)
  *
  *   onSave?      () => void     (omit → no Save button)
  *   saveDisabled? boolean
@@ -36,7 +40,7 @@
  *  - Sticky top: 56px (xs), 64px (sm+); white bg; thin bottom border.
  *  - Each button is a bordered IconButton + Tooltip (icon-only, French tooltip).
  *  - Save renders with a filled primary background (the only "filled" button).
- *  - Layout: [Back Title Subtitle] … [center] … [actionsBefore Save Cancel actionsAfter]
+ *  - Layout: [Back Title Subtitle] … [center | tabs] … [actionsBefore Save Cancel actionsAfter]
  *    (with `center`, the two side sections take equal flex so the centre is truly centred).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
@@ -100,6 +104,8 @@ export default function PageActionBar({
   // bar switches to a 3-equal-columns layout so the content is truly centred. Hidden on xs (the mobile
   // bar is too tight) — pass content that the page can afford to drop on small screens.
   center,
+  // A <PageTabs> node: centred in the bar on sm+, second row of the same sticky block on xs.
+  tabs,
   onSave,
   saveDisabled = false,
   saveTooltip = 'Enregistrer',
@@ -121,6 +127,11 @@ export default function PageActionBar({
   const visibleBefore = useOverflow ? actionsBefore.filter((a) => a.node) : actionsBefore;
   const visibleAfter = useOverflow ? actionsAfter.filter((a) => a.node) : actionsAfter;
 
+  // The tabs exist ONCE in the DOM: centred in the bar on sm+, on a second row on xs.
+  const tabsOnSecondRow = Boolean(tabs) && isMobile;
+  const centerNode = tabsOnSecondRow ? null : (tabs || center);
+  const showTitleOnXs = titleOnXs || Boolean(tabs);
+
   return (
     <Box
       sx={{
@@ -130,114 +141,127 @@ export default function PageActionBar({
         bgcolor: 'background.paper',
         borderBottom: '1px solid',
         borderColor: 'divider',
-        px: { xs: 1.5, sm: 2 },
-        py: { xs: 1, sm: 1.25 },
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1,
         mb: 2,
       }}
     >
-      {/* Left section: back + title + subtitle. When a `center` node is set, both side sections take an
-          equal flex basis (1 1 0) so the centre node is truly centred across the bar. */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, ...(center ? { flex: '1 1 0' } : { flexGrow: 1 }) }}>
-        {(onBack || backTo) && (
-          <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
-            <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
-              <ArrowBackIcon />
-            </IconButton>
-          </Tooltip>
-        )}
-        {title && (
-          <Typography
-            variant="pageTitle"
-            sx={{
-              display: { xs: titleOnXs ? 'block' : 'none', sm: 'block' },
-              whiteSpace: 'nowrap',
-              ...(titleOnXs && { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }),
-            }}
-          >
-            {title}
-          </Typography>
-        )}
-        {subtitle}
-      </Box>
-
-      {center && (
-        <Box
-          sx={{
-            display: { xs: 'none', sm: 'flex' },
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            flex: '0 1 auto',
-            minWidth: 0,
-            px: 1,
-          }}
-        >
-          {center}
-        </Box>
-      )}
-
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', minWidth: 0, ...(center ? { flex: '1 1 0' } : {}) }}>
-        {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
-
-        {useOverflow && (
-          <>
-            <Tooltip title="Plus d'actions" enterDelay={500}>
-              <IconButton aria-label="Plus d'actions" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={borderedSx('default')}>
-                <MoreVertIcon />
+      <Box
+        sx={{
+          px: { xs: 1.5, sm: 2 },
+          py: { xs: 1, sm: 1.25 },
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+        }}
+      >
+        {/* Left section: back + title + subtitle. When a `center` node is set, both side sections take an
+            equal flex basis (1 1 0) so the centre node is truly centred across the bar. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, ...(centerNode ? { flex: '1 1 0' } : { flexGrow: 1 }) }}>
+          {(onBack || backTo) && (
+            <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
+              <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
+                <ArrowBackIcon />
               </IconButton>
             </Tooltip>
-            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-              {iconExtras.map((a, i) => (
-                <MenuItem
-                  key={`menu-${i}`}
-                  onClick={() => { setMenuAnchor(null); a.onClick(); }}
-                  disabled={a.disabled}
+          )}
+          {title && (
+            <Typography
+              variant="pageTitle"
+              sx={{
+                display: { xs: showTitleOnXs ? 'block' : 'none', sm: 'block' },
+                whiteSpace: 'nowrap',
+                ...(showTitleOnXs && { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }),
+              }}
+            >
+              {title}
+            </Typography>
+          )}
+          {subtitle}
+        </Box>
+
+        {centerNode && (
+          <Box
+            sx={{
+              display: { xs: 'none', sm: 'flex' },
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              flex: '0 1 auto',
+              minWidth: 0,
+              px: 1,
+            }}
+          >
+            {centerNode}
+          </Box>
+        )}
+
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', minWidth: 0, ...(centerNode ? { flex: '1 1 0' } : {}) }}>
+          {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
+
+          {useOverflow && (
+            <>
+              <Tooltip title="Plus d'actions" enterDelay={500}>
+                <IconButton aria-label="Plus d'actions" onClick={(e) => setMenuAnchor(e.currentTarget)} sx={borderedSx('default')}>
+                  <MoreVertIcon />
+                </IconButton>
+              </Tooltip>
+              <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+                {iconExtras.map((a, i) => (
+                  <MenuItem
+                    key={`menu-${i}`}
+                    onClick={() => { setMenuAnchor(null); a.onClick(); }}
+                    disabled={a.disabled}
+                  >
+                    <ListItemIcon>{a.icon}</ListItemIcon>
+                    <ListItemText>{a.tooltip}</ListItemText>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
+          )}
+
+          {onSave && (
+            <Tooltip title={saveBusy ? `${saveTooltip}...` : saveTooltip} enterDelay={500} enterNextDelay={500}>
+              <span>
+                <IconButton
+                  color="primary"
+                  aria-label={saveTooltip}
+                  onClick={onSave}
+                  disabled={saveDisabled || saveBusy}
+                  sx={saveFilledSx}
                 >
-                  <ListItemIcon>{a.icon}</ListItemIcon>
-                  <ListItemText>{a.tooltip}</ListItemText>
-                </MenuItem>
-              ))}
-            </Menu>
-          </>
-        )}
+                  {saveBusy ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
 
-        {onSave && (
-          <Tooltip title={saveBusy ? `${saveTooltip}...` : saveTooltip} enterDelay={500} enterNextDelay={500}>
-            <span>
-              <IconButton
-                color="primary"
-                aria-label={saveTooltip}
-                onClick={onSave}
-                disabled={saveDisabled || saveBusy}
-                sx={saveFilledSx}
-              >
-                {saveBusy ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-              </IconButton>
-            </span>
-          </Tooltip>
-        )}
+          {onCancel && (
+            <Tooltip title={cancelTooltip} enterDelay={500} enterNextDelay={500}>
+              <span>
+                <IconButton
+                  aria-label={cancelTooltip}
+                  onClick={onCancel}
+                  disabled={cancelDisabled}
+                  sx={borderedSx('default')}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
 
-        {onCancel && (
-          <Tooltip title={cancelTooltip} enterDelay={500} enterNextDelay={500}>
-            <span>
-              <IconButton
-                aria-label={cancelTooltip}
-                onClick={onCancel}
-                disabled={cancelDisabled}
-                sx={borderedSx('default')}
-              >
-                <CloseIcon />
-              </IconButton>
-            </span>
-          </Tooltip>
-        )}
-
-        {visibleAfter.map((action, i) => renderCustomAction(action, `after-${i}`))}
+          {visibleAfter.map((action, i) => renderCustomAction(action, `after-${i}`))}
+        </Box>
       </Box>
+
+      {/* xs: the centre slot is hidden, so the tabs take a second row of the SAME sticky block —
+          never a detached strip above or below it (specs/ds-tabs.md rule 2). */}
+      {tabsOnSecondRow && (
+        <Box sx={{ px: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
+          {tabs}
+        </Box>
+      )}
     </Box>
   );
 }

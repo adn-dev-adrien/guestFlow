@@ -38,7 +38,7 @@ const EMPTY_FORM = {
   endDate: '',
 };
 
-export default function EstablishmentClosuresPage({ barCenter }) {
+export default function EstablishmentClosuresPage({ barTabs }) {
   const { confirm, alert } = useAppDialogs();
   const [closures, setClosures] = useState([]);
   const [properties, setProperties] = useState([]);
@@ -141,7 +141,7 @@ export default function EstablishmentClosuresPage({ barCenter }) {
   return (
     <Box>
       <PageActionBar
-        center={barCenter}
+        tabs={barTabs}
         title="Fermetures de l'établissement"
         actionsBefore={[{
           node: (

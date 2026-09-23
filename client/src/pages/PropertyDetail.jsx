@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router';
-import { Box, Tabs, Tab } from '@mui/material';
+import { Box } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import PageActionBar from '../components/PageActionBar';
+import PageTabs from '../components/PageTabs';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import LoadingState from '../components/LoadingState';
@@ -459,6 +460,9 @@ export default function PropertyDetail() {
   const tabDot = (state) => (state ? (
     <Box component="span" aria-label={state === 'error' ? 'erreur' : 'modifié'} sx={{ width: 8, height: 8, borderRadius: '50%', ml: 0.75, bgcolor: state === 'error' ? 'error.main' : 'warning.main' }} />
   ) : null);
+  const tabItems = PROPERTY_TABS
+    .filter((t) => !isNew || ['general', 'tarifs', 'paiement', 'sejour'].includes(t.key))
+    .map((t) => ({ value: t.key, label: t.label, badge: tabDot(tabState(t.key)) }));
   const common = { form, errors, updateField, onZeroFocus: handleZeroFocus };
 
   return (
@@ -466,6 +470,7 @@ export default function PropertyDetail() {
       <PageActionBar
         title={isNew ? 'Nouveau logement' : (property.name || 'Logement')}
         titleOnXs
+        tabs={<PageTabs value={tab} onChange={selectTab} items={tabItems} ariaLabel="Onglets du logement" />}
         {...(showSaveCancel ? {
           onSave: handleSaveProperty,
           saveTooltip: isNew ? 'Créer le logement' : 'Enregistrer',
@@ -481,20 +486,6 @@ export default function PropertyDetail() {
         }] : []}
       />
       <Box sx={{ maxWidth: 980, mx: 'auto', px: { xs: 0, sm: 1 } }}>
-        <Tabs
-          value={tab}
-          onChange={(_, next) => selectTab(next)}
-          variant="scrollable"
-          allowScrollButtonsMobile
-          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
-        >
-          {PROPERTY_TABS
-            .filter((t) => !isNew || ['general', 'tarifs', 'paiement', 'sejour'].includes(t.key))
-            .map((t) => (
-              <Tab key={t.key} value={t.key} label={<Box sx={{ display: 'inline-flex', alignItems: 'center' }}>{t.label}{tabDot(tabState(t.key))}</Box>} />
-            ))}
-        </Tabs>
-
         {tab === 'general' && (
           <PropertyGeneralTab
             {...common}

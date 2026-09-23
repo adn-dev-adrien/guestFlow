@@ -539,10 +539,10 @@ function ProgressivePricingFields({ form, setForm }) {
   );
 }
 
-export default function OptionsPage({ barCenter }) {
+export default function OptionsPage({ barTabs }) {
   return (
     <PricedItemsPage
-      barCenter={barCenter}
+      barTabs={barTabs}
       pageTitle="Options de séjour"
       itemLabel="option"
       emptyForm={emptyOption}

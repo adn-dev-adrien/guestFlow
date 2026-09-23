@@ -11,6 +11,7 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import { createProperty } from '../../fixtures/apiSeed.js';
+import { CLIENT_URL } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 const RECIPE_ID = 'aventura-lodge-2026';
@@ -20,7 +21,7 @@ const RECIPE_ID = 'aventura-lodge-2026';
 // timeout under parallel workers — a flake with no bug behind it, which is the worst kind.
 let sharedCtx;
 test.beforeAll(async () => {
-  sharedCtx = await pwRequest.newContext({ baseURL: 'http://localhost:3000', storageState: STORAGE_STATE });
+  sharedCtx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE });
 });
 test.afterAll(async () => { await sharedCtx?.dispose(); });
 

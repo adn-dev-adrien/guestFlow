@@ -1,7 +1,7 @@
 /**
  * DataPageScaffold — standard list/CRUD page: sticky PageActionBar (title + labeled create
  * action), optional filter card, states, and a scroll-contained table with a shared EmptyState
- * (specs/ds-components.md §3.4; states + mobile-cards + barCenter added by
+ * (specs/ds-components.md §3.4; states + mobile-cards + barTabs added by
  * specs/ds-sweep-settings.md).
  *
  * Props:
@@ -9,7 +9,7 @@
  *   actionLabel?: string       create CTA label (French) — rendered as a labeled button in the bar
  *   actionIcon?:  ReactNode    CTA icon
  *   onAction?:    () => void   CTA handler
- *   barCenter?:   ReactNode    centered node in the bar (e.g. the tab-wrapper Tabs; hidden on xs)
+ *   barTabs?:   ReactNode    a <PageTabs> node for the bar — centred on sm+, second row on xs
  *   topContent?:  ReactNode    optional filters/summary card above the table
  *   loading?:     bool         true → LoadingState skeleton instead of the table
  *   error?:       bool|string  truthy → ErrorAlert (message when string) instead of the table
@@ -40,7 +40,7 @@ export default function DataPageScaffold({
   actionLabel,
   actionIcon,
   onAction,
-  barCenter,
+  barTabs,
   topContent,
   loading,
   error,
@@ -109,7 +109,7 @@ export default function DataPageScaffold({
 
   return (
     <>
-      <PageActionBar title={title} center={barCenter} actionsBefore={actionsBefore} />
+      <PageActionBar title={title} tabs={barTabs} actionsBefore={actionsBefore} />
 
       <Box sx={{ mt: 2 }}>
         {topContent && (

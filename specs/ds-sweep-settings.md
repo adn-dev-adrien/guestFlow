@@ -80,7 +80,10 @@ flows — and the `/settings` console error and double-header tab pages are gone
 
 ### 3.2 One bar on the tab wrappers (kills the double header)
 
-6. `PageActionBar` gains an optional **`center` usage for Tabs**; `DataPageScaffold` and the two
+6. _(superseded 2026-09-23 by `specs/ds-tabs.md`: the tabs now go to `PageActionBar`'s own `tabs`
+   slot through the generic `PageTabs`, the `barCenter` prop was renamed `barTabs`, and the wrapper
+   no longer renders an xs strip of its own — the bar folds the tabs onto a second row and keeps the
+   title visible.)_ `PageActionBar` gains an optional **`center` usage for Tabs**; `DataPageScaffold` and the two
    standalone pages (`SchoolHolidaysPage`, `EstablishmentClosuresPage`) accept a **`barCenter`**
    node forwarded to their bar. The wrappers (`OptionsResourcesPage`, `SeasonsClosuresPage`) stop
    rendering a separate `<Tabs>` strip and instead pass their Tabs as `barCenter` to the active
