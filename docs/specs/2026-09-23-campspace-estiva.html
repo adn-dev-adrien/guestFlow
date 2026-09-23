@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Campspace — remise à plat de L'Estiva</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1000px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:40px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 12.5px/1.3 var(--sans);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.good{border-left:4px solid var(--ok);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:5px 0}
+.muted{color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0 0}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--lichen);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+.ko{color:var(--ko);font-weight:600}
+.okk{color:var(--ok);font-weight:600}
+.ctl{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
+.ctl .g{display:flex;flex-direction:column;gap:5px}
+.ctl label{font-size:12px;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--fieldline);border-radius:8px;overflow:hidden}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-size:13.5px;padding:9px 13px;cursor:pointer;min-height:44px}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.sl{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;align-items:baseline}
+.sl:last-child{border-bottom:0}
+.sl .l{display:flex;flex-direction:column;gap:2px}
+.sl .s{font-size:12px;color:var(--muted)}
+.sl .amt{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.big{font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;color:var(--sapin)}
+.copy{background:var(--field);border:1px solid var(--fieldline);border-radius:8px;padding:13px 15px;white-space:pre-wrap;font-size:13.5px;line-height:1.6}
+.cnt{font-size:11.5px;color:var(--muted);margin-top:5px}
+.pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);margin:2px 4px 2px 0}
+.pill.on{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.pill.off{opacity:.55;text-decoration:line-through}
+code{word-break:break-word;overflow-wrap:anywhere}
+@media (max-width:640px){
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table thead,table tbody{display:table;width:100%;min-width:480px}
+  .copy{font-size:13px}
+}
+@media (max-width:600px){.wrap{padding:20px 16px 60px}h1{font-size:25px}.ctl{gap:12px}
+  .seg button{padding:9px 11px;font-size:13px}
+  input[type=range]{width:100%!important;max-width:280px}
+}
+</style>
+<div class="wrap">
+
+<h1>Campspace — remise à plat de L'Estiva</h1>
+<p class="meta">Relevé du 23/09/2026 · fiche <code>#s025232</code> · emplacement <code>#pt027908</code> · recette <code>aventura-lodge-2026</code> v1.1.0<br>
+<strong>Rien n'a été modifié.</strong> Arbitrages tranchés par Adrien le 23/09/2026 — voir §8.</p>
+
+<div class="alert">
+<strong>La fiche existe depuis le 12/12/2025 et personne ne la pilotait.</strong> Elle est en réservation
+instantanée, elle a été construite comme un <em>emplacement de camping</em> — pas comme L'Estiva — et elle
+vend <strong>160 € la nuit, 365 jours par an</strong>, hiver compris.
+Bonne nouvelle : <strong>zéro réservation</strong> à ce jour. Rien n'a été vendu à ce prix.
+</div>
+
+<h2>1. Ce que la fiche vend aujourd'hui</h2>
+<p>Douze devis client tirés par URL, sans rien réserver. Le résultat est d'une régularité totale :</p>
+<table>
+<thead><tr><th>Séjour demandé</th><th class="num">Devis Campspace</th><th>Ce que ça révèle</th></tr></thead>
+<tbody>
+<tr><td>1 nuit, 10 mai 2027, 2 pers.</td><td class="num">190,20 €</td><td>—</td></tr>
+<tr><td>1 nuit, <strong>5 août 2027</strong>, 2 pers.</td><td class="num">190,20 €</td><td class="ko">aucune haute saison</td></tr>
+<tr><td>2 nuits, mai</td><td class="num">377,40 €</td><td>= 2 × 187,20 + 3</td></tr>
+<tr><td>3 nuits, août</td><td class="num">564,60 €</td><td class="ko">aucune dégressivité</td></tr>
+<tr><td>7 nuits, mai</td><td class="num">1 313,40 €</td><td class="ko">= 7 × 187,20 + 3</td></tr>
+<tr><td>1 nuit, <strong>2 adultes + 3 enfants</strong></td><td class="num">190,20 €</td><td class="ko">aucun supplément personne</td></tr>
+<tr><td>2 nuits, <strong>10 novembre 2026</strong></td><td class="num">377,40 €</td><td class="ko">tente fermée, réservable</td></tr>
+<tr><td>2 nuits, <strong>10 février 2027</strong></td><td class="num">377,40 €</td><td class="ko">tente fermée, réservable</td></tr>
+<tr><td>2 nuits, semaine de l'Ardéchoise 2027</td><td class="num">377,40 €</td><td class="ko">événement ignoré</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<strong>Décomposition du prix client.</strong> Le prix hôte affiché est 160 €. Le client paie
+<strong>187,20 €/nuit</strong> — soit exactement <strong>+17 %</strong> de frais de service Campspace —
+plus <strong>3,00 €</strong> fixes par réservation. Mesuré, pas supposé : 7 nuits = 7 × 187,20 + 3 = 1 313,40 €.
+</div>
+
+<div class="alert">
+<strong>Et 160 €, c'est la cible <em>nette</em> de la recette, saisie comme prix affiché.</strong>
+Campspace prélève 6 % à l'hôte (minimum 2 €). Sur une nuit de basse saison tu encaisserais
+<strong>150,40 €</strong> au lieu de 160 €. En haute saison, tu vendrais 160 € une nuit dont la cible nette
+est 225 € : <strong>−74,60 € par nuit</strong>.
+</div>
+
+<h2>2. Pourquoi le calendrier est grand ouvert</h2>
+<p>Ce n'est pas un oubli, c'est une panne silencieuse. Campspace sait importer un calendrier externe, et un
+import <em>existe</em> sur la fiche :</p>
+<table>
+<thead><tr><th>Champ</th><th>Valeur relevée</th></tr></thead>
+<tbody>
+<tr><td>Nom</td><td>Lodgify <code>#c002943</code></td></tr>
+<tr><td>URL</td><td><code>https://lodgify.com/:iCalUID.ics</code> <span class="ko">— l'URL modèle, jamais remplacée</span></td></tr>
+<tr><td>État</td><td><span class="ko">désactivé</span></td></tr>
+<tr><td>Dernière synchronisation</td><td>16/12/2025 à 02:25 <span class="muted">— il y a neuf mois</span></td></tr>
+</tbody>
+</table>
+<p>Quelqu'un a collé le gabarit de documentation au lieu de l'URL réelle, la synchro n'a jamais rien importé,
+et elle s'est désactivée. Depuis, Campspace croit la tente libre toute l'année. L'export Campspace, lui,
+fonctionne et n'a jamais été donné à personne.</p>
+<div class="note">Tu as choisi de <strong>laisser la fiche ouverte</strong> pendant le chantier. C'est tenable :
+zéro réservation en neuf mois, et l'iCal est la première chose que je branche, avant même les prix.</div>
+
+<h2>3. Ce que Campspace sait — et ne sait pas — exprimer</h2>
+<div class="grid2">
+<div class="card">
+<h3>Disponible</h3>
+<ul class="tight">
+<li><strong>Périodes tarifaires datées</strong> (début / fin, nom, 80 car.)</li>
+<li>Prix par nuit, 5 à 999 €</li>
+<li><strong>Supplément adulte</strong> et <strong>supplément enfant</strong>, par nuit, au-delà de N personnes incluses</li>
+<li>Minimum de nuits, minimum le week-end, <strong>maximum de nuits</strong> (30 max)</li>
+<li>Jours d'arrivée et de départ autorisés</li>
+<li><strong>Import et export iCal</strong></li>
+<li>Produits et expériences payants (par séjour / par personne / par nuit), optionnels ou obligatoires</li>
+<li>Réservation instantanée activable ou non</li>
+<li>Fenêtre de réservation : <code>360</code> jours aujourd'hui (365 max)</li>
+</ul>
+</div>
+<div class="card">
+<h3>Absent</h3>
+<ul class="tight">
+<li><strong>Aucune dégressivité par durée.</strong> Nulle part dans le back-office. C'est l'écart
+structurel avec la recette (−24 % à −45 %).</li>
+<li><strong>Aucun palier</strong> sur le supplément personne : une seule valeur plate, alors que la
+recette facture 15 € la 1<sup>re</sup> nuit puis 8 €.</li>
+<li><strong>Aucune taxe de séjour.</strong> À percevoir sur place, ou via un produit obligatoire.</li>
+<li>Aucune notion de caution.</li>
+</ul>
+</div>
+</div>
+
+<h2>4. La grille proposée, et ce qu'elle coûte</h2>
+<p>Tu as tranché : <strong>la cible nette gagne</strong>. Prix hôte = cible nette ÷ 0,94, arrondi à l'euro
+supérieur — c'est la fonction <code>grossFromNet</code> du dépôt qui le calcule, pas moi :</p>
+<table>
+<thead><tr><th>Saison</th><th class="num">Prix direct</th><th class="num">Cible nette</th><th class="num">Prix hôte Campspace</th><th class="num">Le client paie /nuit</th></tr></thead>
+<tbody>
+<tr><td>Basse</td><td class="num">179 €</td><td class="num">160 €</td><td class="num"><strong>171 €</strong></td><td class="num">200,07 €</td></tr>
+<tr><td>Moyenne</td><td class="num">216 €</td><td class="num">195 €</td><td class="num"><strong>208 €</strong></td><td class="num">243,36 €</td></tr>
+<tr><td>Haute</td><td class="num">247 €</td><td class="num">225 €</td><td class="num"><strong>240 €</strong></td><td class="num">280,80 €</td></tr>
+</tbody>
+</table>
+<p class="muted">Supplément par personne au-delà de 2 : la recette vise 14 € net la 1<sup>re</sup> nuit puis 7 €.
+Remontés à 6 % : <strong>15 €</strong> et <strong>8 €</strong>. Campspace n'en accepte qu'un seul : <strong>15 €</strong>, la valeur qui ne sous-facture jamais.</p>
+
+<h3>Le simulateur — l'écart de dégressivité, en vrai</h3>
+<p>Les deux réglages sont positionnés sur ce que tu as tranché — plafond à 3 nuits, supplément à 15 €.
+Bouge-les pour revoir ce que les autres options auraient donné. La ligne rouge apparaît quand le net tombe
+sous la cible de la recette.</p>
+
+<div class="card">
+<div class="ctl">
+  <div class="g"><label>Saison</label>
+    <div class="seg" id="segSaison">
+      <button data-v="low" aria-pressed="false">Basse</button>
+      <button data-v="mid" aria-pressed="false">Moyenne</button>
+      <button data-v="high" aria-pressed="true">Haute</button>
+    </div>
+  </div>
+  <div class="g"><label>Nuits : <strong id="lblN">3</strong></label>
+    <input type="range" id="rgN" min="1" max="10" value="3" style="width:190px">
+  </div>
+  <div class="g"><label>Personnes : <strong id="lblP">2</strong></label>
+    <input type="range" id="rgP" min="1" max="5" value="2" style="width:150px">
+  </div>
+  <div class="g"><label>Supplément / personne / nuit</label>
+    <div class="seg" id="segSup">
+      <button data-v="15" aria-pressed="true">15 €</button>
+      <button data-v="8" aria-pressed="false">8 €</button>
+    </div>
+  </div>
+  <div class="g"><label>Plafond de nuits sur Campspace</label>
+    <div class="seg" id="segCap">
+      <button data-v="3" aria-pressed="true">3 nuits</button>
+      <button data-v="30" aria-pressed="false">30 nuits</button>
+    </div>
+  </div>
+</div>
+
+<div id="capWarn" class="alert" style="display:none"><strong>Séjour refusé sur Campspace</strong> — au-delà du
+plafond que tu as choisi, la réservation part en direct ou sur un autre canal.</div>
+
+<div id="res">
+  <div class="sl"><div class="l"><span>Le client paie sur Campspace</span><span class="s" id="sCamp"></span></div><span class="big" id="vCamp"></span></div>
+  <div class="sl"><div class="l"><span>Le même séjour en direct</span><span class="s" id="sDir"></span></div><span class="amt" id="vDir"></span></div>
+  <div class="sl"><div class="l"><span>Écart pour le client</span><span class="s">Campspace doit rester plus cher que le direct, jamais moins</span></div><span class="amt" id="vEcart"></span></div>
+  <div class="sl"><div class="l"><span>Tu encaisses, Campspace</span><span class="s">prix hôte − 6 % de commission</span></div><span class="amt" id="vNet"></span></div>
+  <div class="sl"><div class="l"><span>Cible nette de la recette</span><span class="s" id="sCible"></span></div><span class="amt" id="vCible"></span></div>
+</div>
+</div>
+
+<div class="note" id="lecture"></div>
+
+<h2>5. Les périodes à créer</h2>
+<p>La recette dépliée par <code>seasonPlan.buildHorizonPlan</code> donne, sur la fenêtre réservable
+(aujourd'hui → 17/09/2027, plafond de 360 jours), <strong>14 périodes</strong>. Hors de ces périodes,
+aucun tarif n'existe : Campspace rend alors l'emplacement indisponible — c'est ce qui ferme l'hiver
+structurellement, sans dépendre d'un blocage manuel.</p>
+<table>
+<thead><tr><th>Période</th><th>Saison</th><th class="num">Prix hôte</th><th>Minimum</th><th>Pourquoi</th></tr></thead>
+<tbody>
+<tr><td>23/09 → 14/10/2026</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td>fin de saison 2026</td></tr>
+<tr><td colspan="5" style="background:rgba(163,58,42,.08)"><strong>15/10/2026 → 31/03/2027 — fermeture hivernale, aucune période, donc invendable</strong></td></tr>
+<tr><td>01/04 → 30/04/2027</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td>ouverture 2027</td></tr>
+<tr><td>01/05/2027</td><td>Moyenne</td><td class="num">208 €</td><td>1 nuit</td><td>1<sup>er</sup> mai</td></tr>
+<tr><td>02/05 → 05/05/2027</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td></td></tr>
+<tr><td>06/05 → 08/05/2027</td><td>Moyenne</td><td class="num">208 €</td><td><strong>3 nuits</strong></td><td>pont du 8 mai</td></tr>
+<tr><td>09/05 → 14/05/2027</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td></td></tr>
+<tr><td>15/05 → 16/05/2027</td><td>Moyenne</td><td class="num">208 €</td><td><strong>2 nuits</strong></td><td>Ascension</td></tr>
+<tr><td>17/05 → 06/06/2027</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td></td></tr>
+<tr><td>07/06 → 12/06/2027</td><td>Haute</td><td class="num">240 €</td><td>1 nuit</td><td><strong>L'Ardéchoise</strong></td></tr>
+<tr><td>13/06 → 02/07/2027</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td></td></tr>
+<tr><td>03/07 → 09/07/2027</td><td>Moyenne</td><td class="num">208 €</td><td>1 nuit</td><td>épaule de juillet</td></tr>
+<tr><td>10/07 → 20/08/2027</td><td>Haute</td><td class="num">240 €</td><td>1 nuit</td><td>cœur d'été</td></tr>
+<tr><td>21/08 → 27/08/2027</td><td>Moyenne</td><td class="num">208 €</td><td>1 nuit</td><td>épaule d'août</td></tr>
+<tr><td>28/08 → 17/09/2027</td><td>Basse</td><td class="num">171 €</td><td>1 nuit</td><td>jusqu'au plafond de réservation</td></tr>
+</tbody>
+</table>
+<p class="muted"><strong>Chaque période porte un maximum de 3 nuits</strong>, conformément à l'arbitrage du 23/09.
+Le prix de base actuel (160 €, valable partout) est supprimé : c'est lui qui ouvre l'hiver.
+Si Campspace refuse un emplacement sans prix de base, je bascule sur un blocage calendrier de la
+fermeture — et je le vérifie par devis dans les deux cas.</p>
+
+<h2>6. L'annonce</h2>
+<p>La fiche actuelle décrit un emplacement de camping : « on y accède par un chemin de terre », « à une
+trentaine de mètres, les sanitaires du domaine, avec douche et WC ». <strong>C'est faux pour L'Estiva</strong>,
+qui a sa propre salle d'eau et ses toilettes ouvrant sur la terrasse. Tout est réécrit à partir de la page
+<code>domainesolio.com/estiva/</code>, qui est la référence éditoriale, et adapté au public de Campspace :
+des campeurs qui cherchent un petit lieu chez l'habitant, pas un village vacances.</p>
+
+<h3>Titre — 80 caractères maximum</h3>
+<div class="copy" id="t1">L'Estiva, une tente safari pour vous seuls au coeur des 13 ha du domaine.</div>
+<div class="cnt">73 / 80 caractères · <strong>écrit par Adrien, en ligne depuis le 23/09/2026</strong></div>
+<p class="muted" style="margin-top:10px">Les quatre titres que j'avais proposés le 23/09 ont tous été écartés :
+Adrien a écrit le sien, qui garde les 13 hectares mais dit « au cœur du domaine » plutôt que « de prés et
+d'animaux ». Il est en ligne tel quel — noter qu'il porte « coeur » sans ligature ; un mot et je passe à « cœur ».</p>
+<p class="muted">Le titre d'origine était « Campspace in Satillieu, Auvergne-Rhône-Alpes » — c'est-à-dire le gabarit
+par défaut, jamais renseigné. Les concurrents de la région mènent tous avec le type d'abri ; mener avec
+13 hectares et des animaux qu'on peut nommer est le flanc ouvert.</p>
+
+<h3>Description du domaine</h3>
+<div class="copy">Treize hectares de prés, de haies et de sous-bois, et une seule tente posée dedans. Pas de rangées d'emplacements, pas de voisin : la première maison est à plus de cent mètres, et vos seuls voisins sont les chèvres et les moutons qui broutent au pied de la terrasse, sous l'œil des ânes.
+
+Ici on vient pour décrocher. Il n'y a pas de wifi — c'est un choix — et pas de pollution lumineuse : la nuit, la voie lactée est au-dessus du pré.
+
+Sur le domaine, à quelques pas de la tente :
+· un bain nordique chauffé au bois, privatisé — une heure vous est offerte à chaque séjour
+· une piscine extérieure partagée, non chauffée, de mi-juin à fin août
+· un parcours nature de 2 km à travers prés et sous-bois
+· les ânes, les chèvres, les moutons et les poules, qu'on peut approcher
+
+Autour : la gastronomie et les producteurs ardéchois, le safari de Peaugres à 20 minutes, et les routes de l'Ardéchoise pour ceux qui viennent à vélo ou à moto.
+
+Nous sommes Sophie et Adrien, nous accueillons ici depuis 2019.</div>
+
+<h3>Description de l'emplacement — 1 500 caractères maximum</h3>
+<div class="copy">Le confort d'une chambre d'hôtel, les sensations du camping.
+
+L'Estiva est une tente safari perchée à 2,50 m du sol, au bout du pré, dans l'enclos des chèvres et des moutons. Sous la toile, 24 m² : deux vraies chambres — un lit double et trois lits simples —, des lits faits à votre arrivée, une kitchenette (plaque, micro-ondes, réfrigérateur, cafetière), l'eau chaude et l'électricité. La salle d'eau et les toilettes sont à vous seuls : elles ouvrent directement sur la terrasse.
+
+Dehors, 50 m² de terrasse en bois face au soleil couchant, deux transats sous l'auvent, et la vallée en contrebas. On y vit dedans-dehors du matin au soir.
+
+Le linge de lit et le ménage de fin de séjour sont compris dans le prix.
+Tout est clôturé : les enfants explorent librement.
+
+On se gare gratuitement sur le domaine, puis on marche 300 mètres jusqu'à la tente, ce petit détour à pied fait partie de l'arrivée et permet de rencontrer les animaux. L'accès n'est pas adapté aux personnes à mobilité réduite.
+
+La tente se loue d'avril à mi-octobre. Hors saison, les nuits ardéchoises sont trop fraîches sous la toile.</div>
+<div class="cnt">1103 / 1 500 caractères</div>
+
+<h3>« Parfait pour… » — 200 caractères maximum</h3>
+<div class="copy">Familles avec enfants, couples en quête de calme, amoureux des animaux, cyclistes et motards, randonneurs.</div>
+<div class="cnt">106 / 200 caractères</div>
+
+<h3>Taille de la propriété</h3>
+<p>Le champ est vide et se saisit en mètres carrés : <strong>130 000</strong> (13 ha). C'est le chiffre
+qu'aucun concurrent de la région ne peut afficher.</p>
+
+<h3>Équipements — ce qui est déclaré aujourd'hui, ce qui devrait l'être</h3>
+<p>Deux équipements sur vingt-huit sont à « oui » : eau potable et eau chaude. Tout le reste est à « non »,
+y compris ce qui existe vraiment :</p>
+<p>
+<span class="pill on">Eau potable</span><span class="pill on">Eau chaude</span>
+<span class="pill off">Frigo</span><span class="pill off">Cuisine</span><span class="pill off">Machine à café</span>
+<span class="pill off">Table à manger</span><span class="pill off">Ustensiles</span><span class="pill off">Vaisselle</span>
+<span class="pill off">Barbecue</span>
+</p>
+<p class="muted">Les pastilles barrées sont déclarées « non » alors que la kitchenette les contient. Je reprends
+les trois écrans d'équipements en entier — sanitaires, électricité, parking, chauffage, familles, confort,
+vue — et je les aligne sur la liste d'équipements de la page Estiva du site. Le détail écran par écran
+arrive au moment de l'application ; c'est du remplissage, pas un arbitrage.</p>
+
+<h3>Arrivée, départ, règles</h3>
+<table>
+<thead><tr><th>Réglage</th><th>Aujourd'hui</th><th>Proposé</th></tr></thead>
+<tbody>
+<tr><td>Arrivée</td><td>14h00 – 20h00</td><td><strong>16h00 – 19h00</strong></td></tr>
+<tr><td>Départ</td><td>09h00 – 12h00</td><td><strong>avant 10h00</strong></td></tr>
+<tr><td>Chiens</td><td>non acceptés</td><td>inchangé <span class="okk">✓</span></td></tr>
+<tr><td>Personnes incluses dans le prix</td><td class="ko">1</td><td><strong>2</strong></td></tr>
+<tr><td>Nombre de lits</td><td class="ko">vide</td><td>4 lits, 5 couchages</td></tr>
+<tr><td>Surface de l'emplacement</td><td class="ko">vide</td><td>24 m² sous la toile</td></tr>
+<tr><td>Nature du sol</td><td class="ko">vide</td><td>Bois, Herbe</td></tr>
+<tr><td>Instructions d'arrivée</td><td class="ko">vide</td><td>parking, 300 m à pied, téléphone du jour J</td></tr>
+<tr><td>Téléphone de contact</td><td class="ko">vide</td><td>à renseigner</td></tr>
+</tbody>
+</table>
+
+<h3>Photos</h3>
+<p>Avant : trois photos, toutes déposées le 12/12/2025, toutes dans la catégorie « Tente équipée » — un
+chemin d'herbe en couverture, la tente, et un <em>plan d'architecte</em>. Les cinq autres catégories
+étaient vides. Après : <strong>23 photos</strong>, réparties dans les six catégories, les trois anciennes
+supprimées à ta demande.</p>
+<table>
+<thead><tr><th>Catégorie</th><th>Nb</th><th>Contenu</th></tr></thead>
+<tbody>
+<tr><td>Tente équipée</td><td>11</td><td>la tente sur pilotis (couverture), la vue aérienne, la terrasse et la vallée, les transats, la vue depuis la tente, les deux chambres, la kitchenette, la douche, les toilettes, la toile-lanterne</td></tr>
+<tr><td>Espace commun</td><td>1</td><td>la tente éclairée de nuit</td></tr>
+<tr><td>Équipements</td><td>3</td><td>le bain nordique au couchant et de nuit, la piscine</td></tr>
+<tr><td>Biodiversité</td><td>5</td><td>les chèvres, la chèvre naine, les ânes, les agneaux, le ciel sans pollution lumineuse</td></tr>
+<tr><td>Activités</td><td>2</td><td>le chemin d'accès, le lever de soleil derrière L'Estiva</td></tr>
+<tr><td>Activités durables</td><td>1</td><td>les ruches</td></tr>
+</tbody>
+</table>
+<p><strong>Un piège payé ici :</strong> le téléverseur monte les fichiers <em>en parallèle</em>, donc les
+identifiants ne suivent pas l'ordre des fichiers. Les 23 photos sont bien arrivées dans la bonne
+catégorie, mais l'ordre interne était brouillé — la vue aérienne était passée en couverture. Vérifié
+photo par photo en comparant chaque image publiée à son fichier source, puis remis dans l'ordre et
+recontrôlé sur la fiche publique : les 23 y sont, dans l'ordre voulu, la tente sur pilotis en tête.</p>
+
+<h2>7. Le branchement dans GuestFlow</h2>
+<p>Aucun code à écrire : <code>specs/platforms-and-ical-rework.md</code> §3 règle 4 prévoit déjà
+« Ajouter une plateforme », qui inscrit le canal dans le registre et le fait apparaître dans toutes les
+listes déroulantes.</p>
+<table>
+<thead><tr><th>Où</th><th>Quoi</th></tr></thead>
+<tbody>
+<tr><td>Fiche L'Estiva → Plateformes &amp; iCal</td><td>Ajouter la plateforme <strong>Campspace</strong>, couleur dédiée</td></tr>
+<tr><td>URL iCal (import)</td><td>L'export Campspace de l'emplacement <code>#pt027908</code> — en <code>https://</code>, pas <code>webcal://</code></td></tr>
+<tr><td>« Taxe collectée »</td><td><strong>Off</strong> — Campspace n'a aucun mécanisme de taxe de séjour, c'est nous qui la percevons</td></tr>
+<tr><td>Réglages → Plateformes</td><td>Commission <strong>6 %</strong> · versement ≈ 15 j après l'arrivée · pas de caution prise par la plateforme</td></tr>
+<tr><td>Côté Campspace</td><td>Remplacer l'import mort « Lodgify » par l'export iCal GuestFlow de L'Estiva</td></tr>
+</tbody>
+</table>
+<div class="good"><strong>L'iCal se branche dans les deux sens, et en premier.</strong> Tant qu'il ne tourne
+pas, la réservation instantanée peut vendre une nuit déjà vendue ailleurs.</div>
+
+<h2>8. Ce que tu as tranché — 23/09/2026</h2>
+<table>
+<thead><tr><th>Arbitrage</th><th>Décision</th><th>Conséquence</th></tr></thead>
+<tbody>
+<tr><td>Plafond de nuits</td><td><strong>3 nuits maximum</strong></td><td>Campspace devient un canal de courts séjours ; au-delà, la réservation part en direct, où la dégressivité s'applique.</td></tr>
+<tr><td>Supplément par personne</td><td><strong>15 € / nuit / personne</strong> au-delà de 2</td><td>Ne sous-facture jamais la cible nette. Sur-facture d'au plus 14 € par personne sur un séjour de 3 nuits.</td></tr>
+<tr><td>Bain nordique</td><td><strong>Offert, 1 h par séjour</strong></td><td>Annoncé comme inclus dans la description, aucun produit payant créé. <span class="ko">La page Estiva du site dit l'inverse et devra être corrigée.</span></td></tr>
+<tr><td>Titre</td><td><strong>« pour vous seuls »</strong></td><td>76 / 80 caractères.</td></tr>
+</tbody>
+</table>
+<div class="good"><strong>Ordre d'application.</strong> L'iCal d'abord, dans les deux sens — c'est lui qui
+ferme le risque de surbooking. Puis la fiche et les équipements, puis la grille. Et enfin la vérification
+par devis client, les mêmes cas que ceux du §1, pour prouver que chaque règle est bien arrivée en ligne.</div>
+
+<h2>9. Appliqué le 23/09/2026 — et vérifié</h2>
+
+<h3>Ce qui a changé sur Campspace</h3>
+<table>
+<thead><tr><th>Écran</th><th>Avant</th><th>Après</th></tr></thead>
+<tbody>
+<tr><td>Calendriers externes</td><td class="ko">import « Lodgify » pointant sur l'URL modèle, désactivé depuis le 16/12/2025</td><td class="okk">import « GuestFlow — L'Estiva », synchronisé le 23/09/2026 à 12:21</td></tr>
+<tr><td>Titre</td><td class="ko">« Campspace in Satillieu, Auvergne-Rhône-Alpes »</td><td class="okk">« L'Estiva, une tente safari pour vous seuls au coeur des 13 ha du domaine. »</td></tr>
+<tr><td>Description du domaine</td><td>texte de jardin générique</td><td class="okk">réécrite : 13 ha, pas de wifi assumé, bain nordique offert, piscine, animaux, chiens refusés</td></tr>
+<tr><td>Description de l'emplacement</td><td class="ko">« les sanitaires du domaine, à une trentaine de mètres » — faux</td><td class="okk">salle d'eau et toilettes privées sur la terrasse, 24 m², 2 chambres, linge et ménage inclus</td></tr>
+<tr><td>Taille de la propriété</td><td class="ko">vide</td><td class="okk">130 000 m²</td></tr>
+<tr><td>« Parfait pour… »</td><td class="ko">vide</td><td class="okk">familles, couples, amoureux des animaux, Ardéchoise, randonneurs</td></tr>
+<tr><td>Nom de l'emplacement</td><td>« Tente équipée pour 5 personnes »</td><td class="okk">« L'Estiva — tente safari perchée, 2 chambres, salle d'eau privée »</td></tr>
+<tr><td>Personnes incluses dans le prix</td><td class="ko">1</td><td class="okk">2</td></tr>
+<tr><td>Lits / surface / sol</td><td class="ko">vides</td><td class="okk">4 lits · 24 m² · bois et herbe</td></tr>
+<tr><td>Maximum de nuits</td><td class="ko">30</td><td class="okk">3</td></tr>
+<tr><td>Arrivée / départ</td><td class="ko">14h–20h / 9h–12h</td><td class="okk">16h–19h / 8h–10h, + règles, instructions d'arrivée et téléphone</td></tr>
+<tr><td>Équipements</td><td class="ko">2 déclarés sur 67</td><td class="okk">31 déclarés, sur 9 catégories — serviettes de bain et bouilloire ajoutées après ta relecture</td></tr>
+<tr><td>Prix</td><td class="ko">160 € à plat, 365 jours</td><td class="okk">14 périodes datées à 171 / 208 / 240 €, supplément 15 €/personne/nuit</td></tr>
+<tr><td>Prix de base</td><td class="ko">160 € valable partout, y compris l'hiver</td><td class="okk">supprimé — hors période, l'emplacement est invendable</td></tr>
+</tbody>
+</table>
+
+<h3>Et dans GuestFlow</h3>
+<table>
+<tbody>
+<tr><td>Plateforme <strong>Campspace</strong> créée</td><td>visible dans toutes les listes déroulantes et sur le calendrier</td></tr>
+<tr><td>Commission <strong>6 %</strong></td><td>la grille « Prix plateformes » calcule alors 171 / 208 / 240 € et « 15 € puis 8 € » — le même résultat que ma dérivation, obtenu indépendamment</td></tr>
+<tr><td>URL iCal</td><td>le flux d'export Campspace de l'emplacement, synchronisé</td></tr>
+<tr><td>Taxe de séjour</td><td><strong>À l'arrivée</strong> — Campspace n'a aucun mécanisme de taxe de séjour</td></tr>
+<tr><td>Acompte</td><td>Non — le client paie l'intégralité à Campspace</td></tr>
+<tr><td>Virement reçu sous</td><td>15 jours</td></tr>
+<tr><td>Compte comptable de commission</td><td><strong>62260700</strong> — le suivant de la série, après Airbnb (62260300) et GreenGo (62260600). « TVA déductible » laissée décochée : Campspace est néerlandais, la commission relève de l'autoliquidation.</td></tr>
+</tbody>
+</table>
+
+<h3>La preuve : 17 devis client, tirés depuis l'extérieur</h3>
+<p>Chaque ligne compare ce que le calcul prévoit à ce que la page publique affiche réellement.
+Formule Campspace : <code>(prix hôte + 15 € × personnes au-delà de 2) × nuits × 1,17 + 3 €</code>.</p>
+<table>
+<thead><tr><th>Séjour</th><th class="num">Attendu</th><th class="num">Observé</th><th class="num">Ton net</th><th class="num">Cible</th></tr></thead>
+<tbody>
+<tr><td>Basse — 1 nuit, 2 pers.</td><td class="num">203,07 €</td><td class="num okk">203,07 €</td><td class="num">160,74 €</td><td class="num">160 €</td></tr>
+<tr><td>Basse — 2 nuits</td><td class="num">403,14 €</td><td class="num okk">403,14 €</td><td class="num">321,48 €</td><td class="num">320 €</td></tr>
+<tr><td>Basse — 3 nuits</td><td class="num">603,21 €</td><td class="num okk">603,21 €</td><td class="num">482,22 €</td><td class="num">480 €</td></tr>
+<tr><td>Moyenne — 2 nuits</td><td class="num">489,72 €</td><td class="num okk">489,72 €</td><td class="num">391,04 €</td><td class="num">390 €</td></tr>
+<tr><td>Haute — 1 nuit</td><td class="num">283,80 €</td><td class="num okk">283,80 €</td><td class="num">225,60 €</td><td class="num">225 €</td></tr>
+<tr><td>Haute — 3 nuits</td><td class="num">845,40 €</td><td class="num okk">845,40 €</td><td class="num">676,80 €</td><td class="num">675 €</td></tr>
+<tr><td>Haute — 1 nuit, <strong>5 personnes</strong></td><td class="num">336,45 €</td><td class="num okk">336,45 €</td><td class="num">267,90 €</td><td class="num">267 €</td></tr>
+<tr><td><strong>Ardéchoise</strong> — 2 nuits</td><td class="num">564,60 €</td><td class="num okk">564,60 €</td><td class="num">451,20 €</td><td class="num">450 €</td></tr>
+<tr><td>Lendemain de l'Ardéchoise</td><td class="num">203,07 €</td><td class="num okk">203,07 €</td><td class="num">160,74 €</td><td class="num">160 €</td></tr>
+<tr><td>Pont du 8 mai — 3 nuits</td><td class="num">733,08 €</td><td class="num okk">733,08 €</td><td class="num">586,56 €</td><td class="num">585 €</td></tr>
+<tr><td>Ascension — 2 nuits</td><td class="num">489,72 €</td><td class="num okk">489,72 €</td><td class="num">391,04 €</td><td class="num">390 €</td></tr>
+<tr><td>Pont du 8 mai — <strong>2 nuits</strong> (minimum 3)</td><td class="num">refusé</td><td class="num okk">refusé</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td><strong>4 nuits</strong> (plafond 3)</td><td class="num">refusé</td><td class="num okk">refusé</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td>20/10/2026 — fermeture hivernale</td><td class="num">indisponible</td><td class="num okk">indisponible</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td>10/02/2027 — fermeture hivernale</td><td class="num">indisponible</td><td class="num okk">indisponible</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td>20/03/2027 — fermeture hivernale</td><td class="num">indisponible</td><td class="num okk">indisponible</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td><strong>07–09/08/2027</strong> — réservation Booking existante</td><td class="num">indisponible</td><td class="num okk">indisponible</td><td class="num">—</td><td class="num">—</td></tr>
+</tbody>
+</table>
+<p class="muted">Les deux dernières colonnes reprennent la cible nette de la recette, remise de durée non
+comprise puisque Campspace n'en applique aucune. Le net dépasse la cible partout, de quelques dizaines
+de centimes — c'est l'arrondi à l'euro supérieur.</p>
+
+<div class="good">
+<strong>Le surbooking est fermé, et c'est mesuré sur une vraie réservation.</strong> La dernière ligne
+n'est pas un cas construit : c'est la réservation <strong>Booking #22270, du 07 au 13 août 2027</strong>,
+partie de GuestFlow, arrivée dans Campspace par l'iCal, et qui rend ces nuits invendables. C'est
+exactement ce que l'import mort empêchait depuis neuf mois.
+</div>
+
+<h2>10. Hors périmètre, et ce qui reste ouvert</h2>
+<ul class="tight">
+<li>Je ne touche ni à la recette <code>aventura-lodge-2026</code>, ni aux autres canaux.</li>
+<li>La fiche est restée ouverte et en réservation instantanée pendant tout le chantier, comme tu l'as demandé. Aucune réservation n'est tombée.</li>
+<li><strong>Un seul équipement reste à « non » faute de certitude</strong> : la cuisinière à gaz — le site dit « plaque » sans préciser. Les serviettes de bain et la bouilloire sont passées à « oui » sur ta confirmation.</li>
+<li><strong>Photos : 23 publiées le 23/09/2026</strong>, après ta validation. Puisées dans <code>PrisedevueThibault</code>, <code>Aventura Lodge</code> et — pour le bain nordique, la piscine et les animaux, que l'annonce promet — <code>Domaine</code> et <code>Animaux</code>. Écartées d'office : les photos avec un emoji posé sur un visage, celles d'hiver sous la neige alors que la tente se loue d'avril à mi-octobre, et celle des toilettes où quelqu'un est penché sur la cuvette. Retirées sur ta relecture : le brasero, le couple devant la tente, le petit-déjeuner sur la terrasse et l'arbre sur la vallée.</li>
+
+<li><strong>Coordonnées bancaires et DAC7 absentes côté Campspace.</strong> L'écran « Mes coordonnées bancaires » ne montre que la catégorie d'hôte, et « Taxes » affiche « Rien ici ». À vérifier avant la première vraie réservation, sinon le versement risque de bloquer.</li>
+<li><strong>Dans GuestFlow, L'Estiva a l'interrupteur « Wifi dans le logement » activé</strong>, alors que le site et l'annonce Campspace assument qu'il n'y en a pas. Ça alimente les mails clients — je ne l'ai pas touché, mais ça mérite un coup d'œil.</li>
+<li>Je ne crée aucun produit payant : le bain nordique est annoncé offert, la plancha aussi à partir de 2 nuits.</li>
+<li><strong>À corriger ailleurs, deux écarts sur <code>domainesolio.com/estiva/</code> :</strong>
+la page annonce « ouvert de mai à septembre » alors que la recette ouvre du 1<sup>er</sup> avril au
+14 octobre, et elle vend le bain nordique « à partir de 30 € l'heure » alors qu'il est désormais offert
+une heure par séjour. Hors de ce chantier, mais à ne pas laisser traîner : c'est la page publique.</li>
+</ul>
+
+</div>
+<script>
+(function(){
+  var S={low:{d:179,net:160,c:171,l:"Basse"},mid:{d:216,net:195,c:208,l:"Moyenne"},high:{d:247,net:225,c:240,l:"Haute"}};
+  var DISC={1:0,2:24,3:33,4:38,5:41,6:43,7:45};
+  var st={s:"high",n:3,p:2,sup:15,cap:3};
+  function pct(n){ return DISC[Math.min(n,7)]||0; }
+  function eur(v){ return v.toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €"; }
+  function seg(id,key,cast){
+    var box=document.getElementById(id);
+    box.addEventListener("click",function(e){
+      var b=e.target.closest("button"); if(!b) return;
+      [].forEach.call(box.querySelectorAll("button"),function(x){x.setAttribute("aria-pressed",String(x===b));});
+      st[key]=cast(b.dataset.v); render();
+    });
+  }
+  seg("segSaison","s",String); seg("segSup","sup",Number); seg("segCap","cap",Number);
+  document.getElementById("rgN").addEventListener("input",function(e){st.n=+e.target.value;render();});
+  document.getElementById("rgP").addEventListener("input",function(e){st.p=+e.target.value;render();});
+
+  function render(){
+    var s=S[st.s], n=st.n, extra=Math.max(0,st.p-2), d=pct(n)/100;
+    document.getElementById("lblN").textContent=n;
+    document.getElementById("lblP").textContent=st.p;
+
+    // Direct : prix recette, degressivite appliquee aussi au supplement voyageur (fondu dans la nuitee)
+    var gDir=0; for(var i=1;i<=n;i++){ gDir += (i===1?15:8); }
+    var dirTotal=(s.d*n + extra*gDir)*(1-d);
+
+    // Campspace : aucune degressivite, supplement plat
+    var campHost=(s.c + st.sup*extra)*n;
+    var campGuest=campHost*1.17+3;
+    var campNet=campHost*0.94;
+
+    // Cible nette de la recette pour CE sejour : la degressivite s'applique partout
+    var gNet=0; for(var j=1;j<=n;j++){ gNet += (j===1?14:7); }
+    var cible=(s.net*n + extra*gNet)*(1-d);
+
+    var over=n>st.cap;
+    document.getElementById("capWarn").style.display=over?"block":"none";
+    document.getElementById("res").style.opacity=over?.4:1;
+
+    document.getElementById("vCamp").textContent=eur(campGuest);
+    document.getElementById("sCamp").textContent=n+" nuit"+(n>1?"s":"")+" × "+s.c+" €"+(extra?" + "+extra+" pers. × "+st.sup+" €":"")+" , +17 % et +3 €";
+    document.getElementById("vDir").textContent=eur(dirTotal);
+    document.getElementById("sDir").textContent=s.l.toLowerCase()+" saison, "+s.d+" €/nuit, remise durée −"+pct(n)+" %";
+
+    var ec=campGuest-dirTotal, pc=dirTotal?(ec/dirTotal*100):0;
+    var e=document.getElementById("vEcart");
+    e.textContent=(ec>=0?"+":"")+eur(ec)+"  ("+(pc>=0?"+":"")+pc.toFixed(0)+" %)";
+    e.className="amt "+(ec<0?"ko":(pc>60?"ko":"okk"));
+
+    document.getElementById("vNet").textContent=eur(campNet);
+    document.getElementById("vCible").textContent=eur(cible);
+    document.getElementById("sCible").textContent="cible "+s.net+" €/nuit, remise durée −"+pct(n)+" % comprise";
+    document.getElementById("vNet").className="amt "+(campNet+0.005<cible?"ko":"okk");
+
+    var L=document.getElementById("lecture");
+    if(over){
+      L.innerHTML="<strong>Ce séjour ne se vendrait pas sur Campspace.</strong> Avec un plafond à "+st.cap+
+        " nuits, il bascule en direct — où la dégressivité s'applique, et où tu gardes la marge entière.";
+    } else if(pc>60){
+      L.innerHTML="<strong>Campspace est "+pc.toFixed(0)+" % plus cher que le direct pour ce séjour.</strong> "+
+        "C'est la dégressivité absente qui creuse l'écart : elle vaut −"+pct(n)+" % en direct et 0 % ici. "+
+        "Un client qui compare les deux ne réservera pas ici.";
+    } else if(campNet+0.005<cible){
+      L.innerHTML="<strong>Tu passes sous la cible nette de la recette</strong> de "+eur(cible-campNet)+
+        " sur ce séjour. C'est le supplément par personne à "+st.sup+" € qui ne suffit pas.";
+    } else {
+      L.innerHTML="<strong>Cohérent.</strong> Le net dépasse la cible, et le client paie "+pc.toFixed(0)+
+        " % de plus qu'en direct — assez pour que le direct reste le canal le moins cher, pas assez pour être dissuasif.";
+    }
+  }
+  render();
+})();
+</script>
+</html>
