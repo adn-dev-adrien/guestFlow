@@ -151,17 +151,23 @@ CTA); the only addition is the `tabs` prop described above.
 ### Server unit tests
 None — no server-side logic (CLAUDE.md §9 "tests not required for pure styling changes").
 
-### Client unit tests (Vitest) — 7 new tests, suite green at 1311
+### Client unit tests (Vitest) — 13 new tests, suite green at 1317
 - [x] `components/__tests__/PageTabs.render.test.jsx` — renders one `role="tab"` per item, marks the active
       one `aria-selected`, fires `onChange` with the clicked value, renders the badge node, keeps the
-      label as the accessible name (rules 1, 5, 8).
+      label, and scrolls its overflow instead of wrapping (rules 7, 8).
 - [x] `components/__tests__/PageActionBar.tabs.test.jsx` — with `tabs`, the node is rendered and the title
       is present even when `titleOnXs` was not passed (rules 2, 3).
+- [x] `components/__tests__/PageTabs.styling.test.jsx` — a RAW `<Tabs>` under the theme already carries
+      sentence case, 44 px and 0.9rem (rule 9 proving rules 5-6), the active tab is heavier, and the
+      `card` variant carries its divider + gap while the `bar` variant adds none (rule 4).
+- [x] `components/__tests__/PageTabs.single-source.test.jsx` — no file under `client/src` outside
+      `PageTabs.jsx` draws its own `<Tabs>`/`<Tab>` (rule 1). This guard IS the rule: it fails the day a
+      page reaches for MUI's tabs again.
 
 ### E2E (Playwright) — 2 new tests, suite green at 84 passed / 1 skipped
 - [x] `e2e/specs/mobile/page-tabs.spec.js` — at 390 px on `/parametres/options-ressources`: the page title
-      is visible, the tabs come **after** the title in the DOM, switching tab keeps both visible, and the
-      document has no horizontal overflow (guards the defect of §1).
+      is visible, the tabs come **after** the title in the DOM, switching tab keeps both visible, `?tab=`
+      still drives the selection (rule 10), and the document has no horizontal overflow (guards §1).
 - [x] Full suite re-run: no selector moved (CSS casing does not change an accessible name).
 
 ### Manual UI verification (done 2026-09-23, screenshots at 1400 px and 390 px)

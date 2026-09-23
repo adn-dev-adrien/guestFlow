@@ -2,6 +2,8 @@
 // specs/ds-tabs.md rules 2-3 — on a phone the tabs are the SECOND ROW of the page's sticky bar,
 // under a title that stays visible. Before this spec, the tab wrappers drew their strip ABOVE the
 // bar and the page showed no title at all.
+// Also rule 10: nothing about the tabs' content moved — same labels, and `?tab=` still drives the
+// selection, so every existing link keeps landing on the tab it named.
 import { test, expect } from '@playwright/test';
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -31,6 +33,7 @@ test('switching tab on a phone keeps the title + tabs in the same block', async 
   await page.goto('/parametres/options-ressources');
   await expect(page.getByRole('heading', { name: 'Options de séjour' })).toBeVisible({ timeout: 10_000 });
 
+  // rule 10 — the tab still lives in the URL, under its original name.
   await page.getByRole('tab', { name: 'Ressources' }).click();
   await expect(page).toHaveURL(/tab=resources/);
 

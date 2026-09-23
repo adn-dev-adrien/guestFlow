@@ -1,5 +1,6 @@
-// specs/ds-tabs.md — PageTabs is the single tab component: one role="tab" per item, the active one
-// marked, onChange called with the VALUE (not the event), and an optional badge after the label.
+// specs/ds-tabs.md rules 7-8 — what a strip does once it is drawn: one role="tab" per item, the
+// active one marked, onChange called with the VALUE (not the event), an optional badge riding after
+// the label (rule 8), and an overflow that SCROLLS instead of wrapping or truncating (rule 7).
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,6 +41,14 @@ test('a badge rides along with its label (the property « modifié » dot)', () 
   expect(tab).toBeInTheDocument();
   expect(tab.querySelector('[aria-label="modifié"]')).not.toBeNull();
   expect(screen.getByRole('tab', { name: 'Tarifs' }).querySelector('[aria-label="modifié"]')).toBeNull();
+});
+
+test('rule 7 — the strip scrolls its overflow (never wraps, never truncates)', () => {
+  const many = Array.from({ length: 8 }, (_, i) => ({ value: `t${i}`, label: `Onglet ${i}` }));
+  const { container } = render(<PageTabs value="t0" onChange={() => {}} items={many} />);
+  const scroller = container.querySelector('.MuiTabs-scroller');
+  expect(scroller.className).toMatch(/MuiTabs-scrollableX/);
+  expect(screen.getAllByRole('tab')).toHaveLength(8);
 });
 
 test('labels are rendered in their own casing (no uppercase transform in the markup)', () => {
