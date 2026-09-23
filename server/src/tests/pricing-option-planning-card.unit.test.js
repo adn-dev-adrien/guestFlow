@@ -99,9 +99,21 @@ test('3 slots/day × 3 days × 4 guests = 36 (per-person)', () => {
   db.close();
 });
 
-test('no selected occurrences → no line, no charge', () => {
+// specs/unscheduled-card-option.md rules 1 + 5 — an empty grid means « not placed yet », never « not
+// sold ». Switching the option off (quantity 0) is the one gesture that removes it.
+test('no selected occurrences → the line survives, « à planifier »', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, selectedOptions: [{ optionId: 20, quantity: 1, cardOccurrences: [] }] });
+  const line = q.optionLines.find((l) => l.optionId === 20);
+  assert.ok(line);
+  assert.equal(line.toBeScheduled, true);
+  assert.equal(line.billedUnits, 1);
+  db.close();
+});
+
+test('switching the option off (quantity 0) → no line, no charge', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({ ...BASE, db, selectedOptions: [{ optionId: 20, quantity: 0, cardOccurrences: [] }] });
   assert.equal(q.optionLines.find((l) => l.optionId === 20), undefined);
   assert.equal(q.finalPrice, 300);
   db.close();

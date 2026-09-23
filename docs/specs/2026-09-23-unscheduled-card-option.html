@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Une option payée ne s'efface plus</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1000px;margin:0 auto;padding:28px 16px 80px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:40px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 12.5px/1.3 var(--sans);margin:0 0 10px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:5px 0}
+.muted{color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0 0}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--lichen);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+/* contrôles */
+.ctl{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.ctl .g{display:flex;flex-direction:column;gap:5px}
+.ctl label{font-size:12px;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--fieldline);border-radius:8px;overflow:hidden}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-size:13.5px;padding:9px 13px;cursor:pointer;min-height:44px}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+/* panneaux */
+.panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+.pane{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.pane h4{margin:0 0 12px;font:600 12px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+/* ligne d'option de la fiche */
+.optrow{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start}
+.optrow .t{font-weight:600}
+.sw{flex:0 0 auto;width:46px;height:26px;border-radius:99px;border:1px solid var(--fieldline);background:var(--field);position:relative;transition:background .15s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.sw.on{background:var(--sapin);border-color:var(--sapin)}
+.sw.on::after{transform:translateX(20px);background:var(--paper)}
+/* résumé tarifaire */
+.sl{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.sl:last-of-type{border-bottom:0}
+.sl .l{display:flex;flex-direction:column;gap:2px}
+.sl .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+.total{display:flex;justify-content:space-between;gap:12px;font-weight:700;border-top:2px solid var(--line);margin-top:8px;padding-top:10px;font-size:16px}
+.cap{font-size:12.5px;color:var(--muted)}
+.cap.bad{color:var(--ko)}
+.chip{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--ocre);color:var(--ocre);margin-left:6px;white-space:nowrap}
+.gone{color:var(--ko);font-size:13.5px;display:flex;gap:8px;align-items:flex-start;padding:9px 0}
+/* grille des matins */
+.grid{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 12px}
+.occ{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);font:inherit;font-size:13px;padding:9px 12px;border-radius:99px;cursor:pointer;min-height:44px}
+.occ[aria-pressed="true"]{background:var(--lichen);border-color:var(--lichen);color:var(--paper)}
+.count{font-size:13.5px;color:var(--muted);margin:0 0 10px}
+.count b{color:var(--ink)}
+/* SAS */
+.phone{max-width:360px;border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--card)}
+.phone h5{margin:0 0 2px;font:600 17px/1.25 var(--serif);color:var(--sapin)}
+.btn{appearance:none;border:0;border-radius:8px;background:var(--sapin);color:var(--paper);font:600 14px var(--sans);padding:12px 16px;cursor:pointer;min-height:44px;width:100%;margin-top:10px}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--fieldline)}
+.flash{animation:fl .7s ease}
+@keyframes fl{from{background:rgba(184,123,42,.22)}to{background:transparent}}
+</style>
+<body>
+<div class="wrap">
+
+  <h1>Une option payée ne s’efface plus</h1>
+  <div class="meta">Spec <code>specs/unscheduled-card-option.md</code> · 23/09/2026 · fiche réservation, devis, SAS d’arrivée</div>
+
+  <h2>Le constat</h2>
+
+  <p>Une réservation née d’une demande du site perd sa ligne « Petit déjeuner » — celle qui était sur le devis, celle que le client a payée. Reproduit de bout en bout le 23/09/2026 (serveur de dev + navigateur).</p>
+
+  <table>
+    <tr><th>Étape</th><th>En base</th><th>Ce que voit l’hôte</th></tr>
+    <tr><td>Demande du site — 2 pers., 3 nuits, 6 petits déjeuners</td><td>devis 22289 · 6 portions · 48 € · <b>348 €</b></td><td class="muted">—</td></tr>
+    <tr><td>Conversion en réservation</td><td>ligne recopiée intacte · <b>348 €</b></td><td class="muted">—</td></tr>
+    <tr><td><b>Ouverture de la fiche</b></td><td>inchangé</td><td>interrupteur <b>éteint</b>, résumé <b>307,20 €</b></td></tr>
+    <tr><td>Clic sur « Enregistrer »</td><td>ligne <b>supprimée</b> · <b>300 €</b></td><td>rien</td></tr>
+  </table>
+
+  <div class="alert">
+    <b>La perte est visible avant même d’enregistrer.</b> La fiche recalcule à l’ouverture : les 48 € du client ont déjà disparu de l’écran. L’enregistrement ne fait que les graver. Le même défaut frappe le <b>devis</b> ouvert en back-office (vérifié : 348 € → 300 €).
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>La cause, en une ligne</h3>
+      <p>Le moteur de prix répond <code>null</code> — pas de ligne — quand une option à carte n’a aucune occurrence et que le drapeau du flux public est absent. Or ce drapeau n’existe que le temps de la demande : ni la conversion ni la fiche ne le portent.</p>
+      <p class="muted">C’est la troisième fois que ce piège est payé : un correctif côté client en juin, un filet de sécurité dans la grille, et une migration qui a dû semer des occurrences sur les fiches existantes. Chacun bouchait une route vers la falaise. La falaise, c’est le <code>null</code>.</p>
+    </div>
+    <div class="card">
+      <h3>Un quatrième défaut, lui déjà actif en prod</h3>
+      <p>Le rejeu du moteur sur une réservation enregistrée n’envoie <b>jamais</b> les occurrences. Toute ligne à carte y disparaît, <b>même planifiée</b>.</p>
+      <p>Mesuré sur une copie de la prod, 13 fiches concernées :</p>
+      <ul class="tight">
+        <li><b>635 €</b> de lignes d’options absentes de chaque rejeu ;</li>
+        <li><b>9,74 €</b> de taxe de séjour <b>sur-déclarée</b> sur 7 séjours — la base taxable gonfle quand les services en sortent.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Dégâts déjà faits sur les lignes d’options : aucun.</b> La prod ne contient <b>aucune</b> réservation d’origine site (<code>requestOrigin = 'public'</code> : 0 ligne ; 49 iCal, 4 manuelles), et les 17 lignes à carte existantes portent toutes leurs occurrences. Le tunnel de réservation en ligne n’est pas encore ouvert. <b>Pas de réparation de données à prévoir</b> — le bug est en embuscade pour la première réservation du site.
+  </div>
+
+  <h2>Ce qu’on propose</h2>
+  <ul class="tight">
+    <li><b>Une option prise donne toujours une ligne.</b> Sans occurrence, elle est facturée sur les portions auxquelles elle a été vendue et marquée « à planifier » — pour tous les appelants, drapeau ou pas. C’est exactement ce qui a déjà été tranché pour les ressources horaires (bain nordique).</li>
+    <li><b>Les portions facturées sont celles de la vente</b>, reprises de l’instantané de la ligne. La demande du site garde ses 6 petits déjeuners et ses 48 €, de la conversion jusqu’à la facture.</li>
+    <li><b>On ne supprime une option qu’avec son interrupteur.</b> Vider la grille des moments ne l’efface plus : les moments disent <i>quand</i> c’est servi, jamais <i>si</i> c’est vendu.</li>
+    <li><b>Le SAS d’arrivée réclame les moments</b> si ça n’a pas été réglé avant (au téléphone, par exemple). Il ne vend rien : il place ce qui est déjà payé, et « Plus tard » reste possible.</li>
+    <li><b>Le rejeu transmet enfin les occurrences</b> — ce qui corrige les 9,74 € de taxe sur-déclarée.</li>
+  </ul>
+
+  <h2>Essayez : la fiche à l’ouverture</h2>
+  <p class="muted">Réservation venue du site : 2 personnes, 3 nuits, <b>6 petits déjeuners payés 48 €</b>. Cochez les matins pour planifier la prestation.</p>
+
+  <div class="ctl">
+    <div class="g"><label>Version</label>
+      <div class="seg" id="mode">
+        <button type="button" data-v="old" aria-pressed="true">Aujourd’hui</button>
+        <button type="button" data-v="new" aria-pressed="false">Proposé</button>
+      </div>
+    </div>
+    <div class="g"><label>Matins planifiés</label>
+      <div class="grid" id="grid" style="margin:0"></div>
+    </div>
+  </div>
+
+  <div class="panes">
+    <div class="pane">
+      <h4>Fiche — options</h4>
+      <div class="optrow">
+        <div style="flex:1">
+          <div class="t">Petit déjeuner <span id="chip"></span></div>
+          <div class="cap" id="optcap"></div>
+        </div>
+        <div class="sw" id="sw"></div>
+      </div>
+      <p class="cap" id="optnote" style="margin-top:10px"></p>
+    </div>
+
+    <div class="pane">
+      <h4>Fiche — résumé tarifaire</h4>
+      <div class="sl"><div class="l"><span>Prix hébergement</span><span class="cap">3 nuits</span></div><span class="amt">300,00 €</span></div>
+      <div id="bkfline"></div>
+      <div class="sl"><div class="l"><span>Taxe de séjour</span></div><span class="amt">7,20 €</span></div>
+      <div class="total"><span>Total du séjour</span><span id="total">—</span></div>
+      <p class="cap" id="breakdown" style="margin-top:6px"></p>
+      <p class="cap" id="verdict" style="margin-top:10px"></p>
+    </div>
+
+    <div class="pane">
+      <h4>SAS d’arrivée</h4>
+      <div id="sasbox"></div>
+    </div>
+  </div>
+
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="tight">
+    <li><b>Recopier l’origine « site » sur la réservation.</b> Volontairement hors périmètre : une ligne payée doit survivre <i>quel que soit</i> celui qui a créé la réservation. Le correctif ne doit pas dépendre de savoir d’où elle vient.</li>
+    <li><b>Garder une trace durable de l’écart vendu / servi.</b> La mention « planifié 4 · vendu 6 » vit tant que les deux chiffres diffèrent, puis s’efface quand un enregistrement les réconcilie ; l’historique de la fiche garde la trace. Un « vendu / servi » permanent toucherait la facture — autre sujet.</li>
+    <li><b>Les autres dérives du rejeu.</b> Occurrences rétablies, 2 fiches sur 13 rejouent encore au-dessus de leur total enregistré (22194, 22196). Cause différente, enquête séparée.</li>
+    <li>Laisser le visiteur du site choisir ses matins : toujours « à planifier avec l’hôte ».</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Ce qui change de comportement</h3>
+      <p>Décocher tous les moments d’une option à carte <b>ne la supprime plus</b>. C’est la seule régression volontaire : elle contredit une règle écrite de <code>option-planning-card.md</code>, qui est réécrite par cette spec. L’interrupteur reste le geste de suppression, et il existe déjà sur chaque ligne.</p>
+    </div>
+    <div class="card">
+      <h3>Ce qui est protégé</h3>
+      <p>Une ligne <b>déjà planifiée</b> ne bouge pas d’un centime : les occurrences gardent la priorité, la formule <code>moments × personnes servies</code> est intacte. Les nouvelles règles sont inertes sur les 17 lignes à carte de la prod — leur seul effet est de les faire réapparaître dans les rejeux.</p>
+    </div>
+  </div>
+
+  <h2>Arbitrages tranchés le 23/09/2026</h2>
+  <table>
+    <tr><th>Question</th><th>Décision</th></tr>
+    <tr><td>Comment empêcher l’effacement ?</td><td>Généraliser le mode quantité à tous les appelants, comme pour les ressources horaires.</td></tr>
+    <tr><td>Que montre la fiche ?</td><td>Option allumée, portions visibles, puce « à planifier » — <b>et</b> le SAS d’arrivée réclame les moments s’ils n’ont pas été réglés en amont.</td></tr>
+    <tr><td>La lacune du rejeu (635 € / 9,74 €) ?</td><td>Traitée dans cette spec : même défaut, et le seul qui fasse déjà des dégâts.</td></tr>
+    <tr><td>Si l’hôte planifie moins que ce qui a été payé ?</td><td>Le prix suit la planification, mais la fiche l’affiche : « planifié 4 · vendu 6 ».</td></tr>
+  </table>
+
+</div>
+
+<script>
+(function () {
+  var PERSONS = 2, SOLD = 6, UNIT = 8, BASE = 300, TAX = 7.20;
+  var MORNINGS = ['Lun. 9 mars', 'Mar. 10 mars', 'Mer. 11 mars'];
+  var mode = 'old';
+  var planned = [];
+
+  function eur(n) { return n.toFixed(2).replace('.', ',') + ' €'; }
+
+  function billed() {
+    if (planned.length > 0) return planned.length * PERSONS;
+    return mode === 'new' ? SOLD : 0;      // « aujourd'hui » : rien de coché → la ligne n'existe pas
+  }
+  function lineExists() { return planned.length > 0 || mode === 'new'; }
+
+  function renderGrid() {
+    var g = document.getElementById('grid');
+    g.innerHTML = '';
+    MORNINGS.forEach(function (label, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'occ';
+      b.setAttribute('aria-pressed', planned.indexOf(i) >= 0 ? 'true' : 'false');
+      b.textContent = label;
+      b.addEventListener('click', function () {
+        var k = planned.indexOf(i);
+        if (k >= 0) planned.splice(k, 1); else planned.push(i);
+        render();
+      });
+      g.appendChild(b);
+    });
+  }
+
+  function renderFiche() {
+    var on = lineExists();
+    document.getElementById('sw').className = 'sw' + (on ? ' on' : '');
+    var chip = document.getElementById('chip');
+    chip.innerHTML = (on && planned.length === 0) ? '<span class="chip">à planifier</span>' : '';
+    document.getElementById('optcap').textContent = on
+      ? billed() + ' petits déjeuners · ' + eur(billed() * UNIT)
+      : 'Option non prise';
+    document.getElementById('optnote').innerHTML = on
+      ? 'La grille des matins est vide et modifiable à tout moment. L’interrupteur reste le seul geste qui retire l’option.'
+      : '<span style="color:var(--ko)">L’option a disparu de la fiche&nbsp;: le recalcul d’ouverture ne l’a pas renvoyée, donc l’interrupteur revient éteint.</span>';
+  }
+
+  function renderSummary() {
+    var box = document.getElementById('bkfline');
+    var b = billed(), amount = b * UNIT;
+    if (!lineExists()) {
+      box.innerHTML = '<div class="gone">⚠︎ <span>Ligne « Petit déjeuner » absente — <b>48,00 € payés par le client</b> qui ne sont plus nulle part.</span></div>';
+    } else {
+      var chip = planned.length === 0 ? '<span class="chip">à planifier</span>' : '';
+      var warn = (planned.length > 0 && b !== SOLD)
+        ? '<span class="cap bad">planifié ' + b + ' · vendu ' + SOLD + '</span>'
+        : '<span class="cap">' + b + ' petits déjeuners</span>';
+      box.innerHTML = '<div class="sl"><div class="l"><span>Petit déjeuner' + chip + '</span>' + warn + '</div><span class="amt">' + eur(amount) + '</span></div>';
+    }
+    var stay = BASE + (lineExists() ? b * UNIT : 0);
+    document.getElementById('total').textContent = eur(stay + TAX);
+    document.getElementById('breakdown').textContent =
+      'dont ' + eur(stay) + ' de séjour (le montant enregistré) + ' + eur(TAX) + ' de taxe.';
+
+    var v = document.getElementById('verdict');
+    if (!lineExists()) {
+      v.className = 'cap bad';
+      v.textContent = 'Le client a payé 348,00 €. La fiche en affiche 307,20 € et c’est ce montant que l’enregistrement écrira.';
+    } else if (planned.length > 0 && b !== SOLD) {
+      v.className = 'cap bad';
+      v.textContent = 'Le montant suit ce qui est planifié — l’écart avec les 6 petits déjeuners vendus est affiché tant qu’il dure.';
+    } else {
+      v.className = 'cap';
+      v.textContent = 'Les 48,00 € du client sont là, et un enregistrement ne peut plus les retirer.';
+    }
+  }
+
+  function renderSas() {
+    var box = document.getElementById('sasbox');
+    if (mode === 'old') {
+      box.innerHTML = '<p class="cap">Aujourd’hui le SAS <b>masque</b> une option déjà prise à la réservation&nbsp;: elle n’est jamais proposée à la planification, et les matins ne sont donc jamais placés.</p>';
+      return;
+    }
+    if (planned.length === 0) {
+      box.innerHTML =
+        '<div class="phone">' +
+        '<h5>Petit déjeuner</h5>' +
+        '<p class="cap">6 petits déjeuners payés à la réservation.</p>' +
+        '<p class="count"><b>0 / 6</b> planifiés</p>' +
+        '<p class="cap">Cochez les matins ci-dessus pour voir l’étape suivre.</p>' +
+        '<button class="btn" type="button" disabled style="opacity:.45">Valider les matins</button>' +
+        '<button class="btn ghost" type="button">Plus tard</button>' +
+        '</div>';
+      return;
+    }
+    var b = planned.length * PERSONS;
+    box.innerHTML =
+      '<div class="phone">' +
+      '<h5>Petit déjeuner</h5>' +
+      '<p class="cap">6 petits déjeuners payés à la réservation.</p>' +
+      '<p class="count"><b>' + b + ' / 6</b> planifiés</p>' +
+      (b !== SOLD
+        ? '<p class="cap bad">' + b + ' planifiés sur 6 payés — le montant suivra ce qui est planifié.</p>'
+        : '<p class="cap" style="color:var(--ok)">Tout ce qui a été payé est placé.</p>') +
+      '<button class="btn" type="button">Valider les matins</button>' +
+      '<button class="btn ghost" type="button">Plus tard</button>' +
+      '</div>';
+  }
+
+  function render() {
+    renderGrid();
+    renderFiche();
+    renderSummary();
+    renderSas();
+  }
+
+  var seg = document.getElementById('mode');
+  seg.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    mode = b.dataset.v;
+    Array.prototype.forEach.call(seg.querySelectorAll('button'), function (x) {
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    });
+    var panes = document.querySelectorAll('.pane');
+    Array.prototype.forEach.call(panes, function (p) {
+      p.classList.remove('flash');
+      void p.offsetWidth;
+      p.classList.add('flash');
+    });
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

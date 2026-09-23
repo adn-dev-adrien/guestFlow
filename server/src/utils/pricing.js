@@ -339,8 +339,8 @@ function resolveServedPersons({ cardPersons, persons, maxGuests } = {}) {
   // configured capacity says.
   const ceiling = Math.max(1, party, Number(maxGuests) > 0 ? Math.floor(Number(maxGuests)) : 0);
   const wanted = Number(cardPersons);
-  // Absent / unparsable / ≤ 0 → the party. Serving 0 person is not how a prestation is removed:
-  // untick its moments instead (rule 3).
+  // Absent / unparsable / ≤ 0 → the party. Serving 0 person is not how a prestation is removed, and
+  // neither is unticking its moments (specs/unscheduled-card-option.md rule 5): switch it off.
   const served = Number.isFinite(wanted) && wanted > 0
     ? Math.min(Math.max(1, wanted), ceiling)
     : party;
@@ -719,6 +719,21 @@ function normalizeBilledUnits(value) {
   const units = Number(value);
   if (!Number.isFinite(units)) return 0;
   return Math.max(0, units);
+}
+
+/**
+ * The units a line was SOLD at, read from its own snapshot — `null` when the line is new
+ * (specs/unscheduled-card-option.md rule 3).
+ *
+ * A card option sold by the website carries its portions here and nowhere else: its moments are not
+ * placed yet, so there is nothing to recompute them from. Anchoring the unscheduled price on this
+ * figure is what makes a paid breakfast survive a conversion, a fiche save and every engine replay.
+ */
+function soldBilledUnits(lockedLine) {
+  if (!lockedLine) return null;
+  const raw = lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity;
+  const units = normalizeBilledUnits(raw);
+  return units > 0 ? units : null;
 }
 
 function mergeNightlyBreakdownWithLocked(lockedNightlyBreakdown, freshNightlyBreakdown) {
@@ -1306,10 +1321,11 @@ function calculateReservationQuote({
   // read tourist-tax-excluded, which is the pre-existing convention and every stored reservation.
   platformTouristTaxAmount: platformTouristTaxAmountInput,
   // specs/public-online-deposit.md → public-planning-options.md — the PUBLIC/site flow can't schedule
-  // a planning-card option's slots, so when truthy the engine bills such an option by the client's
-  // QUANTITY as the occurrence count (quantity × (perPerson ? persons : 1) × unitPrice) instead of
-  // requiring `cardOccurrences`; the line stays unscheduled (operator fixes the slots later). Admin
-  // flows leave this falsy → the existing occurrence-based behaviour is unchanged.
+  // a planning-card option's slots, so the visitor's QUANTITY is what gets billed and the line stays
+  // unscheduled. Since specs/unscheduled-card-option.md rule 4 this flag no longer decides whether
+  // such a line EXISTS — every flow now bills an unplaced card option rather than dropping it — it
+  // only carries the public portion cap + clamp (specs/site-meal-portions.md rule 3), which must
+  // never apply to an operator.
   planningCardAsQuantity,
   // specs/mid-stay-extras-to-end-of-stay-complement.md — the extras as they stood when the STAY
   // STARTED (`reservations.arrivalExtrasBaseline`, JSON `{ key → TTC }`). Whatever exceeds it was
@@ -1571,7 +1587,8 @@ function calculateReservationQuote({
       // Option-driven planning card (specs/option-planning-card.md §3.4): the per-reservation
       // selected occurrences REPLACE the automatic nights/days path and drive the billed quantity:
       // billedUnits = occurrences × (persons when the option is per-person, else 1). An empty
-      // selection means the option isn't taken → no line, no charge.
+      // selection means « not placed yet », NOT « not sold » — the option is removed by its switch
+      // alone (specs/unscheduled-card-option.md rules 1 + 5).
       //
       // Because this path rebuilds the quantity from the occurrences it CANNOT use
       // `mergeLineWithLockedSnapshot` (which merges by units) — so the unit price is locked on its
@@ -1584,68 +1601,86 @@ function calculateReservationQuote({
       // (specs/cancellation-insurance.md §3.1 rules 4 + 5bis).
       const isCancellationInsurance = Number(option.isCancellationInsurance || 0) === 1;
       if (option.showsPlanningCard && priceType !== 'percent_of_stay' && !isCancellationInsurance) {
-        // PUBLIC/site flow (planningCardAsQuantity): the visitor can't schedule the slots, so the
-        // selected QUANTITY is what gets billed and the line stays UNSCHEDULED (empty
-        // cardOccurrences; the operator fixes the real slots later). For a PER-PERSON option the
-        // quantity counts PORTIONS — one breakfast, one cover — never séances to multiply by the
-        // party (specs/site-meal-portions.md rule 1), and it is held to what the stay can serve
-        // (rule 3). Admin flow: the scheduled occurrences drive the billed quantity as before.
         const perPerson = String(priceType).includes('per_person');
         const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
           ? Number(optionUnitOverrides[optionId])
           : lockedUnitPriceOr(locked, Number(option.price || 0));
-        if (planningCardAsQuantity) {
-          const asked = Math.max(0, Number(selected?.quantity || 0));
-          const portions = perPerson
-            ? clampPortions(asked, portionCap({
-              option, persons, nights, checkInTime, checkOutTime, property,
-            }).cap)
-            : { quantity: asked, clampedFrom: null };
-          const qty = portions.quantity;
-          if (qty <= 0) return null;
-          const billedUnits = roundMoney(qty);
-          const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
+        // The portions this line was last SOLD at — its own snapshot, not today's catalogue. It
+        // anchors the unscheduled fallback below and tells the fiche when a planning has drifted
+        // away from what the guest paid (specs/unscheduled-card-option.md rules 3 + 9).
+        const sold = soldBilledUnits(locked);
+        const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
+
+        if (occurrences.length > 0) {
+          // How many covers on each moment (specs/card-option-served-persons.md §3.1 rule 2): the
+          // party unless the operator said otherwise, capped by the property's capacity.
+          const covers = resolveServedPersons({
+            cardPersons: selected?.cardPersons, persons, maxGuests: property.maxGuests,
+          });
+          const billedUnits = roundMoney(occurrences.length * (perPerson ? covers.served : 1));
+          const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
           return {
             optionId,
             title: option.title,
-            quantity: qty,
+            quantity: occurrences.length,
             unitPrice: unitBase,
             billedUnits,
-            freeUnits: unscheduledFree.freeUnits,
-            freeUnitsAmount: unscheduledFree.freeUnitsAmount,
-            chargedUnits: unscheduledFree.chargedUnits,
+            freeUnits: free.freeUnits,
+            freeUnitsAmount: free.freeUnitsAmount,
+            chargedUnits: free.chargedUnits,
             priceType,
-            cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
-            toBeScheduled: true,
-            // What the visitor asked for when the cap lowered it, so the quote can tell the drawer
-            // to follow its own number down (null when nothing was held back).
-            clampedFrom: portions.clampedFrom,
-            ...applyOfferedToLine(unscheduledFree.realTotal, offeredOptionIdSet.has(optionId)),
+            cardOccurrences: occurrences,
+            cardPersons: perPerson ? covers.stored : null,
+            // Planning less (or more) than what was sold is the operator's call, but it must not be
+            // silent: the fiche shows « planifié N · vendu M » for as long as the two disagree.
+            ...(sold != null && sold !== billedUnits ? { soldUnits: sold } : {}),
+            ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
             ...pickContribsAndForce(selected, locked),
           };
         }
-        const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
-        if (occurrences.length === 0) return null;
-        // How many covers on each moment (specs/card-option-served-persons.md §3.1 rule 2): the
-        // party unless the operator said otherwise, capped by the property's capacity.
-        const covers = resolveServedPersons({
-          cardPersons: selected?.cardPersons, persons, maxGuests: property.maxGuests,
-        });
-        const billedUnits = roundMoney(occurrences.length * (perPerson ? covers.served : 1));
-        const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
+
+        // UNSCHEDULED — the option is taken, its moments are not placed yet
+        // (specs/unscheduled-card-option.md rules 1, 3, 4). The line is NEVER dropped here: that
+        // `return null` is what erased a breakfast the guest had already paid for, on the first save
+        // of any reservation born on the website. Same decision as the hourly resources
+        // (specs/hourly-resource-quantity-and-sas-scheduling.md rules 1 + 3): the quantity sells the
+        // prestation, the arrival SAS places it.
+        const asked = Math.max(0, Number(selected?.quantity || 0));
+        // Switching the option OFF is the one and only way to remove it. An empty moment grid means
+        // « not planned yet », never « not sold » (supersedes specs/option-planning-card.md §3.4).
+        if (asked <= 0) return null;
+        // PUBLIC/site flow: the visitor's quantity is the intent, counted in PORTIONS for a
+        // per-person option — one breakfast, one cover, never séances to multiply by the party
+        // (specs/site-meal-portions.md rule 1) — and held to what the stay can serve (rule 3).
+        // Everywhere else the line keeps the portions it was sold at, so a replay that carries no
+        // moment reproduces the amount instead of inventing one.
+        const portions = planningCardAsQuantity
+          ? (perPerson
+            ? clampPortions(asked, portionCap({
+              option, persons, nights, checkInTime, checkOutTime, property,
+            }).cap)
+            : { quantity: asked, clampedFrom: null })
+          : { quantity: sold != null ? sold : asked, clampedFrom: null };
+        const qty = portions.quantity;
+        if (qty <= 0) return null;
+        const billedUnits = roundMoney(qty);
+        const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: lockedFreeUnitsFor(optionId) });
         return {
           optionId,
           title: option.title,
-          quantity: occurrences.length,
+          quantity: qty,
           unitPrice: unitBase,
           billedUnits,
-          freeUnits: free.freeUnits,
-          freeUnitsAmount: free.freeUnitsAmount,
-          chargedUnits: free.chargedUnits,
+          freeUnits: unscheduledFree.freeUnits,
+          freeUnitsAmount: unscheduledFree.freeUnitsAmount,
+          chargedUnits: unscheduledFree.chargedUnits,
           priceType,
-          cardOccurrences: occurrences,
-          cardPersons: perPerson ? covers.stored : null,
-          ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
+          cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
+          toBeScheduled: true,
+          // What the visitor asked for when the cap lowered it, so the quote can tell the drawer
+          // to follow its own number down (null when nothing was held back).
+          clampedFrom: portions.clampedFrom,
+          ...applyOfferedToLine(unscheduledFree.realTotal, offeredOptionIdSet.has(optionId)),
           ...pickContribsAndForce(selected, locked),
         };
       }

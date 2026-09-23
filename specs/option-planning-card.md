@@ -89,6 +89,12 @@ label + the client + the property. Clicking the card opens the reservation fiche
    returns `adults / children / teens / babies`.
 
 ### 3.4 Quantity & price follow the selection
+
+> **Amendé le 2026-09-23** — [unscheduled-card-option.md](unscheduled-card-option.md) rules 1, 3 et 5.
+> Les règles ci-dessous valent dès qu'**au moins un moment est coché**. Une grille **vide** ne veut plus
+> dire « option non prise » : la ligne est facturée sur les portions auxquelles elle a été vendue et
+> marquée « à planifier ». Seul l'interrupteur de l'option la retire.
+
 10. The option's **billed quantity auto-adjusts to the selection**, server-side (the authority):
     `billedUnits = (number of selected occurrences) × (guest count when the option is per-person, else 1)`,
     using the **same guest basis** as today's per-person options. Examples:
@@ -191,8 +197,12 @@ OFF → no behaviour change until the operator flags an option.
   `planningCardTimes`) round-trips; `'once'` clamps to ≤1 slot; `planningCardTimes` parses back to an array.
   (`tests/options-model-planning-card.unit.test.js`, 4 tests.)
 - [x] **Pricing**: `billedUnits` of a card-option = `selectedOccurrences × (guests if per-person else 1)`
-  (4 guests × 2 days = 8 ; 3 slots × 3 days × 4 guests = 36 ; fixed = count); empty selection → no line;
-  the line carries its occurrences for persistence. (`tests/pricing-option-planning-card.unit.test.js`, 5 tests.)
+  (4 guests × 2 days = 8 ; 3 slots × 3 days × 4 guests = 36 ; fixed = count); the line carries its
+  occurrences for persistence. (`tests/pricing-option-planning-card.unit.test.js`.)
+  **Amendé le 2026-09-23** ([unscheduled-card-option.md](unscheduled-card-option.md) rules 1 + 5) :
+  « empty selection → no line » n'est plus vrai. Une grille vide veut dire « pas encore planifié »,
+  pas « pas vendu » — c'est ce `null` qui effaçait un petit déjeuner déjà payé. L'option se retire
+  par son interrupteur.
 - [x] Migration is idempotent (full suite re-run safe; 1587 server tests green).
 
 ### Client tests

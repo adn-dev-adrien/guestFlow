@@ -217,7 +217,7 @@ test('a reservation (no devis replay) keeps the stored column', () => {
 
 // ── Part B — REGRESSION: what the controller used to build ───────────────────────────────────
 
-test('REGRESSION: an engine input without the scheduled moments loses the meal entirely', () => {
+test('REGRESSION: an engine input without the scheduled moments mis-bills the meal', () => {
   const { model, db } = freshModel();
   const devis = model.create(BASE).data;
 
@@ -237,8 +237,15 @@ test('REGRESSION: an engine input without the scheduled moments loses the meal e
     customOptions: [], selectedResources: [], platform: devis.platform,
   });
 
-  assert.equal(naive.optionLines.filter((l) => Number(l.optionId) === MEAL).length, 0,
-    'the engine reads a card option with no moment as « not taken » — the meal simply vanishes');
+  // The meal no longer VANISHES — an unplaced card option keeps its line
+  // (specs/unscheduled-card-option.md rule 1) — but a naive input carries neither the moments nor
+  // the line's snapshot, so the engine has nothing to price it on but the bare quantity: 1 couvert
+  // where the guest was billed 2. The line is wrong, which is why the controller replays instead.
+  const naiveMeal = naive.optionLines.find((l) => Number(l.optionId) === MEAL);
+  assert.ok(naiveMeal, 'an unplaced card option is never dropped');
+  assert.equal(naiveMeal.toBeScheduled, true, 'and it comes back « à planifier »');
+  assert.equal(naiveMeal.totalPrice, 25,
+    'priced on the bare quantity (1 couvert) instead of the 2 the guest paid');
   // The same input also re-bills the offered linen (no `offeredOptionIds`), so the total is wrong in
   // BOTH directions at once — it matches nothing the guest ever saw.
   assert.notEqual(naive.finalPrice, devis.finalPrice);

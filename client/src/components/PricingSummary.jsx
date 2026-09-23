@@ -359,6 +359,17 @@ export default function PricingSummary({
                 // back out of Complément. Engine-derived auto-options (early/late check) stay forced
                 // and chip-less — their routing is the algorithm's, not the operator's.
                 const hideChipForPlatform = isPlatformReservation && isAuto;
+                // A card option sold without its moments — the website's normal case
+                // (specs/unscheduled-card-option.md rules 6 + 9). Same vocabulary as an unplaced
+                // hourly resource below: « à planifier » is an ordinary state, not an alarm, but it
+                // has to be visible or nobody knows the breakfast still has no morning. `soldUnits`
+                // appears only while the planning bills something else than what the guest was
+                // charged — the server decides both, the summary just shows them.
+                const schedulingLabel = so.toBeScheduled ? 'à planifier' : '';
+                const soldUnits = Number(so.soldUnits);
+                const plannedVsSold = Number.isFinite(soldUnits) && soldUnits > 0
+                  ? `planifié ${Number(so.billedUnits || 0)} · vendu ${soldUnits}`
+                  : '';
                 const baseLabel = `${so.title || opt?.title || '—'}${Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}`;
                 const baseKey = so.optionId || so.customKey || `custom_${index}`;
 
@@ -385,6 +396,19 @@ export default function PricingSummary({
                       {chip === 'on' && <ComplementChip active onClick={handleInComplementToggle} />}
                       {chip === 'off' && <ComplementChip active={false} onClick={handleInComplementToggle} />}
                       {chip === 'readonly' && <ComplementChip active readOnly />}
+                      {schedulingLabel && (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={schedulingLabel}
+                          sx={{ ml: 0.5, height: 18, fontSize: 10, color: 'text.secondary' }}
+                        />
+                      )}
+                      {plannedVsSold && (
+                        <Typography variant="caption" color="warning.main" sx={{ width: '100%' }}>
+                          {plannedVsSold}
+                        </Typography>
+                      )}
                       {autoHint && (
                         <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', width: '100%' }}>
                           {autoHint}
