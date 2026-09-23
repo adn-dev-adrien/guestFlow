@@ -61,7 +61,7 @@ add_action(
 	'wp_head',
 	function () {
 		$dossier = wp_get_upload_dir()['basedir'] . '/fonts';
-		$fichiers = glob( $dossier . '/roboto-*.woff2' );
+		$fichiers = array_merge( glob( $dossier . '/marcellus-*.woff2' ) ?: array(), glob( $dossier . '/karla-*.woff2' ) ?: array() );
 		if ( ! $fichiers ) {
 			return;
 		}
