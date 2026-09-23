@@ -74,8 +74,11 @@ planning card and the kitchen prep all follow that number instead of the party s
    maximum is the **capacity of the property** — not the party — so an extra guest invited to dinner can
    be served (decision 2026-08-20). When `maxGuests = 0` (capacity not configured,
    [capacity.js:19](../server/src/utils/capacity.js#L19)) the bound falls back to the party size. A
-   value ≤ 0 is refused; **removing a prestation is done by unticking its moments, never by serving 0
-   person**.
+   value ≤ 0 is refused; **removing a prestation is done by switching the option off, never by serving
+   0 person**.
+   > **Amendé le 2026-09-23** — [unscheduled-card-option.md](unscheduled-card-option.md) rule 5 : cette
+   > règle disait « en décochant ses moments ». Une grille vide ne retire plus la ligne (elle la laisse
+   > « à planifier », facturée), donc le geste de suppression est l'interrupteur.
 4. **A count equal to the current party size is stored as `NULL`** — the line keeps *following* the
    party, so correcting « adultes / enfants » later still re-prices it. Only a deliberately different
    number is persisted, and it then **stays put** when the party is edited (it is an operator decision,

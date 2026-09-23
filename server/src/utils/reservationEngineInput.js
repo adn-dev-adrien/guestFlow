@@ -11,10 +11,27 @@
  * top (e.g. the tourist-tax freeze of a past stay).
  */
 
+// The two card-option columns, kept out of the SELECT on a schema that predates them.
+function cardColumns(db) {
+  const present = new Set(db.prepare('PRAGMA table_info(reservation_options)').all().map((c) => c.name));
+  return ['cardOccurrences', 'cardPersons'].filter((name) => present.has(name));
+}
+
 function buildReservationEngineInput(db, reservation) {
+  // `cardOccurrences` + `cardPersons` ride with the rest (specs/unscheduled-card-option.md rule 10).
+  // Without them every planning-card line vanished from this replay — scheduled or not — because the
+  // engine rebuilds such a line from its moments. Measured on production before the fix: 635 € of
+  // option lines missing across 13 bookings, and a tourist-tax declaration 9,74 € above what the
+  // fiches themselves say, the taxable base growing as the services dropped out of it.
+  // Selected by name only when present, like every other reader of these two columns
+  // (`bookingLinesModel`): a minimal test schema predates them.
+  const optionColumns = [
+    'optionId', 'quantity',
+    ...cardColumns(db),
+    'COALESCE(inComplement, 0) as inComplement', 'COALESCE(offered, 0) as offered',
+  ];
   const optionRows = db.prepare(`
-    SELECT optionId, quantity, COALESCE(inComplement, 0) as inComplement, COALESCE(offered, 0) as offered
-    FROM reservation_options WHERE reservationId = ?
+    SELECT ${optionColumns.join(', ')} FROM reservation_options WHERE reservationId = ?
   `).all(reservation.id);
 
   const customOptionRows = db.prepare(`
@@ -68,6 +85,10 @@ function buildReservationEngineInput(db, reservation) {
       optionId: r.optionId,
       quantity: r.quantity,
       inComplement: r.inComplement,
+      // The engine parses the stored JSON itself (`normalizeCardOccurrences`); a NULL column means
+      // « sold, not placed yet » and the line is then priced from its snapshot.
+      cardOccurrences: r.cardOccurrences,
+      cardPersons: r.cardPersons,
     })),
     customOptions: customOptionRows.map((r) => ({
       customOptionId: r.customOptionId,

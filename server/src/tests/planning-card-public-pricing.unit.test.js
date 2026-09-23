@@ -79,9 +79,17 @@ test('public flow: quantity 0 → no line', () => {
   assert.equal(q.optionLines.find((l) => l.optionId === 6), undefined);
 });
 
-test('admin flow (flag off): a planning-card option with NO occurrences is still dropped (unchanged)', () => {
+// specs/unscheduled-card-option.md rule 1 — this used to assert the opposite («  still dropped »),
+// and that drop is precisely what erased a breakfast the guest had paid for on the first save of any
+// reservation born on the website.
+test('admin flow (flag off): a planning-card option with NO occurrences keeps its line', () => {
   const q = quote(seedDb(), { selectedOptions: [{ optionId: 6, quantity: 2 }] }); // no planningCardAsQuantity, no cardOccurrences
-  assert.equal(q.optionLines.find((l) => l.optionId === 6), undefined, 'admin still needs scheduled occurrences');
+  const line = q.optionLines.find((l) => l.optionId === 6);
+  assert.ok(line, 'the option is taken — only its switch removes it');
+  assert.equal(line.toBeScheduled, true);
+  assert.deepEqual(line.cardOccurrences, []);
+  assert.equal(line.billedUnits, 2); // portions, not séances × persons
+  assert.equal(line.totalPrice, 16);
 });
 
 test('admin flow (flag off): a planning-card option WITH occurrences prices by occurrence count', () => {
