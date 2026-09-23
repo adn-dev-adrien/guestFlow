@@ -166,14 +166,8 @@ ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:4px 0}
   function cap(o) { return state.pers * servings(o); }
   function pl(n, w) { return n + ' ' + w + (n > 1 ? 's' : ''); }
   function hint(o) {
-    var h = 'Jusqu’à ' + cap(o) + ' — ' + pl(state.pers, 'personne') + ' × ' + (o.meal ? servings(o) + ' repas' : pl(servings(o), 'matin'));
-    if (o.meal) {
-      var x = [];
-      if (state.arr < '12:00') x.push('déjeuner d’arrivée');
-      if (state.dep > '12:00') x.push('déjeuner de départ');
-      h += ' (2 par jour' + (x.length ? ', ' + x.join(' et ') + ' inclus' : '') + ')';
-    }
-    return h;
+    return 'Jusqu’à ' + cap(o) + ' — ' + pl(state.pers, 'personne') + ' × '
+      + ( o.meal ? servings(o) + ' repas' : pl(servings(o), 'matin') );
   }
   function seg(id, values, key) {
     var el = document.getElementById(id);

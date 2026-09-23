@@ -41,13 +41,10 @@ test('breakfast: one serving per night', () => {
 test('breakfast ignores the arrival and departure times', () => {
   const early = servingsFor({ option: BREAKFAST, nights: 3, checkInTime: '09:00', checkOutTime: '18:00', property: PROPERTY });
   assert.equal(early.servings, 3);
-  assert.deepEqual(early.extras, { arrival: false, departure: false });
 });
 
 test('meals: two a day, with the property default times', () => {
-  const { servings, extras } = servingsFor({ option: TRAPPER, nights: 3, property: PROPERTY });
-  assert.equal(servings, 6);
-  assert.deepEqual(extras, { arrival: false, departure: false });
+  assert.equal(servingsFor({ option: TRAPPER, nights: 3, property: PROPERTY }).servings, 6);
 });
 
 test('meals: an arrival before noon adds the arrival lunch, 12:00 sharp does not', () => {
@@ -61,11 +58,10 @@ test('meals: a departure after noon adds the departure lunch, 12:00 sharp does n
 });
 
 test('meals: both ends count — 3 nights, 11:00 → 14:00 gives 8 servings', () => {
-  const { servings, extras } = servingsFor({
+  const { servings } = servingsFor({
     option: TRAPPER, nights: 3, checkInTime: '11:00', checkOutTime: '14:00', property: PROPERTY,
   });
   assert.equal(servings, 8);
-  assert.deepEqual(extras, { arrival: true, departure: true });
 });
 
 test("the property's own default times decide when the visitor gives none", () => {
@@ -196,18 +192,15 @@ test('optionLimits carries the cap and its French hint, per option', () => {
   assert.equal(limits[0].maxQuantity, 12);
   assert.equal(limits[0].hint, "Jusqu'à 12 — 4 personnes × 3 matins");
   assert.equal(limits[1].maxQuantity, 24);
-  assert.equal(limits[1].hint, "Jusqu'à 24 — 4 personnes × 6 repas (2 par jour)");
+  assert.equal(limits[1].hint, "Jusqu'à 24 — 4 personnes × 6 repas");
 });
 
-test('the hint names the lunches the times add', () => {
+test('the hint counts the lunches the times add, without explaining them', () => {
   const limits = toPublicOptionLimits({
     options: [TRAPPER], persons: 4, nights: 3, checkInTime: '11:00', checkOutTime: '14:00', property: PROPERTY,
   });
   assert.equal(limits[0].maxQuantity, 32);
-  assert.equal(
-    limits[0].hint,
-    "Jusqu'à 32 — 4 personnes × 8 repas (2 par jour, déjeuner d'arrivée et déjeuner de départ inclus)",
-  );
+  assert.equal(limits[0].hint, "Jusqu'à 32 — 4 personnes × 8 repas");
 });
 
 test('no dates or no guests → no caps to publish', () => {

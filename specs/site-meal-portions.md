@@ -88,8 +88,10 @@ named correctly, and pays exactly that count.
 8. The drawer's stepper for such an option stops at `maxQuantity` once a quote is known, and adopts
    the quantity the quote actually priced (rule 3 clamp). Under the stepper, a hint (string built by
    the server: `optionLimits[].hint`) reads « Jusqu'à 12 — 4 personnes × 3 matins » for breakfast,
-   « Jusqu'à 32 — 4 personnes × 8 repas (2 par jour, déjeuner d'arrivée et déjeuner de départ
-   inclus) » for a meal — the parenthesis names only the extra lunches the times actually add.
+   « Jusqu'à 32 — 4 personnes × 8 repas » for a meal. The hint states the cap and nothing else: how
+   the meal count is reached (two a day, plus the lunches the times allow) is rule 3's business, not
+   the visitor's — the number moves when they change the times, which is explanation enough.
+   _(decision 2026-09-23: the parenthesis spelling out the extra lunches is dropped.)_
 9. The summary line reads « Petit déjeuner × 8 — 64,00 € » (title × portions), unchanged code, new
    meaning.
    > **Sans test** — ligne rendue par le plugin WordPress (`view.js`), hors des suites JS scannées
@@ -183,9 +185,9 @@ Website drawer, « Options & suppléments » → « Restauration »:
   stepper.
 - Under the stepper once dates + guests are known: « Jusqu'à 12 — 4 personnes × 3 matins ». The « + »
   is disabled at the cap.
-- Trappers' meal: « Jusqu'à 32 — 4 personnes × 8 repas (2 par jour, déjeuner d'arrivée et déjeuner
-  de départ inclus) »; default times (16:00 / 10:00) → « Jusqu'à 24 — 4 personnes × 6 repas (2 par
-  jour) ». Moving the arrival to 12:00 or later lowers the cap on the next quote (clamp).
+- Trappers' meal: « Jusqu'à 32 — 4 personnes × 8 repas »; at the default times (16:00 / 10:00),
+  « Jusqu'à 24 — 4 personnes × 6 repas ». Moving the arrival to 12:00 or later lowers the cap on the
+  next quote (clamp).
 - Party reduced below the selection → the next quote clamps, the stepper shows the new value.
 - Summary: « Petit déjeuner × 8 — 64,00 € ».
 - « Le repas des trappeurs » → « Nombre de couverts » · « 25,00 € · par couvert ».
@@ -210,7 +212,7 @@ No GuestFlow back-office page changes, no `PageActionBar` impact.
       4 guests, 3 nights → « Jusqu'à 12 — 4 personnes × 3 matins », 12 breakfasts = 96 €, « + »
       disabled at the cap; party back to 2 → the line follows down to 6 on the next quote.
 - [x] Trappers' meal: « Nombre de couverts », cap 12 at the default times, 16 with arrival 11:00 and
-      departure 14:00 (« 2 par jour, déjeuner d'arrivée et déjeuner de départ inclus »).
+      departure 14:00 — the hint states the cap only.
 - [x] Real API: quote clamps 13 → 12; booking request refuses 13 with the French message and
       persists nothing; a request at 12 stores quantity 12 / billedUnits 12 / 96 €.
 - [x] Mobile (390px) and desktop (1280px): hint on its own line, no horizontal scroll.
@@ -235,3 +237,5 @@ No GuestFlow back-office page changes, no `PageActionBar` impact.
   departure after 12:00; property default times when the visitor gives none.
 - Q: Wording for non-breakfast per-person card options? — **A (2026-09-22):** « couvert »
   (« Nombre de couverts », « par couvert »).
+- Q: Should the meal hint explain where its serving count comes from? — **A (2026-09-23):** no. The
+  hint gives the cap (« Jusqu'à 32 — 4 personnes × 8 repas ») and stops there.

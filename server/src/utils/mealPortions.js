@@ -67,30 +67,26 @@ function hourOf(time, fallback) {
  * The visitor's own times win; absent, the property's default check-in / check-out decide. Both
  * comparisons are strict: arriving or leaving AT 12:00 adds nothing.
  *
- * @returns {{servings: number, extras: {arrival: boolean, departure: boolean}}}
+ * @returns {{servings: number}}
  */
 function servingsFor({ option, nights, checkInTime, checkOutTime, property } = {}) {
   const stayNights = Math.max(0, Math.floor(Number(nights) || 0));
-  if (isBreakfast(option)) {
-    return { servings: stayNights, extras: { arrival: false, departure: false } };
-  }
-  const arrival = hourOf(checkInTime || property?.defaultCheckIn, 15) < NOON;
-  const departure = hourOf(checkOutTime || property?.defaultCheckOut, 10) > NOON;
-  const servings = stayNights > 0
-    ? 2 * stayNights + (arrival ? 1 : 0) + (departure ? 1 : 0)
-    : 0;
-  return { servings, extras: { arrival, departure } };
+  if (isBreakfast(option)) return { servings: stayNights };
+  if (stayNights <= 0) return { servings: 0 };
+  const arrivalLunch = hourOf(checkInTime || property?.defaultCheckIn, 15) < NOON;
+  const departureLunch = hourOf(checkOutTime || property?.defaultCheckOut, 10) > NOON;
+  return { servings: 2 * stayNights + (arrivalLunch ? 1 : 0) + (departureLunch ? 1 : 0) };
 }
 
 /**
  * The cap on the portions of one option for one stay: every person can be served at every serving.
  *
- * @returns {{cap: number, servings: number, persons: number, extras: object}}
+ * @returns {{cap: number, servings: number, persons: number}}
  */
 function portionCap({ option, persons, nights, checkInTime, checkOutTime, property } = {}) {
   const party = Math.max(0, Math.floor(Number(persons) || 0));
-  const { servings, extras } = servingsFor({ option, nights, checkInTime, checkOutTime, property });
-  return { cap: party * servings, servings, persons: party, extras };
+  const { servings } = servingsFor({ option, nights, checkInTime, checkOutTime, property });
+  return { cap: party * servings, servings, persons: party };
 }
 
 /**
@@ -118,14 +114,9 @@ function portionWording(option) {
   const servingsText = (servings) => plural(servings, words.servingUnit, words.servingUnitPlural);
   return {
     ...words,
-    /** « Jusqu'à 32 — 4 personnes × 8 repas (2 par jour, déjeuner d'arrivée inclus) » */
-    hint({ cap, persons, servings, extras }) {
-      const base = `Jusqu'à ${cap} — ${plural(persons, 'personne', 'personnes')} × ${servingsText(servings)}`;
-      if (isBreakfast(option)) return base;
-      const added = [];
-      if (extras?.arrival) added.push("déjeuner d'arrivée");
-      if (extras?.departure) added.push('déjeuner de départ');
-      return `${base} (2 par jour${added.length ? `, ${added.join(' et ')} inclus` : ''})`;
+    /** « Jusqu'à 32 — 4 personnes × 8 repas » */
+    hint({ cap, persons, servings }) {
+      return `Jusqu'à ${cap} — ${plural(persons, 'personne', 'personnes')} × ${servingsText(servings)}`;
     },
     /** « 6 petits déjeuners au maximum pour 2 personnes et 3 nuits. » */
     refusal({ cap, persons, servings, nights }) {
