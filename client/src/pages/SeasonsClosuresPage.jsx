@@ -1,45 +1,33 @@
 /**
  * SeasonsClosuresPage — `/parametres/vacances-fermetures`
  *
- * Groups « Vacances scolaires » and « Fermetures » under one menu entry. Since the phase-3 sweep
- * (specs/ds-sweep-settings.md §3.2) the wrapper no longer stacks its own Tabs strip above the
- * child's sticky bar: the Tabs render CENTERED in the active child's PageActionBar on sm+, and as a
- * slim strip under the bar on xs. Only the active tab is mounted; standalone routes
- * (/school-holidays, /establishment-closures) are unaffected.
+ * Groups « Vacances scolaires » and « Fermetures » under one menu entry. The tabs are handed to the
+ * active child, which passes them to its `PageActionBar`: centred in the bar on sm+, second row of
+ * the same sticky block on xs (specs/ds-tabs.md rule 2). Only the active tab is mounted; standalone
+ * routes (/school-holidays, /establishment-closures) are unaffected.
  */
 
 import React, { useState } from 'react';
-import { Box, Tabs, Tab, useMediaQuery } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { Box } from '@mui/material';
+import PageTabs from '../components/PageTabs';
 import SchoolHolidaysPage from './SchoolHolidaysPage';
 import EstablishmentClosuresPage from './EstablishmentClosuresPage';
 
+const ITEMS = [
+  { value: 'holidays', label: 'Vacances scolaires' },
+  { value: 'closures', label: 'Fermetures' },
+];
+
 export default function SeasonsClosuresPage() {
   const [tab, setTab] = useState('holidays');
-  const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const tabs = (
-    <Tabs
-      value={tab}
-      onChange={(_, next) => setTab(next)}
-      variant="scrollable"
-      allowScrollButtonsMobile
-      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40 } }}
-    >
-      <Tab value="holidays" label="Vacances scolaires" />
-      <Tab value="closures" label="Fermetures" />
-    </Tabs>
-  );
+  const barTabs = <PageTabs value={tab} onChange={setTab} items={ITEMS} ariaLabel="Vacances et fermetures" />;
 
   return (
     <Box>
-      {isXs && (
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 1 }}>{tabs}</Box>
-      )}
       {tab === 'holidays'
-        ? <SchoolHolidaysPage barCenter={isXs ? undefined : tabs} />
-        : <EstablishmentClosuresPage barCenter={isXs ? undefined : tabs} />}
+        ? <SchoolHolidaysPage barTabs={barTabs} />
+        : <EstablishmentClosuresPage barTabs={barTabs} />}
     </Box>
   );
 }

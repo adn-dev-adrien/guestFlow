@@ -62,6 +62,19 @@ Sync `SyncIcon` (info) · PDF `DescriptionIcon` (info). Icon-only buttons carry 
 **and** `aria-label`; ≥44 px targets. Labeled create-CTAs use an `actionsBefore` `node` item
 (`DataPageScaffold` does this for you).
 
+## 4 bis. Tabs (`specs/ds-tabs.md`)
+
+`PageTabs` is the **only** way to draw tabs; the look lives in the theme's `MuiTabs`/`MuiTab`
+overrides, so even a stray `<Tabs>` lands on the house style.
+
+- **Page tabs** (`variant="bar"`, the default) go to `PageActionBar`'s `tabs` slot — centred in the
+  bar on `sm+`, second row of the **same** sticky block on `xs`. Never a detached strip, never above
+  the bar. Passing `tabs` implies `titleOnXs`: a page with tabs always shows its title.
+- **Card tabs** (`variant="card"`) sit at the top of a Card/Dialog: bottom divider, `mb: 2`.
+- Sentence case (no uppercase), inactive `text.secondary` / active `primary.main` 600, 44 px
+  targets, 2 px indicator. Overflow **scrolls** (`scrollable` + `allowScrollButtonsMobile`).
+- A tab may carry a `badge` node after its label (e.g. the property « modifié » dot).
+
 ## 5. Tables (umbrella §3.5)
 
 - Text left; **amounts/counts right with `tabular-nums`**; header aligns like its column body.
@@ -74,7 +87,8 @@ Sync `SyncIcon` (info) · PDF `DescriptionIcon` (info). Icon-only buttons carry 
 
 | Component | Use | Never |
 |---|---|---|
-| `PageActionBar` | Every page's title + actions. | Hand-rolled sticky headers. |
+| `PageActionBar` | Every page's title + actions (+ its `tabs` slot). | Hand-rolled sticky headers. |
+| `PageTabs` | Every tab strip — page (`bar`) or card (`card`). | A hand-written `<Tabs>`/`<Tab>` pair or tab `sx` in a page. |
 | `DataPageScaffold` | List/CRUD pages (bar + filters + table + empty). | Rebuilding the trio by hand. |
 | `LoadingState` | Loading placeholder (`spinner`/`skeleton`). | Inline `CircularProgress` / « Chargement… » text. |
 | `EmptyState` | Empty lists, 404, crash fallback. | Ad-hoc « Aucun… » Typographies. |

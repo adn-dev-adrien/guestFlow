@@ -17,11 +17,12 @@
  */
 import React, { useState } from 'react';
 import {
-  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Tab, Tabs, Typography, useMediaQuery,
+  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
+import PageTabs from './PageTabs';
 import SandboxedHtmlFrame from './SandboxedHtmlFrame';
 
 export default function ArchivedHtmlDialog({
@@ -40,9 +41,15 @@ export default function ArchivedHtmlDialog({
       </DialogTitle>
       <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
         {documents.length > 1 && (
-          <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}>
-            {documents.map((d) => <Tab key={d.key} label={d.label} />)}
-          </Tabs>
+          <Box sx={{ px: 2 }}>
+            <PageTabs
+              value={tab}
+              onChange={setTab}
+              variant="card"
+              ariaLabel="Version du document"
+              items={documents.map((d, i) => ({ value: i, label: d.label }))}
+            />
+          </Box>
         )}
         {loading && <LoadingState />}
         {error && <Box sx={{ p: 2 }}><ErrorAlert message={error} /></Box>}

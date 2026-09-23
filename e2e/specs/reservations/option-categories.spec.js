@@ -9,6 +9,7 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+import { CLIENT_URL } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 
@@ -18,7 +19,7 @@ const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
  * spec it would simply be absent, and rule 9bis would have nothing to prove.
  */
 async function linkBreakfastOption(propertyId) {
-  const ctx = await pwRequest.newContext({ baseURL: 'http://localhost:3000', storageState: STORAGE_STATE });
+  const ctx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE });
   try {
     const list = await (await ctx.get('/api/options')).json();
     const ids = list.filter((o) => (o.propertyIds || []).includes(propertyId)).map((o) => o.id);

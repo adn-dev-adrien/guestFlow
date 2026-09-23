@@ -18,7 +18,7 @@ import { useToast } from '../components/DialogProvider';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import api from '../api';
 
-export default function BillableAmountsPage({ barCenter }) {
+export default function BillableAmountsPage({ barTabs }) {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [linen, setLinen] = useState([]);
@@ -88,7 +88,7 @@ export default function BillableAmountsPage({ barCenter }) {
     <Box>
       <PageActionBar
         title="Facturables au SAS"
-        center={barCenter}
+        tabs={barTabs}
         onSave={handleSave}
         saveDisabled={loading || saving || !isDirty}
         saveBusy={saving}
