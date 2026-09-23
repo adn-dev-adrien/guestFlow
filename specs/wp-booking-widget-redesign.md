@@ -48,11 +48,15 @@ One single, professional booking widget on each lodging page: pick the dates on 
 
 ### Refusals must say why (amended 2026-09-23)
 19. A refusal written under the calendar **outlives the re-render that follows it**. `renderCal()` resolves availability asynchronously and then writes its own « Sélectionnez votre date de départ » nudge; a caller that set an error first had it wiped one microtask later. The hint is therefore passed INTO `renderCal(hint)` and applied after the months are drawn. Applies to both refusals that clear a selection: `minNightsBreached` and a range containing a blocked night.
+> **Sans test** — ordonnancement interne à `view.js`, que ce dépôt n'exécute pas ; vérifié §7 point 6 (le message survit à la re-construction du calendrier).
 20. An error hint scrolls itself into view (`block: 'nearest'`). The calendar is two months tall on a phone: a date picked low in the grid can leave the message off-screen, which is the same as not writing it.
+> **Sans test** — `scrollIntoView` dans un conteneur défilant, sans harnais ici ; vérifié à l'œil sur l'écran 1, le message reste sous le calendrier.
 
 ### What a stay gets for free (added 2026-09-23)
 21. An hourly resource whose property offers part of it (`property_resource_prices.freeMinutes` — the nordic bath's hour) **says so on its own row**, above the scheduling note: « 1 h offerte par séjour ». The engine already billed that hour at 0 €; nothing in the funnel said it, so the visitor read « 30,00 € · par heure » and believed every hour was charged.
+> **Sans test** — le rendu vit dans `view.js` ; la phrase qu'il affiche est produite et testée côté serveur (`server/src/tests/public-resource-free-allowance.unit.test.js`). Rendu vérifié §7 point 8.
 22. The summary names the free share of a partly-offered line (« Bain nordique ×2 · 1 h offerte ») and writes **« Offert »**, not « 0,00 € », for a line that costs nothing.
+> **Sans test** — même partage que la règle 21 : `offeredNote` est testé côté serveur, le rendu du récapitulatif est vérifié §7 point 8.
 23. Both sentences are **written by the server** (`freeLabel` on the catalogue projection, `offeredNote` on the quote line) — raising the allowance in GuestFlow changes the website copy with no plugin release. The site never derives an allowance from `quantity − billedQuantity` itself.
 
 ### Design

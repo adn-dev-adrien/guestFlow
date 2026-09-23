@@ -38,12 +38,15 @@ button says why it is greyed, and the engine's own refinements never flicker on 
 1. The drawer is **never `display: none`**, only pushed off-screen — the calendar positions itself
    wrongly when it initialises inside a hidden box. It carries `inert` while closed, to stay out of the
    keyboard path.
+> **Sans test** — règle rétro-documentée : en place depuis la refonte de septembre 2026 et pas touchée par cette PR. Ce dépôt n'exécute le JS d'aucun mu-plugin WordPress.
 2. Arriving with `#reserver` (from another page, or from the banner on the page itself) opens the
    drawer, replaces the hash and keeps the page on its hero.
+> **Sans test** — règle rétro-documentée : en place depuis la refonte de septembre 2026 et pas touchée par cette PR. Ce dépôt n'exécute le JS d'aucun mu-plugin WordPress.
 3. Screen 1 carries **no instruction line**. *(2026-09-23: « Dates, voyageurs et options — le total se
    met à jour en direct. » was removed — it described what the visitor was about to see anyway.)*
    Screen 2 keeps its own, which sets an expectation the page cannot show (« nous répondons en direct,
    sans intermédiaire »).
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 1 (aucune ligne d'instruction sur l'écran 1).
 
 ### Navigation — one button, one job
 
@@ -52,15 +55,19 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    *(2026-09-23 — this replaces a sticky « Suivant » that first scrolled to the options and only
    advanced on a second press. When the engine rebuilt its rows — a new quote after a party change —
    the scroll target moved and the button kept re-scrolling instead of advancing.)*
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 5 — une seule pression atteint l'écran 2.
 5. The sticky bottom bar therefore **belongs to screen 2 only** (« Retour » + the engine's submit
    button). On screen 1 it is hidden rather than left empty.
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 5 — barre absente sur l'écran 1, présente sur l'écran 2.
 6. When « Suivant » is disabled, **a line under it says why**, and that reason is the engine's own
    (« Séjour trop court (minimum 2 nuits). », « Ces dates incluent une nuit indisponible. »), read from
    the calendar's error hint rather than invented a second time. With no engine message, the fallback
    is « Choisissez vos dates d'arrivée et de départ dans le calendrier. »
    A `title` attribute does not count: it never appears on a touch screen.
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 points 1 et 2 — le repli et la vraie raison du moteur.
 7. « Réserver » on screen 2 mirrors the engine's own submit button, label and disabled state included.
    The CGV checkbox belongs to the engine: it refuses on click and says why (never a greyed button).
+> **Sans test** — règle rétro-documentée : en place depuis la refonte de septembre 2026 et pas touchée par cette PR. Ce dépôt n'exécute le JS d'aucun mu-plugin WordPress.
 
 ### Refinements of the engine's output
 
@@ -68,15 +75,18 @@ button says why it is greyed, and the engine's own refinements never flicker on 
    for « Linge de toilette » and « Ménage » (the stepper is hidden, not replaced — the quantities and
    therefore the prices stay the engine's), the « Animations » group hidden, hour supplements mirrored
    under the time fields, the insurance notice linked.
+> **Sans test** — règle rétro-documentée : en place depuis la refonte de septembre 2026 et pas touchée par cette PR. Ce dépôt n'exécute le JS d'aucun mu-plugin WordPress.
 9. **The refinement runs immediately inside the MutationObserver callback**, not on a deferred timer.
    A callback runs at the end of the current task, before the browser paints: the engine rebuilding its
    rows and the drawer re-dressing them land in the same frame.
    *(2026-09-23 — a 200 ms throttle meant that changing the number of adults showed the bare stepper
    for ~200 ms before the switch came back. Measured, then re-measured at 0 after the fix.)*
    A 200 ms trailing pass is kept as a net for mutations arriving in bursts during a quote.
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; vérifié §7 point 4 — interrupteurs stables de T+0 ms à T+1500 ms.
 10. Every refinement is **idempotent and guarded**: it must make no mutation on a second pass, or the
     observer that triggered it would call it forever. This includes the reason line of rule 6 — writing
     an identical `textContent` still counts as a mutation.
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; une boucle infinie se verrait au premier essai ; §7 points 1 à 5 ont tous tourné sans figer la page.
 
 ## 4. Architecture
 
