@@ -154,8 +154,11 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 22. Prices are always **unit prices** (« 8 € par personne », « à partir de 17 € »). The stay amount
     (`finalPrice`) appears in the confirmation only.
 23. The nordic bath is mentioned without heating, slot or price: included duration in the
-    confirmation (« 1 h 30 de bain nordique privatif » at La Granja, « 1 h » at L'Estiva — from the
+    confirmation (« 1 h de bain nordique privatif », the same in both properties — from the
     property's `freeMinutes` on the bath resource), and « maillots de bain et serviettes » in the J-7.
+    Settled on 2026-09-23: the site announces one hour per stay in both properties, and the mails
+    must say the same thing. An earlier draft of this spec read 1 h 30 at La Granja; it never matched
+    the site and was never the offer.
 24. Options are proposed only in the J-7, and worded as a way to travel lighter, never as a sale.
     None in the confirmation (the guest has just paid), none after the stay.
 25. Review solicitation happens **once per stay**, in the J+1, never against any consideration:
@@ -358,7 +361,7 @@ Votre séjour :
 Ce qui vous attend sur place :
 - Les lits faits à votre arrivée
 [- Le linge de toilette]                       ← L'Estiva
-- 1 h 30 de bain nordique privatif             ← 1 h à L'Estiva
+- 1 h de bain nordique privatif                ← identique dans les deux hébergements
 - Les 13 hectares du domaine, le sentier de balade et les animaux, en toute liberté
 [- La piscine, partagée avec l'autre hébergement du domaine]   ← stay overlaps the pool season
 
@@ -555,8 +558,9 @@ Nothing leaves before the switch is turned on. Before turning it on:
 1. **Logements** — rename « Gite » → « La Granja » and « Aventura lodge » → « L'Estiva », article « à ».
 2. **Logements › Dans les mails clients** — accroche FR/EN of each property; L'Estiva: parking
    300 m, wifi off; La Granja: family coffee maker on.
-3. **Ressources › Bain nordique** — included minutes per property: 90 at La Granja, 60 at L'Estiva
-   (the confirmation reads them; on the dev copy they are 60 and none).
+3. **Ressources › Bain nordique** — included minutes per property: **60 in both** (the confirmation
+   reads them; on the dev copy they are 60 and none). The site says « 1 créneau d'1 h offert à chaque
+   séjour » on both lodging pages, so anything other than 60 makes the mail contradict the site.
 4. **Réglages › Emails automatiques** — Google review link, Instagram link
    (`https://www.instagram.com/domainesolio`), pool season; « Nom expéditeur » = « Adrien et Sophie »
    if the signature should read so (today « Domaine Solio »).
