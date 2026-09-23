@@ -884,3 +884,95 @@ aucun import, ce qui confirme que les fermetures des autres canaux ne couvrent q
 
 **Risque à surveiller pendant l'opération** : entre l'étape 1 et l'étape 3, l'hiver est ouvert à la
 réservation sur tous les canaux. Faire les trois étapes d'affilée, pas sur deux jours.
+
+---
+
+## Campspace — le quatrième canal, découvert le 2026-09-23
+
+Plateforme néerlandaise de camping et glamping « chez l'habitant ». **L'Estiva seule** y est publiée ;
+la Granja n'y existe pas, donc aucun risque de mauvais périmètre — mais vérifier que ça reste vrai.
+
+| Écran | URL |
+|---|---|
+| Menu hôte | `campspace.com/fr/host/space?spaceId=<spaceId>` (menu long : `…/toggle-type`) |
+| Informations générales | `…/host/space/<spaceId>/general` |
+| Emplacement | `…/host/space/<spaceId>/pitch-type/edit/<pitchTypeId>` |
+| Tarifs | `…/host/space/<spaceId>/price-rates?pitchTypeId=<id>` |
+| Créer une période | `…/host/space/<spaceId>/price-rate/create?pitchTypeId=<id>` |
+| Équipements | `…/host/space/<spaceId>/amenities`, puis **`/amenities/2` et `/amenities/3`** |
+| Calendriers externes | `…/host/space/external-calendar/<spaceId>` |
+| Devis client | `campspace.com/fr/s/<slug>_<spaceId>?startDate=…&endDate=…&numberOfAdults=N&numberOfChildren=M` |
+
+Domaine Solio : space **25232**, pitch type **27908**, compte `contact@domainesolio.com`, ouvert le
+2026-12-12.
+
+**Le modèle économique, mesuré et non supposé**
+
+- **Commission hôte : 6 %**, minimum 2 € (leur FAQ « Do I have to pay to become a host »).
+  Prix hôte = `grossFromNet(cible, 6)` — 160/195/225 → **171/208/240 €**.
+- **Le client paie +17 % de frais de service, plus 3 € fixes par réservation.** Vérifié sur sept
+  durées : `total = prix hôte × nuits × 1,17 + 3`. Ces 20 % cumulés font que Campspace reste plus
+  cher que le direct même en visant la cible nette — c'est ce qui rend le pivot net tenable ici.
+- **Aucune taxe de séjour** : rien dans la plateforme. Côté GuestFlow, « Taxe de séjour » = *À
+  l'arrivée*. L'écran « Taxes » du back-office ne traite que le DAC7.
+- Versement le mercredi, ~15 jours après l'arrivée → « Virement reçu sous » = 15 j.
+
+**Pièges**
+
+1. **Aucune dégressivité par durée, nulle part.** Ce n'est pas caché dans un écran : le champ
+   n'existe pas. Le seul contournement honnête est `numberOfNightsMax` : plafonner à 3 nuits fait de
+   Campspace un canal de courts séjours et évite qu'un 7 nuits y sorte deux fois le prix du direct
+   (arbitrage d'Adrien, 2026-09-23).
+2. **Le supplément voyageur est une valeur plate**, pas une table de paliers. `pricePerNightExtraChild`
+   et `pricePerNightExtraPerson` sont deux champs distincts : **remplir les deux**, sinon une famille
+   de deux adultes et trois enfants paie le tarif d'un couple.
+3. **`numberOfPersonsIncluded` vit sur l'emplacement, pas sur le tarif.** Il valait `1` : le prix de
+   base couvrait une personne et le supplément était à 0, donc cinq personnes payaient le prix d'une.
+   Le mettre à 2 pour coller à la recette.
+4. **Le « prix de base » est valable 365 jours et bat la fermeture.** Tant qu'il existe, l'hiver est
+   réservable. Le **supprimer** et ne laisser que des périodes datées : hors période, Campspace rend
+   l'emplacement indisponible — la fermeture devient structurelle. Le bouton Supprimer passe par un
+   `confirm()` natif.
+5. **`endDate` d'une période est la DERNIÈRE NUIT**, pas le jour de départ. Vérifié par devis :
+   une période finissant le 14/10 vend bien la nuit du 14 au 15.
+6. **Les étapes des équipements ont leur propre URL.** `/amenities` renvoie *toujours* l'étape 1 ;
+   un POST y écrit l'étape 1 et rien d'autre. Passer par `/amenities/2` et `/amenities/3`.
+   Payé une fois : un POST sur `/amenities` avec la liste de l'étape 2 a remis toute l'étape 1 à
+   « non », y compris ce qui y était déjà.
+7. **Chaque équipement porte un `data-fieldset` lisible** (`amenity_hot_tub`, `amenity_sunset`…) :
+   s'appuyer là-dessus, jamais sur l'indice numérique de `amenity[N]`, dont l'ordre DOM ne suit pas
+   l'affichage. Un équipement à « oui » veut aussi ses deux cases de portée
+   (`spaceAmenities[N][isActive]` et `pitchTypesAmenities[<pitchTypeId>][N][isActive]`).
+8. **Changer le titre change le slug public**, et l'ancienne URL répond `301`. Un script de devis qui
+   ne suit pas les redirections renvoie alors « pas de prix » et fait croire à une fiche cassée.
+   Toujours `curl -sL`.
+9. **La fenêtre de réservation est `bookAheadDaysMax` sur l'emplacement**, 360 jours par défaut,
+   365 au maximum — même piège que Lodgify, mais un seul champ et pas de réglage par canal.
+10. Les formulaires sont du Symfony classique : POST vers la même URL, jeton `_token` par page,
+    réutilisable. Pour créer quatorze périodes, enchaîner `fetch` → parser → `new FormData(form)` →
+    POST depuis la page est fiable et rapide ; c'est la relecture par devis qui fait foi, pas le
+    code HTTP.
+11. **L'import iCal accepte une URL bidon sans broncher.** Celui d'origine pointait sur
+    `https://lodgify.com/:iCalUID.ics` — le gabarit de la documentation, jamais remplacé. Il s'est
+    désactivé tout seul et n'a plus rien importé pendant neuf mois, pendant que la réservation
+    instantanée restait active. **Toujours vérifier la date de dernière synchronisation**, pas la
+    seule présence d'une ligne.
+
+12. **Les photos : six seaux, un téléverseur parallèle, et un ordre à remettre à la main.**
+    `…/host/space/<spaceId>/media` porte six zones FilePond (`#bucket-button-2` … `-7`) :
+    l'emplacement lui-même, Espace commun, Équipements, Biodiversité, Activités, Activités durables.
+    `setInputFiles` sur `#bucket-button-N input[type=file]` marche, par lots de 3-4 ; au-delà d'une
+    vingtaine de secondes d'attente la session Playwright peut lâcher, donc lot par lot. **Les
+    identifiants `data-media-id` ne suivent pas l'ordre des fichiers** — les envois partent en
+    parallèle et l'ordre d'arrivée décide. Ne jamais supposer la correspondance : la vérifier en
+    comparant chaque image publiée à son fichier source (télécharger la vignette, réduire les deux à
+    8×8 en gris avec `sips`, prendre la plus proche — la bonne est à un ordre de grandeur de la
+    deuxième). **La première photo du premier seau est la photo de couverture.**
+13. **Réordonner : le glisser-déposer SortableJS ne cède pas à la souris synthétique.** Le seau porte
+    `data-sort-url` (`/space-media/sort/<spaceId>`) ; un `fetch` même-origine avec `mediaId` et
+    `sorting[]` dans l'ordre voulu renvoie `{"status":"success"}` et persiste. C'est exactement ce que
+    le `onEnd` du composant envoie.
+14. **Supprimer une photo** : cliquer chaque vignette (un vrai clic, la classe devient `is-selected`),
+    puis le bouton « Supprimer » du pied du seau, qui passe par un `confirm()` natif. Le premier clic
+    sur la photo de couverture n'a pas pris chez moi — recompter les sélectionnées avant de valider.
+
