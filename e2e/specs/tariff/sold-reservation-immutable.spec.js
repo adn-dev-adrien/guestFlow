@@ -13,6 +13,7 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { createProperty, createClient, createReservation } from '../../fixtures/apiSeed.js';
+import { CLIENT_URL } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 const DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e.db';
@@ -20,7 +21,7 @@ const RECIPE_ID = 'aventura-lodge-2026';
 
 let sharedCtx;
 test.beforeAll(async () => {
-  sharedCtx = await pwRequest.newContext({ baseURL: 'http://localhost:3000', storageState: STORAGE_STATE });
+  sharedCtx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE });
 });
 test.afterAll(async () => { await sharedCtx?.dispose(); });
 

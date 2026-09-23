@@ -350,10 +350,10 @@ export function toResourcePayload(form) {
   };
 }
 
-export default function ResourcesPage({ barCenter }) {
+export default function ResourcesPage({ barTabs }) {
   return (
     <PricedItemsPage
-      barCenter={barCenter}
+      barTabs={barTabs}
       pageTitle="Ressources"
       itemLabel="ressource"
       emptyForm={emptyResource}

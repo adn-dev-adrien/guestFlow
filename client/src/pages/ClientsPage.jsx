@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Box, TextField, TableRow, Stack, Tabs, Tab, TableSortLabel, useMediaQuery,
+  Box, TextField, TableRow, Stack, TableSortLabel,
   TableCell, IconButton, InputAdornment, Chip, Typography, Divider, Button, Tooltip
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -12,6 +11,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import HomeIcon from '@mui/icons-material/Home';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DataPageScaffold from '../components/DataPageScaffold';
+import PageTabs from '../components/PageTabs';
 import FormDialog from '../components/FormDialog';
 import PlatformChip from '../components/PlatformChip';
 import StatusBadge from '../components/StatusBadge';
@@ -81,8 +81,6 @@ export default function ClientsPage() {
   const [urlParams, setUrlParams] = useSearchParams();
   // specs/clients-upcoming-past-directory.md §3 — the two lists, the « Séjour » date, the counts and
   // the ordering all come from the server; the page holds only the tab, the search and the sort.
-  const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const [bucket, setBucket] = useState('upcoming');
   const [sort, setSort] = useState({ col: 'stayDate', dir: 'asc' });
   const [counts, setCounts] = useState({ upcoming: 0, past: 0 });
@@ -141,16 +139,15 @@ export default function ClientsPage() {
       : { col, dir: col === 'stayDate' && bucket === 'past' ? 'desc' : 'asc' }));
   };
   const bucketTabs = (
-    <Tabs
+    <PageTabs
       value={bucket}
-      onChange={(_, next) => handleTabChange(next)}
-      variant="scrollable"
-      allowScrollButtonsMobile
-      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40 } }}
-    >
-      <Tab value="upcoming" label={`À venir (${counts.upcoming})`} />
-      <Tab value="past" label={`Passés (${counts.past})`} />
-    </Tabs>
+      onChange={handleTabChange}
+      items={[
+        { value: 'upcoming', label: `À venir (${counts.upcoming})` },
+        { value: 'past', label: `Passés (${counts.past})` },
+      ]}
+      ariaLabel="Séjours des clients"
+    />
   );
 
   const setClientParam = (clientId) => {
@@ -504,12 +501,9 @@ export default function ClientsPage() {
 
   return (
     <Box>
-      {isXs && (
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 1 }}>{bucketTabs}</Box>
-      )}
       <DataPageScaffold
         title="Clients"
-        barCenter={isXs ? undefined : bucketTabs}
+        barTabs={bucketTabs}
         actionLabel="Nouveau client"
         actionIcon={<AddIcon />}
         onAction={() => handleOpen(null)}

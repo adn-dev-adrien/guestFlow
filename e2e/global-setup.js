@@ -15,6 +15,7 @@ const { request } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { CLIENT_URL } = require('./clientUrl');
 
 const E2E_DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e.db';
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'e2e@guestflow.test';
@@ -24,8 +25,8 @@ const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-secret-1234';
 const E2E_RECEPTION_EMAIL = process.env.E2E_RECEPTION_EMAIL || 'e2e-reception@guestflow.test';
 const E2E_RECEPTION_PASSWORD = process.env.E2E_RECEPTION_PASSWORD || 'e2e-reception-1234';
 const BACKEND_URL = 'http://127.0.0.1:4000';     // direct probe for readiness check
-const FRONTEND_URL = 'http://localhost:3000';     // CRA dev — proxies /api/* to the backend.
-// We log in through the FRONTEND so the session cookie is scoped to `localhost:3000`, the
+const FRONTEND_URL = CLIENT_URL;                 // Vite dev — proxies /api/* to the backend.
+// We log in through the FRONTEND so the session cookie is scoped to the client origin, the
 // same origin the browser navigates to in every spec. Logging in directly against
 // :4000 binds the cookie to `127.0.0.1:4000` and the browser drops it on every nav.
 const AUTH_DIR = path.join(__dirname, '.auth');
@@ -54,7 +55,7 @@ module.exports = async () => {
   // (2) Wait for the backend the webServer block in playwright.config.js spawned (direct
   // probe), then the CRA dev server (the proxy host we'll log in through).
   await waitFor(`${BACKEND_URL}/api/version`, 'backend');
-  await waitFor(`${FRONTEND_URL}/`, 'CRA dev', 120_000);
+  await waitFor(`${FRONTEND_URL}/`, 'client dev', 120_000);
 
   // (3) Seed the deterministic admin. The seed script reads DB_PATH from env — the webServer
   // command already exported it, so we replicate the same value here.
@@ -73,7 +74,7 @@ module.exports = async () => {
   if (seed.status !== 0) {
     throw new Error(`[global-setup] seed-e2e.js failed (exit ${seed.status})\nstdout: ${seed.stdout}\nstderr: ${seed.stderr}`);
   }
-  // (4) Log in THROUGH the CRA proxy so the cookie binds to `localhost:3000` — the same
+  // (4) Log in THROUGH the client dev proxy so the cookie binds to the client origin — the same
   // origin every spec navigates to. Logging in directly against :4000 binds to
   // `127.0.0.1:4000` and the browser silently drops the cookie on every nav.
   const ctx = await request.newContext({ baseURL: FRONTEND_URL });

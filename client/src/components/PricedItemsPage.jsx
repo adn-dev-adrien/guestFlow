@@ -52,8 +52,9 @@ export default function PricedItemsPage({
   // specs/option-property-scope.md: options use an EXPLICIT scope (« Tous » = all ids, empty = none).
   // Resources keep the legacy « empty = all ». Drives the « Logements » column label below.
   explicitPropertyScope = false,
-  // Tab-wrapper mode (specs/ds-sweep-settings.md §3.2): the wrapper's Tabs render centered in the bar.
-  barCenter,
+  // Tab-wrapper mode (specs/ds-tabs.md rule 2): the wrapper's PageTabs render in the bar —
+  // centred on sm+, second row of the same sticky block on xs.
+  barTabs,
   // Optional extra columns, inserted after « Description ». Each entry:
   //   { key, label, align?, render(item), sortValue?(item) }
   // Sortable like the built-in columns; on xs they become an extra caption line on the card.
@@ -213,7 +214,7 @@ export default function PricedItemsPage({
         actionLabel={`Nouvelle ${itemLabel}`}
         actionIcon={<AddIcon />}
         onAction={() => openDialog(null)}
-        barCenter={barCenter}
+        barTabs={barTabs}
         loading={loading && items.length === 0}
         error={error ? `Impossible de charger les ${itemLabel}s.` : ''}
         onRetry={reload}
