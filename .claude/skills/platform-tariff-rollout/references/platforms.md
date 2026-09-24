@@ -998,6 +998,162 @@ Là où le bain se décrit, par plateforme :
 | GreenGo | description du **logement** (`annonce/accommodation/<id>/description`), présentation de l'**établissement** (`longDescription`, page Profil Hôte) et les **Points forts** |
 | Booking | rien n'est éditable : la description est générée. Seul levier, `request_change.html` → champ `fine_print` |
 
+### Deuxième exercice, le 2026-09-24 : « la plancha est à disposition à chaque séjour »
+
+Même forme, pire résultat. La règle vivait dans **douze champs sur six back-offices** — un de plus
+que la liste ci-dessus, parce qu'**Abritel/Vrbo porte aussi L'Estiva** — et en **cinq versions
+contradictoires**, toutes en ligne le même jour :
+
+| Version trouvée | Où |
+|---|---|
+| « Location de plancha (offerte à partir de 2 nuits) » | GreenGo, description du logement |
+| « plancha en location (offerte à partir de 3 nuits) » | Abracadaroom, description |
+| « Location plaque de cuisson et plancha » (dans *le tarif ne comprend pas*) | Abracadaroom, onglet TARIFS |
+| « réserver une plancha ou une plaque de cuisson (offertes à partir de 2 nuits) » | Airbnb, « Mon logement » |
+| « Location plancha, plaque de cuisson (offert pour les séjours de 5 jours ou plus) » | Lodgify → **Abritel/Vrbo** |
+
+**La leçon se durcit : compter les canaux AVANT de commencer, et les compter sur les pages
+publiques, pas sur la liste qu'on croit avoir.** Le périmètre annoncé au départ était de cinq
+canaux ; Abritel, qu'on croyait éteint avec Lodgify, servait encore une sixième version.
+
+Deux champs que la table ci-dessus ne mentionnait pas et qui portent le fait :
+
+| Plateforme | Champ oublié |
+|---|---|
+| Campspace | `…/host/space/<id>/check-in-out` → `check_in_out[rules]`. C'est le règlement intérieur, **affiché en clair** sur l'annonce publique. C'est là que vivaient déjà les chiens, le non-fumeur et le bain nordique. Il y a aussi `arrivalInstructions` et un `arrivalInstructions<pitchTypeId>` par emplacement |
+| GreenGo | `annonce/accommodation/<id>/equipments` → section **Extérieur**, qui a un équipement **« Plancha »** distinct de « Barbecue » et de « Brasero » |
+
+## Campspace, GreenGo, Airbnb, Booking — où se règle le NON-FUMEUR
+
+Relevé le 2026-09-24. Comme les animaux, c'est un réglage **plus** une phrase, et les deux se lisent
+à des endroits différents par le voyageur.
+
+| Canal | Réglage | Affichage public |
+|---|---|---|
+| Campspace | aucun équipement dédié — ça se dit dans `check_in_out[rules]` | le texte du règlement, en clair |
+| GreenGo | `annonce/<id>/booking-conditions` → « Règles » → **« Établissement fumeur »** (`rules.1`) | « Établissement non fumeur » dans « Infos pratiques » |
+| Airbnb | `details/house-rules` → radiogroup **« Autorisation de fumer et de vapoter »** | règlement intérieur |
+| Booking | Conditions de l'établissement | **déjà publié sur les deux fiches** : « Cet hébergement est non-fumeurs » sous Conditions, et « Chambres non-fumeurs » dans « Ses points forts » |
+| Abritel | — | « Non-fumeurs » dans « Équipements populaires » |
+| Abracadaroom | aucun réglage : la phrase seule |
+
+Les quatre réglages étaient **déjà bons** partout le 2026-09-24 ; ce qui manquait, ce sont les
+phrases. Le réglage ne suffit pas — voir la règle des animaux plus haut, c'est le même piège.
+
+## GreenGo — « Remarques additionnelles » et « Établissement fumeur » vivent sur booking-conditions
+
+`annonce/<annonceId>/booking-conditions` ne porte pas que les horaires et l'annulation. Il porte
+aussi :
+
+- trois bascules **« Règles »** : `rules.0` Animaux acceptés, `rules.1` Établissement fumeur,
+  `rules.2` Soirées autorisées. Chaque ligne est une paire de radios `rules.N.isSelected` (oui) /
+  `yes-no-radio-input-rules.N.isSelected-no` (non) ;
+- un champ libre **« Remarques additionnelles »** (`additionalCustomRulesParagraph`, 1 500 signes)
+  qui est **affiché tel quel sur l'annonce publique**, sous « Infos pratiques ». C'est le meilleur
+  endroit pour une nuance qu'une bascule ne sait pas dire (« non-fumeur, mais on peut fumer
+  dehors »).
+
+Cette page affiche aussi publiquement la caution, **avec ses guillemets bruts** : l'annonce de
+La Granja rend `Caution / dépôt de garantie "800"`. Cosmétique, mais visible.
+
+## GreenGo — un champ obligatoire jamais répondu bloque TOUT le formulaire, en silence
+
+Le cas le plus coûteux de la journée du 2026-09-24. Sur L'Estiva, la question **« Les voyageurs
+doivent-ils déposer une caution / garantie ? »** n'avait **ni oui ni coché** — jamais répondue
+depuis la création. Conséquence : « Enregistrer » sur `booking-conditions` ne faisait **rien**.
+Pas de message visible en haut, pas de requête réseau, et au rechargement la page revenait à son
+état d'avant. Toute modification des horaires, des règles ou des remarques y était perdue depuis
+toujours.
+
+**Le diagnostic qui tranche en un appel** — envelopper `fetch`, cliquer, compter :
+
+```js
+const orig = window.fetch; window.__c = [];
+window.fetch = function (...a) { window.__c.push(String(a[0])); return orig.apply(this, a); };
+btn.click(); await new Promise(r => setTimeout(r, 2500));
+// __c vide  → validation côté client, rien n'est parti
+// __c = [".../graphql"] → c'est bien parti, relire après rechargement
+Array.from(document.querySelectorAll('[class*="error"]')).map(e => e.innerText)
+// → « Veuillez remplir ce champ. », et son parent nomme le champ fautif
+```
+
+**Zéro requête = validation bloquante, pas une panne réseau.** Remonter au parent du `.error` donne
+le libellé du champ. Répondre « Non » à la caution a débloqué la page instantanément.
+
+## GreenGo — le compteur de caractères dit si React a vu votre écriture
+
+Le `Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set` + `input` marche sur
+`description` et sur `longDescription`, et **ne marche pas** sur `additionalCustomRulesParagraph` —
+react-hook-form n'enregistre rien et l'écriture est perdue au premier `Enregistrer`.
+
+**Contrôle universel, gratuit : lire le compteur `N/1500` juste après avoir écrit.** S'il est resté
+à `0/1500`, React n'a pas vu la valeur — repasser par un vrai `fill()` (`browser_type`). S'il affiche
+la bonne longueur, l'écriture est dans l'état du formulaire.
+
+## GreenGo — les équipements n'ont aucun `<input>` : l'état est dans la classe CSS
+
+`annonce/accommodation/<id>/equipments` n'a **pas un seul `input` dans tout le formulaire**. Chaque
+ligne est un couple de `<div>` « Oui » / « Non », et l'état se lit sur la classe du parent :
+
+| Classe | Sens |
+|---|---|
+| `border-primary-600 bg-primary-50 text-primary-600` | **Oui** sélectionné |
+| `border-error-900 bg-error-50 text-error-900` | **Non** sélectionné |
+| `border-transparent` | jamais répondu |
+
+Relevé au passage sur L'Estiva : Plancha **Oui**, Terrasse **Oui**, Espace repas en plein air
+**Oui**, Barbecue **Non**, Brasero **Non**.
+
+## Abracadaroom — un contenu PAR PLACE DE MARCHÉ, et une annonce publique qui a plus d'un jour de retard
+
+Deux choses découvertes le 2026-09-24, à ne pas confondre l'une avec l'autre.
+
+**1. L'onglet Infos générales a trois sous-onglets de contenu** : « Contenu par défaut »,
+« Abracadaroom », « Unic Stay ». Les deux derniers ne surchargent que **« Bon à savoir »,
+« Conditions de réservation » et « Durée minimale de séjour »** — la description principale n'y a pas
+d'éditeur et reste donc celle du contenu par défaut. **L'onglet TARIFS n'a pas ces sous-onglets du
+tout** : ses trois blocs sont partagés par toutes les places de marché.
+
+**2. `abracadaroom.com` sert une copie en retard de plus de 24 h.** Mesuré : une modification faite
+la veille sur un bloc de l'onglet TARIFS — donc un champ qu'aucune surcharge ne peut masquer —
+était toujours absente de l'annonce publique le lendemain, en même temps que celles du jour.
+**Ne jamais conclure d'un écart public que l'enregistrement a échoué** : relire le back-office après
+rechargement, c'est lui qui fait foi, et prévoir une re-vérification publique différée.
+
+**Les éditeurs sont des ProseMirror** : écrire dans `innerHTML` ne change rien à l'état du document.
+Poser une `Range` sur le texte visé, `window.getSelection()`, puis
+`document.execCommand('insertText', …)` — c'est le chemin qu'emprunte la frappe réelle, et il
+persiste. `insertParagraph` avant `insertText` pour ajouter un paragraphe.
+
+## Airbnb — trois pièges de plus, relevés le 2026-09-24
+
+- **La Granja est l'annonce `1398287456607254737`** (L'Estiva : `1576845044615216441`). L'id se lit
+  en cliquant la carte dans `/hosting/listings` — les cartes n'ont pas de `<a>`, le `data-testid`
+  du bouton EST l'id.
+- **La page récapitulative de `details/description` rend la version ANGLAISE.** Une correction
+  française y paraît donc perdue. Ouvrir la modale et lire les deux `textarea`
+  (`#listing-description-English-textarea`, `#listing-description-Français-textarea`), ou lire la
+  page publique en `airbnb.fr` contre `airbnb.com/...?locale=en`.
+- **Le crayon de la DERNIÈRE ligne est incliquable par un vrai clic** : une animation lottie en
+  surimpression intercepte le pointeur et Playwright boucle jusqu'au timeout. Un `.click()` en
+  JavaScript sur le `button[aria-hidden="true"]` de la ligne ouvre bien la modale. Les lignes du
+  haut, elles, se cliquent normalement.
+- Confirmation du piège des langues inversées : sur L'Estiva, **« Mon logement » n'a QUE le champ
+  « English », et il contient du français**, le champ « Français » étant vide. « Description du
+  logement » et « Autres informations à noter », eux, ont bien les deux langues au bon endroit.
+
+## Booking — la session de l'extranet expire et la reprise n'est pas automatisable
+
+Le 2026-09-24, `admin.booking.com` renvoyait sur `account.booking.com/sign-in` (identifiant, puis
+mot de passe, puis vraisemblablement un code). **C'est une reprise de main pour l'opérateur** :
+préparer l'URL exacte et le texte à coller, ne pas tenter de forcer.
+
+Bonne nouvelle au passage : **le non-fumeur n'a pas besoin de `fine_print`**, il vient des Conditions
+de l'établissement et il est déjà publié sur les deux fiches. Et la description générée dit déjà
+« Cet établissement possède un barbecue », parce que l'équipement est déclaré — **déclarer
+l'équipement est le vrai levier sur Booking**, `fine_print` ne sert qu'à ce qu'aucun équipement ne
+sait dire.
+
 ## GreenGo — les points forts : un titre trop long bloque l'enregistrement EN SILENCE
 
 Le formulaire d'un point fort limite le titre à **50 caractères**. Au-delà, « Valider » ne fait
