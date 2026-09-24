@@ -76,7 +76,13 @@ strong,b{ font-weight:700; }
 .gf-header .gf-dropdown > .gf-dd-label.gf-cta{ border:1px solid rgba(232,194,134,.85); padding:9px 16px 8px;
   border-radius:2px; color:#E8C286; }
 .gf-header .gf-dropdown:hover > .gf-dd-label.gf-cta{ background:var(--gf-ocre); border-color:var(--gf-ocre); color:#fff; }
-.gf-header .gf-burger, .gf-header .gf-burger-cb{ display:none; }
+.gf-header .gf-burger{ display:none; }
+/* La case reste dans le flux, simplement invisible : display:none la retirerait de la
+   navigation au clavier, et le menu du telephone deviendrait inatteignable autrement qu'au
+   doigt. Son etat de focus se lit sur le pictogramme, juste dessous. */
+.gf-header .gf-burger-cb{ position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
+.gf-header .gf-burger-cb:focus-visible + .gf-burger{ outline:2px solid #E8C286; outline-offset:3px; border-radius:2px; }
 @media (max-width:1080px){
   .gf-header{ padding:14px 18px; }
   .gf-header .gf-burger{ display:block; color:#fff; font-size:2rem; line-height:1; cursor:pointer; text-shadow:0 1px 3px rgba(0,0,0,.4); }
@@ -131,6 +137,11 @@ strong,b{ font-weight:700; }
   letter-spacing:.22em; padding:16px 28px; border-radius:2px; text-decoration:none; transition:background .25s ease; }
 .gf-btn:hover{ background:var(--gf-ocre-deep); }
 .gf-btn-ghost{ background:transparent; border:1px solid rgba(247,242,230,.7); }
+/* Le greffon GuestFlow definit lui aussi une classe .gf-btn, avec min-height:44px sur la boite
+   de contenu : 76 px de haut une fois les marges internes ajoutees, contre 45 ailleurs. La
+   collision de nom ne se voit donc que sur les pages qui portent le moteur de reservation.
+   La cible tactile reste tenue par la hauteur totale du bouton. */
+.gf-hero .gf-btn{ min-height:0; }
 .gf-btn-ghost:hover{ background:rgba(247,242,230,.14); }
 .gf-btn-forest{ background:transparent; border:1px solid var(--gf-sapin); color:var(--gf-sapin) !important; }
 .gf-btn-forest:hover{ background:var(--gf-sapin); color:var(--gf-paper) !important; }
@@ -348,3 +359,31 @@ add_action('wp_footer', function () {
 </script>
     <?php
 });
+
+/**
+ * Repose la case a cocher du menu telephone, que WordPress retire du balisage.
+ *
+ * Le menu du telephone est un interrupteur en CSS pur : une case a cocher invisible, que le
+ * pictogramme commande par son <label for>, et dont l'etat coche deplie la navigation
+ * (.gf-burger-cb:checked ~ .gf-nav). Or <input> ne figure pas dans les balises autorisees par
+ * wp_kses : enregistrer la partie de modele « Header » depuis l'administration suffit a faire
+ * disparaitre la case. Le <label> survit, lui, et continue de designer un element qui n'existe
+ * plus — le pictogramme reste donc affiche mais n'ouvre plus rien, sans la moindre erreur.
+ *
+ * On la repose au rendu plutot que dans la source : la source peut la reperdre a chaque
+ * sauvegarde, le site ne la perdra plus.
+ */
+add_filter('render_block', function ($html) {
+    if (false === strpos($html, 'gf-burger')) {
+        return $html;
+    }
+    if (false !== strpos($html, 'id="gf-burger-cb"')) {
+        return $html;
+    }
+    return preg_replace(
+        '~<label\s+for="gf-burger-cb"~',
+        '<input type="checkbox" id="gf-burger-cb" class="gf-burger-cb" aria-label="Ouvrir le menu" /><label for="gf-burger-cb"',
+        $html,
+        1
+    );
+}, 5);

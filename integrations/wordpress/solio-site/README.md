@@ -47,6 +47,7 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-admin.php` | Metabox d'édition du titre et de la description, bouton « Actualiser les tarifs ». |
 | `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral en deux écrans, ouvert par un bouton flottant en bas à droite. |
 | `gf-seo-urls.php` | Garde-fou : toute adresse générée suit l'hôte réellement utilisé par le visiteur. |
+| `gf-caps.php` | Pictogrammes des pastilles de capacité, injectés en JS — `wp_kses` retire tout `<svg>` du contenu enregistré depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |
 | `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ, bande film. |
 | `apache/uploads.htaccess` | Sert les jumeaux WebP par négociation de contenu. À déposer dans `wp-content/uploads/.htaccess`. |
 | `apache/roboto.css` | Feuille de la police auto-hébergée. Va dans `wp-content/uploads/fonts/`. |
@@ -90,10 +91,27 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 | Capacité, chambres, lits, salles d'eau | les pastilles à icônes en haut de page (`gf-caps`) |
 | Superficie, saison, horaires, animaux, bébés, bain nordique | l'encadré « L'essentiel » (le wifi n'y figure que lorsqu'il n'y en a pas) |
 | Équipements détaillés | la grille de pictogrammes (`gf-amenities`) |
-| Prix des options | la carte « à la carte » de `/reserver/` (`[solio_surdemande]`), via GuestFlow |
+| Prix des options | la carte « à la carte » des deux pages de logement (`[solio_surdemande]`), via GuestFlow |
 | Montant des cautions | `[solio_caution]`, lu dans les faits ; dans les CGV, `{{cautions}}`, lu dans GuestFlow (caution par défaut de chaque logement) — les deux doivent dire la même chose |
-| Contexte géographique | uniquement les deux pages de logement et `/acces/` |
+| Contexte géographique | uniquement les deux pages de logement et `/contact/` |
 | Ce que montre chaque photo | la légende de la diapo, sous l'image du carrousel |
+
+## Les pages
+
+Le site tient en **sept pages** : l'accueil, les deux logements, Le Domaine, Autour de nous,
+Accès & contact, et les CGV. Tout ce qui n'était pas dans le bandeau du haut a été retiré le
+**2026-09-24** — `/reserver/`, `/faq/`, `/acces/`, `/disponibilites/` et quatre brouillons jamais
+publiés — et chacune de ces URLs garde une redirection 301 dans `gf-seo-redirects.php` : une page
+supprimée sans porte de sortie est un lien mort pour Google comme pour un visiteur qui a gardé
+l'adresse.
+
+Deux conséquences à connaître :
+
+- **`/reserver/` était l'étape « lequel des deux ? »**. Les appels à l'action qui y menaient
+  proposent désormais les deux logements côte à côte, vers `#reserver`, qui ouvre le tiroir.
+- **La carte « À la carte » vivait là**, et c'était le seul endroit où le prix des options
+  s'affichait. Elle est reprise sur les deux fiches logement, juste avant le moteur, sous l'ancre
+  `#a-la-carte` vers laquelle pointent les anciennes URLs Lodgify `/fr/options` et `/en/options`.
 
 ## La bande film
 

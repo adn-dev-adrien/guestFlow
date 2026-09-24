@@ -31,15 +31,15 @@ function gf_seo_pages() {
 			'alias'       => array( 'accueil-solio' ),
 			'fil'         => 'Accueil',
 			'title'       => 'Domaine Solio — gîte et glamping en Ardèche verte, 13 ha',
-			'description' => 'Un gîte 3 épis pour 10 personnes et une tente safari, seuls sur 13 hectares de prairie et de forêt à Satillieu. Animaux, piscine, bain nordique.',
+			'description' => 'Un gîte 3 étoiles pour 10 personnes et une tente safari, seuls sur 13 hectares de prairie et de forêt à Satillieu. Animaux, piscine, bain nordique.',
 		),
 
 		'la-granja'             => array(
 			'alias'       => array( 'le-gite' ),
 			'lodging'     => 'gite',
 			'fil'         => 'Gîte 10 personnes',
-			'title'       => 'Gîte 10 personnes en Ardèche verte — 4 chambres, 3 épis',
-			'description' => 'Gîte de France 3 épis pour 10 personnes à Satillieu : 4 chambres, 2 salles d’eau, poêle à bois et terrasse vue montagnes, sur un domaine de 13 hectares.',
+			'title'       => 'Gîte 10 personnes en Ardèche verte — 4 chambres, 3 étoiles',
+			'description' => 'Gîte 3 étoiles pour 10 personnes à Satillieu : 4 chambres, 2 salles d’eau, poêle à bois et terrasse vue montagnes, sur un domaine de 13 hectares.',
 		),
 
 		'estiva'                => array(
@@ -50,11 +50,6 @@ function gf_seo_pages() {
 			'description' => 'Tente safari tout confort pour 5 personnes sur terrasse bois, au milieu du pré des chèvres. Salle d’eau privative, ciel étoilé, sans wifi ni voisin.',
 		),
 
-		'privatiser-le-domaine' => array(
-			'fil'         => 'Privatiser le domaine',
-			'title'       => 'Privatiser un domaine en Ardèche — 15 à 20 personnes',
-			'description' => 'Le gîte et la tente safari réunis : 15 personnes, jusqu’à 20 sur demande, seuls sur 13 hectares. Tarifs dégressifs à partir de 3 nuits en Ardèche verte.',
-		),
 
 		'le-domaine'            => array(
 			'fil'         => 'Le domaine',
@@ -62,11 +57,6 @@ function gf_seo_pages() {
 			'description' => '13 hectares de prairie et de forêt à Satillieu, une boucle de balade de 2 km, des ânes, des chèvres et des moutons que les enfants approchent librement.',
 		),
 
-		'bain-nordique-ardeche' => array(
-			'fil'         => 'Bain nordique',
-			'title'       => 'Bain nordique privatif en Ardèche verte — Domaine Solio',
-			'description' => 'Un bain nordique extérieur privatisé, par créneau d’1 h face aux prairies. Une heure offerte à chaque séjour, les créneaux suivants à 30 € l’heure.',
-		),
 
 		'autour-de-nous'        => array(
 			'alias'       => array( 'activites-autour' ),
@@ -75,50 +65,18 @@ function gf_seo_pages() {
 			'description' => 'Le Safari de Peaugres à 20 minutes, le lac de Devesset, la Via Fluvia, Annonay à 15 km : nos idées de sorties testées autour du Domaine Solio.',
 		),
 
-		'avec-des-enfants'      => array(
-			'parent_fil'  => 'autour-de-nous',
-			'fil'         => 'Avec des enfants',
-			'title'       => 'Vacances en Ardèche verte avec des enfants — nos idées',
-			'description' => 'Nourrir les ânes, chasse au trésor sur le domaine, Safari de Peaugres à 20 minutes : que faire avec des enfants autour de Satillieu, en Ardèche verte.',
-		),
 
-		'reserver'              => array(
-			'alias'       => array( 'experiences-options' ),
-			'fil'         => 'Tarifs et réservation',
-			'title'       => 'Tarifs et options — Domaine Solio, gîte en Ardèche verte',
-			'description' => 'Tarifs des deux hébergements, dégressifs dès 3 nuits, et toutes les options : petit-déjeuner à 8 €, planches apéro, animations enfants et bain nordique.',
-		),
 
-		'faq'                   => array(
-			'alias'       => array( 'bien-preparer-votre-sejour' ),
-			'fil'         => 'Questions fréquentes',
-			'title'       => 'Questions fréquentes — votre séjour au Domaine Solio',
-			'description' => 'Chiens, wifi, arrivée à 16h et départ à 10h, bain nordique, enfants, piscine : toutes les réponses avant de réserver votre séjour en Ardèche verte.',
-		),
 
-		'acces'                 => array(
-			'fil'         => 'Accès',
-			'title'       => 'Venir au Domaine Solio — accès, GPS et distances utiles',
-			'description' => '215 côte de Japperenard à Satillieu : Annonay à 15 km, la vallée du Rhône à 30 minutes, Lyon et Valence à 1 heure. Coordonnées GPS et itinéraire.',
-		),
 
 		'contact'               => array(
-			'fil'         => 'Contact',
-			'title'       => 'Contact — Domaine Solio, Satillieu en Ardèche verte',
-			'description' => 'Une question avant de réserver ? Sophie ou Adrien vous répondent directement au 06 15 73 93 37 ou par le formulaire. Domaine Solio, 07290 Satillieu.',
+			'alias'       => array( 'acces', 'contactez-nous' ),
+			'fil'         => 'Accès & contact',
+			'title'       => 'Accès & contact — Domaine Solio, Satillieu en Ardèche',
+			'description' => 'Venir au Domaine Solio : GPS, gare de Saint-Vallier à 30 minutes, parking sur place. Sophie ou Adrien répondent au 06 15 73 93 37 ou par e-mail.',
 		),
 
-		'vos-hotes'             => array(
-			'fil'         => 'Vos hôtes',
-			'title'       => 'Vos hôtes — Sophie et Adrien, Domaine Solio en Ardèche',
-			'description' => 'Nous vivons sur le domaine avec nos enfants et nos animaux. Découvrez qui vous accueille sur les 13 hectares du Domaine Solio, à Satillieu en Ardèche.',
-		),
 
-		'disponibilites'        => array(
-			'noindex' => true,
-			'fil'     => 'Disponibilités',
-			'title'   => 'Disponibilités — Domaine Solio',
-		),
 	);
 }
 
