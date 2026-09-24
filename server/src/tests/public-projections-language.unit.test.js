@@ -224,3 +224,24 @@ test('a Neat-priced insurance announces itself in the right language', () => {
   assert.equal(fr.priceLabel, 'Tarif calculé pour vos dates de séjour');
   assert.equal(en.priceLabel, 'Price calculated for your dates');
 });
+
+// ── Rule 10 — one money format across the PDF, the e-mail and the site ───────
+
+test('specs/site-english-version.md rule 10 — English keeps the French decimal comma', () => {
+  // The property is in the euro zone and the quote PDF attached to the e-mail already writes
+  // « 1 234,56 € » to English guests (specs/email-language-fr-en.md §3 rule 4). One convention
+  // across the three surfaces is worth more than local elegance on one of them.
+  const insurance = { id: 9, title: 'Assurance', titleEn: 'Insurance', priceType: 'per_stay', price: 12.5 };
+  const en = toPublicCancellationInsurance(insurance, { lang: 'en' });
+  const fr = toPublicCancellationInsurance(insurance, {});
+  assert.match(en.priceLabel, /12,5 €/, 'the decimal separator must not become a point in English');
+  assert.match(fr.priceLabel, /12,5 €/);
+  assert.equal(en.priceLabel, '12,5 € per stay');
+  assert.equal(fr.priceLabel, '12,5 € au séjour');
+});
+
+test('specs/site-english-version.md rule 10 — a percentage reads the same way in both languages', () => {
+  const insurance = { id: 9, title: 'Assurance', titleEn: 'Insurance', priceType: 'percent_of_stay', price: 4.5 };
+  assert.equal(toPublicCancellationInsurance(insurance, {}).priceLabel, '4,5 % du montant du séjour');
+  assert.equal(toPublicCancellationInsurance(insurance, { lang: 'en' }).priceLabel, '4,5 % of the stay total');
+});

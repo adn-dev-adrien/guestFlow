@@ -155,17 +155,21 @@ build against.)_
     poller tree (`/public/v1/gate/*`, that spec's §4.3). Today both are French-only, and the guest
     page is the **first guest-facing UI this app has ever had** — it must not become the one place
     where an English guest hits French.
+    > **Sans test** — contrat écrit d'avance pour l'app portail ; aucune ligne de code ne l'implémente ici (§8)
 15. **Contract, when the gate app is written:** `GET`/`POST /gate/v1/session` gains `stay.lang`
     (`'fr' | 'en'`), resolved exactly like an e-mail — `clients.emailLanguage` first, the
     reservation's language as a fallback, `fr` last (`controllers/emailsController.js:72`) — so one
     rule governs the whole guest-facing surface and the page can render itself accordingly. The
     Sowel long-poll payload (`GET /public/v1/gate/requests`) gains the same `lang` on its `request`
     object, so a notification the Sowel recipe raises can be worded in the guest's language.
+    > **Sans test** — contrat écrit d'avance pour l'app portail ; aucune ligne de code ne l'implémente ici (§8)
 16. `lang` is **additive and optional** there too: a consumer that ignores it behaves exactly as
     today. The gate's own security model is untouched — language is a display attribute, never a
     capability, and it must never widen what a token can do.
+    > **Sans test** — contrat écrit d'avance pour l'app portail ; aucune ligne de code ne l'implémente ici (§8)
 17. Whoever implements this amends `specs/guest-gate-access.md` §4.3 in the same commit. That spec
     owns the gate contract; this one only records what the contract must eventually say.
+    > **Sans test** — consigne de tenue de spec, pas un comportement du logiciel
 
 ### WordPress plugin (`guestflow-booking`)
 
@@ -173,14 +177,18 @@ build against.)_
     Polylang is present, otherwise `get_locale()` reduced to its two-letter prefix, otherwise `fr` —
     and sends it as `lang` on every upstream call (`class-gf-api-client.php`) and through the REST
     proxy (`class-gf-rest-proxy.php`).
+    > **Sans test** — code PHP du plugin WordPress — hors de la suite Node ; vérifié sur le site (§7)
 19. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
     Source strings stay French, which is what the 80 `__()` calls already assume; English arrives as
     a translation. The `.po` is the reviewable artefact and is versioned.
+    > **Sans test** — fichiers de traduction `.po`/`.mo` — un artefact, pas un comportement
 20. `runtime.js` and `blocks/calendar/view.js` stop hard-coding `fr-FR`: number and date formatting
     read the locale published by `wp_localize_script`.
+    > **Sans test** — formatage côté navigateur dans le plugin — vérifié sur le site (§7)
 21. The CGV shortcode already renders both languages with a flag switcher
     (`class-gf-shortcodes.php:71-82`). On an English page it must open on **English** by default;
     the visitor's manual choice still wins and is still remembered.
+    > **Sans test** — shortcode PHP du plugin — vérifié sur le site (§7)
 
 ### Solio site (mu-plugins)
 
@@ -197,6 +205,7 @@ build against.)_
     One deviation from "as-is", and only one: `zz-adn-security.php` named the WordPress
     administrator's login in a comment, and this repository is public — the comment is reworded to
     say the same thing without the identifier.
+    > **Sans test** — import de fichiers à l'identique ; le test est la comparaison octet à octet faite avant l'import
 23. The header and footer stop being frozen French HTML in the block template parts. They are
     rendered per language: labels and URLs both (`/la-granja/` ↔ `/en/la-granja/`), and the header
     carries a **language switcher** (§6, decided 2026-09-24 on
@@ -207,26 +216,33 @@ build against.)_
     there is something to switch to:** it is not rendered at all while fewer than two languages have
     published content, so nothing advertises an English site before it stands — the discipline
     rule 25 applies to `hreflang`, applied to the interface.
+    > **Sans test** — mu-plugins PHP du site Solio — hors de la suite Node ; vérifiés sur le site (§7)
 24. `gf-booking.php`'s ~40 interface strings, including the singular/plural of "nuit", go through a
     small FR/EN map resolved from the current language, same shape as rule 3.
+    > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
 25. `gf-seo-head.php` keeps `x-default` on French. The `hreflang="en"` alternate is emitted **only
     for a page that actually has a published English translation** — which also fixes today's defect
     where the whole site advertises an empty `/en/`.
+    > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
 
 ### Content
 
 26. The 10 published French pages get an English translation, linked through Polylang, with English
     slugs under `/en/`. The English home replaces the empty "Blog" archive currently served there.
+    > **Sans test** — contenu rédactionnel, pas du code
 27. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
     concrete, understated. The site never becomes salesier in translation than it is in French.
+    > **Sans test** — contenu rédactionnel, pas du code
 28. Pages are translated **one at a time and published straight away** _(decided 2026-09-24,
     reversing this rule's first version)_. Adrien does not want to proof-read the English before it
     goes live. The safety net is no longer his reading, so it has to be somewhere else: rule 25
     already keeps `hreflang` on really-translated pages only, and each page is published with its
     French twin open beside it so no fact — a price, a capacity, a date, a rule — drifts in
     translation. Facts are checked against the French page; prose is not sent for approval.
+    > **Sans test** — procédure de publication, pas un comportement du logiciel
 29. Nothing advertises the English site before it stands: rule 25 makes the `hreflang` follow real
     translations, so the sequencing is automatic rather than a thing to remember.
+    > **Sans test** — conséquence de la règle 25, qui porte déjà sa propre vérification
 
 **Edge cases:**
 
