@@ -275,8 +275,6 @@ function gf_seo_faq( $cle ) {
 				'r' => 'Les deux hébergements, donc tout le domaine : prairie, forêt, sentier, piscine en saison, bain nordique et animaux.' ),
 			array( 'q' => 'À quelle période ?',
 				'r' => 'Du 1er avril au 14 octobre, le lodge fermant hors saison. Le reste de l’année, le gîte seul reste disponible.' ),
-			array( 'q' => 'Y a-t-il un tarif dégressif ?',
-				'r' => 'Oui, à partir de 3 nuits. Écrivez-nous pour un devis, nous répondons directement.' ),
 			array( 'q' => 'Peut-on organiser un mariage ou un séminaire ?',
 				'r' => 'Les séminaires sont les bienvenus. Pour les mariages, nous ne sommes pas encore calibrés — mais en extérieur, nous pouvons accueillir jusqu’à 40 personnes, sur demande et sur devis : parlez-nous de votre projet.' ),
 			array( 'q' => 'Proposez-vous des prestations pour les groupes ?',

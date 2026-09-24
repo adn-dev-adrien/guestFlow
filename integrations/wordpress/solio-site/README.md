@@ -38,7 +38,7 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-facts.php` | **Source de vérité.** Adresse, GPS, capacités, horaires, équipements, distances, FAQ. Lit les tarifs vivants dans GuestFlow (cache 6 h, repli statique). |
 | `gf-seo-head.php` | `<title>` 50-60 car., meta description 140-155 car., Open Graph, Twitter Card, `hreflang`, geo. Table page → référencement, surchargeable par page. Le visuel de partage se replie sur la première `<img>` du contenu, ce qui couvre les bandeaux écrits en HTML brut. |
 | `gf-seo-schema.php` | JSON-LD : `LodgingBusiness`, `VacationRental` / `Campground` + `Accommodation`, `FAQPage`, `BreadcrumbList`. Fil d'Ariane visible. La galerie du logement reprend chaque diapo du carrousel en `ImageObject`, légende comprise. |
-| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. |
+| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. `[solio_surdemande]` et `[solio_geo]` ne sont plus posés sur aucune page depuis le 2026-09-24 ; ils restent disponibles à l'éditeur. |
 | `gf-seo-images.php` | Complète les `<img>` du contenu : `alt`, `width`/`height`, `srcset`, `loading`, `fetchpriority` sur l'image LCP. |
 | `gf-seo-indexation.php` | `robots.txt` (12 robots autorisés nommément), sitemap nettoyé, `/llms.txt`. |
 | `gf-seo-redirects.php` | 301 des anciennes URLs WordPress et des 18 URLs Lodgify. |
@@ -91,9 +91,9 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 | Capacité, chambres, lits, salles d'eau | les pastilles à icônes en haut de page (`gf-caps`) |
 | Superficie, saison, horaires, animaux, bébés, bain nordique | l'encadré « L'essentiel » (le wifi n'y figure que lorsqu'il n'y en a pas) |
 | Équipements détaillés | la grille de pictogrammes (`gf-amenities`) |
-| Prix des options | la carte « à la carte » des deux pages de logement (`[solio_surdemande]`), via GuestFlow |
+| Prix des options | le tiroir de réservation, qui les liste avec leur prix au moment du choix |
 | Montant des cautions | `[solio_caution]`, lu dans les faits ; dans les CGV, `{{cautions}}`, lu dans GuestFlow (caution par défaut de chaque logement) — les deux doivent dire la même chose |
-| Contexte géographique | uniquement les deux pages de logement et `/contact/` |
+| Contexte géographique | le texte de `/contact/` et la page « Autour de nous » ; les distances chiffrées restent servies aux robots par `/llms.txt` |
 | Ce que montre chaque photo | la légende de la diapo, sous l'image du carrousel |
 
 ## Les pages
@@ -109,9 +109,11 @@ Deux conséquences à connaître :
 
 - **`/reserver/` était l'étape « lequel des deux ? »**. Les appels à l'action qui y menaient
   proposent désormais les deux logements côte à côte, vers `#reserver`, qui ouvre le tiroir.
-- **La carte « À la carte » vivait là**, et c'était le seul endroit où le prix des options
-  s'affichait. Elle est reprise sur les deux fiches logement, juste avant le moteur, sous l'ancre
-  `#a-la-carte` vers laquelle pointent les anciennes URLs Lodgify `/fr/options` et `/en/options`.
+- **La carte « À la carte » a disparu des fiches logement** le 2026-09-24 : elle redisait, en HTML
+  figé, ce que le tiroir de réservation montre déjà option par option avec son prix. Les anciennes
+  URLs Lodgify `/fr/options` et `/en/options` mènent désormais à `/la-granja/#reserver`, qui ouvre
+  le tiroir — donc la carte vivante. Le prix des options n'est plus rendu côté serveur : c'est le
+  coût assumé de ce retrait.
 
 ## Les carrousels
 
