@@ -498,8 +498,10 @@ burger on mobile. Written up in §6.
 _(filled during implementation)_
 
 - [x] Prerequisite: 10 mu-plugins imported into the repository (2026-09-24)
-- [ ] `utils/publicLabels.js` + tests
-- [ ] Projections and controllers take `lang`
+- [x] `utils/publicLabels.js` + tests (2026-09-24)
+- [x] Projections take `lang`; catalogue, terms and payment controllers resolve it (2026-09-24)
+- [ ] The three messages still French: the pricing engine's propagated errors, the `MIN_NIGHTS`
+      sentence, and the portion refusal (`mealPortions` already speaks both — the caller does not)
 - [ ] Booking request carries the language through to client and reservation
 - [ ] Plugin: language resolution, `lang` upstream, `.po`/`.mo`, locale-aware formatting
 - [ ] Site: `gf-i18n`, header/footer per language, `gf-booking` strings
