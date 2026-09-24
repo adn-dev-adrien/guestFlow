@@ -279,9 +279,14 @@ add_action('wp_footer', function () {
       try { localStorage.setItem('gf-cgv-lang', lang); } catch (e) {}
     };
     boutons.forEach(function(b){ b.addEventListener('click', function(){ montrer(b.dataset.lang); }); });
-    var memo = 'fr';
-    try { memo = localStorage.getItem('gf-cgv-lang') || 'fr'; } catch (e) {}
-    montrer(memo === 'en' ? 'en' : 'fr');
+    // A defaut de choix memorise, on ouvre dans la langue de la PAGE — le shortcode l'annonce en
+    // data-open-lang. Sans cela un lecteur anglais tombait sur un contrat en francais, et le
+    // reglage cote PHP etait annule ici au chargement (specs/site-english-version.md regle 25).
+    var conteneur = document.querySelector('.gf-cgv');
+    var parDefaut = (conteneur && conteneur.dataset.openLang === 'en') ? 'en' : 'fr';
+    var memo = null;
+    try { memo = localStorage.getItem('gf-cgv-lang'); } catch (e) {}
+    montrer(memo === 'en' || memo === 'fr' ? memo : parDefaut);
   }
 })();
 (function(){

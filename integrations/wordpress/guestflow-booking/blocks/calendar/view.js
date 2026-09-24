@@ -40,7 +40,9 @@
           title: isBlocked ? GF.t('blocked') : GF.t('available'),
         }, String(d)));
       }
-      var label = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      // The month names follow the page's language (specs/site-english-version.md rule 24); the
+      // prices beside them do not (rule 10).
+      var label = monthDate.toLocaleDateString(GF.locale, { month: 'long', year: 'numeric' });
       return GF.el('div', { class: 'gf-cal-month' }, GF.el('div', { class: 'gf-cal-head' }, label), grid);
     }
 
