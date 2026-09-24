@@ -197,7 +197,9 @@ build against.)_
     rendered per language: labels and URLs both (`/la-granja/` ↔ `/en/la-granja/`), and the header
     carries a **language switcher** (§6, decided 2026-09-24 on
     `docs/specs/2026-09-24-site-language-switcher.html`) linking to the current page's translation —
-    or to the English home when that page has no translation yet. **The switcher only exists when
+    or to the English home when that page has no translation yet. The automatic first-language
+    redirect described in §6 lives in `gf-i18n.php` and nowhere else — one function, its conditions
+    readable in one place. **The switcher only exists when
     there is something to switch to:** it is not rendered at all while fewer than two languages have
     published content, so nothing advertises an English site before it stands — the discipline
     rule 25 applies to `hreflang`, applied to the interface.
@@ -316,7 +318,7 @@ else reuses existing screens.
 | File | T/C | Responsibility |
 |---|---|---|
 | 10 server-only mu-plugins | **C** | Imported as-is first (rule 22), no behaviour change in that commit |
-| `gf-i18n.php` | **C** | The site's FR/EN string map + the current-language helper the others call |
+| `gf-i18n.php` | **C** | The site's FR/EN string map, the current-language helper the others call, and the first-visit `Accept-Language` redirect with its guards (§6) |
 | `gf-header.php` (from the `header` template part) | **C** | Navigation rendered per language + renders the language switcher (hidden while a single language has content) |
 | `gf-seo-icons.php` | T | Gains the `globe` icon, on the existing 24 × 24 stroke grid |
 | `gf-footer.php` | T | Footer links and labels per language |
@@ -377,9 +379,30 @@ whole navigation two rows down. Consequence for the implementation: on `xs` the 
 `open` state.
 
 *Behaviour.* The menu points at the current page's translation when one is published, and at the
-English home otherwise — never a 404, never a greyed entry without an explanation. No
-`Accept-Language` redirect (it breaks shared links, crawlers and the back button) and no preference
-cookie: the choice lives in the URL, which is shareable and indexable.
+English home otherwise — never a 404, never a greyed entry without an explanation.
+
+*Automatic first language — decided 2026-09-24, reversing this section's first version.* A visitor
+arriving for the first time is sent to the version matching their browser. The first draft refused
+this outright; Adrien asked for it, so it is built — with the guards that make the difference
+between a helpful default and a site that breaks under a cache:
+
+1. **Server-side, in PHP** (`gf-i18n.php`), never in JavaScript. A redirect after paint flickers,
+   and a language chosen by a script is a language no crawler ever sees.
+2. **Only on a first visit.** The moment the visitor touches the switcher, a `gf_lang` cookie is
+   written (one year) and detection never runs again. **An explicit choice always wins**, including
+   the choice to read French with an English browser.
+3. **Only when there is somewhere to go:** the page must have a published translation. A visitor is
+   never redirected to the English home for a page that only exists in French.
+4. **Never for a crawler.** Googlebot and friends must receive the URL they asked for, or the
+   `hreflang` mesh rule 25 builds describes a site that answers something else.
+5. **Never on a URL carrying a query string.** This is not caution in the abstract: the Qonto
+   payment return comes back as `…/la-granja/?gf_payment=…`, and a redirect that drops or re-writes
+   those parameters loses a guest mid-payment. A URL with a query string is a URL in the middle of
+   something.
+6. **`302`, never `301`**, and `Vary: Accept-Language, Cookie` on the response. The mapping is
+   per-visitor: cached as permanent, one visitor's language would be served to the next.
+7. The canonical URL and `x-default` do not move (rule 25). Detection changes which page a person
+   lands on, never what the site tells a search engine about itself.
 
 **Mobile.** Nothing in this change alters the existing responsive behaviour: the header stays
 sticky, the burger still collapses the navigation below 1080 px, the booking drawer keeps its
@@ -421,6 +444,10 @@ of the whole spec.
    PDF are English.
 7. A French visitor sees strictly today's site (the regression that matters most).
 8. `hreflang` present only on pages with a real translation; `x-default` on French.
+9. First visit with an English browser → the English page. Switch to French → the French page, and
+   **it stays French** on the next visit. First visit with a French browser → nothing moves.
+10. `curl -H 'User-Agent: Googlebot'` on a French URL → `200`, never a redirect.
+11. A payment return (`…/?gf_payment=…`) is never redirected, whatever the browser language.
 
 **Client Vitest / Playwright E2E:** unchanged and unaffected — no React code is touched. Both suites
 must still pass.
@@ -432,6 +459,7 @@ must still pass.
 - **Property names.** "La Granja" and "L'Estiva" are proper nouns.
 - **Operator-typed data**: tariff season names, option descriptions, free-text notes.
 - **Any third language.** The design must not make one harder, but none is built.
+- **Region-specific variants.** `en-US` and `en-GB` both resolve to `en`; the site has one English.
 - **The gate app, and every line of code behind rules 14-17.** Those rules are a contract written
   in advance, at Adrien's request (2026-09-24), so the language does not have to be retrofitted the
   day `specs/guest-gate-access.md`'s guest page and Sowel plugin are built. **Nothing in this

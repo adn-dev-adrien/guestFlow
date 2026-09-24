@@ -269,6 +269,7 @@ nouvelle. Même grille, même trait, même couleur héritée.</p>
 <tr><td>La page n'a pas encore de traduction</td><td>L'entrée reste cliquable et mène à l'accueil anglais — jamais un 404, jamais une entrée grisée sans explication</td></tr>
 <tr><td>Polylang désactivé ou une seule langue publiée</td><td>Le sélecteur <b>ne s'affiche pas du tout</b> : tant que l'anglais n'existe pas, rien ne l'annonce (même logique que la règle 21 sur le <code>hreflang</code>)</td></tr>
 <tr><td>Téléphone</td><td>Premier bloc du menu burger, <b>replié par défaut</b> — une seule ligne « globe FR », qui se déplie au doigt sur deux cibles de 44 px, l'active en ocre. Le menu « Réserver » reste déplié, lui : c'est la destination du menu, pas un réglage.</td></tr>
+<tr><td><b>Première visite</b></td><td>Le visiteur est envoyé vers la version de son navigateur — <b>décidé le 24/09/2026</b>. Uniquement s'il n'a jamais choisi, uniquement si la page a une traduction publiée, jamais pour un robot, jamais sur une URL qui porte des paramètres (le retour de paiement Qonto en porte). Dès qu'il touche le sélecteur, son choix est retenu un an et la détection ne rejoue plus.</td></tr>
 <tr><td>Robots et lecteurs d'écran</td><td>Vraies balises <code>&lt;a hreflang="en" lang="en"&gt;</code>, la langue nommée dans sa langue (« English », pas « Anglais »), <code>aria-current</code> sur l'active</td></tr>
 </table>
 
@@ -280,8 +281,8 @@ ne dit qu'une chose — « changer de langue » — et c'est la seule chose à d
 
 <h2>Ce qu'on ne fait pas</h2>
 <ul class="tight">
-<li><b>Aucune détection automatique.</b> Rediriger sur l'en-tête <code>Accept-Language</code> casse le partage de lien, les robots et le bouton retour. Le visiteur choisit.</li>
-<li><b>Aucun cookie de préférence</b> dans cette version : le choix vit dans l'URL, qui est partageable et indexable.</li>
+<li><b>Pas de détection en JavaScript.</b> La bascule automatique (ci-dessous) se décide côté serveur, en PHP : un script qui change la langue après l'affichage fait clignoter la page et reste invisible aux robots.</li>
+<li><b>Pas de redirection permanente.</b> La bascule répond <code>302</code> avec <code>Vary: Accept-Language, Cookie</code> — mise en cache comme permanente, elle servirait la langue d'un visiteur au suivant.</li>
 <li><b>Pas de troisième langue.</b> Le mécanisme la supporterait, la traduction non.</li>
 <li><b>Pas de sélecteur dans le pied de page</b> tant que celui de l'en-tête suffit — un seul endroit pour un seul geste.</li>
 </ul>
