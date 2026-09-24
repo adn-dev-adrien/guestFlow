@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plancha &amp; non-fumeur — ce que disent les annonces</title>
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FDFAF3; --ink:#22271F; --soft:#5C6153;
+  --sapin:#2E3B2A; --green:#5a6b48; --ocre:#B87B2A; --ocre-deep:#9A6318;
+  --nuit:#161C16; --line:#DCD4C2; --mute:#6b7560;
+  --ok:#3d6b45; --ok-bg:#e8f0e6; --wait:#9A6318; --wait-bg:#f7ecd9;
+  --bad:#8c3a2e; --bad-bg:#f6e4e0;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.6 "Karla",Helvetica,Arial,sans-serif}
+h1,h2,h3,h4{font-family:"Marcellus",Georgia,"Times New Roman",serif;font-weight:400;
+  line-height:1.18;color:var(--sapin);margin:0}
+h1{font-size:2rem;text-transform:uppercase;letter-spacing:.06em}
+h2{font-size:1.45rem;text-transform:uppercase;letter-spacing:.05em}
+h3{font-size:1.12rem}
+p{margin:.6em 0}
+code{font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:#e9e4d6;
+  padding:1px 5px;border-radius:3px}
+a{color:var(--ocre-deep)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+.top{background:var(--nuit);color:#EFE8D6;padding:32px 0 28px}
+.top h1{color:#F7F2E6}
+.top p{color:#cfcab8;max-width:66ch}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--ocre)}
+
+.said{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+.said div{background:rgba(255,255,255,.07);border:1px solid rgba(232,194,134,.35);
+  border-radius:5px;padding:10px 14px;min-width:230px}
+.said .k{display:block;font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;color:#E8C286}
+.said .v{display:block;font-family:"Marcellus",Georgia,serif;font-size:1.02rem;color:#F7F2E6;margin-top:4px}
+
+.bar{position:sticky;top:0;z-index:40;background:rgba(245,240,230,.96);
+  backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 0}
+.bar .wrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.lab{font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:7px 14px;font:inherit;font-size:.82rem;
+  cursor:pointer;color:var(--soft)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:#fff}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:.84rem;color:var(--soft);
+  cursor:pointer;user-select:none}
+.chk input{accent-color:var(--ocre);width:16px;height:16px}
+.count{margin-left:auto;font-size:.8rem;color:var(--mute)}
+@media (max-width:760px){.bar{position:static}.count{margin-left:0}}
+
+section{padding:40px 0 4px;scroll-margin-top:64px}
+.lede{color:var(--soft);max-width:74ch}
+
+.chan{background:var(--card);border:1px solid var(--line);border-radius:6px;
+  margin:18px 0;overflow:hidden}
+.chan>header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  padding:14px 18px;border-bottom:1px solid var(--line);background:#fff}
+.chan>header h3{flex:0 0 auto}
+.chan .meta{font-size:.78rem;color:var(--mute)}
+.chan .meta code{font-size:12px}
+.chan .verdict{margin-left:auto;font-size:.76rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:3px 10px;border-radius:999px}
+.v-ok{color:var(--ok);background:var(--ok-bg)}
+.v-wait{color:var(--wait);background:var(--wait-bg)}
+.v-hand{color:var(--bad);background:var(--bad-bg)}
+
+.field{padding:14px 18px;border-top:1px solid var(--line)}
+.chan .field:first-of-type{border-top:0}
+.field .fh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.field .fn{font-weight:700;font-size:.92rem}
+.tag{font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;padding:2px 8px;
+  border-radius:999px;border:1px solid var(--line);color:var(--mute);background:#fff}
+.tag.plancha{border-color:#c9a05a;color:#8a6118}
+.tag.fumeur{border-color:#8fa78a;color:#3d6b45}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+@media (max-width:720px){.ba{grid-template-columns:1fr}}
+.ba div{border-radius:4px;padding:9px 11px;font-size:.88rem;line-height:1.5}
+.before{background:#f6e4e0;border:1px solid #e3c4bd}
+.after{background:#e8f0e6;border:1px solid #c3d6c0}
+.ba .k{display:block;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;
+  margin-bottom:4px;color:var(--mute)}
+.before .k{color:#8c3a2e}
+.after .k{color:#3d6b45}
+.nochange{background:#fff;border:1px dashed var(--line);border-radius:4px;padding:9px 11px;
+  font-size:.86rem;color:var(--soft);margin-top:10px}
+
+table{border-collapse:collapse;width:100%;background:var(--card);
+  border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:.9rem;margin-top:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#fff;font-weight:700;font-size:.74rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--mute)}
+tr:last-child td{border-bottom:0}
+
+.note{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--ocre);
+  border-radius:4px;padding:14px 16px;margin:14px 0}
+.note h4{font-family:inherit;font-weight:700;font-size:.94rem;color:var(--ink);
+  margin:0 0 4px;text-transform:none;letter-spacing:0}
+.note.red{border-left-color:#8c3a2e}
+.note.green{border-left-color:var(--green)}
+.hidden{display:none !important}
+footer{margin-top:44px;padding:20px 0 40px;border-top:1px solid var(--line);
+  font-size:.82rem;color:var(--mute)}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="wrap">
+  <div class="eyebrow">Déploiement plateformes · 24 septembre 2026</div>
+  <h1>Plancha &amp; non-fumeur</h1>
+  <p>La plancha n'est plus un cadeau conditionnel : elle est sur place à chaque séjour de
+  L'Estiva. Et les deux hébergements sont non-fumeur. Voici, champ par champ, ce que les
+  annonces disaient hier et ce qu'elles disent maintenant.</p>
+  <div class="said">
+    <div><span class="k">Plancha — FR</span><span class="v">Plancha à disposition</span></div>
+    <div><span class="k">Plancha — EN</span><span class="v">Plancha available, every stay</span></div>
+    <div><span class="k">Non-fumeur</span><span class="v">Hébergement entièrement non-fumeur ;
+      il est possible de fumer à l'extérieur</span></div>
+  </div>
+</div></div>
+
+<div class="bar"><div class="wrap">
+  <span class="lab">Fait</span>
+  <div class="seg" id="segFact">
+    <button data-f="all" aria-pressed="true">Les deux</button>
+    <button data-f="plancha" aria-pressed="false">Plancha</button>
+    <button data-f="fumeur" aria-pressed="false">Non-fumeur</button>
+  </div>
+  <span class="lab">Hébergement</span>
+  <div class="seg" id="segLodge">
+    <button data-l="all" aria-pressed="true">Les deux</button>
+    <button data-l="estiva" aria-pressed="false">L'Estiva</button>
+    <button data-l="granja" aria-pressed="false">La Granja</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="onlyChanged"> Seulement ce qui a changé</label>
+  <span class="count" id="count"></span>
+</div></div>
+
+<div class="wrap">
+
+<section id="canaux">
+  <h2>Canal par canal</h2>
+  <p class="lede">Chaque bloc porte le verdict relevé sur l'<strong>annonce publique</strong>
+  après coup, pas sur le formulaire. Les champs qui ne mentionnaient rien comptent aussi :
+  c'est le silence qui laisse le voyageur supposer.</p>
+  <div id="channels"></div>
+</section>
+
+<section id="reste">
+  <h2>Ce qui reste à faire</h2>
+  <div class="note red">
+    <h4>Booking — la plancha, et seulement elle, attend une reprise de main</h4>
+    <p>L'extranet demande une reconnexion complète (identifiant, mot de passe, probablement un
+    code) : je ne force pas une console de production. <strong>Le non-fumeur, lui, est déjà
+    publié sur les deux fiches</strong> — il vient des Conditions de l'établissement, pas d'une
+    demande de modification.</p>
+    <p>Il ne manque que la plancha dans « À savoir » de L'Estiva. Marche à suivre :
+    <code>admin.booking.com</code> → hôtel <code>15343212</code> →
+    <code>extranet_ng/manage/request_change.html</code> → bouton « Demander une modification »
+    <em>du bloc « La rubrique À savoir »</em> → coller :</p>
+    <p><code>Veuillez ajouter : A plancha is available at the accommodation with every stay, at
+    no extra charge.</code></p>
+    <p><strong>Vérifier l'onglet « Envoyés » de <code>inbox.html</code> avant d'envoyer</strong> :
+    deux demandes y dorment déjà depuis le 23/09 (dont un doublon), et l'envoi n'accuse jamais
+    réception. Un second levier, plus durable : déclarer l'équipement dans
+    <code>facilities.html</code> — la description générée dit déjà « Cet établissement possède un
+    barbecue » parce que l'équipement est coché.</p>
+  </div>
+  <div class="note">
+    <h4>Deux annonces publiques à re-regarder dans un jour ou deux</h4>
+    <p><strong>Abracadaroom</strong> sert une copie en retard de plus de 24 h : les modifications
+    de la veille — sur un champ qu'aucune surcharge ne peut masquer — y étaient encore absentes
+    aujourd'hui. Le back-office relu après rechargement dit la vérité.
+    <strong>Abritel/Vrbo</strong> ne rapatrie le contenu de Lodgify qu'une fois par jour.</p>
+  </div>
+</section>
+
+<section id="trouvailles">
+  <h2>Ce que la relecture a fait sortir</h2>
+
+  <div class="note red">
+    <h4>Cinq versions contradictoires de la même règle, toutes en ligne le même jour</h4>
+    <table>
+      <tr><th>Ce que l'annonce promettait</th><th>Où</th></tr>
+      <tr><td>« Location de plancha (offerte à partir de <strong>2 nuits</strong>) »</td><td>GreenGo, description du logement</td></tr>
+      <tr><td>« plancha en location (offerte à partir de <strong>3 nuits</strong>) »</td><td>Abracadaroom, description</td></tr>
+      <tr><td>« Location plaque de cuisson <strong>et plancha</strong> » — dans <em>le tarif ne comprend pas</em></td><td>Abracadaroom, onglet Tarifs</td></tr>
+      <tr><td>« réserver une plancha ou une plaque de cuisson (offertes à partir de <strong>2 nuits</strong>) »</td><td>Airbnb, « Mon logement »</td></tr>
+      <tr><td>« Location plancha, plaque de cuisson (offert pour les séjours de <strong>5 jours ou plus</strong>) »</td><td>Lodgify → Abritel/Vrbo</td></tr>
+    </table>
+    <p>Et un sixième canal que le périmètre de départ ne comptait pas : <strong>Abritel porte
+    encore L'Estiva</strong>, alimenté par Lodgify. C'est lui qui portait la version la plus
+    restrictive.</p>
+  </div>
+
+  <div class="note red">
+    <h4>GreenGo : la page « Conditions de réservation » de L'Estiva était insauvegardable</h4>
+    <p>La question « Les voyageurs doivent-ils déposer une caution ? » n'avait jamais été
+    répondue. Conséquence : « Enregistrer » ne partait pas — pas de message en haut de page,
+    aucune requête réseau, et au rechargement tout revenait en arrière. <strong>Toute
+    modification des horaires, des règles ou des remarques y était perdue depuis la création de
+    l'annonce.</strong> J'ai répondu « Non », qui est l'état réel : aucune caution n'est demandée
+    sur ce canal. À confirmer d'un œil.</p>
+  </div>
+
+  <div class="note red">
+    <h4>Airbnb : la version anglaise de La Granja promettait encore 1 h 30 de bain nordique</h4>
+    <p>La règle validée est <strong>1 h</strong>. Le champ « Autres informations à noter » en
+    anglais disait <em>« 1.5 hours included from the first night »</em> alors que la version
+    française, corrigée hier, ne parlait pas du bain du tout. Corrigé en passant — c'est une
+    promesse qui coûte de l'argent. Vérifié sur <code>airbnb.com/...?locale=en</code>.</p>
+  </div>
+
+  <div class="note">
+    <h4>Trois incohérences repérées, que je n'ai pas touchées</h4>
+    <ul>
+      <li><strong>Le linge de toilette de L'Estiva se contredit sur Abracadaroom</strong> : la
+      description dit « le tarif comprend le linge de lit, le linge de toilette et le ménage »,
+      et le bloc « le tarif ne comprend pas » liste « Linge de toilette et portage de bagages ».
+      L'un des deux ment au voyageur.</li>
+      <li><strong>« Location plaque de cuisson »</strong> reste listée comme payante sur
+      Abracadaroom et Lodgify, alors que les autres canaux décrivent une kitchenette avec plaque
+      comprise. Même question que la plancha, un cran plus bas.</li>
+      <li><strong>La Granja, GreenGo</strong> : l'annonce publique affiche
+      <code>Caution / dépôt de garantie "800"</code>, guillemets compris ; et la description
+      Abracadaroom porte une coquille, « des animations <em>pouré</em> pour les enfants ».</li>
+    </ul>
+  </div>
+</section>
+
+<footer><div>Relevé et vérifié le 24/09/2026. Les pièges de back-office découverts ce jour-là
+sont versés dans <code>.claude/skills/platform-tariff-rollout/references/platforms.md</code>,
+pour que le prochain déploiement coûte moins cher.</div></footer>
+
+</div>
+
+<script>
+const D = [
+ {ch:"Campspace", lodge:"estiva", verdict:"ok",
+  meta:"space <code>25232</code> · emplacement <code>27908</code> · L'Estiva seule y est publiée",
+  proof:"campspace.com/fr/s/l-estiva-…_25232",
+  fields:[
+   {n:"Description de l'emplacement", f:"plancha", changed:true,
+    before:"Ne parlait pas de la plancha du tout.",
+    after:"…On y vit dedans-dehors du matin au soir. <b>La plancha est à disposition à chaque séjour.</b>"},
+   {n:"Règlement intérieur — <code>check_in_out[rules]</code>", f:"fumeur", changed:false,
+    note:"Disait déjà « Hébergement entièrement non-fumeur. » Champ que la référence ne documentait pas : c'est le règlement, affiché en clair sur l'annonce."},
+   {n:"Équipement « Barbecue »", f:"plancha", changed:false,
+    note:"Déjà déclaré Oui, et porté sur l'emplacement comme sur l'espace. Campspace n'a pas d'équipement « Plancha » distinct."}
+  ]},
+
+ {ch:"GreenGo — L'Estiva", lodge:"estiva", verdict:"ok",
+  meta:"annonce <code>58dbf98b…</code> · logement <code>e05779b2…</code>",
+  proof:"greengo.voyage/hote/l-estiva-lodge-…",
+  fields:[
+   {n:"Description du logement", f:"both", changed:true,
+    before:"…sans renoncer à la nature. <b>Location de plancha (offerte à partir de 2 nuits).</b>",
+    after:"…sans renoncer à la nature. <b>Plancha à disposition à chaque séjour. Hébergement entièrement non-fumeur ; il est possible de fumer à l'extérieur.</b>"},
+   {n:"Présentation de l'établissement (<code>longDescription</code>)", f:"both", changed:true,
+    before:"La liste « le Domaine, c'est aussi » ne citait pas la plancha ; rien sur le tabac.",
+    after:"<b>- Plancha à disposition à chaque séjour</b> ajouté à la liste, et <b>« L'hébergement est entièrement non-fumeur ; il est possible de fumer à l'extérieur. »</b> après le paragraphe sur les enfants."},
+   {n:"Remarques additionnelles (Conditions de réservation)", f:"fumeur", changed:true,
+    before:"Vide (0/1500) — et le formulaire refusait de s'enregistrer, voir plus bas.",
+    after:"« L'hébergement est entièrement non-fumeur ; il est possible de fumer à l'extérieur. » — affiché tel quel dans « Infos pratiques »."},
+   {n:"Bascule « Établissement fumeur »", f:"fumeur", changed:false,
+    note:"Déjà sur Non. L'annonce publique affiche « Établissement non fumeur »."},
+   {n:"Équipement « Plancha » (section Extérieur)", f:"plancha", changed:false,
+    note:"Déjà sur Oui, et visible dans la liste des équipements de l'annonce. Champ que la référence ne documentait pas."},
+   {n:"Point fort « Parenthèse bien-être »", f:"both", changed:false,
+    note:"Relu : parle du bain nordique, ni plancha ni tabac. Rien à corriger."}
+  ]},
+
+ {ch:"GreenGo — La Granja", lodge:"granja", verdict:"ok",
+  meta:"annonce <code>0a63652e…</code>",
+  proof:"greengo.voyage/hote/la-granja-domaine-solio-…",
+  fields:[
+   {n:"Présentation de l'établissement", f:"fumeur", changed:true,
+    before:"Rien sur le tabac.",
+    after:"« L'hébergement est entièrement non-fumeur ; il est possible de fumer à l'extérieur. » en fin de texte."},
+   {n:"Remarques additionnelles", f:"fumeur", changed:true,
+    before:"Vide.",
+    after:"Même phrase, affichée dans « Infos pratiques »."},
+   {n:"Bascule « Établissement fumeur »", f:"fumeur", changed:false,
+    note:"Déjà sur Non."},
+   {n:"Mention d'une plancha", f:"plancha", changed:false,
+    note:"Aucune — et c'est juste : La Granja a un barbecue à gaz, pas de plancha."}
+  ]},
+
+ {ch:"Abracadaroom — L'Estiva", lodge:"estiva", verdict:"wait",
+  meta:"propId <code>2274</code> · service <code>5912</code> · console <code>admin.unicstay.com</code>",
+  proof:"back-office relu ; annonce publique en retard de plus de 24 h",
+  fields:[
+   {n:"Description (Infos générales)", f:"both", changed:true,
+    before:"…piscine, sentier de balade de 2 km, <b>plancha en location (offerte à partir de 3 nuits).</b>",
+    after:"…piscine, sentier de balade de 2 km, <b>plancha à disposition à chaque séjour.</b> Et un paragraphe ajouté : <b>« Hébergement entièrement non-fumeur ; il est possible de fumer à l'extérieur. »</b>"},
+   {n:"Bloc « Le tarif comprend »", f:"plancha", changed:true,
+    before:"« La nuit en Lodge de 1 à 5 personnes, lits faits à votre arrivée, et une heure de bain nordique privatif offerte à chaque séjour. »",
+    after:"…offerte à chaque séjour. <b>Plancha à disposition.</b>"},
+   {n:"Bloc « Le tarif ne comprend pas »", f:"plancha", changed:true,
+    before:"<b>Location plaque de cuisson et plancha</b><br>Les frais de ménage obligatoires…",
+    after:"<b>Location plaque de cuisson</b><br>Les frais de ménage obligatoires…"},
+   {n:"Bloc « Extra et supplément »", f:"plancha", changed:false,
+    note:"Relu : ne citait pas la plancha. Rien à retirer."}
+  ]},
+
+ {ch:"Abracadaroom — La Granja", lodge:"granja", verdict:"wait",
+  meta:"service <code>5837</code>",
+  proof:"back-office relu ; même retard d'annonce publique",
+  fields:[
+   {n:"Description (Infos générales)", f:"fumeur", changed:true,
+    before:"Rien sur le tabac.",
+    after:"« Hébergement entièrement non-fumeur ; il est possible de fumer à l'extérieur. » en fin de texte."},
+   {n:"Les trois blocs de l'onglet Tarifs", f:"plancha", changed:false,
+    note:"Relus : aucune mention de plancha. Correct."}
+  ]},
+
+ {ch:"Airbnb — L'Estiva", lodge:"estiva", verdict:"ok",
+  meta:"annonce <code>1576845044615216441</code>",
+  proof:"airbnb.fr/rooms/1576845044615216441 et la version <code>?locale=en</code>",
+  fields:[
+   {n:"Description du logement — FR et EN", f:"both", changed:true,
+    before:"Ni plancha ni tabac, dans aucune des deux langues.",
+    after:"FR : « …ménage compris. <b>Plancha à disposition.</b> […] Animaux non acceptés. <b>Logement non-fumeur.</b> »<br>EN : « …cleaning included. <b>Plancha available, every stay.</b> […] <b>Non-smoking accommodation.</b> »"},
+   {n:"Mon logement", f:"both", changed:true,
+    before:"« Pour vos repas, vous pouvez <b>réserver une plancha</b> ou une plaque de cuisson <b>(offertes à partir de 2 nuits)</b>. »",
+    after:"« Pour vos repas, <b>la plancha est à disposition à chaque séjour</b> ; une plaque de cuisson peut également être réservée. » + « <b>Le logement est entièrement non-fumeur ; il est possible de fumer à l'extérieur.</b> »"},
+   {n:"Autres informations à noter — FR et EN", f:"both", changed:true,
+    before:"Parlait du bain nordique et des options, pas de la plancha ni du tabac.",
+    after:"FR : « <b>Plancha à disposition. Hébergement non-fumeur.</b> »<br>EN : « <b>Plancha available, every stay. Non-smoking accommodation.</b> »"},
+   {n:"Accès des voyageurs", f:"both", changed:false,
+    note:"Relu : ne parle ni de la plancha ni du tabac. Laissé tel quel."},
+   {n:"Règlement intérieur — « Autorisation de fumer et de vapoter »", f:"fumeur", changed:false,
+    note:"Déjà sur Off."}
+  ]},
+
+ {ch:"Airbnb — La Granja", lodge:"granja", verdict:"ok",
+  meta:"annonce <code>1398287456607254737</code> — identifiant absent de la référence jusqu'ici",
+  proof:"airbnb.fr/rooms/1398287456607254737 et la version <code>?locale=en</code>",
+  fields:[
+   {n:"Autres informations à noter — FR", f:"fumeur", changed:true,
+    before:"« …Barbecue à gaz. Accueil des cyclistes, motards et cavaliers. »",
+    after:"…mêmes lignes + « <b>Hébergement entièrement non-fumeur ; il est possible de fumer à l'extérieur.</b> »"},
+   {n:"Autres informations à noter — EN", f:"fumeur", changed:true,
+    before:"« The wood-fired hot tub is private to you: <b>1.5 hours</b> included from the first night… » — et rien sur le tabac.",
+    after:"« …<b>one hour included with every stay</b>… » + « <b>Non-smoking accommodation; smoking is allowed outside.</b> »"},
+   {n:"Règlement intérieur — fumer et vapoter", f:"fumeur", changed:false,
+    note:"Déjà sur Off."},
+   {n:"Mention d'une plancha", f:"plancha", changed:false,
+    note:"Aucune. Correct : barbecue à gaz."}
+  ]},
+
+ {ch:"Lodgify → Abritel/Vrbo — L'Estiva", lodge:"estiva", verdict:"wait",
+  meta:"rental <code>741262</code> · sixième canal, hors du périmètre annoncé",
+  proof:"back-office relu ; Abritel ne rapatrie le contenu qu'une fois par jour",
+  fields:[
+   {n:"Description de l'hébergement (FR, seule langue configurée)", f:"both", changed:true,
+    before:"« <b>Location plancha, plaque de cuisson (offert pour les séjours de 5 jours ou plus).</b> » — la version la plus restrictive des cinq.",
+    after:"« Bain nordique : une heure offerte… <b>Plancha : à disposition à chaque séjour.</b> » et, plus bas, « Location plaque de cuisson. » + « <b>Hébergement entièrement non-fumeur ; il est possible de fumer à l'extérieur.</b> »"},
+   {n:"Frais et suppléments de <code>pricing/741262</code>", f:"plancha", changed:false,
+    note:"Relus : aucune ligne plancha. Rien à retirer."}
+  ]},
+
+ {ch:"Lodgify — La Granja", lodge:"granja", verdict:"wait",
+  meta:"rental <code>739140</code> · deux langues configurées",
+  proof:"back-office relu, les deux langues",
+  fields:[
+   {n:"Description — anglais", f:"fumeur", changed:true,
+    before:"Rien sur le tabac.",
+    after:"« <b>The accommodation is entirely non-smoking; smoking is allowed outside.</b> »"},
+   {n:"Description — français", f:"fumeur", changed:true,
+    before:"Rien sur le tabac.",
+    after:"« <b>L'hébergement est entièrement non-fumeur ; il est possible de fumer à l'extérieur.</b> »"}
+  ]},
+
+ {ch:"Booking — L'Estiva", lodge:"estiva", verdict:"hand",
+  meta:"hôtel <code>15343212</code> · la description est générée, rien n'est éditable",
+  proof:"booking.com/hotel/fr/tente-domaine-solio.fr.html",
+  fields:[
+   {n:"Conditions — Fumeurs/Non-fumeurs", f:"fumeur", changed:false,
+    note:"<b>Déjà publié</b> : « Cet hébergement est non-fumeurs », et « Chambres non-fumeurs » dans « Ses points forts ». Aucune demande de modification n'était nécessaire."},
+   {n:"Rubrique « À savoir » — plancha", f:"plancha", changed:false,
+    note:"<b>Reste à faire, par toi</b> : la session de l'extranet a expiré. La rubrique porte déjà le texte sur le bain nordique ; il n'y manque que la plancha. Texte et marche à suivre dans « Ce qui reste à faire »."},
+   {n:"Description générée", f:"plancha", changed:false,
+    note:"Dit déjà « Cet établissement possède un barbecue », parce que l'équipement est déclaré. Cocher l'équipement est le levier durable sur Booking."}
+  ]},
+
+ {ch:"Booking — La Granja", lodge:"granja", verdict:"ok",
+  meta:"hôtel <code>14407976</code>",
+  proof:"booking.com/hotel/fr/gite-a-la-ferme-domaine-solio.fr.html",
+  fields:[
+   {n:"Conditions — Fumeurs/Non-fumeurs", f:"fumeur", changed:false,
+    note:"<b>Déjà publié</b> : « Cet hébergement est non-fumeurs » + « Chambres non-fumeurs ». Rien à faire."},
+   {n:"Mention d'une plancha", f:"plancha", changed:false,
+    note:"Aucune. Correct."}
+  ]},
+
+ {ch:"Gîtes de France", lodge:"granja", verdict:"hand",
+  meta:"ne concerne que le gîte · <code>prop.itea.fr</code>",
+  proof:"confirmé : l'espace propriétaire n'a aucune page de descriptif",
+  fields:[
+   {n:"Texte de l'annonce", f:"both", changed:false,
+    note:"Hors périmètre technique : le contenu éditorial appartient au relais Ardèche et se change par un message, pas par un formulaire. Pas de plancha à y dire de toute façon — La Granja n'en a pas. Le non-fumeur y reste à demander si tu veux l'y voir."}
+  ]}
+];
+
+const VERD = {ok:["v-ok","vérifié en public"], wait:["v-wait","en attente de propagation"],
+              hand:["v-hand","reprise de main"]};
+
+function matches(f, fact){ return fact==='all' || f.f==='both' || f.f===fact; }
+
+function render(){
+  const fact = document.querySelector('#segFact button[aria-pressed="true"]').dataset.f;
+  const lodge = document.querySelector('#segLodge button[aria-pressed="true"]').dataset.l;
+  const only = document.getElementById('onlyChanged').checked;
+  const host = document.getElementById('channels');
+  host.innerHTML = '';
+  let nf = 0, nc = 0;
+
+  D.forEach(c => {
+    if (lodge !== 'all' && c.lodge !== lodge) return;
+    const fields = c.fields.filter(f => matches(f, fact) && (!only || f.changed));
+    if (!fields.length) return;
+    nc++;
+    const el = document.createElement('div');
+    el.className = 'chan';
+    const v = VERD[c.verdict];
+    el.innerHTML = '<header><h3>' + c.ch + '</h3><span class="meta">' + c.meta +
+      '</span><span class="verdict ' + v[0] + '">' + v[1] + '</span></header>';
+    fields.forEach(f => {
+      nf++;
+      const d = document.createElement('div');
+      d.className = 'field';
+      const tag = f.f === 'both'
+        ? '<span class="tag plancha">plancha</span><span class="tag fumeur">non-fumeur</span>'
+        : '<span class="tag ' + f.f + '">' + (f.f === 'plancha' ? 'plancha' : 'non-fumeur') + '</span>';
+      let body;
+      if (f.changed) {
+        body = '<div class="ba"><div class="before"><span class="k">avant</span>' + f.before +
+               '</div><div class="after"><span class="k">maintenant</span>' + f.after + '</div></div>';
+      } else {
+        body = '<div class="nochange">' + f.note + '</div>';
+      }
+      d.innerHTML = '<div class="fh"><span class="fn">' + f.n + '</span>' + tag + '</div>' + body;
+      el.appendChild(d);
+    });
+    const p = document.createElement('div');
+    p.className = 'field';
+    p.innerHTML = '<div class="nochange"><b>Vérifié sur</b> — ' + c.proof + '</div>';
+    el.appendChild(p);
+    host.appendChild(el);
+  });
+
+  if (!nc) host.innerHTML = '<div class="nochange">Aucun champ ne correspond à ce filtre.</div>';
+  document.getElementById('count').textContent =
+    nf + (nf > 1 ? ' champs' : ' champ') + ' · ' + nc + (nc > 1 ? ' blocs' : ' bloc');
+}
+
+document.querySelectorAll('.seg').forEach(seg => {
+  seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  });
+});
+document.getElementById('onlyChanged').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
