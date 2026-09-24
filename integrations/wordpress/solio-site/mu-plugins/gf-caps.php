@@ -4,8 +4,8 @@
  * Description: Injects coloured room/bed/bathroom pictograms into the .gf-cap badges from JS (robust
  *              against KSES, which strips inline <svg> from post content on save). Bed geometry
  *              mirrors the GuestFlow BedIcon (single = 1 pillow & narrower, double = 2 pillows & wider).
- *              The Gites de France badge shows an ear of wheat — the epi the rating is counted in —
- *              rather than a leaf.
+ *              The classification badge shows three stars in a row, the unit the rating is
+ *              actually counted in, rather than a leaf.
  */
 if (!defined('ABSPATH')) { exit; }
 
@@ -59,26 +59,19 @@ add_action('wp_footer', function () {
       + '<path d="M14 24l-3.8-8M14 24l3.8-8"/>'
       + '<path d="M1.5 24h25"/></svg>';
   }
-  function epi(){
-    // Un grain = une amande : deux courbes symetriques entre le point d'attache et la pointe.
-    // Dessiner des formes fines et nettement separees est ce qui empeche l'epi de se refermer
-    // en une masse pleine une fois le trait epaissi.
-    function grain(ax, ay, tx, ty, bulge){
-      var dx = tx - ax, dy = ty - ay, len = Math.sqrt(dx * dx + dy * dy);
-      var nx = -dy / len * bulge, ny = dx / len * bulge;
-      var mx = (ax + tx) / 2, my = (ay + ty) / 2;
-      return '<path d="M' + ax.toFixed(1) + ' ' + ay.toFixed(1)
-        + 'Q' + (mx + nx).toFixed(1) + ' ' + (my + ny).toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1)
-        + 'Q' + (mx - nx).toFixed(1) + ' ' + (my - ny).toFixed(1) + ' ' + ax.toFixed(1) + ' ' + ay.toFixed(1) + 'Z"/>';
+  function etoiles(){
+    // Trois etoiles en ligne : un classement se lit en rangee, pas en bouquet.
+    function une(cx, cy, r){
+      var d = '', creux = r * 0.42;
+      for (var i = 0; i < 10; i++){
+        var a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? creux : r;
+        d += (i ? 'L' : 'M') + (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2);
+      }
+      return '<path d="' + d + 'Z"/>';
     }
-    var g = grain(14, 13.2, 14, 5.6, 2.0);                 // le grain de tete
-    [[24.2, 6.2, 4.3], [19.2, 5.9, 4.1], [14.4, 5.4, 3.9]].forEach(function(p){
-      g += grain(14, p[0], 14 - p[1], p[0] - p[2], 1.8);
-      g += grain(14, p[0], 14 + p[1], p[0] - p[2], 1.8);
-    });
     return '<svg width="20" height="20" viewBox="0 0 28 28" fill="none" stroke="' + C
-      + '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">'
-      + '<path d="M14 26.8V13.2"/>' + g + '</svg>';
+      + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">'
+      + une(4.9, 14, 4.3) + une(14, 14, 4.3) + une(23.1, 14, 4.3) + '</svg>';
   }
   caps.forEach(function(cap){
     if(cap.querySelector('svg')) return;
@@ -86,7 +79,7 @@ add_action('wp_footer', function () {
     var svg = null;
     if(t.indexOf('personne') >= 0) svg = people();
     else if(t.indexOf('glamping') >= 0 || t.indexOf('tente') >= 0) svg = tent();
-    else if(t.indexOf('épis') >= 0 || t.indexOf('gîtes de france') >= 0) svg = epi();
+    else if(t.indexOf('étoile') >= 0 || t.indexOf('épis') >= 0 || t.indexOf('gîtes de france') >= 0) svg = etoiles();
     else if(t.indexOf('chambre') >= 0) svg = door();
     else if(t.indexOf('lit simple') >= 0 || t.indexOf('lits simples') >= 0) svg = bed('single');
     else if(t.indexOf('lit double') >= 0 || t.indexOf('lits doubles') >= 0) svg = bed('double');
