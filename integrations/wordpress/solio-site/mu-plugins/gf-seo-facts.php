@@ -150,6 +150,9 @@ function gf_seo_lodgings() {
 			'cle'                  => 'gite',
 			'guestflow_id'         => 1,
 			'nom'                  => 'La Granja — le gîte du domaine',
+			// Le nom propre reste, son descripteur se traduit (regle 9) : « La Granja » n'est pas
+			// traduisible, « le gite du domaine » l'est et doit l'etre.
+			'nom_en'               => 'La Granja — the gîte on the estate',
 			'slug'                 => 'la-granja',
 			'type_schema'          => 'Accommodation',
 			'label'                => 'Meublé 3 étoiles',
@@ -241,6 +244,7 @@ function gf_seo_lodgings() {
 			'cle'                  => 'lodge',
 			'guestflow_id'         => 2,
 			'nom'                  => 'L’Estiva — la tente safari',
+			'nom_en'               => 'L’Estiva — the safari tent',
 			'slug'                 => 'estiva',
 			'type_schema'          => 'Campground',
 			'label'                => null,

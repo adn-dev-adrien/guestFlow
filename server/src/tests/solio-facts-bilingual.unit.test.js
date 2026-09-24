@@ -130,3 +130,13 @@ test('the booking calendar has no frozen French month names (rule 43)', () => {
   const frozen = ['janvier', 'février', 'décembre'].filter((m) => new RegExp(`'${m}'\\s*,`).test(view.replace(/fallback = \[[^\]]*\]/g, '')));
   assert.deepStrictEqual(frozen, [], 'French month names are frozen in the calendar again');
 });
+
+test('each lodging translates the descriptor beside its proper name (rule 47)', () => {
+  // "L'Estiva" does not translate; "la tente safari" does, and it sits in the same string. The
+  // drawer's header and the JSON-LD both read this field, so a missing translation shows French
+  // at the top of an English booking drawer.
+  const entries = [...facts.matchAll(/'nom'\s*=>\s*'([^']*—[^']*)'/g)].map((m) => m[1]);
+  assert.strictEqual(entries.length, 2, `expected the two lodging names, found ${entries.length}`);
+  const enNames = (facts.match(/'nom_en'\s*=>\s*'[^']*—[^']*'/g) || []).length;
+  assert.strictEqual(enNames, 2, 'a lodging name has no English descriptor');
+});

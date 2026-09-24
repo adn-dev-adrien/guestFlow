@@ -233,7 +233,7 @@ function gf_seo_schema_hebergement( $cle ) {
 		array(
 			'@type'                  => 'Accommodation',
 			'@id'                    => $url . '#logement',
-			'name'                   => $l['nom'],
+			'name'                   => gf_fait( $l, 'nom' ),
 			'numberOfBedrooms'       => $l['chambres'],
 			'numberOfBathroomsTotal' => $l['salles_eau'],
 			'numberOfRooms'          => $l['chambres'],
@@ -272,7 +272,7 @@ function gf_seo_schema_hebergement( $cle ) {
 		array(
 			'@type'          => 'gite' === $cle ? 'VacationRental' : 'Campground',
 			'@id'            => $url . '#hebergement',
-			'name'           => $l['nom'],
+			'name'           => gf_fait( $l, 'nom' ),
 			'url'            => $url,
 			'description'    => gf_seo_description(),
 			'image'          => gf_seo_schema_galerie(),

@@ -152,6 +152,18 @@ function gf_i18n_dictionnaire() {
             'val_non_fumeur'   => 'oui, hébergement entièrement non-fumeur',
             'val_pmr_non'      => 'non adapté aux personnes à mobilité réduite',
             'val_prix_variable' => 'un tarif variable selon la saison',
+
+            // Le tiroir de reservation : son habillage (gf-seo-reservation.php). Le moteur qui
+            // vit dedans est traduit par le plugin ; ce qui l'entoure l'est ici.
+            'resa_reserver'    => 'Réserver',
+            'resa_des_prix'    => 'dès %s € / nuit',
+            'resa_fermer'      => 'Fermer',
+            'resa_etape1'      => 'Votre séjour',
+            'resa_etape2'      => 'Récapitulatif',
+            'resa_consigne2'   => 'Vérifiez votre séjour et laissez-nous vos coordonnées : nous répondons en direct, sans intermédiaire.',
+            'resa_etapes'      => 'Étapes de la réservation',
+            'resa_retour'      => 'Retour',
+            'resa_suivant'     => 'Suivant',
         ),
         'en' => array(
             'nav_accueil'      => 'Home',
@@ -188,6 +200,16 @@ function gf_i18n_dictionnaire() {
             'val_non_fumeur'   => 'yes, entirely non-smoking',
             'val_pmr_non'      => 'not suitable for guests with reduced mobility',
             'val_prix_variable' => 'a rate that varies with the season',
+
+            'resa_reserver'    => 'Book',
+            'resa_des_prix'    => 'from €%s a night',
+            'resa_fermer'      => 'Close',
+            'resa_etape1'      => 'Your stay',
+            'resa_etape2'      => 'Summary',
+            'resa_consigne2'   => 'Check your stay and leave us your details: we answer you ourselves, with nobody in between.',
+            'resa_etapes'      => 'Booking steps',
+            'resa_retour'      => 'Back',
+            'resa_suivant'     => 'Next',
         ),
     );
     return $d;

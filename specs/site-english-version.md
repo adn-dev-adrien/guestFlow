@@ -381,6 +381,24 @@ that only appeared once real English pages existed._
     while the switcher pointed at `/en/` — two URLs for one page, and the `hreflang` naming the
     wrong one.
     > **Sans test** — réglage de Polylang, pas du code de ce dépôt ; vérifié en ligne (§7)
+45. **The drawer's chrome speaks the page's language too.** `gf-seo-reservation.php` draws what
+    surrounds the engine — the trigger, the two step names, the instruction, Back, Book, Close —
+    and it was still French around an English form. Its labels now come from the `gf-i18n`
+    dictionary; the two its own script writes after the fact (`Next`, `Book`) travel in a small
+    `window.GF_RESA_T` table **prefixed to that script**, because a handle registered with no source
+    does not emit its `before` data and the table was arriving undefined.
+    > **Sans test** — mu-plugin PHP du site Solio ; vérifié en ligne dans les deux langues (§7)
+46. **The drawer finds its lodging from the French twin.** The page-to-lodging table is indexed on
+    French slugs, so an English page resolved to nothing: no name in the header, no "from €179 a
+    night" on the trigger. It now falls back to `pll_get_post( …, 'fr' )` — and **only for the
+    lodging**. Resolving the whole SEO configuration that way would inject the FRENCH titles and
+    descriptions into the English `<head>`, which is worse than the gap it closes. Consequence to
+    keep in mind: an English page carries no `gf_seo_pages()` configuration, so it emits less
+    structured data than its French twin. Nothing wrong, less complete.
+    > **Sans test** — mu-plugin PHP du site Solio ; vérifié en ligne (titre du tiroir et « from €179
+    > a night » sur la page anglaise, français inchangé)
+47. A lodging's name keeps its proper noun and translates its descriptor: "L'Estiva — la tente
+    safari" becomes "L'Estiva — the safari tent". Rule 9 protects the name, not the words around it.
 
 **Edge cases:**
 

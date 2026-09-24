@@ -53,14 +53,35 @@ add_filter(
 		}
 		$conf  = function_exists( 'gf_seo_current_config' ) ? gf_seo_current_config() : null;
 		$l     = ! empty( $conf['lodging'] ) ? gf_seo_lodging( $conf['lodging'] ) : null;
-		$titre = $l ? $l['nom'] : 'Votre séjour';
+
+		// Une page anglaise porte un slug que la table de configuration ne connait pas : elle est
+		// indexee sur les slugs francais. On redemande donc a la jumelle francaise — et A ELLE
+		// SEULE, pour l'hebergement. Resoudre toute la configuration ici injecterait les titres et
+		// descriptions FRANCAIS dans le <head> anglais, ce qui serait pire que l'absence corrigee.
+		if ( ! $l && function_exists( 'pll_get_post' ) && is_singular() ) {
+			$jumelle = pll_get_post( get_queried_object_id(), 'fr' );
+			if ( $jumelle && function_exists( 'gf_seo_pages' ) ) {
+				$pages = gf_seo_pages();
+				$slug  = get_post_field( 'post_name', $jumelle );
+				if ( isset( $pages[ $slug ]['lodging'] ) ) {
+					$l = gf_seo_lodging( $pages[ $slug ]['lodging'] );
+				}
+			}
+		}
+		// L'habillage du tiroir parle la langue de la page. Le moteur qui vit dedans est traduit
+		// par le plugin GuestFlow ; sans ceci, un lecteur anglais lisait « Reserver » et
+		// « Votre sejour » autour d'un formulaire anglais (specs/site-english-version.md regle 45).
+		$lbl   = function ( $cle, $repli ) {
+			return function_exists( 'gf_t' ) && '' !== gf_t( $cle ) ? gf_t( $cle ) : $repli;
+		};
+		$titre = $l ? gf_fait( $l, 'nom' ) : $lbl( 'resa_etape1', 'Votre séjour' );
 
 		$etapes = array(
-			array( 'Votre séjour', '' ),
-			array( 'Récapitulatif', 'Vérifiez votre séjour et laissez-nous vos coordonnées : nous répondons en direct, sans intermédiaire.' ),
+			array( $lbl( 'resa_etape1', 'Votre séjour' ), '' ),
+			array( $lbl( 'resa_etape2', 'Récapitulatif' ), $lbl( 'resa_consigne2', 'Vérifiez votre séjour et laissez-nous vos coordonnées : nous répondons en direct, sans intermédiaire.' ) ),
 		);
 		$prix = ( $l && ! empty( $l['prix_min_nuit'] ) )
-			? '<em class="gf-resa-prix">dès ' . esc_html( $l['prix_min_nuit'] ) . ' € / nuit</em>'
+			? '<em class="gf-resa-prix">' . esc_html( sprintf( $lbl( 'resa_des_prix', 'dès %s € / nuit' ), $l['prix_min_nuit'] ) ) . '</em>'
 			: '';
 
 		ob_start();
@@ -72,7 +93,7 @@ add_filter(
 			<rect x="3" y="4.5" width="18" height="16" rx="2.5" />
 			<path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
 		</svg>
-		<span>Réserver<?php echo $prix; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+		<span><?php echo esc_html( $lbl( 'resa_reserver', 'Réserver' ) ); ?><?php echo $prix; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 	</button>
 
 	<div class="gf-resa-fond" aria-hidden="true"></div>
@@ -82,7 +103,7 @@ add_filter(
 
 		<header class="gf-resa-entete">
 			<h2 id="gf-resa-titre"><?php echo esc_html( $titre ); ?></h2>
-			<button type="button" class="gf-resa-fermer" aria-label="Fermer">
+			<button type="button" class="gf-resa-fermer" aria-label="<?php echo esc_attr( $lbl( 'resa_fermer', 'Fermer' ) ); ?>">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
 					stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" /></svg>
 			</button>
@@ -111,11 +132,11 @@ add_filter(
 			<?php echo $contenu; // phpcs:ignore WordPress.Security.EscapeOutput -- rendu du bloc GuestFlow. ?>
 		</div>
 
-		<nav class="gf-resa-nav" aria-label="Étapes de la réservation">
+		<nav class="gf-resa-nav" aria-label="<?php echo esc_attr( $lbl( 'resa_etapes', 'Étapes de la réservation' ) ); ?>">
 			<button type="button" class="gf-resa-precedent" hidden>
-				<span aria-hidden="true">←</span> Retour
+				<span aria-hidden="true">←</span> <?php echo esc_html( $lbl( 'resa_retour', 'Retour' ) ); ?>
 			</button>
-			<button type="button" class="gf-resa-valider" hidden disabled>Réserver</button>
+			<button type="button" class="gf-resa-valider" hidden disabled><?php echo esc_html( $lbl( 'resa_reserver', 'Réserver' ) ); ?></button>
 		</nav>
 	</aside>
 </div>
@@ -360,6 +381,10 @@ CSS;
 	var racine = document.querySelector( '.gf-resa' );
 	if ( ! racine ) { return; }
 
+	// Les deux libelles que ce script ecrit lui-meme. Le reste du tiroir vient du HTML rendu par
+	// PHP, deja traduit ; ces deux-la naissent apres coup, donc ils voyagent par cette table.
+	var T = window.GF_RESA_T || {};
+
 	var declencheur = racine.querySelector( '.gf-resa-declencheur' );
 	var panneau     = racine.querySelector( '.gf-resa-panneau' );
 	var fond        = racine.querySelector( '.gf-resa-fond' );
@@ -405,7 +430,7 @@ CSS;
 		suivantBas = document.createElement( 'button' );
 		suivantBas.type = 'button';
 		suivantBas.className = 'gf-resa-suivant-bas';
-		suivantBas.innerHTML = 'Suivant <span aria-hidden="true">\u2192</span>';
+		suivantBas.innerHTML = ( T.suivant || 'Suivant' ) + ' <span aria-hidden="true">\u2192</span>';
 		raisonBas = document.createElement( 'p' );
 		raisonBas.className = 'gf-resa-raison';
 		raisonBas.hidden = true;
@@ -415,7 +440,7 @@ CSS;
 		suivantBas.addEventListener( 'click', function () { aller( 2 ); } );
 
 		if ( boutonMoteur ) {
-			valider.textContent = boutonMoteur.textContent || 'Réserver';
+			valider.textContent = boutonMoteur.textContent || T.reserver || 'Réserver';
 			valider.addEventListener( 'click', function () { boutonMoteur.click(); } );
 			// Le moteur active son bouton quand le devis est complet : on suit son etat.
 			new MutationObserver( majNav ).observe( boutonMoteur, {
@@ -649,7 +674,7 @@ CSS;
 			// L'envoi exige le devis complet. La case des CGV appartient au moteur : c'est lui qui
 			// refuse au clic tant qu'elle n'est pas cochee, et qui dit pourquoi.
 			valider.disabled = boutonMoteur.disabled;
-			valider.textContent = boutonMoteur.textContent || 'Réserver';
+			valider.textContent = boutonMoteur.textContent || T.reserver || 'Réserver';
 		}
 
 		filItems.forEach( function ( li ) {
@@ -733,7 +758,13 @@ JS;
 
 		wp_register_script( 'gf-resa', '', array(), null, true );
 		wp_enqueue_script( 'gf-resa' );
-		wp_add_inline_script( 'gf-resa', $js );
+		// La table est PREFIXEE au script plutot que posee « before » : un handle enregistre sans
+		// source n'emet pas ses donnees « before », et window.GF_RESA_T restait indefini.
+		$t = array(
+			'suivant'  => function_exists( 'gf_t' ) ? gf_t( 'resa_suivant' ) : 'Suivant',
+			'reserver' => function_exists( 'gf_t' ) ? gf_t( 'resa_reserver' ) : 'Réserver',
+		);
+		wp_add_inline_script( 'gf-resa', 'window.GF_RESA_T = ' . wp_json_encode( $t ) . ";\n" . $js );
 	},
 	20
 );
