@@ -723,7 +723,10 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - **Conditional freebies** — « location matériel 18 € dès 3 nuits » is not expressible as a pricing
   rule; it stays a manual gesture. The plancha used to sit here (« offerte dès 2 nuits »); **since
   2026-09-24 it is on site for every stay**, so it is no longer a gesture at all — it is a plain
-  amenity of L'Estiva, listed as such on the website, and nothing for the engine to price.
+  amenity of L'Estiva, listed as such on the website and on every booking platform, and nothing for
+  the engine to price. The platform rollout is recorded in
+  [docs/specs/2026-09-24-plancha-non-fumeur-plateformes.html](../../docs/specs/2026-09-24-plancha-non-fumeur-plateformes.html):
+  the same pass also put « hébergement entièrement non-fumeur » on both lodgings' listings.
 - **Tourist-tax configuration.** Rate, mode and departmental share are production-owned, correct, and
   deliberately untouched (rule 48bis). Only the computed base moves.
 - **Automatic rate push to the OTAs.** The grid is a copy-paste reference.
