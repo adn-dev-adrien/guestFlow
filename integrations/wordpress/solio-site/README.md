@@ -108,8 +108,12 @@ Trois choses la distinguent d'une vidéo posée telle quelle :
   `<source>` dans le HTML, un `IntersectionObserver` à 200 px). Le film pèse de 8 à 25 Mo : le
   charger d'office coûterait cher à qui ne descend jamais jusque-là. La lecture se met en pause dès
   qu'on dépasse la bande.
-- **La définition suit la largeur réellement occupée** : 540p sous 600 px, 720p sous 1200 px, 1080p
+- **La définition suit la largeur réellement occupée** : 540p sous 600 px, 720p sous 1000 px, 1080p
   au-delà, et 540p d'office si le navigateur annonce « économiseur de données » ou une connexion 2G.
+- **Elle n'est pleine largeur que sur téléphone.** Au-delà de 900 px de fenêtre elle se cale sur la
+  colonne de texte (1140 px) : en 16/9 plein écran sur un portable, le film occupait la page entière
+  et écrasait tout ce qui l'entoure. Les seuils de définition sont calés sur cette largeur-là, pas
+  sur celle de la fenêtre.
 - **Elle ne s'impose jamais.** « Réduire les animations » ou une connexion économe laissent l'affiche
   fixe et un bouton de lecture ; le même bouton apparaît si le navigateur refuse la lecture
   automatique (iPhone en mode économie d'énergie). Sans JavaScript, un `<noscript>` sert la 540p

@@ -191,6 +191,17 @@ strong,b{ font-weight:700; }
 .gf-band-film{ position:relative; margin:44px 0; padding:0; background:var(--gf-nuit); }
 .gf-band-film video{ display:block; width:100%; height:auto; aspect-ratio:16/9;
   object-fit:cover; background:var(--gf-nuit); }
+/* Pleine largeur sur telephone, ou l'ecran est etroit et le film y gagne. Au-dela, le film se
+   cale sur la colonne de texte : en 16/9 plein ecran sur un portable, il occupait la page
+   entiere et ecrasait tout ce qui l'entoure.
+   C'est la video qu'on bride, pas le <figure> : la mise en page « constrained » du theme donne
+   a un .alignfull une marge negative fixe, et lui poser un max-width le colle a gauche au lieu
+   de le centrer. Le cadre reste donc pleine largeur, et son contenu se centre dedans. */
+@media (min-width:900px){
+  .gf-band-film{ background:transparent; margin:52px 0; }
+  .gf-band-film video{ max-width:1140px; margin-left:auto; margin-right:auto; border-radius:4px; }
+  .gf-band-film figcaption{ padding-top:16px; }
+}
 .gf-band-film figcaption{ font-family:'Karla',sans-serif; font-size:.78rem; font-weight:700;
   text-transform:uppercase; letter-spacing:.24em; color:var(--gf-ocre-deep); text-align:center;
   padding:14px 22px 0; background:var(--gf-paper); }
@@ -291,8 +302,10 @@ add_action('wp_footer', function () {
     function attach(){
       if (loaded) return;
       loaded = true;
-      var w = fig.clientWidth || window.innerWidth;
-      var t = (frugal || w < 600) ? '540' : (w < 1200 ? '720' : '1080');
+      // La largeur mesuree est celle de la video, pas du cadre : au-dela de 900 px de fenetre
+      // le cadre reste pleine largeur mais le film plafonne a la colonne de texte.
+      var w = v.clientWidth || fig.clientWidth || window.innerWidth;
+      var t = (frugal || w < 600) ? '540' : (w < 1000 ? '720' : '1080');
       /* getAttribute et non dataset : data-src-540 ne devient pas dataset.src540,
          la conversion en casse chamelle ne s'applique pas devant un chiffre. */
       var src = v.getAttribute('data-src-' + t);
