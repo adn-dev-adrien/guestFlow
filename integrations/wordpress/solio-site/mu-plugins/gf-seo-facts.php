@@ -223,7 +223,7 @@ function gf_seo_faq( $cle ) {
 			array( 'q' => 'Peut-on cuisiner ?',
 				'r' => 'Une kitchenette avec plaque, micro-ondes et réfrigérateur. On cuisine surtout dehors : la plancha est offerte à partir de 2 nuits.' ),
 			array( 'q' => 'Y a-t-il des voisins ?',
-				'r' => 'Non. La première maison est à plus de 100 mètres, et la tente est installée dans l’enclos des chèvres et des moutons.' ),
+				'r' => 'Oui, mais à 150 mètres, et sans vis-à-vis — les photos aériennes le montrent bien. Vous aurez vraiment le sentiment d’être seul au monde. La tente est installée dans l’enclos des chèvres et des moutons.' ),
 			array( 'q' => 'Quelle est la caution ?',
 				'r' => '400 €, non encaissée et restituée après le séjour.' ),
 			array( 'q' => 'À quelle heure arrive-t-on et repart-on ?',
