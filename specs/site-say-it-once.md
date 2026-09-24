@@ -6,7 +6,7 @@
 | **Branch** | `fix/site-trim-duplicate-content` |
 | **Created** | 2026-09-24 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #593 for the code; the site itself was deployed on 2026-09-24 (§7 bis) |
 
 ---
 
@@ -129,13 +129,40 @@ into the container.
 
 ### Manual verification
 
-- [ ] `curl -s https://domainesolio.com/la-granja/ | grep -c 'gf-carte'` → `0`, same on `/estiva/`.
-- [ ] `curl -s https://domainesolio.com/le-domaine/ | grep -c 'gf-geo"'` → `0`, same on `/contact/`.
-- [ ] `curl -sI https://domainesolio.com/fr/options` → `301` to `/la-granja/#reserver`.
-- [ ] `/le-domaine/` shows 17 questions, and « Y a-t-il un tarif dégressif ? » is absent from the
-      page and from its `FAQPage` JSON-LD.
-- [ ] The booking drawer still opens on both lodging pages and still lists the options with prices.
-- [ ] `php:warn` log clean after the copy (see the WordPress container memory).
+Run on 2026-09-24, once the container had actually received the change (see § Deployment).
+
+- [x] `/la-granja/` and `/estiva/` render no `#a-la-carte` section and no `gf-carte` card.
+- [x] `/le-domaine/` and `/contact/` render no `gf-geo` block; « Où sommes-nous ? » is gone from both.
+- [x] `/fr/options` lands on `/la-granja/`, and the redirect table now points at `/la-granja/#reserver`.
+- [x] `/le-domaine/` shows 17 questions, and « Y a-t-il un tarif dégressif ? » is absent from the
+      page and from the `privatisation` array that feeds both the visible FAQ and the `FAQPage`
+      JSON-LD. The « Tarifs dégressifs dès 3 nuits » sentence in the privatisation prose stays: it
+      is a quote request for a group, not the nightly price, and §8 keeps that wording.
+- [x] The booking drawer still opens on both lodging pages and still lists the options with their
+      prices (bain nordique, petit-déjeuner, panier, ménage, linge, apéro — from 3,00 € to 80,00 €),
+      driven by Playwright against the live site.
+- [x] `php -l` clean on `gf-seo-redirects.php` in the container, and `docker logs wp_app` carries no
+      warning, error or fatal after the change.
+
+## 7 bis. Deployment
+
+The code half of this spec merged as PR #593, but **nothing had reached the site**: measured on
+2026-09-24, all four pages still carried their blocks and the redirect table still pointed at the
+dead anchor. Merging a spec that edits WordPress content deploys nothing by itself — the pages live
+only in the `wp_app` container, and the mu-plugins are copied there by hand.
+
+Applied to `192.168.0.23` on 2026-09-24, each target backed up first:
+
+| Target | Change | Backup |
+|---|---|---|
+| pages 68, 69 | `wp:html` section `#a-la-carte` + `[solio_surdemande]` removed | `/tmp/bak-page-68-20260924-114203.txt`, `/tmp/bak-page-69-20260924-114203.txt` |
+| pages 317, 87 | `[solio_geo]` removed | `/tmp/bak-page-317-20260924-115345.txt`, `/tmp/bak-page-87-20260924-115345.txt` |
+| `gf-seo-redirects.php` | the two `/la-granja/#a-la-carte` retargeted to `/la-granja/#reserver` | `/tmp/bak-gf-seo-redirects-*.php` |
+
+`gf-seo-facts.php` was **not** copied. The container's copy is `origin/master` plus the still-open
+plancha change of PR #595; pushing the repository's copy over it would have reverted that work. A
+whole-file copy is the wrong tool when another change is already live in the container — the two
+redirect lines were changed in place instead, and the file is now identical to `origin/master`.
 
 ## 8. Out of scope
 
