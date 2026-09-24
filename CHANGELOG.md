@@ -4,6 +4,95 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-09-24
+
+### Summary
+- Le site et son tunnel de réservation se lisent en anglais : la langue suit le visiteur, et son choix est retenu un an.
+- Une demande faite en anglais le reste : l'e-mail au client et le devis PDF partent dans cette langue.
+- La fiche réservation affiche la langue du client et d'où elle vient ; un envoi manuel peut basculer pour ce seul message.
+- Une réservation née du site garde son origine après conversion ; le badge se lit « Site internet » et non plus « WordPress ».
+- Corrigé : modifier un client depuis sa réservation ne remet plus sa langue d'e-mail au français.
+- Mettez à jour le plugin WordPress en 1.12.0 avec cette version, ou avant — jamais après.
+
+### Added
+- The reservation fiche shows the language a guest is written to in, beside their name, and says
+  where that language comes from. A booking that arrived from the website is badged « Site
+  internet » there too, not only in the devis list.
+- The manual send dialog states the language the message will leave in before it is sent, and lets
+  you write this one in the other language. That choice applies to that send alone — the guest's
+  record is not changed.
+- Public API: every endpoint under `/public/v1` accepts an optional `lang` (`fr` by default, `en`),
+  in the query string and — for `POST /quote` and `POST /booking-requests` — in the body. Option
+  titles, resource names, price-unit labels, portion wordings, offered-hour sentences and every
+  error message come back in that language. An absent, unknown or malformed value reads as French
+  and is never a validation error: a visitor must not lose a booking funnel over a language token.
+- Public API: `resources.nameEn` is exposed, closing an asymmetry with `options.titleEn`.
+- Site: a language selector in the header — a globe, the current language, a menu of two entries. It
+  reuses the existing « Réserver » dropdown, so it inherits its spacing, its panel and its behaviour;
+  on a phone it opens the burger menu, folded, above the navigation. It appears only once English
+  content really exists, so nothing advertises a version that is not there.
+- Site: a first-time visitor is sent to the version matching their browser, and a browser whose
+  language the site does not speak lands on English. The choice is remembered for a year and the
+  visitor's own click always wins. Never for a crawler, never on a URL carrying parameters — the
+  payment return carries some — and always as a temporary redirect, so no cache serves one visitor's
+  language to the next.
+- Site: the header, the footer and the terms read in the language of the page they are on.
+- Site: the factual panels inside the pages — « L'essentiel », « Équipements » and the FAQ — now
+  read in English as well as French. Each fact carries both its languages on the same line of the
+  same source of truth, so a corrected price or date can no longer be fixed in one language only.
+  The JSON-LD follows the language of the page, and a time reads « 4pm » in English.
+- WordPress plugin 1.12.0: the booking widget serves the language of the page it sits on. It tells
+  GuestFlow which language to answer in, and its own 124 interface strings are translated into
+  English (`languages/guestflow-booking-en_GB`). Calendar month names follow the language; amounts
+  stay in the French convention in both, matching the quote PDF attached to the confirmation. The
+  terms open in the page's language, and the visitor's own choice still wins and is still
+  remembered.
+- WordPress plugin: the response cache is now keyed by language. Without it the first visitor of a
+  ten-minute window decided which language every later one read.
+
+### Changed
+- Site: the booking drawer reads in the language of the page — its calendar, its steps, its labels,
+  its refusals and its confirmation. It also renders the price units the server writes instead of
+  rebuilding its own, so adding an option needs no change on the site. A stay asked for in English
+  carries that language to GuestFlow, which is what decides the language of the confirmation and of
+  the quote PDF.
+- A booking request made from the website stores the language it was made in, on the guest **and**
+  on the quote — guest e-mails and the quote PDF read different columns, so setting one alone sent
+  an English e-mail with a French PDF attached. A request that states a language explicitly wins
+  over the language stored on a known guest; a request that states none changes nothing.
+- The origin of a booking survives its conversion: a reservation born of a website request kept no
+  trace of it, so the site's share disappeared from the reservations the moment they became real.
+  The badge now reads « Site internet » (in the list, its tooltip and its filter) instead of
+  « WordPress » — the operator cares which channel brought the booking, not which software serves
+  the pages.
+- Site: L'Estiva's plancha is no longer conditional on a two-night stay. It becomes a visible
+  amenity row (« Plancha à disposition ») and the FAQ stops promising a gesture from the second
+  night on. The JSON-LD `amenityFeature` and `/llms.txt` follow from the same source.
+- Site: each fact is stated once again. The « À la carte » price card left both lodging pages —
+  the booking drawer already lists every option with its live price — and the « Où sommes-nous ? »
+  block left `/le-domaine/` and `/contact/`, where the address, the GPS point and the distances
+  were already written two to three times over. The `/fr/options` and `/en/options` redirects now
+  open the booking drawer instead of pointing at an anchor that no longer exists.
+- Site: the FAQ question « Y a-t-il un tarif dégressif ? » is gone from `/le-domaine/`; the two
+  lodging FAQs and the nightly price table already say it.
+
+### Fixed
+- Editing a guest's record from the reservation page no longer resets their e-mail language to
+  French. The dialog does not carry the field, and the model rewrote the column anyway; an absent
+  language now leaves the stored value alone.
+- Site: the language selector appeared on no French page at all, even though the translations were
+  published — the query that looks for English pages only ever saw the language of the page it ran
+  from. The English addresses are also distinct from the French ones, without which
+  « /en/contact/ » redirected to the French page.
+- Booking funnel: the calendar's month and weekday names finally follow the language of the page.
+  They stayed frozen in French while the whole of the rest of the drawer was already translated.
+- Booking drawer: its chrome — the « Réserver » button, the two steps, the instruction, the Back and
+  Next buttons — now follows the language of the page. It stayed French around an English form. The
+  drawer also finds the lodging of the English page again, and with it its title and its « from »
+  price.
+- Site: on L'Estiva's page, the starry-sky photo fills the whole width of the immersive band again
+  instead of floating in the middle between two black panels.
+
 ## [3.1.1] - 2026-09-23
 
 ### Summary
