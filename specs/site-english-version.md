@@ -171,28 +171,51 @@ build against.)_
     owns the gate contract; this one only records what the contract must eventually say.
     > **Sans test** — consigne de tenue de spec, pas un comportement du logiciel
 
+### What the operator sees in GuestFlow
+
+_(Added 2026-09-24 at Adrien's request. The first version of this spec declared the back-office out
+of scope; an operator about to write to a guest must be able to see which language that message will
+leave in, without opening another screen.)_
+
+18. The reservation fiche states, beside the guest's name, **the language that guest is written to
+    in**, and says where it comes from. It is the client's `emailLanguage`, because that is what
+    every sending path resolves first (`controllers/emailsController.js:72`) — not the reservation's
+    own column, which only applies when no client is attached.
+19. The fiche also states **where the booking came from** when it came from the website, with the
+    same wording as the devis list: « Site internet ». Both markers are read-only on the fiche —
+    they are facts about the guest and about the past, not settings to change here.
+20. The manual send dialog **names the language the message will leave in** before it is sent, and
+    lets the operator write this one in the other language. That override applies to **this send
+    only** and never rewrites the guest's record: a French e-mail sent once to an English guest is a
+    courtesy, not a change of preference. The server already accepted `lang` on preview and send and
+    already returned the language it resolved — the dialog neither sent nor read it.
+21. A form that does not carry `emailLanguage` must not decide it. `clientsModel.update` keeps the
+    stored value when the payload does not mention the field, and the reservation page's client
+    dialog carries the field it displays. Before this, editing a guest's phone number from the
+    reservation page reset them to French.
+
 ### WordPress plugin (`guestflow-booking`)
 
-18. The plugin resolves the current language once per request — `pll_current_language('slug')` when
+22. The plugin resolves the current language once per request — `pll_current_language('slug')` when
     Polylang is present, otherwise `get_locale()` reduced to its two-letter prefix, otherwise `fr` —
     and sends it as `lang` on every upstream call (`class-gf-api-client.php`) and through the REST
     proxy (`class-gf-rest-proxy.php`).
     > **Sans test** — code PHP du plugin WordPress — hors de la suite Node ; vérifié sur le site (§7)
-19. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
+23. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
     Source strings stay French, which is what the 80 `__()` calls already assume; English arrives as
     a translation. The `.po` is the reviewable artefact and is versioned.
     > **Sans test** — fichiers de traduction `.po`/`.mo` — un artefact, pas un comportement
-20. `runtime.js` and `blocks/calendar/view.js` stop hard-coding `fr-FR`: number and date formatting
+24. `runtime.js` and `blocks/calendar/view.js` stop hard-coding `fr-FR`: number and date formatting
     read the locale published by `wp_localize_script`.
     > **Sans test** — formatage côté navigateur dans le plugin — vérifié sur le site (§7)
-21. The CGV shortcode already renders both languages with a flag switcher
+25. The CGV shortcode already renders both languages with a flag switcher
     (`class-gf-shortcodes.php:71-82`). On an English page it must open on **English** by default;
     the visitor's manual choice still wins and is still remembered.
     > **Sans test** — shortcode PHP du plugin — vérifié sur le site (§7)
 
 ### Solio site (mu-plugins)
 
-22. **Prerequisite, before any behaviour change:** the server-only mu-plugins are imported into
+26. **Prerequisite, before any behaviour change:** the server-only mu-plugins are imported into
     `integrations/wordpress/solio-site/mu-plugins/` as-is, in their own commit, so the diff that
     follows is reviewable. Each file is compared against the repository's history first — per
     `wordpress-deploy-topology`, the server copy can be *behind* master, and an import must not
@@ -206,7 +229,7 @@ build against.)_
     administrator's login in a comment, and this repository is public — the comment is reworded to
     say the same thing without the identifier.
     > **Sans test** — import de fichiers à l'identique ; le test est la comparaison octet à octet faite avant l'import
-23. The header and footer stop being frozen French HTML in the block template parts. They are
+27. The header and footer stop being frozen French HTML in the block template parts. They are
     rendered per language: labels and URLs both (`/la-granja/` ↔ `/en/la-granja/`), and the header
     carries a **language switcher** (§6, decided 2026-09-24 on
     `docs/specs/2026-09-24-site-language-switcher.html`) linking to the current page's translation —
@@ -215,34 +238,34 @@ build against.)_
     readable in one place. **The switcher only exists when
     there is something to switch to:** it is not rendered at all while fewer than two languages have
     published content, so nothing advertises an English site before it stands — the discipline
-    rule 25 applies to `hreflang`, applied to the interface.
+    rule 29 applies to `hreflang`, applied to the interface.
     > **Sans test** — mu-plugins PHP du site Solio — hors de la suite Node ; vérifiés sur le site (§7)
-24. `gf-booking.php`'s ~40 interface strings, including the singular/plural of "nuit", go through a
+28. `gf-booking.php`'s ~40 interface strings, including the singular/plural of "nuit", go through a
     small FR/EN map resolved from the current language, same shape as rule 3.
     > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
-25. `gf-seo-head.php` keeps `x-default` on French. The `hreflang="en"` alternate is emitted **only
+29. `gf-seo-head.php` keeps `x-default` on French. The `hreflang="en"` alternate is emitted **only
     for a page that actually has a published English translation** — which also fixes today's defect
     where the whole site advertises an empty `/en/`.
     > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
 
 ### Content
 
-26. The 10 published French pages get an English translation, linked through Polylang, with English
+30. The 10 published French pages get an English translation, linked through Polylang, with English
     slugs under `/en/`. The English home replaces the empty "Blog" archive currently served there.
     > **Sans test** — contenu rédactionnel, pas du code
-27. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
+31. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
     concrete, understated. The site never becomes salesier in translation than it is in French.
     > **Sans test** — contenu rédactionnel, pas du code
-28. Pages are translated **one at a time and published straight away** _(decided 2026-09-24,
+32. Pages are translated **one at a time and published straight away** _(decided 2026-09-24,
     reversing this rule's first version)_. Adrien does not want to proof-read the English before it
-    goes live. The safety net is no longer his reading, so it has to be somewhere else: rule 25
+    goes live. The safety net is no longer his reading, so it has to be somewhere else: rule 29
     already keeps `hreflang` on really-translated pages only, and each page is published with its
     French twin open beside it so no fact — a price, a capacity, a date, a rule — drifts in
     translation. Facts are checked against the French page; prose is not sent for approval.
     > **Sans test** — procédure de publication, pas un comportement du logiciel
-29. Nothing advertises the English site before it stands: rule 25 makes the `hreflang` follow real
+33. Nothing advertises the English site before it stands: rule 29 makes the `hreflang` follow real
     translations, so the sequencing is automatic rather than a thing to remember.
-    > **Sans test** — conséquence de la règle 25, qui porte déjà sa propre vérification
+    > **Sans test** — conséquence de la règle 29, qui porte déjà sa propre vérification
 
 **Edge cases:**
 
@@ -331,7 +354,7 @@ else reuses existing screens.
 | `includes/class-gf-api-client.php` | T | Adds `lang` to every upstream request |
 | `includes/class-gf-rest-proxy.php` | T | Accepts and forwards `lang` on the proxied routes |
 | `includes/class-gf-blocks.php` | T | Publishes the locale next to `GF.i18n` for `wp_localize_script` |
-| `includes/class-gf-shortcodes.php` | T | CGV open on the page's language (rule 21) |
+| `includes/class-gf-shortcodes.php` | T | CGV open on the page's language (rule 25) |
 | `assets/runtime.js` | T | `Intl.NumberFormat` / date formatting driven by the published locale |
 | `blocks/calendar/view.js` | T | Same for the calendar's month and day names |
 | `languages/guestflow-booking-en_GB.po` | **C** | The English translation, reviewable in the diff |
@@ -341,7 +364,7 @@ else reuses existing screens.
 
 | File | T/C | Responsibility |
 |---|---|---|
-| 10 server-only mu-plugins | **C** | Imported as-is first (rule 22), no behaviour change in that commit |
+| 10 server-only mu-plugins | **C** | Imported as-is first (rule 26), no behaviour change in that commit |
 | `gf-i18n.php` | **C** | The site's FR/EN string map, the current-language helper the others call, and the first-visit `Accept-Language` redirect with its guards (§6) |
 | `gf-header.php` (from the `header` template part) | **C** | Navigation rendered per language + renders the language switcher (hidden while a single language has content) |
 | `gf-seo-icons.php` | T | Gains the `globe` icon, on the existing 24 × 24 stroke grid |
@@ -470,7 +493,7 @@ of the whole spec.
 4. The same funnel at **360 px**: no wrapping break, no truncated button, switcher first in the
    burger with a 44 px target.
 5. With English unpublished, the switcher is **absent** from the header — desktop and burger alike
-   (rule 23).
+   (rule 27).
 6. The request produces a client with `emailLanguage = 'en'`; the confirmation email and the devis
    PDF are English.
 7. A French visitor sees strictly today's site (the regression that matters most).
