@@ -16,7 +16,10 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
+import LanguageIcon from '@mui/icons-material/Language';
 import PageActionBar from '../components/PageActionBar';
+import StatusBadge from '../components/StatusBadge';
+import LanguageBadge from '../components/LanguageBadge';
 import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
@@ -129,7 +132,11 @@ const EMPTY_CLIENT = {
   address: '',
   phone: '',
   email: '',
-  notes: ''
+  notes: '',
+  // Without this the dialog sends no emailLanguage, and the model used to read that silence as
+  // « français » — editing a phone number reset an English guest. The server keeps the stored value
+  // now, but the form must still carry what it displays.
+  emailLanguage: 'fr',
 };
 
 export default function ReservationPage() {
@@ -752,6 +759,9 @@ export default function ReservationPage() {
           setForm({
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
+            // Where this booking came from. Read-only on the fiche — it is a fact about the past,
+            // not a setting (specs/site-english-version.md rule 13).
+            requestOrigin: res.requestOrigin || null,
             bookingConflictAt: res.bookingConflictAt || null,
             cancelledAt: res.cancelledAt || null,
             adults: res.adults || 1,
@@ -891,6 +901,7 @@ export default function ReservationPage() {
 
           setForm({
             clientId: devis.clientId,
+            requestOrigin: devis.requestOrigin || null,
             adults: devis.adults || 1,
             children: devis.children || 0,
             teens: devis.teens || 0,
@@ -3244,6 +3255,22 @@ export default function ReservationPage() {
                         {`${selectedClient.firstName || ''} ${selectedClient.lastName || ''}`.trim() || 'Client'}
                       </Typography>
                       <EditOutlinedIcon sx={{ fontSize: 16, color: (t) => alpha(t.palette.primary.main, 0.6) }} />
+                    </Box>
+                    {/* What this guest is written to in, and where the booking came from
+                        (specs/site-english-version.md §6). Both answer the same question at the
+                        moment it is asked: before writing to them. */}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+                      <LanguageBadge
+                        lang={selectedClient.emailLanguage}
+                        origin="fiche client — tous les e-mails partent dans cette langue"
+                      />
+                      {form.requestOrigin === 'public' && (
+                        <Tooltip title="Demande de réservation reçue depuis le site internet">
+                          <span>
+                            <StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} />
+                          </span>
+                        </Tooltip>
+                      )}
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
                       <Button size="small" variant="text" onClick={() => setClientSearchOpen(true)}>
