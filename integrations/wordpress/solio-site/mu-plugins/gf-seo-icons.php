@@ -48,6 +48,11 @@ function gf_seo_icones() {
 		'bed'      => '<path d="M3 8v10M3 15h18v3M21 15v-4a3 3 0 0 0-3-3H9v7"/><circle cx="6" cy="10.5" r="1.7"/>',
 		'terrace'  => '<circle cx="12" cy="9" r="3.4"/><path d="M12 2.5V4M5.8 4.8l1 1M18.2 4.8l-1 1M3 9h1.5M19.5 9H21"/><path d="M4 16.5h16M7 20h10"/>',
 		'parking'  => '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9.5 17V7h3.5a3 3 0 0 1 0 6H9.5"/>',
+		// Le globe du selecteur de langue : meme grille, meme trait, meme couleur heritee que les
+		// autres — il rejoint la famille au lieu d'en ouvrir une seconde
+		// (specs/site-english-version.md §6).
+		'globe'    => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.4 2.6 3.6 5.6 3.6 9S14.4 18.4 12 21c-2.4-2.6-3.6-5.6-3.6-9S9.6 5.6 12 3z"/>',
+		'chevron'  => '<path d="M6 9.5l6 6 6-6"/>',
 		'wifi'     => '<path d="M3.5 9.5a13 13 0 0 1 17 0"/><path d="M6.5 13a9 9 0 0 1 11 0"/><path d="M9.5 16.3a5 5 0 0 1 5 0"/><circle cx="12" cy="19.3" r="1.2" fill="currentColor" stroke="none"/>',
 		'washer'   => '<rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><circle cx="12" cy="13.2" r="4.1"/><path d="M9.3 12.4c1.7 1.3 3.7 1.3 5.4 0"/><circle cx="7.6" cy="6.3" r=".9" fill="currentColor" stroke="none"/>',
 		'baby'     => '<path d="M10 3.5h4M12 3.5V6"/><rect x="9" y="6" width="6" height="14.5" rx="3"/><path d="M9 11h6"/>',

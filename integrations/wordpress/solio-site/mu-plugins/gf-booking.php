@@ -17,20 +17,40 @@ add_action('rest_api_init', function () {
     };
     $client = function () { return class_exists('GF_Api_Client') ? GF_Api_Client::instance() : null; };
 
+    /**
+     * La langue demandee par le tiroir.
+     *
+     * Elle voyage explicitement plutot que d'etre redecouverte ici : un appel REST n'est pas la page,
+     * Polylang n'y voit pas forcement la meme chose, et le tiroir sait, lui, dans quelle langue il
+     * s'affiche (specs/site-english-version.md regle 28).
+     */
+    $langue = function ($r) {
+        $brut = $r->get_param('lang');
+        if (null === $brut) {
+            $corps = $r->get_json_params();
+            $brut = is_array($corps) && isset($corps['lang']) ? $corps['lang'] : null;
+        }
+        return function_exists('gf_langue_normalisee') ? gf_langue_normalisee($brut) : 'fr';
+    };
+
     register_rest_route($ns, '/property/(?P<id>\d+)', ['methods' => 'GET', 'permission_callback' => $pub,
-        'callback' => function ($r) use ($relay, $client) { $c = $client(); return $relay($c ? $c->get('/properties/' . (int) $r['id']) : null); }]);
+        'callback' => function ($r) use ($relay, $client, $langue) { $c = $client(); return $relay($c ? $c->get('/properties/' . (int) $r['id'], ['lang' => $langue($r)]) : null); }]);
     register_rest_route($ns, '/availability/(?P<id>\d+)', ['methods' => 'GET', 'permission_callback' => $pub,
         'callback' => function ($r) use ($relay, $client) { $c = $client();
-            return $relay($c ? $c->get('/properties/' . (int) $r['id'] . '/availability', ['from' => $r['from'], 'to' => $r['to']]) : null); }]);
+            return $relay($c ? $c->get('/properties/' . (int) $r['id'] . '/availability', ['from' => $r['from'], 'to' => $r['to'], 'lang' => $langue($r)]) : null); }]);
     register_rest_route($ns, '/options/(?P<id>\d+)', ['methods' => 'GET', 'permission_callback' => $pub,
-        'callback' => function ($r) use ($relay, $client) { $c = $client(); return $relay($c ? $c->get('/properties/' . (int) $r['id'] . '/options') : null); }]);
+        'callback' => function ($r) use ($relay, $client, $langue) { $c = $client(); return $relay($c ? $c->get('/properties/' . (int) $r['id'] . '/options', ['lang' => $langue($r)]) : null); }]);
     register_rest_route($ns, '/resources/(?P<id>\d+)', ['methods' => 'GET', 'permission_callback' => $pub,
-        'callback' => function ($r) use ($relay, $client) { $c = $client(); return $relay($c ? $c->get('/properties/' . (int) $r['id'] . '/resources') : null); }]);
+        'callback' => function ($r) use ($relay, $client, $langue) { $c = $client(); return $relay($c ? $c->get('/properties/' . (int) $r['id'] . '/resources', ['lang' => $langue($r)]) : null); }]);
     register_rest_route($ns, '/quote', ['methods' => 'POST', 'permission_callback' => $pub,
-        'callback' => function ($r) use ($relay, $client) { $c = $client(); return $relay($c ? $c->post('/quote', $r->get_json_params() ?: []) : null); }]);
+        'callback' => function ($r) use ($relay, $client, $langue) { $c = $client();
+            return $relay($c ? $c->post('/quote', array_merge($r->get_json_params() ?: [], ['lang' => $langue($r)])) : null); }]);
     register_rest_route($ns, '/booking-requests', ['methods' => 'POST',
         'permission_callback' => function ($r) { $n = $r->get_header('X-WP-Nonce'); return is_string($n) && wp_verify_nonce($n, 'wp_rest'); },
-        'callback' => function ($r) use ($relay, $client) { $c = $client(); return $relay($c ? $c->post('/booking-requests', $r->get_json_params() ?: []) : null); }]);
+        'callback' => function ($r) use ($relay, $client, $langue) { $c = $client();
+            // La demande porte sa langue jusqu'au dossier du client : elle decide de la langue de sa
+            // confirmation et de son devis PDF (regles 11-12).
+            return $relay($c ? $c->post('/booking-requests', array_merge($r->get_json_params() ?: [], ['lang' => $langue($r)])) : null); }]);
 });
 
 /* ---- Enqueue widget CSS + JS ---- */
@@ -95,16 +115,158 @@ CSS;
     wp_add_inline_script('gf-book', 'window.GF_BOOK=' . wp_json_encode([
         'rest'  => esc_url_raw(rest_url('gf-solio/v1')),
         'nonce' => wp_create_nonce('wp_rest'),
+        // La langue du tunnel, decidee par la page (specs/site-english-version.md regle 28). Le
+        // dictionnaire part avec la configuration plutot que d'etre reconstruit en JavaScript :
+        // c'est PHP qui sait quelle page est servie.
+        'lang'  => function_exists('gf_langue') ? gf_langue() : 'fr',
+        't'     => gf_booking_dictionnaire(),
     ]) . ';', 'before');
     wp_add_inline_script('gf-book', gf_booking_js());
 });
+
+
+/**
+ * Ce que le tunnel dit, dans les deux langues.
+ *
+ * Meme forme que les autres dictionnaires du projet : deux tableaux de cles identiques. Les mois et
+ * les jours en font partie — un calendrier anglais qui affiche « septembre » est un calendrier
+ * francais avec des boutons anglais.
+ *
+ * Les montants, eux, ne changent pas de convention : « 1 234,56 € » dans les deux, comme le devis
+ * PDF joint a la confirmation (regle 10).
+ */
+function gf_booking_dictionnaire() {
+    $langue = function_exists('gf_langue') ? gf_langue() : 'fr';
+    $fr = array(
+        'mois'            => array('janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'),
+        'jours'           => array('lun','mar','mer','jeu','ven','sam','dim'),
+        'choisirDates'    => 'Choisissez vos dates',
+        'choisirArrivee'  => 'Sélectionnez votre date d’arrivée',
+        'choisirDepart'   => 'Sélectionnez votre date de départ',
+        'nuit'            => 'nuit',
+        'nuits'           => 'nuits',
+        'sejourMin'       => 'Séjour minimum :',
+        'vousAvezChoisi'  => 'vous avez choisi',
+        'periodePlusLongue' => 'Choisissez une période plus longue.',
+        'votreSejour'     => 'Votre séjour',
+        'arrivee'         => 'Arrivée',
+        'depart'          => 'Départ',
+        'voyageurs'       => 'Voyageurs',
+        'options'         => 'Options',
+        'supplements'     => 'Suppléments',
+        'vosCoordonnees'  => 'Vos coordonnées',
+        'prenom'          => 'Prénom *',
+        'nom'             => 'Nom *',
+        'email'           => 'E-mail *',
+        'telephone'       => 'Téléphone *',
+        'nePasRemplir'    => 'Ne pas remplir',
+        'totalSejour'     => 'Total du séjour',
+        'envoyer'         => 'Envoyer la demande',
+        'envoiEnCours'    => 'Envoi…',
+        'du'              => 'Du',
+        'au'              => 'au',
+        'modifierDates'   => 'Modifier les dates',
+        'aucunSupplement' => 'Aucun supplément.',
+        'litsBebe'        => '🍼 Lit(s) bébé souhaité(s) ?',
+        'litsBebeNote'    => 'Gratuit, selon disponibilité',
+        'aucuneOption'    => 'Aucune option pour ce logement.',
+        'tarifDegressif'  => 'Tarif dégressif · dès',
+        'parParticipant'  => '/ participant',
+        'nbParticipants'  => 'Nombre de participants',
+        'taxeSejour'      => 'Taxe de séjour',
+        'indisponible'    => 'Indisponible',
+        'indisponibleCriteres' => 'Indisponible pour ces critères.',
+        'offert'          => 'Offert',
+        'coordonneesManquantes' => 'Merci de renseigner vos coordonnées.',
+        'emailInvalide'   => 'Merci de saisir une adresse e-mail valide.',
+        'erreurGenerique' => 'Une erreur est survenue.',
+        'merci'           => 'Merci',
+        'demandeEnvoyee'  => 'Votre demande de réservation a bien été envoyée. Nous revenons vers vous très vite pour confirmer votre séjour.',
+        'adultes'         => 'Adultes',
+        'ados'            => 'Ados',
+        'enfants'         => 'Enfants',
+        'bebes'           => 'Bébés',
+        'ansAdultes'      => '',
+        'ansAdos'         => '12 à 18 ans',
+        'ansEnfants'      => '2 à 12 ans',
+        'ansBebes'        => '0 à 2 ans',
+        'verifDuree'      => 'Vérification de la durée minimale…',
+        'nuitIndisponible' => 'Ces dates incluent une nuit indisponible. Choisissez une autre période.',
+        'aPartirDe'       => 'À partir de',
+    );
+    $en = array(
+        'mois'            => array('January','February','March','April','May','June','July','August','September','October','November','December'),
+        'jours'           => array('Mon','Tue','Wed','Thu','Fri','Sat','Sun'),
+        'choisirDates'    => 'Choose your dates',
+        'choisirArrivee'  => 'Select your arrival date',
+        'choisirDepart'   => 'Select your departure date',
+        'nuit'            => 'night',
+        'nuits'           => 'nights',
+        'sejourMin'       => 'Minimum stay:',
+        'vousAvezChoisi'  => 'you chose',
+        'periodePlusLongue' => 'Please choose a longer period.',
+        'votreSejour'     => 'Your stay',
+        'arrivee'         => 'Arrival',
+        'depart'          => 'Departure',
+        'voyageurs'       => 'Guests',
+        'options'         => 'Options',
+        'supplements'     => 'Extras',
+        'vosCoordonnees'  => 'Your details',
+        'prenom'          => 'First name *',
+        'nom'             => 'Surname *',
+        'email'           => 'Email *',
+        'telephone'       => 'Telephone *',
+        'nePasRemplir'    => 'Do not fill in',
+        'totalSejour'     => 'Total for the stay',
+        'envoyer'         => 'Send the request',
+        'envoiEnCours'    => 'Sending…',
+        'du'              => 'From',
+        'au'              => 'to',
+        'modifierDates'   => 'Change the dates',
+        'aucunSupplement' => 'No extras.',
+        'litsBebe'        => '🍼 Cot(s) required?',
+        'litsBebeNote'    => 'Free, subject to availability',
+        'aucuneOption'    => 'No options for this property.',
+        'tarifDegressif'  => 'Sliding scale · from',
+        'parParticipant'  => '/ participant',
+        'nbParticipants'  => 'Number of participants',
+        'taxeSejour'      => 'Tourist tax',
+        'indisponible'    => 'Unavailable',
+        'indisponibleCriteres' => 'Unavailable for these criteria.',
+        'offert'          => 'Included',
+        'coordonneesManquantes' => 'Please fill in your details.',
+        'emailInvalide'   => 'Please enter a valid email address.',
+        'erreurGenerique' => 'Something went wrong.',
+        'merci'           => 'Thank you',
+        'demandeEnvoyee'  => 'Your booking request has been sent. We will come back to you very shortly to confirm your stay.',
+        'adultes'         => 'Adults',
+        'ados'            => 'Teenagers',
+        'enfants'         => 'Children',
+        'bebes'           => 'Babies',
+        'ansAdultes'      => '',
+        'ansAdos'         => '12 to 18 years',
+        'ansEnfants'      => '2 to 12 years',
+        'ansBebes'        => '0 to 2 years',
+        'verifDuree'      => 'Checking the minimum stay…',
+        'nuitIndisponible' => 'These dates include a night that is not available. Please choose another period.',
+        'aPartirDe'       => 'From',
+    );
+    return 'en' === $langue ? $en : $fr;
+}
 
 function gf_booking_js() {
     return <<<'JS'
 (function(){
   var CFG = window.GF_BOOK || {};
-  var MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  var DOW = ['lun','mar','mer','jeu','ven','sam','dim'];
+  // Tout ce que le visiteur lit vient d'ici. Le repli francais n'est pas du zele : une version
+  // ancienne de ce fichier, servie depuis un cache, n'enverrait pas de dictionnaire.
+  var T = CFG.t || {};
+  var MONTHS = T.mois || ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var DOW = T.jours || ['lun','mar','mer','jeu','ven','sam','dim'];
+  // « 3 nuits » / « 3 nights » : l'accord se decide la ou les deux langues different.
+  function nuits(n){ return n + ' ' + (n > 1 ? (T.nuits || 'nuits') : (T.nuit || 'nuit')); }
+  // La langue accompagne chaque lecture : le relais REST ne peut pas la deviner depuis la page.
+  function L(){ return '?lang=' + (CFG.lang || 'fr'); }
   function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   function addDays(s,n){ var d=new Date(s+'T00:00:00'); d.setDate(d.getDate()+n); return iso(d); }
   function euro(n){ return (Math.round((Number(n)||0)*100)/100).toFixed(2).replace('.',',')+' €'; }
@@ -119,7 +281,7 @@ function gf_booking_js() {
     state.view.setDate(1);
 
     root.innerHTML = '<div class="gf-cal"><div class="gf-cal-nav"><button type="button" data-nav="-1">‹</button>'
-      + '<strong>Choisissez vos dates</strong><button type="button" data-nav="1">›</button></div>'
+      + '<strong>'+(T.choisirDates||'Choisissez vos dates')+'</strong><button type="button" data-nav="1">›</button></div>'
       + '<div class="gf-cal-months"></div><div class="gf-cal-hint"></div></div>';
     var monthsEl = root.querySelector('.gf-cal-months');
     var hintEl = root.querySelector('.gf-cal-hint');
@@ -130,10 +292,10 @@ function gf_booking_js() {
     var today=new Date(); today.setHours(0,0,0,0);
     var to=new Date(); to.setFullYear(to.getFullYear()+1);
     Promise.all([
-      api('/property/'+pid),
-      api('/availability/'+pid+'?from='+iso(today)+'&to='+iso(to)),
-      api('/options/'+pid),
-      api('/resources/'+pid)
+      api('/property/'+pid+L()),
+      api('/availability/'+pid+'?from='+iso(today)+'&to='+iso(to)+'&lang='+(CFG.lang||'fr')),
+      api('/options/'+pid+L()),
+      api('/resources/'+pid+L())
     ]).then(function(r){
       if(r[0].body && r[0].body.data){ state.property=r[0].body.data;
         state.cfg.checkInTime = r[0].body.data.defaultCheckIn || '16:00';
@@ -151,7 +313,7 @@ function gf_booking_js() {
     function renderCal(){
       monthsEl.innerHTML='';
       for(var m=0;m<2;m++){ monthsEl.appendChild(buildMonth(state.view.getFullYear(), state.view.getMonth()+m)); }
-      hintEl.textContent = state.start && !state.end ? 'Sélectionnez votre date de départ' : (state.start && state.end ? '' : 'Sélectionnez votre date d’arrivée');
+      hintEl.textContent = state.start && !state.end ? (T.choisirDepart||'Sélectionnez votre date de départ') : (state.start && state.end ? '' : (T.choisirArrivee||'Sélectionnez votre date d’arrivée'));
     }
     function buildMonth(y, mRaw){
       var d=new Date(y,mRaw,1); var year=d.getFullYear(), mon=d.getMonth();
@@ -178,14 +340,14 @@ function gf_booking_js() {
       wrap.appendChild(grid); return wrap;
     }
     function checkMinNightsThenOpen(start, end){
-      hintEl.innerHTML='Vérification de la durée minimale…';
+      hintEl.innerHTML=(T.verifDuree||'Vérification de la durée minimale…');
       api('/quote', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ propertyId:state.pid, startDate:start, endDate:end, adults:state.cfg.adults, teens:state.cfg.teens, children:state.cfg.children, babies:state.cfg.babies, options:[], resources:[] }) })
         .then(function(res){
           var q = res.body && res.body.data;
           if(q && q.minNightsBreached){
             var nights=Math.round((new Date(end)-new Date(start))/86400000);
             state.end=null; renderCal();
-            hintEl.innerHTML='<span style="color:#b00;font-weight:600">Séjour minimum : '+q.minNights+' nuit'+(q.minNights>1?'s':'')+' (vous avez choisi '+nights+' nuit'+(nights>1?'s':'')+'). Choisissez une période plus longue.</span>';
+            hintEl.innerHTML='<span style="color:#b00;font-weight:600">'+(T.sejourMin||'Séjour minimum :')+' '+nuits(q.minNights)+' ('+(T.vousAvezChoisi||'vous avez choisi')+' '+nuits(nights)+'). '+(T.periodePlusLongue||'Choisissez une période plus longue.')+'</span>';
             return;
           }
           hintEl.innerHTML='';
@@ -196,7 +358,7 @@ function gf_booking_js() {
       if(state.start && !state.end && ds===state.start){ state.start=null; renderCal(); return; }
       if(!state.start || state.end){ state.start=ds; state.end=null; renderCal(); return; }
       if(ds<=state.start){ state.start=ds; state.end=null; renderCal(); return; }
-      if(rangeHasBlocked(state.start, ds)){ alert('Ces dates incluent une nuit indisponible. Choisissez une autre période.'); state.start=ds; state.end=null; renderCal(); return; }
+      if(rangeHasBlocked(state.start, ds)){ alert(T.nuitIndisponible||'Ces dates incluent une nuit indisponible. Choisissez une autre période.'); state.start=ds; state.end=null; renderCal(); return; }
       state.end=ds; renderCal(); checkMinNightsThenOpen(state.start, ds);
     }
 
@@ -207,23 +369,23 @@ function gf_booking_js() {
     function buildModal(){
       modal=document.createElement('div'); modal.className='gf-modal';
       modal.innerHTML='<div class="gf-card"><button class="gf-x" type="button">&times;</button>'
-        +'<h3>Votre séjour</h3><div class="gf-dates"></div>'
-        +'<div class="gf-flex2"><div class="gf-field"><label>Arrivée</label><input class="gf-ci" type="time"></div>'
-        +'<div class="gf-field"><label>Départ</label><input class="gf-co" type="time"></div></div>'
-        +'<div class="gf-sect">Voyageurs</div><div class="gf-people"></div>'
+        +'<h3>'+(T.votreSejour||'Votre séjour')+'</h3><div class="gf-dates"></div>'
+        +'<div class="gf-flex2"><div class="gf-field"><label>'+(T.arrivee||'Arrivée')+'</label><input class="gf-ci" type="time"></div>'
+        +'<div class="gf-field"><label>'+(T.depart||'Départ')+'</label><input class="gf-co" type="time"></div></div>'
+        +'<div class="gf-sect">'+(T.voyageurs||'Voyageurs')+'</div><div class="gf-people"></div>'
         +'<div class="gf-babybed"></div>'
-        +'<div class="gf-sect">Options</div><div class="gf-opts"></div>'
-        +'<div class="gf-sect">Suppléments</div><div class="gf-res"></div>'
+        +'<div class="gf-sect">'+(T.options||'Options')+'</div><div class="gf-opts"></div>'
+        +'<div class="gf-sect">'+(T.supplements||'Suppléments')+'</div><div class="gf-res"></div>'
         +'<div class="gf-recap"></div>'
-        +'<div class="gf-sect">Vos coordonnées</div>'
-        +'<div class="gf-flex2"><div class="gf-field"><label>Prénom *</label><input class="gf-fn" type="text" name="given-name" autocomplete="given-name" autocapitalize="words"></div>'
-        +'<div class="gf-field"><label>Nom *</label><input class="gf-ln" type="text" name="family-name" autocomplete="family-name" autocapitalize="words"></div></div>'
-        +'<div class="gf-flex2"><div class="gf-field"><label>E-mail *</label><input class="gf-em" type="email" name="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false"></div>'
-        +'<div class="gf-field"><label>Téléphone *</label><input class="gf-ph" type="tel" name="tel" autocomplete="tel" inputmode="tel"></div></div>'
-        +'<input class="gf-hp" tabindex="-1" autocomplete="off" placeholder="Ne pas remplir">'
+        +'<div class="gf-sect">'+(T.vosCoordonnees||'Vos coordonnées')+'</div>'
+        +'<div class="gf-flex2"><div class="gf-field"><label>'+(T.prenom||'Prénom *')+'</label><input class="gf-fn" type="text" name="given-name" autocomplete="given-name" autocapitalize="words"></div>'
+        +'<div class="gf-field"><label>'+(T.nom||'Nom *')+'</label><input class="gf-ln" type="text" name="family-name" autocomplete="family-name" autocapitalize="words"></div></div>'
+        +'<div class="gf-flex2"><div class="gf-field"><label>'+(T.email||'E-mail *')+'</label><input class="gf-em" type="email" name="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false"></div>'
+        +'<div class="gf-field"><label>'+(T.telephone||'Téléphone *')+'</label><input class="gf-ph" type="tel" name="tel" autocomplete="tel" inputmode="tel"></div></div>'
+        +'<input class="gf-hp" tabindex="-1" autocomplete="off" placeholder="'+(T.nePasRemplir||'Ne pas remplir')+'">'
         +'<div class="gf-msg"></div>'
-        +'<div class="gf-totalbar"><div><span style="font-size:.85rem">Total du séjour</span><div class="gf-amt">…</div></div>'
-        +'<button class="gf-submit" type="button" disabled>Envoyer la demande</button></div></div>';
+        +'<div class="gf-totalbar"><div><span style="font-size:.85rem">'+(T.totalSejour||'Total du séjour')+'</span><div class="gf-amt">…</div></div>'
+        +'<button class="gf-submit" type="button" disabled>'+(T.envoyer||'Envoyer la demande')+'</button></div></div>';
       document.body.appendChild(modal);
       modal.querySelector('.gf-x').onclick=closeModal;
       modal.addEventListener('click',function(e){ if(e.target===modal) closeModal(); });
@@ -250,8 +412,8 @@ function gf_booking_js() {
     function fillModal(){
       var nights=Math.round((new Date(state.end)-new Date(state.start))/86400000);
       var dd=modal.querySelector('.gf-dates');
-      dd.innerHTML='<span>Du '+frDate(state.start)+' au '+frDate(state.end)+' · '+nights+' nuit'+(nights>1?'s':'')+'</span>'
-        +'<button class="gf-editdates" type="button" style="margin-left:12px;border:0;background:#5a6b48;color:#fff;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer">Modifier les dates</button>';
+      dd.innerHTML='<span>'+(T.du||'Du')+' '+frDate(state.start)+' '+(T.au||'au')+' '+frDate(state.end)+' · '+nuits(nights)+'</span>'
+        +'<button class="gf-editdates" type="button" style="margin-left:12px;border:0;background:#5a6b48;color:#fff;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer">'+(T.modifierDates||'Modifier les dates')+'</button>';
       dd.querySelector('.gf-editdates').onclick=function(){
         // Re-pick on the calendar (availability-constrained). Config is preserved in state.cfg.
         state.start=null; state.end=null; renderCal(); closeModal();
@@ -261,7 +423,8 @@ function gf_booking_js() {
       modal.querySelector('.gf-co').value=state.cfg.checkOutTime;
       // people
       var p=modal.querySelector('.gf-people'); p.innerHTML='';
-      var defs=[['adults','Adultes','',1],['teens','Ados','12 à 18 ans',0],['children','Enfants','2 à 12 ans',0],['babies','Bébés','0 à 2 ans',0]];
+      var defs=[['adults',T.adultes||'Adultes',T.ansAdultes||'',1],['teens',T.ados||'Ados',T.ansAdos||'12 à 18 ans',0],
+                ['children',T.enfants||'Enfants',T.ansEnfants||'2 à 12 ans',0],['babies',T.bebes||'Bébés',T.ansBebes||'0 à 2 ans',0]];
       defs.forEach(function(d){ p.appendChild(row('<span class="gf-lbl">'+d[1]+(d[2]?'<span class="gf-sub">'+d[2]+'</span>':'')+'</span>',
         stepper(function(){return state.cfg[d[0]];}, function(v){ state.cfg[d[0]]=v; if(d[0]==='babies'){ if(v<state.cfg.babyBeds) state.cfg.babyBeds=v; renderBabyBed(); } else { renderOpts(); } }, d[3]))); });
       renderBabyBed();
@@ -269,7 +432,7 @@ function gf_booking_js() {
       renderOpts();
       // resources
       var rs=modal.querySelector('.gf-res'); rs.innerHTML='';
-      if(!state.resources.length){ rs.innerHTML='<div class="gf-sub">Aucun supplément.</div>'; }
+      if(!state.resources.length){ rs.innerHTML='<div class="gf-sub">'+(T.aucunSupplement||'Aucun supplément.')+'</div>'; }
       state.resources.forEach(function(re){
         if(!(re.id in state.cfg.res)) state.cfg.res[re.id]=0;
         var tot=document.createElement('span'); tot.className='gf-line-total'; tot.dataset.resTotal=re.id;
@@ -280,26 +443,30 @@ function gf_booking_js() {
     function renderBabyBed(){
       var w=modal.querySelector('.gf-babybed'); w.innerHTML='';
       if(state.cfg.babies>0 && state.babyResId){
-        w.appendChild(row('<span class="gf-lbl">🍼 Lit(s) bébé souhaité(s) ?<span class="gf-sub">Gratuit, selon disponibilité</span></span>',
+        w.appendChild(row('<span class="gf-lbl">'+(T.litsBebe||'🍼 Lit(s) bébé souhaité(s) ?')+'<span class="gf-sub">'+(T.litsBebeNote||'Gratuit, selon disponibilité')+'</span></span>',
           stepper(function(){return state.cfg.babyBeds;}, function(v){ state.cfg.babyBeds=Math.min(v,state.cfg.babies); }, 0, state.cfg.babies)));
       } else { state.cfg.babyBeds=0; }
     }
     function priceLabel(x){
+      // Le serveur ecrit deja ce libelle, dans la bonne langue et avec la bonne regle
+      // (publicLabels.js) : on l'affiche tel quel. Le repli local ne sert qu'aux payloads d'avant
+      // cette version — ajouter une option ne doit rien demander au site.
+      if (x.priceUnitLabel) return (T.aPartirDe||'À partir de')+' '+euro(x.price)+' '+x.priceUnitLabel;
       var unit = x.priceType==='per_person'?' / pers.' : x.priceType==='per_person_per_night'?' / pers. / nuit' : x.priceType==='per_night'?' / nuit' : '';
-      return 'À partir de '+euro(x.price)+unit;
+      return (T.aPartirDe||'À partir de')+' '+euro(x.price)+unit;
     }
     function persons(){ return (Number(state.cfg.adults)||0)+(Number(state.cfg.teens)||0)+(Number(state.cfg.children)||0); }
     function renderOpts(){
       var o=modal.querySelector('.gf-opts'); o.innerHTML='';
-      if(!state.options.length){ o.innerHTML='<div class="gf-sub">Aucune option pour ce logement.</div>'; return; }
+      if(!state.options.length){ o.innerHTML='<div class="gf-sub">'+(T.aucuneOption||'Aucune option pour ce logement.')+'</div>'; return; }
       state.options.forEach(function(op){
         if(!(op.id in state.cfg.opt)) state.cfg.opt[op.id]=0;
         var prog = op.priceType==='per_participant_progressive';
         if(prog) state.cfg.opt[op.id]=Math.min(state.cfg.opt[op.id], Math.max(1, persons()));
         var tot=document.createElement('span'); tot.className='gf-line-total'; tot.dataset.optTotal=op.id;
-        var sub = prog ? 'Tarif dégressif · dès '+euro(op.price)+' / participant' : priceLabel(op);
+        var sub = prog ? (T.tarifDegressif||'Tarif dégressif · dès')+' '+euro(op.price)+' '+(T.parParticipant||'/ participant') : priceLabel(op);
         var lbl = '<span class="gf-lbl">'+op.title+'<span class="gf-sub">'+sub+'</span>'
-          + (prog?'<span class="gf-sub gf-partlbl">Nombre de participants</span>':'') + '</span>';
+          + (prog?'<span class="gf-sub gf-partlbl">'+(T.nbParticipants||'Nombre de participants')+'</span>':'') + '</span>';
         var mx = prog ? function(){ return Math.max(1, persons()); } : null;
         o.appendChild(row(lbl,
           stepper(function(){return state.cfg.opt[op.id];}, function(v){ state.cfg.opt[op.id]=v; }, 0, mx), tot));
@@ -313,7 +480,7 @@ function gf_booking_js() {
       return { propertyId:state.pid, startDate:state.start, endDate:state.end,
         checkInTime:state.cfg.checkInTime, checkOutTime:state.cfg.checkOutTime,
         adults:state.cfg.adults, teens:state.cfg.teens, children:state.cfg.children, babies:state.cfg.babies, babyBeds:state.cfg.babyBeds,
-        options:opts, resources:ress };
+        options:opts, resources:ress, lang: CFG.lang || 'fr' };
     }
     function scheduleQuote(){ clearTimeout(state.quoteTimer); state.quoteTimer=setTimeout(doQuote, 350); }
     function doQuote(){
@@ -321,7 +488,7 @@ function gf_booking_js() {
       api('/quote', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(buildPayload()) })
         .then(function(res){
           if(res.status<200||res.status>=300||!res.body||!res.body.data){ amt.textContent='—'; modal.querySelector('.gf-submit').disabled=true;
-            modal.querySelector('.gf-msg').textContent=(res.body&&res.body.error&&res.body.error.message)||'Indisponible pour ces critères.'; return; }
+            modal.querySelector('.gf-msg').textContent=(res.body&&res.body.error&&res.body.error.message)||(T.indisponibleCriteres||'Indisponible pour ces critères.'); return; }
           modal.querySelector('.gf-msg').textContent=''; state.quote=res.body.data; renderQuote(res.body.data);
         });
     }
@@ -337,25 +504,25 @@ function gf_booking_js() {
       rows+='<div><span>Hébergement ('+q.nights+' nuit'+(q.nights>1?'s':'')+')</span><span>'+euro(q.accommodationTotal)+'</span></div>';
       if(q.optionsTotal>0) rows+='<div><span>Options</span><span>'+euro(q.optionsTotal)+'</span></div>';
       if(q.resourcesTotal>0) rows+='<div><span>Suppléments</span><span>'+euro(q.resourcesTotal)+'</span></div>';
-      if(q.touristTax&&q.touristTax.total>0) rows+='<div><span>Taxe de séjour</span><span>'+euro(q.touristTax.total)+'</span></div>';
-      if(q.minNightsBreached) rows+='<div style="color:#b00"><span>Séjour minimum : '+q.minNights+' nuit'+(q.minNights>1?'s':'')+'</span><span></span></div>';
-      if(!q.available) rows+='<div style="color:#b00"><span>Indisponible</span><span></span></div>';
+      if(q.touristTax&&q.touristTax.total>0) rows+='<div><span>'+(T.taxeSejour||'Taxe de séjour')+'</span><span>'+euro(q.touristTax.total)+'</span></div>';
+      if(q.minNightsBreached) rows+='<div style="color:#b00"><span>'+(T.sejourMin||'Séjour minimum :')+' '+nuits(q.minNights)+'</span><span></span></div>';
+      if(!q.available) rows+='<div style="color:#b00"><span>'+(T.indisponible||'Indisponible')+'</span><span></span></div>';
       recap.innerHTML=rows;
     }
     function submit(){
       var fn=modal.querySelector('.gf-fn').value.trim(), ln=modal.querySelector('.gf-ln').value.trim();
       var em=modal.querySelector('.gf-em').value.trim(), ph=modal.querySelector('.gf-ph').value.trim();
       var msg=modal.querySelector('.gf-msg');
-      if(!fn||!ln||!em||!ph){ msg.style.color='#b00'; msg.textContent='Merci de renseigner vos coordonnées.'; return; }
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ msg.style.color='#b00'; msg.textContent='Merci de saisir une adresse e-mail valide.'; modal.querySelector('.gf-em').focus(); return; }
+      if(!fn||!ln||!em||!ph){ msg.style.color='#b00'; msg.textContent=(T.coordonneesManquantes||'Merci de renseigner vos coordonnées.'); return; }
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ msg.style.color='#b00'; msg.textContent=(T.emailInvalide||'Merci de saisir une adresse e-mail valide.'); modal.querySelector('.gf-em').focus(); return; }
       var payload=buildPayload();
       payload.guest={firstName:fn,lastName:ln,email:em,phone:ph}; payload._hp=modal.querySelector('.gf-hp').value;
       var btn=modal.querySelector('.gf-submit'); btn.disabled=true; btn.textContent='Envoi…';
       api('/booking-requests', { method:'POST', headers:{'Content-Type':'application/json','X-WP-Nonce':CFG.nonce}, body:JSON.stringify(payload) })
         .then(function(res){
-          if(res.status>=200&&res.status<300){ state.submitted=true; modal.querySelector('.gf-card').innerHTML='<button class="gf-x" type="button">&times;</button><h3>Merci '+fn+' !</h3><p>Votre demande de réservation a bien été envoyée. Nous revenons vers vous très vite pour confirmer votre séjour.</p><div style="text-align:center;margin-top:18px"><button type="button" class="gf-ok">OK</button></div>';
+          if(res.status>=200&&res.status<300){ state.submitted=true; modal.querySelector('.gf-card').innerHTML='<button class="gf-x" type="button">&times;</button><h3>'+(T.merci||'Merci')+' '+fn+' !</h3><p>'+(T.demandeEnvoyee||'Votre demande de réservation a bien été envoyée. Nous revenons vers vous très vite pour confirmer votre séjour.')+'</p><div style="text-align:center;margin-top:18px"><button type="button" class="gf-ok">OK</button></div>';
             modal.querySelector('.gf-x').onclick=closeModal; modal.querySelector('.gf-ok').onclick=closeModal; }
-          else { msg.style.color='#b00'; msg.textContent=(res.body&&res.body.error&&res.body.error.message)||'Une erreur est survenue.'; btn.disabled=false; btn.textContent='Envoyer la demande'; }
+          else { msg.style.color='#b00'; msg.textContent=(res.body&&res.body.error&&res.body.error.message)||(T.erreurGenerique||'Une erreur est survenue.'); btn.disabled=false; btn.textContent=(T.envoyer||'Envoyer la demande'); }
         });
     }
   });

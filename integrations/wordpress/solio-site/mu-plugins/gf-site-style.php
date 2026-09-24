@@ -76,6 +76,15 @@ strong,b{ font-weight:700; }
 .gf-header .gf-dropdown > .gf-dd-label.gf-cta{ border:1px solid rgba(232,194,134,.85); padding:9px 16px 8px;
   border-radius:2px; color:#E8C286; }
 .gf-header .gf-dropdown:hover > .gf-dd-label.gf-cta{ background:var(--gf-ocre); border-color:var(--gf-ocre); color:#fff; }
+/* ---- Selecteur de langue (specs/site-english-version.md §6) ----
+   Aucun style propre au-dela du strict necessaire : il herite du .gf-dropdown de « Reserver ». */
+.gf-header .gf-lang-dd .gf-dd-label{ display:flex; align-items:center; gap:7px; padding:4px 2px; }
+.gf-header .gf-lang-dd .gf-dd-menu{ min-width:200px; }
+.gf-header .gf-lang-dd .gf-dd-menu a{ display:flex; align-items:center; gap:10px; }
+.gf-header .gf-lang-dd .gf-dd-menu a[aria-current]{ color:#E8C286; }
+.gf-header .gf-lang-dd .gf-lang-chev{ transition:transform .2s ease; }
+.gf-header .gf-lang-dd:hover .gf-lang-chev, .gf-header .gf-lang-dd.is-open .gf-lang-chev{ transform:rotate(180deg); }
+.gf-header .gf-lang-dd svg{ display:block; }
 .gf-header .gf-burger{ display:none; }
 /* La case reste dans le flux, simplement invisible : display:none la retirerait de la
    navigation au clavier, et le menu du telephone deviendrait inatteignable autrement qu'au
@@ -95,6 +104,16 @@ strong,b{ font-weight:700; }
   .gf-header .gf-dd-label{ display:block; padding:14px 22px; border-top:1px solid rgba(255,255,255,.08); }
   .gf-header .gf-dd-menu{ display:block; position:static; background:transparent; box-shadow:none; padding:0; min-width:0; }
   .gf-header .gf-dd-menu a{ padding:12px 38px; border-top:1px solid rgba(255,255,255,.06); font-size:.9rem; }
+  /* Sur telephone le selecteur passe en TETE du menu, et reste REPLIE : deploye, il pousserait la
+     navigation de deux lignes vers le bas alors que neuf visiteurs sur dix n'y touchent pas. Le menu
+     « Reserver » reste deplie, lui — c'est la destination du menu, pas un reglage. */
+  .gf-header .gf-lang-dd{ order:-1; width:100%; }
+  .gf-header .gf-lang-dd .gf-dd-label{ padding:14px 22px; min-height:44px; justify-content:flex-start; gap:9px; }
+  .gf-header .gf-lang-dd .gf-lang-chev{ margin-left:auto; }
+  .gf-header .gf-lang-dd .gf-dd-menu{ display:none; }
+  .gf-header .gf-lang-dd.is-open .gf-dd-menu{ display:block; }
+  .gf-header .gf-lang-dd .gf-dd-menu a{ min-height:44px; }
+  .gf-header .gf-lang-dd .gf-dd-menu a[aria-current]{ background:rgba(232,194,134,.14); }
 }
 
 /* ---- Testimonials auto-carousel ---- */
@@ -268,6 +287,24 @@ CSS;
 add_action('wp_footer', function () {
     ?>
 <script>
+(function(){
+  // Le bloc langue du menu telephone se deplie au doigt. Au survol seul, il ne s'ouvrirait jamais
+  // sur un ecran tactile (specs/site-english-version.md §6).
+  var lang = document.querySelector('.gf-header .gf-lang-dd');
+  if (lang) {
+    var etiquette = lang.querySelector('.gf-dd-label');
+    var basculer = function (e) {
+      if (!window.matchMedia('(max-width:1080px)').matches) return;
+      e.preventDefault();
+      var ouvert = lang.classList.toggle('is-open');
+      etiquette.setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+    };
+    etiquette.addEventListener('click', basculer);
+    etiquette.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') basculer(e);
+    });
+  }
+})();
 (function(){
   // Selecteur de langue des CGV : un drapeau, une langue, jamais les deux melangees.
   var blocs = document.querySelectorAll('.gf-cgv-lang');
