@@ -134,9 +134,13 @@ the first page and the last email.
     separates "no language stated" from "language stated as fr".
 13. The language the request arrived in is recorded on the devis and travels to the reservation, so
     the operator can see it even when it disagrees with the client's stored preference (§6).
-    `requestOrigin` must travel with it: measured 2026-09-24, `carryOverColumns`
-    (`models/devisModel.js:822-836`) does **not** copy `requestOrigin` on `convertToReservation`, so
-    a reservation born of a public request currently loses all trace of coming from the site.
+    `requestOrigin` travels with it: measured 2026-09-24, `carryOverColumns`
+    (`models/devisModel.js:822-836`) did **not** copy `requestOrigin` on `convertToReservation`, so
+    a reservation born of a public request lost all trace of coming from the site — 54 reservations
+    out of 54 read as internal in the development database, while 7 of the 9 devis came from the
+    website. The origin badge is labelled **« Site internet »**, not « WordPress » _(Adrien,
+    2026-09-24)_: the operator cares which channel brought the booking, not which software serves
+    the pages. « Plugin WordPress » stays where it names the plugin's own version.
 
 ### Carrying the language beyond the site — **specified, not built**
 
@@ -514,7 +518,8 @@ _(filled during implementation)_
 - [x] Every public error message is bilingual, including the `MIN_NIGHTS` sentence, the portion
       refusal and the engine's propagated refusal — whose French wording now travels in `details`
       as the diagnostic it is (2026-09-24)
-- [ ] Booking request carries the language through to client and reservation
+- [x] Booking request carries the language through to client and reservation, `requestOrigin`
+      survives the conversion, and the origin badge reads « Site internet » (2026-09-24)
 - [ ] Plugin: language resolution, `lang` upstream, `.po`/`.mo`, locale-aware formatting
 - [ ] Site: `gf-i18n`, header/footer per language, `gf-booking` strings
 - [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)

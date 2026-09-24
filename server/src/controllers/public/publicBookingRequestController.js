@@ -24,7 +24,7 @@ const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogCo
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const optionsModel = require('../../models/optionsModel');
 const { isPerPersonCardOption, portionCap, portionWording } = require('../../utils/mealPortions');
-const { ok, fail, failT, langOf } = require('./publicHttp');
+const { ok, fail, failT, langOf, langStated } = require('./publicHttp');
 
 /**
  * Per-person card options asked for beyond `persons × servings` (specs/site-meal-portions.md rule 3).
@@ -113,6 +113,12 @@ function create(req, res) {
   }
 
   const visitor = req.visitor || {};
+  // The language the guest was actually reading when they asked (specs/site-english-version.md
+  // rules 11-13). Two columns need it, not one: a guest email resolves from the CLIENT and the
+  // quote PDF from the DEVIS, so setting one alone ships an English email with a French PDF.
+  const lang = langOf(req);
+  const langWasStated = langStated(req);
+
   const persist = db.transaction(() => {
     // Resolve-or-create the client by normalized email (never overwrite an existing name/phone).
     let client = clientsModel.findByEmail(g.value.email);
@@ -120,7 +126,16 @@ function create(req, res) {
       client = clientsModel.insert({
         firstName: g.value.firstName, lastName: g.value.lastName,
         email: g.value.email, phone: g.value.phone,
+        emailLanguage: lang,
       });
+    } else if (langWasStated && String(client.emailLanguage || 'fr') !== lang) {
+      // Rule 12: a request that EXPLICITLY states a language wins over the stored preference — the
+      // page the guest chose to read is the best evidence available of the language they want.
+      // Silence does not win: rule 1 reads a missing `lang` as French, and the plugin deployed
+      // today sends none, so a blind overwrite would reset every English client to French on their
+      // next booking.
+      clientsModel.update(client.id, { ...client, emailLanguage: lang });
+      client = { ...client, emailLanguage: lang };
     }
 
     const result = devisModel.create({
@@ -146,6 +161,9 @@ function create(req, res) {
       // already checked against the stay's cap above (specs/site-meal-portions.md).
       planningCardAsQuantity: true,
       notes: String(req.body.message || '').trim(),
+      // The quote PDF reads this column and no other (utils/devisPdf.js), and it becomes the
+      // reservation's language at conversion (devisModel.convertToReservation).
+      pdfLanguage: lang,
     });
     // Throwing rolls the client creation back with it; the error is answered below.
     if (result.error) throw Object.assign(new Error(result.error), { devisError: result });
