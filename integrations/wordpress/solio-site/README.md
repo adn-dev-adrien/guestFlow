@@ -48,7 +48,7 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral en deux écrans, ouvert par un bouton flottant en bas à droite. |
 | `gf-seo-urls.php` | Garde-fou : toute adresse générée suit l'hôte réellement utilisé par le visiteur. |
 | `gf-caps.php` | Pictogrammes des pastilles de capacité, injectés en JS — `wp_kses` retire tout `<svg>` du contenu enregistré depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |
-| `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ. |
+| `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ, bande film. |
 | `apache/uploads.htaccess` | Sert les jumeaux WebP par négociation de contenu. À déposer dans `wp-content/uploads/.htaccess`. |
 | `apache/roboto.css` | Feuille de la police auto-hébergée. Va dans `wp-content/uploads/fonts/`. |
 | `mu-plugins/gf-footer.php` | Style du pied de page « nuit » : manifeste, liens, mention légale, crédit ADN Dev. |
@@ -112,6 +112,38 @@ Deux conséquences à connaître :
 - **La carte « À la carte » vivait là**, et c'était le seul endroit où le prix des options
   s'affichait. Elle est reprise sur les deux fiches logement, juste avant le moteur, sous l'ancre
   `#a-la-carte` vers laquelle pointent les anciennes URLs Lodgify `/fr/options` et `/en/options`.
+
+## La bande film
+
+La page de l'Estiva porte, entre « L'essentiel » et le premier texte, une **bande pleine largeur**
+qui joue le survol du domaine en boucle (65 s, sans son : les rushes n'ont que du vent et du
+moteur). Le balisage vit dans le contenu de la page — un `<figure class="gf-band-film alignfull"
+data-gf-film>` — et le comportement dans `gf-site-style.php`.
+
+Trois choses la distinguent d'une vidéo posée telle quelle :
+
+- **Rien ne se télécharge tant que la bande n'approche pas de l'écran** (`preload="none"`, pas de
+  `<source>` dans le HTML, un `IntersectionObserver` à 200 px). Le film pèse de 8 à 25 Mo : le
+  charger d'office coûterait cher à qui ne descend jamais jusque-là. La lecture se met en pause dès
+  qu'on dépasse la bande.
+- **La définition suit la largeur réellement occupée** : 540p sous 600 px, 720p sous 1000 px, 1080p
+  au-delà, et 540p d'office si le navigateur annonce « économiseur de données » ou une connexion 2G.
+- **Elle n'est pleine largeur que sur téléphone.** Au-delà de 900 px de fenêtre elle se cale sur la
+  colonne de texte (1140 px) : en 16/9 plein écran sur un portable, le film occupait la page entière
+  et écrasait tout ce qui l'entoure. Les seuils de définition sont calés sur cette largeur-là, pas
+  sur celle de la fenêtre.
+- **Elle ne s'impose jamais.** « Réduire les animations » ou une connexion économe laissent l'affiche
+  fixe et un bouton de lecture ; le même bouton apparaît si le navigateur refuse la lecture
+  automatique (iPhone en mode économie d'énergie). Sans JavaScript, un `<noscript>` sert la 540p
+  avec ses contrôles et masque la vidéo pilotée par script.
+
+Piège à connaître : `data-src-540` **ne devient pas** `dataset.src540`. La conversion en casse
+chamelle ne s'applique qu'à un tiret suivi d'une lettre, jamais d'un chiffre — le script lit donc
+ces attributs avec `getAttribute()`.
+
+Le montage est un fichier unique dont **la dernière image est exactement la première**, de sorte que
+`loop` ne laisse voir aucun raccord : le fondu de bouclage est cuit dans le fichier, et le film
+commence une seconde après le vrai début du rush pour que la fin retombe dessus.
 
 ## Les carrousels
 
