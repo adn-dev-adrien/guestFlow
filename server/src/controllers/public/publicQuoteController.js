@@ -22,7 +22,7 @@ const settingsModel = require('../../models/settingsModel');
 const neatSubscriptionsModel = require('../../models/neatSubscriptionsModel');
 const { resolveInsurancePricing, buildQuoteSnapshot, isNeatPricingActive } = require('../../utils/neatGuestPricing');
 const { buildNeatClient } = require('../../utils/neatClient');
-const { ok, fail } = require('./publicHttp');
+const { ok, failT, langOf } = require('./publicHttp');
 const { isPerPersonCardOption } = require('../../utils/mealPortions');
 
 /** Reject any option id that is not applicable to the property. Returns an error list or null. */
@@ -186,18 +186,18 @@ function buildOptionLimits(input, engineQuote) {
 
 async function quote(req, res) {
   const v = validateStayInput(req.body);
-  if (!v.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Données de devis invalides.', v.errors);
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', v.errors);
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
-  if (optErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Option non disponible pour ce logement.', optErrors);
+  if (optErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'optionUnavailable', optErrors);
 
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
-  if (resErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Ressource non disponible pour ce logement.', resErrors);
+  if (resErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'resourceUnavailable', resErrors);
 
   let engineQuote = buildEngineQuote(v.value);
   if (engineQuote.error) {
-    if (engineQuote.status === 404) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
-    return fail(res, 422, 'VALIDATION_FAILED', engineQuote.error);
+    if (engineQuote.status === 404) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+    return failT(res, req, 422, 'VALIDATION_FAILED', 'quoteRefused', [{ field: 'quote', issue: engineQuote.error }]);
   }
 
   // Neat-derived insurance price (rule 13): re-run the engine with the resolved override so a

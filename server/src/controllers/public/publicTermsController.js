@@ -4,7 +4,7 @@
  */
 
 const termsModel = require('../../models/termsModel');
-const { ok, fail } = require('./publicHttp');
+const { ok, failT } = require('./publicHttp');
 
 function shape(v) {
   return {
@@ -16,15 +16,15 @@ function shape(v) {
 
 function getCurrent(req, res) {
   const v = termsModel.getCurrent();
-  if (!v) return fail(res, 503, 'TERMS_NOT_CONFIGURED', 'Les conditions générales ne sont pas encore publiées.');
+  if (!v) return failT(res, req, 503, 'TERMS_NOT_CONFIGURED', 'termsNotConfigured');
   return ok(res, { ...shape(v), currentVersion: v.version });
 }
 
 function getVersion(req, res) {
   const n = Number(req.params.version);
-  if (!Number.isInteger(n) || n < 1) return fail(res, 404, 'TERMS_NOT_FOUND', 'Version introuvable.');
+  if (!Number.isInteger(n) || n < 1) return failT(res, req, 404, 'TERMS_NOT_FOUND', 'termsNotFound');
   const v = termsModel.getByVersion(n);
-  if (!v) return fail(res, 404, 'TERMS_NOT_FOUND', 'Version introuvable.');
+  if (!v) return failT(res, req, 404, 'TERMS_NOT_FOUND', 'termsNotFound');
   const current = termsModel.getCurrent();
   return ok(res, { ...shape(v), currentVersion: current ? current.version : v.version });
 }

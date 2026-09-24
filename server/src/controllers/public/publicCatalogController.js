@@ -18,7 +18,7 @@ const {
   toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
   toPublicCancellationInsurance,
 } = require('../../utils/publicProjections');
-const { ok, fail } = require('./publicHttp');
+const { ok, failT, langOf } = require('./publicHttp');
 const { isClientVisibleOption } = require('../../utils/optionVisibility');
 const { groupOptionsByCategory } = require('../../utils/optionGrouping');
 
@@ -57,15 +57,16 @@ function rangeHasBlockedNight(start, end, blockedDates) {
 }
 
 function listProperties(req, res) {
-  return ok(res, propertiesModel.list().map(toPublicProperty));
+  const lang = langOf(req);
+  return ok(res, propertiesModel.list().map((row) => toPublicProperty(row, lang)));
 }
 
 function getProperty(req, res) {
   // Read-only on purpose: the public API never mutates server state on a GET, so we use the
   // side-effect-free reader instead of getByIdWithDetails (which seeds default timed options).
   const property = propertiesModel.getByIdPublicReadOnly(Number(req.params.id));
-  if (!property) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
-  return ok(res, toPublicPropertyDetail(property));
+  if (!property) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  return ok(res, toPublicPropertyDetail(property, langOf(req)));
 }
 
 /** Public catalog ordering: cheapest first (ties keep the model's order via a stable sort). */
@@ -89,7 +90,8 @@ function offeredDefaultOptionIds(propertyId) {
 
 function listOptions(req, res) {
   const propertyId = Number(req.params.id);
-  if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
+  if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  const lang = langOf(req);
   const excluded = offeredDefaultOptionIds(propertyId);
   const visible = optionsModel.listForProperty(propertyId)
     .filter((opt) => !excluded.has(Number(opt.id)))
@@ -97,7 +99,7 @@ function listOptions(req, res) {
     // Filtered BEFORE grouping so a category whose options are all internal yields no group at all
     // (specs/option-categories.md §3 rule 14).
     .filter(isClientVisibleOption)
-    .map(toPublicOption);
+    .map((opt) => toPublicOption(opt, lang));
   // The cancellation insurance leaves the supplements lists entirely
   // (specs/cancellation-insurance.md §3.3 rule 18): it gets its own block, with a mandatory
   // Oui/Non choice, and must never also appear as one row among the extras. Picked out of the
@@ -116,23 +118,25 @@ function listOptions(req, res) {
     // and its label announces a per-stay tariff (neat-cancellation-insurance rule 13).
     cancellationInsurance: toPublicCancellationInsurance(insuranceOption, {
       neatPricingActive: isNeatPricingActive(settingsModel),
+      lang,
     }),
   });
 }
 
 function listResources(req, res) {
   const propertyId = Number(req.params.id);
-  if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
+  if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  const lang = langOf(req);
   // resourcesModel.list resolves applicability (resource_properties pivot, empty = global) and the
   // EFFECTIVE per-property price (property_resource_prices). Public projection strips stock/slots.
-  return ok(res, resourcesModel.list(propertyId).map(toPublicResource).sort(byPriceAsc));
+  return ok(res, resourcesModel.list(propertyId).map((row) => toPublicResource(row, lang)).sort(byPriceAsc));
 }
 
 function getAvailability(req, res) {
   const propertyId = Number(req.params.id);
-  if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
+  if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
   const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso() });
-  if (!v.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Paramètres de période invalides.', v.errors);
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', v.errors);
   const blockedDates = computeBlockedDates(propertyId, v.value.from, v.value.to);
   return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates }));
 }

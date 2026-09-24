@@ -595,6 +595,7 @@ function computeAutoTimedOptionContext({
   return {
     optionId: Number(option.id),
     title: option.title,
+    titleEn: option.titleEn || null,
     quantity: 1,
     unitPrice: roundMoney(totalPrice),
     billedUnits: 1,
@@ -1622,6 +1623,7 @@ function calculateReservationQuote({
           return {
             optionId,
             title: option.title,
+            titleEn: option.titleEn || null,
             quantity: occurrences.length,
             unitPrice: unitBase,
             billedUnits,
@@ -1668,6 +1670,7 @@ function calculateReservationQuote({
         return {
           optionId,
           title: option.title,
+          titleEn: option.titleEn || null,
           quantity: qty,
           unitPrice: unitBase,
           billedUnits,
@@ -1715,6 +1718,7 @@ function calculateReservationQuote({
         return {
           optionId,
           title: option.title,
+          titleEn: option.titleEn || null,
           quantity,
           unitPrice: effectiveAverageUnit,
           billedUnits: computed.billedUnits,
@@ -1774,6 +1778,7 @@ function calculateReservationQuote({
       return {
         optionId,
         title: option.title,
+        titleEn: option.titleEn || null,
         quantity: effectiveQuantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
@@ -2028,6 +2033,7 @@ function calculateReservationQuote({
       const resultLine = {
         resourceId,
         name: resource.name,
+        nameEn: resource.nameEn || null,
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,

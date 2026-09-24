@@ -1,6 +1,20 @@
 const {
   isPerPersonCardOption, portionCap, portionWording,
 } = require('./mealPortions');
+const { labels: rawLabels, normalisePublicLang } = require('./publicLabels');
+
+/**
+ * Every projection normalises its own language instead of trusting the caller.
+ *
+ * Not defensive programming for its own sake: these functions are passed straight to `Array.map`
+ * all over the controllers, and `map` hands the INDEX as the second argument — so an unguarded
+ * `toPublicOption` would be called with `lang = 0`. Rule 1 also forbids erroring on a language
+ * token, so the boundary is exactly here: garbage in, French out, never a throw. The dictionary
+ * itself stays fail-loud for the code that calls it directly.
+ */
+function labelsFor(lang) {
+  return rawLabels(normalisePublicLang(lang));
+}
 
 /**
  * Public projections (specs/public-api.md §3 rule 5). Pure functions that map internal rows /
@@ -13,12 +27,28 @@ const {
  * percentages.
  */
 
-function toPublicProperty(row) {
+/**
+ * Language (specs/site-english-version.md §3 rules 3-9). Every projection takes a `lang`, defaults
+ * to French, and resolves its own labels through `publicLabels` — so a consumer that never sends a
+ * language receives byte-identical payloads to before this existed.
+ */
+function resolveTitle(rawLang, title, titleEn) {
+  const lang = normalisePublicLang(rawLang);
+  const en = String(titleEn || '').trim();
+  // Rule 4: an empty English title falls back to the French one, silently and on purpose. A missing
+  // translation must look ordinary, never like an error the visitor has to interpret.
+  return lang === 'en' && en ? en : title;
+}
+
+function toPublicProperty(row, lang = 'fr') {
   if (!row) return null;
   return {
     id: Number(row.id),
+    // Rule 9: a property name is a proper noun and is never translated. `nameArticle` is French
+    // grammar (« à la », « à l'· »), so English gets an empty one and the consumer composes
+    // "at La Granja" instead.
     name: row.name,
-    nameArticle: row.nameArticle || null,
+    nameArticle: normalisePublicLang(lang) === 'en' ? '' : (row.nameArticle || null),
     maxGuests: Number(row.maxGuests || 0),
     maxBabies: Number(row.maxBabies || 0),
     // Deprecated alias of maxGuests (specs/property-capacity-single-total.md §3 rule 11): the
@@ -39,14 +69,14 @@ function toPublicProperty(row) {
  * property's active pricing rules. `pricingRules` is the array attached by
  * propertiesModel.getByIdWithDetails. NO image/document URLs (Q7).
  */
-function toPublicPropertyDetail(row) {
+function toPublicPropertyDetail(row, lang = 'fr') {
   if (!row) return null;
   const nightly = (row.pricingRules || [])
     .map((r) => Number(r.pricePerNight))
     .filter((n) => Number.isFinite(n) && n > 0);
   const fromPricePerNight = nightly.length ? Math.min(...nightly) : null;
   return {
-    ...toPublicProperty(row),
+    ...toPublicProperty(row, lang),
     extraGuestPrice: Number(row.extraGuestPrice || 0),
     fromPricePerNight,
   };
@@ -58,37 +88,33 @@ function toPublicPropertyDetail(row) {
 // billed by the visitor's quantity on the site, so its labels differ from the back-office occurrence
 // model: a PER-PERSON one counts PORTIONS — breakfasts, covers (specs/site-meal-portions.md rule 6) —
 // and the others still count séances.
-function optionPriceLabels(priceType, showsPlanningCard, option = null) {
+function optionPriceLabels(priceType, showsPlanningCard, option = null, lang = 'fr') {
   const pt = String(priceType || '');
   const perPerson = pt.indexOf('per_person') === 0;
+  const L = labelsFor(lang);
   if (showsPlanningCard) {
     if (perPerson) {
-      const words = portionWording(option);
+      const words = portionWording(option, lang);
       return { priceUnitLabel: words.priceUnitLabel, quantityLabel: words.quantityLabel };
     }
-    return { priceUnitLabel: 'par séance', quantityLabel: 'Nombre de séances' };
+    return { priceUnitLabel: L.sessionUnit, quantityLabel: L.sessionQuantity };
   }
-  const MAP = {
-    per_person: 'par personne',
-    per_person_per_night: 'par personne et par nuit',
-    per_night: 'par nuit',
-    per_stay: 'au séjour',
-    per_participant_progressive: 'par participant',
-    // specs/cancellation-insurance.md §3.1 — `price` is a percentage for this type, so the unit
-    // label says what the percentage applies to.
-    percent_of_stay: 'du montant du séjour',
-  };
-  return { priceUnitLabel: MAP[pt] || null, quantityLabel: null };
+  return { priceUnitLabel: L.priceUnit[pt] || null, quantityLabel: null };
 }
 
-function toPublicOption(row) {
+function toPublicOption(row, lang = 'fr') {
   if (!row) return null;
-  const labels = optionPriceLabels(row.priceType, row.showsPlanningCard, row);
+  const labels = optionPriceLabels(row.priceType, row.showsPlanningCard, row, lang);
   const out = {
     id: Number(row.id),
-    title: row.title,
+    // Rule 4: `title` arrives ALREADY resolved, so the site renders one field whatever the language.
+    // `titleEn` keeps being emitted unchanged so nothing reading it today breaks.
+    title: resolveTitle(lang, row.title, row.titleEn),
     titleEn: row.titleEn || null,
-    description: row.description || null,
+    // Rule 7: there is no `descriptionEn` — specs/devis-english-language.md §3 rule 6 refused one —
+    // so English drops the description rather than showing a French paragraph. A missing line reads
+    // better than a foreign one.
+    description: normalisePublicLang(lang) === 'en' ? null : (row.description || null),
     priceType: row.priceType,
     price: Number(row.price || 0),
     // Planning-card option: booked as a time slot. On the site it's billed by quantity and « à
@@ -129,7 +155,7 @@ function frNumber(value) {
  * `amount` is what it costs for the quoted stay, priced server-side — `null` when there is no stay
  * yet (catalogue call), in which case the site falls back to `priceLabel`.
  */
-function toPublicCancellationInsurance(option, { amount = null, selected = false, neatPricingActive = false } = {}) {
+function toPublicCancellationInsurance(option, { amount = null, selected = false, neatPricingActive = false, lang = 'fr' } = {}) {
   if (!option) return null;
   const priceType = String(option.priceType || 'per_stay');
   const isPercent = priceType === 'percent_of_stay';
@@ -138,17 +164,18 @@ function toPublicCancellationInsurance(option, { amount = null, selected = false
   // tariff is only a fallback, so a 0 no longer hides the block — and there is no per-unit label
   // to print before the dates are picked, the premium being per-stay on the Neat side.
   if (price <= 0 && !neatPricingActive) return null;
-  const labels = optionPriceLabels(priceType, false);
+  const labels = optionPriceLabels(priceType, false, null, lang);
+  const L = labelsFor(lang);
   const priceLabel = neatPricingActive
-    ? 'Tarif calculé pour vos dates de séjour'
+    ? L.computedForYourDates
     : (isPercent
-      ? `${frNumber(price)} % du montant du séjour`
+      ? `${frNumber(price)} % ${L.priceUnit.percent_of_stay}`
       : `${frNumber(price)} €${labels.priceUnitLabel ? ` ${labels.priceUnitLabel}` : ''}`);
   return {
     optionId: Number(option.id),
-    title: option.title,
+    title: resolveTitle(lang, option.title, option.titleEn),
     titleEn: option.titleEn || null,
-    description: option.description || null,
+    description: normalisePublicLang(lang) === 'en' ? null : (option.description || null),
     priceType,
     percent: isPercent ? price : null,
     price,
@@ -160,15 +187,12 @@ function toPublicCancellationInsurance(option, { amount = null, selected = false
 
 // Display labels for resources, mirroring optionPriceLabels: the site renders these strings as-is,
 // so adding a resource needs NO website change (specs/wp-booking-widget-redesign.md).
-function resourcePriceLabels(priceType) {
-  const MAP = {
-    per_hour: { priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures" },
-    per_stay: { priceUnitLabel: 'pour le séjour', quantityLabel: null },
-    per_night: { priceUnitLabel: 'par nuit', quantityLabel: null },
-    per_person: { priceUnitLabel: 'par personne', quantityLabel: null },
-    per_person_per_night: { priceUnitLabel: 'par personne et par nuit', quantityLabel: null },
-  };
-  return MAP[String(priceType || '')] || { priceUnitLabel: null, quantityLabel: null };
+function resourcePriceLabels(priceType, lang = 'fr') {
+  const L = labelsFor(lang);
+  const pt = String(priceType || '');
+  const priceUnitLabel = L.quoteUnit[pt] || null;
+  if (!priceUnitLabel) return { priceUnitLabel: null, quantityLabel: null };
+  return { priceUnitLabel, quantityLabel: L.quoteQuantity[pt] || null };
 }
 
 /**
@@ -190,19 +214,22 @@ function hoursLabel(minutes) {
  * offered. The site renders it as-is: raising the allowance in GuestFlow changes the website copy
  * with no deploy (CLAUDE.md §6.0).
  */
-function resourceFreeLabel(freeMinutes) {
+function resourceFreeLabel(freeMinutes, lang = 'fr') {
   const minutes = Math.max(0, Math.round(Number(freeMinutes || 0)));
   if (!minutes) return null;
-  return `${hoursLabel(minutes)} ${offeredAgreement(minutes)} par séjour`;
+  return labelsFor(lang).offeredPerStay(hoursLabel(minutes), isOfferedPlural(minutes));
 }
 
 /**
  * « 1 h 30 offerte », « 2 h offertes », « 30 min offertes ». The agreement follows the unit the
  * label is actually written in: an hour and a half is still ONE hour, thirty minutes are thirty.
  */
-function offeredAgreement(minutes) {
-  const plural = minutes < 60 ? minutes > 1 : minutes >= 120;
-  return plural ? 'offertes' : 'offerte';
+function isOfferedPlural(minutes) {
+  return minutes < 60 ? minutes > 1 : minutes >= 120;
+}
+
+function offeredAgreement(minutes, lang = 'fr') {
+  return labelsFor(lang).offeredAgreement(isOfferedPlural(minutes));
 }
 
 /**
@@ -210,13 +237,13 @@ function offeredAgreement(minutes) {
  * Null when the line is billed in full, and null when it is free in full — there the amount column
  * already says « Offert » and repeating it beside the title would say the same thing twice.
  */
-function resourceOfferedNote(quantity, billedUnits, totalPrice) {
+function resourceOfferedNote(quantity, billedUnits, totalPrice, lang = 'fr') {
   const ordered = Math.max(0, Number(quantity || 0));
   const billed = Math.max(0, Number(billedUnits == null ? quantity : billedUnits));
   const free = roundHours(ordered - billed);
   if (free <= 0 || Number(totalPrice || 0) <= 0) return null;
   const minutes = Math.round(free * 60);
-  return `${hoursLabel(minutes)} ${offeredAgreement(minutes)}`;
+  return `${hoursLabel(minutes)} ${offeredAgreement(minutes, lang)}`;
 }
 
 function roundHours(value) {
@@ -228,13 +255,16 @@ function roundHours(value) {
  * the EFFECTIVE per-property price (resolved by resourcesModel.list). Stock/quantity, opening hours,
  * slot config and internal flags are NOT exposed.
  */
-function toPublicResource(row) {
+function toPublicResource(row, lang = 'fr') {
   if (!row) return null;
-  const labels = resourcePriceLabels(row.priceType);
+  const labels = resourcePriceLabels(row.priceType, lang);
   return {
     id: Number(row.id),
-    name: row.name,
-    description: row.note || null,
+    // Rule 5: resolved like an option's title, and `nameEn` starts being exposed alongside — closing
+    // an asymmetry the catalogue carried since `nameEn` was added.
+    name: resolveTitle(lang, row.name, row.nameEn),
+    nameEn: row.nameEn || null,
+    description: normalisePublicLang(lang) === 'en' ? null : (row.note || null),
     priceType: row.priceType,
     price: Number(row.price || 0),
     // Backend-owned display labels (source of truth) — the site renders them as-is.
@@ -246,7 +276,7 @@ function toPublicResource(row) {
     // What this property offers on the resource before billing starts. The engine already applies it
     // (pricing.applyPerHourFreeMinutes); until this field existed nothing SAID it, so the visitor read
     // « 30,00 € · par heure » on an hour that costs nothing.
-    freeLabel: resourceFreeLabel(row.freeMinutes),
+    freeLabel: resourceFreeLabel(row.freeMinutes, lang),
   };
 }
 
@@ -292,20 +322,21 @@ function toPublicAvailability({ propertyId, from, to, blockedDates }) {
  * drawer prints under its stepper (specs/site-meal-portions.md rules 3 + 7-8). The widget caps its
  * « + » with it, which is what spares the visitor a 422 at submit time.
  */
-function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutTime, property }) {
+function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutTime, property, lang = 'fr' }) {
   if (!Array.isArray(options) || !(Number(nights) > 0) || !(Number(persons) > 0)) return [];
   return options.filter(isPerPersonCardOption).map((option) => {
     const limit = portionCap({ option, persons, nights, checkInTime, checkOutTime, property });
     return {
       optionId: Number(option.id),
       maxQuantity: limit.cap,
-      hint: portionWording(option).hint(limit),
+      hint: portionWording(option, lang).hint(limit),
     };
   });
 }
 
 function toPublicQuote(quote, {
   available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
+  lang = 'fr',
 }) {
   const base = {
     propertyId: Number(quote.property?.id ?? quote.propertyId),
@@ -320,9 +351,11 @@ function toPublicQuote(quote, {
     nightlyBreakdown: (quote.nightlyBreakdown || []).map((n) => ({ date: n.date, price: Number(n.price || 0) })),
     accommodationTotal: Number(quote.totalPrice || 0),
     extraGuestSurcharge: Number(quote.extraGuestSurcharge || 0),
+    // Rule 6: a quote asked for in English must not contain a French line. The engine carries the
+    // English title beside the French one so this stays a pure projection.
     options: (quote.optionLines || []).map((o) => ({
       optionId: Number(o.optionId),
-      title: o.title,
+      title: resolveTitle(lang, o.title, o.titleEn),
       quantity: Number(o.quantity || 0),
       unitPrice: Number(o.unitPrice || 0),
       total: Number(o.totalPrice || 0),
@@ -334,11 +367,11 @@ function toPublicQuote(quote, {
     optionLimits: Array.isArray(optionLimits) ? optionLimits : [],
     resources: (quote.resourceLines || []).map((r) => ({
       resourceId: Number(r.resourceId),
-      name: r.name,
+      name: resolveTitle(lang, r.name, r.nameEn),
       quantity: Number(r.quantity || 0),
       // What is actually charged once the free allowance is taken off, and the sentence that says so.
       billedQuantity: Number(r.billedUnits == null ? (r.quantity || 0) : r.billedUnits),
-      offeredNote: resourceOfferedNote(r.quantity, r.billedUnits, r.totalPrice),
+      offeredNote: resourceOfferedNote(r.quantity, r.billedUnits, r.totalPrice, lang),
       unitPrice: Number(r.unitPrice || 0),
       total: Number(r.totalPrice || 0),
       offered: Boolean(r.offered),
