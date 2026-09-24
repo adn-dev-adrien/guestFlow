@@ -46,7 +46,7 @@ export default function DevisPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
-  // Origin filter (specs/public-api.md follow-up): '' = all, 'public' = WordPress booking requests,
+  // Origin filter (specs/public-api.md follow-up): '' = all, 'public' = website booking requests,
   // 'internal' = operator-created devis.
   const [originFilter, setOriginFilter] = useState('');
 
@@ -132,10 +132,10 @@ export default function DevisPage() {
   const devisNumberCell = (d) => (
     <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
       <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>{d.devisNumber}</Typography>
-      {/* Origin badge (specs/public-api.md follow-up) — booking request from the WordPress site. */}
+      {/* Origin badge (specs/public-api.md follow-up) — booking request from the website. */}
       {d.requestOrigin === 'public' && (
-        <Tooltip title="Demande de réservation reçue depuis le site WordPress">
-          <span><StatusBadge status="info" label="WordPress" icon={<LanguageIcon sx={{ fontSize: 14 }} />} /></span>
+        <Tooltip title="Demande de réservation reçue depuis le site internet">
+          <span><StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} /></span>
         </Tooltip>
       )}
     </Stack>
@@ -175,7 +175,7 @@ export default function DevisPage() {
         <InputLabel>Origine</InputLabel>
         <Select value={originFilter} label="Origine" onChange={(e) => setOriginFilter(e.target.value)}>
           <MenuItem value="">Toutes</MenuItem>
-          <MenuItem value="public">Demandes WordPress</MenuItem>
+          <MenuItem value="public">Demandes du site internet</MenuItem>
           <MenuItem value="internal">Devis internes</MenuItem>
         </Select>
       </FormControl>

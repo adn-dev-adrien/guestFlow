@@ -13,24 +13,9 @@
 const BREAKFAST_TYPE = 'breakfast';
 const NOON = 12;
 
-const WORDINGS = Object.freeze({
-  breakfast: {
-    unit: 'petit déjeuner',
-    unitPlural: 'petits déjeuners',
-    priceUnitLabel: 'par petit déjeuner',
-    quantityLabel: 'Nombre de petits déjeuners',
-    servingUnit: 'matin',
-    servingUnitPlural: 'matins',
-  },
-  meal: {
-    unit: 'couvert',
-    unitPlural: 'couverts',
-    priceUnitLabel: 'par couvert',
-    quantityLabel: 'Nombre de couverts',
-    servingUnit: 'repas',
-    servingUnitPlural: 'repas',
-  },
-});
+// The words themselves live in `publicLabels`, beside every other string the site renders, so one
+// file answers « what does an English visitor read » (specs/site-english-version.md §3 rule 3).
+const { labels: labelsFor } = require('./publicLabels');
 
 function isBreakfast(option) {
   return String(option?.autoOptionType || '') === BREAKFAST_TYPE;
@@ -106,24 +91,27 @@ function plural(count, singular, pluralForm) {
 }
 
 /**
- * The French words for one option — the single place that names a portion, so the catalogue label,
- * the drawer's hint and the refusal all say the same thing.
+ * The words for one option, in one language — the single place that names a portion, so the
+ * catalogue label, the drawer's hint and the refusal all say the same thing. Defaults to French, so
+ * every existing caller behaves exactly as before.
  */
-function portionWording(option) {
-  const words = isBreakfast(option) ? WORDINGS.breakfast : WORDINGS.meal;
+function portionWording(option, lang = 'fr') {
+  const L = labelsFor(lang);
+  const words = isBreakfast(option) ? L.portions.breakfast : L.portions.meal;
   const servingsText = (servings) => plural(servings, words.servingUnit, words.servingUnitPlural);
+  const personsText = (persons) => plural(persons, L.person, L.personPlural);
   return {
     ...words,
-    /** « Jusqu'à 32 — 4 personnes × 8 repas » */
+    /** « Jusqu'à 32 — 4 personnes × 8 repas » / « Up to 32 — 4 guests × 8 meals » */
     hint({ cap, persons, servings }) {
-      return `Jusqu'à ${cap} — ${plural(persons, 'personne', 'personnes')} × ${servingsText(servings)}`;
+      return L.portionHint(cap, personsText(persons), servingsText(servings));
     },
     /** « 6 petits déjeuners au maximum pour 2 personnes et 3 nuits. » */
     refusal({ cap, persons, servings, nights }) {
       const basis = isBreakfast(option)
-        ? plural(Math.max(0, Math.floor(Number(nights) || 0)), 'nuit', 'nuits')
+        ? plural(Math.max(0, Math.floor(Number(nights) || 0)), L.night, L.nightPlural)
         : servingsText(servings);
-      return `${plural(cap, words.unit, words.unitPlural)} au maximum pour ${plural(persons, 'personne', 'personnes')} et ${basis}.`;
+      return L.portionRefusal(plural(cap, words.unit, words.unitPlural), personsText(persons), basis);
     },
   };
 }

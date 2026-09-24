@@ -24,13 +24,14 @@ const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogCo
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const optionsModel = require('../../models/optionsModel');
 const { isPerPersonCardOption, portionCap, portionWording } = require('../../utils/mealPortions');
-const { ok, fail } = require('./publicHttp');
+const { ok, fail, failT, langOf, langStated } = require('./publicHttp');
 
 /**
  * Per-person card options asked for beyond `persons × servings` (specs/site-meal-portions.md rule 3).
- * Returns the French refusal + the usual `details` shape, or null when everything fits.
+ * Returns the refusal, written in the visitor's language, + the usual `details` shape, or null when
+ * everything fits.
  */
-function checkPortionCaps(input, engineQuote) {
+function checkPortionCaps(input, engineQuote, lang = 'fr') {
   const asked = new Map((input.options || []).map((o) => [Number(o.optionId), Number(o.quantity || 0)]));
   if (!asked.size) return null;
   const options = optionsModel.listForProperty(Number(input.propertyId)).filter(isPerPersonCardOption);
@@ -47,7 +48,7 @@ function checkPortionCaps(input, engineQuote) {
     });
     if (quantity > limit.cap) {
       return {
-        message: portionWording(option).refusal({ ...limit, nights: Number(engineQuote.nights || 0) }),
+        message: portionWording(option, lang).refusal({ ...limit, nights: Number(engineQuote.nights || 0) }),
         details: [{ field: 'options', issue: `option ${option.id} quantity ${quantity} exceeds ${limit.cap}` }],
       };
     }
@@ -63,53 +64,61 @@ function create(req, res) {
   }
 
   const v = validateStayInput(req.body);
-  if (!v.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Données de demande invalides.', v.errors);
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'requestInvalid', v.errors);
 
   const g = validateGuest(req.body.guest);
-  if (!g.ok) return fail(res, 422, 'VALIDATION_FAILED', 'Coordonnées du client invalides.', g.errors);
+  if (!g.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'clientInvalid', g.errors);
 
   const terms = checkTermsAcceptance(req.body.termsVersion);
   if (terms.error) return fail(res, terms.status, terms.code, terms.message, terms.details);
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
-  if (optErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Option non disponible pour ce logement.', optErrors);
+  if (optErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'optionUnavailable', optErrors);
 
   const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
-  if (resErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Ressource non disponible pour ce logement.', resErrors);
+  if (resErrors) return failT(res, req, 422, 'VALIDATION_FAILED', 'resourceUnavailable', resErrors);
 
   const property = db.prepare('SELECT maxGuests, maxBabies FROM properties WHERE id = ?').get(v.value.propertyId);
-  if (!property) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
+  if (!property) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
 
   // Same rule as the back-office (utils/capacity.js), but with NO force override on the public path.
   if (checkGuestCapacity(property, v.value)) {
-    return fail(res, 409, 'OVER_CAPACITY', 'Le nombre de personnes dépasse la capacité du logement.');
+    return failT(res, req, 409, 'OVER_CAPACITY', 'overCapacity');
   }
 
   // Server-side availability re-check (the proxy's quote may be stale).
   const blocked = computeBlockedDates(v.value.propertyId, v.value.startDate, v.value.endDate);
   if (rangeHasBlockedNight(v.value.startDate, v.value.endDate, blocked)) {
-    return fail(res, 409, 'DATES_UNAVAILABLE', 'Ces dates ne sont plus disponibles.');
+    return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
   }
 
   // Run the engine to enforce min-nights and to surface the price for the receipt.
   const engineQuote = buildEngineQuote(v.value);
   if (engineQuote.error) {
-    if (engineQuote.status === 404) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
-    return fail(res, 422, 'VALIDATION_FAILED', engineQuote.error);
+    if (engineQuote.status === 404) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+    // The engine writes for the back-office, in French. The visitor reads our sentence; the
+    // engine's own wording travels in `details`, where a diagnostic belongs.
+    return failT(res, req, 422, 'VALIDATION_FAILED', 'quoteRefused', [{ field: 'quote', issue: engineQuote.error }]);
   }
   if (engineQuote.minNightsBreached) {
-    return fail(res, 409, 'MIN_NIGHTS', `Séjour trop court : minimum ${engineQuote.requiredMinNights} nuit(s).`);
+    return failT(res, req, 409, 'MIN_NIGHTS', 'minNights', undefined, engineQuote.requiredMinNights);
   }
 
   // Portions over what the stay can serve are REFUSED here, where the live quote only clamps
   // (specs/site-meal-portions.md rule 3): this request becomes the devis the guest pays, so it is
   // never quietly altered.
-  const portionError = checkPortionCaps(v.value, engineQuote);
+  const portionError = checkPortionCaps(v.value, engineQuote, langOf(req));
   if (portionError) {
     return fail(res, 422, 'VALIDATION_FAILED', portionError.message, portionError.details);
   }
 
   const visitor = req.visitor || {};
+  // The language the guest was actually reading when they asked (specs/site-english-version.md
+  // rules 11-13). Two columns need it, not one: a guest email resolves from the CLIENT and the
+  // quote PDF from the DEVIS, so setting one alone ships an English email with a French PDF.
+  const lang = langOf(req);
+  const langWasStated = langStated(req);
+
   const persist = db.transaction(() => {
     // Resolve-or-create the client by normalized email (never overwrite an existing name/phone).
     let client = clientsModel.findByEmail(g.value.email);
@@ -117,7 +126,16 @@ function create(req, res) {
       client = clientsModel.insert({
         firstName: g.value.firstName, lastName: g.value.lastName,
         email: g.value.email, phone: g.value.phone,
+        emailLanguage: lang,
       });
+    } else if (langWasStated && String(client.emailLanguage || 'fr') !== lang) {
+      // Rule 12: a request that EXPLICITLY states a language wins over the stored preference — the
+      // page the guest chose to read is the best evidence available of the language they want.
+      // Silence does not win: rule 1 reads a missing `lang` as French, and the plugin deployed
+      // today sends none, so a blind overwrite would reset every English client to French on their
+      // next booking.
+      clientsModel.update(client.id, { ...client, emailLanguage: lang });
+      client = { ...client, emailLanguage: lang };
     }
 
     const result = devisModel.create({
@@ -143,6 +161,9 @@ function create(req, res) {
       // already checked against the stay's cap above (specs/site-meal-portions.md).
       planningCardAsQuantity: true,
       notes: String(req.body.message || '').trim(),
+      // The quote PDF reads this column and no other (utils/devisPdf.js), and it becomes the
+      // reservation's language at conversion (devisModel.convertToReservation).
+      pdfLanguage: lang,
     });
     // Throwing rolls the client creation back with it; the error is answered below.
     if (result.error) throw Object.assign(new Error(result.error), { devisError: result });
@@ -172,7 +193,11 @@ function create(req, res) {
   try {
     persisted = persist();
   } catch (e) {
-    if (e.devisError) return fail(res, e.devisError.status || 400, 'BOOKING_REQUEST_FAILED', e.devisError.error);
+    if (e.devisError) {
+      // Same reasoning as the engine above: the model's French wording is a diagnostic.
+      return failT(res, req, e.devisError.status || 400, 'BOOKING_REQUEST_FAILED', 'quoteRefused',
+        [{ field: 'devis', issue: String(e.devisError.error || '') }]);
+    }
     throw e;
   }
   const { devis, publicToken } = persisted;

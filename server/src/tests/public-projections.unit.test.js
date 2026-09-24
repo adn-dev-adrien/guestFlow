@@ -117,7 +117,10 @@ test('toPublicResource keeps id/name/price/priceType; strips stock & slot intern
     quantity: 2, isComplex: 1, freeMinutes: 90, openDays: '[1,2,3]', slotDuration: 60, basePrice: 50,
   });
   assert.deepEqual(r, {
-    id: 3, name: 'Bain nordique', description: 'Détente sous les étoiles', priceType: 'per_hour', price: 55,
+    // `nameEn` is exposed since specs/site-english-version.md §3 rule 5 — the column existed and was
+    // seeded, but the projection dropped it, so options had an English title and resources did not.
+    id: 3, name: 'Bain nordique', nameEn: null, description: 'Détente sous les étoiles',
+    priceType: 'per_hour', price: 55,
     priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures", showsSchedulingNote: true,
     freeLabel: '1 h 30 offerte par séjour',
   });

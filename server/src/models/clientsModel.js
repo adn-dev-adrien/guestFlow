@@ -184,12 +184,25 @@ function createModel(database) {
     return findById(result.lastInsertRowid);
   }
 
+  /**
+   * An update that does not mention `emailLanguage` must not decide it.
+   *
+   * `buildClientFields` normalises an absent value to `'fr'`, which is right on an insert and wrong
+   * on an update: a form that simply does not carry the field — the client dialog opened from the
+   * reservation page was one — would reset an English guest to French without anyone touching
+   * anything. Same shape as `writePostStayFlag` above, and the same reason.
+   */
+  function writesEmailLanguage(payload) {
+    return Boolean(payload) && Object.prototype.hasOwnProperty.call(payload, 'emailLanguage');
+  }
+
   function update(id, payload) {
     const fields = buildClientFields(payload);
+    const setsLanguage = HAS_EMAIL_LANGUAGE && writesEmailLanguage(payload);
     database.prepare(`
       UPDATE clients
       SET lastName=@lastName, firstName=@firstName, streetNumber=@streetNumber, street=@street,
-          postalCode=@postalCode, city=@city, address=@address, phone=@phone, email=@email, notes=@notes,${HAS_EMAIL_LANGUAGE ? `
+          postalCode=@postalCode, city=@city, address=@address, phone=@phone, email=@email, notes=@notes,${setsLanguage ? `
           emailLanguage=@emailLanguage,` : ''}
           updatedAt=datetime('now')
       WHERE id=@id

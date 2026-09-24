@@ -863,8 +863,16 @@ function createModel(database) {
       // The guest already told us how they read and when they want breakfast — the reservation must
       // not ask again (§3 rule 19). `pdfLanguage` becomes the reservation's `emailLanguage`: the
       // operator picked EN for the quote, the automatic emails follow.
+      //
+      // `requestOrigin` travels too (specs/site-english-version.md rule 13). Until it did, a
+      // reservation born of a website request looked internal the moment it became real: the origin
+      // badge lived only on the devis, so the site's share of the bookings disappeared exactly when
+      // the booking stopped being hypothetical. `pdfLanguage` follows for the same reason — the
+      // quote PDF and the emails read from two different columns.
       carryOverColumns(devisRow, reservationId, {
         emailLanguage: String(devisRow.pdfLanguage || 'fr').toLowerCase() === 'en' ? 'en' : 'fr',
+        pdfLanguage: String(devisRow.pdfLanguage || 'fr').toLowerCase() === 'en' ? 'en' : 'fr',
+        requestOrigin: devisRow.requestOrigin || null,
       });
       // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
       assignReservationNumberIfMissing(database, reservationId);
