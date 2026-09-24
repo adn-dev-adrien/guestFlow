@@ -190,7 +190,10 @@ strong,b{ font-weight:700; }
 
 /* ---- Bande immersive ciel etoile ---- */
 .gf-band-ciel{ position:relative; min-height:56vh; overflow:hidden; background:#060806; margin:56px 0 0; }
-.gf-band-ciel img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+/* La photo remplit la bande sur toute la largeur de la fenetre : en 'contain', un cliche
+   portrait laissait deux larges pans noirs de chaque cote. */
+.gf-band-ciel img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  object-position:center; }
 .gf-band-ciel .gf-band-ciel-txt{ position:relative; z-index:2; display:flex; align-items:flex-end; justify-content:center;
   min-height:56vh; padding:0 22px 46px; text-align:center; }
 .gf-band-ciel .gf-band-ciel-txt p{ font-family:'Marcellus',serif; color:#EFE8D6; font-size:clamp(1.15rem,2.4vw,1.6rem);
