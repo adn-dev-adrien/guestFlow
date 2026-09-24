@@ -85,19 +85,19 @@ function gf_pages_anglaises_existent() {
     if (!function_exists('pll_get_post_language')) {
         return false;
     }
+    // « lang » est l'argument que Polylang comprend, et c'est le seul qui marche ici.
+    // « suppress_filters » ne le desarme PAS : il filtre par « pre_get_posts », si bien qu'une
+    // requete lancee depuis une page francaise ne voyait que les pages francaises et concluait
+    // que l'anglais n'existe pas. Mesure du 2026-09-24 : 7 pages vues sur 14, selecteur absent de
+    // tout le site francais alors que les sept traductions etaient publiees (regle 42).
     $pages = get_posts(array(
-        'post_type'        => 'page',
-        'post_status'      => 'publish',
-        'numberposts'      => 50,
-        'fields'           => 'ids',
-        'suppress_filters' => true,
+        'post_type'   => 'page',
+        'post_status' => 'publish',
+        'numberposts' => 1,
+        'fields'      => 'ids',
+        'lang'        => 'en',
     ));
-    foreach ($pages as $id) {
-        if ('en' === gf_langue_normalisee(pll_get_post_language($id, 'slug'))) {
-            return true;
-        }
-    }
-    return false;
+    return !empty($pages);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,6 +130,40 @@ function gf_i18n_dictionnaire() {
             'pied_manifeste'   => '« Treize hectares de silence. Deux hébergements. Et personne d’autre. »',
             'pied_cgv'         => 'Conditions générales',
             'pied_legal'       => '© 2026 Domaine Solio · Satillieu, Ardèche verte',
+
+            // Les encadres factuels rendus par gf-seo-blocks.php. Les VALEURS vivent dans
+            // gf-seo-facts.php a cote de leur jumelle francaise ; ici, seuls les libelles.
+            'bloc_essentiel'   => 'L’essentiel',
+            'bloc_equipements' => 'Équipements',
+            'bloc_faq'         => 'Questions fréquentes',
+            'fait_superficie'  => 'Superficie',
+            'fait_arrivee'     => 'Arrivée / départ',
+            'fait_saison'      => 'Saison',
+            'fait_wifi'        => 'Wifi',
+            'fait_animaux'     => 'Animaux',
+            'fait_non_fumeur'  => 'Non-fumeur',
+            'fait_accessibilite' => 'Accessibilité',
+            'val_arrivee_entre' => 'entre %1$s et %2$s',
+            'val_arrivee_des'  => 'à partir de %s',
+            'val_depart_avant' => ', départ avant %s',
+            'val_wifi_non'     => 'non — ici, on se connecte à la nature plutôt qu’à internet',
+            'val_chiens_oui'   => 'chiens acceptés',
+            'val_chiens_non'   => 'chiens non acceptés',
+            'val_non_fumeur'   => 'oui, hébergement entièrement non-fumeur',
+            'val_pmr_non'      => 'non adapté aux personnes à mobilité réduite',
+            'val_prix_variable' => 'un tarif variable selon la saison',
+
+            // Le tiroir de reservation : son habillage (gf-seo-reservation.php). Le moteur qui
+            // vit dedans est traduit par le plugin ; ce qui l'entoure l'est ici.
+            'resa_reserver'    => 'Réserver',
+            'resa_des_prix'    => 'dès %s € / nuit',
+            'resa_fermer'      => 'Fermer',
+            'resa_etape1'      => 'Votre séjour',
+            'resa_etape2'      => 'Récapitulatif',
+            'resa_consigne2'   => 'Vérifiez votre séjour et laissez-nous vos coordonnées : nous répondons en direct, sans intermédiaire.',
+            'resa_etapes'      => 'Étapes de la réservation',
+            'resa_retour'      => 'Retour',
+            'resa_suivant'     => 'Suivant',
         ),
         'en' => array(
             'nav_accueil'      => 'Home',
@@ -146,6 +180,36 @@ function gf_i18n_dictionnaire() {
             'pied_manifeste'   => '“Thirteen hectares of silence. Two places to stay. And nobody else.”',
             'pied_cgv'         => 'Terms and conditions',
             'pied_legal'       => '© 2026 Domaine Solio · Satillieu, Ardèche verte',
+
+            'bloc_essentiel'   => 'The essentials',
+            'bloc_equipements' => 'Facilities',
+            'bloc_faq'         => 'Frequently asked questions',
+            'fait_superficie'  => 'Floor area',
+            'fait_arrivee'     => 'Check-in / check-out',
+            'fait_saison'      => 'Season',
+            'fait_wifi'        => 'Wifi',
+            'fait_animaux'     => 'Pets',
+            'fait_non_fumeur'  => 'Non-smoking',
+            'fait_accessibilite' => 'Accessibility',
+            'val_arrivee_entre' => 'between %1$s and %2$s',
+            'val_arrivee_des'  => 'from %s',
+            'val_depart_avant' => ', departure before %s',
+            'val_wifi_non'     => 'no — here you connect to nature rather than to the internet',
+            'val_chiens_oui'   => 'dogs welcome',
+            'val_chiens_non'   => 'dogs not accepted',
+            'val_non_fumeur'   => 'yes, entirely non-smoking',
+            'val_pmr_non'      => 'not suitable for guests with reduced mobility',
+            'val_prix_variable' => 'a rate that varies with the season',
+
+            'resa_reserver'    => 'Book',
+            'resa_des_prix'    => 'from €%s a night',
+            'resa_fermer'      => 'Close',
+            'resa_etape1'      => 'Your stay',
+            'resa_etape2'      => 'Summary',
+            'resa_consigne2'   => 'Check your stay and leave us your details: we answer you ourselves, with nobody in between.',
+            'resa_etapes'      => 'Booking steps',
+            'resa_retour'      => 'Back',
+            'resa_suivant'     => 'Next',
         ),
     );
     return $d;
@@ -176,17 +240,21 @@ function gf_t($cle, $langue = null) {
 /**
  * Les chemins francais et leur equivalent anglais.
  *
- * Les noms propres ne se traduisent pas (« la-granja », « estiva ») ; les slugs redactionnels, si
- * (regle 30, question 2 tranchee le 2026-09-24).
+ * Les slugs redactionnels se traduisent (regle 30, question 2 tranchee le 2026-09-24). Les noms
+ * propres restent — mais ils ne peuvent pas rester SEULS : mesure du 2026-09-24, Polylang est
+ * configure en repertoire avec la langue par defaut sans prefixe, et dans ce montage deux pages
+ * qui portent le meme slug sont indissociables. « /en/contact/ » renvoyait un 301 vers la page
+ * FRANCAISE. Chaque slug anglais est donc distinct du francais, et la ou un nom propre est en jeu
+ * il est simplement qualifie : « la-granja-gite », « estiva-safari-tent » (regle 41).
  */
 function gf_chemins_traduits() {
     return array(
         '/'                 => '/en/',
-        '/la-granja/'       => '/en/la-granja/',
-        '/estiva/'          => '/en/estiva/',
+        '/la-granja/'       => '/en/la-granja-gite/',
+        '/estiva/'          => '/en/estiva-safari-tent/',
         '/le-domaine/'      => '/en/the-estate/',
         '/autour-de-nous/'  => '/en/around-us/',
-        '/contact/'         => '/en/contact/',
+        '/contact/'         => '/en/getting-here/',
         '/cgv/'             => '/en/terms/',
     );
 }

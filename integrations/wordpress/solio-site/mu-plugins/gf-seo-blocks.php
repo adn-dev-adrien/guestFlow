@@ -20,6 +20,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Un libelle de bloc, dans la langue de la page.
+ *
+ * Les libelles vivent dans le dictionnaire de gf-i18n.php, les VALEURS dans
+ * gf-seo-facts.php : deux endroits, parce que ce sont deux natures de texte. Un titre de
+ * colonne se traduit une fois pour tout le site ; « ouvert toute l'annee » est un fait, et
+ * un fait se corrige la ou il est ecrit (specs/site-english-version.md regle 34).
+ *
+ * Sans gf-i18n.php — un ordre de chargement change, un fichier retire — la chaine francaise
+ * revient. Un bloc muet serait pire qu'un bloc francais.
+ */
+function gf_seo_lbl( $cle, $repli = '' ) {
+	if ( function_exists( 'gf_t' ) ) {
+		$v = gf_t( $cle );
+		if ( '' !== $v ) {
+			return $v;
+		}
+	}
+	return $repli;
+}
+
+/**
  * Remplace le jeton %prix% par le tarif vivant de l’hebergement.
  *
  * @param string $texte Texte contenant eventuellement %prix%.
@@ -27,7 +48,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return string
  */
 function gf_seo_tokens( $texte, $l ) {
-	$prix = ! empty( $l['prix_min_nuit'] ) ? gf_seo_prix( $l['prix_min_nuit'] ) : 'un tarif variable selon la saison';
+	$prix = ! empty( $l['prix_min_nuit'] )
+		? gf_seo_prix( $l['prix_min_nuit'] )
+		: gf_seo_lbl( 'val_prix_variable', 'un tarif variable selon la saison' );
 	return str_replace( '%prix%', $prix, $texte );
 }
 
@@ -46,33 +69,40 @@ function gf_seo_shortcode_essentiel( $atts ) {
 	// pastilles a icones : les repeter ici n’apporterait rien au lecteur.
 	$lignes = array();
 
-	if ( ! empty( $l['superficie_detail'] ) ) {
-		$lignes['Superficie'] = $l['superficie_detail'];
+	$superficie = gf_fait( $l, 'superficie_detail' );
+	if ( ! empty( $superficie ) ) {
+		$lignes[ gf_seo_lbl( 'fait_superficie', 'Superficie' ) ] = $superficie;
 	} elseif ( $l['superficie_m2'] ) {
-		$lignes['Superficie'] = $l['superficie_m2'] . ' m²';
+		$lignes[ gf_seo_lbl( 'fait_superficie', 'Superficie' ) ] = $l['superficie_m2'] . ' m²';
 	}
 
 	$arrivee = ! empty( $l['checkin_fin'] )
-		? 'entre ' . gf_seo_heure( $l['checkin'] ) . ' et ' . gf_seo_heure( $l['checkin_fin'] )
-		: 'à partir de ' . gf_seo_heure( $l['checkin'] );
-	$lignes['Arrivée / départ'] = $arrivee . ', départ avant ' . gf_seo_heure( $l['checkout'] );
-	if ( ! empty( $l['saison'] ) ) {
-		$lignes['Saison'] = $l['saison'];
+		? sprintf( gf_seo_lbl( 'val_arrivee_entre', 'entre %1$s et %2$s' ), gf_seo_heure( $l['checkin'] ), gf_seo_heure( $l['checkin_fin'] ) )
+		: sprintf( gf_seo_lbl( 'val_arrivee_des', 'à partir de %s' ), gf_seo_heure( $l['checkin'] ) );
+	$lignes[ gf_seo_lbl( 'fait_arrivee', 'Arrivée / départ' ) ] = $arrivee
+		. sprintf( gf_seo_lbl( 'val_depart_avant', ', départ avant %s' ), gf_seo_heure( $l['checkout'] ) );
+
+	$saison = gf_fait( $l, 'saison' );
+	if ( ! empty( $saison ) ) {
+		$lignes[ gf_seo_lbl( 'fait_saison', 'Saison' ) ] = $saison;
 	}
 	if ( empty( $l['wifi'] ) ) {
-		$lignes['Wifi'] = 'non — ici, on se connecte à la nature plutôt qu’à internet';
+		$lignes[ gf_seo_lbl( 'fait_wifi', 'Wifi' ) ] = gf_seo_lbl( 'val_wifi_non', 'non — ici, on se connecte à la nature plutôt qu’à internet' );
 	}
-	$lignes['Animaux']          = $d['chiens_acceptes'] ? 'chiens acceptés' : 'chiens non acceptés';
+	$lignes[ gf_seo_lbl( 'fait_animaux', 'Animaux' ) ] = $d['chiens_acceptes']
+		? gf_seo_lbl( 'val_chiens_oui', 'chiens acceptés' )
+		: gf_seo_lbl( 'val_chiens_non', 'chiens non acceptés' );
 	// Equipement bebe et bain nordique sont des prestations, pas des regles de sejour :
 	// ils sont annonces juste dessous, dans le tableau des equipements, avec leur icone.
 	if ( ! empty( $l['non_fumeur'] ) ) {
-		$lignes['Non-fumeur'] = 'oui, hébergement entièrement non-fumeur';
+		$lignes[ gf_seo_lbl( 'fait_non_fumeur', 'Non-fumeur' ) ] = gf_seo_lbl( 'val_non_fumeur', 'oui, hébergement entièrement non-fumeur' );
 	}
 	if ( isset( $l['accessible_pmr'] ) && false === $l['accessible_pmr'] ) {
-		$lignes['Accessibilité'] = $l['accessible_pmr_note'] ?? 'non adapté aux personnes à mobilité réduite';
+		$lignes[ gf_seo_lbl( 'fait_accessibilite', 'Accessibilité' ) ] = gf_fait( $l, 'accessible_pmr_note' )
+			?? gf_seo_lbl( 'val_pmr_non', 'non adapté aux personnes à mobilité réduite' );
 	}
 
-	$html  = '<div class="gf-essentiel"><h2 class="gf-essentiel-titre">L’essentiel</h2><dl>';
+	$html  = '<div class="gf-essentiel"><h2 class="gf-essentiel-titre">' . esc_html( gf_seo_lbl( 'bloc_essentiel', 'L’essentiel' ) ) . '</h2><dl>';
 	foreach ( $lignes as $terme => $valeur ) {
 		$html .= '<div class="gf-essentiel-ligne"><dt>' . esc_html( $terme ) . '</dt><dd>' . esc_html( $valeur ) . '</dd></div>';
 	}
@@ -93,7 +123,13 @@ add_shortcode( 'solio_essentiel', 'gf_seo_shortcode_essentiel' );
  * ecrite a la main qu’il remplace, dont aucun robot ne voyait les pictogrammes.
  */
 function gf_seo_shortcode_equipements( $atts ) {
-	$atts = shortcode_atts( array( 'logement' => '', 'titre' => 'Équipements' ), $atts );
+	// Le titre par defaut est null et non une chaine : une chaine francaise figee ici
+	// resterait francaise sur la page anglaise, et « titre="" » doit continuer de masquer
+	// le titre. Deux intentions differentes, donc deux valeurs differentes.
+	$atts = shortcode_atts( array( 'logement' => '', 'titre' => null ), $atts );
+	if ( null === $atts['titre'] ) {
+		$atts['titre'] = gf_seo_lbl( 'bloc_equipements', 'Équipements' );
+	}
 	$l    = gf_seo_lodging( $atts['logement'] );
 	if ( ! $l || empty( $l['equipements'] ) ) {
 		return '';
@@ -113,10 +149,12 @@ function gf_seo_shortcode_equipements( $atts ) {
 		}
 		// Une icone inconnue laisse la ligne sans pictogramme plutot que de casser la grille.
 		$icone = gf_seo_icone( $e['ic'], array( 'width' => 26, 'height' => 26 ) );
+		$nom       = gf_fait( $e, 'nom' );
+		$precision = gf_fait( $e, 'precision' );
 		$html .= '<div class="gf-eqt-ligne">'
 			. ( $icone ? $icone : '<span class="gf-eqt-vide" aria-hidden="true"></span>' )
-			. '<div class="gf-eqt-txt"><strong>' . esc_html( $e['nom'] ) . '</strong>'
-			. ( ! empty( $e['precision'] ) ? '<span>' . esc_html( $e['precision'] ) . '</span>' : '' )
+			. '<div class="gf-eqt-txt"><strong>' . esc_html( $nom ) . '</strong>'
+			. ( ! empty( $precision ) ? '<span>' . esc_html( $precision ) . '</span>' : '' )
 			. '</div></div>';
 	}
 
@@ -128,7 +166,21 @@ add_shortcode( 'solio_equipements', 'gf_seo_shortcode_equipements' );
  * Formate « 16:00 » en « 16h00 ».
  */
 function gf_seo_heure( $h ) {
-	return str_replace( ':', 'h', (string) $h );
+	$h = (string) $h;
+	// « 16h00 » ne se lit pas en anglais, et « 16:00 » se lit mal : l'anglais britannique
+	// dit « 4pm ». L'heure pleine perd ses minutes, comme on l'ecrit vraiment.
+	if ( function_exists( 'gf_langue' ) && 'en' === gf_langue() ) {
+		$parts = explode( ':', $h );
+		$heure = isset( $parts[0] ) ? (int) $parts[0] : 0;
+		$min   = isset( $parts[1] ) ? (int) $parts[1] : 0;
+		$suff  = $heure < 12 ? 'am' : 'pm';
+		$douze = $heure % 12;
+		if ( 0 === $douze ) {
+			$douze = 12;
+		}
+		return $min > 0 ? sprintf( '%d.%02d%s', $douze, $min, $suff ) : $douze . $suff;
+	}
+	return str_replace( ':', 'h', $h );
 }
 
 /**
@@ -379,7 +431,10 @@ add_shortcode( 'solio_surdemande', 'gf_seo_shortcode_surdemande' );
  * l’affichage et les donnees structurees ne peuvent pas diverger.
  */
 function gf_seo_shortcode_faq( $atts ) {
-	$atts = shortcode_atts( array( 'page' => '', 'titre' => 'Questions fréquentes' ), $atts );
+	$atts = shortcode_atts( array( 'page' => '', 'titre' => null ), $atts );
+	if ( null === $atts['titre'] ) {
+		$atts['titre'] = gf_seo_lbl( 'bloc_faq', 'Questions fréquentes' );
+	}
 	$faq  = gf_seo_faq( $atts['page'] );
 	if ( ! $faq ) {
 		return '';
@@ -391,9 +446,10 @@ function gf_seo_shortcode_faq( $atts ) {
 		$html .= '<h2>' . esc_html( $atts['titre'] ) . '</h2>';
 	}
 	foreach ( $faq as $item ) {
-		$reponse = $l ? gf_seo_tokens( $item['r'], $l ) : $item['r'];
+		$brut    = gf_fait( $item, 'r' );
+		$reponse = $l ? gf_seo_tokens( $brut, $l ) : $brut;
 		$html   .= '<details class="gf-faq-item">'
-			. '<summary><h3>' . esc_html( $item['q'] ) . '</h3></summary>'
+			. '<summary><h3>' . esc_html( gf_fait( $item, 'q' ) ) . '</h3></summary>'
 			. '<div class="gf-faq-reponse"><p>' . esc_html( $reponse ) . '</p></div>'
 			. '</details>';
 	}

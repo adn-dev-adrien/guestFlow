@@ -260,6 +260,17 @@ leave in, without opening another screen.)_
     > `gf-seo-reservation.php`'s own comment calls « devenu muet ». So `gf-booking.php` is neither a
     > leftover nor removable — it is the funnel, and it is the file this rule names.
 
+    > **Corrected on the live site, 2026-09-24, once a real English page existed to look at.** The
+    > note above is right about the source files and wrong about the page. On `/en/la-granja-gite/`
+    > the calendar's DOM ancestry is
+    > `.gf-cal-title ← .gf-cal-month ← .gf-cal-wrap ← .gf-cal-box ← .gf-booking ←
+    > .wp-block-guestflow-booking ← .gf-resa-corps`: the funnel a visitor actually uses on the two
+    > accommodation pages is **the plugin's block**, whose `blocks/booking/view.js` builds the same
+    > class names — which is why grepping the mu-plugins alone pointed at the wrong file.
+    > `gf-booking.php` renders its own funnel (`.gf-cal` inside `.gf-book`) and that one is not on
+    > these pages. Practical consequence: the drawer turns English only when the **plugin** is
+    > updated, not when the mu-plugins are deployed.
+
     Two consequences beyond the strings. The drawer now renders the **`priceUnitLabel` the server
     wrote** instead of rebuilding its own French units, which is what rule 3 asked for all along.
     And the language travels **explicitly** on every call to the `gf-solio/v1` relay, in the query
@@ -277,8 +288,12 @@ leave in, without opening another screen.)_
 
 ### Content
 
-30. The 10 published French pages get an English translation, linked through Polylang, with English
+30. The published French pages get an English translation, linked through Polylang, with English
     slugs under `/en/`. The English home replaces the empty "Blog" archive currently served there.
+    **Measured on the live site 2026-09-24: there are 7 of them**, not the 10 this rule first
+    claimed — `accueil-solio`, `la-granja`, `estiva`, `le-domaine`, `autour-de-nous`, `contact`,
+    `cgv`. The earlier count came from a database that still held drafts; the path map in
+    `gf-i18n.php` carries the same 7 and is the list to trust.
     > **Sans test** — contenu rédactionnel, pas du code
 31. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
     concrete, understated. The site never becomes salesier in translation than it is in French.
@@ -293,6 +308,97 @@ leave in, without opening another screen.)_
 33. Nothing advertises the English site before it stands: rule 29 makes the `hreflang` follow real
     translations, so the sequencing is automatic rather than a thing to remember.
     > **Sans test** — conséquence de la règle 29, qui porte déjà sa propre vérification
+
+### The facts inside the pages
+
+_Added 2026-09-24, after measuring what the French pages actually contain. The first version of this
+spec treated a page as prose, and it is not: the two pages that sell — `la-granja` and `estiva` —
+call `[solio_essentiel]`, `[solio_equipements]` and `[solio_faq]`, whose text lives in
+`gf-seo-facts.php` and was French-only. Translating the prose alone would have published an English
+page carrying a French facilities table and a French FAQ, on exactly the page a visitor reads before
+booking._
+
+34. A fact carries its English **on the same line of the same array** as its French: `saison` and
+    `saison_en`, `nom` and `nom_en`, `q`/`q_en`, `r`/`r_en`. One source of truth, two languages,
+    never two files. A second English file would drift at the first price or opening-date correction
+    made in a hurry, and a bilingual site that lies in only one of its languages is worse than a
+    monolingual one.
+35. `gf_fait( $tableau, $clef )` is the only way those facts are read. It returns the English on an
+    English page **when it exists and is non-empty**, and the French otherwise. A missing translation
+    shows a French word, never a blank row: a holed table is a worse answer than a French one.
+36. **Labels and values are translated in different places, and that is deliberate.** A column
+    heading ("Facilities", "Season") belongs to the interface and lives once in `gf-i18n.php`'s
+    dictionary; "open all year round" is a fact and is corrected where the fact is written. The
+    blocks reach the dictionary through `gf_seo_lbl()`, which falls back to the French string when
+    `gf-i18n.php` is absent — a load-order change must not produce a mute page.
+37. Times follow the language: `16:00` reads `16h00` in French and `4pm` in English, on the hour,
+    with `9.30am` when there are minutes. A French page is unchanged, byte for byte.
+    > **Sans test** — fonction PHP d'un mu-plugin du site Solio, aucun exécuteur PHP dans ce dépôt ;
+    > mesurée en rendu réel le 2026-09-24 (`4pm`, `10am`, `9.30am`) et la non-régression française
+    > prouvée par un diff avant/après du rendu des trois blocs (§7)
+38. The JSON-LD follows the page too — equipment names, FAQ questions and answers, and
+    `inLanguage`, which says `en-GB` on an English page. `fr-FR` markup under an English `hreflang`
+    tells search engines the opposite of what the page says.
+    > **Sans test** — mu-plugin PHP du site Solio ; vérifié sur le balisage rendu (§7)
+39. Only the three blocks the published pages actually use are translated:
+    `[solio_essentiel]`, `[solio_equipements]`, `[solio_faq]`. `[solio_tarifs]`, `[solio_geo]`,
+    `[solio_comparatif]`, `[solio_caution]`, `[solio_surdemande]` and `[solio_tarifs_nuits]` keep
+    French text: **none of them appears on any published page** (measured 2026-09-24). They read
+    their data through the same `gf_fait()`, so translating one later is adding `_en` keys, not
+    rewriting a block.
+    > **Sans test** — mu-plugins PHP du site Solio, hors périmètre des suites du dépôt ; vérifié en
+    > rendu réel (§7)
+40. The terms page needs no translation: `[guestflow_cgv]` already renders its own FR/EN toggle from
+    GuestFlow. Measured 2026-09-24 — the English text is served today.
+    > **Sans test** — constat de mesure sur une fonctionnalité déjà livrée
+
+### What publishing the English pages taught us
+
+_Added 2026-09-24, on the live site. Each of these three is a defect the spec did not foresee and
+that only appeared once real English pages existed._
+
+41. **English slugs are distinct from their French twins, always — including for proper names.**
+    Polylang here runs in directory mode with the default language unprefixed (`force_lang = 1`,
+    `hide_default = true`), and in that arrangement two pages sharing a slug cannot be told apart:
+    `/en/contact/` returned a **301 to the French page**. So `la-granja` becomes
+    `la-granja-gite` and `estiva` becomes `estiva-safari-tent` — the proper name is kept and simply
+    qualified, which rule 9 allows and which reads better in English anyway. The map in
+    `gf-i18n.php` is the list that decides.
+42. **The bilingual guard must ask Polylang for the other language explicitly.**
+    `gf_pages_anglaises_existent()` queried with `suppress_filters => true`, which does **not**
+    disarm Polylang — it filters through `pre_get_posts`. Measured: from a French page the query
+    saw 7 of the 14 pages, all French, concluded English did not exist, and hid the switcher across
+    the whole French site while the seven translations were published. `'lang' => 'en'` is the
+    argument that works.
+43. **The booking drawer's calendar follows the page locale.** Every label in the plugin block's
+    `view.js` already went through `GF.t()` and the runtime already published `GF.locale`, but the
+    month and weekday names were still two frozen French arrays. They are now built from
+    `Intl.DateTimeFormat(GF.locale)`, and the French output is character-for-character what the
+    frozen lists produced.
+44. The English home is canonical at `/en/`, not at `/en/home/`: Polylang's `redirect_lang` is
+    turned on, so the translated front page redirects to the language root exactly as
+    `/accueil-solio/` already redirected to `/`. Without it the canonical pointed at `/en/home/`
+    while the switcher pointed at `/en/` — two URLs for one page, and the `hreflang` naming the
+    wrong one.
+    > **Sans test** — réglage de Polylang, pas du code de ce dépôt ; vérifié en ligne (§7)
+45. **The drawer's chrome speaks the page's language too.** `gf-seo-reservation.php` draws what
+    surrounds the engine — the trigger, the two step names, the instruction, Back, Book, Close —
+    and it was still French around an English form. Its labels now come from the `gf-i18n`
+    dictionary; the two its own script writes after the fact (`Next`, `Book`) travel in a small
+    `window.GF_RESA_T` table **prefixed to that script**, because a handle registered with no source
+    does not emit its `before` data and the table was arriving undefined.
+    > **Sans test** — mu-plugin PHP du site Solio ; vérifié en ligne dans les deux langues (§7)
+46. **The drawer finds its lodging from the French twin.** The page-to-lodging table is indexed on
+    French slugs, so an English page resolved to nothing: no name in the header, no "from €179 a
+    night" on the trigger. It now falls back to `pll_get_post( …, 'fr' )` — and **only for the
+    lodging**. Resolving the whole SEO configuration that way would inject the FRENCH titles and
+    descriptions into the English `<head>`, which is worse than the gap it closes. Consequence to
+    keep in mind: an English page carries no `gf_seo_pages()` configuration, so it emits less
+    structured data than its French twin. Nothing wrong, less complete.
+    > **Sans test** — mu-plugin PHP du site Solio ; vérifié en ligne (titre du tiroir et « from €179
+    > a night » sur la page anglaise, français inchangé)
+47. A lodging's name keeps its proper noun and translates its descriptor: "L'Estiva — la tente
+    safari" becomes "L'Estiva — the safari tent". Rule 9 protects the name, not the words around it.
 
 **Edge cases:**
 
@@ -398,6 +504,9 @@ else reuses existing screens.
 | `gf-footer.php` | T | Footer links and labels per language |
 | `gf-booking.php` | T | Its ~40 interface strings go through `gf-i18n` |
 | `gf-seo-head.php` | T | `hreflang` only for really-translated pages; `x-default` stays French |
+| `gf-seo-facts.php` | T | The source of truth gains its English siblings (`*_en`) and the `gf_fait()` accessor (rules 34-35) |
+| `gf-seo-blocks.php` | T | `gf_seo_lbl()` for the labels, `gf_fait()` for the values, language-aware time format (rules 36-37) |
+| `gf-seo-schema.php` | T | The JSON-LD reads through `gf_fait()`; `inLanguage` follows the page (rule 38) |
 
 ### 4.5 API contract
 
