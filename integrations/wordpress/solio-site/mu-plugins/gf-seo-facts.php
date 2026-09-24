@@ -197,6 +197,7 @@ function gf_seo_lodgings() {
 			'equipements'          => array(
 				array( 'ic' => 'kitchen', 'nom' => 'Kitchenette équipée',
 					'precision' => 'plaque de cuisson, micro-ondes, réfrigérateur, cafetière' ),
+				array( 'ic' => 'bbq', 'nom' => 'Plancha à disposition', 'precision' => null ),
 				array( 'ic' => 'bed', 'nom' => 'Lits faits à l’arrivée',
 					'precision' => 'couettes et couvertures supplémentaires' ),
 				array( 'ic' => 'power', 'nom' => 'Eau chaude et électricité',
@@ -209,11 +210,9 @@ function gf_seo_lodgings() {
 				array( 'ic' => 'parking', 'nom' => 'Parking gratuit sur place',
 					'precision' => 'accès à pied, 300 m' ),
 
-				// Dits ailleurs : la tente et son ciel dans le recit, la plancha au tarif,
-				// les sanitaires aux pastilles, le wifi dans « L’essentiel ».
+				// Dits ailleurs : la tente et son ciel dans le recit, les sanitaires aux
+				// pastilles, le wifi dans « L’essentiel ».
 				array( 'ic' => null, 'nom' => 'Tente safari sur terrasse bois montée sur pilotis',
-					'precision' => null, 'visible' => false ),
-				array( 'ic' => null, 'nom' => 'Plancha offerte à partir de 2 nuits',
 					'precision' => null, 'visible' => false ),
 				array( 'ic' => null, 'nom' => 'Ciel étoilé sans pollution lumineuse',
 					'precision' => null, 'visible' => false ),
@@ -271,7 +270,7 @@ function gf_seo_faq( $cle ) {
 			array( 'q' => 'Est-ce confortable, de dormir sous une tente ?',
 				'r' => 'C’est le confort d’une chambre d’hôtel avec les sensations du camping : vrais lits, salle d’eau privative, eau chaude et électricité, sur une terrasse en bois.' ),
 			array( 'q' => 'Peut-on cuisiner ?',
-				'r' => 'Une kitchenette avec plaque, micro-ondes et réfrigérateur. On cuisine surtout dehors : la plancha est offerte à partir de 2 nuits.' ),
+				'r' => 'Une kitchenette avec plaque, micro-ondes et réfrigérateur. On cuisine surtout dehors : la plancha est à disposition à chaque séjour.' ),
 			array( 'q' => 'Y a-t-il des voisins ?',
 				'r' => 'Oui, mais à 150 mètres, et sans vis-à-vis — les photos aériennes le montrent bien. Vous aurez vraiment le sentiment d’être seul au monde. La tente est installée dans l’enclos des chèvres et des moutons.' ),
 			array( 'q' => 'Quelle est la caution ?',
