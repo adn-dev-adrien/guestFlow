@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Le sélecteur de langue du site</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1060px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 6px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.good{border-left:4px solid var(--ok);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:6px 0}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+
+/* ---------- atelier ---------- */
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.studio-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;
+  padding:9px 15px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#161C16}}
+.stage{padding:0;background:#0d1410;overflow:hidden}
+.site:not(.phone){width:1320px;transform-origin:top left}
+.readout{padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);background:var(--card)}
+.readout b{color:var(--ink)}
+
+/* ---------- reproduction fidèle de l'en-tête du site ---------- */
+.site{position:relative;overflow:hidden}
+.site .hero{min-height:300px;
+  background:radial-gradient(120% 90% at 20% 0%,#6b7f52 0%,#3c4a30 42%,#232c1d 100%)}
+.site.scrolled .hero{background:radial-gradient(120% 90% at 20% 0%,#3a4a2d 0%,#222b1c 60%,#161c16 100%)}
+.site .hero-txt{position:absolute;left:0;right:0;top:150px;text-align:center;color:#F1EBDC;pointer-events:none}
+.site .hero-txt .kick{font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:#E8C286;margin:0 0 8px}
+.site .hero-txt h4{font:400 30px/1.15 var(--serif);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;color:#fff}
+.site .hero-txt p{font-size:14px;color:#DAD4C4;margin:0}
+
+.gf-header{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;background:linear-gradient(180deg,rgba(14,18,14,.66),rgba(14,18,14,0));
+  transition:background .25s ease, box-shadow .25s ease}
+.site.scrolled .gf-header{background:rgba(26,34,22,.97);box-shadow:0 2px 14px rgba(0,0,0,.20)}
+.gf-logo{color:#fff;font-family:var(--serif);font-size:1.4rem;font-weight:400;text-transform:uppercase;
+  letter-spacing:.14em;text-decoration:none;text-shadow:0 1px 4px rgba(0,0,0,.45);white-space:nowrap;margin-right:32px}
+.gf-nav{display:flex;gap:26px;align-items:center}
+.gf-nav > a{white-space:nowrap}
+.gf-nav > a,.gf-dd-label{color:#fff;text-decoration:none;font-weight:700;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.14em;text-shadow:0 1px 3px rgba(0,0,0,.45)}
+.gf-nav > a:hover,.gf-dd-label:hover{color:#E8C286}
+.gf-dropdown{position:relative;display:flex;align-items:center}
+.gf-dd-label{cursor:pointer;display:block}
+.gf-dd-menu{display:none;position:absolute;top:100%;left:auto;right:0;background:rgba(14,18,14,.97);min-width:280px;
+  border-radius:2px;padding:6px 0;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.site:not(.phone) .gf-dropdown:hover .gf-dd-menu,.gf-dropdown.open .gf-dd-menu{display:block}
+.gf-dd-menu a{display:block;padding:11px 18px;color:#fff;text-decoration:none;font-weight:500;font-size:.8rem;
+  text-transform:uppercase;letter-spacing:.14em}
+.gf-dd-menu a:hover{background:rgba(255,255,255,.08)}
+.gf-dd-menu a small{display:block;color:#B9B5A5;font-weight:400;font-size:.72rem;letter-spacing:.02em;
+  text-transform:none;margin-top:2px}
+.gf-dropdown > .gf-dd-label.gf-cta{border:1px solid rgba(232,194,134,.85);padding:9px 16px 8px;border-radius:2px;color:#E8C286}
+.gf-dropdown:hover > .gf-dd-label.gf-cta{background:var(--ocre);border-color:var(--ocre);color:#fff}
+
+/* ---------- les trois sélecteurs ---------- */
+.gf-lang{display:flex;align-items:center}
+.gf-lang svg{display:block}
+
+/* A — deux libellés */
+.gf-lang-seg{gap:7px}
+.gf-lang-seg a{color:rgba(255,255,255,.62);text-decoration:none;font-weight:700;font-size:.8rem;text-transform:uppercase;
+  letter-spacing:.14em;text-shadow:0 1px 3px rgba(0,0,0,.45);padding:4px 1px}
+.gf-lang-seg a:hover{color:#E8C286}
+.gf-lang-seg a[aria-current]{color:#fff;border-bottom:1px solid #E8C286}
+.gf-lang-seg .sep{color:rgba(255,255,255,.34);font-size:.8rem}
+
+/* B — globe + menu */
+.gf-lang-dd .gf-dd-label{display:flex;align-items:center;gap:7px;padding:4px 2px}
+.gf-lang-dd .gf-dd-menu{min-width:200px}
+.gf-lang-dd .chev{transition:transform .2s ease}
+.gf-lang-dd:hover .chev,.gf-lang-dd.open .chev{transform:rotate(180deg)}
+.gf-lang-dd .gf-dd-menu a[aria-current]{color:#E8C286}
+.gf-lang-dd .gf-dd-menu a{display:flex;align-items:center;gap:10px}
+
+/* C — globe seul */
+.gf-lang-solo{color:#fff;text-decoration:none;display:flex;align-items:center;gap:6px;padding:5px 2px;
+  text-shadow:0 1px 3px rgba(0,0,0,.45);position:relative}
+.gf-lang-solo:hover{color:#E8C286}
+.gf-lang-solo .code{font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.14em}
+.gf-lang-solo .tip{position:absolute;top:calc(100% + 8px);right:0;background:rgba(14,18,14,.97);color:#fff;
+  font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;padding:6px 10px;border-radius:2px;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .18s ease}
+.gf-lang-solo:hover .tip,.gf-lang-solo:focus-visible .tip{opacity:1}
+
+/* ---------- variante téléphone ---------- */
+.site.phone{max-width:390px;margin:0 auto;border-left:1px solid #000;border-right:1px solid #000}
+.site.phone .gf-header{padding:14px 18px;flex-wrap:wrap}
+.site.phone .gf-logo{font-size:1.05rem}
+.site.phone .burger{display:flex;align-items:center;justify-content:center;width:44px;height:44px;margin-left:auto;
+  color:#fff;font-size:1.7rem;line-height:1;cursor:pointer;background:none;border:0;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.site:not(.phone) .burger{display:none}
+.site.phone .gf-nav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:0;align-items:stretch;
+  background:rgba(14,18,14,.97);padding:6px 0}
+.site.phone.menu .gf-nav{display:flex}
+.site.phone .gf-nav > a{padding:14px 22px;border-top:1px solid rgba(255,255,255,.08);font-size:.92rem;min-height:44px;
+  display:flex;align-items:center}
+.site.phone .gf-dropdown{width:100%;display:block}
+.site.phone .gf-dd-label{display:flex;align-items:center;padding:14px 22px;border-top:1px solid rgba(255,255,255,.08);min-height:44px}
+.site.phone .gf-dropdown > .gf-dd-label.gf-cta{border:0;border-top:1px solid rgba(255,255,255,.08);border-radius:0;padding:14px 22px}
+.site.phone .gf-dd-menu{display:block;position:static;background:transparent;box-shadow:none;padding:0;min-width:0}
+.site.phone .gf-dd-menu a{padding:12px 38px;border-top:1px solid rgba(255,255,255,.06);font-size:.9rem;min-height:44px;align-items:center}
+.site.phone .gf-lang{width:100%}
+/* Le bloc langue est replie par defaut sur telephone : deploye, il pousserait la navigation
+   de deux lignes vers le bas alors que neuf visiteurs sur dix ne le touchent pas. Le menu
+   « Reserver », lui, reste deplie — c'est la destination du menu, pas un reglage. */
+.site.phone .gf-lang-dd .gf-dd-menu{display:none}
+.site.phone .gf-lang-dd.open .gf-dd-menu{display:block}
+.site.phone .gf-lang-dd .gf-dd-label{justify-content:flex-start;gap:9px}
+.site.phone .gf-lang-dd .chev{margin-left:auto}
+.site.phone .gf-lang-seg{gap:0;border-top:1px solid rgba(255,255,255,.08)}
+.site.phone .gf-lang-seg a{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;border-bottom:0}
+.site.phone .gf-lang-seg a[aria-current]{background:rgba(232,194,134,.14);color:#E8C286;border-bottom:0}
+.site.phone .gf-lang-seg .sep{display:none}
+.site.phone .gf-lang-solo{min-height:44px;padding:14px 22px;border-top:1px solid rgba(255,255,255,.08)}
+.site.phone .gf-lang-solo .tip{display:none}
+.site.phone .hero-txt{top:170px}
+/* Le menu du telephone se deploie par-dessus le hero : la scene doit lui laisser la place,
+   sinon on juge un menu coupe. */
+.site.phone.menu .hero{min-height:560px}
+/* Sur telephone le selecteur passe en tete du menu — c'est le premier geste d'un visiteur
+   qui ne lit pas la langue de la page. L'ordre du DOM ne bouge pas : seul l'affichage change. */
+.site.phone .gf-lang{order:-1}
+
+/* ---------- planche d'icônes ---------- */
+.icons{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.icochip{display:flex;flex-direction:column;align-items:center;gap:6px;width:92px;padding:12px 6px;border:1px solid var(--line);
+  border-radius:8px;background:var(--card);color:var(--sapin)}
+.icochip span{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.icochip.new{border-color:var(--ocre);box-shadow:0 0 0 1px var(--ocre) inset}
+</style>
+
+<div class="wrap">
+
+<h1>Le sélecteur de langue du site</h1>
+<p class="meta">24 septembre 2026 · maquette d'arbitrage · complète <code>specs/site-english-version.md</code> §6 — <b>rien n'est implémenté</b></p>
+
+<div class="alert">
+<b>D'abord, la vérité sur l'état des lieux : la traduction du site n'a pas été faite.</b> Ce qui existe,
+c'est la <i>spec</i>, écrite hier et toujours en <code>Draft</code>, plus son résumé HTML. Mesuré ce
+matin sur la base WordPress de <code>.23</code> : <b>7 pages publiées, toutes en français, zéro
+traduction Polylang</b> (le terme de langue « English » compte 0 contenu). <code>/en/</code> répond
+bien 200 — c'est l'archive « Blog » vide, le défaut que la spec signale.
+</div>
+
+<p>Le sélecteur, lui, était déjà prévu — mais en une phrase (« deux libellés courts, l'actif marqué,
+pas de drapeau »). Ce n'est pas un rendu. Voici les trois formes possibles, dans le vrai en-tête du
+site, manipulables.</p>
+
+<h2>Essayez les trois formes</h2>
+
+<div class="studio">
+  <div class="studio-bar">
+    <span class="lab">Forme</span>
+    <span class="seg" role="group" aria-label="Forme du sélecteur">
+      <button type="button" data-var="a" aria-pressed="false">A · FR / EN</button>
+      <button type="button" data-var="b" aria-pressed="true">B · Globe + menu</button>
+      <button type="button" data-var="c" aria-pressed="false">C · Globe seul</button>
+    </span>
+    <span class="lab">Écran</span>
+    <span class="seg" role="group" aria-label="Écran">
+      <button type="button" data-view="desk" aria-pressed="true">Bureau</button>
+      <button type="button" data-view="phone" aria-pressed="false">Téléphone</button>
+    </span>
+    <span class="lab">En-tête</span>
+    <span class="seg" role="group" aria-label="État de l'en-tête">
+      <button type="button" data-scroll="0" aria-pressed="true">En haut</button>
+      <button type="button" data-scroll="1" aria-pressed="false">Au scroll</button>
+    </span>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="site" id="site">
+      <div class="gf-header">
+        <a class="gf-logo" href="#" onclick="return false">Domaine Solio</a>
+        <button class="burger" type="button" id="burger" aria-label="Menu" aria-expanded="false">&#9776;</button>
+        <nav class="gf-nav" id="nav"></nav>
+      </div>
+      <div class="hero">
+        <div class="hero-txt">
+          <p class="kick" id="heroKick">Ardèche verte — Satillieu</p>
+          <h4>Domaine Solio</h4>
+          <p id="heroTag">Treize hectares de silence. Deux hébergements. Et personne d'autre.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="readout">
+    Page affichée : <b id="urlOut">https://domainesolio.com/la-granja/</b> ·
+    langue du visiteur : <b id="langOut">français</b> ·
+    ce que recevra une demande envoyée maintenant : <b id="mailOut">confirmation et devis PDF en français</b>
+  </div>
+</div>
+
+<p class="muted">Cliquez sur le sélecteur : la navigation, l'URL et la langue de la demande changent
+vraiment. Sur « Téléphone », ouvrez le burger — le sélecteur est le premier bloc du menu, en cible
+44 px.</p>
+
+<h2>Ce qu'on propose</h2>
+
+<div class="good">
+<b>La forme B — un globe, la langue courante, un menu.</b> C'est la forme que les visiteurs
+reconnaissent sans y penser, et c'est surtout <b>exactement le mécanisme que l'en-tête possède
+déjà</b> : le menu « Réserver » est un <code>.gf-dropdown</code> avec son <code>.gf-dd-menu</code>.
+Le sélecteur n'invente rien — il réutilise le composant, ses marges, son fond
+<code>rgba(14,18,14,.97)</code>, son ouverture au survol, son repli en accordéon sur téléphone.
+</div>
+
+<p>Les deux autres restent défendables : <b>A</b> est la plus sobre et la plus rapide (un clic, pas
+deux) mais elle affiche en permanence une langue que 9 visiteurs sur 10 ne veulent pas ; <b>C</b> est
+la plus discrète mais demande au visiteur de deviner ce que fait le globe, et une bascule sans menu
+ne sait pas dire « cette page n'existe qu'en français ».</p>
+
+<h3>L'icône, dessinée sur la grille du site</h3>
+<p>Le site a un jeu d'icônes unique, rendu par le serveur dans <code>gf-seo-icons.php</code> : grille
+24 × 24, <b>trait seul</b>, épaisseur 1,7, extrémités arrondies, couleur héritée du conteneur
+(<code>currentColor</code>), aucune surface pleine. Le globe est dessiné selon la même règle et
+rejoint le même fichier — il n'y a pas de seconde famille d'icônes.</p>
+
+<div class="icons" id="iconBoard"></div>
+<p class="muted">Les quatre premières sont les icônes déjà en production, la dernière est la
+nouvelle. Même grille, même trait, même couleur héritée.</p>
+
+<h2>Le comportement, dans le détail</h2>
+<table>
+<tr><th>Situation</th><th>Ce que fait le sélecteur</th></tr>
+<tr><td>La page a une traduction publiée</td><td>Le menu pointe sur elle (<code>/la-granja/</code> → <code>/en/la-granja/</code>)</td></tr>
+<tr><td>La page n'a pas encore de traduction</td><td>L'entrée reste cliquable et mène à l'accueil anglais — jamais un 404, jamais une entrée grisée sans explication</td></tr>
+<tr><td>Polylang désactivé ou une seule langue publiée</td><td>Le sélecteur <b>ne s'affiche pas du tout</b> : tant que l'anglais n'existe pas, rien ne l'annonce (même logique que la règle 20 sur le <code>hreflang</code>)</td></tr>
+<tr><td>Téléphone</td><td>Premier bloc du menu burger, <b>replié par défaut</b> — une seule ligne « globe FR », qui se déplie au doigt sur deux cibles de 44 px, l'active en ocre. Le menu « Réserver » reste déplié, lui : c'est la destination du menu, pas un réglage.</td></tr>
+<tr><td>Robots et lecteurs d'écran</td><td>Vraies balises <code>&lt;a hreflang="en" lang="en"&gt;</code>, la langue nommée dans sa langue (« English », pas « Anglais »), <code>aria-current</code> sur l'active</td></tr>
+</table>
+
+<div class="note">
+<b>Toujours pas de drapeau.</b> Un drapeau nomme un pays, pas une langue : l'Union Jack dirait
+« Royaume-Uni » à un Néerlandais, un Allemand ou un Américain qui lisent tous la même page. Le globe
+ne dit qu'une chose — « changer de langue » — et c'est la seule chose à dire.
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+<li><b>Aucune détection automatique.</b> Rediriger sur l'en-tête <code>Accept-Language</code> casse le partage de lien, les robots et le bouton retour. Le visiteur choisit.</li>
+<li><b>Aucun cookie de préférence</b> dans cette version : le choix vit dans l'URL, qui est partageable et indexable.</li>
+<li><b>Pas de troisième langue.</b> Le mécanisme la supporterait, la traduction non.</li>
+<li><b>Pas de sélecteur dans le pied de page</b> tant que celui de l'en-tête suffit — un seul endroit pour un seul geste.</li>
+</ul>
+
+<h2>Arbitrages en attente</h2>
+<ul class="tight">
+<li><b>La forme</b> — A, B ou C. Recommandation : B.</li>
+<li><b>La place exacte sur bureau</b> — à gauche du bouton « Réserver » (ce que montre la maquette), ou tout à droite après lui. À gauche garde le CTA en dernier, là où l'œil le cherche.</li>
+<li><b>Le prérequis qui coince</b> — l'en-tête est du HTML figé dans un <i>template part</i> WordPress, et <code>gf-booking.php</code> comme <code>gf-sticky-header.php</code> ne vivent que sur le serveur, hors dépôt. La règle 17 de la spec impose de les importer d'abord, dans leur propre commit, avant de toucher à quoi que ce soit.</li>
+</ul>
+
+<script>
+var L = {
+  fr:{
+    nav:[["Accueil","/"],["La Granja","/la-granja/"],["L'Estiva","/estiva/"],["Le Domaine","/le-domaine/"],["Autour de nous","/autour-de-nous/"],["Accès & contact","/contact/"]],
+    cta:"Réserver",
+    ddA:["La Granja","le gîte · toute l'année · 10 personnes"],
+    ddB:["L'Estiva","la tente safari · avril à mi-octobre · 5 personnes"],
+    url:"https://domainesolio.com/la-granja/", label:"français",
+    mail:"confirmation et devis PDF en français",
+    kick:"Ardèche verte — Satillieu",
+    tag:"Treize hectares de silence. Deux hébergements. Et personne d'autre.",
+    tip:"Switch to English"
+  },
+  en:{
+    nav:[["Home","/en/"],["La Granja","/en/la-granja/"],["L'Estiva","/en/estiva/"],["The Estate","/en/the-estate/"],["Around us","/en/around-us/"],["Getting here & contact","/en/contact/"]],
+    cta:"Book",
+    ddA:["La Granja","the gîte · all year round · 10 guests"],
+    ddB:["L'Estiva","the safari tent · April to mid-October · 5 guests"],
+    url:"https://domainesolio.com/en/la-granja/", label:"anglais",
+    mail:"confirmation et devis PDF en anglais",
+    kick:"Green Ardèche — Satillieu",
+    tag:"Thirteen hectares of silence. Two places to stay. And nobody else.",
+    tip:"Passer en français"
+  }
+};
+
+var GLOBE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.4 2.6 3.6 5.6 3.6 9S14.4 18.4 12 21c-2.4-2.6-3.6-5.6-3.6-9S9.6 5.6 12 3z"/></svg>';
+var CHEV  = '<svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9.5l6 6 6-6"/></svg>';
+
+var state = { variant:"b", view:"desk", scrolled:false, lang:"fr", menu:false, open:false };
+
+function langMarkup(){
+  var t = L[state.lang], other = state.lang === "fr" ? "en" : "fr";
+  if (state.variant === "a"){
+    return '<div class="gf-lang gf-lang-seg" role="group" aria-label="Langue">'
+      + '<a href="#" data-go="fr"' + (state.lang==="fr"?' aria-current="page"':'') + ' lang="fr">FR</a>'
+      + '<span class="sep" aria-hidden="true">/</span>'
+      + '<a href="#" data-go="en"' + (state.lang==="en"?' aria-current="page"':'') + ' lang="en" hreflang="en">EN</a>'
+      + '</div>';
+  }
+  if (state.variant === "b"){
+    return '<div class="gf-lang gf-dropdown gf-lang-dd' + (state.open?' open':'') + '" id="langdd">'
+      + '<span class="gf-dd-label" role="button" tabindex="0" aria-expanded="' + state.open + '">'
+      + GLOBE + '<span>' + (state.lang === "fr" ? "FR" : "EN") + '</span>' + CHEV + '</span>'
+      + '<div class="gf-dd-menu">'
+      + '<a href="#" data-go="fr" lang="fr"' + (state.lang==="fr"?' aria-current="page"':'') + '>Français</a>'
+      + '<a href="#" data-go="en" lang="en" hreflang="en"' + (state.lang==="en"?' aria-current="page"':'') + '>English</a>'
+      + '</div></div>';
+  }
+  return '<a class="gf-lang gf-lang-solo" href="#" data-go="' + other + '" lang="' + other + '" hreflang="' + other + '">'
+    + GLOBE + '<span class="code">' + (other === "en" ? "EN" : "FR") + '</span>'
+    + '<span class="tip">' + t.tip + '</span></a>';
+}
+
+function render(){
+  var t = L[state.lang], nav = document.getElementById("nav"), html = "";
+  t.nav.forEach(function(e){ html += '<a href="#" onclick="return false">' + e[0] + '</a>'; });
+  html += langMarkup();
+  html += '<div class="gf-dropdown gf-dd-right"><span class="gf-dd-label gf-cta">' + t.cta + '</span>'
+    + '<div class="gf-dd-menu">'
+    + '<a href="#" onclick="return false">' + t.ddA[0] + '<small>' + t.ddA[1] + '</small></a>'
+    + '<a href="#" onclick="return false">' + t.ddB[0] + '<small>' + t.ddB[1] + '</small></a>'
+    + '</div></div>';
+  nav.innerHTML = html;
+
+  var site = document.getElementById("site");
+  site.className = "site" + (state.view === "phone" ? " phone" : "")
+    + (state.scrolled ? " scrolled" : "") + (state.menu && state.view === "phone" ? " menu" : "");
+  document.getElementById("burger").setAttribute("aria-expanded", String(state.menu));
+  document.getElementById("urlOut").textContent = t.url;
+  document.getElementById("langOut").textContent = t.label;
+  document.getElementById("mailOut").textContent = t.mail;
+  document.getElementById("heroKick").textContent = t.kick;
+  document.getElementById("heroTag").textContent = t.tag;
+  fit();
+}
+
+/* La scene bureau est dessinee a 1320 px — la vraie largeur ou l'en-tete du site est
+   encore en mode bureau — puis reduite pour tenir dans la page. Une maquette rendue a
+   1030 px montrerait le menu burger, c'est-a-dire autre chose que ce qu'on juge. */
+function fit(){
+  var site = document.getElementById("site"), stage = document.getElementById("stage");
+  if (state.view === "phone"){ site.style.transform = ""; stage.style.height = ""; return; }
+  var k = stage.clientWidth / 1320;
+  site.style.transform = "scale(" + k + ")";
+  stage.style.height = Math.round(site.offsetHeight * k) + "px";
+}
+window.addEventListener("resize", fit);
+
+document.querySelectorAll(".seg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    var group = b.parentNode;
+    group.querySelectorAll("button").forEach(function(x){ x.setAttribute("aria-pressed","false"); });
+    b.setAttribute("aria-pressed","true");
+    if (b.dataset.var){ state.variant = b.dataset.var; state.open = false; }
+    if (b.dataset.view){ state.view = b.dataset.view; state.menu = false; state.open = false; }
+    if (b.dataset.scroll){ state.scrolled = b.dataset.scroll === "1"; }
+    render();
+  });
+});
+
+document.getElementById("burger").addEventListener("click", function(){
+  state.menu = !state.menu; render();
+});
+
+document.getElementById("nav").addEventListener("click", function(ev){
+  var go = ev.target.closest("[data-go]");
+  if (go){ ev.preventDefault(); state.lang = go.dataset.go; state.open = false; state.menu = false; render(); return; }
+  var lab = ev.target.closest("#langdd .gf-dd-label");
+  if (lab){ ev.preventDefault(); state.open = !state.open; render(); }
+});
+
+/* planche d'icônes : quatre icônes de production + le globe */
+var PROD = {
+  wifi:'<path d="M3.5 9.5a13 13 0 0 1 17 0"/><path d="M6.5 13a9 9 0 0 1 11 0"/><path d="M9.5 16.3a5 5 0 0 1 5 0"/><circle cx="12" cy="19.3" r="1.2" fill="currentColor" stroke="none"/>',
+  parking:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9.5 17V7h3.5a3 3 0 0 1 0 6H9.5"/>',
+  bed:'<path d="M3 8v10M3 15h18v3M21 15v-4a3 3 0 0 0-3-3H9v7"/><circle cx="6" cy="10.5" r="1.7"/>',
+  hottub:'<path d="M4 10h16v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M7.5 3.5q1 1 0 2.5M12 3q1 1 0 2.5M16.5 3.5q1 1 0 2.5"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.4 2.6 3.6 5.6 3.6 9S14.4 18.4 12 21c-2.4-2.6-3.6-5.6-3.6-9S9.6 5.6 12 3z"/>'
+};
+var board = document.getElementById("iconBoard"), names = Object.keys(PROD);
+names.forEach(function(k){
+  var d = document.createElement("div");
+  d.className = "icochip" + (k === "globe" ? " new" : "");
+  d.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PROD[k] + '</svg>'
+    + '<span>' + k + (k === "globe" ? " (nouveau)" : "") + '</span>';
+  board.appendChild(d);
+});
+
+render();
+</script>
+</div>
