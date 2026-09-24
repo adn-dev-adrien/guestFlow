@@ -15,10 +15,20 @@ final class GF_Cache
     private const STALE_PREFIX = 'gf_stale_';
     private const STALE_TTL = HOUR_IN_SECONDS; // bounded grace window for stale-while-error
 
+    /**
+     * The cache key for one upstream call.
+     *
+     * The LANGUAGE is part of the key, and this is not a detail: since the plugin started sending
+     * `lang` upstream, the same path answers different labels, option titles and refusals per
+     * language. Without it here, whichever visitor arrived first would decide what every later one
+     * reads — a French drawer served to an English reader, cached for ten minutes
+     * (specs/site-english-version.md rule 22).
+     */
     public static function key(string $path, array $query = []): string
     {
         ksort($query);
-        return self::PREFIX . md5($path . '?' . http_build_query($query));
+        $lang = class_exists('GF_Language') ? GF_Language::current() : 'fr';
+        return self::PREFIX . md5($lang . '|' . $path . '?' . http_build_query($query));
     }
 
     /** Fresh cached value, or false on miss. */

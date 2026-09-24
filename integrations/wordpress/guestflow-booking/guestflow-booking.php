@@ -3,7 +3,7 @@
  * Plugin Name:       GuestFlow Booking
  * Plugin URI:        https://github.com/adn-dev-adrien/guestFlow
  * Description:       Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique. Le site ne parle qu'au proxy PHP du plugin ; la clé d'API reste côté serveur.
- * Version:           1.11.0
+ * Version:           1.12.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            Adrien
@@ -21,13 +21,16 @@ if (!defined('ABSPATH')) {
     exit; // No direct access.
 }
 
-define('GF_BOOKING_VERSION', '1.11.0');
+define('GF_BOOKING_VERSION', '1.12.0');
 define('GF_BOOKING_FILE', __FILE__);
 define('GF_BOOKING_DIR', plugin_dir_path(__FILE__));
 define('GF_BOOKING_URL', plugin_dir_url(__FILE__));
 define('GF_BOOKING_OPTION', 'guestflow_booking_settings');
 
 require_once GF_BOOKING_DIR . 'includes/class-gf-cache.php';
+// The language of the page being served — resolved once, used by the upstream calls, the rendered
+// strings and the locale published to the browser (specs/site-english-version.md rule 22).
+require_once GF_BOOKING_DIR . 'includes/class-gf-language.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-settings.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-api-client.php';
 require_once GF_BOOKING_DIR . 'includes/class-gf-rest-proxy.php';

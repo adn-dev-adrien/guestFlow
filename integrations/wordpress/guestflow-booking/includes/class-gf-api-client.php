@@ -74,9 +74,11 @@ final class GF_Api_Client
         }
 
         $url = $base . '/public/v1' . $path;
-        if (!empty($opts['query'])) {
-            $url = add_query_arg(array_map('rawurlencode', $opts['query']), $url);
-        }
+        // Every upstream call says which language the page is being read in, so GuestFlow can send
+        // back labels, option titles and refusals the visitor can read (specs/site-english-version.md
+        // rule 22). It is additive: GuestFlow answers exactly as before when it is absent.
+        $query = array_merge(['lang' => GF_Language::current()], (array) ($opts['query'] ?? []));
+        $url = add_query_arg(array_map('rawurlencode', $query), $url);
 
         $args = [
             'method'    => $method,
@@ -96,7 +98,13 @@ final class GF_Api_Client
         ];
         if (isset($opts['body'])) {
             $args['headers']['Content-Type'] = 'application/json';
-            $args['body'] = wp_json_encode($opts['body']);
+            // POST /quote and POST /booking-requests read `lang` from the body too; a body that
+            // already carries one — the site forcing a language — wins over the page's.
+            $body = (array) $opts['body'];
+            if (!isset($body['lang'])) {
+                $body['lang'] = GF_Language::current();
+            }
+            $args['body'] = wp_json_encode($body);
         }
 
         $response = wp_remote_request($url, $args);

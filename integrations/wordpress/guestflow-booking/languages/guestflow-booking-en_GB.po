@@ -1,0 +1,523 @@
+# English (United Kingdom) translation of the GuestFlow Booking plugin.
+#
+# The French source strings ARE the reference: they are what the 124 __() calls pass, and what an
+# untranslated site keeps showing. This file is the reviewable artefact — it is read in the diff,
+# not generated from a service (specs/site-english-version.md rule 23).
+#
+# Register: sober and concrete, like the French. A translation must never be salesier than the
+# original. Amounts are NOT translated — rule 10 keeps the French convention in both languages.
+msgid ""
+msgstr ""
+"Project-Id-Version: GuestFlow Booking\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-24 00:00+0000\n"
+"PO-Revision-Date: 2026-09-24 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: English (United Kingdom)\n"
+"Language: en_GB\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: includes/class-gf-blocks.php:175
+msgid " (version %d)."
+msgstr " (version %d)."
+
+#: includes/class-gf-blocks.php:161
+msgid "%s par lit, pour le séjour"
+msgstr "%s per bed, for the stay"
+
+#: includes/class-gf-blocks.php:94
+msgid "/ nuit"
+msgstr "/ night"
+
+#: includes/class-gf-blocks.php:155
+msgid "0 à 2 ans"
+msgstr "0 to 2 years"
+
+#: includes/class-gf-blocks.php:153
+msgid "12 à 18 ans"
+msgstr "12 to 18 years"
+
+#: includes/class-gf-blocks.php:154
+msgid "2 à 12 ans"
+msgstr "2 to 12 years"
+
+#: includes/class-gf-blocks.php:176
+msgid "Acceptez d’abord les conditions générales de location."
+msgstr "Please accept the terms and conditions first."
+
+#: includes/class-gf-blocks.php:103
+msgid "Acompte"
+msgstr "Deposit"
+
+#: includes/class-gf-blocks.php:133
+msgid "Acompte réglé"
+msgstr "Deposit paid"
+
+#: includes/class-gf-blocks.php:132
+msgid "Acompte à payer maintenant"
+msgstr "Deposit due now"
+
+#: includes/class-gf-blocks.php:97
+msgid "Ados"
+msgstr "Teenagers"
+
+#: includes/class-gf-settings.php:265
+msgid "Adresses IP des reverse proxys placés devant WordPress (séparées par des virgules). Sans elles, GuestFlow reçoit l'adresse du proxy au lieu de celle du visiteur : la preuve d'acceptation des CGV et la limite anti-spam en dépendent."
+msgstr "IP addresses of the reverse proxies in front of WordPress (comma-separated). Without them GuestFlow receives the proxy's address instead of the visitor's, and both the terms-acceptance record and the anti-spam limit depend on it."
+
+#: includes/class-gf-blocks.php:95
+msgid "Adultes"
+msgstr "Adults"
+
+#: includes/class-gf-blocks.php:99
+msgid "Arrivée"
+msgstr "Arrival"
+
+#: includes/class-gf-blocks.php:168
+msgid "Assurance annulation"
+msgstr "Cancellation insurance"
+
+#: includes/class-gf-blocks.php:89
+msgid "Aucune disponibilité sur cette période."
+msgstr "No availability for these dates."
+
+#: includes/class-gf-settings.php:208
+msgid "Base du serveur GuestFlow, sans /public/v1."
+msgstr "Base URL of the GuestFlow server, without /public/v1."
+
+#: includes/class-gf-blocks.php:98
+msgid "Bébés"
+msgstr "Babies"
+
+#: includes/class-gf-settings.php:273
+msgid "Cache disponibilités (s)"
+msgstr "Availability cache (s)"
+
+#: includes/class-gf-settings.php:269
+msgid "Cache lecture (s)"
+msgstr "Read cache (s)"
+
+#: includes/class-gf-blocks.php:118
+msgid "Capacité"
+msgstr "Capacity"
+
+#: includes/class-gf-blocks.php:181
+msgid "Catégorie %s"
+msgstr "%s category"
+
+#: includes/class-gf-blocks.php:143
+msgid "Ces dates incluent une nuit indisponible. Choisissez une autre période."
+msgstr "These dates include a night that is not available. Please choose another period."
+
+#: includes/class-gf-blocks.php:106
+msgid "Ces dates ne sont plus disponibles."
+msgstr "These dates are no longer available."
+
+#: blocks/booking/render.php:32
+#: blocks/calendar/render.php:27
+#: blocks/properties/render.php:26
+#: includes/class-gf-blocks.php:86
+msgid "Chargement…"
+msgstr "Loading…"
+
+#: includes/class-gf-blocks.php:140
+msgid "Choisissez vos dates"
+msgstr "Choose your dates"
+
+#: includes/class-gf-blocks.php:145
+msgid "Cliquez une autre date pour changer le départ, ou l’arrivée pour recommencer."
+msgstr "Click another date to change the departure, or the arrival to start again."
+
+#: includes/class-gf-blocks.php:146
+msgid "Cliquez une date plus tard pour allonger le séjour."
+msgstr "Click a later date to extend the stay."
+
+#: includes/class-gf-settings.php:212
+msgid "Clé d'API"
+msgstr "API key"
+
+#: includes/class-gf-settings.php:314
+msgid "Clé ou URL d'API non configurée."
+msgstr "API key or URL not configured."
+
+#: includes/class-gf-settings.php:221
+msgid "Collez la clé PUBLIC_API_KEY de GuestFlow (server/.env.local). Laissez vide pour conserver l'actuelle."
+msgstr "Paste GuestFlow's PUBLIC_API_KEY (server/.env.local). Leave empty to keep the current one."
+
+#: includes/class-gf-settings.php:195
+msgid "Configuration incomplète : renseignez l'URL de l'API et la clé pour activer les blocs."
+msgstr "Incomplete configuration: set the API URL and key to enable the blocks."
+
+#: includes/class-gf-blocks.php:125
+msgid "Confirmation de votre paiement en cours…"
+msgstr "Confirming your payment…"
+
+#: includes/class-gf-settings.php:321
+msgid "Connexion réussie — %d logement(s)."
+msgstr "Connected — %d property(ies)."
+
+#: includes/class-gf-blocks.php:116
+msgid "Demande envoyée ! Référence : %s. Nous vous recontactons rapidement."
+msgstr "Request sent. Reference: %s. We will get back to you shortly."
+
+#: includes/class-gf-updater.php:162
+msgid "Disponibilités, devis et demandes de réservation depuis GuestFlow."
+msgstr "Availability, quotes and booking requests from GuestFlow."
+
+#: includes/class-gf-blocks.php:91
+msgid "Disponible"
+msgstr "Available"
+
+#: includes/class-gf-settings.php:216
+msgid "Définie via la constante GUESTFLOW_API_KEY dans wp-config.php (prioritaire)."
+msgstr "Set through the GUESTFLOW_API_KEY constant in wp-config.php (takes precedence)."
+
+#: includes/class-gf-settings.php:230
+msgid "Définie via la constante GUESTFLOW_SSL_VERIFY dans wp-config.php (prioritaire)."
+msgstr "Set through the GUESTFLOW_SSL_VERIFY constant in wp-config.php (takes precedence)."
+
+#: includes/class-gf-blocks.php:100
+msgid "Départ"
+msgstr "Departure"
+
+#: includes/class-gf-blocks.php:110
+msgid "E-mail"
+msgstr "Email"
+
+#: includes/class-gf-blocks.php:148
+msgid "Effacer"
+msgstr "Clear"
+
+#: includes/class-gf-blocks.php:147
+msgid "Effacer les dates"
+msgstr "Clear the dates"
+
+#: includes/class-gf-blocks.php:96
+msgid "Enfants"
+msgstr "Children"
+
+#: includes/class-gf-blocks.php:115
+msgid "Envoi…"
+msgstr "Sending…"
+
+#: includes/class-gf-blocks.php:114
+msgid "Envoyer la demande"
+msgstr "Send the request"
+
+#: includes/class-gf-settings.php:130
+msgid "GuestFlow"
+msgstr "GuestFlow"
+
+#: includes/class-gf-settings.php:129
+#: includes/class-gf-settings.php:191
+msgid "GuestFlow Booking"
+msgstr "GuestFlow Booking"
+
+#: includes/class-gf-blocks.php:164
+msgid "Heure de départ"
+msgstr "Departure time"
+
+#: includes/class-gf-blocks.php:163
+msgid "Heure d’arrivée"
+msgstr "Arrival time"
+
+#: includes/class-gf-blocks.php:90
+msgid "Indisponible"
+msgstr "Unavailable"
+
+#: includes/class-gf-blocks.php:173
+msgid "J’ai lu et j’accepte les "
+msgstr "I have read and accept the "
+
+#: includes/class-gf-settings.php:257
+msgid "La page qui contient le shortcode [guestflow_cgv]. La case « J'ai lu et j'accepte » du formulaire de réservation y renvoie, sur la version affichée. Vide : /cgv/."
+msgstr "The page holding the [guestflow_cgv] shortcode. The booking form's « I have read and accept » checkbox links to it, on the version displayed. Empty: /cgv/."
+
+#: includes/class-gf-settings.php:236
+msgid "Laissez coché en production. Décochez UNIQUEMENT pour un serveur local/LAN à certificat auto-signé (sinon la connexion échoue avec un code 502)."
+msgstr "Leave ticked in production. Untick ONLY for a local/LAN server with a self-signed certificate (otherwise the connection fails with a 502)."
+
+#: includes/class-gf-settings.php:249
+msgid "Les cartes de logements pointent vers cette page avec ?property=ID."
+msgstr "The property cards link to this page with ?property=ID."
+
+#: includes/class-gf-shortcodes.php:38
+msgid "Les conditions générales sont momentanément indisponibles."
+msgstr "The terms and conditions are temporarily unavailable."
+
+#: includes/class-gf-shortcodes.php:56
+msgid "Lire la version en vigueur"
+msgstr "Read the version in force"
+
+#: includes/class-gf-blocks.php:156
+msgid "Lit(s) bébé souhaité(s) ?"
+msgstr "Cot(s) required?"
+
+#: includes/class-gf-settings.php:241
+msgid "Logement par défaut (ID)"
+msgstr "Default property (ID)"
+
+#: includes/class-gf-blocks.php:120
+msgid "Merci de renseigner tous les champs obligatoires."
+msgstr "Please fill in every required field."
+
+#: includes/class-gf-blocks.php:171
+msgid "Merci d’indiquer si vous souhaitez l’assurance annulation."
+msgstr "Please tell us whether you would like cancellation insurance."
+
+#: includes/class-gf-blocks.php:112
+msgid "Message"
+msgstr "Message"
+
+#: includes/class-gf-blocks.php:109
+msgid "Nom"
+msgstr "Surname"
+
+#: includes/class-gf-blocks.php:165
+msgid "Nombre de participants"
+msgstr "Number of participants"
+
+#: includes/class-gf-settings.php:311
+msgid "Non autorisé."
+msgstr "Not allowed."
+
+#: includes/class-gf-blocks.php:170
+msgid "Non merci"
+msgstr "No thank you"
+
+#: includes/class-gf-blocks.php:162
+msgid "Offert"
+msgstr "Included"
+
+#: includes/class-gf-blocks.php:101
+msgid "Options"
+msgstr "Options"
+
+#: includes/class-gf-blocks.php:152
+msgid "Options & suppléments"
+msgstr "Options & extras"
+
+#: includes/class-gf-blocks.php:169
+msgid "Oui, j’assure mon séjour"
+msgstr "Yes, insure my stay"
+
+#: includes/class-gf-settings.php:245
+msgid "Page de réservation"
+msgstr "Booking page"
+
+#: includes/class-gf-settings.php:253
+msgid "Page des conditions générales"
+msgstr "Terms and conditions page"
+
+#: includes/class-gf-blocks.php:126
+msgid "Paiement confirmé — votre réservation est validée !"
+msgstr "Payment confirmed — your booking is secured."
+
+#: includes/class-gf-blocks.php:127
+msgid "Paiement en attente. Si vous venez de payer, patientez quelques instants."
+msgstr "Payment pending. If you have just paid, please wait a moment."
+
+#: includes/class-gf-blocks.php:128
+msgid "Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails."
+msgstr "Payment received and booking recorded. We will come back to you very shortly to confirm the details."
+
+#: includes/class-gf-blocks.php:122
+msgid "Payer en ligne"
+msgstr "Pay online"
+
+#: includes/class-gf-blocks.php:131
+msgid "Payer l’acompte"
+msgstr "Pay the deposit"
+
+#: includes/class-gf-blocks.php:138
+msgid "Plus d’infos"
+msgstr "More details"
+
+#: includes/class-gf-settings.php:261
+msgid "Proxys de confiance"
+msgstr "Trusted proxies"
+
+#: includes/class-gf-blocks.php:108
+msgid "Prénom"
+msgstr "First name"
+
+#: includes/class-gf-blocks.php:123
+msgid "Préparation du paiement…"
+msgstr "Preparing the payment…"
+
+#: includes/class-gf-blocks.php:124
+msgid "Redirection vers le paiement sécurisé…"
+msgstr "Redirecting to secure payment…"
+
+#: includes/class-gf-blocks.php:180
+msgid "Réduire"
+msgstr "Collapse"
+
+#: includes/class-gf-api-client.php:121
+msgid "Réponse inattendue du service."
+msgstr "Unexpected response from the service."
+
+#: includes/class-gf-blocks.php:87
+msgid "Réservation temporairement indisponible."
+msgstr "Booking temporarily unavailable."
+
+#: includes/class-gf-blocks.php:117
+msgid "Réserver"
+msgstr "Book"
+
+#: includes/class-gf-blocks.php:160
+msgid "Selon disponibilité"
+msgstr "Subject to availability"
+
+#: includes/class-gf-settings.php:330
+msgid "Serveur injoignable ou erreur (code %d)."
+msgstr "Server unreachable or error (code %d)."
+
+#: includes/class-gf-api-client.php:73
+#: includes/class-gf-rest-proxy.php:239
+msgid "Service de réservation indisponible."
+msgstr "Booking service unavailable."
+
+#: includes/class-gf-api-client.php:114
+msgid "Service de réservation momentanément indisponible."
+msgstr "Booking service temporarily unavailable."
+
+#: includes/class-gf-blocks.php:104
+msgid "Solde"
+msgstr "Balance"
+
+#: includes/class-gf-blocks.php:134
+msgid "Solde à régler avant le %s"
+msgstr "Balance due before %s"
+
+#: includes/class-gf-blocks.php:107
+msgid "Séjour trop court (minimum %d nuits)."
+msgstr "Stay too short (%d nights minimum)."
+
+#: includes/class-gf-blocks.php:142
+msgid "Sélectionnez votre date de départ"
+msgstr "Select your departure date"
+
+#: includes/class-gf-blocks.php:141
+msgid "Sélectionnez votre date d’arrivée"
+msgstr "Select your arrival date"
+
+#: includes/class-gf-blocks.php:105
+msgid "Taxe de séjour"
+msgstr "Tourist tax"
+
+#: includes/class-gf-settings.php:281
+msgid "Test de connexion"
+msgstr "Connection test"
+
+#: includes/class-gf-settings.php:292
+msgid "Test en cours…"
+msgstr "Testing…"
+
+#: includes/class-gf-settings.php:283
+msgid "Tester la connexion"
+msgstr "Test the connection"
+
+#: includes/class-gf-blocks.php:102
+msgid "Total"
+msgstr "Total"
+
+#: includes/class-gf-blocks.php:111
+msgid "Téléphone"
+msgstr "Telephone"
+
+#: includes/class-gf-settings.php:203
+msgid "URL de l'API GuestFlow"
+msgstr "GuestFlow API URL"
+
+#: includes/class-gf-blocks.php:135
+msgid "Un email vous sera envoyé pour régler le solde à l’échéance."
+msgstr "We will email you to settle the balance when it falls due."
+
+#: includes/class-gf-blocks.php:88
+msgid "Une erreur est survenue. Réessayez plus tard."
+msgstr "Something went wrong. Please try again later."
+
+#: includes/class-gf-shortcodes.php:50
+msgid "Version %1$d du %2$s — la version en vigueur est la %3$d."
+msgstr "Version %1$d of %2$s — the version in force is %3$d."
+
+#: includes/class-gf-shortcodes.php:64
+msgid "Version %1$d, en vigueur depuis le %2$s."
+msgstr "Version %1$d, in force since %2$s."
+
+#: includes/class-gf-shortcodes.php:58
+msgid "Version introuvable : voici la version en vigueur."
+msgstr "Version not found: here is the version in force."
+
+#: includes/class-gf-blocks.php:113
+msgid "Voir le devis"
+msgstr "View the quote"
+
+#: includes/class-gf-blocks.php:179
+msgid "Voir les %d autres"
+msgstr "See the other %d"
+
+#: includes/class-gf-blocks.php:178
+msgid "Voir les %d options"
+msgstr "See the %d options"
+
+#: includes/class-gf-blocks.php:129
+msgid "Votre séjour"
+msgstr "Your stay"
+
+#: includes/class-gf-blocks.php:149
+msgid "Voyageurs"
+msgstr "Guests"
+
+#: includes/class-gf-settings.php:226
+msgid "Vérification SSL"
+msgstr "SSL verification"
+
+#: includes/class-gf-settings.php:229
+#: includes/class-gf-settings.php:234
+msgid "Vérifier le certificat TLS du serveur GuestFlow"
+msgstr "Verify the GuestFlow server's TLS certificate"
+
+#: includes/class-gf-blocks.php:151
+msgid "bébés"
+msgstr "babies"
+
+#: includes/class-gf-blocks.php:174
+msgid "conditions générales de location"
+msgstr "terms and conditions"
+
+#: includes/class-gf-settings.php:220
+msgid "inchangée"
+msgstr "unchanged"
+
+#: includes/class-gf-blocks.php:92
+msgid "nuit(s)"
+msgstr "night(s)"
+
+#: includes/class-gf-blocks.php:119
+msgid "personnes"
+msgstr "guests"
+
+#: includes/class-gf-blocks.php:150
+msgid "voyageurs"
+msgstr "guests"
+
+#: includes/class-gf-blocks.php:137
+msgid "À planifier avec l’hôte."
+msgstr "To be arranged with your host."
+
+#: includes/class-gf-settings.php:326
+msgid "Échec d'authentification : clé invalide."
+msgstr "Authentication failed: invalid key."
+
+#: includes/class-gf-settings.php:299
+msgid "Échec du test."
+msgstr "Test failed."
+
+#: includes/class-gf-blocks.php:93
+msgid "à partir de"
+msgstr "from"

@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.11.0
+Stable tag: 1.12.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,9 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.12.0 =
+* Bilingue : le plugin sert désormais la langue de la page. Il envoie `lang` à GuestFlow sur chaque appel — les titres d'options, les libellés de prix et les messages d'erreur reviennent dans cette langue — et ses propres 124 chaînes sont traduites en anglais (`languages/guestflow-booking-en_GB`). Les mois du calendrier suivent la langue ; les montants restent en « 1 234,56 € » dans les deux, comme le devis PDF joint à la confirmation. Les CGV s'ouvrent dans la langue de la page, le choix du visiteur continuant de primer. Le cache est segmenté par langue : sans cela, le premier visiteur décidait de ce que lisaient les suivants.
 
 = 1.11.0 =
 * Modifier ses dates sans tout refaire : une fois l'arrivée posée, cliquer une date plus tard déplace le départ — le séjour s'allonge ou se raccourcit d'un clic. Cliquer l'arrivée recommence ; un bouton « ✕ Effacer » vide les deux champs.
