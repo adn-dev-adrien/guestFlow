@@ -215,8 +215,12 @@ build against.)_
     slugs under `/en/`. The English home replaces the empty "Blog" archive currently served there.
 27. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
     concrete, understated. The site never becomes salesier in translation than it is in French.
-28. Pages are translated **one at a time, published only once validated**, exactly like the original
-    French rebuild — an English page stays a draft until Adrien has read it.
+28. Pages are translated **one at a time and published straight away** _(decided 2026-09-24,
+    reversing this rule's first version)_. Adrien does not want to proof-read the English before it
+    goes live. The safety net is no longer his reading, so it has to be somewhere else: rule 25
+    already keeps `hreflang` on really-translated pages only, and each page is published with its
+    French twin open beside it so no fact — a price, a capacity, a date, a rule — drifts in
+    translation. Facts are checked against the French page; prose is not sent for approval.
 29. Nothing advertises the English site before it stands: rule 25 makes the `hreflang` follow real
     translations, so the sequencing is automatic rather than a thing to remember.
 
@@ -388,20 +392,27 @@ between a helpful default and a site that breaks under a cache:
 
 1. **Server-side, in PHP** (`gf-i18n.php`), never in JavaScript. A redirect after paint flickers,
    and a language chosen by a script is a language no crawler ever sees.
-2. **Only on a first visit.** The moment the visitor touches the switcher, a `gf_lang` cookie is
+2. **A browser whose language the site does not speak gets English** _(decided 2026-09-24)_.
+   `fr*` → French; **anything else stated** → English; nothing stated at all → French. A German, a
+   Dutch or a Spanish visitor reads English, which they are far likelier to follow than French.
+   **This is the site's landing rule and nothing else.** The API's own `lang` fallback stays French
+   (rule 1): a consumer that sends no language — the plugin deployed today included — must keep
+   receiving byte-identical payloads, and flipping that default to English would turn every existing
+   integration English overnight.
+3. **Only on a first visit.** The moment the visitor touches the switcher, a `gf_lang` cookie is
    written (one year) and detection never runs again. **An explicit choice always wins**, including
    the choice to read French with an English browser.
-3. **Only when there is somewhere to go:** the page must have a published translation. A visitor is
+4. **Only when there is somewhere to go:** the page must have a published translation. A visitor is
    never redirected to the English home for a page that only exists in French.
-4. **Never for a crawler.** Googlebot and friends must receive the URL they asked for, or the
+5. **Never for a crawler.** Googlebot and friends must receive the URL they asked for, or the
    `hreflang` mesh rule 25 builds describes a site that answers something else.
-5. **Never on a URL carrying a query string.** This is not caution in the abstract: the Qonto
+6. **Never on a URL carrying a query string.** This is not caution in the abstract: the Qonto
    payment return comes back as `…/la-granja/?gf_payment=…`, and a redirect that drops or re-writes
    those parameters loses a guest mid-payment. A URL with a query string is a URL in the middle of
    something.
-6. **`302`, never `301`**, and `Vary: Accept-Language, Cookie` on the response. The mapping is
+7. **`302`, never `301`**, and `Vary: Accept-Language, Cookie` on the response. The mapping is
    per-visitor: cached as permanent, one visitor's language would be served to the next.
-7. The canonical URL and `x-default` do not move (rule 25). Detection changes which page a person
+8. The canonical URL and `x-default` do not move (rule 25). Detection changes which page a person
    lands on, never what the site tells a search engine about itself.
 
 **Mobile.** Nothing in this change alters the existing responsive behaviour: the header stays
@@ -500,14 +511,15 @@ _(filled during implementation)_
 - [x] Prerequisite: 10 mu-plugins imported into the repository (2026-09-24)
 - [x] `utils/publicLabels.js` + tests (2026-09-24)
 - [x] Projections take `lang`; catalogue, terms and payment controllers resolve it (2026-09-24)
-- [ ] The three messages still French: the pricing engine's propagated errors, the `MIN_NIGHTS`
-      sentence, and the portion refusal (`mealPortions` already speaks both — the caller does not)
+- [x] Every public error message is bilingual, including the `MIN_NIGHTS` sentence, the portion
+      refusal and the engine's propagated refusal — whose French wording now travels in `details`
+      as the diagnostic it is (2026-09-24)
 - [ ] Booking request carries the language through to client and reservation
 - [ ] Plugin: language resolution, `lang` upstream, `.po`/`.mo`, locale-aware formatting
 - [ ] Site: `gf-i18n`, header/footer per language, `gf-booking` strings
 - [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)
 - [ ] `gf-seo-head`: `hreflang` only for real translations
-- [ ] 10 pages translated and validated one by one
+- [ ] 10 pages translated and published one by one (no review — rule 28)
 - [ ] Back-office: request language on the fiche, quote-language toggle outside devis mode, language
       in the send dialog, `EMPTY_CLIENT` / `clientsModel` overwrite guard
 - [ ] `specs/public-api.md` + `specs/wordpress-plugin.md:289` amended

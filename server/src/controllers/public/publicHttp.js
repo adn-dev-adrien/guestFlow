@@ -50,8 +50,8 @@ function langStated(req) {
  * an invalid date range and an option that does not belong to the property share a code but must
  * not share a sentence.
  */
-function failT(res, req, status, code, messageKey, details) {
-  return fail(res, status, code, errorMessage(langOf(req), messageKey), details);
+function failT(res, req, status, code, messageKey, details, ...args) {
+  return fail(res, status, code, errorMessage(langOf(req), messageKey, ...args), details);
 }
 
 module.exports = { ok, fail, failT, langOf, langStated };

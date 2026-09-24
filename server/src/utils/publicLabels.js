@@ -86,6 +86,12 @@ const FR = Object.freeze({
   // invalid date range from an option that does not belong to the property.
   errors: Object.freeze({
     devisNotFound: 'Devis introuvable.',
+    /** « Séjour trop court : minimum 3 nuit(s). » */
+    minNights: (n) => `Séjour trop court : minimum ${n} nuit${n > 1 ? 's' : ''}.`,
+    // The pricing engine phrases its own refusals, in French, for the back-office. A visitor gets
+    // our sentence instead and the engine's text travels in `details`, where it belongs: it is a
+    // diagnostic, not a message written for a guest.
+    quoteRefused: "Cette demande ne peut pas être chiffrée.",
     propertyNotFound: 'Logement introuvable.',
     termsNotFound: 'Version introuvable.',
     alreadyConfirmed: 'Cette réservation est déjà confirmée.',
@@ -160,6 +166,8 @@ const EN = Object.freeze({
 
   errors: Object.freeze({
     devisNotFound: 'Quote not found.',
+    minNights: (n) => `Stay too short: ${n} night${n > 1 ? 's' : ''} minimum.`,
+    quoteRefused: 'This request cannot be priced.',
     propertyNotFound: 'Property not found.',
     termsNotFound: 'Version not found.',
     alreadyConfirmed: 'This booking is already confirmed.',
@@ -217,12 +225,14 @@ function labels(language) {
  * An error message by meaning. Throws on an unknown key rather than returning the key — a code path
  * that shows `errors.optionUnavailable` to a visitor is a bug that must be caught in tests.
  */
-function errorMessage(language, key) {
-  const message = labels(language).errors[key];
-  if (!message) {
+function errorMessage(language, key, ...args) {
+  const entry = labels(language).errors[key];
+  if (!entry) {
     throw new Error(`publicLabels: unknown error key "${key}"`);
   }
-  return message;
+  // Some refusals are parameterised — « minimum 3 nuits » — and the pluralisation differs between
+  // the two languages, so the sentence is built here rather than by the caller.
+  return typeof entry === 'function' ? entry(...args) : entry;
 }
 
 function supportedLanguages() {
