@@ -277,8 +277,12 @@ leave in, without opening another screen.)_
 
 ### Content
 
-30. The 10 published French pages get an English translation, linked through Polylang, with English
+30. The published French pages get an English translation, linked through Polylang, with English
     slugs under `/en/`. The English home replaces the empty "Blog" archive currently served there.
+    **Measured on the live site 2026-09-24: there are 7 of them**, not the 10 this rule first
+    claimed — `accueil-solio`, `la-granja`, `estiva`, `le-domaine`, `autour-de-nous`, `contact`,
+    `cgv`. The earlier count came from a database that still held drafts; the path map in
+    `gf-i18n.php` carries the same 7 and is the list to trust.
     > **Sans test** — contenu rédactionnel, pas du code
 31. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
     concrete, understated. The site never becomes salesier in translation than it is in French.
@@ -293,6 +297,49 @@ leave in, without opening another screen.)_
 33. Nothing advertises the English site before it stands: rule 29 makes the `hreflang` follow real
     translations, so the sequencing is automatic rather than a thing to remember.
     > **Sans test** — conséquence de la règle 29, qui porte déjà sa propre vérification
+
+### The facts inside the pages
+
+_Added 2026-09-24, after measuring what the French pages actually contain. The first version of this
+spec treated a page as prose, and it is not: the two pages that sell — `la-granja` and `estiva` —
+call `[solio_essentiel]`, `[solio_equipements]` and `[solio_faq]`, whose text lives in
+`gf-seo-facts.php` and was French-only. Translating the prose alone would have published an English
+page carrying a French facilities table and a French FAQ, on exactly the page a visitor reads before
+booking._
+
+34. A fact carries its English **on the same line of the same array** as its French: `saison` and
+    `saison_en`, `nom` and `nom_en`, `q`/`q_en`, `r`/`r_en`. One source of truth, two languages,
+    never two files. A second English file would drift at the first price or opening-date correction
+    made in a hurry, and a bilingual site that lies in only one of its languages is worse than a
+    monolingual one.
+35. `gf_fait( $tableau, $clef )` is the only way those facts are read. It returns the English on an
+    English page **when it exists and is non-empty**, and the French otherwise. A missing translation
+    shows a French word, never a blank row: a holed table is a worse answer than a French one.
+36. **Labels and values are translated in different places, and that is deliberate.** A column
+    heading ("Facilities", "Season") belongs to the interface and lives once in `gf-i18n.php`'s
+    dictionary; "open all year round" is a fact and is corrected where the fact is written. The
+    blocks reach the dictionary through `gf_seo_lbl()`, which falls back to the French string when
+    `gf-i18n.php` is absent — a load-order change must not produce a mute page.
+37. Times follow the language: `16:00` reads `16h00` in French and `4pm` in English, on the hour,
+    with `9.30am` when there are minutes. A French page is unchanged, byte for byte.
+    > **Sans test** — fonction PHP d'un mu-plugin du site Solio, aucun exécuteur PHP dans ce dépôt ;
+    > mesurée en rendu réel le 2026-09-24 (`4pm`, `10am`, `9.30am`) et la non-régression française
+    > prouvée par un diff avant/après du rendu des trois blocs (§7)
+38. The JSON-LD follows the page too — equipment names, FAQ questions and answers, and
+    `inLanguage`, which says `en-GB` on an English page. `fr-FR` markup under an English `hreflang`
+    tells search engines the opposite of what the page says.
+    > **Sans test** — mu-plugin PHP du site Solio ; vérifié sur le balisage rendu (§7)
+39. Only the three blocks the published pages actually use are translated:
+    `[solio_essentiel]`, `[solio_equipements]`, `[solio_faq]`. `[solio_tarifs]`, `[solio_geo]`,
+    `[solio_comparatif]`, `[solio_caution]`, `[solio_surdemande]` and `[solio_tarifs_nuits]` keep
+    French text: **none of them appears on any published page** (measured 2026-09-24). They read
+    their data through the same `gf_fait()`, so translating one later is adding `_en` keys, not
+    rewriting a block.
+    > **Sans test** — mu-plugins PHP du site Solio, hors périmètre des suites du dépôt ; vérifié en
+    > rendu réel (§7)
+40. The terms page needs no translation: `[guestflow_cgv]` already renders its own FR/EN toggle from
+    GuestFlow. Measured 2026-09-24 — the English text is served today.
+    > **Sans test** — constat de mesure sur une fonctionnalité déjà livrée
 
 **Edge cases:**
 
@@ -398,6 +445,9 @@ else reuses existing screens.
 | `gf-footer.php` | T | Footer links and labels per language |
 | `gf-booking.php` | T | Its ~40 interface strings go through `gf-i18n` |
 | `gf-seo-head.php` | T | `hreflang` only for really-translated pages; `x-default` stays French |
+| `gf-seo-facts.php` | T | The source of truth gains its English siblings (`*_en`) and the `gf_fait()` accessor (rules 34-35) |
+| `gf-seo-blocks.php` | T | `gf_seo_lbl()` for the labels, `gf_fait()` for the values, language-aware time format (rules 36-37) |
+| `gf-seo-schema.php` | T | The JSON-LD reads through `gf_fait()`; `inLanguage` follows the page (rule 38) |
 
 ### 4.5 API contract
 
