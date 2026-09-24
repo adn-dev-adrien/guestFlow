@@ -248,14 +248,24 @@ leave in, without opening another screen.)_
     published content, so nothing advertises an English site before it stands — the discipline
     rule 29 applies to `hreflang`, applied to the interface.
     > **Sans test** — mu-plugins PHP du site Solio — hors de la suite Node ; vérifiés sur le site (§7)
-28. The booking drawer's interface strings go through the FR/EN map, same shape as rule 3.
-    **Not done, and deliberately left for its own pass** _(2026-09-24)_: measured on the live site,
-    **two** drawers are loaded on the same page — `gf-seo-reservation.php` renders the visible one
-    (`gf-resa-declencheur`) while `gf-booking.php` still prints `window.GF_BOOK` against a
-    `data-gf-booking` anchor that is also present. Which of the two a visitor actually books
-    through decides which file is worth translating, and the other is a leftover to remove rather
-    than to translate. Translating both blind is the one change in this spec that could break the
-    booking funnel, so it waits for a measurement in a browser.
+28. `gf-booking.php`'s interface strings, including the singular/plural of "nuit", go through a
+    small FR/EN map resolved from the current language, same shape as rule 3.
+
+    > **Measured in a browser, 2026-09-24, after a first reading got it backwards.** The two files
+    > share the funnel rather than competing for it: `gf-seo-reservation.php` draws the drawer's
+    > chrome (`.gf-resa-*` — the trigger, the panel, the steps) and **`gf-booking.php`'s JavaScript
+    > builds what is inside it**, the calendar included — `.gf-cal-title` and `.gf-cal-month` exist
+    > in that file and in no other. What is inert is only its *block* rendering: the
+    > `.gf-booking-block` anchor sits empty and `display:none` inside the drawer, which is what
+    > `gf-seo-reservation.php`'s own comment calls « devenu muet ». So `gf-booking.php` is neither a
+    > leftover nor removable — it is the funnel, and it is the file this rule names.
+
+    Two consequences beyond the strings. The drawer now renders the **`priceUnitLabel` the server
+    wrote** instead of rebuilding its own French units, which is what rule 3 asked for all along.
+    And the language travels **explicitly** on every call to the `gf-solio/v1` relay, in the query
+    string and in the booking request's body: a REST call is not the page, Polylang does not
+    necessarily see the same thing there, and the drawer is the one that knows which language it is
+    showing. Without it a stay asked for in English would have produced a French confirmation.
     > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
 29. `gf-seo-head.php` keeps `x-default` on French, and the `hreflang="en"` alternate is emitted
     **only for a page that actually has a published English translation**. Measured 2026-09-24: the
@@ -580,7 +590,9 @@ _(filled during implementation)_
       language-keyed cache, terms opening on the page's language, v1.12.0 (2026-09-24)
 - [x] Site: `gf-i18n` (language, dictionary, path map), header and footer per language, the
       switcher, the first-visit browser redirect, the `globe` icon (2026-09-24)
-- [ ] Site: the booking drawer's strings — blocked on rule 28's measurement
+- [x] Site: the booking drawer's strings, its month and day names, and the language carried on
+      every one of its REST calls — including the booking request, so a stay asked for in English
+      produces an English confirmation (2026-09-24)
 - [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)
 - [x] `gf-seo-head`: verified 2026-09-24 — already correct, no change needed (rule 29)
 - [ ] 10 pages translated and published one by one (no review — rule 28)
