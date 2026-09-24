@@ -77,8 +77,29 @@ function gf_seo_equipements_domaine() {
  *
  * Les donnees marquees « API » (capacite, horaires, tarif a partir de) sont rafraichies
  * depuis GuestFlow par gf_seo_lodging(). Les valeurs ci-dessous servent de repli.
+ *
+ * « equipements » est une liste de lignes, chacune faite d’une icone (`ic`, voir
+ * gf-seo-icons.php), d’un intitule (`nom`) et d’une precision facultative. Cette liste
+ * est la seule : elle alimente le tableau affiche par [solio_equipements], le JSON-LD
+ * `amenityFeature` et /llms.txt. Un equipement absent d’ici n’existe nulle part.
+ *
+ * Une ligne peut porter `'visible' => false` : elle reste dans la liste, donc dans le
+ * JSON-LD et dans /llms.txt, mais le tableau ne la rend pas. C’est ainsi qu’un fait deja
+ * dit ailleurs sur la page — aux pastilles, dans le recit, dans la FAQ — continue d’exister
+ * pour les moteurs sans etre ecrit deux fois pour le lecteur. Le tableau affiche est donc
+ * toujours un sous-ensemble de cette liste, jamais une seconde liste.
+ *
+ * Deux regles de composition, pour qu’aucun fait ne soit ecrit deux fois sur la page :
+ * les comptages (salles d’eau, toilettes) restent aux pastilles sous le bandeau et sont
+ * donc invisibles ici ; les prestations (bain nordique, equipement bebe) ont quitte
+ * « L’essentiel » pour cette liste, ou leur precision commerciale a sa place.
  */
 function gf_seo_lodgings() {
+	// Le bain nordique se raconte de la meme facon pour les deux hebergements : la phrase
+	// s’ecrit ici, et sert a la fois « L’essentiel », le tableau comparatif et la ligne
+	// « Bain nordique » du tableau des equipements.
+	$bain = 'sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour';
+
 	return array(
 		'gite'  => array(
 			'cle'                  => 'gite',
@@ -112,20 +133,36 @@ function gf_seo_lodgings() {
 			'accessible_pmr_note'  => 'non adapté aux personnes à mobilité réduite — maison sur trois niveaux',
 
 			'caution'              => 500,
-			'bain_nordique'        => 'sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour',
+			'bain_nordique'        => $bain,
 			'equipements'          => array(
-				'Cuisine pensée pour les grandes tablées : four, lave-vaisselle, très grand réfrigérateur, micro-ondes, cafetière Nespresso, grille-pain',
-				'Poêle à bois, bois fourni',
-				'Grande pièce de vie et tablée de 10 à 12 couverts',
-				'Terrasse exposée au soleil levant, vue sur les montagnes',
-				'Salle de jeux dans les combles',
-				'Machine à laver, fer et planche à repasser, sèche-cheveux',
-				'Lits faits à l’arrivée, draps fournis',
-				'Grand barbecue avec cuisine d’été et évier',
-				'Wifi gratuit',
-				'Équipement bébé complet sur demande — lit, chaise haute',
-				'Détecteurs de fumée et de CO, extincteur, trousse de premiers secours',
-				'Entièrement rénové, isolation en laine de bois',
+				array( 'ic' => 'kitchen', 'nom' => 'Cuisine des tribus',
+					'precision' => 'four, lave-vaisselle, très grand réfrigérateur, cafetière, ustensiles' ),
+				array( 'ic' => 'bbq', 'nom' => 'Barbecue et cuisine d’été',
+					'precision' => 'grand barbecue avec évier' ),
+				array( 'ic' => 'washer', 'nom' => 'Machine à laver',
+					'precision' => 'fer et planche à repasser, sèche-cheveux' ),
+				array( 'ic' => 'bed', 'nom' => 'Lits faits à l’arrivée',
+					'precision' => 'draps de lit fournis' ),
+				array( 'ic' => 'wifi', 'nom' => 'Wifi gratuit', 'precision' => null ),
+				array( 'ic' => 'baby', 'nom' => 'Équipement bébé',
+					'precision' => 'complet, sur demande' ),
+				array( 'ic' => 'safety', 'nom' => 'Sécurité',
+					'precision' => 'détecteurs fumée et CO, extincteur, trousse de premiers secours' ),
+				array( 'ic' => 'hottub', 'nom' => 'Bain nordique', 'precision' => $bain ),
+				array( 'ic' => 'pool', 'nom' => 'Piscine extérieure partagée',
+					'precision' => 'non chauffée, de mi-juin à fin août' ),
+
+				// Ces cinq-la sont racontes ailleurs dans la page — le recit, la FAQ, les
+				// photos — et n’ont pas a etre redits en liste. Ils restent publies.
+				array( 'ic' => null, 'nom' => 'Poêle à bois', 'precision' => 'bois fourni', 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Grande pièce de vie et tablée de 10 à 12 couverts',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Terrasse exposée au soleil levant',
+					'precision' => 'vue sur les montagnes', 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Salle de jeux dans les combles',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Entièrement rénové',
+					'precision' => 'isolation en laine de bois', 'visible' => false ),
 			),
 		),
 		'lodge' => array(
@@ -158,18 +195,33 @@ function gf_seo_lodgings() {
 			'accessible_pmr_note'  => 'non adapté aux personnes à mobilité réduite — accès nature à pied sur 300 m',
 
 			'caution'              => 400,
-			'bain_nordique'        => 'sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour',
+			'bain_nordique'        => $bain,
 			'equipements'          => array(
-				'Tente safari sur terrasse bois montée sur pilotis',
-				'Kitchenette : plaque de cuisson, micro-ondes, réfrigérateur, cafetière',
-				'Salle d’eau et toilettes privatives',
-				'Lits faits à l’arrivée',
-				'Eau chaude et électricité',
-				'Terrasse privée exposée au coucher de soleil',
-				'Plancha offerte à partir de 2 nuits',
-				'Ciel étoilé sans pollution lumineuse',
-				'Pas de wifi',
-				'Parking gratuit sur place, accès à pied à 300 m',
+				array( 'ic' => 'kitchen', 'nom' => 'Kitchenette équipée',
+					'precision' => 'plaque de cuisson, micro-ondes, réfrigérateur, cafetière' ),
+				array( 'ic' => 'bed', 'nom' => 'Lits faits à l’arrivée',
+					'precision' => 'couettes et couvertures supplémentaires' ),
+				array( 'ic' => 'power', 'nom' => 'Eau chaude et électricité',
+					'precision' => 'tout le confort, sous la toile' ),
+				array( 'ic' => 'terrace', 'nom' => 'Terrasse privée',
+					'precision' => 'coucher de soleil et animaux en liberté' ),
+				array( 'ic' => 'hottub', 'nom' => 'Bain nordique', 'precision' => $bain ),
+				array( 'ic' => 'pool', 'nom' => 'Piscine extérieure partagée',
+					'precision' => 'non chauffée, de mi-juin à fin août' ),
+				array( 'ic' => 'parking', 'nom' => 'Parking gratuit sur place',
+					'precision' => 'accès à pied, 300 m' ),
+
+				// Dits ailleurs : la tente et son ciel dans le recit, la plancha au tarif,
+				// les sanitaires aux pastilles, le wifi dans « L’essentiel ».
+				array( 'ic' => null, 'nom' => 'Tente safari sur terrasse bois montée sur pilotis',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Plancha offerte à partir de 2 nuits',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Ciel étoilé sans pollution lumineuse',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Salle d’eau et toilettes privatives',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Pas de wifi', 'precision' => null, 'visible' => false ),
 			),
 		),
 	);

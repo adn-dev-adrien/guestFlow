@@ -28,8 +28,14 @@ d'IA (GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot) qui n'exécutent aucun sc
 information commercialement utile — capacité, équipements, horaires, règles, **tarifs** —
 existe donc en HTML rendu par le serveur.
 
-Une seule source de vérité : `gf-seo-facts.php`. L'encadré « L'essentiel » affiché, la FAQ
-visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diverger.
+Une seule source de vérité : `gf-seo-facts.php`. L'encadré « L'essentiel » affiché, le tableau
+des équipements, la FAQ visible, `/llms.txt` et le JSON-LD sont générés du même tableau. Ils ne
+peuvent pas diverger.
+
+Corollaire, appris à nos dépens : **aucun bloc de faits ne s'écrit à la main dans une page
+WordPress.** La grille « Équipements » des pages logement l'a été pendant des mois, avec son CSS
+et ses icônes en JavaScript ; elle avait fini par annoncer autre chose que le JSON-LD de la même
+page, et rien de tout cela n'était sauvegardé (`specs/site-lodging-fact-zones.md`).
 
 ## Les modules
 
@@ -38,7 +44,7 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-facts.php` | **Source de vérité.** Adresse, GPS, capacités, horaires, équipements, distances, FAQ. Lit les tarifs vivants dans GuestFlow (cache 6 h, repli statique). |
 | `gf-seo-head.php` | `<title>` 50-60 car., meta description 140-155 car., Open Graph, Twitter Card, `hreflang`, geo. Table page → référencement, surchargeable par page. Le visuel de partage se replie sur la première `<img>` du contenu, ce qui couvre les bandeaux écrits en HTML brut. |
 | `gf-seo-schema.php` | JSON-LD : `LodgingBusiness`, `VacationRental` / `Campground` + `Accommodation`, `FAQPage`, `BreadcrumbList`. Fil d'Ariane visible. La galerie du logement reprend chaque diapo du carrousel en `ImageObject`, légende comprise. |
-| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. |
+| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_equipements]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. |
 | `gf-seo-images.php` | Complète les `<img>` du contenu : `alt`, `width`/`height`, `srcset`, `loading`, `fetchpriority` sur l'image LCP. |
 | `gf-seo-indexation.php` | `robots.txt` (12 robots autorisés nommément), sitemap nettoyé, `/llms.txt`. |
 | `gf-seo-redirects.php` | 301 des anciennes URLs WordPress et des 18 URLs Lodgify. |
@@ -47,7 +53,8 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-admin.php` | Metabox d'édition du titre et de la description, bouton « Actualiser les tarifs ». |
 | `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral en deux écrans, ouvert par un bouton flottant en bas à droite. |
 | `gf-seo-urls.php` | Garde-fou : toute adresse générée suit l'hôte réellement utilisé par le visiteur. |
-| `gf-caps.php` | Pictogrammes des pastilles de capacité, injectés en JS — `wp_kses` retire tout `<svg>` du contenu enregistré depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |
+| `gf-seo-icons.php` | **Le jeu de pictogrammes.** Les icônes des équipements et celles des pastilles, en PHP, rendues dans la source de la page. Elles étaient dessinées en JavaScript : aucun robot d'IA n'en voyait une seule. |
+| `gf-caps.php` | Pose le pictogramme de chaque pastille de capacité au rendu, depuis `gf-seo-icons.php`. Au rendu et non à l'enregistrement, parce que `wp_kses` retire tout `<svg>` du contenu sauvegardé depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |
 | `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ, bande film. |
 | `apache/uploads.htaccess` | Sert les jumeaux WebP par négociation de contenu. À déposer dans `wp-content/uploads/.htaccess`. |
 | `apache/roboto.css` | Feuille de la police auto-hébergée. Va dans `wp-content/uploads/fonts/`. |
