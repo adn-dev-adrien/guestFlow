@@ -108,7 +108,6 @@ function gf_seo_lodgings() {
 			'slug'                 => 'la-granja',
 			'type_schema'          => 'Accommodation',
 			'label'                => 'Meublé 3 étoiles',
-			'numero_label'         => '07G309700',
 			'capacite'             => 10,          // API maxAdults
 			'capacite_max'         => 12,          // Couchages d’appoint compris.
 			'capacite_note'        => 'davantage possible sur demande',
@@ -172,7 +171,6 @@ function gf_seo_lodgings() {
 			'slug'                 => 'estiva',
 			'type_schema'          => 'Campground',
 			'label'                => null,
-			'numero_label'         => null,
 			'capacite'             => 5,
 			'capacite_max'         => 5,
 			'capacite_note'        => null,

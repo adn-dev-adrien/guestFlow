@@ -284,7 +284,7 @@ function gf_seo_schema_hebergement( $cle ) {
 			'petsAllowed'    => (bool) $d['chiens_acceptes'],
 			'smokingAllowed' => empty( $l['non_fumeur'] ),
 			'numberOfRooms'  => $l['chambres'],
-			'award'          => $l['label'] ? $l['label'] . ( $l['numero_label'] ? ' (n° ' . $l['numero_label'] . ')' : '' ) : null,
+			'award'          => $l['label'],
 			'amenityFeature' => gf_seo_schema_equipements( $l['equipements'] ),
 			'containsPlace'  => $logement,
 			'makesOffer'     => $offre,
