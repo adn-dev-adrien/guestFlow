@@ -103,7 +103,7 @@ function gf_seo_schema_domaine() {
 			'@id'            => home_url( '/#domaine' ),
 			'name'           => $d['nom'],
 			'description'    => 'Domaine privé de ' . $d['superficie_ha'] . ' hectares en Ardèche verte, à '
-				. $d['ville'] . ', avec deux hébergements : un gîte 3 épis pour 10 personnes et une tente safari pour 5.',
+				. $d['ville'] . ', avec deux hébergements : un gîte 3 étoiles pour 10 personnes et une tente safari pour 5.',
 			'url'            => home_url( '/' ),
 			'telephone'      => $d['telephone'],
 			'address'        => gf_seo_schema_adresse(),

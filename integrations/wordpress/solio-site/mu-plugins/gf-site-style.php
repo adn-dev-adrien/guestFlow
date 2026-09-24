@@ -131,6 +131,11 @@ strong,b{ font-weight:700; }
   letter-spacing:.22em; padding:16px 28px; border-radius:2px; text-decoration:none; transition:background .25s ease; }
 .gf-btn:hover{ background:var(--gf-ocre-deep); }
 .gf-btn-ghost{ background:transparent; border:1px solid rgba(247,242,230,.7); }
+/* Le greffon GuestFlow definit lui aussi une classe .gf-btn, avec min-height:44px sur la boite
+   de contenu : 76 px de haut une fois les marges internes ajoutees, contre 45 ailleurs. La
+   collision de nom ne se voit donc que sur les pages qui portent le moteur de reservation.
+   La cible tactile reste tenue par la hauteur totale du bouton. */
+.gf-hero .gf-btn{ min-height:0; }
 .gf-btn-ghost:hover{ background:rgba(247,242,230,.14); }
 .gf-btn-forest{ background:transparent; border:1px solid var(--gf-sapin); color:var(--gf-sapin) !important; }
 .gf-btn-forest:hover{ background:var(--gf-sapin); color:var(--gf-paper) !important; }
