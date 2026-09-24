@@ -23,7 +23,7 @@ const { tokensMatch } = require('../../utils/publicDevisToken');
 const { calculateReservationQuote } = require('../../utils/pricing');
 const settingsModel = require('../../models/settingsModel');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
-const { ok, fail } = require('./publicHttp');
+const { ok, fail, failT } = require('./publicHttp');
 
 // Build the site success URL from the configured site origin + a caller-supplied path. Allowlisted to
 // the origin to prevent open redirects; returns '' (no redirect) when unset/invalid.
@@ -53,13 +53,13 @@ async function pay(req, res) {
   const id = Number(req.params.id);
   const token = req.body && req.body.token;
   const { row, error } = loadPublicDevis(id, token);
-  if (error === 'not_found') return fail(res, 404, 'DEVIS_NOT_FOUND', 'Devis introuvable.');
-  if (error === 'already_converted') return fail(res, 409, 'ALREADY_CONFIRMED', 'Cette réservation est déjà confirmée.');
+  if (error === 'not_found') return failT(res, req, 404, 'DEVIS_NOT_FOUND', 'devisNotFound');
+  if (error === 'already_converted') return failT(res, req, 409, 'ALREADY_CONFIRMED', 'alreadyConfirmed');
 
   // Re-check availability — nothing is paid yet, so we can still refuse cleanly.
   const blocked = computeBlockedDates(row.propertyId, row.startDate, row.endDate);
   if (rangeHasBlockedNight(row.startDate, row.endDate, blocked)) {
-    return fail(res, 409, 'DATES_UNAVAILABLE', 'Ces dates ne sont plus disponibles.');
+    return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
   }
 
   // Server-decided mode (specs/public-online-deposit.md): 'deposit' charges the stored acompte now (solde
@@ -92,8 +92,14 @@ async function pay(req, res) {
     }, id, linkType);
     return ok(res, { paymentUrl: link.url, amountCents: link.amountCents, currency: 'EUR', status: link.status, paymentMode: mode });
   } catch (err) {
-    if (err && err.httpStatus) return fail(res, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', err.message || 'Lien de paiement impossible.');
-    return fail(res, 502, 'QONTO_API_ERROR', 'Erreur du fournisseur de paiement.');
+    // The provider's own wording is passed through untranslated — it is a diagnostic string, not a
+    // sentence we wrote. Only OUR fallback follows the visitor's language.
+    if (err && err.httpStatus) {
+      return err.message
+        ? fail(res, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', err.message)
+        : failT(res, req, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', 'paymentProviderError');
+    }
+    return failT(res, req, 502, 'QONTO_API_ERROR', 'paymentProviderError');
   }
 }
 
@@ -135,7 +141,7 @@ async function status(req, res) {
   const id = Number(req.params.id);
   const token = req.query && req.query.token;
   const { row, error } = loadPublicDevis(id, token);
-  if (error === 'not_found') return fail(res, 404, 'DEVIS_NOT_FOUND', 'Devis introuvable.');
+  if (error === 'not_found') return failT(res, req, 404, 'DEVIS_NOT_FOUND', 'devisNotFound');
 
   const asConfirmed = (rid) => {
     const r = db.prepare('SELECT * FROM reservations WHERE id = ?').get(rid);
