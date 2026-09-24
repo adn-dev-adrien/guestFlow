@@ -1203,7 +1203,8 @@ Ce que le retard n'est pas :
 - **Pas une surcharge de place de marché.** Les sous-onglets « ABRACADAROOM » / « UNIC STAY » du
   back-office n'existent que sur *Infos générales* et ne surchargent pas la description ; et le
   retard touche aussi les blocs TARIFS, qui n'ont pas de variante par place de marché. Le détail de
-  ces sous-onglets est dans « Abracadaroom — un contenu PAR PLACE DE MARCHÉ » plus haut.
+  ces sous-onglets est dans « Abracadaroom — un contenu PAR PLACE DE MARCHÉ, mais seulement sur
+  Infos générales » plus haut.
 - **Pas une histoire de langue.** Seul le FR est rempli ; les onglets EN/ES/NL sont vides et la page
   publique française est bien celle qui retarde.
 
