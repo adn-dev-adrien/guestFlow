@@ -345,6 +345,23 @@ function gf_memorise_choix_langue() {
 }
 add_action('init', 'gf_memorise_choix_langue', 1);
 
+/**
+ * Efface le jeton de l'adresse une fois le choix retenu.
+ *
+ * Sans cela chaque page traduite existerait en deux adresses — avec et sans « ?gf_set_lang » — et
+ * les moteurs indexeraient la seconde. Le cookie est deja pose a ce stade : la redirection ne perd
+ * rien, et elle est permanente parce que la page servie, elle, est bien la meme.
+ */
+function gf_nettoie_jeton_langue() {
+    if (is_admin() || !isset($_GET['gf_set_lang'])) {
+        return;
+    }
+    $propre = remove_query_arg('gf_set_lang', home_url(add_query_arg(array())));
+    wp_redirect($propre, 301);
+    exit;
+}
+add_action('template_redirect', 'gf_nettoie_jeton_langue', 0);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Le selecteur, dans l'en-tete
 // ─────────────────────────────────────────────────────────────────────────────
