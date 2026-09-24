@@ -11,7 +11,8 @@
  *   - width et height explicites, pour supprimer les sauts de mise en page (CLS) ;
  *   - srcset et sizes, pour que les mobiles ne telechargent pas une image de 2048 px ;
  *   - loading="lazy" et decoding="async", sauf sur la premiere image de la page ;
- *   - fetchpriority="high" sur cette premiere image, qui est presque toujours l’element LCP.
+ *   - loading="eager" et fetchpriority="high" sur cette premiere image, qui est presque
+ *     toujours l’element LCP.
  *
  * Le balisage n’est jamais restructure : pas de <picture>, pas de conteneur ajoute. La
  * conversion WebP est prise en charge par Apache (voir wp-content/uploads/.htaccess), ce
@@ -133,6 +134,11 @@ function gf_seo_completer_images( $html ) {
 			if ( ! $premiere_vue ) {
 				$premiere_vue = true;
 				$balise       = preg_replace( '~\sloading=["\'][^"\']*["\']~i', '', $balise );
+				// loading="eager" pose explicitement, et non simplement retire : WordPress
+				// repasse derriere ce filtre (wp_filter_content_tags) et n’ajoute lazy que
+				// si aucun loading n’est present. Retirer l’attribut le lui rendait donc,
+				// et un lazy sur l’element LCP annule le fetchpriority qu’on vient de poser.
+				$ajouts .= ' loading="eager"';
 				if ( ! preg_match( '~fetchpriority=~i', $balise ) ) {
 					$ajouts .= ' fetchpriority="high"';
 				}
