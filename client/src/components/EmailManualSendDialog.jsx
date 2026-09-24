@@ -8,12 +8,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
   Typography, Stack, FormControl, InputLabel, Select, MenuItem, TextField,
-  CircularProgress, Chip,
+  CircularProgress, Chip, Tooltip,
 } from '@mui/material';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 import ConfirmDialog from './ConfirmDialog';
+import LanguageBadge from './LanguageBadge';
 import { displayDateTime } from '../utils/formatters';
 
 function offsetLabel(n) {
@@ -49,12 +50,19 @@ export default function EmailManualSendDialog({
   // specs/guest-email-sequence.md rule 13bis — a sequence email already sent is only re-sent after an
   // explicit confirmation; the server's 409 carries the date it left.
   const [alreadySentAt, setAlreadySentAt] = useState(null);
+  // The language this message will actually leave in. `resolvedLang` is what the server decided —
+  // the guest's own language — and `langOverride` is the operator saying "not this time". The
+  // override applies to THIS send: it never rewrites the guest's record
+  // (specs/site-english-version.md §6).
+  const [resolvedLang, setResolvedLang] = useState('fr');
+  const [langOverride, setLangOverride] = useState(null);
 
   // Load template list once when the dialog opens.
   useEffect(() => {
     if (!open) return;
     setError('');
     setManualEmail('');
+    setLangOverride(null);
     api.getEmailTemplates()
       .then((rows) => {
         const enabled = rows.filter((r) => r.enabled !== 0);
@@ -78,10 +86,11 @@ export default function EmailManualSendDialog({
     setLoading(true);
     setError('');
     try {
-      const res = await api.previewEmail({ reservationId, templateId });
+      const res = await api.previewEmail({ reservationId, templateId, lang: langOverride || undefined });
       setSubject(res.subject || '');
       setBody(res.body || '');
       setTo(res.to || '');
+      setResolvedLang(res.lang || 'fr');
       setMissingVariables(res.missingVariables || []);
     } catch (e) {
       setError(e?.message || 'Impossible de générer l\'aperçu.');
@@ -89,7 +98,7 @@ export default function EmailManualSendDialog({
     } finally {
       setLoading(false);
     }
-  }, [templateId, reservationId]);
+  }, [templateId, reservationId, langOverride]);
 
   useEffect(() => { if (open) refreshPreview(); }, [open, refreshPreview]);
 
@@ -115,6 +124,7 @@ export default function EmailManualSendDialog({
         // sends to it AND saves it on the client record.
         overrides: { subject, body, ...(to ? {} : { to: manualEmail.trim() }) },
         confirmResend,
+        lang: langOverride || undefined,
       });
       if (onSent) onSent(res);
       if (onClose) onClose();
@@ -179,6 +189,28 @@ export default function EmailManualSendDialog({
                   sx={{ bgcolor: 'background.paper', flex: 1, minWidth: 0 }}
                 />
               )}
+            </Stack>
+            {/* An operator about to write to a guest should not have to guess which language the
+                message will leave in — nor open the client's record to find out. */}
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexShrink: 0 }}>
+              <LanguageBadge
+                lang={resolvedLang}
+                origin={langOverride
+                  ? 'choisi pour cet envoi seulement'
+                  : 'langue du client — l\'e-mail partira ainsi'}
+              />
+              <Tooltip title={`Écrire cet e-mail en ${resolvedLang === 'en' ? 'français' : 'anglais'} — pour cet envoi seulement, la fiche client n'est pas modifiée`}>
+                <span>
+                  <Button
+                    size="small"
+                    variant="text"
+                    disabled={loading || sending}
+                    onClick={() => setLangOverride(resolvedLang === 'en' ? 'fr' : 'en')}
+                  >
+                    {resolvedLang === 'en' ? 'Passer en FR' : 'Passer en EN'}
+                  </Button>
+                </span>
+              </Tooltip>
             </Stack>
           </Box>
 

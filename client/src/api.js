@@ -544,12 +544,14 @@ const api = {
   updateEmailTemplate:      (id, data) => request(`/email-templates/${id}`, { method: 'PUT', body: data }),
   deleteEmailTemplate:      (id) => request(`/email-templates/${id}`, { method: 'DELETE' }),
 
-  previewEmail: ({ reservationId, templateId }) =>
-    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}`),
+  // `lang` overrides the language for THIS preview only (specs/site-english-version.md §6). Absent,
+  // the server resolves it as a real send would: the client's language, then the reservation's.
+  previewEmail: ({ reservationId, templateId, lang }) =>
+    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}`),
   // `confirmResend` — explicit resend of a guest-sequence email already sent (specs/guest-email-sequence.md
   // rule 13bis); without it the server answers 409 ALREADY_SENT.
-  sendEmail:    ({ reservationId, templateId, overrides, confirmResend }) =>
-    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend) } }),
+  sendEmail:    ({ reservationId, templateId, overrides, confirmResend, lang }) =>
+    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend), ...(lang ? { lang } : {}) } }),
   // Guest email sequence simulation (specs/guest-email-sequence.md §4.3) — nothing sent, nothing written.
   getEmailSequenceSimulation: ({ from, to }) =>
     request(`/email-sequence/simulation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
