@@ -19,10 +19,15 @@ in `fr`**, **zero** English content in any status, and **zero** translation grou
 `gf-seo-redirects.php` and sent to their French equivalent, so no link is broken — but the English
 audience simply has nowhere to land.
 
-Polylang is nevertheless configured and declares the language `en` (`en_GB`). The consequence is a
-live defect: `gf-seo-head.php:347-365` emits `<link rel="alternate" hreflang="en">` pointing at
-`https://domainesolio.com/en/`, which answers **200 with an empty "Blog" archive**. The site
-currently advertises to search engines an English version that does not exist.
+Polylang is nevertheless configured and declares the language `en` (`en_GB`).
+
+> **Corrected 2026-09-24.** This paragraph first claimed a live defect: that `gf-seo-head.php`
+> advertised an English version that does not exist. **Measured on the live site, it does not.**
+> `curl https://domainesolio.com/la-granja/` emits `hreflang="fr-FR"` and `x-default` and nothing
+> else, because the alternates loop only ever emits a language Polylang really holds a translation
+> for. Rule 29 asks for exactly the behaviour already in place, so `gf-seo-head.php` needs **no
+> change** — what remains true is that `/en/` answers `200` with an empty "Blog" archive, which is
+> a soft 404 for anyone who reaches it by hand, and which the English home replaces (rule 30).
 
 **GuestFlow itself is already bilingual — on every axis except the one the website uses.** Three
 complete, tested chains exist:
@@ -243,12 +248,21 @@ leave in, without opening another screen.)_
     published content, so nothing advertises an English site before it stands — the discipline
     rule 29 applies to `hreflang`, applied to the interface.
     > **Sans test** — mu-plugins PHP du site Solio — hors de la suite Node ; vérifiés sur le site (§7)
-28. `gf-booking.php`'s ~40 interface strings, including the singular/plural of "nuit", go through a
-    small FR/EN map resolved from the current language, same shape as rule 3.
+28. The booking drawer's interface strings go through the FR/EN map, same shape as rule 3.
+    **Not done, and deliberately left for its own pass** _(2026-09-24)_: measured on the live site,
+    **two** drawers are loaded on the same page — `gf-seo-reservation.php` renders the visible one
+    (`gf-resa-declencheur`) while `gf-booking.php` still prints `window.GF_BOOK` against a
+    `data-gf-booking` anchor that is also present. Which of the two a visitor actually books
+    through decides which file is worth translating, and the other is a leftover to remove rather
+    than to translate. Translating both blind is the one change in this spec that could break the
+    booking funnel, so it waits for a measurement in a browser.
     > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
-29. `gf-seo-head.php` keeps `x-default` on French. The `hreflang="en"` alternate is emitted **only
-    for a page that actually has a published English translation** — which also fixes today's defect
-    where the whole site advertises an empty `/en/`.
+29. `gf-seo-head.php` keeps `x-default` on French, and the `hreflang="en"` alternate is emitted
+    **only for a page that actually has a published English translation**. Measured 2026-09-24: the
+    deployed code already does this and needs no change — the alternates loop reads
+    `pll_get_post_translations()` and emits nothing for a language with no translation. The rule
+    stays written down because it is the behaviour the English rollout depends on, and a future
+    edit must not lose it.
     > **Sans test** — mu-plugin PHP du site Solio — vérifié sur le site (§7)
 
 ### Content
@@ -564,9 +578,11 @@ _(filled during implementation)_
       survives the conversion, and the origin badge reads « Site internet » (2026-09-24)
 - [x] Plugin: language resolution, `lang` upstream, `.po`/`.mo` (124 strings), locale-aware dates,
       language-keyed cache, terms opening on the page's language, v1.12.0 (2026-09-24)
-- [ ] Site: `gf-i18n`, header/footer per language, `gf-booking` strings
+- [x] Site: `gf-i18n` (language, dictionary, path map), header and footer per language, the
+      switcher, the first-visit browser redirect, the `globe` icon (2026-09-24)
+- [ ] Site: the booking drawer's strings — blocked on rule 28's measurement
 - [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)
-- [ ] `gf-seo-head`: `hreflang` only for real translations
+- [x] `gf-seo-head`: verified 2026-09-24 — already correct, no change needed (rule 29)
 - [ ] 10 pages translated and published one by one (no review — rule 28)
 - [ ] Back-office: request language on the fiche, quote-language toggle outside devis mode, language
       in the send dialog, `EMPTY_CLIENT` / `clientsModel` overwrite guard
