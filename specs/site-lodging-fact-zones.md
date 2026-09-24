@@ -51,26 +51,37 @@ once, in a table that reads on two columns when there is room and on one when th
 
 1. The amenity block moves **directly under "L'essentiel"**, above the narrative sections. The
    badge strip stays exactly where and as it is.
+> **Sans test** — PHP of a WordPress mu-plugin, which no suite of this repository runs. Verified §7 — block order read end to end on both live pages.
 2. The amenity block is a table of rows: one icon, a bold label, an optional grey precision line.
+> **Sans test** — same PHP; verified §7 — the rendered rows carry one icon, one label and an optional precision.
 3. The table lays out on **two columns when its own container is at least 600 px wide**, one column
    below — a container query, not a viewport query, so the block behaves the same in a narrow
    column and in full page.
+> **Sans test** — a CSS container query; no suite of this repository renders a browser. Measured §7 with the computed `grid-template-columns` at 390 / 900 / 1400 px.
 4. Counting facts (shower rooms, toilets) stay in the badge strip and **leave the amenity table**.
+> **Sans test** — composition of the data file, not behaviour. Verified §7 — no fact appears twice.
 5. Service facts (nordic bath, baby equipment) leave **"L'essentiel"** and live in the amenity
    table, where their commercial precision ("1 h offerte à chaque séjour") belongs.
+> **Sans test** — composition of the data file, not behaviour. Verified §7 — the two lines left « L'essentiel » and are in the table.
 6. After rules 4 and 5, **no fact appears twice** on the page.
+> **Sans test** — consequence of rules 4 and 5; verified §7 by reading badges, « L'essentiel » and the table end to end.
 7. Shared-domain facts (pool, nordic bath, farm animals, trail, river, parking) stay inside the
    lodging's amenity table, as today — no separate band.
+> **Sans test** — a scope statement: nothing to prove but an absence — no separate band exists.
 8. The table is rendered **server-side, without JavaScript**, icons included, so crawlers and AI
    agents read the same page a visitor does.
+> **Sans test** — the absence of JavaScript cannot be proved by a suite that runs none. Verified §7 by `curl` on the raw HTML: every `<svg>` is in the source.
 9. The rendered table, `/llms.txt` and the JSON-LD `amenityFeature` come from **one source**,
    `gf-seo-facts.php`; they cannot diverge by construction.
+> **Sans test** — a single PHP array read by three renderers; verified §7 by comparing the table, `amenityFeature` and `/llms.txt` on the live pages.
 10. An amenity may carry `'visible' => false`: it stays in `equipements`, and therefore in the
     JSON-LD `amenityFeature` and in `/llms.txt`, but it never renders. The five La Granja facts and
     the three L'Estiva facts that exist only in `gf-seo-facts.php` today take that flag — decided
     2026-09-24. The rendered table is therefore a *subset* of the source, never a second list.
+> **Sans test** — a flag read by a mu-plugin; verified §7 — 9 and 7 rows rendered, 14 and 12 published.
 11. `/llms.txt` lists each lodging's inventory under its entry, so an assistant that reads only
     that file knows what each lodging holds without parsing the page.
+> **Sans test** — same mu-plugin; verified §7 — `/llms.txt` read after deployment.
 
 **Edge cases:**
 - An amenity with no precision line → the row renders with the label alone, same height rhythm.
