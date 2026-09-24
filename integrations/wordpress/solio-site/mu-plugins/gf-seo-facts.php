@@ -86,7 +86,7 @@ function gf_seo_lodgings() {
 			'nom'                  => 'La Granja — le gîte du domaine',
 			'slug'                 => 'la-granja',
 			'type_schema'          => 'Accommodation',
-			'label'                => 'Gîtes de France 3 épis',
+			'label'                => 'Meublé 3 étoiles',
 			'numero_label'         => '07G309700',
 			'capacite'             => 10,          // API maxAdults
 			'capacite_max'         => 12,          // Couchages d’appoint compris.
