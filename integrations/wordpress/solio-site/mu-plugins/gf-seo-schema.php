@@ -73,7 +73,7 @@ function gf_seo_schema_geo() {
 function gf_seo_schema_equipements( $equipements ) {
 	$out = array();
 	foreach ( $equipements as $e ) {
-		$libelle = is_array( $e ) ? $e['nom'] : $e;
+		$libelle = is_array( $e ) ? gf_fait( $e, 'nom' ) : $e;
 		// On ne garde que le libelle avant le deux-points : « Cuisine équipée : four, … » → « Cuisine équipée ».
 		$libelle = trim( explode( ':', $libelle )[0] );
 		$out[]   = array(
@@ -233,7 +233,7 @@ function gf_seo_schema_hebergement( $cle ) {
 		array(
 			'@type'                  => 'Accommodation',
 			'@id'                    => $url . '#logement',
-			'name'                   => $l['nom'],
+			'name'                   => gf_fait( $l, 'nom' ),
 			'numberOfBedrooms'       => $l['chambres'],
 			'numberOfBathroomsTotal' => $l['salles_eau'],
 			'numberOfRooms'          => $l['chambres'],
@@ -272,7 +272,7 @@ function gf_seo_schema_hebergement( $cle ) {
 		array(
 			'@type'          => 'gite' === $cle ? 'VacationRental' : 'Campground',
 			'@id'            => $url . '#hebergement',
-			'name'           => $l['nom'],
+			'name'           => gf_fait( $l, 'nom' ),
 			'url'            => $url,
 			'description'    => gf_seo_description(),
 			'image'          => gf_seo_schema_galerie(),
@@ -375,14 +375,15 @@ function gf_seo_schema_faq() {
 
 	$entrees = array();
 	foreach ( $faq as $item ) {
-		$reponse = $l ? gf_seo_tokens( $item['r'], $l ) : $item['r'];
+		$brut    = gf_fait( $item, 'r' );
+		$reponse = $l ? gf_seo_tokens( $brut, $l ) : $brut;
 		// Une reponse laissee a l’etat de TODO n’a rien a faire dans les donnees structurees.
 		if ( false !== strpos( $reponse, 'TODO:' ) ) {
 			continue;
 		}
 		$entrees[] = array(
 			'@type'          => 'Question',
-			'name'           => $item['q'],
+			'name'           => gf_fait( $item, 'q' ),
 			'acceptedAnswer' => array(
 				'@type' => 'Answer',
 				'text'  => $reponse,
@@ -524,7 +525,7 @@ function gf_seo_render_schema() {
 			'@id'        => home_url( '/#site' ),
 			'url'        => home_url( '/' ),
 			'name'       => gf_seo_domaine()['nom'],
-			'inLanguage' => 'fr-FR',
+			'inLanguage' => ( function_exists( 'gf_langue' ) && 'en' === gf_langue() ) ? 'en-GB' : 'fr-FR',
 			'publisher'  => array( '@id' => home_url( '/#domaine' ) ),
 		),
 	);

@@ -13,8 +13,35 @@
   var GF = window.GFBooking;
   if (!GF) return;
 
-  var MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-  var DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  // Month and weekday names come from the locale the SERVER resolved for this page, not from a
+  // list frozen in French. They were the last French left in an otherwise English drawer: every
+  // label here already goes through GF.t(), and the runtime already publishes GF.locale — only
+  // the calendar's own headings had been missed (specs/site-english-version.md rule 43).
+  //
+  // Built once, from a week that really starts on a Monday (2024-01-01 was one), so the order
+  // matches the grid below rather than the locale's own first day.
+  var MONTHS = (function () {
+    var fallback = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    try {
+      var f = new Intl.DateTimeFormat(GF.locale || 'fr-FR', { month: 'long' });
+      var out = [];
+      for (var m = 0; m < 12; m++) { out.push(f.format(new Date(2024, m, 1))); }
+      return out;
+    } catch (e) { return fallback; }
+  })();
+
+  var DOW = (function () {
+    var fallback = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    try {
+      var f = new Intl.DateTimeFormat(GF.locale || 'fr-FR', { weekday: 'short' });
+      var out = [];
+      for (var i = 0; i < 7; i++) {
+        var j = f.format(new Date(2024, 0, 1 + i));
+        out.push(j.charAt(0).toUpperCase() + j.slice(1).replace(/\.$/, ''));
+      }
+      return out;
+    } catch (e) { return fallback; }
+  })();
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function isoOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -23,8 +50,9 @@
   function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
   function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
   // Numeric month on purpose: the read-only date fields sit two-per-row in a narrow drawer, and
-  // « 28 septembre 2026 » was clipped mid-word where « 28/09/2026 » fits whole.
-  function frDate(s) { var d = new Date(s + 'T00:00:00'); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear(); }
+  // « 28 septembre 2026 » was clipped mid-word where « 28/09/2026 » fits whole. Day/month/year is
+  // read the same way in French and in British English, so this one format serves both.
+  function shortDate(s) { var d = new Date(s + 'T00:00:00'); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear(); }
 
   function queryParam(name) {
     try { return new URLSearchParams(window.location.search).get(name); } catch (e) { return null; }
@@ -266,7 +294,7 @@
         }, String(d));
         grid.appendChild(btn);
       }
-      var label = MONTHS_FR[month] + ' ' + year;
+      var label = MONTHS[month] + ' ' + year;
       return GF.el('div', { class: 'gf-cal-month' }, GF.el('div', { class: 'gf-cal-title' }, label), grid);
     }
 
@@ -288,8 +316,8 @@
     }
 
     function afterDatesChange(hint) {
-      f.startDisplay.value = state.start ? frDate(state.start) : '—';
-      f.endDisplay.value = state.end ? frDate(state.end) : '—';
+      f.startDisplay.value = state.start ? shortDate(state.start) : '—';
+      f.endDisplay.value = state.end ? shortDate(state.end) : '—';
       f.clearDates.disabled = !state.start && !state.end;
       renderCal(hint);
       scheduleQuote();
