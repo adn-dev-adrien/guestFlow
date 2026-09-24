@@ -7,6 +7,7 @@
  * (GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot) puissent lire et citer ces informations.
  *
  *   [solio_essentiel logement="gite"]   encadre « L’essentiel » : les faits bruts
+ *   [solio_equipements logement="gite"] tableau des equipements, une ligne par fait
  *   [solio_tarifs    logement="gite"]   tarifs et options, lus dans GuestFlow
  *   [solio_faq       page="gite"]       questions frequentes, en <details> natifs
  *   [solio_geo]                         paragraphe de contexte geographique
@@ -62,8 +63,8 @@ function gf_seo_shortcode_essentiel( $atts ) {
 		$lignes['Wifi'] = 'non — ici, on se connecte à la nature plutôt qu’à internet';
 	}
 	$lignes['Animaux']          = $d['chiens_acceptes'] ? 'chiens acceptés' : 'chiens non acceptés';
-	$lignes['Bébés']            = 'équipement complet sur demande — tout est prêt à votre arrivée';
-	$lignes['Bain nordique']    = $l['bain_nordique'];
+	// Equipement bebe et bain nordique sont des prestations, pas des regles de sejour :
+	// ils sont annonces juste dessous, dans le tableau des equipements, avec leur icone.
 	if ( ! empty( $l['non_fumeur'] ) ) {
 		$lignes['Non-fumeur'] = 'oui, hébergement entièrement non-fumeur';
 	}
@@ -80,6 +81,48 @@ function gf_seo_shortcode_essentiel( $atts ) {
 	return $html;
 }
 add_shortcode( 'solio_essentiel', 'gf_seo_shortcode_essentiel' );
+
+/**
+ * Tableau des equipements : une ligne par fait, une icone par ligne.
+ *
+ * Le tableau se lit sur deux colonnes des que le bloc dispose de 600 px, sur une seule
+ * en dessous. C’est une requete de conteneur et non de fenetre : le bloc se comporte
+ * pareil dans une colonne etroite et en pleine page.
+ *
+ * Tout est rendu par le serveur, icones comprises : c’est la difference avec la grille
+ * ecrite a la main qu’il remplace, dont aucun robot ne voyait les pictogrammes.
+ */
+function gf_seo_shortcode_equipements( $atts ) {
+	$atts = shortcode_atts( array( 'logement' => '', 'titre' => 'Équipements' ), $atts );
+	$l    = gf_seo_lodging( $atts['logement'] );
+	if ( ! $l || empty( $l['equipements'] ) ) {
+		return '';
+	}
+
+	$html = '<div class="gf-eqt">';
+	if ( '' !== $atts['titre'] ) {
+		$html .= '<h2 class="gf-eqt-titre">' . esc_html( $atts['titre'] ) . '</h2>';
+	}
+	$html .= '<div class="gf-eqt-grille">';
+
+	foreach ( $l['equipements'] as $e ) {
+		// Un equipement invisible reste publie (JSON-LD, /llms.txt) mais ne se lit pas ici :
+		// il est deja dit ailleurs dans la page, et le redire en liste serait une redite.
+		if ( isset( $e['visible'] ) && ! $e['visible'] ) {
+			continue;
+		}
+		// Une icone inconnue laisse la ligne sans pictogramme plutot que de casser la grille.
+		$icone = gf_seo_icone( $e['ic'], array( 'width' => 26, 'height' => 26 ) );
+		$html .= '<div class="gf-eqt-ligne">'
+			. ( $icone ? $icone : '<span class="gf-eqt-vide" aria-hidden="true"></span>' )
+			. '<div class="gf-eqt-txt"><strong>' . esc_html( $e['nom'] ) . '</strong>'
+			. ( ! empty( $e['precision'] ) ? '<span>' . esc_html( $e['precision'] ) . '</span>' : '' )
+			. '</div></div>';
+	}
+
+	return $html . '</div></div>';
+}
+add_shortcode( 'solio_equipements', 'gf_seo_shortcode_equipements' );
 
 /**
  * Formate « 16:00 » en « 16h00 ».
@@ -480,6 +523,36 @@ add_action(
 .gf-essentiel dt { flex: 0 0 160px; font-weight: 600; color: #5a6b48; margin: 0; }
 .gf-essentiel dd { margin: 0; color: #2f3a26; }
 
+/* Tableau des equipements, juste sous « L’essentiel ».
+   Deux colonnes des que le bloc dispose de 600 px, une seule en dessous. On interroge la
+   largeur du bloc (@container) et non celle de la fenetre : pose dans une colonne etroite,
+   le tableau retombe tout seul sur une colonne, ce qu’une media query ne saurait pas faire.
+   Le repli @supports sert les navigateurs sans requete de conteneur (Safari < 16). */
+.gf-eqt {
+	max-width: 820px; margin: 44px auto; padding: 24px 26px;
+	background: #f4f1ea; border-radius: 14px; container-type: inline-size;
+}
+.gf-eqt-titre { font-size: 1.5rem; color: #2f3a26; margin: 0 0 14px; text-align: center; }
+.gf-eqt-grille { display: grid; grid-template-columns: 1fr; gap: 0 36px; }
+@container (min-width: 600px) {
+	.gf-eqt-grille { grid-template-columns: 1fr 1fr; }
+}
+@supports not (container-type: inline-size) {
+	@media (min-width: 800px) { .gf-eqt-grille { grid-template-columns: 1fr 1fr; } }
+}
+.gf-eqt-ligne {
+	display: flex; gap: 12px; align-items: flex-start;
+	padding: 11px 0; border-bottom: 1px solid rgba(0, 0, 0, .08); color: #5a6b48;
+}
+.gf-eqt-ligne svg { flex: 0 0 auto; width: 26px; height: 26px; stroke-width: 1.5; margin-top: 2px; }
+/* Une icone manquante garde sa place, sinon l’intitule se decalerait d’une ligne a l’autre. */
+.gf-eqt-vide { flex: 0 0 26px; }
+/* Interligne resserre : celui du corps de page (1.65) etirait une precision de deux lignes
+   au point de la detacher de son intitule. */
+.gf-eqt-txt { line-height: 1.35; }
+.gf-eqt-txt strong { display: block; font-size: .9rem; font-weight: 600; color: #2f3a26; margin-bottom: 2px; }
+.gf-eqt-txt span { font-size: .78rem; color: #6b7560; }
+
 .gf-tarifs h3, .gf-geo h3 { font-size: 1.06rem; color: #5a6b48; margin: 26px 0 8px; }
 .gf-tarifs-depart { font-size: 1.1rem; color: #2f3a26; }
 .gf-tarifs-table { width: 100%; border-collapse: collapse; }
@@ -535,6 +608,7 @@ add_action(
 	.gf-essentiel, .gf-tarifs, .gf-faq-seo, .gf-geo, .gf-comparatif { margin: 32px auto; padding: 0 16px; }
 	.gf-essentiel-ligne { flex-direction: column; gap: 2px; padding: 10px 0; }
 	.gf-essentiel dt { flex: none; }
+	.gf-eqt { margin: 32px auto; padding: 18px 16px; border-radius: 10px; }
 	.gf-tarifs-table th, .gf-tarifs-table td { display: block; }
 	.gf-tarifs-table th { padding-bottom: 0; font-weight: 600; }
 	.gf-tarifs-table td { text-align: left; padding-top: 2px; }

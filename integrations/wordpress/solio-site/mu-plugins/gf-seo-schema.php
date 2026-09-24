@@ -63,14 +63,19 @@ function gf_seo_schema_geo() {
 /**
  * Transforme une liste d’equipements en LocationFeatureSpecification.
  *
- * @param array $noms Libelles d’equipement.
+ * Deux formes sont acceptees : la liste de phrases des equipements du domaine, et les
+ * lignes { ic, nom, precision } des hebergements. Dans les deux cas c’est l’intitule qui
+ * est publie, donc exactement ce que le visiteur lit dans le tableau de la page.
+ *
+ * @param array $equipements Libelles d’equipement, ou lignes d’equipement.
  * @return array
  */
-function gf_seo_schema_equipements( $noms ) {
+function gf_seo_schema_equipements( $equipements ) {
 	$out = array();
-	foreach ( $noms as $n ) {
+	foreach ( $equipements as $e ) {
+		$libelle = is_array( $e ) ? $e['nom'] : $e;
 		// On ne garde que le libelle avant le deux-points : « Cuisine équipée : four, … » → « Cuisine équipée ».
-		$libelle = trim( explode( ':', $n )[0] );
+		$libelle = trim( explode( ':', $libelle )[0] );
 		$out[]   = array(
 			'@type' => 'LocationFeatureSpecification',
 			'name'  => $libelle,

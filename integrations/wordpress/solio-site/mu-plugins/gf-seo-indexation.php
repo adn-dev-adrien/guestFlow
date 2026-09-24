@@ -206,6 +206,13 @@ function gf_seo_llms_txt() {
 			$morceaux[] = 'à partir de ' . $h['prix_min_nuit'] . ' € la nuit';
 		}
 		$l[] = '- [' . $h['nom'] . '](' . home_url( '/' . $h['slug'] . '/' ) . ') : ' . implode( ', ', $morceaux ) . '.';
+
+		// L’inventaire complet, celui-la meme qui est affiche dans la page et publie en
+		// JSON-LD. Un assistant qui ne lit que ce fichier sait donc ce que contient chaque
+		// hebergement, sans avoir a analyser la page.
+		foreach ( $h['equipements'] as $e ) {
+			$l[] = '  - ' . $e['nom'] . ( ! empty( $e['precision'] ) ? ' : ' . $e['precision'] : '' );
+		}
 	}
 	$l[] = '';
 

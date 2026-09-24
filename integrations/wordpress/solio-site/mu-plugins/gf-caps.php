@@ -1,93 +1,91 @@
 <?php
 /**
  * Plugin Name: Domaine Solio — Capacity badge icons
- * Description: Injects coloured room/bed/bathroom pictograms into the .gf-cap badges from JS (robust
- *              against KSES, which strips inline <svg> from post content on save). Bed geometry
- *              mirrors the GuestFlow BedIcon (single = 1 pillow & narrower, double = 2 pillows & wider).
- *              The classification badge shows three stars in a row, the unit the rating is
- *              actually counted in, rather than a leaf.
+ * Description: Draws the room/bed/bathroom pictogram of every .gf-cap badge, server-side, from the
+ *              icon map in gf-seo-icons.php. The markup written in the page stays untouched: the
+ *              icon is inserted at render time, which is late enough to escape KSES (it only
+ *              strips inline <svg> when the post is saved) and early enough for crawlers to read
+ *              it. Bed geometry mirrors the GuestFlow BedIcon (single = 1 pillow & narrower,
+ *              double = 2 pillows & wider). The classification badge shows three stars in a row,
+ *              the unit the rating is actually counted in, rather than a leaf.
  */
-if (!defined('ABSPATH')) { exit; }
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
-add_action('wp_footer', function () {
-    ?>
-<script>
-(function(){
-  var caps = document.querySelectorAll('.gf-cap');
-  if(!caps.length) return;
-  var C = '#5a6b48';
-  function bed(type){
-    var single = type === 'single';
-    var vbW = single ? 30 : 42;
-    var w = Math.round(20 * vbW / 28);
-    var pillows = single
-      ? '<rect x="9" y="8" width="12" height="6" rx="3"/>'
-      : '<rect x="8" y="8" width="12" height="6" rx="3"/><rect x="22" y="8" width="12" height="6" rx="3"/>';
-    return '<svg width="'+w+'" height="20" viewBox="0 0 '+vbW+' 28" fill="none" stroke="'+C+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">'
-      + '<rect x="2.5" y="5" width="'+(vbW-5)+'" height="5" rx="2"/>'
-      + pillows
-      + '<rect x="2.5" y="13" width="'+(vbW-5)+'" height="9" rx="2"/>'
-      + '<path d="M4 22v5M'+(vbW-4)+' 22v5"/></svg>';
-  }
-  function door(){
-    return '<svg width="17" height="20" viewBox="0 0 24 28" fill="none" stroke="'+C+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">'
-      + '<path d="M5 26V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v23"/><path d="M3 26h18"/>'
-      + '<circle cx="15.5" cy="14.5" r="1.2" fill="'+C+'" stroke="none"/></svg>';
-  }
-  function shower(){
-    return '<svg width="19" height="20" viewBox="0 0 24 28" fill="none" stroke="'+C+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">'
-      + '<path d="M12 3v3"/>'
-      + '<path d="M5 11C5 7 9 6 12 6C15 6 19 7 19 11Z"/>'
-      + '<path d="M9 14l-1 3.5M12 15l-1 4M15 14l-1 3.5"/></svg>';
-  }
-  function toilet(){
-    return '<svg width="17" height="20" viewBox="0 0 24 28" fill="none" stroke="'+C+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">'
-      + '<rect x="6" y="3.5" width="12" height="6" rx="1.5"/>'
-      + '<path d="M7 11h10v1a5 5 0 0 1-10 0z"/>'
-      + '<path d="M9.5 17l-1.5 6.5h8L14.5 17"/></svg>';
-  }
-  function people(){
-    return '<svg width="20" height="20" viewBox="0 0 28 28" fill="none" stroke="'+C+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">'
-      + '<circle cx="10.5" cy="9" r="3.4"/>'
-      + '<path d="M4 23c0-3.6 2.9-6.5 6.5-6.5S17 19.4 17 23"/>'
-      + '<circle cx="19.5" cy="10" r="2.7"/>'
-      + '<path d="M18.5 16.6c3.2.3 5.5 3 5.5 6.4"/></svg>';
-  }
-  function tent(){
-    return '<svg width="20" height="20" viewBox="0 0 28 28" fill="none" stroke="'+C+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">'
-      + '<path d="M14 4.5L2.5 24h23z"/>'
-      + '<path d="M14 24l-3.8-8M14 24l3.8-8"/>'
-      + '<path d="M1.5 24h25"/></svg>';
-  }
-  function etoiles(){
-    // Trois etoiles en ligne : un classement se lit en rangee, pas en bouquet.
-    function une(cx, cy, r){
-      var d = '', creux = r * 0.42;
-      for (var i = 0; i < 10; i++){
-        var a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? creux : r;
-        d += (i ? 'L' : 'M') + (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2);
-      }
-      return '<path d="' + d + 'Z"/>';
-    }
-    return '<svg width="20" height="20" viewBox="0 0 28 28" fill="none" stroke="' + C
-      + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">'
-      + une(4.9, 14, 4.3) + une(14, 14, 4.3) + une(23.1, 14, 4.3) + '</svg>';
-  }
-  caps.forEach(function(cap){
-    if(cap.querySelector('svg')) return;
-    var t = (cap.textContent || '').toLowerCase();
-    var svg = null;
-    if(t.indexOf('personne') >= 0) svg = people();
-    else if(t.indexOf('glamping') >= 0 || t.indexOf('tente') >= 0) svg = tent();
-    else if(t.indexOf('étoile') >= 0 || t.indexOf('épis') >= 0 || t.indexOf('gîtes de france') >= 0) svg = etoiles();
-    else if(t.indexOf('chambre') >= 0) svg = door();
-    else if(t.indexOf('lit simple') >= 0 || t.indexOf('lits simples') >= 0) svg = bed('single');
-    else if(t.indexOf('lit double') >= 0 || t.indexOf('lits doubles') >= 0) svg = bed('double');
-    else if(t.indexOf('salle') >= 0) svg = shower();          // salle d'eau / salles d'eau
-    else if(t.indexOf('toilette') >= 0 || t.indexOf('wc') >= 0) svg = toilet();
-    if(svg) cap.insertAdjacentHTML('afterbegin', svg);
-  });
-})();
-</script>
-    <?php
-});
+/**
+ * Icone qui convient a l’intitule d’une pastille.
+ *
+ * L’ordre des tests compte : « 3 étoiles » doit trouver le classement avant que « lit simple »
+ * ou « chambre » ne s’en melent, et le lit simple passe avant le double parce que les deux
+ * libelles contiennent le mot « lit ».
+ *
+ * @param string $texte Intitule de la pastille, sans balise ni entite.
+ * @return string Cle d’icone, ou chaine vide si aucune ne convient.
+ */
+function gf_caps_icone_pour( $texte ) {
+	$t = function_exists( 'mb_strtolower' ) ? mb_strtolower( $texte, 'UTF-8' ) : strtolower( $texte );
+
+	$regles = array(
+		'badge-people'      => array( 'personne' ),
+		'badge-tent'        => array( 'glamping', 'tente' ),
+		'badge-stars'       => array( 'étoile', 'épis', 'gîtes de france' ),
+		'badge-door'        => array( 'chambre' ),
+		'badge-bed-single'  => array( 'lit simple', 'lits simples' ),
+		'badge-bed-double'  => array( 'lit double', 'lits doubles' ),
+		'badge-shower'      => array( 'salle' ),   // salle d’eau / salles d’eau
+		'badge-wc'          => array( 'toilette', 'wc' ),
+	);
+
+	foreach ( $regles as $icone => $mots ) {
+		foreach ( $mots as $mot ) {
+			if ( false !== strpos( $t, $mot ) ) {
+				return $icone;
+			}
+		}
+	}
+	return '';
+}
+
+/**
+ * Le vert du pictogramme.
+ *
+ * Le trace est en `currentColor` et la pastille ecrit son texte en #2f3a26 : sans cette
+ * regle, l’icone prendrait la couleur du texte au lieu du vert qu’elle a toujours eu.
+ */
+add_action(
+	'wp_enqueue_scripts',
+	function () {
+		wp_register_style( 'gf-caps', false );
+		wp_enqueue_style( 'gf-caps' );
+		wp_add_inline_style( 'gf-caps', '.gf-cap svg{ color:#5a6b48; }' );
+	}
+);
+
+/**
+ * Pose le pictogramme dans chaque pastille du contenu.
+ */
+add_filter(
+	'the_content',
+	function ( $contenu ) {
+		if ( false === strpos( $contenu, 'gf-cap' ) || ! function_exists( 'gf_seo_icone' ) ) {
+			return $contenu;
+		}
+
+		return preg_replace_callback(
+			'~<span class="gf-cap">(?!\s*<svg)(.*?)</span>~s',
+			function ( $m ) {
+				$texte = html_entity_decode( wp_strip_all_tags( $m[1] ), ENT_QUOTES, 'UTF-8' );
+				$icone = gf_caps_icone_pour( $texte );
+				if ( '' === $icone ) {
+					return $m[0];
+				}
+				// L’intitule passe dans un <span> a lui : la pastille est une colonne
+				// (icone au-dessus, texte en dessous) et un noeud texte nu s’y aligne mal.
+				return '<span class="gf-cap">' . gf_seo_icone( $icone ) . '<span>' . $m[1] . '</span></span>';
+			},
+			$contenu
+		);
+	},
+	20
+);
