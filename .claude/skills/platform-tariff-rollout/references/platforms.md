@@ -1104,21 +1104,17 @@ ligne est un couple de `<div>` « Oui » / « Non », et l'état se lit sur la c
 Relevé au passage sur L'Estiva : Plancha **Oui**, Terrasse **Oui**, Espace repas en plein air
 **Oui**, Barbecue **Non**, Brasero **Non**.
 
-## Abracadaroom — un contenu PAR PLACE DE MARCHÉ, et une annonce publique qui a plus d'un jour de retard
+## Abracadaroom — un contenu PAR PLACE DE MARCHÉ, mais seulement sur Infos générales
 
-Deux choses découvertes le 2026-09-24, à ne pas confondre l'une avec l'autre.
+Découvert le 2026-09-24. **L'onglet Infos générales a trois sous-onglets de contenu** : « Contenu
+par défaut », « Abracadaroom », « Unic Stay ». Les deux derniers ne surchargent que **« Bon à
+savoir », « Conditions de réservation » et « Durée minimale de séjour »** — la description
+principale n'y a pas d'éditeur et reste donc celle du contenu par défaut. **L'onglet TARIFS n'a pas
+ces sous-onglets du tout** : ses trois blocs sont partagés par toutes les places de marché.
 
-**1. L'onglet Infos générales a trois sous-onglets de contenu** : « Contenu par défaut »,
-« Abracadaroom », « Unic Stay ». Les deux derniers ne surchargent que **« Bon à savoir »,
-« Conditions de réservation » et « Durée minimale de séjour »** — la description principale n'y a pas
-d'éditeur et reste donc celle du contenu par défaut. **L'onglet TARIFS n'a pas ces sous-onglets du
-tout** : ses trois blocs sont partagés par toutes les places de marché.
-
-**2. `abracadaroom.com` sert une copie en retard de plus de 24 h.** Mesuré : une modification faite
-la veille sur un bloc de l'onglet TARIFS — donc un champ qu'aucune surcharge ne peut masquer —
-était toujours absente de l'annonce publique le lendemain, en même temps que celles du jour.
-**Ne jamais conclure d'un écart public que l'enregistrement a échoué** : relire le back-office après
-rechargement, c'est lui qui fait foi, et prévoir une re-vérification publique différée.
+C'est ce qui permet d'écarter l'hypothèse « surcharge » quand l'annonce publique diverge du
+back-office. La question d'après — pourquoi elle diverge quand même — est traitée dans
+« Abracadaroom — la page publique sert une copie en retard de plus de 24 h » plus bas.
 
 **Les éditeurs sont des ProseMirror** : écrire dans `innerHTML` ne change rien à l'état du document.
 Poser une `Range` sur le texte visé, `window.getSelection()`, puis
@@ -1206,7 +1202,8 @@ Ce que le retard n'est pas :
   met pas cette page en cache, elle vient de l'origine à chaque appel.
 - **Pas une surcharge de place de marché.** Les sous-onglets « ABRACADAROOM » / « UNIC STAY » du
   back-office n'existent que sur *Infos générales* et ne surchargent pas la description ; et le
-  retard touche aussi les blocs TARIFS, qui n'ont pas de variante par place de marché.
+  retard touche aussi les blocs TARIFS, qui n'ont pas de variante par place de marché. Le détail de
+  ces sous-onglets est dans « Abracadaroom — un contenu PAR PLACE DE MARCHÉ » plus haut.
 - **Pas une histoire de langue.** Seul le FR est rempli ; les onglets EN/ES/NL sont vides et la page
   publique française est bien celle qui retarde.
 
