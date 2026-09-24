@@ -259,7 +259,8 @@ comprises » caption are gone, and `tests/tourist-tax-included-in-rate.unit.test
 - Enabling the recipe engine, or the changeover constraint, on the Gîte.
 - Modifier types beyond `public_holiday_bridge`.
 - Anchoring shoulders on the synced school-holiday dates.
-- Conditional freebies (plancha from 2 nights, gear package from 3 nights) — manual gestures.
+- Conditional freebies (gear package from 3 nights) — manual gestures. The plancha left this list
+  on 2026-09-24: it is available for every stay, so it is an amenity, not a conditional gesture.
 - Automatic rate push to the OTAs — copy-paste from the grid.
 - Re-pricing existing reservations — locked snapshots keep their prices by design.
 - Adding the extra-guest supplement to the tourist-tax base (spec Q2) — deferred pending the

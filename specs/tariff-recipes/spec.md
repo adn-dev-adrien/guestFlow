@@ -720,8 +720,10 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - **Anchoring shoulders on the synced school-holiday dates.** The app has the data
   ([school-holidays.md](../school-holidays.md)); the Saturday anchor reproduces the intended calendar
   without it.
-- **Conditional freebies** — « plancha offerte dès 2 nuits », « location matériel 18 € dès 3 nuits » are
-  not expressible as pricing rules; they stay a manual gesture.
+- **Conditional freebies** — « location matériel 18 € dès 3 nuits » is not expressible as a pricing
+  rule; it stays a manual gesture. The plancha used to sit here (« offerte dès 2 nuits »); **since
+  2026-09-24 it is on site for every stay**, so it is no longer a gesture at all — it is a plain
+  amenity of L'Estiva, listed as such on the website, and nothing for the engine to price.
 - **Tourist-tax configuration.** Rate, mode and departmental share are production-owned, correct, and
   deliberately untouched (rule 48bis). Only the computed base moves.
 - **Automatic rate push to the OTAs.** The grid is a copy-paste reference.
@@ -744,7 +746,8 @@ _None. All three are answered below._
   1L » (Boissons), not a synthetic « Pack accueil » line. A second bottle is billed normally. ✅
 - **Q3 — early check-in.** Left as it is: an auto-option priced **proportionally**, so it derives from
   the nightly rate and follows the new seasonal prices with no maintenance. The 1-night plancha price
-  is moot — the plancha is not a GuestFlow object and stays a manual gesture (§8). ✅
+  is moot — the plancha is not a GuestFlow object (§8). ✅ _(Amended 2026-09-24: it is not a gesture
+  either any more — it is available for every stay.)_
 
 **Amended (2026-08-22):** rule 48 is reinstated as **48ter**, in a party-independent form the
 operator cannot untick — see
