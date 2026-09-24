@@ -47,7 +47,7 @@ test('a guest created without any language is French, exactly as before', () => 
   assert.equal(client.emailLanguage, 'fr');
 });
 
-test('an update that does not mention the language leaves it alone', () => {
+test('specs/site-english-version.md rule 21 — an update that does not mention the language leaves it alone', () => {
   // The accident this guard exists for: the client dialog opened from the reservation page did not
   // carry emailLanguage, and buildClientFields normalises an absent value to 'fr'. Editing a phone
   // number reset an English guest to French.
