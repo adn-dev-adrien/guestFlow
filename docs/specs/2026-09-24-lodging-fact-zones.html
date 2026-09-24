@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zones à icônes des pages logement — propositions</title>
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FDFAF3; --ink:#22271F; --soft:#5C6153;
+  --sapin:#2E3B2A; --green:#5a6b48; --ocre:#B87B2A; --ocre-deep:#9A6318;
+  --nuit:#161C16; --line:#DCD4C2; --mute:#6b7560;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:16px/1.6 "Karla",Helvetica,Arial,sans-serif;
+}
+h1,h2,h3,h4{font-family:"Marcellus",Georgia,"Times New Roman",serif;font-weight:400;line-height:1.18;color:var(--sapin);margin:0}
+h1{font-size:2rem;text-transform:uppercase;letter-spacing:.06em}
+h2{font-size:1.5rem;text-transform:uppercase;letter-spacing:.05em}
+h3{font-size:1.2rem}
+p{margin:.6em 0}
+code{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#e9e4d6;padding:1px 5px;border-radius:3px}
+a{color:var(--ocre-deep)}
+
+/* ---------- chrome ---------- */
+.top{background:var(--nuit);color:#EFE8D6;padding:30px 20px 26px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.top h1{color:#F7F2E6}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--ocre)}
+.top p{color:#cfcab8;max-width:62ch}
+
+.bar{position:sticky;top:0;z-index:40;background:rgba(245,240,230,.96);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);padding:10px 0}
+.bar .wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:7px 14px;font:inherit;font-size:.82rem;cursor:pointer;color:var(--soft)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:#fff}
+.lab{font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);margin-right:-10px}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:.84rem;color:var(--soft);cursor:pointer;user-select:none}
+.chk input{accent-color:var(--ocre);width:16px;height:16px}
+.nav{margin-left:auto;display:flex;gap:14px;font-size:.8rem}
+.nav a{color:var(--soft);text-decoration:none;border-bottom:1px solid transparent}
+.nav a:hover{color:var(--ocre-deep);border-color:var(--ocre)}
+@media (max-width:700px){ .bar{position:static} .nav{margin-left:0} }
+
+section.blk{padding:44px 0 10px;scroll-margin-top:64px}
+.blk>.wrap>h2{margin-bottom:6px}
+.lede{color:var(--soft);max-width:72ch}
+
+/* ---------- frame that mimics the live page ---------- */
+.frame{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:26px 24px 30px;margin:18px auto 0;
+  max-width:920px;transition:max-width .25s ease}
+body.mobile .frame{max-width:392px;padding:18px 14px 22px}
+.frame .fake-hero{background:linear-gradient(145deg,#2E3B2A,#5a6b48);border-radius:4px;color:#EFE8D6;
+  padding:26px 22px;margin:-6px 0 0;text-align:center}
+.frame .fake-hero .k{font-size:.66rem;letter-spacing:.26em;text-transform:uppercase;color:#E8C286}
+.frame .fake-hero h3{color:#F7F2E6;font-size:1.6rem;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 6px}
+.frame .fake-hero p{font-family:"Marcellus",Georgia,serif;color:#EFE8D6;margin:0;font-size:.95rem}
+.zone{position:relative;border:1px dashed transparent;border-radius:10px;padding:8px}
+body.zones .zone{border-color:#c9bfa6}
+body.zones .zone::before{content:attr(data-zone);position:absolute;top:-10px;left:12px;background:var(--paper);
+  padding:0 8px;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
+
+/* real site styles, copied from production so the “constat” is faithful */
+.gf-caps{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:26px 36px;max-width:980px;margin:22px auto 0}
+.gf-cap{display:flex;flex-direction:column;align-items:center;gap:9px;color:#2f3a26;font-weight:500;font-size:.82rem;
+  line-height:1.3;text-align:center;max-width:130px;position:relative}
+.gf-cap svg{flex:0 0 auto;width:44px;height:44px;stroke-width:1.3}
+body.mobile .gf-caps{gap:18px 24px}
+body.mobile .gf-cap{font-size:.78rem;max-width:104px}
+body.mobile .gf-cap svg{width:38px;height:38px}
+.gf-essentiel{background:#efe9dc;border-radius:12px;padding:18px 22px;margin:22px 0 0}
+.gf-essentiel h4{font-size:1.15rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.gf-essentiel dl{margin:0}
+.gf-essentiel .ln{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06);position:relative}
+.gf-essentiel .ln:last-child{border-bottom:0}
+.gf-essentiel dt{flex:0 0 150px;font-weight:700;font-size:.86rem;color:#2f3a26}
+.gf-essentiel dd{margin:0;font-size:.86rem;color:var(--soft)}
+body.mobile .gf-essentiel .ln{flex-direction:column;gap:0}
+body.mobile .gf-essentiel dt{flex:none}
+.eq-box{background:#f4f1ea;border-radius:14px;padding:24px 26px;margin:22px 0 0}
+.gf-amenities{display:flex;flex-wrap:wrap;justify-content:center;gap:28px 30px;margin:18px 0 6px}
+.gf-amenity{display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;flex:0 0 170px;position:relative}
+.gf-am-ic svg{width:42px;height:42px;display:block;stroke-width:1.3}
+.gf-am-txt{display:flex;flex-direction:column;align-items:center;line-height:1.3;min-width:0}
+.gf-am-txt strong{color:#2f3a26;font-size:.9rem;font-weight:600}
+.gf-am-txt span{color:#6b7560;font-size:.76rem;margin-top:2px;max-width:190px}
+body.mobile .gf-amenities{gap:22px 14px}
+body.mobile .gf-amenity{flex:0 0 calc(50% - 14px)}
+
+/* duplicate marker */
+.dupe{position:relative}
+body.dups .dupe{box-shadow:0 0 0 2px var(--ocre);border-radius:8px;background:rgba(232,194,134,.22)}
+body.dups .dupe::after{content:attr(data-dupe);position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+  white-space:nowrap;background:var(--ocre);color:#fff;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 7px;border-radius:999px;z-index:3}
+body.dups .gf-essentiel .dupe::after{left:auto;right:0;transform:none}
+.count{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;
+  padding:6px 14px;font-size:.82rem;color:var(--soft)}
+.count b{color:var(--ocre-deep)}
+
+/* ---------- reference cards ---------- */
+.refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:20px}
+.ref{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.ref h4{font-size:1rem;margin-bottom:2px}
+.ref .who{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ocre-deep);margin-bottom:8px}
+.ref p{font-size:.86rem;color:var(--soft);margin:.4em 0}
+.wire{background:#f6f3ea;border:1px solid var(--line);border-radius:5px;padding:9px;margin:10px 0 4px;display:grid;gap:5px}
+.wire i{display:block;height:6px;background:#d9d2c0;border-radius:3px}
+.wire .row{display:flex;gap:5px}
+.wire .row i{flex:1}
+.wire .dot{width:14px;height:14px;border-radius:50%;background:#c3cdb4}
+.wire .dots{display:flex;gap:5px;justify-content:center}
+.ref .keep{font-size:.8rem;color:var(--sapin);border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+.ref .keep b{font-weight:700}
+
+/* ---------- proposals ---------- */
+.prop{scroll-margin-top:64px;margin-top:34px;border-top:3px solid var(--sapin);padding-top:16px}
+.prop .head{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.tag{background:var(--sapin);color:#fff;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;padding:4px 10px;border-radius:2px}
+.gains{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0}
+.gain{background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:.78rem;color:var(--soft)}
+.gain b{color:var(--sapin)}
+.risk{font-size:.84rem;color:var(--ocre-deep);margin-top:8px}
+
+/* A — numbers band + grouped grid */
+.pa-band{display:flex;justify-content:center;flex-wrap:wrap;gap:0;margin:20px 0 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pa-num{flex:1 1 0;min-width:120px;padding:16px 10px;text-align:center;border-right:1px solid var(--line)}
+.pa-num:last-child{border-right:0}
+.pa-num svg{width:26px;height:26px;stroke-width:1.4;opacity:.9}
+.pa-num b{display:block;font-family:"Marcellus",Georgia,serif;font-size:1.7rem;color:var(--sapin);line-height:1.1;margin-top:2px}
+.pa-num em{display:block;font-style:normal;font-size:.8rem;color:var(--ink)}
+.pa-num small{display:block;font-size:.7rem;color:var(--mute)}
+body.mobile .pa-num{flex:0 0 50%;border-bottom:1px solid var(--line)}
+body.mobile .pa-num:nth-child(2n){border-right:0}
+.pa-chip{display:flex;justify-content:center;margin:12px 0 0}
+.pa-chip span{border:1px solid var(--green);color:var(--green);border-radius:999px;padding:4px 14px;font-size:.76rem;
+  letter-spacing:.1em;text-transform:uppercase;display:inline-flex;gap:8px;align-items:center}
+.pa-chip svg{width:16px;height:16px;stroke-width:1.6}
+.pa-groups{display:grid;grid-template-columns:1fr 1fr;gap:4px 34px;margin-top:14px}
+body.mobile .pa-groups{grid-template-columns:1fr}
+.pa-g{padding:14px 0;border-bottom:1px solid rgba(0,0,0,.07)}
+.pa-g-h{display:flex;gap:11px;align-items:center}
+.pa-g-h svg{width:30px;height:30px;stroke-width:1.4;flex:0 0 auto}
+.pa-g-h h4{font-size:1.02rem;letter-spacing:.02em}
+.pa-g p{margin:6px 0 0 41px;font-size:.86rem;color:var(--soft)}
+body.mobile .pa-g p{margin-left:0}
+
+/* B — editorial */
+.pb-line{text-align:center;font-family:"Marcellus",Georgia,serif;color:var(--sapin);font-size:1.02rem;margin:20px 0 0;
+  letter-spacing:.02em}
+.pb-line span{white-space:nowrap}
+.pb-line{max-width:100%}
+.pb-line i{color:var(--ocre);font-style:normal;margin:0 8px}
+.pb-sign{display:flex;justify-content:center;gap:34px;flex-wrap:wrap;background:#efe9dc;border-radius:12px;padding:16px 20px;margin:20px 0 0}
+.pb-sign div{display:flex;gap:10px;align-items:flex-start;font-size:.86rem;color:var(--sapin);flex:1 1 210px;max-width:250px}
+.pb-sign svg{width:30px;height:30px;stroke-width:1.4;flex:0 0 auto}
+.pb-sign b{display:block;font-weight:700}
+.pb-sign em{font-style:normal;color:var(--mute);font-size:.78rem}
+.pb-cols{display:grid;grid-template-columns:1.35fr 1fr;gap:34px;margin-top:26px}
+body.mobile .pb-cols{grid-template-columns:1fr;gap:22px}
+.pb-cols h4{font-size:.78rem;letter-spacing:.24em;text-transform:uppercase;color:var(--ocre-deep);border-bottom:1px solid var(--line);padding-bottom:7px;margin-bottom:10px}
+.pb-g{margin-bottom:14px}
+.pb-g strong{font-size:.86rem;color:var(--sapin)}
+.pb-g p{margin:2px 0 0;font-size:.86rem;color:var(--soft)}
+.pb-know .ln{display:flex;flex-direction:column;padding:7px 0;border-bottom:1px solid rgba(0,0,0,.07)}
+.pb-know dt{font-size:.8rem;font-weight:700;color:var(--sapin)}
+.pb-know dd{margin:0;font-size:.82rem;color:var(--soft)}
+
+/* C — signatures + folded list */
+.pc-sign{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:20px 0 0}
+body.mobile .pc-sign{grid-template-columns:1fr}
+.pc-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center}
+.pc-card svg{width:34px;height:34px;stroke-width:1.4}
+.pc-card b{display:block;font-size:.92rem;color:var(--sapin);margin-top:6px}
+.pc-card span{font-size:.78rem;color:var(--mute)}
+.pc-list{columns:2;column-gap:34px;margin:22px 0 0}
+body.mobile .pc-list{columns:1}
+.pc-list div{break-inside:avoid;font-size:.86rem;color:var(--soft);padding:5px 0;display:flex;gap:9px}
+.pc-list div::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--green);flex:0 0 auto;margin-top:8px}
+.pc-more{margin-top:14px}
+.pc-more button{border:1px solid var(--sapin);background:none;color:var(--sapin);font:inherit;font-size:.78rem;
+  letter-spacing:.16em;text-transform:uppercase;padding:11px 20px;border-radius:2px;cursor:pointer}
+.pc-more button:hover{background:var(--sapin);color:#fff}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:60;display:none}
+.modal[open]{display:block}
+.modal .bg{position:absolute;inset:0;background:rgba(22,28,22,.55)}
+.modal .panel{position:relative;background:var(--card);max-width:720px;margin:6vh auto;border-radius:10px;
+  max-height:84vh;overflow:auto;padding:26px 28px}
+.modal .panel h3{text-transform:uppercase;letter-spacing:.05em}
+.modal .x{position:absolute;top:14px;right:14px;border:1px solid var(--line);background:#fff;width:34px;height:34px;
+  border-radius:50%;cursor:pointer;font-size:1.1rem;line-height:1;color:var(--soft)}
+.modal .mg{margin-top:18px}
+.modal .mg-h{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:7px}
+.modal .mg-h svg{width:24px;height:24px;stroke-width:1.5}
+.modal .mg-h h4{font-size:.98rem}
+.modal .mg ul{margin:8px 0 0;padding-left:20px;font-size:.87rem;color:var(--soft)}
+.modal .mg li{padding:2px 0}
+
+/* decision helper */
+.pick{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin-top:22px}
+.pick .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:12px 0}
+.pick label{display:block;border:1px solid var(--line);border-radius:8px;padding:12px 14px;cursor:pointer;font-size:.86rem}
+.pick label:hover{border-color:var(--green)}
+.pick input{accent-color:var(--green);margin-right:8px}
+.pick label.on{border-color:var(--sapin);background:#f2f5ee;box-shadow:inset 0 0 0 1px var(--sapin)}
+.pick .out{border-top:1px solid var(--line);padding-top:14px;font-size:.88rem;color:var(--soft);min-height:3em}
+.pick .out b{color:var(--sapin)}
+.pick .out ul{margin:6px 0 0;padding-left:20px}
+
+table.tbl{width:100%;border-collapse:collapse;margin-top:14px;font-size:.86rem}
+table.tbl th,table.tbl td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.tbl th{font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);font-weight:700}
+table.tbl td b{color:var(--sapin)}
+ul.plain{padding-left:20px;color:var(--soft)}
+ul.plain li{padding:3px 0}
+.note{background:#efe9dc;border-left:3px solid var(--ocre);padding:14px 18px;border-radius:0 6px 6px 0;margin-top:16px;font-size:.9rem}
+.note b{color:var(--sapin)}
+footer.end{background:var(--nuit);color:#a8a394;margin-top:50px;padding:26px 0;font-size:.8rem}
+
+/* --- tableau des équipements, remonté sous L’essentiel --- */
+.ctrls{display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin:16px 0 0;font-size:.84rem;color:var(--soft)}
+.ctrls input[type=range]{accent-color:var(--green);width:230px;vertical-align:middle}
+.ctrls output{font-variant-numeric:tabular-nums;color:var(--sapin);font-weight:700}
+#frame-new{width:920px;max-width:100%}
+.eqt{container-type:inline-size}
+.eqt-grid{display:grid;grid-template-columns:1fr;gap:0 36px}
+@container (min-width:600px){ .eqt-grid{grid-template-columns:1fr 1fr} }
+@supports not (container-type:inline-size){ @media (min-width:800px){ .eqt-grid{grid-template-columns:1fr 1fr} } }
+.eqt-row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid rgba(0,0,0,.08)}
+.eqt-row svg{width:26px;height:26px;stroke-width:1.5;flex:0 0 auto;margin-top:2px}
+.eqt-row b{display:block;font-size:.9rem;color:#2f3a26;font-weight:600}
+.eqt-row span{font-size:.78rem;color:var(--mute)}
+.eqt-kv{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid rgba(0,0,0,.08)}
+.eqt-kv dt{flex:0 0 44%;font-weight:700;font-size:.86rem;color:#2f3a26}
+.eqt-kv dd{margin:0;font-size:.83rem;color:var(--soft)}
+.eqt-g{padding:13px 0;border-bottom:1px solid rgba(0,0,0,.08)}
+.eqt-g-h{display:flex;gap:11px;align-items:center}
+.eqt-g-h svg{width:28px;height:28px;stroke-width:1.45;flex:0 0 auto}
+.eqt-g-h h4{font-size:1rem}
+.eqt-g p{margin:6px 0 0 39px;font-size:.85rem;color:var(--soft)}
+.moved{font-size:.83rem;color:var(--ocre-deep);margin-top:12px;padding-left:2px}
+.moved b{color:var(--sapin)}
+.bp{position:relative;height:3px;background:var(--line);border-radius:2px;margin:10px 0 0;max-width:230px}
+.bp i{position:absolute;top:-4px;width:11px;height:11px;border-radius:50%;background:var(--ocre);left:46.6%}
+</style>
+</head>
+<body class="zones">
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Domaine Solio · pages logement</p>
+    <h1>Les zones à icônes</h1>
+    <p>La page d’un logement porte aujourd’hui <strong>trois</strong> zones de faits : les pastilles sous le
+    bandeau, l’encadré « L’essentiel », et la grille « Équipements » en bas. Quatre faits y sont écrits deux fois,
+    et les deux grammaires d’icônes ne se ressemblent pas. Voici le constat mesuré sur la production, ce que font
+    les autres, et la proposition retenue : <strong>remonter les équipements juste sous « L’essentiel »</strong>,
+    en tableau deux colonnes qui retombe à une seule quand la place manque. Tout est manipulable ci-dessous.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="wrap">
+    <span class="lab">Logement</span>
+    <div class="seg" id="seg-log">
+      <button data-log="granja" aria-pressed="true">La Granja</button>
+      <button data-log="estiva" aria-pressed="false">L’Estiva</button>
+    </div>
+    <span class="lab">Écran</span>
+    <div class="seg" id="seg-vp">
+      <button data-vp="desk" aria-pressed="true">Bureau</button>
+      <button data-vp="mob" aria-pressed="false">Mobile</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="t-dups"> Surligner les redites</label>
+    <label class="chk"><input type="checkbox" id="t-zones" checked> Nommer les zones</label>
+    <nav class="nav">
+      <a href="#constat">Constat</a><a href="#autres">Les autres</a><a href="#props">La proposition</a><a href="#choix">Suite</a>
+    </nav>
+  </div>
+</div>
+
+<section class="blk" id="constat">
+  <div class="wrap">
+    <h2>1. Le constat</h2>
+    <p class="lede">Rendu fidèle de la production du 24/09/2026 — mêmes textes, mêmes icônes, même CSS.
+    Cochez <em>Surligner les redites</em> pour voir les faits qui apparaissent deux fois.</p>
+    <p><span class="count">Redites détectées : <b id="dup-count">—</b></span></p>
+    <div class="frame" id="frame-now"></div>
+
+    <div class="note">
+      <b>Une découverte au passage.</b> La grille « Équipements » est écrite à la main dans la page WordPress,
+      alors que <code>gf-seo-facts.php</code> tient une <em>autre</em> liste d’équipements, celle qui alimente le
+      JSON-LD <code>amenityFeature</code>. Les deux ont déjà divergé : <span id="hidden-count">plusieurs</span>
+      faits existent pour les robots et pas pour le lecteur.
+      <ul class="plain" id="hidden-list"></ul>
+      Et ni le CSS ni les icônes de ces deux zones ne sont versionnés : ils vivent dans la page WP et dans
+      deux blocs <code>&lt;script&gt;</code> qui dessinent les SVG au chargement. Un robot d’IA ne voit donc aucune icône,
+      et une panne de JS laisse les pastilles nues.
+    </div>
+  </div>
+</section>
+
+<section class="blk" id="autres">
+  <div class="wrap">
+    <h2>2. Ce que font les autres</h2>
+    <p class="lede">Quatre familles de mise en page, relevées sur des pages réelles. Aucune ne met deux fois le
+    même fait sous deux icônes différentes.</p>
+    <div class="refs">
+
+      <div class="ref">
+        <div class="who">Grande Ourse · Drôme</div>
+        <h4>Une seule zone, groupée par pièce</h4>
+        <div class="wire">
+          <div class="row"><span class="dot"></span><i></i></div>
+          <i style="width:60%"></i><i style="width:75%"></i>
+          <div class="row"><span class="dot"></span><i></i></div>
+          <i style="width:70%"></i><i style="width:50%"></i>
+        </div>
+        <p>« Les équipements de votre gîte » : une icône par <em>famille</em> (Espace nuit, Cuisine, Salle d’eau,
+        Terrasse, Les petits +, Pour vous divertir), puis du texte courant. Zéro pastille en haut de page.</p>
+        <p class="keep"><b>On garde :</b> l’icône porte le groupe, pas chaque item.</p>
+      </div>
+
+      <div class="ref">
+        <div class="who">Airbnb · Booking</div>
+        <h4>Chiffres en haut, inventaire replié</h4>
+        <div class="wire">
+          <div class="row"><i></i><i></i><i></i><i></i></div>
+          <i style="width:80%"></i>
+          <div class="row"><span class="dot"></span><i style="flex:3"></i></div>
+          <div class="row"><span class="dot"></span><i style="flex:3"></i></div>
+          <i style="width:40%;background:#b9c3a8"></i>
+        </div>
+        <p>Une ligne de compteurs sous le titre (voyageurs · chambres · lits · salles de bain), puis 8 à 10
+        équipements seulement, et « Afficher les 42 équipements » qui ouvre un panneau groupé par catégorie.</p>
+        <p class="keep"><b>On garde :</b> la page reste courte, l’inventaire reste complet.</p>
+      </div>
+
+      <div class="ref">
+        <div class="who">Mr &amp; Mrs Smith · Sawday’s</div>
+        <h4>Zéro icône, tout en typographie</h4>
+        <div class="wire">
+          <i style="width:55%"></i>
+          <i style="width:90%"></i><i style="width:85%"></i>
+          <div class="row"><i style="flex:1"></i><i style="flex:2"></i></div>
+          <div class="row"><i style="flex:1"></i><i style="flex:2"></i></div>
+        </div>
+        <p>Pas une seule pastille : un « Need to know » en liste de définitions (chambres, check-out, enfants,
+        animaux) et les prestations en prose. Le luxe s’y dit par le texte et la photo.</p>
+        <p class="keep"><b>On garde :</b> les règles et horaires n’ont pas besoin d’icône.</p>
+      </div>
+
+      <div class="ref">
+        <div class="who">Gîtes de France</div>
+        <h4>Taxonomie en colonnes</h4>
+        <div class="wire">
+          <div class="row"><i style="flex:1"></i><i style="flex:1"></i></div>
+          <div class="row"><i style="flex:1"></i><i style="flex:1"></i></div>
+          <div class="row"><i style="flex:1"></i><i style="flex:1"></i></div>
+        </div>
+        <p>« Équipements intérieurs / extérieurs / services » en cases à cocher, exhaustif et sans hiérarchie :
+        pratique pour filtrer, illisible pour rêver.</p>
+        <p class="keep"><b>On évite :</b> la liste plate de 40 lignes sans familles.</p>
+      </div>
+
+    </div>
+    <div class="note">
+      <b>Le point commun des quatre.</b> Un fait n’est montré qu’une fois, et les icônes sont soit sur les
+      <em>compteurs</em> (haut de page), soit sur les <em>familles</em> (bas de page) — jamais sur les deux.
+      C’est exactement la règle que les trois propositions suivantes appliquent.
+    </div>
+  </div>
+</section>
+
+<section class="blk" id="props">
+  <div class="wrap">
+    <h2>3. La proposition</h2>
+    <p class="lede">Les équipements remontent <strong>juste sous « L’essentiel »</strong> : tous les faits
+    avant le récit, plus rien à chercher en bas de page. Le tableau se met sur deux colonnes quand la largeur
+    le permet, sur une seule sinon — tirez la poignée, la bascule se fait à <strong>600 px de cadre</strong>,
+    pas de fenêtre : le même tableau se comporte bien dans une colonne étroite comme en pleine page.</p>
+
+    <div class="ctrls">
+      <label>Largeur du cadre <input type="range" id="w" min="320" max="920" step="10" value="920"></label>
+      <output id="wout">920 px</output>
+      <label class="chk"><input type="checkbox" id="t-dedup" checked> Retirer les redites</label>
+      <span class="lab">Rendu du tableau</span>
+      <div class="seg" id="seg-var">
+        <button data-var="rows" aria-pressed="true">Lignes à icône</button>
+        <button data-var="grouped" aria-pressed="false">Groupé par famille</button>
+        <button data-var="kv" aria-pressed="false">Terme / valeur</button>
+      </div>
+    </div>
+    <div class="bp" title="bascule à 600 px"><i></i></div>
+
+    <div class="frame" id="frame-new"></div>
+    <p class="moved" id="moved"></p>
+
+    <div class="note">
+      <b>Pourquoi le dédoublonnage devient obligatoire.</b> Remonter la grille colle « Bain nordique » et
+      « Bébés » de L’essentiel à deux centimètres des mêmes lignes dans les équipements, et les salles d’eau
+      des pastilles juste au-dessus des salles d’eau du tableau. Décochez <em>Retirer les redites</em> pour voir
+      l’effet : ce qui passait inaperçu à deux écrans d’écart saute aux yeux collé. Le partage proposé : les
+      compteurs (salles d’eau, toilettes) restent aux pastilles, les prestations (bain nordique, bébé) vont
+      au tableau.
+    </div>
+    <div class="note">
+      <b>Les trois rendus.</b> <em>Lignes à icône</em> garde l’inventaire affiché aujourd’hui, une icône par
+      ligne — le plus proche de l’existant. <em>Groupé par famille</em> met l’icône sur la famille et fait
+      entrer les <span id="hid2">5</span> faits qui n’existent aujourd’hui que pour les robots. <em>Terme / valeur</em>
+      reprend exactement la grammaire de L’essentiel, pour que les deux blocs collés n’aient qu’une seule voix.
+    </div>
+  </div>
+</section>
+
+<section class="blk" id="choix">
+  <div class="wrap">
+    <h2>4. Ce qui reste à trancher</h2>
+    <table class="tbl">
+      <tr><th>Arbitrage</th><th>Ce qui est en jeu</th></tr>
+      <tr><td><b>Le rendu du tableau</b></td><td>Lignes à icône, groupé par famille, ou terme / valeur. Les trois sont au-dessus, à la même largeur : c’est le seul vrai choix d’allure.</td></tr>
+      <tr><td><b>Le partage des redites</b></td><td>Proposé : les compteurs restent aux pastilles, les prestations descendent au tableau. L’autre découpe — tout garder dans L’essentiel — laisse le tableau maigre.</td></tr>
+      <tr><td><b>Les faits invisibles</b></td><td>Poêle à bois, tablée de 10 à 12 couverts, terrasse au soleil levant, salle de jeux, isolation laine de bois : ils existent dans <code>gf-seo-facts.php</code> et pas à l’écran. On les fait entrer, ou on les retire aussi du JSON-LD.</td></tr>
+      <tr><td><b>La source de vérité</b></td><td>Rendre le tableau depuis <code>gf-seo-facts.php</code> via un <code>[solio_equipements]</code> versionné, pour qu’il ne puisse plus diverger du JSON-LD. Recommandé, indépendant du rendu choisi.</td></tr>
+    </table>
+
+    <div class="note">
+      <b>Ce que je ne touche pas.</b> Les pastilles du haut, le bandeau, les photos, le récit, le tiroir de
+      réservation, et le contenu commercial : chaque fait affiché ici existe déjà sur le site ou dans
+      <code>gf-seo-facts.php</code>. Aucune icône nouvelle n’a été dessinée — toutes viennent de la production.
+    </div>
+    <div class="note">
+      <b>Le vrai risque du chantier.</b> Ces deux zones ne sont pas dans le dépôt : leur HTML est dans la page
+      WordPress, leur CSS et leurs icônes dans des blocs <code>&lt;style&gt;</code> / <code>&lt;script&gt;</code> de la page.
+      Quoi qu’on fasse, le travail est perdu au prochain incident tant qu’il n’est pas porté en code court dans
+      <code>gf-seo-blocks.php</code> + <code>gf-site-style.php</code>, rendu côté serveur — et déposé à la main sur
+      <code>192.168.0.23</code>, sauvegarde avant copie.
+    </div>
+  </div>
+</section>
+
+<footer class="end"><div class="wrap">Propositions visuelles — 24/09/2026 · relevé sur domainesolio.com et sur quatre sites de référence · page autonome, aucune dépendance extérieure</div></footer>
+
+<script>
+/* ------------------------------------------------------------------ icônes
+   Reprise exacte des SVG dessinés dans les deux blocs <script> de la page de
+   production (grille 24 et grille 28 pour les pastilles), plus trois tracés
+   ajoutés ici : surface, poêle, ciel étoilé. */
+var G = '#5a6b48';
+function ico(inner, vb){
+  return '<svg viewBox="0 0 ' + (vb || '24 24') + '" fill="none" stroke="' + G +
+    '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+}
+var P = {
+  hottub:'<path d="M4 10h16v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M7.5 3.5q1 1 0 2.5M12 3q1 1 0 2.5M16.5 3.5q1 1 0 2.5"/>',
+  pool:'<path d="M3 17c1.8-1.4 3.6-1.4 5.4 0s3.6 1.4 5.4 0 3.6-1.4 5.4 0"/><path d="M3 20.5c1.8-1.4 3.6-1.4 5.4 0s3.6 1.4 5.4 0 3.6-1.4 5.4 0"/><path d="M8 14V5.5M12 14V5.5M8 8.5h4"/>',
+  trail:'<path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7" fill="'+G+'" stroke="none"/>',
+  pets:'<path d="M16.5 15.6h-9A3 3 0 0 1 7 9.7a3 3 0 0 1 4.8-2.3A3 3 0 0 1 17 9.6a3 3 0 0 1-.5 6z"/><path d="M9.6 15.6v2.6M13.8 15.6v2.6"/><circle cx="18" cy="12.7" r="2.05" fill="'+G+'" stroke="none"/>',
+  kitchen:'<path d="M6 3v5a2 2 0 0 0 4 0V3M8 3v18"/><path d="M17 3c-1.8 1.5-2.6 3.5-2.6 5.6 0 1.6 1 2.6 2.6 2.6V21"/>',
+  shower:'<path d="M12 4v2.5"/><path d="M6.8 11a5.2 5.2 0 0 1 10.4 0z"/><path d="M8 14l-.6 1.8M12 14v1.8M16 14l.6 1.8"/>',
+  wc:'<path d="M6.5 4h5v7h-5z"/><path d="M6.5 11a6 6 0 0 0 12 0h-7"/><path d="M10.5 17l-1.2 3h7l-1.2-3"/>',
+  bed:'<path d="M3 8v10M3 15h18v3M21 15v-4a3 3 0 0 0-3-3H9v7"/><circle cx="6" cy="10.5" r="1.7"/>',
+  terrace:'<circle cx="12" cy="9" r="3.4"/><path d="M12 2.5V4M5.8 4.8l1 1M18.2 4.8l-1 1M3 9h1.5M19.5 9H21"/><path d="M4 16.5h16M7 20h10"/>',
+  parking:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9.5 17V7h3.5a3 3 0 0 1 0 6H9.5"/>',
+  wifi:'<path d="M3.5 9.5a13 13 0 0 1 17 0"/><path d="M6.5 13a9 9 0 0 1 11 0"/><path d="M9.5 16.3a5 5 0 0 1 5 0"/><circle cx="12" cy="19.3" r="1.2" fill="'+G+'" stroke="none"/>',
+  washer:'<rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><circle cx="12" cy="13.2" r="4.1"/><path d="M9.3 12.4c1.7 1.3 3.7 1.3 5.4 0"/><circle cx="7.6" cy="6.3" r=".9" fill="'+G+'" stroke="none"/>',
+  baby:'<path d="M10 3.5h4M12 3.5V6"/><rect x="9" y="6" width="6" height="14.5" rx="3"/><path d="M9 11h6"/>',
+  safety:'<path d="M12 3l7 2.8v5.2c0 4.8-2.9 7.9-7 10-4.1-2.1-7-5.2-7-10V5.8z"/><path d="M9.3 12.2l2 2 3.6-4.2"/>',
+  power:'<path d="M13.2 2.5L5.5 13.5h5l-1.2 8 7.7-11h-5z"/>',
+  bbq:'<path d="M5 8h14a7 7 0 0 1-14 0z"/><path d="M8.2 14.6L6 20M15.8 14.6L18 20M12 15v2.2"/><path d="M8 3q1 1 0 2.4M12 2.6q1 1 0 2.4M16 3q1 1 0 2.4"/>',
+  games:'<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.1" fill="'+G+'" stroke="none"/><circle cx="15.5" cy="8.5" r="1.1" fill="'+G+'" stroke="none"/><circle cx="12" cy="12" r="1.1" fill="'+G+'" stroke="none"/><circle cx="8.5" cy="15.5" r="1.1" fill="'+G+'" stroke="none"/><circle cx="15.5" cy="15.5" r="1.1" fill="'+G+'" stroke="none"/>',
+  surface:'<path d="M4.5 4.5h15v15h-15z"/><path d="M8.5 4.5v3.5M4.5 8.5h3.5M15.5 19.5V16M19.5 15.5H16"/>',
+  fire:'<path d="M12 21c3.2 0 5.4-2.1 5.4-4.9 0-3.4-3-5.1-3-8.4C14.4 4.6 12.8 3 12 3c0 3-2.2 4.2-2.2 6.4 0 1.4.7 2.3.7 3.3 0 1-.8 1.7-1.6 1.7-.8 0-1.4-.6-1.4-1.6-.6 2.1-1 3.3-1 4.1 0 2.5 2.3 4.1 5.5 4.1z"/>',
+  star:'<path d="M12 3.6l2.5 5.1 5.6.8-4 4 .9 5.6-5-2.7-5 2.7.9-5.6-4-4 5.6-.8z"/>',
+  tent:'<path d="M14 4.5L2.5 24h23z"/><path d="M14 24l-3.8-8M14 24l3.8-8"/><path d="M1.5 24h25"/>',
+  leaf:'<path d="M22.5 5.5C13 5.5 6.5 10 6.5 18.5c0 2 .4 3.5 1 4.8 6.5 0 15-3.3 15-17.8z"/><path d="M7 23c3.5-6.5 8.5-11.5 13.5-14.5"/>',
+  people:'<circle cx="10.5" cy="9" r="3.4"/><path d="M4 23c0-3.6 2.9-6.5 6.5-6.5S17 19.4 17 23"/><circle cx="19.5" cy="10" r="2.7"/><path d="M18.5 16.6c3.2.3 5.5 3 5.5 6.4"/>',
+  door:'<path d="M5 26V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v23"/><path d="M3 26h18"/><circle cx="15.5" cy="14.5" r="1.2" fill="'+G+'" stroke="none"/>',
+  showerC:'<path d="M12 3v3"/><path d="M5 11C5 7 9 6 12 6C15 6 19 7 19 11Z"/><path d="M9 14l-1 3.5M12 15l-1 4M15 14l-1 3.5"/>',
+  wcC:'<rect x="6" y="3.5" width="12" height="6" rx="1.5"/><path d="M7 11h10v1a5 5 0 0 1-10 0z"/><path d="M9.5 17l-1.5 6.5h8L14.5 17"/>'
+};
+function bedIco(single){
+  var w = single ? 30 : 42;
+  var pillows = single ? '<rect x="9" y="8" width="12" height="6" rx="3"/>'
+    : '<rect x="8" y="8" width="12" height="6" rx="3"/><rect x="22" y="8" width="12" height="6" rx="3"/>';
+  return ico('<rect x="2.5" y="5" width="'+(w-5)+'" height="5" rx="2"/>' + pillows +
+    '<rect x="2.5" y="13" width="'+(w-5)+'" height="9" rx="2"/><path d="M4 22v5M'+(w-4)+' 22v5"/>', w + ' 28');
+}
+function I(k){
+  if (k === 'bedD') return bedIco(false);
+  if (k === 'bedS') return bedIco(true);
+  if (k === 'people' || k === 'tent' || k === 'leaf') return ico(P[k], '28 28');
+  if (k === 'door' || k === 'showerC' || k === 'wcC') return ico(P[k], '24 28');
+  return ico(P[k]);
+}
+
+/* ------------------------------------------------------------------ données
+   Tout vient de la production : textes des pastilles et de la grille relevés
+   sur la page, inventaire complété par gf-seo-facts.php. Rien n’est inventé. */
+var DATA = {
+  granja: {
+    nom:'La Granja', kicker:'Le gîte du domaine · toute l’année',
+    tagline:'La maison où la tablée s’étire jusqu’au soir — 10 personnes, face au soleil levant.',
+    label:'Gîtes de France 3 épis', labelIco:'leaf',
+    caps:[
+      {ic:'people', t:'10 personnes — davantage sur demande'},
+      {ic:'door', t:'4 chambres'},
+      {ic:'bedD', t:'4 lits doubles'},
+      {ic:'bedS', t:'5 lits simples'},
+      {ic:'showerC', t:'2 salles d’eau', dupe:'↓ Équipements'},
+      {ic:'wcC', t:'2 toilettes', dupe:'↓ Équipements'},
+      {ic:'leaf', t:'Gîtes de France 3 épis'}
+    ],
+    essentiel:[
+      ['Superficie','180 m² sur trois niveaux, soit 60 m² par niveau'],
+      ['Arrivée / départ','entre 16h00 et 19h00, départ avant 10h00'],
+      ['Saison','ouvert toute l’année'],
+      ['Animaux','chiens non acceptés'],
+      ['Bébés','équipement complet sur demande — tout est prêt à votre arrivée','↓ Équipements'],
+      ['Bain nordique','sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour','↓ Équipements'],
+      ['Non-fumeur','oui, hébergement entièrement non-fumeur'],
+      ['Accessibilité','non adapté aux personnes à mobilité réduite — maison sur trois niveaux']
+    ],
+    amen:[
+      {ic:'kitchen', t:'Cuisine des tribus', s:'four, lave-vaisselle, très grand réfrigérateur, cafetière, ustensiles'},
+      {ic:'bbq', t:'Barbecue & cuisine d’été', s:'grand barbecue avec évier'},
+      {ic:'washer', t:'Machine à laver', s:'fer & planche à repasser, sèche-cheveux'},
+      {ic:'bed', t:'Lits faits à l’arrivée', s:'draps de lit fournis'},
+      {ic:'wifi', t:'Wifi gratuit'},
+      {ic:'shower', t:'2 salles d’eau', dupe:'↑ pastilles'},
+      {ic:'wc', t:'2 toilettes', dupe:'↑ pastilles'},
+      {ic:'baby', t:'Équipement bébé', s:'complet, sur demande', dupe:'↑ L’essentiel'},
+      {ic:'safety', t:'Sécurité', s:'détecteurs fumée & CO, extincteur, trousse de premiers secours'},
+      {ic:'hottub', t:'Bain nordique', s:'sur le domaine · 1 h offerte à chaque séjour', dupe:'↑ L’essentiel'},
+      {ic:'pool', t:'Piscine extérieure partagée', s:'non chauffée · mi-juin à fin août'}
+    ],
+    cachees:[
+      'Poêle à bois, bois fourni',
+      'Grande pièce de vie et tablée de 10 à 12 couverts',
+      'Terrasse exposée au soleil levant, vue sur les montagnes',
+      'Salle de jeux dans les combles',
+      'Entièrement rénové, isolation en laine de bois'
+    ],
+    chiffres:[
+      {ic:'people', n:'10', l:'personnes', s:'12 avec les appoints'},
+      {ic:'door', n:'4', l:'chambres', s:'sur trois niveaux'},
+      {ic:'showerC', n:'2', l:'salles d’eau', s:'et 2 toilettes'},
+      {ic:'surface', n:'180', l:'m²', s:'60 m² par niveau'}
+    ],
+    ligne:['10 personnes','4 chambres','9 couchages','2 salles d’eau','180 m²','Gîtes de France 3 épis'],
+    signatures:[
+      {ic:'hottub', t:'Bain nordique privatisé', s:'1 heure offerte à chaque séjour'},
+      {ic:'pool', t:'Piscine sur le domaine', s:'non chauffée, de mi-juin à fin août'},
+      {ic:'bed', t:'Lits faits à votre arrivée', s:'draps fournis, vous n’avez rien à porter'}
+    ],
+    savoir:[
+      ['Arrivée / départ','entre 16h00 et 19h00, départ avant 10h00'],
+      ['Saison','ouvert toute l’année'],
+      ['Animaux','chiens non acceptés — les bêtes du domaine vivent en liberté'],
+      ['Non-fumeur','entièrement non-fumeur'],
+      ['Accessibilité','non adapté aux personnes à mobilité réduite — maison sur trois niveaux']
+    ],
+    groupes:[
+      {ic:'kitchen', t:'Cuisine & grandes tablées', items:[
+        'Four','Lave-vaisselle','Très grand réfrigérateur','Micro-ondes','Cafetière Nespresso','Grille-pain',
+        'Vaisselle et ustensiles','Tablée de 10 à 12 couverts','Grand barbecue avec cuisine d’été et évier']},
+      {ic:'bed', t:'Nuit & salles d’eau', items:[
+        '4 chambres sur trois niveaux','4 lits doubles','5 lits simples','Lits faits à l’arrivée, draps fournis',
+        '2 salles d’eau','2 toilettes','Sèche-cheveux','Équipement bébé complet sur demande : lit, chaise haute']},
+      {ic:'fire', t:'Vivre dedans', items:[
+        'Grande pièce de vie','Poêle à bois, bois fourni','Salle de jeux dans les combles','Wifi gratuit',
+        'Machine à laver','Fer et planche à repasser','Entièrement rénové, isolation en laine de bois']},
+      {ic:'terrace', t:'Dehors, sur le domaine', items:[
+        'Terrasse exposée au soleil levant, vue sur les montagnes',
+        'Bain nordique privatisé — 1 h offerte à chaque séjour',
+        'Piscine partagée, non chauffée, de mi-juin à fin août','Sentier de balade de 2 km',
+        'Animaux de la ferme en accès libre','Rivière de baignade à proximité','Parking gratuit sur place']},
+      {ic:'safety', t:'Sécurité', items:[
+        'Détecteurs de fumée et de CO','Extincteur','Trousse de premiers secours']}
+    ],
+    court:[
+      'Cuisine pensée pour les grandes tablées','Tablée de 10 à 12 couverts','Poêle à bois, bois fourni',
+      'Lits faits à l’arrivée, draps fournis','2 salles d’eau et 2 toilettes','Wifi gratuit',
+      'Terrasse au soleil levant, vue montagnes','Salle de jeux dans les combles'
+    ]
+  },
+
+  estiva: {
+    nom:'L’Estiva', kicker:'La tente safari · du 1er avril au 14 octobre',
+    tagline:'Perchée à 2,50 m du sol, au cœur du parc des chèvres — cinq personnes sous la toile.',
+    label:'Tente safari', labelIco:'tent',
+    caps:[
+      {ic:'people', t:'5 personnes'},
+      {ic:'door', t:'2 chambres'},
+      {ic:'bedD', t:'1 lit double'},
+      {ic:'bedS', t:'3 lits simples'},
+      {ic:'showerC', t:'1 salle d’eau', dupe:'↓ Équipements'},
+      {ic:'wcC', t:'1 toilette', dupe:'↓ Équipements'},
+      {ic:'tent', t:'Tente safari'}
+    ],
+    essentiel:[
+      ['Superficie','24 m² sous la tente, plus 50 m² de terrasse où se trouvent la salle d’eau et les toilettes'],
+      ['Arrivée / départ','entre 16h00 et 19h00, départ avant 10h00'],
+      ['Saison','ouvert du 1er avril au 14 octobre'],
+      ['Wifi','non — ici, on se connecte à la nature plutôt qu’à internet'],
+      ['Animaux','chiens non acceptés'],
+      ['Bébés','équipement complet sur demande — tout est prêt à votre arrivée'],
+      ['Bain nordique','sur le domaine, à quelques pas — 1 créneau d’1 h offert à chaque séjour','↓ Équipements'],
+      ['Non-fumeur','oui, hébergement entièrement non-fumeur'],
+      ['Accessibilité','non adapté aux personnes à mobilité réduite — accès nature à pied sur 300 m']
+    ],
+    amen:[
+      {ic:'kitchen', t:'Kitchenette équipée', s:'micro-ondes, réfrigérateur, cafetière'},
+      {ic:'shower', t:'Salle d’eau', dupe:'↑ pastilles'},
+      {ic:'wc', t:'Toilette à eau', dupe:'↑ pastilles'},
+      {ic:'bed', t:'Lits faits à l’arrivée', s:'couettes et couvertures supplémentaires'},
+      {ic:'power', t:'Eau chaude & électricité', s:'tout le confort, sous la toile'},
+      {ic:'terrace', t:'Terrasse privée', s:'coucher de soleil & animaux en liberté'},
+      {ic:'hottub', t:'Bain nordique', s:'privatisé · 1 h offerte à chaque séjour', dupe:'↑ L’essentiel'},
+      {ic:'pool', t:'Piscine extérieure partagée', s:'non chauffée · mi-juin à fin août'},
+      {ic:'parking', t:'Parking gratuit sur place', s:'accès à pied, 300 m'}
+    ],
+    cachees:[
+      'Tente safari sur terrasse bois montée sur pilotis',
+      'Plancha offerte à partir de 2 nuits',
+      'Ciel étoilé sans pollution lumineuse'
+    ],
+    chiffres:[
+      {ic:'people', n:'5', l:'personnes', s:'2 chambres closes'},
+      {ic:'bedD', n:'4', l:'couchages', s:'1 double, 3 simples'},
+      {ic:'showerC', n:'1', l:'salle d’eau', s:'et 1 toilette à eau'},
+      {ic:'surface', n:'24', l:'m² + 50', s:'sous toile + terrasse'}
+    ],
+    ligne:['5 personnes','2 chambres','4 couchages','24 m² sous la toile','50 m² de terrasse','Tente safari'],
+    signatures:[
+      {ic:'hottub', t:'Bain nordique privatisé', s:'1 heure offerte à chaque séjour'},
+      {ic:'star', t:'Ciel étoilé', s:'aucune pollution lumineuse, la première maison à 100 m'},
+      {ic:'terrace', t:'50 m² de terrasse privée', s:'plein ouest, face au coucher de soleil'}
+    ],
+    savoir:[
+      ['Arrivée / départ','entre 16h00 et 19h00, départ avant 10h00'],
+      ['Saison','du 1er avril au 14 octobre'],
+      ['Wifi','non — ici, on se connecte à la nature plutôt qu’à internet'],
+      ['Animaux','chiens non acceptés — les bêtes du domaine vivent en liberté'],
+      ['Non-fumeur','entièrement non-fumeur'],
+      ['Accessibilité','non adapté aux personnes à mobilité réduite — accès à pied sur 300 m']
+    ],
+    groupes:[
+      {ic:'kitchen', t:'Cuisine & repas', items:[
+        'Kitchenette : plaque de cuisson, micro-ondes, réfrigérateur, cafetière',
+        'Plancha offerte à partir de 2 nuits','Barbecue et cuisine d’été sur le domaine']},
+      {ic:'bed', t:'Nuit & salle d’eau', items:[
+        '2 chambres closes','1 lit double','3 lits simples','Lits faits à l’arrivée',
+        'Couettes et couvertures supplémentaires','Salle d’eau privative','Toilette à eau',
+        'Eau chaude et électricité','Équipement bébé complet sur demande']},
+      {ic:'tent', t:'Sous la toile', items:[
+        'Tente safari sur terrasse bois montée sur pilotis','24 m² sous la tente',
+        'Pas de wifi — et c’est voulu']},
+      {ic:'terrace', t:'Dehors, sur le domaine', items:[
+        'Terrasse privée de 50 m², exposée au coucher de soleil','Ciel étoilé sans pollution lumineuse',
+        'Bain nordique privatisé — 1 h offerte à chaque séjour',
+        'Piscine partagée, non chauffée, de mi-juin à fin août','Sentier de balade de 2 km',
+        'Animaux de la ferme en accès libre','Rivière de baignade à proximité',
+        'Parking gratuit sur place, accès à pied à 300 m']}
+    ],
+    court:[
+      'Tente safari sur pilotis, terrasse bois','Kitchenette équipée','Salle d’eau et toilette privatives',
+      'Lits faits à l’arrivée','Eau chaude et électricité','Terrasse privée de 50 m²',
+      'Plancha offerte dès 2 nuits','Ciel étoilé sans pollution lumineuse'
+    ]
+  }
+};
+
+/* ------------------------------------------------------------------ état */
+var state = { log:'granja', vp:'desk' };
+function L(){ return DATA[state.log]; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function total(l){ var n = 0; l.groupes.forEach(function(g){ n += g.items.length; }); return n; }
+
+function hero(){
+  var l = L();
+  return '<div class="fake-hero"><p class="k">' + l.kicker + '</p><h3>' + l.nom +
+    '</h3><p>' + l.tagline + '</p></div>';
+}
+function dupeAttr(d){ return d ? ' class="dupe" data-dupe="' + esc(d) + '"' : ''; }
+
+/* ---------- 1. l’état actuel ---------- */
+function renderNow(){
+  var l = L(), h = hero();
+  h += '<div class="zone" data-zone="Zone 1 — pastilles"><div class="gf-caps">';
+  l.caps.forEach(function(c){
+    h += '<span class="gf-cap' + (c.dupe ? ' dupe" data-dupe="' + esc(c.dupe) : '') + '">' + I(c.ic) + '<span>' + c.t + '</span></span>';
+  });
+  h += '</div></div>';
+
+  h += '<div class="zone" data-zone="Zone 2 — L’essentiel"><div class="gf-essentiel"><h4>L’essentiel</h4><dl>';
+  l.essentiel.forEach(function(e){
+    h += '<div class="ln' + (e[2] ? ' dupe" data-dupe="' + esc(e[2]) : '') + '"><dt>' + e[0] + '</dt><dd>' + e[1] + '</dd></div>';
+  });
+  h += '</dl></div></div>';
+
+  h += '<p style="text-align:center;color:#6b7560;font-size:.86rem;margin:18px 0 0">… récit, photos, « Les enfants sont ici chez eux » …</p>';
+
+  h += '<div class="zone" data-zone="Zone 3 — Équipements"><div class="eq-box"><h4 style="font-size:1.15rem;text-transform:uppercase;letter-spacing:.05em">Équipements</h4><div class="gf-amenities">';
+  l.amen.forEach(function(a){
+    h += '<div class="gf-amenity' + (a.dupe ? ' dupe" data-dupe="' + esc(a.dupe) : '') + '"><div class="gf-am-ic">' + I(a.ic) +
+      '</div><div class="gf-am-txt"><strong>' + a.t + '</strong>' + (a.s ? '<span>' + a.s + '</span>' : '') + '</div></div>';
+  });
+  h += '</div></div></div>';
+  document.getElementById('frame-now').innerHTML = h;
+
+  var pairs = document.querySelectorAll('#frame-now .dupe').length / 2;
+  document.getElementById('dup-count').textContent = pairs + (pairs > 1 ? ' faits écrits deux fois' : ' fait écrit deux fois');
+  document.getElementById('hidden-count').textContent = l.cachees.length;
+  document.getElementById('hidden-list').innerHTML = l.cachees.map(function(c){ return '<li>' + c + '</li>'; }).join('');
+}
+
+/* ---------- 2. la proposition : équipements remontés sous L’essentiel ---------- */
+var vari = 'rows';
+function dedupOn(){ var el = document.getElementById('t-dedup'); return !el || el.checked; }
+
+function eqRows(l, dd){
+  var h = '<div class="eqt-grid">';
+  l.amen.forEach(function(a){
+    if (dd && a.dupe === '↑ pastilles') return;            // le compteur reste aux pastilles
+    h += '<div class="eqt-row' + (a.dupe ? ' dupe" data-dupe="' + esc(a.dupe) : '') + '">' + I(a.ic) +
+      '<div><b>' + a.t + '</b>' + (a.s ? '<span>' + a.s + '</span>' : '') + '</div></div>';
+  });
+  return h + '</div>';
+}
+function eqGrouped(l){
+  var h = '<div class="eqt-grid">';
+  l.groupes.forEach(function(g){
+    h += '<div class="eqt-g"><div class="eqt-g-h">' + I(g.ic) + '<h4>' + g.t + '</h4></div><p>' +
+      g.items.join(' · ') + '</p></div>';
+  });
+  return h + '</div>';
+}
+function eqKv(l, dd){
+  var h = '<dl class="eqt-grid">';
+  l.amen.forEach(function(a){
+    if (dd && a.dupe === '↑ pastilles') return;
+    h += '<div class="eqt-kv' + (a.dupe ? ' dupe" data-dupe="' + esc(a.dupe) : '') + '"><dt>' + a.t +
+      '</dt><dd>' + (a.s || '—') + '</dd></div>';
+  });
+  return h + '</dl>';
+}
+
+function renderNew(){
+  var l = L(), dd = dedupOn(), h = hero();
+
+  h += '<div class="zone" data-zone="Pastilles — inchangées"><div class="gf-caps">';
+  l.caps.forEach(function(c){
+    var mark = (c.dupe && !dd) ? ' dupe" data-dupe="' + esc(c.dupe) : '';
+    h += '<span class="gf-cap' + mark + '">' + I(c.ic) + '<span>' + c.t + '</span></span>';
+  });
+  h += '</div></div>';
+
+  h += '<div class="zone" data-zone="L’essentiel"><div class="gf-essentiel"><h4>L’essentiel</h4><dl>';
+  l.essentiel.forEach(function(e){
+    if (dd && e[2]) return;                                  // la prestation descend au tableau
+    h += '<div class="ln' + (e[2] ? ' dupe" data-dupe="' + esc(e[2]) : '') + '"><dt>' + e[0] + '</dt><dd>' + e[1] + '</dd></div>';
+  });
+  h += '</dl></div></div>';
+
+  var corps = vari === 'grouped' ? eqGrouped(l) : (vari === 'kv' ? eqKv(l, dd) : eqRows(l, dd));
+  h += '<div class="zone" data-zone="Équipements — remonté ici"><div class="eq-box">' +
+    '<h4 style="font-size:1.15rem;text-transform:uppercase;letter-spacing:.05em">Équipements</h4>' +
+    '<div class="eqt">' + corps + '</div></div></div>';
+
+  h += '<p style="text-align:center;color:#6b7560;font-size:.86rem;margin:20px 0 0">… récit, photos, « Les enfants sont ici chez eux », réservation, FAQ …</p>';
+
+  document.getElementById('frame-new').innerHTML = h;
+
+  var m = document.getElementById('moved');
+  if (vari === 'grouped') {
+    m.innerHTML = '<b>Inventaire complet</b> — ' + total(l) + ' équipements, ' + l.groupes.length +
+      ' familles, ' + l.groupes.length + ' icônes. Les ' + l.cachees.length +
+      ' faits qui n’existaient que pour les robots sont entrés dans le tableau.';
+  } else if (dd) {
+    m.innerHTML = '<b>Dédoublonné</b> — les compteurs (salles d’eau, toilettes) restent aux pastilles ; ' +
+      (state.log === 'granja' ? 'bain nordique et équipement bébé quittent' : 'le bain nordique quitte') +
+      ' L’essentiel pour le tableau. Aucun fait perdu.';
+  } else {
+    m.innerHTML = '<b>Sans dédoublonnage</b> — ' + (state.log === 'granja' ? '4 faits' : '3 faits') +
+      ' apparaissent deux fois à quelques centimètres d’écart. Cochez « Surligner les redites » pour les apparier.';
+  }
+  document.getElementById('hid2').textContent = l.cachees.length;
+}
+
+/* largeur du cadre : c’est elle qui déclenche la bascule 2 → 1 colonne */
+var slider = document.getElementById('w');
+function applyWidth(){
+  document.getElementById('frame-new').style.width = slider.value + 'px';
+  document.getElementById('wout').textContent = slider.value + ' px';
+}
+slider.addEventListener('input', applyWidth);
+document.getElementById('t-dedup').addEventListener('change', renderNew);
+document.getElementById('seg-var').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  vari = b.dataset.var;
+  [].forEach.call(this.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+  renderNew();
+});
+
+/* ---------- rendu global ---------- */
+function renderAll(){ renderNow(); renderNew(); }
+
+document.getElementById('seg-log').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  state.log = b.dataset.log;
+  [].forEach.call(this.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+  renderAll();
+});
+document.getElementById('seg-vp').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  state.vp = b.dataset.vp;
+  document.body.classList.toggle('mobile', state.vp === 'mob');
+  [].forEach.call(this.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+});
+document.getElementById('t-dups').addEventListener('change', function(){
+  document.body.classList.toggle('dups', this.checked);
+});
+document.getElementById('t-zones').addEventListener('change', function(){
+  document.body.classList.toggle('zones', this.checked);
+});
+
+renderAll();
+applyWidth();
+</script>
+</body>
+</html>

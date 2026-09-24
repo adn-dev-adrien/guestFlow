@@ -28,8 +28,14 @@ d'IA (GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot) qui n'exécutent aucun sc
 information commercialement utile — capacité, équipements, horaires, règles, **tarifs** —
 existe donc en HTML rendu par le serveur.
 
-Une seule source de vérité : `gf-seo-facts.php`. L'encadré « L'essentiel » affiché, la FAQ
-visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diverger.
+Une seule source de vérité : `gf-seo-facts.php`. L'encadré « L'essentiel » affiché, le tableau
+des équipements, la FAQ visible, `/llms.txt` et le JSON-LD sont générés du même tableau. Ils ne
+peuvent pas diverger.
+
+Corollaire, appris à nos dépens : **aucun bloc de faits ne s'écrit à la main dans une page
+WordPress.** La grille « Équipements » des pages logement l'a été pendant des mois, avec son CSS
+et ses icônes en JavaScript ; elle avait fini par annoncer autre chose que le JSON-LD de la même
+page, et rien de tout cela n'était sauvegardé (`specs/site-lodging-fact-zones.md`).
 
 ## Les modules
 
@@ -38,7 +44,7 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-facts.php` | **Source de vérité.** Adresse, GPS, capacités, horaires, équipements, distances, FAQ. Lit les tarifs vivants dans GuestFlow (cache 6 h, repli statique). |
 | `gf-seo-head.php` | `<title>` 50-60 car., meta description 140-155 car., Open Graph, Twitter Card, `hreflang`, geo. Table page → référencement, surchargeable par page. Le visuel de partage se replie sur la première `<img>` du contenu, ce qui couvre les bandeaux écrits en HTML brut. |
 | `gf-seo-schema.php` | JSON-LD : `LodgingBusiness`, `VacationRental` / `Campground` + `Accommodation`, `FAQPage`, `BreadcrumbList`. Fil d'Ariane visible. La galerie du logement reprend chaque diapo du carrousel en `ImageObject`, légende comprise. |
-| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. `[solio_surdemande]` et `[solio_geo]` ne sont plus posés sur aucune page depuis le 2026-09-24 ; ils restent disponibles à l'éditeur. |
+| `gf-seo-blocks.php` | Codes courts rendus côté serveur : `[solio_essentiel]`, `[solio_equipements]`, `[solio_tarifs]`, `[solio_tarifs_nuits]`, `[solio_prix]`, `[solio_caution]`, `[solio_surdemande]`, `[solio_faq]`, `[solio_geo]`, `[solio_comparatif]`. `[solio_surdemande]` et `[solio_geo]` ne sont plus posés sur aucune page depuis le 2026-09-24 ; ils restent disponibles à l'éditeur. |
 | `gf-seo-images.php` | Complète les `<img>` du contenu : `alt`, `width`/`height`, `srcset`, `loading`, `fetchpriority` sur l'image LCP. |
 | `gf-seo-indexation.php` | `robots.txt` (12 robots autorisés nommément), sitemap nettoyé, `/llms.txt`. |
 | `gf-seo-redirects.php` | 301 des anciennes URLs WordPress et des 18 URLs Lodgify. |
@@ -47,8 +53,9 @@ visible et le JSON-LD sont générés du même tableau. Ils ne peuvent pas diver
 | `gf-seo-admin.php` | Metabox d'édition du titre et de la description, bouton « Actualiser les tarifs ». |
 | `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral en deux écrans, ouvert par un bouton flottant en bas à droite. |
 | `gf-seo-urls.php` | Garde-fou : toute adresse générée suit l'hôte réellement utilisé par le visiteur. |
-| `gf-caps.php` | Pictogrammes des pastilles de capacité, injectés en JS — `wp_kses` retire tout `<svg>` du contenu enregistré depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |
-| `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ. |
+| `gf-seo-icons.php` | **Le jeu de pictogrammes.** Les icônes des équipements et celles des pastilles, en PHP, rendues dans la source de la page. Elles étaient dessinées en JavaScript : aucun robot d'IA n'en voyait une seule. |
+| `gf-caps.php` | Pose le pictogramme de chaque pastille de capacité au rendu, depuis `gf-seo-icons.php`. Au rendu et non à l'enregistrement, parce que `wp_kses` retire tout `<svg>` du contenu sauvegardé depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |
+| `gf-site-style.php` | Charte « forêt et heure dorée » : polices Marcellus et Karla auto-hébergées, palette sapin/papier/ocre, boutons, en-tête, carrousels, FAQ, bande film. |
 | `apache/uploads.htaccess` | Sert les jumeaux WebP par négociation de contenu. À déposer dans `wp-content/uploads/.htaccess`. |
 | `apache/roboto.css` | Feuille de la police auto-hébergée. Va dans `wp-content/uploads/fonts/`. |
 | `mu-plugins/gf-footer.php` | Style du pied de page « nuit » : manifeste, liens, mention légale, crédit ADN Dev. |
@@ -90,7 +97,7 @@ La règle est qu'un fait ne soit affiché qu'à un endroit par page :
 |---|---|
 | Capacité, chambres, lits, salles d'eau | les pastilles à icônes en haut de page (`gf-caps`) |
 | Superficie, saison, horaires, animaux, bébés, bain nordique | l'encadré « L'essentiel » (le wifi n'y figure que lorsqu'il n'y en a pas) |
-| Équipements détaillés | la grille de pictogrammes (`gf-amenities`) |
+| Équipements détaillés | la grille de pictogrammes (`[solio_equipements]`) |
 | Prix des options | le tiroir de réservation, qui les liste avec leur prix au moment du choix |
 | Montant des cautions | `[solio_caution]`, lu dans les faits ; dans les CGV, `{{cautions}}`, lu dans GuestFlow (caution par défaut de chaque logement) — les deux doivent dire la même chose |
 | Contexte géographique | le texte de `/contact/` et la page « Autour de nous » ; les distances chiffrées restent servies aux robots par `/llms.txt` |
@@ -114,6 +121,38 @@ Deux conséquences à connaître :
   URLs Lodgify `/fr/options` et `/en/options` mènent désormais à `/la-granja/#reserver`, qui ouvre
   le tiroir — donc la carte vivante. Le prix des options n'est plus rendu côté serveur : c'est le
   coût assumé de ce retrait.
+
+## La bande film
+
+La page de l'Estiva porte, entre « L'essentiel » et le premier texte, une **bande pleine largeur**
+qui joue le survol du domaine en boucle (65 s, sans son : les rushes n'ont que du vent et du
+moteur). Le balisage vit dans le contenu de la page — un `<figure class="gf-band-film alignfull"
+data-gf-film>` — et le comportement dans `gf-site-style.php`.
+
+Trois choses la distinguent d'une vidéo posée telle quelle :
+
+- **Rien ne se télécharge tant que la bande n'approche pas de l'écran** (`preload="none"`, pas de
+  `<source>` dans le HTML, un `IntersectionObserver` à 200 px). Le film pèse de 8 à 25 Mo : le
+  charger d'office coûterait cher à qui ne descend jamais jusque-là. La lecture se met en pause dès
+  qu'on dépasse la bande.
+- **La définition suit la largeur réellement occupée** : 540p sous 600 px, 720p sous 1000 px, 1080p
+  au-delà, et 540p d'office si le navigateur annonce « économiseur de données » ou une connexion 2G.
+- **Elle n'est pleine largeur que sur téléphone.** Au-delà de 900 px de fenêtre elle se cale sur la
+  colonne de texte (1140 px) : en 16/9 plein écran sur un portable, le film occupait la page entière
+  et écrasait tout ce qui l'entoure. Les seuils de définition sont calés sur cette largeur-là, pas
+  sur celle de la fenêtre.
+- **Elle ne s'impose jamais.** « Réduire les animations » ou une connexion économe laissent l'affiche
+  fixe et un bouton de lecture ; le même bouton apparaît si le navigateur refuse la lecture
+  automatique (iPhone en mode économie d'énergie). Sans JavaScript, un `<noscript>` sert la 540p
+  avec ses contrôles et masque la vidéo pilotée par script.
+
+Piège à connaître : `data-src-540` **ne devient pas** `dataset.src540`. La conversion en casse
+chamelle ne s'applique qu'à un tiret suivi d'une lettre, jamais d'un chiffre — le script lit donc
+ces attributs avec `getAttribute()`.
+
+Le montage est un fichier unique dont **la dernière image est exactement la première**, de sorte que
+`loop` ne laisse voir aucun raccord : le fondu de bouclage est cuit dans le fichier, et le film
+commence une seconde après le vrai début du rush pour que la fin retombe dessus.
 
 ## Les carrousels
 

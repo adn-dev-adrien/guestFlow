@@ -144,7 +144,8 @@ into the container.
 - The « dégressif » wording elsewhere: the lodging FAQs, `[solio_tarifs_nuits]` and the meta
   descriptions keep it, because that is now its single home.
 - `specs/site-lodging-fact-zones.md`, which rearranges the *fact* blocks of the same two pages and
-  is still Approved-not-implemented. The two changes touch different blocks.
+  shipped as PR #592 while this one was open. The two changes touch different blocks; the only
+  overlap is the `gf-seo-blocks.php` row of the site README, resolved by keeping both statements.
 - The English version of any of this (`specs/site-english-version.md`).
 
 ## 9. Open questions
