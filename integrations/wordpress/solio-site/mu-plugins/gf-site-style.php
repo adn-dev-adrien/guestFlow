@@ -196,6 +196,37 @@ strong,b{ font-weight:700; }
 .gf-band-ciel .gf-band-ciel-txt p{ font-family:'Marcellus',serif; color:#EFE8D6; font-size:clamp(1.15rem,2.4vw,1.6rem);
   letter-spacing:.04em; max-width:26em; margin:0; text-shadow:0 1px 18px rgba(0,0,0,.8); }
 
+/* ---- Bande film (video aerienne dans le fil de la page) ----
+   Le film est en 16/9 et la bande le montre entier : object-fit ne recadre rien.
+   Le poster tient la place avant la premiere image, donc pas de saut de mise en page. */
+.gf-band-film{ position:relative; margin:44px 0; padding:0; background:var(--gf-nuit); }
+.gf-band-film video{ display:block; width:100%; height:auto; aspect-ratio:16/9;
+  object-fit:cover; background:var(--gf-nuit); }
+/* Pleine largeur sur telephone, ou l'ecran est etroit et le film y gagne. Au-dela, le film se
+   cale sur la colonne de texte : en 16/9 plein ecran sur un portable, il occupait la page
+   entiere et ecrasait tout ce qui l'entoure.
+   C'est la video qu'on bride, pas le <figure> : la mise en page « constrained » du theme donne
+   a un .alignfull une marge negative fixe, et lui poser un max-width le colle a gauche au lieu
+   de le centrer. Le cadre reste donc pleine largeur, et son contenu se centre dedans. */
+@media (min-width:900px){
+  .gf-band-film{ background:transparent; margin:52px 0; }
+  .gf-band-film video{ max-width:1140px; margin-left:auto; margin-right:auto; border-radius:4px; }
+  .gf-band-film figcaption{ padding-top:16px; }
+}
+.gf-band-film figcaption{ font-family:'Karla',sans-serif; font-size:.78rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:.24em; color:var(--gf-ocre-deep); text-align:center;
+  padding:14px 22px 0; background:var(--gf-paper); }
+/* Bouton de lecture : n'apparait que si le navigateur a refuse la lecture automatique,
+   ou si le visiteur a demande moins d'animations / economise ses donnees. */
+.gf-film-play{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:78px; height:78px; border-radius:50%; border:1px solid rgba(247,242,230,.85);
+  background:rgba(10,14,10,.42); cursor:pointer; display:grid; place-items:center;
+  transition:background .25s ease; }
+.gf-film-play:hover{ background:rgba(184,123,42,.9); }
+.gf-film-play::before{ content:""; width:0; height:0; margin-left:6px;
+  border-left:20px solid #F7F2E6; border-top:13px solid transparent; border-bottom:13px solid transparent; }
+.gf-film-play[hidden]{ display:none; }
+
 /* ---- Selecteur de langue des CGV (drapeaux, en haut a droite) ---- */
 .gf-cgv-entete{ display:flex; align-items:center; justify-content:flex-end; margin-bottom:8px; }
 .gf-cgv-switch{ display:flex; gap:8px; }
@@ -264,6 +295,54 @@ add_action('wp_footer', function () {
   if (reduced) {
     document.querySelectorAll('.gf-hero-video').forEach(function(v){ v.removeAttribute('autoplay'); v.pause(); });
   }
+})();
+(function(){
+  /* Bande film : rien n'est telecharge tant que la bande n'approche pas de l'ecran, et la
+     definition suit la largeur reellement occupee. Le poids va de 8 Mo (540p) a 25 Mo (1080p) :
+     le charger d'office couterait cher a qui ne descend jamais jusque-la. */
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var conn = navigator.connection || {};
+  var frugal = conn.saveData === true || /^(slow-2g|2g)$/.test(conn.effectiveType || '');
+
+  document.querySelectorAll('[data-gf-film]').forEach(function(fig){
+    var v = fig.querySelector('video');
+    var play = fig.querySelector('.gf-film-play');
+    if (!v) return;
+    var loaded = false;
+
+    function attach(){
+      if (loaded) return;
+      loaded = true;
+      // La largeur mesuree est celle de la video, pas du cadre : au-dela de 900 px de fenetre
+      // le cadre reste pleine largeur mais le film plafonne a la colonne de texte.
+      var w = v.clientWidth || fig.clientWidth || window.innerWidth;
+      var t = (frugal || w < 600) ? '540' : (w < 1000 ? '720' : '1080');
+      /* getAttribute et non dataset : data-src-540 ne devient pas dataset.src540,
+         la conversion en casse chamelle ne s'applique pas devant un chiffre. */
+      var src = v.getAttribute('data-src-' + t);
+      if (!src) return;
+      var s = document.createElement('source');
+      s.src = src; s.type = 'video/mp4';
+      v.appendChild(s); v.load();
+    }
+    function start(){
+      attach();
+      var p = v.play();
+      if (p && p.catch) p.catch(function(){ if (play) play.hidden = false; });
+    }
+
+    if (play) play.addEventListener('click', function(){ play.hidden = true; start(); });
+
+    if (reduced || frugal) { if (play) play.hidden = false; return; }
+    if (!('IntersectionObserver' in window)) { start(); return; }
+
+    new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) start();
+        else if (loaded) v.pause();
+      });
+    }, { rootMargin: '200px 0px' }).observe(fig);
+  });
 })();
 (function(){
   var track=document.getElementById('gf-testi-track'); if(!track) return;
