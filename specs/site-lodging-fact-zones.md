@@ -213,10 +213,17 @@ None left.
 
 ### Resolved
 
+- **2026-09-24 — The plancha is no longer conditional.** It used to be a gesture offered from two
+  nights on, so it was said at the tariff and flagged invisible. It is now on site for every stay,
+  which makes it a plain amenity: it becomes a visible row, "Plancha à disposition" with the
+  barbecue icon, and L'Estiva's FAQ drops "offerte à partir de 2 nuits" for "à disposition à chaque
+  séjour". The wording avoids "offerte", which promises a conditional gift — the very thing being
+  removed.
+
 - **2026-09-24 — The facts that only robots could see.** They stay published and gain
   `'visible' => false` (rule 10). Wood stove, table for 10–12, sunrise terrace, attic playroom and
-  wood-fibre insulation for La Granja; safari tent on stilts, plancha from 2 nights and starry sky
-  for L'Estiva — each of them is already said on the page, in the story or in the FAQ, where it
+  wood-fibre insulation for La Granja; safari tent on stilts and starry sky for L'Estiva — each of
+  them is already said on the page, in the story or in the FAQ, where it
   reads better than in a list. The rejected outcome was a *second list* drifting away from the
   first; a flag on the single list cannot drift. L'Estiva's private bathroom and its absence of
   wifi take the same flag, for the same reason: the badges and « L'essentiel » already say them.
