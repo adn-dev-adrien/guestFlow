@@ -593,7 +593,6 @@ _(filled during implementation)_
 - [x] Site: the booking drawer's strings, its month and day names, and the language carried on
       every one of its REST calls — including the booking request, so a stay asked for in English
       produces an English confirmation (2026-09-24)
-- [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)
 - [x] `gf-seo-head`: verified 2026-09-24 — already correct, no change needed (rule 29)
 - [ ] 10 pages translated and published one by one (no review — rule 28)
 - [ ] Back-office: request language on the fiche, quote-language toggle outside devis mode, language
