@@ -65,13 +65,17 @@ once, in a table that reads on two columns when there is room and on one when th
    agents read the same page a visitor does.
 9. The rendered table, `/llms.txt` and the JSON-LD `amenityFeature` come from **one source**,
    `gf-seo-facts.php`; they cannot diverge by construction.
-10. The facts that existed only in `gf-seo-facts.php` **leave it** (decided 2026-09-24): what the
-    reader sees is the whole inventory. Nothing is published to a robot that is not on the page.
+10. An amenity may carry `'visible' => false`: it stays in `equipements`, and therefore in the
+    JSON-LD `amenityFeature` and in `/llms.txt`, but it never renders. The five La Granja facts and
+    the three L'Estiva facts that exist only in `gf-seo-facts.php` today take that flag — decided
+    2026-09-24. The rendered table is therefore a *subset* of the source, never a second list.
 11. `/llms.txt` lists each lodging's inventory under its entry, so an assistant that reads only
     that file knows what each lodging holds without parsing the page.
 
 **Edge cases:**
 - An amenity with no precision line → the row renders with the label alone, same height rhythm.
+- An amenity flagged `'visible' => false` → absent from the table, present in `amenityFeature`
+  and in `/llms.txt`.
 - An unknown icon key → the row renders without an icon rather than breaking the grid.
 - Odd number of rows on two columns → the last row sits alone in the left column; the column
   separator stays continuous.
@@ -89,7 +93,7 @@ under `integrations/wordpress/solio-site/` is the versioned source; deployment i
 
 | File | T/C | Responsibility in this change |
 |---|---|---|
-| `gf-seo-facts.php` | T | Each `equipements` entry becomes `array( 'ic' => '<key>', 'nom' => '…', 'precision' => '…' )` instead of a bare string. Single source for the table, `/llms.txt` and the JSON-LD. Holds the inventory the reader sees, deduplicated per rules 4–6. The nordic-bath sentence is written once (`$bain`) and shared by `bain_nordique` and the hot-tub row. |
+| `gf-seo-facts.php` | T | Each `equipements` entry becomes `array( 'ic' => '<key>', 'nom' => '…', 'precision' => '…', 'visible' => bool )` instead of a bare string. Single source for the table, `/llms.txt` and the JSON-LD. Holds the whole inventory; the rows already said elsewhere on the page carry `'visible' => false` (rule 10). The nordic-bath sentence is written once (`$bain`) and shared by `bain_nordique` and the hot-tub row. |
 | `gf-seo-blocks.php` | T | New shortcode `[solio_equipements logement="gite"]` rendering the table in PHP, icons inline. `[solio_essentiel]` drops the two lines moved by rule 5. Carries the `.gf-eqt*` CSS, including `@container (min-width:600px)` and its `@supports not` fallback — this module already ships the stylesheet of every `[solio_*]` block, so the rule lives beside the markup it dresses rather than in the site charter. |
 | `gf-seo-schema.php` | T | `gf_seo_schema_equipements()` reads `$e['nom']` when the entry is a row, the string itself when it is one of the domain-wide sentences; `LocationFeatureSpecification` output unchanged. |
 | `gf-seo-indexation.php` | T | `/llms.txt` lists each lodging's inventory under its entry (rule 11). |
@@ -125,11 +129,15 @@ No database change. The PHP shape changes:
 'equipements' => array(
     array( 'ic' => 'kitchen', 'nom' => 'Cuisine des tribus',
            'precision' => 'four, lave-vaisselle, très grand réfrigérateur, cafetière, ustensiles' ),
-    array( 'ic' => 'hottub',  'nom' => 'Bain nordique',
-           'precision' => 'sur le domaine · 1 h offerte à chaque séjour' ),
+    array( 'ic' => 'hottub',  'nom' => 'Bain nordique', 'precision' => $bain ),
+    // Publié, jamais affiché : le poêle est raconté dans le récit et dans la FAQ.
+    array( 'ic' => null, 'nom' => 'Poêle à bois', 'precision' => 'bois fourni', 'visible' => false ),
     // …
 ),
 ```
+
+A missing `visible` key means `true`. A hidden row needs no icon: it is never drawn. Nine rows of
+La Granja and seven of L'Estiva render; fourteen and twelve are published.
 
 **Data impact:** none on guest data. The only regression risk is the JSON-LD: the field's single
 consumer, `gf-seo-schema.php`, must be updated in the same change, or `amenityFeature` silently
@@ -155,7 +163,9 @@ Block order on a lodging page, top to bottom: hero → breadcrumb → **badge st
 - **Sticky action bar:** not applicable — this is the public WordPress site, not a GuestFlow page.
 
 The three candidate renderings were produced and arbitrated on the mockup
-`docs/specs/2026-09-24-lodging-fact-zones.html`; "lignes à icône" was chosen on 2026-09-24.
+`docs/specs/2026-09-24-lodging-fact-zones.html`; "lignes à icône" was chosen on 2026-09-24. The
+mockup keeps showing the *before* state alongside the proposal — that is what it is for, and it is
+not updated as the code ships.
 
 ## 7. Test plan
 
@@ -169,8 +179,9 @@ into the container.
 - [x] `curl -s https://domainesolio.com/la-granja/ | grep -c '<svg'` — the icons are in the HTML
       source, not added by JS. No script on either page draws an icon any more.
 - [x] No fact appears twice: badge strip, L'essentiel and the table read end to end.
-- [x] JSON-LD: `amenityFeature` lists every amenity as a `LocationFeatureSpecification`, names
-      identical to the visible labels.
+- [x] JSON-LD: `amenityFeature` lists all 14 amenities of La Granja and 12 of L'Estiva as
+      `LocationFeatureSpecification`, the nine and seven visible ones named exactly as the table
+      names them.
 - [x] `/llms.txt` carries the same inventory, under each lodging.
 - [x] `php:warn` log clean after the copy (see the WordPress container memory).
 - [x] Regression: the badge strip, the booking drawer trigger and the FAQ still render.
@@ -191,13 +202,13 @@ None left.
 
 ### Resolved
 
-- **2026-09-24 — The facts that only robots could see.** They leave `gf-seo-facts.php`. The page is
-  the inventory: wood stove, table for 10–12, sunrise terrace, attic playroom and wood-fibre
-  insulation for La Granja, safari tent on stilts, plancha from 2 nights, starry sky and "no wifi"
-  for L'Estiva are no longer published as `amenityFeature`. Several of them are still said on the
-  page, in the story and in the FAQ, which is where they read better than in a list. The rejected
-  outcome — a fact that exists for a crawler and not for a reader — is now impossible by
-  construction.
+- **2026-09-24 — The facts that only robots could see.** They stay published and gain
+  `'visible' => false` (rule 10). Wood stove, table for 10–12, sunrise terrace, attic playroom and
+  wood-fibre insulation for La Granja; safari tent on stilts, plancha from 2 nights and starry sky
+  for L'Estiva — each of them is already said on the page, in the story or in the FAQ, where it
+  reads better than in a list. The rejected outcome was a *second list* drifting away from the
+  first; a flag on the single list cannot drift. L'Estiva's private bathroom and its absence of
+  wifi take the same flag, for the same reason: the badges and « L'essentiel » already say them.
 - **2026-09-24 — `/llms.txt`.** It gains the inventory, one indented line per amenity under each
   lodging (rule 11).
 - **2026-09-24 — The `Gîtes de France 3 épis` badge.** Answered before this spec: it carries three

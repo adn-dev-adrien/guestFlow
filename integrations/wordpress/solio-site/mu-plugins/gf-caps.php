@@ -48,6 +48,21 @@ function gf_caps_icone_pour( $texte ) {
 }
 
 /**
+ * Le vert du pictogramme.
+ *
+ * Le trace est en `currentColor` et la pastille ecrit son texte en #2f3a26 : sans cette
+ * regle, l’icone prendrait la couleur du texte au lieu du vert qu’elle a toujours eu.
+ */
+add_action(
+	'wp_enqueue_scripts',
+	function () {
+		wp_register_style( 'gf-caps', false );
+		wp_enqueue_style( 'gf-caps' );
+		wp_add_inline_style( 'gf-caps', '.gf-cap svg{ color:#5a6b48; }' );
+	}
+);
+
+/**
  * Pose le pictogramme dans chaque pastille du contenu.
  */
 add_filter(

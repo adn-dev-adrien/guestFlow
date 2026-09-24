@@ -106,6 +106,11 @@ function gf_seo_shortcode_equipements( $atts ) {
 	$html .= '<div class="gf-eqt-grille">';
 
 	foreach ( $l['equipements'] as $e ) {
+		// Un equipement invisible reste publie (JSON-LD, /llms.txt) mais ne se lit pas ici :
+		// il est deja dit ailleurs dans la page, et le redire en liste serait une redite.
+		if ( isset( $e['visible'] ) && ! $e['visible'] ) {
+			continue;
+		}
 		// Une icone inconnue laisse la ligne sans pictogramme plutot que de casser la grille.
 		$icone = gf_seo_icone( $e['ic'], array( 'width' => 26, 'height' => 26 ) );
 		$html .= '<div class="gf-eqt-ligne">'
@@ -542,7 +547,10 @@ add_action(
 .gf-eqt-ligne svg { flex: 0 0 auto; width: 26px; height: 26px; stroke-width: 1.5; margin-top: 2px; }
 /* Une icone manquante garde sa place, sinon l’intitule se decalerait d’une ligne a l’autre. */
 .gf-eqt-vide { flex: 0 0 26px; }
-.gf-eqt-txt strong { display: block; font-size: .9rem; font-weight: 600; color: #2f3a26; }
+/* Interligne resserre : celui du corps de page (1.65) etirait une precision de deux lignes
+   au point de la detacher de son intitule. */
+.gf-eqt-txt { line-height: 1.35; }
+.gf-eqt-txt strong { display: block; font-size: .9rem; font-weight: 600; color: #2f3a26; margin-bottom: 2px; }
 .gf-eqt-txt span { font-size: .78rem; color: #6b7560; }
 
 .gf-tarifs h3, .gf-geo h3 { font-size: 1.06rem; color: #5a6b48; margin: 26px 0 8px; }

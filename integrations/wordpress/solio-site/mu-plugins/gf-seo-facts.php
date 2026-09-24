@@ -83,9 +83,15 @@ function gf_seo_equipements_domaine() {
  * est la seule : elle alimente le tableau affiche par [solio_equipements], le JSON-LD
  * `amenityFeature` et /llms.txt. Un equipement absent d’ici n’existe nulle part.
  *
+ * Une ligne peut porter `'visible' => false` : elle reste dans la liste, donc dans le
+ * JSON-LD et dans /llms.txt, mais le tableau ne la rend pas. C’est ainsi qu’un fait deja
+ * dit ailleurs sur la page — aux pastilles, dans le recit, dans la FAQ — continue d’exister
+ * pour les moteurs sans etre ecrit deux fois pour le lecteur. Le tableau affiche est donc
+ * toujours un sous-ensemble de cette liste, jamais une seconde liste.
+ *
  * Deux regles de composition, pour qu’aucun fait ne soit ecrit deux fois sur la page :
- * les comptages (salles d’eau, toilettes) restent aux pastilles sous le bandeau et ne
- * figurent pas ici ; les prestations (bain nordique, equipement bebe) ont quitte
+ * les comptages (salles d’eau, toilettes) restent aux pastilles sous le bandeau et sont
+ * donc invisibles ici ; les prestations (bain nordique, equipement bebe) ont quitte
  * « L’essentiel » pour cette liste, ou leur precision commerciale a sa place.
  */
 function gf_seo_lodgings() {
@@ -145,6 +151,18 @@ function gf_seo_lodgings() {
 				array( 'ic' => 'hottub', 'nom' => 'Bain nordique', 'precision' => $bain ),
 				array( 'ic' => 'pool', 'nom' => 'Piscine extérieure partagée',
 					'precision' => 'non chauffée, de mi-juin à fin août' ),
+
+				// Ces cinq-la sont racontes ailleurs dans la page — le recit, la FAQ, les
+				// photos — et n’ont pas a etre redits en liste. Ils restent publies.
+				array( 'ic' => null, 'nom' => 'Poêle à bois', 'precision' => 'bois fourni', 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Grande pièce de vie et tablée de 10 à 12 couverts',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Terrasse exposée au soleil levant',
+					'precision' => 'vue sur les montagnes', 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Salle de jeux dans les combles',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Entièrement rénové',
+					'precision' => 'isolation en laine de bois', 'visible' => false ),
 			),
 		),
 		'lodge' => array(
@@ -192,6 +210,18 @@ function gf_seo_lodgings() {
 					'precision' => 'non chauffée, de mi-juin à fin août' ),
 				array( 'ic' => 'parking', 'nom' => 'Parking gratuit sur place',
 					'precision' => 'accès à pied, 300 m' ),
+
+				// Dits ailleurs : la tente et son ciel dans le recit, la plancha au tarif,
+				// les sanitaires aux pastilles, le wifi dans « L’essentiel ».
+				array( 'ic' => null, 'nom' => 'Tente safari sur terrasse bois montée sur pilotis',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Plancha offerte à partir de 2 nuits',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Ciel étoilé sans pollution lumineuse',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Salle d’eau et toilettes privatives',
+					'precision' => null, 'visible' => false ),
+				array( 'ic' => null, 'nom' => 'Pas de wifi', 'precision' => null, 'visible' => false ),
 			),
 		),
 	);
