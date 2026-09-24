@@ -85,19 +85,19 @@ function gf_pages_anglaises_existent() {
     if (!function_exists('pll_get_post_language')) {
         return false;
     }
+    // « lang » est l'argument que Polylang comprend, et c'est le seul qui marche ici.
+    // « suppress_filters » ne le desarme PAS : il filtre par « pre_get_posts », si bien qu'une
+    // requete lancee depuis une page francaise ne voyait que les pages francaises et concluait
+    // que l'anglais n'existe pas. Mesure du 2026-09-24 : 7 pages vues sur 14, selecteur absent de
+    // tout le site francais alors que les sept traductions etaient publiees (regle 42).
     $pages = get_posts(array(
-        'post_type'        => 'page',
-        'post_status'      => 'publish',
-        'numberposts'      => 50,
-        'fields'           => 'ids',
-        'suppress_filters' => true,
+        'post_type'   => 'page',
+        'post_status' => 'publish',
+        'numberposts' => 1,
+        'fields'      => 'ids',
+        'lang'        => 'en',
     ));
-    foreach ($pages as $id) {
-        if ('en' === gf_langue_normalisee(pll_get_post_language($id, 'slug'))) {
-            return true;
-        }
-    }
-    return false;
+    return !empty($pages);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -218,17 +218,21 @@ function gf_t($cle, $langue = null) {
 /**
  * Les chemins francais et leur equivalent anglais.
  *
- * Les noms propres ne se traduisent pas (« la-granja », « estiva ») ; les slugs redactionnels, si
- * (regle 30, question 2 tranchee le 2026-09-24).
+ * Les slugs redactionnels se traduisent (regle 30, question 2 tranchee le 2026-09-24). Les noms
+ * propres restent — mais ils ne peuvent pas rester SEULS : mesure du 2026-09-24, Polylang est
+ * configure en repertoire avec la langue par defaut sans prefixe, et dans ce montage deux pages
+ * qui portent le meme slug sont indissociables. « /en/contact/ » renvoyait un 301 vers la page
+ * FRANCAISE. Chaque slug anglais est donc distinct du francais, et la ou un nom propre est en jeu
+ * il est simplement qualifie : « la-granja-gite », « estiva-safari-tent » (regle 41).
  */
 function gf_chemins_traduits() {
     return array(
         '/'                 => '/en/',
-        '/la-granja/'       => '/en/la-granja/',
-        '/estiva/'          => '/en/estiva/',
+        '/la-granja/'       => '/en/la-granja-gite/',
+        '/estiva/'          => '/en/estiva-safari-tent/',
         '/le-domaine/'      => '/en/the-estate/',
         '/autour-de-nous/'  => '/en/around-us/',
-        '/contact/'         => '/en/contact/',
+        '/contact/'         => '/en/getting-here/',
         '/cgv/'             => '/en/terms/',
     );
 }

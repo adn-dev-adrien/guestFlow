@@ -91,8 +91,8 @@ function gf_seo_domaine() {
 /**
  * Equipements et services communs aux deux hebergements.
  */
-function gf_seo_equipements_domaine() {
-	return array(
+function gf_seo_equipements_domaine( $langue = null ) {
+	$fr = array(
 		'Piscine extérieure partagée, non chauffée, de mi-juin à fin août',
 		'Bain nordique extérieur privatisé, par créneau d’1 h — une heure offerte à chaque séjour',
 		'Barbecue et cuisine d’été',
@@ -101,6 +101,19 @@ function gf_seo_equipements_domaine() {
 		'Rivière de baignade à proximité',
 		'Parking gratuit sur place',
 	);
+	// Liste plate : la correspondance se fait par le RANG, donc les deux listes se corrigent
+	// ensemble ou pas du tout. Le test de parite du depot refuse qu'elles divergent en longueur.
+	$en = array(
+		'Shared outdoor pool, unheated, from mid-June to the end of August',
+		'Private outdoor Nordic bath, in 1-hour slots — one hour free with every stay',
+		'Barbecue and summer kitchen',
+		'A 2 km walking path on the estate',
+		'Farm animals you can walk up to',
+		'A river to swim in nearby',
+		'Free parking on site',
+	);
+	$l = $langue ? $langue : ( function_exists( 'gf_langue' ) ? gf_langue() : 'fr' );
+	return 'en' === $l ? $en : $fr;
 }
 
 /**

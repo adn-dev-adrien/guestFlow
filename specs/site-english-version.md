@@ -260,6 +260,17 @@ leave in, without opening another screen.)_
     > `gf-seo-reservation.php`'s own comment calls « devenu muet ». So `gf-booking.php` is neither a
     > leftover nor removable — it is the funnel, and it is the file this rule names.
 
+    > **Corrected on the live site, 2026-09-24, once a real English page existed to look at.** The
+    > note above is right about the source files and wrong about the page. On `/en/la-granja-gite/`
+    > the calendar's DOM ancestry is
+    > `.gf-cal-title ← .gf-cal-month ← .gf-cal-wrap ← .gf-cal-box ← .gf-booking ←
+    > .wp-block-guestflow-booking ← .gf-resa-corps`: the funnel a visitor actually uses on the two
+    > accommodation pages is **the plugin's block**, whose `blocks/booking/view.js` builds the same
+    > class names — which is why grepping the mu-plugins alone pointed at the wrong file.
+    > `gf-booking.php` renders its own funnel (`.gf-cal` inside `.gf-book`) and that one is not on
+    > these pages. Practical consequence: the drawer turns English only when the **plugin** is
+    > updated, not when the mu-plugins are deployed.
+
     Two consequences beyond the strings. The drawer now renders the **`priceUnitLabel` the server
     wrote** instead of rebuilding its own French units, which is what rule 3 asked for all along.
     And the language travels **explicitly** on every call to the `gf-solio/v1` relay, in the query
@@ -340,6 +351,36 @@ booking._
 40. The terms page needs no translation: `[guestflow_cgv]` already renders its own FR/EN toggle from
     GuestFlow. Measured 2026-09-24 — the English text is served today.
     > **Sans test** — constat de mesure sur une fonctionnalité déjà livrée
+
+### What publishing the English pages taught us
+
+_Added 2026-09-24, on the live site. Each of these three is a defect the spec did not foresee and
+that only appeared once real English pages existed._
+
+41. **English slugs are distinct from their French twins, always — including for proper names.**
+    Polylang here runs in directory mode with the default language unprefixed (`force_lang = 1`,
+    `hide_default = true`), and in that arrangement two pages sharing a slug cannot be told apart:
+    `/en/contact/` returned a **301 to the French page**. So `la-granja` becomes
+    `la-granja-gite` and `estiva` becomes `estiva-safari-tent` — the proper name is kept and simply
+    qualified, which rule 9 allows and which reads better in English anyway. The map in
+    `gf-i18n.php` is the list that decides.
+42. **The bilingual guard must ask Polylang for the other language explicitly.**
+    `gf_pages_anglaises_existent()` queried with `suppress_filters => true`, which does **not**
+    disarm Polylang — it filters through `pre_get_posts`. Measured: from a French page the query
+    saw 7 of the 14 pages, all French, concluded English did not exist, and hid the switcher across
+    the whole French site while the seven translations were published. `'lang' => 'en'` is the
+    argument that works.
+43. **The booking drawer's calendar follows the page locale.** Every label in the plugin block's
+    `view.js` already went through `GF.t()` and the runtime already published `GF.locale`, but the
+    month and weekday names were still two frozen French arrays. They are now built from
+    `Intl.DateTimeFormat(GF.locale)`, and the French output is character-for-character what the
+    frozen lists produced.
+44. The English home is canonical at `/en/`, not at `/en/home/`: Polylang's `redirect_lang` is
+    turned on, so the translated front page redirects to the language root exactly as
+    `/accueil-solio/` already redirected to `/`. Without it the canonical pointed at `/en/home/`
+    while the switcher pointed at `/en/` — two URLs for one page, and the `hreflang` naming the
+    wrong one.
+    > **Sans test** — réglage de Polylang, pas du code de ce dépôt ; vérifié en ligne (§7)
 
 **Edge cases:**
 

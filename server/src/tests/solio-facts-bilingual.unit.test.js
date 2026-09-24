@@ -62,6 +62,18 @@ test('a translated fact never loses its French twin (rule 35)', () => {
   assert.deepStrictEqual(orphans, [], `English key(s) with no French twin: ${orphans.join(', ')}`);
 });
 
+test('the estate facilities list has as many lines in English as in French (rule 34)', () => {
+  // A flat list pairs by POSITION, so a line added to one side alone does not go missing — it
+  // shifts every line below it, and the pool starts describing the parking. Length is the only
+  // thing that can be checked from here, and it is exactly what catches that.
+  const body = facts.slice(facts.indexOf('function gf_seo_equipements_domaine('));
+  const fr = body.slice(body.indexOf('$fr = array('), body.indexOf('$en = array('));
+  const en = body.slice(body.indexOf('$en = array('), body.indexOf('$l = $langue'));
+  const count = (block) => (block.match(/\n\t\t'/g) || []).length;
+  assert.ok(count(fr) > 3, 'the French list could not be read');
+  assert.strictEqual(count(en), count(fr), 'the two estate-facility lists have drifted apart in length');
+});
+
 test('the site dictionary declares the same keys in both languages (rule 36)', () => {
   const block = (lang) => {
     const start = i18n.indexOf(`'${lang}' => array(`);
@@ -75,4 +87,46 @@ test('the site dictionary declares the same keys in both languages (rule 36)', (
   const en = keys('en');
   assert.ok(fr.length > 10, 'the French dictionary looks empty — the parser lost its footing');
   assert.deepStrictEqual(en, fr, 'the two halves of the dictionary have drifted apart');
+});
+
+test('no English path repeats its French twin (rule 41)', () => {
+  // Polylang runs here in directory mode with the default language unprefixed, and in that
+  // arrangement two pages sharing a slug cannot be told apart: `/en/contact/` answered with a 301
+  // to the FRENCH page. Restoring a "nicer" identical slug would silently send English readers
+  // back to French, which is the one failure nobody would think to check for.
+  const start = i18n.indexOf('function gf_chemins_traduits()');
+  assert.ok(start > 0, 'gf_chemins_traduits() not found');
+  const body = i18n.slice(start, i18n.indexOf('}', i18n.indexOf('return array(', start)));
+  const pairs = [...body.matchAll(/'([^']+)'\s*=>\s*'([^']+)'/g)].map((m) => [m[1], m[2]]);
+  assert.ok(pairs.length >= 7, `only ${pairs.length} paths mapped`);
+
+  const clashes = pairs
+    // The root is not a slug: `/` maps to `/en/`, the language root itself, and that pair is the
+    // one case where "identical" is correct.
+    .filter(([fr]) => fr !== '/')
+    .filter(([fr, en]) => en.replace(/^\/en/, '') === fr)
+    .map(([fr, en]) => `${fr} -> ${en}`);
+  assert.deepStrictEqual(clashes, [], 'English path(s) identical to the French one');
+});
+
+test('the bilingual guard asks Polylang for English explicitly (rule 42)', () => {
+  // `suppress_filters` does NOT disarm Polylang — it filters through `pre_get_posts`. With it, the
+  // query run from a French page saw only French pages, decided English did not exist, and hid the
+  // switcher across the whole French site.
+  const start = i18n.indexOf('function gf_pages_anglaises_existent()');
+  assert.ok(start > 0, 'gf_pages_anglaises_existent() not found');
+  const body = i18n.slice(start, i18n.indexOf('\n}', start));
+  assert.match(body, /'lang'\s*=>\s*'en'/, "the query no longer asks Polylang for 'en'");
+  // As an argument, not as the word in the comment that explains why it is gone.
+  assert.doesNotMatch(body, /'suppress_filters'\s*=>/, 'suppress_filters is back, and it does not filter by language');
+});
+
+test('the booking calendar has no frozen French month names (rule 43)', () => {
+  const view = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'guestflow-booking', 'blocks', 'booking', 'view.js'),
+    'utf8',
+  );
+  assert.match(view, /Intl\.DateTimeFormat\(GF\.locale/, 'the calendar no longer reads the page locale');
+  const frozen = ['janvier', 'février', 'décembre'].filter((m) => new RegExp(`'${m}'\\s*,`).test(view.replace(/fallback = \[[^\]]*\]/g, '')));
+  assert.deepStrictEqual(frozen, [], 'French month names are frozen in the calendar again');
 });
