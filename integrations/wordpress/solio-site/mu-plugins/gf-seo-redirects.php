@@ -28,9 +28,9 @@ function gf_seo_redirections_lodgify() {
 	return array(
 		'/fr/domaine-solio---gite-confort-nature-animaux'  => '/la-granja/',
 		'/fr/domaine-solio---lodge-isolee-nature-animaux'  => '/estiva/',
-		'/fr/bien-preparer-votre-sejour'                   => '/faq/',
-		'/fr/toutes-les-proprietes'                        => '/reserver/',
-		'/fr/options'                                      => '/reserver/',
+		'/fr/bien-preparer-votre-sejour'                   => '/contact/',
+		'/fr/toutes-les-proprietes'                        => '/',
+		'/fr/options'                                      => '/la-granja/#a-la-carte',
 		'/fr/decouverte'                                   => '/autour-de-nous/',
 		'/fr/contactez-nous'                               => '/contact/',
 		'/fr/vie-du-domaine'                               => '/le-domaine/',
@@ -46,17 +46,24 @@ function gf_seo_redirections_lodgify() {
 		'/gite-10-personnes-ardeche'                       => '/la-granja/',
 		'/tente-safari-glamping-ardeche'                   => '/estiva/',
 		'/activites-autour-du-domaine'                     => '/autour-de-nous/',
-		'/tarifs-et-reservation'                           => '/reserver/',
+		'/tarifs-et-reservation'                           => '/',
 
 		'/en'                                              => '/',
 		'/en/to-complete'                                  => '/la-granja/',
 		'/en/aventura-lodge-tente-tout-confort'            => '/estiva/',
-		'/en/faq'                                          => '/faq/',
-		'/en/all-properties'                               => '/reserver/',
-		'/en/options'                                      => '/reserver/',
+		'/en/faq'                                          => '/contact/',
+		'/en/all-properties'                               => '/',
+		'/en/options'                                      => '/la-granja/#a-la-carte',
 		'/en/discovery'                                    => '/autour-de-nous/',
 		'/en/contact-us'                                   => '/contact/',
 		'/en/life-on-the-estate'                           => '/le-domaine/',
+
+		// Resserrement 2026-09-24 : quatre pages publiees et quatre brouillons retires.
+		'/reserver'                                        => '/',
+		'/faq'                                             => '/contact/',
+		'/acces'                                           => '/contact/',
+		'/disponibilites'                                  => '/',
+		'/avec-des-enfants'                                => '/autour-de-nous/#enfants',
 	);
 }
 
