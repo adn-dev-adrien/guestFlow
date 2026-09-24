@@ -70,14 +70,20 @@ final class GF_Shortcodes
         $fr = wp_kses_post((string) ($shown['html']['fr'] ?? ''));
         $en = wp_kses_post((string) ($shown['html']['en'] ?? ''));
 
-        return '<div class="gf-cgv">'
+        // The terms open in the language of the page they are read on
+        // (specs/site-english-version.md rule 25). The visitor's own click still wins afterwards and
+        // is still remembered — this only decides which side is showing when the page loads, so an
+        // English reader does not land on a French contract.
+        $open = GF_Language::current();
+
+        return '<div class="gf-cgv" data-open-lang="' . esc_attr($open) . '">'
             . '<div class="gf-cgv-entete"><div class="gf-cgv-switch">'
             . '<button type="button" data-lang="fr" aria-label="Français">🇫🇷</button>'
             . '<button type="button" data-lang="en" aria-label="English">🇬🇧</button>'
             . '</div></div>'
             . '<p class="gf-cgv-version">' . $notice . '</p>'
-            . '<div class="gf-cgv-lang" data-lang="fr" data-visible="1" lang="fr">' . $fr . '</div>'
-            . '<div class="gf-cgv-lang" data-lang="en" data-visible="0" lang="en">' . $en . '</div>'
+            . '<div class="gf-cgv-lang" data-lang="fr" data-visible="' . ($open === 'fr' ? '1' : '0') . '" lang="fr">' . $fr . '</div>'
+            . '<div class="gf-cgv-lang" data-lang="en" data-visible="' . ($open === 'en' ? '1' : '0') . '" lang="en">' . $en . '</div>'
             . '</div>';
     }
 

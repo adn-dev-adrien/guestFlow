@@ -76,6 +76,12 @@ final class GF_Blocks
             // specs/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
             'cgvPageUrl'        => esc_url_raw($s->get_cgv_page_url()),
             'configured'        => $s->is_configured(),
+            // The language the page is being read in, and the locale the browser should format
+            // DATES with. Amounts are deliberately not included: rule 10 keeps « 1 234,56 € » in
+            // both languages, because the quote PDF attached to the confirmation already writes it
+            // that way to English guests (specs/site-english-version.md rules 10 + 24).
+            'lang'              => GF_Language::current(),
+            'locale'            => GF_Language::locale(),
             'i18n'              => [
                 'loading'         => __('Chargement…', 'guestflow-booking'),
                 'unavailable'     => __('Réservation temporairement indisponible.', 'guestflow-booking'),

@@ -198,8 +198,11 @@ leave in, without opening another screen.)_
 
 22. The plugin resolves the current language once per request — `pll_current_language('slug')` when
     Polylang is present, otherwise `get_locale()` reduced to its two-letter prefix, otherwise `fr` —
-    and sends it as `lang` on every upstream call (`class-gf-api-client.php`) and through the REST
-    proxy (`class-gf-rest-proxy.php`).
+    and sends it as `lang` on every upstream call (`class-gf-api-client.php`), in the query string
+    and, for the two POSTs that read it there, in the body. **The transient cache key carries the
+    language** (`class-gf-cache.php`): the same path now answers different labels per language, so
+    without it whichever visitor arrived first would decide what every later one reads — a French
+    drawer served to an English reader, held for ten minutes.
     > **Sans test** — code PHP du plugin WordPress — hors de la suite Node ; vérifié sur le site (§7)
 23. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
     Source strings stay French, which is what the 80 `__()` calls already assume; English arrives as
@@ -352,7 +355,7 @@ else reuses existing screens.
 |---|---|---|
 | `includes/class-gf-language.php` | **C** | Resolves the current language (Polylang → locale → `fr`) and exposes it to PHP and JS |
 | `includes/class-gf-api-client.php` | T | Adds `lang` to every upstream request |
-| `includes/class-gf-rest-proxy.php` | T | Accepts and forwards `lang` on the proxied routes |
+| `includes/class-gf-cache.php` | T | The transient key carries the language, so one visitor's language is not served to the next |
 | `includes/class-gf-blocks.php` | T | Publishes the locale next to `GF.i18n` for `wp_localize_script` |
 | `includes/class-gf-shortcodes.php` | T | CGV open on the page's language (rule 25) |
 | `assets/runtime.js` | T | `Intl.NumberFormat` / date formatting driven by the published locale |
@@ -559,7 +562,8 @@ _(filled during implementation)_
       as the diagnostic it is (2026-09-24)
 - [x] Booking request carries the language through to client and reservation, `requestOrigin`
       survives the conversion, and the origin badge reads « Site internet » (2026-09-24)
-- [ ] Plugin: language resolution, `lang` upstream, `.po`/`.mo`, locale-aware formatting
+- [x] Plugin: language resolution, `lang` upstream, `.po`/`.mo` (124 strings), locale-aware dates,
+      language-keyed cache, terms opening on the page's language, v1.12.0 (2026-09-24)
 - [ ] Site: `gf-i18n`, header/footer per language, `gf-booking` strings
 - [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)
 - [ ] `gf-seo-head`: `hreflang` only for real translations
