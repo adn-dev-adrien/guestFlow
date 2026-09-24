@@ -32,22 +32,41 @@ only the removed blocks carried is lost to a search engine or an assistant.
 
 1. The `#a-la-carte` section and `[solio_surdemande]` are removed from both lodging pages. Option
    prices then live **only** in the booking drawer.
+   > **Sans test** — contenu de pages WordPress, stocké dans le conteneur `wp_app` et hors de ce
+   >   dépôt ; vérifié par `curl … | grep -c 'gf-carte'` sur les deux pages en ligne (§7).
+
 2. Consequence accepted on 2026-09-24: option prices are no longer server-rendered, so a robot that
    does not run JavaScript no longer reads them. The drawer remains the authoritative, live price —
    the removed card was a frozen copy of it.
+   > **Sans test** — constat de conception, pas un comportement : rien à exécuter. La contrepartie
+   >   est écrite ici pour qu'on ne la redécouvre pas plus tard.
+
 3. The Lodgify redirects `/fr/options` and `/en/options`, which pointed at the now-absent anchor
    `/la-granja/#a-la-carte`, point at `/la-granja/#reserver`, which opens the drawer.
+   > **Sans test** — table de redirections des mu-plugins Solio, déployés à la main hors de ce
+   >   dépôt ; vérifiée par `curl -sI https://domainesolio.com/fr/options` (§7).
+
 4. `[solio_geo]` is removed from `/le-domaine/` and from `/contact/`, so it is no longer placed on
    any page. The shortcode itself stays registered and documented: re-placing it is one edit.
+   > **Sans test** — contenu de pages WordPress, hors de ce dépôt ; vérifié par
+   >   `curl … | grep -c 'gf-geo"'` sur `/le-domaine/` et `/contact/` (§7).
+
 5. Nothing is lost for the robots by rule 4: `gf-seo-indexation.php` already serves the same
    `gf_seo_distances()` list in `/llms.txt`, and `/contact/` still states the address and the GPS
    point in its contact card, in its prose and in its FAQ.
+   > **Sans test** — code PHP des mu-plugins du site Solio, hors des suites JS de ce dépôt ;
+   >   vérifié en lisant `/llms.txt` et la page `/contact/` en ligne.
+
 6. The FAQ entry « Y a-t-il un tarif dégressif ? » is removed from the `privatisation` set.
    Because `gf-seo-schema.php` reads the same array, it leaves the visible FAQ and the `FAQPage`
    JSON-LD at the same time — they cannot diverge.
+   > **Sans test** — code PHP des mu-plugins du site Solio, hors des suites JS de ce dépôt ;
+   >   vérifié sur la page rendue et sur son JSON-LD `FAQPage` (§7).
+
 7. On `/contact/`, the arbitration was between the three layers that say the same thing. The FAQ is
    kept because it is what `FAQPage` markup quotes; the prose is kept because it is the page a
    human reads; the geo block is the one that goes (rule 4).
+   > **Sans test** — arbitrage éditorial tranché le 2026-09-24, pas un comportement exécutable.
 
 ## 4. Architecture
 
