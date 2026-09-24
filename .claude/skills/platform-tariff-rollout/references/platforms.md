@@ -1192,3 +1192,31 @@ photos, tarifs, promotions, synchronisation iCal, widgets et statistiques — **
 descriptif**. « Pour toute modification, veuillez contacter Gîtes de France Ardèche » : le contenu
 éditorial appartient au relais départemental, et passe donc par un message, pas par un formulaire.
 C'est le seul des six canaux qui ne se pilote pas.
+
+## Abracadaroom — la page publique sert une copie en retard de plus de 24 h
+
+Mesuré les 2026-09-23 et 24. Les textes du bain nordique enregistrés le 23 (description **et** les
+trois blocs de l'onglet TARIFS) étaient toujours absents de
+`abracadaroom.com/fr/reservation-domaine-solio-…-lodge-6567/` le lendemain, alors que le
+back-office les rendait bien **après rechargement complet** — donc pas un enregistrement raté.
+
+Ce que le retard n'est pas :
+
+- **Pas un cache CDN.** `curl -I` sur l'annonce renvoie `cf-cache-status: DYNAMIC` : Cloudflare ne
+  met pas cette page en cache, elle vient de l'origine à chaque appel.
+- **Pas une surcharge de place de marché.** Les sous-onglets « ABRACADAROOM » / « UNIC STAY » du
+  back-office n'existent que sur *Infos générales* et ne surchargent pas la description ; et le
+  retard touche aussi les blocs TARIFS, qui n'ont pas de variante par place de marché.
+- **Pas une histoire de langue.** Seul le FR est rempli ; les onglets EN/ES/NL sont vides et la page
+  publique française est bien celle qui retarde.
+
+Le texte servi publiquement est même **antérieur d'une génération** à ce que montrait l'éditeur avant
+mes modifications (« En option : linge de toilette, ménage de fin de séjour, bain nordique privatif,
+petit-déjeuner » côté public contre « En option : bain nordique privatif, petit-déjeuner » dans le
+champ). La propagation est donc lente et par lots, côté plateforme.
+
+**Conséquence pratique :** ne jamais conclure « c'est en ligne » depuis l'annonce publique
+d'Abracadaroom le jour même, et ne jamais rejouer un enregistrement qui « n'a pas pris » — on ne
+ferait que réécrire la même valeur. Relire le back-office après rechargement, noter la date, et
+revenir voir la page publique le lendemain. Si le retard dépasse deux jours, demander à
+`support@unicstay.com` s'il existe une étape de validation éditoriale.
