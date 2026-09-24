@@ -267,7 +267,7 @@ nouvelle. Même grille, même trait, même couleur héritée.</p>
 <tr><th>Situation</th><th>Ce que fait le sélecteur</th></tr>
 <tr><td>La page a une traduction publiée</td><td>Le menu pointe sur elle (<code>/la-granja/</code> → <code>/en/la-granja/</code>)</td></tr>
 <tr><td>La page n'a pas encore de traduction</td><td>L'entrée reste cliquable et mène à l'accueil anglais — jamais un 404, jamais une entrée grisée sans explication</td></tr>
-<tr><td>Polylang désactivé ou une seule langue publiée</td><td>Le sélecteur <b>ne s'affiche pas du tout</b> : tant que l'anglais n'existe pas, rien ne l'annonce (même logique que la règle 20 sur le <code>hreflang</code>)</td></tr>
+<tr><td>Polylang désactivé ou une seule langue publiée</td><td>Le sélecteur <b>ne s'affiche pas du tout</b> : tant que l'anglais n'existe pas, rien ne l'annonce (même logique que la règle 21 sur le <code>hreflang</code>)</td></tr>
 <tr><td>Téléphone</td><td>Premier bloc du menu burger, <b>replié par défaut</b> — une seule ligne « globe FR », qui se déplie au doigt sur deux cibles de 44 px, l'active en ocre. Le menu « Réserver » reste déplié, lui : c'est la destination du menu, pas un réglage.</td></tr>
 <tr><td>Robots et lecteurs d'écran</td><td>Vraies balises <code>&lt;a hreflang="en" lang="en"&gt;</code>, la langue nommée dans sa langue (« English », pas « Anglais »), <code>aria-current</code> sur l'active</td></tr>
 </table>
@@ -290,7 +290,7 @@ ne dit qu'une chose — « changer de langue » — et c'est la seule chose à d
 <ul class="tight">
 <li><b>La forme</b> — A, B ou C. Recommandation : B.</li>
 <li><b>La place exacte sur bureau</b> — à gauche du bouton « Réserver » (ce que montre la maquette), ou tout à droite après lui. À gauche garde le CTA en dernier, là où l'œil le cherche.</li>
-<li><b>Le prérequis qui coince</b> — l'en-tête est du HTML figé dans un <i>template part</i> WordPress, et <code>gf-booking.php</code> comme <code>gf-sticky-header.php</code> ne vivent que sur le serveur, hors dépôt. La règle 17 de la spec impose de les importer d'abord, dans leur propre commit, avant de toucher à quoi que ce soit.</li>
+<li><b>Le prérequis qui coince</b> — l'en-tête est du HTML figé dans un <i>template part</i> WordPress, et <code>gf-booking.php</code> comme <code>gf-sticky-header.php</code> ne vivent que sur le serveur, hors dépôt. La règle 18 de la spec impose de les importer d'abord, dans leur propre commit, avant de toucher à quoi que ce soit.</li>
 </ul>
 
 <script>

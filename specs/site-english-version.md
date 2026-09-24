@@ -114,32 +114,73 @@ the first page and the last email.
 
 ### Carrying the language to the guest record
 
-11. `POST /public/v1/booking-requests` reads `lang` and stores it: the created (or matched) client
-    gets `emailLanguage`, and the reservation gets `pdfLanguage`. An English request therefore
-    produces English confirmation, English reminders and an English quote PDF **with no further
-    work** — the three existing chains take over.
-12. An **existing** client's `emailLanguage` is never overwritten by a new booking request. The
-    language recorded on the person is the operator's and the guest's, not a by-product of which
-    page they happened to browse. A mismatch is not an error and is not surfaced.
+11. `POST /public/v1/booking-requests` reads `lang` and stores it **on both pipes, because they are
+    disjoint**: the created (or matched) client gets `emailLanguage`, and the devis gets
+    `pdfLanguage`. Measured 2026-09-24: a guest e-mail resolves its language from
+    `clients.emailLanguage` (`controllers/emailsController.js:72`, same precedence on all four
+    sending paths) while the quote PDF reads `reservations.pdfLanguage` and *only* that
+    (`utils/devisPdf.js:98`) — the client's language is never consulted there. Setting one without
+    the other ships English e-mails with a French PDF attached. Today the public path is hard-wired
+    French end to end: `clientsModel` forces `'fr'` (`models/clientsModel.js:59-61`) and
+    `devisModel.create` is called without any language
+    (`controllers/public/publicBookingRequestController.js:123-146`).
+12. **The request's language wins — when the request actually carries one** _(decided 2026-09-24,
+    reversing this rule's first version, which protected the stored value instead)._ A booking
+    request that explicitly declares `fr` or `en` updates the matched client's `emailLanguage`: the
+    page the guest chose to read is the best evidence available of the language they want. But an
+    **absent** `lang` writes nothing. That distinction is not a nicety: rule 1 resolves a missing
+    value to `fr`, and the plugin deployed today sends no `lang` at all, so a blind overwrite would
+    silently reset every English client to French on their next booking. The controller therefore
+    separates "no language stated" from "language stated as fr".
+13. The language the request arrived in is recorded on the devis and travels to the reservation, so
+    the operator can see it even when it disagrees with the client's stored preference (§6).
+    `requestOrigin` must travel with it: measured 2026-09-24, `carryOverColumns`
+    (`models/devisModel.js:822-836`) does **not** copy `requestOrigin` on `convertToReservation`, so
+    a reservation born of a public request currently loses all trace of coming from the site.
+
+### Carrying the language beyond the site — **specified, not built**
+
+_(Added 2026-09-24 at Adrien's request. Everything in this sub-section is a **contract on paper**.
+No code in this spec's implementation touches the gate. It is written down now so the language does
+not have to be retrofitted the day the gate app is built, and so the Sowel side has something to
+build against.)_
+
+14. The guest's language is part of the stay, not of the website. Any GuestFlow surface a guest
+    reaches during their stay must be able to read it, and the gate is the first one coming:
+    `specs/guest-gate-access.md` ships a guest-facing page (`/gate/v1/session`) plus a Sowel-facing
+    poller tree (`/public/v1/gate/*`, that spec's §4.3). Today both are French-only, and the guest
+    page is the **first guest-facing UI this app has ever had** — it must not become the one place
+    where an English guest hits French.
+15. **Contract, when the gate app is written:** `GET`/`POST /gate/v1/session` gains `stay.lang`
+    (`'fr' | 'en'`), resolved exactly like an e-mail — `clients.emailLanguage` first, the
+    reservation's language as a fallback, `fr` last (`controllers/emailsController.js:72`) — so one
+    rule governs the whole guest-facing surface and the page can render itself accordingly. The
+    Sowel long-poll payload (`GET /public/v1/gate/requests`) gains the same `lang` on its `request`
+    object, so a notification the Sowel recipe raises can be worded in the guest's language.
+16. `lang` is **additive and optional** there too: a consumer that ignores it behaves exactly as
+    today. The gate's own security model is untouched — language is a display attribute, never a
+    capability, and it must never widen what a token can do.
+17. Whoever implements this amends `specs/guest-gate-access.md` §4.3 in the same commit. That spec
+    owns the gate contract; this one only records what the contract must eventually say.
 
 ### WordPress plugin (`guestflow-booking`)
 
-13. The plugin resolves the current language once per request — `pll_current_language('slug')` when
+18. The plugin resolves the current language once per request — `pll_current_language('slug')` when
     Polylang is present, otherwise `get_locale()` reduced to its two-letter prefix, otherwise `fr` —
     and sends it as `lang` on every upstream call (`class-gf-api-client.php`) and through the REST
     proxy (`class-gf-rest-proxy.php`).
-14. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
+19. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
     Source strings stay French, which is what the 80 `__()` calls already assume; English arrives as
     a translation. The `.po` is the reviewable artefact and is versioned.
-15. `runtime.js` and `blocks/calendar/view.js` stop hard-coding `fr-FR`: number and date formatting
+20. `runtime.js` and `blocks/calendar/view.js` stop hard-coding `fr-FR`: number and date formatting
     read the locale published by `wp_localize_script`.
-16. The CGV shortcode already renders both languages with a flag switcher
+21. The CGV shortcode already renders both languages with a flag switcher
     (`class-gf-shortcodes.php:71-82`). On an English page it must open on **English** by default;
     the visitor's manual choice still wins and is still remembered.
 
 ### Solio site (mu-plugins)
 
-17. **Prerequisite, before any behaviour change:** the server-only mu-plugins are imported into
+22. **Prerequisite, before any behaviour change:** the server-only mu-plugins are imported into
     `integrations/wordpress/solio-site/mu-plugins/` as-is, in their own commit, so the diff that
     follows is reviewable. Each file is compared against the repository's history first — per
     `wordpress-deploy-topology`, the server copy can be *behind* master, and an import must not
@@ -152,29 +193,29 @@ the first page and the last email.
     One deviation from "as-is", and only one: `zz-adn-security.php` named the WordPress
     administrator's login in a comment, and this repository is public — the comment is reworded to
     say the same thing without the identifier.
-18. The header and footer stop being frozen French HTML in the block template parts. They are
+23. The header and footer stop being frozen French HTML in the block template parts. They are
     rendered per language: labels and URLs both (`/la-granja/` ↔ `/en/la-granja/`), and the header
     carries a **language switcher** (§6, decided 2026-09-24 on
     `docs/specs/2026-09-24-site-language-switcher.html`) linking to the current page's translation —
     or to the English home when that page has no translation yet. **The switcher only exists when
     there is something to switch to:** it is not rendered at all while fewer than two languages have
     published content, so nothing advertises an English site before it stands — the discipline
-    rule 20 applies to `hreflang`, applied to the interface.
-19. `gf-booking.php`'s ~40 interface strings, including the singular/plural of "nuit", go through a
+    rule 25 applies to `hreflang`, applied to the interface.
+24. `gf-booking.php`'s ~40 interface strings, including the singular/plural of "nuit", go through a
     small FR/EN map resolved from the current language, same shape as rule 3.
-20. `gf-seo-head.php` keeps `x-default` on French. The `hreflang="en"` alternate is emitted **only
+25. `gf-seo-head.php` keeps `x-default` on French. The `hreflang="en"` alternate is emitted **only
     for a page that actually has a published English translation** — which also fixes today's defect
     where the whole site advertises an empty `/en/`.
 
 ### Content
 
-21. The 10 published French pages get an English translation, linked through Polylang, with English
+26. The 10 published French pages get an English translation, linked through Polylang, with English
     slugs under `/en/`. The English home replaces the empty "Blog" archive currently served there.
-22. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
+27. English is British (`en_GB`, already the declared locale) and keeps the French voice: sober,
     concrete, understated. The site never becomes salesier in translation than it is in French.
-23. Pages are translated **one at a time, published only once validated**, exactly like the original
+28. Pages are translated **one at a time, published only once validated**, exactly like the original
     French rebuild — an English page stays a draft until Adrien has read it.
-24. Nothing advertises the English site before it stands: rule 20 makes the `hreflang` follow real
+29. Nothing advertises the English site before it stands: rule 25 makes the `hreflang` follow real
     translations, so the sequencing is automatic rather than a thing to remember.
 
 **Edge cases:**
@@ -213,6 +254,8 @@ the first page and the last email.
 | `controllers/` | `controllers/public/publicHttp.js` | T | `fail()` takes a language and looks the message up by code |
 | `models/` | `models/clientsModel.js` | T | Accepts an initial `emailLanguage` on creation; never overwrites an existing one |
 | `models/` | `models/reservationsModel.js` | T | Accepts `pdfLanguage` when the reservation is created from a request |
+| `models/` | `models/devisModel.js` | T | `carryOverColumns` also carries `requestOrigin` and the request's language to the reservation (rule 13) |
+| `controllers/` | `controllers/emailsController.js` | — | **(unchanged)** — it already accepts a `lang` override; only the dialog was not sending it |
 | `utils/` | `utils/publicLabels.js` | **C** | The single FR/EN dictionary for public labels **and** error messages; loud failure on a missing key |
 | `utils/` | `utils/publicProjections.js` | T | Every projection takes `lang`: resolves `title`/`name`, calls `publicLabels`, empties `nameArticle` in English, drops the French `description` |
 | `utils/` | `utils/mealPortions.js` | T | `priceUnitLabel`, `quantityLabel` and `hint` move into the dictionary |
@@ -228,15 +271,31 @@ the first page and the last email.
 
 ### 4.2 Client side (`client/src/`)
 
+_(Added 2026-09-24. The first version of this spec declared the back-office out of scope; the
+operator needs to **see** the language a request arrived in, at the moment they prepare a message.)_
+
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| everything | — | — | **(none)** |
+| `pages/` | `pages/ReservationPage.jsx` | T | Shows the request's language on the fiche; the FR/EN quote-language toggle stops being devis-only; `EMPTY_CLIENT` gains `emailLanguage` (bug below) |
+| `components/` | `components/EmailManualSendDialog.jsx` | T | States the language the message will be sent in, and lets the operator change it **for that send** — the server already accepts `lang` (`emailsController.js:143`,`:159`) and the dialog simply never sent it |
+| `components/` | `components/LanguageBadge.jsx` | **C** | Generic `FR`/`EN` marker, built on the existing `StatusBadge` grammar; used by the fiche and reusable by any list later |
 
-The React back-office is out of scope: it stays French, and the operator already edits `titleEn`,
-`nameEn`, `subjectEn`/`bodyEn` and the bilingual terms through existing screens
-(`OptionsPage.jsx:723`, `EmailTemplatesPage.jsx:95-96`, `TermsSettingsPage.jsx`).
+**The back-office interface itself stays French** — this adds the display of the *guest's* language,
+not a translation of the admin. `titleEn`, `nameEn`, `subjectEn`/`bodyEn` and the bilingual terms
+keep their existing editors (`OptionsPage.jsx:723`, `EmailTemplatesPage.jsx:95-96`,
+`TermsSettingsPage.jsx`), and the client fiche keeps its "Langue des emails" select
+(`ClientFormFields.jsx:138-148`).
 
-**Component reuse declaration:** no new client component; no client change at all.
+**Bug found while mapping this, fixed here** (`ReservationPage.jsx:122-133`): `EMPTY_CLIENT` omits
+`emailLanguage`, while `clientsModel` rewrites that column from the payload on **every** update with
+no "absent → keep" guard (`models/clientsModel.js:59-61`, `:192-193`). Editing a client from the
+reservation page can therefore reset a guest silently to French — the exact accident this whole spec
+exists to prevent. The fix is both sides: the constant carries the field, and the model keeps the
+stored value when the payload does not mention it.
+
+**Component reuse declaration:** one new generic component (`LanguageBadge`), justified because a
+language marker will be wanted in the devis list the day English requests become common; everything
+else reuses existing screens.
 
 ### 4.3 WordPress plugin (`integrations/wordpress/guestflow-booking/`)
 
@@ -246,7 +305,7 @@ The React back-office is out of scope: it stays French, and the operator already
 | `includes/class-gf-api-client.php` | T | Adds `lang` to every upstream request |
 | `includes/class-gf-rest-proxy.php` | T | Accepts and forwards `lang` on the proxied routes |
 | `includes/class-gf-blocks.php` | T | Publishes the locale next to `GF.i18n` for `wp_localize_script` |
-| `includes/class-gf-shortcodes.php` | T | CGV open on the page's language (rule 16) |
+| `includes/class-gf-shortcodes.php` | T | CGV open on the page's language (rule 21) |
 | `assets/runtime.js` | T | `Intl.NumberFormat` / date formatting driven by the published locale |
 | `blocks/calendar/view.js` | T | Same for the calendar's month and day names |
 | `languages/guestflow-booking-en_GB.po` | **C** | The English translation, reviewable in the diff |
@@ -256,7 +315,7 @@ The React back-office is out of scope: it stays French, and the operator already
 
 | File | T/C | Responsibility |
 |---|---|---|
-| 10 server-only mu-plugins | **C** | Imported as-is first (rule 17), no behaviour change in that commit |
+| 10 server-only mu-plugins | **C** | Imported as-is first (rule 22), no behaviour change in that commit |
 | `gf-i18n.php` | **C** | The site's FR/EN string map + the current-language helper the others call |
 | `gf-header.php` (from the `header` template part) | **C** | Navigation rendered per language + renders the language switcher (hidden while a single language has content) |
 | `gf-seo-icons.php` | T | Gains the `globe` icon, on the existing 24 × 24 stroke grid |
@@ -267,7 +326,8 @@ The React back-office is out of scope: it stays French, and the operator already
 ### 4.5 API contract
 
 `lang` is additive and optional everywhere. A consumer that never sends it — today's deployed plugin
-included — receives byte-identical payloads to today. `specs/public-api.md` gains a "Language"
+included — receives byte-identical payloads to today. The same additive promise is written ahead for
+the gate tree (rules 14-17), which this branch does not touch. `specs/public-api.md` gains a "Language"
 section documenting the parameter, the fallback chain and which fields it affects;
 `specs/wordpress-plugin.md:289` is amended to record that multilingual support is now in scope.
 
@@ -356,7 +416,7 @@ of the whole spec.
 4. The same funnel at **360 px**: no wrapping break, no truncated button, switcher first in the
    burger with a 44 px target.
 5. With English unpublished, the switcher is **absent** from the header — desktop and burger alike
-   (rule 18).
+   (rule 23).
 6. The request produces a client with `emailLanguage = 'en'`; the confirmation email and the devis
    PDF are English.
 7. A French visitor sees strictly today's site (the regression that matters most).
@@ -372,6 +432,10 @@ must still pass.
 - **Property names.** "La Granja" and "L'Estiva" are proper nouns.
 - **Operator-typed data**: tariff season names, option descriptions, free-text notes.
 - **Any third language.** The design must not make one harder, but none is built.
+- **The gate app, and every line of code behind rules 14-17.** Those rules are a contract written
+  in advance, at Adrien's request (2026-09-24), so the language does not have to be retrofitted the
+  day `specs/guest-gate-access.md`'s guest page and Sowel plugin are built. **Nothing in this
+  implementation touches `/gate/v1/*` or `/public/v1/gate/*`.**
 - **The 19 `activite` drafts and the 4 page drafts.** They are not published in French; translating
   unpublished content is premature.
 - **Automated E2E coverage of the public website.** None exists today; this spec does not create it.
@@ -414,4 +478,8 @@ _(filled during implementation)_
 - [ ] Site: the `globe` icon in `gf-seo-icons.php` + the switcher itself (§6)
 - [ ] `gf-seo-head`: `hreflang` only for real translations
 - [ ] 10 pages translated and validated one by one
+- [ ] Back-office: request language on the fiche, quote-language toggle outside devis mode, language
+      in the send dialog, `EMPTY_CLIENT` / `clientsModel` overwrite guard
 - [ ] `specs/public-api.md` + `specs/wordpress-plugin.md:289` amended
+- [ ] _(not in this branch — rules 14-17)_ `specs/guest-gate-access.md` §4.3 amended when the gate
+      app is built
