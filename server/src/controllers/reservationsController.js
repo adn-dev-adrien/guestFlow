@@ -1067,6 +1067,14 @@ function update(req, res) {
   }));
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
+  // specs/platform-payout-due-date.md §3.5 rule 38 — a started or finished stay keeps the solde
+  // deadline it was stored with. « Existing rows re-derive on their next save » (§3.0 arbitrage) can
+  // never apply to them: the deadline is not in the locked-fields allowlist below, so the re-derivation
+  // turns every later edit — entering the platform payment, ticking a paid flag — into a 400.
+  if (pastReservationLocked && storedPaymentForQuote.balanceDueDate) {
+    quote.balanceDueDate = storedPaymentForQuote.balanceDueDate;
+  }
+
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
