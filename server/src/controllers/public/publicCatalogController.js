@@ -19,6 +19,7 @@ const {
   toPublicCancellationInsurance,
 } = require('../../utils/publicProjections');
 const { ok, failT, langOf } = require('./publicHttp');
+const translationResolver = require('../../utils/translationResolver');
 const { isClientVisibleOption } = require('../../utils/optionVisibility');
 const { groupOptionsByCategory } = require('../../utils/optionGrouping');
 
@@ -92,6 +93,7 @@ function listOptions(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
   const lang = langOf(req);
+  const translate = translationResolver.forLang(lang);
   const excluded = offeredDefaultOptionIds(propertyId);
   const visible = optionsModel.listForProperty(propertyId)
     .filter((opt) => !excluded.has(Number(opt.id)))
@@ -99,7 +101,7 @@ function listOptions(req, res) {
     // Filtered BEFORE grouping so a category whose options are all internal yields no group at all
     // (specs/option-categories.md §3 rule 14).
     .filter(isClientVisibleOption)
-    .map((opt) => toPublicOption(opt, lang));
+    .map((opt) => toPublicOption(opt, lang, translate));
   // The cancellation insurance leaves the supplements lists entirely
   // (specs/cancellation-insurance.md §3.3 rule 18): it gets its own block, with a mandatory
   // Oui/Non choice, and must never also appear as one row among the extras. Picked out of the
@@ -110,9 +112,14 @@ function listOptions(req, res) {
   // Grouped, render-ready payload (specs/option-categories.md §4.4). Cheapest-first ordering is
   // preserved inside each bucket — the widget renders what it receives, in order.
   const { ungrouped, groups } = groupOptionsByCategory(selectable);
+  // Rule 16 — the grouping above ran on the FRENCH category, so the drawer groups identically in
+  // both languages; only the label it shows is translated, here, once the buckets are settled.
   return ok(res, {
     ungrouped: ungrouped.slice().sort(byPriceAsc),
-    groups: groups.map((g) => ({ category: g.category, options: g.options.slice().sort(byPriceAsc) })),
+    groups: groups.map((g) => ({
+      category: translate.category(g.category),
+      options: g.options.slice().sort(byPriceAsc).map((o) => ({ ...o, category: translate.category(o.category) })),
+    })),
     // Null while unpriced (rule 15) — the projection enforces it: no block, and the site then has
     // no mandatory question to ask. With Neat pricing active the block stays even at a static 0
     // and its label announces a per-stay tariff (neat-cancellation-insurance rule 13).
@@ -129,7 +136,7 @@ function listResources(req, res) {
   const lang = langOf(req);
   // resourcesModel.list resolves applicability (resource_properties pivot, empty = global) and the
   // EFFECTIVE per-property price (property_resource_prices). Public projection strips stock/slots.
-  return ok(res, resourcesModel.list(propertyId).map((row) => toPublicResource(row, lang)).sort(byPriceAsc));
+  return ok(res, resourcesModel.list(propertyId).map((row) => toPublicResource(row, lang, translationResolver.forLang(lang))).sort(byPriceAsc));
 }
 
 function getAvailability(req, res) {

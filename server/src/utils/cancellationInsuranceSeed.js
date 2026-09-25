@@ -33,7 +33,6 @@ const SEED_KEY = 'cancellation_insurance';
 const SEED_DEFINITION = Object.freeze({
   seedKey: SEED_KEY,
   title: 'Assurance annulation',
-  titleEn: 'Cancellation insurance',
   description: "Garantie annulation : en cas d'annulation de votre séjour pour un motif couvert, les sommes déjà versées vous sont remboursées.",
 });
 
@@ -53,7 +52,6 @@ function ensureCancellationInsuranceOption(database, { logger = console } = {}) 
       // Schema not migrated yet — the next boot, after the columns are added, will seed.
       return { action: 'skipped-schema' };
     }
-    const hasTitleEn = cols.includes('titleEn');
 
     const findBySeedKey = database.prepare('SELECT id FROM options WHERE seedKey = ? LIMIT 1');
     const findFlagged = database.prepare('SELECT id FROM options WHERE isCancellationInsurance = 1 ORDER BY id');
@@ -69,17 +67,12 @@ function ensureCancellationInsuranceOption(database, { logger = console } = {}) 
     const adopt = database.prepare(
       'UPDATE options SET seedKey = ?, isCancellationInsurance = 1 WHERE id = ?',
     );
-    const insert = database.prepare(hasTitleEn
-      ? `INSERT INTO options (
-           title, titleEn, description, priceType, price, optionProgressiveTiers,
-           autoEnabled, autoPricingMode, countsAsBedLinen, countsAsBathroomLinen,
-           displayToClient, seedKey, isCancellationInsurance
-         ) VALUES (?, ?, ?, 'per_night', 0, '[]', 0, 'fixed', 0, 0, 1, ?, 1)`
-      : `INSERT INTO options (
-           title, description, priceType, price, optionProgressiveTiers,
-           autoEnabled, autoPricingMode, countsAsBedLinen, countsAsBathroomLinen,
-           displayToClient, seedKey, isCancellationInsurance
-         ) VALUES (?, ?, 'per_night', 0, '[]', 0, 'fixed', 0, 0, 1, ?, 1)`);
+    const insert = database.prepare(
+      `INSERT INTO options (
+         title, description, priceType, price, optionProgressiveTiers,
+         autoEnabled, autoPricingMode, countsAsBedLinen, countsAsBathroomLinen,
+         displayToClient, seedKey, isCancellationInsurance
+       ) VALUES (?, ?, 'per_night', 0, '[]', 0, 'fixed', 0, 0, 1, ?, 1)`);
     const link = database.prepare(
       'INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)',
     );
@@ -113,9 +106,7 @@ function ensureCancellationInsuranceOption(database, { logger = console } = {}) 
         }
       }
       if (!row) {
-        const res = hasTitleEn
-          ? insert.run(SEED_DEFINITION.title, SEED_DEFINITION.titleEn, SEED_DEFINITION.description, SEED_KEY)
-          : insert.run(SEED_DEFINITION.title, SEED_DEFINITION.description, SEED_KEY);
+        const res = insert.run(SEED_DEFINITION.title, SEED_DEFINITION.description, SEED_KEY);
         action = 'seeded';
         row = { id: Number(res.lastInsertRowid) };
       }

@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Les traductions dans un fichier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1060px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 6px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.good{border-left:4px solid var(--ok);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:18px} ul.tight li{margin:6px 0}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+table.doc{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+table.doc th,table.doc td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+table.doc th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+
+/* ---------- atelier ---------- */
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.studio-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;
+  padding:9px 14px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#161C16}}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;min-height:42px;padding:0 15px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--sapin);background:transparent;color:var(--sapin);white-space:nowrap}
+.btn.fill{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.fill{color:#161C16}}
+.btn.ghost{border-color:var(--fieldline);color:var(--muted)}
+.split{display:grid;grid-template-columns:1.25fr .9fr;gap:0}
+@media (max-width:840px){.split{grid-template-columns:1fr}}
+.pane{padding:16px}
+.pane+.pane{border-left:1px solid var(--line)}
+@media (max-width:840px){.pane+.pane{border-left:0;border-top:1px solid var(--line)}}
+.pane h4{margin:0 0 10px;font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.readout{padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);background:var(--card)}
+.readout b{color:var(--ink)}
+
+/* ---------- le tableur ---------- */
+.sheetwrap{overflow-x:auto;border:1px solid var(--fieldline);border-radius:8px}
+table.sheet{border-collapse:collapse;font:12.5px/1.35 var(--sans);min-width:560px;width:100%}
+table.sheet th{background:color-mix(in srgb,var(--lichen) 14%,var(--card));font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--lichen);padding:7px 8px;text-align:left;
+  border-bottom:1px solid var(--fieldline);white-space:nowrap}
+table.sheet td{padding:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+table.sheet td:last-child{border-right:0}
+table.sheet .ro{padding:7px 8px;color:var(--muted);background:color-mix(in srgb,var(--line) 22%,var(--card));white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:190px}
+table.sheet .ro.fr{color:var(--ink);background:transparent;font-weight:500}
+table.sheet .key{font-family:var(--mono);font-size:11px;max-width:150px}
+table.sheet input{width:100%;border:0;background:var(--field);color:var(--ink);font:inherit;padding:7px 8px;min-width:110px}
+table.sheet input:focus{outline:2px solid var(--lichen);outline-offset:-2px}
+table.sheet tr.review td{background:color-mix(in srgb,var(--ocre) 11%,transparent)}
+.flag{display:inline-block;font-size:11px;font-weight:700;color:var(--ocre);padding:7px 8px}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+
+/* ---------- le tiroir ---------- */
+.drawer{background:#fff;border:1px solid #e3e0d7;border-radius:8px;overflow:hidden;font:13.5px/1.45 var(--sans);color:#1f241d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .drawer{background:#20261f;border-color:#3b453b;color:#ece7db}}
+.drawer .dh{padding:9px 12px;font-weight:600;font-size:12px;border-bottom:1px solid #eeebe2;
+  background:#faf8f2;display:flex;justify-content:space-between;align-items:center}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .drawer .dh{background:#1a201a;border-color:#3b453b}}
+.drawer .grp{padding:7px 12px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  color:#5A6B48;border-top:1px solid #f2efe7}
+.drawer .ln{padding:5px 12px 7px}
+.drawer .ln b{font-weight:600}
+.drawer .ln small{display:block;color:#7c8278;font-size:11.5px;margin-top:1px}
+.drawer .ln .none{color:#b0503f;font-style:italic}
+.badge{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid currentColor}
+.badge.fr{color:#8a6d1f} .badge.en{color:#2F6B3A}
+
+/* ---------- carte réglages ---------- */
+.gfcard{max-width:520px;margin:0 auto;background:#fff;border:1px solid #e3e0d7;border-radius:8px;padding:16px;
+  font:14px/1.5 var(--sans);color:#1f241d;position:relative}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .gfcard{background:#20261f;border-color:#3b453b;color:#ece7db}}
+.gfcard h5{margin:0 0 4px;font-size:15px;font-weight:600}
+.counts{font-size:13px;color:#6b7266;margin:0 0 10px}
+.counts .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#5A6B48;margin-right:7px}
+.gfcard p.lead{font-size:13px;color:#6b7266;margin:0 0 14px}
+.cardbtns{display:flex;gap:8px;flex-wrap:wrap}
+.report{margin:12px 0 0;padding:10px 12px;border-radius:6px;font-size:13px;border-left:4px solid var(--ok);
+  background:color-mix(in srgb,var(--ok) 9%,transparent)}
+.report.warn{border-left-color:var(--ocre);background:color-mix(in srgb,var(--ocre) 11%,transparent)}
+.dlg-back{position:absolute;inset:0;background:rgba(20,24,18,.5);display:none;align-items:center;justify-content:center;padding:14px;border-radius:8px}
+.dlg-back.on{display:flex}
+.dlg{background:#fff;border-radius:8px;max-width:360px;padding:16px;box-shadow:0 8px 28px rgba(0,0,0,.28)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dlg{background:#20261f}}
+.dlg h6{margin:0 0 8px;font:600 15px/1.3 var(--sans)}
+.dlg p{font-size:13px;margin:0 0 14px}
+.dlg .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+/* ---------- avant / après ---------- */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+@media (max-width:760px){.ba{grid-template-columns:1fr}}
+.dlgshot{border:1px solid var(--fieldline);border-radius:8px;overflow:hidden;background:var(--field)}
+.dlgshot .t{padding:8px 11px;font-weight:600;font-size:12px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--line) 25%,transparent)}
+.dlgshot .f{padding:9px 11px;border-bottom:1px solid var(--line);font-size:12.5px}
+.dlgshot .f span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
+.dlgshot .f.gone{background:color-mix(in srgb,var(--ko) 10%,transparent);text-decoration:line-through;opacity:.62}
+.dlgshot .f i{color:var(--muted);font-style:normal}
+</style>
+
+<div class="wrap">
+
+<h1>Les traductions dans un fichier</h1>
+<p class="meta">Résumé à valider — 25/09/2026 · spec de référence <code>specs/translation-catalogue.md</code> · <span class="muted">les ateliers se manipulent · 3 arbitrages tranchés le 25/09</span></p>
+
+<h2>Le constat</h2>
+
+<p>Chaque fois qu'un texte a eu besoin d'anglais, on a ajouté une colonne à sa table et un champ à son
+écran : <code>options.titleEn</code>, <code>resources.nameEn</code>. Trois conséquences, mesurées.</p>
+
+<ul class="tight">
+<li><b>Les écrans portent un second champ que personne ne remplit.</b> 21 options sur 32 avaient un
+titre anglais vide un an plus tard. Ils ont été remplis à la main, en production, le 25/09 — parce qu'on
+n'ouvre pas une option pour la traduire : on traduit quand on s'assoit pour traduire, toutes d'un coup.</li>
+<li><b>Certains textes n'ont aucun champ anglais, et ça se voit.</b> Les <b>descriptions</b> d'options
+sont affichées au client : 16 dans le tiroir de La Granja, derrière les ⓘ. Sans <code>descriptionEn</code>,
+une planche à 78 € se présente en anglais sans un mot sur ce qu'elle contient. Les <b>catégories</b>
+non plus : « Boissons », « Restauration » s'affichent tels quels sur la page anglaise.</li>
+<li><b>Une 3<sup>e</sup> langue voudrait dire une 3<sup>e</sup> colonne sur chaque table</b>, et un
+3<sup>e</sup> champ sur chaque écran.</li>
+</ul>
+
+<h2>Atelier 1 — le fichier, et son effet</h2>
+<p class="muted">Tape dans les colonnes <b>english</b> et <b>deutsch</b> : le tiroir de droite suit.
+Puis clique « Corriger une faute en français » pour voir ce qu'il advient d'une traduction déjà faite.</p>
+
+<div class="studio">
+  <div class="studio-bar">
+    <span class="lab">Le tiroir affiche</span>
+    <span class="seg" id="segLang">
+      <button type="button" data-l="en" aria-pressed="true">English</button>
+      <button type="button" data-l="de" aria-pressed="false">Deutsch</button>
+      <button type="button" data-l="fr" aria-pressed="false">Français</button>
+    </span>
+    <button type="button" class="btn ghost" id="btnTypo">Corriger une faute en français</button>
+    <button type="button" class="btn ghost" id="btnReset">Repartir de zéro</button>
+  </div>
+
+  <div class="split">
+    <div class="pane">
+      <h4>traductions-2026-09-25.csv — ouvert dans Numbers</h4>
+      <div class="sheetwrap">
+        <table class="sheet">
+          <thead><tr>
+            <th>clé</th><th>où</th><th>français</th><th>english</th><th>deutsch</th><th>à revérifier</th>
+          </tr></thead>
+          <tbody id="sheet"></tbody>
+        </table>
+      </div>
+      <p class="hint">Les trois premières colonnes se lisent, ne s'écrivent pas : le français se change
+      sur la fiche de l'option, là où il a toujours été changé.</p>
+    </div>
+
+    <div class="pane">
+      <h4>Le tiroir de réservation, en direct</h4>
+      <div class="drawer">
+        <div class="dh"><span>La Granja — suppléments</span><span class="badge" id="langBadge">EN</span></div>
+        <div id="drawer"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="readout" id="readout1"></div>
+</div>
+
+<h2>Atelier 2 — la carte dans les Réglages</h2>
+<p class="muted">« Envoyer un fichier » simule le renvoi. Coche d'abord la case pour voir ce qui se passe
+quand le fichier <em>retire</em> des traductions.</p>
+
+<div class="studio">
+  <div class="studio-bar">
+    <label class="lab" style="display:inline-flex;align-items:center;gap:8px;text-transform:none;font-size:13px;letter-spacing:0;color:inherit;font-weight:400;cursor:pointer">
+      <input type="checkbox" id="chkRemove" style="width:18px;height:18px"> Le fichier renvoyé a 4 cases vidées
+    </label>
+  </div>
+  <div class="pane">
+    <div class="gfcard" id="gfcard">
+      <h5>Traductions</h5>
+      <p class="counts" id="cardCounts"><span class="dot"></span>60 textes · 12 sans anglais · 3 à revérifier</p>
+      <p class="lead">Les traductions se font dans un fichier : télécharge-le, remplis les colonnes de
+      langue, renvoie-le.</p>
+      <div class="cardbtns">
+        <button type="button" class="btn" id="btnDl">Télécharger le fichier</button>
+        <button type="button" class="btn fill" id="btnUp">Envoyer un fichier</button>
+      </div>
+      <div id="cardReport"></div>
+      <div class="dlg-back" id="dlgBack">
+        <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT">
+          <h6 id="dlgT">Ce fichier retire 4 traductions</h6>
+          <p>4 cases de langue sont vides alors qu'une traduction existe aujourd'hui. Si ce n'est pas
+             voulu, vérifie le fichier avant de continuer.</p>
+          <div class="row">
+            <button type="button" class="btn ghost" id="dlgNo">Annuler</button>
+            <button type="button" class="btn fill" id="dlgYes">Appliquer quand même</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="readout" id="readout2"></div>
+</div>
+
+<h2>Ce qui disparaît des écrans</h2>
+<p>C'est l'autre moitié de ta demande : l'interface s'allège d'autant.</p>
+
+<div class="ba">
+  <div class="dlgshot">
+    <div class="t">Aujourd'hui — modifier une option</div>
+    <div class="f"><span>Titre</span>Jus de pomme 1L</div>
+    <div class="f gone"><span>Titre en anglais</span>Apple juice 1L</div>
+    <div class="f"><span>Description</span>3 pommes - bouteille 1L — Pressoir du Pilat</div>
+    <div class="f"><span>Prix</span>5,00 €</div>
+    <div class="f"><span>Catégorie</span>Boissons</div>
+  </div>
+  <div class="dlgshot">
+    <div class="t">Après — modifier une option</div>
+    <div class="f"><span>Titre</span>Jus de pomme 1L</div>
+    <div class="f"><span>Description</span>3 pommes - bouteille 1L — Pressoir du Pilat</div>
+    <div class="f"><span>Prix</span>5,00 €</div>
+    <div class="f"><span>Catégorie</span>Boissons</div>
+    <div class="f"><i>Le champ « Titre en anglais » et le composant derrière lui sont supprimés. Même chose sur les ressources.</i></div>
+  </div>
+</div>
+
+<h2>Les règles qui comptent</h2>
+
+<table class="doc">
+<tr><th>#</th><th>Règle</th><th>Pourquoi elle est là</th></tr>
+<tr><td>1</td><td>GuestFlow ajoute les entrées tout seul</td><td>Une option créée un mardi se retrouve dans le fichier du mercredi sans que personne y pense. C'est le cœur de ta demande.</td></tr>
+<tr><td>3</td><td>Le français ne se traduit pas dans le fichier : il s'y lit</td><td>Deux endroits pour changer un texte français, c'est un endroit de trop.</td></tr>
+<tr><td>5</td><td>Un français modifié garde sa traduction, et la marque « à revérifier »</td><td>Une virgule corrigée ne doit pas te faire retaper une traduction — mais un sens changé doit se voir.</td></tr>
+<tr><td>6</td><td>Une option <b>archivée</b> garde sa traduction ; seule une option <b>supprimée</b> la perd</td><td>Archiver est réversible ; retaper une traduction ne l'est pas.</td></tr>
+<tr><td>11</td><td>Un envoi s'applique en entier ou pas du tout</td><td>Un fichier à moitié appliqué serait pire que refusé : on ne saurait plus où on en est.</td></tr>
+<tr><td>12</td><td>Un envoi qui <em>retire</em> des traductions demande confirmation</td><td>Une case vide est un choix légitime — et c'est aussi à ça que ressemble un fichier abîmé par un tableur.</td></tr>
+<tr><td>15</td><td>Une description non traduite reste absente en anglais</td><td>Une ligne qui manque se lit mieux qu'un paragraphe en langue étrangère. C'est déjà la règle aujourd'hui.</td></tr>
+<tr><td>16</td><td>Une catégorie se traduit comme <em>étiquette</em> seulement</td><td>Le regroupement continue de se faire sur le texte français : le tiroir groupe pareil dans les deux langues, et rien en aval ne dépend d'un texte traduit.</td></tr>
+<tr><td>17</td><td>Une 3<sup>e</sup> langue coûte une colonne</td><td>C'est la raison d'être de tout ce chantier.</td></tr>
+</table>
+
+<h2>Ce qu'on ne met pas dans le fichier</h2>
+
+<p>Tu as tranché : <b>les libellés courts seulement</b>. Les 12 modèles d'e-mail, les CGV et le pied de
+page du devis gardent leur éditeur. Ce sont des <em>documents</em>, pas des étiquettes : la mise en
+forme, les <code>{{variables}}</code> et — pour les CGV — un numéro de version enregistré à chaque
+acceptation comptent pendant qu'on traduit, et une case de tableur n'en montre aucun.</p>
+
+<h2>Le risque, et il est réel</h2>
+
+<div class="alert">
+<b>La migration supprime deux colonnes qui contiennent du vrai travail</b> — les 32 titres anglais et
+le nom anglais du bain nordique, remplis à la main ce matin. Elle les recopie dans le catalogue
+<em>avant</em> de supprimer, dans la même transaction : si quoi que ce soit échoue, tout est annulé et
+les colonnes restent. Elle compte les lignes avant et après, et <b>refuse de supprimer si les comptes
+ne concordent pas</b>. La sauvegarde prise avant chaque installation de release est le second filet.
+</div>
+
+<h2>Un point que je tranche, dis-moi si je me trompe</h2>
+
+<div class="note">
+Tu as écrit « dans un fichier sur le serveur ». Je propose de stocker le catalogue <b>dans la base</b>,
+le CSV restant le format d'échange. Pour toi rien ne change — tu télécharges, tu remplis, tu renvoies —
+mais une table est incluse dans la sauvegarde prise avant chaque release, elle ne peut pas être écrite
+à moitié quand GuestFlow ajoute une entrée tout seul, et elle survit à une installation qui remplace le
+dossier de l'application. Si c'est le fichier lui-même qui comptait, dis-le et je le pose sur le disque.
+</div>
+
+<h2>Les trois arbitrages, tranchés le 25/09</h2>
+
+<div class="good"><b>Format : un CSV, une colonne par langue.</b> Double-clic, ça s'ouvre dans Numbers. Une 3<sup>e</sup> langue = une colonne de plus.</div>
+<div class="good"><b>Périmètre : les libellés courts seulement.</b> ~60 lignes tenables d'un coup d'œil ; e-mails et CGV gardent leur éditeur.</div>
+<div class="good"><b>Français corrigé : la traduction est gardée et marquée « à revérifier ».</b> Rien n'est perdu pour une faute de frappe.</div>
+
+<script>
+(function(){
+  var BASE = [
+    { k:'category:Animations',    o:'Catégorie',            fr:'Animations',                      en:'Activities',       de:'' },
+    { k:'category:Boissons',      o:'Catégorie',            fr:'Boissons',                        en:'Drinks',           de:'' },
+    { k:'category:Restauration',  o:'Catégorie',            fr:'Restauration',                    en:'Food',             de:'' },
+    { k:'option:12:title',        o:'Option · titre',       fr:'Animation-animaux sauvage',       en:'Wild animal trail',de:'' },
+    { k:'option:12:description',  o:'Option · description', fr:'En famille : partez à la recherche des indices laissés par les animaux sauvages', en:'', de:'' },
+    { k:'option:21:title',        o:'Option · titre',       fr:'Jus de pomme 1L',                 en:'Apple juice 1L',   de:'' },
+    { k:'option:21:description',  o:'Option · description', fr:'3 pommes - bouteille 1L — Pressoir du Pilat, Maclas', en:'', de:'' },
+    { k:'resource:2:name',        o:'Ressource · nom',      fr:'Bain nordique',                   en:'Nordic bath',      de:'' }
+  ];
+  var rows, lang = 'en', typo = false;
+  var sheet = document.getElementById('sheet');
+  var drawer = document.getElementById('drawer');
+  var badge = document.getElementById('langBadge');
+  var r1 = document.getElementById('readout1');
+
+  function clone(){ return BASE.map(function(r){ return { k:r.k, o:r.o, fr:r.fr, en:r.en, de:r.de, src:r.fr }; }); }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  function review(r){ return r.src !== r.fr && (r.en || r.de); }
+
+  function drawSheet(){
+    sheet.innerHTML = rows.map(function(r, i){
+      return '<tr' + (review(r) ? ' class="review"' : '') + '>'
+        + '<td><div class="ro key" title="' + esc(r.k) + '">' + esc(r.k) + '</div></td>'
+        + '<td><div class="ro">' + esc(r.o) + '</div></td>'
+        + '<td><div class="ro fr" title="' + esc(r.fr) + '">' + esc(r.fr) + '</div></td>'
+        + '<td><input data-i="' + i + '" data-l="en" value="' + esc(r.en) + '" aria-label="anglais"></td>'
+        + '<td><input data-i="' + i + '" data-l="de" value="' + esc(r.de) + '" aria-label="allemand"></td>'
+        + '<td>' + (review(r) ? '<span class="flag">oui</span>' : '<div class="ro"></div>') + '</td>'
+        + '</tr>';
+    }).join('');
+    [].forEach.call(sheet.querySelectorAll('input'), function(inp){
+      inp.oninput = function(){
+        var r = rows[+this.dataset.i];
+        r[this.dataset.l] = this.value;
+        if (this.value === '') { r.src = r.fr; }          // vider la case acquitte le « à revérifier »
+        else if (r.src !== r.fr) { r.src = r.fr; }        // retraduire l'acquitte aussi
+        drawDrawer(); repaintFlags();
+      };
+    });
+  }
+
+  function repaintFlags(){
+    [].forEach.call(sheet.querySelectorAll('tr'), function(tr, i){
+      var on = review(rows[i]);
+      tr.className = on ? 'review' : '';
+      tr.lastElementChild.innerHTML = on ? '<span class="flag">oui</span>' : '<div class="ro"></div>';
+    });
+  }
+
+  function val(r){
+    if (lang === 'fr') return r.fr;
+    return r[lang] || null;
+  }
+
+  function drawDrawer(){
+    badge.textContent = lang.toUpperCase();
+    badge.className = 'badge ' + (lang === 'fr' ? 'fr' : 'en');
+    var byKey = {}; rows.forEach(function(r){ byKey[r.k] = r; });
+    var cat = function(n){ return val(byKey['category:' + n]) || byKey['category:' + n].fr; };
+    var line = function(tk, dk, price){
+      var t = byKey[tk], d = byKey[dk];
+      var title = val(t) || t.fr;
+      var desc = d ? val(d) : null;
+      var descHtml;
+      if (lang === 'fr') descHtml = '<small>' + esc(d.fr) + '</small>';
+      else if (desc) descHtml = '<small>' + esc(desc) + '</small>';
+      else descHtml = '<small class="none">— pas de description en ' + (lang === 'en' ? 'anglais' : 'allemand') + ' (règle 15)</small>';
+      return '<div class="ln"><b>' + esc(title) + '</b> · ' + price + descHtml + '</div>';
+    };
+    var res = byKey['resource:2:name'];
+    var html = '';
+    html += '<div class="grp">' + esc(cat('Animations')) + '</div>';
+    html += line('option:12:title', 'option:12:description', '45,00 €');
+    html += '<div class="grp">' + esc(cat('Boissons')) + '</div>';
+    html += line('option:21:title', 'option:21:description', '5,00 €');
+    html += '<div class="grp">' + esc(cat('Restauration')) + '</div>';
+    html += '<div class="ln"><b>' + esc(val(res) || res.fr) + '</b> · 30,00 € / h</div>';
+    drawer.innerHTML = html;
+  }
+
+  function say(t){ r1.innerHTML = '<b>Ce que ça montre —</b> ' + t; }
+
+  document.getElementById('segLang').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-l]'); if (!b) return;
+    lang = b.dataset.l;
+    [].forEach.call(this.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    drawDrawer();
+    if (lang === 'de') say('Règle 17 : une 3<sup>e</sup> langue ne coûte qu\'une colonne. Tant que la colonne « deutsch » est vide, le titre retombe sur le français (règle 14) et la description reste absente (règle 15). Remplis-la et regarde.');
+    else if (lang === 'fr') say('La langue source. Les descriptions sont toujours là — ce sont les 16 ⓘ mesurés dans le vrai tiroir.');
+    else say('Règle 14 : un titre non traduit retombe sur le français, jamais sur une case vide. Règle 15 : une description non traduite est omise plutôt qu\'affichée en français.');
+  });
+
+  document.getElementById('btnTypo').onclick = function(){
+    typo = !typo;
+    var r = rows[5]; // Jus de pomme 1L
+    r.fr = typo ? 'Jus de pommes 1L' : 'Jus de pomme 1L';
+    drawSheet(); drawDrawer();
+    say(typo
+      ? 'Règle 5 : le français a changé, <b>la traduction anglaise est restée</b> — et la ligne est marquée « à revérifier ». Vide la case puis retape-la : le marquage s\'efface. Règle 4 : c\'est possible parce que l\'entrée est identifiée par sa provenance (<code>option:21:title</code>), pas par son texte.'
+      : 'Le français est revenu à sa valeur d\'origine, le marquage disparaît de lui-même.');
+  };
+
+  document.getElementById('btnReset').onclick = function(){
+    rows = clone(); typo = false; drawSheet(); drawDrawer();
+    say('Tout est revenu à l\'état d\'un fichier fraîchement téléchargé.');
+  };
+
+  // ---- atelier 2 ----
+  var rep = document.getElementById('cardReport');
+  var dlgBack = document.getElementById('dlgBack');
+  var r2 = document.getElementById('readout2');
+  function say2(t){ r2.innerHTML = '<b>Ce que ça montre —</b> ' + t; }
+
+  document.getElementById('btnDl').onclick = function(){
+    rep.innerHTML = '<div class="report">Fichier <code>traductions-2026-09-25.csv</code> téléchargé — 60 lignes, toutes les entrées, traduites ou non.</div>';
+    say2('Règle 10 : un téléchargement est toujours le catalogue <b>entier</b>, pour que le fichier sur ton disque soit une photo complète et à jour. Règle 8 : toujours trié pareil, donc deux téléchargements se comparent.');
+  };
+  document.getElementById('btnUp').onclick = function(){
+    if (document.getElementById('chkRemove').checked) { dlgBack.classList.add('on'); return; }
+    rep.innerHTML = '<div class="report">47 traductions mises à jour · 2 clés inconnues ignorées.</div>';
+    document.getElementById('cardCounts').innerHTML = '<span class="dot"></span>60 textes · 0 sans anglais · 0 à revérifier';
+    say2('Règle 13 : les 2 clés inconnues sont <b>ignorées, jamais créées</b> — le contenu du catalogue est décidé par GuestFlow, pas par une faute de frappe dans une case. Règle 11 : tout s\'applique en une transaction.');
+  };
+  document.getElementById('dlgNo').onclick = function(){
+    dlgBack.classList.remove('on');
+    rep.innerHTML = '<div class="report warn">Envoi annulé — rien n\'a été modifié.</div>';
+    say2('Règle 12 : tu annules, et <b>rien</b> n\'a été écrit. Une case vide est un choix légitime, mais c\'est aussi à ça que ressemble un fichier abîmé par un tableur : la question valait d\'être posée.');
+  };
+  document.getElementById('dlgYes').onclick = function(){
+    dlgBack.classList.remove('on');
+    rep.innerHTML = '<div class="report warn">43 traductions mises à jour · 4 retirées · 2 clés inconnues ignorées.</div>';
+    say2('Règle 12 : tu as confirmé, les 4 retraits sont appliqués — et le compte-rendu les nomme, pour qu\'un retrait ne passe jamais inaperçu.');
+  };
+
+  rows = clone(); drawSheet(); drawDrawer();
+  say('Le fichier à gauche, son effet à droite. Tape une traduction dans « english » : la ligne du tiroir change pendant que tu tapes.');
+  say2('La carte telle qu\'elle apparaîtra dans les Réglages.');
+})();
+</script>
+
+</div>
+</html>

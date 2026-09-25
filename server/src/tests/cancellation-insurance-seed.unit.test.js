@@ -16,7 +16,7 @@ function freshDb({ properties = [1, 2] } = {}) {
     CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE options (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT, titleEn TEXT NOT NULL DEFAULT '', description TEXT,
+      title TEXT, description TEXT,
       priceType TEXT DEFAULT 'per_stay', price REAL DEFAULT 0,
       optionProgressiveTiers TEXT NOT NULL DEFAULT '[]',
       autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT NOT NULL DEFAULT 'fixed',
@@ -40,7 +40,6 @@ test('first boot seeds one unpriced insurance, linked to every property', () => 
   assert.equal(res.action, 'seeded');
   const row = seeded(db);
   assert.equal(row.title, 'Assurance annulation');
-  assert.equal(row.titleEn, 'Cancellation insurance');
   assert.equal(row.priceType, 'per_night', 'the insurance is sold by the night by default');
   assert.equal(row.price, 0, 'unpriced = proposed nowhere until Adrien sets a tariff');
   assert.equal(row.isCancellationInsurance, 1);

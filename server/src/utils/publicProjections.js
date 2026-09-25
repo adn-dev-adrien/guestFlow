@@ -32,6 +32,17 @@ function labelsFor(lang) {
  * to French, and resolves its own labels through `publicLabels` — so a consumer that never sends a
  * language receives byte-identical payloads to before this existed.
  */
+/**
+ * Is this actually a translation resolver, or the array `Array.map` handed us as a third argument?
+ *
+ * The same accident `labelsFor` guards against for `lang`, one argument further along.
+ */
+function isResolver(candidate) {
+  return Boolean(candidate)
+    && typeof candidate.optionTitle === 'function'
+    && typeof candidate.resourceName === 'function';
+}
+
 function resolveTitle(rawLang, title, titleEn) {
   const lang = normalisePublicLang(rawLang);
   const en = String(titleEn || '').trim();
@@ -102,19 +113,30 @@ function optionPriceLabels(priceType, showsPlanningCard, option = null, lang = '
   return { priceUnitLabel: L.priceUnit[pt] || null, quantityLabel: null };
 }
 
-function toPublicOption(row, lang = 'fr') {
+/**
+ * `translate` is the translation catalogue for the language being served
+ * (specs/translation-catalogue.md rules 14-16). Optional on purpose: without it the projection falls
+ * back to the row's own `titleEn`, which is what every caller did before the catalogue existed and
+ * what the models still attach.
+ */
+function toPublicOption(row, lang = 'fr', translate = null) {
   if (!row) return null;
   const labels = optionPriceLabels(row.priceType, row.showsPlanningCard, row, lang);
+  const id = Number(row.id);
+  // Same reason `lang` is normalised rather than trusted: `rows.map(toPublicOption)` hands the index
+  // as the second argument AND the array as the third, so an unchecked `translate` would be an array.
+  const tr = isResolver(translate) ? translate : null;
   const out = {
-    id: Number(row.id),
+    id,
     // Rule 4: `title` arrives ALREADY resolved, so the site renders one field whatever the language.
     // `titleEn` keeps being emitted unchanged so nothing reading it today breaks.
-    title: resolveTitle(lang, row.title, row.titleEn),
-    titleEn: row.titleEn || null,
-    // Rule 7: there is no `descriptionEn` — specs/devis-english-language.md §3 rule 6 refused one —
-    // so English drops the description rather than showing a French paragraph. A missing line reads
-    // better than a foreign one.
-    description: normalisePublicLang(lang) === 'en' ? null : (row.description || null),
+    title: tr ? tr.optionTitle(id, row.title) : resolveTitle(lang, row.title, row.titleEn),
+    titleEn: tr ? tr.englishOptionTitle(id) : (row.titleEn || null),
+    // Rule 15: a description is translated when the catalogue has it, and **omitted** otherwise —
+    // never shown in French on an English page. A missing line reads better than a foreign one.
+    description: tr
+      ? tr.optionDescription(id, row.description)
+      : (normalisePublicLang(lang) === 'en' ? null : (row.description || null)),
     priceType: row.priceType,
     price: Number(row.price || 0),
     // Planning-card option: booked as a time slot. On the site it's billed by quantity and « à
@@ -255,15 +277,19 @@ function roundHours(value) {
  * the EFFECTIVE per-property price (resolved by resourcesModel.list). Stock/quantity, opening hours,
  * slot config and internal flags are NOT exposed.
  */
-function toPublicResource(row, lang = 'fr') {
+function toPublicResource(row, lang = 'fr', translate = null) {
   if (!row) return null;
   const labels = resourcePriceLabels(row.priceType, lang);
+  const id = Number(row.id);
+  const tr = isResolver(translate) ? translate : null;
   return {
-    id: Number(row.id),
+    id,
     // Rule 5: resolved like an option's title, and `nameEn` starts being exposed alongside — closing
     // an asymmetry the catalogue carried since `nameEn` was added.
-    name: resolveTitle(lang, row.name, row.nameEn),
-    nameEn: row.nameEn || null,
+    name: tr ? tr.resourceName(id, row.name) : resolveTitle(lang, row.name, row.nameEn),
+    nameEn: tr ? tr.englishResourceName(id) : (row.nameEn || null),
+    // A resource's `note` has no catalogue entry (rule 2 keeps the catalogue to labels), so it keeps
+    // the older behaviour: absent in English rather than French.
     description: normalisePublicLang(lang) === 'en' ? null : (row.note || null),
     priceType: row.priceType,
     price: Number(row.price || 0),

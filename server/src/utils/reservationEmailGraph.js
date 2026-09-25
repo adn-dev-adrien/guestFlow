@@ -48,20 +48,24 @@ function loadReservationGraph(database, reservationId) {
   const property = reservation.propertyId
     ? database.prepare('SELECT * FROM properties WHERE id = ?').get(reservation.propertyId)
     : null;
-  // Joined options — surface `title` (+ `titleEn` for English emails) + `autoOptionType`.
+  // Joined options / resources. The English name no longer lives on the row: it comes from the
+  // translation catalogue (specs/translation-catalogue.md rule 2), read once for the whole graph
+  // rather than once per line. `titleEn` / `nameEn` keep their names here because that is what the
+  // context builder reads, and they keep their meaning: NULL when there is no translation, so the
+  // builder's French fallback still decides.
   const options = database.prepare(`
-    SELECT ro.*, o.title, o.titleEn, o.autoOptionType, o.displayToClient
+    SELECT ro.*, o.title, o.autoOptionType, o.displayToClient
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
   `).all(id);
-  // Joined resources — surface `name` (+ `nameEn` for English emails) for the resources list.
   const resources = database.prepare(`
-    SELECT rr.*, res.name, res.nameEn
+    SELECT rr.*, res.name
     FROM reservation_resources rr
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
   `).all(id);
+  require('./translationResolver').attachEnglishNames(database, { options, resources });
   // Custom (free-text) options — needed for the J-1 complement breakdown
   // (specs/j1-complement-to-collect.md §3). `description` is the label, `amount` the value.
   const customOptions = database.prepare(`
