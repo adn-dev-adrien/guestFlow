@@ -231,6 +231,19 @@ that deadline passes with the money still not in.
     The per-property payload gains an `isDirectChannel` boolean for that test — the existing `isDirect`
     flag means `slug === 'direct'` only and would wrongly show the field on Lodgify.
 
+### 3.5 A started stay keeps the deadline it was stored with
+
+38. On a reservation whose `startDate` has arrived — the past-reservation lock of
+    [admin-unlock-past-reservations.md](admin-unlock-past-reservations.md) — `balanceDueDate` is **not
+    re-derived**: the save writes back the deadline the row already carries. The §1 arbitrage « existing
+    rows re-derive on their next save » holds for stays that have not started; on the others it could
+    never apply, because the deadline is not in the lock's allowlist and its re-derivation is itself
+    read as a forbidden change. Measured on réservation 22219 (Booking, 17–19 July 2026) on 2026-09-25:
+    the operator edits nothing but « Paiement plateforme » and the save comes back 400 « Cette
+    réservation est passée ou en cours… », because the fiche was stored under the old J-30 rule
+    (10/07) and the engine now derives the payout regime (19/07 + 10 = 29/07). A fiche the admin
+    unlocked (« Déverrouiller cette fiche ») re-derives like any other.
+
 **Edge cases:**
 
 - **Imported booking whose platform amount was never entered** (`balanceAmount = 0`) → the deadline is
@@ -420,6 +433,10 @@ alongside the tourist-tax and acompte writes already performed there.
 > fail DB-reading tests), and an unrelated feature's work-in-progress sitting in the tree inflates the
 > total. Neither is a code issue — but neither is worth chasing twice.
 
+- [x] `tests/past-fiche-keeps-its-solde-deadline.unit.test.js` (T, +3, **2026-09-25 — rule 38**) — a
+      platform-payment edit on a started stay saves instead of returning `PAST_RESERVATION_LOCKED`;
+      the stored deadline is the one written back; a stay that has not started still re-derives it.
+      _(Whole server suite re-run that day: **4 446 pass, 0 fail**.)_
 - [x] `tests/payment-schedule.unit.test.js` (T, +4) — non-direct → `endDate + payoutDueDays`; `Lodgify`
       and `direct` → unchanged `startDate − balanceDaysBefore` clamped at the booking day; missing /
       NULL / non-finite / out-of-range `payoutDueDays` → 10; `payoutDueDays = 0` → the departure day
