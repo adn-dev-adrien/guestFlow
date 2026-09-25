@@ -4,6 +4,30 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-09-25
+
+### Summary
+- La langue choisie sur le site tient enfin d'une page à l'autre, même si le navigateur du visiteur dit autre chose.
+- Sur une page anglaise, la case des conditions renvoyait aux CGV françaises alors que les anglaises sont publiées.
+- Quatre libellés que seul un lecteur d'écran énonce restaient français en anglais.
+- Mettez à jour le plugin WordPress en 1.12.1 avec cette version, ou avant — jamais après.
+
+### Fixed
+- Site: the language you pick now sticks. Choosing English on a French browser held only while you
+  followed English links; the next French address — a bookmark, a search result, a shared link —
+  handed you back to French. Two causes, both fixed: the stored choice is now what decides the
+  language, above what the browser declares, and the address that records it answers a temporary,
+  uncacheable redirect. It was a permanent one, which browsers keep for good, so the second click on
+  the switcher never reached the site and nothing was ever remembered. Detection by browser is
+  unchanged for a visitor who has not chosen, crawlers are still never redirected, and a payment
+  return still keeps its parameters.
+- WordPress plugin 1.12.1: on an English page the terms checkbox linked to the French terms, though
+  the English ones are published. The acceptance is recorded with its version number, so it has to
+  be the text the visitor could read; the link now follows the language of the page.
+- WordPress plugin 1.12.1 and site: four labels only a screen reader ever speaks stayed French on
+  English pages — the calendar's two month buttons, the anti-spam field and the phone menu's button.
+  Nothing on screen showed them, which is exactly why the translation pass had nothing to notice.
+
 ## [3.2.0] - 2026-09-24
 
 ### Summary
