@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, TextField, TableRow, Stack, TableSortLabel,
-  TableCell, IconButton, InputAdornment, Chip, Typography, Divider, Button, Tooltip
+  TableCell, IconButton, InputAdornment, Typography, Divider, Button, Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
@@ -192,6 +192,14 @@ export default function ClientsPage() {
     setClientParam(null);
   };
 
+  // « Supprimer » inside the client sheet: close the sheet and hand over to the same confirmation
+  // dialog the list's trash icon opens — one deletion path, one impact review.
+  const handleDeleteFromSheet = () => {
+    if (!editId) return;
+    setOpen(false);
+    handleDelete(editId);
+  };
+
   const handleSave = async () => {
     if (emailError || phoneError) return;
 
@@ -247,11 +255,24 @@ export default function ClientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlParams, clients]);
 
+  // 2026-09-25 bug fix — same race as the `clientId` effect above, on the deletion side. Keying the
+  // effect on `deleteImpact.open` alone let it re-open the dialog it had just closed: the router
+  // flushes its own URL update a render after `setDeleteImpact`, so React saw « dialog closed but
+  // ?deleteClientId=12 still there » and re-ran `handleDelete`. On Annuler the dialog never closed;
+  // on Confirmer the re-opened dialog asked the server about a client that no longer existed and
+  // showed « Client non trouvé » — the deletion looking like it had already happened. Track the id
+  // last acted on (set by the effect AND by a direct click) and reset it when the URL clears.
+  const lastHandledDeleteClientIdRef = useRef(0);
   useEffect(() => {
     const deleteClientIdFromUrl = Number(urlParams.get('deleteClientId') || 0);
-    if (!deleteClientIdFromUrl || deleteImpact.open) return;
+    if (!deleteClientIdFromUrl) {
+      lastHandledDeleteClientIdRef.current = 0;
+      return;
+    }
+    if (deleteClientIdFromUrl === lastHandledDeleteClientIdRef.current) return;
     handleDelete(deleteClientIdFromUrl);
-  }, [urlParams, deleteImpact.open, clients]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlParams, clients]);
 
   useEffect(() => {
     const cp = (form.postalCode || '').trim();
@@ -287,6 +308,7 @@ export default function ClientsPage() {
 
   const handleDelete = async (id) => {
     const client = clients.find((c) => c.id === id);
+    lastHandledDeleteClientIdRef.current = id;
     setDeleteClientParam(id);
     setDeleteImpact({
       open: true,
@@ -544,7 +566,6 @@ export default function ClientsPage() {
             <TableCell sx={{ fontWeight: 600 }}>Téléphone</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>CP</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Ville</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
             <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
           </TableRow>
         )}
@@ -560,9 +581,6 @@ export default function ClientsPage() {
             <TableCell>{c.phone}</TableCell>
             <TableCell>{c.postalCode || '—'}</TableCell>
             <TableCell>{c.city || '—'}</TableCell>
-            <TableCell>
-              {c.notes && <Chip label={c.notes.substring(0, 30)} size="small" variant="outlined" />}
-            </TableCell>
             <TableCell align="right">
               <Tooltip title="Modifier">
                 <IconButton size="small" aria-label="Modifier" onClick={(e) => { e.stopPropagation(); handleOpen(c); }}><EditIcon fontSize="small" /></IconButton>
@@ -590,7 +608,6 @@ export default function ClientsPage() {
             {(c.postalCode || c.city) && (
               <Typography variant="caption" color="text.secondary">{[c.postalCode, c.city].filter(Boolean).join(' ')}</Typography>
             )}
-            {c.notes && <Chip label={c.notes.substring(0, 40)} size="small" variant="outlined" sx={{ alignSelf: 'flex-start', mt: 0.5 }} />}
           </Stack>
         )}
       />
@@ -603,6 +620,11 @@ export default function ClientsPage() {
         submitDisabled={!form.lastName || !form.firstName || emailError || phoneError}
         submitLabel="Enregistrer"
         maxWidth="md"
+        secondaryAction={editId ? (
+          <Button size="small" startIcon={<DeleteIcon />} onClick={handleDeleteFromSheet} color="error" variant="outlined">
+            Supprimer
+          </Button>
+        ) : null}
       >
         <ClientFormFields
           form={form}
