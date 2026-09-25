@@ -29,6 +29,37 @@ final class GF_Rest_Proxy
     public function boot(): void
     {
         add_action('rest_api_init', [$this, 'register_routes']);
+        // ONE place, before any handler runs, rather than a line repeated in eleven of them: a route
+        // added later would otherwise ask GuestFlow in the wrong language and nothing would say so.
+        add_filter('rest_pre_dispatch', [$this, 'adopt_request_language'], 10, 3);
+    }
+
+    /**
+     * Serve this request in the language the page says it is being read in.
+     *
+     * A REST call carries no page, so Polylang has nothing to read and `GF_Language` would resolve
+     * the site's own locale — French. Every upstream call, every cache key and every label would
+     * follow it, which is how an English page listed its options and price units in French while the
+     * rest of the drawer was translated (specs/site-english-version.md rule 56).
+     *
+     * Only our own namespace, and never a rejection: an absent or unknown `lang` reads as French,
+     * exactly as the public API treats it (rule 1).
+     *
+     * @param mixed            $result  Untouched — this filter reads, it never short-circuits.
+     * @param WP_REST_Server   $server
+     * @param WP_REST_Request  $request
+     * @return mixed
+     */
+    public function adopt_request_language($result, $server, $request)
+    {
+        if ($request instanceof WP_REST_Request
+            && strpos((string) $request->get_route(), '/' . self::NS . '/') === 0) {
+            $lang = $request->get_param('lang');
+            if (is_string($lang) && $lang !== '') {
+                GF_Language::set($lang);
+            }
+        }
+        return $result;
     }
 
     public function register_routes(): void

@@ -68,6 +68,12 @@
   };
 
   // Call the plugin REST proxy. Returns a promise resolving to { status, body }.
+  //
+  // EVERY call carries the language. A REST request has no page, so Polylang cannot tell the plugin
+  // which language the visitor is reading — it would resolve the site default and ask GuestFlow in
+  // French, then cache the answer under that key. That is how an English page ended up listing its
+  // options, its price units and its refusals in French while the rest of the drawer was translated
+  // (specs/site-english-version.md rule 56).
   GF.api = function (method, path, body) {
     var opts = {
       method: method,
@@ -78,7 +84,8 @@
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
-    return fetch(GF.restUrl + path, opts).then(function (r) {
+    var url = GF.restUrl + path + (path.indexOf('?') === -1 ? '?' : '&') + 'lang=' + encodeURIComponent(GF.lang || 'fr');
+    return fetch(url, opts).then(function (r) {
       return r.json().then(function (j) { return { status: r.status, body: j }; })
         .catch(function () { return { status: r.status, body: {} }; });
     }).catch(function () {

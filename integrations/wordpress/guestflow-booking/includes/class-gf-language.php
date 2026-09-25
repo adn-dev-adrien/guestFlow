@@ -98,6 +98,21 @@ class GF_Language
     }
 
     /**
+     * State the language of this request, ahead of every guess.
+     *
+     * A REST request carries no page, so `pll_current_language()` has nothing to read and the
+     * detection falls back to the site's own locale. The browser therefore has to say which language
+     * the page it is on is written in, and this is where that answer lands — before any guess
+     * (specs/site-english-version.md rule 56).
+     *
+     * Normalised like everything else: an unknown value reads as French rather than failing.
+     */
+    public static function set($value): void
+    {
+        self::$current = self::normalise($value);
+    }
+
+    /**
      * Reset the memoised value. Tests only — a request has one language and resolves it once.
      */
     public static function reset(): void
