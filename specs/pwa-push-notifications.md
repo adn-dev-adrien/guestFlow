@@ -93,7 +93,9 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    `/planning?sas=departure&reservationId=:id`, rule 10).
 9. The arrival/departure job runs on the **existing per-minute tick** (`scheduledTasks.js`): each minute it
    finds reservations of **today** whose scheduled time **has just been reached** (scheduled `HH:MM` ≤ now,
-   local) and **not yet notified** (`*NotifiedAt` ≠ today), sends the pushes, and stamps `*NotifiedAt`. A
+   read on the process's **local** clock — which `specs/server-timezone.md` pins to `Europe/Paris`, because
+   a host running in UTC delayed every one of these pushes by 2 h between 2026-08-10 and 2026-09-25)
+   and **not yet notified** (`*NotifiedAt` ≠ today), sends the pushes, and stamps `*NotifiedAt`. A
    reservation created/booked *after* its time already passed today is **not** retro-notified (only
    "reached this minute or earlier today and not stamped" — to avoid a flood on boot, the stamp also
    back-dates events already long past at first run; see §3.4).
