@@ -83,12 +83,16 @@ list.
 
    The pre-existing bulk `POST /clients/cleanup-orphans` stays for headless / programmatic callers but
    is no longer called by the UI.
-9. **Deleting from the client sheet (2026-09-25).** The edit sheet carries a **Supprimer** button
+9. **`ClientsPage` + `ClientFormFields` render only / single field.** `ClientFormFields` shows one phone
+   `TextField` (remove add/remove list). `ClientsPage` drops the client-side reservation sort + nights
+   math and consumes the server-shaped `delete-impact` (reservations + devis); the delete dialog also
+   lists the impacted **devis**.
+10. **Deleting from the client sheet (2026-09-25).** The edit sheet carries a **Supprimer** button
    (start-aligned in the actions row, error-coloured outlined). It closes the sheet and opens the very
    same confirmation dialog the list's trash icon opens — there is one deletion path, and it always
    shows the impact (reservations + devis) before anything is written. A **new** client (no id) gets no
    such button.
-10. **The confirmation dialog closes when asked (2026-09-25).** `?deleteClientId=` is a deep-link
+11. **The confirmation dialog closes when asked (2026-09-25).** `?deleteClientId=` is a deep-link
    *entry* into the dialog, never a re-entry: once the page has acted on an id, it does not act on it
    again until the param clears. Annuler closes the dialog and clears the param; Confirmer deletes,
    closes, reloads the list — and neither path asks the server about the client again. (Bug: the
@@ -96,10 +100,6 @@ list.
    URL update a render after the component's own state. On Annuler the dialog would not close; on
    Confirmer it came back on a client the server no longer had — « Client non trouvé », reading as if
    the deletion had already happened. Same race, same cure as `clientId` on the edit side.)
-11. **`ClientsPage` + `ClientFormFields` render only / single field.** `ClientFormFields` shows one phone
-   `TextField` (remove add/remove list). `ClientsPage` drops the client-side reservation sort + nights
-   math and consumes the server-shaped `delete-impact` (reservations + devis); the delete dialog also
-   lists the impacted **devis**.
 
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows

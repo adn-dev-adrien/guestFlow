@@ -1,5 +1,8 @@
 /**
- * ClientsPage — deletion path (specs/clients.md §3 rules 6 and 10, §6).
+ * ClientsPage — deletion path (specs/clients.md §3 rules 6, 10 and 11, §6).
+ *
+ * Rule 10 — « Supprimer » in the client sheet opens the shared confirmation.
+ * Rule 11 — that confirmation closes when asked, and never re-enters on its own.
  *
  * Bug fixed 2026-09-25: the `?deleteClientId=` watch effect re-opened the confirmation dialog it
  * had just closed, because React Router flushes `setSearchParams` a render after the component's
