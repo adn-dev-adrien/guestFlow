@@ -124,6 +124,23 @@ column rather than a schema change.
 - An empty catalogue (fresh install, before the first collection pass) → the card says so and the
   download is still offered, with its header row.
 
+### 3.5 Every surface that names a label reads the catalogue *(added 2026-09-25)*
+
+21. **The live quote is such a surface.** `POST /public/v1/quote` resolves its option lines, its
+    resource lines, the cancellation-insurance block and the portion hints under the steppers through
+    the catalogue for the language it was called in. It did not, in 3.3.0: it was the one projection
+    still reading `titleEn` / `nameEn`, the columns this change dropped, so an English visitor chose
+    « Breakfast » in the drawer and read « Petit déjeuner » in the summary below it. Nothing failed —
+    rule 14's fallback did its job on a column that had ceased to exist, which is exactly why the
+    tests assert that the resolver is *consulted*, not merely that the strings look right.
+22. **What the site acts on is a flag, never a translated label.** Rule 16 already forbade keying on a
+    translated category; the same holds for any label a consumer branches on. The « Lit bébé »
+    resource is the case that proved it: the booking widget filtered it out of the supplements by
+    matching its French name, and once the catalogue answered « Baby bed » the match failed and the
+    cot was offered to every English visitor, whatever the number of babies. The public resource
+    payload therefore carries `isBabyBed`, decided server-side on the stored row, the way
+    `isCancellationInsurance` already spares the site from keying on a title.
+
 ---
 
 ## 4. Architecture
@@ -148,6 +165,10 @@ column rather than a schema change.
 | `utils/` | `reservationEmailGraph.js`, `reservationEmailSender.js` | T | Their joins stop selecting the dropped columns; `attachEnglishNames` supplies them |
 | `models/` | `optionsModel.js`, `resourcesModel.js`, `devisModel.js` | T | Attach `titleEn` / `nameEn` from the catalogue on read; the write paths for those columns are gone |
 | `controllers/` | `public/publicCatalogController.js` | T | Builds the resolver, and translates the category label **after** grouping (rule 16) |
+| `controllers/` | `public/publicQuoteController.js` | T | *(2026-09-25, rule 21)* Builds one resolver per quote and hands it to the quote projection, the insurance block and the portion limits |
+| `utils/` | `publicProjections.js` | T | *(2026-09-25, rules 21-22)* `toPublicQuote` and `toPublicCancellationInsurance` take the resolver too; `toPublicResource` emits `isBabyBed` |
+| `utils/` | `babyBedResource.js` | **C** | *(2026-09-25, rule 22)* `isBabyBedResource(row)` — the one predicate, read by the projection and by `resourcesModel` |
+| `models/` | `resourcesModel.js` | T | *(2026-09-25, rule 22)* `getBabyBedAvailability` uses that predicate instead of its own `WHERE lower(name) = …` |
 | `middleware/` | — | — | (none) |
 | `scheduledTasks.js` | — | — | (none) |
 | `database.js` | `database.js` | T | Creates the two tables, runs the one-shot migration, and collects on every boot |
@@ -290,6 +311,15 @@ dialog, with the components behind them.
       label while grouping stays on the French key; `lang=de` with no German falls back without error.
 - [x] `tests/translation-migration.unit.test.js` — §5: existing `titleEn` / `nameEn` land in the
       catalogue; the columns are gone; a mismatch between the counts aborts the whole migration.
+- [x] `tests/public-quote-catalogue-language.unit.test.js` — rule 21: an English quote names its option
+      and resource lines from the catalogue; the insurance block follows; an untranslated line still
+      falls back to French; a French quote is byte-identical with and without the resolver; a stale
+      `titleEn` on an engine line is *not* what the title comes from; `POST /quote` builds the resolver
+      for the language it was called in and reads as French without one.
+- [x] `tests/public-resource-baby-bed-flag.unit.test.js` — rule 22: the predicate recognises the cot
+      accent- and case-insensitively and nothing else; the public resource carries `isBabyBed` in both
+      languages while its `name` is translated; the widget's filter keys on the flag and its stepper
+      stays gated on the number of babies.
 - [x] Mutation check: removing the « nothing is lost » verification, making an emptied cell stop
       acknowledging the review, letting an unknown key through, and making the planning delete instead
       of counting — **all four caught**.

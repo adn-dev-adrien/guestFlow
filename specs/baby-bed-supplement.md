@@ -44,7 +44,9 @@ saved keeps exactly the price it was sold at.
 
 ### 3.1 The option
 
-1. A catalogue option **« Lit bébé »** (`titleEn` = *Baby cot*) carries `autoOptionType = 'baby_bed'`,
+1. A catalogue option **« Lit bébé »** (*Baby cot* in the translation catalogue since 3.3.0 — the
+   `titleEn` column it used to carry is gone, `specs/translation-catalogue.md` §5) carries
+   `autoOptionType = 'baby_bed'`,
    `autoEnabled = 1`, `priceType = 'per_stay'`, `price = 5`. It is seeded at boot (§5) and, like every
    typed option, is **not deletable** in Paramètres → Options.
 2. Its price is edited like any other option: single price, or **per logement** via the existing

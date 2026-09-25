@@ -123,6 +123,9 @@ test('toPublicResource keeps id/name/price/priceType; strips stock & slot intern
     priceType: 'per_hour', price: 55,
     priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures", showsSchedulingNote: true,
     freeLabel: '1 h 30 offerte par séjour',
+    // specs/translation-catalogue.md rule 22 — the site keys on this flag rather than on the name,
+    // which the catalogue translates. False here: a nordic bath is not a cot.
+    isBabyBed: false,
   });
 });
 
