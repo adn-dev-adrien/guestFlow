@@ -7,7 +7,10 @@ async function request(path, options = {}) {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
     credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
     ...options,
-    body: options.body instanceof FormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
+    // A raw string body (the translation CSV) is sent as it is; everything else is JSON.
+    body: options.body instanceof FormData || typeof options.body === 'string'
+      ? options.body
+      : (options.body ? JSON.stringify(options.body) : undefined),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -32,6 +35,33 @@ const api = {
   getUpdateStatus: () => request('/system/update/status'),
   startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
   dismissUpdate: (version) => request('/system/update/dismiss', { method: 'POST', body: { version } }),
+
+  // Traductions (specs/translation-catalogue.md §4.3). The catalogue is filled in outside GuestFlow:
+  // one file down, one file up.
+  getTranslationSummary: () => request('/translations/summary'),
+  // Raw CSV text rather than a multipart upload: the browser already holds the file as a string.
+  importTranslations: (csv, { confirmRemovals = false } = {}) => request(
+    `/translations/import${confirmRemovals ? '?confirmRemovals=true' : ''}`,
+    { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv },
+  ),
+  // Downloaded through fetch rather than a bare link so the session cookie travels and a failure is
+  // an error we can show, not a browser error page.
+  downloadTranslations: async () => {
+    const res = await fetch(`${API}/translations/export`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Téléchargement impossible.');
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = /filename="([^"]+)"/.exec(disposition);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : 'traductions.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return a.download;
+  },
 
   // Auth
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),

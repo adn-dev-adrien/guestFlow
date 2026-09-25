@@ -31,7 +31,6 @@ const SEED_DEFINITION = Object.freeze({
   seedKey: SEED_KEY,
   autoOptionType: AUTO_OPTION_TYPE,
   title: 'Lit bébé',
-  titleEn: 'Baby cot',
   price: DEFAULT_PRICE,
   description: "Supplément facturé automatiquement pour chaque lit bébé de la réservation, pour l'ensemble du séjour.",
 });
@@ -46,7 +45,6 @@ function ensureBabyBedSupplementOption(database, { logger = console } = {}) {
       // Schema not migrated yet — the next boot, after the columns are added, will seed.
       return { action: 'skipped-schema' };
     }
-    const hasTitleEn = cols.includes('titleEn');
 
     // Either key identifies the row: `seedKey` for anything this seed created, `autoOptionType` for
     // the engine contract itself — so a row whose seedKey was wiped by hand is still never doubled.
@@ -56,17 +54,12 @@ function ensureBabyBedSupplementOption(database, { logger = console } = {}) {
     const stampSeedKey = database.prepare(
       "UPDATE options SET seedKey = ? WHERE id = ? AND (seedKey IS NULL OR seedKey = '')",
     );
-    const insert = database.prepare(hasTitleEn
-      ? `INSERT INTO options (
-           title, titleEn, description, priceType, price, optionProgressiveTiers,
-           autoOptionType, autoEnabled, autoPricingMode, countsAsBedLinen, countsAsBathroomLinen,
-           displayToClient, seedKey
-         ) VALUES (?, ?, ?, 'per_stay', ?, '[]', ?, 1, 'fixed', 0, 0, 1, ?)`
-      : `INSERT INTO options (
-           title, description, priceType, price, optionProgressiveTiers,
-           autoOptionType, autoEnabled, autoPricingMode, countsAsBedLinen, countsAsBathroomLinen,
-           displayToClient, seedKey
-         ) VALUES (?, ?, 'per_stay', ?, '[]', ?, 1, 'fixed', 0, 0, 1, ?)`);
+    const insert = database.prepare(
+      `INSERT INTO options (
+         title, description, priceType, price, optionProgressiveTiers,
+         autoOptionType, autoEnabled, autoPricingMode, countsAsBedLinen, countsAsBathroomLinen,
+         displayToClient, seedKey
+       ) VALUES (?, ?, 'per_stay', ?, '[]', ?, 1, 'fixed', 0, 0, 1, ?)`);
     const link = database.prepare(
       'INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)',
     );
@@ -87,15 +80,10 @@ function ensureBabyBedSupplementOption(database, { logger = console } = {}) {
       // archiving stays the permanent way to retire it.
       let row = findSeeded.get(SEED_KEY, AUTO_OPTION_TYPE);
       if (!row) {
-        const res = hasTitleEn
-          ? insert.run(
-            SEED_DEFINITION.title, SEED_DEFINITION.titleEn, SEED_DEFINITION.description,
-            SEED_DEFINITION.price, AUTO_OPTION_TYPE, SEED_KEY,
-          )
-          : insert.run(
-            SEED_DEFINITION.title, SEED_DEFINITION.description,
-            SEED_DEFINITION.price, AUTO_OPTION_TYPE, SEED_KEY,
-          );
+        const res = insert.run(
+          SEED_DEFINITION.title, SEED_DEFINITION.description,
+          SEED_DEFINITION.price, AUTO_OPTION_TYPE, SEED_KEY,
+        );
         action = 'seeded';
         row = { id: Number(res.lastInsertRowid) };
       } else {

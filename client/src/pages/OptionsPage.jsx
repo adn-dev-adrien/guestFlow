@@ -26,9 +26,6 @@ const OPTION_PRICE_TYPES = [
 const emptyOption = {
   title: '',
   description: '',
-  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — empty = fallback to FR
-  // `title`. Only the title is translated: the option description isn't printed in the PDF.
-  titleEn: '',
   priceType: 'per_stay',
   price: 0,
   propertyIds: [],
@@ -146,21 +143,6 @@ function normalizeProgressiveTiers(raw) {
     });
   });
   return Array.from(byParticipant.values()).sort((a, b) => a.participantNumber - b.participantNumber);
-}
-
-// Bilingual devis PDF (specs/devis-english-language.md §3 rule 6 + §6.2). Single EN title
-// field — the description has no EN counterpart because the option's description isn't
-// printed in the devis PDF.
-function EnglishTitleField({ form, setForm, titleKey, titleLabel }) {
-  return (
-    <TextField
-      label={titleLabel || 'Titre (anglais)'}
-      value={form[titleKey] || ''}
-      onChange={(e) => setForm({ ...form, [titleKey]: e.target.value })}
-      helperText="Utilisé sur le PDF de devis en anglais. Laisser vide → reprend le titre français."
-      fullWidth
-    />
-  );
 }
 
 // Breakfast default time (specs/breakfast-time.md) + push notice (specs/sas-breakfast-bread-and-
@@ -610,8 +592,6 @@ export default function OptionsPage({ barTabs }) {
         // Seed-managed marker (specs/cancellation-insurance.md §3.2) — round-tripped, never edited
         // from the form: it drives the dedicated block in the website booking funnel.
         isCancellationInsurance: Boolean(item.isCancellationInsurance),
-        // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — title only.
-        titleEn: item.titleEn || '',
         // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
         breakfastTime: item.breakfastTime || '09:00',
         breakfastNotifyLeadMinutes: item.breakfastNotifyLeadMinutes == null ? 30 : Number(item.breakfastNotifyLeadMinutes),
@@ -629,7 +609,6 @@ export default function OptionsPage({ barTabs }) {
         title: form.title,
         description: form.description || '',
         // Bilingual devis PDF — empty string when the operator leaves it blank.
-        titleEn: (form.titleEn || '').trim(),
         price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
         priceType: form.priceType || 'per_stay',
         optionProgressiveTiers: normalizeProgressiveTiers(form.optionProgressiveTiers),
@@ -709,7 +688,7 @@ export default function OptionsPage({ barTabs }) {
       // (the boot seed honours `archivedAt` and never resurrects it) — see §3 rule 25.
       extraColumns={[{ key: 'category', label: 'Catégorie', render: (item) => item.category || '' }]}
       // Bespoke form layout (specs/per-property-option-prices.md §6): explicit field order —
-      // Nom, Titre (anglais), Description, Logements, Type de prix, prix (unique OU par logement
+      // Nom, Description, Logements, Type de prix, prix (unique OU par logement
       // via le Switch), puis les options spécifiques (petit-déjeuner, linge, défauts).
       renderForm={({ form, setForm, properties, priceTypes, items }) => (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
@@ -720,7 +699,6 @@ export default function OptionsPage({ barTabs }) {
             fullWidth
             required
           />
-          <EnglishTitleField form={form} setForm={setForm} titleKey="titleEn" />
           <TextField
             label="Description"
             value={form.description || ''}

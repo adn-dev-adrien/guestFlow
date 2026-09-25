@@ -29,15 +29,20 @@ const DDL = `
     id INTEGER PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '',
     priceType TEXT NOT NULL DEFAULT 'per_stay', price REAL NOT NULL DEFAULT 0,
     optionProgressiveTiers TEXT NOT NULL DEFAULT '[]', autoOptionType TEXT,
-    autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT NOT NULL DEFAULT 'fixed', autoFullNightThreshold TEXT,
-    titleEn TEXT NOT NULL DEFAULT ''
+    autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT NOT NULL DEFAULT 'fixed', autoFullNightThreshold TEXT
   );
   CREATE TABLE property_options ( propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, PRIMARY KEY (propertyId, optionId) );
   CREATE TABLE property_option_defaults (propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
   CREATE TABLE resources (
     id INTEGER PRIMARY KEY, name TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0,
-    price REAL NOT NULL DEFAULT 0, priceType TEXT NOT NULL DEFAULT 'per_stay', isComplex INTEGER NOT NULL DEFAULT 0,
-    nameEn TEXT NOT NULL DEFAULT ''
+    price REAL NOT NULL DEFAULT 0, priceType TEXT NOT NULL DEFAULT 'per_stay', isComplex INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE translation_entries (
+    entryKey TEXT PRIMARY KEY, kind TEXT NOT NULL, sourceId INTEGER, sourceText TEXT NOT NULL, seenAt TEXT NOT NULL
+  );
+  CREATE TABLE translation_values (
+    entryKey TEXT NOT NULL, lang TEXT NOT NULL, text TEXT NOT NULL, sourceAtTime TEXT NOT NULL,
+    PRIMARY KEY (entryKey, lang)
   );
   CREATE TABLE property_resource_prices ( propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId) );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, phone TEXT);
@@ -129,11 +134,23 @@ test('findById: surfaces pdfLanguage on the returned row', () => {
 });
 
 test('findById: surfaces option.titleEn + resource.nameEn so the PDF can read them', () => {
+  // Since specs/translation-catalogue.md the English comes from the catalogue, not from a column on
+  // the row. The field keeps its name so the PDF renderer is untouched — this test proves the source
+  // changed and the contract did not.
   const { model, db } = freshModel();
-  db.prepare(`INSERT INTO options (id, title, titleEn, priceType, price)
-              VALUES (2, 'Petit déjeuner', 'Breakfast', 'per_person_per_night', 0)`).run();
+  db.prepare(`INSERT INTO options (id, title, priceType, price)
+              VALUES (2, 'Petit déjeuner', 'per_person_per_night', 0)`).run();
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 2)').run();
-  db.prepare("INSERT INTO resources (id, name, nameEn, priceType, price) VALUES (1, 'Lit bébé', 'Baby bed', 'per_stay', 0)").run();
+  db.prepare("INSERT INTO resources (id, name, priceType, price) VALUES (1, 'Lit bébé', 'per_stay', 0)").run();
+  for (const [key, kind, source, en] of [
+    ['option:2:title', 'option.title', 'Petit déjeuner', 'Breakfast'],
+    ['resource:1:name', 'resource.name', 'Lit bébé', 'Baby bed'],
+  ]) {
+    db.prepare('INSERT INTO translation_entries (entryKey, kind, sourceId, sourceText, seenAt) VALUES (?, ?, 1, ?, ?)')
+      .run(key, kind, source, '2026-09-25');
+    db.prepare('INSERT INTO translation_values (entryKey, lang, text, sourceAtTime) VALUES (?, ?, ?, ?)')
+      .run(key, 'en', en, source);
+  }
   db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price) VALUES (1, 1, 0)').run();
 
   const created = model.create({

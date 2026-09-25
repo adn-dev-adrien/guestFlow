@@ -71,16 +71,6 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
       logger.log(`[seed:breakfast] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
-    // 2026-06-06 — backfill EN title on rows with empty titleEn.
-    if (cols.includes('titleEn')) {
-      database.prepare(`
-        UPDATE options
-           SET titleEn = ?
-         WHERE autoOptionType = 'breakfast'
-           AND (titleEn IS NULL OR titleEn = '')
-      `).run(SEED_DEFINITION_EN.title);
-    }
-
     // 2026-06-17 — the breakfast option gains the generic planning-card mechanism (« une fois par
     // jour » — specs/breakfast-option-planning-card.md): per-reservation day×hour selection drives
     // its (dedicated) planning card. Set the flags on the typed row(s) (idempotent); initialise the
@@ -112,34 +102,18 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    if (cols.includes('titleEn')) {
-      database.prepare(`
-        INSERT INTO options (
-          title, description, priceType, price, optionProgressiveTiers,
-          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen, titleEn
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        SEED_DEFINITION.title, SEED_DEFINITION.description,
-        'per_person_per_night', 0, '[]',
-        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
-        0, 0,
-        SEED_DEFINITION_EN.title,
-      );
-    } else {
-      database.prepare(`
-        INSERT INTO options (
-          title, description, priceType, price, optionProgressiveTiers,
-          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        SEED_DEFINITION.title, SEED_DEFINITION.description,
-        'per_person_per_night', 0, '[]',
-        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
-        0, 0,
-      );
-    }
+    database.prepare(`
+      INSERT INTO options (
+        title, description, priceType, price, optionProgressiveTiers,
+        autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+        countsAsBedLinen, countsAsBathroomLinen
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      SEED_DEFINITION.title, SEED_DEFINITION.description,
+      'per_person_per_night', 0, '[]',
+      SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
+      0, 0,
+    );
     applyCardFlags();
     logger.log('[seed:breakfast] seeded default option');
     return { action: 'seeded' };

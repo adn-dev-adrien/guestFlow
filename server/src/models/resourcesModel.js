@@ -13,13 +13,6 @@ const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
 const OVERLAP = 'r.startDate < ? AND r.endDate > ?';
 
 function createModel(database) {
-  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7). When the EN column is
-  // missing (minimal test schemas), the SQL gracefully drops the reference.
-  const HAS_RESOURCE_NAME_EN = (() => {
-    try { return database.prepare("PRAGMA table_info(resources)").all().some((c) => c.name === 'nameEn'); }
-    catch { return false; }
-  })();
-
   // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md). Guarded so minimal
   // test schemas without these columns gracefully drop them from the write.
   const HOURLY_COLUMNS = ['showsPlanningCard', 'hourlyEveningStart', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
@@ -59,6 +52,13 @@ function createModel(database) {
       }, {});
   }
 
+  function englishName(resourceId) {
+    try {
+      const { resourceKey } = require('../utils/translationCollector');
+      return require('./translationsModel').create(database).valuesFor('en').get(resourceKey(resourceId)) || null;
+    } catch { return null; }
+  }
+
   function parseResource(resource) {
     if (!resource) return resource;
     let openDays = DEFAULT_OPEN_DAYS;
@@ -74,6 +74,10 @@ function createModel(database) {
     }
     return {
       ...resource,
+      // The English name comes from the translation catalogue since specs/translation-catalogue.md §5;
+      // it keeps its old name and its old meaning — `null` when there is no translation — so the devis
+      // PDF, the English e-mails and the public projections read it exactly as before.
+      nameEn: englishName(resource.id) || resource.nameEn || null,
       propertyIds: getPropertyIds(resource.id),
       isComplex: Boolean(resource.isComplex),
       slotDuration: Number(resource.slotDuration || 60),
@@ -237,7 +241,6 @@ function createModel(database) {
       name: sentenceCase(payload.name),
       // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7) — trimmed string,
       // empty by default. Not run through sentenceCase: operator decides EN casing.
-      nameEn: String(payload.nameEn || '').trim(),
       quantity: Number(payload.quantity) || 0,
       price: Number(payload.price) || 0,
       priceType: payload.priceType || 'per_stay',
@@ -276,10 +279,7 @@ function createModel(database) {
     const propertyIds = normalizePropertyIds(payload);
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
-      const sql = HAS_RESOURCE_NAME_EN
-        ? `INSERT INTO resources (name, nameEn, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes${HOURLY_INSERT_COLS})
-           VALUES (@name, @nameEn, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes${HOURLY_INSERT_VALS})`
-        : `INSERT INTO resources (name, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes${HOURLY_INSERT_COLS})
+      const sql = `INSERT INTO resources (name, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes${HOURLY_INSERT_COLS})
            VALUES (@name, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes${HOURLY_INSERT_VALS})`;
       const result = database.prepare(sql).run(cols);
       const resourceId = Number(result.lastInsertRowid);
@@ -296,14 +296,7 @@ function createModel(database) {
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
       const hourlySet = [HOURLY_SET, THERMAL_SET].filter(Boolean).map((s) => `, ${s}`).join('');
-      const updateSql = HAS_RESOURCE_NAME_EN
-        ? `UPDATE resources
-           SET name=@name, nameEn=@nameEn, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
-               isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
-               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes${hourlySet},
-               updatedAt=datetime('now')
-           WHERE id=@id`
-        : `UPDATE resources
+      const updateSql = `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
                openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes${hourlySet},

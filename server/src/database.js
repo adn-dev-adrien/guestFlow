@@ -750,16 +750,11 @@ const babyBed = db.prepare(`
     AND NOT EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id)
 `).get();
 if (!babyBed) {
-  db.prepare('INSERT INTO resources (name, nameEn, quantity, price, note) VALUES (?, ?, ?, ?, ?)')
-    .run('Lit bébé', 'Baby bed', 1, 0, 'Ressource par défaut');
+  db.prepare('INSERT INTO resources (name, quantity, price, note) VALUES (?, ?, ?, ?)')
+    .run('Lit bébé', 1, 0, 'Ressource par défaut');
 }
-// 2026-06-06 — backfill the EN translation on prod servers that seeded "Lit bébé" before
-// the nameEn column existed. Idempotent: only touches the row when the column is empty.
-try {
-  db.prepare("UPDATE resources SET nameEn = 'Baby bed' WHERE LOWER(name) = LOWER('Lit bébé') AND (nameEn IS NULL OR nameEn = '')").run();
-} catch (e) {
-  // nameEn column not yet present (very early boot path) — silent; the next boot will catch up.
-}
+// Its English name is « Baby bed », and it now lives in the translation catalogue rather than on the
+// row (specs/translation-catalogue.md §5 — `defaultTranslations.js`), where the operator can change it.
 
 // Migration: add missing columns to options table if they don't exist.
 // Silent on steady-state boots (all columns already there). Logs a single summary line on the
@@ -827,13 +822,12 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
   const pid = Number(propertyId);
   if (!Number.isFinite(pid) || pid <= 0) return;
 
-  // English titles surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
-  // The PDF appends the extra-hour suffix at render time; `titleEn` here is the bare name.
+  // Their English names live in the translation catalogue (specs/translation-catalogue.md §5 —
+  // `defaultTranslations.js`), filled in on the boot that follows this seed.
   const defaults = [
     {
       autoOptionType: 'early_check_in',
       title: 'Arrivée anticipée',
-      titleEn: 'Early check-in',
       description: "Option automatique si arrivée avant l'heure par défaut",
       autoEnabled: 1,
       autoPricingMode: 'proportional',
@@ -842,7 +836,6 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     {
       autoOptionType: 'late_check_out',
       title: 'Départ tardif',
-      titleEn: 'Late check-out',
       description: "Option automatique si départ après l'heure par défaut",
       autoEnabled: 1,
       autoPricingMode: 'proportional',
@@ -850,30 +843,23 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     },
   ];
 
-  // Whether the EN title column exists at this exact moment (the column migration above adds
-  // it; this guard keeps the seeder safe on minimal test schemas that don't have it).
-  const optionCols = db.prepare("PRAGMA table_info(options)").all().map((c) => c.name);
-  const hasTitleEn = optionCols.includes('titleEn');
-
   const findScopedByType = db.prepare(`
-    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold${hasTitleEn ? ', o.titleEn' : ''}
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
     FROM options o
     INNER JOIN property_options po ON po.optionId = o.id
     WHERE po.propertyId = ? AND o.autoOptionType = ?
     LIMIT 1
   `);
   const findGlobalByType = db.prepare(`
-    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold${hasTitleEn ? ', o.titleEn' : ''}
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
     FROM options o
     WHERE o.autoOptionType = ?
       AND NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
     LIMIT 1
   `);
-  const insertOption = db.prepare(hasTitleEn
-    ? `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold, titleEn)
-       VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?, ?)`
-    : `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
-       VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)`);
+  const insertOption = db.prepare(
+    `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+     VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)`);
   const insertLink = db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)');
   const upgradeLegacyTimedOption = db.prepare(`
     UPDATE options
@@ -883,12 +869,6 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
       autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
     WHERE id = ?
   `);
-  // Backfill the EN title on legacy rows that already exist without it. Idempotent: only
-  // touches rows where `titleEn` is currently empty.
-  const backfillTitleEn = hasTitleEn
-    ? db.prepare("UPDATE options SET titleEn = ? WHERE id = ? AND (titleEn IS NULL OR titleEn = '')")
-    : null;
-
   const tx = db.transaction(() => {
     for (const def of defaults) {
       const existing = findScopedByType.get(pid, def.autoOptionType);
@@ -902,31 +882,17 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
         if (isLegacyDisabledFixedZero) {
           upgradeLegacyTimedOption.run(def.autoFullNightThreshold, Number(candidate.id));
         }
-        // Backfill the EN title on every existing typed row regardless of the legacy upgrade.
-        if (backfillTitleEn && (!candidate.titleEn || candidate.titleEn === '')) {
-          backfillTitleEn.run(def.titleEn, Number(candidate.id));
-        }
         continue;
       }
 
-      const created = hasTitleEn
-        ? insertOption.run(
-            def.title,
-            def.description,
-            def.autoOptionType,
-            Number(def.autoEnabled || 0),
-            def.autoPricingMode || 'fixed',
-            def.autoFullNightThreshold,
-            def.titleEn,
-          )
-        : insertOption.run(
-            def.title,
-            def.description,
-            def.autoOptionType,
-            Number(def.autoEnabled || 0),
-            def.autoPricingMode || 'fixed',
-            def.autoFullNightThreshold,
-          );
+      const created = insertOption.run(
+        def.title,
+        def.description,
+        def.autoOptionType,
+        Number(def.autoEnabled || 0),
+        def.autoPricingMode || 'fixed',
+        def.autoFullNightThreshold,
+      );
       insertLink.run(pid, Number(created.lastInsertRowid));
     }
   });
@@ -2566,6 +2532,60 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     const updated = tx();
     console.log(`[migration:terms-cgv-url] ${updated} confirmation template field(s) now link to the accepted CGV`);
   }
+}
+
+// ---------- TRANSLATION CATALOGUE ----------
+// specs/translation-catalogue.md §5. Two tables rather than a column per language, so a third
+// language is data and never a migration (rule 17). `translation_values` cascades: a retired entry
+// never leaves orphaned translations behind.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS translation_entries (
+    entryKey   TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    sourceId   INTEGER,
+    sourceText TEXT NOT NULL,
+    seenAt     TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS translation_values (
+    entryKey     TEXT NOT NULL,
+    lang         TEXT NOT NULL,
+    text         TEXT NOT NULL,
+    sourceAtTime TEXT NOT NULL,
+    PRIMARY KEY (entryKey, lang),
+    FOREIGN KEY (entryKey) REFERENCES translation_entries(entryKey) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_translation_values_lang ON translation_values(lang);
+`);
+
+// One-shot: move `options.titleEn` / `resources.nameEn` into the catalogue and drop them. The whole
+// thing runs in ONE transaction, deliberately — the migration verifies that every legacy value can be
+// read back before it drops anything, and a throw there rolls the drop back and leaves the columns in
+// place for the next boot to retry.
+{
+  const migrationName = 'translation_catalogue_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runTranslationCatalogueMigration } = require('./utils/translationCatalogueMigration');
+    db.transaction(() => {
+      runTranslationCatalogueMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+    })();
+  }
+}
+
+// Rule 1 — the catalogue reconciles itself with the sources on every boot. Idempotent, and cheap: it
+// is one pass over ~60 short labels. The export and the summary refresh again before they answer, so
+// the file the operator downloads is current even for an option created minutes ago.
+try {
+  const { collectSources } = require('./utils/translationCollector');
+  const { applyDefaultTranslations } = require('./utils/translationCatalogueMigration');
+  const catalogue = require('./models/translationsModel').create(db);
+  catalogue.collect(collectSources(db));
+  applyDefaultTranslations(catalogue);
+} catch (err) {
+  // A catalogue that could not be refreshed must not stop the server: every label still has its
+  // French, which is what a missing translation falls back to anyway (rule 14).
+  console.warn('[translations] collecte au démarrage impossible :', err.message);
 }
 
 // ---------- REJEU DU BASELINE ----------
