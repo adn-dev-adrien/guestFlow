@@ -57,11 +57,43 @@ final class GF_Settings
         return array_key_exists($key, $all) ? $all[$key] : $fallback;
     }
 
-    /** Page showing [guestflow_cgv]; the booking checkbox links to it (default: /cgv/). */
+    /**
+     * Page showing [guestflow_cgv]; the booking checkbox links to it (default: /cgv/), in the
+     * language this request is served in.
+     *
+     * The setting holds one URL, and that URL names one page in one language. Left as it is, an
+     * English visitor was asked to accept terms written in French — the acceptance is recorded with
+     * a version number, so it has to be the text they could actually read
+     * (specs/site-english-version.md rule 48).
+     */
     public function get_cgv_page_url(): string
     {
         $url = trim((string) $this->get('cgv_page_url', ''));
-        return $url !== '' ? $url : home_url('/cgv/');
+        return self::in_current_language($url !== '' ? $url : home_url('/cgv/'));
+    }
+
+    /**
+     * The same page, in the language of this request.
+     *
+     * Falls back to the URL it was given whenever the answer would be a guess: no Polylang, a URL
+     * that resolves to no page, or a page with no translation. A visitor reading terms in the wrong
+     * language is a defect; a visitor reading no terms at all would be worse.
+     */
+    private static function in_current_language(string $url): string
+    {
+        if (!function_exists('pll_get_post') || !class_exists('GF_Language')) {
+            return $url;
+        }
+        $id = url_to_postid($url);
+        if (!$id) {
+            return $url;
+        }
+        $translated = pll_get_post($id, GF_Language::current());
+        if (!$translated) {
+            return $url;
+        }
+        $permalink = get_permalink($translated);
+        return is_string($permalink) && $permalink !== '' ? $permalink : $url;
     }
 
     /** Reverse proxies in front of WordPress whose X-Forwarded-For is believed (visitor IP). */

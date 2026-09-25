@@ -425,9 +425,14 @@ add_filter('render_block', function ($html) {
     if (false !== strpos($html, 'id="gf-burger-cb"')) {
         return $html;
     }
+    // The label a screen reader announces follows the page, like everything else in the header
+    // (specs/site-english-version.md rule 49). `gf_t` may not be loaded — mu-plugins load in
+    // alphabetical order and nothing guarantees gf-i18n came first — so the French stays the fallback.
+    $ouvrir = function_exists('gf_t') ? gf_t('nav_ouvrir_menu') : 'Ouvrir le menu';
     return preg_replace(
         '~<label\s+for="gf-burger-cb"~',
-        '<input type="checkbox" id="gf-burger-cb" class="gf-burger-cb" aria-label="Ouvrir le menu" /><label for="gf-burger-cb"',
+        '<input type="checkbox" id="gf-burger-cb" class="gf-burger-cb" aria-label="'
+            . esc_attr($ouvrir) . '" /><label for="gf-burger-cb"',
         $html,
         1
     );
