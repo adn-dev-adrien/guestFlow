@@ -91,3 +91,33 @@ test('the address that records the choice is never cached (rule 51)', () => {
     'a 302 with no cache header is still cacheable by a heuristic; say no-store explicitly',
   );
 });
+
+test('the switcher emits a token no cached redirect can match (rule 55)', () => {
+  // The cleanup answered a cacheable 301 for a few hours, and a browser keeps a 301 for good: for
+  // those visitors « ?gf_set_lang= » never reaches the server again, so the cookie is never written
+  // and the next page hands them back to their browser's language. No header can purge what is
+  // already cached — only an address the browser has never seen escapes it.
+  const emitted = /add_query_arg\(\s*([A-Z_]+)\s*,\s*\$code/.exec(i18n);
+  assert.ok(emitted, 'the switcher no longer builds its link with add_query_arg — check this guard');
+  assert.strictEqual(
+    emitted[1],
+    'GF_JETON_LANGUE',
+    'the switcher must emit the current token constant, not a literal',
+  );
+
+  const current = /const GF_JETON_LANGUE\s*=\s*'([a-z_]+)'/.exec(i18n);
+  const legacy = /const GF_JETON_LANGUE_ANCIEN\s*=\s*'([a-z_]+)'/.exec(i18n);
+  assert.ok(current && legacy, 'both token names must be declared');
+  assert.notStrictEqual(
+    current[1],
+    legacy[1],
+    'the emitted token is the one browsers cached: it has to differ from the legacy one',
+  );
+
+  // The old one keeps working, for links already shared.
+  const reader = body('gf_jeton_langue_demande');
+  assert.ok(
+    /GF_JETON_LANGUE\b/.test(reader) && /GF_JETON_LANGUE_ANCIEN/.test(reader),
+    'both tokens must still be accepted, or an already-shared link stops switching the language',
+  );
+});
