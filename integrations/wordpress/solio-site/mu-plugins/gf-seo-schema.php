@@ -404,22 +404,47 @@ function gf_seo_schema_faq() {
 /**
  * Fil d’Ariane, deduit de la hierarchie declaree dans gf_seo_pages().
  */
+/**
+ * L'adresse d'une etape du fil, dans la langue de la page.
+ *
+ * La chaine est batie avec les slugs FRANCAIS, parce que `gf_seo_pages()` l'est. Sur une page
+ * anglaise, `home_url( '/la-granja/' )` donnerait « /en/la-granja/ » — une adresse qui n'existe pas,
+ * le slug anglais etant « la-granja-gite » (regle 41). La table de `gf-i18n.php` fait foi.
+ */
+function gf_seo_fil_lien( $chemin_fr, $en ) {
+	if ( ! $en || ! function_exists( 'gf_chemins_traduits' ) ) {
+		return home_url( $chemin_fr );
+	}
+	$table = gf_chemins_traduits();
+	if ( ! isset( $table[ $chemin_fr ] ) || ! function_exists( 'pll_home_url' ) ) {
+		return home_url( $chemin_fr );
+	}
+	// La table porte deja le prefixe « /en/ », et sur une page anglaise `home_url()` le pose aussi :
+	// les coller donnerait « /en/en/ ». On part donc de la racine, que `pll_home_url( 'fr' )` rend
+	// sans prefixe puisque le francais est la langue par defaut masquee. Surtout pas
+	// `get_option( 'home' )` : la valeur en base porte l'IP interne, c'est `WP_HOME` qui la corrige
+	// a chaque requete (voir gf-relative-uploads / wp-config).
+	return rtrim( pll_home_url( 'fr' ), '/' ) . $table[ $chemin_fr ];
+}
+
 function gf_seo_schema_fil() {
 	if ( is_front_page() || ! is_singular() ) {
 		return null;
 	}
-	$conf = gf_seo_current_config();
+	$conf = gf_seo_config_structure();
 	if ( ! $conf ) {
 		return null;
 	}
 	$pages = gf_seo_pages();
+	$en    = function_exists( 'gf_langue' ) && 'en' === gf_langue();
 
 	$chaine = array();
 	$courant = $conf;
 	$slug    = $conf['slug'];
 	$garde   = 0;
 	while ( $courant && $garde++ < 5 ) {
-		array_unshift( $chaine, array( 'slug' => $slug, 'nom' => $courant['fil'] ?? get_the_title() ) );
+		$nom = $en && ! empty( $courant['fil_en'] ) ? $courant['fil_en'] : ( $courant['fil'] ?? get_the_title() );
+		array_unshift( $chaine, array( 'slug' => $slug, 'nom' => $nom ) );
 		$parent = $courant['parent_fil'] ?? null;
 		if ( ! $parent || ! isset( $pages[ $parent ] ) ) {
 			break;
@@ -432,8 +457,10 @@ function gf_seo_schema_fil() {
 		array(
 			'@type'    => 'ListItem',
 			'position' => 1,
-			'name'     => 'Accueil',
-			'item'     => home_url( '/' ),
+			'name'     => ( $en && function_exists( 'gf_t' ) && '' !== gf_t( 'nav_accueil' ) ) ? gf_t( 'nav_accueil' ) : 'Accueil',
+			// La premiere etape se traduit comme les autres : `home_url( '/' )` rendait l'accueil
+			// FRANCAIS depuis une page anglaise, mesure le 2026-09-25.
+			'item'     => gf_seo_fil_lien( '/', $en ),
 		),
 	);
 	$position = 2;
@@ -444,7 +471,7 @@ function gf_seo_schema_fil() {
 			'@type'    => 'ListItem',
 			'position' => $position++,
 			'name'     => $etape['nom'],
-			'item'     => home_url( '/' . $prefixe ),
+			'item'     => gf_seo_fil_lien( '/' . $prefixe, $en ),
 		);
 	}
 
@@ -476,7 +503,8 @@ function gf_seo_fil_visible( $contenu ) {
 		return $contenu;
 	}
 
-	$html  = '<nav class="gf-fil" aria-label="Fil d’Ariane"><ol>';
+	$intitule = ( function_exists( 'gf_t' ) && '' !== gf_t( 'fil_ariane' ) ) ? gf_t( 'fil_ariane' ) : 'Fil d’Ariane';
+	$html     = '<nav class="gf-fil" aria-label="' . esc_attr( $intitule ) . '"><ol>';
 	$total = count( $fil['itemListElement'] );
 	foreach ( $fil['itemListElement'] as $i => $etape ) {
 		$dernier = ( $i === $total - 1 );
@@ -530,7 +558,9 @@ function gf_seo_render_schema() {
 		),
 	);
 
-	$conf = gf_seo_current_config();
+	// Structure, pas texte : sans ce repli l'anglais perdait le noeud `VacationRental` de La Granja
+	// et le `Campground` de L'Estiva — celui qui decrit le logement comme louable (regle 52).
+	$conf = gf_seo_config_structure();
 	if ( ! empty( $conf['lodging'] ) ) {
 		$noeud = gf_seo_schema_hebergement( $conf['lodging'] );
 		if ( $noeud ) {

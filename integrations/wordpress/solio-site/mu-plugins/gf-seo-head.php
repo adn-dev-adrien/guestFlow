@@ -30,6 +30,7 @@ function gf_seo_pages() {
 			'accueil'     => true,
 			'alias'       => array( 'accueil-solio' ),
 			'fil'         => 'Accueil',
+			'fil_en'      => 'Home',
 			'title'       => 'Domaine Solio — gîte et glamping en Ardèche verte, 13 ha',
 			'description' => 'Un gîte 3 étoiles pour 10 personnes et une tente safari, seuls sur 13 hectares de prairie et de forêt à Satillieu. Animaux, piscine, bain nordique.',
 		),
@@ -38,6 +39,7 @@ function gf_seo_pages() {
 			'alias'       => array( 'le-gite' ),
 			'lodging'     => 'gite',
 			'fil'         => 'Gîte 10 personnes',
+			'fil_en'      => 'Gîte for 10',
 			'title'       => 'Gîte 10 personnes en Ardèche verte — 4 chambres, 3 étoiles',
 			'description' => 'Gîte 3 étoiles pour 10 personnes à Satillieu : 4 chambres, 2 salles d’eau, poêle à bois et terrasse vue montagnes, sur un domaine de 13 hectares.',
 		),
@@ -46,6 +48,7 @@ function gf_seo_pages() {
 			'alias'       => array( 'aventura-lodge' ),
 			'lodging'     => 'lodge',
 			'fil'         => 'Tente safari',
+			'fil_en'      => 'Safari tent',
 			'title'       => 'Tente safari glamping en Ardèche verte — L’Estiva',
 			'description' => 'Tente safari tout confort pour 5 personnes sur terrasse bois, au milieu du pré des chèvres. Salle d’eau privative, ciel étoilé, sans wifi ni voisin.',
 		),
@@ -53,6 +56,7 @@ function gf_seo_pages() {
 
 		'le-domaine'            => array(
 			'fil'         => 'Le domaine',
+			'fil_en'      => 'The estate',
 			'title'       => 'Le Domaine Solio — 13 hectares de nature en Ardèche',
 			'description' => '13 hectares de prairie et de forêt à Satillieu, une boucle de balade de 2 km, des ânes, des chèvres et des moutons que les enfants approchent librement.',
 		),
@@ -61,6 +65,7 @@ function gf_seo_pages() {
 		'autour-de-nous'        => array(
 			'alias'       => array( 'activites-autour' ),
 			'fil'         => 'Activités autour',
+			'fil_en'      => 'Things to do nearby',
 			'title'       => 'Que faire en Ardèche verte ? Nos idées autour de Satillieu',
 			'description' => 'Le Safari de Peaugres à 20 minutes, le lac de Devesset, la Via Fluvia, Annonay à 15 km : nos idées de sorties testées autour du Domaine Solio.',
 		),
@@ -72,6 +77,7 @@ function gf_seo_pages() {
 		'contact'               => array(
 			'alias'       => array( 'acces', 'contactez-nous' ),
 			'fil'         => 'Accès & contact',
+			'fil_en'      => 'Getting here & contact',
 			'title'       => 'Accès & contact — Domaine Solio, Satillieu en Ardèche',
 			'description' => 'Venir au Domaine Solio : GPS, gare de Saint-Vallier à 30 minutes, parking sur place. Sophie ou Adrien répondent au 06 15 73 93 37 ou par e-mail.',
 		),
@@ -112,6 +118,51 @@ function gf_seo_current_config() {
 		}
 	}
 	return null;
+}
+
+/**
+ * Les clefs de la configuration qui decrivent la STRUCTURE de la page, jamais son texte.
+ *
+ * `gf_seo_pages()` est indexee sur les slugs FRANCAIS. Une page anglaise porte le sien
+ * (« la-granja-gite », « the-estate »), donc `gf_seo_current_config()` ne la trouve pas et rend
+ * null — et tout ce qui en depend disparait en silence. Mesure du 2026-09-25 sur le site publie :
+ * les deux pages hebergement anglaises perdaient la feuille de style ET le script du tiroir (le
+ * bouton flottant retombait dans le flux, le tiroir se deversait dans la page), les icones sous le
+ * hero, le fil d'Ariane des cinq pages internes, et le noeud `VacationRental` / `Campground` des
+ * donnees structurees — celui qui decrit le logement comme louable.
+ *
+ * Alors pourquoi ne pas simplement replier `gf_seo_current_config()` sur la jumelle francaise ? Parce
+ * que le `<head>` y lit `title` et `description` : le repli publierait le titre FRANCAIS sur la page
+ * anglaise, ce qui est pire que le defaut corrige. D'ou deux fonctions, et une liste blanche.
+ *
+ * Ce qui passe : de quoi identifier la page et ce qu'elle porte. `fil` est du texte, mais il a son
+ * jumeau `fil_en` — le fil d'Ariane le choisit par la langue (regle 52).
+ */
+function gf_seo_config_structure() {
+	$conf = gf_seo_current_config();
+	if ( $conf ) {
+		return $conf;
+	}
+	if ( ! function_exists( 'pll_get_post' ) || ! is_singular() ) {
+		return null;
+	}
+	$jumelle = pll_get_post( get_queried_object_id(), 'fr' );
+	if ( ! $jumelle ) {
+		return null;
+	}
+	$pages = gf_seo_pages();
+	$slug  = get_post_field( 'post_name', $jumelle );
+	if ( ! isset( $pages[ $slug ] ) ) {
+		return null;
+	}
+	$permis = array( 'lodging', 'parent_fil', 'accueil', 'fil', 'fil_en' );
+	$out    = array( 'slug' => $slug );
+	foreach ( $permis as $cle ) {
+		if ( isset( $pages[ $slug ][ $cle ] ) ) {
+			$out[ $cle ] = $pages[ $slug ][ $cle ];
+		}
+	}
+	return $out;
 }
 
 /**

@@ -33,7 +33,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Vrai si la page courante porte un moteur de reservation.
  */
 function gf_resa_page_concernee() {
-	$conf = function_exists( 'gf_seo_current_config' ) ? gf_seo_current_config() : null;
+	// `gf_seo_config_structure()`, pas `gf_seo_current_config()` : la seconde est indexee sur les
+	// slugs FRANCAIS, si bien que les deux pages hebergement anglaises n'enfilaient ni la feuille de
+	// style ni le script du tiroir. Le bouton flottant perdait son `position: fixed` et retombait
+	// dans le flux, et le contenu du tiroir se deversait dans la page (regle 52). Le filtre
+	// `render_block` ci-dessous avait recu ce repli, ce garde-la non — d'ou un tiroir rendu mais nu.
+	$conf = function_exists( 'gf_seo_config_structure' ) ? gf_seo_config_structure() : null;
 	return ! empty( $conf['lodging'] );
 }
 
@@ -51,23 +56,12 @@ add_filter(
 		if ( isset( $_GET['gf_payment'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return '<div class="gf-resa-retour">' . $contenu . '</div>';
 		}
-		$conf  = function_exists( 'gf_seo_current_config' ) ? gf_seo_current_config() : null;
-		$l     = ! empty( $conf['lodging'] ) ? gf_seo_lodging( $conf['lodging'] ) : null;
-
 		// Une page anglaise porte un slug que la table de configuration ne connait pas : elle est
-		// indexee sur les slugs francais. On redemande donc a la jumelle francaise — et A ELLE
-		// SEULE, pour l'hebergement. Resoudre toute la configuration ici injecterait les titres et
+		// indexee sur les slugs francais. `gf_seo_config_structure()` redemande a la jumelle, et ne
+		// rend que la structure — resoudre toute la configuration injecterait les titres et
 		// descriptions FRANCAIS dans le <head> anglais, ce qui serait pire que l'absence corrigee.
-		if ( ! $l && function_exists( 'pll_get_post' ) && is_singular() ) {
-			$jumelle = pll_get_post( get_queried_object_id(), 'fr' );
-			if ( $jumelle && function_exists( 'gf_seo_pages' ) ) {
-				$pages = gf_seo_pages();
-				$slug  = get_post_field( 'post_name', $jumelle );
-				if ( isset( $pages[ $slug ]['lodging'] ) ) {
-					$l = gf_seo_lodging( $pages[ $slug ]['lodging'] );
-				}
-			}
-		}
+		$conf  = function_exists( 'gf_seo_config_structure' ) ? gf_seo_config_structure() : null;
+		$l     = ! empty( $conf['lodging'] ) ? gf_seo_lodging( $conf['lodging'] ) : null;
 		// L'habillage du tiroir parle la langue de la page. Le moteur qui vit dedans est traduit
 		// par le plugin GuestFlow ; sans ceci, un lecteur anglais lisait « Reserver » et
 		// « Votre sejour » autour d'un formulaire anglais (specs/site-english-version.md regle 45).

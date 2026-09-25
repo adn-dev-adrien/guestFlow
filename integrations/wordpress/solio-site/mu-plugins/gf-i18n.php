@@ -122,6 +122,7 @@ function gf_i18n_dictionnaire() {
             'nav_contact'      => 'Accès & contact',
             'nav_reserver'     => 'Réserver',
             'nav_ouvrir_menu'  => 'Ouvrir le menu',
+            'fil_ariane'       => 'Fil d’Ariane',
             'nav_granja_note'  => 'le gîte · toute l’année · 10 personnes',
             'nav_estiva_note'  => 'la tente safari · avril à mi-octobre · 5 personnes',
             'langue_courante'  => 'FR',
@@ -173,6 +174,7 @@ function gf_i18n_dictionnaire() {
             'nav_contact'      => 'Getting here & contact',
             'nav_reserver'     => 'Book',
             'nav_ouvrir_menu'  => 'Open menu',
+            'fil_ariane'       => 'Breadcrumb',
             'nav_granja_note'  => 'the gîte · all year round · 10 guests',
             'nav_estiva_note'  => 'the safari tent · April to mid-October · 5 guests',
             'langue_courante'  => 'EN',
@@ -353,7 +355,12 @@ function gf_bascule_automatique() {
         return;
     }
 
+    // `no-store` autant que sur le nettoyage du jeton (regle 51). La cible depend du cookie de CE
+    // visiteur : sans en-tete de cache, un 302 reste cachable par heuristique, et le navigateur a
+    // servi « /en/la-granja-gite/ -> /la-granja/ » depuis son cache alors que le choix etait devenu
+    // l'anglais. `Vary` ne suffit pas — son traitement sur une redirection n'est pas fiable.
     header('Vary: Accept-Language, Cookie', false);
+    nocache_headers();
     wp_redirect($cible, 302);
     exit;
 }
