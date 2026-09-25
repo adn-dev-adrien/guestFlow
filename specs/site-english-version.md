@@ -449,6 +449,26 @@ below was already shipped and already wrong; none of it could have been seen fro
     no icon. Each rule lists the words of both languages. The whole word, never a fragment: `bed`
     alone would claim both the single and the double.
 
+56. **A REST request has no page, so the browser has to state the language.** `GF.api` carries
+    `lang` on every call to the plugin's proxy, and the proxy adopts it once, on
+    `rest_pre_dispatch`, before any handler — one place, so a route added later cannot silently ask in
+    the wrong language. Until 2026-09-25 nothing said it: `pll_current_language()` had nothing to read
+    on `/wp-json/…`, `GF_Language` fell back to the site's own locale, and the plugin asked GuestFlow
+    in French **and cached the answer under that key**. The English drawer therefore listed its
+    options, its price units and its refusals in French while every string rendered with the page was
+    already translated. An absent or unknown `lang` still reads as French and is never a rejection
+    (rule 1).
+57. **The site's retouches of the engine's price lines speak the page's language.** `gf-seo-reservation.php`
+    rewrites a few of them — stripping the stay unit, renaming « par participant », appending
+    « la session » / « tarif dégressif ». Those were French literals, and the trigger is the option
+    **title**, which stays French for as long as no English title is filled in — so the retouch fired
+    on English pages too and produced « 30,00 € · per participant · tarif dégressif ». The suffixes now
+    come from the dictionary, and the matching recognises the unit in both languages.
+
+> **Sans test** — un titre d'option ou un nom de catégorie sans traduction reste français : c'est une
+> donnée saisie dans GuestFlow, pas du code. `titleEn` existe et l'API s'en sert ; `category` n'a pas
+> encore de jumelle anglaise.
+
 **Edge cases:**
 
 - `lang=en` while `titleEn` is empty → the French title is shown. Never an empty label, never a key.
