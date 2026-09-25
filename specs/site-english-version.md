@@ -400,6 +400,37 @@ that only appeared once real English pages existed._
 47. A lodging's name keeps its proper noun and translates its descriptor: "L'Estiva — la tente
     safari" becomes "L'Estiva — the safari tent". Rule 9 protects the name, not the words around it.
 
+### What the live English funnel taught us
+
+Added 2026-09-25, after walking the English funnel end to end on the published site. Everything
+below was already shipped and already wrong; none of it could have been seen from the code alone.
+
+48. **The terms link follows the language of the page.** `GF_Settings::get_cgv_page_url()` resolves
+    its URL through Polylang, so an English page links to the English terms. The setting holds one
+    URL and that URL names one page in one language; left untranslated, an English visitor was asked
+    to accept a contract written in French — and the acceptance is *recorded*, with a version number,
+    which is what makes this more than a cosmetic miss. When the translation does not exist the
+    French URL stands: wrong language beats no terms at all.
+49. **A string a screen reader speaks is translated like any other.** Three were not — the calendar's
+    two month-navigation `aria-label`s and the honeypot label in the plugin, and the burger's
+    `aria-label` on the site — because nothing on screen showed them, so the translation pass had
+    nothing to notice. They go through `GF.t()` and `gf_t()` like every other string. A literal is
+    allowed only when it carries no letter: the steppers announce « − » and « + », which read the
+    same in both languages.
+50. **What the visitor chose outranks what their browser says.** The stored choice is consulted
+    first; the `Accept-Language` header is only the fallback when there is no choice. Until
+    2026-09-25 the cookie merely made the auto-switch return early — it suppressed the guess instead
+    of applying the preference — so a visitor with a French browser who asked for English stayed
+    English only while following `/en/` links, and was reclaimed by French the moment they reached a
+    French URL from a bookmark, a search result or a shared link. A cookie holding anything other
+    than `fr` or `en` counts as *no choice*, never as French: normalising it would let a damaged
+    cookie decide for the visitor.
+51. **The address that records the choice is never cached.** `?gf_set_lang=…` exists for its side
+    effect, so its cleanup redirect is a `302` carrying `no-store`, never a `301`. A `301` with no
+    cache header is kept by the browser indefinitely: the second click on the switcher never reached
+    the server, the cookie was written once and never again, and the next page sent the visitor back
+    to their browser's language. The symptom read "I pick English, I change page, I am French again".
+
 **Edge cases:**
 
 - `lang=en` while `titleEn` is empty → the French title is shown. Never an empty label, never a key.

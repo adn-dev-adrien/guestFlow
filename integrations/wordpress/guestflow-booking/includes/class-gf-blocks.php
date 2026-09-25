@@ -179,6 +179,12 @@ final class GF_Blocks
                 'showOthers'      => __('Voir les %d autres', 'guestflow-booking'),
                 'collapse'        => __('Réduire', 'guestflow-booking'),
                 'categoryAria'    => __('Catégorie %s', 'guestflow-booking'),
+                // Calendar navigation and the honeypot label: read by screen readers only, which is
+                // exactly why they stayed French through the whole translation pass — nothing on
+                // screen showed them (specs/site-english-version.md rule 49).
+                'calPrevMonth'    => __('Mois précédent', 'guestflow-booking'),
+                'calNextMonth'    => __('Mois suivant', 'guestflow-booking'),
+                'honeypot'        => __('Ne pas remplir', 'guestflow-booking'),
             ],
         ];
     }
