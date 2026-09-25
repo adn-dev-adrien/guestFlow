@@ -139,6 +139,14 @@ strong,b{ font-weight:700; }
 /* ---- Page sections (redesign 2026-09) ---- */
 .gf-hero{ position:relative; min-height:86vh; display:flex; align-items:flex-end; overflow:hidden;
   margin-top:-86px; background:var(--gf-nuit); }
+/* Le hero glisse SOUS le bandeau transparent, sur toutes les pages.
+   WordPress pose lui-meme « :root :where(.is-layout-constrained) > :first-child{ margin-block-start:0 } »,
+   qui annulait ce retrait quand le hero OUVRE le contenu — le cas de l'accueil. Sur les pages
+   hebergement il survivait par accident : le fil d'Ariane precede le hero, qui n'est donc pas
+   premier. D'ou une page d'accueil dont l'image etait poussee sous la barre et rognee d'autant.
+   On remonte la specificite au lieu de compter sur l'ordre des feuilles (regle 54). */
+:root :where(.is-layout-constrained) > .gf-hero:first-child,
+.entry-content > .gf-hero:first-child{ margin-top:-86px; margin-block-start:-86px; }
 .gf-hero .gf-hero-media{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 35%; }
 /* La video du hero joue partout ; le poster tient l'ecran jusqu'a la premiere image.
    La source est choisie par le script du pied de page : 540p (~2 Mo) sous 601 px, 1080p au-dela. */
