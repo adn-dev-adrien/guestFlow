@@ -26,15 +26,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 function gf_caps_icone_pour( $texte ) {
 	$t = function_exists( 'mb_strtolower' ) ? mb_strtolower( $texte, 'UTF-8' ) : strtolower( $texte );
 
+	// Les mots de CHAQUE langue, dans la meme regle. La pastille anglaise dit « 4 bedrooms » et
+	// « 2 toilets » : mesure du 2026-09-25, les 7 pictogrammes sous le hero disparaissaient sur les
+	// pages anglaises parce que cette table ne connaissait que le francais (regle 53). Le texte
+	// s'affichait, l'icone non — le genre de perte qu'on ne voit qu'en regardant la page.
+	//
+	// L'ordre compte : « lit double » avant « lit simple » n'a pas d'importance, mais `bed` seul
+	// attraperait les deux, d'ou « double bed » et « single bed » en entier.
 	$regles = array(
-		'badge-people'      => array( 'personne' ),
-		'badge-tent'        => array( 'glamping', 'tente' ),
-		'badge-stars'       => array( 'étoile', 'épis', 'gîtes de france' ),
-		'badge-door'        => array( 'chambre' ),
-		'badge-bed-single'  => array( 'lit simple', 'lits simples' ),
-		'badge-bed-double'  => array( 'lit double', 'lits doubles' ),
-		'badge-shower'      => array( 'salle' ),   // salle d’eau / salles d’eau
-		'badge-wc'          => array( 'toilette', 'wc' ),
+		'badge-people'      => array( 'personne', 'guest', 'people' ),
+		'badge-tent'        => array( 'glamping', 'tente', 'tent' ),
+		'badge-stars'       => array( 'étoile', 'épis', 'gîtes de france', 'star', 'épi' ),
+		'badge-door'        => array( 'chambre', 'bedroom' ),
+		'badge-bed-single'  => array( 'lit simple', 'lits simples', 'single bed' ),
+		'badge-bed-double'  => array( 'lit double', 'lits doubles', 'double bed' ),
+		'badge-shower'      => array( 'salle', 'shower' ),   // salle d’eau / shower room
+		'badge-wc'          => array( 'toilette', 'wc', 'toilet' ),
 	);
 
 	foreach ( $regles as $icone => $mots ) {

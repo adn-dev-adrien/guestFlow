@@ -431,6 +431,24 @@ below was already shipped and already wrong; none of it could have been seen fro
     the server, the cookie was written once and never again, and the next page sent the visitor back
     to their browser's language. The symptom read "I pick English, I change page, I am French again".
 
+52. **An English page keeps the structure of its French twin.** `gf_seo_pages()` is indexed on
+    French slugs, so `gf_seo_current_config()` returns null for `/en/la-granja-gite/` — and
+    everything hanging off it disappeared without a word. `gf_seo_config_structure()` resolves the
+    twin through Polylang and returns a **whitelist**: `slug`, `lodging`, `parent_fil`, `accueil`,
+    `fil`, `fil_en`. Never `title`, never `description` — the `<head>` keeps reading
+    `gf_seo_current_config()`, because a blanket fallback would publish the French title on the
+    English page, which is worse than the defect it fixes. Measured lost before this rule: the
+    drawer's stylesheet *and* script on both lodging pages (the floating button lost `position:
+    fixed` and fell into the page flow, the drawer spilled into the content), the breadcrumb on all
+    five inner pages, and the `VacationRental` / `Campground` node — the one describing the lodging
+    as rentable. A breadcrumb step names itself with `fil_en` and links through the translated-path
+    table, since `home_url( '/la-granja/' )` on an English page would name an address that does not
+    exist (rule 41).
+53. **A pictogram is matched in both languages.** `gf_caps_icone_pour()` reads the badge's own words,
+    so a table holding only French ones left the seven badges under the hero showing their text with
+    no icon. Each rule lists the words of both languages. The whole word, never a fragment: `bed`
+    alone would claim both the single and the double.
+
 **Edge cases:**
 
 - `lang=en` while `titleEn` is empty → the French title is shown. Never an empty label, never a key.
