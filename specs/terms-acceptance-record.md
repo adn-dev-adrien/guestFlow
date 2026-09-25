@@ -89,7 +89,9 @@ exact version accepted.
 ### 3.3 Accepting (plugin 1.8.0)
 
 10. The booking block renders the checkbox itself, on the recap, just above the submit button:
-    « J'ai lu et j'accepte les [conditions générales de location] (version N). » The booking block is
+    « J'ai lu et j'accepte les [conditions générales de location]. » The version number is **not shown**
+    to the guest (2026-09-25): it is an internal reference that says nothing to the person reading it,
+    and the acceptance is still recorded against it (rule 12). The booking block is
     French-only (its strings are `__()` translations, no FR/EN switch): the English text lives on the CGV
     page. The link opens `<page des CGV>?v=N` in a new tab — the page is the plugin setting « Page des
     conditions générales » (a URL, `/cgv/` when empty). The block reads N from `GET /terms` when it loads;

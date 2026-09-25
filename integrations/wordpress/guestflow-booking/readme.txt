@@ -56,7 +56,7 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 * Une note sous la ligne rappelle le maximum que le séjour peut servir (« Jusqu'à 12 — 4 personnes × 3 matins ») et le « + » s'y arrête. Si le groupe se réduit, le nombre suit tout seul.
 
 = 1.8.0 =
-* Conditions générales : le formulaire de réservation affiche lui-même la case « J'ai lu et j'accepte les conditions générales de location (version N) », jamais pré-cochée. Sans elle, le bouton explique pourquoi il refuse. GuestFlow enregistre l'acceptation (heure du serveur, version, adresse IP, navigateur) et refuse toute demande qui ne la porte pas.
+* Conditions générales : le formulaire de réservation affiche lui-même la case « J'ai lu et j'accepte les conditions générales de location », jamais pré-cochée. Sans elle, le bouton explique pourquoi il refuse. GuestFlow enregistre l'acceptation (heure du serveur, version, adresse IP, navigateur) et refuse toute demande qui ne la porte pas.
 * Nouveau shortcode [guestflow_cgv] : affiche les conditions générales publiées dans GuestFlow, en français et en anglais, ou une version précise avec ?v=N (le lien de la case et du mail de confirmation).
 * Réglages : « Page des conditions générales » et « Proxys de confiance ». Le plugin transmet à GuestFlow l'adresse du visiteur, et non plus celle du serveur WordPress ; la limite anti-spam compte désormais par visiteur.
 * À installer le jour où GuestFlow passe à la version qui exige les CGV : un plugin 1.7 n'envoie pas l'acceptation, et GuestFlow refuse alors toutes ses demandes.

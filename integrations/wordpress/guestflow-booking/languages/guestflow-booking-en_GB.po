@@ -20,10 +20,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: includes/class-gf-blocks.php:175
-msgid " (version %d)."
-msgstr " (version %d)."
-
 #: includes/class-gf-blocks.php:161
 msgid "%s par lit, pour le séjour"
 msgstr "%s per bed, for the stay"
