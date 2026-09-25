@@ -8,6 +8,9 @@
  * `evaluateArithmetic(input)` returns the numeric result, or `null` when the expression is empty,
  * malformed, or not finite (e.g. division by zero). Callers decide how to treat `null` (typically:
  * keep the previous value).
+ *
+ * Before parsing, the input goes through `normalizeMoneyInput`: an amount copied off a platform
+ * statement (« 1 197,00 € ») is read as the number it obviously is, not rejected (rules 8-9).
  */
 
 function tokenize(s) {
@@ -95,9 +98,41 @@ function evalRPN(rpn) {
   return st.length === 1 ? st[0] : null;
 }
 
+// A currency symbol is decoration, never part of the arithmetic: the operator copies « 460,48 € »
+// off the platform's statement and the field has to read the amount (rule 8).
+const CURRENCY = /[\u20ac$\u00a3]|\bEUR\b/gi;
+
+/**
+ * Turns a human/statement-formatted amount into something the tokenizer understands: drops the
+ * currency symbol, flattens every kind of Unicode space (NBSP, narrow NBSP, thin space — what a
+ * copy-paste actually carries) and removes thousands separators. The decimal mark is left alone;
+ * `evaluateArithmetic` still maps `,` to `.` afterwards.
+ *
+ * @param {string|number|null|undefined} input
+ * @returns {string} the normalized expression (never null — an unreadable input stays unreadable
+ *                   and is rejected further down the pipe)
+ */
+export function normalizeMoneyInput(input) {
+  let s = String(input ?? '').replace(CURRENCY, ' ').replace(/\s+/g, ' ');
+
+  // A dot groups thousands only when it cannot be the decimal mark: either a comma takes that role
+  // after it (« 1.197,00 »), or there are several dots in an expression with nothing else in it
+  // (« 1.234.567 »). Anywhere else `1.234` stays a decimal — `1.234+5.678` must not become 6912.
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  const dotCount = (s.match(/\./g) || []).length;
+  const dotGroupsThousands = (lastDot !== -1 && lastComma > lastDot)
+    || (dotCount > 1 && !/[+\-*/()]/.test(s));
+  if (dotGroupsThousands) s = s.replace(/(\d)\.(?=\d{3}(?!\d))/g, '$1');
+
+  // A space between a digit and a group of exactly three digits is a thousands separator, not a
+  // missing operator: « 1 197 » is 1197. Spaces around an operator (« 100 + 20 ») are untouched.
+  return s.replace(/(\d) (?=\d{3}(?!\d))/g, '$1').trim();
+}
+
 export function evaluateArithmetic(input) {
   if (input == null) return null;
-  const s = String(input).replace(/,/g, '.').trim();
+  const s = normalizeMoneyInput(input).replace(/,/g, '.');
   if (s === '') return null;
   const tokens = tokenize(s);
   if (!tokens || tokens.length === 0) return null;
