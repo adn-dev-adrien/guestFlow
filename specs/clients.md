@@ -83,7 +83,20 @@ list.
 
    The pre-existing bulk `POST /clients/cleanup-orphans` stays for headless / programmatic callers but
    is no longer called by the UI.
-9. **`ClientsPage` + `ClientFormFields` render only / single field.** `ClientFormFields` shows one phone
+9. **Deleting from the client sheet (2026-09-25).** The edit sheet carries a **Supprimer** button
+   (start-aligned in the actions row, error-coloured outlined). It closes the sheet and opens the very
+   same confirmation dialog the list's trash icon opens — there is one deletion path, and it always
+   shows the impact (reservations + devis) before anything is written. A **new** client (no id) gets no
+   such button.
+10. **The confirmation dialog closes when asked (2026-09-25).** `?deleteClientId=` is a deep-link
+   *entry* into the dialog, never a re-entry: once the page has acted on an id, it does not act on it
+   again until the param clears. Annuler closes the dialog and clears the param; Confirmer deletes,
+   closes, reloads the list — and neither path asks the server about the client again. (Bug: the
+   effect watching the param re-opened the dialog it had just closed, because React Router flushes its
+   URL update a render after the component's own state. On Annuler the dialog would not close; on
+   Confirmer it came back on a client the server no longer had — « Client non trouvé », reading as if
+   the deletion had already happened. Same race, same cure as `clientId` on the edit side.)
+11. **`ClientsPage` + `ClientFormFields` render only / single field.** `ClientFormFields` shows one phone
    `TextField` (remove add/remove list). `ClientsPage` drops the client-side reservation sort + nights
    math and consumes the server-shaped `delete-impact` (reservations + devis); the delete dialog also
    lists the impacted **devis**.
@@ -123,7 +136,7 @@ list.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `ClientFormFields.js` | T | One phone `TextField` (remove the add/remove multi-phone list + per-row errors). |
-| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. |
+| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. **2026-09-25:** the edit sheet passes a « Supprimer » button through `FormDialog`'s `secondaryAction`; a `lastHandledDeleteClientIdRef` guards the `?deleteClientId=` effect the way `lastHandledClientIdRef` guards `?clientId=`; the list drops the Notes column. |
 | `pages/` | `ReservationPage.js` | T | Inline "create client" dialog: single `phone` (drop `phoneNumbers` from `EMPTY_CLIENT` + payload). |
 | `components/` | `ClientCleanupDialog.js` | C | **NEW (2026-06-06):** focused dialog showing the orphan list with per-row checkboxes (default checked) + master toggle + Annuler / Supprimer. Calls the delete-by-ids API on confirm, surfaces deleted/skipped counts. |
 
@@ -185,6 +198,16 @@ drop is irreversible.
 - **Clients list:** shows the single phone (already the case for the main number).
 - **Delete confirmation dialog:** now lists impacted **reservations** _and_ **devis** (counts + rows),
   server-sorted, reservations showing `nights`; force-delete copy reflects that both are removed.
+  _(2026-09-25: **Annuler** closes it and **Confirmer la suppression** deletes then closes — neither
+  leaves a dialog behind, and re-clicking the trash on the same client re-opens it normally.)_
+- **Client sheet — « Supprimer » (2026-09-25):** an outlined error-coloured button with a trash icon,
+  start-aligned in the sheet's actions row (opposite Annuler / Enregistrer). Visible only when editing
+  an existing client. Clicking it closes the sheet and opens the confirmation dialog on that client.
+  On `xs` the sheet is `fullScreen` and the actions row wraps, keeping the ≥44px tap target.
+- **Clients list — no Notes column (2026-09-25):** the note is not shown in the list, on desktop (the
+  column is gone: `Nom · Prénom · Séjour · Email · Téléphone · CP · Ville · actions`) nor on the mobile
+  card (the chip is gone). It stays readable and editable in the client sheet, which is the only place
+  it is ever long enough to be useful.
 - **Cleanup orphans (2026-06-06):** clicking **Cleanup clients** opens `<ClientCleanupDialog>`:
   - Title: "Nettoyer la base clients".
   - Subtitle (caption): "Sélectionne les clients à supprimer. Seuls les clients sans réservation ni
@@ -235,6 +258,18 @@ drop is irreversible.
       - Click **Annuler** → calls `onClose`, never calls the delete API.
       - Click **Supprimer** with 2 selected → calls `onConfirm(selectedIds)` with the two ids only.
 
+- [x] **NEW (2026-09-25)** `client/src/pages/__tests__/ClientsPage.delete.test.jsx` (6 tests):
+      - The table headers are `Nom · Prénom · Séjour · Email · Téléphone · CP · Ville · Actions` and the
+        client's note is nowhere in the row.
+      - The edit sheet carries **Supprimer**; clicking it closes the sheet, opens the confirmation and
+        writes nothing.
+      - A **new** client's sheet has no **Supprimer** button.
+      - **Annuler** closes the confirmation AND clears `?deleteClientId` — it must not re-open.
+      - Re-clicking the trash on the same client re-opens the confirmation.
+      - **Confirmer la suppression** calls `deleteClient(id, { force: true })` exactly once, closes, and
+        never re-fetches the impact of the client it just deleted.
+      _(All five regression cases fail against the pre-fix page.)_
+
 ### Manual UI verification (in browser)
 - [x] "Nouveau client" form shows a single **Téléphone** field (no add/remove); `0` console errors.
 - [x] Delete-impact dialog for a client with reservations **and** devis lists **both** sections
@@ -242,6 +277,10 @@ drop is irreversible.
 - [x] Clean `CI=true` client build.
 - [ ] Force-delete end-to-end + devis PDF phone + mobile (`xs`) — not exercised to avoid mutating data;
       left for the user's pass.
+- [x] **2026-09-25, dev browser, throwaway client:** list without the Notes column (desktop + `xs`
+      card); « Supprimer » in the sheet → confirmation; **Annuler** closes it; trash re-opens it;
+      **Confirmer** deletes, closes, and the list falls back to « Aucun client trouvé ». No console
+      error on any step.
 
 ## 8. Out of scope
 

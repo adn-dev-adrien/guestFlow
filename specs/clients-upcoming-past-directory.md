@@ -101,7 +101,7 @@ untouched**: a list page's shaping has no business changing what a picker receiv
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `services/` | `api.js` | T | `getClientsDirectory({ q, bucket, sort, dir })`. |
-| `pages/` | `pages/ClientsPage.jsx` | T | Tabs in the bar (`barCenter`, xs strip like Options/Ressources) with the counts; sortable `Nom` / `Prénom` / `Séjour` headers; the new « Séjour » column (table + mobile card); reload on (search, tab, sort) and after every mutation. |
+| `pages/` | `pages/ClientsPage.jsx` | T | Tabs in the bar (`barCenter`, xs strip like Options/Ressources) with the counts; sortable `Nom` / `Prénom` / `Séjour` headers; the new « Séjour » column (table + mobile card); reload on (search, tab, sort) and after every mutation. **2026-09-25:** the `Notes` column and the mobile note chip are removed. |
 
 **Component reuse declaration:**
 
@@ -135,8 +135,10 @@ read time.
 
 - **Tabs** « À venir (n) » / « Passés (n) », centred in the action bar on `sm+`, slim strip under the
   bar on `xs` (same as Options / Ressources).
-- **Table (md+)**: `Nom` · `Prénom` · `Séjour` · `Email` · `Téléphone` · `CP` · `Ville` · `Notes` ·
-  actions. The three first headers carry a sort arrow.
+- **Table (md+)**: `Nom` · `Prénom` · `Séjour` · `Email` · `Téléphone` · `CP` · `Ville` · actions. The
+  three first headers carry a sort arrow. _(2026-09-25: the `Notes` column is removed — a note is too
+  long to survive a 30-character truncation and too private for a shared screen; it lives in the client
+  sheet. Same for the chip the `xs` card used to carry. See `specs/clients.md` §6.)_
 - **Mobile (`xs`)**: the existing card gains a date line — « Séjour : 20/08/2026 » — under the name.
   Sorting stays available through the (hidden) table headers? No: on `xs` the cards are ordered by the
   same server sort, and the tab strip stays reachable; no extra control is added.
