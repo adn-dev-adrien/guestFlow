@@ -691,7 +691,7 @@
         GF.el('span', {},
           GF.t('cgvAcceptBefore'),
           GF.el('a', { href: link, target: '_blank', rel: 'noopener' }, GF.t('cgvAcceptLink')),
-          GF.t('cgvAcceptAfter', terms.version)
+          '.'
         )
       ));
       cgvBox.appendChild(cgvNotice);
