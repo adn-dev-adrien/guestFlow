@@ -101,3 +101,21 @@ test('« à revérifier » is computed from the source text, never read from a s
   const untranslated = [{ entryKey: 'k', kind: 'category', sourceText: 'Boissons', values: {} }];
   assert.match(rowsOf(serialise(untranslated, ['en']))[1], /,$/);
 });
+
+test('the French column is read-only: an edit to it cannot reach the database (rules 3, 9)', () => {
+  // The operator opened the file in Numbers and — deliberately or by accident — retyped the French.
+  const edited = 'clé,où,français,english,à revérifier\n'
+    + 'option:21:title,Option · titre,CE TEXTE A ÉTÉ MODIFIÉ,Apple juice 1L,\n';
+  const [row] = parse(edited).rows;
+  // Everything the parser hands back, in full. `français` is not in it, and cannot be: the French is
+  // changed on the option's own screen, and two places to change one text is one too many.
+  assert.deepEqual(Object.keys(row).sort(), ['entryKey', 'line', 'reviewAcknowledged', 'values']);
+  assert.deepEqual(row.values, { en: 'Apple juice 1L' });
+  assert.equal(JSON.stringify(row).includes('CE TEXTE A ÉTÉ MODIFIÉ'), false,
+    'a retyped French text must not survive the parse, in any field');
+});
+
+test('the « où » column is decoration too — renaming it changes nothing (rules 3, 9)', () => {
+  const renamed = 'clé,où,français,english,à revérifier\nk,N IMPORTE QUOI,Jus,Juice,\n';
+  assert.deepEqual(parse(renamed).rows[0].values, { en: 'Juice' });
+});

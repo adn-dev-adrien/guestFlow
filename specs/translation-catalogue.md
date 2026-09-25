@@ -67,7 +67,9 @@ column rather than a schema change.
    Ressource · nom), then alphabetically by the French text. The same catalogue always exports the same
    file, so two downloads can be diffed.
 9. **The operator only ever types in a language column.** `clé`, `où` and `français` are there to be
-   read; a change to them is ignored on upload, and the upload report says how many were ignored.
+   read. A change to them is ignored **by construction**: the parser never reads those columns back,
+   so an edited French text cannot reach the database at all. That is stronger than detecting and
+   counting such edits, and it is why rule 3 holds without anything having to enforce it.
 10. **A download is always the whole catalogue**, translated or not, so the file on the operator's disk
     is a complete and current picture.
 11. **An upload is applied in one transaction, or not at all.** A malformed file changes nothing and
