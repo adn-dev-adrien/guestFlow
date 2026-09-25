@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/platform-tourist-tax-out-of-the-commission` |
 | **Created** | 2026-09-11 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #549 (rules 1-20, v2.15.0) · amendment §3.5 (rules 21-24) |
 
 ---
 
@@ -185,6 +185,36 @@ counted.
 20. A negative amount is rejected by the money validation and clamped to ≥ 0, like every other amount
     in the block.
 
+### 3.5 The pre-fill follows the entry, not the fiche's age
+
+> **Amendment 2026-09-25** (Adrien, after checking a Booking statement against the fiche). Rule 4
+> shipped the pre-fill on « a fiche that has never been saved ». That is not the fiche the operator
+> types a statement into.
+
+21. **The box is pre-filled on any reservation whose brut has not been entered yet**, not only on one
+    that has never been saved. An iCal-imported booking *is* saved — it lands in the database before
+    anyone opens it — and Booking, Airbnb and Gîtes de France all arrive that way, so rule 4 never
+    fired on the very fiches the statement is copied into. The condition becomes
+    `platformGrossAmount` empty (rules 4's other guards unchanged: mode `platform`, box empty — an
+    explicit `0` still counts as filled per rule 15, engine estimate > 0). A brand-new fiche has no
+    brut either, so rule 4 is the special case, not the rule.
+22. **A fiche whose brut is already entered is never touched**, which is what keeps rule 2's promise:
+    every reservation saved under the tax-excluded convention keeps its stored total, its commission
+    and its exported accounting entry to the cent. There is no migration and no backfill — this is a
+    change to what a *blank* form offers, nothing else.
+23. **The pre-fill is inert until the brut is typed.** With an empty brut the engine's back-solve does
+    not run (rule 6 reads `platformGrossAmount` as the pin), so a pre-filled box changes no amount on
+    its own; it only decides which convention the *next* entry follows.
+24. **What the operator copies is therefore the statement's own total.** On Booking that is the
+    « Montant Total » of the extranet, tourist tax included; the box below holds the tax Booking keeps
+    for the commune, and « Calculer la commission » lands on everything else Booking withheld —
+    commission and payment fees alike, which the fiche models as one commission
+    ([accounting-platform-commission-and-no-deposit.md](accounting-platform-commission-and-no-deposit.md)).
+    Measured on réservation 22219 (Booking, 17–19 July 2026, 8 guests) on 2026-09-25: Montant Total
+    1 283,34 €, virement 1 075,27 €, and the 208,07 € withheld split into 188,87 € of commission and
+    19,20 € of tourist tax (8 × 2 × 1,20 €). Entered with an empty box, that fiche books the 19,20 €
+    as revenue and hands it to the commission — the accountant's August report, reproduced.
+
 ---
 
 ## 4. Architecture
@@ -214,6 +244,7 @@ counted.
 | `components/` | [reservation/FinanceSection.jsx:693](../client/src/components/reservation/FinanceSection.jsx#L693) | T | The « Taxe de séjour retenue » box + « Reprendre le calcul » (rules 1, 5), the tax-excluded caption (rule 12), the brut label/helper for mode `platform` (rule 14), and the withheld term in `computeCommissionFromPayout` (rule 10). |
 | `components/` | [PricingSummary.jsx:649](../client/src/components/PricingSummary.jsx#L649) | T | Read `platformTouristTaxWithheld ?? touristTaxOriginalTotal` for the tax line, for `grossTotal` and for the cascade's `offeredTax`; strike the amount through in mode `platform` (rule 13). |
 | `pages/` | [ReservationPage.jsx:365](../client/src/pages/ReservationPage.jsx#L365) | T | Form field + default, load from the reservation, add it to the quote signature and to the calc/save payloads, and pre-fill it from the server's `touristTaxOriginalTotal` on a never-saved fiche (rule 4). |
+| `utils/` | [platformTouristTaxPrefill.js](../client/src/utils/platformTouristTaxPrefill.js) | C | The pre-fill decision, pure. **Amended by rule 21**: the `isNewFiche` argument becomes `grossEntered` (« the brut already carries a value »), and the guard `if (!isNewFiche) return null` becomes `if (grossEntered) return null`. Every other guard — box empty, mode `platform`, estimate > 0 — is unchanged. |
 | `api.js` | — | — | (none — the reservation payloads pass through.) |
 
 **Component reuse declaration (mandatory):**
@@ -281,6 +312,11 @@ Paiement plateforme
   14,40 € ». Disabled when the reservation is locked.
 - « Montant hors taxe de séjour » is a `caption` under the box, printed only when the box is
   non-empty.
+- **Rule 21** — opening a fiche whose « Montant total payé par le client » is still empty shows the box
+  already carrying the engine's estimate, so the field above is labelled for the tax-inclusive
+  convention (« Total du relevé, taxe de séjour comprise ») at the moment the operator copies the
+  statement. Nothing is saved until they save; overwriting the estimate with the platform's own figure
+  is the normal gesture, and emptying the box puts the fiche back on the tax-excluded reading.
 
 ### Reservation summary
 
@@ -318,7 +354,7 @@ cancel, PDF/sync/delete slots) untouched.
 
 ### Server unit tests
 
-- [ ] `tests/platform-tourist-tax-out-of-the-commission.unit.test.js` (new)
+- [x] `tests/platform-tourist-tax-out-of-the-commission.unit.test.js` (new)
   - rule 1 — the withheld amount is read only in mode `platform`; ignored on `platform_reversed`,
     `owner` and direct (rules 1, 17)
   - rule 2 — empty box → `finalPrice`, accommodation and VAT byte-identical to today's brut path
@@ -331,26 +367,32 @@ cancel, PDF/sync/delete slots) untouched.
     `touristTaxOriginalTotal` unchanged
   - rule 11 — `preArrivalAmount` and `platformNetReceivedAmount` reconcile to the virement
   - rules 16, 19, 20 — clamp at 0 when the brut is smaller; frozen tax; negative rejected
-- [ ] `tests/reservations-platform-commission-persistence.unit.test.js` (extend) — rules 8, 18:
+- [x] `tests/reservations-platform-commission-persistence.unit.test.js` (extend) — rules 8, 18:
   round-trip the column, `NULL` on direct, and neither the accounting entry nor the tourist-tax
   extraction moves when the box is filled.
 
 ### Client (vitest)
 
-- [ ] `components/reservation/__tests__/FinanceSection.platform-tourist-tax.test.jsx` (new) — rules
+- [x] `components/reservation/__tests__/FinanceSection.platform-tourist-tax.test.jsx` (new) — rules
   1, 4, 5, 10, 12, 14, 15: the box renders in mode `platform` only; pre-filled on a new fiche and not
   rewritten once touched; « Reprendre le calcul » fills it; « Calculer la commission » gives 65,00 on
   the Grimaud numbers and the August value when the box is empty; the tax-excluded caption; the brut
   label.
-- [ ] `components/__tests__/PricingSummary.platform-tourist-tax.test.jsx` (new) — rule 13: the amount
+- [x] `components/__tests__/PricingSummary.platform-tourist-tax.test.jsx` (new) — rule 13: the amount
   is struck through with the « Plateforme » tag, and the cascade deducts the withheld amount.
+- [x] `utils/__tests__/platformTouristTaxPrefill.prefill-on-empty-gross.test.js` (**rules 21-23**) — a
+  saved fiche with no brut is pre-filled; the same fiche with a brut is not (the 22219 numbers); a
+  never-saved fiche is still pre-filled; an explicit `0`, a non-`platform` mode and a `0` estimate
+  still return `null`. Rule 24 rides `FinanceSection.platform-tourist-tax.test.jsx`, where the
+  commission formula it measures already lives: the 22219 numbers give 188,87 with the box filled and
+  208,07 with it empty.
 
 ### Full suites
 
-- [ ] `cd server && npm test`
-- [ ] `cd client && npx vitest run`
-- [ ] `npm run test:e2e`
-- [ ] `node scripts/check-spec-coverage.mjs --spec platform-tourist-tax-out-of-the-commission`
+- [x] `cd server && npm test`
+- [x] `cd client && npx vitest run`
+- [x] `npm run test:e2e` (CI — the local port 4000 was held by another dev server)
+- [x] `node scripts/check-spec-coverage.mjs --spec platform-tourist-tax-out-of-the-commission`
 
 ### Manual UI verification
 
@@ -360,8 +402,20 @@ cancel, PDF/sync/delete slots) untouched.
 - [ ] Save, reload: every amount repopulates; the box is not re-filled by the engine.
 - [ ] An existing Gîtes de France fiche (box empty): nothing moved — same total, same commission as
   before the change. « Reprendre le calcul » fills 14,40 and the amounts shift only then.
+- [x] **Rule 21** — an iCal-imported Booking fiche never filled in: opening it shows the box already
+  carrying the engine's figure and the brut labelled « Montant total payé par le client ». Typing the
+  extranet's Montant Total + the virement gives the commission without the tax in it.
+  *Verified 2026-09-25 on réservation 22273 (Booking, 9-11 October 2026, brut empty): the box opened
+  at 14,40, and 666,40 − 570,00 − 14,40 gave a commission of 82,00 with « Net perçu 570,00 € ✓
+  cohérent avec le virement » and the cascade 666,40 / −14,40 / 652,00 / −82,00.*
+- [x] **Rule 22** — a fiche whose brut is already entered: opening it changes nothing; the box stays
+  empty and the total séjour stays where it was.
+  *Verified 2026-09-25 on réservation 22270 (Booking, brut 987,39): box empty, the brut kept its
+  tax-excluded label « Total séjour facturé par la plateforme », « Montant soumis à commission »
+  still 987,39 €.*
 - [ ] A Lodgify (`platform_reversed`) and an Abracadaroom (`owner`) fiche: no box, block unchanged.
-- [ ] Mobile (`xs`): the box and its button stack, no horizontal scroll.
+- [x] Mobile (`xs`): the box and its button stack, no horizontal scroll. *Verified 2026-09-25 at
+  390 px: `scrollWidth` 375 ≤ 390, both labels intact.*
 
 ### Spec sync (CLAUDE.md §4.1)
 
@@ -369,7 +423,8 @@ cancel, PDF/sync/delete slots) untouched.
   rules 1, 3 and 7 annotated: the tax-excluded brut becomes the *empty-box* case, not the only case.
 - [ ] [per-platform-tourist-tax-three-way.md](per-platform-tourist-tax-three-way.md) annotated: the
   mode-`platform` amount is struck through (rule 13).
-- [ ] `changelog.d/fixed--platform-tourist-tax-out-of-the-commission.md`.
+- [x] `changelog.d/fixed--platform-tourist-tax-out-of-the-commission.md` (folded into v2.15.0);
+  `changelog.d/fixed--platform-tourist-tax-prefill-on-empty-gross.md` for the §3.5 amendment.
 
 ---
 

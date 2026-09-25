@@ -1263,11 +1263,12 @@ export default function ReservationPage() {
             return prev;
           }
           const next = applyQuoteToForm(prev, calc, preserveBlankPrice);
-          // specs/platform-tourist-tax-out-of-the-commission.md rule 4 — a fiche that has never been
-          // saved starts from the engine's figure, so everything typed from now on follows the
-          // tax-inclusive convention. The decision itself lives in a pure helper.
+          // specs/platform-tourist-tax-out-of-the-commission.md rules 4 + 21 — a fiche whose brut has
+          // not been entered yet starts from the engine's figure, so everything typed from now on
+          // follows the tax-inclusive convention. An iCal-imported booking is already saved, so the
+          // test is the brut, not the fiche's age. The decision itself lives in a pure helper.
           const seededTouristTax = resolvePlatformTouristTaxPrefill({
-            isNewFiche: !editingReservationId && !editingDevisId,
+            grossEntered: next.platformGrossAmount !== '' && next.platformGrossAmount != null,
             currentValue: next.platformTouristTaxAmount,
             quote: calc,
           });

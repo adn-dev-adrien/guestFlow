@@ -181,3 +181,43 @@ test('rule 10 — the commission is clamped at 0, never negative', () => {
   fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
   expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 0 });
 });
+
+// ---------------------------------------------------------------------------
+// rule 24 — what the operator copies off a Booking statement
+// ---------------------------------------------------------------------------
+// Réservation 22219 (Booking, 17-19 July 2026, 8 guests), measured 2026-09-25: Montant Total
+// 1 283,34 · virement 1 075,27. Booking withheld 208,07, of which 19,20 is the commune's tax
+// (8 × 2 × 1,20) and 188,87 is commission and payment fees — which the fiche models as one
+// commission (specs/accounting-platform-commission-and-no-deposit.md).
+
+const BOOKING_22219 = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 19.20 };
+
+test('rule 24 — the extranet’s Montant Total plus the withheld tax gives the commission alone: 188,87', () => {
+  const ctx = renderFinance({
+    form: {
+      platform: 'Booking',
+      platformGrossAmount: 1283.34,
+      platformPayoutAmount: 1075.27,
+      platformTouristTaxAmount: 19.20,
+    },
+    pricingQuote: BOOKING_22219,
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 188.87 });
+});
+
+test('rule 24 — the same entry with an empty box hands the 19,20 to the commission: the accountant’s report', () => {
+  const ctx = renderFinance({
+    form: {
+      platform: 'Booking',
+      platformGrossAmount: 1283.34,
+      platformPayoutAmount: 1075.27,
+      platformTouristTaxAmount: '',
+    },
+    pricingQuote: BOOKING_22219,
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 208.07 });
+});
