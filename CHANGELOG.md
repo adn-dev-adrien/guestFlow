@@ -4,6 +4,84 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-09-25
+
+### Summary
+- Les traductions quittent les écrans : GuestFlow rassemble tout dans un fichier à télécharger et à renvoyer depuis Réglages → Système.
+- Vos titres anglais déjà saisis sont repris automatiquement ; les champs anglais disparaissent des options et des ressources.
+- Les descriptions d'options et les catégories sont traduisibles pour la première fois ; ajouter une langue, c'est ajouter une colonne.
+- Clients : « Supprimer » est dans la fiche, la confirmation se ferme quand on l'annule, et la colonne Notes quitte la liste.
+- La case des conditions générales n'affiche plus le numéro de version ; l'acceptation reste enregistrée comme avant.
+- Mettez à jour le plugin WordPress en 1.13.0 : sur une page anglaise, le tunnel de réservation parlait encore français.
+
+### Added
+- **Clients — « Supprimer » inside the client sheet** (spec `clients.md` §3 rule 10, 2026-09-25). The
+  edit sheet now carries the deletion action instead of forcing a trip back to the list; it opens the
+  same confirmation, which still lists every reservation and devis about to go with the client.
+- Translations move out of the interface and into one file. GuestFlow collects every short label that
+  needs translating — option titles **and descriptions**, resource names, categories — on its own; you
+  download a CSV from Réglages → Système, fill in the language columns in Numbers or Excel, and send it
+  back. Adding a third language is adding a column: no setting, no screen, no schema change.
+- Option **descriptions** and option **categories** can be translated at last. An English guest used to
+  see a sharing board with nothing to say what was on it, under a category still reading « Boissons ».
+- Correcting a French text keeps its translation and flags it « à revérifier » — nothing is lost to a
+  typo fix, and nothing silently drifts either.
+
+### Changed
+- The booking form's terms checkbox no longer shows the version number: it reads « J'ai lu et j'accepte
+  les conditions générales de location. » The version is an internal reference that means nothing to a
+  guest; GuestFlow still records which one was accepted, unchanged.
+
+### Fixed
+- WordPress plugin 1.13.0: on an English page the booking drawer listed its options, its price units
+  and its refusals in French. The browser's own calls to the plugin carry no page, so the plugin could
+  not tell which language the visitor was reading and asked GuestFlow in French — then cached that
+  answer. Every call now states the language, and the plugin applies it in one place, before any
+  handler.
+- Site: the drawer's own retouches of a few price lines were written in French and fired on English
+  pages too, because what triggers them is the option's title — which stays French until an English
+  one is filled in. They now come from the site dictionary: « per person · sliding scale » instead of
+  « per participant · tarif dégressif ».
+- **Clients — the deletion confirmation closes when asked** (spec `clients.md` §3 rule 11, 2026-09-25).
+  « Annuler » left the dialog on screen, and « Confirmer la suppression » brought it straight back on a
+  client the server no longer had — « Client non trouvé », as if the deletion had already happened. The
+  `?deleteClientId=` watch effect was re-opening the dialog it had just closed, one render before React
+  Router flushed the URL. +6 client tests.
+- The booking drawer's price retouches and its yes/no switches now recognise an option title in both
+  languages. Entering an English title in GuestFlow used to make the English drawer lose the switch on
+  the towels and the cleaning — offering a counter where the answer is yes or no — and drop the
+  « la session » / « tarif dégressif » suffixes.
+- Site: the English lodging pages had lost the booking drawer's styling entirely — the floating
+  "Book" button with its nightly price stopped floating and fell into the page, and the drawer's
+  contents spilled into the content. The seven pictograms under the hero showed their text with no
+  icon, the breadcrumb was missing from all five inner pages, and the structured data lost the node
+  that describes each lodging as rentable. One cause behind all of it: the page configuration is
+  indexed on French addresses, so an English page matched nothing and everything hanging off it
+  vanished silently. The English pages now resolve their structure through their French twin — the
+  structure only, so the French title and description can never reach an English page.
+- Site: the redirect that applies a visitor's chosen language is no longer cacheable either. The one
+  that records the choice was fixed first and this one was missed, so a browser could keep serving an
+  English reader the French page from its own cache.
+- Site: on the home page the hero image sat below the header instead of sliding under it, and was
+  cropped by the height of the bar. It survived on the other pages only by accident — the breadcrumb
+  precedes the hero there, so a WordPress layout rule that zeroes the first block's top margin did
+  not apply. The banner is now transparent over the hero everywhere.
+- Site: the language switcher's link carries a new parameter. A visitor whose browser cached the
+  permanent redirect the switcher briefly answered could no longer switch language at all — the click
+  never reached the site, so nothing was remembered. No header can purge a cached redirect; only an
+  address the browser has never seen can. Links already shared with the old parameter keep working.
+
+### Removed
+- **Clients — the Notes column leaves the list** (spec `clients.md` §6, 2026-09-25). A note truncated to
+  30 characters told no one anything and sat in plain view on a shared screen; it stays readable and
+  editable in the client sheet. Removed from the desktop table and the mobile card alike.
+
+### Migration
+- `options.titleEn` and `resources.nameEn` are copied into the new translation catalogue and then
+  **removed**. The copy is verified before anything is dropped: if a single value could not be read
+  back, nothing is dropped and the migration is retried on the next start. The English fields
+  disappear from the option and resource screens — that is where translating now stops happening.
+
 ## [3.2.1] - 2026-09-25
 
 ### Summary
