@@ -167,12 +167,20 @@
       insurance: null,
     };
 
-    // The « Lit bébé » resource is couchage, not a supplement line: it feeds the devis `babyBeds`
-    // field via the conditional baby-beds stepper (spec §3.12), exactly like the previous popup.
+    // The cot resource is couchage, not a supplement line: it feeds the devis `babyBeds` field via
+    // the conditional baby-beds stepper (spec rule 12), exactly like the previous popup.
+    //
+    // Recognised by the API's `isBabyBed` flag, never by its title. Matching « Lit bébé » worked only
+    // while the API answered in French: once the catalogue translated the resource, an English page
+    // received « Baby bed », the test missed, and the cot was offered in the extras to every visitor —
+    // babies or none. The name test survives as the fallback for a GuestFlow older than the flag: the
+    // plugin updates itself from its own manifest, so it can run ahead of the server.
     var babyRes = null;
     var supplements = (resources || []).filter(function (x) {
-      var n = (x.name || '').toLowerCase();
-      if (n.indexOf('lit bébé') >= 0 || n.indexOf('lit bebe') >= 0) { babyRes = x; return false; }
+      var n = ((x.name || '') + ' ' + (x.nameEn || '')).toLowerCase();
+      var isCot = x.isBabyBed === true
+        || (x.isBabyBed === undefined && (n.indexOf('lit bébé') >= 0 || n.indexOf('lit bebe') >= 0 || n.indexOf('baby bed') >= 0));
+      if (isCot) { babyRes = x; return false; }
       return true;
     });
 

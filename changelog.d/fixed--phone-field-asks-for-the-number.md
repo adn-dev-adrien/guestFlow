@@ -1,0 +1,1 @@
+- **WordPress plugin: the English booking form asks for a « Phone number »**, not a « Telephone » (spec `site-english-version.md` rule 23).
