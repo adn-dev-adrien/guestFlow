@@ -8,6 +8,7 @@
 
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
+const { isBabyBedResource } = require('../utils/babyBedResource');
 
 const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
 const OVERLAP = 'r.startDate < ? AND r.endDate > ?';
@@ -170,10 +171,10 @@ function createModel(database) {
   }
 
   function getBabyBedAvailability(propertyId, startDate, endDate, excludeReservationId) {
-    const allBabyBeds = database.prepare(`
-      SELECT * FROM resources
-      WHERE lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe')
-    `).all();
+    // Recognised by the shared predicate rather than by a `WHERE lower(name) = …` of its own: the
+    // funnel keys on the very same answer (specs/translation-catalogue.md rule 22), and two places
+    // spelling out what a cot is called is how they come to disagree.
+    const allBabyBeds = database.prepare('SELECT * FROM resources').all().filter(isBabyBedResource);
     const propertyIdNum = propertyId != null && propertyId !== '' ? Number(propertyId) : null;
     const resources = allBabyBeds
       .map((r) => ({ ...r, scopedIds: getPropertyIds(r.id) }))

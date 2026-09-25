@@ -423,7 +423,7 @@ msgstr "Total"
 
 #: includes/class-gf-blocks.php:111
 msgid "Téléphone"
-msgstr "Telephone"
+msgstr "Phone number"
 
 #: includes/class-gf-settings.php:203
 msgid "URL de l'API GuestFlow"

@@ -211,7 +211,9 @@ leave in, without opening another screen.)_
     > **Sans test** — code PHP du plugin WordPress — hors de la suite Node ; vérifié sur le site (§7)
 23. The plugin ships real translation files (`/languages/guestflow-booking-en_GB.po` and `.mo`).
     Source strings stay French, which is what the 80 `__()` calls already assume; English arrives as
-    a translation. The `.po` is the reviewable artefact and is versioned.
+    a translation. The `.po` is the reviewable artefact and is versioned. *Amended 2026-09-25: the
+    phone field reads « Phone number », not « Telephone » — Adrien reported it from the live funnel.
+    A form label names what is being asked for, and English asks for the number.*
     > **Sans test** — fichiers de traduction `.po`/`.mo` — un artefact, pas un comportement
 24. `runtime.js` and `blocks/calendar/view.js` stop hard-coding `fr-FR`: number and date formatting
     read the locale published by `wp_localize_script`.

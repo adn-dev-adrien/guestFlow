@@ -2,6 +2,7 @@ const {
   isPerPersonCardOption, portionCap, portionWording,
 } = require('./mealPortions');
 const { labels: rawLabels, normalisePublicLang } = require('./publicLabels');
+const { isBabyBedResource } = require('./babyBedResource');
 
 /**
  * Every projection normalises its own language instead of trusting the caller.
@@ -177,8 +178,11 @@ function frNumber(value) {
  * `amount` is what it costs for the quoted stay, priced server-side — `null` when there is no stay
  * yet (catalogue call), in which case the site falls back to `priceLabel`.
  */
-function toPublicCancellationInsurance(option, { amount = null, selected = false, neatPricingActive = false, lang = 'fr' } = {}) {
+function toPublicCancellationInsurance(option, {
+  amount = null, selected = false, neatPricingActive = false, lang = 'fr', translate = null,
+} = {}) {
   if (!option) return null;
+  const tr = isResolver(translate) ? translate : null;
   const priceType = String(option.priceType || 'per_stay');
   const isPercent = priceType === 'percent_of_stay';
   const price = Number(option.price || 0);
@@ -193,11 +197,14 @@ function toPublicCancellationInsurance(option, { amount = null, selected = false
     : (isPercent
       ? `${frNumber(price)} % ${L.priceUnit.percent_of_stay}`
       : `${frNumber(price)} €${labels.priceUnitLabel ? ` ${labels.priceUnitLabel}` : ''}`);
+  const id = Number(option.id);
   return {
-    optionId: Number(option.id),
-    title: resolveTitle(lang, option.title, option.titleEn),
-    titleEn: option.titleEn || null,
-    description: normalisePublicLang(lang) === 'en' ? null : (option.description || null),
+    optionId: id,
+    title: tr ? tr.optionTitle(id, option.title) : resolveTitle(lang, option.title, option.titleEn),
+    titleEn: tr ? tr.englishOptionTitle(id) : (option.titleEn || null),
+    description: tr
+      ? tr.optionDescription(id, option.description)
+      : (normalisePublicLang(lang) === 'en' ? null : (option.description || null)),
     priceType,
     percent: isPercent ? price : null,
     price,
@@ -299,6 +306,12 @@ function toPublicResource(row, lang = 'fr', translate = null) {
     // Hourly resources (bain nordique) are allocated by the host on the planning: the site shows the
     // « À planifier avec l'hôte » note for these, and ONLY these (spec §3.10).
     showsSchedulingNote: String(row.priceType || '') === 'per_hour',
+    // The cot, named by a flag rather than by its title (specs/translation-catalogue.md rule 22).
+    // The funnel drives it from the babies stepper instead of listing it with the supplements, and
+    // it used to recognise it by matching « Lit bébé » on this very payload — which stopped matching
+    // the day the payload started saying « Baby bed ». Decided on the stored row, so the answer is
+    // the same in every language.
+    isBabyBed: isBabyBedResource(row),
     // What this property offers on the resource before billing starts. The engine already applies it
     // (pricing.applyPerHourFreeMinutes); until this field existed nothing SAID it, so the visitor read
     // « 30,00 € · par heure » on an hour that costs nothing.
@@ -362,8 +375,12 @@ function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutT
 
 function toPublicQuote(quote, {
   available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
-  lang = 'fr',
+  lang = 'fr', translate = null,
 }) {
+  // Rule 21 — the quote is a surface like the catalogue, and reads the same catalogue. Until it did,
+  // it resolved its lines from `optionLines[].titleEn`, a column the catalogue migration dropped: the
+  // English tunnel priced « Linge de lit » and « Bain nordique » under English headings.
+  const tr = isResolver(translate) ? translate : null;
   const base = {
     propertyId: Number(quote.property?.id ?? quote.propertyId),
     startDate,
@@ -381,7 +398,7 @@ function toPublicQuote(quote, {
     // English title beside the French one so this stays a pure projection.
     options: (quote.optionLines || []).map((o) => ({
       optionId: Number(o.optionId),
-      title: resolveTitle(lang, o.title, o.titleEn),
+      title: tr ? tr.optionTitle(Number(o.optionId), o.title) : resolveTitle(lang, o.title, o.titleEn),
       quantity: Number(o.quantity || 0),
       unitPrice: Number(o.unitPrice || 0),
       total: Number(o.totalPrice || 0),
@@ -393,7 +410,7 @@ function toPublicQuote(quote, {
     optionLimits: Array.isArray(optionLimits) ? optionLimits : [],
     resources: (quote.resourceLines || []).map((r) => ({
       resourceId: Number(r.resourceId),
-      name: resolveTitle(lang, r.name, r.nameEn),
+      name: tr ? tr.resourceName(Number(r.resourceId), r.name) : resolveTitle(lang, r.name, r.nameEn),
       quantity: Number(r.quantity || 0),
       // What is actually charged once the free allowance is taken off, and the sentence that says so.
       billedQuantity: Number(r.billedUnits == null ? (r.quantity || 0) : r.billedUnits),

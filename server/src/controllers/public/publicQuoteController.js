@@ -23,6 +23,7 @@ const neatSubscriptionsModel = require('../../models/neatSubscriptionsModel');
 const { resolveInsurancePricing, buildQuoteSnapshot, isNeatPricingActive } = require('../../utils/neatGuestPricing');
 const { buildNeatClient } = require('../../utils/neatClient');
 const { ok, failT, langOf } = require('./publicHttp');
+const translationResolver = require('../../utils/translationResolver');
 const { isPerPersonCardOption } = require('../../utils/mealPortions');
 
 /** Reject any option id that is not applicable to the property. Returns an error list or null. */
@@ -121,7 +122,7 @@ function buildEngineQuote(input) {
  * diverge. A fixed-price insurance (`per_stay`, `per_person`…) is priced through the engine's own
  * multipliers instead.
  */
-function buildCancellationInsurance(input, engineQuote, neatPricing) {
+function buildCancellationInsurance(input, engineQuote, neatPricing, { lang = 'fr', translate = null } = {}) {
   const neatActive = isNeatPricingActive(settingsModel);
   const option = optionsModel.getCancellationInsurance(Number(input.propertyId), { neatPricingActive: neatActive });
   if (!option) return null;
@@ -137,7 +138,9 @@ function buildCancellationInsurance(input, engineQuote, neatPricing) {
         ? computePercentOfStayAmount(option.price, engineQuote.cancellationInsuranceBase)
         : roundMoney(Number(option.price || 0)
           * getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0)))));
-  return toPublicCancellationInsurance(option, { amount, selected, neatPricingActive: neatActive });
+  return toPublicCancellationInsurance(option, {
+    amount, selected, neatPricingActive: neatActive, lang, translate,
+  });
 }
 
 // Neat-derived guest price for this stay (spec neat-cancellation-insurance-subscription rule 13):
@@ -170,8 +173,9 @@ async function resolveNeatPricing(input, engineQuote) {
  * the times it was given, so they come from the validated input, falling back to the property's own
  * default check-in / check-out — exactly what the engine itself used.
  */
-function buildOptionLimits(input, engineQuote) {
+function buildOptionLimits(input, engineQuote, lang = 'fr') {
   return toPublicOptionLimits({
+    lang,
     options: optionsModel.listForProperty(Number(input.propertyId)),
     persons: Number(engineQuote.persons || 0),
     nights: Number(engineQuote.nights || 0),
@@ -185,6 +189,10 @@ function buildOptionLimits(input, engineQuote) {
 }
 
 async function quote(req, res) {
+  const lang = langOf(req);
+  // One resolver for the whole quote: the lines, the insurance block and the portion hints all name
+  // labels, and one catalogue read serves them all (specs/translation-catalogue.md rule 21).
+  const translate = translationResolver.forLang(lang);
   const v = validateStayInput(req.body);
   if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'devisInvalid', v.errors);
 
@@ -216,8 +224,10 @@ async function quote(req, res) {
 
   return ok(res, toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
-    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, neatPricing),
-    optionLimits: buildOptionLimits(v.value, engineQuote),
+    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, neatPricing, { lang, translate }),
+    optionLimits: buildOptionLimits(v.value, engineQuote, lang),
+    lang,
+    translate,
   }));
 }
 
