@@ -1,3 +1,9 @@
+// FIRST, before anything reads the clock: the schedulers compare operator-entered wall-clock times
+// (a 16:00 check-in, the 08:00 e-mail pass) against this process's LOCAL time, so the process must
+// run in the accommodations' zone — the production host's clock is UTC (specs/server-timezone.md).
+const { applyServerTimezone } = require('./utils/serverTimezone');
+const serverTimezone = applyServerTimezone().timezone;
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -26,7 +32,7 @@ function logErrorMarker(message) {
   console.error(`[GuestFlow][${timestamp}][pid:${process.pid}] ${message}`);
 }
 
-logErrorMarker('=== SERVER BOOT START ===');
+logErrorMarker(`=== SERVER BOOT START === (timezone ${serverTimezone}, local time ${new Date().toString()})`);
 
 const commitSha = String(
   process.env.APP_COMMIT_SHA
