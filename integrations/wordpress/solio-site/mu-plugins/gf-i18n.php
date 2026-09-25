@@ -121,6 +121,7 @@ function gf_i18n_dictionnaire() {
             'nav_autour'       => 'Autour de nous',
             'nav_contact'      => 'Accès & contact',
             'nav_reserver'     => 'Réserver',
+            'nav_ouvrir_menu'  => 'Ouvrir le menu',
             'nav_granja_note'  => 'le gîte · toute l’année · 10 personnes',
             'nav_estiva_note'  => 'la tente safari · avril à mi-octobre · 5 personnes',
             'langue_courante'  => 'FR',
@@ -171,6 +172,7 @@ function gf_i18n_dictionnaire() {
             'nav_autour'       => 'Around us',
             'nav_contact'      => 'Getting here & contact',
             'nav_reserver'     => 'Book',
+            'nav_ouvrir_menu'  => 'Open menu',
             'nav_granja_note'  => 'the gîte · all year round · 10 guests',
             'nav_estiva_note'  => 'the safari tent · April to mid-October · 5 guests',
             'langue_courante'  => 'EN',
@@ -298,17 +300,25 @@ function gf_url_traduite($vers) {
 const GF_COOKIE_LANGUE = 'gf_lang';
 
 /**
- * Envoie un visiteur qui n'a jamais choisi vers la version de son navigateur.
+ * Sert a chaque visiteur la langue qu'il a choisie — et, faute de choix, celle de son navigateur.
  *
- * Huit conditions, et chacune repare un degat connu (§6) :
+ * **Le choix memorise passe avant l'en-tete du navigateur** (corrige le 2026-09-25). Le cookie se
+ * contentait de sortir de cette fonction : il empechait la detection sans imposer le choix. Un
+ * visiteur au navigateur francais qui demandait l'anglais restait donc en anglais tant qu'il suivait
+ * des liens « /en/ », mais repassait en francais des qu'il arrivait sur une adresse francaise — un
+ * signet, un resultat de recherche, un lien partage. C'est la combinaison que le site vise : une
+ * preference explicite, sinon une supposition, jamais l'inverse.
+ *
+ * Les garde-fous, et chacun repare un degat connu (§6) :
  *   1. le site a vraiment deux langues ;
  *   2. la requete est un GET de page, pas une API, pas l'administration ;
- *   3. le visiteur n'a jamais choisi (pas de cookie) ;
- *   4. ce n'est pas un robot — Googlebot doit recevoir l'URL demandee, sinon le maillage hreflang
+ *   3. ce n'est pas un robot — Googlebot doit recevoir l'URL demandee, sinon le maillage hreflang
  *      decrit un site qui repond autre chose ;
- *   5. l'URL ne porte AUCUN parametre — le retour de paiement Qonto revient en
+ *   4. l'URL ne porte AUCUN parametre — le retour de paiement Qonto revient en
  *      « /la-granja/?gf_payment=… », et une redirection qui perd ces parametres perd un client au
- *      milieu de son paiement ;
+ *      milieu de son paiement ; c'est aussi ce qui exempte « ?gf_set_lang », donc changer d'avis
+ *      reste toujours possible ;
+ *   5. un cookie illisible ne decide rien : il vaut « pas de choix », pas « francais » ;
  *   6. la page a vraiment une traduction ;
  *   7. la langue visee differe de celle servie ;
  *   8. la reponse est un 302 avec « Vary », jamais un 301 : la correspondance est propre a chaque
@@ -324,9 +334,6 @@ function gf_bascule_automatique() {
     if (!gf_site_bilingue()) {
         return;
     }
-    if (isset($_COOKIE[GF_COOKIE_LANGUE])) {
-        return;
-    }
     if (!empty($_GET)) {
         return;
     }
@@ -334,7 +341,8 @@ function gf_bascule_automatique() {
         return;
     }
 
-    $voulue = gf_langue_du_navigateur();
+    $choisie = gf_langue_choisie();
+    $voulue = null !== $choisie ? $choisie : gf_langue_du_navigateur();
     if (null === $voulue || $voulue === gf_langue()) {
         return;
     }
@@ -350,6 +358,22 @@ function gf_bascule_automatique() {
     exit;
 }
 add_action('template_redirect', 'gf_bascule_automatique', 1);
+
+/**
+ * La langue que le visiteur a choisie lui-meme, ou null s'il n'a jamais choisi.
+ *
+ * Un cookie qu'on ne reconnait pas vaut « pas de choix » : le normaliser rendrait « fr » et forcerait
+ * le francais a un visiteur qui n'a rien demande — un cookie abime deciderait a sa place.
+ *
+ * @return string|null « fr », « en », ou null.
+ */
+function gf_langue_choisie() {
+    if (!isset($_COOKIE[GF_COOKIE_LANGUE])) {
+        return null;
+    }
+    $brut = strtolower(trim((string) wp_unslash($_COOKIE[GF_COOKIE_LANGUE])));
+    return in_array($brut, array('fr', 'en'), true) ? $brut : null;
+}
 
 /**
  * La langue que le navigateur demande, reduite a ce que le site sait servir.
@@ -417,15 +441,22 @@ add_action('init', 'gf_memorise_choix_langue', 1);
  * Efface le jeton de l'adresse une fois le choix retenu.
  *
  * Sans cela chaque page traduite existerait en deux adresses — avec et sans « ?gf_set_lang » — et
- * les moteurs indexeraient la seconde. Le cookie est deja pose a ce stade : la redirection ne perd
- * rien, et elle est permanente parce que la page servie, elle, est bien la meme.
+ * les moteurs indexeraient la seconde.
+ *
+ * **302 et « no-store », jamais 301** (corrige le 2026-09-25). Cette adresse n'existe que pour son
+ * effet de bord : poser le cookie. Un 301 sans en-tete de cache, le navigateur le garde
+ * indefiniment — si bien que le deuxieme clic sur « English » ne partait plus jamais au serveur, le
+ * cookie n'etait plus repose, et la page suivante renvoyait le visiteur vers la langue de son
+ * navigateur. Le symptome se lisait « je choisis l'anglais, je change de page, je repasse en
+ * francais » (§6).
  */
 function gf_nettoie_jeton_langue() {
     if (is_admin() || !isset($_GET['gf_set_lang'])) {
         return;
     }
     $propre = remove_query_arg('gf_set_lang', home_url(add_query_arg(array())));
-    wp_redirect($propre, 301);
+    nocache_headers();
+    wp_redirect($propre, 302);
     exit;
 }
 add_action('template_redirect', 'gf_nettoie_jeton_langue', 0);

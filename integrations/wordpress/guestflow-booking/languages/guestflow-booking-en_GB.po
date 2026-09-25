@@ -521,3 +521,15 @@ msgstr "Test failed."
 #: includes/class-gf-blocks.php:93
 msgid "à partir de"
 msgstr "from"
+
+#: includes/class-gf-blocks.php:185
+msgid "Mois précédent"
+msgstr "Previous month"
+
+#: includes/class-gf-blocks.php:186
+msgid "Mois suivant"
+msgstr "Next month"
+
+#: includes/class-gf-blocks.php:187
+msgid "Ne pas remplir"
+msgstr "Do not fill in"

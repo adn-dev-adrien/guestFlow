@@ -225,9 +225,9 @@
     var calHint = GF.el('div', { class: 'gf-cal-hint' });
     var calBox = GF.el('div', { class: 'gf-cal-box' },
       GF.el('div', { class: 'gf-cal-topbar' },
-        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': 'Mois précédent', onClick: function () { navCal(-1); } }, '‹'),
+        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calPrevMonth'), onClick: function () { navCal(-1); } }, '‹'),
         GF.el('strong', {}, GF.t('selectDates')),
-        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': 'Mois suivant', onClick: function () { navCal(1); } }, '›')
+        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calNextMonth'), onClick: function () { navCal(1); } }, '›')
       ),
       calMonths, calHint
     );
@@ -672,7 +672,7 @@
         GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('phone') + ' *'), f.phone)
       ),
       GF.el('div', { class: 'gf-row' }, GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('message')), f.message)),
-      GF.el('div', { class: 'gf-hp' }, GF.el('label', {}, 'Ne pas remplir', f.hp))
+      GF.el('div', { class: 'gf-hp' }, GF.el('label', {}, GF.t('honeypot'), f.hp))
     );
 
     // CGV acceptance (specs/terms-acceptance-record.md rules 10-13): never pre-ticked; the version
