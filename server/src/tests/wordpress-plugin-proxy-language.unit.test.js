@@ -88,3 +88,66 @@ test("the drawer's price retouches come from the dictionary, not from French lit
     'the participant rewrite only matches French, so the English label is left as it is',
   );
 });
+
+// --- rule 58: the retouches must survive an option title being translated -----------------------
+// Behavioural, not textual: the matchers are lifted out of the mu-plugin and replayed over the REAL
+// option titles of both languages. A textual guard ("the file mentions an English word") passes when
+// the wrong English word is there; this one does not.
+const matchers = (() => {
+  const src = code(resa);
+  const pick = (name) => {
+    const m = new RegExp(`function ${name}\\s*\\([\\s\\S]*?\\n\\t}`).exec(src);
+    assert.ok(m, `${name}() not found in gf-seo-reservation.php`);
+    return m[0];
+  };
+  // eslint-disable-next-line no-new-func
+  return new Function(`${pick('normalise')}\n${pick('porte')}\n${pick('commence')}\nreturn { normalise, porte, commence };`)();
+})();
+
+/** The (fr, en) token pairs the source actually passes, so a deleted English token fails the test. */
+function pairsOf(fn) {
+  const c = code(resa);
+  const re = new RegExp(`${fn}\\(\\s*t,\\s*'([^']*)',\\s*'([^']*)'\\s*\\)`, 'g');
+  return [...c.matchAll(re)].map((m) => [m[1], m[2]]);
+}
+
+test('a translated option title still triggers its price retouch (rule 58)', () => {
+  const pairs = pairsOf('porte');
+  assert.ok(pairs.length >= 3, 'the three retouched animations must each declare their two languages');
+  const hits = (title) => pairs.filter(([fr, en]) => matchers.porte(matchers.normalise(title), fr, en));
+  // Titles as the drawer sees them, after the « Animation- » prefix is stripped. French from prod,
+  // English as filled in on 2026-09-25.
+  for (const [fr, en] of [
+    ['animaux sauvage', 'Wild animal trail'],
+    ['visite animaux', 'Animal visit'],
+    ['Enfants + bain nordique', 'Kids activity + nordic bath'],
+  ]) {
+    assert.equal(hits(fr).length, 1, `« ${fr} » matches ${hits(fr).length} rules instead of exactly one`);
+    assert.equal(
+      hits(en).length, 1,
+      `« ${en} » matches ${hits(en).length} rules: once an English title is filled in, the English drawer loses this line's suffix`,
+    );
+    assert.deepEqual(hits(en)[0], hits(fr)[0], `« ${en} » lands on a different rule than « ${fr} »`);
+  }
+  // The nordic bath is ALSO an hourly resource with a line of its own. Keying the kids' activity on
+  // « nordic bath » would retouch that line too, appending a sliding scale it does not have.
+  for (const resource of ['Bain nordique', 'Nordic bath']) {
+    assert.equal(
+      hits(resource).length, 0,
+      `« ${resource} » — the hourly resource — is caught by an option's retouch rule`,
+    );
+  }
+});
+
+test('a translated option title still turns its counter into a yes/no switch (rule 58)', () => {
+  const pairs = pairsOf('commence');
+  assert.ok(pairs.length >= 2, 'towels and cleaning must each declare their two languages');
+  const isSwitch = (title) => pairs.some(([fr, en]) => matchers.commence(matchers.normalise(title), fr, en));
+  for (const title of ['Linge de toilette', 'Bathroom linen', 'Ménage', 'Cleaning']) {
+    assert.ok(isSwitch(title), `« ${title} » keeps a quantity counter, where the guest can only answer yes or no`);
+  }
+  // Bed linen is sold by quantity: it must NOT be caught by the towel rule in either language.
+  for (const title of ['Linge de lit', 'Bed linen']) {
+    assert.ok(!isSwitch(title), `« ${title} » lost its quantity counter`);
+  }
+});

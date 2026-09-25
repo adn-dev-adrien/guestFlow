@@ -507,6 +507,18 @@ CSS;
 		return ( t || '' ).normalize( 'NFD' ).replace( /[\u0300-\u036f]/g, '' ).toLowerCase().trim();
 	}
 
+	// Un titre d'option arrive dans la langue de la page : des qu'une traduction anglaise est saisie
+	// dans GuestFlow, un matcher francais ne reconnait plus rien et la retouche disparait en silence
+	// — le commutateur oui/non redevient un compteur, le tarif perd son suffixe. On reconnait donc les
+	// mots des DEUX langues, comme gf_caps_icone_pour() le fait pour les pictogrammes.
+	function porte( t, fr, en ) {
+		return t.indexOf( fr ) !== -1 || t.indexOf( en ) !== -1;
+	}
+
+	function commence( t, fr, en ) {
+		return t.indexOf( fr ) === 0 || t.indexOf( en ) === 0;
+	}
+
 	function interrupteur( ligne, step ) {
 		if ( ligne.querySelector( '.gf-resa-switch' ) ) { return; }
 		step.style.display = 'none';
@@ -547,7 +559,7 @@ CSS;
 			var t = normalise( texteEl.textContent );
 
 			// Oui/non : linge de toilette et menage (1 = oui, comme aujourd'hui cote GuestFlow).
-			if ( step && ( t.indexOf( 'linge de toilette' ) === 0 || t.indexOf( 'menage' ) === 0 ) ) {
+			if ( step && ( commence( t, 'linge de toilette', 'bathroom linen' ) || commence( t, 'menage', 'cleaning' ) ) ) {
 				interrupteur( ligne, step );
 			}
 
@@ -558,11 +570,11 @@ CSS;
 				var sansUnite = function ( txt ) {
 					return txt.replace( /\s*\u00b7?\s*au s\u00e9jour/gi, '' ).replace( /\s*\u00b7?\s*per stay/gi, '' );
 				};
-				if ( t.indexOf( 'animaux sauvage' ) !== -1 ) {
+				if ( porte( t, 'animaux sauvage', 'wild animal' ) ) {
 					p = sansUnite( p );
 					var sess = T.session || 'la session';
 					if ( p.indexOf( sess ) === -1 ) { p += ' \u00b7 ' + sess; }
-				} else if ( t.indexOf( 'visite animaux' ) !== -1 || t.indexOf( 'enfants + bain nordique' ) !== -1 ) {
+				} else if ( porte( t, 'visite animaux', 'animal visit' ) || porte( t, 'enfants + bain nordique', 'kids activity' ) ) {
 					var pers = T.parPersonne || 'par personne';
 					p = p.replace( /par participant/gi, pers ).replace( /per participant/gi, pers );
 					var degr = T.degressif || 'tarif dégressif';

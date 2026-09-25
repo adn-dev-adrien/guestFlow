@@ -479,9 +479,20 @@ below was already shipped and already wrong; none of it could have been seen fro
     on English pages too and produced « 30,00 € · per participant · tarif dégressif ». The suffixes now
     come from the dictionary, and the matching recognises the unit in both languages.
 
-> **Sans test** — un titre d'option ou un nom de catégorie sans traduction reste français : c'est une
-> donnée saisie dans GuestFlow, pas du code. `titleEn` existe et l'API s'en sert ; `category` n'a pas
-> encore de jumelle anglaise.
+58. **Filling in an English title must not silently change what the drawer does.** The retouches of
+    rule 57 are *triggered* by the title, and so is the yes/no switch that replaces the quantity
+    counter on the towels and the cleaning. Every one of those matchers read French only, so the day
+    an English title is entered in GuestFlow the English drawer would lose the switch — the guest
+    offered a counter where the answer is yes or no — and lose the « la session » /
+    « tarif dégressif » suffixes. Each matcher therefore declares the words of **both** languages, as
+    rule 53 already does for the pictograms. The tokens must not overlap: « bathroom linen » may not
+    swallow « bed linen », and the kids' activity may not be keyed on « nordic bath », which is also
+    an hourly resource with a line of its own. The 21 missing `titleEn` and the nordic bath's `nameEn`
+    were filled in production on 2026-09-25, which is what made this reachable.
+
+> **Sans test** — une **description** d'option et un nom de **catégorie** restent français : la
+> description est volontairement omise en anglais (rule 7, pas de `descriptionEn`), et `category` n'a
+> pas de jumelle anglaise du tout — une colonne, un champ d'interface et une projection manquent.
 
 **Edge cases:**
 
