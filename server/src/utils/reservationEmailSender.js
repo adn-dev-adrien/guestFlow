@@ -26,13 +26,15 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const client = reservation.clientId ? database.prepare('SELECT * FROM clients WHERE id = ?').get(reservation.clientId) : null;
   const property = reservation.propertyId ? database.prepare('SELECT * FROM properties WHERE id = ?').get(reservation.propertyId) : null;
   const options = database.prepare(`
-    SELECT ro.*, o.title, o.titleEn, o.autoOptionType
+    SELECT ro.*, o.title, o.autoOptionType
     FROM reservation_options ro JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ?
   `).all(reservation.id);
   const resources = database.prepare(`
-    SELECT rr.*, res.name, res.nameEn
+    SELECT rr.*, res.name
     FROM reservation_resources rr JOIN resources res ON res.id = rr.resourceId WHERE rr.reservationId = ?
   `).all(reservation.id);
+  // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
+  require('./translationResolver').attachEnglishNames(database, { options, resources });
   const customOptions = database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ?').all(reservation.id);
   const bedLinenProvidedByDefault = reservation.propertyId
     ? Boolean(database.prepare(`

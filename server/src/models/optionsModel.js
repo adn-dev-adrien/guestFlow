@@ -32,12 +32,6 @@ function normalizeProgressiveOptionTiers(raw) {
 }
 
 function createOptionsModel(database) {
-  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6). When the EN columns are
-  // missing (minimal test schemas), the SQL gracefully drops the references.
-  const HAS_OPTION_TITLE_EN = (() => {
-    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'titleEn'); }
-    catch { return false; }
-  })();
   // Breakfast default time (specs/breakfast-time.md). Persisted via a dedicated guarded write so the
   // big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_BREAKFAST_TIME = (() => {
@@ -145,6 +139,26 @@ function createOptionsModel(database) {
     ).run(shows, repeat, null, JSON.stringify(times), optionId);
   }
   // Parse the stored planningCardTimes JSON into a clean HH:MM array for API consumers.
+  /**
+   * The English title no longer lives on the row (specs/translation-catalogue.md §5): it comes from
+   * the catalogue, and is attached here so every consumer downstream — the pricing engine, the public
+   * projections, the devis PDF — keeps reading `titleEn` exactly as it always has, `null` when there
+   * is no translation.
+   *
+   * The map is built once per listing and passed down: a lookup per row would be a query per row.
+   */
+  function englishTitles() {
+    try { return require('./translationsModel').create(database).valuesFor('en'); }
+    catch { return new Map(); }
+  }
+
+  function attachEnglish(option, english) {
+    if (!option) return option;
+    const { optionKey } = require('../utils/translationCollector');
+    option.titleEn = english.get(optionKey(option.id, 'title')) || option.titleEn || null;
+    return option;
+  }
+
   function decoratePlanningCard(option) {
     if (!HAS_OPTION_PLANNING_CARD || !option) return option;
     let times = [];
@@ -255,16 +269,17 @@ function createOptionsModel(database) {
       // order the fiche and the public widget render (specs/option-categories.md §3 rule 3).
       const order = HAS_OPTION_CATEGORY ? 'ORDER BY category, title' : 'ORDER BY title';
       const rows = database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}${order}`).all();
+      const english = englishTitles();
       // Same reading order as the fiche: the cancellation insurance sits just after « Départ
       // tardif » instead of under « A » (specs/cancellation-insurance.md §3.2 rule 17bis).
-      return pinCancellationInsurance(rows).map((o) => decoratePlanningCard({
+      return pinCancellationInsurance(rows).map((o) => attachEnglish(decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
         propertyDefaults: propertyDefaultsFor(o.id),
         propertyBathMats: propertyBathMatsFor(o.id),
         optionProgressiveTiers: normalizeProgressiveOptionTiers(o.optionProgressiveTiers),
-      }));
+      }), english));
     },
 
     get(id) {
@@ -275,7 +290,7 @@ function createOptionsModel(database) {
       option.propertyDefaults = propertyDefaultsFor(id);
       option.propertyBathMats = propertyBathMatsFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
-      return decoratePlanningCard(option);
+      return attachEnglish(decoratePlanningCard(option), englishTitles());
     },
 
     // Options applicable to a single property (via the property_options link). Used by the public
@@ -300,13 +315,14 @@ function createOptionsModel(database) {
         ${ACTIVE_AND_O}
         ORDER BY ${HAS_OPTION_CATEGORY ? 'o.category, ' : ''}o.title
       `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
+      const english = englishTitles();
       return rows.map((o) => {
         const { __propertyPrice, ...rest } = o;
-        return decoratePlanningCard({
+        return attachEnglish(decoratePlanningCard({
           ...rest,
           price: __propertyPrice != null ? Number(__propertyPrice) : Number(rest.price || 0),
           optionProgressiveTiers: normalizeProgressiveOptionTiers(rest.optionProgressiveTiers),
-        });
+        }), english);
       });
     },
 
@@ -332,17 +348,7 @@ function createOptionsModel(database) {
     },
 
     create(payload = {}) {
-      const insertOption = database.prepare(HAS_OPTION_TITLE_EN ? `
-        INSERT INTO options (
-          title, description, priceType, price, optionProgressiveTiers,
-          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen,
-          linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
-          towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson,
-          titleEn
-        )
-        VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?,  ?, ?,  ?, ?, ?,  ?, ?, ?,  ?)
-      ` : `
+      const insertOption = database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
@@ -376,12 +382,6 @@ function createOptionsModel(database) {
           Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
           Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
         ];
-        if (HAS_OPTION_TITLE_EN) {
-          // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — trimmed string,
-          // empty by default. Not run through sentenceCase: the operator decides EN casing.
-          // Description has no EN counterpart — see the spec rule for why.
-          args.push(String(payload.titleEn || '').trim());
-        }
         const result = insertOption.run(...args);
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
@@ -401,16 +401,7 @@ function createOptionsModel(database) {
     },
 
     update(id, payload = {}) {
-      const updateOption = database.prepare(HAS_OPTION_TITLE_EN ? `
-        UPDATE options SET
-          title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
-          autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
-          countsAsBedLinen = ?, countsAsBathroomLinen = ?,
-          linenIncludesSingle = ?, linenIncludesDouble = ?, linenIncludesBaby = ?,
-          towelLargePerPerson = ?, towelMediumPerPerson = ?, towelSmallPerPerson = ?,
-          titleEn = ?
-        WHERE id = ?
-      ` : `
+      const updateOption = database.prepare(`
         UPDATE options SET
           title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
           autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
@@ -447,9 +438,6 @@ function createOptionsModel(database) {
           Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
           Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
         ];
-        if (HAS_OPTION_TITLE_EN) {
-          args.push(String(payload.titleEn || '').trim());
-        }
         args.push(id);
         updateOption.run(...args);
         deleteLinks.run(id);

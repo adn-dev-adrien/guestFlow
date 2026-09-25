@@ -181,6 +181,7 @@ app.use('/api/google-calendar', require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/translations', require('./routes/translations'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
 app.use('/api/tariff-recipes', require('./routes/tariffRecipes'));

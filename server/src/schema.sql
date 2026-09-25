@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS options (
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     price REAL NOT NULL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now'))
-  , autoOptionType TEXT, autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT NOT NULL DEFAULT 'fixed', autoFullNightThreshold TEXT, optionProgressiveTiers TEXT NOT NULL DEFAULT '[]', countsAsBedLinen INTEGER NOT NULL DEFAULT 0, countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0, linenIncludesSingle INTEGER NOT NULL DEFAULT 1, linenIncludesDouble INTEGER NOT NULL DEFAULT 1, linenIncludesBaby INTEGER NOT NULL DEFAULT 1, towelLargePerPerson INTEGER NOT NULL DEFAULT 1, towelMediumPerPerson INTEGER NOT NULL DEFAULT 0, towelSmallPerPerson INTEGER NOT NULL DEFAULT 1, titleEn TEXT NOT NULL DEFAULT '', breakfastTime TEXT DEFAULT '09:00', archivedAt TEXT, showsPlanningCard INTEGER NOT NULL DEFAULT 0, cardRepeat TEXT NOT NULL DEFAULT 'once', planningCardDate TEXT, planningCardTimes TEXT, scopeMigratedV2 INTEGER NOT NULL DEFAULT 0, countsAsBathMat INTEGER NOT NULL DEFAULT 0, displayToClient INTEGER NOT NULL DEFAULT 1, breakfastNotifyLeadMinutes INTEGER NOT NULL DEFAULT 30, category TEXT NOT NULL DEFAULT '', seedKey TEXT NOT NULL DEFAULT '', alwaysVisible INTEGER NOT NULL DEFAULT 0, isCancellationInsurance INTEGER NOT NULL DEFAULT 0);
+  , autoOptionType TEXT, autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT NOT NULL DEFAULT 'fixed', autoFullNightThreshold TEXT, optionProgressiveTiers TEXT NOT NULL DEFAULT '[]', countsAsBedLinen INTEGER NOT NULL DEFAULT 0, countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0, linenIncludesSingle INTEGER NOT NULL DEFAULT 1, linenIncludesDouble INTEGER NOT NULL DEFAULT 1, linenIncludesBaby INTEGER NOT NULL DEFAULT 1, towelLargePerPerson INTEGER NOT NULL DEFAULT 1, towelMediumPerPerson INTEGER NOT NULL DEFAULT 0, towelSmallPerPerson INTEGER NOT NULL DEFAULT 1, breakfastTime TEXT DEFAULT '09:00', archivedAt TEXT, showsPlanningCard INTEGER NOT NULL DEFAULT 0, cardRepeat TEXT NOT NULL DEFAULT 'once', planningCardDate TEXT, planningCardTimes TEXT, scopeMigratedV2 INTEGER NOT NULL DEFAULT 0, countsAsBathMat INTEGER NOT NULL DEFAULT 0, displayToClient INTEGER NOT NULL DEFAULT 1, breakfastNotifyLeadMinutes INTEGER NOT NULL DEFAULT 30, category TEXT NOT NULL DEFAULT '', seedKey TEXT NOT NULL DEFAULT '', alwaysVisible INTEGER NOT NULL DEFAULT 0, isCancellationInsurance INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS payment_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -553,7 +553,7 @@ CREATE TABLE IF NOT EXISTS resources (
     propertyId INTEGER,
     note TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')), isComplex INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 60, openTime TEXT NOT NULL DEFAULT '08:00', closeTime TEXT NOT NULL DEFAULT '22:00', closedDays TEXT NOT NULL DEFAULT '[]', openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]', turnoverMinutes INTEGER NOT NULL DEFAULT 0, minimumUsageMinutes INTEGER NOT NULL DEFAULT 0, nameEn TEXT NOT NULL DEFAULT '', showsPlanningCard INTEGER NOT NULL DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL NOT NULL DEFAULT 0, hourlyExternalDayRate REAL NOT NULL DEFAULT 0, hourlyExternalEveningRate REAL NOT NULL DEFAULT 0,
+    updatedAt TEXT DEFAULT (datetime('now')), isComplex INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 60, openTime TEXT NOT NULL DEFAULT '08:00', closeTime TEXT NOT NULL DEFAULT '22:00', closedDays TEXT NOT NULL DEFAULT '[]', openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]', turnoverMinutes INTEGER NOT NULL DEFAULT 0, minimumUsageMinutes INTEGER NOT NULL DEFAULT 0, showsPlanningCard INTEGER NOT NULL DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL NOT NULL DEFAULT 0, hourlyExternalDayRate REAL NOT NULL DEFAULT 0, hourlyExternalEveningRate REAL NOT NULL DEFAULT 0,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
   );
 
@@ -813,3 +813,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_users_email ON users(email);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL;
 
+-- Translation catalogue (specs/translation-catalogue.md §5). Two tables rather than a column per
+-- language, so adding a third language is data and never a migration. The English that used to live
+-- in `options.titleEn` / `resources.nameEn` moved here; those columns are gone.
+CREATE TABLE IF NOT EXISTS translation_entries (
+    entryKey   TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    sourceId   INTEGER,
+    sourceText TEXT NOT NULL,
+    seenAt     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS translation_values (
+    entryKey     TEXT NOT NULL,
+    lang         TEXT NOT NULL,
+    text         TEXT NOT NULL,
+    sourceAtTime TEXT NOT NULL,
+    PRIMARY KEY (entryKey, lang),
+    FOREIGN KEY (entryKey) REFERENCES translation_entries(entryKey) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_translation_values_lang ON translation_values(lang);

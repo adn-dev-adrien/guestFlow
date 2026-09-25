@@ -48,15 +48,6 @@ function ensureDefaultBathMatOption(database, { logger = console } = {}) {
       logger.log(`[seed:bath-mat] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
-    // Backfill EN title on rows with empty titleEn (typed/promoted/legacy).
-    if (cols.includes('titleEn')) {
-      database.prepare(`
-        UPDATE options
-           SET titleEn = ?
-         WHERE autoOptionType = 'bath_mat'
-           AND (titleEn IS NULL OR titleEn = '')
-      `).run(SEED_DEFINITION_EN.title);
-    }
 
     const hasTypedSeed = database.prepare(
       "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'bath_mat'"
@@ -71,36 +62,19 @@ function ensureDefaultBathMatOption(database, { logger = console } = {}) {
     // the operator flips the switch. Guarded: only set when the column exists (else the legacy
     // INSERT shape is used and the row defaults to visible — harmless on minimal schemas).
     const hasDisplayToClient = cols.includes('displayToClient');
-    if (cols.includes('titleEn')) {
-      database.prepare(`
-        INSERT INTO options (
-          title, description, priceType, price, optionProgressiveTiers,
-          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen, countsAsBathMat, titleEn
-          ${hasDisplayToClient ? ', displayToClient' : ''}
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${hasDisplayToClient ? ', 0' : ''})
-      `).run(
-        SEED_DEFINITION.title, SEED_DEFINITION.description,
-        'per_stay', 0, '[]',
-        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
-        0, 0, 1,
-        SEED_DEFINITION_EN.title,
-      );
-    } else {
-      database.prepare(`
-        INSERT INTO options (
-          title, description, priceType, price, optionProgressiveTiers,
-          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen, countsAsBathMat
-          ${hasDisplayToClient ? ', displayToClient' : ''}
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${hasDisplayToClient ? ', 0' : ''})
-      `).run(
-        SEED_DEFINITION.title, SEED_DEFINITION.description,
-        'per_stay', 0, '[]',
-        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
-        0, 0, 1,
-      );
-    }
+    database.prepare(`
+      INSERT INTO options (
+        title, description, priceType, price, optionProgressiveTiers,
+        autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+        countsAsBedLinen, countsAsBathroomLinen, countsAsBathMat
+        ${hasDisplayToClient ? ', displayToClient' : ''}
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${hasDisplayToClient ? ', 0' : ''})
+    `).run(
+      SEED_DEFINITION.title, SEED_DEFINITION.description,
+      'per_stay', 0, '[]',
+      SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
+      0, 0, 1,
+    );
     logger.log('[seed:bath-mat] seeded default option');
     return { action: 'seeded' };
   } catch (error) {

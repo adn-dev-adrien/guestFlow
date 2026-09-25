@@ -111,13 +111,13 @@ async function performAutoEmailPass(deps) {
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');
   const findProperty = database.prepare('SELECT * FROM properties WHERE id = ?');
   const findOptions  = database.prepare(`
-    SELECT ro.*, o.title, o.titleEn, o.autoOptionType, o.displayToClient
+    SELECT ro.*, o.title, o.autoOptionType, o.displayToClient
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
   `);
   const findResources = database.prepare(`
-    SELECT rr.*, res.name, res.nameEn
+    SELECT rr.*, res.name
     FROM reservation_resources rr
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
@@ -168,6 +168,8 @@ async function performAutoEmailPass(deps) {
       const property = reservation.propertyId ? findProperty.get(reservation.propertyId) : null;
       const options  = findOptions.all(reservation.id);
       const resources = findResources.all(reservation.id);
+      // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
+      require('./translationResolver').attachEnglishNames(database, { options, resources });
       const customOptions = findCustomOptions.all(reservation.id);
       const bedLinenProvidedByDefault = reservation.propertyId
         ? Boolean(findBedLinenDefault.get(reservation.propertyId))

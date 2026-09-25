@@ -76,16 +76,6 @@ function createModel(database) {
       return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'pdfLanguage');
     } catch { return false; }
   })();
-  // The bilingual translation columns might be absent in minimal test schemas — drop them from
-  // the enrich SELECT so the join still works. Production / dev DBs always have them.
-  const HAS_OPTION_TITLE_EN = (() => {
-    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'titleEn'); }
-    catch { return false; }
-  })();
-  const HAS_RESOURCE_NAME_EN = (() => {
-    try { return database.prepare("PRAGMA table_info(resources)").all().some((c) => c.name === 'nameEn'); }
-    catch { return false; }
-  })();
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) are excluded from the devis (a
   // client document). Guarded so minimal schemas without the column keep every option.
   const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
@@ -169,11 +159,12 @@ function createModel(database) {
   // ---- enrich (full devis with lines, client, property, schedule) ----
   function enrichDevis(row) {
     if (!row) return null;
-    // 2026-06-06 — surface `titleEn` so the PDF renderer can swap to the English option name
-    // when the devis carries pdfLanguage='en' (specs/devis-english-language.md §3 rule 6).
-    // The `titleEn` ref is conditional on the column existing so minimal test schemas still parse.
+    // `titleEn` lets the PDF renderer swap to the English option name when the devis carries
+    // pdfLanguage='en' (specs/devis-english-language.md §3 rule 6). Since the translation catalogue
+    // (specs/translation-catalogue.md) it no longer comes from a column: it is attached below, from
+    // the catalogue, keeping the same name and the same meaning — NULL when untranslated.
     const options = database.prepare(`
-      SELECT ro.*, o.title${HAS_OPTION_TITLE_EN ? ', o.titleEn' : ''}, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
+      SELECT ro.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
         COALESCE(NULLIF(ro.totalPrice, 0), NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
           round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)) as originalTotalPrice,
         ro.offered as offered
@@ -187,9 +178,8 @@ function createModel(database) {
         rco.amount as originalTotalPrice, COALESCE(rco.offered, 0) as offered, 1 as isCustom
       FROM reservation_custom_options rco WHERE rco.reservationId = ? ORDER BY rco.sortOrder, rco.id
     `).all(row.id);
-    // 2026-06-06 — surface `nameEn` for the EN PDF (specs/devis-english-language.md §3 rule 7).
     const resources = database.prepare(`
-      SELECT rr.*, r.name${HAS_RESOURCE_NAME_EN ? ', r.nameEn' : ''}, r.priceType as resourcePriceType,
+      SELECT rr.*, r.name, r.priceType as resourcePriceType,
         COALESCE(NULLIF(rr.totalPrice, 0), NULLIF(round(COALESCE(rr.unitPrice, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2), 0),
           round(COALESCE(r.price, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2)) as originalTotalPrice,
         rr.offered as offered
@@ -200,6 +190,8 @@ function createModel(database) {
     // payload (specs/devis-extras-parity-and-price-lock.md §4.3).
     for (const opt of options) opt.cardOccurrences = parseJsonArray(opt.cardOccurrences);
     for (const resource of resources) resource.sessions = parseJsonArray(resource.sessions);
+    // One catalogue read for the whole devis, rather than one per line.
+    require('../utils/translationResolver').attachEnglishNames(database, { options, resources });
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
     const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);

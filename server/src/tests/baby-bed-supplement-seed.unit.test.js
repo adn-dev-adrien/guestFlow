@@ -16,7 +16,7 @@ function freshDb({ properties = [1, 2] } = {}) {
     CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE options (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT, titleEn TEXT NOT NULL DEFAULT '', description TEXT,
+      title TEXT, description TEXT,
       priceType TEXT DEFAULT 'per_stay', price REAL DEFAULT 0,
       optionProgressiveTiers TEXT NOT NULL DEFAULT '[]',
       autoOptionType TEXT, autoEnabled INTEGER NOT NULL DEFAULT 0,
@@ -40,7 +40,6 @@ test('first boot seeds one 5 € cot supplement, linked to every property', () =
   assert.equal(res.action, 'seeded');
   const row = seeded(db);
   assert.equal(row.title, 'Lit bébé');
-  assert.equal(row.titleEn, 'Baby cot');
   assert.equal(row.priceType, 'per_stay');
   assert.equal(row.price, DEFAULT_PRICE);
   assert.equal(row.autoOptionType, 'baby_bed');
