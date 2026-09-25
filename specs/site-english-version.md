@@ -463,6 +463,36 @@ below was already shipped and already wrong; none of it could have been seen fro
     next page handed them back to their browser's language. No response header can purge what is
     already cached — only an address the browser has never seen escapes it. The switcher therefore
     emits `gf_pick_lang`, and `gf_set_lang` is still **accepted**, for links already shared.
+56. **A REST request has no page, so the browser has to state the language.** `GF.api` carries
+    `lang` on every call to the plugin's proxy, and the proxy adopts it once, on
+    `rest_pre_dispatch`, before any handler — one place, so a route added later cannot silently ask in
+    the wrong language. Until 2026-09-25 nothing said it: `pll_current_language()` had nothing to read
+    on `/wp-json/…`, `GF_Language` fell back to the site's own locale, and the plugin asked GuestFlow
+    in French **and cached the answer under that key**. The English drawer therefore listed its
+    options, its price units and its refusals in French while every string rendered with the page was
+    already translated. An absent or unknown `lang` still reads as French and is never a rejection
+    (rule 1).
+57. **The site's retouches of the engine's price lines speak the page's language.** `gf-seo-reservation.php`
+    rewrites a few of them — stripping the stay unit, renaming « par participant », appending
+    « la session » / « tarif dégressif ». Those were French literals, and the trigger is the option
+    **title**, which stays French for as long as no English title is filled in — so the retouch fired
+    on English pages too and produced « 30,00 € · per participant · tarif dégressif ». The suffixes now
+    come from the dictionary, and the matching recognises the unit in both languages.
+
+58. **Filling in an English title must not silently change what the drawer does.** The retouches of
+    rule 57 are *triggered* by the title, and so is the yes/no switch that replaces the quantity
+    counter on the towels and the cleaning. Every one of those matchers read French only, so the day
+    an English title is entered in GuestFlow the English drawer would lose the switch — the guest
+    offered a counter where the answer is yes or no — and lose the « la session » /
+    « tarif dégressif » suffixes. Each matcher therefore declares the words of **both** languages, as
+    rule 53 already does for the pictograms. The tokens must not overlap: « bathroom linen » may not
+    swallow « bed linen », and the kids' activity may not be keyed on « nordic bath », which is also
+    an hourly resource with a line of its own. The 21 missing `titleEn` and the nordic bath's `nameEn`
+    were filled in production on 2026-09-25, which is what made this reachable.
+
+> **Sans test** — une **description** d'option et un nom de **catégorie** restent français : la
+> description est volontairement omise en anglais (rule 7, pas de `descriptionEn`), et `category` n'a
+> pas de jumelle anglaise du tout — une colonne, un champ d'interface et une projection manquent.
 
 **Edge cases:**
 

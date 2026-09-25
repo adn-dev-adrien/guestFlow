@@ -507,6 +507,18 @@ CSS;
 		return ( t || '' ).normalize( 'NFD' ).replace( /[\u0300-\u036f]/g, '' ).toLowerCase().trim();
 	}
 
+	// Un titre d'option arrive dans la langue de la page : des qu'une traduction anglaise est saisie
+	// dans GuestFlow, un matcher francais ne reconnait plus rien et la retouche disparait en silence
+	// — le commutateur oui/non redevient un compteur, le tarif perd son suffixe. On reconnait donc les
+	// mots des DEUX langues, comme gf_caps_icone_pour() le fait pour les pictogrammes.
+	function porte( t, fr, en ) {
+		return t.indexOf( fr ) !== -1 || t.indexOf( en ) !== -1;
+	}
+
+	function commence( t, fr, en ) {
+		return t.indexOf( fr ) === 0 || t.indexOf( en ) === 0;
+	}
+
 	function interrupteur( ligne, step ) {
 		if ( ligne.querySelector( '.gf-resa-switch' ) ) { return; }
 		step.style.display = 'none';
@@ -547,21 +559,29 @@ CSS;
 			var t = normalise( texteEl.textContent );
 
 			// Oui/non : linge de toilette et menage (1 = oui, comme aujourd'hui cote GuestFlow).
-			if ( step && ( t.indexOf( 'linge de toilette' ) === 0 || t.indexOf( 'menage' ) === 0 ) ) {
+			if ( step && ( commence( t, 'linge de toilette', 'bathroom linen' ) || commence( t, 'menage', 'cleaning' ) ) ) {
 				interrupteur( ligne, step );
 			}
 
 			if ( prixEl ) {
 				var p = prixEl.textContent;
-				if ( t.indexOf( 'animaux sauvage' ) !== -1 ) {
-					p = p.replace( /\s*\u00b7?\s*au s\u00e9jour/gi, '' );
-					if ( p.indexOf( 'la session' ) === -1 ) { p += ' \u00b7 la session'; }
-				} else if ( t.indexOf( 'visite animaux' ) !== -1 || t.indexOf( 'enfants + bain nordique' ) !== -1 ) {
-					p = p.replace( /par participant/gi, 'par personne' );
-					if ( p.indexOf( 'd\u00e9gressif' ) === -1 ) { p += ' \u00b7 tarif d\u00e9gressif'; }
+				// L'unite « au sejour » arrive dans la langue de la page : on retire les deux, plutot
+				// que de deviner laquelle l'API a servie.
+				var sansUnite = function ( txt ) {
+					return txt.replace( /\s*\u00b7?\s*au s\u00e9jour/gi, '' ).replace( /\s*\u00b7?\s*per stay/gi, '' );
+				};
+				if ( porte( t, 'animaux sauvage', 'wild animal' ) ) {
+					p = sansUnite( p );
+					var sess = T.session || 'la session';
+					if ( p.indexOf( sess ) === -1 ) { p += ' \u00b7 ' + sess; }
+				} else if ( porte( t, 'visite animaux', 'animal visit' ) || porte( t, 'enfants + bain nordique', 'kids activity' ) ) {
+					var pers = T.parPersonne || 'par personne';
+					p = p.replace( /par participant/gi, pers ).replace( /per participant/gi, pers );
+					var degr = T.degressif || 'tarif dégressif';
+					if ( p.indexOf( degr ) === -1 ) { p += ' \u00b7 ' + degr; }
 				} else {
 					// Planches, boissons, balade nocturne… : juste le prix.
-					p = p.replace( /\s*\u00b7?\s*au s\u00e9jour/gi, '' );
+					p = sansUnite( p );
 				}
 				if ( p !== prixEl.textContent ) { prixEl.textContent = p; }
 			}
@@ -754,9 +774,19 @@ JS;
 		wp_enqueue_script( 'gf-resa' );
 		// La table est PREFIXEE au script plutot que posee « before » : un handle enregistre sans
 		// source n'emet pas ses donnees « before », et window.GF_RESA_T restait indefini.
+		$lbl2 = function ( $cle, $repli ) {
+			return function_exists( 'gf_t' ) && '' !== gf_t( $cle ) ? gf_t( $cle ) : $repli;
+		};
 		$t = array(
-			'suivant'  => function_exists( 'gf_t' ) ? gf_t( 'resa_suivant' ) : 'Suivant',
-			'reserver' => function_exists( 'gf_t' ) ? gf_t( 'resa_reserver' ) : 'Réserver',
+			'suivant'  => $lbl2( 'resa_suivant', 'Suivant' ),
+			'reserver' => $lbl2( 'resa_reserver', 'Réserver' ),
+			// Les retouches des lignes de prix. Elles etaient ecrites en dur, en francais, et
+			// s'appliquaient quand meme sur une page anglaise : le declencheur est le TITRE de
+			// l'option, qui reste francais faute de traduction en base. On lisait donc
+			// « 30,00 € · per participant · tarif dégressif » (regle 57).
+			'session'   => $lbl2( 'resa_la_session', 'la session' ),
+			'degressif' => $lbl2( 'resa_tarif_degressif', 'tarif dégressif' ),
+			'parPersonne' => $lbl2( 'resa_par_personne', 'par personne' ),
 		);
 		wp_add_inline_script( 'gf-resa', 'window.GF_RESA_T = ' . wp_json_encode( $t ) . ";\n" . $js );
 	},
