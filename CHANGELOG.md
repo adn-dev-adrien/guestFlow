@@ -4,6 +4,40 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-09-25
+
+### Summary
+- Les notifications d'arrivée, de départ et de petit déjeuner partent enfin à l'heure prévue : le serveur ne raisonne plus en UTC.
+- La taxe de séjour retenue est proposée sur les fiches arrivées par iCal, là où le relevé se recopie : la commission n'avale plus la taxe.
+- Un montant copié depuis un relevé (1 197,00 €) ne s'efface plus quand on le valide dans un champ financier.
+- Sur une réservation déjà commencée ou terminée, la saisie du paiement plateforme s'enregistre de nouveau.
+- Le tunnel de réservation anglais affiche ses prix en anglais, et le lit bébé n'est plus proposé aux séjours sans bébé.
+
+### Fixed
+- **The cot is offered only when there is a baby, in every language** (spec `translation-catalogue.md` rule 22, `wp-booking-widget-redesign.md` rule 12). The booking widget kept the « Lit bébé » resource out of the extras by matching its French name; once the catalogue started serving « Baby bed », the match failed and the cot was listed as a tickable supplement to every English visitor, babies or none. The public resource payload now carries `isBabyBed`, decided server-side on the stored row, and the widget keys on it — the way it already keys on `isCancellationInsurance` rather than on a title. +5 server tests.
+- **Money fields — a pasted amount no longer erases itself** (spec `reservation-price-arithmetic.md`
+  rules 8-9, 2026-09-25). Copying `1 197,00 €` off a platform statement into « Total séjour facturé
+  par la plateforme », « Virement reçu », a commission or any other money field used to blank the
+  field on Enter: the currency symbol and the thousands separator made the entry unreadable, and an
+  unreadable entry silently reverts to the last committed value — empty, on a reservation being
+  reconciled for the first time. The euro sign (and `$`, `£`, `EUR`), every kind of space between
+  thousands (including the non-breaking ones a copy-paste carries) and an unambiguous thousands dot
+  (`1.197,00`) are now read for what they are. `1.234+5.678` still means `6.912`. +7 client tests.
+- **A reservation that has already begun or ended takes its platform payment again** (statement total, transfer received, commission). The solde deadline recomputed from the platform's payout delay was refused by the past-fiche lock, which rejected the whole save. Those fiches now keep the deadline they were saved with.
+- **WordPress plugin: the English booking form asks for a « Phone number »**, not a « Telephone » (spec `site-english-version.md` rule 23).
+- **The withheld tourist tax is offered on the fiches where the statement is really typed** (spec
+  `platform-tourist-tax-out-of-the-commission.md` rules 21-24). The « Taxe de séjour retenue » box was
+  pre-filled only on a fiche that had never been saved. But a Booking, Airbnb or Gîtes de France
+  reservation arrives by iCal: it is already in the database when it is opened, so the box stayed empty
+  at the very moment the statement is copied into it — and the extranet's « Montant Total », tax
+  included, went into the commission. What decides is now the platform amount: as long as it is not
+  entered, the box carries the engine's estimate. A fiche whose amount is already entered is never
+  touched: total, commission and accounting entry stay right to the cent. Measured on reservation 22219
+  (Booking, 8 guests) — 1 283,34 € paid, 1 075,27 € transferred, 19,20 € of tax: the commission lands
+  on 188,87 € instead of 208,07 €. +8 client tests.
+- **The English booking funnel prices in English** (spec `translation-catalogue.md` rule 21). `POST /public/v1/quote` was the one projection still resolving its lines from `options.titleEn` / `resources.nameEn`, the columns 3.3.0 dropped: an English visitor picked « Breakfast » in the drawer and read « Petit déjeuner » in the summary underneath, beside « Bain nordique » and a French portion hint. The quote now reads the translation catalogue for the language it was called in — option titles, resource names, the free-allowance sentence, the cancellation-insurance block and the caps under the steppers. A French quote is byte-identical to before. +8 server tests.
+- Arrival, departure and breakfast notifications, and the daily guest e-mail pass, now fire at the time they are set for. The production host's clock is UTC, so a check-in saved as `16:00` only notified at 18:00 (17:00 in winter); the server now runs in `Europe/Paris` whatever the host says (`GUESTFLOW_TZ` overrides it). See `specs/server-timezone.md`.
+
 ## [3.3.0] - 2026-09-25
 
 ### Summary

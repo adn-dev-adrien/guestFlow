@@ -1,1 +1,0 @@
-- Arrival, departure and breakfast notifications, and the daily guest e-mail pass, now fire at the time they are set for. The production host's clock is UTC, so a check-in saved as `16:00` only notified at 18:00 (17:00 in winter); the server now runs in `Europe/Paris` whatever the host says (`GUESTFLOW_TZ` overrides it). See `specs/server-timezone.md`.
