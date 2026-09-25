@@ -172,7 +172,6 @@ final class GF_Blocks
                 // CGV checkbox (specs/terms-acceptance-record.md rules 10-13).
                 'cgvAcceptBefore' => __('J’ai lu et j’accepte les ', 'guestflow-booking'),
                 'cgvAcceptLink'   => __('conditions générales de location', 'guestflow-booking'),
-                'cgvAcceptAfter'  => __(' (version %d).', 'guestflow-booking'),
                 'cgvRequired'     => __('Acceptez d’abord les conditions générales de location.', 'guestflow-booking'),
                 // Collapsible option categories (specs/option-categories.md §6.3)
                 'showCategory'    => __('Voir les %d options', 'guestflow-booking'),
