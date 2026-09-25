@@ -308,6 +308,31 @@ function gf_url_traduite($vers) {
 const GF_COOKIE_LANGUE = 'gf_lang';
 
 /**
+ * Le jeton que le selecteur EMET, et celui qu'on accepte encore.
+ *
+ * Renomme le 2026-09-25. Le nettoyage du jeton a repondu un 301 cachable pendant quelques heures, et
+ * un navigateur garde un 301 indefiniment : chez ces visiteurs-la, « ?gf_set_lang=en » ne part plus
+ * jamais au serveur, donc le cookie n'est plus pose et la page suivante les renvoie vers la langue de
+ * leur navigateur. Aucun en-tete ne peut effacer ce qui est deja cache — seule une adresse que le
+ * navigateur n'a jamais vue y echappe. D'ou un nouveau nom, et l'ancien toujours accepte pour les
+ * liens deja partages (regle 55).
+ */
+const GF_JETON_LANGUE = 'gf_pick_lang';
+const GF_JETON_LANGUE_ANCIEN = 'gf_set_lang';
+
+/**
+ * Le jeton present dans l'adresse, quel que soit son nom, ou null.
+ */
+function gf_jeton_langue_demande() {
+    foreach ( array( GF_JETON_LANGUE, GF_JETON_LANGUE_ANCIEN ) as $nom ) {
+        if ( isset( $_GET[ $nom ] ) ) {
+            return array( $nom, wp_unslash( $_GET[ $nom ] ) );
+        }
+    }
+    return null;
+}
+
+/**
  * Sert a chaque visiteur la langue qu'il a choisie — et, faute de choix, celle de son navigateur.
  *
  * **Le choix memorise passe avant l'en-tete du navigateur** (corrige le 2026-09-25). Le cookie se
@@ -435,10 +460,11 @@ function gf_requete_de_robot() {
  * c'est ce qui fait la difference entre « on vous a propose » et « vous avez decide ».
  */
 function gf_memorise_choix_langue() {
-    if (is_admin() || !isset($_GET['gf_set_lang'])) {
+    $jeton = is_admin() ? null : gf_jeton_langue_demande();
+    if (!$jeton) {
         return;
     }
-    $choix = gf_langue_normalisee(wp_unslash($_GET['gf_set_lang']));
+    $choix = gf_langue_normalisee($jeton[1]);
     setcookie(GF_COOKIE_LANGUE, $choix, array(
         'expires'  => time() + YEAR_IN_SECONDS,
         'path'     => '/',
@@ -464,10 +490,11 @@ add_action('init', 'gf_memorise_choix_langue', 1);
  * francais » (§6).
  */
 function gf_nettoie_jeton_langue() {
-    if (is_admin() || !isset($_GET['gf_set_lang'])) {
+    $jeton = is_admin() ? null : gf_jeton_langue_demande();
+    if (!$jeton) {
         return;
     }
-    $propre = remove_query_arg('gf_set_lang', home_url(add_query_arg(array())));
+    $propre = remove_query_arg($jeton[0], home_url(add_query_arg(array())));
     nocache_headers();
     wp_redirect($propre, 302);
     exit;
@@ -499,7 +526,7 @@ function gf_selecteur_langue_html() {
     $chevron = function_exists('gf_seo_icone') ? gf_seo_icone('chevron', array('width' => 12, 'height' => 12, 'stroke' => 2, 'class' => 'gf-lang-chev')) : '';
 
     $entree = function ($code, $libelle) use ($courante) {
-        $url = add_query_arg('gf_set_lang', $code, gf_url_traduite($code));
+        $url = add_query_arg(GF_JETON_LANGUE, $code, gf_url_traduite($code));
         return '<a href="' . esc_url($url) . '"'
             . ' lang="' . esc_attr($code) . '" hreflang="' . esc_attr($code) . '"'
             . ($code === $courante ? ' aria-current="page"' : '')

@@ -449,6 +449,20 @@ below was already shipped and already wrong; none of it could have been seen fro
     no icon. Each rule lists the words of both languages. The whole word, never a fragment: `bed`
     alone would claim both the single and the double.
 
+54. **The hero slides under the transparent header, on every page.** `.gf-hero` carries
+    `margin-top:-86px` so the bar floats over the image. WordPress's own block layout then posts
+    `:root :where(.is-layout-constrained) > :first-child{ margin-block-start:0 }`, which cancelled
+    that pull wherever the hero *opens* the content — the home page. On the lodging pages it survived
+    only because the breadcrumb happens to precede the hero, so the hero is not the first child. The
+    home page's image was pushed below the bar and cropped by as much. Restated with a selector that
+    outranks WordPress's, and on `margin-block-start` as well as `margin-top`: a fix that relied on
+    stylesheet order would break the next time a style is enqueued.
+55. **The switcher emits a token no cached redirect can match.** The cleanup answered a cacheable
+    `301` for a few hours before rule 51 landed, and a browser keeps a `301` indefinitely: for those
+    visitors `?gf_set_lang=` never reached the server again, the cookie was never rewritten, and the
+    next page handed them back to their browser's language. No response header can purge what is
+    already cached — only an address the browser has never seen escapes it. The switcher therefore
+    emits `gf_pick_lang`, and `gf_set_lang` is still **accepted**, for links already shared.
 56. **A REST request has no page, so the browser has to state the language.** `GF.api` carries
     `lang` on every call to the plugin's proxy, and the proxy adopts it once, on
     `rest_pre_dispatch`, before any handler — one place, so a route added later cannot silently ask in
