@@ -6,7 +6,7 @@
 | **Branch** | `feature/gate-keys-sowel` |
 | **Created** | 2026-09-20, rewritten 2026-09-27 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #623 |
 | **Supersedes** | PR #563 (`claude/sowel-guestflow-connector-y0df44`): its stay **feed** (`GET /stays` with revisions and a cursor, the `gate_stay_feed` table, its reconciler and its purge) and its `POST /invitations`. What #563 got right is kept as it was: the signed channel, the window computation, the email tokens, the SAS step with its QR, the fiche card and the settings card |
 | **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract (v1) », implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
 
@@ -279,6 +279,13 @@ nothing overflows horizontally.
 - [x] `GateKeysAlert.test.jsx` — nothing to say, a failure row, the stale row, a silent server
 - [x] `GateAccessCard.test.jsx`, `SasGateAccessStep.test.jsx`, `SettingsGateAccessSection.test.jsx`
       (from #563, adapted)
+
+### Visual verification (2026-09-27)
+- [x] Real server on a scratch database, both endpoints called with signed requests: the list came
+      back with the Paris window, the results were filed. Dashboard (desktop and 390 px): the
+      « Clés portail » alert with the stale row and the failed key; Réglages → Intégrations card;
+      the fiche card for a created key and for a failed one. The SAS step is covered by its unit
+      tests only (the SAS opens on the day of arrival).
 
 ### Manual verification
 - [ ] Paste both secrets into Sowel's `guestflow` plugin: the keys of the next 7 days appear in Sowel

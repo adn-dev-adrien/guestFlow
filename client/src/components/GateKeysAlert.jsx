@@ -60,7 +60,7 @@ export default function GateKeysAlert() {
     <Alert
       severity="warning"
       variant="outlined"
-      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}
+      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper', '& .MuiAlert-message': { width: '100%' } }}
       icon={false}
     >
       <AlertTitle sx={{ fontWeight: 700 }}>Clés portail</AlertTitle>
