@@ -20,28 +20,30 @@ const stay = (over = {}) => ({
 });
 
 // --- the plain window ---
-test('summer stay: opens at the check-in wall clock, closes one hour after check-out', () => {
-  const { start, end } = computeWindow(stay());
-  assert.equal(start.toISOString(), '2026-09-12T14:00:00.000Z', '16:00 Paris in CEST is 14:00Z');
-  assert.equal(end.toISOString(), '2026-09-14T09:00:00.000Z', '10:00 + 1 h = 11:00 Paris = 09:00Z');
-  assert.equal(paris.format(start), '12/09/2026 16:00');
-  assert.equal(paris.format(end), '14/09/2026 11:00');
+test('summer stay: opens 3 h before the check-in wall clock, closes 2 h after check-out', () => {
+  const { start, end, checkIn } = computeWindow(stay());
+  assert.equal(paris.format(checkIn), '12/09/2026 16:00');
+  assert.equal(start.toISOString(), '2026-09-12T11:00:00.000Z', '16:00 Paris (14:00Z) − 3 h');
+  assert.equal(end.toISOString(), '2026-09-14T10:00:00.000Z', '10:00 + 2 h = 12:00 Paris = 10:00Z');
+  assert.equal(paris.format(start), '12/09/2026 13:00');
+  assert.equal(paris.format(end), '14/09/2026 12:00');
 });
 
 test('winter stay: the same wall clock, one hour further from UTC', () => {
   const { start, end } = computeWindow(stay({
     startDate: '2026-01-10', endDate: '2026-01-12',
   }));
-  assert.equal(start.toISOString(), '2026-01-10T15:00:00.000Z');
-  assert.equal(end.toISOString(), '2026-01-12T10:00:00.000Z');
-  assert.equal(paris.format(start), '10/01/2026 16:00');
-  assert.equal(paris.format(end), '12/01/2026 11:00');
+  assert.equal(start.toISOString(), '2026-01-10T12:00:00.000Z');
+  assert.equal(end.toISOString(), '2026-01-12T11:00:00.000Z');
+  assert.equal(paris.format(start), '10/01/2026 13:00');
+  assert.equal(paris.format(end), '12/01/2026 12:00');
 });
 
-test('the check-out itself is exposed, so the page can say what time the stay ends', () => {
-  const { checkOut, end } = computeWindow(stay());
+test('check-in and check-out themselves are exposed, the margins are exactly 3 h and 2 h', () => {
+  const { checkIn, checkOut, start, end } = computeWindow(stay());
   assert.equal(paris.format(checkOut), '14/09/2026 10:00');
-  assert.equal(end.getTime() - checkOut.getTime(), 60 * 60 * 1000, 'exactly one hour, never a day');
+  assert.equal(checkIn.getTime() - start.getTime(), 3 * 60 * 60 * 1000);
+  assert.equal(end.getTime() - checkOut.getTime(), 2 * 60 * 60 * 1000, 'hours, never a day');
 });
 
 test('missing or unusable dates yield no window at all', () => {
@@ -53,8 +55,8 @@ test('missing or unusable dates yield no window at all', () => {
 
 test('an empty time falls back to the schema default, it does not void the window', () => {
   const { start, end } = computeWindow(stay({ checkInTime: '', checkOutTime: null }));
-  assert.equal(paris.format(start), '12/09/2026 15:00', 'default check-in');
-  assert.equal(paris.format(end), '14/09/2026 11:00', 'default check-out 10:00 + 1 h');
+  assert.equal(paris.format(start), '12/09/2026 12:00', 'default check-in 15:00 − 3 h');
+  assert.equal(paris.format(end), '14/09/2026 12:00', 'default check-out 10:00 + 2 h');
 });
 
 // --- the two nights of the year that break naive code ---
@@ -72,23 +74,30 @@ test('fall back: a 02:30 wall clock that happens twice resolves to the second on
   assert.equal(paris.format(at), '25/10/2026 02:30');
 });
 
-test('the +1 h grace is one hour of real time, even across the fall-back boundary', () => {
+test('the +2 h grace is two hours of real time, even across the fall-back boundary', () => {
   const { checkOut, end } = computeWindow(stay({
     startDate: '2026-10-24', endDate: '2026-10-25', checkOutTime: '02:30',
   }));
-  assert.equal(end.getTime() - checkOut.getTime(), 60 * 60 * 1000);
-  assert.equal(end.toISOString(), '2026-10-25T02:30:00.000Z');
-  assert.equal(paris.format(end), '25/10/2026 03:30');
+  assert.equal(end.getTime() - checkOut.getTime(), 2 * 60 * 60 * 1000);
+  assert.equal(end.toISOString(), '2026-10-25T03:30:00.000Z');
+  assert.equal(paris.format(end), '25/10/2026 04:30');
 });
 
-test('a stay straddling the spring change still opens at the local check-in hour', () => {
+test('the −3 h margin is three hours of real time, even across the spring-forward night', () => {
+  // 04:00 CEST on 29 March = 02:00Z; three real hours earlier is 23:00Z, i.e. 00:00 in winter time.
+  const { start } = computeWindow(stay({ startDate: '2026-03-29', checkInTime: '04:00', endDate: '2026-03-30' }));
+  assert.equal(start.toISOString(), '2026-03-28T23:00:00.000Z');
+  assert.equal(paris.format(start), '29/03/2026 00:00');
+});
+
+test('a stay straddling the spring change keeps its local margins on both ends', () => {
   const { start, end } = computeWindow(stay({
     startDate: '2026-03-28', endDate: '2026-03-30',
   }));
-  assert.equal(paris.format(start), '28/03/2026 16:00', 'winter time on the way in');
-  assert.equal(paris.format(end), '30/03/2026 11:00', 'summer time on the way out');
-  assert.equal(start.toISOString(), '2026-03-28T15:00:00.000Z');
-  assert.equal(end.toISOString(), '2026-03-30T09:00:00.000Z');
+  assert.equal(paris.format(start), '28/03/2026 13:00', 'winter time on the way in');
+  assert.equal(paris.format(end), '30/03/2026 12:00', 'summer time on the way out');
+  assert.equal(start.toISOString(), '2026-03-28T12:00:00.000Z');
+  assert.equal(end.toISOString(), '2026-03-30T10:00:00.000Z');
 });
 
 test('midnight is a valid wall clock, and it is the right day', () => {

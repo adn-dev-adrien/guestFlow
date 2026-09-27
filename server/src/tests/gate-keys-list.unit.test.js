@@ -1,8 +1,8 @@
 // The list of gate keys Sowel reads — specs/gate-access-sowel-connector.md §3.1.
 //
 // Every date below is a UTC instant: that is what the server compares. The fixture stay arrives on
-// 2026-10-01 at 15:00 Paris (13:00Z) and leaves on 2026-10-04 at 10:00 Paris, i.e. a window ending
-// at 11:00 Paris (09:00Z).
+// 2026-10-01 at 15:00 Paris (13:00Z) and leaves on 2026-10-04 at 10:00 Paris: its key opens 3 h
+// before check-in (10:00Z) and closes 2 h after check-out (12:00 Paris = 10:00Z).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -15,11 +15,11 @@ const at = (iso) => new Date(iso);
 const ids = (list, action) => list.keys.filter((k) => k.action === action).map((k) => k.reservationId);
 
 // specs/gate-access-sowel-connector.md §3.1 rule 2 — the J-7 boundary, to the millisecond.
-test('a stay enters the list exactly 7 days before its check-in instant', () => {
+test('a stay enters the list exactly 7 days before its key opens', () => {
   const { db, model } = freshDb();
   const stay = addStay(db);
-  assert.deepEqual(ids(buildKeyList(model, at('2026-09-24T12:59:59.999Z')), 'create'), []);
-  assert.deepEqual(ids(buildKeyList(model, at('2026-09-24T13:00:00.000Z')), 'create'), [String(stay.id)]);
+  assert.deepEqual(ids(buildKeyList(model, at('2026-09-24T09:59:59.999Z')), 'create'), []);
+  assert.deepEqual(ids(buildKeyList(model, at('2026-09-24T10:00:00.000Z')), 'create'), [String(stay.id)]);
 });
 
 // specs/gate-access-sowel-connector.md §3.1 rule 2 + rule 4 — the wire shape of a create.
@@ -32,8 +32,8 @@ test('a create carries the reservation id as a string, the label and the Paris w
     reservationId: String(stay.id),
     action: 'create',
     label: 'Gîte · R-2026-041 · Marie',
-    startsAt: '2026-10-01T13:00:00.000Z',
-    endsAt: '2026-10-04T09:00:00.000Z',
+    startsAt: '2026-10-01T10:00:00.000Z',
+    endsAt: '2026-10-04T10:00:00.000Z',
   }]);
 });
 
@@ -47,12 +47,12 @@ test('a stay booked less than 7 days ahead is listed at once, and so is one alre
 });
 
 // specs/gate-access-sowel-connector.md §3.1 rule 7 — ended stays are never listed.
-test('a stay whose window has ended is not listed, up to the extra hour after check-out', () => {
+test('a stay whose window has ended is not listed, up to the 2 extra hours after check-out', () => {
   const { db, model } = freshDb();
   const stay = addStay(db, { startDate: '2026-09-24', endDate: '2026-09-27' });
-  // 10:00 Paris + 1 h = 09:00Z on 2026-09-27.
-  assert.deepEqual(ids(buildKeyList(model, at('2026-09-27T08:59:59.000Z')), 'create'), [String(stay.id)]);
-  assert.deepEqual(buildKeyList(model, at('2026-09-27T09:00:00.000Z')).keys, []);
+  // 10:00 Paris + 2 h = 10:00Z on 2026-09-27.
+  assert.deepEqual(ids(buildKeyList(model, at('2026-09-27T09:59:59.000Z')), 'create'), [String(stay.id)]);
+  assert.deepEqual(buildKeyList(model, at('2026-09-27T10:00:00.000Z')).keys, []);
 });
 
 // specs/gate-access-sowel-connector.md §3.1 rule 2 — never a devis.
@@ -72,8 +72,8 @@ test('a stay that may hold a key stays listed with its new dates, even beyond 7 
   const list = buildKeyList(model, at('2026-09-27T18:00:00.000Z'));
   assert.equal(list.keys.length, 1);
   assert.equal(list.keys[0].action, 'create');
-  // 2026-11-10 is winter time: 15:00 Paris = 14:00Z.
-  assert.equal(list.keys[0].startsAt, '2026-11-10T14:00:00.000Z');
+  // 2026-11-10 is winter time: 15:00 Paris = 14:00Z, minus 3 h.
+  assert.equal(list.keys[0].startsAt, '2026-11-10T11:00:00.000Z');
 
   // A key already revoked does not count: the stay is back under the J-7 rule.
   model.upsertResult({ reservationId: stay.id, action: 'revoke', ok: true, state: 'revoked', receivedAt: '2026-09-27T17:30:00Z' });
@@ -97,7 +97,7 @@ test('a cancelled stay is revoked only when guestFlow holds a result that is not
   assert.ok(!ids(list, 'revoke').includes(String(never.id)));
   const revoke = list.keys.find((k) => k.reservationId === String(created.id));
   assert.equal(revoke.label, `Lodge · ${created.reservationNumber} · Paul`);
-  assert.equal(revoke.endsAt, '2026-10-04T09:00:00.000Z');
+  assert.equal(revoke.endsAt, '2026-10-04T10:00:00.000Z');
 });
 
 // specs/gate-access-sowel-connector.md §3.1 rule 6 — a failed revoke is listed again.

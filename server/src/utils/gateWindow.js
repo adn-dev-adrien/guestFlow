@@ -1,8 +1,12 @@
 /**
  * The validity window of a guest gate key (specs/gate-access-sowel-connector.md §3.1 rule 4).
  *
- *   start = startDate + checkInTime      (no tolerance before check-in — decision 2026-09-09)
- *   end   = endDate   + checkOutTime + 1 h
+ *   start = startDate + checkInTime  − 3 h   (the check-in time is the planned arrival; a guest
+ *                                              early by a few hours is let in — contract v2, 2026-09-27)
+ *   end   = endDate   + checkOutTime + 2 h
+ *
+ * The two margins are real durations applied to the resolved instants, so a DST night never
+ * stretches or shrinks them.
  *
  * Both ends are **Europe/Paris wall clock**, because that is what is written on the contract and
  * what the guest reads. It is computed from the live reservation at every read of the list of keys
@@ -17,6 +21,9 @@
 
 const TIME_ZONE = 'Europe/Paris';
 const ONE_HOUR_MS = 60 * 60 * 1000;
+/** Margins around the stay (specs/gate-access-sowel-connector.md §3.1 rule 4). */
+const OPENS_BEFORE_CHECK_IN_MS = 3 * ONE_HOUR_MS;
+const CLOSES_AFTER_CHECK_OUT_MS = 2 * ONE_HOUR_MS;
 
 // Reservations carry their own check-in/check-out times (schema defaults '15:00' / '10:00'), but a
 // legacy row can hold an empty string; these are the same defaults the schema uses.
@@ -96,15 +103,22 @@ function wallClockToDate(dateStr, timeStr) {
 function computeWindow(reservation) {
   if (!reservation) return null;
 
-  const start = wallClockToDate(reservation.startDate, reservation.checkInTime || DEFAULT_CHECK_IN);
+  const checkIn = wallClockToDate(reservation.startDate, reservation.checkInTime || DEFAULT_CHECK_IN);
   const checkOut = wallClockToDate(reservation.endDate, reservation.checkOutTime || DEFAULT_CHECK_OUT);
-  if (!start || !checkOut) return null;
+  if (!checkIn || !checkOut) return null;
 
-  return { start, end: new Date(checkOut.getTime() + ONE_HOUR_MS), checkOut };
+  return {
+    start: new Date(checkIn.getTime() - OPENS_BEFORE_CHECK_IN_MS),
+    end: new Date(checkOut.getTime() + CLOSES_AFTER_CHECK_OUT_MS),
+    checkIn,
+    checkOut,
+  };
 }
 
 module.exports = {
   TIME_ZONE,
+  OPENS_BEFORE_CHECK_IN_MS,
+  CLOSES_AFTER_CHECK_OUT_MS,
   DEFAULT_CHECK_IN,
   DEFAULT_CHECK_OUT,
   computeWindow,
