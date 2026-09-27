@@ -25,4 +25,11 @@ router.delete('/logo', settingsController.deleteLogo);
 
 router.post('/smtp-test', settingsController.sendSmtpTest);
 
+// Gate keys (specs/gate-access-sowel-connector.md §3.6 rule 29): the connector's state, read-only.
+// It returns NO secret — both are read from server/.env.local, like the site's key.
+router.get('/gate-connector', require('../controllers/gateConnectorController').settings);
+// The three values the Sowel plugin needs, for an admin to copy (§3.6 rules 29b-29c): admin-only,
+// Cache-Control: no-store, never logged.
+router.get('/gate-connector/secrets', require('../controllers/gateConnectorController').secrets);
+
 module.exports = router;

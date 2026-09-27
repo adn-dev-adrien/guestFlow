@@ -62,6 +62,9 @@ const VARIABLE_BUTTONS = [
   { label: 'Option(s) réservée(s)', token: '{{reservedOptionsList}}' },
   { label: 'Liste ressources', token: '{{resourcesList}}' },
   { label: 'Config lits',      token: '{{bedConfig}}' },
+  // Gate key (specs/gate-access-sowel-connector.md §3.5 rule 23) — from the stored Sowel result.
+  { label: 'Code portail',     token: '{{gateAccessCode}}' },
+  { label: 'Lien portail',     token: '{{gateAccessUrl}}' },
   // Entreprise
   { label: 'Société',          token: '{{companyName}}' },
   { label: 'Nom expéditeur',   token: '{{senderName}}' },
@@ -82,6 +85,7 @@ const CONDITION_BUTTONS = [
   { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
   { label: 'Si ressources',         token: '{{#if hasResources}}' },
   { label: 'Si CGV publiées',        token: '{{#if hasCgvUrl}}' },
+  { label: 'Si accès portail',      token: '{{#if hasGateAccess}}' },
   { label: 'Sinon',                 token: '{{else}}' },
   { label: 'Fin si',                token: '{{/if}}' },
 ];
