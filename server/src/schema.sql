@@ -834,3 +834,33 @@ CREATE TABLE IF NOT EXISTS translation_values (
 );
 
 CREATE INDEX IF NOT EXISTS idx_translation_values_lang ON translation_values(lang);
+
+-- Gate keys, guestFlow's side of the Sowel connector (specs/gate-access-sowel-connector.md §5).
+-- `gate_key_results` keeps the LATEST outcome the house reported per reservation — the code and the
+-- link the emails, the SAS and the fiche show, or the error the dashboard raises. `label`,
+-- `startsAt`, `endsAt` are the window as it was listed, kept so a DELETED reservation can still be
+-- revoked. `alertedError` is the error the admins were last pushed about (one push per error).
+-- No foreign key on purpose: the row must outlive a deleted reservation, that is when it matters.
+CREATE TABLE IF NOT EXISTS gate_key_results (
+    reservationId INTEGER PRIMARY KEY,
+    action        TEXT NOT NULL,
+    ok            INTEGER NOT NULL,
+    state         TEXT,
+    code          TEXT,
+    url           TEXT,
+    error         TEXT,
+    message       TEXT,
+    label         TEXT,
+    startsAt      TEXT,
+    endsAt        TEXT,
+    receivedAt    TEXT NOT NULL,
+    alertedError  TEXT
+);
+
+-- One row (id = 1): when the house last read the list of keys, and whether the admins were already
+-- told it stopped (specs/gate-access-sowel-connector.md §3.1 rule 8, §3.3 rules 17-18).
+CREATE TABLE IF NOT EXISTS gate_connector_state (
+    id             INTEGER PRIMARY KEY CHECK (id = 1),
+    lastReadAt     TEXT,
+    staleAlertedAt TEXT
+);
