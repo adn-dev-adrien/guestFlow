@@ -11,6 +11,7 @@ const { receiveResults, runStaleReadCheck, dashboardAlerts, MAX_RESULTS } = requ
 const { errorReason, ERROR_REASONS } = require('../utils/gateKeys');
 const { buildController } = require('../controllers/gateConnectorController');
 const { buildRequireGateConnector, canonicalString } = require('../middleware/requireGateConnector');
+const { buildSignGateResponse, responseSignature } = require('../middleware/signGateResponse');
 
 const NOW = new Date('2026-09-27T18:00:00.000Z');
 
@@ -77,8 +78,8 @@ test('the latest result replaces the previous one, code and link stored as hande
   assert.equal(rows[0].state, 'live');
   // The window listed with the key is kept on the row (rule 9).
   assert.equal(rows[0].label, 'Gîte · R-2026-041 · Marie');
-  assert.equal(rows[0].startsAt, '2026-10-01T13:00:00.000Z');
-  assert.equal(rows[0].endsAt, '2026-10-04T09:00:00.000Z');
+  assert.equal(rows[0].startsAt, '2026-10-01T10:00:00.000Z');
+  assert.equal(rows[0].endsAt, '2026-10-04T10:00:00.000Z');
 });
 
 // specs/gate-access-sowel-connector.md §3.2 rule 9 — a result for a deleted stay keeps the window.
@@ -90,7 +91,7 @@ test('a result for a stay deleted since keeps the window stored before', async (
   await receiveResults(deps(), { results: [{ reservationId: String(stay.id), action: 'revoke', ok: true, state: 'revoked' }] });
   const row = model.get(stay.id);
   assert.equal(row.action, 'revoke');
-  assert.equal(row.endsAt, '2026-10-04T09:00:00.000Z');
+  assert.equal(row.endsAt, '2026-10-04T10:00:00.000Z');
   assert.equal(row.code, null);
 });
 
@@ -161,6 +162,7 @@ test('a failed revoke says so, and an unknown code shows Sowel’s message', asy
     assert.equal(errorReason({ error: code, message: 'ignored' }), ERROR_REASONS[code], code);
   }
   assert.equal(errorReason({ error: 'unknown_thing' }), 'unknown_thing');
+  assert.equal(errorReason({ error: 'implausible_stay' }), 'séjour de plus de 31 jours refusé par Sowel');
 });
 
 // specs/gate-access-sowel-connector.md §3.3 rule 13 — the dashboard payload, and ended stays leave it.
@@ -180,7 +182,7 @@ test('the dashboard lists failures with number, first name and reason, until the
     reason: "le profil par défaut n'est pas accordé au plugin",
     exists: true,
   }]);
-  assert.deepEqual(dashboardAlerts({ model, now: new Date('2026-10-04T09:00:00.000Z') }).failures, []);
+  assert.deepEqual(dashboardAlerts({ model, now: new Date('2026-10-04T10:00:00.000Z') }).failures, []);
 });
 
 // specs/gate-access-sowel-connector.md §3.3 rule 17 — never read → nothing; > 3 h → once.
@@ -220,7 +222,7 @@ test('a read clears the stale warning, and the next outage pushes again', async 
   assert.equal(push.calls.length, 4);
 });
 
-// specs/gate-access-sowel-connector.md §3.1 rule 8 + §3.4 rule 19 — the real channel, end to end.
+// specs/gate-access-sowel-connector.md §3.1 rule 8 + §3.4 rules 19 + 22b — the real channel, end to end.
 test('over HTTP: a signed read stamps lastReadAt, a refused one stamps nothing, results are filed', async () => {
   const { db, model, push } = setup();
   const stay = addStay(db);
@@ -232,6 +234,7 @@ test('over HTTP: a signed read stamps lastReadAt, a refused one stamps nothing, 
   app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
   const router = express.Router();
   router.use(buildRequireGateConnector({ env, now: () => NOW.getTime() }));
+  router.use(buildSignGateResponse({ env }));
   router.get('/keys', controller.keys);
   router.post('/results', controller.results);
   app.use('/public/v1/gate', router);
@@ -251,18 +254,22 @@ test('over HTTP: a signed read stamps lastReadAt, a refused one stamps nothing, 
     assert.equal(refused.status, 401);
     assert.equal(model.readState().lastReadAt, null);
 
-    const read = await fetch(`${base}/public/v1/gate/keys`, { headers: signed('GET', '/public/v1/gate/keys') });
+    const readHeaders = signed('GET', '/public/v1/gate/keys');
+    const read = await fetch(`${base}/public/v1/gate/keys`, { headers: readHeaders });
     assert.equal(read.status, 200);
-    const list = await read.json();
+    const raw = Buffer.from(await read.arrayBuffer());
+    assert.equal(read.headers.get('x-gate-response-signature'), responseSignature('s', readHeaders['x-gate-signature'], raw));
+    const list = JSON.parse(raw.toString('utf8'));
     assert.deepEqual(list.keys.map((k) => k.reservationId), [String(stay.id)]);
     assert.equal(model.readState().lastReadAt, NOW.toISOString());
 
     const body = JSON.stringify({ results: [created(stay.id)] });
-    const posted = await fetch(`${base}/public/v1/gate/results`, {
-      method: 'POST', body, headers: signed('POST', '/public/v1/gate/results', body),
-    });
+    const postHeaders = signed('POST', '/public/v1/gate/results', body);
+    const posted = await fetch(`${base}/public/v1/gate/results`, { method: 'POST', body, headers: postHeaders });
     assert.equal(posted.status, 200);
-    assert.deepEqual(await posted.json(), { stored: 1 });
+    const postedRaw = Buffer.from(await posted.arrayBuffer());
+    assert.equal(posted.headers.get('x-gate-response-signature'), responseSignature('s', postHeaders['x-gate-signature'], postedRaw));
+    assert.deepEqual(JSON.parse(postedRaw.toString('utf8')), { stored: 1 });
     assert.equal(model.get(stay.id).code, '4K7M-9QT2');
   } finally {
     server.close();

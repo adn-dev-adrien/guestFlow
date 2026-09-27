@@ -89,6 +89,7 @@ const ERROR_REASONS = Object.freeze({
   invalid_date: 'les dates du séjour sont invalides',
   label_required: 'le libellé de la clé est vide',
   internal_error: 'erreur interne de Sowel',
+  implausible_stay: 'séjour de plus de 31 jours refusé par Sowel',
 });
 
 function errorReason(result) {

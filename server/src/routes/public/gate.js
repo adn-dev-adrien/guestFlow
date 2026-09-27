@@ -10,6 +10,7 @@
 
 const express = require('express');
 const requireGateConnector = require('../../middleware/requireGateConnector');
+const signGateResponse = require('../../middleware/signGateResponse');
 const { publicApiLimiter } = require('../../middleware/rateLimiters');
 const controller = require('../../controllers/gateConnectorController');
 
@@ -17,6 +18,8 @@ const router = express.Router();
 
 router.use(publicApiLimiter);
 router.use(requireGateConnector);
+// Every answer below is signed (spec §3.4 rules 22b-22d) — mounted on the router so no route can forget.
+router.use(signGateResponse);
 
 router.get('/ping', controller.ping);
 router.get('/keys', controller.keys);
