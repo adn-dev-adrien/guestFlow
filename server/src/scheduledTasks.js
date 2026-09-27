@@ -374,10 +374,28 @@ function startScheduledTasks() {
   const UPDATE_CHECK_TICK = 60 * 60 * 1000;
   setInterval(() => { systemController.runVersionCheck().catch(() => {}); }, UPDATE_CHECK_TICK);
   setTimeout(() => { systemController.runVersionCheck().catch(() => {}); }, 60 * 1000);
+
+  // Gate keys (specs/gate-access-sowel-connector.md §3.3 rules 17-18): Sowel reads the list hourly;
+  // past 3 h without a read, the admins are pushed once. Checked hourly, first pass 160 s after boot.
+  const GATE_STALE_TICK = 60 * 60 * 1000;
+  setInterval(() => runGateStaleReadPass('cron').catch((err) => console.error('[gate-keys] unhandled:', err)), GATE_STALE_TICK);
+  setTimeout(() => runGateStaleReadPass('boot').catch((err) => console.error('[gate-keys] unhandled:', err)), 160 * 1000);
+}
+
+// « Sowel has not read the gate keys for more than 3 h » — pushes the admins once, a read clears it.
+async function runGateStaleReadPass(reason = 'cron') {
+  try {
+    const { runStaleReadCheck } = require('./utils/gateResults');
+    const { alerted } = await runStaleReadCheck({ model: require('./models/gateKeysModel').model(), pushService });
+    if (alerted) console.warn(`[gate-keys] ${reason}: Sowel has not read the keys for more than 3 h — admins pushed`);
+  } catch (err) {
+    console.error('[gate-keys] stale-read check error:', err && err.message ? err.message : err);
+  }
 }
 
 module.exports = {
   startScheduledTasks,
+  runGateStaleReadPass,
   performAutoSync,
   performSchoolHolidaysSync,
   shouldSyncSchoolHolidays,

@@ -235,6 +235,14 @@ const api = {
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),
+  // Gate keys (specs/gate-access-sowel-connector.md §3.5): the stored key of a stay — the fiche's
+  // card and the SAS step (code + QR). Read-only: every action lives in Sowel.
+  getReservationGateAccess: (id) => request(`/reservations/${id}/gate-access`),
+  // The connector's state (§3.6 rule 29) — no secret value — and the dashboard alert (§3.3).
+  getGateConnector: () => request('/settings/gate-connector'),
+  // Admin-only: guestFlow's address + both secrets, for the Sowel plugin's settings (§3.6 rule 29b).
+  getGateConnectorSecrets: () => request('/settings/gate-connector/secrets'),
+  getGateKeysAlerts: () => request('/dashboard/gate-keys'),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),

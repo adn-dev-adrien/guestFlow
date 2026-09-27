@@ -2,8 +2,9 @@
  * IntegrationsSettingsPage — Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
  *
  * The connections to other services: Google Agenda (self-contained OAuth card), the Neat
- * cancellation insurance (its own endpoints, written by this page's Save), and the Météo-France key
- * (a masked setting of the settings form).
+ * cancellation insurance (its own endpoints, written by this page's Save), the Météo-France key
+ * (a masked setting of the settings form), and the Sowel gate-keys connector — a read-only card
+ * (specs/gate-access-sowel-connector.md §3.6 rule 29).
  */
 import React, { useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -12,6 +13,7 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsGoogleCalendarSection from '../../components/SettingsGoogleCalendarSection';
 import SettingsNeatSection from '../../components/SettingsNeatSection';
 import SettingsWeatherSection from '../../components/SettingsWeatherSection';
+import SettingsGateAccessSection from '../../components/SettingsGateAccessSection';
 
 export default function IntegrationsSettingsPage() {
   const navigate = useNavigate();
@@ -45,6 +47,7 @@ export default function IntegrationsSettingsPage() {
         values={form.draft.weather}
         onChangeApiKey={(value) => form.setField('weather', 'apiKeyDraft', value)}
       />
+      <SettingsGateAccessSection />
     </SettingsFormPage>
   );
 }

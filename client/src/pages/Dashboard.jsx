@@ -22,6 +22,7 @@ import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
+import GateKeysAlert from '../components/GateKeysAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
@@ -369,6 +370,10 @@ export default function Dashboard() {
               Sits high: it is the only surface that says an acompte or un solde is late, and the
               only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
           <PaymentDeadlinesAlert />
+          {/* Gate keys Sowel could not make, or a Sowel that stopped reading the list
+              (specs/gate-access-sowel-connector.md §3.3). A guest at a closed gate is the cost of
+              missing it, hence high. Renders nothing when all is well. */}
+          <GateKeysAlert />
           {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
               Self-contained: renders nothing when no pending drift exists. */}
           <IcalDateDriftAlert />
