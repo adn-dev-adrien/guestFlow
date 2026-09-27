@@ -4,11 +4,11 @@
 |---|---|
 | **Status** | Implemented (2026-09-27) |
 | **Branch** | `feature/gate-keys-sowel` |
-| **Created** | 2026-09-20, rewritten 2026-09-27 |
+| **Created** | 2026-09-20, rewritten 2026-09-27, contract v2 the same day |
 | **Author** | Adrien |
 | **Related PR** | #623 |
 | **Supersedes** | PR #563 (`claude/sowel-guestflow-connector-y0df44`): its stay **feed** (`GET /stays` with revisions and a cursor, the `gate_stay_feed` table, its reconciler and its purge) and its `POST /invitations`. What #563 got right is kept as it was: the signed channel, the window computation, the email tokens, the SAS step with its QR, the fiche card and the settings card |
-| **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract (v1) », implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
+| **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract » v1 + its « v2 changes » (2026-09-27: wider window, signed responses, `implausible_stay`, the secrets in Réglages), implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
 
 ## 0. The feature at a glance
 
@@ -63,9 +63,11 @@ a key could not be made or when Sowel stopped asking.
    when they moved more than 7 days ahead: changing the dates of a stay already created simply lists
    it again with its new dates, and Sowel moves the key. Otherwise a key would keep opening on the
    old dates.
-4. **The window**: `startsAt` = arrival date + the reservation's `checkInTime`; `endsAt` = departure
-   date + `checkOutTime` + 1 h. Both are **Europe/Paris wall clock**, converted to UTC ISO, across
-   both DST transitions (`gateWindow.js`, taken from #547 with its tests).
+4. **The window**: `startsAt` = arrival date + the reservation's `checkInTime` **− 3 h**; `endsAt` =
+   departure date + `checkOutTime` **+ 2 h**. Check-in and check-out are read on the **Europe/Paris
+   wall clock**; the two margins are real durations applied to those instants, so a DST night never
+   stretches them; the result is sent as UTC ISO (`gateWindow.js`, taken from #547 with its tests).
+   The check-in time is the planned arrival: a guest a little early is let in (contract v2).
 5. **The label** is short and human, with no family name: `property name · reservation number ·
    guest first name` (« Gîte · R-2026-041 · Marie »). A family name has no business on an equipment
    that opens a gate.
@@ -101,8 +103,9 @@ a key could not be made or when Sowel stopped asking.
     success clears it, so a failure coming back afterwards pushes again.
 15. **The push is short and in French.** Title « Clé portail non créée » (« … non révoquée » for a
     revoke); body `R-2026-041 · Marie — <reason>`, the reason being Sowel's error code in words
-    (`unknown_profile` → « le profil par défaut n'est pas accordé au plugin », …). An unknown code
-    shows Sowel's message instead.
+    (`unknown_profile` → « le profil par défaut n'est pas accordé au plugin », `implausible_stay` →
+    « séjour de plus de 31 jours refusé par Sowel », …). An unknown code shows Sowel's message
+    instead.
 16. **The dashboard alert is the admins'.** The reception role never sees it (its allowlist does
     not list the endpoint), and it renders nothing when there is nothing to say.
 17. **« Not read for more than 3 h »**: an hourly pass checks `lastReadAt`. When Sowel has read the
@@ -122,8 +125,21 @@ a key could not be made or when Sowel stopped asking.
     who sleeps here tonight, nor reporting a gate key.
 21. **We fail closed**: without either secret, everything is refused (`401`). A timestamp more than
     ± 2 minutes off, too.
-22. Both secrets are **auto-generated in `server/.env.local`** at startup, **never logged**, and
-    **never returned by an API** — the operator reads them there, like the site's key.
+22. Both secrets are **auto-generated in `server/.env.local`** at startup and **never logged**. The
+    only API that returns them is the admin-only secrets endpoint of the settings card (rule 29b).
+22b. **guestFlow signs its answers.** Every 2xx response of `/public/v1/gate/*` (keys, results,
+    ping) carries `X-Gate-Response-Signature` = hex HMAC-SHA256(`GATE_SIGNING_SECRET`,
+    `"response\n" + <the request's X-Gate-Signature> + "\n" + sha256hex(<exact response body
+    bytes>)`). A server posing as guestFlow can then neither make Sowel create keys nor harvest the
+    codes and links Sowel posts back: Sowel verifies it before using a list or considering results
+    delivered.
+22c. **The signed bytes are the sent bytes**: the body is serialised once, signed, and written as is
+    with `Content-Type: application/json` (no re-serialisation, no ETag/304 that would drop it). Bound
+    to the request's signature, an old answer is useless for a new request. Pinned vector, shared
+    with the plugin: secret `s3cret`, request signature `abc`, body `{"ok":true}` →
+    `12ac7139e4bc81ce30b413a9c7f1880b33b1f055a045affde5d2765dcfb65190`.
+22d. **One place signs**, for the whole gate router: a gate route cannot answer 2xx unsigned. Error
+    answers (4xx/5xx) are not signed.
 
 ### 3.5 What guestFlow shows
 
@@ -131,9 +147,10 @@ a key could not be made or when Sowel stopped asking.
     `{{#if hasGateAccess}}`, from the stored successful result: **composing an email never reaches
     the house and waits for nothing**. With no usable key the paragraph is skipped and the email
     leaves. A code alone or a link alone is enough for the flag.
-24. **The SAS** keeps its « Portail » step: the code in large type and a QR of the very link the
-    email carries — flashing it installs the key with nothing to type. The QR stays on screen: never
-    on a PDF, never attached to an email, never logged.
+24. **The SAS** keeps its « Portail » step, shown **whenever a usable key exists**: the code in large
+    type and a QR of the very link the email carries — flashing it installs the key with nothing to
+    type — and, on the same page, the gate keypad's code when there is one. The QR stays on screen:
+    never on a PDF, never attached to an email, never logged.
 25. **The SAS activates nothing.** With no usable key, the gate keypad's code (Réglages) stays there,
     to dictate.
 26. **The fiche** carries a compact read-only card: the state, the window, the code and the link —
@@ -146,8 +163,16 @@ a key could not be made or when Sowel stopped asking.
 ### 3.6 The settings
 
 29. **Réglages → Intégrations** carries one read-only card: are both secrets configured, when Sowel
-    last read the list, how many keys it reports as created — and where the two secrets live
-    (`server/.env.local`, `GATE_API_KEY` and `GATE_SIGNING_SECRET`), never their values.
+    last read the list — and « Sowel ne lit plus » rather than « Sowel lit les clés » once that read
+    is more than 3 hours old (rule 17) —, how many keys it reports as created.
+29b. **The card hands the admin the three values the plugin's settings need**, labelled exactly like
+    the plugin's fields: « guestFlow address », « API key (GATE_API_KEY) », « Signing secret
+    (GATE_SIGNING_SECRET) ». Both secrets are masked by default, each value has « Afficher » (the
+    secrets) and « Copier ». They come from an **admin-only** endpoint answering with
+    `Cache-Control: no-store`, and are never logged.
+29c. **guestFlow's address** is the public URL typed in Réglages → Système (« Adresse de
+    l'application », the one the emails and the Google return use), without its trailing slash. When
+    it was never typed, the origin the admin is browsing from stands in, and the card says so.
 
 **Edge cases:**
 - Sowel is stopped → the emails leave with the last known code, the SAS shows what it has; 3 hours
@@ -172,7 +197,8 @@ a key could not be made or when Sowel stopped asking.
 | `utils/` | `gateInvitationView.js` | C (from #563, rewritten) | What the email, the SAS and the fiche show of the stored result |
 | `models/` | `gateKeysModel.js` | C | `gate_key_results`, `gate_connector_state`, the stays around now, the admins |
 | `middleware/` | `requireGateConnector.js` | C (from #563) | Key + signature + freshness, failing closed |
-| `controllers/` | `gateConnectorController.js` | C | `keys`, `results`, `ping`, the dashboard and settings reads |
+| `middleware/` | `signGateResponse.js` | C | Signs every 2xx answer of the gate router over the exact bytes sent |
+| `controllers/` | `gateConnectorController.js` | C | `keys`, `results`, `ping`, the dashboard and settings reads, the secrets for the plugin |
 | `routes/public/` | `gate.js` | C | The `/public/v1/gate` tree, **beside** the public tree |
 | `routes/` | `dashboard.js`, `settings.js` | T | `GET /api/dashboard/gate-keys`, `GET /api/settings/gate-connector` |
 | `controllers/` | `reservationsController.js` | T | `GET /reservations/:id/gate-access` (card + SAS step) |
@@ -199,17 +225,18 @@ stand, so a hand-made fix, an iCal import or a restore is seen like everything e
 | `components/sas/` | `SasGateAccessStep.jsx` | C (from #563) | The step: code, QR, window, fallback to the keypad code |
 | `components/sas/` | `ReservationSasDialog.jsx` | T | Mounts the step in place of the bare code |
 | `components/` | `GateAccessCard.jsx` | C (from #563) | The fiche's card |
-| `components/` | `SettingsGateAccessSection.jsx` | C (from #563) | The connector's state |
+| `components/` | `SettingsGateAccessSection.jsx` | C (from #563) | The connector's state and the three values for the plugin |
+| `components/` | `SecretRevealField.jsx` | C | Generic: a read-only value, masked until « Afficher », with « Copier » |
 | `pages/settings/` | `IntegrationsSettingsPage.jsx` | T | Mounts it (the settings were split per page on `master`) |
 | `pages/` | `ReservationPage.jsx`, `EmailTemplatesPage.jsx` | T | The fiche card + the two tokens and the condition in the editor |
-| `api.js` | — | T | `getReservationGateAccess`, `getGateConnector`, `getGateKeysAlerts` |
+| `api.js` | — | T | `getReservationGateAccess`, `getGateConnector`, `getGateConnectorSecrets`, `getGateKeysAlerts` |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `StatusBadge`, `SummaryItem` | Pre-existing. |
-| **Created (new generic)** | — | None. |
+| **Created (new generic)** | `SecretRevealField` | A value handed to another system (key, secret, address): generic by nature, unlike `MaskedTextField` which edits a stored secret. |
 | **Specific (kept feature-local)** | `GateKeysAlert`, `SasGateAccessStep`, `GateAccessCard`, `SettingsGateAccessSection` | Each only makes sense in its own screen. `GateKeysAlert` follows the dashboard alerts' own pattern (`TariffRecipeRunsAlert`). |
 
 ### 4.3 API contract
@@ -221,12 +248,14 @@ stand, so a hand-made fix, an iCal import or a restore is seen like everything e
 | GET | `/public/v1/gate/ping` | — | `{ ok, now }` | Checks key, signature and clock in one call |
 | GET | `/api/dashboard/gate-keys` | — | `{ failures[], stale, lastReadAt }` | Admin; `failures[]` = `{ reservationId, reservationNumber, guestFirstName, name, action, title, reason, exists }` |
 | GET | `/api/reservations/:id/gate-access` | — | `{ card, sas }` | Session; a read for reception |
-| GET | `/api/settings/gate-connector` | — | `{ configured, lastReadAt, keysCreated, secretsFile, secretNames }` | Admin; no secret value |
+| GET | `/api/settings/gate-connector` | — | `{ configured, lastReadAt, stale, keysCreated, secretsFile, secretNames }` | Admin; no secret value |
+| GET | `/api/settings/gate-connector/secrets` | — | `{ address: { value, source: setting\|request\|none }, apiKey, signingSecret }` | Admin; `Cache-Control: no-store` |
 
 `state` is Sowel's access status (`live | outside_hours | not_yet | ended | suspended | revoked |
 no_gate`); `error` is one of Sowel's codes (`disabled`, `unknown_profile`, `profile_incomplete`,
-`no_end`, `outside_profile`, `invalid_date`, `label_required`, `internal_error`). The three
-`/public/v1/gate/*` routes refuse anything unsigned (§3.4) with the public tree's error envelope.
+`no_end`, `outside_profile`, `invalid_date`, `label_required`, `internal_error`, `implausible_stay`).
+The three `/public/v1/gate/*` routes refuse anything unsigned (§3.4) with the public tree's error
+envelope, and sign every 2xx answer with `X-Gate-Response-Signature` (rules 22b-22d).
 
 ---
 
@@ -248,7 +277,7 @@ dropping both would return guestFlow to its previous state. #563's `gate_stay_fe
 | **Dashboard** | « Clés portail » alert (warning): one row per failed key — « R-2026-041 · Marie — Clé portail non créée » and the reason under it; a click opens the reservation. A row « Sowel ne lit plus les clés depuis le … » when rule 17 holds. Nothing otherwise |
 | **SAS, « Portail » step** | « Flashez pour installer l'accès au portail », the QR, the code under it, the window; the keypad code as a fallback |
 | **Fiche** | « Accès portail » card: state badge, code, validity, link — or « Échec » and the reason; the sentence pointing at Sowel |
-| **Réglages → Intégrations** | « Accès portail (Sowel) » card: configured or not, last read, keys created, where the secrets live |
+| **Réglages → Intégrations** | « Accès portail (Sowel) » card: configured / read / « Sowel ne lit plus », last read, keys created; then « guestFlow address », « API key (GATE_API_KEY) », « Signing secret (GATE_SIGNING_SECRET) », each with « Copier », the secrets masked behind « Afficher ». The buttons stack under the value on `xs` |
 | **Email editor** | Two tokens (`Code portail`, `Lien portail`) and one condition (`Si accès portail`) |
 
 Strings in French. Responsive: every surface is a `Stack`/`SummaryItem` layout that stacks on `xs`;
@@ -272,8 +301,11 @@ nothing overflows horizontally.
 - [x] `gate-email-tokens.unit.test.js` (from #563) — tokens present, absent, code alone, link alone
 - [x] `gate-reception-read.unit.test.js` (from #563) — reception reads the key, never writes; the
       dashboard alert stays the admins'
-- [x] `gate-connector-settings.unit.test.js` — the settings card, no secret value
-- [x] `gate-window.unit.test.js` (from #547) — both DST transitions
+- [x] `gate-connector-settings.unit.test.js` — the settings card, no secret value, « late » past 3 h
+- [x] `gate-connector-secrets.unit.test.js` — the three values, `no-store`, admins only, the address
+- [x] `gate-response-signature.unit.test.js` — the pinned vector, exact bytes, bound to the request,
+      errors unsigned, every gate route behind the signer
+- [x] `gate-window.unit.test.js` (from #547) — − 3 h / + 2 h, both DST transitions
 
 ### Client unit tests
 - [x] `GateKeysAlert.test.jsx` — nothing to say, a failure row, the stale row, a silent server
@@ -307,6 +339,12 @@ nothing overflows horizontally.
     back. It supersedes #563's feed.
 - Q: who is told when a key cannot be made?
   - A (2026-09-27, Adrien): **every admin**, on the dashboard and by Web Push, once per error.
+- Q: when does the key open and close?
+  - A (2026-09-27, Adrien, contract v2): **3 hours before check-in, 2 hours after check-out**.
+- Q: how does Sowel know it is talking to the real guestFlow?
+  - A (2026-09-27, Adrien, contract v2): guestFlow **signs its answers** (rules 22b-22d).
+- Q: where does the operator find what to paste into the plugin?
+  - A (2026-09-27, Adrien, contract v2): in the settings card, admins only, masked (rule 29b).
 - Q: a stay whose dates move beyond 7 days after its key was made?
   - A (2026-09-27): it stays listed with its new dates (rule 3) — the wire contract says a stay
     whose dates change is « simply listed again with its new dates », and dropping it would leave a

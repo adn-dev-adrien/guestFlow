@@ -3,7 +3,10 @@
   7 days, or already holding a key) and to revoke (cancelled or deleted stays that may still hold
   one) — and posts every outcome back to `POST /public/v1/gate/results`. guestFlow opens nothing
   towards the house; the channel carries a key distinct from the WordPress site's and an HMAC
-  signature whose secret never travels. Supersedes the stay feed of PR #563, which was never merged.
+  signature whose secret never travels, and guestFlow signs every answer
+  (`X-Gate-Response-Signature`) so a server posing as guestFlow cannot make Sowel create keys. A key
+  opens 3 h before check-in and closes 2 h after check-out. Supersedes the stay feed of PR #563,
+  which was never merged.
 - **The code and its QR wherever a guest needs them**: the SAS « Portail » step shows the code and a
   QR of the link the email carries, the fiche has a read-only « Accès portail » card, and the email
   editor gains `{{gateAccessCode}}`, `{{gateAccessUrl}}` and `{{#if hasGateAccess}}` — all read from
@@ -12,5 +15,7 @@
   failing reservations with the reason, and every admin receives one Web Push per reservation and
   error (« Clé portail non créée — R-2026-041 · Marie — le profil par défaut n'est pas accordé au
   plugin »). The same alert and one push fire when Sowel has not read the list for more than 3 hours.
-- Réglages → Intégrations: an « Accès portail (Sowel) » card with the last read, the keys created and
-  where the two secrets live.
+- Réglages → Intégrations: an « Accès portail (Sowel) » card with the last read (« Sowel ne lit
+  plus » past 3 h), the keys created, and — for admins — the three values to paste into the plugin
+  (guestFlow's address, `GATE_API_KEY`, `GATE_SIGNING_SECRET`), the secrets masked behind
+  « Afficher », each with « Copier ».

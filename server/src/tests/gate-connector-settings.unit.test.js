@@ -7,9 +7,9 @@ const assert = require('node:assert/strict');
 const { freshDb } = require('./gateKeysFixtures');
 const { buildController } = require('../controllers/gateConnectorController');
 
-function read(model) {
+function read(model, now = new Date('2026-09-27T19:00:00.000Z')) {
   let payload = null;
-  buildController({ model: () => model }).settings({}, { json(body) { payload = body; return this; } });
+  buildController({ model: () => model, clock: () => now }).settings({}, { json(body) { payload = body; return this; } });
   return payload;
 }
 
@@ -36,6 +36,7 @@ test('the card says configured, last read, keys created and where the secrets li
   assert.deepEqual(payload, {
     configured: true,
     lastReadAt: '2026-09-27T18:00:00.000Z',
+    stale: false,
     keysCreated: 2,
     secretsFile: 'server/.env.local',
     secretNames: ['GATE_API_KEY', 'GATE_SIGNING_SECRET'],
@@ -57,4 +58,12 @@ test('with one secret missing the connector is not configured', () => {
   const payload = withEnv({ GATE_API_KEY: 'k', GATE_SIGNING_SECRET: '' }, () => read(model));
   assert.equal(payload.configured, false);
   assert.equal(payload.lastReadAt, null);
+});
+
+// specs/gate-access-sowel-connector.md §3.6 rule 29 — a read older than 3 h is not « reading ».
+test('the card says Sowel is late once the last read is older than 3 hours', () => {
+  const { model } = freshDb();
+  model.recordRead('2026-09-27T15:00:00.000Z');
+  assert.equal(read(model, new Date('2026-09-27T18:00:00.000Z')).stale, false);
+  assert.equal(read(model, new Date('2026-09-27T18:00:01.000Z')).stale, true);
 });

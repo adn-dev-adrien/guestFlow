@@ -83,3 +83,11 @@ test('a key without a code (a profile without one) still shows its QR', async ()
   expect(await screen.findByAltText("QR de l'accès portail")).toBeTruthy();
   expect(screen.queryByText('4K7M-9QT2')).toBeNull();
 });
+
+// specs/gate-access-sowel-connector.md §3.5 rule 24 — the QR sits on the page where the gate code is shown.
+test('with a usable key, the QR and the keypad code share the page', async () => {
+  api.getReservationGateAccess.mockResolvedValue({ sas: step() });
+  render(<SasGateAccessStep reservationId={42} available portalCode="1234" />);
+  expect(await screen.findByAltText("QR de l'accès portail")).toBeTruthy();
+  expect(screen.getByText('1234')).toBeTruthy();
+});

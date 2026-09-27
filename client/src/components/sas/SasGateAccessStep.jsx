@@ -109,6 +109,8 @@ export default function SasGateAccessStep({ reservationId, available, portalCode
       {step.windowLabel ? (
         <Typography variant="body2" color="text.secondary">{step.windowLabel}</Typography>
       ) : null}
+      {/* The keypad code stays on the same page as the key's QR (rule 24): one page for every way in. */}
+      <KeypadCode portalCode={portalCode} secondary />
     </Stack>
   );
 }
