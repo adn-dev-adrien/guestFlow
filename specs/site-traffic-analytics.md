@@ -6,7 +6,7 @@
 | **Branch** | `feature/site-traffic-analytics` |
 | **Created** | 2026-09-28 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#627](https://github.com/adn-dev-adrien/guestFlow/pull/627) |
 | **HTML summary** | `docs/specs/2026-09-28-site-traffic-analytics.html` |
 
 ---
