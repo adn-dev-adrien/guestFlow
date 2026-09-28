@@ -16,6 +16,7 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import PageTabs from '../components/PageTabs';
 import ChannelBreakdownCard from '../components/ChannelBreakdownCard';
+import FinanceExerciseOverview from '../components/FinanceExerciseOverview';
 import ErrorAlert from '../components/ErrorAlert';
 import StatusBadge from '../components/StatusBadge';
 import PlatformChip from '../components/PlatformChip';
@@ -355,6 +356,12 @@ export default function FinancePage() {
             {yearCards.map((c) => renderCard(c, { xs: 12, sm: 6 }))}
           </Grid>
         )}
+        {/* specs/finance-exercise-overview-charts.md — the whole selected exercise at a glance. */}
+        <FinanceExerciseOverview
+          overview={summary?.exerciseOverview}
+          fiscalYearLabel={summary?.fiscalYear?.label}
+          onOpenBreakdown={() => setBreakdownMetric('yearTotal')}
+        />
         {/* Period selector — drives the period cards + charts below it. */}
         <Card sx={{ mb: 2 }}>
           <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
