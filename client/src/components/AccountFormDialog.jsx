@@ -23,7 +23,9 @@ import {
   FormHelperText, OutlinedInput, Chip, Box,
 } from '@mui/material';
 import FormDialog from './FormDialog';
-import { ROLES, ROLE_LABELS, ADMIN } from '../constants/roles';
+import { ROLES, ROLE_LABELS, ADMIN, ACCOUNTANT, RECEPTION } from '../constants/roles';
+import { usePlugin } from '../hooks/usePlugins';
+import { ACCOUNTING_EXPORT, SAS } from '../constants/plugins';
 
 const EMPTY = { firstName: '', lastName: '', email: '', companyName: '', notes: '', roles: [] };
 
@@ -39,6 +41,12 @@ export default function AccountFormDialog({
 }) {
   const isEdit = mode === 'edit';
   const [draft, setDraft] = useState(EMPTY);
+  // A role only exists with the plugin it serves (specs/plugins-phase-0-foundation.md rule 16); a user
+  // who already holds it keeps seeing it, so it can be removed.
+  const roleOffered = {
+    [ACCOUNTANT]: usePlugin(ACCOUNTING_EXPORT),
+    [RECEPTION]: usePlugin(SAS),
+  };
 
   useEffect(() => {
     if (open) {
@@ -127,7 +135,7 @@ export default function AccountFormDialog({
               </Box>
             )}
           >
-            {ROLES.map((role) => {
+            {ROLES.filter((role) => roleOffered[role] !== false || draft.roles.includes(role)).map((role) => {
               const checked = draft.roles.includes(role);
               const lockedSelfAdmin = isSelf && role === ADMIN && checked;
               return (

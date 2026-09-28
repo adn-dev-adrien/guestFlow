@@ -15,6 +15,8 @@ import OriginBadge from '../components/OriginBadge';
 import StatusBadge from '../components/StatusBadge';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
+import { usePlugin } from '../hooks/usePlugins';
+import { WEBSITE_BOOKING } from '../constants/plugins';
 import { displayDate, formatCurrency } from '../utils/formatters';
 
 const STATUS_LABELS = {
@@ -50,6 +52,7 @@ export default function DevisPage() {
   // Origin filter (specs/public-api.md follow-up): '' = all, 'public' = website booking requests,
   // 'internal' = operator-created devis.
   const [originFilter, setOriginFilter] = useState('');
+  const websiteOn = usePlugin(WEBSITE_BOOKING);
 
   const handleCreateDevis = () => {
     navigate('/reservations/new?mode=devis');
@@ -134,7 +137,7 @@ export default function DevisPage() {
     <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
       <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>{d.devisNumber}</Typography>
       {/* Origin badge (specs/public-api.md follow-up) — booking request from the website. */}
-      {d.requestOrigin === 'public' && (
+      {websiteOn && d.requestOrigin === 'public' && (
         <Tooltip title="Demande de réservation reçue depuis le site internet">
           <span><StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} /></span>
         </Tooltip>
@@ -173,14 +176,16 @@ export default function DevisPage() {
           ))}
         </Select>
       </FormControl>
-      <FormControl size="small" sx={{ minWidth: 180 }}>
-        <InputLabel>Origine</InputLabel>
-        <Select value={originFilter} label="Origine" onChange={(e) => setOriginFilter(e.target.value)}>
-          <MenuItem value="">Toutes</MenuItem>
-          <MenuItem value="public">Demandes du site internet</MenuItem>
-          <MenuItem value="internal">Devis internes</MenuItem>
-        </Select>
-      </FormControl>
+      {websiteOn && (
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>Origine</InputLabel>
+          <Select value={originFilter} label="Origine" onChange={(e) => setOriginFilter(e.target.value)}>
+            <MenuItem value="">Toutes</MenuItem>
+            <MenuItem value="public">Demandes du site internet</MenuItem>
+            <MenuItem value="internal">Devis internes</MenuItem>
+          </Select>
+        </FormControl>
+      )}
     </Stack>
   );
 

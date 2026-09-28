@@ -14,6 +14,8 @@ const { startScheduledTasks } = require('./scheduledTasks');
 const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
 const enforceRoleAccess = require('./middleware/enforceRoleAccess');
+const requirePlugin = require('./middleware/requirePlugin');
+const PLUGINS = require('./constants/plugins');
 const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
 const {
   shouldEnforceHttps,
@@ -140,9 +142,11 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // crux: the admin guard can neither expose nor block it.
 // The gate-keys connector, BEFORE the generic public tree: it carries its own key and its own
 // signature, and must not go through the WordPress proxy's one (routes/public/gate.js).
-app.use('/public/v1/gate', require('./routes/public/gate'));
+// Each tree answers 404 PLUGIN_INACTIVE while its plugin is off (specs/plugins-phase-0-foundation.md
+// rule 15): the WordPress site then shows its "unavailable" state, and Sowel stops receiving keys.
+app.use('/public/v1/gate', requirePlugin(PLUGINS.GATE_ACCESS), require('./routes/public/gate'));
 
-app.use('/public/v1', require('./routes/public'));
+app.use('/public/v1', requirePlugin(PLUGINS.WEBSITE_BOOKING), require('./routes/public'));
 
 // Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
 // emails. Public by nature (a guest opens it from an email): no session, no API key, own limiter.
@@ -187,26 +191,26 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/options', require('./routes/options'));
 app.use('/api/resources', require('./routes/resources'));
-app.use('/api/resource-bookings', require('./routes/resourceBookings'));
+app.use('/api/resource-bookings', requirePlugin(PLUGINS.HOURLY_RESOURCES), require('./routes/resourceBookings'));
 app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/finance', require('./routes/finance'));
-app.use('/api/school-holidays', require('./routes/schoolHolidays'));
+app.use('/api/school-holidays', requirePlugin(PLUGINS.SCHOOL_HOLIDAYS), require('./routes/schoolHolidays'));
 app.use('/api/public-holidays', require('./routes/publicHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
-app.use('/api/google-calendar', require('./routes/googleCalendar'));
+app.use('/api/google-calendar', requirePlugin(PLUGINS.GOOGLE_CALENDAR), require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
-app.use('/api/payments', require('./routes/payments'));
+app.use('/api/payments', requirePlugin(PLUGINS.ONLINE_PAYMENT), require('./routes/payments'));
 app.use('/api/translations', require('./routes/translations'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
-app.use('/api/tariff-recipes', require('./routes/tariffRecipes'));
+app.use('/api/tariff-recipes', requirePlugin(PLUGINS.TARIFF_RECIPES), require('./routes/tariffRecipes'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));
-app.use('/api/laundry', require('./routes/laundry'));
+app.use('/api/laundry', requirePlugin(PLUGINS.LINEN), require('./routes/laundry'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 // specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
@@ -217,9 +221,11 @@ app.use('/api/email-sequence',  require('./routes/emailSequence'));
 app.use('/api/system', require('./routes/system'));
 // specs/neat-cancellation-insurance-subscription.md — Neat connection, mapping, retry/void.
 // Admin-only through the same deny-by-default role guard.
-app.use('/api/neat', require('./routes/neat'));
+app.use('/api/neat', requirePlugin(PLUGINS.NEAT), require('./routes/neat'));
 // specs/terms-acceptance-record.md — the CGV the operator writes and publishes. Admin-only.
 app.use('/api/terms', require('./routes/terms'));
+// specs/plugins-phase-0-foundation.md — the Plugins page. Admin-only through the same role guard.
+app.use('/api/plugins', require('./routes/plugins'));
 
 app.get('/api/version', (req, res) => {
   res.json({

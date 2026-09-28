@@ -5,6 +5,9 @@ import { vi } from 'vitest';
 import ExtrasSection from '../reservation/ExtrasSection';
 import { ReservationFormProvider } from '../reservation/ReservationFormContext';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/bed-config-in-linen-card.md §3 rules 2 + 3 + 10 + §7.2.
 // Pin the new placement of the bed counters INSIDE the "Linge de lit" option card and the
 // auto-zero on Switch OFF behaviour.

@@ -19,11 +19,15 @@ import {
 } from '@mui/material';
 import TableCard from '../TableCard';
 import { displayDate, formatCurrency } from '../../utils/formatters';
+import { usePlugin } from '../../hooks/usePlugins';
+import { TARIFF_RECIPES } from '../../constants/plugins';
 
 export default function PropertyTariffTab({
   property, form, errors = {}, updateField, onZeroFocus, canManage, onOpenTariffs, getSortedSeasonRanges,
 }) {
-  const recipe = property.tariffRecipeId;
+  // Without the tariff-recipes plugin the seasons read as manual ones (specs/plugins-phase-0-foundation.md rule 16).
+  const recipesOn = usePlugin(TARIFF_RECIPES);
+  const recipe = recipesOn ? property.tariffRecipeId : null;
   const seasons = [...(property.pricingRules || [])]
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')));
   const number = (field, label, helperText, step = 0.01) => (

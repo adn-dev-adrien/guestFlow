@@ -247,14 +247,20 @@ function readCitations() {
 
 const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
-// Les règles ajoutées / modifiées par le diff, par spec. On relit la spec APRÈS changement pour
-// connaître l'exemption éventuelle : une règle peut naître déjà déclarée non testable.
-function changedRules(base) {
-  const diff = git(['diff', '--unified=0', `${base}...HEAD`, '--', 'specs/']);
+/**
+ * Les règles ajoutées / modifiées par un diff de `specs/`, par spec. `specsNow` est la lecture des
+ * specs APRÈS changement (nom → règles de la section « Functional rules ») : elle donne l'exemption
+ * éventuelle — une règle peut naître déjà déclarée non testable — et elle écarte les lignes
+ * numérotées qui ne sont pas des règles (règle 2) : un plan de test, une étude, des questions
+ * ouvertes ont aussi des listes « 1. », que le diff ne sait pas situer dans la spec.
+ *
+ * @returns {{addedRules: Array, modifiedRules: Array}}
+ */
+export function rulesChangedInDiff(diff, specsNow) {
   const added = [];
   const modified = [];
   let spec = null;
-  for (const line of diff.split('\n')) {
+  for (const line of String(diff || '').split('\n')) {
     const head = line.match(/^\+\+\+ b\/specs\/([a-z0-9-]+)\.md/i);
     if (head) { spec = head[1].toLowerCase(); continue; }
     if (!spec) continue;
@@ -265,48 +271,20 @@ function changedRules(base) {
     const mm = (minus ?? '').match(RULE_LINE);
     if (mm) modified.push({ spec, rule: mm[1].toLowerCase() });
   }
+  const ruleOf = (r) => (specsNow.get(r.spec) || []).find((x) => x.id === r.rule);
+  const isRule = (r) => Boolean(ruleOf(r));
   // Une règle présente des deux côtés du diff a été reformulée, pas ajoutée.
   const removedKeys = new Set(modified.map((r) => `${r.spec}:${r.rule}`));
-  const specsNow = readSpecs();
-  const exemptOf = (r) => Boolean((specsNow.get(r.spec) || []).find((x) => x.id === r.rule)?.exempt);
   return {
-    addedRules: added.filter((r) => !removedKeys.has(`${r.spec}:${r.rule}`)).map((r) => ({ ...r, exempt: exemptOf(r) })),
-    modifiedRules: modified.filter((r) => added.some((a) => a.spec === r.spec && a.rule === r.rule)),
+    addedRules: added
+      .filter((r) => isRule(r) && !removedKeys.has(`${r.spec}:${r.rule}`))
+      .map((r) => ({ ...r, exempt: Boolean(ruleOf(r).exempt) })),
+    modifiedRules: modified.filter((r) => isRule(r) && added.some((a) => a.spec === r.spec && a.rule === r.rule)),
   };
 }
 
-function report({ specName }) {
-  const { specs, orphans } = buildCoverage(readSpecs(), readCitations());
-  if (specName) {
-    const one = specs.find((s) => s.name === specName.replace(/\.md$/, '').toLowerCase());
-    if (!one) { console.error(`Spec inconnue ou sans règles : ${specName}`); process.exit(2); }
-    console.log(`\nspecs/${one.name}.md — ${one.covered}/${one.total} règles couvertes` +
-      (one.exempt ? ` (${one.exempt} sans test, déclarées)` : ''));
-    const real = new Set((readSpecs().get(one.name) || []).map((r) => r.id));
-    for (const [rule, files] of [...one.files.entries()].sort()) {
-      // Une citation vers un numéro que la spec n'a pas ne prouve rien : elle est listée à part,
-      // sinon elle se lirait comme une couverture.
-      if (real.has(rule)) console.log(`  règle ${rule.padEnd(6)} ← ${files.join(', ')}`);
-    }
-    if (one.missing.length) console.log(`  MANQUANTES : ${one.missing.join(', ')}`);
-    const stale = [...one.files.keys()].filter((r) => !real.has(r));
-    if (stale.length) console.log(`  citations orphelines (numéro absent de la spec) : ${stale.sort().join(', ')}`);
-    return 0;
-  }
-  let total = 0; let covered = 0; let exempt = 0;
-  for (const s of specs) { total += s.total; covered += s.covered; exempt += s.exempt; }
-  console.log('');
-  for (const s of specs.filter((x) => x.missing.length > 0)) {
-    console.log(`${('specs/' + s.name + '.md').padEnd(62)} ${String(s.covered).padStart(3)}/${String(s.total).padEnd(3)}  manquantes : ${s.missing.join(', ')}`);
-  }
-  const pct = total ? Math.round((covered / total) * 100) : 0;
-  console.log(`\nTotal : ${total} règles, ${covered} couvertes (${pct} %), ${exempt} déclarées sans test.`);
-  if (orphans.length) {
-    console.log(`\nCitations orphelines (spec ou règle inexistante) : ${orphans.length}`);
-    for (const o of orphans.slice(0, 15)) console.log(`  ${o.file} → specs/${o.spec}.md règle ${o.rule} (${o.why})`);
-    if (orphans.length > 15) console.log(`  … et ${orphans.length - 15} autres`);
-  }
-  return 0;
+function changedRules(base) {
+  return rulesChangedInDiff(git(['diff', '--unified=0', `${base}...HEAD`, '--', 'specs/']), readSpecs());
 }
 
 function gate(base) {

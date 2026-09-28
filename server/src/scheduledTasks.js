@@ -35,6 +35,8 @@ const { ensureWebhookSubscription } = require('./utils/qontoWebhookRegistrar');
 
 // Google Calendar reconcile pass (specs/google-calendar-oauth-rework.md §3 rule 22).
 const googleCalendarSync = require('./utils/googleCalendarSync');
+const { whenPluginActive } = require('./utils/pluginScheduling');
+const PLUGINS = require('./constants/plugins');
 
 // Self-update version check (specs/self-update-and-releases.md §3.B rule 12).
 const systemController = require('./controllers/systemController');
@@ -317,8 +319,9 @@ function startScheduledTasks() {
   // School holidays: hourly tick that checks the fixed interval and triggers a sync if due
   // (specs/settings-rationalization.md rule 13).
   const SCHOOL_HOLIDAYS_TICK = 60 * 60 * 1000; // 1 hour
-  setInterval(() => tickSchoolHolidaysSync('hourly tick'), SCHOOL_HOLIDAYS_TICK);
-  setTimeout(() => tickSchoolHolidaysSync('boot'), 60 * 1000);
+  const schoolHolidaysTick = whenPluginActive(PLUGINS.SCHOOL_HOLIDAYS, tickSchoolHolidaysSync);
+  setInterval(() => schoolHolidaysTick('hourly tick'), SCHOOL_HOLIDAYS_TICK);
+  setTimeout(() => schoolHolidaysTick('boot'), 60 * 1000);
 
   // Email auto-send: no timer at all unless a template is « auto ». Switching one to « auto » in Emails
   // starts it (and runs the day's pass) without a restart — the scheduler is re-synced by
@@ -346,27 +349,33 @@ function startScheduledTasks() {
   // webhook confirms in real time and the guest's success page reconciles on demand; this is the
   // net that catches a webhook that never arrived.
   const PAYMENT_POLL_TICK = resolvePaymentPollTickMs();
-  setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
-  setTimeout(() => runPaymentPollPass('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
+  // Every plugin pass below skips its tick while its plugin is inactive
+  // (specs/plugins-phase-0-foundation.md rule 15).
+  const paymentPoll = whenPluginActive(PLUGINS.ONLINE_PAYMENT, runPaymentPollPass);
+  setInterval(() => paymentPoll('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
+  setTimeout(() => paymentPoll('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
 
   // Google Calendar reconcile: every 15 min (immediate pushes cover the realtime path; this
   // pass catches missed hooks + purges orphans — specs/google-calendar-oauth-rework.md §3 rule 22).
   const GOOGLE_SYNC_TICK = 15 * 60 * 1000;
-  setInterval(() => runGoogleSyncPass('cron').catch((err) => console.error('[google-sync] unhandled:', err)), GOOGLE_SYNC_TICK);
-  setTimeout(() => runGoogleSyncPass('boot').catch((err) => console.error('[google-sync] unhandled:', err)), 130 * 1000);
+  const googleSync = whenPluginActive(PLUGINS.GOOGLE_CALENDAR, runGoogleSyncPass);
+  setInterval(() => googleSync('cron').catch((err) => console.error('[google-sync] unhandled:', err)), GOOGLE_SYNC_TICK);
+  setTimeout(() => googleSync('boot').catch((err) => console.error('[google-sync] unhandled:', err)), 130 * 1000);
 
   // Tariff-recipe horizon: a daily check that acts at most once per missing year (idempotent no-op
   // the rest of the time). Boot pass 140 s after start so a restart never leaves an expiring
   // horizon waiting a full day.
   const TARIFF_RECIPE_TICK = 24 * 60 * 60 * 1000;
-  setInterval(() => { try { runTariffRecipeHorizonPass('cron'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, TARIFF_RECIPE_TICK);
-  setTimeout(() => { try { runTariffRecipeHorizonPass('boot'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, 140 * 1000);
+  const tariffHorizon = whenPluginActive(PLUGINS.TARIFF_RECIPES, runTariffRecipeHorizonPass);
+  setInterval(() => tariffHorizon('cron').catch((err) => console.error('[tariff-recipes] unhandled:', err)), TARIFF_RECIPE_TICK);
+  setTimeout(() => tariffHorizon('boot').catch((err) => console.error('[tariff-recipes] unhandled:', err)), 140 * 1000);
 
   // Neat subscriptions: every 5 min (the payment flows kick the pass for the nominal case; this
   // tick is the retry ladder + the safety net). Boot pass 150 s after start.
   const NEAT_TICK = 5 * 60 * 1000;
-  setInterval(() => runNeatSubscriptionPass('cron').catch((err) => console.error('[neat] unhandled:', err)), NEAT_TICK);
-  setTimeout(() => runNeatSubscriptionPass('boot').catch((err) => console.error('[neat] unhandled:', err)), 150 * 1000);
+  const neatPass = whenPluginActive(PLUGINS.NEAT, runNeatSubscriptionPass);
+  setInterval(() => neatPass('cron').catch((err) => console.error('[neat] unhandled:', err)), NEAT_TICK);
+  setTimeout(() => neatPass('boot').catch((err) => console.error('[neat] unhandled:', err)), 150 * 1000);
 
   // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
   // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
@@ -378,8 +387,9 @@ function startScheduledTasks() {
   // Gate keys (specs/gate-access-sowel-connector.md §3.3 rules 17-18): Sowel reads the list hourly;
   // past 3 h without a read, the admins are pushed once. Checked hourly, first pass 160 s after boot.
   const GATE_STALE_TICK = 60 * 60 * 1000;
-  setInterval(() => runGateStaleReadPass('cron').catch((err) => console.error('[gate-keys] unhandled:', err)), GATE_STALE_TICK);
-  setTimeout(() => runGateStaleReadPass('boot').catch((err) => console.error('[gate-keys] unhandled:', err)), 160 * 1000);
+  const gateStale = whenPluginActive(PLUGINS.GATE_ACCESS, runGateStaleReadPass);
+  setInterval(() => gateStale('cron').catch((err) => console.error('[gate-keys] unhandled:', err)), GATE_STALE_TICK);
+  setTimeout(() => gateStale('boot').catch((err) => console.error('[gate-keys] unhandled:', err)), 160 * 1000);
 }
 
 // « Sowel has not read the gate keys for more than 3 h » — pushes the admins once, a read clears it.

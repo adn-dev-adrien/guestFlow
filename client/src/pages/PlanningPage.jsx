@@ -33,6 +33,12 @@ import { countDayTasks } from '../utils/planningDayTasks';
 import { useAuth } from '../hooks/useAuth';
 import { isReceptionOnly } from '../constants/roles';
 import api from '../api';
+import { usePlugin } from '../hooks/usePlugins';
+import { LINEN, HOURLY_RESOURCES, SAS } from '../constants/plugins';
+
+// A plugin's planning data is only fetched while the plugin is active
+// (specs/plugins-phase-0-foundation.md rule 18); otherwise its empty shape stands in.
+const fetchIf = (active, call, empty) => (active ? call().catch(() => empty) : Promise.resolve(empty));
 
 const DAYS_AHEAD = 14;
 
@@ -184,6 +190,9 @@ export default function PlanningPage() {
   // The SAS locks themselves (specs/reception-sas-today-only.md) ride along in the reservation
   // payload — the cards read them directly, nothing to pass down from here.
   const receptionMode = isReceptionOnly(user);
+  const linenOn = usePlugin(LINEN);
+  const hourlyOn = usePlugin(HOURLY_RESOURCES);
+  const sasOn = usePlugin(SAS);
   // Reused by every "card / row click → open reservation" handler below (arrivals,
   // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
   // back button return here. No-op in reception mode (no reservation sheet access).
@@ -277,13 +286,13 @@ export default function PlanningPage() {
   useEffect(() => {
     const link = readSasDeepLink(searchParams);
     if (!link) return;
-    if (link.mode === 'arrival') openArrivalSas(link.reservationId);
-    else openDepartureSas(link.reservationId);
+    if (sasOn && link.mode === 'arrival') openArrivalSas(link.reservationId);
+    else if (sasOn) openDepartureSas(link.reservationId);
     const next = new URLSearchParams(searchParams);
     next.delete('sas');
     next.delete('reservationId');
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, openArrivalSas, openDepartureSas]);
+  }, [searchParams, setSearchParams, openArrivalSas, openDepartureSas, sasOn]);
   const openClient = useCallback((clientId) => { if (clientId && !receptionMode) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate, receptionMode]);
 
   const [loading, setLoading] = useState(true);
@@ -366,10 +375,9 @@ export default function PlanningPage() {
   // (non-skipped) state, the toggle still works, and a subsequent successful toggle/refetch
   // will hydrate the state. No user-visible error on this read.
   useEffect(() => {
-    api.listLaundrySkips()
-      .then((res) => setSkippedLaundryDates(new Set(res?.skips || [])))
-      .catch(() => setSkippedLaundryDates(new Set()));
-  }, []);
+    fetchIf(linenOn, () => api.listLaundrySkips(), { skips: [] })
+      .then((res) => setSkippedLaundryDates(new Set(res?.skips || [])));
+  }, [linenOn]);
 
   // After any laundry mutation (skip toggle, manual line, extra trip), refetch the whole laundry
   // state: the summary, the inventory projection, the manual lines and the extra trips. Refetch up
@@ -385,16 +393,16 @@ export default function PlanningPage() {
   // À récupérer numbers stayed frozen ("la carte blanchisserie suivante ne change pas").
   const refetchLaundryState = useCallback(async () => {
     const [summary, inventory, additions, extras] = await Promise.all([
-      api.getLaundryPlanningSummary({ from: startDate }).catch(() => ({ laundryDays: [] })),
-      api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
-      api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
-      api.getLaundryExtraTrips().catch(() => ({ trips: [] })),
+      fetchIf(linenOn, () => api.getLaundryPlanningSummary({ from: startDate }), { laundryDays: [] }),
+      fetchIf(linenOn, () => api.getLinenInventory(), { byLaundryDay: {} }),
+      fetchIf(linenOn, () => api.getLaundryManualAdditions(), { additions: {} }),
+      fetchIf(linenOn, () => api.getLaundryExtraTrips(), { trips: [] }),
     ]);
     setLaundryByDate(indexLaundryDays(summary?.laundryDays));
     setInventoryByDate(inventory?.byLaundryDay || {});
     setManualAdditionsByDate(additions?.additions || {});
     setExtraTripsByDate(indexExtraTrips(extras?.trips));
-  }, [startDate]);
+  }, [startDate, linenOn]);
 
   // Per-card skip toggle. Optimistic update first (instant UI feedback), then API call. On
   // failure: revert to the previous Set + surface a snackbar (rule 12 in the spec). After
@@ -565,23 +573,23 @@ export default function PlanningPage() {
       const to = addDays(from, DAYS_AHEAD - 1);
       const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, resourceCardsSummary, manualAdditions, extraTrips] = await Promise.all([
         api.getReservations({ from, to }),
-        api.getResourceBookingPlanningEvents(from, to).catch(() => []),
+        fetchIf(hourlyOn, () => api.getResourceBookingPlanningEvents(from, to), []),
         // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
-        api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
+        fetchIf(linenOn, () => api.getLaundryPlanningSummary({ from, to }), { laundryDays: [] }),
         // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
-        api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+        fetchIf(linenOn, () => api.getLinenInventory(), { byLaundryDay: {} }),
         // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
         // Non-blocking like the others; an empty map keeps the planning fully functional.
         api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
         // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
         api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
         // specs/resource-hourly-scheduling.md §3.4 — resource session cards. Non-blocking.
-        api.getPlanningResourceCards({ from, to }).catch(() => ({ resourceCardsByDate: {} })),
+        fetchIf(hourlyOn, () => api.getPlanningResourceCards({ from, to }), { resourceCardsByDate: {} }),
         // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
         // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
-        api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
+        fetchIf(linenOn, () => api.getLaundryManualAdditions(), { additions: {} }),
         // specs/laundry-extra-trip.md — extra trips, for the edit dialog's prefill.
-        api.getLaundryExtraTrips().catch(() => ({ trips: [] })),
+        fetchIf(linenOn, () => api.getLaundryExtraTrips(), { trips: [] }),
       ]);
       const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
       const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -662,11 +670,10 @@ export default function PlanningPage() {
         // Pull the next-window laundry summary alongside the reservations so the new days
         // surface their LaundryDayCard right after they scroll into view. Non-blocking; an
         // error here must not stop the infinite scroll.
-        api.getLaundryPlanningSummary({ from: nextStart, to: nextEnd })
+        fetchIf(linenOn, () => api.getLaundryPlanningSummary({ from: nextStart, to: nextEnd }), { laundryDays: [] })
           .then((summary) => {
             setLaundryByDate((prev) => ({ ...prev, ...indexLaundryDays(summary?.laundryDays) }));
-          })
-          .catch(() => {});
+          });
         // Same incremental pattern for breakfast: fetch the next window and merge into
         // the existing map so the new days surface their BreakfastDayCard on scroll.
         api.getBreakfastPlanningSummary({ from: nextStart, to: nextEnd })
@@ -683,12 +690,11 @@ export default function PlanningPage() {
           })
           .catch(() => {});
         // Same incremental pattern for resource session cards (specs/resource-hourly-scheduling.md §3.4).
-        api.getPlanningResourceCards({ from: nextStart, to: nextEnd })
+        fetchIf(hourlyOn, () => api.getPlanningResourceCards({ from: nextStart, to: nextEnd }), { resourceCardsByDate: {} })
           .then((summary) => {
             const next = summary?.resourceCardsByDate || {};
             setResourceCardsByDate((prev) => ({ ...prev, ...next }));
-          })
-          .catch(() => {});
+          });
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
           if (newReservations.length === 0) {
             lastLoadedRef.current = null;
@@ -818,7 +824,7 @@ export default function PlanningPage() {
         center={renderDateNav()}
         // specs/laundry-extra-trip.md §3.5 rule 17 — admin only (the reception role sees the card
         // read-only; the server refuses its writes anyway).
-        actionsBefore={receptionMode ? [] : [{
+        actionsBefore={receptionMode || !linenOn ? [] : [{
           icon: <LocalLaundryServiceIcon />,
           tooltip: 'Ajouter un voyage blanchisserie exceptionnel',
           onClick: () => setExtraDialog({ mode: 'create', date: null }),
@@ -907,7 +913,7 @@ export default function PlanningPage() {
                 reservation={r}
                 onToggleDone={handleToggleDepartureDone}
                 onOpenReservation={receptionMode ? undefined : openReservation}
-                onOpenSas={openDepartureSas}
+                onOpenSas={sasOn ? openDepartureSas : undefined}
                 onOpenClient={receptionMode ? undefined : openClient}
                 alertInfo={alertMap[r.id]}
               />
@@ -923,7 +929,7 @@ export default function PlanningPage() {
                 onToggleReady={handleToggleReady}
                 alertInfo={alertMap[r.id]}
                 onOpenReservation={receptionMode ? undefined : openReservation}
-                onOpenSas={openArrivalSas}
+                onOpenSas={sasOn ? openArrivalSas : undefined}
                 onOpenClient={receptionMode ? undefined : openClient}
               />
             ),

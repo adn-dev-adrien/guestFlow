@@ -6,6 +6,9 @@ import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4 — an hourly-SCHEDULED resource
 // (« Bain nordique ») is sold by the hour on the fiche and placed on real slots later, during the
 // arrival SAS. Its « Heures » field used to be replaced by an empty spacer, leaving the Switch as the

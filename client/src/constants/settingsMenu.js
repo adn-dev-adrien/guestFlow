@@ -21,6 +21,7 @@ import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import CableIcon from '@mui/icons-material/Cable';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
+import PowerIcon from '@mui/icons-material/Power';
 
 export const PROPERTIES_PATH = '/properties';
 
@@ -42,9 +43,20 @@ export const SETTINGS_MENU = [
   null,
   { path: '/settings/utilisateurs', label: 'Utilisateurs', Icon: AdminPanelSettingsIcon },
   { path: '/settings/systeme', label: 'Système', Icon: SettingsApplicationsIcon },
+  { path: '/parametres/plugins', label: 'Plugins', Icon: PowerIcon },
 ];
 
 export const SETTINGS_ENTRIES = SETTINGS_MENU.filter(Boolean);
+
+/**
+ * The submenu as one user sees it: the entries `isVisible` accepts, with the dividers that no longer
+ * separate two families dropped (a family can empty out when its plugins are inactive —
+ * specs/plugins-phase-0-foundation.md rule 16).
+ */
+export function visibleSettingsMenu(isVisible) {
+  const kept = SETTINGS_MENU.filter((entry) => !entry || isVisible(entry.path));
+  return kept.filter((entry, i) => entry || (i > 0 && kept[i - 1] && kept.slice(i + 1).some(Boolean)));
+}
 
 /** Every path under « Paramètres » — for the role gate of the parent entry. */
 export const SETTINGS_PATHS = SETTINGS_ENTRIES.flatMap((e) => [e.path, ...(e.matches || [])]);

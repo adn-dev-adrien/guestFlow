@@ -34,6 +34,9 @@ function createNeatController({
   pushService = realPushService,
   now = () => new Date(),
   logger = console,
+  // specs/plugins-phase-0-foundation.md rule 15 — wired to the plugin state by the production
+  // instance; a factory built by a test runs its passes.
+  pluginActive = () => true,
 } = {}) {
   let passInProgress = false;
 
@@ -76,6 +79,7 @@ function createNeatController({
   }
 
   async function runPass(reason) {
+    if (!pluginActive()) return { skipped: 'plugin-inactive' };
     if (passInProgress) return { skipped: 'in-progress' };
     passInProgress = true;
     try {
@@ -345,7 +349,9 @@ function createNeatController({
   };
 }
 
-const defaultController = createNeatController();
+const defaultController = createNeatController({
+  pluginActive: () => require('../models/pluginsModel').isActive(require('../constants/plugins').NEAT),
+});
 defaultController.createNeatController = createNeatController;
 defaultController.externalIdFor = externalIdFor;
 

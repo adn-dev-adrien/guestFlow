@@ -60,6 +60,8 @@ import OfferableLine from './OfferableLine';
 import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
 import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
 import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
+import { usePlugin } from '../../hooks/usePlugins';
+import { GATE_ACCESS, HOURLY_RESOURCES, LINEN, WEATHER_ALERTS } from '../../constants/plugins';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 // The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
@@ -311,6 +313,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // Weather alerts (specs/checkin-weather-alerts.md) — fetched in the background when the arrival SAS
   // opens; empty until (and unless) a qualifying Orange/Red vigilance overlaps the stay.
   const [weatherAlerts, setWeatherAlerts] = useState([]);
+  // specs/plugins-phase-0-foundation.md rule 16 — the steps an inactive plugin brings are skipped.
+  const gateOn = usePlugin(GATE_ACCESS);
+  const hourlyOn = usePlugin(HOURLY_RESOURCES);
+  const linenOn = usePlugin(LINEN);
+  const weatherOn = usePlugin(WEATHER_ALERTS);
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;
@@ -517,14 +524,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // Non-blocking: the wizard renders normally; the weather page appears (before recap) once/if the
   // response carries ≥1 alert. Any error degrades to no page.
   useEffect(() => {
-    if (!open || !reservationId || mode !== 'arrival') return undefined;
+    if (!open || !reservationId || mode !== 'arrival' || !weatherOn) return undefined;
     let cancelled = false;
     setWeatherAlerts([]);
     api.getReservationWeatherAlerts(reservationId)
       .then((res) => { if (!cancelled) setWeatherAlerts(Array.isArray(res?.alerts) ? res.alerts : []); })
       .catch(() => { if (!cancelled) setWeatherAlerts([]); });
     return () => { cancelled = true; };
-  }, [open, reservationId, mode]);
+  }, [open, reservationId, mode, weatherOn]);
 
   const r = data?.reservation;
   const modeColor = modeColorFor(theme, mode);
@@ -565,7 +572,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
-        (data.portalCode || data.gateAccess?.available) ? 'portal' : null,
+        gateOn && (data.portalCode || data.gateAccess?.available) ? 'portal' : null,
         cautionStep ? 'caution' : null,
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
@@ -575,15 +582,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Place the hours bought by the hour on real slots, right after the read-only prestations
         // list (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 17). Skipped once
         // everything is scheduled.
-        data.resourceScheduling?.applicable ? 'resourceScheduling' : null,
+        hourlyOn && data.resourceScheduling?.applicable ? 'resourceScheduling' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
-        r.bedLinenAlert ? 'linen' : null,
-        (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
+        linenOn && r.bedLinenAlert ? 'linen' : null,
+        (linenOn && r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         // Ménage step is hidden when the cleaning is already included (specs/sas-hide-settled-steps.md §3);
         // the vaisselle/poubelles reminder then moves to the recap.
         data.cleaning?.included ? null : 'cleaning',
         // specs/sas-bath-linen-upsell.md §3.1 — offer bath linen when the guest didn't take it.
-        data.bathLinen?.available ? 'bathLinen' : null,
+        linenOn && data.bathLinen?.available ? 'bathLinen' : null,
         // specs/sas-breakfast-and-catering-upsell.md §3.1 — the sale steps close the check-in: the
         // breakfast (offer → mornings → composition) then the « Restauration » catalogue.
         sales.breakfast?.available ? 'breakfastSale' : null,
@@ -596,7 +603,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
         // Weather alert (specs/checkin-weather-alerts.md): last page before the recap, only when a
         // qualifying alert overlaps the stay.
-        weatherAlerts.length > 0 ? 'weather' : null,
+        weatherOn && weatherAlerts.length > 0 ? 'weather' : null,
         'recap',
       ].filter(Boolean);
     }
@@ -617,7 +624,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'recap',
     ].filter(Boolean);
   }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLock,
-    breakfastSold, cateringWanted]);
+    breakfastSold, cateringWanted, gateOn, hourlyOn, linenOn, weatherOn]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);

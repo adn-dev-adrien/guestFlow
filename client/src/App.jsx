@@ -40,7 +40,8 @@ import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
-import { SETTINGS_MENU, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
+import { visibleSettingsMenu, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
+import { isRouteEnabled } from './constants/plugins';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
@@ -65,6 +66,7 @@ import EmailSettingsPage from './pages/settings/EmailSettingsPage';
 import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage';
 import SystemSettingsPage from './pages/settings/SystemSettingsPage';
 import TermsSettingsPage from './pages/settings/TermsSettingsPage';
+import PluginsPage from './pages/PluginsPage';
 import AccountPage from './pages/AccountPage';
 import LinenStockPage from './pages/LinenStockPage';
 import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
@@ -446,9 +448,8 @@ function NavContent({ onItemClick }) {
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
                   {/* specs/settings-rationalization.md rules 1-2 — entries by family, a thin divider
                       between families; the list lives in constants/settingsMenu.js. */}
-                  {SETTINGS_MENU.map((entry, index) => {
+                  {visibleSettingsMenu(can).map((entry, index) => {
                     if (!entry) return <Divider key={`settings-divider-${index}`} sx={{ mx: 2, my: 0.5 }} />;
-                    if (!can(entry.path)) return null;
                     const isProperties = entry.path === PROPERTIES_PATH;
                     return (
                       <Box key={entry.path}>
@@ -539,6 +540,7 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const pluginRoute = (path, element) => (isRouteEnabled(user, path) ? element : null);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
@@ -560,6 +562,14 @@ function AppShell() {
   // keeps the full app. Combined non-admin roles get the union of their allowed paths.
   // - Accountant → /comptabilite* + /mon-compte (specs/admin-account-management.md).
   // - Reception  → / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
+  // A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
+  // typed by hand lands on the home page, or on « Mon compte » for a role that has no home page.
+  useEffect(() => {
+    if (!user || isRouteEnabled(user, location.pathname)) return;
+    const hasHome = userHasRole(user, ADMIN) || userHasRole(user, RECEPTION);
+    navigate(hasHome ? '/' : '/mon-compte', { replace: true });
+  }, [user, location.pathname, navigate]);
+
   useEffect(() => {
     if (!user || userHasRole(user, ADMIN)) return;
     const isAccountant = userHasRole(user, ACCOUNTANT);
@@ -694,13 +704,15 @@ function AppShell() {
         {/* Render-crash guard + catch-all 404 (specs/ds-components.md §3.4) — a component throw or
             an unknown URL used to leave the main area blank. */}
         <RouteErrorBoundary>
+        {/* A page of an inactive plugin is not even mounted (specs/plugins-phase-0-foundation.md
+            rules 18-19): its API calls never leave, and the guard above sends the URL home. */}
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetail />} />
           <Route path="/properties/:id/pricing-seasons" element={<PropertyPricingSeasonsPage />} />
-          <Route path="/parametres/recettes" element={<TariffRecipesPage />} />
+          <Route path="/parametres/recettes" element={pluginRoute('/parametres/recettes', <TariffRecipesPage />)} />
           <Route path="/options" element={<OptionsPage />} />
           <Route path="/resources" element={<ResourcesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
@@ -711,8 +723,8 @@ function AppShell() {
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path="/planning" element={<PlanningPage />} />
-          <Route path="/resource-planning" element={<ResourcePlanningPage />} />
-          <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
+          <Route path="/resource-planning" element={pluginRoute('/resource-planning', <ResourcePlanningPage />)} />
+          <Route path="/school-holidays" element={pluginRoute('/school-holidays', <SchoolHolidaysPage />)} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           {/* Paramètres (specs/settings-rationalization.md rule 2). */}
           <Route path="/settings" element={<Navigate to="/settings/etablissement" replace />} />
@@ -720,22 +732,23 @@ function AppShell() {
           <Route path="/settings/plateformes" element={<PlatformsSettingsPage />} />
           <Route path="/settings/tva-exercice" element={<VatFiscalSettingsPage />} />
           <Route path="/settings/emails" element={<EmailSettingsPage />} />
-          <Route path="/settings/integrations" element={<IntegrationsSettingsPage />} />
+          <Route path="/settings/integrations" element={pluginRoute('/settings/integrations', <IntegrationsSettingsPage />)} />
           <Route path="/settings/systeme" element={<SystemSettingsPage />} />
           <Route path="/settings/utilisateurs" element={<UserManagementPage />} />
-          <Route path="/parametres/stock-blanchisserie" element={<LinenStockPage />} />
+          <Route path="/parametres/stock-blanchisserie" element={pluginRoute('/parametres/stock-blanchisserie', <LinenStockPage />)} />
           <Route path="/parametres/tarifs" element={<Navigate to="/parametres/options-ressources?tab=sas" replace />} />
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
-          <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
+          <Route path="/parametres/paiements" element={pluginRoute('/parametres/paiements', <PaymentsSettingsPage />)} />
           <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />
+          <Route path="/parametres/plugins" element={<PluginsPage />} />
           {/* « Mon compte » — every role (rule 6). Legacy paths redirect to it. */}
           <Route path="/mon-compte" element={<AccountPage />} />
           <Route path="/settings/password" element={<Navigate to="/mon-compte" replace />} />
           <Route path="/comptes" element={<Navigate to="/mon-compte" replace />} />
           <Route path="/account" element={<Navigate to="/mon-compte" replace />} />
-          <Route path="/comptabilite" element={<AccountingPage />} />
-          <Route path="/comptabilite/plateformes" element={<PlatformAccountsPage />} />
+          <Route path="/comptabilite" element={pluginRoute('/comptabilite', <AccountingPage />)} />
+          <Route path="/comptabilite/plateformes" element={pluginRoute('/comptabilite/plateformes', <PlatformAccountsPage />)} />
           <Route path="/emails"            element={<EmailTemplatesPage />} />
           <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />

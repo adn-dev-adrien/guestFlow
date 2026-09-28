@@ -5,6 +5,9 @@ import { vi } from 'vitest';
 
 import AccountFormDialog from '../AccountFormDialog';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // Verifies the per-field invariants documented in specs/admin-account-management.md §6.2:
 //   - email is locked in edit mode (helper-text explains why)
 //   - the admin role checkbox is locked when isSelf=true and the user already has admin (rule 12)

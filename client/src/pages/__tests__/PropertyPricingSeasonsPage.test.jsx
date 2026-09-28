@@ -39,6 +39,9 @@ import api from '../../api';
 import DialogProvider from '../../components/DialogProvider';
 import PropertyPricingSeasonsPage from '../PropertyPricingSeasonsPage';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // The page calls useToast, which lives behind DialogProvider.
 const renderPage = () => render(<DialogProvider><PropertyPricingSeasonsPage /></DialogProvider>);
 

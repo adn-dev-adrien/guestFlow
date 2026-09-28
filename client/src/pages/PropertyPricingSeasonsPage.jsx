@@ -31,6 +31,9 @@ import PlatformPriceCard from '../components/PlatformPriceCard';
 import TariffRecipeCard from '../components/property/TariffRecipeCard';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
+import PluginGate from '../components/PluginGate';
+import { usePlugin } from '../hooks/usePlugins';
+import { SCHOOL_HOLIDAYS, TARIFF_RECIPES } from '../constants/plugins';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { getSchoolHolidayInfo } from '../frenchHolidays';
@@ -207,6 +210,9 @@ function sanitizeDecimalInput(raw) {
 
 export default function PropertyPricingSeasonsPage() {
   const { id } = useParams();
+  // specs/plugins-phase-0-foundation.md rules 16 and 18 — no school-holiday call and no recipe card
+  // while their plugins are inactive.
+  const schoolHolidaysOn = usePlugin(SCHOOL_HOLIDAYS);
   const navigate = useNavigate();
 
   const [property, setProperty] = useState(null);
@@ -281,7 +287,7 @@ export default function PropertyPricingSeasonsPage() {
     try {
       [p, holidays, props] = await Promise.all([
         api.getProperty(id),
-        api.getSchoolHolidays(),
+        schoolHolidaysOn ? api.getSchoolHolidays() : Promise.resolve({ periods: [] }),
         api.getProperties(),
       ]);
     } catch (e) {
@@ -303,7 +309,7 @@ export default function PropertyPricingSeasonsPage() {
     });
     setSchoolHolidays(holidays?.periods || []);
     setAllProperties(props || []);
-  }, [id]);
+  }, [id, schoolHolidaysOn]);
 
   useEffect(() => {
     loadData();
@@ -1017,6 +1023,7 @@ export default function PropertyPricingSeasonsPage() {
       </Grid>
 
       {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
+      <PluginGate id={TARIFF_RECIPES}>
       <TariffRecipeCard
         propertyId={id}
         activeRecipeId={property.tariffRecipeId || ''}
@@ -1025,6 +1032,7 @@ export default function PropertyPricingSeasonsPage() {
         onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
         onError={(message) => showError(message)}
       />
+      </PluginGate>
 
       <Card sx={{ mb: 3 }}>
         <CardContent>

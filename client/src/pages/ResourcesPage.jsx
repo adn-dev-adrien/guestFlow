@@ -4,7 +4,15 @@ import {
   TextField, FormGroup, Checkbox
 } from '@mui/material';
 import api from '../api';
-import PricedItemsPage from '../components/PricedItemsPage';
+import PricedItemsPage, { PRICE_TYPES } from '../components/PricedItemsPage';
+import { usePlugin } from '../hooks/usePlugins';
+import { HOURLY_RESOURCES } from '../constants/plugins';
+
+// Without the hourly-resources plugin, « Par heure » is no longer offered; a resource that already
+// has it keeps it, labelled (specs/plugins-phase-0-foundation.md rule 20).
+const PRICE_TYPES_WITHOUT_HOURLY = PRICE_TYPES.map((t) => (t.value === 'per_hour'
+  ? { ...t, label: 'Par heure (plugin inactif)', retired: true }
+  : t));
 import { alpha } from '@mui/material/styles';
 
 const SLOT_DURATION_OPTIONS = [
@@ -348,9 +356,11 @@ export function toResourcePayload(form) {
 }
 
 export default function ResourcesPage({ barTabs }) {
+  const hourlyOn = usePlugin(HOURLY_RESOURCES);
   return (
     <PricedItemsPage
       barTabs={barTabs}
+      priceTypes={hourlyOn ? PRICE_TYPES : PRICE_TYPES_WITHOUT_HOURLY}
       pageTitle="Ressources"
       itemLabel="ressource"
       emptyForm={emptyResource}

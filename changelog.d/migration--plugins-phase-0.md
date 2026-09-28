@@ -1,0 +1,1 @@
+- **New `plugins` table** (spec `plugins-phase-0-foundation.md` §5). Migration `plugins_builtin_seed_v1` installs the twelve built-in plugins **active** on every existing database (one with a property or a reservation): nothing changes on screen after the update. A brand-new database starts with none. No existing row is touched.

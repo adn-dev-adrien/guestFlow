@@ -48,6 +48,9 @@ import api from '../../../api';
 import IntegrationsSettingsPage from '../IntegrationsSettingsPage';
 import { CONFIGURED_SETTINGS } from '../../../components/__tests__/neatSectionFixtures';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 function settingsPayload(over = {}) {
   return {
     company: { name: 'Domaine Solio' },

@@ -5,6 +5,9 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/tourist-tax-included-services-deduction.md rule 4 — a service included in the rate (a
 // property default marked « offerte ») is sold inside the night: it leaves the tourist-tax base and
 // it cannot be removed from the booking. Its Switch reads ON, disabled, captioned « Inclus ».

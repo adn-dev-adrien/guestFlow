@@ -2,6 +2,8 @@
 // (a server unit test snapshots ROLES + ROLE_LABELS to catch drift); this file is the read-only
 // projection used by the UI (sidebar gating, role multi-select, status chips).
 
+import { isRouteEnabled } from './plugins';
+
 export const ADMIN = 'admin';
 export const ACCOUNTANT = 'accountant';
 // specs/reception-role-checkin-only.md — on-site check-in/out staff, no financial access.
@@ -85,14 +87,18 @@ export const ROUTE_ROLES = Object.freeze({
   '/settings/integrations':  [ADMIN],
   '/settings/systeme':       [ADMIN],
   '/settings/utilisateurs':  [ADMIN],
+  // specs/plugins-phase-0-foundation.md rule 21 — the Plugins page.
+  '/parametres/plugins':     [ADMIN],
   // Rule 6 — « Mon compte » (my information, my password) for every role.
   '/mon-compte':             [ADMIN, ACCOUNTANT, RECEPTION],
 });
 
+// A page also needs its plugin active (specs/plugins-phase-0-foundation.md rule 16): the sidebar, the
+// settings submenu and the route guard all go through this one predicate.
 export function canSeeRoute(user, path) {
   const allowed = ROUTE_ROLES[path];
   if (!allowed) return false;
-  return allowed.some((role) => userHasRole(user, role));
+  return allowed.some((role) => userHasRole(user, role)) && isRouteEnabled(user, path);
 }
 
 // `paths` is the set of children a parent submenu wraps. The parent is visible iff at least one

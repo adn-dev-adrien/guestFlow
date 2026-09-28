@@ -14,6 +14,8 @@ import { formatCurrency } from '../../utils/formatters';
 import OptionRow from './OptionRow';
 import OptionCategorySection from './OptionCategorySection';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
+import { usePlugin } from '../../hooks/usePlugins';
+import { HOURLY_RESOURCES } from '../../constants/plugins';
 
 // French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
 function occurrenceDateLabel(iso) {
@@ -123,6 +125,13 @@ export default function ExtrasSection() {
     bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode,
   } = useReservationForm();
+  // specs/plugins-phase-0-foundation.md rules 7 and 20 — without the hourly-resources plugin a per-hour
+  // resource cannot be added any more, but one already on the stay stays listed with its price.
+  const hourlyOn = usePlugin(HOURLY_RESOURCES);
+  const offerableResources = hourlyOn
+    ? displayableResources
+    : displayableResources.filter((r) => r.priceType !== 'per_hour'
+      || form.selectedResources.some((sr) => sr.resourceId === r.id && Number(sr.quantity) > 0));
   // specs/force-extras-complement-on-platform.md §3: non-direct platforms DEFAULT every operator-added
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). A muted caption explains the default. Only engine-derived auto-options keep
@@ -274,13 +283,13 @@ export default function ExtrasSection() {
             </Box>
           </>
 
-          {displayableResources.length > 0 && (
+          {offerableResources.length > 0 && (
             <>
               {visiblePropertyOptions.length > 0 && <Divider />}
               <Box>
                 <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }} gutterBottom>Ressources</Typography>
                 <Stack spacing={1.25}>
-                  {displayableResources.map(resource => {
+                  {offerableResources.map(resource => {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                     const enabled = Boolean(selected && Number(selected.quantity) > 0);
                     const isPerHour = Boolean(resource.isComplex) || resource.priceType === 'per_hour';
@@ -391,7 +400,7 @@ export default function ExtrasSection() {
                             </Stack>
                           )}
 
-                          {enabled && isHourlyScheduled && <ResourceSessions resource={resource} />}
+                          {enabled && isHourlyScheduled && hourlyOn && <ResourceSessions resource={resource} />}
                         </CardContent>
                       </Card>
                     );

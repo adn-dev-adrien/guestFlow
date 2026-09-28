@@ -16,6 +16,8 @@ import CalendarDayCell from '../components/CalendarDayCell';
 import CalendarNoteDialog from '../components/CalendarNoteDialog';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
+import { usePlugin } from '../hooks/usePlugins';
+import { SCHOOL_HOLIDAYS } from '../constants/plugins';
 import { getDayOccupancyConflictMessage, getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
 import { formatDate, shiftDate, getDaysInMonth, CLEANING_COLOR, ZONE_COLORS } from '../utils/calendarVisuals';
@@ -27,6 +29,9 @@ export default function CalendarPage() {
   const { alert } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [searchParams] = useSearchParams();
+  // The zone bands and their legend belong to the school-holidays plugin
+  // (specs/plugins-phase-0-foundation.md rule 16).
+  const schoolHolidaysOn = usePlugin(SCHOOL_HOLIDAYS);
   const navigate = useNavigate();
 
   const [loadError, setLoadError] = useState(false);
@@ -156,7 +161,11 @@ export default function CalendarPage() {
     focusOnMonth(now.getFullYear(), now.getMonth(), { resetNavLocks: true });
   };
 
-  useEffect(() => { loadProperties(); loadSchoolHolidays(); }, []);
+  useEffect(() => { loadProperties(); }, []);
+  useEffect(() => {
+    if (schoolHolidaysOn) loadSchoolHolidays();
+    else setSchoolHolidays([]);
+  }, [schoolHolidaysOn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadCalendarData(); }, [loadCalendarData]);
 
   // Read URL params for navigation from dashboard
@@ -448,7 +457,7 @@ export default function CalendarPage() {
       {/* Colour legend (cleaning + school-holiday zones) — informational, stays next to the grid. */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
         <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'common.white' }} />
-        {[['A', ZONE_COLORS.A], ['B', ZONE_COLORS.B], ['C', ZONE_COLORS.C]].map(([zone, color]) => (
+        {schoolHolidaysOn && [['A', ZONE_COLORS.A], ['B', ZONE_COLORS.B], ['C', ZONE_COLORS.C]].map(([zone, color]) => (
           <Box key={zone} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
             <Typography variant="caption" color="text.secondary">Zone {zone}</Typography>

@@ -196,3 +196,37 @@ test('aucune règle ajoutée : le contrôle passe sans rien dire', async () => {
   const { gateVerdict } = await load();
   assert.deepEqual(gateVerdict({}), { ok: true, failures: [], warnings: [] });
 });
+
+// specs/spec-rule-coverage.md §3.1 rule 2 + §3.2 rule 8 — la barrière ne compte comme règle ajoutée
+// qu'une entrée de la section « Functional rules ». Le 2026-09-28 elle bloquait une PR sur les
+// listes numérotées d'une étude (§1, §11, §12…) : des lignes « 1. » que le diff ne situe pas.
+test('la barrière ignore les lignes numérotées hors de la section des règles', async () => {
+  const { rulesChangedInDiff } = await load();
+  const diff = [
+    '+++ b/specs/etude.md',
+    '+1. Une raison dans le contexte.',
+    '+2. Un risque.',
+    '+++ b/specs/ma-spec.md',
+    '+7. Une vraie règle ajoutée.',
+    '+8. Une règle déclarée sans test.',
+  ].join('\n');
+  const specsNow = new Map([
+    ['etude', []],
+    ['ma-spec', [{ id: '7', exempt: false }, { id: '8', exempt: true }]],
+  ]);
+  const { addedRules } = rulesChangedInDiff(diff, specsNow);
+  assert.deepEqual(addedRules, [
+    { spec: 'ma-spec', rule: '7', exempt: false },
+    { spec: 'ma-spec', rule: '8', exempt: true },
+  ]);
+});
+
+test('une règle reformulée reste une modification, pas un ajout', async () => {
+  const { rulesChangedInDiff } = await load();
+  const diff = ['+++ b/specs/ma-spec.md', '-3. Ancienne formulation.', '+3. Nouvelle formulation.'].join('\n');
+  const specsNow = new Map([['ma-spec', [{ id: '3', exempt: false }]]]);
+  assert.deepEqual(rulesChangedInDiff(diff, specsNow), {
+    addedRules: [],
+    modifiedRules: [{ spec: 'ma-spec', rule: '3' }],
+  });
+});
