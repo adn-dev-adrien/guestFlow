@@ -12,4 +12,4 @@
   - Site: new mu-plugin `gf-analytics.php` relays those events to a self-hosted, cookieless Umami (inert until configured).
   - The 301 redirects of old addresses keep their `utm_*` parameters.
   - A « Confidentialité / Privacy » footer link.
-  - +16 server tests, +6 client tests.
+  - +17 server tests, +6 client tests.

@@ -65,25 +65,48 @@ measured requires it.
    with the five settings that move together (notes `02-architecture-cible.md`, "piège 11"):
    firewall, `ADN_GUESTS`, `backup-nightly`, probe `/etc/adn/probes/<id>.sh`, and a Prometheus
    `nodes` target with `prometheus-node-exporter-collectors`.
+
+> **Sans test** — infrastructure outside this repository (Proxmox LXC); checked by the probe `/etc/adn/probes/<id>.sh` and the Prometheus `nodes` target, per §4.0.
+
 2. **The tracker is first-party.** Caddy (`edge`) proxies `https://domainesolio.com/_s/*` to the
    Umami LXC. That path carries the script and the `/_s/api/send` collect endpoint. The site never
    loads a third-party domain, so ad-blockers that match Umami hostnames or script names do not
    blind the measurement. The script is served under a neutral name.
+
+> **Sans test** — Caddy configuration on the `edge` LXC, outside this repository; checked by the `stats` probe of rule 25.
+
 3. **The Umami dashboard is not exposed to the Internet.** The admin UI is reachable on the LAN only,
    at `stats.maison.adn-dev.fr` (internal names, LXC 109). Only `/_s/script.js` and `/_s/api/send`
    are public. There is no access from outside the LAN, not even a read-only share link (§9 Q1).
+
+> **Sans test** — network exposure of the Umami admin UI, outside this repository; checked by hand from outside the LAN.
+
 4. A mu-plugin `gf-analytics.php` injects the tracker on every public page, FR and EN, `defer`,
    with `data-domains="domainesolio.com"`. This keeps local copies, staging and `wp.` hosts out of
    the statistics.
+
+> **Sans test** — WordPress mu-plugin with no test harness in this repository; checked on the live site (§7 « Plugin / site »).
+
 5. **No tracker for a logged-in WordPress user.** Adrien's own visits and edits must not inflate the
    numbers. The tracker is also absent from `wp-admin`, `wp-login.php`, previews and the REST API.
+
+> **Sans test** — WordPress mu-plugin with no test harness; checked on the live site while logged in (§7).
+
 6. **No cookie, no identifier, no personal data** are sent to Umami. Event properties never include
    a name, e-mail, phone, message, reservation number or price. They are limited to the lodging slug,
    night count, guest count, language, step and refusal reason (rule 12).
+
+> **Sans test** — the event properties are listed by rule 10 and emitted by browser code with no test harness; checked on the live site by reading the requests to `/_s/api/send` (§7).
+
 7. Umami data is purged after **25 months** by a daily job on the LXC (§9 Q4). This matches the
    CNIL retention limit for exempt audience measurement.
+
+> **Sans test** — a cron job on the `stats` LXC, outside this repository; checked by a dry run (§7 « Infrastructure »).
+
 8. The Umami version is pinned and upgraded manually, like the other self-hosted apps. The LXC's OS
    follows the automatic maintenance window (`09-maintenance-auto.md`).
+
+> **Sans test** — an operating rule for the Umami install, not code.
 
 ### B. Booking funnel events
 
@@ -91,6 +114,9 @@ measured requires it.
    dispatches a `CustomEvent('guestflow:booking', { detail: { name, ...detail } })` on `document`
    and knows nothing about Umami. The plugin stays tool-agnostic: any site running it can listen
    with GA4, Matomo or nothing.
+
+> **Sans test** — plugin browser runtime with no test harness in this repository; checked on the live site (§7).
+
 10. The engine (`blocks/booking/view.js`), the Solio drawer (`gf-seo-reservation.php`) and the home
     search bar (`gf-search.php`) call `GF.track` at the steps below. Each event fires **once per
     step change**, not on every re-render. For example, re-picking the same dates does not fire
@@ -110,11 +136,18 @@ measured requires it.
     | `booking-pay` | Redirect to Qonto | `lodging` |
     | `booking-paid` | Return with a confirmed status | `lodging` |
 
+> **Sans test** — plugin and site browser code with no test harness; checked on the live site through the Umami funnel (§7).
+
 11. `gf-analytics.php` listens to `guestflow:booking` and forwards each event to `umami.track(name,
     props)`. If Umami did not load (blocked, down), nothing happens and the tunnel is unaffected.
     **Analytics must never be able to break a booking**: every listener is wrapped in `try/catch`.
+
+> **Sans test** — site mu-plugin browser code with no test harness; checked on the live site by blocking `/_s/` (§7).
+
 12. `lodging` is a **slug of the lodging's name** as the engine displays it (`la-granja`,
     `l-estiva`, built by `GF.slug`), never the GuestFlow numeric id. The Umami funnel reads in words.
+
+> **Sans test** — plugin browser code with no test harness; checked on the live site (§7).
 
 ### C. Booking attribution in GuestFlow
 
@@ -132,6 +165,9 @@ measured requires it.
 
     `sessionStorage` dies with the tab. Nothing survives the visit, and nothing is shared across
     sites (§9 Q2 records the legal reading).
+
+> **Sans test** — plugin browser code (`assets/attribution.js`) with no test harness; checked on the live site with a `utm_campaign` link (§7).
+
 14. `POST /booking-requests` sends that record as an optional **`attribution`** object. The WordPress
     proxy already forwards the body unfiltered (`class-gf-rest-proxy.php:198`), so the plugin adds no
     proxy change. An absent or empty record means "unknown", never an error.
@@ -141,17 +177,17 @@ measured requires it.
     rejects the booking request.** A guest must never lose a booking over analytics metadata.
 16. The server derives a **channel** from the validated record (pure function, unit-tested). The first
     matching rule wins:
-    1. any `utm*` present → `campaign`, labelled by `utmCampaign` (fallback `utmSource`);
-    2. referrer is a known AI assistant (`chatgpt.com`, `chat.openai.com`, `perplexity.ai`,
+    - (a) any `utm*` present → `campaign`, labelled by `utmCampaign` (fallback `utmSource`);
+    - (b) referrer is a known AI assistant (`chatgpt.com`, `chat.openai.com`, `perplexity.ai`,
        `claude.ai`, `gemini.google.com`, `copilot.microsoft.com`) → `ai`;
-    3. referrer is a known search engine (Google, Bing, DuckDuckGo, Qwant, Ecosia, Yahoo, any
+    - (c) referrer is a known search engine (Google, Bing, DuckDuckGo, Qwant, Ecosia, Yahoo, any
        country TLD) → `search`;
-    4. referrer is a known social network (`instagram.com`, `l.instagram.com`, `facebook.com`,
+    - (d) referrer is a known social network (`instagram.com`, `l.instagram.com`, `facebook.com`,
        `m.facebook.com`, `l.facebook.com`, `pinterest.*`, `linkedin.com`, `t.co`, `x.com`,
        `tiktok.com`, `youtube.com`) → `social`;
-    5. any other external referrer → `referral`, labelled by its host;
-    6. no referrer and no UTM → `direct`;
-    7. no attribution sent at all (older plugin, blocked storage) → `NULL`, shown as "Inconnue".
+    - (e) any other external referrer → `referral`, labelled by its host;
+    - (f) no referrer and no UTM → `direct`;
+    - (g) no attribution sent at all (older plugin, blocked storage) → `NULL`, shown as "Inconnue".
 
     The label is normalized for display: `instagram` → "Instagram", `google` → "Google", etc.
 17. The channel, label and raw record are stored on the devis row in the `persist` transaction of
@@ -160,6 +196,8 @@ measured requires it.
     conversion would erase the site's share exactly when the booking becomes real.
 18. Attribution is **read-only** in the back-office. It records how the guest arrived, not an
     operator setting. Reservations created by hand or imported by iCal have none.
+
+> **Sans test** — no back-office route writes these columns: the public controller (rule 17) and the conversion carry-over are the only writers, and both are tested.
 
 ### D. Back-office views
 
@@ -170,6 +208,9 @@ measured requires it.
     A public request without attribution shows "Origine inconnue".
 20. The devis list's "Origine" filter (`specs/admin-public-request-visibility.md`) is unchanged.
     Filtering by channel is out of scope.
+
+> **Sans test** — states that the existing filter is unchanged; its behaviour is covered by the admin-public-request-visibility tests.
+
 21. The Finance page gains a **"Canaux de réservation"** card for the selected period (same period
     selector and the same "sur la période / depuis le début de l'exercice" tabs as the per-lodging
     chart). It has one row per channel:
@@ -201,6 +242,8 @@ measured requires it.
     property by DNS TXT record (Adrien adds it at the registrar). The sitemap `wp-sitemap.xml` is
     submitted to both. No meta tag goes in the site.
 
+> **Sans test** — an operator task at the registrar and in Google/Bing consoles, not code.
+
 ### F. Availability alerts (Prometheus, VM 108)
 
 25. `prometheus-blackbox-exporter` is installed on VM 108 with three probe groups:
@@ -209,6 +252,9 @@ measured requires it.
       JSON array. It exercises WordPress → proxy → GuestFlow → DB end to end, the chain that broke
       silently on 2026-08-20;
     - **stats**: `https://domainesolio.com/_s/script.js`, expecting HTTP 200.
+
+> **Sans test** — Prometheus configuration on VM 108, outside this repository; rule 27 is its proof.
+
 26. Four rules join `adn-rules.yml`, routed through the existing Alertmanager → e-mail path:
 
     | Alert | Condition | For |
@@ -218,9 +264,13 @@ measured requires it.
     | `TlsCertExpiringSoon` | any probed certificate expires in < 14 days | 1 h |
     | `StatsDown` | stats probe failing | 30 min |
 
+> **Sans test** — Prometheus alert rules on VM 108, outside this repository; rule 27 is its proof.
+
 27. Each rule is proven once by forcing its condition, then checked to arrive in Gmail, as the
     existing rules were (`09-maintenance-auto.md`: "avant de croire un mail d'alerte, rejouer la
     sonde à la main"). A rule never seen firing is not trusted.
+
+> **Sans test** — this rule IS the manual proof: each alert forced once and received in Gmail.
 
 ### G. Privacy notice
 
@@ -233,6 +283,8 @@ measured requires it.
     - the identity of the controller and the rights of the data subject.
 
     The page content lives in the WordPress database. Only the footer template is versioned.
+
+> **Sans test** — the page content lives in the WordPress database; the footer link is checked on the live site (§7).
 
 **Edge cases:**
 - Visitor blocks `sessionStorage` or has an old cached plugin → no `attribution` sent → channel `NULL` → "Origine inconnue". The booking goes through.
@@ -393,8 +445,8 @@ réservation" funnel report** pre-built from `booking-open` → `booking-dates` 
 
 ## 7. Test plan
 
-### Server unit tests — 16
-`site-traffic-analytics.unit.test.js` (10), `finance-channel-breakdown.unit.test.js` (3), plus 2 cases
+### Server unit tests — 17
+`site-traffic-analytics.unit.test.js` (10), `finance-channel-breakdown.unit.test.js` (3), plus 3 cases
 in `public-booking-request-controller.unit.test.js` and 1 in `booking-request-language.unit.test.js`
 (the existing conversion fixture). Seven finance suites gained the four columns in their minimal
 schema.

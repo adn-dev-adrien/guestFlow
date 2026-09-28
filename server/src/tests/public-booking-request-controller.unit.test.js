@@ -259,6 +259,16 @@ test('a valid attribution is classified and stored on the new devis', () => {
   assert.equal(id, 99);
 });
 
+// specs/site-traffic-analytics.md rule 14 — an older plugin sends nothing: unknown, never an error.
+test('a request without attribution goes through and records no source', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody(), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.attribution, undefined);
+});
+
 test('an invalid attribution is dropped and the request still goes through', () => {
   const captures = {};
   const ctrl = buildController({ captures });
