@@ -5,6 +5,9 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/cancellation-insurance.md §3.1 rule 5bis + §6.2 — the insurance is a yes/no product whatever
 // its price type: the server bills it for the whole stay, so the fiche shows no « Qté » to type. The
 // per-night rate and its « ×N j. » hint say exactly what will be billed.

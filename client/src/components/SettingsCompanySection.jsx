@@ -15,6 +15,8 @@ import React from 'react';
 import { Card, CardContent, Stack, Typography, TextField, Divider, Box } from '@mui/material';
 import LogoUpload from './LogoUpload';
 import HelpedTextField from './HelpedTextField';
+import PluginGate from './PluginGate';
+import { GATE_ACCESS } from '../constants/plugins';
 
 export default function SettingsCompanySection({
   values,
@@ -143,14 +145,16 @@ export default function SettingsCompanySection({
             disabled={disabled}
           />
 
-          <Divider />
-          <TextField
-            label="Code portail"
-            value={v.portalCode || ''}
-            onChange={setEvt('portalCode')}
-            helperText="Code du portail du domaine, communiqué au client à l'arrivée (SAS)."
-            disabled={disabled}
-          />
+          <PluginGate id={GATE_ACCESS}>
+            <Divider />
+            <TextField
+              label="Code portail"
+              value={v.portalCode || ''}
+              onChange={setEvt('portalCode')}
+              helperText="Code du portail du domaine, communiqué au client à l'arrivée (SAS)."
+              disabled={disabled}
+            />
+          </PluginGate>
         </Stack>
       </CardContent>
     </Card>

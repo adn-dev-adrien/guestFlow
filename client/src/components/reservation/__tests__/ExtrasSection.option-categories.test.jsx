@@ -6,6 +6,9 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/option-categories.md §3 rules 7-14 — collapsible option categories on the fiche.
 //
 // The rule that matters most: an option ENABLED on the reservation renders outside the collapse

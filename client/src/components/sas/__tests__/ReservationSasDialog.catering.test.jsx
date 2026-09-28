@@ -8,6 +8,9 @@ import { vi } from 'vitest';
 import api from '../../../api';
 import { sasPayload, BREAKFAST_OFFER, MEAL_OFFER, BOARD_OFFER, salesPayload, renderDialog, clickBtn } from './sasFixtures';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // Mock the API the dialog consumes.
 vi.mock('../../../api', () => ({
   default: {

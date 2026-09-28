@@ -26,6 +26,8 @@ import GateKeysAlert from '../components/GateKeysAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
+import PluginGate from '../components/PluginGate';
+import { LINEN, GATE_ACCESS, TARIFF_RECIPES, WEBSITE_BOOKING } from '../constants/plugins';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -365,7 +367,7 @@ export default function Dashboard() {
           <UpdateAvailableAlert />
           {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
               contained: renders nothing when no shortage is projected. */}
-          <LinenShortageAlert />
+          <PluginGate id={LINEN}><LinenShortageAlert /></PluginGate>
           {/* Échéances de paiement dépassées (specs/payment-schedule-and-cancellation.md §3.4).
               Sits high: it is the only surface that says an acompte or un solde is late, and the
               only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
@@ -373,7 +375,7 @@ export default function Dashboard() {
           {/* Gate keys Sowel could not make, or a Sowel that stopped reading the list
               (specs/gate-access-sowel-connector.md §3.3). A guest at a closed gate is the cost of
               missing it, hence high. Renders nothing when all is well. */}
-          <GateKeysAlert />
+          <PluginGate id={GATE_ACCESS}><GateKeysAlert /></PluginGate>
           {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
               Self-contained: renders nothing when no pending drift exists. */}
           <IcalDateDriftAlert />
@@ -387,13 +389,13 @@ export default function Dashboard() {
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <IcalNewReservationsAlert />
-          <TariffRecipeRunsAlert />
+          <PluginGate id={TARIFF_RECIPES}><TariffRecipeRunsAlert /></PluginGate>
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <EmailPendingAlert />
           {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
               Self-contained: renders nothing when there is no pending website request. */}
-          <DevisPublicRequestAlert />
+          <PluginGate id={WEBSITE_BOOKING}><DevisPublicRequestAlert /></PluginGate>
         </>
       )}
 

@@ -67,6 +67,13 @@ const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/auth/me'),
+
+  // Plugins (specs/plugins-phase-0-foundation.md §4.3) — admin only.
+  getPlugins: () => request('/plugins'),
+  installPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST' }),
+  activatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
+  deactivatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST' }),
+  uninstallPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 

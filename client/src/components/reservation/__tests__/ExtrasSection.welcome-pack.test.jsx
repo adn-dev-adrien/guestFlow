@@ -5,6 +5,9 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/welcome-pack-auto-options.md §6 — an option that ticked itself must say why. The chip is the
 // only visible difference between a pack line and the same option added by hand.
 

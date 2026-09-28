@@ -6,6 +6,9 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/card-option-served-persons.md §3.2 — « Personnes servies » on a per-person card option: a
 // meal or a breakfast is not always taken by the whole table (the children often skip it). The field
 // takes the place of the « Qté » field, which a card option deliberately hides (its moments ARE the

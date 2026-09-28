@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/plugins-phase-0` _(created once the spec is approved)_ |
 | **Created** | 2026-09-28 |
 | **Author** | Adrien |
@@ -74,10 +74,12 @@ what is installed and active. A new customer starts with none; Solio keeps all t
    edit* them disappear.
 8. **Refusals** — deactivating or uninstalling is refused, with the reason and the way out, when it would
    leave something live without its tool:
-   - `online-payment` while a payment link is still `open` → « N lien(s) de paiement en attente. Attends
-     leur paiement ou annule-les avant de désactiver. »
-   - `sas` while an active user holds the reception role without admin → « N compte(s) Accueil actifs.
-     Change leur rôle dans Utilisateurs d'abord. »
+   - `online-payment` while a payment link is still `open` → « 1 lien de paiement est en attente. Attends
+     son paiement ou annule-le avant de désactiver. » (plural: « N liens … Attends leur paiement ou
+     annule-les … »)
+   - `sas` while an active user holds the reception role without admin → « 1 compte Accueil est actif.
+     Change son rôle dans Utilisateurs d'abord. » (plural: « N comptes Accueil sont actifs. Change leur
+     rôle … »)
    - `accounting-export` while an active user holds the accountant role without admin → same wording
      with « Comptable ».
    The server is authoritative; the page shows the same message before the click (status `blocked`).
@@ -100,17 +102,22 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     without a reload.
 15. **Server** — for an inactive plugin:
     - its API routes answer **404** `{ "error": "PLUGIN_INACTIVE", "plugin": "<id>" }`;
-    - its public routes (`/public/v1/*` for `website-booking`, `/public/v1/gate` for `gate-access`)
-      answer 404 the same way — the WordPress site then shows its "unavailable" state;
+    - its public routes (`/public/v1/*` for `website-booking`, `/public/v1/gate` for `gate-access`, the
+      public pay and status routes of a site devis for `online-payment`) answer 404 the same way — the
+      WordPress site then shows its "unavailable" state;
+    - the cancellation compensations share the `/api/accounting` prefix but are **core** (D6): only the
+      export routes (`sales`, `sales.csv`, `platforms`, `platform-accounts`) belong to
+      `accounting-export`. The dashboard alert settles a compensation without the accounting page;
     - its scheduled jobs skip their tick;
-    - the direct calls from core code into it return immediately (Google push, Neat kick, Qonto
-      polling, gate stale-read pass).
+    - the direct calls from core code into it return immediately: the Google push, delete and
+      reconcile (one guard in the sync's `isActive`), the Neat kick from the payment flows (one guard
+      in its `runPass`).
 16. **Client** — for an inactive plugin nothing points to it:
 
     | Plugin | Hidden |
     |---|---|
-    | `hourly-resources` | Calendrier › Ressources; « à l'heure » price type and hourly fields of resources; sessions picker of the reservation page; resource cards and ignition of the planning |
-    | `linen` | Paramètres › Linge; linen shortage alert; laundry button, cards and dialogs of the planning; linen and towel steps of the SAS |
+    | `hourly-resources` | Calendrier › Ressources; « à l'heure » price type of resources (rule 20); a per-hour resource not already on the stay, and the sessions picker, on the reservation page; resource cards of the planning; the scheduling step of the SAS |
+    | `linen` | Paramètres › Linge; linen shortage alert; laundry button, cards and dialogs of the planning; the linen, linen-items and bath-linen steps of the SAS |
     | `website-booking` | « Demandes du site » alert; « Site internet » badge and filter of the quotes; CGV acceptance line of the reservation page |
     | `gate-access` | Intégrations › Accès portail; portal code field of Établissement; gate keys alert; gate card of the reservation page; portal step of the SAS |
     | `neat` | Intégrations › Neat; Neat chip, retry and void on the insurance option row |
@@ -126,14 +133,17 @@ what is installed and active. A new customer starts with none; Solio keeps all t
     **Intégrations** (Google, Neat, Météo, Portail) — empty → hidden.
 18. The client never calls the API of an inactive plugin (no 404 noise in the console).
 19. A URL typed by hand to a hidden page (e.g. `/parametres/recettes`) lands on the home page, as a role
-    refusal does today.
-20. Existing per-hour resources stay listed in the options catalogue when `hourly-resources` is inactive,
-    with a « Plugin inactif » badge and no booking tool; their past sessions stay on the stays (rule 7).
+    refusal does today — or on « Mon compte » for a role without a home page (accountant).
+20. Existing per-hour resources stay listed in the options catalogue when `hourly-resources` is inactive:
+    their price type reads « Par heure (plugin inactif) » and is only offered in the form of a resource
+    that already has it. A per-hour resource already on a stay stays listed there with its price, without
+    the sessions picker; its past sessions stay on the stays (rule 7).
 
 ### 3.E The Plugins page
 
 21. Entry **Paramètres › Plugins**, last of the settings menu, admin only.
-22. Two tabs, « Installés » and « Disponibles », a search field, one card per plugin: icon, name, one-line
+22. Two tabs, « Installés (n) » and « Disponibles (n) » — the `PageTabs` of the action bar, like every
+    other tabbed page — a search field, one card per plugin: icon, name, one-line
     description, status (Actif / Inactif), the action (Activer / Désactiver on installed, Installer on
     available). A click on the card opens its detail: what it adds, and « Désinstaller » behind a
     two-click confirmation.
@@ -162,16 +172,21 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `constants/` | `plugins.js` | C | The 12-plugin catalogue (rule 2) and the id constants |
-| `models/` | `pluginsModel.js` | C | Reads/writes the `plugins` table; `isActive(id)`, `listActiveIds()` (cached, invalidated on write) |
+| `models/` | `pluginsModel.js` | C | Reads/writes the `plugins` table; `isActive(id)`, `listActiveIds()` read the table each time (no cache: a write by another process, e.g. the E2E seed, is seen at once); blocker counts |
 | `controllers/` | `pluginsController.js` | C | List with states and blockers; install / activate / deactivate / uninstall; refusal rules (rule 8) |
 | `routes/` | `plugins.js` | C | `GET /api/plugins`, `POST /:id/install`, `POST /:id/activate`, `POST /:id/deactivate`, `DELETE /:id` |
 | `middleware/` | `requirePlugin.js` | C | `requirePlugin(id)` → 404 `PLUGIN_INACTIVE` (rule 15) |
-| `index.js` | `index.js` | T | Mounts `/api/plugins`; wraps the plugin mounts: `/api/resource-bookings`, `/api/laundry`, `/api/neat`, `/api/payments` (webhook included), `/api/google-calendar`, `/api/accounting`, `/api/tariff-recipes`, `/api/school-holidays`, `/public/v1`, `/public/v1/gate` |
-| `routes/` | `reservations.js`, `settings.js`, `planning.js`, `properties.js`, `resources.js` | T | Per-route `requirePlugin` on the plugin endpoints inside core routers (SAS, lost items, gate access, weather alerts, linen items, repair amounts, laundry and resource cards, tariff recipe, free slots) |
+| `index.js` | `index.js` | T | Mounts `/api/plugins`; wraps the plugin mounts: `/api/resource-bookings`, `/api/laundry`, `/api/neat`, `/api/payments` (webhook included), `/api/google-calendar`, `/api/tariff-recipes`, `/api/school-holidays`, `/public/v1`, `/public/v1/gate` |
+| `routes/` | `accounting.js` | T | `requirePlugin` on the export routes only; the cancellation compensations stay core (rule 15) |
+| `routes/` | `reservations.js`, `settings.js`, `planning.js`, `properties.js`, `resources.js`, `public/bookingRequests.js` | T | Per-route `requirePlugin` on the plugin endpoints inside core routers (SAS, lost items, gate access, weather alerts, gate connector, laundry, linen inventory, resource cards, tariff recipe, free slots, public pay/status). The linen-items and repair-amounts settings stay readable: they are plain settings |
 | `controllers/` | `authController.js` | T | `me` and `login` add `enabledPlugins` |
-| `scheduledTasks.js` | `scheduledTasks.js` | T | Each plugin pass (payment poll, Google sync, Neat, tariff horizon, school holidays sync, gate stale read) returns early when its plugin is inactive |
-| `utils/` | `googleCalendarSync.js`, Neat kick, gate pass entry points | T | Early return when the plugin is inactive (rule 15, direct calls) |
-| `database.js` | `database.js` | T | `plugins` table + `plugins_builtin_seed_v1` migration (rules 10–12) |
+| `scheduledTasks.js` | `scheduledTasks.js` | T | Each plugin pass (payment poll, Google sync, Neat, tariff horizon, school holidays sync, gate stale read) is wrapped in `whenPluginActive`, checked at every tick |
+| `utils/` | `pluginScheduling.js` | C | `whenPluginActive(id, pass)` |
+| `utils/` | `pluginsSchema.js` | C | `plugins` table DDL + `plugins_builtin_seed_v1` (rules 10–12), testable on an in-memory DB |
+| `utils/` | `googleCalendarSync.js` | T | `pluginActive` factory dep (default on; the production instance wires the plugin state) checked in `isActive` |
+| `controllers/` | `neatController.js` | T | Same `pluginActive` dep, checked in `runPass` (covers the kicks) |
+| `database.js` | `database.js` | T | Calls `ensurePluginsTable` + `seedBuiltinPlugins` |
+| `scripts/` | `seed-e2e.js` | T | Installs the 12 plugins active for the Playwright suite (its DB starts empty = a new customer) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -179,21 +194,21 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 |---|---|---|---|
 | `constants/` | `plugins.js` | C | Plugin id constants; `ROUTE_PLUGINS` (path → plugin id) |
 | `constants/` | `roles.js` | T | `canSeeRoute` also checks `ROUTE_PLUGINS` against `user.enabledPlugins` — every sidebar item and route guard inherits it |
-| `constants/` | `settingsMenu.js` | T | `plugin` / `anyPlugin` on entries; new « Plugins » entry |
+| `constants/` | `settingsMenu.js` | T | New « Plugins » entry; `visibleSettingsMenu(isVisible)` drops hidden entries and the dividers left without a family (Intégrations uses `ROUTE_PLUGINS` any-of) |
 | `hooks/` | `usePlugins.js` | C | `usePlugin(id)` → boolean, from `useAuth().user.enabledPlugins` |
 | `components/` | `PluginGate.jsx` | C | Renders its children only when the plugin is active |
 | `components/` | `PluginCard.jsx` | C | One plugin card (status, action, detail, two-click uninstall, refusal) |
 | `pages/` | `PluginsPage.jsx` | C | The page (rules 21–24) |
-| `pages/` | `Dashboard.jsx`, `ReservationPage.jsx`, `DevisPage.jsx`, `PlanningPage.jsx`, `CalendarPage.jsx`, `OptionsResourcesPage.jsx`, `ResourcesPage.jsx`, `SeasonsClosuresPage.jsx`, `PropertyPricingSeasonsPage.jsx`, `settings/IntegrationsSettingsPage.jsx`, `settings/EstablishmentSettingsPage.jsx`, users page | T | Wrap each surface of rule 16 in `PluginGate` or `usePlugin` |
-| `components/` | `sas/ReservationSasDialog.jsx`, `reservation/ExtrasSection.jsx`, `reservation/OptionRow.jsx`, `property/PropertyTariffTab.jsx`, `CalendarDayCell.jsx`, `CalendarWeekView.jsx`, `SettingsCompanySection.jsx` | T | Same, for the embedded surfaces (SAS steps of linen, gate, weather, hourly; sessions picker; Neat chip; recipe column; zone bands; portal code) |
-| `App.jsx` | `App.jsx` | T | Route `/parametres/plugins`; hand-written sub-items use `can()` which now includes the plugin check |
+| `pages/` | `Dashboard.jsx`, `ReservationPage.jsx` (Neat block passed as null to the form context), `DevisPage.jsx`, `PlanningPage.jsx` (plugin fetches skipped), `CalendarPage.jsx` (holidays fetch and legend), `OptionsResourcesPage.jsx`, `ResourcesPage.jsx`, `SeasonsClosuresPage.jsx`, `PropertyPricingSeasonsPage.jsx`, `settings/IntegrationsSettingsPage.jsx` | T | Wrap each surface of rule 16 in `PluginGate` or `usePlugin` |
+| `components/` | `sas/ReservationSasDialog.jsx`, `reservation/ExtrasSection.jsx`, `property/PropertyTariffTab.jsx`, `SettingsCompanySection.jsx`, `AccountFormDialog.jsx`, `PricedItemsPage.jsx` (`retired` price types) | T | Same, for the embedded surfaces (SAS steps; per-hour resources and sessions picker; recipe column; portal code; role options; « Par heure ») |
+| `App.jsx` | `App.jsx` | T | Route `/parametres/plugins`; the settings submenu through `visibleSettingsMenu`; a route guard sends a hidden plugin page home (rule 19); hand-written sub-items use `can()` which now includes the plugin check |
 | `api.js` | `api.js` | T | `getPlugins`, `installPlugin`, `activatePlugin`, `deactivatePlugin`, `uninstallPlugin` |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `PageActionBar`, `StatusBadge`, `EmptyState`, `ErrorAlert`, `LoadingState`, `ConfirmDialog` | |
+| **Consumed (existing generic)** | `PageActionBar`, `PageTabs`, `StatusBadge`, `EmptyState`, `ErrorAlert`, `LoadingState` | |
 | **Created (new generic)** | `PluginGate` | Used by ~25 surfaces across 12 files, and by every future plugin slot |
 | **Specific (kept feature-local)** | `PluginCard` | Only the Plugins page lists plugins |
 
@@ -220,7 +235,7 @@ Unknown id → 404 `UNKNOWN_PLUGIN`.
 ```sql
 CREATE TABLE IF NOT EXISTS plugins (
   id           TEXT PRIMARY KEY,               -- catalogue id
-  enabled      INTEGER NOT NULL DEFAULT 1,     -- installed-and-active = 1, installed-and-inactive = 0
+  enabled      INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)), -- active = 1, inactive = 0
   source       TEXT NOT NULL DEFAULT 'builtin',-- 'builtin' now; 'registry' in phase 4
   version      TEXT,                           -- null for built-ins
   installed_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -246,41 +261,63 @@ The interactive mock-up is in the summary page. Copy:
 - Card actions: « Activer », « Désactiver », « Installer ». Detail: « Ce qu'il ajoute », « Désinstaller »,
   second click « Confirmer la désinstallation ». Uninstall note: « Tes données sont conservées : en le
   réinstallant, tu retrouves tout. »
-- Status: `StatusBadge` « Actif » (success) / « Inactif » (default).
+- Status: `StatusBadge` « Actif » (success) / « Inactif » (neutral).
 - Refusals: rule 8 wording, in red under the card.
 - `PageActionBar title="Plugins"` without Save/Cancel: each action is immediate.
 
-**Responsive:** `xs` — one card per row, full width, action button under the name, detail expands in
-place; `md`+ — two-column grid of cards. No dialog: the uninstall confirmation is inline.
+**Responsive:** `xs` — one card per row, action button full width under the name (44 px), detail expands
+in place, the tabs fold onto the second row of the action bar; `md`+ — two-column grid of cards. No
+dialog: the uninstall confirmation is inline.
 
 ## 7. Test plan
 
-### Server unit tests (`server/src/tests/plugins-phase-0.unit.test.js`)
+### Server unit tests — `server/src/tests/plugins-phase-0.unit.test.js` (25 tests)
 - Catalogue: 12 unique ids, every field present.
-- Seed migration: existing DB → 12 active; fresh DB → none; ledger prevents a second seed.
-- State transitions: install → active; deactivate → inactive; activate; uninstall → available;
-  409s for invalid transitions and unknown ids.
-- Refusals: open payment link blocks `online-payment`; active reception-only user blocks `sas`;
-  active accountant-only user blocks `accounting-export`; an admin holding those roles does not block.
-- `requirePlugin`: 404 `PLUGIN_INACTIVE` when inactive, pass-through when active — on one API mount,
-  one route inside a core router, `/public/v1`, the Qonto webhook.
-- Scheduled passes skip when inactive (one test per pass).
-- `me` / `login` carry `enabledPlugins`.
-- Money unchanged: a stay with hourly sessions and Neat keeps the same quote with both plugins inactive.
+- Seed migration: existing DB (property, or reservation only) → 12 active; fresh DB → none; the ledger
+  prevents a second seed after everything was uninstalled.
+- Model: transitions; a write from another connection is seen at once (no cache).
+- Controller: list with states; install → active; 409 `ALREADY_INSTALLED` / `NOT_INSTALLED`; 404
+  `UNKNOWN_PLUGIN`; deactivate / activate / uninstall.
+- Refusals: open payment link blocks `online-payment` (exact singular wording); active reception-only
+  users block `sas` (plural wording), an admin+reception or inactive user does not; accountant-only user
+  blocks `accounting-export`; the blocker shows in the list before the click, only on installed plugins.
+- `requirePlugin`: 404 `PLUGIN_INACTIVE` / `next()`; over real HTTP (`app.listen(0)` + fetch) a mounted
+  router disappears and comes back; the mounts and per-route guards are wired (`index.js`, accounting
+  export routes but not the compensations, SAS, resource cards, public pay).
+- Jobs: `whenPluginActive` skips then resumes; every plugin pass of the scheduler is wrapped; the Google
+  sync reads inactive; the Neat pass (and so its kicks) is skipped.
+- `login` / `me` carry `enabledPlugins`, never frozen into the session.
+- Money never moves: the pricing engine does not read plugin states (rule 7 — phase 0 touches no price
+  code, so the invariant is that no plugin check ever enters it).
 
-### Client tests (Vitest)
-- `roles.plugins.test.js`: `canSeeRoute` hides a plugin route when inactive, for admin and accountant.
-- `PluginsPage.test.jsx`: tabs, search, install/activate/deactivate, two-click uninstall, refusal shown.
-- `PluginGate.test.jsx`.
+### Client tests (Vitest) — 20 new tests
+- `constants/__tests__/roles.plugins.test.js` (10): plugin routes hidden without their plugin for admin
+  and accountant; Intégrations any-of; Plugins page admin-only; fail closed without the list;
+  `visibleSettingsMenu` drops entries and orphan dividers.
+- `components/__tests__/PluginGate.test.jsx` (3): children, nothing (never mounted), fallback.
+- `pages/__tests__/PluginsPage.test.jsx` (7): default tab, install from « Disponibles », deactivate +
+  auth refresh, refusal under the card, two-click uninstall, search + empty state, empty tab.
+- The 31 existing suites that render a gated component mock `usePlugin` to « every plugin active » —
+  the Solio configuration they describe; `roles.test.js` gives its users the full list.
 
-### E2E
-- The suite runs twice: all 12 active (Solio) and none active (new customer). The "none" run checks the
-  menu has no plugin entry and that no page makes a request answered `PLUGIN_INACTIVE`.
+### E2E — `e2e/specs/plugins/plugins-page.spec.js` (5 tests)
+- `seed-e2e.js` installs the 12 plugins active, so every existing spec keeps the Solio configuration.
+- The spec: 12 installed on the seeded DB; deactivating Google Agenda removes its Intégrations section
+  and its API answers 404 `PLUGIN_INACTIVE`, activating brings both back; two-click uninstall → «
+  Disponibles » → install back active; SAS deactivation refused by the seeded reception account; the
+  Plugins entry in the submenu.
+- **Changed from the approved plan:** the suite is not run a second time with every plugin off. The
+  suite runs in parallel locally, so a spec switching every plugin off would break the specs running
+  beside it, and running everything twice doubles the CI time. The « nothing active » configuration is
+  covered by the Vitest route/menu tests and by the manual walk below.
 
-### Manual verification
-- Solio copy of prod: after update, nothing changed on screen.
-- Deactivate each plugin one by one; check its surfaces of rule 16 disappear, then come back.
-- Mobile (375 px): Plugins page, sidebar with all plugins off.
+### Manual verification (done 2026-09-28)
+- New customer (fresh DB, no plugin): 23 core pages visited — no request answered `PLUGIN_INACTIVE`, no
+  page error; the menu shows only core entries plus « Plugins »; the 8 plugin pages typed by hand land
+  on the home page without mounting (so without any call); Options & ressources has 2 tabs, Vacances &
+  fermetures shows the closures without tabs.
+- Plugins page: installing Linge adds « Linge » to the menu without a reload; SAS deactivation refused.
+- Mobile 375 px: Plugins page without horizontal scroll, detail and two-click uninstall in place.
 
 ## 8. Out of scope
 

@@ -16,8 +16,8 @@ import PageTabs from '../components/PageTabs';
 import OptionsPage from './OptionsPage';
 import ResourcesPage from './ResourcesPage';
 import BillableAmountsPage from './BillableAmountsPage';
-
-const TABS = ['options', 'resources', 'sas'];
+import { usePlugin } from '../hooks/usePlugins';
+import { SAS } from '../constants/plugins';
 
 const ITEMS = [
   { value: 'options', label: 'Options' },
@@ -27,13 +27,16 @@ const ITEMS = [
 
 export default function OptionsResourcesPage() {
   const [params, setParams] = useSearchParams();
-  const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'options';
+  // « Facturables au SAS » belongs to the SAS plugin (specs/plugins-phase-0-foundation.md rule 16).
+  const sasOn = usePlugin(SAS);
+  const items = sasOn ? ITEMS : ITEMS.filter((i) => i.value !== 'sas');
+  const tab = items.some((i) => i.value === params.get('tab')) ? params.get('tab') : 'options';
 
   const barTabs = (
     <PageTabs
       value={tab}
       onChange={(next) => setParams(next === 'options' ? {} : { tab: next }, { replace: true })}
-      items={ITEMS}
+      items={items}
       ariaLabel="Options et ressources"
     />
   );

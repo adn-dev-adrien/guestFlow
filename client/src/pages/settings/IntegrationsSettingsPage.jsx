@@ -14,6 +14,8 @@ import SettingsGoogleCalendarSection from '../../components/SettingsGoogleCalend
 import SettingsNeatSection from '../../components/SettingsNeatSection';
 import SettingsWeatherSection from '../../components/SettingsWeatherSection';
 import SettingsGateAccessSection from '../../components/SettingsGateAccessSection';
+import PluginGate from '../../components/PluginGate';
+import { GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS } from '../../constants/plugins';
 
 export default function IntegrationsSettingsPage() {
   const navigate = useNavigate();
@@ -41,13 +43,16 @@ export default function IntegrationsSettingsPage() {
 
   return (
     <SettingsFormPage title="Intégrations" form={form} onSave={handleSave} onCancel={handleCancel}>
-      <SettingsGoogleCalendarSection />
-      <SettingsNeatSection ref={neatRef} onDirtyChange={handleNeatDirty} />
-      <SettingsWeatherSection
-        values={form.draft.weather}
-        onChangeApiKey={(value) => form.setField('weather', 'apiKeyDraft', value)}
-      />
-      <SettingsGateAccessSection />
+      {/* One section per plugin (specs/plugins-phase-0-foundation.md rules 16-17). */}
+      <PluginGate id={GOOGLE_CALENDAR}><SettingsGoogleCalendarSection /></PluginGate>
+      <PluginGate id={NEAT}><SettingsNeatSection ref={neatRef} onDirtyChange={handleNeatDirty} /></PluginGate>
+      <PluginGate id={WEATHER_ALERTS}>
+        <SettingsWeatherSection
+          values={form.draft.weather}
+          onChangeApiKey={(value) => form.setField('weather', 'apiKeyDraft', value)}
+        />
+      </PluginGate>
+      <PluginGate id={GATE_ACCESS}><SettingsGateAccessSection /></PluginGate>
     </SettingsFormPage>
   );
 }

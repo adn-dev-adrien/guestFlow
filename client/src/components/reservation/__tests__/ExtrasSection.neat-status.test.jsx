@@ -5,6 +5,9 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 // specs/neat-cancellation-insurance-subscription.md §3.3 rules 13-16 — the Neat chip + actions on
 // the insurance card. The block is server-shaped: the card renders it and derives nothing.
 

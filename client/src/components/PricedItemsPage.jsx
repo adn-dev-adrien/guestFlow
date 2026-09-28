@@ -14,7 +14,7 @@ import { useAppDialogs } from './DialogProvider';
 import { formatCurrency } from '../utils/formatters';
 import useCrudResource from '../hooks/useCrudResource';
 
-const PRICE_TYPES = [
+export const PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
   { value: 'per_person', label: 'Par personne' },
   { value: 'per_night', label: 'Par jour' },
@@ -40,6 +40,9 @@ export default function PricedItemsPage({
   isDeleteDisabled,
   renderExtraFormFields,
   getRowSx,
+  // Optional price-type list ({ value, label, retired? }). A `retired` type keeps its label in the
+  // list but is only offered in the form to an item that already has it (a price type whose plugin
+  // is inactive — specs/plugins-phase-0-foundation.md rule 20).
   priceTypes,
   // Optional: render the « Prix » cell content. Receives (item, properties). Defaults to `${price} €`.
   // Used by the Options page to surface the per-property price overrides next to the base price.
@@ -361,7 +364,9 @@ export default function PricedItemsPage({
                 label="Type de prix"
                 onChange={(e) => setForm({ ...form, priceType: e.target.value })}
               >
-                {resolvedPriceTypes.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+                {resolvedPriceTypes
+                  .filter((t) => !t.retired || t.value === form.priceType)
+                  .map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
               </Select>
             </FormControl>
 

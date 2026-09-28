@@ -37,6 +37,9 @@ import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import ReservationLostItemsCard from '../components/ReservationLostItemsCard';
+import PluginGate from '../components/PluginGate';
+import { usePlugin } from '../hooks/usePlugins';
+import { WEBSITE_BOOKING, GATE_ACCESS, SAS, ONLINE_PAYMENT, NEAT } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
@@ -211,6 +214,8 @@ export default function ReservationPage() {
   const [neatBlock, setNeatBlock] = useState(null);
   // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance block, shaped by the server.
   const [cgvBlock, setCgvBlock] = useState(null);
+  const onlinePaymentOn = usePlugin(ONLINE_PAYMENT);
+  const neatOn = usePlugin(NEAT);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   // Bumped after any server-side finance mutation the live quote depends on — un remboursement, une
   // note en séjour, le report du complément en fin de séjour — pour que l'effet de devis re-tourne et
@@ -3044,13 +3049,13 @@ export default function ReservationPage() {
     ...(isDevisMode
       ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
     // specs/online-payments-qonto.md §3.4 — generate + send the Qonto deposit payment link for this devis.
-    ...(isDevisMode && editingDevisId
+    ...(onlinePaymentOn && isDevisMode && editingDevisId
       ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande de paiement', onClick: handleSendPaymentRequest, color: 'success' }] : []),
     // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
     // collected online but the solde is still due (reservation, positive balance, not yet paid).
     // Réservation PLATEFORME exclue : le solde est encaissé par la plateforme et nous est reversé,
     // on ne le réclame jamais au client — envoyer ce lien serait une double demande de paiement.
-    ...(!isDevisMode && editingReservationId && !isPlatformReservation
+    ...(onlinePaymentOn && !isDevisMode && editingReservationId && !isPlatformReservation
       && !form.balancePaid && Number(pricingQuote?.balanceAmount || 0) > 0
       ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];
@@ -3129,7 +3134,7 @@ export default function ReservationPage() {
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
     // specs/neat-cancellation-insurance-subscription.md §3.3 — Neat chip + actions on the
     // insurance card. The block is server-shaped; the card renders and decides nothing.
-    neat: neatBlock, retryNeatSubscription, voidNeatSubscription,
+    neat: neatOn ? neatBlock : null, retryNeatSubscription, voidNeatSubscription,
   };
 
   return (
@@ -3289,7 +3294,7 @@ export default function ReservationPage() {
                         + Créer un nouveau client
                       </Button>
                     </Box>
-                    <TermsAcceptanceLine block={cgvBlock} />
+                    <PluginGate id={WEBSITE_BOOKING}><TermsAcceptanceLine block={cgvBlock} /></PluginGate>
                   </>
                 ) : (
                   <>
@@ -3336,11 +3341,13 @@ export default function ReservationPage() {
 
           {/* specs/gate-access-sowel-connector.md §3.5 rule 26 — the key Sowel reported for this
               stay. Read-only: every action lives in Sowel. */}
-          <GateAccessCard
-            reservationId={editingReservationId}
-            cardSx={formSectionCardSx}
-            contentSx={formSectionContentSx}
-          />
+          <PluginGate id={GATE_ACCESS}>
+            <GateAccessCard
+              reservationId={editingReservationId}
+              cardSx={formSectionCardSx}
+              contentSx={formSectionContentSx}
+            />
+          </PluginGate>
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>
@@ -3357,7 +3364,9 @@ export default function ReservationPage() {
           </Card>
 
           {reservationId ? (
-            <ReservationLostItemsCard reservationId={reservationId} initialValue={initialLostItems} />
+            <PluginGate id={SAS}>
+              <ReservationLostItemsCard reservationId={reservationId} initialValue={initialLostItems} />
+            </PluginGate>
           ) : null}
         </Box>
         </ReservationFormProvider>

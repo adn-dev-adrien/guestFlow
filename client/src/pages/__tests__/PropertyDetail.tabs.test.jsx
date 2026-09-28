@@ -25,6 +25,9 @@ import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 const PROPERTY = {
   id: 5, name: 'Le Moulin', nameArticle: 'au', maxGuests: 3, maxBabies: 1, basePriceIncludedGuests: 2,
   extraGuestPrice: 15, singleBeds: 1, doubleBeds: 2, depositPercent: 30, depositDueDays: 7,
