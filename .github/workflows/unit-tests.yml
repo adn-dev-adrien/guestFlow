@@ -20,10 +20,11 @@ name: Unit tests
 # conventions of e2e.yml (checkout@v6, setup-node@v6, Node 24, better-sqlite3 rebuilt from source).
 
 on:
+  # `inte/**` — integration branches that collect a chain of PRs before master (e.g. inte/plugins).
   pull_request:
-    branches: [master]
+    branches: [master, 'inte/**']
   push:
-    branches: [master]
+    branches: [master, 'inte/**']
   workflow_dispatch:
     inputs:
       ref:

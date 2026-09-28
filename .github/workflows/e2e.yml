@@ -12,10 +12,11 @@ name: E2E smoke (Playwright)
 # Runs on ubuntu-latest (GitHub-hosted) — free for public repos, no Pi runner queue.
 
 on:
+  # `inte/**` — integration branches that collect a chain of PRs before master (e.g. inte/plugins).
   pull_request:
-    branches: [master]
+    branches: [master, 'inte/**']
   push:
-    branches: [master]
+    branches: [master, 'inte/**']
 
 # Cancel in-progress runs on the same ref when a newer commit lands.
 concurrency:
