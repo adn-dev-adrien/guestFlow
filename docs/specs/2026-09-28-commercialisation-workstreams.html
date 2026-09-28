@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Chantiers et arbitrages</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stat b{display:block;font:600 28px/1.1 var(--serif);color:var(--sapin)}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.warn b{color:var(--ko)}
+nav.toc{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+nav.toc a{font-size:13px;font-weight:600;color:var(--sapin);text-decoration:none;border:1px solid var(--fieldline);border-radius:999px;padding:7px 13px;background:var(--card)}
+.btn{appearance:none;font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:0 13px;min-height:40px;cursor:pointer;
+  border:1px solid var(--fieldline);background:var(--field);color:var(--ink)}
+.btn.primary{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pills button{appearance:none;font:inherit;font-size:13px;font-weight:600;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);
+  border-radius:999px;padding:6px 13px;min-height:40px;cursor:pointer}
+.pills button[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.pills .n{font-weight:500;opacity:.75;margin-left:3px}
+.search{flex:1;min-width:180px;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:40px}
+
+/* arbitrage board */
+.board{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+@media (max-width:960px){.board{grid-template-columns:1fr}}
+.grp{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);margin:18px 0 6px}
+.frow{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.frow.conflict{border-color:var(--ko);box-shadow:inset 3px 0 0 var(--ko)}
+.frow.changed{box-shadow:inset 3px 0 0 var(--ocre)}
+.fmain{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fname{flex:1 1 260px;min-width:0;background:none;border:0;padding:0;text-align:left;color:inherit;font:inherit;cursor:pointer;min-height:40px}
+.fname b{font-size:14.5px}
+.fname small{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
+.d{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;vertical-align:1px;margin-left:6px}
+.d.S{color:var(--ok)} .d.M{color:var(--ocre)} .d.L{color:var(--ko)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex:none}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:12.5px;padding:0 11px;min-height:40px;cursor:pointer;position:relative}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"].core{background:var(--sapin);color:var(--paper)}
+.seg button[aria-pressed="true"].plugin{background:var(--info);color:#fff}
+.seg button[aria-pressed="true"].discuss{background:var(--ocre);color:#fff}
+.seg button.reco::after{content:"";position:absolute;top:5px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--ocre)}
+.seg button[aria-pressed="true"].reco::after{background:#fff}
+.seg.locked button:not([aria-pressed="true"]){color:var(--ghost)}
+.fmsg{margin:8px 0 0;font-size:12.5px;font-weight:600}
+.fmsg.err{color:var(--ko)} .fmsg.info{color:var(--muted);font-weight:500}
+.fdetail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+.fdetail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}
+.fdetail dt{color:var(--muted)} .fdetail dd{margin:0}
+.side{position:sticky;top:12px;display:flex;flex-direction:column;gap:10px}
+@media (max-width:960px){.side{position:static}}
+.side .card{padding:14px}
+.side h4{margin:0 0 8px;font:600 15px/1.25 var(--serif);color:var(--sapin)}
+.legend{font-size:12.5px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 0}
+.legend i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ocre);margin-right:5px;vertical-align:2px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13.5px}
+.kv b{font-variant-numeric:tabular-nums}
+.meter{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 2px}
+.meter i{display:block;height:100%;background:var(--lichen);transition:width .25s}
+.app{background:#fff;border:1px solid #e3e0d7;border-radius:8px;color:#1f241d;overflow:hidden;font-size:13px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .app{background:#20261f;border-color:#3b453b;color:#ece7db}}
+.app-top{background:#2F5D46;color:#fff;padding:8px 12px;font-weight:700;font-size:13px}
+.app ul{list-style:none;margin:0;padding:6px 8px 10px}
+.app li{padding:4px 6px;border-radius:5px}
+.app li.l1{margin-left:16px;font-size:12.5px;opacity:.85}
+.app li.q::after{content:" ?";color:#B87B2A;font-weight:700}
+.hidden-count{font-size:12px;color:var(--muted);padding:0 12px 10px}
+.conflicts{font-size:12.5px;color:var(--ko);margin:6px 0 0;padding-left:18px}
+.conflicts li{margin:3px 0}
+
+/* questions */
+.qgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:820px){.qgrid{grid-template-columns:1fr}}
+.q h3{margin-top:0}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;background:var(--field)}
+.opt input{margin-top:3px;width:18px;height:18px;accent-color:var(--lichen);flex:none}
+.opt small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.opt.sel{border-color:var(--lichen);background:color-mix(in srgb,var(--lichen) 9%,var(--field))}
+.tagreco{font-size:11px;font-weight:700;color:var(--ocre);margin-left:4px}
+
+/* chantiers */
+.stream{margin:12px 0;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stream>header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;background:color-mix(in srgb,var(--lichen) 8%,var(--card));border-bottom:1px solid var(--line)}
+.stream>header h3{margin:0;flex:1 1 220px}
+.stream>header .prog{font-size:12.5px;color:var(--muted);min-width:150px}
+.stream>header .meter{margin:4px 0 0;width:150px}
+.stream .intro{padding:8px 14px 0;font-size:13px;color:var(--muted);margin:0}
+.item{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-top:1px solid var(--line)}
+.stream .item:first-of-type{border-top:0}
+.item input{width:20px;height:20px;margin-top:2px;accent-color:var(--ok);flex:none}
+.item .body{flex:1;min-width:0}
+.item .t{font-weight:600;font-size:14px}
+.item .x{font-size:12.8px;color:var(--muted);margin-top:2px}
+.item.done .t{text-decoration:line-through;color:var(--muted)}
+.item.moot{opacity:.55}
+.item.moot .t{text-decoration:line-through}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.b-decide{background:color-mix(in srgb,var(--ocre) 18%,transparent);color:var(--ocre)}
+.b-you{background:color-mix(in srgb,var(--info) 16%,transparent);color:var(--info)}
+.b-new{background:color-mix(in srgb,var(--ko) 14%,transparent);color:var(--ko)}
+.b-done{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.b-moot{background:var(--line);color:var(--muted)}
+.empty{padding:14px;color:var(--muted);font-style:italic;font-size:13.5px}
+textarea.out{width:100%;min-height:220px;font:12.5px/1.45 ui-monospace,Menlo,monospace;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);padding:10px}
+.flash{animation:fl .8s}
+@keyframes fl{from{background:color-mix(in srgb,var(--ko) 20%,var(--card))}to{background:var(--card)}}
+</style>
+<body>
+<div class="wrap">
+<h1>GuestFlow commercialisable — chantiers et arbitrages</h1>
+<div class="meta">28 septembre 2026 · référence : <code>specs/plugins-inventory.md</code> · suite de l'état des lieux du même jour</div>
+
+<p>Cette page a deux usages. D'abord, <b>trancher ce qui part en plugin et ce qui reste dans le cœur</b>, fonction par fonction : ma recommandation est présélectionnée, tu la changes d'un clic et la page te montre le menu qu'aurait un client sans plugin et les incohérences éventuelles. Ensuite, <b>la liste de tous les chantiers</b>, y compris ceux que l'état des lieux n'avait pas nommés, pour qu'aucun ne soit oublié. Les deux sont reliés : une fonction que tu gardes au cœur rend son chantier d'extraction sans objet.</p>
+
+<div class="stats" id="topStats"></div>
+<nav class="toc">
+  <a href="#arbitrage">1 · Cœur ou plugin</a>
+  <a href="#questions">2 · Questions ouvertes</a>
+  <a href="#chantiers">3 · Tous les chantiers</a>
+  <a href="#export">4 · Me renvoyer tes choix</a>
+</nav>
+
+<h2 id="arbitrage">1 · Cœur ou plugin, fonction par fonction</h2>
+<p>Trois choix par ligne : <b>Cœur</b> (toujours là, pour tous les clients), <b>Plugin</b> (absent de l'écran tant qu'il n'est pas installé) ou <b>À discuter</b>. Le point orange marque ma recommandation. Clique sur un nom pour voir ce qui disparaît de l'écran et pourquoi je recommande ce choix.</p>
+<div class="note"><b>La règle que la page vérifie :</b> une fonction du cœur ne peut pas dépendre d'un plugin, sinon un client sans ce plugin aurait une fonction cassée. Un plugin peut en exiger un autre ; l'installation le demande alors. Trois lignes sont verrouillées par une décision déjà prise.</div>
+
+<div class="board">
+  <div>
+    <div class="toolbar">
+      <div class="pills" id="fFilter" role="group" aria-label="Filtrer les fonctions"></div>
+      <button class="btn" id="resetReco" type="button">Revenir à mes recommandations</button>
+    </div>
+    <div id="featureList"></div>
+  </div>
+  <aside class="side">
+    <div class="card">
+      <h4>Ton découpage</h4>
+      <div class="kv" id="splitKv"></div>
+      <div class="meter" aria-hidden="true"><i id="effortBar"></i></div>
+      <div class="muted" style="font-size:12.5px" id="effortTxt"></div>
+      <ul class="conflicts" id="conflictList"></ul>
+      <div class="legend"><span><i></i>ma recommandation</span></div>
+    </div>
+    <div class="card">
+      <h4>Le menu d'un client sans aucun plugin</h4>
+      <div class="app"><div class="app-top">GuestFlow</div><ul id="menuPreview"></ul><div class="hidden-count" id="menuHidden"></div></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">Seules restent les entrées du cœur. Un « ? » suit ce qui est encore à discuter.</p>
+    </div>
+  </aside>
+</div>
+
+<h2 id="questions">2 · Les deux questions ouvertes de l'état des lieux</h2>
+<p>Elles bloquent la spec de la phase 0 : la page Plugins doit savoir ce que « Désinstaller » fait des données, et la sortie des contenus Solio doit avoir une destination.</p>
+<div class="qgrid" id="questions-grid"></div>
+
+<h2 id="chantiers">3 · Tous les chantiers</h2>
+<p>Coche ce qui est fait : la page s'en souvient dans ce navigateur. Le badge <span class="badge b-new">oublié</span> signale un chantier que l'état des lieux ne nommait pas. <span class="badge b-decide">à décider</span> attend un arbitrage de ta part, <span class="badge b-you">toi</span> une action que je ne peux pas faire à ta place.</p>
+<div class="toolbar">
+  <div class="pills" id="cFilter" role="group" aria-label="Filtrer les chantiers"></div>
+  <input class="search" id="cSearch" type="search" placeholder="Chercher un chantier…" aria-label="Chercher un chantier">
+</div>
+<div id="streams"></div>
+
+<h2 id="export">4 · Me renvoyer tes choix</h2>
+<p>Quand tu as tranché, copie ce texte et colle-le-moi : j'en tire la version définitive de la spec et j'ouvre la spec de la phase 0.</p>
+<div class="toolbar"><button class="btn primary" id="copyBtn" type="button">Copier mes arbitrages</button><span class="muted" id="copyMsg" style="font-size:13px"></span></div>
+<textarea class="out" id="exportOut" readonly aria-label="Résumé de mes arbitrages"></textarea>
+</div>
+<script>
+const GROUPS = [
+  {id:"core", label:"Le cœur actuel — ce que je propose de garder pour tous"},
+  {id:"plug", label:"Les 18 plugins proposés par l’état des lieux"},
+  {id:"small", label:"Les petites fonctions que l’état des lieux laissait en suspens"}
+];
+// diff: S/M/L = effort to extract as a plugin. lock: a decision already taken.
+const FEATURES = [
+  {id:"resa", g:"core", name:"Réservations et devis", reco:"core", lock:"C’est le produit lui-même.", sub:"une seule table, réservation ou devis", why:"Tout le reste s’y accroche : sans réservation, aucun plugin n’a de sens.", hides:"—"},
+  {id:"clients", g:"core", name:"Clients", reco:"core", sub:"l’annuaire des voyageurs", why:"Chaque réservation a un client.", hides:"Menu Clients"},
+  {id:"props", g:"core", name:"Logements", reco:"core", sub:"fiches, capacités, photos", why:"Chaque réservation porte sur un logement.", hides:"Réglages › Logements"},
+  {id:"seasons", g:"core", name:"Saisons et prix", reco:"core", sub:"grille tarifaire par saison", why:"Le devis ne peut pas se calculer sans prix.", hides:"Onglet tarifs du logement"},
+  {id:"options", g:"core", name:"Catalogue d’options", reco:"core", sub:"ménage, lit fait, extras", why:"Tout gîte vend au moins un supplément. Les plugins y ajoutent leurs types d’option (petit-déjeuner, assurance).", hides:"Réglages › Options & ressources"},
+  {id:"perStay", g:"core", name:"Ressources par séjour", reco:"core", sub:"lit bébé, chaise haute", why:"Une ressource prêtée pour le séjour est une option avec un stock : simple, utile à tous. Seules les ressources à l’heure partent en plugin.", hides:"Partie « ressources » des options"},
+  {id:"platforms", g:"core", name:"Plateformes", reco:"core", sub:"nom, commission, couleur", why:"La commission, le canal direct et la taxe collectée par la plateforme passent par le calcul du prix, les finances et la compta. Seule la synchronisation iCal part en plugin.", hides:"Réglages › Plateformes"},
+  {id:"payments", g:"core", name:"Échéancier et paiements manuels", reco:"core", sub:"acompte, solde, encaissements", why:"Sans eux, pas de suivi de ce qui est dû. Le paiement en ligne (Qonto) est un plugin qui s’y branche.", hides:"Bloc paiements de la fiche"},
+  {id:"refunds", g:"core", name:"Remboursements", reco:"core", sub:"annulation, trop-perçu", why:"Une annulation arrive à tout le monde ; l’argent doit rester juste.", hides:"Bouton rembourser"},
+  {id:"finance", g:"core", name:"Suivi financier", reco:"core", sub:"CA, encaissé, à venir ; TVA et exercice", why:"C’est la vue que tout propriétaire regarde. L’export comptable, lui, est un plugin.", hides:"Menu Suivi financier"},
+  {id:"tax", g:"core", name:"Taxe de séjour", reco:"core", lock:"Décidé le 28/09 (D2).", sub:"calcul, déclaration", why:"Obligatoire pour tout hébergeur français.", hides:"Suivi financier › Taxe de séjour"},
+  {id:"calendar", g:"core", name:"Calendrier", reco:"core", sub:"occupation par logement", why:"La vue de base de toute location.", hides:"Menu Calendrier"},
+  {id:"closures", g:"core", name:"Fermetures d’établissement", reco:"core", sub:"hiver, travaux", why:"Elles bloquent la disponibilité, donc le devis et l’iCal. Un gîte ferme au moins une fois.", hides:"Réglages › Vacances & fermetures (partie fermetures)"},
+  {id:"users", g:"core", name:"Utilisateurs et rôles", reco:"core", sub:"admin, comptable", why:"Nécessaire dès qu’on vend à des équipes.", hides:"Réglages › Utilisateurs"},
+  {id:"cgv", g:"core", name:"Conditions générales de vente", reco:"core", sub:"versions, acceptation", why:"Elles s’appliquent aussi aux devis envoyés à la main, pas seulement au site. Seul le recueil de l’acceptation en ligne part avec le plugin Site.", hides:"Réglages › Conditions générales"},
+  {id:"email", g:"core", name:"Envoi d’emails et modèles manuels", reco:"core", sub:"SMTP, modèles, historique", why:"Envoyer un devis ou une confirmation est la base. La séquence automatique est un plugin.", hides:"Menu Emails"},
+  {id:"i18n", g:"core", name:"Traductions anglaises", reco:"core", sub:"catalogue EN des emails et du site", why:"Presque tous les gîtes reçoivent des étrangers. Alternative : un plugin « Multilingue » si l’écran Traductions t’encombre.", hides:"Écran Traductions"},
+  {id:"holidays", g:"core", name:"Jours fériés", reco:"core", sub:"calcul automatique", why:"Aucun écran à cacher ; sert aux tarifs et au planning.", hides:"—"},
+  {id:"notes", g:"core", name:"Notes de calendrier", reco:"core", sub:"post-it sur une date", why:"Léger, utile à tous.", hides:"Notes dans le calendrier"},
+  {id:"pluginsPage", g:"core", name:"Page Plugins", reco:"core", lock:"Sans elle, rien ne s’installe.", sub:"installer, activer, désinstaller", why:"Point d’entrée des plugins.", hides:"—"},
+
+  {id:"hourly", g:"plug", name:"Ressources à l’heure (bain nordique)", reco:"plugin", diff:"L", sub:"créneaux, chauffe, occupation", why:"Très spécifique : peu de gîtes louent un équipement à l’heure. Difficile parce que le prix des séances est calculé au milieu du moteur de prix.", hides:"Calendrier › Ressources ; créneaux de la fiche ; étape du sas ; cartes du planning"},
+  {id:"planning", g:"plug", name:"Planning opérationnel", reco:"plugin", diff:"M", sub:"cartes du jour : arrivées, linge, petit-déj", why:"Utile à partir de plusieurs logements et d’une équipe ; un gîte seul s’en passe. Il devient un hôte : les plugins Linge, Petit-déj et Ressources y ajoutent leurs cartes.", hides:"Menu Planning ; option « carte dans le planning »"},
+  {id:"linen", g:"plug", name:"Linge et blanchisserie", reco:"plugin", diff:"M", sub:"stock, tournées, lits à préparer", why:"Beaucoup de gîtes font louer les draps ou n’en gèrent pas le stock.", hides:"Réglages › Linge ; alerte de manque ; colonne « Lits à préparer » ; étapes linge du sas"},
+  {id:"breakfast", g:"plug", name:"Petit-déjeuner et traiteur", reco:"plugin", diff:"L", sub:"portions, heure souhaitée, commandes", why:"Service propre à Solio. Difficile parce que les portions entrent dans le prix et le devis.", hides:"Champs petit-déj des options ; heure souhaitée ; étapes du sas ; cartes du planning"},
+  {id:"push", g:"plug", name:"Notifications push", reco:"plugin", diff:"M", sub:"alertes sur le téléphone", why:"Confort ; beaucoup se contenteront de l’email.", hides:"Section push des réglages ; service worker"},
+  {id:"autoEmails", g:"plug", name:"Emails automatiques aux voyageurs", reco:"plugin", diff:"M", sub:"séquence J-7, J-2, après séjour", why:"Les modèles manuels restent au cœur ; l’automate est une option. Risque aujourd’hui : la séquence est livrée activée avec le texte de Solio.", hides:"Emails en attente du tableau de bord ; Historique › Simulation ; case « ne pas envoyer »"},
+  {id:"website", g:"plug", name:"Réservation depuis le site (WordPress)", reco:"plugin", diff:"M", sub:"API publique, moteur de réservation", why:"Seuls ceux qui ont un site WordPress en ont l’usage.", hides:"« Demandes du site » ; badge et filtre « Site internet » ; acceptation des CGV en ligne"},
+  {id:"sowel", g:"plug", name:"Accès au portail (Sowel)", reco:"plugin", diff:"S", sub:"codes et clés du portail", why:"Propre à ton installation domotique. À construire en plugin dès le départ.", hides:"Champ « Code portail » ; étape portail du sas"},
+  {id:"neat", g:"plug", name:"Assurance annulation Neat", reco:"plugin", diff:"L", sub:"souscription, prix, badge", why:"Partenariat commercial facultatif. Difficile : 11 endroits l’appellent directement.", hides:"Réglages › Intégrations › Neat ; badge et actions de la fiche ; assurance du devis public"},
+  {id:"qonto", g:"plug", name:"Paiement en ligne (Qonto)", reco:"plugin", diff:"L", sub:"liens de paiement, suivi", why:"Chaque client a sa banque. Il faut d’abord une interface « fournisseur de paiement » pour pouvoir en brancher d’autres (Stripe…).", hides:"Réglages › Paiements en ligne ; « Envoyer la demande de paiement »"},
+  {id:"google", g:"plug", name:"Google Agenda", reco:"plugin", diff:"S", sub:"copie des séjours dans un agenda", why:"Confort personnel. Le cas le plus simple : il n’écoute que les événements des réservations.", hides:"Réglages › Intégrations › Google"},
+  {id:"ical", g:"plug", name:"Synchronisation iCal", reco:"core", diff:"L", sub:"import/export Airbnb, Booking…", why:"Je change d’avis par rapport à l’état des lieux : presque tout gîte vend sur au moins une plateforme, c’est la fonction de base de tout logiciel du marché. L’extraire coûterait cher (difficulté L) et mettrait en jeu le contrat anti-surbooking, pour ne cacher qu’un onglet au rare gîte 100 % direct.", hides:"Onglet « Plateformes & iCal » ; 3 alertes du tableau de bord"},
+  {id:"accounting", g:"plug", name:"Export comptable", reco:"plugin", diff:"M", sub:"écritures, plan comptable, CSV", why:"Utile avec un comptable ; le format actuel est celui de Solio. Le plan comptable doit devenir une donnée.", hides:"Suivi financier › Comptabilité et Compta plateformes"},
+  {id:"sas", g:"plug", name:"Arrivée et départ guidés (sas)", reco:"plugin", diff:"L", sub:"le dialogue pas à pas de l’accueil", why:"Pensé pour une équipe d’accueil. Il devient un hôte : Ressources, Linge, Petit-déj, Météo et Portail y ajoutent leurs étapes.", hides:"Dialogue du sas ; onglet « Facturables au sas » ; rôle Accueil"},
+  {id:"recipes", g:"plug", name:"Recettes tarifaires", reco:"plugin", diff:"S", sub:"génération automatique des saisons", why:"Outil avancé de revenue management.", hides:"Réglages › Recettes tarifaires ; carte recette du logement"},
+  {id:"school", g:"plug", name:"Vacances scolaires", reco:"plugin", diff:"S", sub:"zones A/B/C depuis education.gouv", why:"Pratique, mais uniquement utile au marché français et à qui fixe ses prix sur les vacances.", hides:"Onglet Vacances ; bandes de zones du calendrier"},
+  {id:"weather", g:"plug", name:"Vigilance Météo-France", reco:"plugin", diff:"S", sub:"alertes météo à l’arrivée", why:"Utile en zone exposée, pas partout. Demande une clé d’API.", hides:"Réglages › Intégrations › Météo ; étape météo du sas"},
+  {id:"compensations", g:"plug", name:"Compensations d’annulation des plateformes", reco:"plugin", diff:"M", req:["ical"], sub:"ce que la plateforme reverse", why:"Dépend de l’import iCal pour détecter les annulations.", hides:"Compensations en attente ; section compta"},
+
+  {id:"welcomePack", g:"small", name:"Coût du panier d’accueil", reco:"core", sub:"un champ par logement", why:"Un seul champ, sans écran à part : pas la peine d’en faire un plugin.", hides:"Champ de la fiche logement"},
+  {id:"lostItems", g:"small", name:"Objets trouvés", reco:"plugin", req:["sas"], sub:"relevés au départ", why:"Saisis pendant le sas : partent avec lui.", hides:"Carte objets trouvés"},
+  {id:"checklist", g:"small", name:"Liste de contrôle du départ (ex-extincteur)", reco:"plugin", req:["sas"], sub:"points à vérifier, configurables", why:"La vérification de l’extincteur est propre à Solio. Je propose une liste que chaque client remplit, portée par le sas.", hides:"Étape de contrôle du sas"},
+  {id:"reception", g:"small", name:"Rôle « Accueil »", reco:"plugin", req:["sas"], sub:"accès réduit pour l’équipe", why:"Ce rôle n’existe que pour faire le sas.", hides:"Rôle dans Utilisateurs ; vue accueil"}
+];
+const NAMES = Object.fromEntries(FEATURES.map(f=>[f.id,f.name]));
+// Current admin menu, each entry owned by one or several features (any core owner keeps it visible).
+const MENU = [
+  {l:"Tableau de bord", o:["resa"]},
+  {l:"Planning", o:["planning"]},
+  {l:"Calendrier", o:["calendar"], c:[{l:"Ressources à l’heure", o:["hourly"]}]},
+  {l:"Suivi financier", o:["finance"], c:[{l:"Taxe de séjour", o:["tax"]},{l:"Comptabilité", o:["accounting"]},{l:"Compta plateformes", o:["accounting"]}]},
+  {l:"Devis", o:["resa"]},
+  {l:"Emails", o:["email"], c:[{l:"Historique", o:["email"]}]},
+  {l:"Clients", o:["clients"]},
+  {l:"Paramètres", o:["resa"], c:[
+    {l:"Établissement", o:["resa"]},{l:"Logements", o:["props"]},{l:"Plateformes", o:["platforms"]},
+    {l:"Conditions générales", o:["cgv"]},{l:"Options & ressources", o:["options"]},{l:"Recettes tarifaires", o:["recipes"]},
+    {l:"Vacances & fermetures", o:["closures","school"]},{l:"Linge", o:["linen"]},{l:"Paiements en ligne", o:["qonto"]},
+    {l:"TVA & exercice", o:["finance"]},{l:"Emails & notifications", o:["email"]},
+    {l:"Intégrations", o:["google","neat","weather","sowel","website"]},{l:"Utilisateurs", o:["users"]},
+    {l:"Système", o:["resa"]},{l:"Plugins", o:["pluginsPage"]}
+  ]}
+];
+const QUESTIONS = [
+  {id:"q1", title:"Q1 · Que deviennent les données d’un plugin ?", intro:"Exemple : tu désactives les ressources à l’heure alors que des séjours passés ont des séances payées.", opts:[
+    {v:"ask", reco:true, t:"Désactiver garde tout ; désinstaller demande s’il faut effacer", x:"Les montants déjà encaissés et les écritures comptables restent toujours affichés, même après effacement. C’est le modèle de Sowel, corrigé de son oubli des réglages."},
+    {v:"keep", t:"Ne jamais rien effacer", x:"Le plus sûr pour l’argent, mais la base garde des tables mortes et le client ne peut pas repartir de zéro (RGPD : droit à l’effacement plus délicat)."},
+    {v:"purge", t:"Désinstaller efface toujours tout", x:"Simple, mais une fausse manipulation perd des données ; la réinstallation repart de zéro."}
+  ]},
+  {id:"q2", title:"Q2 · Où vont les contenus propres à Solio ?", intro:"Textes des emails, tarifs du traiteur, recettes tarifaires, comptes comptables, URL domainesolio.com.", opts:[
+    {v:"pack", reco:true, t:"Un « pack Solio » appliqué une seule fois à la base de Solio", x:"Les nouveaux clients partent de contenus neutres ; Solio garde exactement ses textes lors de sa migration. Le pack vit hors du dépôt produit."},
+    {v:"manual", t:"Rien de spécial : Solio ressaisit ses contenus dans l’interface", x:"Pas de code, mais une ressaisie longue et un risque d’oubli le jour de la bascule."},
+    {v:"plugin", t:"Un plugin « Solio » installé seulement chez toi", x:"Mélange contenu et fonctions ; un plugin pour un seul client alourdit le registre."}
+  ]}
+];
+</script>
+<script>
+// k: done (déjà fait) | todo | decide (arbitrage d'Adrien) | you (action qu'Adrien seul peut faire). nw: absent de l'état des lieux. f: chantier d'extraction d'une fonction.
+const STREAMS = [
+  {id:"fait", t:"Déjà fait le 28/09", intro:"Pour mémoire.", items:[
+    {t:"État des lieux complet du code", x:"specs/plugins-inventory.md et son résumé interactif.", k:"done"},
+    {t:"Décisions D1 à D5", x:"Plugins téléchargeables, taxe au cœur, un process par client, licence propriétaire, Solio client n°1.", k:"done"},
+    {t:"Titularité du code réglée", x:"Historique réécrit à ton seul nom, dates intactes, sauvegarde en bundle ; CI verte sur le nouveau master.", k:"done"},
+    {t:"Sessions parallèles prévenues de la réécriture", x:"7 sessions ; règle d’identité dans la mémoire.", k:"done"}
+  ]},
+  {id:"arb", t:"Arbitrages à rendre", intro:"Ce sont eux qui débloquent la spec de la phase 0.", items:[
+    {t:"Découpage cœur / plugins", x:"Section 1 de cette page.", k:"decide"},
+    {t:"Q1 — données d’un plugin désinstallé", x:"Section 2.", k:"decide"},
+    {t:"Q2 — destination des contenus Solio", x:"Section 2.", k:"decide"},
+    {t:"Prix de vente et unité de facturation", x:"Par logement, par établissement ou par paliers ? Le marché : 30 à 60 € par mois pour un ou deux logements (Smoobu 35 €/logement).", k:"decide", nw:true},
+    {t:"Nom commercial et domaine", x:"« GuestFlow » est-il libre à l’INPI et en .fr / .com ? La plateforme vise <code>client.guestflow.fr</code>.", k:"decide", nw:true},
+    {t:"Admin en français seulement, euros seulement", x:"L’état des lieux propose d’assumer le marché français. À confirmer, car cela limite la cible.", k:"decide", nw:true}
+  ]},
+  {id:"git", t:"Suites de la réécriture de l’historique", items:[
+    {t:"Recaler les 4 worktrees restés sur l’ancien historique", x:"single-payment, gate, platforms-doc, bain-nordique-site — à faire par la session qui y travaille, ou par moi si tu me le demandes.", k:"todo"},
+    {t:"Supprimer les 453 branches locales périmées", x:"Toutes fusionnées puis supprimées sur GitHub ; elles pointent vers d’anciens SHA. Destructif : j’attends ton feu vert.", k:"decide"},
+    {t:"Faire purger les refs/pull par le support GitHub", x:"586 références de PR gardent l’ancienne adresse ; seul le support GitHub peut les effacer.", k:"you"},
+    {t:"Committer l’étude et ce rapport", x:"Les fichiers sont encore non suivis ; une branche docs et une PR.", k:"todo", nw:true}
+  ]},
+  {id:"p0", t:"Phase 0 — Fondation", intro:"Le menu et le tableau de bord maigrissent ; aucun code n’est encore déplacé.", items:[
+    {t:"Spec de la phase 0 avec maquette interactive", x:"Page Plugins, masquage, migration de Solio.", k:"todo"},
+    {t:"Table plugins et GET /api/plugins", x:"id, version, activé, date, manifeste, source, empreinte.", k:"todo"},
+    {t:"Masquage du menu, des routes, des Réglages et du tableau de bord", x:"Branché sur canSeeRoute, qui gère déjà les rôles.", k:"todo"},
+    {t:"Page Plugins (plugins intégrés seulement)", x:"Onglets Installés / Disponibles, désinstallation en deux clics.", k:"todo"},
+    {t:"Tous les plugins actifs sur les bases existantes", x:"Solio ne doit rien perdre à la mise à jour.", k:"todo"},
+    {t:"Tests à deux extrêmes : tout activé, rien activé", x:"Suite E2E jouée sur les deux configurations ; sinon un plugin désactivé cassera un écran sans qu’on le voie.", k:"todo", nw:true}
+  ]},
+  {id:"p1", t:"Phase 1 — Contrat des plugins et premiers extraits", items:[
+    {t:"register(ctx) côté serveur", x:"Routes, migrations (registre plugin:<id>), tâches planifiées, réglages par plugin.", k:"todo"},
+    {t:"Bus d’événements des réservations", x:"Remplace les 14 appels directs (créée, modifiée, payée, annulée…).", k:"todo"},
+    {t:"Runtime client partagé et emplacements (slots)", x:"Une seule instance React/MUI exposée aux plugins.", k:"todo"},
+    {t:"Versionner le SDK", x:"Une mise à jour du cœur ne doit pas casser les plugins sans prévenir.", k:"todo"},
+    {t:"Extraire Météo-France", f:"weather", k:"todo"},
+    {t:"Extraire Vacances scolaires", f:"school", k:"todo"},
+    {t:"Extraire Google Agenda", f:"google", k:"todo"},
+    {t:"Extraire Recettes tarifaires", f:"recipes", k:"todo"},
+    {t:"Construire Accès au portail directement en plugin", f:"sowel", x:"La PR gate a été mergée en v3.4.0 : elle est à extraire.", k:"todo"}
+  ]},
+  {id:"p2", t:"Phase 2 — Hôtes et plugins intermédiaires", items:[
+    {t:"Le planning devient un hôte de cartes", f:"planning", k:"todo"},
+    {t:"Le sas devient un hôte d’étapes", f:"sas", k:"todo"},
+    {t:"Liste de contrôle du départ configurable", f:"checklist", x:"Remplace la vérification de l’extincteur codée en dur.", k:"todo"},
+    {t:"Extraire Linge et blanchisserie", f:"linen", k:"todo"},
+    {t:"Extraire Notifications push", f:"push", k:"todo"},
+    {t:"Extraire Emails automatiques", f:"autoEmails", k:"todo"},
+    {t:"Extraire Réservation depuis le site", f:"website", k:"todo"},
+    {t:"Extraire Synchronisation iCal", f:"ical", x:"Le contrat anti-surbooking ne doit pas régresser.", k:"todo"},
+    {t:"Extraire Compensations d’annulation", f:"compensations", k:"todo"},
+    {t:"Plan comptable en données, puis extraire l’export", f:"accounting", k:"todo"}
+  ]},
+  {id:"p3", t:"Phase 3 — Le moteur de prix", intro:"La plus risquée : parité stricte des suites de prix pour Solio.", items:[
+    {t:"Contributeurs de lignes de prix dans pricing.js", x:"Sans changer un centime pour Solio.", k:"todo"},
+    {t:"Extraire Ressources à l’heure", f:"hourly", k:"todo"},
+    {t:"Extraire Petit-déjeuner et traiteur", f:"breakfast", k:"todo"},
+    {t:"Extraire Assurance Neat", f:"neat", k:"todo"},
+    {t:"Interface « fournisseur de paiement », puis Qonto derrière", f:"qonto", k:"todo"}
+  ]},
+  {id:"p4", t:"Phase 4 — Registre et téléchargement", items:[
+    {t:"Format de paquet et manifeste", x:"Dépendances entre plugins, plage de versions du cœur.", k:"todo"},
+    {t:"Registre avec empreintes SHA-256", k:"todo"},
+    {t:"Installer, mettre à jour, désinstaller depuis la page", k:"todo"},
+    {t:"Publication des plugins par la CI", k:"todo"}
+  ]},
+  {id:"h", t:"H — Hébergement", intro:"En parallèle des phases 1 à 4.", items:[
+    {t:"Releases partagées entre clients", k:"todo"},
+    {t:"Script de création d’un client", x:"Dossier, clé de chiffrement, service, route Caddy.", k:"todo"},
+    {t:"Sous-domaines et domaines personnalisés", x:"Caddy avec TLS à la demande limité aux domaines enregistrés.", k:"todo"},
+    {t:"Sauvegardes Litestream et restauration testée", x:"Une sauvegarde jamais restaurée n’en est pas une.", k:"todo"},
+    {t:"Retour OAuth central pour Google et Qonto", x:"Un seul projet Google vérifié par toi.", k:"todo"},
+    {t:"Email transactionnel mutualisé en Europe", x:"SPF, DKIM, DMARC sur un domaine GuestFlow, réponse vers le gîte.", k:"todo"},
+    {t:"Mises à jour réservées à l’opérateur", x:"Client par client, sauvegarde avant, retour arrière automatique.", k:"todo"},
+    {t:"Console d’administration", x:"Clients, abonnements, création, état de la flotte.", k:"todo"},
+    {t:"Supervision et alertes par client", x:"Process tombé, sauvegarde en retard, disque plein, certificat expiré.", k:"todo", nw:true},
+    {t:"Migrer Solio sur la plateforme (D5)", x:"En dernier, quand tout le reste tient.", k:"todo"}
+  ]},
+  {id:"sec", t:"Sécurité et comptes", intro:"Rien de cela n’était dans l’état des lieux.", items:[
+    {t:"Mot de passe oublié en libre-service", x:"Aujourd’hui seul un admin peut réinitialiser un mot de passe : un client seul qui oublie le sien devra t’appeler.", k:"todo", nw:true},
+    {t:"Double authentification pour les admins", x:"Les bases contiennent les données des voyageurs et les clés bancaires.", k:"todo", nw:true},
+    {t:"Accès du support à l’instance d’un client", x:"Compte support tracé, activé avec l’accord du client.", k:"todo", nw:true}
+  ]},
+  {id:"prod", t:"P — Productisation", items:[
+    {t:"Graines neutres et séquence d’emails livrée désactivée", x:"Aujourd’hui un nouveau client enverrait des emails parlant du Domaine Solio.", k:"todo"},
+    {t:"Sortir les contenus Solio du cœur", x:"Textes, traiteur, recettes, comptes : selon Q2.", k:"todo"},
+    {t:"Assistant de premier démarrage", x:"Établissement, premier logement, choix des plugins.", k:"todo"},
+    {t:"Plateformes et couleurs lues depuis la base", k:"todo"},
+    {t:"Lodgify « canal direct » : attribut de plateforme", k:"todo"},
+    {t:"Fuseau horaire à une seule source", x:"Europe/Paris est codé dans 7 fichiers.", k:"todo"},
+    {t:"Petits restes Solio", x:"Titre de la page de désabonnement, URL du site par défaut, expéditeur VAPID, piscine, Instagram, cafetière.", k:"todo"},
+    {t:"Sortir integrations/wordpress/solio-site du dépôt", x:"23 mu-plugins avec adresses du réseau local.", k:"todo"},
+    {t:"Aide en ligne pour les clients", k:"todo", nw:true},
+    {t:"Instance de démonstration", x:"Pour montrer le produit sans créer de compte.", k:"todo", nw:true}
+  ]},
+  {id:"legal", t:"Juridique et commercial", items:[
+    {t:"Taguer la dernière version AGPL, passer le dépôt en privé", k:"you"},
+    {t:"Nouvelle LICENSE et README", k:"todo"},
+    {t:"Plugin WordPress dans un dépôt public séparé (GPLv2+)", x:"Avec son propre système de mise à jour.", k:"todo"},
+    {t:"CGV/CGU du service", x:"Niveau de service, responsabilité plafonnée, réversibilité, résiliation.", k:"you"},
+    {t:"Contrat de sous-traitance RGPD (art. 28)", x:"Liste des sous-traitants, registre des traitements.", k:"you"},
+    {t:"Dépôt de la marque à l’INPI", k:"you"},
+    {t:"Mentions légales et politique de confidentialité du service", k:"you", nw:true},
+    {t:"Encaisser les abonnements", x:"Outil de facturation récurrente, factures, relances.", k:"decide", nw:true},
+    {t:"Statut, assurance RC pro d’éditeur", x:"Vendre un logiciel qui calcule des prix et de la taxe engage ta responsabilité.", k:"you", nw:true}
+  ]},
+  {id:"tool", t:"Outillage", items:[
+    {t:"Minutes de CI d’un dépôt privé", x:"GitHub Actions n’est illimité que pour les dépôts publics ; les suites unitaires et E2E tournent à chaque PR. Mesurer la consommation avant de passer en privé.", k:"todo", nw:true},
+    {t:"Mise à jour intégrée à l’app", x:"Elle lit les releases publiques du dépôt : à rediriger ou à réserver à l’opérateur une fois privé.", k:"todo"}
+  ]}
+];
+</script>
+<script>
+(function(){
+  const KEY = "gf-arbitrages-2026-09-28";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const LABEL = {core:"Cœur", plugin:"Plugin", discuss:"À discuter"};
+  const EFFORT = {S:1, M:2, L:3};
+  STREAMS.forEach(s => s.items.forEach((it, i) => { it.id = s.id + "-" + i; }));
+
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ return {}; } }
+  const saved = load();
+  const state = {
+    choice: Object.assign(Object.fromEntries(FEATURES.map(f => [f.id, f.reco])), saved.choice || {}),
+    answers: Object.assign(Object.fromEntries(QUESTIONS.map(q => [q.id, q.opts.find(o => o.reco).v])), saved.answers || {}),
+    done: saved.done || Object.fromEntries(STREAMS.flatMap(s => s.items).filter(i => i.k === "done").map(i => [i.id, true])),
+    open: {}, err: {}, fFilter: "all", cFilter: "open", q: ""
+  };
+  FEATURES.forEach(f => { if (f.lock) state.choice[f.id] = f.reco; });
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify({choice:state.choice, answers:state.answers, done:state.done})); } catch(e){} }
+
+  function conflicts(){
+    const out = [];
+    FEATURES.forEach(f => (f.req || []).forEach(r => {
+      if (state.choice[f.id] === "core" && state.choice[r] === "plugin")
+        out.push({f:f.id, msg:`${f.name} est au cœur mais dépend de ${NAMES[r]}, qui est un plugin : mets ${NAMES[r]} au cœur ou ${f.name} en plugin.`});
+    }));
+    return out;
+  }
+
+  /* ---------- section 1 ---------- */
+  const F_FILTERS = [["all","Toutes"],["changed","Changées par toi"],["plugin","Plugins"],["core","Cœur"],["discuss","À discuter"]];
+  function renderFeatures(){
+    const cf = conflicts(), cset = new Set(cf.map(c => c.f));
+    $("fFilter").innerHTML = F_FILTERS.map(([v,l]) => {
+      const n = v === "all" ? FEATURES.length : v === "changed" ? FEATURES.filter(f => state.choice[f.id] !== f.reco).length : FEATURES.filter(f => state.choice[f.id] === v).length;
+      return `<button type="button" data-v="${v}" aria-pressed="${state.fFilter === v}">${l}<span class="n">${n}</span></button>`;
+    }).join("");
+    const keep = f => state.fFilter === "all" || (state.fFilter === "changed" ? state.choice[f.id] !== f.reco : state.choice[f.id] === state.fFilter);
+    let html = "";
+    GROUPS.forEach(g => {
+      const rows = FEATURES.filter(f => f.g === g.id && keep(f));
+      if (!rows.length) return;
+      html += `<div class="grp">${g.label}</div>`;
+      rows.forEach(f => {
+        const c = state.choice[f.id];
+        const cls = ["frow", cset.has(f.id) ? "conflict" : "", c !== f.reco ? "changed" : ""].join(" ");
+        const seg = ["core","plugin","discuss"].map(v => `<button type="button" class="${v}${v === f.reco ? " reco" : ""}" data-f="${f.id}" data-v="${v}" aria-pressed="${c === v}">${LABEL[v]}</button>`).join("");
+        const reqs = (f.req || []).map(r => NAMES[r]).join(", ");
+        let msg = "";
+        if (state.err[f.id]) msg = `<p class="fmsg err" role="alert">${esc(state.err[f.id])}</p>`;
+        else if (cset.has(f.id)) msg = `<p class="fmsg err">${esc(cf.find(x => x.f === f.id).msg)}</p>`;
+        else if (c === "plugin" && reqs) msg = `<p class="fmsg info">Son installation exigera : ${esc(reqs)}.</p>`;
+        html += `<div class="${cls}" id="row-${f.id}">
+          <div class="fmain">
+            <button type="button" class="fname" data-open="${f.id}" aria-expanded="${!!state.open[f.id]}"><b>${esc(f.name)}</b>${f.diff ? `<span class="d ${f.diff}" title="Effort pour en faire un plugin">${f.diff}</span>` : ""}<small>${esc(f.sub)}${f.lock ? " · verrouillé" : ""}</small></button>
+            <div class="seg${f.lock ? " locked" : ""}" role="group" aria-label="${esc(f.name)}">${seg}</div>
+          </div>${msg}
+          ${state.open[f.id] ? `<div class="fdetail"><dl>
+            <dt>Ma recommandation</dt><dd>${LABEL[f.reco]}${f.lock ? " — " + esc(f.lock) : ""}</dd>
+            <dt>Pourquoi</dt><dd>${esc(f.why)}</dd>
+            <dt>Ce qui disparaît sans lui</dt><dd>${esc(f.hides)}</dd>
+            ${f.diff ? `<dt>Effort d’extraction</dt><dd>${{S:"S — isolé",M:"M — quelques points d’accroche",L:"L — dans le prix, le sas ou la compta"}[f.diff]}</dd>` : ""}
+            ${reqs ? `<dt>Dépend de</dt><dd>${esc(reqs)}</dd>` : ""}
+          </dl></div>` : ""}
+        </div>`;
+      });
+    });
+    $("featureList").innerHTML = html || `<p class="empty">Aucune fonction dans ce filtre.</p>`;
+    renderSide(cf);
+  }
+
+  function renderSide(cf){
+    const n = v => FEATURES.filter(f => state.choice[f.id] === v).length;
+    const plugins = FEATURES.filter(f => state.choice[f.id] === "plugin");
+    const effort = plugins.reduce((s,f) => s + (EFFORT[f.diff] || 1), 0);
+    const maxEffort = FEATURES.filter(f => !f.lock).reduce((s,f) => s + (EFFORT[f.diff] || 1), 0);
+    const hard = plugins.filter(f => f.diff === "L").length;
+    $("splitKv").innerHTML = `<span>Au cœur</span><b>${n("core")}</b><span>En plugin</span><b>${n("plugin")}</b><span>À discuter</span><b>${n("discuss")}</b><span>Différent de ma recommandation</span><b>${FEATURES.filter(f => state.choice[f.id] !== f.reco).length}</b>`;
+    $("effortBar").style.width = Math.round(100 * effort / maxEffort) + "%";
+    $("effortTxt").textContent = `Effort d’extraction : ${effort} points (S = 1, M = 2, L = 3), dont ${hard} plugin${hard > 1 ? "s" : ""} difficile${hard > 1 ? "s" : ""}.`;
+    $("conflictList").innerHTML = cf.map(c => `<li>${esc(c.msg)}</li>`).join("");
+    const vis = owners => owners.some(o => state.choice[o] !== "plugin");
+    const q = owners => !owners.some(o => state.choice[o] === "core") && owners.some(o => state.choice[o] === "discuss");
+    let shown = [], hidden = 0;
+    MENU.forEach(m => {
+      if (!vis(m.o)) { hidden += 1 + (m.c || []).length; return; }
+      shown.push(`<li class="${q(m.o) ? "q" : ""}">${esc(m.l)}</li>`);
+      (m.c || []).forEach(c => { if (vis(c.o)) shown.push(`<li class="l1${q(c.o) ? " q" : ""}">${esc(c.l)}</li>`); else hidden++; });
+    });
+    $("menuPreview").innerHTML = shown.join("");
+    $("menuHidden").textContent = hidden ? `${hidden} entrée${hidden > 1 ? "s" : ""} du menu de Solio disparaissent.` : "Aucune entrée ne disparaît : le menu est celui de Solio.";
+  }
+
+  $("featureList").addEventListener("click", e => {
+    const o = e.target.closest("[data-open]");
+    if (o){ state.open[o.dataset.open] = !state.open[o.dataset.open]; renderFeatures(); return; }
+    const b = e.target.closest("button[data-f]");
+    if (!b) return;
+    const f = FEATURES.find(x => x.id === b.dataset.f);
+    if (f.lock && b.dataset.v !== f.reco){
+      state.err[f.id] = `Refusé : ${f.name} reste au cœur. ${f.lock}`;
+      renderFeatures();
+      const row = $("row-" + f.id); row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+      return;
+    }
+    delete state.err[f.id];
+    state.choice[f.id] = b.dataset.v; save(); renderAll();
+  });
+  $("fFilter").addEventListener("click", e => { const b = e.target.closest("button"); if (b){ state.fFilter = b.dataset.v; renderFeatures(); } });
+  $("resetReco").addEventListener("click", () => { FEATURES.forEach(f => state.choice[f.id] = f.reco); state.err = {}; save(); renderAll(); });
+
+  /* ---------- section 2 ---------- */
+  function renderQuestions(){
+    $("questions-grid").innerHTML = QUESTIONS.map(q => `<div class="card q"><h3>${esc(q.title)}</h3><p class="muted" style="font-size:13.5px">${esc(q.intro)}</p>
+      ${q.opts.map(o => `<label class="opt${state.answers[q.id] === o.v ? " sel" : ""}"><input type="radio" name="${q.id}" value="${o.v}" ${state.answers[q.id] === o.v ? "checked" : ""}>
+        <span><b>${esc(o.t)}</b>${o.reco ? `<span class="tagreco">recommandé</span>` : ""}<small>${esc(o.x)}</small></span></label>`).join("")}</div>`).join("");
+  }
+  $("questions-grid").addEventListener("change", e => { if (e.target.name){ state.answers[e.target.name] = e.target.value; save(); renderAll(); } });
+
+  /* ---------- section 3 ---------- */
+  const isMoot = it => it.f && state.choice[it.f] === "core";
+  const isDone = it => !!state.done[it.id];
+  const C_FILTERS = [
+    ["open","Restant", it => !isDone(it) && !isMoot(it)],
+    ["decide","À décider", it => it.k === "decide" && !isDone(it)],
+    ["you","Pour toi", it => it.k === "you" && !isDone(it)],
+    ["new","Oubliés", it => it.nw],
+    ["done","Faits", it => isDone(it)],
+    ["all","Tout", () => true]
+  ];
+  function renderStreams(){
+    const all = STREAMS.flatMap(s => s.items);
+    $("cFilter").innerHTML = C_FILTERS.map(([v,l,fn]) => `<button type="button" data-v="${v}" aria-pressed="${state.cFilter === v}">${l}<span class="n">${all.filter(fn).length}</span></button>`).join("");
+    const fn = C_FILTERS.find(x => x[0] === state.cFilter)[2];
+    const q = state.q.trim().toLowerCase();
+    const match = it => !q || (it.t + " " + (it.x || "") + " " + (it.f ? NAMES[it.f] : "")).toLowerCase().includes(q);
+    let html = "";
+    STREAMS.forEach(s => {
+      const live = s.items.filter(it => !isMoot(it));
+      const d = live.filter(isDone).length;
+      const items = s.items.filter(it => fn(it) && match(it));
+      if (!items.length) return;
+      html += `<section class="stream"><header><h3>${esc(s.t)}</h3><div class="prog">${d} / ${live.length} fait${d > 1 ? "s" : ""}<div class="meter"><i style="width:${live.length ? Math.round(100*d/live.length) : 100}%"></i></div></div></header>
+        ${s.intro ? `<p class="intro">${esc(s.intro)}</p>` : ""}
+        ${items.map(it => {
+          const moot = isMoot(it), done = isDone(it);
+          const badges = [
+            moot ? `<span class="badge b-moot">sans objet : reste au cœur</span>` : "",
+            it.f && state.choice[it.f] === "discuss" ? `<span class="badge b-decide">selon ton arbitrage</span>` : "",
+            it.k === "decide" && !done ? `<span class="badge b-decide">à décider</span>` : "",
+            it.k === "you" && !done ? `<span class="badge b-you">toi</span>` : "",
+            it.nw ? `<span class="badge b-new">oublié</span>` : "",
+            it.f && it.x === undefined && !moot ? `<span class="badge b-moot">${esc(NAMES[it.f])}</span>` : ""
+          ].join("");
+          return `<div class="item${done ? " done" : ""}${moot ? " moot" : ""}"><input type="checkbox" data-i="${it.id}" ${done ? "checked" : ""} ${moot ? "disabled" : ""} aria-label="Fait : ${esc(it.t)}">
+            <div class="body"><div class="t">${esc(it.t)}${badges}</div>${it.x ? `<div class="x">${it.x}</div>` : ""}</div></div>`;
+        }).join("")}</section>`;
+    });
+    $("streams").innerHTML = html || `<p class="empty">Aucun chantier dans ce filtre.</p>`;
+  }
+  $("streams").addEventListener("change", e => { const i = e.target.dataset.i; if (!i) return; if (e.target.checked) state.done[i] = true; else delete state.done[i]; save(); renderAll(); });
+  $("cFilter").addEventListener("click", e => { const b = e.target.closest("button"); if (b){ state.cFilter = b.dataset.v; renderStreams(); } });
+  $("cSearch").addEventListener("input", e => { state.q = e.target.value; renderStreams(); });
+
+  /* ---------- stats + export ---------- */
+  function renderTop(cf){
+    const all = STREAMS.flatMap(s => s.items).filter(it => !isMoot(it));
+    const done = all.filter(isDone).length;
+    const decide = FEATURES.filter(f => state.choice[f.id] === "discuss").length + all.filter(it => it.k === "decide" && !isDone(it)).length;
+    const nw = all.filter(it => it.nw).length;
+    $("topStats").innerHTML = `
+      <div class="stat"><b>${all.length - done}</b><span>chantiers restants sur ${all.length}</span></div>
+      <div class="stat"><b>${decide}</b><span>points qui attendent ta décision</span></div>
+      <div class="stat"><b>${FEATURES.filter(f => state.choice[f.id] === "plugin").length}</b><span>plugins dans ton découpage</span></div>
+      <div class="stat"><b>${nw}</b><span>chantiers absents de l’état des lieux</span></div>
+      <div class="stat${cf.length ? " warn" : ""}"><b>${cf.length}</b><span>incohérence${cf.length > 1 ? "s" : ""} dans le découpage</span></div>`;
+  }
+  function renderExport(cf){
+    const list = v => FEATURES.filter(f => state.choice[f.id] === v).map(f => f.name);
+    const changed = FEATURES.filter(f => state.choice[f.id] !== f.reco).map(f => `- ${f.name} : ${LABEL[f.reco]} → ${LABEL[state.choice[f.id]]}`);
+    const ans = QUESTIONS.map(q => `${q.title.split(" · ")[0]} : ${q.opts.find(o => o.v === state.answers[q.id]).t}`);
+    const open = STREAMS.flatMap(s => s.items).filter(it => it.k === "decide" && !isDone(it)).map(it => `- ${it.t}`);
+    $("exportOut").value = [
+      "Arbitrages GuestFlow — cœur / plugins (rapport du 28/09/2026)", "",
+      `Cœur (${list("core").length}) : ${list("core").join(", ")}`, "",
+      `Plugins (${list("plugin").length}) : ${list("plugin").join(", ")}`, "",
+      `À discuter (${list("discuss").length}) : ${list("discuss").join(", ") || "aucun"}`, "",
+      "Écarts avec la recommandation :", ...(changed.length ? changed : ["- aucun"]), "",
+      ...ans, "",
+      "Incohérences :", ...(cf.length ? cf.map(c => "- " + c.msg) : ["- aucune"]), "",
+      "Chantiers encore à décider :", ...(open.length ? open : ["- aucun"])
+    ].join("\n");
+  }
+  $("copyBtn").addEventListener("click", async () => {
+    const t = $("exportOut");
+    try { await navigator.clipboard.writeText(t.value); $("copyMsg").textContent = "Copié. Colle-le dans la conversation."; }
+    catch(e){ t.focus(); t.select(); $("copyMsg").textContent = "Copie automatique bloquée : le texte est sélectionné, fais Cmd+C."; }
+  });
+
+  function renderAll(){ const cf = conflicts(); renderFeatures(); renderQuestions(); renderStreams(); renderTop(cf); renderExport(cf); }
+  renderAll();
+})();
+</script>
+</body>
+</html>
