@@ -341,10 +341,6 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       `If you have not done so already, a few words on ${platformName} would help us a lot: it is often thanks to these reviews that other families dare to come all the way here.${googleReviewUrl ? ` And if you would like to say a little more, your message is also welcome on our Google page: ${googleReviewUrl}` : ''}`,
     );
   }
-  const lostItems = safe(r.lostItems).trim();
-  const lostItemsParagraph = lostItems
-    ? t(`Nous avons retrouvé ${lostItems} après votre départ : dites-nous si nous vous le renvoyons.`, `We found ${lostItems} after you left: let us know if you would like us to send it back.`)
-    : t('Un objet oublié ? Dites-le nous, nous mettons tout de côté.', 'Forgotten something? Let us know, we set everything aside.');
   const instagramUrl = safe(settings.instagramUrl).trim();
   const instagramParagraph = instagramUrl ? t(
     `Si vous êtes nostalgiques de votre séjour, n'hésitez pas à nous suivre sur les réseaux sociaux : ${instagramUrl}`,
@@ -401,7 +397,6 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       coffeeParagraph,
       cleaningParagraph,
       reviewParagraph,
-      lostItemsParagraph,
       instagramParagraph,
       quietSinceDeparture,
       reservedOptionsLabel: cls.bookedTitles.join(', '),

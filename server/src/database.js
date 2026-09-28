@@ -2485,6 +2485,31 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (dropped.length) console.log(`[migration:settings-rationalization] dropped ${dropped.join(', ')}`);
 }
 
+// ---------- « OBJETS OUBLIÉS » REMOVED (specs/guest-email-sequence.md rule 33, 2026-09-28) ----------
+// One-shot: the stored templates lose their `{{lostItemsParagraph}}` line (operator edits kept).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'remove_lost_items_token_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runStripLostItemsTokenMigration } = require('./utils/removeLostItemsMigration');
+    const updated = db.transaction(() => {
+      const count = runStripLostItemsTokenMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return count;
+    })();
+    console.log(`[migration:remove-lost-items] ${updated} template field(s) no longer quote the lost items`);
+  }
+}
+// Idempotent: `reservations.lostItems` was empty on every production row when it was dropped.
+try {
+  if (require('./utils/removeLostItemsMigration').dropLostItemsColumn(db)) {
+    console.log('[migration:remove-lost-items] dropped reservations.lostItems');
+  }
+} catch (err) {
+  // A column left behind is inert (nothing reads it any more): never block the boot on it.
+  console.warn('[migration:remove-lost-items] reservations.lostItems not dropped:', err.message);
+}
+
 // ---------- CGV (specs/terms-acceptance-record.md §5) ----------
 // The draft the operator edits, the published versions (insert-only: a version is never edited nor
 // deleted — it is what a guest accepted), and the acceptances recorded on public booking requests.

@@ -593,9 +593,6 @@ const api = {
   // Guest email sequence simulation (specs/guest-email-sequence.md §4.3) — nothing sent, nothing written.
   getEmailSequenceSimulation: ({ from, to }) =>
     request(`/email-sequence/simulation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  // « Objets oubliés » on a reservation, quoted by the J+1 email (rule 33).
-  updateReservationLostItems: (id, lostItems) =>
-    request(`/reservations/${id}/lost-items`, { method: 'PATCH', body: { lostItems } }),
   getPendingEmails:          () => request('/emails/pending'),
   acknowledgePendingEmail:   ({ templateId, reservationId }) =>
     request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),
