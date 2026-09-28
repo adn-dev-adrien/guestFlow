@@ -6,7 +6,7 @@
 | **Branch** | `feature/plugins-phase-1` (from `inte/plugins`) |
 | **Created** | 2026-09-28 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened; target `inte/plugins`) |
+| **Related PR** | [#632](https://github.com/adn-dev-adrien/guestFlow/pull/632) (target `inte/plugins`) |
 | **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, §8.2, phasing §12 |
 | **Previous phase** | [`specs/plugins-phase-0-foundation.md`](plugins-phase-0-foundation.md) (merged into `inte/plugins`, #629) |
 | **Summary for review** | [`docs/specs/2026-09-28-plugins-phase-1-sdk.html`](../docs/specs/2026-09-28-plugins-phase-1-sdk.html) |
