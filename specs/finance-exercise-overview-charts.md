@@ -70,6 +70,7 @@ matching the dashboard the marketing site advertises.
    and *à venir* (attribution date > today, miel). A closed exercise is all sapin, a future one all
    miel, the current month is usually split. A legend names both colours.
 10. Tooltip: month name + year, TTC, HT, nights, and the à-venir part when non-zero.
+    > **Sans test** — a Recharts tooltip needs a laid-out chart, which jsdom does not provide; checked in the manual UI verification (§7).
 11. A month without revenue shows an empty slot (the axis keeps its 12 months).
 
 ### 3.4 Par logement
@@ -90,6 +91,7 @@ matching the dashboard the marketing site advertises.
     **Direct is sapin (`primary.main`)** so it echoes the « Part en direct » tile, « Autres » is
     `DEFAULT_PLATFORM_COLOR`. The Direct chip colour elsewhere in the app is unchanged.
 16. Tooltip on a slice: channel, TTC, number of reservations.
+    > **Sans test** — same reason as rule 10; checked in the manual UI verification (§7).
 
 **Edge cases:**
 - Exercise with no stay → tiles at 0 € / 0 / « — » (no division by zero), month axis empty,
@@ -179,7 +181,7 @@ Loading / error: the block follows the page's existing `LoadingState` / `ErrorAl
 
 ## 7. Test plan
 
-### Server unit tests — 10
+### Server unit tests — 11
 - [x] `tests/finance-exercise-overview.unit.test.js`
   - Σ months = Σ properties = Σ channels = `yearTotal` (rule 3)
   - months follow the exercise order for a non-December closing (rule 8), 12 entries even when empty
@@ -188,11 +190,13 @@ Loading / error: the block follows the page's existing `LoadingState` / `ErrorAl
   - channel cap at 5 with « Autres », percentages sum to 100, no zero-revenue slice (rules 13-14)
   - logement ratio relative to the first, zeros omitted (rule 12)
   - the pure helpers of `utils/exerciseOverview.js`
+  - the overview ignores the du/au period and carries the exercise HT (rules 1-2)
 
-### Client tests — 5
+### Client tests — 6
 - [x] `components/__tests__/FinanceExerciseOverview.test.jsx` — tiles and legend from a fixture,
-  tile click opens the breakdown (the direct-share tile does not), empty exercise shows « — » and the
-  empty states, nothing renders before the summary.
+  tile click opens the breakdown (the direct-share tile does not), channel colours (rule 15), empty
+  exercise shows « — » and the empty states, nothing renders before the summary.
+- [x] `pages/__tests__/FinancePage.test.jsx` — the two exercise cards stay (rule 7, citation added).
 
 ### Manual UI verification (2026-09-28, copy of the dev database)
 - [x] Current exercise 2025-2026: months, logements and channels all equal the revenue tile (22 630,41 €).

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { createTheme, hexToRgb } from '@mui/material/styles';
 import FinanceExerciseOverview from '../FinanceExerciseOverview';
 
 const month = (m, initial, revenue, upcoming = 0) => ({
@@ -33,7 +34,7 @@ const EMPTY = {
   months: [month('2026-01', 'J', 0)], properties: [], channels: [],
 };
 
-test('the three tiles show the server figures', () => {
+test('rules 4-6 — the three tiles show the server figures', () => {
   render(<FinanceExerciseOverview overview={OVERVIEW} fiscalYearLabel="2026" onOpenBreakdown={() => {}} />);
   expect(screen.getByText("Revenu de l'exercice")).toBeInTheDocument();
   expect(screen.getByText('369')).toBeInTheDocument();
@@ -42,7 +43,7 @@ test('the three tiles show the server figures', () => {
   expect(screen.getByText('TTC · exercice 2026')).toBeInTheDocument();
 });
 
-test('the revenue and nights tiles open the exercise breakdown; the direct share does not', () => {
+test('rules 4-5 — the revenue and nights tiles open the exercise breakdown; the direct share does not', () => {
   const onOpen = vi.fn();
   render(<FinanceExerciseOverview overview={OVERVIEW} fiscalYearLabel="2026" onOpenBreakdown={onOpen} />);
   fireEvent.click(screen.getByRole('button', { name: "Voir le détail : Revenu de l'exercice" }));
@@ -59,6 +60,15 @@ test('logements and channels are listed in the server order with their percentag
   expect(legend).toEqual(expect.arrayContaining(['Direct · 38 %', 'Airbnb · 19 %', 'Autres · 43 %']));
   expect(screen.getByText('Encaissé ou passé')).toBeInTheDocument();
   expect(screen.getByText('À venir')).toBeInTheDocument();
+});
+
+test('rule 15 — Direct is sapin, a platform keeps its colour, « Autres » is the default grey', () => {
+  render(<FinanceExerciseOverview overview={OVERVIEW} fiscalYearLabel="2026" onOpenBreakdown={() => {}} />);
+  const dot = (label) => getComputedStyle(screen.getByText(label, { exact: false }).closest('li').querySelector('span')).backgroundColor;
+  const theme = createTheme();
+  expect(dot('Airbnb ·')).toBe('rgb(255, 90, 95)');
+  expect(dot('Autres ·')).toBe('rgb(117, 117, 117)');
+  expect(dot('Direct ·')).toBe(hexToRgb(theme.palette.primary.main));
 });
 
 test('an empty exercise shows a dash and the empty states', () => {

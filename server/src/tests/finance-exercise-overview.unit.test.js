@@ -91,6 +91,17 @@ test('rule 8 — twelve months in calendar order, each carrying its own stays', 
   assert.equal(months[3].revenue, 0);
 });
 
+test('rules 1-2 — the whole exercise on the total-de-séjour basis, whatever the du/au period', () => {
+  const { db, model } = freshModel();
+  const year = THIS_YEAR - 2;
+  seedPastYear(db, year);
+  const wide = model.getSummary({ fiscalYear: year });
+  const narrow = model.getSummary({ fiscalYear: year, from: `${year}-07-01`, to: `${year}-07-31` });
+  assert.deepEqual(narrow.exerciseOverview, wide.exerciseOverview);
+  assert.equal(wide.exerciseOverview.revenueHt, wide.yearTotalHt);
+  assert.equal(sum(wide.exerciseOverview.months, 'revenueHt'), wide.yearTotalHt);
+});
+
 test('rule 8 — a September closing starts the axis in October', () => {
   const { model } = freshModel(9);
   const { months } = model.getSummary({ fiscalYear: THIS_YEAR }).exerciseOverview;
@@ -127,7 +138,9 @@ test('rule 6 — direct is the website plus saisie directe; an empty exercise ha
   assert.deepEqual(empty.direct, { revenue: 0, percent: null });
   assert.deepEqual(empty.channels, []);
   assert.deepEqual(empty.properties, []);
+  // rule 11 — the axis keeps its twelve (empty) months.
   assert.equal(empty.months.length, 12);
+  assert.ok(empty.months.every((m) => m.revenue === 0));
 });
 
 test('rule 12 — logements at 0 are dropped, each ratio is relative to the first', () => {
