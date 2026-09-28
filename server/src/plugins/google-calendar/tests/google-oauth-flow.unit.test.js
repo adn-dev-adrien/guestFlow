@@ -106,6 +106,8 @@ test('authorize: 400 when no redirect URI can be resolved', () => {
 
 // --- callback ---
 
+// specs/plugins-phase-1-sdk.md rule 19 — the callback lands on Intégrations, the page that shows
+// its message (`/settings` redirects to Établissement and drops the query).
 test('callback: success → tokens stored + redirect ?google=connected', async () => {
   const settings = fakeSettingsStore();
   const c = buildController({ settings, oauthFactory: fakeOauth(), sync: fakeSync() });

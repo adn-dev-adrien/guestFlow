@@ -30,6 +30,7 @@ const db = require('../src/database');
 const usersModel = require('../src/models/usersModel');
 const { hashPassword } = require('../src/utils/passwordHash');
 const { PLUGIN_IDS } = require('../src/constants/plugins');
+const { applyPluginSchema } = require('../src/plugins/sdk/testing');
 
 // Create the user if missing, then replay the password hash + drop the must-change flag — the same
 // operation `setPassword` does at the end of the change-password flow. We can't call
@@ -58,6 +59,9 @@ function run() {
   });
   const install = db.prepare("INSERT INTO plugins (id, enabled, source) VALUES (?, 1, 'builtin') ON CONFLICT(id) DO UPDATE SET enabled = 1");
   PLUGIN_IDS.forEach((id) => install.run(id));
+  // The tables of the plugin modules exist once a plugin is installed (specs/plugins-phase-1-sdk.md
+  // rule 6); the server may have booted before this seed, so create them here, as an install does.
+  require('../src/plugins').forEach((mod) => applyPluginSchema(db, mod.id));
   console.log(`[seed-e2e] ${PLUGIN_IDS.length} built-in plugins installed and active.`);
   return 0;
 }

@@ -118,7 +118,8 @@ function readTree(dir, base = dir, acc = {}) {
   return acc;
 }
 
-test('rule 3: no plugin imports the core outside the SDK, and the core imports no plugin folder', () => {
+// Rule 11 — what a plugin needs of the core comes through ctx.core and the SDK, never a require.
+test('rules 3, 11: no plugin imports the core outside the SDK, and the core imports no plugin folder', () => {
   assert.deepEqual(importViolations(readTree(SRC)), []);
 });
 
@@ -190,7 +191,10 @@ test('rule 5: plugin reception entries join the role guard; inactive, the route 
 
 // ---------- tables (rule 6) ----------
 
-test('rule 6: an uninstalled plugin has no table; installing creates them and records the ledger', async () => {
+test('rules 6, 26: an uninstalled plugin has no table; installing creates them and records the ledger', async () => {
+  for (const table of ['weather_vigilance_cache', 'school_holidays', 'tariff_recipe_runs', 'gate_key_results']) {
+    assert.doesNotMatch(SCHEMA, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`), table);
+  }
   const db = freshDb();
   const { plugins } = boot(db, { installed: [] });
   assert.equal(tableExists(db, 'school_holidays'), false);
@@ -203,7 +207,7 @@ test('rule 6: an uninstalled plugin has no table; installing creates them and re
   assert.ok(db.prepare("SELECT 1 FROM migrations WHERE name = 'plugin:gate-access:tables_v1'").get());
 });
 
-test('rule 6: on a database that predates the module the migrations are no-ops, and run once', () => {
+test('rules 6, 25: on a database that predates the module the migrations are no-ops, and run once', () => {
   const db = freshDb();
   db.exec('CREATE TABLE weather_vigilance_cache (departmentCode TEXT PRIMARY KEY, payload TEXT NOT NULL, fetchedAt TEXT NOT NULL)');
   db.prepare("INSERT INTO weather_vigilance_cache VALUES ('07', '[]', '2026-09-28')").run();
@@ -250,7 +254,7 @@ test('rule 7: a secret is encrypted at rest and only reads back as <key>Set over
   assert.deepEqual(res.body, { error: 'UNKNOWN_SETTING', keys: ['other'] });
 });
 
-test('rule 7 / §5: the copy migration moves the Météo key and the Google fields byte for byte, once', () => {
+test('rules 7, 25: the copy migration moves the Météo key and the Google fields byte for byte, once', () => {
   const db = freshDb();
   db.exec("CREATE TABLE IF NOT EXISTS app_settings_probe (x)");
   const cols = new Set(db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name));
@@ -412,6 +416,18 @@ test('rule 22: a plugin without a module refuses ?purge=1 and keeps its data', (
   assert.equal(res.statusCode, 409);
   assert.deepEqual(res.body, { error: 'NOT_ERASABLE' });
   assert.ok(plugins.get('linen'));
+});
+
+test('rule 23: an erasure obeys the refusals of phase 0 rule 8', () => {
+  const db = freshDb();
+  db.prepare("INSERT INTO payment_links (reservationId, type, status) VALUES (1, 'deposit', 'open')").run();
+  const erasable = { id: 'online-payment', register(ctx) { ctx.data({ tables: [], describe: () => [] }); } };
+  const { plugins } = boot(db, { installed: ['online-payment'], modules: [erasable] });
+  const res = fakeRes();
+  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'online-payment' }, query: { purge: '1' } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'PLUGIN_BLOCKED');
+  assert.ok(plugins.get('online-payment'));
 });
 
 test('rule 20: erasing the recipes keeps every season and price; the seasons become manual', () => {

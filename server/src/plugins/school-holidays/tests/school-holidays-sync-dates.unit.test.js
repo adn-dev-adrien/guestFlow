@@ -1,5 +1,5 @@
-// specs/school-holidays.md rule 9, fixed with specs/plugins-phase-1-sdk.md rule 26 (2026-09-28) — a new
-// customer's holidays come from the sync alone, so the sync must read the dataset the way it is
+// specs/plugins-phase-1-sdk.md rules 26-27 (fixing specs/school-holidays.md rule 9, 2026-09-28) — a
+// new customer's holidays come from the sync alone, so the sync must read the dataset the way it is
 // published: every period (not only the summer), on its Paris days, and absorb hand-typed twins.
 const test = require('node:test');
 const assert = require('node:assert/strict');
