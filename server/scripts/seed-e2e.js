@@ -11,6 +11,9 @@
  *   - a **reception** account (specs/reception-role-checkin-only.md,
  *     specs/reception-sas-today-only.md) for the specs that assert the « Accueil » confinement and
  *     the day-window SAS locks — they opt in via their own storageState.
+ * It also installs the twelve built-in plugins, active: the suite starts from an empty database, which
+ * GuestFlow treats as a new customer with no plugin (specs/plugins-phase-0-foundation.md rule 11),
+ * while the specs describe the Solio configuration. The plugin specs switch them off themselves.
  * The `force-password-change` spec uses the standard `reset-admin.js` script against the default
  * admin instead — this seed leaves the default admin path intact.
  *
@@ -26,6 +29,7 @@ const RECEPTION_PASSWORD = process.env.E2E_RECEPTION_PASSWORD || 'e2e-reception-
 const db = require('../src/database');
 const usersModel = require('../src/models/usersModel');
 const { hashPassword } = require('../src/utils/passwordHash');
+const { PLUGIN_IDS } = require('../src/constants/plugins');
 
 // Create the user if missing, then replay the password hash + drop the must-change flag — the same
 // operation `setPassword` does at the end of the change-password flow. We can't call
@@ -52,6 +56,9 @@ function run() {
   seedUser({
     email: RECEPTION_EMAIL, password: RECEPTION_PASSWORD, firstName: 'E2E', lastName: 'Accueil', roles: ['reception'],
   });
+  const install = db.prepare("INSERT INTO plugins (id, enabled, source) VALUES (?, 1, 'builtin') ON CONFLICT(id) DO UPDATE SET enabled = 1");
+  PLUGIN_IDS.forEach((id) => install.run(id));
+  console.log(`[seed-e2e] ${PLUGIN_IDS.length} built-in plugins installed and active.`);
   return 0;
 }
 

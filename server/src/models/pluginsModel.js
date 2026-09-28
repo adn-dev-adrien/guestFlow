@@ -2,9 +2,9 @@
  * Plugins model — sole DB access for `plugins` (specs/plugins-phase-0-foundation.md §4.1).
  *
  * States: no row = available; enabled = 1 → active; enabled = 0 → installed but inactive.
- * `isActive` is called on hot paths (every request of a plugin route, every scheduled pass), so the
- * active set is cached in memory and rebuilt after each write. One process serves one database, so
- * no other writer can make the cache stale.
+ * `isActive` runs on every request of a plugin route and every scheduled pass. It reads the table
+ * each time rather than caching: a primary-key lookup costs microseconds, and a write from another
+ * process (a maintenance script, the E2E seed) is seen at once.
  *
  * Exports a default model bound to the production DB + a `buildModel(db)` factory for tests.
  *
@@ -30,6 +30,7 @@ function buildModel(database) {
   const setEnabledStmt = database.prepare("UPDATE plugins SET enabled = ?, updated_at = datetime('now') WHERE id = ?");
   const deleteStmt = database.prepare('DELETE FROM plugins WHERE id = ?');
   const activeStmt = database.prepare('SELECT id FROM plugins WHERE enabled = 1 ORDER BY id');
+  const isActiveStmt = database.prepare('SELECT 1 FROM plugins WHERE id = ? AND enabled = 1');
   const openLinksStmt = database.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE status = 'open'");
   // Active users holding `role` without admin: a combined admin account keeps every screen, so it
   // never needs the plugin that carries the role.
@@ -40,23 +41,16 @@ function buildModel(database) {
       AND NOT EXISTS (SELECT 1 FROM user_roles a WHERE a.userId = u.id AND a.role = 'admin')
   `);
 
-  let activeCache = null;
-  const activeSet = () => {
-    if (!activeCache) activeCache = new Set(activeStmt.all().map((r) => r.id));
-    return activeCache;
-  };
-  const invalidate = () => { activeCache = null; };
-
   const toRow = (row) => (row ? { ...row, enabled: row.enabled === 1 } : null);
 
   return {
     list: () => listStmt.all().map(toRow),
     get: (id) => toRow(getStmt.get(id)),
-    install(id) { insertStmt.run(id); invalidate(); },
-    setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); invalidate(); },
-    uninstall(id) { deleteStmt.run(id); invalidate(); },
-    isActive: (id) => activeSet().has(id),
-    listActiveIds: () => [...activeSet()],
+    install(id) { insertStmt.run(id); },
+    setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); },
+    uninstall(id) { deleteStmt.run(id); },
+    isActive: (id) => Boolean(isActiveStmt.get(id)),
+    listActiveIds: () => activeStmt.all().map((r) => r.id),
     countOpenPaymentLinks: () => openLinksStmt.get().n,
     countOnlyRoleUsers: (role) => onlyRoleStmt.get(role).n,
   };

@@ -7,8 +7,6 @@ const defaultModel = require('../models/pluginsModel');
 const { PLUGIN_CATALOG, findPlugin, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
 
-const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
-
 // Rule 8 — turning these off would leave something live without its tool.
 function blockerFor(id, model) {
   if (id === ONLINE_PAYMENT) {
@@ -16,7 +14,9 @@ function blockerFor(id, model) {
     if (n > 0) {
       return {
         code: 'OPEN_PAYMENT_LINKS',
-        message: `${plural(n, 'lien de paiement est en attente', 'liens de paiement sont en attente')}. Attends leur paiement ou annule-les avant de désactiver.`,
+        message: n > 1
+          ? `${n} liens de paiement sont en attente. Attends leur paiement ou annule-les avant de désactiver.`
+          : '1 lien de paiement est en attente. Attends son paiement ou annule-le avant de désactiver.',
       };
     }
   }
@@ -25,7 +25,9 @@ function blockerFor(id, model) {
     if (n > 0) {
       return {
         code: 'RECEPTION_USERS',
-        message: `${plural(n, 'compte Accueil est actif', 'comptes Accueil sont actifs')}. Change leur rôle dans Utilisateurs d’abord.`,
+        message: n > 1
+          ? `${n} comptes Accueil sont actifs. Change leur rôle dans Utilisateurs d’abord.`
+          : '1 compte Accueil est actif. Change son rôle dans Utilisateurs d’abord.',
       };
     }
   }
@@ -34,7 +36,9 @@ function blockerFor(id, model) {
     if (n > 0) {
       return {
         code: 'ACCOUNTANT_USERS',
-        message: `${plural(n, 'compte Comptable est actif', 'comptes Comptable sont actifs')}. Change leur rôle dans Utilisateurs d’abord.`,
+        message: n > 1
+          ? `${n} comptes Comptable sont actifs. Change leur rôle dans Utilisateurs d’abord.`
+          : '1 compte Comptable est actif. Change son rôle dans Utilisateurs d’abord.',
       };
     }
   }
