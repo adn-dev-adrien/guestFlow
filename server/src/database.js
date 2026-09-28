@@ -2541,6 +2541,13 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- PLUGINS — specs/plugins-phase-0-foundation.md §5 ----------
+{
+  const { ensurePluginsTable, seedBuiltinPlugins } = require('./utils/pluginsSchema');
+  ensurePluginsTable(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') seedBuiltinPlugins(db);
+}
+
 // ---------- TRANSLATION CATALOGUE ----------
 // specs/translation-catalogue.md §5. Two tables rather than a column per language, so a third
 // language is data and never a migration (rule 17). `translation_values` cascades: a retired entry

@@ -38,6 +38,9 @@ function createGoogleCalendarSync({
   model = googleCalendarModel,
   getCalendar = null,
   log = (...args) => console.error(...args),
+  // specs/plugins-phase-0-foundation.md rule 15 — the production instance wires the plugin state;
+  // a factory built by a test syncs unless told otherwise.
+  pluginActive = () => true,
 } = {}) {
   // Default client cache, keyed on the ENCRYPTED token blob: no decrypt on the fast path,
   // and googleapis keeps refreshing the access token in memory instead of doing one
@@ -60,7 +63,8 @@ function createGoogleCalendarSync({
   });
 
   function isActive() {
-    return settings.googleConnected() && Boolean(settings.googleCalendarSelection().calendarId);
+    return pluginActive()
+      && settings.googleConnected() && Boolean(settings.googleCalendarSelection().calendarId);
   }
 
   // Shared preamble: null when sync is inactive; `unreadableToken: true` when a connection
@@ -243,7 +247,9 @@ function createGoogleCalendarSync({
   };
 }
 
-const defaultSync = createGoogleCalendarSync();
+const defaultSync = createGoogleCalendarSync({
+  pluginActive: () => require('../models/pluginsModel').isActive(require('../constants/plugins').GOOGLE_CALENDAR),
+});
 defaultSync.create = createGoogleCalendarSync;
 defaultSync.INVALID_GRANT_DETAIL = INVALID_GRANT_DETAIL;
 defaultSync.UNREADABLE_TOKEN_DETAIL = UNREADABLE_TOKEN_DETAIL;
