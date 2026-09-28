@@ -177,7 +177,7 @@ ALTER TABLE school_holidays ADD COLUMN lastSyncedAt TEXT;       -- ISO-8601 of l
 CREATE INDEX IF NOT EXISTS idx_school_holidays_externalRef ON school_holidays(externalRef);
 ```
 
-Idempotent block in `server/src/database.js`. Existing rows: `externalRef = NULL`, `isLocked = 0`. They get adopted by the first auto-sync if their `(year, label)` matches an API record (the upsert overwrites the row in place). Otherwise they stay as orphan manual rows.
+Idempotent block in `server/src/database.js`. Existing rows: `externalRef = NULL`, `isLocked = 0`. They get adopted by the first auto-sync if their `(year, label)` matches an API record (the upsert overwrites the row in place). Otherwise they stay as orphan manual rows. Since 2026-09-28 (specs/plugins-phase-1-sdk.md rule 27) a manual row is also adopted when it names the same season (Toussaint, Noël, Hiver, Printemps, Pâques, Ascension, Été) and its dates overlap in one zone, and only by a period not yet imported. Dates are the Paris days of the dataset's instants: first day off, and the day before classes resume.
 
 ### New singleton table
 
@@ -199,7 +199,7 @@ INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1);
 
 Idempotent — re-runs are no-ops. The `INSERT OR IGNORE` ensures the singleton row exists; subsequent `ALTER TABLE ADD COLUMN` migrations (if we ever add fields) follow the same pattern used elsewhere in `database.js`.
 
-**Data impact:** none — additive changes. The seeded periods (Oct 2024 → Aug 2027) are preserved and adopted by the first sync.
+**Data impact:** none — additive changes. The seeded periods (Oct 2024 → Aug 2027) are preserved and adopted by the first sync. Since 2026-09-28 the table and its seed belong to the school-holidays plugin module (specs/plugins-phase-1-sdk.md): a new database has neither until the plugin is installed, and the seed is gone.
 
 **Index consideration:** the new `idx_school_holidays_externalRef` index supports the upsert lookup in the sync engine.
 
