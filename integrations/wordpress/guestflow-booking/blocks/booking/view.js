@@ -133,11 +133,25 @@
       }
     }
 
+    // A reload of the return page must not count the payment twice (specs/site-traffic-analytics.md rule 10).
+    function trackPaidOnce(d) {
+      try {
+        var key = 'gf_paid_' + devisId;
+        if (window.sessionStorage.getItem(key)) return;
+        window.sessionStorage.setItem(key, '1');
+      } catch (e) { /* no storage: count it */ }
+      GF.track('booking-paid', { lodging: GF.slug(d.propertyName) });
+    }
+
     function poll() {
       var qs = token ? ('?token=' + encodeURIComponent(token)) : '';
       GF.api('GET', '/booking-requests/' + devisId + '/status' + qs).then(function (res) {
         var d = (res.body && res.body.data) || {};
-        if (d.status === 'confirmed' || d.status === 'conflict') { recap(d); return; }
+        if (d.status === 'confirmed' || d.status === 'conflict') {
+          if (d.status === 'confirmed') trackPaidOnce(d);
+          recap(d);
+          return;
+        }
         waiting();
         tries++;
         if (tries < MAX_TRIES) { setTimeout(poll, 3000); return; }
@@ -154,6 +168,16 @@
     var f = {}; // field refs
     var debounceTimer = null;
     var lastQuote = null;
+    // Funnel events (specs/site-traffic-analytics.md rule 10) fire once per step change: the quote
+    // recomputes on every stepper click, the funnel must not count those.
+    var lodging = GF.slug(detail.name);
+    var tracked = {};
+    function trackOnce(name, key, props) {
+      if (tracked[name] === key) return;
+      tracked[name] = key;
+      GF.track(name, Object.assign({ lodging: lodging }, props || {}));
+    }
+    function nightsOf(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 
     // ---- state (steppers render FROM this, never from input values) ----
     var state = {
@@ -324,6 +348,7 @@
     }
 
     function afterDatesChange(hint) {
+      if (state.start && state.end) trackOnce('booking-dates', state.start + '|' + state.end, { nights: nightsOf(state.start, state.end) });
       f.startDisplay.value = state.start ? shortDate(state.start) : '—';
       f.endDisplay.value = state.end ? shortDate(state.end) : '—';
       f.clearDates.disabled = !state.start && !state.end;
@@ -764,7 +789,9 @@
       summary.innerHTML = '';
       summary.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('loading')));
       GF.api('POST', '/quote', stay).then(function (res) {
+        var datesKey = stay.startDate + '|' + stay.endDate;
         if (res.status < 200 || res.status >= 300 || !res.body || !res.body.data) {
+          trackOnce('booking-unavailable', datesKey + '|error', { reason: 'error' });
           summary.innerHTML = '';
           summary.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(res)));
           f.submit.disabled = true;
@@ -776,6 +803,7 @@
         // moved the page under the visitor 400 ms after their click, and the next click then had to
         // rebuild what they had just chosen; now that same click simply pushes the departure later.
         if (q.minNightsBreached) {
+          trackOnce('booking-unavailable', datesKey + '|min-nights', { reason: 'min-nights' });
           renderCal({ msg: GF.t('minNights', q.minNights) + ' ' + GF.t('minNightsExtend'), isError: true });
           summary.innerHTML = '';
           summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('minNights', q.minNights)));
@@ -786,6 +814,8 @@
         }
         lastQuote = q;
         drawSummary(q);
+        if (q.available === false) trackOnce('booking-unavailable', datesKey + '|taken', { reason: 'taken' });
+        else trackOnce('booking-quote', datesKey, { nights: q.nights, guests: persons() });
       });
     }
 
@@ -867,11 +897,13 @@
         insuranceNotice.innerHTML = '';
         insuranceNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('insuranceRequired')));
         if (insuranceBox && insuranceBox.scrollIntoView) insuranceBox.scrollIntoView({ block: 'center' });
+        GF.track('booking-refused', { lodging: lodging, reason: 'insurance' });
         return;
       }
       var first = f.firstName.value.trim(), last = f.lastName.value.trim(), email = f.email.value.trim(), phone = f.phone.value.trim();
       if (!first || !last || !email || !phone) {
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('requiredFields')));
+        GF.track('booking-refused', { lodging: lodging, reason: 'fields' });
         return;
       }
       // Same refusal-on-click as the insurance answer: the button always says why it is inert.
@@ -879,6 +911,7 @@
         cgvNotice.innerHTML = '';
         cgvNotice.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('cgvRequired')));
         if (cgvBox.scrollIntoView) cgvBox.scrollIntoView({ block: 'center' });
+        GF.track('booking-refused', { lodging: lodging, reason: 'terms' });
         return;
       }
       var stay = gatherStay();
@@ -888,10 +921,15 @@
         _hp: f.hp.value,
       });
       if (terms) body.termsVersion = terms.version;
+      // Where the visit came from (specs/site-traffic-analytics.md rule 14). Optional: without it the
+      // request reads « Origine inconnue », it is never refused.
+      var attribution = GF.attribution();
+      if (attribution) body.attribution = attribution;
       f.submit.disabled = true;
       f.submit.textContent = payOnline ? GF.t('preparingPayment') : GF.t('sending');
       GF.api('POST', '/booking-requests', body).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
+          GF.track('booking-requested', { lodging: lodging, nights: nightsOf(stay.startDate, stay.endDate), guests: persons() });
           if (payOnline) { startPayment(res.body.data.requestId, res.body.data.publicToken); return; }
           container.innerHTML = '';
           container.appendChild(GF.el('div', { class: 'gf-success' }, GF.t('requestSent', res.body.data.reference || '')));
@@ -902,6 +940,7 @@
         // A newer CGV version was published while the guest was filling the form (rule 13): offer
         // that one, unticked, and let GuestFlow's message say why.
         var err = res.body && res.body.error;
+        GF.track('booking-error', { lodging: lodging, reason: err && err.code === 'TERMS_OUTDATED' ? 'terms-outdated' : 'server' });
         if (err && err.code === 'TERMS_OUTDATED' && err.details && err.details[0] && err.details[0].currentVersion) {
           terms = { version: err.details[0].currentVersion };
           paintCgv();
@@ -924,6 +963,7 @@
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl) {
           feedback.innerHTML = '';
           feedback.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('redirectingPayment')));
+          GF.track('booking-pay', { lodging: lodging });
           window.location.href = res.body.data.paymentUrl;
           return;
         }

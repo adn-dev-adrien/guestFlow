@@ -1,0 +1,1 @@
+- `reservations` gains four nullable columns (`attributionChannel`, `attributionLabel`, `attribution`, `attributionAt`) and the index `idx_reservations_attribution_channel` (spec `site-traffic-analytics.md` §5). Additive only: existing rows stay `NULL` and read « Origine inconnue ». The source of a past visit cannot be recovered, so there is no backfill.

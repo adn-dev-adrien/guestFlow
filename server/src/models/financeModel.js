@@ -11,6 +11,8 @@ const {
   isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
+const { bookingChannelOf } = require('../utils/attributionChannel');
+const { isDirectChannel } = require('../utils/platformNameFormat');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -275,6 +277,71 @@ function createFinanceModel(database) {
         map.set(r.propertyId, agg);
       };
 
+      // « Canaux de réservation » (specs/site-traffic-analytics.md rules 21-23): fed by the SAME loops
+      // and the same per-row figures as the per-logement aggregates, so both totals match by
+      // construction (rule 22).
+      const byChannel = new Map();
+      const yearByChannel = new Map();
+      const accumulateChannel = (map, r, stay, stayHt, nights) => {
+        const ch = bookingChannelOf(r, isDirectChannel);
+        const agg = map.get(ch.key) || { ...ch, reservations: 0, nights: 0, revenue: 0, revenueHt: 0 };
+        agg.reservations += 1;
+        agg.nights += nights;
+        agg.revenue += stay;
+        agg.revenueHt += stayHt;
+        map.set(ch.key, agg);
+      };
+      // Website requests of a window, per source: how many were asked, how many became bookings.
+      const requestStats = database.prepare(`
+        SELECT attributionChannel, COUNT(*) AS requests,
+               SUM(CASE WHEN devisStatus = 'converted' THEN 1 ELSE 0 END) AS converted
+        FROM reservations
+        WHERE kind = 'devis' AND requestOrigin = 'public'
+          AND date(createdAt) >= ? AND date(createdAt) <= ?
+        GROUP BY attributionChannel
+      `);
+      const finalizeByChannel = (map, from, to) => {
+        for (const row of requestStats.all(from, to)) {
+          const ch = bookingChannelOf({ requestOrigin: 'public', attributionChannel: row.attributionChannel }, isDirectChannel);
+          const agg = map.get(ch.key) || { ...ch, reservations: 0, nights: 0, revenue: 0, revenueHt: 0 };
+          agg.requests = (agg.requests || 0) + row.requests;
+          agg.converted = (agg.converted || 0) + row.converted;
+          map.set(ch.key, agg);
+        }
+        return Array.from(map.values())
+          .map(({ key, group, channel, label, reservations: count, nights, revenue, revenueHt, requests, converted }) => ({
+            key, group, channel, label, reservations: count, nights,
+            revenue: round2(revenue), revenueHt: round2(revenueHt),
+            ...(group === 'site' ? {
+              requests: requests || 0,
+              converted: converted || 0,
+              conversionRate: requests ? Math.round(((converted || 0) / requests) * 1000) / 10 : null,
+            } : {}),
+          }))
+          .sort((a, b) => (b.revenue - a.revenue) || a.label.localeCompare(b.label, 'fr'));
+      };
+      // The card's three blocks, all figures computed here (rule 23): the website rows and their
+      // subtotal, the platforms + manual direct, and the grand total — equal to the per-logement one.
+      const channelBreakdown = (rows) => {
+        const add = (list) => list.reduce((acc, r) => ({
+          reservations: acc.reservations + r.reservations,
+          nights: acc.nights + r.nights,
+          revenue: round2(acc.revenue + r.revenue),
+          revenueHt: round2(acc.revenueHt + r.revenueHt),
+        }), { reservations: 0, nights: 0, revenue: 0, revenueHt: 0 });
+        const siteRows = rows.filter((r) => r.group === 'site');
+        const requests = siteRows.reduce((n, r) => n + r.requests, 0);
+        const converted = siteRows.reduce((n, r) => n + r.converted, 0);
+        return {
+          site: {
+            rows: siteRows,
+            subtotal: { ...add(siteRows), requests, converted, conversionRate: requests ? Math.round((converted / requests) * 1000) / 10 : null },
+          },
+          others: rows.filter((r) => r.group !== 'site'),
+          total: add(rows),
+        };
+      };
+
       let revenueTotalNights = 0;
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
@@ -289,6 +356,7 @@ function createFinanceModel(database) {
         totalCollectedHt += htAmount(r, collected, vatRate);
 
         accumulate(byProperty, r, stay, stayHt, nights);
+        accumulateChannel(byChannel, r, stay, stayHt, nights);
 
         const status = computePaymentStatus(r, today);
         return {
@@ -330,6 +398,7 @@ function createFinanceModel(database) {
                ${ATTRIBUTION_DATE_SQL} AS attributionDate,
                finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
                r.propertyId, p.name AS propertyName,
+               r.platform, r.requestOrigin, r.attributionChannel,
                ${ARRIVAL_ADJUSTMENT_COLS},
                ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
@@ -357,10 +426,13 @@ function createFinanceModel(database) {
           yearToDateHt += stayHt;
           yearToDateNights += nights;
           accumulate(yearByProperty, r, stay, stayHt, nights);
+          accumulateChannel(yearByChannel, r, stay, stayHt, nights);
         }
       }
       const yearToDateByProperty = finalizeByProperty(yearByProperty);
       const yearTotalByPropertyList = finalizeByProperty(yearTotalByProperty);
+      const revenueByChannel = channelBreakdown(finalizeByChannel(byChannel, start, end));
+      const yearToDateByChannel = channelBreakdown(finalizeByChannel(yearByChannel, exercise.from, today < exercise.to ? today : exercise.to));
 
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by attribution date)
@@ -380,6 +452,8 @@ function createFinanceModel(database) {
         revenueByProperty,      // period, per logement (+ revenueHt + nights, zero-seeded)
         yearToDateByProperty,   // exercise start → today, per logement (same shape)
         yearTotalByProperty: yearTotalByPropertyList, // whole exercise, per logement (same shape)
+        revenueByChannel,       // period, per booking channel (platforms, website by source, direct)
+        yearToDateByChannel,    // exercise start → today, per booking channel (same shape)
         // The exercise the annual figures describe + the selector's options (§3.5).
         fiscalYear: { ...exercise, isCurrent: Boolean(currentExercise && currentExercise.key === exercise.key) },
         fiscalYears,

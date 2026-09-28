@@ -11,6 +11,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LanguageIcon from '@mui/icons-material/Language';
 import DataPageScaffold from '../components/DataPageScaffold';
+import OriginBadge from '../components/OriginBadge';
 import StatusBadge from '../components/StatusBadge';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
@@ -138,6 +139,7 @@ export default function DevisPage() {
           <span><StatusBadge status="info" label="Site internet" icon={<LanguageIcon sx={{ fontSize: 14 }} />} /></span>
         </Tooltip>
       )}
+      <OriginBadge label={d.originLabel} detail={d.originDetail} />
     </Stack>
   );
 

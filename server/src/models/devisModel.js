@@ -23,6 +23,7 @@ const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 const bookingLinesModel = require('./bookingLinesModel');
 const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const { originDisplay } = require('../utils/attributionChannel');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 // Helpers shared between create + convertFromReservation
@@ -222,6 +223,7 @@ function createModel(database) {
       nights,
       client,
       property,
+      ...originDisplay(row),
     };
   }
 
@@ -534,7 +536,7 @@ function createModel(database) {
     if (requestOrigin === 'public') { sql += " AND d.requestOrigin = 'public'"; }
     else if (requestOrigin === 'internal') { sql += " AND (d.requestOrigin IS NULL OR d.requestOrigin != 'public')"; }
     sql += ' ORDER BY d.createdAt DESC';
-    return database.prepare(sql).all(...params);
+    return database.prepare(sql).all(...params).map((row) => ({ ...row, ...originDisplay(row) }));
   }
 
   function findById(id) {
@@ -865,6 +867,12 @@ function createModel(database) {
         emailLanguage: String(devisRow.pdfLanguage || 'fr').toLowerCase() === 'en' ? 'en' : 'fr',
         pdfLanguage: String(devisRow.pdfLanguage || 'fr').toLowerCase() === 'en' ? 'en' : 'fr',
         requestOrigin: devisRow.requestOrigin || null,
+        // The source travels with the origin (specs/site-traffic-analytics.md rule 17), for the same
+        // reason: dropped here, the site's share would vanish the moment a booking became real.
+        attributionChannel: devisRow.attributionChannel || null,
+        attributionLabel: devisRow.attributionLabel || null,
+        attribution: devisRow.attribution || null,
+        attributionAt: devisRow.attributionAt || null,
       });
       // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
       assignReservationNumberIfMissing(database, reservationId);

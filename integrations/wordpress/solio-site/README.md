@@ -52,6 +52,7 @@ page, et rien de tout cela n'était sauvegardé (`specs/site-lodging-fact-zones.
 | `gf-seo-perf.php` | `defer` sur les scripts non critiques, préchargement de la police, retrait des assets inutiles. |
 | `gf-seo-admin.php` | Metabox d'édition du titre et de la description, bouton « Actualiser les tarifs ». |
 | `gf-seo-reservation.php` | Déplace le moteur GuestFlow dans un tiroir latéral en deux écrans, ouvert par un bouton flottant en bas à droite. |
+| `gf-analytics.php` | **Mesure d'audience Umami**, sans cookie : script servi par `/_s/` (relayé par Caddy), jamais pour un utilisateur connecté, et relais des étapes du tunnel `guestflow:booking` vers Umami. Inerte tant que l'option `gf_analytics_umami_website_id` est vide. |
 | `gf-seo-urls.php` | Garde-fou : toute adresse générée suit l'hôte réellement utilisé par le visiteur. |
 | `gf-seo-icons.php` | **Le jeu de pictogrammes.** Les icônes des équipements et celles des pastilles, en PHP, rendues dans la source de la page. Elles étaient dessinées en JavaScript : aucun robot d'IA n'en voyait une seule. |
 | `gf-caps.php` | Pose le pictogramme de chaque pastille de capacité au rendu, depuis `gf-seo-icons.php`. Au rendu et non à l'enregistrement, parce que `wp_kses` retire tout `<svg>` du contenu sauvegardé depuis l'administration. Le classement porte **trois étoiles en rangée**, l'unité dans laquelle il se compte, et non une feuille. |

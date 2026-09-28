@@ -26,6 +26,20 @@ final class GF_Blocks
     public function boot(): void
     {
         add_action('init', [$this, 'register']);
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_attribution']);
+    }
+
+    /**
+     * The visit's source is recorded on the page the visitor LANDS on, which is rarely a page with a
+     * booking block (specs/site-traffic-analytics.md rule 13) — hence on every public page. A site
+     * that does not want it returns false from the `guestflow_booking_capture_attribution` filter.
+     */
+    public function enqueue_attribution(): void
+    {
+        if (is_user_logged_in() || !apply_filters('guestflow_booking_capture_attribution', true)) {
+            return;
+        }
+        wp_enqueue_script('gf-attribution', GF_BOOKING_URL . 'assets/attribution.js', [], $this->asset_ver('assets/attribution.js'), false);
     }
 
     public function register(): void

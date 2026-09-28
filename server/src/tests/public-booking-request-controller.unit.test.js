@@ -50,6 +50,7 @@ function buildController({
         },
         run(...args) {
           if (/UPDATE reservations SET requestOrigin/i.test(s)) { captures.requestOriginToken = args[0]; captures.requestOriginUpdateId = args[1]; }
+          if (/UPDATE reservations SET attributionChannel/i.test(s)) captures.attribution = args;
           return { changes: 1 };
         },
       };
@@ -240,4 +241,40 @@ test('babyBeds defaults to 0 when absent', () => {
   const res = fakeRes();
   controller.create({ body: validBody() }, res);
   assert.equal(captures.devisCreate.babyBeds, 0);
+});
+
+// specs/site-traffic-analytics.md rules 15-17 — the visit's source is stored with the request, and a
+// broken source never costs the guest their booking.
+test('a valid attribution is classified and stored on the new devis', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody({ attribution: { referrer: 'l.instagram.com', landingPath: '/la-granja/' } }), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  const [channel, label, raw, at, id] = captures.attribution;
+  assert.equal(channel, 'social');
+  assert.equal(label, 'Instagram');
+  assert.deepEqual(JSON.parse(raw), { referrer: 'l.instagram.com', landingPath: '/la-granja/' });
+  assert.ok(!Number.isNaN(Date.parse(at)));
+  assert.equal(id, 99);
+});
+
+// specs/site-traffic-analytics.md rule 14 — an older plugin sends nothing: unknown, never an error.
+test('a request without attribution goes through and records no source', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody(), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.attribution, undefined);
+});
+
+test('an invalid attribution is dropped and the request still goes through', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody({ attribution: 'x'.repeat(9000) }), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.attribution, undefined);
+  assert.equal(captures.requestOriginUpdateId, 99);
 });
