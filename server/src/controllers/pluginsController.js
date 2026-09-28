@@ -4,6 +4,8 @@
  */
 
 const defaultModel = require('../models/pluginsModel');
+const registry = require('../plugins/sdk/registry');
+const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
 const { PLUGIN_CATALOG, findPlugin, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
 
@@ -45,10 +47,32 @@ function blockerFor(id, model) {
   return null;
 }
 
-function createController(model = defaultModel) {
+// deps (specs/plugins-phase-1-sdk.md): the module registry, the database the erasure runs on, the
+// plugin settings model, the loader's migrate + install hooks. All injectable for tests.
+function createController(model = defaultModel, deps = {}) {
+  const reg = deps.registry || registry;
+  const getDb = deps.db || (() => require('../database'));
+  const settingsModel = deps.settingsModel || (() => require('../models/pluginSettingsModel'));
+  const loader = deps.loader || (() => require('../plugins/loader'));
+
+  const erasable = (id) => Boolean(reg.get(id) && reg.get(id).data);
+
+  // Rule 12 — what « Effacer aussi ses données » would erase, as the server counts it.
+  function dataLines(id) {
+    const record = reg.get(id);
+    if (!record || !record.data || !record.data.describe) return [];
+    try {
+      return record.data.describe(getDb()) || [];
+    } catch {
+      return [];
+    }
+  }
+
   function view(entry) {
     const row = model.get(entry.id);
-    const state = !row ? 'available' : row.enabled ? 'active' : 'inactive';
+    const record = reg.get(entry.id);
+    let state = !row ? 'available' : row.enabled ? 'active' : 'inactive';
+    if (row && record && record.failed) state = 'failed';
     return {
       id: entry.id,
       name: entry.name,
@@ -58,7 +82,22 @@ function createController(model = defaultModel) {
       requires: entry.requires,
       state,
       blocker: state === 'available' ? null : blockerFor(entry.id, model),
+      hasModule: Boolean(record),
+      erasable: erasable(entry.id),
+      data: row && erasable(entry.id) ? dataLines(entry.id) : [],
     };
+  }
+
+  // Rule 12 — one transaction: the plugin's own clean-up, its tables, its settings, its ledger rows.
+  function purge(id) {
+    const db = getDb();
+    const { tables = [], purge: extra } = reg.get(id).data;
+    db.transaction(() => {
+      if (extra) extra(db);
+      tables.forEach((table) => db.exec(`DROP TABLE IF EXISTS "${table.replace(/"/g, '')}"`));
+      settingsModel().deleteAll(id);
+      forgetPluginMigrations(db, id);
+    })();
   }
 
   // Resolves `:id` or answers 404; returns the catalogue entry.
@@ -81,12 +120,22 @@ function createController(model = defaultModel) {
       return res.json(PLUGIN_CATALOG.map(view));
     },
 
-    // POST /api/plugins/:id/install — rule 4: installed and active in one step.
-    install(req, res) {
+    // POST /api/plugins/:id/install — rule 4: installed and active in one step. A module's tables are
+    // created first (phase 1 rule 6); a failed migration leaves the plugin available.
+    async install(req, res) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (model.get(entry.id)) return res.status(409).json({ error: 'ALREADY_INSTALLED' });
+      if (reg.get(entry.id)) {
+        try {
+          loader().migrate(getDb(), entry.id);
+        } catch (err) {
+          console.error(`[plugin:${entry.id}] install migration failed:`, err && err.message ? err.message : err);
+          return res.status(500).json({ error: 'PLUGIN_MIGRATION_FAILED', plugin: entry.id });
+        }
+      }
       model.install(entry.id);
+      if (reg.get(entry.id)) await loader().runInstallHooks(entry.id);
       return res.json(view(entry));
     },
 
@@ -109,14 +158,52 @@ function createController(model = defaultModel) {
       return res.json(view(entry));
     },
 
-    // DELETE /api/plugins/:id — rule 6: back to « Disponibles », data kept in phase 0.
+    // DELETE /api/plugins/:id — rule 6: back to « Disponibles », data kept. `?purge=1` also erases
+    // the data of a plugin module (phase 1 rules 12, 21–24).
     uninstall(req, res) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
+      const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
+      if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
       if (refuseIfBlocked(entry, res)) return undefined;
+      if (wantsPurge) {
+        try {
+          purge(entry.id);
+        } catch (err) {
+          console.error(`[plugin:${entry.id}] erasure failed:`, err && err.message ? err.message : err);
+          return res.status(500).json({ error: 'PLUGIN_PURGE_FAILED', message: 'L’effacement a échoué : rien n’a été effacé.' });
+        }
+      }
       model.uninstall(entry.id);
       return res.json(view(entry));
+    },
+
+    // GET /api/plugins/:id/settings — the declared keys; a secret reads `<key>Set` (rule 7).
+    getSettings(req, res) {
+      const entry = resolve(req, res);
+      if (!entry) return undefined;
+      const record = reg.get(entry.id);
+      if (!record || !record.settings.length) return res.status(404).json({ error: 'NO_SETTINGS' });
+      return res.json(settingsModel().httpView(entry.id, record.settings));
+    },
+
+    // PUT /api/plugins/:id/settings — '' on a secret keeps it, null clears it, a value replaces it.
+    saveSettings(req, res) {
+      const entry = resolve(req, res);
+      if (!entry) return undefined;
+      const record = reg.get(entry.id);
+      if (!record || !record.settings.length) return res.status(404).json({ error: 'NO_SETTINGS' });
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const unknown = Object.keys(body).filter((key) => !record.settings.some((k) => k.key === key));
+      if (unknown.length) return res.status(400).json({ error: 'UNKNOWN_SETTING', keys: unknown });
+      record.settings.forEach(({ key, secret }) => {
+        if (!Object.prototype.hasOwnProperty.call(body, key)) return;
+        const value = body[key];
+        if (secret && value === '') return;
+        settingsModel().set(entry.id, key, value == null ? '' : String(value).trim(), { secret: Boolean(secret) });
+      });
+      return res.json(settingsModel().httpView(entry.id, record.settings));
     },
   };
 }

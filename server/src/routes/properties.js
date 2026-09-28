@@ -24,14 +24,6 @@ router.post('/:id/pricing/apply-to', ctrl.applyPricing);
 router.post('/:id/pricing/assign-dates', ctrl.assignPricingDateRange);
 router.get('/:id/platform-prices', ctrl.platformPrices);
 
-// Tariff recipe preview/apply for a property (specs/tariff-recipes/spec.md §3.2).
-const tariffRecipes = require('../controllers/tariffRecipesController');
-const requirePlugin = require('../middleware/requirePlugin');
-const PLUGINS = require('../constants/plugins');
-router.get('/:id/tariff-recipe/preview', requirePlugin(PLUGINS.TARIFF_RECIPES), tariffRecipes.previewForProperty);
-router.post('/:id/tariff-recipe/apply', requirePlugin(PLUGINS.TARIFF_RECIPES), tariffRecipes.applyToProperty);
-router.post('/:id/tariff-recipe/detach', requirePlugin(PLUGINS.TARIFF_RECIPES), tariffRecipes.detachFromProperty);
-
 // Documents
 router.post('/:id/documents', handleDocumentUpload, ctrl.addDocument);
 router.delete('/:id/documents/:docId', ctrl.deleteDocument);

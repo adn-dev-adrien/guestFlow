@@ -11,7 +11,8 @@ const Module = require('module');
 const Database = require('better-sqlite3');
 
 const settingsModel = require('../models/settingsModel');
-const schoolHolidaysModel = require('../models/schoolHolidaysModel');
+const schoolHolidaysModel = require('../plugins/school-holidays/model');
+const { applyPluginSchema } = require('../plugins/sdk/testing');
 const { shapeResponse } = require('../utils/settingsResponse');
 const { __test: { SMTP_FIELDS } } = require('../controllers/settingsController');
 const { smtpPortForSecure } = require('../utils/settingsValidation');
@@ -111,6 +112,7 @@ test('rule 11: the SMTP field map has no port entry, so a sent port cannot be st
 
 test('rule 13: the sync cadence is 60 days / 24 months whatever the legacy columns hold', () => {
   const db = baselineDb();
+  applyPluginSchema(db, 'school-holidays');
   db.prepare('INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1)').run();
   db.prepare('UPDATE school_holidays_sync_state SET syncIntervalDays = 7, syncHorizonMonths = 3 WHERE id = 1').run();
   const state = schoolHolidaysModel.create(db).getSyncState();
@@ -266,7 +268,7 @@ function reservationsControllerWith(stored, captures) {
         return () => null;
       } });
     }
-    if (id === '../utils/googleCalendarSync') return { scheduleDelete() {}, scheduleUpsert() {} };
+    if (id === '../plugins/sdk/eventBus') return { emit() {} };
     return origRequire.call(this, id);
   };
   try {

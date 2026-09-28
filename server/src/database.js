@@ -57,48 +57,6 @@ db.exec(`
   )
 `);
 
-// ---------- SCHOOL HOLIDAYS ----------
-db.exec(`
-  CREATE TABLE IF NOT EXISTS school_holidays (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT NOT NULL,
-    zoneA_start TEXT,
-    zoneA_end TEXT,
-    zoneB_start TEXT,
-    zoneB_end TEXT,
-    zoneC_start TEXT,
-    zoneC_end TEXT
-  )
-`);
-
-// Auto-sync columns (see specs/school-holidays.md §5)
-const schCols = db.prepare("PRAGMA table_info(school_holidays)").all().map(c => c.name);
-const tryAddSchCol = (col, sql) => {
-  if (!schCols.includes(col)) {
-    try { db.exec(sql); } catch (e) {
-      if (!String(e?.message || '').includes('duplicate column name')) throw e;
-    }
-  }
-};
-tryAddSchCol('externalRef', "ALTER TABLE school_holidays ADD COLUMN externalRef TEXT");
-tryAddSchCol('isLocked', "ALTER TABLE school_holidays ADD COLUMN isLocked INTEGER NOT NULL DEFAULT 0");
-tryAddSchCol('lastSyncedAt', "ALTER TABLE school_holidays ADD COLUMN lastSyncedAt TEXT");
-
-// Singleton: school holidays sync state + user-editable config.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS school_holidays_sync_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    syncIntervalDays INTEGER NOT NULL DEFAULT 60,
-    syncHorizonMonths INTEGER NOT NULL DEFAULT 24,
-    lastSyncAt TEXT,
-    lastSyncStatus TEXT DEFAULT 'never',
-    lastSyncMessage TEXT DEFAULT '',
-    lastImportedCount INTEGER DEFAULT 0,
-    updatedAt TEXT DEFAULT (datetime('now'))
-  )
-`);
-db.prepare('INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1)').run();
-
 // ---------- ESTABLISHMENT CLOSURES ----------
 // Global (propertyId IS NULL) or per-property (propertyId NOT NULL) closure periods.
 // Used to block reservations and visualize unavailable ranges on the calendar.
@@ -550,24 +508,6 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     }
   }
 
-  // Journal of the scheduled horizon-extension runs → Dashboard alerts (spec §5). UI applies do
-  // not write here — only the background task, so a silently generated year is always surfaced.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS tariff_recipe_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      propertyId INTEGER NOT NULL,
-      recipeId TEXT NOT NULL,
-      recipeVersion TEXT NOT NULL DEFAULT '',
-      generatedYear INTEGER,
-      note TEXT NOT NULL DEFAULT '',
-      blocking INTEGER NOT NULL DEFAULT 0,
-      createdAt TEXT DEFAULT (datetime('now')),
-      dismissedAt TEXT,
-      FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
-    )
-  `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId)');
-
   // specs/tariff-change-journal.md §5 — WHEN the grid changed, and when travellers saw it. Two
   // distinct beats: `recipe` (the apply inside GuestFlow) and `platforms` (the rollout to Lodgify,
   // GreenGo, Abracadaroom, declared by hand because GuestFlow cannot observe it). `occurredAt` is
@@ -692,30 +632,6 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     // corrupt/partial artefact. Never auto-resolve (data-loss risk) and never re-backup; surface it.
     console.warn(`[Fusion] Ambiguous devis state — left untouched for manual check (legacy devis rows: ${fusion.pendingDevis}, fused: ${fusion.alreadyFused}, legacy rows total: ${fusion.legacyRowTotal}).`);
   }
-}
-
-// Seed school holidays if table is empty
-const holidayCount = db.prepare('SELECT COUNT(*) as c FROM school_holidays').get().c;
-if (holidayCount === 0) {
-  const insert = db.prepare('INSERT INTO school_holidays (label, zoneA_start, zoneA_end, zoneB_start, zoneB_end, zoneC_start, zoneC_end) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  const seed = [
-    ['Toussaint 2024', '2024-10-19', '2024-11-03', '2024-10-19', '2024-11-03', '2024-10-19', '2024-11-03'],
-    ['Noël 2024', '2024-12-21', '2025-01-05', '2024-12-21', '2025-01-05', '2024-12-21', '2025-01-05'],
-    ['Hiver 2025', '2025-02-22', '2025-03-09', '2025-02-08', '2025-02-23', '2025-02-15', '2025-03-02'],
-    ['Printemps 2025', '2025-04-19', '2025-05-04', '2025-04-05', '2025-04-21', '2025-04-12', '2025-04-27'],
-    ['Été 2025', '2025-07-05', '2025-08-31', '2025-07-05', '2025-08-31', '2025-07-05', '2025-08-31'],
-    ['Toussaint 2025', '2025-10-18', '2025-11-02', '2025-10-18', '2025-11-02', '2025-10-18', '2025-11-02'],
-    ['Noël 2025', '2025-12-20', '2026-01-04', '2025-12-20', '2026-01-04', '2025-12-20', '2026-01-04'],
-    ['Hiver 2026', '2026-02-07', '2026-02-22', '2026-02-21', '2026-03-08', '2026-02-14', '2026-03-01'],
-    ['Printemps 2026', '2026-04-04', '2026-04-19', '2026-04-18', '2026-05-03', '2026-04-11', '2026-04-26'],
-    ['Été 2026', '2026-07-04', '2026-08-31', '2026-07-04', '2026-08-31', '2026-07-04', '2026-08-31'],
-    ['Toussaint 2026', '2026-10-17', '2026-11-01', '2026-10-17', '2026-11-01', '2026-10-17', '2026-11-01'],
-    ['Noël 2026', '2026-12-19', '2027-01-03', '2026-12-19', '2027-01-03', '2026-12-19', '2027-01-03'],
-    ['Hiver 2027', '2027-02-13', '2027-02-28', '2027-02-06', '2027-02-21', '2027-02-20', '2027-03-07'],
-    ['Printemps 2027', '2027-04-10', '2027-04-25', '2027-04-03', '2027-04-18', '2027-04-17', '2027-05-02'],
-    ['Été 2027', '2027-07-03', '2027-08-31', '2027-07-03', '2027-08-31', '2027-07-03', '2027-08-31'],
-  ];
-  for (const row of seed) insert.run(...row);
 }
 
 // Hourly-scheduled resources (specs/resource-hourly-scheduling.md): a time-banded grid (day/evening
@@ -2244,17 +2160,6 @@ db.exec(`
   if (!scols.includes('meteoFranceApiKeyEncrypted')) db.exec("ALTER TABLE app_settings ADD COLUMN meteoFranceApiKeyEncrypted TEXT DEFAULT ''");
 }
 
-// Weather vigilance cache (specs/checkin-weather-alerts.md §5). One row per département: the normalized
-// phenomena payload (JSON) + the fetch timestamp, so opening several check-ins in a row reuses a fresh
-// cache instead of hammering the Météo-France API. Survives restarts (durable, unlike an in-memory cache).
-db.exec(`
-  CREATE TABLE IF NOT EXISTS weather_vigilance_cache (
-    departmentCode TEXT PRIMARY KEY,
-    payload        TEXT NOT NULL,
-    fetchedAt      TEXT NOT NULL
-  );
-`);
-
 // Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §5).
 // Connection + contract choice + field mapping live in app_settings; the secret is AES-256-GCM
 // encrypted at rest (settingsModel.ENCRYPTED_COLUMNS). Empty credentials → the feature is inert.
@@ -2543,9 +2448,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 
 // ---------- PLUGINS — specs/plugins-phase-0-foundation.md §5 ----------
 {
-  const { ensurePluginsTable, seedBuiltinPlugins } = require('./utils/pluginsSchema');
+  const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, copyAppSettingsToPlugins } = require('./utils/pluginsSchema');
   ensurePluginsTable(db);
-  if (process.env.SKIP_MIGRATIONS !== 'true') seedBuiltinPlugins(db);
+  ensurePluginSettingsTable(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    seedBuiltinPlugins(db);
+    // specs/plugins-phase-1-sdk.md §5 — the moved plugins read their settings from plugin_settings.
+    copyAppSettingsToPlugins(db);
+  }
 }
 
 // ---------- TRANSLATION CATALOGUE ----------

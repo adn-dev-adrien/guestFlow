@@ -304,14 +304,16 @@ test('requirePlugin over HTTP: a mounted router disappears and comes back with i
 test('the plugin mounts and routes are wired in the server', () => {
   const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
   const index = read('index.js');
+  // The five plugin modules mount through the loader, behind the same guard
+  // (specs/plugins-phase-1-sdk.md rule 5 — covered in plugins-phase-1-sdk.unit.test.js).
   for (const [mount, id] of [
-    ['/public/v1/gate', 'GATE_ACCESS'], ['/public/v1', 'WEBSITE_BOOKING'],
-    ['/api/resource-bookings', 'HOURLY_RESOURCES'], ['/api/school-holidays', 'SCHOOL_HOLIDAYS'],
-    ['/api/google-calendar', 'GOOGLE_CALENDAR'], ['/api/payments', 'ONLINE_PAYMENT'],
-    ['/api/tariff-recipes', 'TARIFF_RECIPES'], ['/api/laundry', 'LINEN'], ['/api/neat', 'NEAT'],
+    ['/public/v1', 'WEBSITE_BOOKING'], ['/api/resource-bookings', 'HOURLY_RESOURCES'],
+    ['/api/payments', 'ONLINE_PAYMENT'], ['/api/laundry', 'LINEN'], ['/api/neat', 'NEAT'],
   ]) {
     assert.ok(index.includes(`app.use('${mount}', requirePlugin(PLUGINS.${id})`), mount);
   }
+  assert.ok(index.indexOf('pluginLoader.mountPublic(app)') < index.indexOf("app.use('/public/v1', "), 'gate before /public/v1');
+  assert.ok(index.includes('pluginLoader.mountApi(app)'));
   assert.match(read('routes/accounting.js'), /router\.get\('\/sales', exportOn,/);
   assert.doesNotMatch(read('routes/accounting.js'), /cancellation-compensations', exportOn/);
   assert.match(read('routes/reservations.js'), /'\/:id\/sas', requirePlugin\(PLUGINS\.SAS\)/);
@@ -333,17 +335,16 @@ test('whenPluginActive: the tick is skipped while inactive and resumes when acti
 
 test('the scheduler wraps every plugin pass', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scheduledTasks.js'), 'utf8');
+  // The jobs of the five plugin modules run through the loader (plugins-phase-1-sdk.unit.test.js).
   for (const [id, pass] of [
-    ['SCHOOL_HOLIDAYS', 'tickSchoolHolidaysSync'], ['ONLINE_PAYMENT', 'runPaymentPollPass'],
-    ['GOOGLE_CALENDAR', 'runGoogleSyncPass'], ['TARIFF_RECIPES', 'runTariffRecipeHorizonPass'],
-    ['NEAT', 'runNeatSubscriptionPass'], ['GATE_ACCESS', 'runGateStaleReadPass'],
+    ['ONLINE_PAYMENT', 'runPaymentPollPass'], ['NEAT', 'runNeatSubscriptionPass'],
   ]) {
     assert.ok(src.includes(`whenPluginActive(PLUGINS.${id}, ${pass})`), pass);
   }
 });
 
 test('Google sync: an inactive plugin makes every push, delete and reconcile a no-op', () => {
-  const googleCalendarSync = require('../utils/googleCalendarSync');
+  const googleCalendarSync = require('../plugins/google-calendar/sync');
   const settings = { googleConnected: () => true, googleCalendarSelection: () => ({ calendarId: 'cal' }) };
   const on = googleCalendarSync.create({ settings, pluginActive: () => true });
   const off = googleCalendarSync.create({ settings, pluginActive: () => false });

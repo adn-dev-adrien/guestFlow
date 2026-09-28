@@ -143,7 +143,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
   const { loadReservationGraph } = require('./reservationEmailGraph');
   const { sequenceContextFor } = require('./sequenceRenderContext');
-  const { usableInvitation } = require('./gateInvitationView');
+  const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
   const { database, ledger, templatesModel, logModel, settingsModel, emailServiceFactory, preferences } = deps;
   const template = templatesModel.findByStableKey(plan.stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
@@ -168,7 +168,7 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   const context = buildContext({
     ...graph, settings, lang, sequence,
     // The stored gate key (specs/gate-access-sowel-connector.md §3.5 rule 23) — never reaches Sowel.
-    gateInvitation: usableInvitation(database, graph.reservation.id),
+    pluginContext: pluginEmailContext(graph.reservation.id),
   });
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, context);

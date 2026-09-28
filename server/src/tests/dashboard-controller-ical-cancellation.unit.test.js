@@ -72,7 +72,7 @@ test('POST approve: fires the Google Calendar delete hook with the model-returne
   const fakes = makeFake({ approveResult: { ok: true, outcome: 'approved', reservationId: 10 } });
   const c = buildController({
     ...fakes,
-    googleCalendarSync: { schedulePush: () => {}, scheduleDelete: (id) => deleted.push(id) },
+    emitPluginEvent: (name, payload) => { if (name === 'reservation.cancelled') deleted.push(payload.reservationId); },
   });
   const res = fakeRes();
   c.approveIcalCancellation({ params: { id: '42' } }, res);

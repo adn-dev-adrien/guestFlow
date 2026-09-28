@@ -19,7 +19,7 @@ const paymentLinksModel = require('../models/paymentLinksModel');
 const settingsModel = require('../models/settingsModel');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
-const googleCalendarSync = require('../utils/googleCalendarSync');
+const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const { createEmailService } = require('../utils/emailService');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 const { cancelReservation } = require('../utils/cancelReservation');
@@ -69,8 +69,8 @@ async function cancel(req, res) {
     emailSent,
   });
   // Fire-and-forget, exactly like a delete: the dates are free in GuestFlow the moment the
-  // transaction commits, and Google catches up right after.
-  googleCalendarSync.scheduleDelete(id);
+  // transaction commits, and the plugins (Google) catch up right after.
+  emitPluginEvent('reservation.cancelled', { reservationId: Number(id) });
 }
 
 module.exports = { cancel };

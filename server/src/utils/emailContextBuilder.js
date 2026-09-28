@@ -106,7 +106,7 @@ function buildCgvUrl(settings, termsVersion) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, gateInvitation = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   const stayContent = buildStayContent({
     reservation, client, property, options, facts: stayFacts || {}, settings, lang, sequence: sequence || {},
@@ -429,11 +429,10 @@ function buildContext({ reservation, client, property, options = [], resources =
       // specs/terms-acceptance-record.md rule 26 — the online CGV pinned to the version the guest
       // accepted (else the current one). Empty when no version is published or no site is known.
       cgvUrl: buildCgvUrl(settings, termsVersion),
-      // Gate key (specs/gate-access-sowel-connector.md §3.5 rule 23). The stored result the house
-      // reported: composing an email therefore NEVER reaches it, and waits for nothing. Empty when
-      // there is no usable key — the template's paragraph is then skipped by its flag.
-      gateAccessCode: safeStr(gateInvitation && gateInvitation.code),
-      gateAccessUrl:  safeStr(gateInvitation && gateInvitation.url),
+      // Variables of plugin modules (specs/plugins-phase-1-sdk.md rule 10), e.g. the gate key's
+      // `gateAccessCode` / `gateAccessUrl`. Empty for an inactive plugin, so a stored template never
+      // shows its data.
+      ...((pluginContext && pluginContext.tokens) || {}),
     },
     flags: {
       ...stayContent.flags,
@@ -455,8 +454,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       hasNordicBath,
       hasBabyBedNotice,
       hasPaymentLink: false, // overridden per-send via extraContext when a payment link is attached
-      // A code alone can be dictated; a link alone installs the key (a profile without a code).
-      hasGateAccess: Boolean(gateInvitation && (gateInvitation.code || gateInvitation.url)),
+      ...((pluginContext && pluginContext.flags) || {}),
     },
   };
 }

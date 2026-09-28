@@ -22,7 +22,7 @@ const { resolveComplementPayment } = require('../utils/complementPayment');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
-const googleCalendarSync = require('../utils/googleCalendarSync');
+const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const neatSubscriptionsModel = require('../models/neatSubscriptionsModel');
@@ -41,7 +41,6 @@ const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
-const gateInvitationView = require('../utils/gateInvitationView');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -874,8 +873,8 @@ function create(req, res) {
   model.syncComplementAllocation(reservationId, { autoAmount: quote.complementAmountAuto });
 
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
-  // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
-  googleCalendarSync.schedulePush(reservationId);
+  // Plugins react after the response and can never fail it (specs/plugins-phase-1-sdk.md rule 9).
+  emitPluginEvent('reservation.created', { reservationId });
   // An insured reservation may have been created acompte already encaissé — subscribe at Neat now
   // (specs/neat-cancellation-insurance-subscription.md rule 8). Silent no-op while unconfigured.
   neatController.kickPass('reservation-create');
@@ -1221,7 +1220,7 @@ function update(req, res) {
   if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
-  googleCalendarSync.schedulePush(id);
+  emitPluginEvent('reservation.updated', { reservationId: Number(id) });
   // A save may have flipped the acompte to « encaissé » on an insured stay — subscribe at Neat now
   // (specs/neat-cancellation-insurance-subscription.md rule 8). Silent no-op while unconfigured.
   neatController.kickPass('reservation-update');
@@ -1451,29 +1450,10 @@ function remove(req, res) {
   }
   model.remove(req.params.id);
   res.json({ ok: true });
-  googleCalendarSync.scheduleDelete(Number(req.params.id));
-}
-
-/**
- * GET /reservations/:id/gate-access — the stored gate key of the stay
- * (specs/gate-access-sowel-connector.md §3.5 rules 24-27).
- *
- * One route for both surfaces: the fiche's card and the SAS step, which needs the QR on top. No
- * action here — holding, revoking and regenerating happen in Sowel, the only place where they can
- * be applied.
- */
-async function gateAccess(req, res) {
-  const reservationId = Number(req.params.id);
-  if (!Number.isInteger(reservationId) || reservationId <= 0) {
-    return res.status(400).json({ error: 'Identifiant invalide' });
-  }
-  const db = require('../database');
-  const card = gateInvitationView.ficheCard(db, reservationId);
-  const sas = await gateInvitationView.sasStep(db, reservationId);
-  return res.json({ card, sas });
+  emitPluginEvent('reservation.deleted', { reservationId: Number(req.params.id) });
 }
 
 module.exports = {
   suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
-  create, update, updatePayment, updateLostItems, settleArrivalPayment, remove, gateAccess,
+  create, update, updatePayment, updateLostItems, settleArrivalPayment, remove,
 };

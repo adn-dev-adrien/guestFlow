@@ -20,7 +20,7 @@ function financeError(body) {
 }
 
 function createController(model, {
-  googleCalendarSync = require('../utils/googleCalendarSync'),
+  emitPluginEvent = require('../plugins/sdk/eventBus').emit,
   termsFicheBlock = (devis) => require('./termsController').buildFicheBlock(devis),
 } = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
@@ -68,9 +68,9 @@ function createController(model, {
 
   function convertToReservation(req, res) {
     const result = model.convertToReservation(req.params.id);
-    // Fire-and-forget Google push of the freshly created reservation (spec rules 19-20).
+    // The quote became a stay: plugins react after the response (specs/plugins-phase-1-sdk.md rule 9).
     if (result && result.ok && result.data && result.data.reservationId) {
-      googleCalendarSync.schedulePush(result.data.reservationId);
+      emitPluginEvent('reservation.created', { reservationId: result.data.reservationId });
     }
     return respond(res, result);
   }

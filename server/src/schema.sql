@@ -557,46 +557,11 @@ CREATE TABLE IF NOT EXISTS resources (
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
   );
 
-CREATE TABLE IF NOT EXISTS school_holidays (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT NOT NULL,
-    zoneA_start TEXT,
-    zoneA_end TEXT,
-    zoneB_start TEXT,
-    zoneB_end TEXT,
-    zoneC_start TEXT,
-    zoneC_end TEXT
-  , externalRef TEXT, isLocked INTEGER NOT NULL DEFAULT 0, lastSyncedAt TEXT);
-
-CREATE TABLE IF NOT EXISTS school_holidays_sync_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    syncIntervalDays INTEGER NOT NULL DEFAULT 60,
-    syncHorizonMonths INTEGER NOT NULL DEFAULT 24,
-    lastSyncAt TEXT,
-    lastSyncStatus TEXT DEFAULT 'never',
-    lastSyncMessage TEXT DEFAULT '',
-    lastImportedCount INTEGER DEFAULT 0,
-    updatedAt TEXT DEFAULT (datetime('now'))
-  );
-
 CREATE TABLE IF NOT EXISTS sessions
   (
     sid TEXT NOT NULL PRIMARY KEY,
     sess JSON NOT NULL,
     expire TEXT NOT NULL
-  );
-
-CREATE TABLE IF NOT EXISTS tariff_recipe_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    propertyId INTEGER NOT NULL,
-    recipeId TEXT NOT NULL,
-    recipeVersion TEXT NOT NULL DEFAULT '',
-    generatedYear INTEGER,
-    note TEXT NOT NULL DEFAULT '',
-    blocking INTEGER NOT NULL DEFAULT 0,
-    createdAt TEXT DEFAULT (datetime('now')),
-    dismissedAt TEXT,
-    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
   );
 
 CREATE TABLE IF NOT EXISTS user_push_prefs (
@@ -614,12 +579,6 @@ CREATE TABLE IF NOT EXISTS user_roles (
     role TEXT NOT NULL,
     PRIMARY KEY (userId, role),
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-CREATE TABLE IF NOT EXISTS weather_vigilance_cache (
-    departmentCode TEXT PRIMARY KEY,
-    payload        TEXT NOT NULL,
-    fetchedAt      TEXT NOT NULL
   );
 
 CREATE TABLE IF NOT EXISTS neat_subscriptions (
@@ -802,9 +761,7 @@ CREATE INDEX IF NOT EXISTS idx_resource_bookings_resourceId ON resource_bookings
 
 CREATE INDEX IF NOT EXISTS idx_resource_properties_resourceId ON resource_properties(resourceId);
 
-CREATE INDEX IF NOT EXISTS idx_school_holidays_externalRef ON school_holidays(externalRef);
 
-CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_ical_sources_property_platform ON ical_sources(propertyId, platformKey);
 
@@ -836,32 +793,3 @@ CREATE TABLE IF NOT EXISTS translation_values (
 
 CREATE INDEX IF NOT EXISTS idx_translation_values_lang ON translation_values(lang);
 
--- Gate keys, guestFlow's side of the Sowel connector (specs/gate-access-sowel-connector.md §5).
--- `gate_key_results` keeps the LATEST outcome the house reported per reservation — the code and the
--- link the emails, the SAS and the fiche show, or the error the dashboard raises. `label`,
--- `startsAt`, `endsAt` are the window as it was listed, kept so a DELETED reservation can still be
--- revoked. `alertedError` is the error the admins were last pushed about (one push per error).
--- No foreign key on purpose: the row must outlive a deleted reservation, that is when it matters.
-CREATE TABLE IF NOT EXISTS gate_key_results (
-    reservationId INTEGER PRIMARY KEY,
-    action        TEXT NOT NULL,
-    ok            INTEGER NOT NULL,
-    state         TEXT,
-    code          TEXT,
-    url           TEXT,
-    error         TEXT,
-    message       TEXT,
-    label         TEXT,
-    startsAt      TEXT,
-    endsAt        TEXT,
-    receivedAt    TEXT NOT NULL,
-    alertedError  TEXT
-);
-
--- One row (id = 1): when the house last read the list of keys, and whether the admins were already
--- told it stopped (specs/gate-access-sowel-connector.md §3.1 rule 8, §3.3 rules 17-18).
-CREATE TABLE IF NOT EXISTS gate_connector_state (
-    id             INTEGER PRIMARY KEY CHECK (id = 1),
-    lastReadAt     TEXT,
-    staleAlertedAt TEXT
-);

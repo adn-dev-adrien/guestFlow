@@ -5,8 +5,8 @@ const devisController = require('../controllers/devisController');
 
 // Stubbed Google sync so the conversion hook never touches the real singleton (and its DB).
 const googleSyncCalls = [];
-const googleCalendarSyncStub = { schedulePush: (id) => googleSyncCalls.push(id) };
-const buildController = (model) => devisController.buildController(model, { googleCalendarSync: googleCalendarSyncStub });
+const emitPluginEvent = (name, payload) => { if (name === 'reservation.created') googleSyncCalls.push(payload.reservationId); };
+const buildController = (model) => devisController.buildController(model, { emitPluginEvent });
 
 function fakeModel(overrides = {}) {
   return {

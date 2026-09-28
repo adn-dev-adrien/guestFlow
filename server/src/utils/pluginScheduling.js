@@ -6,7 +6,7 @@
  */
 
 function whenPluginActive(id, pass, { isActive } = {}) {
-  const check = isActive || ((pluginId) => require('../models/pluginsModel').isActive(pluginId));
+  const check = isActive || ((pluginId) => require('../plugins/sdk/registry').isLive(pluginId));
   return (...args) => (check(id) ? Promise.resolve().then(() => pass(...args)) : Promise.resolve(undefined));
 }
 

@@ -48,7 +48,7 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 
 ### Auto-sync from data.education.gouv.fr
 
-9. **Source of truth:** the official open dataset [`fr-en-calendrier-scolaire`](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/) on `data.education.gouv.fr`. Records filtered to `population = "Élèves"` (exclude staff, CPGE, etc.). All Zone A/B/C records are kept; other zones (e.g. Corse, DOM-TOM) are ignored — only metropolitan A/B/C are in scope.
+9. **Source of truth:** the official open dataset [`fr-en-calendrier-scolaire`](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/) on `data.education.gouv.fr`. Records filtered to `population = "Élèves"` or `population = "-"` (exclude staff, CPGE, etc.): the dataset marks most periods `"-"` (same dates for everyone) and only splits `"Élèves"` from staff when they differ — filtering on `"Élèves"` alone kept the summer only (fixed 2026-09-28, specs/plugins-phase-1-sdk.md). All Zone A/B/C records are kept; other zones (e.g. Corse, DOM-TOM) are ignored — only metropolitan A/B/C are in scope.
 10. **What we fetch:** all records where `start_date` falls between **today** and **today + `syncHorizonMonths` months** (default 24, user-configurable per rule 16), so the local DB always covers the desired horizon.
 11. **Aggregation:** the API returns one record per (zone, period). We group records by `(annee_scolaire, description)` → one local row. For each row, the matching record(s) populate `zoneA_start/end`, `zoneB_start/end`, `zoneC_start/end`. Rows without any zone match for our 3 zones are skipped.
 12. **External identity (`externalRef`):** `${annee_scolaire}|${description_normalized}` (where `description_normalized` = trimmed + lowercased + ASCII-folded). Used as the upsert key for auto-sync. Manually-created rows have `externalRef = NULL` and are **never** touched by the sync.
@@ -113,7 +113,7 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 | `middleware/` | — | — | (none) |
 | `utils/` | `schoolHolidaysValidation.js` | C | Pure `validatePeriod(...)` → `null`/French error; pure `validateSyncSettings({ syncIntervalDays, syncHorizonMonths })` → `null`/French error. |
 | `utils/` | `schoolHolidaysSync.js` | C | Pure-ish sync engine. Exports `runSync({ model, fetchFn = fetch, horizonMonths })` → `{ createdCount, updatedCount, skippedLockedCount, deletedStaleCount, durationMs }`. `fetchFn` + `horizonMonths` injected → unit-testable without network. |
-| `utils/` | `educationGouvClient.js` | C | Builds the `data.education.gouv.fr` URL (next `horizonMonths` months, `population = "Élèves"`, zones A/B/C), wraps `fetch` with a 30 s timeout, parses + returns raw records. |
+| `utils/` | `educationGouvClient.js` | C | Builds the `data.education.gouv.fr` URL (next `horizonMonths` months, `population = "Élèves"` or `"-"`, zones A/B/C), wraps `fetch` with a 30 s timeout, parses + returns raw records. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Adds `performSchoolHolidaysSync()` + a 1-hour tick that reads `syncIntervalDays` from `school_holidays_sync_state` and runs sync if `now - lastSyncAt >= interval`. Boot `setTimeout(60 s)` runs once if interval elapsed. Mirrors the iCal sync pattern. |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE` for the 3 new columns on `school_holidays` + the new `school_holidays_sync_state` singleton table (with `syncIntervalDays`, `syncHorizonMonths` columns). |
 

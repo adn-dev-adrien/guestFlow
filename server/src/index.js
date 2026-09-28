@@ -28,6 +28,10 @@ const { buildServer } = require('./utils/httpsBootstrap');
 loadLocalEnv();
 const SqliteStore = require('better-sqlite3-session-store')(session);
 const db = require('./database');
+// specs/plugins-phase-1-sdk.md — plugin modules declare their routes, tables, jobs and handlers here;
+// a module that throws is marked failed and the boot goes on (rule 4).
+const pluginLoader = require('./plugins/loader');
+pluginLoader.registerAll({ db });
 
 function logErrorMarker(message) {
   const timestamp = new Date().toISOString();
@@ -120,14 +124,6 @@ try {
 getOrCreateSecret('PUBLIC_API_KEY', 32);
 logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
 
-// Gate keys (specs/gate-access-sowel-connector.md §3.4 rules 19-22). TWO secrets, and a key distinct from
-// the site's: the WordPress proxy has no business reading who sleeps here tonight. The key proves
-// the caller, the signature proves the call — and the signing secret never travels. Neither is ever
-// logged; the operator reads them from .env.local and copies them into the Sowel plugin.
-getOrCreateSecret('GATE_API_KEY', 32);
-getOrCreateSecret('GATE_SIGNING_SECRET', 32);
-logErrorMarker('GATE_API_KEY + GATE_SIGNING_SECRET ready in server/.env.local — copy them into the Sowel guestflow plugin.');
-
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
@@ -140,11 +136,12 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // key-authenticated (X-API-Key / Bearer) and rate-limited inside its own router, and it never
 // passes through the `/api` session guard below. The distinct `/public/v1` path is the safety
 // crux: the admin guard can neither expose nor block it.
-// The gate-keys connector, BEFORE the generic public tree: it carries its own key and its own
-// signature, and must not go through the WordPress proxy's one (routes/public/gate.js).
-// Each tree answers 404 PLUGIN_INACTIVE while its plugin is off (specs/plugins-phase-0-foundation.md
-// rule 15): the WordPress site then shows its "unavailable" state, and Sowel stops receiving keys.
-app.use('/public/v1/gate', requirePlugin(PLUGINS.GATE_ACCESS), require('./routes/public/gate'));
+// The public mounts of plugin modules come BEFORE the generic tree: the Sowel connector
+// (/public/v1/gate) carries its own key and its own signature and must not go through the WordPress
+// proxy's. Each tree answers 404 PLUGIN_INACTIVE while its plugin is off
+// (specs/plugins-phase-0-foundation.md rule 15): the WordPress site then shows its "unavailable"
+// state, and Sowel stops receiving keys.
+pluginLoader.mountPublic(app);
 
 app.use('/public/v1', requirePlugin(PLUGINS.WEBSITE_BOOKING), require('./routes/public'));
 
@@ -195,18 +192,15 @@ app.use('/api/resource-bookings', requirePlugin(PLUGINS.HOURLY_RESOURCES), requi
 app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/finance', require('./routes/finance'));
-app.use('/api/school-holidays', requirePlugin(PLUGINS.SCHOOL_HOLIDAYS), require('./routes/schoolHolidays'));
 app.use('/api/public-holidays', require('./routes/publicHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
-app.use('/api/google-calendar', requirePlugin(PLUGINS.GOOGLE_CALENDAR), require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/payments', requirePlugin(PLUGINS.ONLINE_PAYMENT), require('./routes/payments'));
 app.use('/api/translations', require('./routes/translations'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
-app.use('/api/tariff-recipes', requirePlugin(PLUGINS.TARIFF_RECIPES), require('./routes/tariffRecipes'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));
@@ -226,6 +220,9 @@ app.use('/api/neat', requirePlugin(PLUGINS.NEAT), require('./routes/neat'));
 app.use('/api/terms', require('./routes/terms'));
 // specs/plugins-phase-0-foundation.md — the Plugins page. Admin-only through the same role guard.
 app.use('/api/plugins', require('./routes/plugins'));
+// The routes of plugin modules (specs/plugins-phase-1-sdk.md rule 5): same URLs as before the move,
+// each behind requirePlugin.
+pluginLoader.mountApi(app);
 
 app.get('/api/version', (req, res) => {
   res.json({
@@ -309,6 +306,7 @@ const server = serverHandle.listen(PORT, () => {
 
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
+  pluginLoader.startJobs();
 });
 
 function shutdown(signal) {
