@@ -1,0 +1,1 @@
+- **Spec-rule gate counted every numbered line of a spec diff as a rule** (spec `spec-rule-coverage.md` rule 2). A study or a test plan with a « 1. » list blocked its PR with rules that do not exist. The gate now only counts entries of the « Functional rules » section. +2 server tests.
