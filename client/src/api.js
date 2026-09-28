@@ -73,7 +73,11 @@ const api = {
   installPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST' }),
   activatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
   deactivatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST' }),
-  uninstallPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  // `purge` also erases a plugin module's data (specs/plugins-phase-1-sdk.md rules 12, 21).
+  uninstallPlugin: (id, { purge = false } = {}) => request(`/plugins/${encodeURIComponent(id)}${purge ? '?purge=1' : ''}`, { method: 'DELETE' }),
+  // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.
+  getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
+  savePluginSettings: (id, values) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: values }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 

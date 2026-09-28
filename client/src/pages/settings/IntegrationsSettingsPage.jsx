@@ -1,58 +1,70 @@
 /**
  * IntegrationsSettingsPage — Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
  *
- * The connections to other services: Google Agenda (self-contained OAuth card), the Neat
- * cancellation insurance (its own endpoints, written by this page's Save), the Météo-France key
- * (a masked setting of the settings form), and the Sowel gate-keys connector — a read-only card
- * (specs/gate-access-sowel-connector.md §3.6 rule 29).
+ * The connections to other services. The Neat card is core code; Google Agenda, the Météo-France key
+ * and the Sowel gate-keys connector are the sections of their plugin modules (slot
+ * `settings.integrations`, specs/plugins-phase-1-sdk.md rule 13), ordered around Neat by their
+ * `order`. A card with a draft (Neat, Météo) has no Save of its own: the bar saves it through its ref.
  */
-import React, { useCallback, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import useSettingsForm from '../../hooks/useSettingsForm';
 import SettingsFormPage from '../../components/SettingsFormPage';
-import SettingsGoogleCalendarSection from '../../components/SettingsGoogleCalendarSection';
 import SettingsNeatSection from '../../components/SettingsNeatSection';
-import SettingsWeatherSection from '../../components/SettingsWeatherSection';
-import SettingsGateAccessSection from '../../components/SettingsGateAccessSection';
 import PluginGate from '../../components/PluginGate';
-import { GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS } from '../../constants/plugins';
+import { NEAT } from '../../constants/plugins';
+import { useSlot } from '../../plugins/sdk/useSlot';
+
+const NEAT_ORDER = 20;
 
 export default function IntegrationsSettingsPage() {
   const navigate = useNavigate();
-  const form = useSettingsForm({ groups: ['weather'], navigate });
+  const form = useSettingsForm({ groups: [], navigate });
   const { setExternalDirty } = form;
-  // The Neat card keeps its own data and endpoints but not its own Save
-  // (specs/settings-one-save-and-automatic-webhook.md rules 1-4).
-  const neatRef = useRef(null);
-  const [neatDirty, setNeatDirty] = useState(false);
-  const handleNeatDirty = useCallback((dirty) => {
-    setNeatDirty(dirty);
-    setExternalDirty(dirty);
+  const sections = useSlot('settings.integrations');
+  // Every card with a draft: Neat (core) and the plugin sections that expose save/reset.
+  const cardRefs = useRef({});
+  const [dirtyCards, setDirtyCards] = useState({});
+  const handleDirty = useCallback((key) => (dirty) => {
+    setDirtyCards((prev) => {
+      if (Boolean(prev[key]) === dirty) return prev;
+      const next = { ...prev, [key]: dirty };
+      setExternalDirty(Object.values(next).some(Boolean));
+      return next;
+    });
   }, [setExternalDirty]);
 
   const handleSave = () => form.save({
     afterSettings: async () => {
-      if (neatDirty && neatRef.current) await neatRef.current.save();
+      for (const [key, card] of Object.entries(cardRefs.current)) {
+        if (card && dirtyCards[key]) await card.save();
+      }
     },
   });
 
   const handleCancel = () => {
     form.cancel();
-    if (neatRef.current) neatRef.current.reset();
+    Object.values(cardRefs.current).forEach((card) => { if (card && card.reset) card.reset(); });
   };
+
+  const bindCard = (key) => ({
+    ref: (el) => { cardRefs.current[key] = el; },
+    onDirtyChange: handleDirty(key),
+  });
+
+  const before = sections.filter((s) => (s.order ?? 100) < NEAT_ORDER);
+  const after = sections.filter((s) => (s.order ?? 100) >= NEAT_ORDER);
+  const renderSection = ({ key, pluginId, Component }) => (
+    <Suspense key={`${pluginId}:${key}`} fallback={null}>
+      <Component {...bindCard(`${pluginId}:${key}`)} />
+    </Suspense>
+  );
 
   return (
     <SettingsFormPage title="Intégrations" form={form} onSave={handleSave} onCancel={handleCancel}>
-      {/* One section per plugin (specs/plugins-phase-0-foundation.md rules 16-17). */}
-      <PluginGate id={GOOGLE_CALENDAR}><SettingsGoogleCalendarSection /></PluginGate>
-      <PluginGate id={NEAT}><SettingsNeatSection ref={neatRef} onDirtyChange={handleNeatDirty} /></PluginGate>
-      <PluginGate id={WEATHER_ALERTS}>
-        <SettingsWeatherSection
-          values={form.draft.weather}
-          onChangeApiKey={(value) => form.setField('weather', 'apiKeyDraft', value)}
-        />
-      </PluginGate>
-      <PluginGate id={GATE_ACCESS}><SettingsGateAccessSection /></PluginGate>
+      {before.map(renderSection)}
+      <PluginGate id={NEAT}><SettingsNeatSection {...bindCard('neat')} /></PluginGate>
+      {after.map(renderSection)}
     </SettingsFormPage>
   );
 }

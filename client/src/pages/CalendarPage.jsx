@@ -16,11 +16,10 @@ import CalendarDayCell from '../components/CalendarDayCell';
 import CalendarNoteDialog from '../components/CalendarNoteDialog';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
-import { usePlugin } from '../hooks/usePlugins';
-import { SCHOOL_HOLIDAYS } from '../constants/plugins';
+import useDayMarkers from '../hooks/useDayMarkers';
 import { getDayOccupancyConflictMessage, getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
-import { formatDate, shiftDate, getDaysInMonth, CLEANING_COLOR, ZONE_COLORS } from '../utils/calendarVisuals';
+import { formatDate, shiftDate, getDaysInMonth, CLEANING_COLOR } from '../utils/calendarVisuals';
 import useInfiniteMonthScroll from '../hooks/useInfiniteMonthScroll';
 
 const NOTE_MAX_LENGTH = 50;
@@ -29,9 +28,9 @@ export default function CalendarPage() {
   const { alert } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [searchParams] = useSearchParams();
-  // The zone bands and their legend belong to the school-holidays plugin
-  // (specs/plugins-phase-0-foundation.md rule 16).
-  const schoolHolidaysOn = usePlugin(SCHOOL_HOLIDAYS);
+  // The day dots and their legend come from plugin modules — the school-holiday zones
+  // (specs/plugins-phase-1-sdk.md rule 13).
+  const { markersFor, legend: markerLegend } = useDayMarkers();
   const navigate = useNavigate();
 
   const [loadError, setLoadError] = useState(false);
@@ -40,7 +39,6 @@ export default function CalendarPage() {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [reservations, setReservations] = useState([]);
   const [devisList, setDevisList] = useState([]);
-  const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [publicHolidays, setPublicHolidays] = useState(() => new Set());
   const [calendarNotes, setCalendarNotes] = useState({});
   const [occupiedDates, setOccupiedDates] = useState([]);
@@ -81,14 +79,6 @@ export default function CalendarPage() {
       setProperties(await api.getProperties());
     } catch {
       setLoadError(true);
-    }
-  };
-  // School holidays are a cosmetic overlay (zone dots) — their absence degrades silently.
-  const loadSchoolHolidays = async () => {
-    try {
-      setSchoolHolidays((await api.getSchoolHolidays()).periods || []);
-    } catch {
-      setSchoolHolidays([]);
     }
   };
 
@@ -162,10 +152,6 @@ export default function CalendarPage() {
   };
 
   useEffect(() => { loadProperties(); }, []);
-  useEffect(() => {
-    if (schoolHolidaysOn) loadSchoolHolidays();
-    else setSchoolHolidays([]);
-  }, [schoolHolidaysOn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadCalendarData(); }, [loadCalendarData]);
 
   // Read URL params for navigation from dashboard
@@ -395,7 +381,7 @@ export default function CalendarPage() {
       selectedProp={selectedProp}
       calendarNotes={calendarNotes}
       publicHolidays={publicHolidays}
-      schoolHolidays={schoolHolidays}
+      markersFor={markersFor}
       today={today}
       cleaningHours={cleaningHours}
       inDrag={isInDragRange(d, y, m)}
@@ -454,13 +440,13 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* Colour legend (cleaning + school-holiday zones) — informational, stays next to the grid. */}
+      {/* Colour legend (cleaning + the plugins' day dots) — informational, stays next to the grid. */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
         <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'common.white' }} />
-        {schoolHolidaysOn && [['A', ZONE_COLORS.A], ['B', ZONE_COLORS.B], ['C', ZONE_COLORS.C]].map(([zone, color]) => (
-          <Box key={zone} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {markerLegend.map(({ key, color, label }) => (
+          <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
-            <Typography variant="caption" color="text.secondary">Zone {zone}</Typography>
+            <Typography variant="caption" color="text.secondary">{label}</Typography>
           </Box>
         ))}
       </Box>
@@ -475,7 +461,7 @@ export default function CalendarPage() {
             selectedProp={selectedProp}
             calendarNotes={calendarNotes}
             publicHolidays={publicHolidays}
-            schoolHolidays={schoolHolidays}
+            markersFor={markersFor}
             onReservationClick={handleReservationClick}
             onDevisClick={(devisId) => navigate(`/reservations/new?mode=devis&devisId=${devisId}`)}
             onOpenNewReservation={openNewReservation}

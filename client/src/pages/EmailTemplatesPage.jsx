@@ -26,6 +26,7 @@ import ErrorAlert from '../components/ErrorAlert';
 import LoadingState from '../components/LoadingState';
 import ResponsiveTable from '../components/ResponsiveTable';
 import { isValidEmail } from '../utils/validation';
+import { useSlot } from '../plugins/sdk/useSlot';
 
 const EMPTY_CLIENT = {
   lastName: '', firstName: '', streetNumber: '', street: '', postalCode: '',
@@ -62,9 +63,6 @@ const VARIABLE_BUTTONS = [
   { label: 'Option(s) réservée(s)', token: '{{reservedOptionsList}}' },
   { label: 'Liste ressources', token: '{{resourcesList}}' },
   { label: 'Config lits',      token: '{{bedConfig}}' },
-  // Gate key (specs/gate-access-sowel-connector.md §3.5 rule 23) — from the stored Sowel result.
-  { label: 'Code portail',     token: '{{gateAccessCode}}' },
-  { label: 'Lien portail',     token: '{{gateAccessUrl}}' },
   // Entreprise
   { label: 'Société',          token: '{{companyName}}' },
   { label: 'Nom expéditeur',   token: '{{senderName}}' },
@@ -85,7 +83,6 @@ const CONDITION_BUTTONS = [
   { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
   { label: 'Si ressources',         token: '{{#if hasResources}}' },
   { label: 'Si CGV publiées',        token: '{{#if hasCgvUrl}}' },
-  { label: 'Si accès portail',      token: '{{#if hasGateAccess}}' },
   { label: 'Sinon',                 token: '{{else}}' },
   { label: 'Fin si',                token: '{{/if}}' },
 ];
@@ -122,6 +119,15 @@ function describeOffset(n) {
 }
 
 export default function EmailTemplatesPage() {
+  // The variables and conditions of active plugin modules (slot `emailTemplates.tokens`,
+  // specs/plugins-phase-1-sdk.md rule 13) — e.g. the Sowel gate key's code and link.
+  const pluginTokens = useSlot('emailTemplates.tokens');
+  const variableButtons = [...VARIABLE_BUTTONS, ...pluginTokens.flatMap((c) => c.tokens || [])];
+  const conditionButtons = [
+    ...CONDITION_BUTTONS.slice(0, -2),
+    ...pluginTokens.flatMap((c) => c.conditions || []),
+    ...CONDITION_BUTTONS.slice(-2),
+  ];
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -604,13 +610,13 @@ export default function EmailTemplatesPage() {
           <Box>
             <Typography variant="caption" color="text.secondary">Variables :</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {VARIABLE_BUTTONS.map((v) => (
+              {variableButtons.map((v) => (
                 <Chip key={v.token} label={v.label} size="small" onClick={() => insertToken(v.token)} variant="outlined" />
               ))}
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Blocs conditionnels :</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {CONDITION_BUTTONS.map((c) => (
+              {conditionButtons.map((c) => (
                 <Chip key={c.token} label={c.label} size="small" onClick={() => insertToken(c.token)} variant="outlined" color="secondary" />
               ))}
             </Box>

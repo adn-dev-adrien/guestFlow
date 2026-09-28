@@ -9,6 +9,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
+// Every plugin active (specs/plugins-phase-1-sdk.md rule 13 — the token picker lists plugin tokens).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {

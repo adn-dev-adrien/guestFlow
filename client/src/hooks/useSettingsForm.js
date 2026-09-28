@@ -19,7 +19,7 @@
  *   replaceSaved(group, key, value) — records a value written by another endpoint (the logo)
  *
  * Secret fields use a draft key whose `undefined` means « keep the stored secret »:
- *   smtp.passwordDraft → smtp.password, weather.apiKeyDraft → weather.apiKey.
+ *   smtp.passwordDraft → smtp.password.
  */
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
@@ -32,13 +32,11 @@ const READ_ONLY = {
   smtp: ['passwordSet', 'derived', 'passwordDraft'],
   notifications: ['derivedRecipient'],
   emails: ['sequenceStartDate'],
-  weather: ['apiKeySet', 'apiKeyDraft'],
 };
 
 // Secret drafts → the payload key the server expects.
 const SECRET_DRAFTS = {
   smtp: { draft: 'passwordDraft', payload: 'password' },
-  weather: { draft: 'apiKeyDraft', payload: 'apiKey' },
 };
 
 // Client field → server error key (the server validates by column name).

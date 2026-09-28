@@ -2,7 +2,7 @@
 // (a server unit test snapshots ROLES + ROLE_LABELS to catch drift); this file is the read-only
 // projection used by the UI (sidebar gating, role multi-select, status chips).
 
-import { isRouteEnabled } from './plugins';
+import { isRouteEnabled, MODULE_ROUTE_ROLES } from './plugins';
 
 export const ADMIN = 'admin';
 export const ACCOUNTANT = 'accountant';
@@ -68,13 +68,11 @@ export const ROUTE_ROLES = Object.freeze({
   '/options':                [ADMIN],
   '/resources':              [ADMIN],
   '/clients':                [ADMIN],
-  '/school-holidays':        [ADMIN],
   '/establishment-closures': [ADMIN],
   // Combined menu pages (tabs over the standalone pages above).
   '/parametres/options-ressources':  [ADMIN],
   '/parametres/vacances-fermetures': [ADMIN],
   '/parametres/stock-blanchisserie': [ADMIN],
-  '/parametres/recettes':    [ADMIN],
   // specs/online-payments-qonto.md — dedicated payments page (Qonto connection).
   '/parametres/paiements':   [ADMIN],
   // specs/terms-acceptance-record.md — the CGV the site shows and the guests accept.
@@ -91,6 +89,8 @@ export const ROUTE_ROLES = Object.freeze({
   '/parametres/plugins':     [ADMIN],
   // Rule 6 — « Mon compte » (my information, my password) for every role.
   '/mon-compte':             [ADMIN, ACCOUNTANT, RECEPTION],
+  // Pages of plugin modules, with the roles each declares (specs/plugins-phase-1-sdk.md rule 15).
+  ...MODULE_ROUTE_ROLES,
 });
 
 // A page also needs its plugin active (specs/plugins-phase-0-foundation.md rule 16): the sidebar, the

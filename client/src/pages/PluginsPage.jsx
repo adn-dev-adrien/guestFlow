@@ -47,11 +47,11 @@ export default function PluginsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleAction = async (plugin, action) => {
+  const handleAction = async (plugin, action, options) => {
     setBusyId(plugin.id);
     setErrors((prev) => ({ ...prev, [plugin.id]: null }));
     try {
-      await ACTIONS[action](plugin.id);
+      await (options ? ACTIONS[action](plugin.id, options) : ACTIONS[action](plugin.id));
       if (action === 'install') setTab('installed');
       await Promise.all([load(), refresh()]);
     } catch (e) {
@@ -128,7 +128,7 @@ export default function PluginsPage() {
                   plugin={plugin}
                   busy={busyId === plugin.id}
                   error={errors[plugin.id]}
-                  onAction={(action) => handleAction(plugin, action)}
+                  onAction={(action, options) => handleAction(plugin, action, options)}
                 />
               </Grid>
             ))}

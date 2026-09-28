@@ -21,13 +21,12 @@ import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
-import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
-import GateKeysAlert from '../components/GateKeysAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
 import PluginGate from '../components/PluginGate';
-import { LINEN, GATE_ACCESS, TARIFF_RECIPES, WEBSITE_BOOKING } from '../constants/plugins';
+import { LINEN, WEBSITE_BOOKING } from '../constants/plugins';
+import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -372,10 +371,10 @@ export default function Dashboard() {
               Sits high: it is the only surface that says an acompte or un solde is late, and the
               only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
           <PaymentDeadlinesAlert />
-          {/* Gate keys Sowel could not make, or a Sowel that stopped reading the list
-              (specs/gate-access-sowel-connector.md §3.3). A guest at a closed gate is the cost of
-              missing it, hence high. Renders nothing when all is well. */}
-          <PluginGate id={GATE_ACCESS}><GateKeysAlert /></PluginGate>
+          {/* Urgent plugin alerts — e.g. gate keys Sowel could not make, or a Sowel that stopped
+              reading the list (specs/gate-access-sowel-connector.md §3.3): a guest at a closed gate
+              is the cost of missing it, hence high (specs/plugins-phase-1-sdk.md rule 13). */}
+          <Slot name="dashboard.alerts.urgent" />
           {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
               Self-contained: renders nothing when no pending drift exists. */}
           <IcalDateDriftAlert />
@@ -389,7 +388,8 @@ export default function Dashboard() {
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <IcalNewReservationsAlert />
-          <PluginGate id={TARIFF_RECIPES}><TariffRecipeRunsAlert /></PluginGate>
+          {/* The other plugin alerts, e.g. the tariff-recipe runs to review. */}
+          <Slot name="dashboard.alerts" />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <EmailPendingAlert />

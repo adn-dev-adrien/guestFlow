@@ -12,7 +12,6 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ExtensionIcon from '@mui/icons-material/Extension';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -22,17 +21,17 @@ import CableIcon from '@mui/icons-material/Cable';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import PowerIcon from '@mui/icons-material/Power';
+import PLUGIN_MODULES from '../plugins';
 
 export const PROPERTIES_PATH = '/properties';
 
-export const SETTINGS_MENU = [
+const BASE_MENU = [
   { path: '/settings/etablissement', label: 'Établissement', Icon: BusinessIcon },
   { path: PROPERTIES_PATH, label: 'Logements', Icon: HomeWorkIcon },
   { path: '/settings/plateformes', label: 'Plateformes', Icon: StorefrontIcon },
   { path: '/parametres/conditions-generales', label: 'Conditions générales', Icon: GavelIcon },
   null,
   { path: '/parametres/options-ressources', label: 'Options & ressources', Icon: ExtensionIcon, matches: ['/options', '/resources'] },
-  { path: '/parametres/recettes', label: 'Recettes tarifaires', Icon: MenuBookIcon },
   { path: '/parametres/vacances-fermetures', label: 'Vacances & fermetures', Icon: DateRangeIcon, matches: ['/school-holidays', '/establishment-closures'] },
   { path: '/parametres/stock-blanchisserie', label: 'Linge', Icon: LocalLaundryServiceIcon },
   null,
@@ -45,6 +44,20 @@ export const SETTINGS_MENU = [
   { path: '/settings/systeme', label: 'Système', Icon: SettingsApplicationsIcon },
   { path: '/parametres/plugins', label: 'Plugins', Icon: PowerIcon },
 ];
+
+// Entries of plugin modules (specs/plugins-phase-1-sdk.md rule 13, slot `settings.menu`), each placed
+// right after the entry its `after` names.
+function withModuleEntries(menu, modules) {
+  const out = [...menu];
+  modules.forEach((mod) => ((mod.contributes && mod.contributes['settings.menu']) || []).forEach((entry) => {
+    const at = out.findIndex((e) => e && e.path === entry.after);
+    const { after, ...item } = entry;
+    out.splice(at === -1 ? out.length : at + 1, 0, item);
+  }));
+  return out;
+}
+
+export const SETTINGS_MENU = withModuleEntries(BASE_MENU, PLUGIN_MODULES);
 
 export const SETTINGS_ENTRIES = SETTINGS_MENU.filter(Boolean);
 

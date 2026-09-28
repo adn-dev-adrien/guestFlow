@@ -1,0 +1,25 @@
+// Accès au portail (Sowel) — client module (specs/plugins-phase-1-sdk.md §3.C).
+import { lazy } from 'react';
+
+export default {
+  id: 'gate-access',
+  contributes: {
+    'settings.integrations': [
+      { key: 'gate', order: 40, Component: lazy(() => import('./SettingsGateAccessSection')) },
+    ],
+    // High in the stack: a guest at a closed gate is the cost of missing it.
+    'dashboard.alerts.urgent': [{ key: 'gate-keys', order: 10, Component: lazy(() => import('./GateKeysAlert')) }],
+    'reservation.cards': [{ key: 'gate', order: 10, Component: lazy(() => import('./GateAccessCard')) }],
+    // Inside the SAS « Portail » step, when the SAS data says there is a key for the stay.
+    'sas.portal': [{ key: 'gate', order: 10, Component: lazy(() => import('./SasGateAccessStep')) }],
+    // Declared by the server's email provider (rule 10); listed in the template editor while active.
+    'emailTemplates.tokens': [{
+      key: 'gate',
+      tokens: [
+        { label: 'Code portail', token: '{{gateAccessCode}}' },
+        { label: 'Lien portail', token: '{{gateAccessUrl}}' },
+      ],
+      conditions: [{ label: 'Si accès portail', token: '{{#if hasGateAccess}}' }],
+    }],
+  },
+};

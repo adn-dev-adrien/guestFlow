@@ -28,15 +28,14 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import PlatformPriceCard from '../components/PlatformPriceCard';
-import TariffRecipeCard from '../components/property/TariffRecipeCard';
+import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
-import PluginGate from '../components/PluginGate';
 import { usePlugin } from '../hooks/usePlugins';
-import { SCHOOL_HOLIDAYS, TARIFF_RECIPES } from '../constants/plugins';
+import { TARIFF_RECIPES } from '../constants/plugins';
+import useDayMarkers from '../hooks/useDayMarkers';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
-import { getSchoolHolidayInfo } from '../frenchHolidays';
 
 const DEFAULT_COLORS = ['#1976d2', '#2e7d32', '#f57c00', '#6a1b9a', '#00838f', '#d81b60', '#5d4037'];
 
@@ -109,7 +108,7 @@ const WEEKDAYS_FR = [
 
 // The season's identity — colour dot, label, and whether a recipe owns it. Shared by the desktop
 // table and the mobile card list so the two can never drift apart.
-function SeasonIdentity({ season }) {
+function SeasonIdentity({ season, recipesOn }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
       <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => season.color || t.palette.primary.main }} />
@@ -118,8 +117,8 @@ function SeasonIdentity({ season }) {
       <Chip
         size="small"
         variant="outlined"
-        color={season.seasonKey ? 'info' : 'default'}
-        label={season.seasonKey ? `recette · ${season.seasonKey}` : 'Manuelle'}
+        color={recipesOn && season.seasonKey ? 'info' : 'default'}
+        label={recipesOn && season.seasonKey ? `recette · ${season.seasonKey}` : 'Manuelle'}
         sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
       />
     </Box>
@@ -210,16 +209,17 @@ function sanitizeDecimalInput(raw) {
 
 export default function PropertyPricingSeasonsPage() {
   const { id } = useParams();
-  // specs/plugins-phase-0-foundation.md rules 16 and 18 — no school-holiday call and no recipe card
-  // while their plugins are inactive.
-  const schoolHolidaysOn = usePlugin(SCHOOL_HOLIDAYS);
+  // The day dots (school-holiday zones) and the recipe card come from plugin modules
+  // (specs/plugins-phase-1-sdk.md rule 13); the season badge only names a recipe while the plugin is
+  // active — a core display of core data.
+  const { markersFor, captions: markerCaptions } = useDayMarkers();
+  const recipesOn = usePlugin(TARIFF_RECIPES);
   const navigate = useNavigate();
 
   const [property, setProperty] = useState(null);
   // Bumped after a season is saved/deleted so the « Prix plateformes » grid re-fetches its net prices.
   const [platformRefresh, setPlatformRefresh] = useState(0);
   const [allProperties, setAllProperties] = useState([]);
-  const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [publicHolidays, setPublicHolidays] = useState(() => new Set());
   const [displayStartYear, setDisplayStartYear] = useState(new Date().getFullYear());
   const displayYears = 1; // one year per screen; the arrows move it
@@ -283,11 +283,10 @@ export default function PropertyPricingSeasonsPage() {
 
   const loadData = useCallback(async () => {
     setLoadError(false);
-    let p; let holidays; let props;
+    let p; let props;
     try {
-      [p, holidays, props] = await Promise.all([
+      [p, props] = await Promise.all([
         api.getProperty(id),
-        schoolHolidaysOn ? api.getSchoolHolidays() : Promise.resolve({ periods: [] }),
         api.getProperties(),
       ]);
     } catch (e) {
@@ -307,9 +306,8 @@ export default function PropertyPricingSeasonsPage() {
         progressiveTiers: parseTiers(r.progressiveTiers),
       })),
     });
-    setSchoolHolidays(holidays?.periods || []);
     setAllProperties(props || []);
-  }, [id, schoolHolidaysOn]);
+  }, [id]);
 
   useEffect(() => {
     loadData();
@@ -873,7 +871,7 @@ export default function PropertyPricingSeasonsPage() {
                       const inMonth = d.getMonth() === month;
                       const season = getSeasonForDate(dateStr);
                       const isPublicHoliday = publicHolidays.has(dateStr);
-                      const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
+                      const hasMarker = markersFor(dateStr).length > 0;
                       const coveringRange = season ? (season.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate) : null;
                       const seasonDefaultMin = season ? Number(season.minNights || 1) : 1;
                       const dayMin = coveringRange ? Number(coveringRange.minNights ?? seasonDefaultMin) : seasonDefaultMin;
@@ -886,7 +884,7 @@ export default function PropertyPricingSeasonsPage() {
                       const isDepartureDay = departureDay != null && departureDay !== '' && Number(departureDay) === weekday;
                       const closure = findClosureForDate(property.closureRanges, dateStr);
                       const eventLabel = coveringRange?.eventLabel || null;
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure, eventLabel });
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, hasMarker, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure, eventLabel });
                     }
 
                     return (
@@ -973,7 +971,7 @@ export default function PropertyPricingSeasonsPage() {
                                 {c.inMonth && c.isPublicHoliday && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'error.main', position: 'absolute', bottom: 1, left: 1 }} />
                                 )}
-                                {c.inMonth && c.schoolInfo && (
+                                {c.inMonth && c.hasMarker && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'info.main', position: 'absolute', bottom: 1, right: 1 }} />
                                 )}
                               </Box>
@@ -995,10 +993,12 @@ export default function PropertyPricingSeasonsPage() {
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />
                     <Typography variant="caption" color="text.secondary">jour férié</Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main' }} />
-                    <Typography variant="caption" color="text.secondary">vacances scolaires</Typography>
-                  </Box>
+                  {markerCaptions.map((caption) => (
+                    <Box key={caption} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main' }} />
+                      <Typography variant="caption" color="text.secondary">{caption}</Typography>
+                    </Box>
+                  ))}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark' }}>3</Typography>
                     <Typography variant="caption" color="text.secondary">minimum de nuits</Typography>
@@ -1022,9 +1022,10 @@ export default function PropertyPricingSeasonsPage() {
         ))}
       </Grid>
 
-      {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
-      <PluginGate id={TARIFF_RECIPES}>
-      <TariffRecipeCard
+      {/* Plugin cards of the property tariff — the recipe: pick + preview + apply
+          (specs/tariff-recipes/spec.md §3.2). */}
+      <Slot
+        name="property.tariff"
         propertyId={id}
         activeRecipeId={property.tariffRecipeId || ''}
         appliedVersion={property.tariffRecipeVersion || ''}
@@ -1032,7 +1033,6 @@ export default function PropertyPricingSeasonsPage() {
         onApplied={async () => { await loadData(); setPlatformRefresh((n) => n + 1); showSuccess('Recette appliquée.'); }}
         onError={(message) => showError(message)}
       />
-      </PluginGate>
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -1047,7 +1047,7 @@ export default function PropertyPricingSeasonsPage() {
               {seasons.map((s) => (
                 <Card key={s.id} variant="outlined">
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <SeasonIdentity season={s} />
+                    <SeasonIdentity season={s} recipesOn={recipesOn} />
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 1 }}>
                       <SeasonRanges season={s} ranges={upcomingRanges(s)} />
                     </Box>
@@ -1086,7 +1086,7 @@ export default function PropertyPricingSeasonsPage() {
               <TableBody>
                 {seasons.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell><SeasonIdentity season={s} /></TableCell>
+                    <TableCell><SeasonIdentity season={s} recipesOn={recipesOn} /></TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                         <SeasonRanges season={s} ranges={upcomingRanges(s)} />

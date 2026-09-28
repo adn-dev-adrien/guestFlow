@@ -1,15 +1,17 @@
 /**
- * PluginCard — one plugin on the Plugins page (specs/plugins-phase-0-foundation.md rules 22–23).
- * Feature-specific: only the Plugins page lists plugins.
+ * PluginCard — one plugin on the Plugins page (specs/plugins-phase-0-foundation.md rules 22–23;
+ * specs/plugins-phase-1-sdk.md rules 4 and 21–22). Feature-specific: only the Plugins page lists
+ * plugins.
  *
  * Props:
- *   plugin    { id, name, description, icon, surfaces, state, blocker }  as GET /api/plugins returns it
+ *   plugin    { id, name, description, icon, surfaces, state, blocker, erasable, data }
+ *             as GET /api/plugins returns it — `data` lists what an erasure would take
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
- *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall') => void
+ *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall', options?: { purge }) => void
  */
 import React, { useState } from 'react';
-import { Box, Button, Card, CardActionArea, Collapse, Stack, Typography } from '@mui/material';
+import { Box, Button, Card, CardActionArea, Checkbox, Collapse, FormControlLabel, Stack, Typography } from '@mui/material';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -43,8 +45,11 @@ const ICONS = {
 export default function PluginCard({ plugin, busy = false, error = null, onAction }) {
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
+  const [erase, setErase] = useState(false);
   const Icon = ICONS[plugin.icon] || ExtensionIcon;
   const installed = plugin.state !== 'available';
+  const failed = plugin.state === 'failed';
+  const eraseLines = (plugin.data || []).map((line) => line.label).join(' · ');
 
   const primary = plugin.state === 'available'
     ? { action: 'install', label: 'Installer', variant: 'contained' }
@@ -52,9 +57,10 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
       ? { action: 'deactivate', label: 'Désactiver', variant: 'outlined' }
       : { action: 'activate', label: 'Activer', variant: 'contained' };
 
-  const act = (action) => {
+  const act = (action, options) => {
     setArmed(false);
-    onAction(action);
+    setErase(false);
+    onAction(action, options);
   };
 
   return (
@@ -77,8 +83,14 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
             <Typography variant="body2" color="text.secondary">{plugin.description}</Typography>
             {installed && (
               <Box sx={{ mt: 0.5 }}>
-                <StatusBadge status={plugin.state === 'active' ? 'success' : 'neutral'} label={plugin.state === 'active' ? 'Actif' : 'Inactif'} />
+                <StatusBadge
+                  status={failed ? 'error' : plugin.state === 'active' ? 'success' : 'neutral'}
+                  label={failed ? 'Erreur' : plugin.state === 'active' ? 'Actif' : 'Inactif'}
+                />
               </Box>
+            )}
+            {failed && (
+              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Ce plugin n’a pas pu démarrer.</Typography>
             )}
           </Box>
         </CardActionArea>
@@ -104,20 +116,32 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
           </Box>
           {installed && (
             <>
+              {/* A plugin module can take its data with it (rules 21-22); the others always keep it. */}
+              {plugin.erasable && (
+                <FormControlLabel
+                  sx={{ display: 'flex', minHeight: 44, mb: 0.5 }}
+                  control={<Checkbox checked={erase} onChange={(e) => { setErase(e.target.checked); setArmed(false); }} />}
+                  label="Effacer aussi ses données"
+                />
+              )}
+              {erase ? (
+                <Typography variant="body2" color="error" sx={{ mb: 1.5, fontWeight: 600 }}>
+                  {eraseLines ? `Seront effacés : ${eraseLines}. ` : ''}C’est définitif.
+                </Typography>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  Tes données sont conservées : en le réinstallant, tu retrouves tout.
+                </Typography>
+              )}
               <Button
                 color="error"
                 variant={armed ? 'contained' : 'outlined'}
                 disabled={busy}
-                onClick={() => (armed ? act('uninstall') : setArmed(true))}
-                sx={{ minHeight: 44 }}
+                onClick={() => (armed ? act('uninstall', erase ? { purge: true } : undefined) : setArmed(true))}
+                sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
               >
-                {armed ? 'Confirmer la désinstallation' : 'Désinstaller'}
+                {!armed ? 'Désinstaller' : erase ? 'Désinstaller et effacer' : 'Confirmer la désinstallation'}
               </Button>
-              {armed && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Tes données sont conservées : en le réinstallant, tu retrouves tout.
-                </Typography>
-              )}
             </>
           )}
         </Box>
