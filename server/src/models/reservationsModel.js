@@ -10,6 +10,7 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatPlatformName, DIRECT_CHANNELS } = require('../utils/platformNameFormat');
+const { originDisplay } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
@@ -800,6 +801,8 @@ function createReservationsModel(database) {
       // specs/caution-live-from-property.md §3: the caution amount is live from the property
       // (defaultCautionAmount) until it is received, then frozen to the collected amount.
       reservation.cautionAmount = resolveEffectiveCaution(reservation);
+      // specs/site-traffic-analytics.md rule 19 — the ready-to-render origin of a website request.
+      Object.assign(reservation, originDisplay(reservation));
 
       // `ro.*` already brings the new force-item-to-complement fields
       // (inComplement, acompteContribTtc, soldeContribTtc) — no need to enumerate.

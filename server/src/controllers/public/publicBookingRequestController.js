@@ -17,7 +17,8 @@ const devisModel = require('../../models/devisModel');
 const notificationService = require('../../utils/notificationService');
 const settingsModel = require('../../models/settingsModel');
 const termsModel = require('../../models/termsModel');
-const { validateStayInput, validateGuest } = require('../../utils/publicInputValidation');
+const { validateStayInput, validateGuest, validateAttribution } = require('../../utils/publicInputValidation');
+const { classifyAttribution } = require('../../utils/attributionChannel');
 const { checkGuestCapacity } = require('../../utils/capacity');
 const { generateToken } = require('../../utils/publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
@@ -118,6 +119,10 @@ function create(req, res) {
   // quote PDF from the DEVIS, so setting one alone ships an English email with a French PDF.
   const lang = langOf(req);
   const langWasStated = langStated(req);
+  // Where the visitor came from (specs/site-traffic-analytics.md rules 15-17). Never a reason to
+  // refuse: an invalid record is already reduced to `null` by its validator.
+  const attribution = validateAttribution(req.body.attribution);
+  const origin = classifyAttribution(attribution);
 
   const persist = db.transaction(() => {
     // Resolve-or-create the client by normalized email (never overwrite an existing name/phone).
@@ -174,6 +179,10 @@ function create(req, res) {
     // §7).
     const publicToken = generateToken();
     db.prepare("UPDATE reservations SET requestOrigin = 'public', publicToken = ? WHERE id = ?").run(publicToken, devis.id);
+    if (attribution) {
+      db.prepare('UPDATE reservations SET attributionChannel = ?, attributionLabel = ?, attribution = ?, attributionAt = ? WHERE id = ?')
+        .run(origin.channel, origin.label, JSON.stringify(attribution), new Date().toISOString(), devis.id);
+    }
 
     if (terms.version) {
       termsModel.insertAcceptance({

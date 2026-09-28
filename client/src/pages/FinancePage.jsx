@@ -15,6 +15,7 @@ import FinanceBreakdownDialog from '../components/FinanceBreakdownDialog';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import PageTabs from '../components/PageTabs';
+import ChannelBreakdownCard from '../components/ChannelBreakdownCard';
 import ErrorAlert from '../components/ErrorAlert';
 import StatusBadge from '../components/StatusBadge';
 import PlatformChip from '../components/PlatformChip';
@@ -429,6 +430,11 @@ export default function FinancePage() {
             </Card>
           </Grid>
         </Grid>
+        {/* specs/site-traffic-analytics.md rule 21 — same window as « Revenu par logement ». */}
+        <ChannelBreakdownCard
+          breakdown={chartTab === 'year' ? summary?.yearToDateByChannel : summary?.revenueByChannel}
+          caption="Même fenêtre et même total que « Revenu par logement » · montants TTC"
+        />
         <Divider sx={{ my: 3 }} />
         <Card sx={{ mb: 3 }}>
           <CardContent>

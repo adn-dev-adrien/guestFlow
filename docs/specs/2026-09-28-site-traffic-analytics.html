@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Trafic du site — mesure et origine des réservations</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 6px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight,ol.tight{margin:4px 0 0;padding-left:20px} ul.tight li,ol.tight li{margin:6px 0}
+.muted{color:var(--muted)}
+code{font:12.5px var(--mono);background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:14px 0}
+.stat b{display:block;font:600 26px/1.1 var(--serif);color:var(--sapin)}
+.stat span{font-size:13px;color:var(--muted)}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+
+/* flow */
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+@media (max-width:860px){.flow{grid-template-columns:1fr 1fr}}
+@media (max-width:480px){.flow{grid-template-columns:1fr}}
+.layer{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative}
+.layer .k{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--ocre)}
+.layer h4{margin:4px 0 6px;font:600 17px/1.2 var(--serif);color:var(--sapin)}
+.layer p{font-size:13.5px;color:var(--muted);margin:0}
+
+/* studio */
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.studio-bar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;
+  padding:8px 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pills button{appearance:none;font:inherit;font-size:13px;font-weight:600;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);
+  border-radius:999px;padding:6px 13px;min-height:40px;cursor:pointer}
+.pills button:hover{border-color:var(--lichen)}
+.studio-body{padding:14px}
+.readout{padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.readout b{color:var(--ink)}
+label.f{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+input.t{width:100%;font:13.5px var(--mono);padding:9px 11px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+input.t:focus{outline:2px solid var(--lichen);outline-offset:1px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.split{grid-template-columns:1fr}}
+
+/* fiche mock */
+.fiche{border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:14px}
+.fiche .ttl{font:600 18px/1.2 var(--serif);color:var(--sapin);margin-bottom:8px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--fieldline);background:var(--card);max-width:100%}
+.chip.site{border-color:var(--lichen);color:var(--lichen)}
+.chip.lang{color:var(--muted)}
+.chip.origin{border-color:var(--ocre);color:var(--ink);cursor:help;position:relative}
+.chip.origin .dot{width:8px;height:8px;border-radius:50%;background:var(--ocre);flex:none}
+.chip.origin.unk{border-style:dashed;color:var(--muted)}
+.chip.origin.unk .dot{background:var(--ghost)}
+.chip .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tip{margin-top:10px;font:12.5px/1.5 var(--mono);color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.verdict{margin-top:10px;font-size:13px}
+.verdict .w{color:var(--ko);font-weight:600}
+.verdict .g{color:var(--ok);font-weight:600}
+.phone .chip .txt{max-width:190px}
+.phone{max-width:360px}
+
+/* drawer mock */
+.drawer{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:14px;min-height:300px;display:flex;flex-direction:column;gap:10px}
+.drawer h4{margin:0;font:600 17px/1.2 var(--serif);color:var(--sapin)}
+.drawer .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:14px;border-radius:9px;padding:9px 14px;min-height:44px;cursor:pointer;
+  border:1px solid var(--fieldline);background:var(--field);color:var(--ink)}
+.btn.p{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.drawer select,.drawer input[type=text]{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:40px}
+.quote{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13.5px}
+.err{color:var(--ko);font-size:13px;font-weight:600}
+.log{font:12px/1.5 var(--mono);background:#1c211b;color:#dfe6d6;border-radius:10px;padding:10px;height:300px;overflow:auto}
+.log .ev{padding:3px 0;border-bottom:1px dashed #394236}
+.log .nm{color:#E0A956;font-weight:700}
+.log .pr{color:#9DB286}
+.log .empty{color:#7f8a7a}
+.funnel{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.fbar{display:grid;grid-template-columns:150px minmax(0,1fr) 54px;gap:8px;align-items:center;font-size:12.5px}
+@media (max-width:480px){.fbar{grid-template-columns:110px minmax(0,1fr) 44px}}
+.fbar .b{height:18px;border-radius:4px;background:color-mix(in srgb,var(--lichen) 70%,var(--card))}
+.fbar .b.drop{background:var(--ocre)}
+.fbar .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+
+/* finance mock */
+.fin{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:14px}
+.fin h4{margin:0 0 10px;font:600 17px/1.2 var(--serif);color:var(--sapin)}
+.fin table td,.fin table th{background:var(--card)}
+.fin tr.sub td{background:color-mix(in srgb,var(--lichen) 10%,var(--card));font-weight:700;color:var(--lichen);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.fin tr.sitechild td:first-child{padding-left:22px}
+.fin tr.tot td{font-weight:700;border-top:2px solid var(--sapin)}
+.fin .check{margin-top:8px;font-size:12.5px}
+.fcards{display:flex;flex-direction:column;gap:8px}
+.fcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.fcard .l{font-size:12.5px;color:var(--muted);font-weight:600}
+.fcard .ca{font:600 22px/1.2 var(--serif);color:var(--sapin)}
+.fcard .s{font-size:12.5px;color:var(--muted)}
+.fin.mobile{max-width:380px}
+
+.q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:10px 0}
+.q h3{margin:0 0 6px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;background:var(--paper)}
+.opt input{margin-top:4px;width:18px;height:18px;accent-color:var(--sapin);flex:none}
+.opt .rec{font-size:11px;font-weight:700;color:var(--ok);border:1px solid currentColor;border-radius:999px;padding:1px 7px;margin-left:6px;white-space:nowrap}
+.opt.on{border-color:var(--sapin)}
+.summary-out{font:12.5px var(--mono);white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px}
+.fake{font-size:11.5px;font-weight:700;color:var(--ocre);text-transform:uppercase;letter-spacing:.08em}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Trafic du site et origine des réservations</h1>
+<div class="meta">domainesolio.com · résumé de la spec <code>specs/site-traffic-analytics.md</code> · questions tranchées le 28/09/2026</div>
+
+<div class="card">
+<p><b>En une phrase :</b> tu verras qui vient sur le site, d'où, sur quelles pages et à quelle étape du tunnel de réservation les visiteurs abandonnent. <b>Chaque demande reçue dans GuestFlow saura d'où venait le visiteur</b> : Instagram, Google, ChatGPT, une campagne. Et tu recevras un mail si le site ou le tunnel tombe. <b>Pas de bannière cookies</b> : rien de ce qu'on mesure n'en exige.</p>
+</div>
+
+<h2>Ce qui est décidé</h2>
+<div class="tbl"><table>
+<tr><th>Sujet</th><th>Choix</th><th>Pourquoi</th></tr>
+<tr><td>Outil d'audience</td><td><b>Umami, hébergé chez toi</b></td><td>Sans cookie, donc chaque visiteur est compté. GA4 imposerait une bannière et perdrait 30 à 50 % des visites. Les données brutes sont dans ta base : un rapport qui manque s'écrit en SQL.</td></tr>
+<tr><td>Périmètre</td><td><b>Audience + tunnel + origine dans GuestFlow</b></td><td>Seule la couche GuestFlow répond à « quelle source rapporte des réservations et du chiffre d'affaires ».</td></tr>
+<tr><td>Alertes de panne</td><td><b>Prometheus existant</b> (VM 108)</td><td>Alertmanager t'écrit déjà et Grafana a déjà les courbes. Uptime Kuma aurait fait doublon.</td></tr>
+<tr><td>Mots-clés Google</td><td><b>Search Console + Bing</b></td><td>Aucun outil d'audience ne les a, GA4 non plus.</td></tr>
+</table></div>
+
+<h2>Le constat</h2>
+<div class="stats">
+  <div class="card stat"><b>0</b><span>outil de mesure sur le site (vérifié en prod le 28/09)</span></div>
+  <div class="card stat"><b>0</b><span>demande du site dont on connaît la provenance : GuestFlow ne sait que « Site internet »</span></div>
+  <div class="card stat"><b>7</b><span>étapes entre « ouvrir le tiroir » et « payé », sans savoir laquelle perd les visiteurs</span></div>
+  <div class="card stat"><b>1</b><span>panne du tunnel restée silencieuse (20/08, après la migration)</span></div>
+</div>
+
+<h2>Ce qu'on propose : 4 couches</h2>
+<div class="flow">
+  <div class="layer"><div class="k">1 · Audience</div><h4>Umami</h4><p>Un LXC <code>stats</code> sur le Proxmox. Le script est servi par <code>domainesolio.com/_s/</code>, ce qui le rend invisible aux bloqueurs de pub. Le tableau de bord n'est accessible que sur le réseau local.</p></div>
+  <div class="layer"><div class="k">2 · Tunnel</div><h4>11 événements</h4><p>Le plugin émet « tiroir ouvert », « dates », « devis », « demande envoyée », « payé »… Umami en tire un entonnoir. Aucune donnée personnelle.</p></div>
+  <div class="layer"><div class="k">3 · Origine</div><h4>Dans GuestFlow</h4><p>La demande emporte la source de la visite. La fiche l'affiche, et la page Finance donne le chiffre d'affaires par canal.</p></div>
+  <div class="layer"><div class="k">4 · Pannes</div><h4>Prometheus</h4><p>Sondes sur le site, le tunnel et le certificat. 4 alertes par mail, toutes déclenchées une fois pour de vrai avant d'y croire.</p></div>
+</div>
+
+<h2>Essayer : d'où vient cette demande ?</h2>
+<p>Choisis un scénario ou tape une adresse. On voit ce que GuestFlow affichera sur la fiche, et ce qui est refusé quand la donnée est invalide. <span class="muted">La règle de classement est calculée par le serveur ; ce simulateur la reproduit.</span></p>
+
+<div class="studio">
+  <div class="studio-bar">
+    <span class="lab">Scénario</span>
+    <div class="pills" id="presets"></div>
+  </div>
+  <div class="studio-body split">
+    <div>
+      <label class="f" for="landing">Page d'arrivée (adresse complète)</label>
+      <input class="t" id="landing" autocomplete="off" spellcheck="false">
+      <label class="f" for="referrer">Site d'où il vient (<code>document.referrer</code>)</label>
+      <input class="t" id="referrer" autocomplete="off" spellcheck="false" placeholder="vide = tapé à la main, favori, appli">
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div>
+      <div class="seg" role="group" aria-label="Largeur" id="ficheWidth" style="margin-bottom:10px">
+        <button aria-pressed="true" data-w="desk">Ordinateur</button><button aria-pressed="false" data-w="phone">Téléphone</button>
+      </div>
+      <div class="fiche" id="fiche">
+        <div class="ttl">Demande · La Granja · 3 nuits</div>
+        <div class="badges">
+          <span class="chip site">Site internet</span>
+          <span class="chip lang">FR</span>
+          <span class="chip origin" id="originChip"><span class="dot"></span><span class="txt" id="originTxt"></span></span>
+        </div>
+        <div class="tip" id="originTip"></div>
+      </div>
+    </div>
+  </div>
+  <div class="readout" id="rawOut"></div>
+</div>
+
+<div class="note"><b>Trouvé en préparant la spec :</b> les redirections des anciennes adresses Lodgify reconstruisent l'URL sans ses paramètres. Un lien de campagne vers une ancienne adresse ressortirait donc en « Accès direct ». Le scénario « Ancienne URL Lodgify » montre le résultat avec et sans le correctif prévu.</div>
+
+<h2>Essayer : le tunnel et ce qu'il envoie</h2>
+<p>Joue le visiteur. Chaque geste envoie un événement, affiché à côté tel qu'Umami le reçoit. Tape un nom dans le formulaire : il n'apparaît <b>jamais</b> dans les événements.</p>
+
+<div class="studio">
+  <div class="studio-bar">
+    <span class="lab">Logement</span>
+    <div class="seg" role="group" id="lodgingSeg"><button aria-pressed="true" data-l="la-granja">La Granja</button><button aria-pressed="false" data-l="estiva">L'Estiva</button></div>
+    <button class="btn" id="resetDrawer" style="min-height:40px">Nouveau visiteur</button>
+  </div>
+  <div class="studio-body split">
+    <div class="drawer" id="drawer"></div>
+    <div>
+      <div class="lab" style="margin-bottom:6px">Événements envoyés à Umami</div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+  </div>
+  <div class="readout">
+    <div class="lab">Ce que ça donne sur un mois dans Umami <span class="fake">· chiffres fictifs</span></div>
+    <div class="funnel" id="funnel"></div>
+  </div>
+</div>
+
+<h2>Essayer : la carte « Canaux de réservation » (page Finance)</h2>
+<p>Elle se place sous « CA par logement » et suit les mêmes onglets. <b>Son total est forcément égal à celui de « CA par logement »</b> : deux chiffres d'affaires qui divergent sur le même écran seraient un bug, et un test le vérifie.</p>
+
+<div class="studio">
+  <div class="studio-bar">
+    <span class="lab">Période</span>
+    <div class="seg" role="group" id="periodSeg"><button aria-pressed="true" data-p="period">Sur la période</button><button aria-pressed="false" data-p="ytd">Depuis le début de l'exercice</button></div>
+    <span class="lab">Contenu</span>
+    <div class="seg" role="group" id="scopeSeg"><button aria-pressed="true" data-s="all">Plateformes + site</button><button aria-pressed="false" data-s="site">Site seul (écarté)</button></div>
+    <div class="seg" role="group" id="finWidth"><button aria-pressed="true" data-w="desk">Ordinateur</button><button aria-pressed="false" data-w="phone">Téléphone</button></div>
+  </div>
+  <div class="studio-body"><div id="finHost"></div></div>
+  <div class="readout"><span class="fake">Chiffres fictifs</span> : ils servent à juger la mise en page, pas le fond.</div>
+</div>
+
+<h2>Être prévenu d'une panne</h2>
+<div class="tbl"><table>
+<tr><th>Alerte</th><th>Ce qui est testé</th><th>Délai avant mail</th></tr>
+<tr><td><b>Site injoignable</b></td><td>L'accueil FR et EN répondent et contiennent « Solio »</td><td>5 min</td></tr>
+<tr><td><b>Tunnel de réservation en panne</b></td><td>La liste des logements passe de bout en bout : WordPress → plugin → GuestFlow → base. C'est exactement la chaîne cassée le 20/08.</td><td>5 min</td></tr>
+<tr><td><b>Certificat bientôt expiré</b></td><td>Moins de 14 jours de validité</td><td>1 h</td></tr>
+<tr><td><b>Statistiques arrêtées</b></td><td>Le script Umami répond. Le site, lui, n'est jamais touché par cette panne.</td><td>30 min</td></tr>
+</table></div>
+<p class="muted">Les sondes tournent dans ta maison. Une coupure de la Freebox ou du DNS ne serait pas vue, et le mail ne partirait pas de toute façon. C'est hors périmètre.</p>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+<li><b>Pas de bannière cookies</b>, ni de Google Analytics, ni de pixel Meta. Si l'un d'eux arrive un jour, il viendra avec sa propre spec et sa bannière.</li>
+<li><b>Pas de suivi du même visiteur sur plusieurs jours.</b> Quelqu'un qui découvre le site sur Instagram lundi et réserve via Google jeudi sera compté « Recherche · Google ». Faire mieux exigerait un identifiant durable, donc un consentement.</li>
+<li>Pas de cartes de clics, pas d'enregistrement de sessions, pas de liaison Google Ads.</li>
+<li>Pas de filtre par source dans la liste des devis (on pourra l'ajouter plus tard).</li>
+<li>L'ancien widget <code>gf-booking.php</code> n'est pas instrumenté ; il faut le retirer du site s'il ne sert plus.</li>
+</ul>
+
+<h2>Les risques</h2>
+<ul class="tight">
+<li><b>Casser une réservation à cause des statistiques.</b> Parade : l'origine invalide est ignorée et ne bloque jamais la demande. Chaque écouteur est protégé. Un test manuel bloque <code>/_s/</code> et vérifie qu'une réservation passe quand même.</li>
+<li><b>Lecture juridique de l'origine</b> (tranché en Q2) : rattacher la source à une demande nominative sort, strictement, du cadre « statistiques anonymes » de la CNIL. La parade proposée : stockage limité à l'onglet, aucun identifiant, mention dans la page Confidentialité. Ce n'est pas un avis juridique.</li>
+<li><b>Une machine de plus à entretenir.</b> Parade : le LXC entre dans la maintenance automatique, la sauvegarde nocturne et la supervision le jour de sa création. Umami est mis à jour à la main, version figée.</li>
+<li><b>Des chiffres faussés par tes propres visites.</b> Parade : aucun comptage quand tu es connecté à WordPress.</li>
+</ul>
+
+<h2>Le phasage proposé</h2>
+<ol class="tight">
+<li><b>Infra</b> (avec ton feu vert, c'est de la prod) : LXC Umami, Caddy <code>/_s/</code>, nom interne, sondes et alertes Prometheus. Tu ajoutes les enregistrements DNS de Search Console et Bing.</li>
+<li><b>PR GuestFlow</b> : colonnes d'origine, classement, badge sur la fiche, carte Finance, plugin 1.14.0 (événements + origine), mu-plugin <code>gf-analytics</code>, redirections qui gardent les UTM, lien Confidentialité.</li>
+<li><b>Release Y</b> puis mise à jour du plugin depuis l'admin WP. Dépôt manuel des mu-plugins sur .23, avec comparaison préalable. Publication des pages Confidentialité FR/EN.</li>
+<li><b>Recette sur le vrai site</b> : un lien <code>?utm_campaign=test-analytics</code> jusqu'à la fiche GuestFlow, l'entonnoir dans Umami, et chaque alerte déclenchée une fois.</li>
+</ol>
+
+<h2>Les questions tranchées</h2>
+<div class="tbl"><table>
+<tr><th>Question</th><th>Réponse (28/09/2026)</th></tr>
+<tr><td>Q1 · Accès au tableau de bord Umami depuis l’extérieur</td><td><b>Réseau local seulement</b>, sans lien de partage : rien du tableau de bord n’est publié.</td></tr>
+<tr><td>Q2 · Comment capter l’origine de la visite</td><td><b>Mémoire de l’onglet, première arrivée</b>, mentionnée dans la page Confidentialité.</td></tr>
+<tr><td>Q3 · Contenu de la carte « Canaux de réservation »</td><td><b>Plateformes + site par source + direct saisi.</b></td></tr>
+<tr><td>Q4 · Conservation des statistiques Umami</td><td><b>25 mois.</b></td></tr>
+</table></div>
+
+</div>
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- classifier (mirror of spec rule 16) ---------- */
+const AI = ['chatgpt.com','chat.openai.com','perplexity.ai','claude.ai','gemini.google.com','copilot.microsoft.com'];
+const AI_LABEL = {'chatgpt.com':'ChatGPT','chat.openai.com':'ChatGPT','perplexity.ai':'Perplexity','claude.ai':'Claude','gemini.google.com':'Gemini','copilot.microsoft.com':'Copilot'};
+const SEARCH = [[/(^|\.)google\.[a-z.]+$/,'Google'],[/(^|\.)bing\.com$/,'Bing'],[/(^|\.)duckduckgo\.com$/,'DuckDuckGo'],[/(^|\.)qwant\.com$/,'Qwant'],[/(^|\.)ecosia\.org$/,'Ecosia'],[/(^|\.)yahoo\.[a-z.]+$/,'Yahoo']];
+const SOCIAL = [[/(^|\.)instagram\.com$/,'Instagram'],[/(^|\.)facebook\.com$/,'Facebook'],[/(^|\.)pinterest\.[a-z.]+$/,'Pinterest'],[/(^|\.)linkedin\.com$/,'LinkedIn'],[/^t\.co$/,'X'],[/(^|\.)x\.com$/,'X'],[/(^|\.)tiktok\.com$/,'TikTok'],[/(^|\.)youtube\.com$/,'YouTube']];
+const CH = {campaign:'Campagne',ai:'Assistant IA',search:'Recherche',social:'Réseaux sociaux',referral:'Autre site',direct:'Accès direct'};
+const OWN = /(^|\.)domainesolio\.com$|(^|\.)qonto\.com$/;
+const MAX = 200;
+const niceSource = s => { const k = s.toLowerCase(); for (const [re,l] of SOCIAL.concat(SEARCH)) if (re.test(k+'.com')||re.test(k)) return l; return s; };
+
+function capture(landing, ref){
+  const notes = []; const rec = {};
+  let u;
+  try { u = new URL(landing); } catch(e){ notes.push(['w','Adresse d’arrivée illisible : ignorée.']); }
+  if (u){
+    rec.landingPath = u.pathname;
+    for (const [q,k] of [['utm_source','utmSource'],['utm_medium','utmMedium'],['utm_campaign','utmCampaign'],['utm_content','utmContent'],['utm_term','utmTerm']]){
+      const v = u.searchParams.get(q);
+      if (v == null || v.trim() === '') continue;
+      let t = v.trim();
+      if (t.length > MAX){ notes.push(['w', q+' fait '+t.length+' caractères : tronqué à '+MAX+'.']); t = t.slice(0,MAX); }
+      rec[k] = t;
+    }
+  }
+  const r = ref.trim();
+  if (r){
+    let host = null;
+    try { host = new URL(/^https?:\/\//.test(r) ? r : 'https://'+r).hostname.toLowerCase(); } catch(e){}
+    if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) notes.push(['w','« '+r.slice(0,60)+' » n’est pas un nom de site : ignoré, la demande passe quand même.']);
+    else if (OWN.test(host)) notes.push(['g', host+' est le site lui-même ou Qonto : ce n’est pas une provenance.']);
+    else rec.referrer = host.replace(/^www\./,'');
+  }
+  return {rec, notes};
+}
+function classify(rec){
+  if (rec.utmSource || rec.utmMedium || rec.utmCampaign || rec.utmContent || rec.utmTerm)
+    return {channel:'campaign', label: rec.utmCampaign || niceSource(rec.utmSource || 'sans nom')};
+  const h = rec.referrer;
+  if (h){
+    for (const a of AI) if (h === a || h.endsWith('.'+a)) return {channel:'ai', label: AI_LABEL[a]};
+    for (const [re,l] of SEARCH) if (re.test(h)) return {channel:'search', label:l};
+    for (const [re,l] of SOCIAL) if (re.test(h) || (l==='Instagram'&&/instagram/.test(h)) || (l==='Facebook'&&/(^|\.)facebook\.com$|^l\.facebook\.com$/.test(h))) return {channel:'social', label:l};
+    return {channel:'referral', label:h};
+  }
+  return {channel:'direct', label:null};
+}
+
+const PRESETS = [
+  {n:'Story Instagram', l:'https://domainesolio.com/la-granja/?utm_source=instagram&utm_medium=story&utm_campaign=lancement-2026', r:'l.instagram.com'},
+  {n:'Lien bio Instagram (sans UTM)', l:'https://domainesolio.com/', r:'l.instagram.com'},
+  {n:'Recherche Google', l:'https://domainesolio.com/la-granja/', r:'www.google.fr'},
+  {n:'ChatGPT', l:'https://domainesolio.com/le-domaine/', r:'chatgpt.com'},
+  {n:'Blog de voyage', l:'https://domainesolio.com/estiva/', r:'www.ardeche-insolite.fr'},
+  {n:'Favori / adresse tapée', l:'https://domainesolio.com/', r:''},
+  {n:'Ancienne URL Lodgify + campagne', l:'https://domainesolio.com/fr/tarifs-et-reservation?utm_source=newsletter&utm_campaign=hiver', r:'', lodgify:true},
+  {n:'Saisie piégée', l:'https://domainesolio.com/?utm_campaign='+'<script>x<\/script>'.repeat(20), r:'pas un site !!'},
+];
+let lodgifyFix = true, currentPreset = null;
+const presetsEl = $('#presets');
+PRESETS.forEach((p,i) => { const b = document.createElement('button'); b.textContent = p.n; b.onclick = () => applyPreset(i); presetsEl.appendChild(b); });
+function applyPreset(i){ const p = PRESETS[i]; currentPreset = p; $('#landing').value = p.l; $('#referrer').value = p.r; renderOrigin(); }
+$('#landing').addEventListener('input', () => { currentPreset = null; renderOrigin(); });
+$('#referrer').addEventListener('input', () => { currentPreset = null; renderOrigin(); });
+
+function renderOrigin(){
+  let landing = $('#landing').value;
+  const extra = [];
+  if (currentPreset && currentPreset.lodgify){
+    extra.push(['', '<span class="seg" style="margin:4px 0" id="lodgSeg"><button aria-pressed="'+(!lodgifyFix)+'" data-f="0">Aujourd’hui</button><button aria-pressed="'+lodgifyFix+'" data-f="1">Avec le correctif</button></span>']);
+    if (!lodgifyFix){ landing = 'https://domainesolio.com/reserver/'; extra.push(['w','La redirection 301 a supprimé les paramètres : la campagne est perdue.']); }
+    else { landing = 'https://domainesolio.com/reserver/' + landing.slice(landing.indexOf('?')); extra.push(['g','La redirection garde les utm_* : la campagne arrive jusqu’à la fiche.']); }
+  }
+  const {rec, notes} = capture(landing, $('#referrer').value);
+  const all = extra.concat(notes);
+  const c = classify(rec);
+  const txt = CH[c.channel] + (c.label ? ' · ' + c.label : '');
+  $('#originTxt').textContent = txt;
+  $('#originChip').title = txt;
+  $('#originChip').classList.remove('unk');
+  const tipParts = ['Arrivé sur ' + (rec.landingPath || '?')];
+  for (const k of ['utmSource','utmMedium','utmCampaign','utmContent','utmTerm']) if (rec[k]) tipParts.push(k.replace('utm','utm_').toLowerCase().replace('utm__','utm_') + '=' + rec[k]);
+  if (rec.referrer) tipParts.push('depuis ' + rec.referrer);
+  tipParts.push('28/09 à 14:12');
+  $('#originTip').textContent = 'Infobulle : ' + tipParts.join(' · ');
+  $('#verdict').innerHTML = all.map(([k,m]) => k ? '<div class="'+k+'">'+(k==='w'?'✕ ':'✓ ')+esc(m)+'</div>' : '<div>'+m+'</div>').join('')
+    || '<div class="g">✓ Origine valide, enregistrée avec la demande.</div>';
+  const ls = $('#lodgSeg');
+  if (ls) ls.querySelectorAll('button').forEach(b => b.onclick = () => { lodgifyFix = b.dataset.f === '1'; renderOrigin(); });
+  $('#rawOut').innerHTML = '<b>Envoyé à GuestFlow :</b> <code>' + esc(JSON.stringify({attribution: rec})) + '</code>';
+}
+$('#ficheWidth').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $('#ficheWidth').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#fiche').classList.toggle('phone', b.dataset.w === 'phone');
+});
+applyPreset(0);
+
+/* ---------- drawer ---------- */
+let lodging = 'la-granja', step = 0, st = {};
+const LNAME = {'la-granja':'La Granja','estiva':'L’Estiva'};
+const log = $('#log');
+function track(name, props){
+  if (log.querySelector('.empty')) log.innerHTML = '';
+  const d = document.createElement('div'); d.className = 'ev';
+  d.innerHTML = '<span class="nm">' + esc(name) + '</span> <span class="pr">' + esc(JSON.stringify(props)) + '</span>';
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+}
+function resetDrawer(){ step = 0; st = {nights:'', guests:2, name:'', email:'', terms:false, lastNights:null}; log.innerHTML = '<div class="empty">(aucun événement pour l’instant)</div>'; drawDrawer(); }
+function drawDrawer(){
+  const d = $('#drawer'); const L = LNAME[lodging];
+  if (step === 0){
+    d.innerHTML = '<h4>Page ' + L + '</h4><p class="muted" style="margin:0">Le visiteur lit la page. Le bouton flottant « Réserver » est en bas.</p><div class="row"><button class="btn p" id="o1">Réserver (bouton)</button><button class="btn" id="o2">Lien « #reserver » du texte</button></div>';
+    $('#o1').onclick = () => { track('booking-open', {lodging, trigger:'button'}); step = 1; drawDrawer(); };
+    $('#o2').onclick = () => { track('booking-open', {lodging, trigger:'link'}); step = 1; drawDrawer(); };
+  } else if (step === 1){
+    d.innerHTML = '<h4>Réserver ' + L + '</h4>'
+      + '<div class="row"><label>Nuits <select id="n"><option value="">choisir…</option>' + [1,2,3,4,5,7].map(n => '<option'+(String(n)===String(st.nights)?' selected':'')+'>'+n+'</option>').join('') + '</select></label>'
+      + '<label>Voyageurs <select id="g">' + [1,2,3,4].map(n => '<option'+(n===st.guests?' selected':'')+'>'+n+'</option>').join('') + '</select></label></div>'
+      + '<div id="qz"></div>'
+      + '<div class="row"><button class="btn p" id="nx" '+(st.quoted?'':'disabled')+'>Suivant</button><button class="btn" id="cl">Fermer</button></div>';
+    const q = () => {
+      const qz = $('#qz'); if (!st.nights){ qz.innerHTML = ''; st.quoted = false; $('#nx').disabled = true; return; }
+      const n = +st.nights;
+      if (n === 1){ qz.innerHTML = '<div class="err">Séjour minimum : 2 nuits à ces dates.</div>'; st.quoted = false; $('#nx').disabled = true; track('booking-unavailable', {lodging, reason:'min-nights'}); return; }
+      qz.innerHTML = '<div class="quote">Devis : ' + n + ' nuits · ' + st.guests + ' voyageurs · bain nordique 1 h offert</div>';
+      st.quoted = true; $('#nx').disabled = false;
+      track('booking-quote', {lodging, nights:n, guests:st.guests});
+    };
+    $('#n').onchange = e => { st.nights = e.target.value; if (st.nights && st.nights !== st.lastNights){ track('booking-dates', {lodging, nights:+st.nights}); st.lastNights = st.nights; } q(); };
+    $('#g').onchange = e => { st.guests = +e.target.value; if (st.nights) q(); };
+    $('#nx').onclick = () => { track('booking-step2', {lodging}); step = 2; drawDrawer(); };
+    $('#cl').onclick = () => { step = 0; drawDrawer(); };
+    if (st.nights) { const n = +st.nights; if (n > 1){ $('#qz').innerHTML = '<div class="quote">Devis : ' + n + ' nuits · ' + st.guests + ' voyageurs · bain nordique 1 h offert</div>'; } }
+  } else if (step === 2){
+    d.innerHTML = '<h4>Vos coordonnées</h4>'
+      + '<input type="text" id="nm" placeholder="Nom (essaie d’en taper un)" value="'+esc(st.name)+'">'
+      + '<input type="text" id="em" placeholder="E-mail" value="'+esc(st.email)+'">'
+      + '<label style="font-size:13.5px"><input type="checkbox" id="tm" '+(st.terms?'checked':'')+'> J’accepte les CGV</label>'
+      + '<div id="er"></div>'
+      + '<div class="row"><button class="btn p" id="sb">Envoyer la demande</button><button class="btn" id="bk">Retour</button></div>';
+    $('#nm').oninput = e => st.name = e.target.value;
+    $('#em').oninput = e => st.email = e.target.value;
+    $('#tm').onchange = e => st.terms = e.target.checked;
+    $('#bk').onclick = () => { step = 1; drawDrawer(); };
+    $('#sb').onclick = () => {
+      if (!st.name.trim() || !st.email.trim()){ $('#er').innerHTML = '<div class="err">Nom et e-mail obligatoires.</div>'; track('booking-refused', {lodging, reason:'fields'}); return; }
+      if (!st.terms){ $('#er').innerHTML = '<div class="err">Il faut accepter les CGV.</div>'; track('booking-refused', {lodging, reason:'terms'}); return; }
+      track('booking-requested', {lodging, nights:+st.nights, guests:st.guests}); step = 3; drawDrawer();
+    };
+  } else if (step === 3){
+    d.innerHTML = '<h4>Demande envoyée</h4><p style="margin:0">Le devis est dans GuestFlow, avec son origine. Le visiteur peut payer tout de suite.</p><div class="row"><button class="btn p" id="py">Payer (Qonto)</button></div>';
+    $('#py').onclick = () => { track('booking-pay', {lodging}); step = 4; drawDrawer(); };
+  } else if (step === 4){
+    d.innerHTML = '<h4>Page Qonto</h4><p class="muted" style="margin:0">Hors du site : rien n’est mesuré ici.</p><div class="row"><button class="btn p" id="ok">Paiement accepté → retour sur le site</button></div>';
+    $('#ok').onclick = () => { track('booking-paid', {lodging}); step = 5; drawDrawer(); };
+  } else {
+    d.innerHTML = '<h4>Séjour confirmé</h4><p style="margin:0">Parcours complet. Regarde les événements : ni nom, ni e-mail, ni prix.</p>';
+  }
+}
+$('#lodgingSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  $('#lodgingSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); lodging = b.dataset.l; resetDrawer(); });
+$('#resetDrawer').onclick = resetDrawer;
+resetDrawer();
+
+const FUN = [['Tiroir ouvert',420],['Dates choisies',260],['Devis affiché',231],['Étape coordonnées',74],['Demande envoyée',31],['Payé',22]];
+$('#funnel').innerHTML = FUN.map(([l,v],i) => {
+  const pct = Math.round(v/FUN[0][1]*100);
+  const prev = i ? FUN[i-1][1] : v; const drop = i && (1 - v/prev) > 0.6;
+  return '<div class="fbar"><span>'+l+'</span><span class="b'+(drop?' drop':'')+'" style="width:'+pct+'%"></span><span class="v">'+v+'</span></div>';
+}).join('') + '<div class="muted" style="font-size:12.5px;margin-top:4px">En ocre : l’étape qui perd plus de 60 % des visiteurs. Ici, entre le devis et le formulaire de coordonnées.</div>';
+
+/* ---------- finance card ---------- */
+const DATA = {
+  period: {
+    platforms:[['Airbnb',6,17,3120],['Booking',4,10,1890],['Gîtes de France',3,9,1610],['Campspace',2,5,820]],
+    site:[['Recherche',3,9,1740,5],['Réseaux sociaux',2,5,980,6],['Campagne',2,6,1150,4],['Assistant IA',1,3,560,1],['Autre site',0,0,0,1],['Accès direct',1,2,390,2],['Inconnue',1,3,520,1]],
+    direct:[['Direct (saisie)',1,4,700]],
+  },
+  ytd: {
+    platforms:[['Airbnb',41,118,21480],['Booking',29,77,13950],['Gîtes de France',22,70,12300],['Campspace',9,24,3960]],
+    site:[['Recherche',8,24,4630,14],['Réseaux sociaux',5,13,2510,15],['Campagne',2,6,1150,4],['Assistant IA',2,5,960,3],['Autre site',1,2,380,3],['Accès direct',4,11,2140,7],['Inconnue',17,49,9020,19]],
+    direct:[['Direct (saisie)',6,21,3640]],
+  }
+};
+let period = 'period', scope = 'all', finPhone = false;
+const eur = v => v.toLocaleString('fr-FR') + ' €';
+function drawFin(){
+  const D = DATA[period];
+  const sum = rows => rows.reduce((a,r) => [a[0]+r[1], a[1]+r[2], a[2]+r[3], a[3]+(r[4]||0)], [0,0,0,0]);
+  const siteRows = D.site.slice().sort((a,b) => b[3]-a[3]);
+  const siteT = sum(siteRows);
+  const others = scope === 'all' ? D.platforms.concat(D.direct).sort((a,b) => b[3]-a[3]) : [];
+  const allT = sum(others.concat(siteRows));
+  const conv = (r, q) => q ? Math.round(r/q*100) + ' %' : '—';
+  const propTotal = sum(D.platforms.concat(D.direct, D.site))[2];
+  let html = '<div class="fin'+(finPhone?' mobile':'')+'"><h4>Canaux de réservation</h4>';
+  if (!finPhone){
+    html += '<div class="tbl"><table><tr><th>Canal</th><th class="n">Résas</th><th class="n">Nuits</th><th class="n">CA</th><th class="n">Demandes</th><th class="n">Conversion</th></tr>';
+    const siteBlock = '<tr class="sub"><td colspan="6">Site internet</td></tr>'
+      + siteRows.map(r => '<tr class="sitechild"><td>'+r[0]+'</td><td class="n">'+r[1]+'</td><td class="n">'+r[2]+'</td><td class="n">'+eur(r[3])+'</td><td class="n">'+r[4]+'</td><td class="n">'+conv(r[1],r[4])+'</td></tr>').join('')
+      + '<tr class="sitechild"><td><b>Sous-total site</b></td><td class="n"><b>'+siteT[0]+'</b></td><td class="n"><b>'+siteT[1]+'</b></td><td class="n"><b>'+eur(siteT[2])+'</b></td><td class="n"><b>'+siteT[3]+'</b></td><td class="n"><b>'+conv(siteT[0],siteT[3])+'</b></td></tr>';
+    html += siteBlock;
+    for (const r of others){
+      html += '<tr><td>'+r[0]+'</td><td class="n">'+r[1]+'</td><td class="n">'+r[2]+'</td><td class="n">'+eur(r[3])+'</td><td class="n muted">—</td><td class="n muted">—</td></tr>';
+    }
+    html += '<tr class="tot"><td>Total</td><td class="n">'+allT[0]+'</td><td class="n">'+allT[1]+'</td><td class="n">'+eur(allT[2])+'</td><td></td><td></td></tr></table></div>';
+  } else {
+    html += '<div class="fcards">';
+    const card = (r, site) => '<div class="fcard"><div class="l">'+(site?'Site · ':'')+r[0]+'</div><div class="ca">'+eur(r[3])+'</div><div class="s">'+r[1]+' résas · '+r[2]+' nuits'+(site?' · '+r[4]+' demandes · '+conv(r[1],r[4])+' convertis':'')+'</div></div>';
+    const items = siteRows.map(r => [r,true]).concat(others.map(r => [r,false]));
+    html += items.map(([r,s]) => card(r,s)).join('');
+    html += '<div class="fcard"><div class="l">Total</div><div class="ca">'+eur(allT[2])+'</div><div class="s">'+allT[0]+' résas · '+allT[1]+' nuits</div></div></div>';
+  }
+  html += scope === 'all'
+    ? '<div class="check">✓ Total <b>'+eur(allT[2])+'</b> = total « CA par logement » <b>'+eur(propTotal)+'</b> sur la même période.</div>'
+    : '<div class="check muted">Site seul : le total ne se compare plus à « CA par logement », qui compte aussi les plateformes.</div>';
+  $('#finHost').innerHTML = html + '</div>';
+}
+function segBind(id, fn){ $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  $(id).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); fn(b); drawFin(); }); }
+segBind('#periodSeg', b => period = b.dataset.p);
+segBind('#scopeSeg', b => scope = b.dataset.s);
+segBind('#finWidth', b => finPhone = b.dataset.w === 'phone');
+drawFin();
+})();
+</script>
+</body>
+</html>

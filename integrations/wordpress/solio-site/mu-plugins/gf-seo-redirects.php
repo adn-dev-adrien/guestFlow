@@ -68,6 +68,26 @@ function gf_seo_redirections_lodgify() {
 }
 
 /**
+ * Les parametres de campagne de l'adresse demandee, a reporter sur la cible d'une redirection :
+ * sans eux, un lien de campagne vers une ancienne adresse arrivait en « acces direct »
+ * (specs/site-traffic-analytics.md, cas limites). Seuls les utm_* passent, rien d'autre.
+ */
+function gf_seo_redirect_utm( $cible ) {
+	$requete = wp_parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_QUERY );
+	if ( ! $requete ) {
+		return $cible;
+	}
+	parse_str( $requete, $params );
+	$utm = array();
+	foreach ( array( 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term' ) as $cle ) {
+		if ( isset( $params[ $cle ] ) && is_string( $params[ $cle ] ) && '' !== $params[ $cle ] ) {
+			$utm[ $cle ] = substr( $params[ $cle ], 0, 200 );
+		}
+	}
+	return $utm ? add_query_arg( array_map( 'rawurlencode', $utm ), $cible ) : $cible;
+}
+
+/**
  * Redirige une adresse obsolete vers sa page actuelle.
  */
 function gf_seo_redirect() {
@@ -87,7 +107,7 @@ function gf_seo_redirect() {
 		if ( $normalise === '/' . trim( $ancien, '/' ) ) {
 			$cible = get_permalink( (int) $page_id );
 			if ( $cible ) {
-				wp_safe_redirect( $cible, 301 );
+				wp_safe_redirect( gf_seo_redirect_utm( $cible ), 301 );
 				exit;
 			}
 		}
@@ -96,7 +116,7 @@ function gf_seo_redirect() {
 	// 2. Anciennes adresses Lodgify.
 	foreach ( gf_seo_redirections_lodgify() as $ancien => $cible ) {
 		if ( strcasecmp( $normalise, '/' . trim( $ancien, '/' ) ) === 0 ) {
-			wp_safe_redirect( home_url( $cible ), 301 );
+			wp_safe_redirect( gf_seo_redirect_utm( home_url( $cible ) ), 301 );
 			exit;
 		}
 	}

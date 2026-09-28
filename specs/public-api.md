@@ -431,18 +431,34 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
   "checkInTime": "15:00", "checkOutTime": "10:00",
   "adults": 2, "children": 1, "teens": 0, "babies": 0,
   "options": [ { "optionId": 7, "quantity": 2 } ],
+  "resources": [ { "resourceId": 3, "quantity": 1 } ],
+  "babyBeds": 0,
   "guest": {
     "firstName": "Marie", "lastName": "Durand",
     "email": "marie.durand@example.com", "phone": "+33 6 12 34 56 78"
   },
   "message": "Bonjour, possible une arrivée vers 16h ?",
+  "termsVersion": 1,
+  "attribution": {
+    "referrer": "l.instagram.com",
+    "utmSource": "instagram", "utmMedium": "story", "utmCampaign": "lancement-2026",
+    "landingPath": "/la-granja/", "firstSeenAt": "2026-09-28T10:12:00.000Z"
+  },
   "_hp": ""
 }
 ```
+  - `resources` / `babyBeds`: supplements and cots (specs/site-booking-notifications.md rule 16).
+    Cancellation insurance, when taken, is one more `options` line (specs/cancellation-insurance.md).
+  - `termsVersion`: the CGV version the guest ticked (specs/terms-acceptance-record.md).
+  - `attribution` (optional, plugin ≥ 1.14.0): where the visit came from, recorded by the plugin on
+    the landing page (specs/site-traffic-analytics.md rules 13-17). Known keys only, 200 characters
+    each. **Never a reason to refuse**: a malformed record is dropped and the request proceeds with
+    an unknown origin. The server classifies it into `attributionChannel` / `attributionLabel`.
 - **Behavior:** validate → honeypot → re-check availability + capacity + min-nights →
   resolve-or-create client by normalized email → compute pricing via the engine → create a
   **draft devis** (`kind='devis'`, `devisStatus='draft'`, then a post-create UPDATE sets
-  `requestOrigin='public'`; `notes` = guest message). The platform is forced to `"direct"`.
+  `requestOrigin='public'`, plus the classified attribution when one was sent; `notes` = guest
+  message). The platform is forced to `"direct"`.
 - **Response 201 (`BookingRequestReceipt`):**
 ```json
 {

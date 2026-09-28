@@ -239,6 +239,11 @@ function gf_search_js() {
       var ad   = parseInt(adultsEl.textContent,10) || 1;
       if(!from || !to){ alert("Choisissez vos dates d'arrivée et de départ."); return; }
       if(to <= from){ alert("La date de départ doit être après l'arrivée."); return; }
+      // Etape « recherche » du tunnel (specs/site-traffic-analytics.md regle 10).
+      try {
+        var nuits = Math.round((new Date(to+'T00:00:00') - new Date(from+'T00:00:00')) / 86400000);
+        document.dispatchEvent(new CustomEvent('guestflow:booking', { detail: { name: 'search-go', nights: nuits, guests: ad } }));
+      } catch(e) {}
       var base = bar.getAttribute('data-results') || CFG.results;
       window.location.href = base + (base.indexOf('?')>-1?'&':'?') + 'from='+from+'&to='+to+'&adults='+ad;
     });

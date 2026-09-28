@@ -102,6 +102,7 @@ const CONVERSION_DDL = `
     extraGuestSurchargeOffered INTEGER DEFAULT 0, touristTaxInComplement INTEGER DEFAULT 0,
     tariffSnapshot TEXT,
     requestOrigin TEXT, publicToken TEXT,
+    attributionChannel TEXT, attributionLabel TEXT, attribution TEXT, attributionAt TEXT,
     emailLanguage TEXT NOT NULL DEFAULT 'fr', pdfLanguage TEXT NOT NULL DEFAULT 'fr',
     createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -138,6 +139,20 @@ test('a reservation born of a website request still says so', () => {
   const reservation = db.prepare('SELECT * FROM reservations WHERE id = ?').get(data.reservationId);
   assert.equal(reservation.requestOrigin, 'public',
     'the origin badge must survive the conversion, or the site disappears from the statistics');
+});
+
+// specs/site-traffic-analytics.md rule 17 — the source travels with the origin.
+test('a reservation born of a website request keeps where the visitor came from', () => {
+  const raw = JSON.stringify({ referrer: 'l.instagram.com', landingPath: '/la-granja/' });
+  const { db, model, devisId } = devisFromTheSite({
+    attributionChannel: 'social', attributionLabel: 'Instagram', attribution: raw, attributionAt: '2026-09-28T10:00:00.000Z',
+  });
+  const { data } = model.convertToReservation(devisId);
+  const reservation = db.prepare('SELECT * FROM reservations WHERE id = ?').get(data.reservationId);
+  assert.equal(reservation.attributionChannel, 'social');
+  assert.equal(reservation.attributionLabel, 'Instagram');
+  assert.equal(reservation.attribution, raw);
+  assert.equal(reservation.attributionAt, '2026-09-28T10:00:00.000Z');
 });
 
 test('a reservation created internally is not relabelled as a website request', () => {

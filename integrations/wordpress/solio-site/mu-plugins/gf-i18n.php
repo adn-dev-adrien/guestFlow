@@ -134,6 +134,7 @@ function gf_i18n_dictionnaire() {
             'langue_anglais'   => 'English',
             'pied_manifeste'   => '« Treize hectares de silence. Deux hébergements. Et personne d’autre. »',
             'pied_cgv'         => 'Conditions générales',
+            'pied_confidentialite' => 'Confidentialité',
             'pied_legal'       => '© 2026 Domaine Solio · Satillieu, Ardèche verte',
 
             // Les encadres factuels rendus par gf-seo-blocks.php. Les VALEURS vivent dans
@@ -189,6 +190,7 @@ function gf_i18n_dictionnaire() {
             'langue_anglais'   => 'English',
             'pied_manifeste'   => '“Thirteen hectares of silence. Two places to stay. And nobody else.”',
             'pied_cgv'         => 'Terms and conditions',
+            'pied_confidentialite' => 'Privacy',
             'pied_legal'       => '© 2026 Domaine Solio · Satillieu, Ardèche verte',
 
             'bloc_essentiel'   => 'The essentials',
@@ -266,6 +268,7 @@ function gf_chemins_traduits() {
         '/autour-de-nous/'  => '/en/around-us/',
         '/contact/'         => '/en/getting-here/',
         '/cgv/'             => '/en/terms/',
+        '/confidentialite/' => '/en/privacy/',
     );
 }
 
@@ -618,6 +621,7 @@ add_filter('render_block', function ($html) {
         '>Le Domaine<'              => '>' . gf_t('nav_le_domaine') . '<',
         '>Acc&egrave;s &amp; contact<' => '>' . gf_t('nav_contact') . '<',
         '>Conditions g&eacute;n&eacute;rales<' => '>' . gf_t('pied_cgv') . '<',
+        '>Confidentialit&eacute;<' => '>' . gf_t('pied_confidentialite') . '<',
     ));
 
     $chemins = gf_chemins_traduits();

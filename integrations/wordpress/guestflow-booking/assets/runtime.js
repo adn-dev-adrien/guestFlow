@@ -93,6 +93,31 @@
     });
   };
 
+  // Funnel events (specs/site-traffic-analytics.md rules 9-11): a DOM event the site listens to with
+  // whatever audience tool it runs, or not at all. The plugin knows nothing about that tool, and an
+  // analytics failure can never break a booking.
+  GF.track = function (name, detail) {
+    try {
+      var d = { name: name };
+      Object.keys(detail || {}).forEach(function (k) { d[k] = detail[k]; });
+      document.dispatchEvent(new CustomEvent('guestflow:booking', { detail: d }));
+    } catch (e) { /* never in the way of a booking */ }
+  };
+
+  // The visit's first-touch record written by assets/attribution.js, or undefined.
+  GF.attribution = function () {
+    try {
+      var raw = window.sessionStorage.getItem('gf_attr');
+      return raw ? JSON.parse(raw) : undefined;
+    } catch (e) { return undefined; }
+  };
+
+  // « La Granja » → « la-granja », « L'Estiva » → « l-estiva »: events name a lodging in words (rule 12).
+  GF.slug = function (name) {
+    return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  };
+
   GF.errorMessage = function (res) {
     if (res && res.body && res.body.error && res.body.error.message) return res.body.error.message;
     return GF.t('genericError');

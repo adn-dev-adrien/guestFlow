@@ -488,7 +488,7 @@ CSS;
 		if ( '#reserver' === window.location.hash ) {
 			window.history.replaceState( null, '', window.location.pathname + window.location.search );
 			window.scrollTo( 0, 0 );
-			ouvrir();
+			ouvrir( 'hash' );
 		}
 		return true;
 	}
@@ -696,7 +696,18 @@ CSS;
 		} );
 	}
 
+	// Etapes du tunnel pour la mesure d'audience (specs/site-traffic-analytics.md regle 10) : le
+	// moteur les emet via GF.track, absent si le plugin est trop ancien — jamais une erreur.
+	function suivre( nom, details ) {
+		if ( window.GFBooking && window.GFBooking.track ) { window.GFBooking.track( nom, details ); }
+	}
+	function logement() {
+		var nom = racine.querySelector( '.gf-booking-name' );
+		return window.GFBooking && window.GFBooking.slug && nom ? window.GFBooking.slug( nom.textContent ) : '';
+	}
+
 	function aller( n ) {
+		if ( 2 === n && 2 !== etape ) { suivre( 'booking-step2', { lodging: logement() } ); }
 		etape = Math.min( 2, Math.max( 1, n ) );
 		racine.dataset.etape = etape;
 		piste.style.transform = 'translateX(-' + ( ( etape - 1 ) * ( 100 / 2 ) ) + '%)';
@@ -726,7 +737,10 @@ CSS;
 
 	/* ---------- Ouverture et fermeture ---------- */
 
-	function ouvrir() {
+	function ouvrir( declenchement ) {
+		if ( '1' !== racine.dataset.ouvert ) {
+			suivre( 'booking-open', { lodging: logement(), trigger: 'string' === typeof declenchement ? declenchement : 'button' } );
+		}
 		racine.dataset.ouvert = '1';
 		panneau.removeAttribute( 'inert' );
 		declencheur.setAttribute( 'aria-expanded', 'true' );
@@ -751,7 +765,7 @@ CSS;
 	window.addEventListener( 'hashchange', function () {
 		if ( '#reserver' === window.location.hash ) {
 			window.history.replaceState( null, '', window.location.pathname + window.location.search );
-			ouvrir();
+			ouvrir( 'hash' );
 		}
 	} );
 	fermer.addEventListener( 'click', refermer );
@@ -761,7 +775,7 @@ CSS;
 	} );
 
 	document.querySelectorAll( '[href="#reserver"], [data-gf-reserver]' ).forEach( function ( el ) {
-		el.addEventListener( 'click', function ( e ) { e.preventDefault(); ouvrir(); } );
+		el.addEventListener( 'click', function ( e ) { e.preventDefault(); ouvrir( 'link' ); } );
 	} );
 } )();
 JS;

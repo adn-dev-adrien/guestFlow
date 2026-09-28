@@ -18,6 +18,7 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import LanguageIcon from '@mui/icons-material/Language';
 import PageActionBar from '../components/PageActionBar';
+import OriginBadge from '../components/OriginBadge';
 import StatusBadge from '../components/StatusBadge';
 import LanguageBadge from '../components/LanguageBadge';
 import ReservationConflictBadge from '../components/ReservationConflictBadge';
@@ -763,6 +764,9 @@ export default function ReservationPage() {
             // Where this booking came from. Read-only on the fiche — it is a fact about the past,
             // not a setting (specs/site-english-version.md rule 13).
             requestOrigin: res.requestOrigin || null,
+            // …and from which source, labelled by the server (specs/site-traffic-analytics.md rule 19).
+            originLabel: res.originLabel || null,
+            originDetail: res.originDetail || null,
             bookingConflictAt: res.bookingConflictAt || null,
             cancelledAt: res.cancelledAt || null,
             adults: res.adults || 1,
@@ -903,6 +907,8 @@ export default function ReservationPage() {
           setForm({
             clientId: devis.clientId,
             requestOrigin: devis.requestOrigin || null,
+            originLabel: devis.originLabel || null,
+            originDetail: devis.originDetail || null,
             adults: devis.adults || 1,
             children: devis.children || 0,
             teens: devis.teens || 0,
@@ -3273,6 +3279,7 @@ export default function ReservationPage() {
                           </span>
                         </Tooltip>
                       )}
+                      <OriginBadge label={form.originLabel} detail={form.originDetail} />
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
                       <Button size="small" variant="text" onClick={() => setClientSearchOpen(true)}>

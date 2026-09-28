@@ -2201,6 +2201,13 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // (constant-time compared) on the public /pay and /status routes so the sequential row id alone can't
   // be enumerated to read another booking's recap or mint its payment link. NULL on non-public rows.
   if (!rcols.includes('publicToken')) db.exec('ALTER TABLE reservations ADD COLUMN publicToken TEXT');
+  // specs/site-traffic-analytics.md §5 — where a website request came from, captured by the plugin
+  // and classified by the server. NULL on every row that predates it or is not a website request.
+  if (!rcols.includes('attributionChannel')) db.exec('ALTER TABLE reservations ADD COLUMN attributionChannel TEXT');
+  if (!rcols.includes('attributionLabel')) db.exec('ALTER TABLE reservations ADD COLUMN attributionLabel TEXT');
+  if (!rcols.includes('attribution')) db.exec('ALTER TABLE reservations ADD COLUMN attribution TEXT');
+  if (!rcols.includes('attributionAt')) db.exec('ALTER TABLE reservations ADD COLUMN attributionAt TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_attribution_channel ON reservations(attributionChannel)');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
 db.exec(`

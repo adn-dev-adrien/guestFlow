@@ -169,8 +169,35 @@ function validateGuest(guest = {}) {
   return { ok: true, value: { firstName, lastName, email, phone } };
 }
 
+const ATTRIBUTION_MAX = 200;
+const ATTRIBUTION_TEXT_KEYS = ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm'];
+const HOSTNAME = /^(?=.{3,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+/**
+ * Clean the optional `attribution` record of a booking request (specs/site-traffic-analytics.md
+ * rule 15). Unlike every other validator here it never refuses: analytics metadata must not cost a
+ * guest their booking, so a bad field is dropped and a hopeless record becomes `null`.
+ */
+function validateAttribution(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const text = (v) => (typeof v === 'string' ? v.trim().slice(0, ATTRIBUTION_MAX) : '');
+  const out = {};
+  for (const k of ATTRIBUTION_TEXT_KEYS) {
+    const v = text(raw[k]);
+    if (v) out[k] = v;
+  }
+  const referrer = text(raw.referrer).toLowerCase();
+  if (HOSTNAME.test(referrer)) out.referrer = referrer;
+  const landingPath = text(raw.landingPath);
+  if (landingPath.startsWith('/')) out.landingPath = landingPath;
+  const firstSeenAt = text(raw.firstSeenAt);
+  if (firstSeenAt && !Number.isNaN(Date.parse(firstSeenAt))) out.firstSeenAt = new Date(firstSeenAt).toISOString();
+  return Object.keys(out).length ? out : null;
+}
+
 module.exports = {
   MAX_AVAILABILITY_DAYS,
+  validateAttribution,
   isValidIsoDate,
   toNonNegativeInt,
   daysBetween,
