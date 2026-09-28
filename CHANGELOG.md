@@ -4,6 +4,34 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-09-28
+
+### Summary
+- Chaque demande reçue du site garde d'où venait le visiteur (Google, Instagram, ChatGPT, campagne…), visible dans un badge « Origine ».
+- La page Finance ajoute « Canaux de réservation » : le chiffre d'affaires par plateforme et, pour le site, par origine avec son taux de conversion.
+- Mettez à jour le plugin WordPress en 1.14.0 depuis l'admin du site : c'est lui qui transmet l'origine des demandes.
+- Les réservations déjà enregistrées affichent « Origine inconnue » : la provenance d'une visite passée ne peut pas être retrouvée.
+
+### Added
+- **Website traffic and booking attribution** (spec `site-traffic-analytics.md`, 2026-09-28).
+  - Every booking request from the website now records where the visit came from: search engine, social network, campaign (`utm_*`), AI assistant, another site or direct access.
+    - The source travels to the reservation on conversion.
+    - The fiche and the devis list show it as an « Origine » chip.
+  - The Finance page gains a **« Canaux de réservation »** card.
+    - Rows: platforms, the website split by source (with requests and conversion rate), and manual direct bookings.
+    - Its total is the « Revenu par logement » total, by construction.
+  - WordPress plugin **1.14.0**:
+    - records the visit's first-touch source in the tab's `sessionStorage` (no cookie, no identifier);
+    - sends it with the request;
+    - emits `guestflow:booking` funnel events.
+  - Site: new mu-plugin `gf-analytics.php` relays those events to a self-hosted, cookieless Umami (inert until configured).
+  - The 301 redirects of old addresses keep their `utm_*` parameters.
+  - A « Confidentialité / Privacy » footer link.
+  - +17 server tests, +6 client tests.
+
+### Migration
+- `reservations` gains four nullable columns (`attributionChannel`, `attributionLabel`, `attribution`, `attributionAt`) and the index `idx_reservations_attribution_channel` (spec `site-traffic-analytics.md` §5). Additive only: existing rows stay `NULL` and read « Origine inconnue ». The source of a past visit cannot be recovered, so there is no backfill.
+
 ## [3.4.0] - 2026-09-27
 
 ### Summary
