@@ -1,4 +1,5 @@
-// specs/plugins-phase-0-foundation.md rule 16 — PluginGate mounts its children only while the plugin is active.
+// specs/plugins-phase-0-foundation.md rules 16 and 18 — PluginGate mounts its children only while the
+// plugin is active, so a gated widget never calls the API of an inactive plugin.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';

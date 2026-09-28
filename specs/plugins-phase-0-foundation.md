@@ -134,6 +134,10 @@ what is installed and active. A new customer starts with none; Solio keeps all t
 18. The client never calls the API of an inactive plugin (no 404 noise in the console).
 19. A URL typed by hand to a hidden page (e.g. `/parametres/recettes`) lands on the home page, as a role
     refusal does today — or on « Mon compte » for a role without a home page (accountant).
+    > **Sans test** — the redirect lives in the app shell (`App.jsx`), which no Vitest suite mounts, and
+    > an E2E check needs every plugin of a page off, which would break the specs running beside it in
+    > the parallel local run. The predicate it uses (`isRouteEnabled`) is covered by
+    > `roles.plugins.test.js`; the redirect itself was checked by hand on the 8 plugin pages (§7).
 20. Existing per-hour resources stay listed in the options catalogue when `hourly-resources` is inactive:
     their price type reads « Par heure (plugin inactif) » and is only offered in the form of a resource
     that already has it. A per-hour resource already on a stay stays listed there with its price, without
@@ -271,13 +275,14 @@ dialog: the uninstall confirmation is inline.
 
 ## 7. Test plan
 
-### Server unit tests — `server/src/tests/plugins-phase-0.unit.test.js` (25 tests)
+### Server unit tests — `server/src/tests/plugins-phase-0.unit.test.js` (27 tests)
 - Catalogue: 12 unique ids, every field present.
 - Seed migration: existing DB (property, or reservation only) → 12 active; fresh DB → none; the ledger
   prevents a second seed after everything was uninstalled.
 - Model: transitions; a write from another connection is seen at once (no cache).
 - Controller: list with states; install → active; 409 `ALREADY_INSTALLED` / `NOT_INSTALLED`; 404
-  `UNKNOWN_PLUGIN`; deactivate / activate / uninstall.
+  `UNKNOWN_PLUGIN`; deactivate / activate / uninstall; uninstall leaves every other table untouched;
+  the API is admin-only (accountant and reception get 403 from the existing role guard).
 - Refusals: open payment link blocks `online-payment` (exact singular wording); active reception-only
   users block `sas` (plural wording), an admin+reception or inactive user does not; accountant-only user
   blocks `accounting-export`; the blocker shows in the list before the click, only on installed plugins.
@@ -290,13 +295,15 @@ dialog: the uninstall confirmation is inline.
 - Money never moves: the pricing engine does not read plugin states (rule 7 — phase 0 touches no price
   code, so the invariant is that no plugin check ever enters it).
 
-### Client tests (Vitest) — 20 new tests
+### Client tests (Vitest) — 22 new tests
 - `constants/__tests__/roles.plugins.test.js` (10): plugin routes hidden without their plugin for admin
   and accountant; Intégrations any-of; Plugins page admin-only; fail closed without the list;
   `visibleSettingsMenu` drops entries and orphan dividers.
 - `components/__tests__/PluginGate.test.jsx` (3): children, nothing (never mounted), fallback.
 - `pages/__tests__/PluginsPage.test.jsx` (7): default tab, install from « Disponibles », deactivate +
   auth refresh, refusal under the card, two-click uninstall, search + empty state, empty tab.
+- `components/reservation/__tests__/ExtrasSection.hourly-plugin-inactive.test.jsx` (2): without the
+  plugin a per-hour resource is not offered, one already sold stays listed without the sessions picker.
 - The 31 existing suites that render a gated component mock `usePlugin` to « every plugin active » —
   the Solio configuration they describe; `roles.test.js` gives its users the full list.
 

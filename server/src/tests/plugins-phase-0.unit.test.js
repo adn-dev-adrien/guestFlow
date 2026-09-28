@@ -56,7 +56,7 @@ function setup() {
   return { db, model, ctrl, call };
 }
 
-// ---------- catalogue ----------
+// ---------- catalogue (rules 1-3) ----------
 
 test('catalogue: twelve plugins with unique ids and every field', () => {
   assert.equal(PLUGIN_CATALOG.length, 12);
@@ -70,7 +70,7 @@ test('catalogue: twelve plugins with unique ids and every field', () => {
   assert.equal(findPlugin('nope'), null);
 });
 
-// ---------- seed (rules 10–12) ----------
+// ---------- seed (rules 10-12) ----------
 
 test('seed: an existing database gets the twelve plugins installed and active', () => {
   const db = freshDb();
@@ -103,7 +103,7 @@ test('seed: runs once — uninstalling everything is not undone at the next boot
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM plugins').get().n, 0);
 });
 
-// ---------- model ----------
+// ---------- model (rule 3) ----------
 
 test('model: a write from another connection is seen at once', () => {
   const { db, model } = setup();
@@ -128,7 +128,7 @@ test('model: install, deactivate, activate, uninstall', () => {
   assert.equal(model.isActive('sas'), false);
 });
 
-// ---------- controller: states and transitions ----------
+// ---------- controller: states and transitions (rules 3-6) ----------
 
 test('list: every catalogue plugin with its state', () => {
   const { model, ctrl } = setup();
@@ -146,6 +146,7 @@ test('list: every catalogue plugin with its state', () => {
   assert.ok(byId.linen.surfaces.length > 0);
 });
 
+// rule 4
 test('install makes the plugin active in one step; a second install is refused', () => {
   const { call } = setup();
   const res = call('install', 'google-calendar');
@@ -174,6 +175,7 @@ test('an unknown id answers 404 on every action', () => {
   }
 });
 
+// rules 5-6 — deactivate, activate, uninstall back to « Disponibles »
 test('deactivate then activate; uninstall returns the plugin to available', () => {
   const { call, model } = setup();
   call('install', 'school-holidays');
@@ -182,6 +184,32 @@ test('deactivate then activate; uninstall returns the plugin to available', () =
   const res = call('uninstall', 'school-holidays');
   assert.equal(res.body.state, 'available');
   assert.equal(model.get('school-holidays'), null);
+});
+
+// rule 6 — uninstalling in phase 0 deletes the plugin row only, never the plugin's data.
+test('uninstall keeps every other table untouched', () => {
+  const { db, call } = setup();
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (status) VALUES ('paid')").run();
+  call('uninstall', 'online-payment');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM payment_links').get().n, 1);
+});
+
+// rule 9 — only an admin reaches /api/plugins: the fail-closed role guard refuses every other role.
+test('the plugins API is admin-only', () => {
+  const enforceRoleAccess = require('../middleware/enforceRoleAccess');
+  for (const roles of [['accountant'], ['reception']]) {
+    for (const [method, p] of [['GET', '/plugins'], ['POST', '/plugins/sas/deactivate']]) {
+      const res = fakeRes();
+      let passed = false;
+      enforceRoleAccess({ user: { roles }, method, path: p }, res, () => { passed = true; });
+      assert.equal(passed, false, `${roles} ${method} ${p}`);
+      assert.equal(res.statusCode, 403);
+    }
+  }
+  let adminPassed = false;
+  enforceRoleAccess({ user: { roles: ['admin'] }, method: 'GET', path: '/plugins' }, fakeRes(), () => { adminPassed = true; });
+  assert.equal(adminPassed, true);
 });
 
 // ---------- refusals (rule 8) ----------

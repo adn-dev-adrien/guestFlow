@@ -1,5 +1,6 @@
-// specs/plugins-phase-0-foundation.md rules 16-17, 21 — a page of an inactive plugin is not visible,
-// whatever the role; the settings submenu drops the entries and the dividers left empty.
+// specs/plugins-phase-0-foundation.md rules 13, 16-17, 21 — a page of a plugin that is not active
+// (available or installed-inactive: only the active ids reach the client) is not visible, whatever the
+// role; the settings submenu drops the entries and the dividers left empty.
 import { canSeeRoute, canSeeAnyRoute, ROUTE_ROLES } from '../roles';
 import { PLUGIN_IDS, ROUTE_PLUGINS, isRouteEnabled, isPluginEnabled } from '../plugins';
 import { visibleSettingsMenu, SETTINGS_MENU } from '../settingsMenu';
