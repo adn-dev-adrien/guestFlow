@@ -197,7 +197,7 @@ svg text{font-family:var(--sans)}
 <div class="wrap">
 
 <h1>Suivi financier : la refonte, version 3</h1>
-<p class="meta">Spec <code>specs/finance-dashboard-redesign.md</code> · statut <b>Draft</b> · 29/09/2026 · base : direction A « Banque » · chiffres <b>fictifs</b> (établissement de démonstration, 4 logements), calculés pour de vrai sur ~500 séjours générés · rien n'est encore construit</p>
+<p class="meta">Spec <code>specs/finance-dashboard-redesign.md</code> · statut <b>Approved</b> · 29/09/2026 · base : direction A « Banque » · chiffres <b>fictifs</b> (établissement de démonstration, 4 logements), calculés pour de vrai sur ~500 séjours générés · rien n'est encore construit</p>
 
 <div class="note">
 <b>Version 3 :</b> le bandeau vert revient en tête avec la courbe intégrée, les vignettes d'occupation n'affichent plus que leur logement au survol, les tuiles ne répètent plus les chiffres du bandeau, et aucune tuile n'est ouverte à l'arrivée.<br><br><b>Ce qui avait changé depuis la version 1 :</b>
@@ -262,7 +262,7 @@ svg text{font-family:var(--sans)}
 <h2>Décidé le 29/09/2026</h2>
 <ul class="tight">
   <li><b>Occupation :</b> une vignette par logement (trait plein cette année, pointillé l'an dernier) ; l'info-bulle d'une vignette ne parle que de son logement.</li>
-  <li><b>An dernier dans « Revenu par mois » :</b> barres côte à côte.</li>
+  <li><b>An dernier dans « Revenu par mois » :</b> barres côte à côte. Au survol, une ligne par année : « Juillet 2026 : 11 938 € », puis « Juillet 2025 : 12 257 € ».</li>
   <li><b>À l'arrivée :</b> aucune tuile ouverte, la page reste courte.</li>
   <li><b>Tête de page :</b> le bandeau vert de la proposition C, avec la courbe cumulée intégrée. Ses quatre chiffres (nuits, occupation, prix moyen, direct) ne répètent aucune tuile : les tuiles portent ce que leur tableau détaille.</li>
 </ul>
@@ -673,7 +673,8 @@ function render() {
   const pi = app.querySelector('#projIn'); if (pi) pi.onchange = () => { S.projDate = pi.value || TODAY; render(); };
   app.querySelectorAll('[data-hide]').forEach((b) => { b.onclick = () => { S.hidden[b.dataset.hide] = !S.hidden[b.dataset.hide]; render(); }; });
   const cum = app.querySelector('#cumCard'); bindTip(cum, '.hit', (el) => { const p = R.cumul[el.dataset.i]; return `<b>au ${fmtD(p.day)}</b><br>${p.cur == null ? '—' : eur(p.cur)} cette année${p.n1 != null ? `<br>${eur(p.n1)} l'an dernier` : ''}`; });
-  bindTip(app.querySelector('#mCard'), '.hit', (el) => { const m = R.months[el.dataset.i]; const t = m.past + m.upcoming; return `<b style="text-transform:capitalize">${m.label}</b><br>${eur(t)}${m.upcoming ? ` · dont ${eur(m.upcoming)} à venir` : ''}<br>${m.n1 != null ? `${m.ym.slice(0, 4) - 1} : ${eur(m.n1)}${m.n1 ? ` (${t >= m.n1 ? '+' : '−'}${Math.round(Math.abs(t - m.n1) / m.n1 * 100)} %)` : ''}` : 'Pas de données l\'an dernier'}`; });
+  // specs/finance-dashboard-redesign.md rule 22 — one line per year: « Juillet 2026 : 11 938 € ».
+  bindTip(app.querySelector('#mCard'), '.hit', (el) => { const m = R.months[el.dataset.i]; const t = m.past + m.upcoming; const name = MN[+m.ym.slice(5, 7) - 1].replace(/^./, (c) => c.toUpperCase()); return `<b>${name} ${m.ym.slice(0, 4)} : ${eur(t)}</b>${m.upcoming ? ` (dont ${eur(m.upcoming)} à venir)` : ''}${m.n1 != null ? `<br>${name} ${m.ym.slice(0, 4) - 1} : ${eur(m.n1)}` : ''}`; });
   const oc = app.querySelector('#oCard');
   // A vignette's tooltip speaks of its own logement only.
   if (S.occ === 'multiples') bindTip(oc, '.one .hit', (el) => { const i = +el.dataset.i, m = R.months[i], x = occSeries(R).find((o) => o.p.id === el.closest('.one').dataset.one); return `<b>${x.p.name}</b><br><span style="text-transform:capitalize">${m.label}</span> : ${x.cur[i] == null ? 'fermé' : pct(x.cur[i])}${x.n1[i] != null ? `<br>${m.ym.slice(0, 4) - 1} : ${pct(x.n1[i])}` : ''}`; });

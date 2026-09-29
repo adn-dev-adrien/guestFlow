@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved |
 | **Branch** | `feature/finance-dashboard-redesign` |
 | **Created** | 2026-09-29 |
 | **Author** | Adrien |
@@ -125,7 +125,9 @@ without losing anything today's page shows.
 22. **Revenu par mois** — the selected exercise's months. Each month: this year's column stacked
     *encaissé ou passé* (sapin) / *à venir* (miel), and **last year's column next to it** (sand) on
     comparable months. The window's months are highlighted when the window is not the whole exercise.
-    Tooltip: month, total, à venir part, last year and the change.
+    Tooltip (2026-09-29): **one line per year**, month + year + amount — « Juillet 2026 : 11 938 € »
+    (with « (dont X € à venir) » on the same line when non-zero), then « Juillet 2025 : 12 257 € » on
+    comparable months.
 23. **Taux d'occupation** — **one small chart per logement** (one colour per logement), 12 months,
     this year solid with points, last year dashed on comparable months; header « moy. N % ». A closed
     month is a gap, never a 0. The tooltip of a small chart speaks **of its logement only**: month,
@@ -310,6 +312,11 @@ par mois » and « Taux d'occupation » side by side.
 
 ## 9. Open questions
 
+All resolved on 2026-09-29:
+
 - Q: Delivery in one PR or several?
-  - A: _to settle in the plan_ — proposed: one branch, three commits (settings goal · dashboard API ·
-    page), one PR, so the app is never half-migrated between merges.
+  - A: **One PR, three commits** (settings goal · dashboard API · page), so the app is never
+    half-migrated between merges.
+- Q: Direction, occupancy chart, last year in the month chart, default tile?
+  - A: Direction A with the green hero of C; small multiples per logement; last year's column side by
+    side; no tile open on arrival (mock-up version 3).
