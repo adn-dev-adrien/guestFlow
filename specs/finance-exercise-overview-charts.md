@@ -2,11 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented — superseded by `finance-dashboard-redesign.md` |
 | **Branch** | `feature/finance-exercise-charts` |
 | **Created** | 2026-09-28 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+
+> **Superseded by [finance-dashboard-redesign](finance-dashboard-redesign.md)** (2026-09-29): the
+> exercise overview, its tiles and its breakdown dialog are replaced by the Suivi financier dashboard.
 
 Validation summary (interactive mock-up): `docs/specs/2026-09-28-finance-exercise-overview-charts.html`.
 

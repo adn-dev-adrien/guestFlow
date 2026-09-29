@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/finance-dashboard-redesign` |
 | **Created** | 2026-09-29 |
 | **Author** | Adrien |
@@ -102,7 +102,8 @@ without losing anything today's page shows.
 14. « À encaisser » and « En retard » are operational: they ignore the window (labelled « tous
     exercices ») but honour the logement filter. Every other tile follows the window.
 15. Checking a payment or « Tout solder » / « Marquer payé » PATCHes the reservation through the
-    existing payment endpoint, then reloads the dashboard (all figures move together).
+    existing payment endpoint, then reloads the dashboard (all figures move together). A write the
+    server refuses shows its message above the open table and reloads nothing.
 16. On `xs`, every table becomes stacked cards (the `OperationalPaymentsTable` pattern), checkboxes
     included.
 
@@ -207,8 +208,9 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | `components/` | `MonthlyRevenueChart.jsx` | C | Finance-specific: stacked current column + last year's column, window highlight |
 | `components/` | `FinanceDetailPanel.jsx` | C | Finance-specific: the six tables of rule 13, each with its `xs` card layout |
 | `components/` | `OperationalPaymentsTable.jsx` | T | Reused as is for « À encaisser » |
-| `components/` | `ChannelBreakdownCard.jsx` | T | Table body reused inside the « Canaux » panel, gains commission / net columns |
+| `components/` | `ChannelBreakdownCard.jsx` | Removed | Its table is rebuilt inside `FinanceDetailPanel` (« Canaux »), with the commission / net columns and the website sub-rows |
 | `components/` | `FinanceExerciseOverview.jsx`, `RankedBarList.jsx`, `FinanceBreakdownDialog.jsx` | Removed | Superseded; no other consumer |
+| `components/` | `FinanceHero.jsx`, `MonthlyRevenueChart.jsx`, `SmallMultiplesLineChart.jsx` | — | Their tooltips are named exports (`CurveTooltip`, `MonthTooltip`, `SeriesTooltip`) so jsdom can test them: Recharts draws nothing without a layout |
 | `components/` | `SettingsFiscalYearSection.jsx` | T | « Objectif de chiffre d'affaires » fields + validation + hint (rules 26-29) |
 | `api.js` | `api.js` | T | `getFinanceDashboard(params)`, `getFinanceDashboardDetail(tile, params)`; old finance getters removed |
 
@@ -227,7 +229,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 ```jsonc
 {
   "window": { "kind": "fy", "from": "2026-01-01", "to": "2026-12-31", "label": "Exercice 2026", "asOf": "2026-09-29" },
-  "fiscalYear": { "key": 2026, "label": "2026", "from": "…", "to": "…", "isCurrent": true }, "fiscalYears": [ … ],
+  "fiscalYear": { "key": 2026, "label": "2026", "from": "…", "to": "…", "isCurrent": true, "previousLabel": "2025" }, "fiscalYears": [ … ],
   "months": [ { "month": "2026-01", "label": "janvier 2026" } ],        // the Mois selector's options
   "propertyId": null,
   "hero": {
@@ -239,7 +241,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
   },
   "insights": [ { "key": "bestMonth", "tone": "success", "title": "Juillet, meilleur mois de l'exercice", "text": "11 938 €, contre 12 257 € l'an dernier." } ],
   "properties": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "revenue": 22104, "occupancy": 0.38, "revenuePerNight": 154 } ],
-  "totalRevenue": 61453,                                                 // « Tous les logements » card
+  "totalRevenue": 61453, "totalOccupancy": 0.36,                        // « Tous les logements » card (never filtered)
   "tiles": {
     "collected": { "amount": 52692, "shareOfRevenue": 0.86 },
     "toCollect": { "amount": 5127, "stays": 12 },
@@ -249,7 +251,8 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
     "channels": { "commission": 6225 }
   },
   "revenueMonths": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "past": 3409, "upcoming": 0,
-                       "revenue": 3409, "revenueHt": 3099, "nights": 26, "previous": 3100 | null, "inWindow": true } ],
+                       "revenue": 3409, "revenueHt": 3099, "nights": 26, "previous": 3100 | null,
+                       "previousLabel": "janvier 2025", "inWindow": true } ],
   "occupancy": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "average": 0.38 | null,
                    "months": [ { "month": "2026-01", "label": "…", "initial": "J", "current": 0.22 | null, "previous": 0.18 | null } ] } ]
 }
@@ -283,44 +286,61 @@ selector) → logements strip → green hero → three insight cards → six til
 par mois » and « Taux d'occupation » side by side.
 
 - **lg / md**: hero on two columns (figure + goal | four figures), curve full width inside the hero;
-  tiles 6 across (lg) / 3 across (md); charts side by side (lg), stacked (md).
+  tiles 6 across on a wide screen (xl, ≥ 1536 px) and 3 across below, since the
+  sidebar leaves too little room for six readable captions; charts side by side (lg), stacked (md).
 - **xs**: toolbar stacked; strip scrolls horizontally; hero single column; insights stacked; tiles
   2 across; open table as cards; charts stacked, small multiples one per row. No horizontal page
   scroll.
 - Loading: `LoadingState` for the page, a lighter spinner in the detail panel while its table loads.
   Error: `ErrorAlert` with retry, per call.
-- Copy is French and lives next to the components (`FINANCE_COPY` constant in the page folder).
+- Copy is French and lives next to the components (the page's `TILES` configuration, `PERIOD_MESSAGES`
+  in `PeriodSelector`, `TITLES` in `FinanceDetailPanel`).
+- A payment the server refuses (e.g. `409` on a drifted reservation) shows its message in an
+  `ErrorAlert` above the open table; nothing is reloaded.
 
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
-- [ ] `finance-window.unit.test.js` — rules 1-2: the three window kinds, refusals.
-- [ ] `finance-occupancy.unit.test.js` — rules 24-25: closures (global, per logement, exclusive end),
+- [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.
+- [x] `finance-occupancy.unit.test.js` (5) — rules 24-25: closures (global, per logement, exclusive end),
       closed month = gap, ÷ 0 guarded, revenue per night, RevPAR.
-- [ ] `finance-year-over-year.unit.test.js` — rules 17-21: coverage per scope, comparable months,
+- [x] `finance-year-over-year.unit.test.js` (6) — rules 17-21: coverage per scope, comparable months,
       partial badge, like-for-like « as it stood », no badge without history.
-- [ ] `finance-insights.unit.test.js` — rule 11: best month, commissions avoided (hidden without known
-      commission), late payments wording.
-- [ ] `finance-dashboard.unit.test.js` — rules 3, 5-9, 13-14, 22: payload shape; Σ months = Σ logements
-      = hero revenue; operational tiles ignore the window but honour the logement; goal only on the
-      exercise without filter.
-- [ ] `finance-dashboard-detail.unit.test.js` — rule 13: each table's total equals its tile; payment
+- [x] `finance-insights.unit.test.js` (3) — rule 11: best month, commissions avoided (hidden without
+      known commission), late payments wording.
+- [x] `finance-dashboard.unit.test.js` (7) — rules 3, 5-9, 13-14, 22: payload shape; Σ months = Σ
+      logements = hero revenue; operational tiles ignore the window but honour the logement; goal only
+      on the exercise without filter.
+- [x] `finance-dashboard-detail.unit.test.js` (6) — rule 13: each table's total equals its tile; payment
       ledger kinds and refunds; « Arrivées d'ici le » totals; website sources with conversion.
-- [ ] `settings-revenue-goals.unit.test.js` — rules 26-27: validation, empty = no goal, persistence.
+- [x] `finance-exercise-months.unit.test.js` (4) — the exercise's month list the charts and the Mois
+      selector share.
+- [x] `settings-revenue-goals.unit.test.js` (6) — rules 26-27: validation, empty = no goal, persistence.
+- Removed with their code: `financeBreakdown.unit.test.js`, `finance-exercise-overview.unit.test.js`;
+  the breakdown case of `finance-refunds.unit.test.js` now reads `getSummary`.
 
 ### Client tests
-- [ ] `PeriodSelector.test.jsx`, `SelectableTile.test.jsx`, `SmallMultiplesLineChart.test.jsx`,
-      `YearOverYearBadge.test.jsx` — generic behaviour.
-- [ ] `FinancePage.dashboard.test.jsx` — tile opens / closes its table, no tile open on arrival,
-      logement filter and window reach the URL, payment checkbox calls the payment endpoint.
-- [ ] `SettingsFiscalYearSection.revenue-goals.test.jsx` — refusals disable Enregistrer, hint.
+- [x] `PeriodSelector.test.jsx` (3) — rules 1-2: month window, reversed and missing dates refused.
+- [x] `SelectableTile.test.jsx` (2) — rule 13: expanded state, controlled panel.
+- [x] `YearOverYearBadge.test.jsx` (3) — rules 18, 20: hidden without comparison, partial wording.
+- [x] `SmallMultiplesLineChart.test.jsx` (5) — rules 10, 22, 23: the three chart tooltips (curve;
+      one line per year; own logement only, gap never 0 %).
+- [x] `FinancePage.dashboard.test.jsx` (6) — rules 4, 12, 13, 15, 16: no tile open on arrival, tile
+      opens / closes its table, logement strip above the hero and in the URL, window read from the
+      URL, payment checkbox PATCHes then reloads, a refused payment shows its message, cards on xs.
+- [x] `SettingsFiscalYearSection.revenue-goals.test.jsx` (4) — refusals disable Enregistrer, hint.
+- Removed with their components: the `FinanceExerciseOverview`, `RankedBarList`,
+  `FinanceBreakdownDialog`, `ChannelBreakdownCard` suites and `FinancePage.test.jsx`.
 
-### Manual UI verification
-- [ ] On a copy of production data: hero, logement table and channel table add up; occupancy
-      matches a hand count on one logement and month.
-- [ ] Every block of today's page found again (mapping table of the summary HTML).
-- [ ] 375 / 900 / 1280 px, no horizontal scroll; tables as cards on a phone.
-- [ ] E2E suite.
+### Manual UI verification (2026-09-29, isolated instance on a copy of the dev database)
+- [x] Hero, logement table and channel table add up; each tile equals its table's total, for the
+      exercise, a month, a custom window and one logement; the reversed window is refused.
+- [x] Ticking a solde in « À encaisser » moves the tile (4 399 € → 3 693 €) and removes the row.
+- [x] Month tooltip on one line per year; occupancy tooltip on its own logement only.
+- [x] Goal set in Réglages → TVA & exercice shows in the hero (75 %, reste 7 370 €).
+- [x] Every block of today's page found again (mapping table of the summary HTML).
+- [x] 375 / 900 / 1280 px, no horizontal page scroll; tables as cards on a phone.
+- [x] E2E suite.
 
 ## 8. Out of scope
 

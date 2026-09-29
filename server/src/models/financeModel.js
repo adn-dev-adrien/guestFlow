@@ -123,22 +123,6 @@ function htAmount(r, ttcPortion, vatRate) {
   return round2(portion * ratio);
 }
 
-// specs/finance-card-breakdown.md §3.5 — the five clickable cards, each mapped to the reservation window
-// it sums over and the label its amount column carries in the breakdown dialog. The `total` of a
-// breakdown is guaranteed equal to the matching getSummary figure because both reuse totalSejour /
-// comptaCollected / isSettled over the same set.
-// specs/fiscal-year-and-nights-sold.md §3.4 rules 18-19 + 22 — `nights: true` marks the three metrics
-// whose amount is Σ « total de séjour » over a SET OF STAYS: they carry the per-property nights on
-// their card and a « Nuits » column in the breakdown. « Encaissé » and « En attente » are subsets of
-// échéances, not sets of stays, so a nights figure there would be ambiguous.
-const BREAKDOWN_METRICS = {
-  revenueTotal:   { label: 'Revenu total sur la période',            column: 'Total de séjour', window: 'period',     nights: true },
-  totalCollected: { label: 'Encaissé',                               column: 'Encaissé',        window: 'period' },
-  totalPending:   { label: 'En attente de règlement',                column: 'En attente',      window: 'global' },
-  yearToDate:     { label: "Revenus depuis le début de l'exercice",  column: 'Total de séjour', window: 'fiscalYear', nights: true },
-  yearTotal:      { label: "Revenu total sur l'exercice",            column: 'Total de séjour', window: 'fiscalYear', nights: true },
-};
-
 function createFinanceModel(database) {
   const hasReservationColumn = (name) => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
@@ -492,106 +476,6 @@ function createFinanceModel(database) {
         // The exercise the annual figures describe + the selector's options (§3.5).
         fiscalYear: { ...exercise, isCurrent: Boolean(currentExercise && currentExercise.key === exercise.key) },
         fiscalYears,
-      };
-    },
-
-    // specs/finance-card-breakdown.md — the reservations behind a single card figure, with one amount
-    // column whose Σ equals the card. Reuses the SAME per-reservation helpers as getSummary so the total
-    // is coherent by construction. Period metrics honour the du/au range; the exercise metrics use the
-    // selected fiscal year (the from/to are ignored for them).
-    getBreakdown({ metric, from, to, fiscalYear } = {}) {
-      const def = BREAKDOWN_METRICS[metric];
-      if (!def) return { ok: false, status: 400, error: 'Métrique inconnue.' };
-
-      const today = todayIso();
-      const vatRate = getVatRate(database);
-
-      // Same attribution window as getSummary (specs/fiscal-year-and-nights-sold.md §3.2 rule 8), so a
-      // breakdown always lists exactly the stays that built the card figure.
-      const selectRows = (start, end) => database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, p.name as propertyName,
-               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
-               ${REFUND_COLS}
-        FROM reservations r
-        JOIN clients c ON r.clientId = c.id
-        JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation'
-          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?
-        ORDER BY ${ATTRIBUTION_DATE_SQL}
-      `).all(start, end);
-
-      let rows;
-      let windowMeta;
-      if (def.window === 'global') {
-        // specs/finance-pending-global-remaining.md — « En attente de règlement » ignores the du/au
-        // range entirely: every finished stay up to yesterday. The received from/to are unused here.
-        rows = selectRows('0000-01-01', today);
-        windowMeta = { kind: 'global', to: today };
-      } else if (def.window === 'period') {
-        const start = from || today;
-        const end = to || '2099-12-31';
-        rows = selectRows(start, end);
-        windowMeta = { kind: 'period', from: start, to: end };
-      } else {
-        const exercise = fiscalYearUtil.resolve(getFiscalYearEndMonth(database), { key: fiscalYear, today });
-        rows = selectRows(exercise.from, exercise.to);
-        windowMeta = { kind: 'fiscalYear', key: exercise.key, label: exercise.label, from: exercise.from, to: exercise.to };
-      }
-
-      // include = does this reservation contribute to the figure; amount = its contribution. Mirrors the
-      // exact predicates getSummary applies for each figure (a non-contributing row would just add 0).
-      const contribution = (r) => {
-        switch (metric) {
-          case 'totalCollected': { const amount = comptaCollected(r); return { include: amount > 0, amount }; }
-          // Restant dû of every finished, non-settled stay (period-free — spec above). A non-settled
-          // stay's attribution date IS its departure date, so this stays the « séjour terminé » predicate.
-          case 'totalPending':   return { include: r.endDate < today && !isSettled(r), amount: remainingToPay(r) };
-          case 'yearToDate':     return { include: r.attributionDate <= today, amount: totalSejour(r) };
-          case 'revenueTotal':
-          case 'yearTotal':
-          default:               return { include: true, amount: totalSejour(r) };
-        }
-      };
-
-      let total = 0;
-      let totalHt = 0;
-      let totalNights = 0;
-      const outRows = [];
-      for (const r of rows) {
-        const { include, amount } = contribution(r);
-        if (!include) continue;
-        const amountHt = htAmount(r, amount, vatRate);
-        const nights = nightsBetween(r.startDate, r.endDate);
-        total += amount;
-        totalHt += amountHt;
-        totalNights += nights;
-        outRows.push({
-          id: r.id,
-          clientName: `${r.firstName} ${r.lastName}`.trim(),
-          propertyName: r.propertyName,
-          platform: r.platform,
-          startDate: r.startDate,
-          endDate: r.endDate,
-          amount: round2(amount),
-          amountHt,
-          // Only the set-of-stays metrics expose nights (rule 19); elsewhere the key is absent and the
-          // client renders no column.
-          ...(def.nights ? { nights } : {}),
-        });
-      }
-
-      return {
-        ok: true,
-        data: {
-          metric,
-          label: def.label,
-          column: def.column,
-          window: windowMeta,
-          total: round2(total),
-          totalHt: round2(totalHt),
-          ...(def.nights ? { totalNights } : {}),
-          rows: outRows,
-        },
       };
     },
 

@@ -7,7 +7,7 @@
 const db = require('../database');
 const financeModel = require('./financeModel');
 const fiscalYearUtil = require('../utils/fiscalYear');
-const { resolveWindow } = require('../utils/financeWindow');
+const { resolveWindow, monthLabel } = require('../utils/financeWindow');
 const occupancy = require('../utils/financeOccupancy');
 const yoy = require('../utils/yearOverYear');
 const { buildInsights } = require('../utils/financeInsights');
@@ -102,7 +102,7 @@ function createDashboardModel(database, finance) {
     return {
       ok: true, today, propertyId, allProperties: all,
       scopeProperties: propertyId ? all.filter((p) => p.id === propertyId) : all,
-      exercise: { ...exercise, isCurrent: exercise.key === current.key },
+      exercise: { ...exercise, isCurrent: exercise.key === current.key, previousLabel: fiscalYearUtil.boundsForEndYear(endMonth, exercise.key - 1).label },
       window: win,
     };
   }
@@ -192,6 +192,7 @@ function createDashboardModel(database, finance) {
       month: m.month, label: m.label, initial: m.initial,
       past: m.past, upcoming: m.upcoming, revenue: m.revenue, revenueHt: m.revenueHt, nights: m.nights,
       previous: yoy.isComparableMonth(m.month, cover) && prevMonths[i] ? prevMonths[i].revenue : null,
+      previousLabel: monthLabel(yoy.shiftMonth(m.month, -1)),
       inWindow: m.month >= win.from.slice(0, 7) && m.month <= win.to.slice(0, 7),
     }));
 
@@ -251,6 +252,7 @@ function createDashboardModel(database, finance) {
           return { propertyId: p.id, name: p.name, color: p.color, revenue: agg.revenue, occupancy: o ? o.rate : null, revenuePerNight: occupancy.revenuePerNight(agg.revenue, agg.nights) };
         }),
         totalRevenue: everywhere.revenueTotal,
+        totalOccupancy: windowOcc.rate,
         tiles: {
           collected: { amount: summary.totalCollected, shareOfRevenue: ratio(summary.totalCollected, revenue) },
           toCollect: { amount: round2(operational.pending.totals.remainingToPay || 0), stays: operational.pending.reservations.length },

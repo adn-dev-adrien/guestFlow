@@ -27,10 +27,13 @@ test('closing month round-trip via Paramètres → TVA & exercice, then applied 
   await expect(page.getByRole('combobox', { name: /Mois de clôture/i }))
     .toHaveText(next, { timeout: 10_000 });
 
-  // …and the Suivi financier now bounds its exercise on that month: closing September ⇒ 1 Oct → 30 Sep.
+  // …and the Suivi financier now bounds its exercise on that month: closing September ⇒ the exercise
+  // opens in October, closing June ⇒ in July. The « Mois » selector lists the exercise's months in
+  // order (specs/finance-dashboard-redesign.md rule 1).
   await page.goto('/finance');
-  const exerciseSelect = page.getByRole('combobox', { name: 'Exercice' });
-  await expect(exerciseSelect).toBeVisible({ timeout: 15_000 });
-  const expectedBounds = next === 'Septembre' ? /du 01\/10\/\d{4} au 30\/09\/\d{4}/ : /du 01\/07\/\d{4} au 30\/06\/\d{4}/;
-  await expect(page.getByText(expectedBounds)).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Exercice' })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Mois', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Mois' }).click();
+  const firstMonth = next === 'Septembre' ? /^octobre \d{4}$/ : /^juillet \d{4}$/;
+  await expect(page.getByRole('option').first()).toHaveText(firstMonth);
 });
