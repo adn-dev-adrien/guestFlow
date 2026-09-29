@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+const EDGE_THRESHOLD_PX = 200;
+const MAX_CHAINED_MONTHS = 6;
+
 function getMonthsRange(centerY, centerM, range = 3) {
   const result = [];
   for (let i = -range; i <= range; i++) {
@@ -26,7 +29,7 @@ function getInitialMonths() {
  *   handleScroll: () => void,
  *   prependMonth: () => void,
  *   appendMonth: () => void,
- *   focusOnMonth: (year:number, month:number, opts?:{resetNavLocks?:boolean}) => void,
+ *   focusOnMonth: (year:number, month:number) => void,
  *   recenterToday: () => void,
  * }}
  */
@@ -38,8 +41,14 @@ export default function useInfiniteMonthScroll(selectedProp) {
   const focusMonthKeyRef = useRef('');
   const pendingFocusScrollRef = useRef(false);
   const initialScrollDone = useRef(false);
-  const prependMonthLock = useRef(false);
-  const appendMonthLock = useRef(false);
+  // An edge is "pending" from the moment a month is requested until that month is committed. Releasing it
+  // on commit (not on a later scroll event far enough from the edge) is what keeps the scroll going: a
+  // short appended month (an empty mobile agenda) or a fast wheel notch can leave the scroller within the
+  // threshold forever, and an edge-triggered release then never fires — the scroller stalls at its end and
+  // the page scrolls instead.
+  const prependPendingRef = useRef(false);
+  const appendPendingRef = useRef(false);
+  const edgeChainRef = useRef(0);
   const autoPreloadAttemptsRef = useRef(0);
 
   // Maintain scroll position when prepending months.
@@ -142,44 +151,49 @@ export default function useInfiniteMonthScroll(selectedProp) {
     });
   }, []);
 
-  const handleScroll = useCallback(() => {
+  const extendNearEdges = useCallback(() => {
     const el = scrollRef.current;
-    if (!el || !initialScrollDone.current) return;
-
-    const topThreshold = 200;
-    const bottomThreshold = 200;
+    if (!el) return false;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-
-    if (el.scrollTop >= topThreshold) {
-      prependMonthLock.current = false;
-    }
-
-    if (distanceFromBottom >= bottomThreshold) {
-      appendMonthLock.current = false;
-    }
-
-    if (el.scrollTop < topThreshold && !prependMonthLock.current) {
-      prependMonthLock.current = true;
+    let extended = false;
+    if (el.scrollTop < EDGE_THRESHOLD_PX && !prependPendingRef.current) {
+      prependPendingRef.current = true;
       prependMonth();
+      extended = true;
     }
-
-    if (distanceFromBottom < bottomThreshold && !appendMonthLock.current) {
-      appendMonthLock.current = true;
+    if (distanceFromBottom < EDGE_THRESHOLD_PX && !appendPendingRef.current) {
+      appendPendingRef.current = true;
       appendMonth();
+      extended = true;
     }
+    return extended;
   }, [prependMonth, appendMonth]);
 
+  // Once a requested month is committed, release its edge and re-check: if the scroller is still near that
+  // edge (the new month was shorter than the threshold), chain another month without waiting for a scroll
+  // event that may never come. Bounded per user scroll so a zero-height layout cannot loop.
+  useLayoutEffect(() => {
+    const extendedEdge = prependPendingRef.current || appendPendingRef.current;
+    prependPendingRef.current = false;
+    appendPendingRef.current = false;
+    if (!extendedEdge || !initialScrollDone.current || pendingFocusScrollRef.current) return;
+    if (edgeChainRef.current >= MAX_CHAINED_MONTHS) return;
+    if (extendNearEdges()) edgeChainRef.current += 1;
+  }, [months, extendNearEdges]);
+
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current || !initialScrollDone.current) return;
+    edgeChainRef.current = 0;
+    extendNearEdges();
+  }, [extendNearEdges]);
+
   // Reset to a tight range around a target month and scroll it into view on next paint.
-  const focusOnMonth = useCallback((year, month, { resetNavLocks = false } = {}) => {
+  const focusOnMonth = useCallback((year, month) => {
     setMonths(getMonthsRange(year, month, 1));
     focusMonthKeyRef.current = `${year}-${month}`;
     pendingFocusScrollRef.current = true;
     initialScrollDone.current = false;
     autoPreloadAttemptsRef.current = 0;
-    if (resetNavLocks) {
-      prependMonthLock.current = false;
-      appendMonthLock.current = false;
-    }
   }, []);
 
   // Recentre on the current month (the "Aujourd'hui" button) without a focus-scroll pass.
@@ -187,8 +201,6 @@ export default function useInfiniteMonthScroll(selectedProp) {
     const now = new Date();
     setMonths(getMonthsRange(now.getFullYear(), now.getMonth(), 1));
     initialScrollDone.current = false;
-    prependMonthLock.current = false;
-    appendMonthLock.current = false;
     autoPreloadAttemptsRef.current = 0;
   }, []);
 

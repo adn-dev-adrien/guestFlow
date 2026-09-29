@@ -383,7 +383,7 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
     focusOnMonth(n.getFullYear(), n.getMonth());
   }, [items, focusOnMonth]);
 
-  const goToday = useCallback(() => { const n = new Date(); focusOnMonth(n.getFullYear(), n.getMonth(), { resetNavLocks: true }); }, [focusOnMonth]);
+  const goToday = useCallback(() => { const n = new Date(); focusOnMonth(n.getFullYear(), n.getMonth()); }, [focusOnMonth]);
 
   // The legend lists each platform ONCE: variants that differ only by case or punctuation
   // ('Abracadaroom' / 'abracadaroom') are the same platform and merge into one canonical entry.
