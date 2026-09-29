@@ -36,6 +36,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import theme from './theme';
 import DialogProvider from './components/DialogProvider';
 import EmailVerifyBanner from './components/EmailVerifyBanner';
+import SubscriptionBanner from './components/SubscriptionBanner';
 import ReservationSearchBox from './components/ReservationSearchBox';
 import { withFrom } from './utils/navigation';
 import api from './api';
@@ -699,6 +700,8 @@ function AppShell() {
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />
+        {/* Subscription due, in grace or read-only (specs/control-plane-plans-and-access.md §6). */}
+        <SubscriptionBanner />
         {/* Self-update progress (specs/self-update-and-releases.md §6.3). Mounted at app level so it
             takes over wherever the update was triggered from, and survives a reload mid-update. */}
         <UpdateProgressOverlay />

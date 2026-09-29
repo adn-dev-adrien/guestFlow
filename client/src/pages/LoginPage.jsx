@@ -11,12 +11,16 @@ import { useAuth } from '../hooks/useAuth';
  * Reads ?reason=password-changed once after a forced first-login change
  * (specs/admin-account-management.md §3.3 rule 15) and shows a green success Alert. The query
  * param is cleared after rendering so a refresh doesn't re-show it.
+ *
+ * `?login_hint=<email>` comes from the shared login page: the email is filled in and the focus goes
+ * to the password (specs/control-plane-plans-and-access.md rule 24).
  */
 export default function LoginPage() {
   const { login } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const loginHint = searchParams.get('login_hint') || '';
+  const [email, setEmail] = useState(loginHint);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,7 +64,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="username"
-                autoFocus
+                autoFocus={!loginHint}
                 fullWidth
                 required
               />
@@ -69,6 +73,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                autoFocus={Boolean(loginHint)}
                 fullWidth
                 required
               />
