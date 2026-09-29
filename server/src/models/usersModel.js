@@ -295,6 +295,11 @@ function buildModel(database) {
       return activeAdminCountStmt.get(ADMIN).n;
     },
 
+    // specs/control-plane-plans-and-access.md rule 13 — the accounts the plan quota counts.
+    countActive() {
+      return database.prepare('SELECT COUNT(*) AS n FROM users WHERE isActive = 1').get().n;
+    },
+
     // Recovery: restore an admin account to the documented default email + password with a forced
     // change, re-activating it. Used by the `reset-admin` CLI when access is lost.
     //

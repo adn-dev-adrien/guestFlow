@@ -26,6 +26,7 @@ const defaultEmailTemplates = require('../utils/emailTemplates');
 const { generateTemporaryPassword: defaultGenerateTemporaryPassword } = require('../utils/passwordGenerator');
 const { ROLES, ADMIN, isKnownRole } = require('../constants/roles');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
+const { quotaRefusal } = require('../utils/planQuota');
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -43,6 +44,7 @@ function buildController({
   emailTemplates = defaultEmailTemplates,
   passwordGenerator = defaultGenerateTemporaryPassword,
   buildEmailService = createEmailService,
+  planQuota = quotaRefusal,
 }) {
   // emailService can be passed in pre-built (test isolation). Otherwise we lazily build it from
   // the live SMTP settings on each call — that way settings changes are honoured without restart.
@@ -177,6 +179,9 @@ function buildController({
       for (const role of roles) {
         if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
       }
+      // Before the welcome email: a refused account must not receive one.
+      const refusal = planQuota('users', () => usersModel.countActive());
+      if (refusal) return res.status(402).json(refusal);
 
       if (!settingsModel.smtpConfigured()) {
         return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });

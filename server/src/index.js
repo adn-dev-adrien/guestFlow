@@ -15,6 +15,7 @@ const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
 const enforceRoleAccess = require('./middleware/enforceRoleAccess');
 const requirePlugin = require('./middleware/requirePlugin');
+const { enforceSubscription } = require('./middleware/enforceSubscription');
 const PLUGINS = require('./constants/plugins');
 const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
 const {
@@ -183,6 +184,10 @@ app.use('/api', (req, res, next) => {
   return enforceRoleAccess(req, res, next);
 });
 
+// An unpaid instance is read-only (specs/control-plane-plans-and-access.md rule 14). Inert on an
+// install that has no licence and is not managed by the hosting (rule 29).
+app.use('/api', enforceSubscription());
+
 // Routes
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/properties', require('./routes/properties'));
@@ -220,6 +225,8 @@ app.use('/api/neat', requirePlugin(PLUGINS.NEAT), require('./routes/neat'));
 app.use('/api/terms', require('./routes/terms'));
 // specs/plugins-phase-0-foundation.md — the Plugins page. Admin-only through the same role guard.
 app.use('/api/plugins', require('./routes/plugins'));
+// specs/control-plane-plans-and-access.md — the subscription banner. Admin-only through the role guard.
+app.use('/api/subscription', require('./routes/subscription'));
 // The routes of plugin modules (specs/plugins-phase-1-sdk.md rule 5): same URLs as before the move,
 // each behind requirePlugin.
 pluginLoader.mountApi(app);

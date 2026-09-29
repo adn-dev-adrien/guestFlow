@@ -54,6 +54,7 @@ function createController(model = defaultModel, deps = {}) {
   const getDb = deps.db || (() => require('../database'));
   const settingsModel = deps.settingsModel || (() => require('../models/pluginSettingsModel'));
   const loader = deps.loader || (() => require('../plugins/loader'));
+  const licence = deps.licence || (() => require('../utils/licence').default);
 
   const erasable = (id) => Boolean(reg.get(id) && reg.get(id).data);
 
@@ -68,12 +69,32 @@ function createController(model = defaultModel, deps = {}) {
     }
   }
 
+  // specs/control-plane-plans-and-access.md rules 11–12 — a plugin outside the licence keeps its
+  // stored state (so an upgrade brings it back untouched) and carries the plan that includes it.
+  const planHint = (plan) => (plan
+    ? `Inclus dans le forfait ${plan} — contactez-nous pour changer de forfait.`
+    : 'Disponible en option — contactez-nous pour l’ajouter à votre abonnement.');
+
+  function planView(id) {
+    if (licence().allowsPlugin(id)) return { outOfPlan: false, planChip: null, planHint: null };
+    const plan = licence().planFor(id);
+    return { outOfPlan: true, planChip: plan ? `Forfait ${plan}` : 'Option à la carte', planHint: planHint(plan) };
+  }
+
+  function refuseIfOutOfPlan(entry, res) {
+    if (licence().allowsPlugin(entry.id)) return false;
+    const plan = licence().planFor(entry.id);
+    res.status(402).json({ error: 'PLAN_REQUIRED', plan, message: planHint(plan) });
+    return true;
+  }
+
   function view(entry) {
     const row = model.get(entry.id);
     const record = reg.get(entry.id);
     let state = !row ? 'available' : row.enabled ? 'active' : 'inactive';
     if (row && record && record.failed) state = 'failed';
     return {
+      ...planView(entry.id),
       id: entry.id,
       name: entry.name,
       description: entry.description,
@@ -126,6 +147,7 @@ function createController(model = defaultModel, deps = {}) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (model.get(entry.id)) return res.status(409).json({ error: 'ALREADY_INSTALLED' });
+      if (refuseIfOutOfPlan(entry, res)) return undefined;
       if (reg.get(entry.id)) {
         try {
           loader().migrate(getDb(), entry.id);
@@ -144,6 +166,7 @@ function createController(model = defaultModel, deps = {}) {
       const entry = resolve(req, res);
       if (!entry) return undefined;
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
+      if (refuseIfOutOfPlan(entry, res)) return undefined;
       model.setEnabled(entry.id, true);
       return res.json(view(entry));
     },

@@ -5,6 +5,7 @@ const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
 const { validatePropertyInput } = require('../utils/propertyValidation');
+const { quotaRefusal } = require('../utils/planQuota');
 
 // Map a model result ({ data } | { error, status, conflictingRule?, code? }) to an HTTP response.
 function respond(res, result) {
@@ -60,6 +61,8 @@ function refuseInvalid(res, body, existing) {
 
 async function create(req, res) {
   if (refuseInvalid(res, req.body, null)) return;
+  const refusal = quotaRefusal('units', () => model.count());
+  if (refusal) return void res.status(402).json(refusal);
   try {
     res.json(await model.create(req.body, req.file));
   } catch (err) {

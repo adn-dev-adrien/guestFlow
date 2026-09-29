@@ -140,6 +140,8 @@ vite.config.ts.timestamp-*
 
 # GuestFlow
 *.db
+# The instance's licence, written by the control plane (specs/control-plane-plans-and-access.md)
+licence.jws
 *.db-shm
 *.db-wal
 *.bak

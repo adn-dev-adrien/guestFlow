@@ -21,6 +21,11 @@ async function request(path, options = {}) {
     if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login') {
       window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
     }
+    // An unpaid instance refuses writes (specs/control-plane-plans-and-access.md rule 14): the app
+    // says so even on a page that does not show its own errors.
+    if (res.status === 402 && err.error === 'SUBSCRIPTION_READ_ONLY') {
+      window.dispatchEvent(new CustomEvent('guestflow:read-only', { detail: { message: err.message } }));
+    }
     throw apiError;
   }
   if (res.status === 204) return null;
@@ -428,6 +433,8 @@ const api = {
   // Lightweight status feed for the email field's "you still use the default admin seed"
   // red warning. Returns `{ myEmail, defaultStillUsed }`.
   getMyEmailStatus: () => request('/users/me/email-status'),
+  // specs/control-plane-plans-and-access.md — the admin subscription banner.
+  getSubscription: () => request('/subscription'),
   // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
   // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
   // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last

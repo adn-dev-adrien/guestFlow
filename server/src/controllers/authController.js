@@ -96,7 +96,11 @@ function createAuthController(users, { activePlugins = () => [] } = {}) {
 }
 
 const defaultController = createAuthController(defaultUsersModel, {
-  activePlugins: () => require('../models/pluginsModel').listActiveIds(),
+  // A plugin outside the licence reads as off everywhere (specs/control-plane-plans-and-access.md rule 12).
+  activePlugins: () => {
+    const licence = require('../utils/licence');
+    return require('../models/pluginsModel').listActiveIds().filter((id) => licence.allowsPlugin(id));
+  },
 });
 defaultController.create = createAuthController;
 

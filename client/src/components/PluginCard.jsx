@@ -1,17 +1,19 @@
 /**
  * PluginCard — one plugin on the Plugins page (specs/plugins-phase-0-foundation.md rules 22–23;
- * specs/plugins-phase-1-sdk.md rules 4 and 21–22). Feature-specific: only the Plugins page lists
- * plugins.
+ * specs/plugins-phase-1-sdk.md rules 4 and 21–22; specs/control-plane-plans-and-access.md rules 11–12).
+ * Feature-specific: only the Plugins page lists plugins.
  *
  * Props:
- *   plugin    { id, name, description, icon, surfaces, state, blocker, erasable, data }
- *             as GET /api/plugins returns it — `data` lists what an erasure would take
+ *   plugin    { id, name, description, icon, surfaces, state, blocker, erasable, data, outOfPlan,
+ *             planChip, planHint } as GET /api/plugins returns it — `data` lists what an erasure
+ *             would take; `outOfPlan` marks a plugin the subscription does not include, `planChip`
+ *             names the plan that does and `planHint` says how to get it
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
  *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall', options?: { purge }) => void
  */
 import React, { useState } from 'react';
-import { Box, Button, Card, CardActionArea, Checkbox, Collapse, FormControlLabel, Stack, Typography } from '@mui/material';
+import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Tooltip, Typography } from '@mui/material';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -49,6 +51,7 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
   const Icon = ICONS[plugin.icon] || ExtensionIcon;
   const installed = plugin.state !== 'available';
   const failed = plugin.state === 'failed';
+  const outOfPlan = Boolean(plugin.outOfPlan);
   const eraseLines = (plugin.data || []).map((line) => line.label).join(' · ');
 
   const primary = plugin.state === 'available'
@@ -81,7 +84,13 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{plugin.name}</Typography>
             <Typography variant="body2" color="text.secondary">{plugin.description}</Typography>
-            {installed && (
+            {installed && outOfPlan && (
+              <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                <StatusBadge status="warning" label="Désactivé — hors forfait" />
+                <Typography variant="caption" color="text.secondary">Données conservées</Typography>
+              </Box>
+            )}
+            {installed && !outOfPlan && (
               <Box sx={{ mt: 0.5 }}>
                 <StatusBadge
                   status={failed ? 'error' : plugin.state === 'active' ? 'success' : 'neutral'}
@@ -89,19 +98,31 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
                 />
               </Box>
             )}
+            {!installed && outOfPlan && plugin.planChip && (
+              <Chip size="small" label={plugin.planChip} sx={{ mt: 0.5, fontWeight: 700 }} />
+            )}
             {failed && (
               <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Ce plugin n’a pas pu démarrer.</Typography>
             )}
           </Box>
         </CardActionArea>
-        <Button
-          variant={primary.variant}
-          disabled={busy}
-          onClick={() => act(primary.action)}
-          sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
-        >
-          {primary.label}
-        </Button>
+        {!installed && outOfPlan && (
+          <Tooltip title={plugin.planHint || ''}>
+            <Box component="span" sx={{ flex: 'none', width: { xs: '100%', sm: 'auto' } }}>
+              <Button variant="contained" disabled sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>Installer</Button>
+            </Box>
+          </Tooltip>
+        )}
+        {!outOfPlan && (
+          <Button
+            variant={primary.variant}
+            disabled={busy}
+            onClick={() => act(primary.action)}
+            sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
+          >
+            {primary.label}
+          </Button>
+        )}
       </Stack>
       {error && (
         <Typography role="alert" variant="body2" color="error" sx={{ px: 2, pb: 1.5, fontWeight: 600 }}>
