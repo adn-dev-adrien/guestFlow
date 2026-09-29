@@ -13,7 +13,7 @@ const {
 const fiscalYearUtil = require('../utils/fiscalYear');
 const { bookingChannelOf } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
-const exerciseOverview = require('../utils/exerciseOverview');
+const { exerciseMonths } = require('../utils/exerciseOverview');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -192,6 +192,16 @@ function createFinanceModel(database) {
                  WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxNights`
     : '0 AS refundedTaxAmount, 0 AS refundedTaxNights';
 
+  // specs/finance-dashboard-redesign.md §4.1 — optional scoping of the money queries: one logement
+  // (rule 3), and the books « as they stood » at a past date for the year-over-year reading (rule 21).
+  const scopeSql = ({ propertyId, knownAt } = {}, alias = 'r') => {
+    const clauses = [];
+    const params = [];
+    if (propertyId != null && propertyId !== '') { clauses.push(`${alias}.propertyId = ?`); params.push(Number(propertyId)); }
+    if (knownAt) { clauses.push(`DATE(${alias}.createdAt) <= ?`); params.push(knownAt); }
+    return { sql: clauses.map((c) => ` AND ${c}`).join(''), params };
+  };
+
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
     //
@@ -214,7 +224,10 @@ function createFinanceModel(database) {
     // specs/finance-pending-global-remaining.md — « En attente de règlement » is GLOBAL (every finished
     // stay, period ignored) and counts the RESTANT DÛ (Σ remainingToPay), so it equals the operational
     // « Paiements en attente » chip and never double-counts what « Encaissé » already holds.
-    getSummary({ from, to, fiscalYear } = {}) {
+    getSummary({ from, to, fiscalYear, propertyId, knownAt } = {}) {
+      const scope = scopeSql({ propertyId, knownAt });
+      const devisScope = scopeSql({ propertyId, knownAt }, 'reservations');
+      const operationalScope = scopeSql({ propertyId }, 'reservations');
       const today = todayIso();
       const start = from || today;
       const end = to || '2099-12-31';
@@ -241,9 +254,9 @@ function createFinanceModel(database) {
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation'
-          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?
+          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?${scope.sql}
         ORDER BY ${ATTRIBUTION_DATE_SQL}
-      `).all(start, end);
+      `).all(start, end, ...scope.params);
 
       const vatRate = getVatRate(database);
       let revenueTotal = 0;
@@ -254,7 +267,9 @@ function createFinanceModel(database) {
       // the payload, 0 included (specs/finance-per-property-revenue-chart.md rule 6). Each one now also
       // carries the NIGHTS SOLD over its window (specs/fiscal-year-and-nights-sold.md §3.3).
       const emptyAgg = (p) => ({ propertyId: p.id, propertyName: p.name, revenue: 0, revenueHt: 0, nights: 0 });
-      const allProperties = database.prepare('SELECT id, name FROM properties').all();
+      const allProperties = propertyId != null && propertyId !== ''
+        ? database.prepare('SELECT id, name FROM properties WHERE id = ?').all(Number(propertyId))
+        : database.prepare('SELECT id, name FROM properties').all();
       const byProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
       const yearByProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
       const yearTotalByProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
@@ -298,11 +313,11 @@ function createFinanceModel(database) {
                SUM(CASE WHEN devisStatus = 'converted' THEN 1 ELSE 0 END) AS converted
         FROM reservations
         WHERE kind = 'devis' AND requestOrigin = 'public'
-          AND date(createdAt) >= ? AND date(createdAt) <= ?
+          AND date(createdAt) >= ? AND date(createdAt) <= ?${devisScope.sql}
         GROUP BY attributionChannel
       `);
       const finalizeByChannel = (map, from, to) => {
-        for (const row of requestStats.all(from, to)) {
+        for (const row of requestStats.all(from, to, ...devisScope.params)) {
           const ch = bookingChannelOf({ requestOrigin: 'public', attributionChannel: row.attributionChannel }, isDirectChannel);
           const agg = map.get(ch.key) || { ...ch, reservations: 0, nights: 0, revenue: 0, revenueHt: 0 };
           agg.requests = (agg.requests || 0) + row.requests;
@@ -379,8 +394,8 @@ function createFinanceModel(database) {
       let totalPending = 0;
       let totalPendingHt = 0;
       const pastRows = database.prepare(`
-        SELECT * FROM reservations WHERE kind = 'reservation' AND endDate < ?
-      `).all(today);
+        SELECT * FROM reservations WHERE kind = 'reservation' AND endDate < ?${operationalScope.sql}
+      `).all(today, ...operationalScope.params);
       for (const r of pastRows) {
         if (isSettled(r)) continue;
         const remaining = remainingToPay(r);
@@ -404,19 +419,17 @@ function createFinanceModel(database) {
                ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation'
-          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?
-      `).all(exercise.from, exercise.to);
+          AND ${ATTRIBUTION_DATE_SQL} >= ? AND ${ATTRIBUTION_DATE_SQL} <= ?${scope.sql}
+      `).all(exercise.from, exercise.to, ...scope.params);
       let yearToDate = 0;
       let yearTotal = 0;
       let yearToDateHt = 0;
       let yearTotalHt = 0;
       let yearToDateNights = 0;
       let yearTotalNights = 0;
-      // specs/finance-exercise-overview-charts.md — the overview's months and channels ride on this very
-      // loop, so they add up to `yearTotal` by construction (rule 3).
-      const monthList = exerciseOverview.exerciseMonths(exercise.from, exercise.to);
-      const byMonth = new Map(monthList.map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
-      const yearTotalByChannel = new Map();
+      // specs/finance-dashboard-redesign.md rule 22 (from finance-exercise-overview-charts.md rule 3) —
+      // the exercise's months ride on this very loop, so they add up to `yearTotal` by construction.
+      const byMonth = new Map(exerciseMonths(exercise.from, exercise.to).map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
       for (const r of yearRows) {
         const stay = totalSejour(r);
         const stayHt = htAmount(r, stay, vatRate);
@@ -425,7 +438,6 @@ function createFinanceModel(database) {
         yearTotalHt += stayHt;
         yearTotalNights += nights;
         accumulate(yearTotalByProperty, r, stay, stayHt, nights);
-        accumulateChannel(yearTotalByChannel, r, stay, stayHt, nights);
         const month = byMonth.get(String(r.attributionDate).slice(0, 7));
         if (month) {
           month.revenue += stay;
@@ -448,22 +460,13 @@ function createFinanceModel(database) {
       const yearTotalByPropertyList = finalizeByProperty(yearTotalByProperty);
       const revenueByChannel = channelBreakdown(finalizeByChannel(byChannel, start, end));
       const yearToDateByChannel = channelBreakdown(finalizeByChannel(yearByChannel, exercise.from, today < exercise.to ? today : exercise.to));
-      const yearTotalChannelAggs = Array.from(yearTotalByChannel.values());
-      const overview = {
-        revenue: round2(yearTotal),
-        revenueHt: round2(yearTotalHt),
-        nights: yearTotalNights,
-        direct: exerciseOverview.directShare(yearTotalChannelAggs, round2(yearTotal)),
-        months: Array.from(byMonth.values()).map((m) => ({
-          ...m,
-          revenue: round2(m.revenue),
-          revenueHt: round2(m.revenueHt),
-          past: round2(m.past),
-          upcoming: round2(m.upcoming),
-        })),
-        properties: exerciseOverview.propertyRatios(yearTotalByPropertyList),
-        channels: exerciseOverview.channelSlices(yearTotalChannelAggs),
-      };
+      const monthsOfExercise = Array.from(byMonth.values()).map((m) => ({
+        ...m,
+        revenue: round2(m.revenue),
+        revenueHt: round2(m.revenueHt),
+        past: round2(m.past),
+        upcoming: round2(m.upcoming),
+      }));
 
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by attribution date)
@@ -485,7 +488,7 @@ function createFinanceModel(database) {
         yearTotalByProperty: yearTotalByPropertyList, // whole exercise, per logement (same shape)
         revenueByChannel,       // period, per booking channel (platforms, website by source, direct)
         yearToDateByChannel,    // exercise start → today, per booking channel (same shape)
-        exerciseOverview: overview, // whole exercise: tiles + months + logements + channels
+        exerciseMonths: monthsOfExercise, // every month of the exercise: revenue split past / upcoming
         // The exercise the annual figures describe + the selector's options (§3.5).
         fiscalYear: { ...exercise, isCurrent: Boolean(currentExercise && currentExercise.key === exercise.key) },
         fiscalYears,
@@ -611,8 +614,9 @@ function createFinanceModel(database) {
     // date = Σ total-de-séjour of reservations attributed on/before it, split into the accounting
     // « encaissé » and the rest still « en attente ». Attribution = solde payment date, else departure
     // (specs/fiscal-year-and-nights-sold.md §3.2 rule 8).
-    getProjection({ date } = {}) {
+    getProjection({ date, propertyId } = {}) {
       const targetDate = date || todayIso();
+      const scope = scopeSql({ propertyId });
 
       const reservations = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName,
@@ -621,9 +625,9 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND ${ATTRIBUTION_DATE_SQL} <= ?
+        WHERE r.kind = 'reservation' AND ${ATTRIBUTION_DATE_SQL} <= ?${scope.sql}
         ORDER BY ${ATTRIBUTION_DATE_SQL}
-      `).all(targetDate);
+      `).all(targetDate, ...scope.params);
 
       let total = 0;
       let collected = 0;
@@ -657,8 +661,9 @@ function createFinanceModel(database) {
 
     // The whole "Suivi opérationnel" section, fully shaped: overdue (sorted + aggregates),
     // pending list, and the flat upcoming list (top-N per property).
-    getOperational() {
+    getOperational({ propertyId } = {}) {
       const today = todayIso();
+      const scope = scopeSql({ propertyId });
 
       const allRows = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
@@ -666,9 +671,9 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation'
+        WHERE r.kind = 'reservation'${scope.sql}
         ORDER BY r.startDate
-      `).all();
+      `).all(...scope.params);
 
       const enrich = (r) => ({
         ...r,
@@ -1051,5 +1056,8 @@ function createFinanceModel(database) {
 
 const defaultModel = createFinanceModel(db);
 defaultModel.buildModel = createFinanceModel;
+// Shared with the dashboard model (specs/finance-dashboard-redesign.md §4.1), which composes this one
+// and must never re-derive a stay's revenue or nights on its own.
+defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, getVatRate, htAmount, todayIso };
 
 module.exports = defaultModel;

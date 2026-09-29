@@ -92,10 +92,10 @@ without losing anything today's page shows.
 
 | Tile | Headline · caption | Table (heir of) |
 |---|---|---|
-| **Encaissé** | amount · « N % du chiffre d'affaires » | Every payment received in the window, newest first: date, reservation, client, logement, channel, kind (acompte, solde, complément, complément fin de séjour, versement plateforme), amount; refunds as negative lines. Total = the tile. *(breakdown « Encaissé », « Répartition »)* |
-| **À encaisser** | amount · « N séjours » | Not-yet-settled stays that are not overdue, **all exercises**: acompte / solde / complément checkboxes, « Tout solder », row → reservation. Field « Arrivées d'ici le <date> » (default today + 1 month) with the three totals *total de séjour · déjà encaissé · reste*. *(« Paiements en attente », « Projection à une date »)* |
-| **En retard** | amount (error colour) · « N séjours · tous exercices » | Overdue échéances, all exercises: elements overdue with their due dates, amount, « Marquer payé ». *(« Paiements en retard », « En attente de règlement »)* |
-| **Réservations** | « N séjours » · « dont N à venir » | Stays of the window: client, logement, dates, channel, nights, total de séjour, payment chips (réglé / reste, acompte, solde). Filter **De la période · À venir (toutes dates)** — the second is today's « Réservations à venir ». *(« Réservations période », « Réservations à venir », breakdowns of the revenue cards)* |
+| **Encaissé** | amount · « N % du chiffre d'affaires » | Every payment received **for the window's stays**, newest first: date, reservation, client, logement, kind (acompte, solde or « versement plateforme », complément, complément fin de séjour, note en séjour, pourboire / réduction à l'arrivée), amount; refunds as negative lines. Same buckets, exclusions (caisse interne, internal refunds) and commission netting as `comptaCollected`, so the total **is** the tile. A payment's date may fall outside the window; it is shown as it is; a missing date falls back to the stay's attribution date. *(breakdown « Encaissé », « Répartition »)* |
+| **À encaisser** | amount · « N séjours » | Today's « Paiements en attente », unchanged: **finished stays not yet settled**, all exercises, their remaining-to-pay; acompte / solde checkboxes, « Tout solder », row → reservation. Field « Arrivées d'ici le <date> » (default today + 1 month) with the three totals *total de séjour · déjà encaissé · reste* of today's projection. *(« Paiements en attente », « En attente de règlement », « Projection à une date »)* |
+| **En retard** | amount (error colour) · « N séjours · tous exercices » | Today's « Paiements en retard », unchanged: **direct** stays whose acompte or solde is past due (platforms collect their own guests), elements overdue with their due dates, amount, « Marquer payé ». *(« Paiements en retard »)* |
+| **Réservations** | « N séjours » · « N à venir » | Stays of the window: client, logement, dates, channel, nights, total de séjour, payment chips (réglé / reste, acompte, solde). Filter **De la période · À venir** — the second is today's « Réservations à venir » (the next 5 per logement), unchanged. *(« Réservations période », « Réservations à venir », breakdowns of the revenue cards)* |
 | **Logements** | « N logements · en tête : X » (one logement selected: its revenue · RevPAR) | Per logement: nights, occupancy, revenue per night, RevPAR, TTC, HT, change vs last year. Row → filters the page on that logement. *(« Revenu par logement »)* |
 | **Canaux** | « − X € » · « commissions payées » | Website grouped by source (stays, nights, net, **demandes · conversion**), then each platform and « Direct (saisie) »: stays, nights, gross, commission, net, share. Channels with no stay are hidden. *(« Canaux de réservation »)* |
 
@@ -113,9 +113,11 @@ without losing anything today's page shows.
 18. A month *M* is **comparable** when *M − 1 year* is on or after the coverage start. Nothing is ever
     compared to a month that has no data.
 19. **Charts**: last year's bar / dashed line appears on comparable months only.
-20. **Change badges** (hero, logement table): computed over the comparable months of the window
-    only, on both sides. When not every month of the window is comparable, the badge says so (« sur N
-    mois comparables »). With no comparable month, no badge.
+20. **Change badges** (hero, logement table): computed over the comparable part of the window only,
+    on both sides — the window shifted one year back, clamped to the coverage start, and the same
+    span this year; a *Mois* or *Personnalisée* window works the same way. When not every month of the
+    window is comparable, the badge says so (« sur N mois comparables »). With no comparable month,
+    no badge.
 21. Last year is read **as it stood a year ago** for months not yet over (reservations created on or
     before today − 1 year), so an ongoing month compares like with like.
     > In production (data since April 2026) the first badges appear in April 2027.
@@ -135,7 +137,10 @@ without losing anything today's page shows.
 24. **Occupancy** = nights sold ÷ sellable nights. Sellable nights of a logement in a month = days of
     the month minus nights covered by `establishment_closures` (global rows and that logement's rows;
     `endDate` exclusive). Nights sold = nights of `kind = 'reservation'` stays falling in the month
-    (night-based, independent of the attribution date).
+    (night-based, independent of the attribution date). Nights **before a logement's data starts**
+    (the first day of the month of its earliest stay) are neither sold nor sellable: such a month is a
+    gap on the chart, never 0 %, and does not dilute the rate of a longer window (found on the
+    production copy, 2026-09-29: data starts in April 2026).
 25. **Revenu moyen par nuit** = revenue ÷ nights sold of the stays of the window. **RevPAR** =
     revenue ÷ sellable nights of the window. Both on the page's revenue basis (extras included) — the
     labels say « revenu moyen », not « prix de la nuitée ».
@@ -167,16 +172,24 @@ without losing anything today's page shows.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `routes/` | `finance.js` | T | `GET /dashboard`, `GET /dashboard/detail/:tile`; drop `/summary`, `/breakdown`, `/projection`, `/operational` once the page no longer calls them |
-| `controllers/` | `financeController.js` | T | Parse and validate window / logement params (rule 2), call the dashboard model |
-| `models/` | `financeDashboardModel.js` | C | Reads for the dashboard: stays of the scope, closures, payments ledger, request counts; returns the ready-to-render payload |
-| `models/` | `financeModel.js` | T | Keeps the shared helpers (`totalSejour`, `htAmount`, attribution SQL) exported for the new model; loses the functions whose endpoints are dropped |
-| `models/` | `settingsModel.js` | T | New `revenueGoals` column in the `accounting` group, validated (rule 27) |
+**Compose, never rewrite.** Every money rule already lives, tested, in `financeModel` — « total de
+séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. The dashboard model
+**calls** `getSummary`, `getOperational` and `getProjection` and never re-derives a stay's figures.
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `routes/` | `finance.js` | T | `GET /dashboard`, `GET /dashboard/detail/:tile`, `GET /goal-context`; `/summary`, `/breakdown`, `/projection`, `/operational` removed with the old page |
+| `controllers/` | `financeController.js` | T | Pass the query through, map `{ ok:false, status, error }` to the response |
+| `models/` | `financeDashboardModel.js` | C | Resolves window / exercise / logement, composes financeModel, adds occupancy, year-over-year, insights, the payments ledger and the per-channel commission; returns ready-to-render payloads |
+| `models/` | `financeModel.js` | T | `getSummary`, `getOperational`, `getProjection` gain `propertyId`; `getSummary` gains `knownAt` (rule 21) and returns `exerciseMonths` (the 3.6.0 overview reduced to its months); `getGoalContext()`; `getBreakdown` removed; shared helpers exported |
+| `models/` | `settingsModel.js` | T | `revenueGoals` column whitelisted |
+| `controllers/` | `settingsController.js` | T | Validates and merges `accounting.revenueGoals`, one error per exercise (rule 27) |
+| `utils/` | `revenueGoals.js` | C | Pure: parse, validate, merge, read the goals |
 | `utils/` | `financeWindow.js` | C | Pure: resolve *exercice / mois / personnalisée* into bounds, reject invalid windows |
-| `utils/` | `occupancy` helpers in `financeOccupancy.js` | C | Pure: sellable nights per logement × month with closures, nights sold per month |
-| `utils/` | `yearOverYear.js` | C | Pure: coverage start, comparable months, like-for-like totals (rules 17-21) |
+| `utils/` | `financeOccupancy.js` | C | Pure: sellable nights with closures, nights sold, occupancy from each logement's data start, revenue per night, RevPAR |
+| `utils/` | `yearOverYear.js` | C | Pure: coverage start, comparable months, comparable range, change (rules 17-21) |
 | `utils/` | `financeInsights.js` | C | Pure: the three French insight lines (rule 11) |
-| `utils/` | `exerciseOverview.js` | T | `percentages` kept; month list reused; the rest removed with the 3.6.0 block |
+| `utils/` | `exerciseOverview.js` | T | Reduced to `exerciseMonths` |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT` |
 
 ### 4.2 Client side (`client/src/`)
@@ -214,34 +227,41 @@ without losing anything today's page shows.
 ```jsonc
 {
   "window": { "kind": "fy", "from": "2026-01-01", "to": "2026-12-31", "label": "Exercice 2026", "asOf": "2026-09-29" },
-  "fiscalYear": { "key": 2026, "label": "2026", "isCurrent": true }, "fiscalYears": [ … ],
+  "fiscalYear": { "key": 2026, "label": "2026", "from": "…", "to": "…", "isCurrent": true }, "fiscalYears": [ … ],
+  "months": [ { "month": "2026-01", "label": "janvier 2026" } ],        // the Mois selector's options
+  "propertyId": null,
   "hero": {
     "revenue": 61453, "revenueHt": 55866, "stays": 137, "nights": 450,
     "occupancy": 0.36, "revenuePerNight": 127, "directShare": 0.40,
-    "yoy": { "current": 40120, "previous": 39700, "months": 9, "totalMonths": 12 } | null,
+    "yoy": { "current": 40120, "previous": 39700, "change": 1.1, "months": 9, "totalMonths": 12 } | null,
     "goal": { "amount": 85000, "ratio": 0.72, "remaining": 23547 } | null,
-    "cumulative": [ { "day": "2026-01-04", "current": 812, "previous": null } ]
+    "cumulative": [ { "day": "2026-01-01", "current": 812, "previous": null } ]
   },
-  "insights": [ { "tone": "success", "title": "Juillet, meilleur mois de l'exercice", "text": "11 938 €, contre 12 257 € l'an dernier." } ],
+  "insights": [ { "key": "bestMonth", "tone": "success", "title": "Juillet, meilleur mois de l'exercice", "text": "11 938 €, contre 12 257 € l'an dernier." } ],
   "properties": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "revenue": 22104, "occupancy": 0.38, "revenuePerNight": 154 } ],
+  "totalRevenue": 61453,                                                 // « Tous les logements » card
   "tiles": {
     "collected": { "amount": 52692, "shareOfRevenue": 0.86 },
     "toCollect": { "amount": 5127, "stays": 12 },
     "late": { "amount": 7054, "stays": 20 },
     "stays": { "count": 137, "upcoming": 17 },
-    "properties": { "count": 4, "leader": "Lodge" },
+    "properties": { "count": 4, "leader": "Lodge" } | { "count": 1, "name": "…", "revenue": 22104, "revPar": 61 },
     "channels": { "commission": 6225 }
   },
-  "months": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "past": 3409, "upcoming": 0, "previous": 3100 | null, "inWindow": true } ],
-  "occupancy": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "average": 0.38,
-                   "months": [ { "month": "2026-01", "current": 0.22 | null, "previous": 0.18 | null } ] } ]
+  "revenueMonths": [ { "month": "2026-01", "label": "janvier 2026", "initial": "J", "past": 3409, "upcoming": 0,
+                       "revenue": 3409, "revenueHt": 3099, "nights": 26, "previous": 3100 | null, "inWindow": true } ],
+  "occupancy": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "average": 0.38 | null,
+                   "months": [ { "month": "2026-01", "label": "…", "initial": "J", "current": 0.22 | null, "previous": 0.18 | null } ] } ]
 }
 ```
 
 `GET /api/finance/dashboard/detail/:tile` — same query; `:tile ∈ collected | toCollect | late | stays
 | properties | channels`; extra `until=` for `toCollect`, `scope=window|upcoming` for `stays`. Each
 returns `{ rows, totals }` shaped for its table (amounts, labels, due dates, chips), never computed on
-the client. Unknown tile → 404; invalid window → 400 `{ error }`.
+the client. Unknown tile → 404; invalid window or unknown logement → 400 `{ error }`.
+
+`GET /api/finance/goal-context` — `{ current: { key, label, revenue }, next: { key, label } }` for the
+Settings goal fields (rules 26 + 28).
 
 `PUT /api/settings` (existing) — `accounting.revenueGoals: { "2026": 85000, "2027": null }`.
 
