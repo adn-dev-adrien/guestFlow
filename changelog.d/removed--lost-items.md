@@ -1,0 +1,1 @@
+- **« Objets oubliés »** (spec `guest-email-sequence.md` rule 33, removed 2026-09-28): the card on the reservation page, the endpoint `PATCH /api/reservations/:id/lost-items` and the J+1 thank-you sentence (« Nous avons retrouvé … » and its fallback « Un objet oublié ? Dites-le nous, nous mettons tout de côté. ») are gone. The field was empty on every production reservation.

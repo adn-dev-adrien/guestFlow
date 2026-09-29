@@ -148,9 +148,7 @@ test('J+1 review: Google only in direct; the platform first, Google as an extra,
   assert.equal(content().vars.reviewParagraph, '', 'no Google link configured → no direct solicitation');
 });
 
-test('J+1 lost items and Instagram', () => {
-  assert.match(content({ reservation: { lostItems: 'un doudou lapin bleu' } }).vars.lostItemsParagraph, /Nous avons retrouvé un doudou lapin bleu/);
-  assert.match(content().vars.lostItemsParagraph, /nous mettons tout de côté/);
+test('J+1 Instagram', () => {
   assert.match(content({ settings: { instagramUrl: 'https://www.instagram.com/domainesolio' } }).vars.instagramParagraph, /nostalgiques de votre séjour.*instagram\.com\/domainesolio/);
   assert.equal(content().flags.hasInstagram, false);
 });

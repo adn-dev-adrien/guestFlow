@@ -38,9 +38,6 @@ function applyGuestEmailSequenceSchema(db) {
     ['marketingUnsubscribedAt', 'TEXT'],
     ['emailPreferencesToken', 'TEXT'],
   ]);
-  addColumns('reservations', [
-    ['lostItems', "TEXT NOT NULL DEFAULT ''"],
-  ]);
   addColumns('properties', [
     ['emailHook', "TEXT NOT NULL DEFAULT ''"],
     ['emailHookEn', "TEXT NOT NULL DEFAULT ''"],

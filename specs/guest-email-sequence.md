@@ -188,8 +188,11 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     `SIMULATION_DB_PATH`, opened **read-only**, so it can be pointed at a copy of production before
     the switch is turned on. It forces GuestFlow's own `DB_PATH` to an in-memory database first, so no
     module can open the target read-write or run migrations on it (verified by checksum).
-33. **Lost items** — a free-text field « Objets oubliés » on the reservation. When filled, the J+1
-    says what was found and offers to send it back; otherwise it says we set everything aside.
+33. **Removed (2026-09-28)** — ~~Lost items: a free-text field « Objets oubliés » on the reservation,
+    quoted by the J+1.~~ Adrien found it useless: the field stayed empty on every production
+    reservation, and a guest who forgot something writes anyway. The field, its endpoint, its column
+    and the J+1 sentence (both the filled variant and the « Un objet oublié ? » fallback) are gone;
+    the stored templates lose their `{{lostItemsParagraph}}` line at boot (§5).
 34. **Gate access** — when PR #547 (`specs/guest-gate-access.md` rule 23) lands, the J-2 « Pour
     venir » block carries the gate code and link. Whichever branch merges second wires it.
     > **Sans test** — nothing to test here yet: the rule commits the branch that merges second to
@@ -230,13 +233,13 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 | `models/` | `stayFactsModel.js` | C | Read-only property facts: default options, available options at the property price, bath `freeMinutes`, lowest nightly price per property |
 | `models/` | `clientsModel.js` | T | Writes `postStayEmailsDisabled` when the payload carries it |
 | `models/` | `propertiesModel.js` | T | Email facts (`emailHook(En)`, `parkingDistanceMeters`, `hasWifi`, `hasFilterCoffeeMaker`); names kept as typed (no sentence-casing); article « à » |
-| `models/` | `reservationsModel.js` | T | `updateLostItems` |
 | `utils/` | `guestEmailSequence.js` | C | **Pure** calendar: every date and exclusion of §3.2/§3.4, dedup keys, gift deadlines, French reasons |
 | `utils/` | `guestEmailSequenceRunner.js` | C | `planWindow` (single eligibility path + ledger + cap), `sendSequenceMail` (claim → render → send → mark), `runSequencePass`, `simulate` |
 | `utils/` | `stayContentContext.js` | C | **Pure**: included / booked / proposable per reservation (rule 20) and every composed FR/EN paragraph |
 | `utils/` | `sequenceRenderContext.js` | C | Last-minute flag, season send date, gift deadline, unsubscribe link |
 | `utils/` | `reservationEmailGraph.js` | C | The reservation graph every guest email renders from (moved out of `emailsController`, + stay facts) |
 | `utils/` | `guestEmailSequenceTemplates.js` | C | The six templates, FR + EN |
+| `utils/` | `removeLostItemsMigration.js` | C | Rule 33 removal: strips `{{lostItemsParagraph}}` from stored templates, drops `reservations.lostItems` (both idempotent) |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | Mails 1–3 rewired on the new copy, mails 4–6 added, anchors `created` / `start` / `end` / `season` |
 | `utils/` | `emailContextBuilder.js` | T | Merges the stay content into `{ vars, flags }` |
 | `utils/` | `reservationEmailSender.js` | T | The payment confirmation goes through the sequence plan and the ledger |
@@ -246,8 +249,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 | `controllers/` | `emailSequenceController.js` | C | `GET /api/email-sequence/simulation` |
 | `controllers/public/` | `emailPreferencesController.js` | C | The unsubscribe page (GET shows, POST confirms) |
 | `controllers/` | `settingsController.js` | T | New email fields; sets `guestSequenceStartDate` on the first activation |
-| `controllers/` | `reservationsController.js` | T | `PATCH /api/reservations/:id/lost-items` |
-| `routes/` | `emailSequence.js`, `emailPreferences.js`, `emails.js`, `reservations.js`, `index.js` | C/T | Mounting; `/preferences` lives outside `/api` and `/public/v1`, with its own rate limiter |
+| `routes/` | `emailSequence.js`, `emailPreferences.js`, `emails.js`, `index.js` | C/T | Mounting; `/preferences` lives outside `/api` and `/public/v1`, with its own rate limiter |
 | scripts | `scripts/simulate-guest-email-sequence.mjs` | C | Read-only CLI simulation |
 
 ### 4.2 Client side (`client/src/`)
@@ -255,16 +257,14 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `EmailHistoryPage.jsx` | T | « Historique / Simulation » tabs |
-| `pages/` | `ReservationPage.jsx` | T | Mounts the lost-items card on an existing reservation |
 | `pages/` | `PropertyDetail.jsx` | T | « Dans les mails clients » card; article « à » |
 | `pages/` | `SettingsPage.jsx` | T | Emails group: new fields + error mapping |
 | `pages/` | `ClientsPage.jsx` | T | Empty form carries `postStayEmailsDisabled` |
 | `components/` | `EmailSequenceSimulation.jsx` | C | The simulation view (table on `md+`, cards on `xs`) |
-| `components/` | `ReservationLostItemsCard.jsx` | C | « Objets oubliés », saved on its own PATCH (the fiche is locked after departure) |
 | `components/` | `ClientFormFields.jsx` | T | « Ne pas envoyer les mails après séjour » switch; « Désinscrit des nouvelles le … » badge |
 | `components/` | `SettingsEmailAutomationSection.jsx` | T | Start date, Google review URL, Instagram URL, pool season |
 | `components/` | `EmailManualSendDialog.jsx` | T | 409 `ALREADY_SENT` → confirmation → resend with `confirmResend` |
-| `api.js` | `api.js` | T | `getEmailSequenceSimulation`, `updateReservationLostItems`, `sendEmail({ confirmResend })` |
+| `api.js` | `api.js` | T | `getEmailSequenceSimulation`, `sendEmail({ confirmResend })` |
 
 **Component reuse declaration:**
 
@@ -272,7 +272,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 |---|---|---|
 | Consumed | `DataPageScaffold` (mobile-cards mode), `PageActionBar`, `StatusBadge`, `HelpedTextField`, `ConfirmDialog`, `EmptyState`, `LoadingState`, `ErrorAlert` | Existing. |
 | Created (generic) | — | None. |
-| Specific | `EmailSequenceSimulation`, `ReservationLostItemsCard` | Tied to the sequence's statuses and to one reservation field; both are compositions of the generics above. |
+| Specific | `EmailSequenceSimulation` | Tied to the sequence's statuses; a composition of the generics above. |
 
 ### 4.3 API contract
 
@@ -281,7 +281,6 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 | GET | `/api/email-sequence/simulation?from=YYYY-MM-DD&to=YYYY-MM-DD` | — | `{ rows: [{ date, mailKey, mailLabel, reservationId, reservationNumber, clientId, clientName, propertyName, status, reason }], counts: { send, blocked, alreadySent, toCheck }, startDate, assumedStartDate, autoSendEnabled }` | Auth; range ≤ 400 days; 400 `INVALID_RANGE`; `status` ∈ `send`, `blocked`, `already-sent`, `to-check` |
 | GET | `/preferences/emails?t=<token>` | — | HTML page with a confirm button | No session, no API key (outside `/public/v1`, which requires the plugin key); own rate limiter; unknown token → neutral page |
 | POST | `/preferences/emails` | form `t=<token>` | HTML confirmation | Sets `marketingUnsubscribedAt` once; idempotent |
-| PATCH | `/api/reservations/:id/lost-items` | `{ lostItems }` (≤ 500 chars) | `{ lostItems }` | 400 `LOST_ITEMS_TOO_LONG`; admin roles |
 | POST | `/api/emails/send` | + optional `confirmResend: boolean` | + 409 `ALREADY_SENT` (with `sentAt`) for a sequence key already sent and no `confirmResend` | Rule 13bis |
 | PUT | `/api/clients/:id`, `/api/reservations/:id`, `/api/properties/:id`, `/api/settings` | + new fields | unchanged | Validated at the boundary |
 
@@ -309,12 +308,20 @@ CREATE INDEX IF NOT EXISTS idx_guest_email_sends_client ON guest_email_sends(cli
 
 New columns, all with safe defaults: `clients.postStayEmailsDisabled INTEGER NOT NULL DEFAULT 0`,
 `clients.marketingUnsubscribedAt TEXT`, `clients.emailPreferencesToken TEXT` (minted lazily),
-`reservations.lostItems TEXT NOT NULL DEFAULT ''`, `properties.emailHook TEXT DEFAULT ''`,
+`properties.emailHook TEXT DEFAULT ''`,
 `properties.emailHookEn TEXT DEFAULT ''`, `properties.parkingDistanceMeters INTEGER`,
 `properties.hasWifi INTEGER NOT NULL DEFAULT 1`, `properties.hasFilterCoffeeMaker INTEGER NOT NULL
 DEFAULT 0`, `app_settings.guestSequenceStartDate TEXT`, `app_settings.googleReviewUrl TEXT DEFAULT ''`,
 `app_settings.instagramUrl TEXT DEFAULT ''`, `app_settings.poolSeasonStart TEXT DEFAULT '06-15'`,
 `app_settings.poolSeasonEnd TEXT DEFAULT '08-31'`.
+
+**Removed 2026-09-28 (rule 33).** `reservations.lostItems` (shipped in v3.x, empty on 100 % of
+production rows when checked) is dropped at boot with `ALTER TABLE reservations DROP COLUMN`, guarded by
+`PRAGMA table_info` so it runs once. The one-shot `remove_lost_items_token_v1` strips the
+`{{lostItemsParagraph}}` line (and the blank line it leaves) from every stored `email_templates.body` /
+`bodyEn`, keeping any operator edit around it. Left in place, the token would have rendered as an
+empty string — the renderer never leaks an unknown token — but left a double blank line in the J+1 and
+a « variable manquante » chip in its preview.
 
 **Backfill of the ledger.** The migration seeds `guest_email_sends` with a `sent` row for every
 `email_log` row still present with `status = 'sent'` on mails 1–3, so a confirmation or reminder sent
@@ -452,8 +459,6 @@ Nous espérons que vous êtes bien rentrés, avec un peu du calme d'ici dans vos
 
 Et si quelque chose a manqué à votre séjour, même un détail, nous aimerions vraiment le savoir : il suffit de répondre à ce mail. C'est ainsi que le domaine s'améliore, un séjour après l'autre.
 
-[Objets oubliés : Nous avons retrouvé {{lostItems}} après votre départ : dites-nous si nous vous le renvoyons. / sinon : Un objet oublié ? Dites-le nous, nous mettons tout de côté.]
-
 Si vous êtes nostalgiques de votre séjour, n'hésitez pas à nous suivre sur les réseaux sociaux : https://www.instagram.com/domainesolio
 
 Le domaine change de visage à chaque saison : les agneaux au printemps, les longues soirées d'été, les couleurs de l'automne, le bain nordique qui fume dans l'air froid de l'hiver. Si l'envie vous prend d'en découvrir une autre, vous serez toujours les bienvenus.
@@ -509,10 +514,6 @@ Ne plus recevoir nos nouvelles : {{unsubscribeUrl}}
   Réglages. La simulation suppose une activation aujourd'hui. » or « Envoi automatique actif depuis
   le … ». Summary line from the server's counts. Empty state « Aucun mail prévu sur cette période ».
 - **Client form** — switch « Ne pas envoyer les mails après séjour » with helper text « Remerciement, bons cadeau et vœux ne lui seront pas envoyés ». When unsubscribed: `StatusBadge` « Désinscrit des nouvelles le … » (read-only).
-- **Reservation page** — card « Objets oubliés » under the notes, on an existing reservation only: a
-  text field and its own « Mettre à jour les objets » button (the fiche is locked after departure,
-  when lost items are found; the label avoids a second « Enregistrer » next to the page's Save).
-  Full width on `xs`.
 - **Property detail** — card « Dans les mails clients »: accroche FR / EN (`HelpedTextField`, multiline), distance du parking (m), switches « Wifi » and « Cafetière filtre familiale ».
 - **Réglages › Emails automatiques** — line « Séquence active depuis le … » (or « pas encore activée »), URL avis Google, URL Instagram, saison piscine (début / fin, JJ/MM).
 - **Public page** — « Vos préférences Domaine Solio »: one sentence and a button « Ne plus recevoir les nouvelles du domaine »; after POST, « C'est noté. Vous continuerez à recevoir les informations liées à vos séjours. » Mobile-first, no external asset.
@@ -526,19 +527,20 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
 - [x] `tests/guest-email-sequence-exclusions.unit.test.js` (13) — cancelled; channel rules; no email; before activation / stay ended before activation; client flag; unsubscribe (season only); non-candidates; relay addresses; upcoming stay; 30-day rule; latest stay; cap.
 - [x] `tests/guest-email-ledger.unit.test.js` (8) — claim once; failed re-claimable, sent/skipped never; resend keys; cap count; stale claims; `email_log` purge without effect; upgrade backfill + force-sync; start date on upgrade.
 - [x] `tests/guest-email-sequence-runner.unit.test.js` (11) — switch OFF; never activated; once per day; catch-up window; no retroactive send; SMTP failure then retry; two racing paths → one email; webhook + poll + pass → one confirmation; no confirmation for a platform; cap; simulation writes nothing.
-- [x] `tests/stay-content-context.unit.test.js` (15) — roles; included on an iCal booking; never re-propose; unit prices; per-property offers; baby cot; beds + bath duration; pool season; parking / wifi / coffee; cleaning; booked options; review by channel; lost items + Instagram; season prices + deadline; English.
+- [x] `tests/stay-content-context.unit.test.js` (15) — roles; included on an iCal booking; never re-propose; unit prices; per-property offers; baby cot; beds + bath duration; pool season; parking / wifi / coffee; cleaning; booked options; review by channel; Instagram; season prices + deadline; English.
 - [x] `tests/guest-email-templates-render.unit.test.js` (6) — the six templates FR + EN, no token left, no stray blank line, unsubscribe on 5–6 only, content rules.
 - [x] `tests/email-preferences-public.unit.test.js` (6) — token; GET changes nothing; POST idempotent; unknown token neutral; language; link.
 - [x] `tests/emails-controller-sequence-ledger.unit.test.js` (5) — 409 `ALREADY_SENT`; confirmed resend; skip / mark-sent close the key; payment emails untouched; preview.
 - [x] `tests/guest-email-sequence-cli.unit.test.js` (2) — the simulation CLI run for real on a database
   file: the target is byte-identical afterwards and leaves no `-wal` / `-journal` behind, even when
   `DB_PATH` names it; no `SIMULATION_DB_PATH`, no run.
+- [x] `tests/remove-lost-items.unit.test.js` (5, added 2026-09-28) — rule 33 removal: shipped J+1 bodies; token line stripped with its blank line; operator-edited template (CRLF, inline token, last line); template migration on body + bodyEn then no-op; column drop keeps the rows then no-op.
 - [x] Touched: `email-template-renderer` (J-7/J-2 body section rewritten for the new copy), `default-email-templates-registry`, `default-email-templates-seed`, `confirmation-email-gate`, `reservation-email-sender`.
 
-Full server suite: 4 191 tests, all green.
+Full server suite: 4 191 tests, all green (4 553 on 2026-09-28, after the rule 33 removal: +5 in `remove-lost-items`).
 
 ### Client
-- [x] Vitest (11 new): `EmailSequenceSimulation.render.test.jsx` (5), `EmailManualSendDialog.already-sent.test.jsx` (2), `ClientFormFields.post-stay-emails.test.jsx` (3), `ReservationLostItemsCard.test.jsx` (1). Full suite green.
+- [x] Vitest (11 new): `EmailSequenceSimulation.render.test.jsx` (5), `EmailManualSendDialog.already-sent.test.jsx` (2), `ClientFormFields.post-stay-emails.test.jsx` (3), ~~`ReservationLostItemsCard.test.jsx` (1)~~ (deleted with rule 33, 2026-09-28). Full suite green.
 - [x] Playwright: `emails-page.spec.js` and `email-language-fr-en.spec.js` updated for the new names and copy; full suite 68 passed, 1 skipped (unchanged).
 
 ### Before production
@@ -546,8 +548,7 @@ Full server suite: 4 191 tests, all green.
   against a copy of production, output reviewed with Adrien — only then the switch is turned on.
 
 ### Manual UI verification (done on the dev database, 2026-09-18)
-- [x] Simulation tab at 1280 px and 390 px (no horizontal scroll); settings card; property card; lost-items card.
-- [x] Lost items saved from the fiche → quoted by the J+1 preview → cleared.
+- [x] Simulation tab at 1280 px and 390 px (no horizontal scroll); settings card; property card.
 - [x] Previews of the confirmation, J-7, J-2 and J+1 on a Gite and an Aventura lodge stay: no missing variable; the iCal booking at the lodge gets « Le ménage de fin de séjour est pour nous ».
 - [x] Public unsubscribe page on a phone.
 
@@ -590,9 +591,12 @@ Nothing leaves before the switch is turned on. Before turning it on:
   « La granja ») and the article « à » did not exist.
   - A (2026-09-18): names are kept as typed; « à » joins the articles (§5).
 
+- Q5 (2026-09-28): keep « Objets oubliés »?
+  - A (2026-09-28): no — Adrien finds it useless. Removed entirely, J+1 sentence included (rule 33).
+
 **Resolved on 2026-09-18** (decision record): confirmation to direct channels only; no season mails
 to Airbnb/Booking; complement as one sentence; J+7 dropped (and with it the cap arbitration); fully
 automatic once the simulation is validated, upcoming stays only (rules 15–17); properties renamed La
 Granja / L'Estiva; J-7 hooks kept; local product prices confirmed (shop prices); November gift =
 planche du terroir; January gift = first-morning breakfast; « à partir de » prices confirmed; lost
-items kept for v1 (gate code awaits PR #547; EV charging, weather, yearly news dropped).
+items kept for v1 — then removed on 2026-09-28, rule 33 (gate code awaits PR #547; EV charging, weather, yearly news dropped).
