@@ -51,8 +51,10 @@ matching the dashboard the marketing site advertises.
 
 ### 3.2 KPI tiles
 
-4. **Revenu de l'exercice** — `yearTotal` TTC, with its HT beneath. Clicking opens the existing
-   `yearTotal` breakdown dialog.
+4. ~~**Revenu de l'exercice** tile~~ — **removed 2026-09-29**: it repeated, figure for figure, the
+   « Revenu total sur l'exercice » card just above it (same `yearTotal`, same HT, same breakdown).
+   The overview opens on the two remaining tiles; `exerciseOverview.revenue` stays in the payload as
+   the denominator of the direct share.
 5. **Nuits vendues** — `yearTotalNights`. Clicking opens the same `yearTotal` breakdown (it lists the
    stays and their nights).
 6. **Part en direct** — revenue of the direct channels ÷ `yearTotal`, rounded to the whole percent,
@@ -119,7 +121,7 @@ matching the dashboard the marketing site advertises.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `FinancePage.jsx` | T | Renders `FinanceExerciseOverview` under the two exercise cards |
-| `components/` | `FinanceExerciseOverview.jsx` | C | The block: three tiles + month chart + logement list + channel donut, from `summary.exerciseOverview` |
+| `components/` | `FinanceExerciseOverview.jsx` | C | The block: two tiles + month chart + logement list + channel donut, from `summary.exerciseOverview` |
 | `components/` | `RankedBarList.jsx` | C | Generic « label · value · proportional bar » list |
 | `constants/` | `platforms.js` | — | Consumed (`getPlatformColor`, `DEFAULT_PLATFORM_COLOR`) |
 
@@ -162,15 +164,16 @@ No schema change, no migration. Read-only aggregation over existing columns.
 Placement, top to bottom: exercise selector → the two exercise cards (unchanged) → **exercise
 overview** → du/au period and everything below, unchanged.
 
-- **Tiles row** — three « Maison » KPI tiles (white card, 3px sapin left accent, `kpiLabel` +
-  `kpiValue`), as the period cards. Copy: « Revenu de l'exercice », « Nuits vendues »,
-  « Part en direct ».
+- **Tiles row** — two « Maison » KPI tiles (white card, 3px sapin left accent, `kpiLabel` +
+  `kpiValue`), as the period cards. Copy: « Nuits vendues », « Part en direct ». (A third tile,
+  « Revenu de l'exercice », shipped in v3.6.0 and was removed on 2026-09-29 as a duplicate of the
+  « Revenu total sur l'exercice » card — rule 4.)
 - **Revenu par mois** — full-width card, `sectionHeader` title + caption « TTC · exercice
   <label> », legend « Encaissé ou passé » / « À venir ».
 - **Par logement** (left, md 6) and **Par canal** (right, md 6) — equal-height cards.
 
 Responsive:
-- `lg`/`md`: three tiles on one row; month chart full width (height 220); logements and channels
+- `lg`/`md`: two tiles on one row; month chart full width (height 220); logements and channels
   side by side.
 - `xs`: tiles stacked full width; month chart keeps its 12 columns (initials only, height 180);
   logements then channels stacked; donut above its legend.
@@ -194,7 +197,8 @@ Loading / error: the block follows the page's existing `LoadingState` / `ErrorAl
 
 ### Client tests — 6
 - [x] `components/__tests__/FinanceExerciseOverview.test.jsx` — tiles and legend from a fixture,
-  tile click opens the breakdown (the direct-share tile does not), channel colours (rule 15), empty
+  no revenue tile (rule 4), the nights tile opens the breakdown (the direct-share tile does not),
+  channel colours (rule 15), empty
   exercise shows « — » and the empty states, nothing renders before the summary.
 - [x] `pages/__tests__/FinancePage.test.jsx` — the two exercise cards stay (rule 7, citation added).
 

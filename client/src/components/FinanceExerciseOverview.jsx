@@ -1,7 +1,8 @@
 /**
  * FinanceExerciseOverview — the « vue de l'exercice » block of the Suivi financier
  * (specs/finance-exercise-overview-charts.md). Feature-local: it renders the server's
- * `summary.exerciseOverview` as is — three KPI tiles, « Revenu par mois » (stacked past / à venir),
+ * `summary.exerciseOverview` as is — two KPI tiles (the exercise revenue is the « Revenu total sur
+ * l'exercice » card above, not repeated here), « Revenu par mois » (stacked past / à venir),
  * « Par logement » and « Par canal ». Every figure, ratio and percentage comes from the server.
  *
  * Props:
@@ -102,15 +103,7 @@ export default function FinanceExerciseOverview({ overview, fiscalYearLabel, onO
   return (
     <Box sx={{ mb: 2 }}>
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Tile
-            label="Revenu de l'exercice"
-            value={formatCurrencyRounded(overview.revenue)}
-            caption={`${formatCurrencyRounded(overview.revenueHt)} HT`}
-            onClick={onOpenBreakdown}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 4 }}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Tile
             label="Nuits vendues"
             value={overview.nights.toLocaleString('fr-FR')}
@@ -118,7 +111,7 @@ export default function FinanceExerciseOverview({ overview, fiscalYearLabel, onO
             onClick={onOpenBreakdown}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 4 }}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Tile
             label="Part en direct"
             value={overview.direct.percent == null ? '—' : `${overview.direct.percent} %`}

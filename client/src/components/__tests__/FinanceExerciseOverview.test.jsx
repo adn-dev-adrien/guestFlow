@@ -34,21 +34,20 @@ const EMPTY = {
   months: [month('2026-01', 'J', 0)], properties: [], channels: [],
 };
 
-test('rules 4-6 — the three tiles show the server figures', () => {
+test('rules 4-6 — two tiles show the server figures; the exercise revenue is not repeated', () => {
   render(<FinanceExerciseOverview overview={OVERVIEW} fiscalYearLabel="2026" onOpenBreakdown={() => {}} />);
-  expect(screen.getByText("Revenu de l'exercice")).toBeInTheDocument();
+  expect(screen.queryByText("Revenu de l'exercice")).not.toBeInTheDocument();
   expect(screen.getByText('369')).toBeInTheDocument();
   expect(screen.getByText('38 %')).toBeInTheDocument();
   expect(screen.getByText('2 logements')).toBeInTheDocument();
   expect(screen.getByText('TTC · exercice 2026')).toBeInTheDocument();
 });
 
-test('rules 4-5 — the revenue and nights tiles open the exercise breakdown; the direct share does not', () => {
+test('rule 5 — the nights tile opens the exercise breakdown; the direct share does not', () => {
   const onOpen = vi.fn();
   render(<FinanceExerciseOverview overview={OVERVIEW} fiscalYearLabel="2026" onOpenBreakdown={onOpen} />);
-  fireEvent.click(screen.getByRole('button', { name: "Voir le détail : Revenu de l'exercice" }));
   fireEvent.click(screen.getByRole('button', { name: 'Voir le détail : Nuits vendues' }));
-  expect(onOpen).toHaveBeenCalledTimes(2);
+  expect(onOpen).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('button', { name: /Part en direct/ })).not.toBeInTheDocument();
 });
 

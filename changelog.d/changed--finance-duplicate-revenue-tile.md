@@ -1,0 +1,1 @@
+- **Suivi financier — no duplicated revenue tile.** The « Revenu de l'exercice » tile added in 3.6.0 repeated the « Revenu total sur l'exercice » card right above it; it is gone, and the exercise overview opens on « Nuits vendues » and « Part en direct » (`specs/finance-exercise-overview-charts.md` rule 4).
