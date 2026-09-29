@@ -1,0 +1,1 @@
+- **Annual revenue goal** (`specs/finance-dashboard-redesign.md` §5): `app_settings.revenueGoals` (TEXT, JSON `{ "<exercise key>": amount }`) is added on startup. Existing installs start with no goal; nothing else changes.

@@ -21,6 +21,7 @@ const linenItemsModel = require('../models/linenItemsModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
+const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
 const { createEmailService } = require('../utils/emailService');
 
@@ -202,6 +203,17 @@ function updateSettings(req, res) {
     const month = payload.fiscalYearEndMonth;
     if (month === '' || month == null) delete payload.fiscalYearEndMonth;
     else payload.fiscalYearEndMonth = Math.trunc(Number(month));
+  }
+
+  // Revenue goals (specs/finance-dashboard-redesign.md rule 27): one error per exercise, keyed
+  // `revenueGoals.<key>` so the form can put each message under its own field. The submitted
+  // exercises are merged into the stored ones — an exercise left out keeps its goal.
+  if (accounting && Object.prototype.hasOwnProperty.call(accounting, 'revenueGoals')) {
+    const { goals, errors: goalErrors } = validateRevenueGoals(accounting.revenueGoals);
+    for (const [key, message] of Object.entries(goalErrors)) errors[`revenueGoals.${key}`] = message;
+    if (!Object.keys(goalErrors).length) {
+      payload.revenueGoals = mergeRevenueGoals(settingsModel.read().revenueGoals, goals);
+    }
   }
 
   // SMTP password — 3-way semantics. Absent → preserve; '' → clear; non-empty → store.

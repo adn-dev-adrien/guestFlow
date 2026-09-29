@@ -592,6 +592,21 @@ function createFinanceModel(database) {
       };
     },
 
+    // specs/finance-dashboard-redesign.md rules 26 + 28 — what the goal fields of Settings need: the
+    // current and the next exercise (labels computed here, never on the client) and the current
+    // exercise's revenue, the same figure the Suivi financier's hero shows for that exercise.
+    getGoalContext() {
+      const endMonth = getFiscalYearEndMonth(database);
+      const today = todayIso();
+      const current = fiscalYearUtil.containing(endMonth, today);
+      const next = fiscalYearUtil.boundsForEndYear(endMonth, current.key + 1);
+      const revenue = this.getSummary({ from: current.from, to: current.to, fiscalYear: current.key }).revenueTotal;
+      return {
+        current: { key: current.key, label: current.label, revenue },
+        next: { key: next.key, label: next.label },
+      };
+    },
+
     // Projection by a target date (specs/finance-overview-rework.md §3.4): the revenue realised by that
     // date = Σ total-de-séjour of reservations attributed on/before it, split into the accounting
     // « encaissé » and the rest still « en attente ». Attribution = solde payment date, else departure

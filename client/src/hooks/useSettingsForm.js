@@ -49,7 +49,7 @@ const ERROR_KEYS = {
   },
   quote: { footerText: 'quoteFooterText', footerTextEn: 'quoteFooterTextEn', validityDays: 'quoteValidityDays' },
   vat: { rate: 'vatRate' },
-  accounting: { fiscalYearEndMonth: 'fiscalYearEndMonth' },
+  accounting: { fiscalYearEndMonth: 'fiscalYearEndMonth', revenueGoals: 'revenueGoals' },
   smtp: { host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl' },
   notifications: { recipientEmail: 'notificationRecipientEmail' },
   emails: {
@@ -125,10 +125,12 @@ export default function useSettingsForm({ groups, navigate }) {
     setDraft((prev) => ({ ...prev, [group]: { ...prev[group], [key]: value } }));
     const errorKey = (ERROR_KEYS[group] || {})[key];
     if (errorKey) {
+      // A group-valued field (revenueGoals) carries one error per entry, keyed `<column>.<entry>`.
       setErrors((prev) => {
-        if (!prev[errorKey]) return prev;
+        const stale = Object.keys(prev).filter((k) => k === errorKey || k.startsWith(`${errorKey}.`));
+        if (!stale.length) return prev;
         const next = { ...prev };
-        delete next[errorKey];
+        stale.forEach((k) => { delete next[k]; });
         return next;
       });
     }

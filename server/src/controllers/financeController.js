@@ -25,6 +25,10 @@ function operational(req, res) {
   res.json(model.getOperational());
 }
 
+function goalContext(req, res) {
+  res.json(model.getGoalContext());
+}
+
 function touristTax(req, res) {
   const result = model.getTouristTaxExtraction({ month: req.query.month });
   if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
@@ -41,4 +45,4 @@ function setTouristTaxDeclared(req, res) {
   return res.json({ ok: true, declaredAt: result.data.declaredAt });
 }
 
-module.exports = { summary, breakdown, projection, operational, touristTax, setTouristTaxDeclared };
+module.exports = { summary, breakdown, projection, operational, goalContext, touristTax, setTouristTaxDeclared };

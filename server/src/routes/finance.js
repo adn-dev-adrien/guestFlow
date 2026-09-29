@@ -5,6 +5,7 @@ router.get('/summary', ctrl.summary);
 router.get('/breakdown', ctrl.breakdown);
 router.get('/projection', ctrl.projection);
 router.get('/operational', ctrl.operational);
+router.get('/goal-context', ctrl.goalContext);
 router.get('/tourist-tax', ctrl.touristTax);
 router.patch('/tourist-tax/:reservationId/declared', ctrl.setTouristTaxDeclared);
 
