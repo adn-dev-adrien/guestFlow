@@ -101,10 +101,14 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - a monthly and a yearly price excl. VAT;
    - quotas: a number of rental units and of user accounts;
    - its set of plugins.
+
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 2. **Plans are nested.**
    - A plugin allowed in a plan is allowed in every plan above it.
    - The editor refuses to remove a plugin from a higher plan while a lower plan still holds it.
    - Adding a plugin to a lower plan adds it to the plans above it.
+
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 3. **Allocation of the 12 plugins** (owner's decision, 2026-09-29, §9 Q2). The core (reservations,
    calendar, iCal, planning, emails, breakfast, push, tourist tax…) is in every plan.
 
@@ -122,6 +126,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    | Pro | 6 | 5 | 59 € | 49 € |
    | Premium | 15 | unlimited | 99 € | 83 € |
 
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+
 4. **Add-ons à la carte.** A single plugin can be granted to one customer outside their plan, with
    its own monthly price. Example: a Pro customer who owns a Sowel gate buys "Sowel gate access".
    An add-on is part of the customer's subscription and follows its state (rules 14–19).
@@ -132,9 +138,13 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - A plugin **removed** from a plan stays allowed, as *grandfathered*, for customers who have
      already installed it. It is withdrawn only when they change plan. New customers do not get it.
    - The editor shows how many customers each change affects before it saves.
+
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 6. **Every catalogue change is versioned.** The log records who changed it, when, and the before
    and after. A customer's subscription references the catalogue version it was sold under, so a
    past price can always be explained.
+
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 
 ### B. Customers and subscriptions (the console)
 
@@ -154,6 +164,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - its first admin account, which receives an invitation email.
 
    The console then shows each step, green or red. A failed step can be retried alone.
+
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 8. **Fleet view.** One line per customer, filterable and sortable by each field:
    - the slug and a link to its address;
    - the plan and its add-ons;
@@ -165,14 +177,21 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 
    Three counters sit above it: "to renew within 30 days", "in grace or read-only", "suspended".
 
+   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+
 ### C. Entitlement inside the instance
 
 9. **The licence.**
    - The control plane issues one **signed licence** per customer: a JWS signed with Ed25519.
-   - It carries: `slug`, `plan`, `catalogueVersion`, `plugins[]` (plan, add-ons and grandfathered
-     ones), `quotas`, `state`, `stateSince`, `endsAt`, `issuedAt`, `expiresAt` (issuedAt + 7 days).
-   - It is written to the customer's data directory. The instance re-reads it every minute and on
-     boot, and verifies it against the public key shipped in the release.
+   - It carries: `slug`, `plan`, `planName`, `catalogueVersion`, `plugins[]` (plan, add-ons and
+     grandfathered ones), `planOf` (pluginId → name of the lowest plan that includes it, for the
+     plugins outside `plugins[]`; absent = sold à la carte only), `quotas` (`units`, `users`; `null`
+     = unlimited), `state`, `stateSince`, `endsAt`, `payUrl` (the Qonto link of the open renewal
+     invoice, or `null`), `issuedAt`, `expiresAt` (issuedAt + 7 days).
+   - It is written to `<dataDir>/licence.jws`, next to the database. The instance re-reads it at
+     most once a minute and verifies it with the key of rule 30.
+   - The state is the control plane's: the instance never derives it from the dates. `expiresAt`
+     bounds how stale it can be.
    - The control plane re-issues every licence daily and on every change. No network port is opened
      on the instance for this.
 10. **Missing or invalid licence.**
@@ -184,14 +203,19 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - `POST /api/plugins/:id/install` and `…/activate` answer `402 PLAN_REQUIRED` for a plugin
       outside `plugins[]`.
     - The Plugins page shows such a plugin under « Disponibles » with the chip « Forfait Pro » or
-      « Forfait Premium », and a disabled « Installer » button whose tooltip is « Inclus dans le
-      forfait Pro — contactez-nous pour changer de forfait ».
+      « Forfait Premium » (« Option à la carte » when no plan includes it), and a disabled
+      « Installer » button whose tooltip is « Inclus dans le forfait Pro — contactez-nous pour
+      changer de forfait. » (« Disponible en option — contactez-nous pour l'ajouter à votre
+      abonnement. »). The server sends that text as `planHint`, and the 402 carries the same
+      `message`.
 12. **Downgrade.**
-    - When the licence drops a plugin that is installed, the instance **deactivates** it on the next
-      read.
-    - The data is kept: deactivate keeps everything (Q1 of the study).
-    - The Plugins page shows « Désactivé — hors forfait ».
-    - The plugin comes back as it was on upgrade.
+    - When the licence drops a plugin that is installed, the instance **treats it as inactive** from
+      the next read: `isLive` answers false, so its routes, jobs, screens and `enabledPlugins` entry
+      disappear exactly as for a deactivated plugin.
+    - Its stored state and its data are **not touched**: nothing is written, so the plugin comes
+      back as it was on upgrade.
+    - The Plugins page shows « Désactivé — hors forfait » and « Données conservées », with no
+      Activer button (`activate` answers 402). Désinstaller stays, with or without erasure.
 13. **Quotas.**
     - Creating a unit or an account beyond the quota answers `402 QUOTA_REACHED`, and the page names
       the limit.
@@ -206,21 +230,34 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     | `trial` | During the trial | Everything works. An admin banner shows the days left. |
     | `active` | Paid, more than 30 days before `endsAt` | Nothing. |
     | `due` | 30 days before `endsAt`, until `endsAt` | Everything works. An admin banner reads « Votre abonnement se termine le … » and links to the payment. |
-    | `grace` | From `endsAt` to `endsAt` + 7 days | Everything works. A red admin banner is shown. |
+    | `grace` | From `endsAt` to `endsAt` + 7 days | Everything works. An orange admin banner is shown. |
     | `read_only` | From + 8 to + 30 days | Everyone can log in and read. Every export works. Every write answers `402 SUBSCRIPTION_READ_ONLY`, except those listed below this table. |
     | `suspended` | From + 31 days | The process is stopped. Its address serves a static page « Cet espace est suspendu ». Data is kept intact. |
     | `archived` | Operator's action (rule 20) | Data is exported, then erased after 90 days. |
 
     In `read_only`, these keep running:
-    - the iCal import and export, and the anti-overbooking engine;
-    - receiving a payment on an existing booking.
+    - the iCal import and export, and the anti-overbooking engine, including the manual
+      « Synchroniser » (`POST /api/properties/:id/ical-sources/:sourceId/sync`, `…/sync-all`) and
+      `POST /api/google-calendar/sync-now`;
+    - receiving a payment on an existing booking: the Qonto webhook and poll, creating or emailing a
+      payment link (`POST /api/payments/reservations/:id/payment-links|payment-emails`), recording a
+      payment (`PATCH /api/reservations/:id/payment`, `POST /api/reservations/:id/arrival-payment`),
+      and the website's payment of an existing booking;
+    - registering a device for push notifications;
+    - the scheduled jobs of the core (emails, sync): only requests from people are refused.
 
-    Read-only closes the WordPress booking endpoint with the public error « réservations en ligne
-    momentanément indisponibles ». It never cancels a booking.
+    In the instance, `suspended` and `archived` behave like `read_only`: stopping the process is the
+    hosting's job, not the application's.
+
+    Read-only closes the WordPress booking endpoint (`POST /public/v1/booking-requests`) with
+    `503 BOOKING_UNAVAILABLE` and the public message « Réservations en ligne momentanément
+    indisponibles. ». The quote keeps answering. It never cancels a booking.
 15. **Renewal.** A payment received for a renewal:
     - moves `endsAt` by the length paid (1 or 12 months);
     - sets the state to `active`, whatever it was, including `suspended`: the process restarts;
     - re-issues the licence.
+
+    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 16. **Why read-only keeps iCal alive.** A customer who has not paid still has guests arriving.
     Stopping the calendar sync would sell the same night twice on two platforms. That harm is the
     guest's and the platform's, not only the customer's.
@@ -233,16 +270,22 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Every email appears in the customer's history in the console.
     - The operator can send a reminder by hand at any time (« Relancer maintenant »).
     - All reminder emails are templates the operator can edit.
+
+    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 18. **Operator alerts.** The console's home page, and a daily email to the operator, list:
     - the customers entering `due`, `grace`, `read_only` or `suspended` that day;
     - the failed payments;
     - the failed provisioning steps.
+
+    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 19. **Manual override.** The operator can:
     - extend `endsAt` (a commercial gesture, with a mandatory reason);
     - mark an invoice paid by hand (a transfer outside the payment link);
     - put a customer back to `active` with a reason.
 
     Every override is logged with its reason.
+
+    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 
 ### E. Deprovisioning
 
@@ -257,6 +300,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 
     Reactivating an archived customer before erasure restores the process from its directory.
 
+    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+
 ### F. Addresses and login
 
 21. **One address per customer.**
@@ -265,6 +310,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - It is unique across the fleet, including archived customers until they are erased.
     - These slugs are reserved: `app`, `www`, `auth`, `api`, `admin`, `console`, `mail`, `status`,
       `demo`.
+
+    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
 22. **Renaming a slug** is an operator action with a checklist shown before it runs:
     - the WordPress plugin setting;
     - the iCal feed URLs on every platform;
@@ -272,6 +319,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - the push re-subscriptions.
 
     The old address answers `301` to the new one for 12 months.
+
+    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
 23. **Isolated sessions.**
     - The session cookie stays **host-only** (no `Domain=` attribute), so one instance's cookie is
       never sent to another.
@@ -292,6 +341,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - The central page receives only an email. It never sees a password, a session or a user's
       role.
     - Password reset, first login and password change stay on the instance's page.
+
+    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
 26. **The directory.**
     - The control plane keeps `(HMAC-SHA256(email), customerId)` pairs, never the email in clear.
     - Each instance reports its active accounts:
@@ -299,15 +350,36 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
         its active emails to its data directory;
       - the control plane reads it every minute.
     - A nightly full rebuild corrects any drift.
+
+    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
 27. **The login page is rate-limited.** It allows 10 lookups per minute per IP, then answers `429`,
     because a lookup reveals whether an email has a space. The owner accepts that trade-off for
     convenience (§9 Q5, decided 2026-09-29): the address of a gîte's staff is not a secret held against the public.
+
+    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
 28. **OAuth callbacks are central.**
     - Google refuses wildcard redirect URIs. Google Calendar and Qonto therefore return to one
       callback, `https://auth.<domain>/oauth/<provider>/callback`.
     - That callback resolves the customer from a `state` signed by the instance and forwards the code
       to `<slug>.<domain>` (study §9.4).
     - A `state` older than 10 minutes, or signed with a key of another customer, is refused.
+
+    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
+29. **Unmanaged instances** (added 2026-09-29 during C1).
+    - An instance is **managed** when the hosting sets `GUESTFLOW_MANAGED=1`.
+    - An unmanaged instance **with no licence file** enforces nothing: all plugins, no quota, no
+      banner, no read-only. This covers Solio on its own host until it moves to the platform, dev
+      machines and the E2E server.
+    - A licence file that is present is always enforced, managed or not.
+    - Without this rule, rule 10 would have put Solio's production and every dev machine in
+      read-only with the first release that carries C1.
+30. **The verification key** (added 2026-09-29 during C1).
+    - The instance verifies the licence with the Ed25519 public key in
+      `GUESTFLOW_LICENCE_PUBLIC_KEY` (base64 DER SPKI), which the hosting sets with the rest of the
+      environment. The customer never controls a hosted instance's environment.
+    - The private key lives only in the control plane (C2).
+    - A licence present with no key set cannot be trusted: read-only, logged `[licence]`.
+    - Tests and the shadow sign licences with a throwaway key pair the same way.
 
 ## 4. Architecture
 
@@ -318,7 +390,7 @@ hint.
 
 **Delivery in three PRs onto `inte/plugins`**, each usable on its own:
 
-1. **C1: entitlement in the instance.** The licence reader, `enforceSubscription`, the plan chip, the
+1. **C1: entitlement in the instance** (implemented 2026-09-29, branch `feature/control-plane-c1-entitlement`). The licence reader, `enforceSubscription`, the plan chip, the
    402 errors, the quotas and the banners (rules 9–16, 23). A licence written by hand drives it, so
    it can ship before the console.
 2. **C2: the console.** Catalogue, customers, lifecycle, Qonto invoices and reminders, operator
@@ -354,13 +426,16 @@ hint.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| utils | `licence.js` (new) | Reads and verifies the licence, caches it for one minute, falls back to read-only (rules 9–10). |
-| middleware | `enforceSubscription.js` (new) | `read_only` → 402 on writes, except the allow-list of rule 14. Mounted after auth. |
-| controllers | `pluginsController.js` | 402 `PLAN_REQUIRED`, deactivation of plugins outside the licence, `planChip` in the list payload (rules 11–12). |
-| controllers | `propertiesController.js`, `usersController.js` | 402 `QUOTA_REACHED` (rule 13). |
-| controllers | `authController.js` | Accepts `login_hint`; writes the directory file on user changes (rule 26). |
-| controllers | `public/*` | Booking endpoint closed in `read_only` (rule 14). |
-| routes | `subscription.js` (new) | `GET /api/subscription` gives the banner payload for admins. |
+| utils | `licence.js` (new, C1) | Reads and verifies `<dataDir>/licence.jws`, caches it for one minute, falls back to read-only; `allowsPlugin`, `quota`, `planFor`, `banner` (rules 9–10, 29–30). |
+| utils | `planQuota.js` (new, C1) | The `QUOTA_REACHED` refusal; counts only when the plan has a limit (rule 13). |
+| plugins/sdk | `registry.js` (C1) | `isLive` also asks the licence, so routes, public mounts, jobs and `requirePlugin` all drop a plugin outside the plan (rule 12). |
+| middleware | `enforceSubscription.js` (new, C1) | `enforceSubscription()`: read-only → 402 on writes except the allow-list of rule 14, mounted on `/api` after the role guard. `closedWhenReadOnly()`: the website booking 503. |
+| controllers | `pluginsController.js` (C1) | 402 `PLAN_REQUIRED` on install and activate; `outOfPlan`, `planChip`, `planHint` in the list payload (rules 11–12). |
+| controllers | `authController.js` (C1) | `enabledPlugins` leaves out the plugins outside the licence (rule 12). C3: writes the directory file on user changes (rule 26). |
+| controllers | `neatController.js` (C1) | Its job asks `isLive`, like every other plugin gate. |
+| controllers, models | `propertiesController.js` + `propertiesModel.count()`, `usersController.js` + `usersModel.countActive()` (C1) | 402 `QUOTA_REACHED` (rule 13), for users before the welcome email. |
+| routes | `public/bookingRequests.js` (C1) | Booking endpoint closed in `read_only` (rule 14). |
+| routes | `subscription.js` (new, C1) | `GET /api/subscription` gives the banner payload; admin-only through the role guard. |
 | index.js | | Session cookie stays host-only; a test pins it (rule 23). |
 
 ### 4.2 Client side
@@ -386,18 +461,20 @@ components as GuestFlow (`PageActionBar`, `StatusBadge`, `DataPageScaffold`, `Co
 
 | Layer | File | Responsibility |
 |---|---|---|
-| components | `SubscriptionBanner.jsx` (new, generic) | The `due`, `grace` and `read_only` banners, admins only. |
-| pages | `LoginPage.jsx` | Reads `login_hint`, fills the email, focuses the password. |
-| components | `PluginCard.jsx` | Plan chip and disabled Install; « Désactivé — hors forfait » (rules 11–12). |
-| services | `api.js` | Maps 402 codes to French messages. |
+| components | `SubscriptionBanner.jsx` (new, generic, C1) | The `trial`, `due`, `grace` and read-only banners, admins only, mounted in `App.jsx` next to `EmailVerifyBanner`; for every role, the toast of a write refused for the subscription. |
+| pages | `LoginPage.jsx` (C1) | Reads `login_hint`, fills the email, focuses the password. |
+| components | `PluginCard.jsx` (C1) | Plan chip and disabled Install with `planHint`; « Désactivé — hors forfait » (rules 11–12). |
+| api | `api.js` (C1) | `getSubscription()`; fires `guestflow:read-only` on a 402 SUBSCRIPTION_READ_ONLY. The 402 bodies carry a French `message`, which the existing error path shows: no code-to-text mapping is added. |
 
 ### 4.3 API contract
 
 - **Instance:**
-  - `GET /api/subscription` → `{ state, endsAt, plan, daysLeft, payUrl | null }`, admins only.
-  - The Plugins list entries gain `planChip: 'Pro' | 'Premium' | null` and `outOfPlan: boolean`.
-  - New errors: `402 PLAN_REQUIRED {plan}`, `402 QUOTA_REACHED {quota, limit}`,
-    `402 SUBSCRIPTION_READ_ONLY`.
+  - `GET /api/subscription` → `{ state, endsAt, daysLeft, planName, payUrl }`, admins only;
+    `{ state: null }` when nothing is enforced (rule 29).
+  - The Plugins list entries gain `outOfPlan: boolean`, `planChip: 'Forfait Pro' | 'Forfait
+    Premium' | 'Option à la carte' | null` and `planHint: string | null`.
+  - New errors, each with a French `message`: `402 PLAN_REQUIRED {plan}`, `402 QUOTA_REACHED
+    {quota, limit}`, `402 SUBSCRIPTION_READ_ONLY`, and on the public API `503 BOOKING_UNAVAILABLE`.
 - **Control plane, public:**
   - `POST /login/lookup {email}` →
     `{ spaces: [{ name, url }] }` (the `url` carries `login_hint`), or `{ spaces: [] }`, or `429`.
@@ -446,15 +523,30 @@ each plan.
   - on `xs` the matrix becomes one card per plan.
 - **Fleet (console):** a sticky `PageActionBar` with « Nouveau client », the three counters as
   filter chips, the table, and a row click that opens the customer.
-- **Instance banners** (`SubscriptionBanner`, under the `PageActionBar`, admins only):
-  - `due` is blue: « Votre abonnement se termine le 12/11/2026. Renouveler ».
-  - `grace` is orange: « Abonnement échu depuis le 12/11/2026 — renouvelez avant le 19/11 pour
-    garder l'accès complet ».
-  - `read_only` is red: « Lecture seule depuis le 20/11 : vos données restent consultables et
-    exportables, la synchronisation des calendriers continue. Renouveler ».
+- **Instance banners** (`SubscriptionBanner`, at the top of the main area on every page, admins
+  only; « Renouveler » opens `payUrl` when the licence carries one). The instance only knows
+  `endsAt`, not the grace length, so no banner quotes a later date:
+  - `trial` is blue: « Période d'essai : 12 jours restants. » (« Dernier jour de la période
+    d'essai. » on the last day).
+  - `due` is blue: « Votre abonnement Pro se termine le 12/11/2026. »
+  - `grace` is orange: « Abonnement échu depuis le 12/11/2026 : renouvelez-le pour garder l'accès
+    complet. »
+  - `read_only`, `suspended` and `archived` are red: « Lecture seule : vos données restent
+    consultables et exportables, la synchronisation des calendriers continue. »
+
+  On `xs` the banner is full width, its text wraps, and « Renouveler » stays a 44 px target.
+- **A refused write is never silent.** For every role, a `402 SUBSCRIPTION_READ_ONLY` also shows the
+  error toast « Modification impossible : l'abonnement de cet espace est à renouveler. », even on a
+  page that does not display its own errors: found on the shadow, where the client dialog swallowed
+  the refusal. `api.js` fires `guestflow:read-only` and `SubscriptionBanner` turns it into the toast
+  (one toast at a time, so a page that also toasts the message shows it once).
 
   Other roles see nothing until `read_only`. Then a write shows the 402 message: « Modification
   impossible : l'abonnement de cet espace est à renouveler. »
+- **Instance Plugins page:** see rules 11–12 for the chip, the disabled « Installer » and « Désactivé —
+  hors forfait ».
+- **Instance login page:** with `?login_hint=`, the email is filled in and the password field has
+  the focus; without it, the email field has the focus as before.
 - **Login (`app.<domain>`):** a centred card with the logo, one email field and « Continuer ». It is
   full-width on `xs` with no horizontal scroll.
 
@@ -471,15 +563,48 @@ each plan.
   - OAuth relay: valid, expired and foreign `state`.
   - Provisioner: each step's retry is idempotent.
   - Scheduler: reminder days; no duplicate reminder on the same day.
-- **Instance:**
-  - Licence reader: missing or invalid → read-only; 7-day tolerance.
-  - `enforceSubscription`: the write refused; the allow-list (iCal, payment); exports allowed.
-  - Plugins: 402 on install; deactivate on downgrade, data kept; restore on upgrade.
-  - Quotas.
-  - `login_hint`.
-  - The session cookie has no `Domain`.
+- **Instance (C1, implemented): `server/src/tests/subscription-entitlement.unit.test.js`, 28 tests.**
+  - Licence reader (rules 9, 10, 29, 30): a valid licence; a tampered payload; another key; expired;
+    missing when managed; missing when unmanaged; present when unmanaged; no key; the one-minute
+    cache; the read-only states; an unknown state.
+  - The banner payload: days left counted in Paris days; an untrusted licence.
+  - Plugins (rules 4, 11, 12): 402 on install and activate with the plan hint; `outOfPlan`,
+    `planChip`, `planHint` in the list; « Option à la carte »; a downgrade writes nothing and an
+    upgrade restores; `isLive` false outside the licence.
+  - Quotas (rule 13): the refusal message; unlimited never counts; an account refused before any
+    email; below the quota creation carries on.
+  - Read-only over HTTP (rules 14, 16): a write refused with the French message while reads pass;
+    every allow-listed write passes; neighbouring writes stay refused; nothing refused outside
+    read-only; the website booking closed with 503.
+  - The session cookie has no `Domain` (rule 23).
+- **Instance client (C1, implemented), 12 Vitest tests:**
+  - `components/__tests__/SubscriptionBanner.test.jsx` (7): due with the pay link; grace; read-only;
+    trial; nothing when active or unmanaged; nothing for other roles; the refused-write toast for
+    every role.
+  - `components/__tests__/PluginCard.plan.test.jsx` (3): chip and disabled Installer with its hint;
+    installed outside the plan; unchanged inside the plan.
+  - `pages/__tests__/LoginPage.login-hint.test.jsx` (2).
 
 ### Manual UI verification
+
+**C1, done 2026-09-29 on the shadow** (`:4101`, a copy of the dev database, `GUESTFLOW_MANAGED=1`,
+licences signed with a throwaway key):
+- **Pro licence:** the 4 Premium plugins read « Désactivé — hors forfait »; `/api/tariff-recipes`
+  answers 404; `enabledPlugins` has 8 ids. Activating Neat answers 402 with the plan hint.
+  Uninstalled, Neat shows « Forfait Premium » and a disabled « Installer » with its tooltip.
+- **Premium:** the 4 plugins come back active, with no write.
+- **Essentiel, due in 10 days:** the blue banner with « Renouveler »; a 3rd unit is refused with
+  « Votre forfait Essentiel comprend 2 logements. … ».
+- **Read-only:**
+  - saving a client is refused with the toast (the fix above), at 375 px;
+  - the red banner fits 375 px with no horizontal scroll;
+  - the iCal sync of a source runs (15 events scanned);
+  - recording a payment passes the guard.
+- **Managed, licence removed:** read-only, with `[licence] missing` in the log.
+- **Unmanaged restart, no licence:** `state: null`, 12 plugins, nothing out of plan.
+- **`/login?login_hint=`:** the email is filled in and the password field has the focus.
+
+**Still to do with C2 and C3:**
 
 - **Console:**
   - create a customer on a local shadow;
