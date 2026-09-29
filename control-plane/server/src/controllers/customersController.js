@@ -1,0 +1,613 @@
+/**
+ * Customers of the platform (specs/control-plane-plans-and-access.md rules 7, 8, 9, 14, 15, 19, 20).
+ *
+ * Every action ends the same way: the state is recomputed from the dates (lifecycle.js), a
+ * transition is journaled, and the licence is re-issued and written to the instance. The payloads
+ * are ready to render: labels, dates, amounts and available actions are decided here.
+ */
+
+const crypto = require('crypto');
+const { stateOf, daysLeft, renewedEndsAt, STATE_LABELS } = require('../utils/lifecycle');
+const { parisDay, addDays, addMonths, isDay, frDay } = require('../utils/days');
+const { slugError } = require('../utils/slug');
+const { buildPayload, pluginsOfPlan } = require('../utils/licenceIssuer');
+const { exportInstance } = require('../utils/exporter');
+const { eraseInstance } = require('../utils/eraser');
+const { httpError } = require('../utils/httpError');
+const { euros } = require('../utils/money');
+const { plugins: gfPlugins } = require('../utils/gf');
+
+const TRIAL_DAYS = 30;
+const ERASE_AFTER_DAYS = 90;
+const EXPORT_LINK_DAYS = 30;
+const FORCE_ACTIVE_DEFAULT_DAYS = 7;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Rule 7: the automatic steps run by the console, the manual ones ticked by the operator until
+// phase H provides the hosting scripts.
+const CREATE_STEPS = [
+  { step: 'licence', label: 'Licence signée', kind: 'auto' },
+  { step: 'instance', label: 'Dossier, clé de chiffrement et base', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H (guide d’hébergement).' },
+  { step: 'process', label: 'Processus', kind: 'manual', hint: 'Unité de service à créer à la main jusqu’à la phase H.' },
+  { step: 'route', label: 'Route et certificat TLS', kind: 'manual', hint: 'Entrée du proxy à créer à la main jusqu’à la phase H.' },
+  { step: 'admin', label: 'Premier compte administrateur et invitation', kind: 'auto' },
+];
+const DEPROVISION_STEPS = [
+  { step: 'deprov-export', label: 'Export complet (base, photos, CSV)', kind: 'auto' },
+  { step: 'deprov-email', label: 'Lien de l’export envoyé au contact (30 jours)', kind: 'auto' },
+  { step: 'deprov-stop', label: 'Processus et route arrêtés, page « Cet espace a été fermé »', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H.' },
+];
+const REACTIVATE_STEPS = [
+  { step: 'restart', label: 'Processus et route relancés depuis le dossier', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H.' },
+];
+const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS];
+
+const BILLING_LABELS = { monthly: 'mensuel', yearly: 'annuel' };
+const pluginName = (id) => (gfPlugins.findPlugin(id) || { name: id }).name;
+
+function createCustomersController(ctx) {
+  const { models, now, mailer, instances, issuer, runFirstAdmin, domain, consoleUrl, exportsDir } = ctx;
+  const { customers, catalogue, invoices, audit, provisioning } = models;
+
+  const today = () => parisDay(now());
+  const stamp = () => now().toISOString();
+  const urlOf = (slug) => `https://${slug}.${domain}`;
+
+  function journal(customerId, operator, kind, text) {
+    audit.log({ at: stamp(), day: today(), operator, customerId, kind, text });
+  }
+
+  function mustGet(id) {
+    const c = customers.get(id);
+    if (!c || c.erasedAt) throw httpError(404, 'NOT_FOUND', 'Client introuvable.');
+    return c;
+  }
+
+  // Rule 6: a customer's price is the one of the catalogue version they were sold under.
+  function monthlyPriceCents(c) {
+    const snap = catalogue.snapshot(c.catalogueVersion) || { plans: catalogue.plans(), addons: catalogue.addons() };
+    const plan = snap.plans.find((p) => p.code === c.planCode) || catalogue.plan(c.planCode);
+    const base = c.billing === 'yearly' ? plan.priceYearlyCents : plan.priceMonthlyCents;
+    const addonPrice = (id) => ((snap.addons.find((a) => a.pluginId === id) || catalogue.addons().find((a) => a.pluginId === id) || {}).priceMonthlyCents || 0);
+    return base + c.addons.reduce((sum, id) => sum + addonPrice(id), 0);
+  }
+
+  // Rule 4: the add-ons on offer for a plan. One the plan already includes is shown as such and
+  // never sold on top of it.
+  function addonChoices(planCode) {
+    const included = pluginsOfPlan(planCode, catalogue.plans(), catalogue.lowest());
+    return catalogue.addons().map((a) => ({
+      pluginId: a.pluginId,
+      name: pluginName(a.pluginId),
+      priceLabel: `${euros(a.priceMonthlyCents)} HT / mois`,
+      included: included.includes(a.pluginId),
+    }));
+  }
+
+  function keepSellableAddons(requested, planCode) {
+    const choices = addonChoices(planCode);
+    const unknown = requested.some((id) => !choices.some((c) => c.pluginId === id));
+    return { unknown, addons: requested.filter((id) => choices.some((c) => c.pluginId === id && !c.included)) };
+  }
+
+  // Recomputes the state, journals a transition, re-issues the licence. → { state, licence }
+  function refresh(id, operator = 'système') {
+    const c = customers.get(id);
+    if (!c || c.erasedAt) return null;
+    const day = today();
+    const state = stateOf(c, day);
+    if (state !== c.state) {
+      customers.setState(id, state, day);
+      journal(id, operator, 'state', `État : ${STATE_LABELS[c.state]} → ${STATE_LABELS[state]}`);
+    }
+    return { state, licence: issueLicence(id) };
+  }
+
+  function licenceToken(id) {
+    const c = customers.get(id);
+    const payload = buildPayload({
+      customer: c,
+      state: c.state,
+      plans: catalogue.plans(),
+      lowest: catalogue.lowest(),
+      catalogueVersion: catalogue.currentVersion(),
+      payUrl: invoices.openPayUrl(id),
+      now: now(),
+    });
+    return issuer.sign(payload);
+  }
+
+  function issueLicence(id) {
+    const c = customers.get(id);
+    const result = issuer.write(c.slug, licenceToken(id));
+    provisioning.set(id, 'licence', result.written ? 'ok' : 'failed',
+      result.written ? `Écrite dans ${result.path}` : `${result.reason} Téléchargez-la depuis cette page, ou réessayez une fois le dossier créé.`, stamp());
+    return result;
+  }
+
+  function reissueAll(operator) {
+    return customers.list().filter((c) => !c.erasedAt).map((c) => refresh(c.id, operator));
+  }
+
+  async function runFirstAdminStep(id) {
+    const c = customers.get(id);
+    if (!instances.hasDatabase(c.slug)) {
+      provisioning.set(id, 'admin', 'failed', 'La base de l’instance est introuvable : créez d’abord le dossier, puis réessayez.', stamp());
+      return;
+    }
+    try {
+      const result = await runFirstAdmin({ dbPath: instances.dbPath(c.slug), email: c.contactEmail, name: c.contactName });
+      if (!result.created) {
+        provisioning.set(id, 'admin', 'ok', `Le compte ${c.contactEmail} existe déjà : aucune invitation renvoyée.`, stamp());
+        return;
+      }
+      await mailer.send({
+        to: c.contactEmail,
+        subject: `Votre espace GuestFlow ${c.companyName} est prêt`,
+        text: [
+          `Bonjour${c.contactName ? ` ${c.contactName}` : ''},`,
+          '',
+          `Votre espace GuestFlow est ouvert à l’adresse ${urlOf(c.slug)}.`,
+          '',
+          `Identifiant : ${c.contactEmail}`,
+          `Mot de passe provisoire : ${result.temporaryPassword}`,
+          '',
+          'Vous choisirez votre propre mot de passe à la première connexion.',
+          `${urlOf(c.slug)}/login?login_hint=${encodeURIComponent(c.contactEmail)}`,
+        ].join('\n'),
+      });
+      provisioning.set(id, 'admin', 'ok', `Invitation envoyée à ${c.contactEmail}.`, stamp());
+    } catch (err) {
+      provisioning.set(id, 'admin', 'failed', `Échec : ${err.message}`, stamp());
+    }
+  }
+
+  // --- views ---------------------------------------------------------------------------------
+
+  function stepsView(c, defs) {
+    const rows = new Map(provisioning.list(c.id).map((r) => [r.step, r]));
+    return defs.filter((d) => rows.has(d.step)).map((d) => {
+      const r = rows.get(d.step);
+      return {
+        step: d.step,
+        label: d.label,
+        kind: d.kind,
+        status: r.status,
+        detail: r.detail || d.hint || '',
+        action: d.kind === 'manual' ? (r.status === 'ok' ? 'undo' : 'done') : (r.status === 'failed' ? 'retry' : null),
+      };
+    });
+  }
+
+  function view(id) {
+    const c = mustGet(id);
+    const day = today();
+    const plan = catalogue.plan(c.planCode);
+    const archived = Boolean(c.archivedAt);
+    const forced = c.forceActiveUntil && day <= c.forceActiveUntil;
+    return {
+      id: c.id,
+      slug: c.slug,
+      url: urlOf(c.slug),
+      companyName: c.companyName,
+      contactName: c.contactName,
+      contactEmail: c.contactEmail,
+      state: c.state,
+      stateLabel: STATE_LABELS[c.state],
+      stateNote: forced ? `forcé jusqu’au ${frDay(c.forceActiveUntil)}` : null,
+      stateSince: c.stateSince,
+      planCode: c.planCode,
+      planName: plan.name,
+      billing: c.billing,
+      billingLabel: BILLING_LABELS[c.billing],
+      periodMonths: c.periodMonths,
+      priceLabel: `${euros(monthlyPriceCents(c))} HT / mois`,
+      catalogueVersion: c.catalogueVersion,
+      startsAt: c.startsAt,
+      endsAt: c.endsAt,
+      endsAtLabel: frDay(c.endsAt),
+      trialEndsAt: c.trialEndsAt,
+      trialEndsAtLabel: c.trialEndsAt ? frDay(c.trialEndsAt) : null,
+      daysLeft: archived ? null : daysLeft(c, day),
+      addons: c.addons.map((a) => ({ id: a, name: pluginName(a) })),
+      grandfathered: c.grandfathered.map((a) => ({ id: a, name: pluginName(a) })),
+      archivedAt: c.archivedAt,
+      eraseAt: c.eraseAt,
+      eraseAtLabel: c.eraseAt ? frDay(c.eraseAt) : null,
+      steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS]),
+      deprovisionSteps: stepsView(c, DEPROVISION_STEPS),
+      history: audit.forCustomer(c.id).map((h) => ({ at: h.at, day: frDay(h.day), operator: h.operator, text: h.text })),
+      invoices: invoices.list(c.id).map((i) => ({
+        id: i.id, period: `${frDay(i.periodStart)} → ${frDay(i.periodEnd)}`, amount: euros(i.amountCents), status: i.status, provider: i.provider, reference: i.providerRef,
+      })),
+      plans: catalogue.plans().map((p) => ({ code: p.code, name: p.name, addonChoices: addonChoices(p.code) })),
+      paymentPreview: archived ? [] : [1, 12].map((months) => {
+        const endsAt = renewedEndsAt(c.endsAt, months, day);
+        const after = stateOf({ ...c, endsAt, forceActiveUntil: null }, day);
+        const from = c.endsAt > day ? 'la période s’ajoute à l’échéance actuelle' : 'l’échéance est passée : la période part d’aujourd’hui';
+        return {
+          months,
+          amount: `${euros(monthlyPriceCents(c) * months)} HT`,
+          text: `Nouvelle échéance : ${frDay(endsAt)} (${from}). État : ${STATE_LABELS[after]}.`,
+        };
+      }),
+      defaults: {
+        paymentMonths: c.periodMonths,
+        extendTo: addDays(c.endsAt, 15),
+        forceActiveUntil: addDays(day, FORCE_ACTIVE_DEFAULT_DAYS),
+      },
+      actions: {
+        pay: !archived,
+        extend: !archived,
+        forceActive: !archived,
+        changePlan: !archived,
+        downloadLicence: true,
+        deprovision: !archived,
+        reactivate: archived,
+        cancelErase: archived && Boolean(c.eraseAt),
+        eraseNow: archived,
+      },
+    };
+  }
+
+  function counterKeys(c, day) {
+    const keys = [];
+    if (['trial', 'active', 'due'].includes(c.state) && daysLeft(c, day) <= 30) keys.push('renew');
+    if (['grace', 'read_only'].includes(c.state)) keys.push('late');
+    if (c.state === 'suspended') keys.push('suspended');
+    return keys;
+  }
+
+  function fleet() {
+    const day = today();
+    const plans = catalogue.plans();
+    const rows = customers.list().map((c) => {
+      const facts = instances.readFacts(c.slug);
+      return {
+        id: c.id,
+        slug: c.slug,
+        url: urlOf(c.slug),
+        companyName: c.companyName,
+        planName: plans.find((p) => p.code === c.planCode).name,
+        addonsCount: c.addons.length,
+        state: c.state,
+        stateLabel: STATE_LABELS[c.state],
+        endsAt: c.endsAt,
+        endsAtLabel: frDay(c.endsAt),
+        daysLeft: c.archivedAt ? null : daysLeft(c, day),
+        version: null,
+        installedCount: facts ? facts.installed.length : null,
+        process: null,
+        lastBackup: null,
+        counters: counterKeys(c, day),
+      };
+    });
+    const count = (k) => rows.filter((r) => r.counters.includes(k)).length;
+    return {
+      rows,
+      counters: [
+        { key: 'renew', label: 'à renouveler sous 30 jours', count: count('renew') },
+        { key: 'late', label: 'en grâce ou lecture seule', count: count('late') },
+        { key: 'suspended', label: 'suspendus', count: count('suspended') },
+      ],
+    };
+  }
+
+  // --- onboarding (rule 7) -------------------------------------------------------------------
+
+  // Validates the form and computes what it means; `preview` shows it, `create` saves it.
+  function plan(body) {
+    const errors = {};
+    const companyName = String(body.companyName || '').trim();
+    const contactName = String(body.contactName || '').trim();
+    const contactEmail = String(body.contactEmail || '').trim().toLowerCase();
+    const slug = String(body.slug || '').trim();
+    if (!companyName) errors.companyName = 'Le nom de la société est obligatoire.';
+    if (!EMAIL_RE.test(contactEmail)) errors.contactEmail = 'Adresse email invalide.';
+    const slugErr = slugError(slug, customers.slugTaken);
+    if (slugErr) errors.slug = slugErr;
+    const planRow = catalogue.plan(body.planCode);
+    if (!planRow) errors.planCode = 'Forfait inconnu.';
+    const billing = body.billing === 'yearly' ? 'yearly' : body.billing === 'monthly' ? 'monthly' : null;
+    if (!billing) errors.billing = 'Facturation mensuelle ou annuelle.';
+    const startsAt = isDay(body.startsAt) ? body.startsAt : null;
+    if (!startsAt) errors.startsAt = 'Date de début invalide.';
+    const length = body.length === 'custom' ? 'custom' : Number(body.length);
+    let paidEndsAt = null;
+    let periodMonths = billing === 'yearly' ? 12 : 1;
+    if (length === 'custom') {
+      if (!isDay(body.endsAt) || !startsAt || body.endsAt <= startsAt) errors.endsAt = 'La date de fin doit suivre la date de début.';
+      else paidEndsAt = body.endsAt;
+    } else if (length === 1 || length === 12) {
+      periodMonths = length;
+      if (startsAt) paidEndsAt = addMonths(startsAt, length);
+    } else {
+      errors.length = 'Durée : 1 mois, 12 mois ou une date de fin.';
+    }
+    const requested = Array.isArray(body.addons) ? [...new Set(body.addons)] : [];
+    const { unknown, addons } = planRow ? keepSellableAddons(requested, planRow.code) : { unknown: false, addons: [] };
+    if (unknown) errors.addons = 'Option inconnue.';
+    const trial = Boolean(body.trial);
+    const trialEndsAt = trial && startsAt ? addDays(startsAt, TRIAL_DAYS) : null;
+
+    let summary = null;
+    if (planRow && billing && startsAt && paidEndsAt) {
+      const monthly = (billing === 'yearly' ? planRow.priceYearlyCents : planRow.priceMonthlyCents)
+        + addons.reduce((s, id) => s + ((catalogue.addons().find((a) => a.pluginId === id) || {}).priceMonthlyCents || 0), 0);
+      const names = addons.map(pluginName);
+      summary = {
+        price: `${planRow.name}${names.length ? ` + ${names.join(', ')}` : ''} · ${euros(monthly)} HT / mois${billing === 'yearly' ? ' (facturé à l’année)' : ''}`,
+        period: trial
+          ? `Essai gratuit du ${frDay(startsAt)} au ${frDay(trialEndsAt)} ; la première période payée (${length === 'custom' ? `jusqu’au ${frDay(paidEndsAt)}` : `${periodMonths} mois`}) commence au paiement.`
+          : `Abonnement du ${frDay(startsAt)} au ${frDay(paidEndsAt)}.`,
+        catalogue: `Prix du catalogue v${catalogue.currentVersion()} : il reste celui de ce client même si le catalogue change.`,
+        url: slugErr ? null : urlOf(slug),
+      };
+    }
+    return {
+      errors,
+      summary,
+      record: {
+        customer: { slug, companyName, contactName, contactEmail },
+        subscription: {
+          planCode: planRow && planRow.code,
+          billing,
+          periodMonths,
+          startsAt,
+          endsAt: trial ? trialEndsAt : paidEndsAt,
+          trialEndsAt,
+          catalogueVersion: catalogue.currentVersion(),
+        },
+        addons,
+      },
+    };
+  }
+
+  function preview(body) {
+    const { errors, summary } = plan(body);
+    const planRow = catalogue.plan(body.planCode);
+    return { errors, summary, addonChoices: planRow ? addonChoices(planRow.code) : [], defaults: { startsAt: today() } };
+  }
+
+  async function create(body, operator) {
+    const { errors, record } = plan(body);
+    if (Object.keys(errors).length) throw httpError(400, 'INVALID', Object.values(errors)[0], { errors });
+    const day = today();
+    const state = stateOf({ ...record.subscription }, day);
+    const id = customers.create({
+      customer: { ...record.customer, state, stateSince: day, createdAt: stamp() },
+      subscription: record.subscription,
+      addons: record.addons,
+      since: day,
+    });
+    const planName = catalogue.plan(record.subscription.planCode).name;
+    journal(id, operator, 'created', `Client créé : forfait ${planName}, ${BILLING_LABELS[record.subscription.billing]}${record.subscription.trialEndsAt ? `, essai jusqu’au ${frDay(record.subscription.trialEndsAt)}` : ''}`);
+    for (const s of CREATE_STEPS) if (s.kind === 'manual') provisioning.set(id, s.step, 'todo', '', stamp());
+    refresh(id, operator);
+    await runFirstAdminStep(id);
+    return view(id);
+  }
+
+  async function stepAction(id, step, action, operator) {
+    const c = mustGet(id);
+    const def = ALL_STEPS.find((s) => s.step === step);
+    const row = provisioning.get(c.id, step);
+    if (!def || !row) throw httpError(404, 'NOT_FOUND', 'Étape inconnue.');
+    if (def.kind === 'manual') {
+      if (action !== 'done' && action !== 'undo') throw httpError(400, 'INVALID', 'Action inconnue.');
+      provisioning.set(c.id, step, action === 'done' ? 'ok' : 'todo', '', stamp());
+      journal(c.id, operator, 'step', `Étape « ${def.label} » ${action === 'done' ? 'marquée faite' : 'rouverte'}`);
+    } else {
+      if (action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
+      if (step === 'licence') issueLicence(c.id);
+      else if (step === 'admin') await runFirstAdminStep(c.id);
+      else if (step === 'deprov-email') await sendExportLink(c.id);
+      else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
+    }
+    return view(c.id);
+  }
+
+  // --- money and overrides (rules 15, 19) ------------------------------------------------------
+
+  function recordPayment(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    const months = Number(body.months);
+    if (months !== 1 && months !== 12) throw httpError(400, 'INVALID', 'Durée payée : 1 ou 12 mois.');
+    const reference = String(body.reference || '').trim();
+    const day = today();
+    const periodStart = c.endsAt > day ? c.endsAt : day;
+    const endsAt = renewedEndsAt(c.endsAt, months, day);
+    const amountCents = monthlyPriceCents(c) * months;
+    invoices.insert({
+      customerId: c.id, periodStart, periodEnd: endsAt, amountCents, provider: 'manual', providerRef: reference || null,
+      status: 'paid', paidAt: stamp(), createdAt: stamp(),
+    });
+    customers.setEndsAt(c.id, endsAt);
+    customers.setForceActiveUntil(c.id, null);
+    journal(c.id, operator, 'payment', `Paiement enregistré (${months} mois, ${euros(amountCents)} HT${reference ? `, « ${reference} »` : ''}) : échéance au ${frDay(endsAt)}`);
+    refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  function requireReason(body) {
+    const reason = String(body.reason || '').trim();
+    if (!reason) throw httpError(400, 'REASON_REQUIRED', 'Le motif est obligatoire.');
+    return reason;
+  }
+
+  function extend(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    const reason = requireReason(body);
+    if (!isDay(body.endsAt) || body.endsAt <= c.endsAt) throw httpError(400, 'INVALID', 'La nouvelle date doit suivre l’échéance actuelle.');
+    customers.setEndsAt(c.id, body.endsAt);
+    audit.override({ customerId: c.id, kind: 'extend', reason, operator, at: stamp() });
+    journal(c.id, operator, 'override', `Prolongé du ${frDay(c.endsAt)} au ${frDay(body.endsAt)} : « ${reason} »`);
+    refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  function forceActive(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    const reason = requireReason(body);
+    if (!isDay(body.until) || body.until < today()) throw httpError(400, 'INVALID', 'La date doit être aujourd’hui ou plus tard.');
+    customers.setForceActiveUntil(c.id, body.until);
+    audit.override({ customerId: c.id, kind: 'force_active', reason, operator, at: stamp() });
+    journal(c.id, operator, 'override', `Remis en actif jusqu’au ${frDay(body.until)} : « ${reason} »`);
+    refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  // Rule 5: a plan change is where grandfathered plugins are withdrawn.
+  function changePlan(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    const planRow = catalogue.plan(body.planCode);
+    if (!planRow) throw httpError(400, 'INVALID', 'Forfait inconnu.');
+    const billing = body.billing === 'yearly' ? 'yearly' : body.billing === 'monthly' ? 'monthly' : null;
+    if (!billing) throw httpError(400, 'INVALID', 'Facturation mensuelle ou annuelle.');
+    const { unknown, addons } = keepSellableAddons(Array.isArray(body.addons) ? [...new Set(body.addons)] : [], planRow.code);
+    if (unknown) throw httpError(400, 'INVALID', 'Option inconnue.');
+    const before = catalogue.plan(c.planCode).name;
+    customers.changePlan({
+      id: c.id, planCode: planRow.code, billing, periodMonths: billing === 'yearly' ? 12 : 1,
+      catalogueVersion: catalogue.currentVersion(), addons, since: today(),
+    });
+    const lost = c.grandfathered.map(pluginName);
+    journal(c.id, operator, 'plan', `Forfait : ${before} → ${planRow.name} (${BILLING_LABELS[billing]})${addons.length ? `, options : ${addons.map(pluginName).join(', ')}` : ''}${lost.length ? ` ; retirés (hors forfait conservés) : ${lost.join(', ')}` : ''}`);
+    refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  function licenceDownload(id) {
+    const c = mustGet(id);
+    return { filename: `licence-${c.slug}.jws`, token: licenceToken(c.id) };
+  }
+
+  // --- deprovisioning (rule 20) ----------------------------------------------------------------
+
+  async function sendExportLink(id) {
+    const c = customers.get(id);
+    const exp = provisioning.get(id, 'deprov-export');
+    const link = provisioning.latestExport(id);
+    if (!exp || exp.status !== 'ok' || !link) {
+      provisioning.set(id, 'deprov-email', 'skipped', 'Aucun export à envoyer.', stamp());
+      return;
+    }
+    try {
+      await mailer.send({
+        to: c.contactEmail,
+        subject: `Export de votre espace GuestFlow ${c.companyName}`,
+        text: [
+          `Bonjour${c.contactName ? ` ${c.contactName}` : ''},`,
+          '',
+          `Votre espace ${urlOf(c.slug)} a été fermé. Toutes vos données sont dans cette archive, téléchargeable pendant ${EXPORT_LINK_DAYS} jours :`,
+          `${consoleUrl}/exports/${link.token}`,
+          '',
+          'Elle contient la base complète, vos photos et deux fichiers CSV (réservations et clients).',
+        ].join('\n'),
+      });
+      provisioning.set(id, 'deprov-email', 'ok', `Envoyé à ${c.contactEmail}.`, stamp());
+    } catch (err) {
+      provisioning.set(id, 'deprov-email', 'failed', `Échec de l’envoi : ${err.message}`, stamp());
+    }
+  }
+
+  async function deprovision(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
+    if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
+
+    // 1. The export. A failure stops here: nothing is archived without its data safe.
+    let token = null;
+    if (!instances.hasDatabase(c.slug)) {
+      provisioning.set(c.id, 'deprov-export', 'skipped', 'Aucune donnée : l’instance n’a jamais été créée.', stamp());
+    } else {
+      try {
+        const { file, bytes } = exportInstance({ instances, slug: c.slug, exportsDir, stamp: today() });
+        token = crypto.randomBytes(24).toString('base64url');
+        provisioning.addExport({ token, customerId: c.id, path: file, createdAt: stamp(), expiresAt: addDays(today(), EXPORT_LINK_DAYS) });
+        provisioning.set(c.id, 'deprov-export', 'ok', `Archive de ${(bytes / 1048576).toFixed(1).replace('.', ',')} Mo.`, stamp());
+      } catch (err) {
+        provisioning.set(c.id, 'deprov-export', 'failed', `Échec : ${err.message}`, stamp());
+        journal(c.id, operator, 'deprovision', `Déprovisionnement interrompu : l’export a échoué (${err.message})`);
+        return view(c.id);
+      }
+    }
+    // 2. The link to the contact.
+    await sendExportLink(c.id);
+    // 3. Stopping the process and the route: manual until phase H.
+    provisioning.set(c.id, 'deprov-stop', 'todo', '', stamp());
+    // 4. Archived; 5. erased after 90 days.
+    const eraseAt = addDays(today(), ERASE_AFTER_DAYS);
+    customers.archive(c.id, stamp(), eraseAt);
+    journal(c.id, operator, 'deprovision', `Déprovisionné : export ${token ? 'produit' : 'sans objet'}, effacement prévu le ${frDay(eraseAt)}`);
+    refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  function reactivate(id, operator) {
+    const c = mustGet(id);
+    if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Ce client n’est pas archivé.');
+    customers.unarchive(c.id);
+    provisioning.clear(c.id, 'deprov-');
+    provisioning.set(c.id, 'restart', 'todo', '', stamp());
+    journal(c.id, operator, 'reactivate', 'Réactivé depuis son dossier ; effacement annulé');
+    refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  function cancelErase(id, operator) {
+    const c = mustGet(id);
+    if (!c.archivedAt || !c.eraseAt) throw httpError(409, 'NOTHING_SCHEDULED', 'Aucun effacement prévu.');
+    customers.setEraseAt(c.id, null);
+    journal(c.id, operator, 'erase', 'Effacement annulé');
+    return view(c.id);
+  }
+
+  function eraseNow(id, body, operator) {
+    const c = mustGet(id);
+    if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
+    if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
+    return erase(c.id, operator);
+  }
+
+  function erase(id, operator) {
+    const c = customers.get(id);
+    eraseInstance({ instances, slug: c.slug });
+    customers.markErased(c.id, stamp());
+    journal(c.id, operator, 'erase', 'Données et dossier de l’instance effacés ; l’adresse est de nouveau libre');
+    return { erased: true, id: c.id };
+  }
+
+  function eraseDue(operator) {
+    return customers.dueForErasure(today()).map((id) => erase(id, operator));
+  }
+
+  return {
+    CREATE_STEPS,
+    DEPROVISION_STEPS,
+    refresh,
+    reissueAll,
+    view,
+    fleet,
+    preview,
+    create,
+    stepAction,
+    recordPayment,
+    extend,
+    forceActive,
+    changePlan,
+    licenceDownload,
+    deprovision,
+    reactivate,
+    cancelErase,
+    eraseNow,
+    eraseDue,
+    monthlyPriceCents,
+  };
+}
+
+module.exports = { createCustomersController, TRIAL_DAYS, ERASE_AFTER_DAYS, EXPORT_LINK_DAYS };
