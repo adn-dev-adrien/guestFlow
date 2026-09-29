@@ -68,3 +68,23 @@ test('the Plugins entry sits in the Paramètres submenu', async ({ page }) => {
   const nav = page.getByRole('navigation').first().or(page.locator('.MuiDrawer-root').first());
   await expect(nav.getByRole('link', { name: 'Plugins', exact: true }).first()).toBeVisible();
 });
+
+// specs/plugins-phase-1-sdk.md rules 12, 21 and 24 — a plugin module's data goes with it when asked,
+// and a reinstall starts empty. Météo: no other spec depends on its data.
+test('uninstalling Météo with « Effacer aussi ses données » erases its key; the reinstall starts empty', async ({ page, request }) => {
+  const saved = await request.put('/api/plugins/weather-alerts/settings', { data: { apiKey: 'e2e-key' } });
+  expect(await saved.json()).toEqual({ apiKeySet: true });
+
+  await page.goto('/parametres/plugins');
+  const weather = page.locator('.MuiCard-root').filter({ hasText: 'Vigilance Météo-France' });
+  await weather.getByText('Vigilance Météo-France').click();
+  await weather.getByRole('checkbox', { name: 'Effacer aussi ses données' }).check();
+  await expect(weather.getByText('Seront effacés : la clé Météo-France. C’est définitif.')).toBeVisible();
+  await weather.getByRole('button', { name: 'Désinstaller' }).click();
+  await weather.getByRole('button', { name: 'Désinstaller et effacer' }).click();
+
+  await page.getByRole('tab', { name: /^Disponibles/ }).click();
+  await weather.getByRole('button', { name: 'Installer' }).click();
+  await expect(page.getByRole('tab', { name: 'Installés (12)' })).toHaveAttribute('aria-selected', 'true');
+  expect(await (await request.get('/api/plugins/weather-alerts/settings')).json()).toEqual({ apiKeySet: false });
+});

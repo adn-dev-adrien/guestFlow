@@ -29,6 +29,8 @@ vi.mock('../../../api', () => ({
     getNeatDiscovery: vi.fn(),
     updateNeatSelection: vi.fn(),
     updateNeatMapping: vi.fn(),
+    getPluginSettings: vi.fn(),
+    savePluginSettings: vi.fn(),
   },
 }));
 
@@ -42,7 +44,8 @@ vi.mock('../../../components/DialogProvider', () => {
   };
 });
 
-vi.mock('../../../components/SettingsGoogleCalendarSection', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../../plugins/google-calendar/SettingsGoogleCalendarSection', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../../plugins/gate-access/SettingsGateAccessSection', () => ({ __esModule: true, default: () => null }));
 
 import api from '../../../api';
 import IntegrationsSettingsPage from '../IntegrationsSettingsPage';
@@ -66,6 +69,8 @@ beforeEach(() => {
   api.updateSettings.mockResolvedValue(settingsPayload());
   api.getNeatSettings.mockResolvedValue(CONFIGURED_SETTINGS);
   api.updateNeatSettings.mockResolvedValue(CONFIGURED_SETTINGS);
+  api.getPluginSettings.mockResolvedValue({ apiKeySet: false });
+  api.savePluginSettings.mockResolvedValue({ apiKeySet: true });
   delete window.__guestflowBeforeNavigate;
 });
 
@@ -96,20 +101,22 @@ test('rule 1: a change inside the Neat card enables the bar’s Save, which writ
   expect(api.updateSettings).not.toHaveBeenCalled();
 });
 
-// Rule 1 — the two halves of the page are saved by the same press.
+// Rule 1 — the cards of the page are saved by the same press. The weather key is the weather
+// plugin's own setting since specs/plugins-phase-1-sdk.md rule 7: it no longer rides /api/settings.
 test('rule 1: one press writes the weather key and the Neat card together', async () => {
   renderPage();
   await screen.findByText('Connectée — staging');
 
   fireEvent.change(screen.getByLabelText('Marge sur la prime Neat (%)'), { target: { value: '18' } });
-  fireEvent.change(screen.getByLabelText('Clé API Météo-France (Vigilance)'), { target: { value: 'k-123' } });
+  fireEvent.change(await screen.findByLabelText('Clé API Météo-France (Vigilance)'), { target: { value: 'k-123' } });
   await waitFor(() => expect(saveButton()).toBeEnabled());
 
   await act(async () => { fireEvent.click(saveButton()); });
 
-  await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1));
-  expect(api.updateSettings.mock.calls[0][0]).toEqual({ weather: { apiKey: 'k-123' } });
+  await waitFor(() => expect(api.savePluginSettings).toHaveBeenCalledTimes(1));
+  expect(api.savePluginSettings).toHaveBeenCalledWith('weather-alerts', { apiKey: 'k-123' });
   expect(api.updateNeatSettings).toHaveBeenCalledTimes(1);
+  expect(api.updateSettings).not.toHaveBeenCalled();
 });
 
 // Rule 4 — the guard protects the page, not just the form the page happens to own.

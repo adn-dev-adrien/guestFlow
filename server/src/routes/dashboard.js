@@ -32,8 +32,4 @@ router.post('/payment-deadlines/:id/remind', controller.remindPaymentDeadline);
 
 router.get('/public-devis-pending', controller.publicDevisPending);
 
-// Gate keys (specs/gate-access-sowel-connector.md §3.3): failed keys and a house that stopped
-// reading. Admin-only — the reception allowlist does not list it.
-router.get('/gate-keys', require('../controllers/gateConnectorController').dashboard);
-
 module.exports = router;

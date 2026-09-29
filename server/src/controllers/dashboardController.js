@@ -9,7 +9,7 @@ const linenInventoryModel = require('../models/linenInventoryModel');
 const reservationsModel = require('../models/reservationsModel');
 const icalDateDriftModel = require('../models/icalDateDriftModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
-const googleCalendarSync = require('../utils/googleCalendarSync');
+const { emit: defaultEmitPluginEvent } = require('../plugins/sdk/eventBus');
 const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
 const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
 const { isDirectChannel } = require('../utils/platformNameFormat');
@@ -32,7 +32,7 @@ function buildController({
   reservationsModel: injectedReservationsModel = reservationsModel,
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
-  googleCalendarSync: injectedGoogleCalendarSync = googleCalendarSync,
+  emitPluginEvent = defaultEmitPluginEvent,
   // Injected so the deadline endpoints stay testable without Qonto/SMTP: production wires the real
   // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
   sendDepositRequest = (id) => require('./paymentsController').sendDepositRequestFor(id),
@@ -124,9 +124,9 @@ function buildController({
       const result = injectedIcalDateDriftModel.approve(id);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
       res.json({ ok: true });
-      // Approved date override → fire-and-forget Google push, after the response so the
-      // committed approval can never be turned into a 500 by the hook (spec rule 19-20).
-      if (result.reservationId) injectedGoogleCalendarSync.schedulePush(result.reservationId);
+      // Approved date override → plugins react after the response, so the committed approval can
+      // never be turned into a 500 by them (specs/plugins-phase-1-sdk.md rule 9).
+      if (result.reservationId) emitPluginEvent('reservation.updated', { reservationId: result.reservationId });
       return undefined;
     },
 
@@ -178,10 +178,9 @@ function buildController({
       const result = injectedIcalCancellationModel.approve(id, parsedCompensation.value);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
       res.json({ ok: true, outcome: result.outcome, compensationId: result.compensationId ?? null });
-      // Approved cancellation → fire-and-forget Google event delete, after the response
-      // (spec rule 19-20). Also fired on 'reservation_gone': the event may still exist as
-      // an orphan.
-      if (result.reservationId) injectedGoogleCalendarSync.scheduleDelete(result.reservationId);
+      // Approved cancellation → plugins react after the response (specs/plugins-phase-1-sdk.md
+      // rule 9). Also fired on 'reservation_gone': a Google event may still exist as an orphan.
+      if (result.reservationId) emitPluginEvent('reservation.cancelled', { reservationId: result.reservationId });
       return undefined;
     },
 

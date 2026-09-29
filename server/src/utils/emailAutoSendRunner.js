@@ -16,7 +16,7 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
 const { loadTermsVersion } = require('./reservationEmailGraph');
-const { usableInvitation } = require('./gateInvitationView');
+const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
 const { DIRECT_CHANNELS } = require('./platformNameFormat');
@@ -188,7 +188,7 @@ async function performAutoEmailPass(deps) {
       const context = buildContext({
         reservation, client, property, options, resources, customOptions,
         bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail, termsVersion,
-        gateInvitation: usableInvitation(database, reservation.id),
+        pluginContext: pluginEmailContext(reservation.id),
       });
       const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(

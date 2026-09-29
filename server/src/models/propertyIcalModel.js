@@ -30,7 +30,7 @@ const icalCancellationModel = require('./icalCancellationModel');
 const icalExportRangesModel = require('./icalExportRangesModel');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
 const notificationService = require('../utils/notificationService');
-const googleCalendarSync = require('../utils/googleCalendarSync');
+const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 // Establishment closures (2026-06-06): every iCal event is checked against the
 // closure table BEFORE touching the local reservations table. Until this guard
 // landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
@@ -988,11 +988,15 @@ function createPropertyIcalModel(database) {
             Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
           }
         }
-        // Bookings changed → debounced Google Calendar reconcile, triggered here so every
-        // caller (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) gets the same
-        // low-latency push (specs/google-calendar-oauth-rework.md rule 20). Fire-and-forget.
+        // Bookings changed → announced here so every caller (syncOne, syncAllForProperty,
+        // scheduledTasks.performAutoSync) gives the plugins the same low-latency signal (Google
+        // reconciles — specs/plugins-phase-1-sdk.md rule 9). Fire-and-forget.
         if (result.createdCount + result.updatedCount + result.removedCount + (result.takenOverCount || 0) > 0) {
-          googleCalendarSync.scheduleReconcile();
+          emitPluginEvent('ical.imported', {
+            created: result.createdCount,
+            updated: result.updatedCount,
+            removed: result.removedCount,
+          });
         }
         return result;
       } catch (error) {

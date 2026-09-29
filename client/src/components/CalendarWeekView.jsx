@@ -8,7 +8,8 @@
  *
  * Props:
  *  - today: 'YYYY-MM-DD'
- *  - reservations, devisList, closures, calendarNotes, publicHolidays (Set), schoolHolidays
+ *  - reservations, devisList, closures, calendarNotes, publicHolidays (Set), markersFor(dateStr)
+ *    (the plugins' day dots, hooks/useDayMarkers)
  *  - selectedProp
  *  - onReservationClick(id), onDevisClick(id), onOpenNewReservation(start,end), onOpenNote(dateStr)
  *  - onWeekChange(weekStartStr): lets the parent extend the loaded month range to cover the week.
@@ -20,9 +21,8 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import TodayIcon from '@mui/icons-material/Today';
 import EditNoteIcon from '@mui/icons-material/EditNote';
-import { formatDate, shiftDate, getReservationColor, compactName, DAY_NAMES, MONTH_NAMES, ZONE_COLORS } from '../utils/calendarVisuals';
+import { formatDate, shiftDate, getReservationColor, compactName, DAY_NAMES, MONTH_NAMES } from '../utils/calendarVisuals';
 import { getClosureForDate } from '../utils/closureCalendar';
-import { getSchoolHolidayInfo } from '../frenchHolidays';
 import { buildDaySummary, isEmptyDay, getMonday, weekDays } from '../utils/calendarDaySummary';
 
 const WEEKS_EACH_SIDE = 26;
@@ -68,7 +68,7 @@ function EventLine({ color, icon, primary, secondary, onClick, faded }) {
 
 export default function CalendarWeekView({
   today, reservations = [], devisList = [], closures = [], selectedProp,
-  calendarNotes = {}, publicHolidays, schoolHolidays = [],
+  calendarNotes = {}, publicHolidays, markersFor = () => [],
   onReservationClick, onDevisClick, onOpenNewReservation, onOpenNote, onWeekChange,
 }) {
   const todayDate = useMemo(() => new Date(`${today}T00:00:00`), [today]);
@@ -117,7 +117,7 @@ export default function CalendarWeekView({
     const isToday = dateStr === today;
     const isPast = dateStr < today;
     const isPublicHoliday = publicHolidays?.has?.(dateStr);
-    const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
+    const markers = markersFor(dateStr);
     const empty = isEmptyDay(summary) && !closure;
 
     return (
@@ -142,8 +142,8 @@ export default function CalendarWeekView({
           </Typography>
           <Stack direction="row" spacing={0.3} sx={{ justifyContent: 'center', mt: 0.25 }}>
             {isPublicHoliday && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'error.main' }} />}
-            {schoolInfo?.zones?.map((z) => (
-              <Box key={z} sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: ZONE_COLORS[z] }} />
+            {markers.map((mk) => (
+              <Box key={mk.key} title={mk.title} sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: mk.color }} />
             ))}
           </Stack>
         </Box>

@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 
 const enforceRoleAccess = require('../middleware/enforceRoleAccess');
 
+// Plugin modules declare their own reception entries (specs/plugins-phase-1-sdk.md rule 5).
+require('../plugins/loader').registerAll({ db: null, isInstalled: () => false });
+
 // specs/reception-role-checkin-only.md §3.6 rule 11 — pins the exact reachable set for the
 // `reception` role, plus the combined-role edge cases.
 

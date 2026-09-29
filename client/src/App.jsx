@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
@@ -42,20 +42,19 @@ import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
 import { visibleSettingsMenu, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
 import { isRouteEnabled } from './constants/plugins';
+import { allContributions } from './plugins/sdk/registry';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
 import PropertiesPage from './pages/PropertiesPage';
 import PropertyDetail from './pages/PropertyDetail';
 import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
-import TariffRecipesPage from './pages/TariffRecipesPage';
 import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationPage from './pages/ReservationPage';
 import ReservationsUpcomingPage from './pages/ReservationsUpcomingPage';
 import FinancePage from './pages/FinancePage';
 import TouristTaxPage from './pages/TouristTaxPage';
-import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
 import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
@@ -84,6 +83,8 @@ import AppVersionBadge from './components/AppVersionBadge';
 import RouteErrorBoundary from './components/ErrorBoundary';
 import EmptyState from './components/EmptyState';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
+
+const MODULE_PAGES = allContributions('routes');
 
 const DRAWER_WIDTH = 240;
 
@@ -708,11 +709,14 @@ function AppShell() {
             rules 18-19): its API calls never leave, and the guard above sends the URL home. */}
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
+          {MODULE_PAGES.map(({ path, Component }) => (
+            <Route key={path} path={path} element={pluginRoute(path, <Suspense fallback={null}><Component /></Suspense>)} />
+          ))}
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetail />} />
           <Route path="/properties/:id/pricing-seasons" element={<PropertyPricingSeasonsPage />} />
-          <Route path="/parametres/recettes" element={pluginRoute('/parametres/recettes', <TariffRecipesPage />)} />
           <Route path="/options" element={<OptionsPage />} />
           <Route path="/resources" element={<ResourcesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
@@ -724,7 +728,6 @@ function AppShell() {
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/resource-planning" element={pluginRoute('/resource-planning', <ResourcePlanningPage />)} />
-          <Route path="/school-holidays" element={pluginRoute('/school-holidays', <SchoolHolidaysPage />)} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           {/* Paramètres (specs/settings-rationalization.md rule 2). */}
           <Route path="/settings" element={<Navigate to="/settings/etablissement" replace />} />

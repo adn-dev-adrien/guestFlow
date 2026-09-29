@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase 1</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13px;min-height:40px;cursor:pointer}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.pc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--field)}
+.pc+.pc{margin-top:8px}
+.pc-main{display:flex;align-items:center;gap:10px}
+.tile{flex:none;width:38px;height:38px;border-radius:9px;display:grid;place-items:center;font-size:18px;background:color-mix(in srgb,var(--lichen) 14%,var(--field))}
+.pname{flex:1;min-width:0;cursor:pointer;background:none;border:0;padding:0;text-align:left;color:inherit;font:inherit;min-height:40px}
+.pname b{display:block;font-size:14px;line-height:1.25}
+.pname small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.sb{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;margin-top:3px}
+.sb i{width:8px;height:8px;border-radius:50%;background:var(--ghost);display:inline-block}
+.sb.on{color:var(--ok)} .sb.on i{background:var(--ok)}
+.sb.off{color:var(--muted)}
+.pbtn{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 12px;min-height:40px;cursor:pointer;border:1px solid var(--fieldline);background:transparent;color:inherit;white-space:nowrap}
+.pbtn.primary{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.pbtn.danger{border-color:var(--ko);color:var(--ko)}
+.pbtn.danger.armed{background:var(--ko);color:#fff}
+.pdet{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+.pinfo{margin:8px 0;font-size:12.5px;color:var(--muted)}
+.perase{margin:8px 0;font-size:12.5px;color:var(--ko);font-weight:600}
+.tag{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info);margin-left:6px}
+.log{font:12.5px/1.5 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:60px;white-space:pre-wrap;overflow-wrap:anywhere}
+.log .ok{color:var(--ok)} .log .skip{color:var(--ghost)} .log .w{color:var(--ocre)}
+.sas{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:14px;max-width:420px}
+.sas h4{margin:0 0 8px;font:600 15px var(--serif);color:var(--sapin)}
+.keypad{font:700 26px/1 ui-monospace,Menlo,monospace;letter-spacing:.2em;padding:10px 0}
+.qr{display:inline-grid;grid-template-columns:repeat(7,8px);gap:1px;padding:6px;background:#fff;border:1px solid #ccc;border-radius:4px;vertical-align:middle}
+.qr i{width:8px;height:8px;background:#111}.qr i.w{background:#fff}
+.absent{color:var(--ghost);font-style:italic}
+@media (max-width:420px){.pc-main{flex-wrap:wrap}.pc-main .pbtn{width:100%}}
+</style>
+<body>
+<div class="wrap">
+<h1>Plugins — phase 1 : le contrat des plugins, et cinq plugins sortis du cœur</h1>
+<div class="meta">Spec validée le 28 septembre 2026 · référence : <code>specs/plugins-phase-1-sdk.md</code> · branche <code>feature/plugins-phase-1</code> → <code>inte/plugins</code></div>
+
+<h2>Le constat</h2>
+<p>La phase 0 a donné un interrupteur aux 12 plugins, mais leur code vit toujours dans le cœur. Le cœur les connaît par leur nom : il crée leurs tables et garde leurs réglages dans ses propres colonnes. Il lance aussi leurs tâches et les appelle à la main après chaque écriture de réservation. Chaque garde de la phase 0 a été posée à la main, appel par appel.</p>
+<div class="cols2">
+  <div class="card"><h3>Ce que la cartographie a mesuré</h3>
+    <ul class="tight">
+      <li><b>Météo</b> : 463 lignes serveur, 1 table, 1 clé chiffrée, aucune tâche planifiée.</li>
+      <li><b>Vacances scolaires</b> : 2 tables et 11 périodes insérées en dur. Il y a aussi une tâche horaire, et des pastilles dans 3 calendriers.</li>
+      <li><b>Google Agenda</b> : 8 colonnes de réglages, dont 2 chiffrées. Surtout, <b>10 appels directs</b> éparpillés après les écritures de réservation.</li>
+      <li><b>Recettes</b> : 3 routes nichées dans celles des logements et une tâche quotidienne.</li>
+      <li><b>Portail Sowel</b> : 1 084 lignes, 4 chemins d'e-mail, le sas, la fiche et le tableau de bord.</li>
+    </ul></div>
+  <div class="alert"><b>Quatre fuites côté serveur, sur le portail.</b> Même désactivé, le serveur continue de :
+    <ul class="tight">
+      <li>servir l'alerte des clés du tableau de bord ;</li>
+      <li>renvoyer les champs du portail dans les données du sas ;</li>
+      <li>calculer les variables du portail dans les e-mails ;</li>
+      <li>créer les clés du connecteur à chaque démarrage.</li>
+    </ul>
+    L'écran cache tout, le serveur non. Sortir le plugin du cœur les ferme par construction.</div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<p>On inverse le sens. Le cœur offre des <b>points d'extension</b>, et chaque plugin s'y <b>inscrit</b>. Le cœur ne connaît plus qu'une liste de modules.</p>
+<div class="tbl"><table>
+<tr><th>Point d'extension</th><th>Ce que le plugin déclare</th><th>Remplace</th></tr>
+<tr><td>Routes</td><td>ses routes, <b>aux mêmes adresses</b>. Sowel et la console Google n'y voient rien.</td><td>les lignes en dur de <code>index.js</code> et les routes nichées</td></tr>
+<tr><td>Tables</td><td>ses migrations, lancées seulement s'il est installé</td><td><code>schema.sql</code> / <code>database.js</code></td></tr>
+<tr><td>Réglages</td><td>ses clés, secrets chiffrés, dans une table par plugin</td><td>9 colonnes de <code>app_settings</code></td></tr>
+<tr><td>Tâches</td><td>nom, intervalle, délai au démarrage</td><td><code>scheduledTasks.js</code></td></tr>
+<tr><td>Événements</td><td><code>reservation.created/updated/cancelled/deleted</code>, <code>ical.imported</code></td><td>les 10 appels directs à Google</td></tr>
+<tr><td>Variables d'e-mail</td><td>ses variables, fusionnées seulement s'il est actif</td><td>le code du portail dans les 4 chemins d'e-mail</td></tr>
+<tr><td>Emplacements d'écran</td><td>tableau de bord, fiche, sas, calendriers, réglages, onglets, menus</td><td>les <code>PluginGate</code> de la phase 0</td></tr>
+<tr><td>Données</td><td>ce qu'il efface, et comment</td><td>(nouveau)</td></tr>
+</table></div>
+<p class="muted">Garde-fou : un test parcourt les imports. Il échoue si le cœur importe un plugin, ou si un plugin importe le cœur autrement que par le SDK. C'est ce qui rendra mécanique la sortie en paquets de la phase 4.</p>
+
+<h2>Essaie : désinstaller avec ou sans effacement</h2>
+<p>Seuls les 5 plugins sortis du cœur proposent l'effacement. Les 7 autres ont encore leurs données dans le cœur et gardent le comportement de la phase 0 ; « Linge » est là pour le montrer. Clique sur un nom pour ouvrir son détail.</p>
+<div class="studio">
+  <div class="sbody" id="plist"></div>
+</div>
+
+<h2>Essaie : les événements remplacent les appels à la main</h2>
+<p>Choisis une action sur une réservation, puis active ou désactive Google Agenda. Le cœur <b>émet</b> l'événement ; seul un plugin actif le reçoit, après la réponse, sans jamais la ralentir ni la faire échouer.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Action</span>
+    <div class="seg" id="acts"></div>
+    <label class="chk"><input type="checkbox" id="gOn" checked> Google Agenda actif</label>
+    <label class="chk"><input type="checkbox" id="gThrow"> Google en panne</label>
+  </div>
+  <div class="sbody"><div class="log" id="evlog"></div></div>
+</div>
+
+<h2>Essaie : le code portail appartient au sas, pas à Sowel</h2>
+<p>Le code du clavier du portail est une information d'arrivée. En phase 0, il était caché dès que le plugin Sowel était désactivé. Désormais, l'étape « Portail » du sas s'affiche si le code est renseigné <b>ou</b> si Sowel a une clé pour ce séjour. Le QR de Sowel vient s'ajouter dans l'étape.</p>
+<div class="studio">
+  <div class="sbar">
+    <label class="chk"><input type="checkbox" id="kp" checked> Code clavier renseigné (Établissement)</label>
+    <label class="chk"><input type="checkbox" id="gate"> Plugin Accès portail actif, clé prête</label>
+  </div>
+  <div class="sbody" id="sasout"></div>
+</div>
+
+<h2>Ce qui change pour Solio</h2>
+<ul class="tight">
+  <li><b>Rien de visible.</b> Les tables existent déjà : les migrations des plugins ne trouvent rien à faire. La clé Météo et la connexion Google sont recopiées octet pour octet dans la nouvelle table des réglages. Les anciennes colonnes restent en place une version, pour qu'un retour à la v3.5 retrouve tout.</li>
+  <li><b>Le message après la connexion Google</b> revient. Aujourd'hui, la redirection perd le paramètre qui le porte. Je le vérifie dans le navigateur avant de corriger.</li>
+  <li><b>Un nouveau client</b> n'a plus aucune table ni aucune clé de connecteur pour ces 5 plugins tant qu'il ne les installe pas. Les 11 périodes de vacances 2024-2026 codées en dur disparaissent. À l'installation, le plugin synchronise tout de suite 24 mois depuis education.gouv.</li>
+</ul>
+
+<h2>Ce qu'on ne fait pas dans cette phase</h2>
+<ul class="tight">
+  <li><b>Les 7 autres plugins</b> (sas, linge, ressources à l'heure, site, Neat, Qonto, export comptable) → phases 2 et 3.</li>
+  <li><b>Le téléchargement de plugins</b> depuis un registre signé → phase 4.</li>
+  <li><b>La suppression des anciennes colonnes</b> de réglages → une version plus tard.</li>
+  <li><b>La rotation des clés du connecteur Sowel</b> à l'effacement.</li>
+  <li><b>Le cloisonnement des plugins</b> : ils tournent dans le même process, avec accès complet à la base.</li>
+  <li><b>La console de gestion des clients</b> (abonnements, déprovisionnement, alertes d'échéance, relances de paiement) : c'est un chantier à part, noté au §14 de l'étude. Il aura sa propre spec avant tout code d'hébergement.</li>
+</ul>
+
+<h2>Les risques</h2>
+<div class="tbl"><table>
+<tr><th>Risque</th><th>Parade</th></tr>
+<tr><td>Une grosse PR : des dizaines de fichiers déplacés</td><td>Les tests existants suivent leur code avec des assertions inchangées, et on compare le nombre de cas avant et après. La suite E2E complète tourne sans modification : elle prouve que rien de visible n'a bougé.</td></tr>
+<tr><td>La connexion Google perdue lors de la recopie des réglages</td><td>Copie octet pour octet avec la même clé de chiffrement, anciennes colonnes conservées, et vérification sur un shadow de Solio avant le merge.</td></tr>
+<tr><td>Un des 10 appels directs oublié en passant aux événements</td><td>Un test par ancien point d'appel. Le rattrapage Google toutes les 15 minutes reste en filet, comme aujourd'hui.</td></tr>
+<tr><td>Un effacement de recettes qui toucherait aux prix</td><td>L'effacement ne retire que le rattachement à la recette : les saisons, les prix et les fermetures restent, les saisons devenant « Manuelle ». Un test le vérifie. L'argent ne bouge jamais.</td></tr>
+</table></div>
+
+<h2>Tranché</h2>
+<ul class="tight">
+  <li><b>P1</b> — le code va dans <code>server/src/plugins/&lt;id&gt;</code> et <code>client/src/plugins/&lt;id&gt;</code>.</li>
+  <li><b>P2</b> — une seule PR, vers <code>inte/plugins</code>.</li>
+  <li><b>P3</b> — une table de réglages par plugin (<code>plugin_settings</code>).</li>
+  <li><b>P4</b> — « Effacer aussi ses données » dès maintenant pour les 5 plugins sortis du cœur.</li>
+</ul>
+<div class="note"><b>À valider :</b> la spec telle quelle. Une fois validée, je passe au plan d'implémentation puis au code.</div>
+</div>
+
+<script>
+const PL=[
+ {id:'weather-alerts',icon:'⛈',name:'Vigilance Météo-France',desc:'Alertes pendant le séjour, dans le sas',mod:true,data:['1 département en cache','la clé Météo-France']},
+ {id:'school-holidays',icon:'🎒',name:'Vacances scolaires',desc:'Zones A/B/C dans les calendriers',mod:true,data:['34 périodes de vacances','l’état de synchronisation']},
+ {id:'google-calendar',icon:'📅',name:'Google Agenda',desc:'Chaque séjour poussé dans ton agenda',mod:true,data:['la connexion Google (jeton, agenda choisi)'],keep:'Les événements déjà écrits dans Google restent dans Google.'},
+ {id:'tariff-recipes',icon:'🧾',name:'Recettes tarifaires',desc:'Saisons et prix générés par recette',mod:true,data:['12 exécutions de recette','le rattachement de 2 logements à leur recette'],keep:'Saisons, prix et fermetures restent : elles deviennent « Manuelle ».'},
+ {id:'gate-access',icon:'🔑',name:'Accès au portail (Sowel)',desc:'Clés du portail pour chaque séjour',mod:true,data:['41 résultats de clés','l’état du connecteur'],keep:'Le code clavier (sas) et les clés du connecteur restent.'},
+ {id:'linen',icon:'🧺',name:'Linge et blanchisserie',desc:'Stock, tournées, lits à préparer',mod:false},
+];
+const st={}; PL.forEach(p=>st[p.id]={state:'active',open:false,armed:false,erase:false,msg:''});
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function renderPL(){
+ const el=document.getElementById('plist'); el.innerHTML='';
+ PL.forEach(p=>{
+  const s=st[p.id]; const inst=s.state!=='available';
+  const d=document.createElement('div'); d.className='pc';
+  let h=`<div class="pc-main"><div class="tile">${p.icon}</div><button class="pname" data-a="open"><b>${esc(p.name)}${p.mod?'':'<span class="tag">encore dans le cœur</span>'}</b><small>${esc(p.desc)}</small>
+   <span class="sb ${s.state==='active'?'on':'off'}"><i></i>${s.state==='active'?'Actif':s.state==='inactive'?'Inactif':'Disponible'}</span></button>`;
+  h+= !inst?`<button class="pbtn primary" data-a="install">Installer</button>`
+      : `<button class="pbtn" data-a="toggle">${s.state==='active'?'Désactiver':'Activer'}</button>`;
+  h+='</div>';
+  if(s.msg) h+=`<p class="pinfo">${s.msg}</p>`;
+  if(s.open&&inst){
+   h+=`<div class="pdet">`;
+   if(p.mod) h+=`<label class="chk"><input type="checkbox" data-a="erase" ${s.erase?'checked':''}> Effacer aussi ses données</label>`;
+   if(s.erase) h+=`<p class="perase">Seront effacés : ${p.data.map(esc).join(' · ')}. C’est définitif.</p>${p.keep?`<p class="pinfo">${esc(p.keep)}</p>`:''}`;
+   else h+=`<p class="pinfo">Tes données sont conservées : en le réinstallant, tu retrouves tout.</p>`;
+   const lbl=!s.armed?'Désinstaller':(s.erase?'Désinstaller et effacer':'Confirmer la désinstallation');
+   h+=`<button class="pbtn danger ${s.armed?'armed':''}" data-a="uninstall">${lbl}</button></div>`;
+  }
+  d.innerHTML=h;
+  d.querySelectorAll('[data-a]').forEach(b=>b.addEventListener(b.type==='checkbox'?'change':'click',()=>act(p,b.dataset.a,b)));
+  el.appendChild(d);
+ });
+}
+function act(p,a,b){
+ const s=st[p.id]; s.msg='';
+ if(a==='open'){s.open=!s.open;s.armed=false;}
+ if(a==='toggle'){s.state=s.state==='active'?'inactive':'active';}
+ if(a==='erase'){s.erase=b.checked;s.armed=false;}
+ if(a==='uninstall'){ if(!s.armed){s.armed=true;} else { s.state='available'; s.open=false; s.armed=false; s.wiped=s.erase; s.msg=s.erase?'Désinstallé, données effacées.':'Désinstallé, données conservées.'; s.erase=false; } }
+ if(a==='install'){ s.state='active'; s.msg = s.wiped ? ({'school-holidays':'Installé, tables recréées vides : synchronisation education.gouv lancée.','google-calendar':'Installé, tables recréées vides : connecte ton compte Google.','weather-alerts':'Installé : saisis ta clé Météo-France.','tariff-recipes':'Installé : aucune recette rattachée.','gate-access':'Installé : aucune clé encore émise.'}[p.id]||'Installé.') : 'Réinstallé : tu retrouves tout.'; s.wiped=false; }
+ renderPL();
+}
+renderPL();
+
+const ACTS=[['create','Créer','reservation.created','push'],['update','Modifier','reservation.updated','push'],['cancel','Annuler','reservation.cancelled','delete'],['delete','Supprimer','reservation.deleted','delete'],['ical','Import iCal','ical.imported','reconcile'],['pay','Paiement du devis','reservation.updated','push']];
+let cur='create';
+function renderEv(){
+ const seg=document.getElementById('acts'); seg.innerHTML='';
+ ACTS.forEach(([k,l])=>{const b=document.createElement('button');b.textContent=l;b.setAttribute('aria-pressed',k===cur);b.onclick=()=>{cur=k;renderEv()};seg.appendChild(b)});
+ const [k,l,ev,g]=ACTS.find(a=>a[0]===cur); const on=document.getElementById('gOn').checked, th=document.getElementById('gThrow').checked;
+ let o=`<span class="ok">✔ écriture enregistrée, réponse envoyée</span>\n→ le cœur émet <b>${ev}</b>\n`;
+ if(!on) o+=`<span class="skip">  · google-calendar inactif : non appelé</span>\n`;
+ else if(th) o+=`<span class="w">  ⚠ [plugin:google-calendar] erreur journalisée — la réservation n’est pas touchée ;\n    le rattrapage des 15 minutes la repoussera</span>\n`;
+ else o+=`<span class="ok">  ✔ google-calendar : ${g==='push'?'pousse le séjour dans l’agenda':g==='delete'?'retire l’événement de l’agenda':'rapproche l’agenda des séjours importés'}</span>\n`;
+ o+=`<span class="skip">  · aucun autre plugin abonné à cet événement dans cette phase</span>`;
+ document.getElementById('evlog').innerHTML=o;
+}
+['gOn','gThrow'].forEach(id=>document.getElementById(id).addEventListener('change',renderEv));
+renderEv();
+
+function qr(){let s='';const m=[1,1,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1,0,1,1,1,0,0,1,0,1,0,0,1,0,1,1,0,1,1,1,1,1,0,0,1,1,1,0,1,0,1,0,1];m.forEach(v=>s+=`<i class="${v?'':'w'}"></i>`);return `<span class="qr">${s}</span>`}
+function renderSas(){
+ const kp=document.getElementById('kp').checked, g=document.getElementById('gate').checked; const o=document.getElementById('sasout');
+ if(!kp&&!g){o.innerHTML='<p class="absent">Pas d’étape « Portail » dans le sas : ni code clavier ni clé Sowel.</p>';return}
+ let h='<div class="sas"><h4>Portail</h4>';
+ if(kp) h+='<div class="muted" style="font-size:13px">Code du clavier</div><div class="keypad">4 7 1 9</div>';
+ if(g) h+=`<div style="margin-top:8px;font-size:13px">${qr()} &nbsp;Clé d’accès Sowel valable du 12 au 15 octobre <span class="tag">plugin Accès portail</span></div>`;
+ h+='</div>';
+ if(kp&&!g) h+='<p class="pinfo">En phase 0, cette étape était cachée faute du plugin Sowel. Désormais, elle apparaît.</p>';
+ o.innerHTML=h;
+}
+['kp','gate'].forEach(id=>document.getElementById(id).addEventListener('change',renderSas));
+renderSas();
+</script>
+</body>
+</html>

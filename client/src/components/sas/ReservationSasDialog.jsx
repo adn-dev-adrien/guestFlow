@@ -8,7 +8,7 @@
  * Props: { open, reservationId, mode: 'arrival'|'departure', onClose, onCommitted }
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, TextField, Link, Divider, Chip, Switch, useMediaQuery,
@@ -44,7 +44,6 @@ import FlightLandIcon from '@mui/icons-material/FlightLand';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router';
 import api from '../../api';
@@ -54,14 +53,15 @@ import OccurrenceGrid from '../OccurrenceGrid';
 import LoadingState from '../LoadingState';
 import ErrorAlert from '../ErrorAlert';
 import { useToast } from '../DialogProvider';
-import SasWeatherAlertPage from './SasWeatherAlertPage';
-import SasGateAccessStep from './SasGateAccessStep';
+import SasKeypadCode from './SasKeypadCode';
 import OfferableLine from './OfferableLine';
 import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
 import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
 import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
 import { usePlugin } from '../../hooks/usePlugins';
-import { GATE_ACCESS, HOURLY_RESOURCES, LINEN, WEATHER_ALERTS } from '../../constants/plugins';
+import { HOURLY_RESOURCES, LINEN } from '../../constants/plugins';
+import Slot from '../../plugins/sdk/Slot';
+import { useSlot } from '../../plugins/sdk/useSlot';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 // The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
@@ -131,7 +131,6 @@ function stepMeta(key, mode) {
     case 'cautionReturn': return { title: 'Retour caution', Icon: SavingsIcon };
     case 'extinguisher':
     case 'extinguisherItems': return { title: 'Extincteur', Icon: FireExtinguisherIcon };
-    case 'weather': return { title: 'Alerte météo', Icon: ReportProblemIcon };
     case 'recap': return { title: 'Récapitulatif', Icon: FactCheckIcon };
     default: return { title: '', Icon: null };
   }
@@ -310,14 +309,19 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       return next;
     });
   }, []);
-  // Weather alerts (specs/checkin-weather-alerts.md) — fetched in the background when the arrival SAS
-  // opens; empty until (and unless) a qualifying Orange/Red vigilance overlaps the stay.
-  const [weatherAlerts, setWeatherAlerts] = useState([]);
   // specs/plugins-phase-0-foundation.md rule 16 — the steps an inactive plugin brings are skipped.
-  const gateOn = usePlugin(GATE_ACCESS);
   const hourlyOn = usePlugin(HOURLY_RESOURCES);
   const linenOn = usePlugin(LINEN);
-  const weatherOn = usePlugin(WEATHER_ALERTS);
+  // Arrival steps of plugin modules (specs/plugins-phase-1-sdk.md rule 13), e.g. the weather alert:
+  // each loads its data in the background when the arrival SAS opens and shows, just before the
+  // recap, only when `isShown(data)`. Their key doubles as the step key.
+  const pluginSteps = useSlot('sas.arrival.steps');
+  const [pluginStepData, setPluginStepData] = useState({});
+  const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;
+  const metaFor = (key) => {
+    const step = pluginStepFor(key);
+    return step ? { title: step.title, Icon: step.Icon } : stepMeta(key, mode);
+  };
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;
@@ -329,7 +333,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
-    setWeatherAlerts([]); setOffered(new Set());
+    setPluginStepData({}); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
     // still undo its own upsell) and at check-out (where it can never be billed twice).
@@ -520,18 +524,22 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     return () => { cancelled = true; };
   }, [open, reservationId, mode]);
 
-  // Weather alerts (specs/checkin-weather-alerts.md) — background fetch on open, arrival SAS only.
-  // Non-blocking: the wizard renders normally; the weather page appears (before recap) once/if the
-  // response carries ≥1 alert. Any error degrades to no page.
+  // Plugin steps — background load on open, arrival SAS only. Non-blocking: the wizard renders
+  // normally and a step appears (before the recap) once/if its data says so; a failed load shows
+  // nothing.
+  const pluginStepKeys = pluginSteps.map((c) => `${c.pluginId}:${c.key}`).join(',');
   useEffect(() => {
-    if (!open || !reservationId || mode !== 'arrival' || !weatherOn) return undefined;
+    if (!open || !reservationId || mode !== 'arrival' || pluginSteps.length === 0) return undefined;
     let cancelled = false;
-    setWeatherAlerts([]);
-    api.getReservationWeatherAlerts(reservationId)
-      .then((res) => { if (!cancelled) setWeatherAlerts(Array.isArray(res?.alerts) ? res.alerts : []); })
-      .catch(() => { if (!cancelled) setWeatherAlerts([]); });
+    setPluginStepData({});
+    pluginSteps.forEach((c) => {
+      Promise.resolve(c.load({ reservationId }))
+        .then((stepData) => { if (!cancelled) setPluginStepData((prev) => ({ ...prev, [c.key]: stepData })); })
+        .catch(() => {});
+    });
     return () => { cancelled = true; };
-  }, [open, reservationId, mode, weatherOn]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, reservationId, mode, pluginStepKeys]);
 
   const r = data?.reservation;
   const modeColor = modeColorFor(theme, mode);
@@ -572,7 +580,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
-        gateOn && (data.portalCode || data.gateAccess?.available) ? 'portal' : null,
+        // The keypad code of the property, and/or the key a plugin holds for the stay (rule 17).
+        (data.portalCode || data.pluginData?.['gate-access']?.available) ? 'portal' : null,
         cautionStep ? 'caution' : null,
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
@@ -601,9 +610,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         sales.catering?.available ? 'cateringAsk' : null,
         (sales.catering?.available && cateringWanted === true) ? 'cateringItems' : null,
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
-        // Weather alert (specs/checkin-weather-alerts.md): last page before the recap, only when a
-        // qualifying alert overlaps the stay.
-        weatherOn && weatherAlerts.length > 0 ? 'weather' : null,
+        // Plugin steps (e.g. the weather alert): last pages before the recap, each only when its
+        // data calls for it.
+        ...pluginSteps.map((c) => (c.isShown(pluginStepData[c.key]) ? c.key : null)),
         'recap',
       ].filter(Boolean);
     }
@@ -623,8 +632,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean);
-  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLock,
-    breakfastSold, cateringWanted, gateOn, hourlyOn, linenOn, weatherOn]);
+  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
+    breakfastSold, cateringWanted, hourlyOn, linenOn]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -1188,17 +1197,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       }
       case 'portal':
-        // specs/gate-access-sowel-connector.md §3.5 rules 24-25 — the step shows the key Sowel made
-        // (code + QR) as soon as there is one, and falls back to the keypad code.
-        return (
-          <SasGateAccessStep
-            reservationId={r.id}
-            available={Boolean(data.gateAccess && data.gateAccess.available)}
-            portalCode={data.portalCode}
-          />
-        );
-      case 'weather':
-        return <SasWeatherAlertPage alerts={weatherAlerts} />;
+        // specs/plugins-phase-1-sdk.md rule 17 — the keypad code is a SAS fact; when a plugin holds a
+        // key for the stay (Sowel: code + QR, specs/gate-access-sowel-connector.md §3.5 rules 24-25)
+        // its component takes the page and keeps the keypad code as the fallback.
+        return data.pluginData?.['gate-access']?.available
+          ? <Slot name="sas.portal" reservationId={r.id} available portalCode={data.portalCode} />
+          : <SasKeypadCode portalCode={data.portalCode} />;
       case 'caution':
       case 'cautionReport':
         return (
@@ -1789,8 +1793,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {keysReceived === false && <Typography variant="body2" color="warning.main">⚠ Clés non récupérées.</Typography>}
           </Stack>
         );
-      default:
-        return null;
+      default: {
+        const step = pluginStepFor(stepKey);
+        if (!step) return null;
+        const { Component } = step;
+        return <Suspense fallback={null}><Component data={pluginStepData[stepKey]} /></Suspense>;
+      }
     }
   }
 
@@ -1910,12 +1918,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           />
         </>;
       case 'extinguisherItems': return <>{quit}{next()}</>;
-      case 'weather': return <>{quit}{next()}</>;
       case 'recap':
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>Valider et terminer</Button>
         </>;
-      default: return quit;
+      default: return pluginStepFor(stepKey) ? <>{quit}{next()}</> : quit;
     }
   }
 
@@ -1932,11 +1939,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       );
     }
     // Intro leads with the property photo, so suppress the big centred step icon there.
-    const bodyIcon = stepKey === 'intro' ? null : stepMeta(stepKey, mode).Icon;
+    const bodyIcon = stepKey === 'intro' ? null : metaFor(stepKey).Icon;
     return <StepLayout Icon={bodyIcon} color={modeColor}>{renderStepContent()}</StepLayout>;
   }
 
-  const meta = stepMeta(stepKey, mode);
+  const meta = metaFor(stepKey);
   const StepIcon = sasLock ? LockIcon : meta.Icon;
   const stepIdx = activeKeys.indexOf(stepKey);
   const bandTitle = sasLock ? lockedTitle : (meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ'));

@@ -1,6 +1,7 @@
 // Client mirror of server/src/constants/plugins.js (ids only — the server owns the catalogue and the
 // states; the client only hides what `user.enabledPlugins` does not list).
-// specs/plugins-phase-0-foundation.md rules 14 and 16.
+// specs/plugins-phase-0-foundation.md rules 14 and 16; specs/plugins-phase-1-sdk.md rule 15.
+import PLUGIN_MODULES from '../plugins';
 
 export const HOURLY_RESOURCES = 'hourly-resources';
 export const LINEN = 'linen';
@@ -20,17 +21,24 @@ export const PLUGIN_IDS = Object.freeze([
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
 ]);
 
+// The pages plugin modules contribute, with the roles that may open them (rule 15).
+const MODULE_ROUTES = PLUGIN_MODULES.flatMap((mod) => ((mod.contributes && mod.contributes.routes) || [])
+  .map((route) => ({ ...route, pluginId: mod.id })));
+
+export const MODULE_ROUTE_ROLES = Object.freeze(
+  Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.roles || ['admin']])),
+);
+
 // Pages that only exist for a plugin. An array means « visible while any of them is active »
-// (Intégrations holds the sections of four plugins).
+// (Intégrations holds the sections of four plugins). Plugin modules add their own pages.
 export const ROUTE_PLUGINS = Object.freeze({
   '/resource-planning': HOURLY_RESOURCES,
   '/comptabilite': ACCOUNTING_EXPORT,
   '/comptabilite/plateformes': ACCOUNTING_EXPORT,
-  '/school-holidays': SCHOOL_HOLIDAYS,
   '/parametres/stock-blanchisserie': LINEN,
-  '/parametres/recettes': TARIFF_RECIPES,
   '/parametres/paiements': ONLINE_PAYMENT,
   '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS],
+  ...Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.pluginId])),
 });
 
 export function isPluginEnabled(user, id) {

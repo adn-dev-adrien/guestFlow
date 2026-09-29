@@ -59,7 +59,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
     } }),
     '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
-    '../utils/googleCalendarSync': { schedulePush: () => null },
+    '../plugins/sdk/eventBus': { emit: () => null },
     '../database': dbMock,
   }, () => {
     delete require.cache[require.resolve('../controllers/reservationsController')];

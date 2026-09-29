@@ -171,8 +171,8 @@ test('un événement écrit par l’apply ne se présente pas comme déduit', ()
 
 // ── Rules 5 & 6 — through the REAL apply: a change is dated, a no-op is not ────────────────────
 
-const { createTariffRecipeModel } = require('../models/tariffRecipeModel');
-const { validateRecipe } = require('../utils/tariffRecipe');
+const { createTariffRecipeModel } = require('../plugins/tariff-recipes/model');
+const { validateRecipe } = require('../plugins/tariff-recipes/store');
 
 // Passée par le validateur comme le ferait le vrai chargement : le test protège le chemin réel,
 // pas une structure inventée à la main qui ne franchirait jamais le store.

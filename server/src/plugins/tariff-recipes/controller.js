@@ -1,0 +1,116 @@
+// Tariff recipes controller — thin handlers over the recipe store + tariffRecipeModel
+// (specs/tariff-recipes/spec.md §3.5). Read-only browser + property-scoped preview/apply +
+// the scheduled-run journal the Dashboard consumes.
+
+const { missingEventYears } = require('./seasonPlan');
+
+// deps: { db, store(), model(), properties(), journal() } — injected by the plugin's register.
+function createController({ db, store: getStore, model: getModel, properties, journal }) {
+  function list(req, res) {
+    const store = getStore();
+    const usedBy = db.prepare(
+      "SELECT id, name, tariffRecipeId, tariffRecipeVersion FROM properties WHERE tariffRecipeId != ''"
+    ).all();
+    const recipes = store.listRecipes().map((recipe) => ({
+      ...recipe,
+      usedByProperties: usedBy
+        .filter((p) => p.tariffRecipeId === recipe.id)
+        .map((p) => ({ id: p.id, name: p.name, appliedVersion: p.tariffRecipeVersion })),
+    }));
+    res.json({ recipes, invalid: store.listInvalidRecipes() });
+  }
+
+  function getOne(req, res) {
+    const recipe = getStore().getRecipe(req.params.id);
+    if (!recipe) return res.status(404).json({ error: 'Recette introuvable' });
+    // The years of the horizon whose event dates are still unknown
+    // (specs/tariff-events-and-extra-guest-tiers/spec.md §3.3 rules 16-17). Computed here rather than
+    // in the client so the property card and the Dashboard alert cannot disagree about what is missing.
+    const fromYear = new Date().getFullYear();
+    const missingEvents = missingEventYears(recipe, fromYear, fromYear + (recipe.horizonYears || 2) - 1);
+    return res.json({ recipe, meta: getStore().getRecipeMeta(req.params.id), missingEvents });
+  }
+
+  function previewForProperty(req, res) {
+    const recipeId = String(req.query.recipeId || '');
+    if (!recipeId) return res.status(400).json({ error: 'recipeId requis' });
+    res.json(getModel().preview(req.params.id, recipeId));
+  }
+
+  function applyToProperty(req, res) {
+    const recipeId = String(req.body?.recipeId || '');
+    if (!recipeId) return res.status(400).json({ error: 'recipeId requis' });
+    const result = getModel().apply(req.params.id, recipeId);
+    if (result.blocking) return res.status(409).json(result);
+    return res.json(result);
+  }
+
+  // Detach: the property keeps its seasons verbatim, only the pointer is cleared
+  // (the « Recette introuvable → détacher » escape hatch of spec §3 edge cases).
+  function detachFromProperty(req, res) {
+    properties().setTariffRecipe(req.params.id, '', '');
+    res.json({ ok: true });
+  }
+
+  function listRuns(req, res) {
+    // Alongside the run journal, the event years still missing from the horizon of every
+    // recipe-driven property (specs/tariff-events-and-extra-guest-tiers/spec.md §3.3 rule 17): the
+    // Dashboard is where a December « les dates de l'Ardéchoise sont sorties » must land without
+    // anyone opening a property page. Same derivation as the property card — they cannot disagree.
+    const store = getStore();
+    const fromYear = new Date().getFullYear();
+    const missingEvents = [];
+    for (const property of db.prepare("SELECT id, name, tariffRecipeId FROM properties WHERE tariffRecipeId != ''").all()) {
+      const recipe = store.getRecipe(property.tariffRecipeId);
+      if (!recipe) continue; // the vanished-recipe case already journals its own blocking run
+      for (const gap of missingEventYears(recipe, fromYear, fromYear + (recipe.horizonYears || 2) - 1)) {
+        missingEvents.push({ propertyId: property.id, propertyName: property.name, ...gap });
+      }
+    }
+    res.json({ runs: getModel().listPendingRuns(), missingEvents });
+  }
+
+  function dismissRun(req, res) {
+    const ok = getModel().dismissRun(req.params.runId);
+    if (!ok) return res.status(404).json({ error: 'Alerte introuvable' });
+    return res.json({ ok: true });
+  }
+
+  // ── Journal des changements tarifaires (specs/tariff-change-journal.md §4.3) ──────────────────
+  // The register of WHEN the grid changed. Thin handlers: the model owns validation and shaping, so
+  // the client renders a list it never has to interpret.
+
+  function listJournal(req, res) {
+    const propertyId = req.query.propertyId ? Number(req.query.propertyId) : null;
+    if (req.query.propertyId && !Number.isFinite(propertyId)) {
+      return res.status(400).json({ error: 'propertyId invalide' });
+    }
+    return res.json({ events: journal().list({ propertyId }) });
+  }
+
+  function createJournalEntry(req, res) {
+    const result = journal().insert({
+      propertyId: Number(req.body?.propertyId),
+      kind: String(req.body?.kind || ''),
+      occurredAt: req.body?.occurredAt,
+      note: req.body?.note,
+      source: 'manual',
+    });
+    if (result.error) return res.status(400).json({ error: result.error });
+    return res.status(201).json(result);
+  }
+
+  function deleteJournalEntry(req, res) {
+    if (!journal().remove(req.params.eventId)) {
+      return res.status(404).json({ error: 'Événement introuvable' });
+    }
+    return res.json({ ok: true });
+  }
+
+  return {
+    list, getOne, previewForProperty, applyToProperty, detachFromProperty, listRuns, dismissRun,
+    listJournal, createJournalEntry, deleteJournalEntry,
+  };
+}
+
+module.exports = { createController };

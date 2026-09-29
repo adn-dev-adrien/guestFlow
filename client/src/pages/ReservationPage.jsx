@@ -31,7 +31,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
-import GateAccessCard from '../components/GateAccessCard';
+import Slot from '../plugins/sdk/Slot';
 import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
 import usePlatforms from '../hooks/usePlatforms';
@@ -39,7 +39,7 @@ import { useAppDialogs, useToast } from '../components/DialogProvider';
 import ReservationLostItemsCard from '../components/ReservationLostItemsCard';
 import PluginGate from '../components/PluginGate';
 import { usePlugin } from '../hooks/usePlugins';
-import { WEBSITE_BOOKING, GATE_ACCESS, SAS, ONLINE_PAYMENT, NEAT } from '../constants/plugins';
+import { WEBSITE_BOOKING, SAS, ONLINE_PAYMENT, NEAT } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
@@ -3339,15 +3339,14 @@ export default function ReservationPage() {
 
           <FinanceSection />
 
-          {/* specs/gate-access-sowel-connector.md §3.5 rule 26 — the key Sowel reported for this
-              stay. Read-only: every action lives in Sowel. */}
-          <PluginGate id={GATE_ACCESS}>
-            <GateAccessCard
-              reservationId={editingReservationId}
-              cardSx={formSectionCardSx}
-              contentSx={formSectionContentSx}
-            />
-          </PluginGate>
+          {/* Cards of plugin modules (specs/plugins-phase-1-sdk.md rule 13) — e.g. the key Sowel
+              reported for this stay (specs/gate-access-sowel-connector.md §3.5 rule 26). */}
+          <Slot
+            name="reservation.cards"
+            reservationId={editingReservationId}
+            cardSx={formSectionCardSx}
+            contentSx={formSectionContentSx}
+          />
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>

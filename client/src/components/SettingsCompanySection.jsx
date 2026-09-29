@@ -16,7 +16,7 @@ import { Card, CardContent, Stack, Typography, TextField, Divider, Box } from '@
 import LogoUpload from './LogoUpload';
 import HelpedTextField from './HelpedTextField';
 import PluginGate from './PluginGate';
-import { GATE_ACCESS } from '../constants/plugins';
+import { SAS } from '../constants/plugins';
 
 export default function SettingsCompanySection({
   values,
@@ -145,7 +145,7 @@ export default function SettingsCompanySection({
             disabled={disabled}
           />
 
-          <PluginGate id={GATE_ACCESS}>
+          <PluginGate id={SAS}>
             <Divider />
             <TextField
               label="Code portail"

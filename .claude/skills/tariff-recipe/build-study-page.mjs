@@ -22,8 +22,8 @@ import { createRequire } from 'node:module';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..'); // <repo>/.claude/skills/<skill>/ → <repo>
 const require = createRequire(pathToFileURL(join(REPO, 'server', 'src', 'index.js')));
-const { validateRecipe } = require(join(REPO, 'server/src/utils/tariffRecipe.js'));
-const { buildYearPlan, materializeClosures } = require(join(REPO, 'server/src/utils/seasonPlan.js'));
+const { validateRecipe } = require(join(REPO, 'server/src/plugins/tariff-recipes/store.js'));
+const { buildYearPlan, materializeClosures } = require(join(REPO, 'server/src/plugins/tariff-recipes/seasonPlan.js'));
 const { grossFromNet } = require(join(REPO, 'server/src/utils/pricing.js'));
 
 const [inputsPath, recipePath, outPath] = process.argv.slice(2);

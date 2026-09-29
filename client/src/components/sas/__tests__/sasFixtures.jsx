@@ -37,6 +37,8 @@ export function sasPayload(over = {}) {
   return {
     reservation: { ...BASE_RES, ...(over.reservation || {}) },
     portalCode: over.portalCode || '',
+    // specs/plugins-phase-1-sdk.md rule 17 — what live plugin modules add, by plugin id.
+    pluginData: over.pluginData || {},
     cleaning: over.cleaning || { included: false, price: 80 },
     bathLinen: over.bathLinen || { available: false, unitPrice: 0, priceType: null, persons: 0, nights: 0, amount: 0, label: 'Linge de toilette' },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],

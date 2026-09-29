@@ -84,8 +84,8 @@ function log(...args) { console.log(...args); }
 
 function main() {
   const db = require(path.join(ROOT, 'server', 'src', 'database.js'));
-  const { getDefaultStore } = require(path.join(ROOT, 'server', 'src', 'utils', 'tariffRecipe.js'));
-  const { createTariffRecipeModel } = require(path.join(ROOT, 'server', 'src', 'models', 'tariffRecipeModel.js'));
+  const { createDefaultStore } = require(path.join(ROOT, 'server', 'src', 'plugins', 'tariff-recipes', 'store.js'));
+  const { createTariffRecipeModel } = require(path.join(ROOT, 'server', 'src', 'plugins', 'tariff-recipes', 'model.js'));
 
   log(`Base : ${db.dbPath}`);
   log(APPLY ? '⚠️  MODE ÉCRITURE (--apply)' : 'Mode simulation — relancer avec --apply pour écrire.');
@@ -214,7 +214,7 @@ function main() {
 
   // ── 4. The recipe: seasons, ranges, closures ──────────────────────────────
   log('');
-  const store = getDefaultStore();
+  const store = createDefaultStore(db.name);
   const recipe = store.getRecipe(RECIPE_ID);
   if (!recipe) {
     console.error(`❌ Recette « ${RECIPE_ID} » introuvable. Recettes chargées : ${store.listRecipes().map((r) => r.id).join(', ') || '(aucune)'}`);

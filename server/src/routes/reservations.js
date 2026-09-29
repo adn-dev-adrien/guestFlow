@@ -1,7 +1,6 @@
 const router = require('express').Router();
 const controller = require('../controllers/reservationsController');
 const sasController = require('../controllers/sasController');
-const weatherController = require('../controllers/weatherController');
 const refundsController = require('../controllers/refundsController');
 const cancellationController = require('../controllers/reservationCancellationController');
 const requirePlugin = require('../middleware/requirePlugin');
@@ -20,13 +19,6 @@ router.get('/:id/history', controller.getHistory);
 router.get('/:id/sas', requirePlugin(PLUGINS.SAS), sasController.getSas);
 router.post('/:id/sas/arrival', requirePlugin(PLUGINS.SAS), sasController.commitArrival);
 router.post('/:id/sas/departure', requirePlugin(PLUGINS.SAS), sasController.commitDeparture);
-// Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the background
-// when the check-in opens; never blocks the wizard, degrades to an empty list on any failure.
-router.get('/:id/weather-alerts', requirePlugin(PLUGINS.WEATHER_ALERTS), weatherController.getReservationAlerts);
-// Gate key (specs/gate-access-sowel-connector.md §3.5): the stored Sowel result, for
-// the SAS step (code + QR) and the fiche's card. A read and nothing else — the gate belongs to the
-// house, and Sowel carries the actions.
-router.get('/:id/gate-access', requirePlugin(PLUGINS.GATE_ACCESS), controller.gateAccess);
 // Remboursements (specs/reservation-refunds.md §4.3). Admin-only through the standard role guard;
 // deliberately reachable on a past-locked reservation — an early departure is discovered after the stay.
 router.get('/:id/refunds', refundsController.list);

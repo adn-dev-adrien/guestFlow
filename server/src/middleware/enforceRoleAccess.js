@@ -53,10 +53,6 @@ const RECEPTION_MATCHERS = [
   { method: 'GET', re: /^\/reservations$/ },
   { method: 'GET', re: /^\/reservations\/\d+$/ },
   { method: 'GET', re: /^\/reservations\/\d+\/sas$/ },
-  { method: 'GET', re: /^\/reservations\/\d+\/weather-alerts$/ },
-  // Gate key (specs/gate-access-sowel-connector.md §3.5 rule 27): reception runs the SAS, so it reads
-  // the code and its QR. A read — everything that changes an access lives in Sowel.
-  { method: 'GET', re: /^\/reservations\/\d+\/gate-access$/ },
   // SAS commits (caution + complement to collect at the door). Reachable, but the controller
   // additionally refuses a commit on an ALREADY-COMMITTED SAS for a reception-only requester
   // (403 SAS_ALREADY_COMMITTED, specs/reception-sas-lock-after-commit.md §3.1) — a state-based rule
@@ -83,8 +79,11 @@ const RECEPTION_MATCHERS = [
   { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
 ];
 
+// Plugin modules add their own reception entries (specs/plugins-phase-1-sdk.md rule 5). Their
+// routes stay behind requirePlugin, so an entry of an inactive plugin still ends in a 404.
 function isReceptionAllowed(method, path) {
-  return RECEPTION_MATCHERS.some((m) => m.method === method && m.re.test(path));
+  const pluginMatchers = require('../plugins/loader').receptionMatchers();
+  return [...RECEPTION_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
 }
 
 function isSelfPath(path) {

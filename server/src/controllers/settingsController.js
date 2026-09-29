@@ -152,7 +152,6 @@ function updateSettings(req, res) {
   const linenStock = pickGroup(body, 'linenStock');
   const notifications = pickGroup(body, 'notifications');
   const emails = pickGroup(body, 'emails');
-  const weather = pickGroup(body, 'weather');
 
   const payload = {};
   const errors = {};
@@ -212,14 +211,6 @@ function updateSettings(req, res) {
   if (smtp && Object.prototype.hasOwnProperty.call(smtp, 'password')) {
     const raw = smtp.password;
     payload.smtpPasswordEncrypted = raw == null ? '' : String(raw).replace(/\s+/g, '');
-  }
-
-  // Météo-France Vigilance API key — masked-secret 3-way (absent → preserve; '' → clear; non-empty →
-  // store). Trim surrounding whitespace so a pasted key with a trailing newline still authenticates
-  // (specs/checkin-weather-alerts.md §3 rule 10).
-  if (weather && Object.prototype.hasOwnProperty.call(weather, 'apiKey')) {
-    const raw = weather.apiKey;
-    payload.meteoFranceApiKeyEncrypted = raw == null ? '' : String(raw).trim();
   }
 
   if (Object.keys(errors).length > 0) {

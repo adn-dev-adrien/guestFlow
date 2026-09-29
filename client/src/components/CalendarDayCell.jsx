@@ -2,12 +2,11 @@ import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import { getSchoolHolidayInfo } from '../frenchHolidays';
 import { getClosureForDate } from '../utils/closureCalendar';
 import {
   formatDate, shiftDate, timeToHour, hourToPercent, getReservationColor,
   getBlockedNightInfo, resHasMidDays, compactName,
-  CLEANING_COLOR, BLOCKED_NIGHT_COLOR, ZONE_COLORS,
+  CLEANING_COLOR, BLOCKED_NIGHT_COLOR,
 } from '../utils/calendarVisuals';
 
 /**
@@ -17,16 +16,18 @@ import {
  * Moved verbatim from CalendarPage; closed-over data/handlers are now props.
  *
  * Props: day, y, m, dim (coordinates); reservations, devisList, closures, selectedProp,
- * calendarNotes, publicHolidays (Set of YYYY-MM-DD), schoolHolidays, today, cleaningHours,
+ * calendarNotes, publicHolidays (Set of YYYY-MM-DD), markersFor(dateStr) → [{ key, color, title }]
+ * (the plugins' day dots, hooks/useDayMarkers), today, cleaningHours,
  * inDrag, isDragging; callbacks onReservationClick(id), onMouseDown(day,y,m),
  * onMouseEnter(day,y,m), onOpenNote(dateStr), onOpenNewReservation(start,end), onDevisClick(devisId).
  */
 const NOTE_FALLBACK = {};
+const NO_MARKERS = () => [];
 
 export default function CalendarDayCell({
   day, y, m, dim,
   reservations, devisList, closures, selectedProp,
-  calendarNotes = NOTE_FALLBACK, publicHolidays, schoolHolidays,
+  calendarNotes = NOTE_FALLBACK, publicHolidays, markersFor = NO_MARKERS,
   today, cleaningHours, inDrag, isDragging,
   onReservationClick, onMouseDown, onMouseEnter, onOpenNote, onOpenNewReservation, onDevisClick,
 }) {
@@ -42,16 +43,16 @@ export default function CalendarDayCell({
 
   const renderHolidayIndicators = (dateStr) => {
     const isPublicHoliday = publicHolidays.has(dateStr);
-    const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
+    const markers = markersFor(dateStr);
     return (
       <>
         {isPublicHoliday && (
           <Typography sx={{ position: 'absolute', top: 1, left: '50%', transform: 'translateX(-50%)', fontSize: 14, color: 'error.main', zIndex: 3, pointerEvents: 'none', lineHeight: 1, opacity: 0.7, whiteSpace: 'nowrap' }}>férié</Typography>
         )}
-        {schoolInfo && (
+        {markers.length > 0 && (
           <Box sx={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '3px', zIndex: 3, pointerEvents: 'none' }}>
-            {schoolInfo.zones.map((z) => (
-              <Box key={z} sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS[z] }} />
+            {markers.map((mk) => (
+              <Box key={mk.key} title={mk.title} sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: mk.color }} />
             ))}
           </Box>
         )}

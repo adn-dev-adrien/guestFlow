@@ -20,7 +20,9 @@ const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-secret-1234';
 // Fixed session secret + encryption key so cookies / encrypted-at-rest secrets stay
 // deterministic across runs. The values are TEST-ONLY — they MUST never be used in prod.
 const E2E_SESSION_SECRET = 'e2e-fixed-session-secret-not-for-prod-use-32b';
-const E2E_ENCRYPTION_KEY = 'e2efixedencryptionkey1234567890ab'; // 32 bytes
+// The server reads the key as base64 of 32 bytes (server/src/utils/encryption.js): the plain string used
+// before never decoded to 32 bytes, which went unseen until an E2E spec first stored a secret.
+const E2E_ENCRYPTION_KEY = 'ZTJlZml4ZWRlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MGE='; // base64 of 32 bytes
 
 const isCI = Boolean(process.env.CI);
 

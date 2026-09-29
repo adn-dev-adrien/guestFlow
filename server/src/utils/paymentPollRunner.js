@@ -83,10 +83,10 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 
 // The shared effect of one PAID link: mark paid → apply the business effect → confirmation email +
 // conflict notification (both best-effort). Idempotent. Returns the per-link result object.
-// `googleCalendarSync` is injectable like every other dep; the default singleton makes the
-// webhook, the on-demand poll and the cron all push a freshly converted reservation to
-// Google immediately (specs/google-calendar-oauth-rework.md rule 20) — no-op when inactive.
-async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, googleCalendarSync = require('./googleCalendarSync') }) {
+// `emitPluginEvent` is injectable like every other dep; by default the webhook, the on-demand poll
+// and the cron all announce a freshly converted reservation to the plugins (Google pushes it at
+// once — specs/plugins-phase-1-sdk.md rule 9).
+async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, emitPluginEvent = require('../plugins/sdk/eventBus').emit }) {
   const p = paidPayment || {};
   // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
@@ -101,7 +101,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   // Devis→reservation conversion is the only paid effect that changes the calendar event set
   // (deposit/balance flags are not event-visible fields).
   if (effect.effect === 'converted' && effect.reservationId) {
-    googleCalendarSync.schedulePush(effect.reservationId);
+    emitPluginEvent('reservation.created', { reservationId: effect.reservationId });
   }
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
