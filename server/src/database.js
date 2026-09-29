@@ -332,6 +332,9 @@ tryAddAppSettingsCol('vatRate', "ALTER TABLE app_settings ADD COLUMN vatRate REA
 // year, i.e. exactly the behaviour of every annual figure before this spec, so existing rows keep
 // reading the same way until the operator changes it.
 tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN fiscalYearEndMonth INTEGER NOT NULL DEFAULT 12");
+// Annual revenue goal per exercise, JSON `{ "<exercise key>": amount }` (specs/finance-dashboard-redesign.md
+// §5). NULL = no goal anywhere, which is what every existing install starts with.
+tryAddAppSettingsCol('revenueGoals', "ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT");
 // SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
 // Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
 tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");

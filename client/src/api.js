@@ -27,6 +27,13 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+// Query string of the Suivi financier: window, logement and detail options; empty values are left out.
+function financeQuery(params) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => { if (value != null && value !== '') q.set(key, String(value)); });
+  return q.toString();
+}
+
 const api = {
   // Système et mises à jour (specs/self-update-and-releases.md §4.3). Admin-only server-side; the
   // client gates on the role before calling so a non-admin never sees a 403 in the console.
@@ -273,23 +280,10 @@ const api = {
   // Finance
   // `fiscalYear` = END year of the exercise to report on (specs/fiscal-year-and-nights-sold.md §4.3).
   // Omitted → the server answers on the current exercise.
-  getFinanceSummary: (from, to, fiscalYear) => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    if (fiscalYear) params.set('fiscalYear', String(fiscalYear));
-    return request(`/finance/summary?${params}`);
-  },
-  getFinanceBreakdown: (metric, from, to, fiscalYear) => {
-    const params = new URLSearchParams();
-    params.set('metric', metric);
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    if (fiscalYear) params.set('fiscalYear', String(fiscalYear));
-    return request(`/finance/breakdown?${params}`);
-  },
-  getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),
-  getFinanceOperational: () => request('/finance/operational'),
+  // specs/finance-dashboard-redesign.md §4.3 — the Suivi financier and the table behind each tile.
+  getFinanceDashboard: (params = {}) => request(`/finance/dashboard?${financeQuery(params)}`),
+  getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
+  getFinanceGoalContext: () => request('/finance/goal-context'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
   setTouristTaxDeclared: (reservationId, declared) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared } }),
