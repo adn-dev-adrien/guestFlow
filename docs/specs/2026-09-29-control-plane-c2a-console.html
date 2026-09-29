@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console GuestFlow C2a</title>
+<meta name="description" content="Maquette interactive de la console opérateur (C2a) : connexion à double authentification, flotte, création d'un client, fiche client, déprovisionnement.">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:14px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);display:block;margin:10px 0 4px}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;padding:0 14px;min-height:44px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.btn.danger{color:var(--ko);border-color:var(--ko)}
+.btn.link{border:0;background:none;color:var(--info);text-decoration:underline;padding:0 4px}
+input[type=text],input[type=email],input[type=password],input[type=date],select,textarea{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:44px;width:100%}
+textarea{min-height:64px}
+.err{color:var(--ko);font-size:13px;min-height:18px;margin-top:4px}
+.okmsg{color:var(--ok);font-size:13px}
+/* console frame */
+.frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:14px 0}
+.url{font:12.5px ui-monospace,Menlo,monospace;padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(127,127,127,.08);overflow-wrap:anywhere}
+.pab{position:sticky;top:0;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap}
+.pab .t{font:600 18px var(--serif);color:var(--sapin);flex:1;min-width:120px}
+.body{padding:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:999px;padding:0 14px;min-height:40px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fchip b{font-size:16px;margin-right:6px}
+.fchip[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.st-trial,.st-due{background:color-mix(in srgb,var(--info) 16%,var(--card));color:var(--info)}
+.st-active{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.st-grace{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.st-read_only,.st-suspended{background:color-mix(in srgb,var(--ko) 16%,var(--card));color:var(--ko)}
+.st-archived{background:rgba(127,127,127,.18);color:var(--muted)}
+.fleet tbody tr{cursor:pointer}
+.fleet tbody tr:hover{background:rgba(127,127,127,.07)}
+.fleet th button{appearance:none;border:0;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;padding:0}
+.cards{display:none}
+.fcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.fcard .r{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+@media (max-width:700px){.fleet{display:none}.cards{display:block}}
+.steps li{list-style:none;display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.steps{padding:0;margin:0}
+.dot{width:22px;height:22px;border-radius:50%;flex:0 0 22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.d-ok{background:var(--ok)} .d-ko{background:var(--ko)} .d-todo{background:transparent;border:2px solid var(--fieldline)}
+.steps .txt{flex:1;min-width:180px}
+.steps small{display:block;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px}
+@media (max-width:640px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.modal{border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;background:color-mix(in srgb,var(--lichen) 6%,var(--card));display:none}
+.modal.show{display:block}
+.hist li{font-size:13.5px;margin:4px 0}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.login{max-width:380px;margin:10px auto;padding:20px;border:1px solid var(--line);border-radius:12px}
+.login h4{font:600 20px var(--serif);margin:0 0 10px;text-align:center}
+.qr{width:120px;height:120px;margin:8px auto;display:grid;grid-template-columns:repeat(12,1fr);border:6px solid #fff;background:#fff}
+.qr i{display:block}
+.alerts li{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Console GuestFlow — C2a</h1>
+<div class="meta">Maquette de la spec <code>specs/control-plane-plans-and-access.md</code> (règles 1–8, 15, 18–20 et la nouvelle règle 31) · 29/09/2026 · tout se manipule, les données sont fictives, la date du jour est le 29/09/2026.</div>
+
+<div class="card">
+<h3>Ce que C2a livre, et ce qui attend C2b</h3>
+<div class="cols2">
+<div><b>C2a — cette PR</b>
+<ul class="tight">
+<li>La console opérateur (<code>control-plane/</code>), avec double authentification au choix de chaque opérateur : appli TOTP ou code par email.</li>
+<li>Le catalogue (matrice déjà validée), les clients, la création avec sa liste d'étapes, la flotte.</li>
+<li>La licence signée, écrite dans le dossier de l'instance ou téléchargeable.</li>
+<li>Le cycle de vie calculé chaque jour, « Enregistrer un paiement » à la main, les dérogations, le déprovisionnement, les alertes à l'écran.</li>
+</ul></div>
+<div><b>C2b — ensuite</b>
+<ul class="tight">
+<li>La facture de renouvellement et son lien de paiement Qonto, créés à J-30.</li>
+<li>Les relances (J-7, jour J, J+7) et « Relancer maintenant ».</li>
+<li>Les modèles de mails modifiables.</li>
+<li>L'email quotidien à l'opérateur.</li>
+</ul></div>
+</div>
+<p class="muted" style="margin-top:10px">Tant que la phase H n'existe pas, le processus, la route et le certificat d'un client sont des cases que l'opérateur coche à la main. La console fait elle-même ce qui ne dépend que d'elle : la licence, le compte administrateur (quand le dossier de l'instance est joignable), l'export et l'effacement.</p>
+</div>
+
+<!-- ================= LOGIN ================= -->
+<h2>1. Connexion opérateur et double authentification</h2>
+<p>Chaque opérateur choisit sa méthode dans son profil ; la connexion demande ensuite ce second facteur. Un code de secours remplace l'appli perdue. Essayez <code>123456</code> (bon code) puis un autre.</p>
+<div class="cols2">
+<div class="frame">
+<div class="url">https://console.guestflow.fr/login</div>
+<div class="body">
+<div class="login" id="lg">
+</div>
+</div>
+</div>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/profil — double authentification</div>
+<div class="body">
+<span class="lab">Méthode</span>
+<div class="seg" id="mfaSeg"><button aria-pressed="true" data-m="totp">Appli d'authentification</button><button aria-pressed="false" data-m="email">Code par email</button></div>
+<div id="mfaSetup" style="margin-top:12px"></div>
+</div>
+</div>
+</div>
+
+<!-- ================= HOME / ALERTS + FLEET ================= -->
+<h2>2. Flotte et alertes (règles 8 et 18)</h2>
+<p>Les compteurs filtrent la liste ; un clic sur une colonne la trie ; un clic sur une ligne ouvre la fiche (section 4). Sous 700 px, une carte par client.</p>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/</div>
+<div class="pab"><span class="t">Clients</span><button class="btn primary" id="goNew">＋ Nouveau client</button></div>
+<div class="body">
+<div class="card" style="margin-bottom:12px">
+<b>À traiter aujourd'hui</b>
+<ul class="tight alerts" id="alerts"></ul>
+</div>
+<div class="chips" id="counters"></div>
+<table class="fleet"><thead><tr id="fleetHead"></tr></thead><tbody id="fleetBody"></tbody></table>
+<div class="cards" id="fleetCards"></div>
+</div>
+</div>
+
+<!-- ================= NEW CUSTOMER ================= -->
+<h2>3. Nouveau client (règles 7 et 21)</h2>
+<p>Le slug est vérifié à la saisie : essayez <code>admin</code>, <code>Gîte</code>, <code>ab</code> ou <code>solio</code> (déjà pris). La date de fin se calcule côté serveur. À l'enregistrement, la liste des étapes s'affiche : les automatiques en vert ou en rouge, les manuelles à cocher.</p>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/clients/nouveau</div>
+<div class="pab"><span class="t">Nouveau client</span><button class="btn primary" id="ncSave">Enregistrer</button></div>
+<div class="body" id="ncBody">
+<div class="grid2">
+<div><span class="lab">Société</span><input type="text" id="ncCo" value="Gîte des Aulnes"></div>
+<div><span class="lab">Adresse (slug)</span><input type="text" id="ncSlug" value="aulnes"><div class="err" id="ncSlugErr"></div><div class="muted" style="font-size:12.5px" id="ncUrl"></div></div>
+<div><span class="lab">Contact</span><input type="text" id="ncName" value="Claire Martin"></div>
+<div><span class="lab">Email du contact (premier administrateur)</span><input type="email" id="ncMail" value="claire@aulnes.fr"></div>
+</div>
+<span class="lab">Forfait</span>
+<div class="seg" id="ncPlan"><button data-v="essentiel" aria-pressed="false">Essentiel</button><button data-v="pro" aria-pressed="true">Pro</button><button data-v="premium" aria-pressed="false">Premium</button></div>
+<div class="grid2">
+<div><span class="lab">Facturation</span><div class="seg" id="ncBill"><button data-v="monthly" aria-pressed="true">Mensuelle</button><button data-v="yearly" aria-pressed="false">Annuelle</button></div></div>
+<div><span class="lab">Durée</span><div class="seg" id="ncLen"><button data-v="1" aria-pressed="false">1 mois</button><button data-v="12" aria-pressed="true">12 mois</button><button data-v="custom" aria-pressed="false">Date de fin</button></div></div>
+<div><span class="lab">Début</span><input type="date" id="ncStart" value="2026-10-01"></div>
+<div><span class="lab">Fin</span><input type="date" id="ncEnd" value="2027-09-30" disabled></div>
+</div>
+<label style="display:flex;gap:8px;align-items:center;margin-top:12px;min-height:44px"><input type="checkbox" id="ncTrial" checked> Période d'essai de 30 jours, sans paiement</label>
+<span class="lab">Options à la carte</span>
+<div id="ncAddons"></div>
+<div class="note" id="ncSum"></div>
+<div class="err" id="ncErr"></div>
+</div>
+<div class="body" id="ncSteps" style="display:none"></div>
+</div>
+
+<!-- ================= CUSTOMER ================= -->
+<h2>4. Fiche client : paiement, dérogations, déprovisionnement (règles 15, 19, 20)</h2>
+<p>Choisissez un client dans la flotte (section 2) ou ici. Chaque action refuse de partir sans motif quand la règle l'exige ; l'historique garde tout.</p>
+<div class="seg" id="custPick" style="margin-bottom:6px"></div>
+<div class="frame">
+<div class="url" id="custUrl"></div>
+<div class="pab"><span class="t" id="custTitle"></span>
+<button class="btn" data-act="pay">Enregistrer un paiement</button>
+<button class="btn" data-act="extend">Prolonger</button>
+<button class="btn" data-act="force">Remettre en actif</button>
+<button class="btn" data-act="lic">Télécharger la licence</button>
+<button class="btn danger" data-act="deprov">Déprovisionner</button>
+</div>
+<div class="body">
+<div class="cols2">
+<div><dl class="kv" id="custKv"></dl></div>
+<div><b>Historique</b><ul class="tight hist" id="custHist"></ul></div>
+</div>
+<div class="modal" id="mPay">
+<b>Enregistrer un paiement reçu</b>
+<p class="muted">Un virement ou un paiement hors lien. La fin recule de la durée payée et l'état redevient actif, quel qu'il soit (règle 15).</p>
+<div class="grid2">
+<div><span class="lab">Durée payée</span><div class="seg" id="payLen"><button data-v="1" aria-pressed="true">1 mois</button><button data-v="12" aria-pressed="false">12 mois</button></div></div>
+<div><span class="lab">Référence</span><input type="text" id="payRef" placeholder="Virement du 28/09"></div>
+</div>
+<p id="payPreview" style="margin-top:8px"></p>
+<button class="btn primary" id="payOk">Enregistrer</button> <button class="btn" data-close>Annuler</button>
+</div>
+<div class="modal" id="mExtend">
+<b>Prolonger l'abonnement (geste commercial)</b>
+<div class="grid2"><div><span class="lab">Nouvelle date de fin</span><input type="date" id="extDate"></div><div><span class="lab">Motif (obligatoire)</span><textarea id="extWhy"></textarea></div></div>
+<div class="err" id="extErr"></div>
+<button class="btn primary" id="extOk">Prolonger</button> <button class="btn" data-close>Annuler</button>
+</div>
+<div class="modal" id="mForce">
+<b>Remettre en actif</b>
+<p class="muted">L'état reste « actif » jusqu'à la date choisie, puis le calendrier reprend la main. Par défaut 7 jours.</p>
+<div class="grid2"><div><span class="lab">Jusqu'au</span><input type="date" id="forceDate"></div><div><span class="lab">Motif (obligatoire)</span><textarea id="forceWhy"></textarea></div></div>
+<div class="err" id="forceErr"></div>
+<button class="btn primary" id="forceOk">Remettre en actif</button> <button class="btn" data-close>Annuler</button>
+</div>
+<div class="modal" id="mDeprov">
+<b>Déprovisionner <span id="dpName"></span> ?</b>
+<ol class="tight">
+<li>L'export complet est produit : copie de la base, photos et logos, CSV des réservations et des clients.</li>
+<li>Son lien part par email à <span id="dpMail"></span>, valable 30 jours.</li>
+<li>Le processus et la route sont arrêtés ; l'adresse affiche « Cet espace a été fermé » <span class="muted">(à cocher à la main avant la phase H)</span>.</li>
+<li>L'état devient « archivé ».</li>
+<li>Le <span id="dpErase"></span>, le dossier et ses sauvegardes sont effacés.</li>
+</ol>
+<span class="lab">Pour confirmer, tapez le slug</span><input type="text" id="dpConfirm">
+<div class="err" id="dpErr"></div>
+<button class="btn danger" id="dpOk">Déprovisionner</button> <button class="btn" data-close>Annuler</button>
+</div>
+<div class="modal" id="mArchived">
+<b>Client archivé</b>
+<p>Effacement prévu le <b id="arErase"></b>.</p>
+<button class="btn" id="arReact">Réactiver</button> <button class="btn" id="arCancel">Annuler l'effacement</button> <button class="btn danger" id="arNow">Effacer maintenant…</button>
+<div class="err" id="arMsg"></div>
+</div>
+<div class="err" id="custMsg"></div>
+</div>
+</div>
+
+<h2>5. Ce qui reste à trancher</h2>
+<p>Rien : les choix de C2 sont faits (29/09/2026) — deux PR ; la double authentification au choix de l'opérateur ; « à renouveler » commence 7 jours avant l'échéance en mensuel et 30 jours en annuel (avec 30 jours partout, un client mensuel aurait vu le bandeau tout le mois). Deux comportements nouveaux sont écrits dans la spec et visibles ci-dessus : « Remettre en actif » dure jusqu'à une date choisie (7 jours par défaut), et le déprovisionnement se confirme en tapant le slug.</p>
+</div>
+
+<script>
+const TODAY = '2026-09-29';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const D = (s) => new Date(s + 'T00:00:00Z');
+const iso = (d) => d.toISOString().slice(0, 10);
+const addDays = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+const addMonths = (s, n) => { const d = D(s); const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); return iso(d); };
+const diff = (a, b) => Math.round((D(b) - D(a)) / 86400000);
+const fr = (s) => s ? s.split('-').reverse().join('/') : '—';
+function press(seg, btn) { seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn))); }
+function segVal(seg) { const b = seg.querySelector('[aria-pressed="true"]'); return b && b.dataset.v; }
+
+/* ---------- login ---------- */
+let mfa = 'totp';
+function loginStep1() {
+  $('lg').innerHTML = `<h4>Console GuestFlow</h4>
+  <span class="lab">Email</span><input type="email" value="adrien@adn-dev.fr">
+  <span class="lab">Mot de passe</span><input type="password" value="••••••••••">
+  <div style="margin-top:12px"><button class="btn primary" style="width:100%" id="lg1">Se connecter</button></div>`;
+  $('lg1').onclick = loginStep2;
+}
+function loginStep2(backup) {
+  const head = backup === true ? 'Saisissez un de vos codes de secours (10 caractères).'
+    : mfa === 'totp' ? 'Saisissez le code à 6 chiffres affiché par votre appli d’authentification.'
+      : 'Un code à 6 chiffres vient d’être envoyé à a•••n@adn-dev.fr. Il est valable 10 minutes.';
+  $('lg').innerHTML = `<h4>Vérification</h4><p style="font-size:14px">${head}</p>
+  <input type="text" id="lgCode" inputmode="numeric" autocomplete="one-time-code" placeholder="${backup === true ? 'xxxxx-xxxxx' : '123456'}">
+  <div class="err" id="lgErr"></div>
+  <button class="btn primary" style="width:100%" id="lg2">Valider</button>
+  <div style="margin-top:8px;text-align:center">${mfa === 'email' && backup !== true ? '<button class="btn link" id="lgResend">Renvoyer le code</button>' : ''}<button class="btn link" id="lgBackup">${backup === true ? 'Revenir au code' : 'Utiliser un code de secours'}</button></div>`;
+  let tries = 0;
+  $('lg2').onclick = () => {
+    const v = $('lgCode').value.trim();
+    const ok = backup === true ? /^[a-z0-9]{5}-[a-z0-9]{5}$/i.test(v) : v === '123456';
+    if (ok) { $('lg').innerHTML = `<h4>Bienvenue</h4><p class="okmsg" style="text-align:center">Connecté. ${backup === true ? 'Ce code de secours est maintenant utilisé ; il en reste 9.' : ''}</p><button class="btn" style="width:100%" id="lgAgain">Recommencer</button>`; $('lgAgain').onclick = loginStep1; return; }
+    tries += 1;
+    $('lgErr').textContent = tries >= 5 ? 'Trop d’essais : reconnectez-vous dans 15 minutes.' : 'Code incorrect.';
+    if (tries >= 5) $('lg2').disabled = true;
+  };
+  if ($('lgResend')) $('lgResend').onclick = () => { $('lgErr').textContent = ''; $('lgErr').className = 'okmsg'; $('lgErr').textContent = 'Nouveau code envoyé ; le précédent ne marche plus.'; };
+  $('lgBackup').onclick = () => loginStep2(backup === true ? false : true);
+}
+function renderMfa() {
+  if (mfa === 'totp') {
+    const cells = Array.from({ length: 144 }, (_, i) => `<i style="background:${((i * 7919) % 13) < 6 ? '#111' : '#fff'}"></i>`).join('');
+    $('mfaSetup').innerHTML = `<p style="font-size:14px">Scannez ce code avec votre appli, puis saisissez le code affiché pour confirmer.</p>
+    <div class="qr">${cells}</div>
+    <p class="muted" style="font-size:12.5px;text-align:center">Ou saisissez la clé : <code>JBSW Y3DP EHPK 3PXP</code></p>
+    <input type="text" id="mfaCode" placeholder="Code à 6 chiffres"><div class="err" id="mfaErr"></div>
+    <button class="btn primary" id="mfaOk">Activer</button>`;
+  } else {
+    $('mfaSetup').innerHTML = `<p style="font-size:14px">À chaque connexion, un code est envoyé à <b>adrien@adn-dev.fr</b>. Pour confirmer, saisissez le code qu'on vient de vous envoyer.</p>
+    <input type="text" id="mfaCode" placeholder="Code à 6 chiffres"><div class="err" id="mfaErr"></div>
+    <button class="btn primary" id="mfaOk">Activer</button>`;
+  }
+  $('mfaOk').onclick = () => {
+    if ($('mfaCode').value.trim() !== '123456') { $('mfaErr').className = 'err'; $('mfaErr').textContent = 'Code incorrect : la méthode actuelle reste en place.'; return; }
+    $('mfaSetup').innerHTML = `<p class="okmsg">${mfa === 'totp' ? 'Appli d’authentification activée.' : 'Code par email activé.'} La méthode précédente est désactivée.</p>
+    <p style="font-size:14px"><b>Vos 10 codes de secours</b> — ils ne s'afficheront plus :</p>
+    <p><code>k3m9q-7xw2p</code> <code>a8f2n-q0zr5</code> <code>p4t7c-m2v9h</code> <code>…</code></p>`;
+    loginStep1();
+  };
+}
+document.querySelectorAll('#mfaSeg button').forEach((b) => { b.onclick = () => { press($('mfaSeg'), b); mfa = b.dataset.m; renderMfa(); loginStep1(); }; });
+renderMfa(); loginStep1();
+
+/* ---------- data ---------- */
+const PLAN_NAMES = { essentiel: 'Essentiel', pro: 'Pro', premium: 'Premium' };
+const PRICES = { essentiel: [29, 24], pro: [59, 49], premium: [99, 83] };
+const ADDONS = [['gate-access', 'Accès portail Sowel', 12], ['neat', 'Assurance annulation Neat', 9], ['hourly-resources', 'Ressources horaires', 9]];
+const customers = [
+  { slug: 'solio', co: 'Domaine Solio', mail: 'adrien@domainesolio.com', plan: 'premium', bill: 'yearly', start: '2026-01-01', end: '2027-01-01', trialEnd: null, addons: [], version: '3.6.0', plugins: 12, proc: 'en ligne', backup: '29/09 03:10', hist: [] },
+  { slug: 'lestiva', co: 'L’Estiva', mail: 'contact@lestiva.fr', plan: 'pro', bill: 'monthly', start: '2026-08-15', end: '2026-10-15', trialEnd: null, addons: ['gate-access'], version: '3.6.0', plugins: 7, proc: 'en ligne', backup: '29/09 03:12', hist: [] },
+  { slug: 'granja', co: 'La Granja', mail: 'hola@granja.es', plan: 'essentiel', bill: 'monthly', start: '2026-09-15', end: '2026-10-15', trialEnd: '2026-10-15', addons: [], version: '3.6.0', plugins: 3, proc: 'en ligne', backup: '29/09 03:14', hist: [] },
+  { slug: 'moulin', co: 'Le Moulin Bas', mail: 'moulin@orange.fr', plan: 'pro', bill: 'monthly', start: '2026-07-24', end: '2026-09-24', trialEnd: null, addons: [], version: '3.5.0', plugins: 6, proc: 'en ligne', backup: '29/09 03:15', hist: [] },
+  { slug: 'fontaine', co: 'Gîte de la Fontaine', mail: 'gite@fontaine.fr', plan: 'essentiel', bill: 'monthly', start: '2026-07-01', end: '2026-09-01', trialEnd: null, addons: [], version: '3.5.0', plugins: 4, proc: 'en ligne', backup: '29/09 03:16', hist: [] },
+  { slug: 'pinede', co: 'La Pinède', mail: 'pinede@free.fr', plan: 'premium', bill: 'yearly', start: '2025-08-01', end: '2026-08-01', trialEnd: null, addons: [], version: '3.4.2', plugins: 10, proc: 'arrêté', backup: '28/08 03:10', hist: [] },
+];
+customers.forEach((c) => c.hist.push(`${fr(c.start)} — client créé, forfait ${PLAN_NAMES[c.plan]}`));
+
+// Rule 14, Paris days: due from -30 (yearly) or -7 (monthly), grace endsAt..+7, read-only +8..+30, suspended from +31.
+function stateOf(c) {
+  if (c.archived) return 'archived';
+  if (c.forceUntil && TODAY <= c.forceUntil) return 'active';
+  if (c.trialEnd && TODAY < c.trialEnd) return 'trial';
+  const d = diff(c.end, TODAY);
+  if (d < (c.bill === 'monthly' ? -7 : -30)) return 'active';
+  if (d < 0) return 'due';
+  if (d <= 7) return 'grace';
+  if (d <= 30) return 'read_only';
+  return 'suspended';
+}
+const ST_LABEL = { trial: 'essai', active: 'actif', due: 'à renouveler', grace: 'grâce', read_only: 'lecture seule', suspended: 'suspendu', archived: 'archivé' };
+const stChip = (s) => `<span class="st st-${s}">${ST_LABEL[s]}</span>`;
+function daysLeft(c) { return c.archived ? '—' : diff(TODAY, c.trialEnd && TODAY < c.trialEnd ? c.trialEnd : c.end); }
+
+/* ---------- fleet ---------- */
+let filter = null; let sortKey = 'end'; let sortDir = 1;
+const COLS = [['slug', 'Adresse'], ['plan', 'Forfait'], ['state', 'État'], ['end', 'Échéance'], ['left', 'Jours'], ['version', 'Version'], ['plugins', 'Plugins'], ['proc', 'Processus'], ['backup', 'Sauvegarde']];
+const COUNTERS = [['renew', 'à renouveler sous 30 j', (c) => ['due', 'trial'].includes(stateOf(c)) && daysLeft(c) <= 30], ['late', 'en grâce ou lecture seule', (c) => ['grace', 'read_only'].includes(stateOf(c))], ['susp', 'suspendus', (c) => stateOf(c) === 'suspended']];
+function val(c, k) { return k === 'state' ? stateOf(c) : k === 'left' ? (c.archived ? 99999 : daysLeft(c)) : c[k]; }
+function renderFleet() {
+  $('counters').innerHTML = COUNTERS.map(([k, l, f]) => `<button class="fchip" data-k="${k}" aria-pressed="${filter === k}"><b>${customers.filter(f).length}</b>${l}</button>`).join('');
+  $('counters').querySelectorAll('button').forEach((b) => { b.onclick = () => { filter = filter === b.dataset.k ? null : b.dataset.k; renderFleet(); }; });
+  $('fleetHead').innerHTML = COLS.map(([k, l]) => `<th><button data-k="${k}">${l}${sortKey === k ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('');
+  $('fleetHead').querySelectorAll('button').forEach((b) => { b.onclick = () => { if (sortKey === b.dataset.k) sortDir = -sortDir; else { sortKey = b.dataset.k; sortDir = 1; } renderFleet(); }; });
+  const f = filter ? COUNTERS.find((x) => x[0] === filter)[2] : () => true;
+  const rows = customers.filter(f).sort((a, b) => (val(a, sortKey) > val(b, sortKey) ? 1 : val(a, sortKey) < val(b, sortKey) ? -1 : 0) * sortDir);
+  $('fleetBody').innerHTML = rows.map((c) => `<tr data-s="${c.slug}"><td><b>${esc(c.co)}</b><br><span class="muted">${c.slug}.guestflow.fr</span></td><td>${PLAN_NAMES[c.plan]}${c.addons.length ? ` + ${c.addons.length} option` : ''}</td><td>${stChip(stateOf(c))}</td><td>${fr(c.end)}</td><td>${daysLeft(c)}</td><td>${c.version}</td><td>${c.plugins}</td><td>${c.proc}</td><td>${c.backup}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucun client dans ce filtre.</td></tr>';
+  $('fleetCards').innerHTML = rows.map((c) => `<div class="fcard" data-s="${c.slug}"><div class="r"><b>${esc(c.co)}</b>${stChip(stateOf(c))}</div><div class="r muted" style="font-size:13px"><span>${c.slug}.guestflow.fr · ${PLAN_NAMES[c.plan]}</span><span>fin ${fr(c.end)} (${daysLeft(c)} j)</span></div></div>`).join('');
+  document.querySelectorAll('[data-s]').forEach((el) => { el.onclick = () => { openCustomer(el.dataset.s); document.getElementById('custPick').scrollIntoView({ behavior: 'smooth' }); }; });
+  const al = [];
+  customers.forEach((c) => {
+    const s = stateOf(c); const d = diff(c.end, TODAY);
+    if (!c.archived && (d === (c.bill === 'monthly' ? -7 : -30) || d === 0 || d === 8 || d === 31)) al.push(`<b>${esc(c.co)}</b> entre aujourd'hui en ${stChip(s)}`);
+    if (s === 'read_only' || s === 'suspended') al.push(`<b>${esc(c.co)}</b> est en ${stChip(s)} depuis le ${fr(addDays(c.end, s === 'read_only' ? 8 : 31))}`);
+    if (c.stepsKo) al.push(`<b>${esc(c.co)}</b> : ${c.stepsKo} étape de création en échec`);
+  });
+  $('alerts').innerHTML = al.join('') ? al.map((a) => `<li>${a}</li>`).join('') : '<li class="muted">Rien à traiter.</li>';
+  renderPick();
+}
+
+/* ---------- new customer ---------- */
+const RESERVED = ['app', 'www', 'auth', 'api', 'admin', 'console', 'mail', 'status', 'demo'];
+function slugError(s) {
+  if (!/^[a-z0-9-]*$/.test(s)) return 'Uniquement des minuscules sans accent, des chiffres et des tirets.';
+  if (s.length < 3 || s.length > 30) return 'Entre 3 et 30 caractères.';
+  if (RESERVED.includes(s)) return 'Adresse réservée.';
+  if (customers.some((c) => c.slug === s)) return 'Adresse déjà utilisée par un autre client, y compris archivé.';
+  return '';
+}
+$('ncAddons').innerHTML = ADDONS.map(([id, l, p]) => `<label style="display:flex;gap:8px;align-items:center;min-height:40px"><input type="checkbox" data-a="${id}"> ${l} — ${p} € HT / mois</label>`).join('');
+['ncPlan', 'ncBill', 'ncLen'].forEach((id) => $(id).querySelectorAll('button').forEach((b) => { b.onclick = () => { press($(id), b); ncRefresh(); }; }));
+['ncSlug', 'ncStart', 'ncEnd', 'ncTrial'].forEach((id) => { $(id).oninput = ncRefresh; $(id).onchange = ncRefresh; });
+$('ncAddons').onchange = ncRefresh;
+function ncRefresh() {
+  const slug = $('ncSlug').value;
+  const e = slugError(slug);
+  $('ncSlugErr').textContent = e;
+  $('ncUrl').textContent = e ? '' : `https://${slug}.guestflow.fr`;
+  const len = segVal($('ncLen'));
+  $('ncEnd').disabled = len !== 'custom';
+  if (len !== 'custom') $('ncEnd').value = addDays(addMonths($('ncStart').value, Number(len)), -1);
+  const plan = segVal($('ncPlan')); const yearly = segVal($('ncBill')) === 'yearly';
+  const addons = [...$('ncAddons').querySelectorAll('input:checked')].map((i) => ADDONS.find((a) => a[0] === i.dataset.a));
+  const monthly = PRICES[plan][yearly ? 1 : 0] + addons.reduce((s, a) => s + a[2], 0);
+  const trial = $('ncTrial').checked;
+  $('ncSum').innerHTML = `<b>${PLAN_NAMES[plan]}</b>${addons.length ? ' + ' + addons.map((a) => a[1]).join(', ') : ''} · ${monthly} € HT / mois${yearly ? ' (facturé à l’année)' : ''}<br>
+  ${trial ? `Essai jusqu'au ${fr(addDays($('ncStart').value, 30))}, puis ` : ''}abonnement du ${fr($('ncStart').value)} au ${fr($('ncEnd').value)}.<br><span class="muted">Le prix vient du catalogue v7 ; il reste attaché à ce client même si le catalogue change (règle 6).</span>`;
+}
+ncRefresh();
+const STEPS = [
+  ['licence', 'Licence signée', 'auto', 'Écrite dans /srv/guestflow/aulnes/data/licence.jws'],
+  ['dir', 'Dossier, clé de chiffrement et base', 'manual', 'Phase H : à faire à la main (voir le guide d’hébergement)'],
+  ['process', 'Processus', 'manual', 'Phase H : unité systemd à créer'],
+  ['route', 'Route et certificat TLS', 'manual', 'Phase H : entrée Caddy'],
+  ['admin', 'Premier compte administrateur et invitation', 'auto', 'Invitation envoyée à claire@aulnes.fr'],
+];
+$('ncSave').onclick = () => {
+  if (slugError($('ncSlug').value)) { $('ncErr').textContent = 'Corrigez l’adresse avant d’enregistrer.'; return; }
+  $('ncErr').textContent = '';
+  const slug = $('ncSlug').value;
+  const trial = $('ncTrial').checked;
+  const c = { slug, co: $('ncCo').value, mail: $('ncMail').value, plan: segVal($('ncPlan')), bill: segVal($('ncBill')), start: $('ncStart').value, end: $('ncEnd').value, trialEnd: trial ? addDays($('ncStart').value, 30) : null, addons: [...$('ncAddons').querySelectorAll('input:checked')].map((i) => i.dataset.a), version: '—', plugins: 0, proc: 'à créer', backup: '—', hist: [`${fr(TODAY)} — client créé, forfait ${PLAN_NAMES[segVal($('ncPlan'))]}`], stepsKo: 1 };
+  customers.push(c);
+  const st = { licence: 'ok', dir: 'todo', process: 'todo', route: 'todo', admin: 'ko' };
+  const draw = () => {
+    c.stepsKo = Object.values(st).filter((v) => v === 'ko').length;
+    $('ncSteps').innerHTML = `<h3>Création de ${esc(c.co)}</h3><ul class="steps">${STEPS.map(([k, l, kind, d]) => {
+      const s = st[k];
+      const detail = k === 'admin' && s === 'ko' ? 'Échec : le dossier de l’instance est introuvable (le créer d’abord)' : d.replace('aulnes', esc(slug)).replace('claire@aulnes.fr', esc(c.mail));
+      const btn = kind === 'manual' ? `<button class="btn" data-k="${k}">${s === 'ok' ? 'Décocher' : 'Marquer fait'}</button>` : s === 'ko' ? `<button class="btn" data-k="${k}">Réessayer</button>` : '';
+      return `<li><span class="dot d-${s}">${s === 'ok' ? '✓' : s === 'ko' ? '!' : ''}</span><span class="txt">${l}<small>${detail}</small></span>${btn}</li>`;
+    }).join('')}</ul><p style="margin-top:10px"><button class="btn" id="ncBack">Nouveau client</button></p>`;
+    $('ncSteps').querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => {
+      const k = b.dataset.k;
+      if (k === 'admin') st.admin = st.dir === 'ok' ? 'ok' : 'ko';
+      else st[k] = st[k] === 'ok' ? 'todo' : 'ok';
+      draw(); renderFleet();
+    }; });
+    $('ncBack').onclick = () => { $('ncSteps').style.display = 'none'; $('ncBody').style.display = ''; $('ncSave').style.display = ''; $('ncSlug').value = ''; ncRefresh(); };
+  };
+  $('ncBody').style.display = 'none'; $('ncSave').style.display = 'none'; $('ncSteps').style.display = '';
+  draw(); renderFleet();
+};
+$('goNew').onclick = () => $('ncCo').scrollIntoView({ behavior: 'smooth' });
+
+/* ---------- customer ---------- */
+let cur = 'moulin';
+function renderPick() {
+  $('custPick').innerHTML = customers.map((c) => `<button data-v="${c.slug}" aria-pressed="${c.slug === cur}">${esc(c.co)}</button>`).join('');
+  $('custPick').querySelectorAll('button').forEach((b) => { b.onclick = () => openCustomer(b.dataset.v); });
+}
+function openCustomer(slug) { cur = slug; closeModals(); renderCustomer(); renderPick(); }
+function C() { return customers.find((c) => c.slug === cur); }
+function renderCustomer() {
+  const c = C(); const s = stateOf(c);
+  $('custUrl').textContent = `https://console.guestflow.fr/clients/${c.slug}`;
+  $('custTitle').textContent = c.co;
+  $('custKv').innerHTML = `<dt>État</dt><dd>${stChip(s)}${c.forceUntil && s === 'active' && TODAY <= c.forceUntil ? ` <span class="muted">forcé jusqu'au ${fr(c.forceUntil)}</span>` : ''}</dd>
+  <dt>Adresse</dt><dd>${c.slug}.guestflow.fr</dd><dt>Contact</dt><dd>${esc(c.mail)}</dd>
+  <dt>Forfait</dt><dd>${PLAN_NAMES[c.plan]} · ${c.bill === 'yearly' ? 'annuel' : 'mensuel'}${c.addons.length ? ' + ' + c.addons.map((a) => ADDONS.find((x) => x[0] === a)[1]).join(', ') : ''}</dd>
+  <dt>Échéance</dt><dd>${fr(c.end)} (${daysLeft(c)} j)</dd>${c.archived ? `<dt>Effacement</dt><dd>${c.eraseAt ? fr(c.eraseAt) : 'annulé'}</dd>` : ''}`;
+  $('custHist').innerHTML = c.hist.slice().reverse().map((h) => `<li>${esc(h)}</li>`).join('');
+  document.querySelectorAll('.pab [data-act]').forEach((b) => { b.disabled = !!c.archived && b.dataset.act !== 'lic'; });
+  if (c.archived) { $('mArchived').classList.add('show'); $('arErase').textContent = c.eraseAt ? fr(c.eraseAt) : 'annulé'; }
+}
+function closeModals() { document.querySelectorAll('.modal').forEach((m) => m.classList.remove('show')); $('custMsg').textContent = ''; }
+document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = closeModals; });
+function payPreview() {
+  const c = C(); const n = Number(segVal($('payLen')));
+  const base = TODAY > c.end ? TODAY : c.end;
+  $('payPreview').innerHTML = `Nouvelle échéance : <b>${fr(addMonths(base, n))}</b> — ${TODAY > c.end ? 'l’échéance était passée, la nouvelle période part d’aujourd’hui' : 'la période s’ajoute à l’échéance actuelle'}. État : ${stChip(stateOf({ ...c, end: addMonths(base, n), trialEnd: null, forceUntil: null }))}.`;
+}
+$('payLen').querySelectorAll('button').forEach((b) => { b.onclick = () => { press($('payLen'), b); payPreview(); }; });
+document.querySelectorAll('.pab [data-act]').forEach((b) => { b.onclick = () => {
+  const c = C(); closeModals();
+  const a = b.dataset.act;
+  if (a === 'pay') { $('mPay').classList.add('show'); payPreview(); }
+  if (a === 'extend') { $('mExtend').classList.add('show'); $('extDate').value = addDays(c.end, 15); $('extWhy').value = ''; $('extErr').textContent = ''; }
+  if (a === 'force') { $('mForce').classList.add('show'); $('forceDate').value = addDays(TODAY, 7); $('forceWhy').value = ''; $('forceErr').textContent = ''; }
+  if (a === 'deprov') { $('mDeprov').classList.add('show'); $('dpName').textContent = c.co; $('dpMail').textContent = c.mail; $('dpErase').textContent = fr(addDays(TODAY, 90)); $('dpConfirm').value = ''; $('dpErr').textContent = ''; }
+  if (a === 'lic') { $('custMsg').className = 'okmsg'; $('custMsg').textContent = `licence-${c.slug}.jws téléchargée (valable 7 jours, état « ${ST_LABEL[stateOf(c)]} »).`; }
+}; });
+$('payOk').onclick = () => {
+  const c = C(); const n = Number(segVal($('payLen')));
+  const base = TODAY > c.end ? TODAY : c.end;
+  c.end = addMonths(base, n); c.trialEnd = null; c.forceUntil = null;
+  c.hist.push(`${fr(TODAY)} — paiement enregistré (${n} mois${$('payRef').value ? ', ' + $('payRef').value : ''}) : échéance au ${fr(c.end)}, licence réémise`);
+  closeModals(); renderCustomer(); renderFleet();
+};
+$('extOk').onclick = () => {
+  const c = C();
+  if (!$('extWhy').value.trim()) { $('extErr').textContent = 'Le motif est obligatoire.'; return; }
+  if ($('extDate').value <= c.end) { $('extErr').textContent = 'La nouvelle date doit être après l’échéance actuelle.'; return; }
+  c.hist.push(`${fr(TODAY)} — prolongé du ${fr(c.end)} au ${fr($('extDate').value)} : « ${$('extWhy').value.trim()} »`);
+  c.end = $('extDate').value; closeModals(); renderCustomer(); renderFleet();
+};
+$('forceOk').onclick = () => {
+  const c = C();
+  if (!$('forceWhy').value.trim()) { $('forceErr').textContent = 'Le motif est obligatoire.'; return; }
+  if ($('forceDate').value < TODAY) { $('forceErr').textContent = 'La date doit être aujourd’hui ou plus tard.'; return; }
+  c.forceUntil = $('forceDate').value;
+  c.hist.push(`${fr(TODAY)} — remis en actif jusqu'au ${fr(c.forceUntil)} : « ${$('forceWhy').value.trim()} »`);
+  closeModals(); renderCustomer(); renderFleet();
+};
+$('dpOk').onclick = () => {
+  const c = C();
+  if ($('dpConfirm').value !== c.slug) { $('dpErr').textContent = `Tapez exactement « ${c.slug} ».`; return; }
+  c.archived = true; c.eraseAt = addDays(TODAY, 90); c.proc = 'arrêté';
+  c.hist.push(`${fr(TODAY)} — déprovisionné : export produit, lien envoyé à ${c.mail}, effacement le ${fr(c.eraseAt)}`);
+  closeModals(); renderCustomer(); renderFleet();
+};
+$('arReact').onclick = () => { const c = C(); c.archived = false; c.eraseAt = null; c.proc = 'à relancer'; c.hist.push(`${fr(TODAY)} — réactivé depuis son dossier`); closeModals(); renderCustomer(); renderFleet(); };
+$('arCancel').onclick = () => { const c = C(); c.eraseAt = null; c.hist.push(`${fr(TODAY)} — effacement annulé`); renderCustomer(); };
+let eraseArmed = false;
+$('arNow').onclick = () => {
+  const c = C();
+  if (!eraseArmed) { eraseArmed = true; $('arMsg').textContent = 'Seconde confirmation : cliquez encore pour effacer définitivement les données et les sauvegardes.'; return; }
+  eraseArmed = false; c.eraseAt = TODAY; c.hist.push(`${fr(TODAY)} — données effacées à la demande de l’opérateur`); $('arMsg').textContent = 'Effacé. Le slug reste réservé jusqu’à la fin de l’effacement.'; renderCustomer();
+};
+renderFleet(); renderCustomer();
+</script>
+</body>
+</html>
