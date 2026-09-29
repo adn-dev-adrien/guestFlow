@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | **Status** | Approved |
-| **Branch** | `feature/control-plane-plans-access` |
+| **Branch** | C1: `feature/control-plane-c1-entitlement` |
 | **Created** | 2026-09-29 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | C1: https://github.com/adn-dev-adrien/guestFlow/pull/637 |
 | **Summary for review** | `docs/specs/2026-09-29-control-plane-plans-and-access.html` |
 
 ---
