@@ -4,6 +4,34 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-09-29
+
+### Summary
+- Le Suivi financier devient un tableau de bord unique, piloté par une période (exercice, mois ou dates) et un filtre par logement.
+- En tête, un bandeau vert réunit revenu, nuits vendues, occupation, revenu par nuit et part en direct, avec la comparaison à l'an dernier.
+- Six tuiles (Encaissé, À encaisser, En retard, Réservations, Logements, Canaux) ouvrent chacune le tableau détaillé correspondant.
+- Nouveau : fixez un objectif de chiffre d'affaires annuel dans Réglages → TVA & exercice ; aucun objectif n'est défini à l'installation.
+- Le calendrier ne se bloque plus en fin de défilement : les mois suivants se chargent sans avoir à remonter.
+
+### Changed
+- **Suivi financier redesigned as a single dashboard.** One window (exercise, month or custom dates)
+  and a logement filter drive the whole page: a green banner with the revenue, the annual goal, nights
+  sold, occupancy, revenue per night and the direct share over a cumulative curve; three « faits
+  marquants »; six tiles (Encaissé, À encaisser, En retard, Réservations, Logements, Canaux), each
+  opening its own table; « Revenu par mois » with last year's column beside each month, and one
+  occupancy chart per logement. The comparison with last year appears month by month as soon as
+  history exists. Nothing from the former page is lost: its tables now open from the tiles.
+
+### Fixed
+- **Calendar — scrolling past the preloaded months no longer stalls.** On the dashboard and the
+  Calendrier page, scrolling down (or up) sometimes stopped loading months: the calendar sat at its end
+  and the whole page scrolled instead, until you scrolled back up a little. It happened whenever a month
+  was shorter than the loading margin (an empty month on mobile) or a fast wheel flick jumped over it.
+  The next month is now requested again as soon as the previous one is displayed.
+
+### Migration
+- **Annual revenue goal** (`specs/finance-dashboard-redesign.md` §5): `app_settings.revenueGoals` (TEXT, JSON `{ "<exercise key>": amount }`) is added on startup. Existing installs start with no goal; nothing else changes.
+
 ## [3.6.0] - 2026-09-29
 
 ### Summary
