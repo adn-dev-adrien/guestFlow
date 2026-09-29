@@ -142,6 +142,8 @@ vite.config.ts.timestamp-*
 *.db
 # The instance's licence, written by the control plane (specs/control-plane-plans-and-access.md)
 licence.jws
+# The control plane's own data: its database, secrets key and customer exports (specs/control-plane-plans-and-access.md)
+control-plane/server/data/
 *.db-shm
 *.db-wal
 *.bak

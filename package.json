@@ -7,6 +7,8 @@
     "install:all": "cd server && npm install && cd ../client && npm install",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm start",
+    "dev:console": "concurrently \"npm --prefix control-plane/server run dev\" \"npm --prefix control-plane/client start\"",
+    "test:console": "npm --prefix control-plane/server test && npm --prefix control-plane/client test",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "stop": "node scripts/stop-dev.mjs",
     "build": "cd client && npm run build",

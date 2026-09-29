@@ -238,6 +238,9 @@ function readCitations() {
     ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/tests\/.*\.test\.js$/.test(f)),
     ...listFiles(path.join(ROOT, 'client', 'src'), isTestFile),
     ...listFiles(path.join(ROOT, 'e2e'), isTestFile),
+    // specs/control-plane-plans-and-access.md — the control plane is its own app in the same repo.
+    ...listFiles(path.join(ROOT, 'control-plane', 'server', 'src', 'tests'), isTestFile),
+    ...listFiles(path.join(ROOT, 'control-plane', 'client', 'src'), isTestFile),
   ];
   const out = [];
   for (const f of files) {
