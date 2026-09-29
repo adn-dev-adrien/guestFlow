@@ -4,6 +4,23 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-09-29
+
+### Summary
+- Le Suivi financier ouvre sur une vue de l'exercice : revenu, nuits vendues, part en direct, revenu par mois, par logement et par canal.
+- Dans « Revenu par mois », la part encore à venir de chaque mois apparaît en miel, le reste en vert.
+- La carte « Objets oubliés » disparaît de la fiche réservation, ainsi que la phrase correspondante du mail de remerciement J+1.
+- À l'installation, cette phrase est retirée de vos modèles d'emails, en conservant vos propres modifications autour.
+
+### Added
+- **Suivi financier — vue de l'exercice.** Under the two exercise cards, a new block shows the selected exercise at a glance: three tiles (« Revenu de l'exercice », « Nuits vendues », « Part en direct » — website + saisie directe), « Revenu par mois » with the part still to come in miel, « Par logement » and « Par canal » (at most five slices). Months, logements and channels all add up to « Revenu total sur l'exercice » (`specs/finance-exercise-overview-charts.md`).
+
+### Removed
+- **« Objets oubliés »** (spec `guest-email-sequence.md` rule 33, removed 2026-09-28): the card on the reservation page, the endpoint `PATCH /api/reservations/:id/lost-items` and the J+1 thank-you sentence (« Nous avons retrouvé … » and its fallback « Un objet oublié ? Dites-le nous, nous mettons tout de côté. ») are gone. The field was empty on every production reservation.
+
+### Migration
+- **Lost items removed** (spec `guest-email-sequence.md` rule 33, §5): the one-shot `remove_lost_items_token_v1` strips the `{{lostItemsParagraph}}` line (and the blank line it leaves) from every stored email template, FR and EN, keeping any operator edit around it; `reservations.lostItems` is dropped (`ALTER TABLE … DROP COLUMN`, guarded by `PRAGMA table_info`). The column was empty on 100 % of production rows, so no data is lost.
+
 ## [3.5.0] - 2026-09-28
 
 ### Summary
