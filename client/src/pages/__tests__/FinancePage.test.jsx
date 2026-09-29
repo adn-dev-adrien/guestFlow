@@ -114,6 +114,7 @@ function renderPage() {
 }
 
 describe('FinancePage — total-de-séjour overview', () => {
+  // specs/finance-exercise-overview-charts.md rule 7 — the two exercise cards stay above the overview.
   test('renders the 5 top cards, year cards first', async () => {
     renderPage();
     await screen.findByText('Revenus');

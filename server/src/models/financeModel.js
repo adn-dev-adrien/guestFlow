@@ -13,6 +13,7 @@ const {
 const fiscalYearUtil = require('../utils/fiscalYear');
 const { bookingChannelOf } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const exerciseOverview = require('../utils/exerciseOverview');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -411,6 +412,11 @@ function createFinanceModel(database) {
       let yearTotalHt = 0;
       let yearToDateNights = 0;
       let yearTotalNights = 0;
+      // specs/finance-exercise-overview-charts.md — the overview's months and channels ride on this very
+      // loop, so they add up to `yearTotal` by construction (rule 3).
+      const monthList = exerciseOverview.exerciseMonths(exercise.from, exercise.to);
+      const byMonth = new Map(monthList.map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
+      const yearTotalByChannel = new Map();
       for (const r of yearRows) {
         const stay = totalSejour(r);
         const stayHt = htAmount(r, stay, vatRate);
@@ -419,6 +425,15 @@ function createFinanceModel(database) {
         yearTotalHt += stayHt;
         yearTotalNights += nights;
         accumulate(yearTotalByProperty, r, stay, stayHt, nights);
+        accumulateChannel(yearTotalByChannel, r, stay, stayHt, nights);
+        const month = byMonth.get(String(r.attributionDate).slice(0, 7));
+        if (month) {
+          month.revenue += stay;
+          month.revenueHt += stayHt;
+          month.nights += nights;
+          // Rule 9 — « à venir » = attributed after today (solde not yet collected, stay not yet over).
+          if (r.attributionDate <= today) month.past += stay; else month.upcoming += stay;
+        }
         // « Depuis le début de l'exercice » stops at today — on a closed exercise that is the whole
         // exercise (rule 16), on a future one it is empty (rule 17).
         if (r.attributionDate <= today) {
@@ -433,6 +448,22 @@ function createFinanceModel(database) {
       const yearTotalByPropertyList = finalizeByProperty(yearTotalByProperty);
       const revenueByChannel = channelBreakdown(finalizeByChannel(byChannel, start, end));
       const yearToDateByChannel = channelBreakdown(finalizeByChannel(yearByChannel, exercise.from, today < exercise.to ? today : exercise.to));
+      const yearTotalChannelAggs = Array.from(yearTotalByChannel.values());
+      const overview = {
+        revenue: round2(yearTotal),
+        revenueHt: round2(yearTotalHt),
+        nights: yearTotalNights,
+        direct: exerciseOverview.directShare(yearTotalChannelAggs, round2(yearTotal)),
+        months: Array.from(byMonth.values()).map((m) => ({
+          ...m,
+          revenue: round2(m.revenue),
+          revenueHt: round2(m.revenueHt),
+          past: round2(m.past),
+          upcoming: round2(m.upcoming),
+        })),
+        properties: exerciseOverview.propertyRatios(yearTotalByPropertyList),
+        channels: exerciseOverview.channelSlices(yearTotalChannelAggs),
+      };
 
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by attribution date)
@@ -454,6 +485,7 @@ function createFinanceModel(database) {
         yearTotalByProperty: yearTotalByPropertyList, // whole exercise, per logement (same shape)
         revenueByChannel,       // period, per booking channel (platforms, website by source, direct)
         yearToDateByChannel,    // exercise start → today, per booking channel (same shape)
+        exerciseOverview: overview, // whole exercise: tiles + months + logements + channels
         // The exercise the annual figures describe + the selector's options (§3.5).
         fiscalYear: { ...exercise, isCurrent: Boolean(currentExercise && currentExercise.key === exercise.key) },
         fiscalYears,
