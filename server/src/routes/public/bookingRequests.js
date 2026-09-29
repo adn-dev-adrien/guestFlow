@@ -6,8 +6,9 @@ const ctrl = require('../../controllers/public/publicBookingRequestController');
 const payCtrl = require('../../controllers/public/publicPaymentController');
 const requirePlugin = require('../../middleware/requirePlugin');
 const { ONLINE_PAYMENT } = require('../../constants/plugins');
+const { closedWhenReadOnly } = require('../../middleware/enforceSubscription');
 
-router.post('/', bookingRequestLimiter, ctrl.create);
+router.post('/', bookingRequestLimiter, closedWhenReadOnly(), ctrl.create);
 // Online full-payment for a public devis (specs/public-online-payment.md §3). Both routes require the
 // per-devis capability token (§7); /status is throttled tighter than the broad public limiter.
 router.post('/:id/pay', bookingRequestLimiter, requirePlugin(ONLINE_PAYMENT), payCtrl.pay);

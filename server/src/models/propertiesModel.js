@@ -308,6 +308,11 @@ function createPropertiesModel(database) {
       return database.prepare('SELECT * FROM properties ORDER BY name').all();
     },
 
+    // specs/control-plane-plans-and-access.md rule 13 — the rental units the plan quota counts.
+    count() {
+      return database.prepare('SELECT COUNT(*) AS n FROM properties').get().n;
+    },
+
     // J-7 hooks (specs/settings-rationalization.md rule 17c) — edited from the J-7 template dialog,
     // one FR / EN pair per property. Written through writeEmailFacts so no other column moves.
     listEmailHooks() {

@@ -350,7 +350,7 @@ function createNeatController({
 }
 
 const defaultController = createNeatController({
-  pluginActive: () => require('../models/pluginsModel').isActive(require('../constants/plugins').NEAT),
+  pluginActive: () => require('../plugins/sdk/registry').isLive(require('../constants/plugins').NEAT),
 });
 defaultController.createNeatController = createNeatController;
 defaultController.externalIdFor = externalIdFor;
