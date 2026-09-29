@@ -25,7 +25,7 @@ export function MonthTooltip({ active, payload, formatAmount }) {
   if (!active || !payload?.length) return null;
   const m = payload[0].payload;
   return (
-    <Box sx={{ bgcolor: '#27251F', color: '#fff', px: 1.25, py: 0.75, borderRadius: 1, fontSize: 12, lineHeight: 1.6, fontVariantNumeric: 'tabular-nums' }}>
+    <Box sx={{ bgcolor: '#27251F', color: '#fff', px: 1.25, py: 0.75, borderRadius: '6px', fontSize: 12, lineHeight: 1.6, fontVariantNumeric: 'tabular-nums' }}>
       <Box><b>{capitalise(m.label)} : {formatAmount(m.revenue)}</b>{m.upcoming > 0 ? ` (dont ${formatAmount(m.upcoming)} à venir)` : ''}</Box>
       {m.previous != null && <Box>{capitalise(m.previousLabel)} : {formatAmount(m.previous)}</Box>}
     </Box>
@@ -37,7 +37,7 @@ function Legend({ items }) {
     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: 12, color: 'text.secondary', my: 1 }}>
       {items.map(([color, label]) => (
         <Box key={label} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
-          <Box component="span" sx={{ width: 10, height: 10, borderRadius: 0.75, bgcolor: color }} />{label}
+          <Box component="span" sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: color }} />{label}
         </Box>
       ))}
     </Box>

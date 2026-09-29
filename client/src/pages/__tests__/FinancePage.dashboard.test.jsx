@@ -36,7 +36,8 @@ const DASHBOARD = {
   hero: {
     revenue: 3600, revenueHt: 3272.73, stays: 4, nights: 6, occupancy: 0.2, revenuePerNight: 600, directShare: 0.5,
     yoy: null, goal: null,
-    cumulative: [{ day: '2026-06-01', current: 0, previous: null }, { day: '2026-07-31', current: 3600, previous: null }],
+    cumulative: [{ day: '2026-06-01', x: 0, current: 0, previous: null }, { day: '2026-07-31', x: 60, current: 3600, previous: null }],
+    axis: [{ x: 0, label: 'juin' }, { x: 30, label: 'juil.' }],
   },
   insights: [{ key: 'late', tone: 'info', title: 'Aucun paiement en retard', text: 'Tout est à jour.' }],
   properties: [
