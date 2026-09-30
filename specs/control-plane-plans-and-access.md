@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | C1: `feature/control-plane-c1-entitlement`; C2a: `feature/control-plane-c2-console`; C2b: `feature/control-plane-c2b-billing`; C3: `feature/control-plane-c3-login` |
 | **Created** | 2026-09-29 |
 | **Author** | Adrien |
@@ -387,6 +387,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - In the list, each space is a button; choosing one redirects like a single match.
     - The cookie `gf_space` holds only the slug, host-only on `app.<domain>`, `HttpOnly`,
       `SameSite=Lax`. A remembered space that was erased or renamed is forgotten silently.
+    - The page carries its own Content-Security-Policy: no script, nothing framed, and
+      `form-action 'self' https://*.<domain>`. Helmet's default `form-action 'self'` blocks a form
+      whose answer redirects to the customer's space: found in the browser on the first run.
 25. **Passwords never leave the instance.**
     - The central page receives only an email. It never sees a password, a session or a user's
       role.
@@ -520,7 +523,8 @@ hint.
      renewal invoice and its payment link, the reminders and « Relancer maintenant » (rule 17), the
      email templates and their mode (rule 33), payment detection (rule 34), the operator's daily
      email and the remaining alerts (rule 18), the billing identity (rule 7).
-3. **C3: addresses and login** (one PR, §9 Q15; branch `feature/control-plane-c3-login`). The page
+3. **C3: addresses and login** (implemented 2026-09-30, one PR, §9 Q15; branch
+   `feature/control-plane-c3-login`). The page
    `app.<domain>`, the directory read from the instances, the rate limit, and the slug rename
    (rules 22, 24–27). The central OAuth relay (rule 28) is withdrawn. The slug rules themselves
    (rule 21) shipped with C2a, which needs them at onboarding.
@@ -558,8 +562,8 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | controllers | `customersController.js` | Onboarding and its steps (rule 7), the fleet (rule 8), payment and overrides (rules 15, 19), plan change, the licence (rule 9), deprovisioning and erasure (rule 20). C3: slug rename with its checklist (rule 22). |
 | controllers | `alertsController.js` | The home page alerts (rule 18). |
 | controllers | `authController.js` | Password, then TOTP, email or backup code; the lockout; the method change (rule 31). |
-| controllers | `loginController.js` (C3) | The lookup: an email → one space, several, or none; the remembered space (rules 24, 25). |
-| utils | `directory.js` (C3) | The HMAC of an email, and the read of an instance's active accounts (rule 26). |
+| controllers | `loginController.js` (C3) | The lookup: an email → one space, several, or none; the remembered space; the instance login URL with its hint (rules 24, 25); `readDirectory`, each instance's active accounts into the directory (rule 26). |
+| utils | `directory.js` (C3) | The normalised email and its HMAC under the console's key (rule 26). `instances.readActiveEmails` reads the accounts, read-only. |
 | utils | `loginPage.js` (C3) | The HTML of `app.<domain>`: the form, the list, the neutral answer, the remembered space, the 429; every value escaped (rules 24, 27). |
 | routes | `public.js` (C3) | Mounted for the host `app.<domain>` only: `GET /`, `POST /lookup` (rate-limited), `POST /go`, `POST /forget` (rules 24, 27). |
 | middleware | `requireOperator.js` | Every console route but the login needs the second factor; 12 h / 30 min idle session. |
@@ -630,7 +634,8 @@ its `api.js` calls land on the console's identical `/api/payments/*` routes.
 
 **Login page (`app.<domain>`) — C3:** rendered by the server (`utils/loginPage.js`), no client
 code. The customer page gains « Changer l'adresse », a `FormDialog` with the new slug checked as
-it is typed and the rule 22 checklist.
+it is typed and the rule 22 checklist, and « Anciennes adresses » in its subscription card
+(`formerAddresses` in the customer payload).
 
 **GuestFlow instance (`client/src/`) — touched:**
 
@@ -846,20 +851,23 @@ each plan. The C2a console screens have their own mock
 - **Instance (C2a, implemented): `server/src/tests/control-plane-first-admin.unit.test.js`, 2 tests**
   (rule 7): the script against a real database (admin, password to change, bootstrap account
   removed, idempotent); a used bootstrap account is never removed.
-- **Control plane (C3), planned:**
-  - `directory.unit.test.js` (rule 26): active accounts only, normalised; nothing in clear in the
-    console's database; replaced on the next read; an unreadable instance keeps its pairs; erased
-    customers leave.
-  - `login-lookup.unit.test.js` (rules 24, 25): 0, 1 and n spaces; a suspended or archived space
-    still redirects; case and spaces; only `email` is read.
-  - `login-page.unit.test.js` (rules 24, 25, 27) over HTTP on the `app` host: the form has no
-    password field; the `303` with `login_hint`; the list; the remembered space and « Utiliser une
-    autre adresse »; a forgotten erased space; the `429` after 10; the console's routes absent on
-    that host and the login absent from the console's.
-  - `slug-rename.unit.test.js` (rules 21, 22): the checklist required; the slug's rules; the old
-    slug reserved 12 months then free; the licence re-issued; the manual step.
-- **Console client (C3), planned:** `CustomerPage.rename.test.jsx` (rule 22): the slug error as
-  typed, the button enabled only when every item is ticked.
+- **Control plane (C3, implemented): 11 more tests, 87 in all.** `helpers.js` instances now carry a
+  `users` table.
+  - `directory.unit.test.js` (2, rule 26): active accounts only, normalised, no account email
+    anywhere in the console's database; the next read replaces, an unreadable instance keeps its
+    pairs, an archived space stays findable, erasure removes them.
+  - `login-lookup.unit.test.js` (2, rules 24, 25): none, invalid, one (case and spaces ignored),
+    several sorted by name, only names and addresses; a suspended space still a match; the hint.
+  - `login-page.unit.test.js` (4, rules 24, 25, 27) over HTTP on the `app` host: no password field
+    and no script, the page's own CSP; the `303` with `login_hint` and the host-only cookie, other
+    fields ignored; the list, `/go`, the neutral answer, the remembered space, `/forget`, a renamed
+    space forgotten; the `429` page after 10; each host answers nothing of the other's.
+  - `slug-rename.unit.test.js` (3, rules 21, 22): the preview and the slug's refusals; refused until
+    every item is ticked, then renamed, journaled, licence re-issued under the new slug, the manual
+    step; the old slug taken for 12 months, then free.
+- **Console client (C3, implemented): 1 more Vitest test, 30 in all.** `CustomerPage.rename.test.jsx`
+  (rule 22): the slug refused as typed, the new address and the date, the button enabled only when
+  the slug is valid and every item ticked.
 - **Control plane (C2b, implemented): 28 more tests, 76 in all**, with a fake Qonto facade in
   `helpers.js` (`makeFakeQonto`: the test pays a link, fails an attempt, or marks an invoice paid).
   - `billing-invoice.unit.test.js` (7, rules 6, 7, 17, 18, 32): the monthly invoice at D-7 with its
@@ -985,16 +993,29 @@ moved by hand):
 - 375 px: home, customer page, emails, new customer (the postcode refused as typed), Paiements: no
   horizontal scroll.
 
-**Still to do with C2b and C3:**
+**C3, done 2026-09-30** (the console on :4100 with `appHost: 'app.localhost'`, two instance
+databases with a `users` table, the client on :3200):
+- The first « Continuer » was refused by the browser: helmet's `form-action 'self'` blocked the
+  form (and, in production, would block its redirect to the space). The page now has its own CSP;
+  a test pins it.
+- `app.localhost:4100`: « Compta@Lamy.fr » with spaces listed the two spaces; « Le Moulin » sent a
+  `303` to `https://moulin.guestflow.fr/login?login_hint=compta%40lamy.fr`, which the browser
+  followed; the next visit offered « Continuer vers … »; « Utiliser une autre adresse » cleared it.
+- The console: « Changer l'adresse » on Le Moulin, the slug checked as typed, the button disabled
+  until the five items were ticked; after it, « Anciennes adresses : moulin.guestflow.fr → redirigée
+  jusqu'au 01/10/2027 » and the history line; the remembered `moulin` was then forgotten on
+  `app.localhost`.
+- 375 px: the login page (48 px targets) and the customer page, no horizontal scroll.
+
+**Still to do:**
 
 - **C2b, against Qonto itself:** the ADN Dev application (with the `client*` and `client_invoice*`
   scopes) is not created yet. On its sandbox: connect, connect the payment-link provider, invoice a
   customer, pay the link with the test card, match a transfer, and confirm two points the
   documentation leaves open: the VAT rate format of an invoice line (`"0.2"` is sent) and the
   `paid` state read on an invoice link.
-- **C3 login:** from `app.localhost:4100`, one email in one instance, then in two, then in none;
-  the redirect lands on the instance's login with the email filled in; the remembered space; the
-  `429`; 375 px. The rename dialog on a customer.
+- **C3 against a real host:** the proxy routing of `app.<domain>` to the console and the `301` of an
+  old address come with phase H.
 - Check at 375 px: login, banners, the matrix as cards.
 
 ## 8. Out of scope

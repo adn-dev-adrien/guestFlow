@@ -20,6 +20,8 @@ function consoleRoutes(ctx) {
   router.get('/customers/:id', (req, res) => res.json(customers.view(req.params.id)));
   router.post('/customers/:id/steps/:step', async (req, res) => res.json(await customers.stepAction(req.params.id, req.params.step, body(req).action, who(req))));
   router.post('/customers/:id/payment', async (req, res) => res.json(await billing.recordPayment(req.params.id, body(req), who(req))));
+  router.post('/customers/:id/rename/preview', (req, res) => res.json(customers.renamePreview(req.params.id, body(req))));
+  router.post('/customers/:id/rename', (req, res) => res.json(customers.rename(req.params.id, body(req), who(req))));
   router.post('/customers/:id/billing', (req, res) => res.json(customers.setBilling(req.params.id, body(req), who(req))));
   router.post('/customers/:id/remind', async (req, res) => res.json(await billing.remind(req.params.id, body(req), who(req))));
   router.post('/customers/:id/check-payment', async (req, res) => res.json(await billing.checkCustomer(req.params.id, who(req))));

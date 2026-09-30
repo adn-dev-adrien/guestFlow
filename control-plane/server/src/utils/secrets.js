@@ -1,14 +1,15 @@
 /**
- * AES-256-GCM for the secrets the console keeps at rest (the operators' TOTP seeds). The key lives
- * in `<CP_DATA_DIR>/.key`, created on first run with mode 0600, never in the database.
+ * AES-256-GCM for the secrets the console keeps at rest (the operators' TOTP seeds, the Qonto
+ * credentials). The key lives in `<CP_DATA_DIR>/.key`, created on first run with mode 0600, never in
+ * the database. The directory's HMAC key (rule 26) is another file of the same kind.
  */
 
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-function loadOrCreateKey(dataDir) {
-  const file = path.join(dataDir, '.key');
+function loadOrCreateKey(dataDir, name = '.key') {
+  const file = path.join(dataDir, name);
   if (fs.existsSync(file)) return Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'base64');
   const key = crypto.randomBytes(32);
   fs.mkdirSync(dataDir, { recursive: true });

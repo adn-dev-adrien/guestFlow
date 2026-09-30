@@ -12,12 +12,18 @@ const { authRoutes } = require('./routes/auth');
 const { consoleRoutes } = require('./routes/console');
 const { exportRoutes } = require('./routes/exports');
 const { paymentsRoutes, qontoWebhook } = require('./routes/payments');
+const { publicRoutes } = require('./routes/public');
 const { requireOperator } = require('./middleware/requireOperator');
 
-function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, clientDist } = {}) {
+function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, clientDist, appHost } = {}) {
   const app = express();
   app.set('trust proxy', 1);
   app.use(helmet());
+
+  // Rule 24: `app.<domain>` is the shared login page and nothing else. It shares this process with the
+  // console, and neither answers on the other's host.
+  const login = publicRoutes(ctx, { secureCookies });
+  app.use((req, res, next) => (appHost && req.hostname === appHost ? login(req, res, next) : next()));
   // The raw bytes are kept for the Qonto webhook's signature (rule 32).
   app.use(express.json({ limit: '200kb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
   app.use(session({

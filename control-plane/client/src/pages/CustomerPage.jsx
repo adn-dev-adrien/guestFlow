@@ -1,8 +1,9 @@
 /**
  * One customer (specs/control-plane-plans-and-access.md rules 7, 15, 17, 19, 20, 33, 34): the
  * subscription, the creation steps, the billing identity, the actions — record a payment, check the
- * payment in Qonto, send a reminder now, extend, put back to active, change plan, download the
- * licence, deprovision, reactivate, erase — the invoices, the emails and the history. Every rule is
+ * payment in Qonto, send a reminder now, extend, put back to active, change plan, change the address
+ * (rule 22), download the licence, deprovision, reactivate, erase — the invoices, the emails and the
+ * history. Every rule is
  * the server's; a refused action shows its message as a toast and keeps the dialog open.
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -12,6 +13,7 @@ import {
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SyncIcon from '@mui/icons-material/Sync';
+import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import EventIcon from '@mui/icons-material/Event';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
@@ -66,12 +68,20 @@ export default function CustomerPage() {
   const [dialog, setDialog] = useState(null);
   const [draft, setDraft] = useState({});
   const [busyStep, setBusyStep] = useState(null);
+  const [renameCheck, setRenameCheck] = useState(null);
 
   const load = useCallback(() => {
     setError(null);
     api.customer(id).then(setC).catch((err) => setError(err.message));
   }, [id]);
   useEffect(load, [load]);
+
+  // The server checks the new slug as it is typed and lists what must be redone (rule 22).
+  useEffect(() => {
+    if (dialog !== 'rename') return undefined;
+    const t = setTimeout(() => api.renamePreview(id, draft.slug || '').then(setRenameCheck).catch(() => {}), 200);
+    return () => clearTimeout(t);
+  }, [dialog, draft.slug, id]);
 
   const openDialog = (name, initial = {}) => { setDraft(initial); setDialog(name); };
   const set = (key) => (value) => setDraft((d) => ({ ...d, [key]: value }));
@@ -142,6 +152,7 @@ export default function CustomerPage() {
     !c.archivedAt && { icon: <SendIcon />, tooltip: a.remind ? 'Relancer maintenant' : a.remindHint, color: 'info', disabled: !a.remind, ariaLabel: 'Relancer maintenant', onClick: openRemind },
     a.extend && { icon: <EventIcon />, tooltip: 'Prolonger', color: 'info', onClick: () => openDialog('extend', { endsAt: c.defaults.extendTo, reason: '' }) },
     a.forceActive && { icon: <LockOpenIcon />, tooltip: 'Remettre en actif', color: 'info', onClick: () => openDialog('force', { until: c.defaults.forceActiveUntil, reason: '' }) },
+    a.rename && { icon: <DriveFileRenameOutlineIcon />, tooltip: 'Changer l’adresse', color: 'info', onClick: () => { setRenameCheck(null); openDialog('rename', { slug: '', checked: [] }); } },
     a.changePlan && { icon: <SwapHorizIcon />, tooltip: 'Changer de forfait', color: 'info', onClick: () => openDialog('plan', { planCode: c.planCode, billing: c.billing, addons: c.addons.map((x) => x.id) }) },
     { icon: <DownloadIcon />, tooltip: 'Télécharger la licence', onClick: () => { window.location.href = api.licenceUrl(c.id); } },
   ].filter(Boolean);
@@ -164,6 +175,7 @@ export default function CustomerPage() {
             <KeyValues items={[
               { label: 'État', value: <><LifecycleChip state={c.state} label={c.stateLabel} />{c.stateNote ? ` ${c.stateNote}` : ''}</> },
               { label: 'Adresse', value: <a href={c.url} target="_blank" rel="noopener noreferrer">{c.url.replace('https://', '')}</a> },
+              { label: 'Anciennes adresses', value: (c.formerAddresses || []).join(' ; ') },
               { label: 'Contact', value: [c.contactName, c.contactEmail].filter(Boolean).join(' · ') },
               { label: 'Forfait', value: `${c.planName} · ${c.billingLabel}${c.addons.length ? ` + ${c.addons.map((x) => x.name).join(', ')}` : ''}` },
               { label: 'Prix', value: `${c.priceLabel} (catalogue v${c.catalogueVersion})` },
@@ -273,6 +285,23 @@ export default function CustomerPage() {
             {c.countries.map((x) => <MenuItem key={x.code} value={x.code}>{x.name}</MenuItem>)}
           </TextField>
           <TextField label="N° de TVA (facultatif)" value={draft.vatNumber || ''} onChange={(e) => set('vatNumber')(e.target.value)} />
+        </Stack>
+      </FormDialog>
+
+      <FormDialog open={dialog === 'rename'} onClose={() => setDialog(null)} title={`Changer l’adresse de ${c.companyName}`} submitLabel="Changer l’adresse"
+        submitDisabled={!renameCheck || Boolean(renameCheck.error) || !draft.slug || (draft.checked || []).length < renameCheck.checklist.length}
+        onSubmit={() => act(() => api.rename(c.id, draft.slug, draft.checked), 'Adresse changée ; licence réémise.')}>
+        <Stack spacing={1.5} sx={{ pt: 1 }}>
+          <TextField label="Nouvelle adresse" value={draft.slug || ''} onChange={(e) => set('slug')(e.target.value.trim())} autoComplete="off"
+            error={Boolean(draft.slug && renameCheck && renameCheck.error)}
+            helperText={(draft.slug && renameCheck && (renameCheck.error || renameCheck.url)) || 'Minuscules, chiffres et tirets.'} />
+          <Typography variant="body2">À refaire, à cocher une fois fait ou prévu :</Typography>
+          {(renameCheck ? renameCheck.checklist : []).map((i) => (
+            <FormControlLabel key={i.key} sx={{ minHeight: 44, alignItems: 'flex-start', '.MuiCheckbox-root': { pt: 0.5 } }} label={i.label}
+              control={<Checkbox checked={(draft.checked || []).includes(i.key)}
+                onChange={() => set('checked')((draft.checked || []).includes(i.key) ? draft.checked.filter((k) => k !== i.key) : [...(draft.checked || []), i.key])} />} />
+          ))}
+          {renameCheck && <Typography variant="body2" color="text.secondary">{renameCheck.until}</Typography>}
         </Stack>
       </FormDialog>
 

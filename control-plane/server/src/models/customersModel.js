@@ -33,6 +33,8 @@ function buildCustomersModel(db) {
   const setBillingStmt = db.prepare(`UPDATE customers SET billingStreet = @billingStreet, billingPostcode = @billingPostcode,
     billingCity = @billingCity, billingCountry = @billingCountry, vatNumber = @vatNumber, qontoClientId = NULL WHERE id = @id`);
   const setQontoClientStmt = db.prepare('UPDATE customers SET qontoClientId = ? WHERE id = ?');
+  const setSlugStmt = db.prepare('UPDATE customers SET slug = ? WHERE id = ?');
+  const bySlugStmt = db.prepare('SELECT id FROM customers WHERE slug = ? AND erasedAt IS NULL');
   const dueErasureStmt = db.prepare('SELECT id FROM customers WHERE archivedAt IS NOT NULL AND erasedAt IS NULL AND eraseAt IS NOT NULL AND eraseAt <= ?');
 
   const withLists = (row) => row && ({
@@ -71,6 +73,8 @@ function buildCustomersModel(db) {
     // from the new address (rule 7).
     setBilling: (id, billing) => setBillingStmt.run({ ...billing, id }),
     setQontoClientId: (id, clientId) => setQontoClientStmt.run(clientId, id),
+    setSlug: (id, slug) => setSlugStmt.run(slug, id),
+    idOfSlug: (slug) => (bySlugStmt.get(slug) || {}).id || null,
     addGrandfathered: (id, pluginId, since) => insertGrandfatheredStmt.run(id, pluginId, since),
     archive: (id, at, eraseAt) => archiveStmt.run(at, eraseAt, id),
     unarchive: (id) => unarchiveStmt.run(id),

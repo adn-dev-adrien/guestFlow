@@ -1,7 +1,8 @@
 /**
  * Where the console finds a customer's instance: `<CP_INSTANCES_ROOT>/<slug>/data/guestflow.db`
  * (phase H will create that layout; until then the operator does). The console only ever reads an
- * instance's database, opened read-only, and writes nothing there but the licence.
+ * instance's database, opened read-only — its installed plugins and its active accounts — and
+ * writes nothing there but the licence.
  */
 
 const Database = require('better-sqlite3');
@@ -37,6 +38,20 @@ function createInstances({ root }) {
         db = new Database(dbPath(slug), { readonly: true, fileMustExist: true });
         const rows = db.prepare('SELECT id, enabled FROM plugins').all();
         return { installed: rows.map((r) => r.id), active: rows.filter((r) => r.enabled).map((r) => r.id) };
+      } catch {
+        return null;
+      } finally {
+        if (db) db.close();
+      }
+    },
+
+    // The emails of the active accounts (rule 26), as stored. null when the instance cannot be read,
+    // so the directory keeps what it had rather than forgetting everyone.
+    readActiveEmails(slug) {
+      let db;
+      try {
+        db = new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+        return db.prepare('SELECT email FROM users WHERE isActive = 1').all().map((r) => r.email);
       } catch {
         return null;
       } finally {
