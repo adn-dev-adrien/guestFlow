@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console GuestFlow C2b</title>
+<meta name="description" content="Maquette interactive de C2b : facture Qonto et lien de paiement, relances, emails à valider, modèles, connexion Qonto, email quotidien.">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:14px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);display:block;margin:10px 0 4px}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;padding:0 14px;min-height:44px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.btn.danger{color:var(--ko);border-color:var(--ko)}
+.btn.link{border:0;background:none;color:var(--info);text-decoration:underline;padding:0 4px}
+input[type=text],input[type=email],input[type=password],input[type=date],select,textarea{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:44px;width:100%}
+textarea{min-height:64px}
+.err{color:var(--ko);font-size:13px;min-height:18px;margin-top:4px}
+.okmsg{color:var(--ok);font-size:13px}
+/* console frame */
+.frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:14px 0}
+.url{font:12.5px ui-monospace,Menlo,monospace;padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(127,127,127,.08);overflow-wrap:anywhere}
+.pab{position:sticky;top:0;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap}
+.pab .t{font:600 18px var(--serif);color:var(--sapin);flex:1;min-width:120px}
+.body{padding:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:999px;padding:0 14px;min-height:40px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fchip b{font-size:16px;margin-right:6px}
+.fchip[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.st-trial,.st-due{background:color-mix(in srgb,var(--info) 16%,var(--card));color:var(--info)}
+.st-active{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.st-grace{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.st-read_only,.st-suspended{background:color-mix(in srgb,var(--ko) 16%,var(--card));color:var(--ko)}
+.st-archived{background:rgba(127,127,127,.18);color:var(--muted)}
+.fleet tbody tr{cursor:pointer}
+.fleet tbody tr:hover{background:rgba(127,127,127,.07)}
+.fleet th button{appearance:none;border:0;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;padding:0}
+.cards{display:none}
+.fcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.fcard .r{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+@media (max-width:700px){.fleet{display:none}.cards{display:block}}
+.steps li{list-style:none;display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.steps{padding:0;margin:0}
+.dot{width:22px;height:22px;border-radius:50%;flex:0 0 22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.d-ok{background:var(--ok)} .d-ko{background:var(--ko)} .d-todo{background:transparent;border:2px solid var(--fieldline)}
+.steps .txt{flex:1;min-width:180px}
+.steps small{display:block;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px}
+@media (max-width:640px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.modal{border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;background:color-mix(in srgb,var(--lichen) 6%,var(--card));display:none}
+.modal.show{display:block}
+.hist li{font-size:13.5px;margin:4px 0}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.login{max-width:380px;margin:10px auto;padding:20px;border:1px solid var(--line);border-radius:12px}
+.login h4{font:600 20px var(--serif);margin:0 0 10px;text-align:center}
+.qr{width:120px;height:120px;margin:8px auto;display:grid;grid-template-columns:repeat(12,1fr);border:6px solid #fff;background:#fff}
+.qr i{display:block}
+.alerts li{margin:6px 0}
+</style>
+<style>
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);display:none;z-index:9}
+.toast.show{display:block}
+.slider{width:100%;min-height:44px}
+.tl{list-style:none;padding:0;margin:8px 0 0}
+.tl li{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px;flex-wrap:wrap}
+.tl .d{font:600 12px ui-monospace,Menlo,monospace;color:var(--muted);flex:0 0 118px}
+.tl .x{flex:1;min-width:180px}
+.tl li.future{opacity:.45}
+.q li{list-style:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}
+.q{padding:0;margin:0}
+.q .who{flex:1;min-width:200px}
+.q .acts{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:600px){.q .acts{width:100%}.q .acts .btn{flex:1}}
+.mail{white-space:pre-wrap;font:13px/1.5 var(--sans);background:var(--field);border:1px solid var(--fieldline);border-radius:8px;padding:10px 12px;margin-top:8px;overflow-wrap:anywhere}
+.mail b{display:block;margin-bottom:6px}
+.phchips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.phchips button{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--info);border-radius:999px;font:12px ui-monospace,Menlo,monospace;padding:0 10px;min-height:32px;cursor:pointer}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;font-weight:600;min-height:44px}
+.switch input{width:20px;height:20px}
+.tpl{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.tpl .card{display:flex;flex-direction:column;gap:6px}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px}
+.p-man{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.p-auto{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.p-click{background:rgba(127,127,127,.18);color:var(--muted)}
+.inv td a{color:var(--info)}
+.scroll{overflow-x:auto}
+.alert{border-radius:8px;padding:9px 12px;margin:6px 0;font-size:13.5px;border-left:4px solid}
+.a-info{border-color:var(--info);background:color-mix(in srgb,var(--info) 9%,var(--card))}
+.a-warn{border-color:var(--ocre);background:color-mix(in srgb,var(--ocre) 10%,var(--card))}
+.a-ko{border-color:var(--ko);background:color-mix(in srgb,var(--ko) 9%,var(--card))}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Console GuestFlow — C2b : facturation Qonto et relances</h1>
+<div class="meta">Maquette de la spec <code>specs/control-plane-plans-and-access.md</code> (règles 7, 17, 18 amendées ; 32, 33, 34 nouvelles) · 30/09/2026 · données fictives, tout se manipule.</div>
+
+<div class="card">
+<h3>En bref</h3>
+<div class="cols2">
+<div>
+<b>Le constat</b>
+<p>Depuis C2a, la console calcule l'échéance et l'état de chaque client, mais l'argent se suit à la main : aucune facture n'est émise, aucune relance ne part, et le bouton « Renouveler » de l'instance ne mène nulle part.</p>
+<b>Ce qu'on propose</b>
+<ul class="tight">
+<li><b>Une vraie facture Qonto numérotée</b>, créée dans l'organisation <b>ADN Dev</b> le jour où le client entre dans sa fenêtre de renouvellement (J-7 en mensuel, J-30 en annuel), avec <b>un lien de paiement rattaché</b>. Ce lien devient le « Renouveler » de l'instance.</li>
+<li><b>Quatre emails prévus par facture</b> (facture, J-7 en annuel, jour J, J+7) et <b>« Relancer maintenant »</b>.</li>
+<li><b>Chaque modèle est Manuel ou Automatique</b>, et tous sont livrés en <b>Manuel</b> : la console prépare l'email, tu le valides d'un clic sur l'accueil.</li>
+<li><b>Le paiement est détecté toutes les 15 minutes</b>, qu'il passe par le lien ou par un virement rapproché dans Qonto. Il renouvelle l'abonnement une seule fois et retire les emails encore en attente.</li>
+<li><b>Un email quotidien à l'opérateur</b>, envoyé seulement s'il y a quelque chose à dire.</li>
+</ul>
+</div>
+<div>
+<b>Ce qu'on ne fait pas</b>
+<ul class="tight">
+<li>Pas de prélèvement automatique : le client paie par le lien ou par virement (décision Q7).</li>
+<li>Pas de proratisation : un changement de forfait en cours de période s'applique à la facture suivante.</li>
+<li>Pas de TVA autre que française à 20 % (hors périmètre D7).</li>
+<li>Les emails de compte (invitation, lien d'export, code de connexion) ne deviennent pas des modèles.</li>
+</ul>
+<b>Les risques</b>
+<ul class="tight">
+<li>La vérification repose sur les appels Qonto. Si Qonto ne répond pas, la création de facture est retentée à chaque passe et une alerte s'affiche. L'état du client, lui, suit toujours le calendrier : il ne dépend jamais de Qonto.</li>
+<li>La connexion de l'organisation ADN Dev aux liens de paiement (onboarding Mollie) se fait une fois dans Qonto : c'est un prérequis de la mise en service.</li>
+</ul>
+<b>Décidé le 30/09</b>
+<ul class="tight">
+<li>Q11 : une facture Qonto avec son lien.</li>
+<li>Q12 : l'organisation ADN Dev.</li>
+<li>Q13 : un mode par modèle, livré en Manuel.</li>
+</ul>
+</div>
+</div>
+</div>
+
+<!-- ================= 1. FRISE ================= -->
+<h2>1. Une période, jour par jour</h2>
+<p>Choisis le type de client et le mode des emails, puis déplace le curseur. La frise montre ce que la passe de 04:00 a fait jusqu'à ce jour. En Manuel, les emails préparés attendent dans la file, et tu peux les envoyer ou les ignorer. Fais ensuite payer le client pour voir ce qui disparaît.</p>
+<div class="card">
+<div class="cols2">
+<div><span class="lab">Client</span><div class="seg" id="simBill"><button aria-pressed="true" data-v="monthly">Mensuel</button><button aria-pressed="false" data-v="yearly">Annuel</button><button aria-pressed="false" data-v="trial">Essai (mensuel)</button></div></div>
+<div><span class="lab">Mode des 4 emails prévus</span><div class="seg" id="simMode"><button aria-pressed="true" data-v="manual">Manuel (livré)</button><button aria-pressed="false" data-v="auto">Automatique</button></div></div>
+</div>
+<span class="lab">Jour : <span id="simDay"></span></span>
+<input type="range" class="slider" id="simSlider" min="-35" max="35" value="-7" aria-label="Jour de la simulation">
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
+<span>État : <span class="st" id="simState"></span></span>
+<button class="btn primary" id="simPay">Le client paie par le lien</button>
+<button class="btn" id="simTransfer">Virement rapproché dans Qonto</button>
+<button class="btn link" id="simReset">Recommencer</button>
+</div>
+<div class="cols2" style="margin-top:10px">
+<div><h3>Ce que la console a fait</h3><ul class="tl" id="simTl"></ul></div>
+<div><h3>Emails à valider</h3><ul class="q" id="simQ"></ul><p class="muted" id="simQEmpty">Rien à valider.</p><div id="simMail"></div></div>
+</div>
+</div>
+
+<!-- ================= 2. ACCUEIL ================= -->
+<h2>2. L'accueil : alertes et emails à valider</h2>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/</div>
+<div class="pab"><span class="t">Clients</span><button class="btn primary">Nouveau client</button></div>
+<div class="body">
+<div class="alert a-ko">Paiement échoué sur la facture F-2026-0042 de <b>Mas des Oliviers</b> (carte refusée), le 29/09.</div>
+<div class="alert a-warn">Facture non créée pour <b>Gîte du Vent</b> : adresse de facturation manquante. Complétez la fiche, la passe suivante réessaiera.</div>
+<div class="alert a-info"><b>Domaine Ombre</b> passe aujourd'hui en « À renouveler ».</div>
+<div class="card" style="margin-top:12px" id="homeQCard">
+<h3>Emails à valider (<span id="homeQN">3</span>)</h3>
+<ul class="q" id="homeQ"></ul>
+<div id="homeMail"></div>
+</div>
+</div>
+</div>
+
+<!-- ================= 3. FICHE ================= -->
+<h2>3. La fiche client : factures, emails, relance</h2>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/clients/7</div>
+<div class="pab"><span class="t">Domaine Ombre</span>
+<button class="btn" id="chk">Vérifier le paiement</button>
+<button class="btn" id="rem">Relancer maintenant</button>
+<button class="btn">Enregistrer un paiement</button>
+</div>
+<div class="body">
+<div class="cols2">
+<div class="card"><h3>Abonnement</h3><dl class="kv"><dt>État</dt><dd><span class="st st-due">À renouveler</span></dd><dt>Forfait</dt><dd>Pro · mensuel · 59,00 € HT / mois</dd><dt>Échéance</dt><dd>07/10/2026 (7 jours)</dd></dl></div>
+<div class="card"><h3>Facturation</h3><dl class="kv"><dt>Adresse</dt><dd>12 chemin des Crêtes<br>07140 Les Vans, France</dd><dt>N° TVA</dt><dd>FR12 345678901</dd><dt>Client Qonto</dt><dd>créé le 30/09/2026</dd></dl></div>
+</div>
+<div class="modal" id="remDlg">
+<b>Relancer maintenant : aperçu</b>
+<div class="mail" id="remMail"></div>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn primary" id="remSend">Envoyer</button><button class="btn" id="remCancel">Annuler</button></div>
+</div>
+<h3>Factures</h3>
+<div class="scroll"><table class="inv"><thead><tr><th>N°</th><th>Période</th><th>HT</th><th>TTC</th><th>Statut</th><th>Liens</th></tr></thead>
+<tbody id="invBody">
+<tr><td>F-2026-0051</td><td>07/10/2026 → 07/11/2026</td><td>59,00 €</td><td>70,80 €</td><td><span class="st st-due" id="invSt">À payer</span></td><td><a href="#" onclick="return false">Facture</a> · <a href="#" onclick="return false">Lien de paiement</a></td></tr>
+<tr><td>—</td><td>07/09/2026 → 07/10/2026</td><td>59,00 €</td><td>—</td><td><span class="st st-active">Payée</span></td><td class="muted">Enregistré à la main « virement 12/09 »</td></tr>
+</tbody></table></div>
+<h3>Emails</h3>
+<ul class="tl" id="custMails">
+<li><span class="d">30/09 04:00</span><span class="x">Facture F-2026-0051 : préparée, <b>en attente de validation</b></span></li>
+</ul>
+</div>
+</div>
+
+<!-- ================= 4. MODELES ================= -->
+<h2>4. Les modèles d'emails</h2>
+<p>Chaque modèle prévu a son interrupteur. « Relancer maintenant » n'en a pas : le clic vaut validation. Modifie le texte : l'aperçu est celui du serveur sur un client d'exemple. Tape <code>{{prenom}}</code> pour voir le refus.</p>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/emails</div>
+<div class="pab"><span class="t">Emails</span></div>
+<div class="body">
+<div class="tpl" id="tplCards"></div>
+<div class="modal" id="tplEd">
+<b id="tplEdTitle"></b>
+<span class="lab">Objet</span><input type="text" id="tplSubj">
+<span class="lab">Texte</span><textarea id="tplBody" rows="9"></textarea>
+<div class="phchips" id="tplChips"></div>
+<div class="err" id="tplErr"></div>
+<span class="lab">Aperçu (Domaine Ombre)</span><div class="mail" id="tplPrev"></div>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn primary" id="tplSave">Enregistrer</button><button class="btn" id="tplClose">Annuler</button></div>
+</div>
+</div>
+</div>
+
+<!-- ================= 5. REGLAGES ================= -->
+<h2>5. Réglages : la connexion Qonto d'ADN Dev</h2>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/reglages</div>
+<div class="pab"><span class="t">Réglages</span></div>
+<div class="body"><div class="card" id="qCard"></div></div>
+</div>
+
+<!-- ================= 6. NOUVEAU CLIENT ================= -->
+<h2>6. Nouveau client : la carte Facturation</h2>
+<p>Qonto refuse de facturer un client sans adresse : la création la demande. Le serveur contrôle le code postal français. Essaie <code>7140</code>.</p>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/clients/nouveau</div>
+<div class="body"><div class="card" style="max-width:560px">
+<h3>Facturation</h3>
+<span class="lab">Adresse</span><input type="text" id="ncStreet" value="12 chemin des Crêtes">
+<div class="grid2">
+<div><span class="lab">Code postal</span><input type="text" id="ncZip" value="07140"><div class="err" id="ncZipErr"></div></div>
+<div><span class="lab">Ville</span><input type="text" id="ncCity" value="Les Vans"></div>
+</div>
+<div class="grid2">
+<div><span class="lab">Pays</span><select id="ncCountry"><option value="FR">France</option><option value="BE">Belgique</option><option value="CH">Suisse</option></select></div>
+<div><span class="lab">N° de TVA (facultatif)</span><input type="text" value=""></div>
+</div>
+</div></div>
+</div>
+
+<!-- ================= 7. EMAIL OPERATEUR ================= -->
+<h2>7. L'email quotidien à l'opérateur</h2>
+<div class="seg" id="digSeg"><button aria-pressed="true" data-v="busy">Journée chargée</button><button aria-pressed="false" data-v="calm">Journée calme</button></div>
+<div id="dig"></div>
+
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(function(){
+const $=(id)=>document.getElementById(id);
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2600);}
+function seg(id,cb){const el=$(id);el.addEventListener('click',(e)=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));cb(b.dataset.v);});}
+const pad=(n)=>String(n).padStart(2,'0');
+const D0=new Date(Date.UTC(2026,10,12));
+const fd=(d)=>`${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)}/${d.getUTCFullYear()}`;
+const plus=(n,base)=>{const d=new Date((base||D0).getTime());d.setUTCDate(d.getUTCDate()+n);return d;};
+const addMonths=(d,m)=>{const x=new Date(d.getTime());x.setUTCMonth(x.getUTCMonth()+m);return x;};
+const STL={trial:'Essai',active:'Actif',due:'À renouveler',grace:'Grâce',read_only:'Lecture seule',suspended:'Suspendu'};
+const NAMES={invoice:'Facture',reminder_before:'Relance J-7',reminder_due:'Relance jour J',reminder_after:'Relance J+7'};
+
+// ---------- 1. simulation ----------
+const sim={bill:'monthly',mode:'manual',day:-7,handled:{},paidAt:null,paidBy:null};
+function kinds(){ const w=sim.bill==='yearly'?30:7; const k=[{k:'invoice',at:-w}]; if(sim.bill==='yearly')k.push({k:'reminder_before',at:-7}); k.push({k:'reminder_due',at:0},{k:'reminder_after',at:7}); return k; }
+function stateAt(day){
+  if(sim.paidAt!==null && day>=sim.paidAt) return 'active';
+  const w=sim.bill==='yearly'?30:7;
+  if(sim.bill==='trial' && day<0) return 'trial';
+  if(day< -w) return 'active'; if(day<0) return 'due'; if(day<=7) return 'grace'; if(day<=30) return 'read_only'; return 'suspended';
+}
+function mailText(k){
+  const d=fd(D0), amt=sim.bill==='yearly'?'705,60 €':'70,80 €';
+  const lead={invoice:`Votre abonnement GuestFlow Pro se renouvelle le ${d}. Voici votre facture F-2026-0051 (${amt} TTC).`,reminder_before:`Petit rappel : votre abonnement GuestFlow Pro se termine le ${d}.`,reminder_due:`Votre abonnement GuestFlow Pro se termine aujourd'hui.`,reminder_after:`Votre abonnement GuestFlow Pro est échu depuis le ${d}. Sans règlement, votre espace passera en lecture seule dans quelques jours.`}[k];
+  return `<b>${NAMES[k]} · GuestFlow — Domaine Ombre</b>Bonjour Claire,\n\n${lead}\n\nLa facture : https://pay.qonto.com/invoices/…\nPayer en ligne : https://pay.qonto.com/payment-links/…\n\nMerci de votre confiance,\nAdrien — GuestFlow`;
+}
+function renderSim(){
+  const day=sim.day; $('simDay').textContent=`${fd(plus(day))} (J${day>=0?'+':''}${day})`;
+  const st=stateAt(day); const s=$('simState'); s.className='st st-'+st; s.textContent=STL[st];
+  const ev=[]; const queue=[];
+  const w=sim.bill==='yearly'?30:7;
+  if(sim.bill==='trial') ev.push({at:-30,t:'Client créé en essai : échéance = fin de l’essai ('+fd(D0)+')'});
+  ev.push({at:-w,t:`Facture F-2026-0051 créée dans Qonto (${sim.bill==='yearly'?'12 mois, 588,00 € HT, 705,60 € TTC':'1 mois, 59,00 € HT, 70,80 € TTC'}) + lien de paiement ; la licence porte le lien`});
+  // emails: at each run only the latest due kind not handled
+  const ks=kinds();
+  let lastPrepared=null;
+  for(let d=-35; d<=day; d++){
+    if(sim.paidAt!==null && d>=sim.paidAt) break;
+    const dueK=ks.filter(x=>x.at<=d).pop();
+    if(!dueK) continue;
+    if(ev.some(e=>e.kind===dueK.k)) continue;
+    if(sim.mode==='auto'){ ev.push({at:d,kind:dueK.k,t:`${NAMES[dueK.k]} envoyée automatiquement à claire@domaine-ombre.fr`}); }
+    else {
+      if(lastPrepared && !sim.handled[lastPrepared.k]){ ev.push({at:d,t:`${NAMES[lastPrepared.k]} retirée de la file, jamais envoyée : remplacée par « ${NAMES[dueK.k]} »`}); }
+      ev.push({at:d,kind:dueK.k,t:`${NAMES[dueK.k]} préparée : en attente de validation`}); lastPrepared={k:dueK.k,at:d};
+    }
+  }
+  Object.entries(sim.handled).forEach(([k,h])=>{ if(h.at<=day) ev.push({at:h.at,t:`${NAMES[k]} ${h.how==='send'?'envoyée (validée par Adrien)':'ignorée par Adrien'}`}); });
+  if(sim.paidAt!==null && sim.paidAt<=day){
+    const newEnd=addMonths(sim.paidAt>0?plus(sim.paidAt):D0, sim.bill==='yearly'?12:1);
+    ev.push({at:sim.paidAt,t:`${sim.paidBy==='link'?'Paiement reçu par le lien':'Facture payée dans Qonto (virement rapproché)'} : détecté au passage suivant (15 min). Échéance au ${fd(newEnd)}, état Actif, licence réémise`});
+    if(sim.mode==='manual' && lastPrepared && !sim.handled[lastPrepared.k] && lastPrepared.at<=sim.paidAt) ev.push({at:sim.paidAt,t:`${NAMES[lastPrepared.k]} retirée de la file : la facture est payée`});
+  }
+  if(sim.mode==='manual' && lastPrepared && !sim.handled[lastPrepared.k] && !(sim.paidAt!==null && sim.paidAt<=day)) queue.push(lastPrepared);
+  ev.sort((a,b)=>a.at-b.at);
+  $('simTl').innerHTML=ev.map(e=>`<li><span class="d">${fd(plus(e.at))}</span><span class="x">${e.t}</span></li>`).join('')||'<li class="muted">Rien encore : la facture viendra à J-'+w+'.</li>';
+  $('simQ').innerHTML=queue.map(q=>`<li><span class="who"><b>${NAMES[q.k]}</b> · Domaine Ombre · préparée le ${fd(plus(q.at))}</span><span class="acts"><button class="btn" data-a="view" data-k="${q.k}">Voir</button><button class="btn primary" data-a="send" data-k="${q.k}">Envoyer</button><button class="btn" data-a="ignore" data-k="${q.k}">Ignorer</button></span></li>`).join('');
+  $('simQEmpty').style.display=queue.length?'none':'block';
+  if(!queue.length) $('simMail').innerHTML='';
+}
+$('simQ').addEventListener('click',(e)=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;
+  if(b.dataset.a==='view'){ $('simMail').innerHTML=`<div class="mail">${mailText(k)}</div>`; return; }
+  sim.handled[k]={how:b.dataset.a,at:sim.day}; $('simMail').innerHTML=''; toast(b.dataset.a==='send'?`${NAMES[k]} envoyée à claire@domaine-ombre.fr`:`${NAMES[k]} ignorée`); renderSim();});
+seg('simBill',(v)=>{sim.bill=v;reset();});
+seg('simMode',(v)=>{sim.mode=v;sim.handled={};renderSim();});
+$('simSlider').addEventListener('input',(e)=>{sim.day=Number(e.target.value);renderSim();});
+function pay(by){ const w=sim.bill==='yearly'?30:7; if(sim.day< -w){toast('Aucune facture ouverte ce jour-là : elle sera créée à J-'+w+'.');return;} if(sim.paidAt!==null){toast('Déjà payée : un second paiement est refusé par Qonto (lien à usage unique).');return;} sim.paidAt=sim.day; sim.paidBy=by; renderSim(); }
+$('simPay').onclick=()=>pay('link'); $('simTransfer').onclick=()=>pay('transfer');
+function reset(){sim.handled={};sim.paidAt=null;renderSim();}
+$('simReset').onclick=reset;
+renderSim();
+
+// ---------- 2. home queue ----------
+const home=[{c:'Domaine Ombre',k:'Facture F-2026-0051',d:'30/09',txt:'Bonjour Claire,\n\nVotre abonnement GuestFlow Pro se renouvelle le 07/10/2026. Voici votre facture F-2026-0051 (70,80 € TTC).\n\nLa facture : https://pay.qonto.com/invoices/…\nPayer en ligne : https://pay.qonto.com/payment-links/…'},
+{c:'Mas des Oliviers',k:'Relance J+7',d:'30/09',txt:'Bonjour Paul,\n\nVotre abonnement GuestFlow Premium est échu depuis le 23/09/2026. Sans règlement, votre espace passera en lecture seule dans quelques jours.\n\nPayer en ligne : https://pay.qonto.com/payment-links/…'},
+{c:'La Bergerie',k:'Relance jour J',d:'30/09',txt:'Bonjour Anne,\n\nVotre abonnement GuestFlow Essentiel se termine aujourd’hui.\n\nPayer en ligne : https://pay.qonto.com/payment-links/…'}];
+function renderHome(){
+  $('homeQN').textContent=home.length; $('homeQCard').style.display=home.length?'block':'none';
+  $('homeQ').innerHTML=home.map((h,i)=>`<li><span class="who"><b>${h.c}</b> · ${h.k} · préparée le ${h.d}</span><span class="acts"><button class="btn" data-a="view" data-i="${i}">Voir</button><button class="btn primary" data-a="send" data-i="${i}">Envoyer</button><button class="btn" data-a="ignore" data-i="${i}">Ignorer</button></span></li>`).join('');
+}
+$('homeQ').addEventListener('click',(e)=>{const b=e.target.closest('button');if(!b)return;const i=Number(b.dataset.i);
+  if(b.dataset.a==='view'){$('homeMail').innerHTML=`<div class="mail"><b>${home[i].k} — ${home[i].c}</b>${home[i].txt}</div>`;return;}
+  const h=home.splice(i,1)[0]; $('homeMail').innerHTML=''; toast(b.dataset.a==='send'?`${h.k} envoyée à ${h.c}`:`${h.k} ignorée`); renderHome();});
+renderHome();
+
+// ---------- 3. customer ----------
+$('chk').onclick=()=>toast('Qonto : facture F-2026-0051 toujours à payer, aucun paiement sur le lien.');
+$('rem').onclick=()=>{$('remMail').innerHTML='<b>Relance · GuestFlow — Domaine Ombre</b>Bonjour Claire,\n\nNous n’avons pas encore reçu le règlement de la facture F-2026-0051 (70,80 € TTC), à régler avant le 07/10/2026.\n\nPayer en ligne : https://pay.qonto.com/payment-links/…\n\nMerci,\nAdrien — GuestFlow';$('remDlg').classList.add('show');};
+$('remCancel').onclick=()=>$('remDlg').classList.remove('show');
+$('remSend').onclick=()=>{$('remDlg').classList.remove('show');$('custMails').insertAdjacentHTML('beforeend','<li><span class="d">30/09 10:42</span><span class="x">Relance manuelle : <b>envoyée</b> par Adrien à claire@domaine-ombre.fr</span></li>');toast('Relance envoyée à claire@domaine-ombre.fr');};
+
+// ---------- 4. templates ----------
+const PH=['contactName','companyName','planName','period','amount','deadline','invoiceNumber','invoiceUrl','payUrl','spaceUrl'];
+const SAMPLE={contactName:'Claire',companyName:'Domaine Ombre',planName:'Pro',period:'07/10/2026 → 07/11/2026',amount:'70,80 €',deadline:'07/10/2026',invoiceNumber:'F-2026-0051',invoiceUrl:'https://pay.qonto.com/invoices/…',payUrl:'https://pay.qonto.com/payment-links/…',spaceUrl:'https://domaine-ombre.guestflow.fr'};
+const TPL=[
+{key:'invoice',name:'Facture',day:'J-7 en mensuel, J-30 en annuel',mode:'manual',subj:'Votre facture GuestFlow {{invoiceNumber}}',body:'Bonjour {{contactName}},\n\nVotre abonnement GuestFlow {{planName}} se renouvelle le {{deadline}}. Voici votre facture {{invoiceNumber}} ({{amount}} TTC) pour la période {{period}}.\n\nLa facture : {{invoiceUrl}}\nPayer en ligne : {{payUrl}}\n\nMerci de votre confiance,\nAdrien — GuestFlow'},
+{key:'reminder_before',name:'Relance J-7',day:'J-7, en annuel seulement',mode:'manual',subj:'Votre abonnement GuestFlow se termine le {{deadline}}',body:'Bonjour {{contactName}},\n\nPetit rappel : votre abonnement GuestFlow {{planName}} se termine le {{deadline}}.\n\nPayer en ligne : {{payUrl}}'},
+{key:'reminder_due',name:'Relance jour J',day:'le jour de l’échéance',mode:'manual',subj:'Votre abonnement GuestFlow se termine aujourd’hui',body:'Bonjour {{contactName}},\n\nVotre abonnement GuestFlow {{planName}} se termine aujourd’hui.\n\nPayer en ligne : {{payUrl}}'},
+{key:'reminder_after',name:'Relance J+7',day:'7 jours après l’échéance',mode:'manual',subj:'Abonnement GuestFlow échu',body:'Bonjour {{contactName}},\n\nVotre abonnement GuestFlow {{planName}} est échu depuis le {{deadline}}. Sans règlement, votre espace {{spaceUrl}} passera en lecture seule dans quelques jours.\n\nPayer en ligne : {{payUrl}}'},
+{key:'reminder_manual',name:'Relancer maintenant',day:'au clic, depuis la fiche client',mode:'click',subj:'Relance : facture GuestFlow {{invoiceNumber}}',body:'Bonjour {{contactName}},\n\nNous n’avons pas encore reçu le règlement de la facture {{invoiceNumber}} ({{amount}} TTC), à régler avant le {{deadline}}.\n\nPayer en ligne : {{payUrl}}\n\nMerci,\nAdrien — GuestFlow'}];
+let editing=null;
+function renderTpl(){
+  $('tplCards').innerHTML=TPL.map((t,i)=>`<div class="card"><b>${t.name}</b><span class="muted" style="font-size:13px">${t.day}</span>
+  ${t.mode==='click'?'<span><span class="pill p-click">Le clic vaut validation</span></span>':`<label class="switch"><input type="checkbox" data-i="${i}" ${t.mode==='auto'?'checked':''}> <span class="pill ${t.mode==='auto'?'p-auto':'p-man'}">${t.mode==='auto'?'Automatique':'Manuel'}</span></label>`}
+  <button class="btn" data-e="${i}">Modifier</button></div>`).join('');
+}
+$('tplCards').addEventListener('change',(e)=>{const i=e.target.dataset.i;if(i==null)return;TPL[i].mode=e.target.checked?'auto':'manual';toast(`« ${TPL[i].name} » : ${TPL[i].mode==='auto'?'partira seul à 04:00':'attendra ta validation'}`);renderTpl();});
+$('tplCards').addEventListener('click',(e)=>{const b=e.target.closest('button[data-e]');if(!b)return;editing=TPL[b.dataset.e];$('tplEdTitle').textContent='Modifier « '+editing.name+' »';$('tplSubj').value=editing.subj;$('tplBody').value=editing.body;$('tplEd').classList.add('show');prev();});
+$('tplChips').innerHTML=PH.map(p=>`<button type="button" data-p="${p}">{{${p}}}</button>`).join('');
+$('tplChips').addEventListener('click',(e)=>{const b=e.target.closest('button');if(!b)return;const ta=$('tplBody');const s=ta.selectionStart,en=ta.selectionEnd;const ins=`{{${b.dataset.p}}}`;ta.value=ta.value.slice(0,s)+ins+ta.value.slice(en);ta.focus();ta.selectionStart=ta.selectionEnd=s+ins.length;prev();});
+function check(){const all=($('tplSubj').value+' '+$('tplBody').value).match(/\{\{\s*([^}]*?)\s*\}\}/g)||[];const bad=all.map(x=>x.replace(/[{}\s]/g,'')).filter(x=>!PH.includes(x));
+  if(!$('tplSubj').value.trim()||!$('tplBody').value.trim())return 'L’objet et le texte sont obligatoires.';
+  if(bad.length)return `Variable inconnue : {{${bad[0]}}}. Variables possibles : ${PH.map(p=>'{{'+p+'}}').join(', ')}.`;return '';}
+function fill(t){return t.replace(/\{\{\s*(\w+)\s*\}\}/g,(m,k)=>SAMPLE[k]!==undefined?SAMPLE[k]:m);}
+function prev(){$('tplErr').textContent=check();$('tplPrev').innerHTML=`<b>${fill($('tplSubj').value).replace(/</g,'&lt;')}</b>${fill($('tplBody').value).replace(/</g,'&lt;')}`;}
+$('tplSubj').addEventListener('input',prev);$('tplBody').addEventListener('input',prev);
+$('tplSave').onclick=()=>{const err=check();if(err){toast('Refusé : '+err);return;}editing.subj=$('tplSubj').value;editing.body=$('tplBody').value;$('tplEd').classList.remove('show');toast(`Modèle « ${editing.name} » enregistré`);};
+$('tplClose').onclick=()=>$('tplEd').classList.remove('show');
+renderTpl();
+
+// ---------- 5. settings ----------
+const q={connected:false,account:'',tested:null};
+function renderQ(){
+  const c=$('qCard');
+  if(!q.connected){c.innerHTML=`<h3>Qonto</h3><p><span class="st st-read_only">Non connecté</span></p><p class="muted">Rien n'est facturé tant que la console n'est pas connectée à l'organisation ADN Dev. L'accueil affiche une alerte.</p><button class="btn primary" id="qConn">Connecter Qonto</button>`;$('qConn').onclick=()=>{q.connected=true;toast('Retour de Qonto : organisation ADN Dev connectée');renderQ();};return;}
+  c.innerHTML=`<h3>Qonto</h3><dl class="kv"><dt>Connexion</dt><dd><span class="st st-active">Connecté</span> · ADN Dev · production</dd><dt>Liens de paiement</dt><dd><span class="st st-active">Activés</span> (onboarding fait dans Qonto)</dd><dt>Dernier appel</dt><dd>${q.tested||'—'}</dd></dl>
+  <span class="lab">Compte dont l'IBAN figure sur les factures</span><select id="qAcc"><option value="">Choisir un compte…</option><option value="main" ${q.account==='main'?'selected':''}>Compte principal · FR76 •••• 4412</option><option value="tax" ${q.account==='tax'?'selected':''}>Provisions TVA · FR76 •••• 9087</option></select>
+  <div class="err" id="qErr"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="qTest">Tester la connexion</button><button class="btn" id="qRe">Reconnecter</button></div>`;
+  $('qAcc').onchange=(e)=>{q.account=e.target.value;toast(q.account?'Compte enregistré':'');};
+  $('qTest').onclick=()=>{if(!q.account){$('qErr').textContent='Choisissez le compte à imprimer sur les factures : sans lui, Qonto refuse la facture.';return;}q.tested='réussi à l’instant';toast('Connexion Qonto : OK (organisation, compte et liens de paiement)');renderQ();};
+  $('qRe').onclick=()=>toast('Redirection vers Qonto…');
+}
+renderQ();
+
+// ---------- 6. postcode ----------
+function zip(){const v=$('ncZip').value.trim();const fr=$('ncCountry').value==='FR';$('ncZipErr').textContent=fr&&!/^\d{5}$/.test(v)?'Code postal français : 5 chiffres.':(!v?'Le code postal est obligatoire.':'');}
+$('ncZip').addEventListener('input',zip);$('ncCountry').addEventListener('change',zip);
+
+// ---------- 7. digest ----------
+function renderDig(v){$('dig').innerHTML=v==='calm'?'<div class="note">Aucune ligne ce jour-là : <b>aucun email n’est envoyé</b>. L’accueil de la console reste la référence.</div>':
+`<div class="mail"><b>Console GuestFlow — 30/09/2026 : 6 points</b>Changements d’état aujourd’hui
+• Domaine Ombre → À renouveler (échéance 07/10/2026)
+• Mas des Oliviers → Lecture seule
+
+Paiements échoués
+• Mas des Oliviers, facture F-2026-0042 : carte refusée (29/09)
+
+Emails à valider (3)
+• Domaine Ombre : Facture F-2026-0051
+• Mas des Oliviers : Relance J+7
+• La Bergerie : Relance jour J
+
+Factures non créées
+• Gîte du Vent : adresse de facturation manquante
+
+Ouvrir la console : https://console.guestflow.fr/</div>`;}
+seg('digSeg',renderDig);renderDig('busy');
+})();
+</script>
+</body>
+</html>
