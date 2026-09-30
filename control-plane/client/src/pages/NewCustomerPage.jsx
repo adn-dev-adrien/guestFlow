@@ -1,12 +1,12 @@
 /**
- * A new customer (specs/control-plane-plans-and-access.md rules 7 and 21). The server checks the
- * form as it is typed and computes the end date and the price; saving opens the customer's page on
- * its creation steps.
+ * A new customer (specs/control-plane-plans-and-access.md rules 7 and 21): identity, billing identity
+ * (the address Qonto needs to invoice), subscription. The server checks the form as it is typed and
+ * computes the end date and the price; saving opens the customer's page on its creation steps.
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Card, CardContent, Checkbox, FormControlLabel, Grid, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Card, CardContent, Checkbox, FormControlLabel, Grid, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import PageActionBar from '@gf/components/PageActionBar';
 import { useToast } from '@gf/components/DialogProvider';
@@ -15,7 +15,10 @@ import api from '../api';
 const EMPTY = {
   companyName: '', contactName: '', contactEmail: '', slug: '',
   planCode: 'pro', billing: 'monthly', length: 12, startsAt: '', endsAt: '', trial: true, addons: [],
+  billingStreet: '', billingPostcode: '', billingCity: '', billingCountry: 'FR', vatNumber: '',
 };
+// Checked as typed once filled in; the others once a save was attempted.
+const LIVE = ['slug', 'billingPostcode', 'vatNumber'];
 
 function Toggle({ value, onChange, options, label }) {
   return (
@@ -49,7 +52,7 @@ export default function NewCustomerPage() {
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
   const field = (key) => (e) => set(key)(e.target.value);
   // The slug is checked as it is typed; the other fields once a save was attempted.
-  const errorOf = (key) => ((submitted || (key === 'slug' && form.slug)) ? preview.errors[key] : undefined);
+  const errorOf = (key) => ((submitted || (LIVE.includes(key) && form[key])) ? preview.errors[key] : undefined);
 
   async function save() {
     setSubmitted(true);
@@ -88,6 +91,34 @@ export default function NewCustomerPage() {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField label="Email du contact (premier administrateur)" type="email" value={form.contactEmail} onChange={field('contactEmail')} fullWidth required
                   error={Boolean(errorOf('contactEmail'))} helperText={errorOf('contactEmail')} />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent>
+            <Typography variant="sectionHeader" component="h2" sx={{ mb: 1.5 }}>Facturation</Typography>
+            <Grid container spacing={2}>
+              <Grid size={12}>
+                <TextField label="Adresse" value={form.billingStreet} onChange={field('billingStreet')} fullWidth required
+                  error={Boolean(errorOf('billingStreet'))} helperText={errorOf('billingStreet')} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField label="Code postal" value={form.billingPostcode} onChange={field('billingPostcode')} fullWidth required
+                  error={Boolean(errorOf('billingPostcode'))} helperText={errorOf('billingPostcode')} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 8 }}>
+                <TextField label="Ville" value={form.billingCity} onChange={field('billingCity')} fullWidth required
+                  error={Boolean(errorOf('billingCity'))} helperText={errorOf('billingCity')} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField select label="Pays" value={form.billingCountry} onChange={field('billingCountry')} fullWidth>
+                  {(preview.countries || [{ code: 'FR', name: 'France' }]).map((x) => <MenuItem key={x.code} value={x.code}>{x.name}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label="N° de TVA (facultatif)" value={form.vatNumber} onChange={field('vatNumber')} fullWidth
+                  error={Boolean(errorOf('vatNumber'))} helperText={errorOf('vatNumber')} />
               </Grid>
             </Grid>
           </CardContent>

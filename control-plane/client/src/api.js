@@ -46,6 +46,16 @@ const api = {
   cancelErase: (id) => request('POST', `/api/customers/${id}/cancel-erase`, {}),
   eraseNow: (id, confirmSlug) => request('POST', `/api/customers/${id}/erase`, { confirmSlug }),
   licenceUrl: (id) => `/api/customers/${id}/licence`,
+  setBilling: (id, body) => request('POST', `/api/customers/${id}/billing`, body),
+  remindPreview: (id) => request('POST', `/api/customers/${id}/remind`, { preview: true }),
+  remind: (id) => request('POST', `/api/customers/${id}/remind`, {}),
+  checkPayment: (id) => request('POST', `/api/customers/${id}/check-payment`, {}),
+  sendEmail: (id) => request('POST', `/api/emails/${id}/send`, {}),
+  ignoreEmail: (id) => request('POST', `/api/emails/${id}/ignore`, {}),
+
+  templates: () => request('GET', '/api/templates'),
+  saveTemplate: (key, body) => request('PUT', `/api/templates/${key}`, body),
+  previewTemplate: (key, body) => request('POST', `/api/templates/${key}/preview`, body),
 
   catalogue: () => request('GET', '/api/catalogue'),
   toggleCell: (lowest, pluginId, planCode) => request('POST', '/api/catalogue/toggle', { lowest, pluginId, planCode }),

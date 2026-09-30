@@ -1,17 +1,19 @@
 /**
- * The fleet (specs/control-plane-plans-and-access.md rules 8 and 18): today's alerts, the three
- * counters as filters, and one line per customer — a table on sm+, cards on xs. Sorting a column is
- * presentation only; every value comes ready from the server.
+ * The fleet (specs/control-plane-plans-and-access.md rules 8, 18 and 33): today's alerts, the emails
+ * awaiting approval, the three counters as filters, and one line per customer — a table on sm+,
+ * cards on xs. Sorting a column is presentation only; every value comes ready from the server.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Alert, Box, Chip, Stack, TableCell, TableRow, TableSortLabel, Typography } from '@mui/material';
+import { Alert, Box, Card, CardContent, Chip, Stack, TableCell, TableRow, TableSortLabel, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PageActionBar from '@gf/components/PageActionBar';
 import ResponsiveTable from '@gf/components/ResponsiveTable';
 import LoadingState from '@gf/components/LoadingState';
 import ErrorAlert from '@gf/components/ErrorAlert';
+import { useToast } from '@gf/components/DialogProvider';
 import LifecycleChip from '../components/LifecycleChip';
+import EmailQueue from '../components/EmailQueue';
 import api from '../api';
 
 const COLUMNS = [
@@ -31,6 +33,8 @@ export default function FleetPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [alerts, setAlerts] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const { showError, showSuccess } = useToast();
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState(null);
   const [sort, setSort] = useState({ key: 'endsAt', dir: 'asc' });
@@ -38,7 +42,7 @@ export default function FleetPage() {
   const load = () => {
     setError(null);
     Promise.all([api.fleet(), api.alerts()])
-      .then(([fleet, a]) => { setData(fleet); setAlerts(a.alerts); })
+      .then(([fleet, a]) => { setData(fleet); setAlerts(a.alerts); setQueue(a.queue || []); })
       .catch((err) => setError(err.message));
   };
   useEffect(load, []);
@@ -62,6 +66,15 @@ export default function FleetPage() {
   if (!data) return <>{bar}<LoadingState /></>;
 
   const open = (r) => navigate(`/clients/${r.id}`);
+  const handle = (fn, done) => async (emailId) => {
+    try {
+      const next = await fn(emailId);
+      setQueue(next.queue);
+      showSuccess(done);
+    } catch (err) {
+      showError(err.message);
+    }
+  };
   const toggleSort = (key) => setSort((s) => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
 
   return (
@@ -71,9 +84,17 @@ export default function FleetPage() {
         {alerts.length > 0 && (
           <Stack spacing={1} aria-label="À traiter aujourd’hui">
             {alerts.map((a, i) => (
-              <Alert key={i} severity={a.severity} onClick={() => navigate(`/clients/${a.customerId}`)} sx={{ cursor: 'pointer' }}>{a.text}</Alert>
+              <Alert key={i} severity={a.severity} onClick={() => navigate(a.link || `/clients/${a.customerId}`)} sx={{ cursor: 'pointer' }}>{a.text}</Alert>
             ))}
           </Stack>
+        )}
+        {queue.length > 0 && (
+          <Card>
+            <CardContent>
+              <Typography variant="sectionHeader" component="h2" sx={{ mb: 0.5 }}>Emails à valider ({queue.length})</Typography>
+              <EmailQueue items={queue} onSend={handle(api.sendEmail, 'Email envoyé.')} onIgnore={handle(api.ignoreEmail, 'Email ignoré.')} />
+            </CardContent>
+          </Card>
         )}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {data.counters.map((c) => (

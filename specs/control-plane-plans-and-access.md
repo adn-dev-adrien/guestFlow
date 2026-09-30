@@ -444,6 +444,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       `client_invoice.read` and `client_invoice.write`.
     - The invoices print the IBAN of the bank account chosen in the provider connection.
     - Without a working connection nothing is invoiced, and the home page says so.
+    - The console's session cookie is `SameSite=Lax`, like GuestFlow's: Qonto's consent comes back
+      with a top-level GET from qonto.com, which must carry the session that holds the OAuth
+      `state`. Cross-site POSTs still carry no cookie.
 33. **Email templates and their mode** (added 2026-09-30 with C2b, §9 Q13).
     - Five templates: `invoice`, `reminder_before`, `reminder_due`, `reminder_after`,
       `reminder_manual`. Their subject and text are edited in « Emails », with the placeholders
@@ -497,7 +500,7 @@ hint.
      and the fleet (rules 7–8), the slug rules (rule 21), the licence issued and written to the
      instance's data directory or downloaded, the daily lifecycle, a payment recorded by hand
      (rules 15, 19), the on-screen alerts (rule 18), deprovisioning (rule 20).
-   - **C2b** (branch `feature/control-plane-c2b-billing`): the Qonto connection (rule 32), the
+   - **C2b** (implemented 2026-09-30, branch `feature/control-plane-c2b-billing`): the Qonto connection (rule 32), the
      renewal invoice and its payment link, the reminders and « Relancer maintenant » (rule 17), the
      email templates and their mode (rule 33), payment detection (rule 34), the operator's daily
      email and the remaining alerts (rule 18), the billing identity (rule 7).
@@ -649,7 +652,16 @@ its `api.js` calls land on the console's identical `/api/payments/*` routes.
     /api/templates/:key/preview {subject, body}`; GuestFlow's own `/api/payments/settings` and
     `/api/payments/qonto/{authorize, callback, status, credentials, test, bank-accounts,
     connect-provider, refresh-connection, webhook}`, same contracts (rule 32). C3: `rename`.
-- **Control plane, public:** `GET /exports/:token` (410 once expired).
+- **Control plane, public:** `GET /exports/:token` (410 once expired); `POST
+  /api/payments/qonto/webhook` (Qonto's signature, 503 without a secret, 401 on a bad one).
+- **Control plane payloads (C2b):** `GET /api/alerts` → `{ alerts: [{ customerId, link?, severity,
+  text }], queue: [{ id, customerId, companyName, name, preparedOn, recipient, subject, body }] }`;
+  the customer gains `billingIdentity { street, postcode, city, country, vatNumber, lines }`,
+  `countries`, `invoices[] { number, period, amount, total, status, statusLabel, detail, invoiceUrl,
+  payUrl }`, `emails[] { name, status, statusLabel, at, recipient, subject, body, operator, error }`
+  and `actions.{ editBilling, remind, remindHint, checkPayment }`; `check-payment` answers the
+  customer plus a `notice`. The customer's `billing` stays the billing mode (`monthly` |
+  `yearly`).
 
 ## 5. Data model
 
@@ -802,24 +814,30 @@ each plan. The C2a console screens have their own mock
 - **Control plane (C3):**
   - Login lookup: 0, 1 and n spaces; suspended; rate limit; no email stored in clear.
   - OAuth relay: valid, expired and foreign `state`.
-- **Control plane (C2b), planned:**
-  - `billing-invoice.unit.test.js` (rules 7, 17, 32): the invoice's day for monthly, yearly and
-    trial; its lines, amounts and VAT at the customer's catalogue price; the Qonto client created
-    once; one invoice per period; a failure retried and alerted; no connection, no invoice.
-  - `billing-emails.unit.test.js` (rules 17, 33): the email of each day; only the latest after a
-    gap; nothing after payment; Manuel queues with frozen text, Automatique sends; a queued email
-    dropped when paid or superseded; send and ignore; « Relancer maintenant » sends at once.
-  - `billing-payments.unit.test.js` (rules 15, 19, 34): a paid link renews once; an invoice paid in
-    Qonto renews; a failed attempt alerted once; a manual payment closes the open invoice and
-    deactivates the link; deprovisioning cancels; a plan change keeps the open invoice.
-  - `email-templates.unit.test.js` (rule 33): rendering, the unknown-placeholder refusal, the mode.
-  - `operator-digest.unit.test.js` (rule 18): the daily email's lines, nothing sent when empty.
-  - `qonto-settings.unit.test.js` (rule 32): GuestFlow's handlers over the console's settings: the
-    credentials saved and masked, secrets encrypted at rest, the OAuth state, the callback storing
-    the tokens, the console's scopes, the webhook signature.
-- **Instance (C2b):** the existing Qonto suites keep passing unchanged after the move to
-  `createQontoSettingsController` and `qontoWebhookSignature`; `qonto-invoicing-client.unit.test.js`
-  covers the new client calls (payloads, amounts, the money guard).
+- **Control plane (C2b, implemented): 28 more tests, 76 in all**, with a fake Qonto facade in
+  `helpers.js` (`makeFakeQonto`: the test pays a link, fails an attempt, or marks an invoice paid).
+  - `billing-invoice.unit.test.js` (7, rules 6, 7, 17, 18, 32): the monthly invoice at D-7 with its
+    lines, VAT, dates, IBAN and the link in the licence; yearly at D-30 with an add-on at the price
+    sold; a trial's first invoice; one invoice per period and one Qonto client; a failure kept
+    pending, alerted and resumed without a second invoice; a total Qonto computes differently
+    cancels that invoice; no connection, no invoice, and the alert.
+  - `billing-emails.unit.test.js` (7, rules 17, 33): the days of each email; « Manuel » queues a
+    frozen text and a later email replaces it unsent; only the latest after a gap; « Automatique »
+    sends; send and ignore once; nothing after payment; « Relancer maintenant ».
+  - `billing-payments.unit.test.js` (6, rules 15, 19, 34): a paid link renews once, whatever reports
+    it; an invoice paid in Qonto renews; a failed attempt alerted once for 7 days; a payment by hand
+    closes the invoice and deactivates its link; deprovisioning cancels; a plan change keeps the
+    invoice issued.
+  - `email-templates.unit.test.js` (3, rule 33), `operator-digest.unit.test.js` (2, rule 18).
+  - `qonto-settings.unit.test.js` (3, rule 32): GuestFlow's handlers over the console's settings,
+    secrets encrypted and masked, a new application drops the old tokens; the Paiements routes
+    behind the operator's session, `authorize` with the console's scopes and address, a forged
+    `state`; the webhook's signature, then Qonto re-read before renewing.
+- **Instance (C2b, implemented):** the existing Qonto and payment suites (464 tests) pass unchanged
+  after the move to `createQontoSettingsController` and `qontoWebhookSignature`;
+  `qonto-invoicing-client.unit.test.js` (5, rules 17, 32, 34) covers the new client calls: the
+  client's address, the invoice's payload and VAT, the money guard, the attached link, read, cancel
+  and deactivate.
 - **Instance (C1, implemented): `server/src/tests/subscription-entitlement.unit.test.js`, 28 tests.**
   - Licence reader (rules 9, 10, 29, 30): a valid licence; a tampered payload; another key; expired;
     missing when managed; missing when unmanaged; present when unmanaged; no key; the one-minute
@@ -851,6 +869,14 @@ each plan. The C2a console screens have their own mock
     preview, an override refused, deprovisioning behind the slug, the plan change.
   - `LoginPage.second-factor.test.jsx` (3, rule 31): the email code and its resend, the app and a
     backup code, the lockout.
+- **Console client (C2b, implemented): 10 more Vitest tests, 29 in all.** The customer payload moved
+  to `consoleFixtures.jsx`, shared by the two CustomerPage suites.
+  - `FleetPage.email-queue.test.jsx` (2, rules 18, 32, 33): « Voir », « Envoyer », « Ignorer »; the
+    Qonto alert opens the Paiements page.
+  - `CustomerPage.billing.test.jsx` (5, rules 7, 17, 34): invoices and emails, « Relancer maintenant »
+    disabled then previewed and sent, « Vérifier le paiement », the billing identity refused then
+    saved.
+  - `NewCustomerPage.billing.test.jsx` (1, rule 7), `EmailTemplatesPage.editor.test.jsx` (2, rule 33).
 
 ### Manual UI verification
 
@@ -895,11 +921,31 @@ licences signed with a throwaway key):
 - Found and fixed on the way: an add-on the chosen plan already includes could be sold on top of it
   (rule 4), and the nesting refusal read « retirez-le d'abord de Essentiel ».
 
+**C2b, done 2026-09-30** (the console on :4100/:3200 with the tests' fake Qonto facade, the clock
+moved by hand):
+- A monthly Pro customer with the Neat add-on, created with its billing identity, was invoiced at
+  D-7: client, IBAN, invoice, link, in that order; « Facture F-… (1 mois, 68,00 € HT, 81,60 € TTC) ».
+- The home page showed « Domaine Ombre passe aujourd'hui en « À renouveler » » and « Emails à
+  valider (1) »; « Voir » showed the frozen text, « Envoyer » sent it (the `[mail]` log) and the
+  daily email listed the same lines.
+- The customer page: the invoice « À payer » with its two links, « Relancer maintenant » previewed
+  then sent, « Vérifier le paiement » answered « toujours à payer »; a refused card then a paid link
+  turned the invoice « Payée », the end date to 01/12/2026, the state to « Actif », with « paiement
+  refusé » in the history.
+- GuestFlow's Paiements page rendered unchanged at `/parametres/paiements`, with the console's own
+  callback address; the credentials saved there were encrypted in `qonto_settings`.
+- The template editor: server preview, placeholder chips; its « Objet » label was clipped at the
+  top of the dialog, fixed.
+- 375 px: home, customer page, emails, new customer (the postcode refused as typed), Paiements: no
+  horizontal scroll.
+
 **Still to do with C2b and C3:**
 
-- **C2b:** on the Qonto sandbox: connect, pick the account, create a customer whose deadline is in
-  7 days (monthly), run the day, approve the invoice email, pay the link with the test card, see
-  the renewal; walk J, J+7 with `CP_NOW`; « Relancer maintenant »; edit a template; 375 px.
+- **C2b, against Qonto itself:** the ADN Dev application (with the `client*` and `client_invoice*`
+  scopes) is not created yet. On its sandbox: connect, connect the payment-link provider, invoice a
+  customer, pay the link with the test card, match a transfer, and confirm two points the
+  documentation leaves open: the VAT rate format of an invoice line (`"0.2"` is sent) and the
+  `paid` state read on an invoice link.
 - **Login:** reach two local instances (`*.localhost`) from `app.localhost` with one email that
   belongs to both.
 - Check at 375 px: login, banners, the matrix as cards.

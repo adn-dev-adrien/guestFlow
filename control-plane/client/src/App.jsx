@@ -1,7 +1,7 @@
 /**
  * The console's shell (specs/control-plane-plans-and-access.md §4.2): GuestFlow's theme and dialog
  * provider, the login until an operator is signed in (rule 31), then the navigation between the
- * fleet, the catalogue and the profile.
+ * fleet, the catalogue, the renewal emails, GuestFlow's own Paiements page (rule 32) and the profile.
  */
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router';
@@ -17,11 +17,15 @@ import NewCustomerPage from './pages/NewCustomerPage';
 import CustomerPage from './pages/CustomerPage';
 import CataloguePage from './pages/CataloguePage';
 import ProfilePage from './pages/ProfilePage';
+import EmailTemplatesPage from './pages/EmailTemplatesPage';
+import PaymentsSettingsPage from '@gf/pages/PaymentsSettingsPage';
 import api from './api';
 
 const NAV = [
   { to: '/', label: 'Clients', match: (p) => p === '/' || p.startsWith('/clients') },
   { to: '/catalogue', label: 'Catalogue', match: (p) => p.startsWith('/catalogue') },
+  { to: '/emails', label: 'Emails', match: (p) => p.startsWith('/emails') },
+  { to: '/parametres/paiements', label: 'Réglages', match: (p) => p.startsWith('/parametres') },
   { to: '/profil', label: 'Profil', match: (p) => p.startsWith('/profil') },
 ];
 
@@ -55,6 +59,8 @@ function Shell({ operator, setOperator, notice }) {
           <Route path="/clients/nouveau" element={<NewCustomerPage />} />
           <Route path="/clients/:id" element={<CustomerPage />} />
           <Route path="/catalogue" element={<CataloguePage />} />
+          <Route path="/emails" element={<EmailTemplatesPage />} />
+          <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
           <Route path="/profil" element={<ProfilePage operator={operator} onChanged={setOperator} />} />
         </Routes>
       </Box>
@@ -69,8 +75,10 @@ export default function App() {
   useEffect(() => {
     api.me().then(setOperator).catch(() => setOperator(null));
     const signedOut = () => setOperator(null);
-    window.addEventListener('console:signed-out', signedOut);
-    return () => window.removeEventListener('console:signed-out', signedOut);
+    // GuestFlow's Paiements page speaks through GuestFlow's api.js, which says `guestflow:unauthenticated`.
+    const events = ['console:signed-out', 'guestflow:unauthenticated'];
+    events.forEach((e) => window.addEventListener(e, signedOut));
+    return () => events.forEach((e) => window.removeEventListener(e, signedOut));
   }, []);
 
   return (
