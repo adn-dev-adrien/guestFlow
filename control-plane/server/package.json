@@ -1,0 +1,22 @@
+{
+  "name": "guestflow-control-plane-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GuestFlow control plane — the operator console (specs/control-plane-plans-and-access.md)",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "create-operator": "node scripts/create-operator.js",
+    "test": "node --test --test-concurrency=1 \"src/tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "better-sqlite3-session-store": "^0.1.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "nodemailer": "^10.0.10",
+    "qrcode": "^1.5.4"
+  }
+}

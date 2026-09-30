@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | **Status** | Approved |
-| **Branch** | C1: `feature/control-plane-c1-entitlement` |
+| **Branch** | C1: `feature/control-plane-c1-entitlement`; C2a: `feature/control-plane-c2-console` |
 | **Created** | 2026-09-29 |
 | **Author** | Adrien |
-| **Related PR** | C1: https://github.com/adn-dev-adrien/guestFlow/pull/637 |
-| **Summary for review** | `docs/specs/2026-09-29-control-plane-plans-and-access.html` |
+| **Related PR** | C1: https://github.com/adn-dev-adrien/guestFlow/pull/637; C2a: https://github.com/adn-dev-adrien/guestFlow/pull/641 |
+| **Summary for review** | `docs/specs/2026-09-29-control-plane-plans-and-access.html`; C2a console screens: `docs/specs/2026-09-29-control-plane-c2a-console.html` |
 
 ---
 
@@ -101,14 +101,10 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - a monthly and a yearly price excl. VAT;
    - quotas: a number of rental units and of user accounts;
    - its set of plugins.
-
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 2. **Plans are nested.**
    - A plugin allowed in a plan is allowed in every plan above it.
    - The editor refuses to remove a plugin from a higher plan while a lower plan still holds it.
    - Adding a plugin to a lower plan adds it to the plans above it.
-
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 3. **Allocation of the 12 plugins** (owner's decision, 2026-09-29, §9 Q2). The core (reservations,
    calendar, iCal, planning, emails, breakfast, push, tourist tax…) is in every plan.
 
@@ -126,11 +122,11 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    | Pro | 6 | 5 | 59 € | 49 € |
    | Premium | 15 | unlimited | 99 € | 83 € |
 
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
-
 4. **Add-ons à la carte.** A single plugin can be granted to one customer outside their plan, with
    its own monthly price. Example: a Pro customer who owns a Sowel gate buys "Sowel gate access".
-   An add-on is part of the customer's subscription and follows its state (rules 14–19).
+   An add-on is part of the customer's subscription and follows its state (rules 14–19). An add-on
+   the customer's plan already includes is shown as « inclus dans le forfait » and never sold on top
+   of it; after a plan change that no longer includes it, it can be sold again.
 5. **Editing a plan never breaks a running customer.**
    - A plugin **added** to a plan becomes available to that plan's customers at their next licence
      refresh (rule 9). It is *available*, not installed: installing stays the customer's action
@@ -138,13 +134,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - A plugin **removed** from a plan stays allowed, as *grandfathered*, for customers who have
      already installed it. It is withdrawn only when they change plan. New customers do not get it.
    - The editor shows how many customers each change affects before it saves.
-
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 6. **Every catalogue change is versioned.** The log records who changed it, when, and the before
    and after. A customer's subscription references the catalogue version it was sold under, so a
    past price can always be explained.
-
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 
 ### B. Customers and subscriptions (the console)
 
@@ -164,8 +156,18 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - its first admin account, which receives an invitation email.
 
    The console then shows each step, green or red. A failed step can be retried alone.
-
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+   - Until phase H, the directory, the process and the route are manual steps the operator ticks.
+     The console does the licence (rule 9) and the first admin itself.
+   - The first admin is created by the instance's own `server/scripts/create-first-admin.js`, run
+     against the instance's database: an admin with a temporary password to change at first login.
+     The console emails the address, the login link with `login_hint` and that password to the
+     contact; the password is never stored or logged. An email that already has an account is not
+     invited twice. The seeded bootstrap account (`admin@guestflow.local` and its documented
+     password) is removed once the real admin exists, if nobody ever used it: on a hosted instance a
+     well-known password must not stay open.
+   - The end date, the price and the field errors are computed by the server as the form is typed.
+     With a trial, the subscription's end is the trial's end: the first paid period starts with the
+     first payment.
 8. **Fleet view.** One line per customer, filterable and sortable by each field:
    - the slug and a link to its address;
    - the plan and its add-ons;
@@ -176,8 +178,6 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - the process status and the last backup.
 
    Three counters sit above it: "to renew within 30 days", "in grace or read-only", "suspended".
-
-   > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 
 ### C. Entitlement inside the instance
 
@@ -229,7 +229,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     |---|---|---|
     | `trial` | During the trial | Everything works. An admin banner shows the days left. |
     | `active` | Paid, more than 30 days before `endsAt` | Nothing. |
-    | `due` | 30 days before `endsAt`, until `endsAt` | Everything works. An admin banner reads « Votre abonnement se termine le … » and links to the payment. |
+    | `due` | 30 days before `endsAt` for yearly billing, 7 days before for monthly billing, until `endsAt` | Everything works. An admin banner reads « Votre abonnement se termine le … » and links to the payment. |
     | `grace` | From `endsAt` to `endsAt` + 7 days | Everything works. An orange admin banner is shown. |
     | `read_only` | From + 8 to + 30 days | Everyone can log in and read. Every export works. Every write answers `402 SUBSCRIPTION_READ_ONLY`, except those listed below this table. |
     | `suspended` | From + 31 days | The process is stopped. Its address serves a static page « Cet espace est suspendu ». Data is kept intact. |
@@ -256,40 +256,40 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - moves `endsAt` by the length paid (1 or 12 months);
     - sets the state to `active`, whatever it was, including `suspended`: the process restarts;
     - re-issues the licence.
-
-    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
 16. **Why read-only keeps iCal alive.** A customer who has not paid still has guests arriving.
     Stopping the calendar sync would sell the same night twice on two platforms. That harm is the
     guest's and the platform's, not only the customer's.
 17. **Payment requests.**
-    - At `due` + 0 (30 days before the end), the control plane creates the renewal invoice and a
+    - When the customer enters `due` (30 days before the end when billed yearly, 7 days when billed
+      monthly, rule 14), the control plane creates the renewal invoice and a
       Qonto payment link for the amount of the plan + add-ons for the next period, and emails them to the
       customer's contact.
-    - Reminders go out at 7 days before the end, on the end date, and at + 7 days, each with the
-      same link.
+    - Reminders go out at 7 days before the end (yearly billing only: for monthly billing that day
+      is the invoice itself), on the end date, and at + 7 days, each with the same link.
     - Every email appears in the customer's history in the console.
     - The operator can send a reminder by hand at any time (« Relancer maintenant »).
     - All reminder emails are templates the operator can edit.
 
-    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+    > **Sans test** — pas encore implémentée : livrée avec la console, second volet (C2b), dont les tests remplaceront cette ligne.
 18. **Operator alerts.** The console's home page, and a daily email to the operator, list:
     - the customers entering `due`, `grace`, `read_only` or `suspended` that day;
     - the failed payments;
     - the failed provisioning steps.
 
-    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+    > The on-screen alerts shipped with C2a; the daily email and the failed payments come with C2b.
 19. **Manual override.** The operator can:
     - extend `endsAt` (a commercial gesture, with a mandatory reason);
     - mark an invoice paid by hand (a transfer outside the payment link);
-    - put a customer back to `active` with a reason.
+    - put a customer back to `active` with a reason, until a date the operator picks (7 days by
+      default); after that date the state follows the calendar again.
 
-    Every override is logged with its reason.
-
-    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+    Every override is logged with its reason. « Remettre en actif » takes a date, 7 days ahead by
+    default; the payment dialog shows, before saving, the new end date and the state it leads to.
 
 ### E. Deprovisioning
 
-20. **« Déprovisionner » is one action with a confirmation that names what happens, in order:**
+20. **« Déprovisionner » is one action with a confirmation that names what happens, in order, and
+    that the operator confirms by typing the customer's slug:**
     1. the customer's full export (a database copy + uploads + CSV of reservations and clients) is
        produced;
     2. its link is emailed to the contact, valid 30 days (GDPR reversibility, study §9.5);
@@ -300,7 +300,13 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 
     Reactivating an archived customer before erasure restores the process from its directory.
 
-    > **Sans test** — pas encore implémentée : livrée avec la console (C2), dont les tests remplaceront cette ligne.
+    - A failed export stops the deprovisioning before anything is archived. A customer whose instance
+      never existed is archived with nothing to export.
+    - The export is one `.tar.gz`: the database copy, the uploads, and `reservations.csv` and
+      `clients.csv`. The console serves it at `/exports/<token>`, a random token that is the only
+      credential, until the 30 days are over (then `410`).
+    - Stopping the process and the route is a manual step until phase H.
+    - The erasure only ever removes `<CP_INSTANCES_ROOT>/<slug>`; any other path is refused.
 
 ### F. Addresses and login
 
@@ -310,8 +316,6 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - It is unique across the fleet, including archived customers until they are erased.
     - These slugs are reserved: `app`, `www`, `auth`, `api`, `admin`, `console`, `mail`, `status`,
       `demo`.
-
-    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
 22. **Renaming a slug** is an operator action with a checklist shown before it runs:
     - the WordPress plugin setting;
     - the iCal feed URLs on every platform;
@@ -380,6 +384,18 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - The private key lives only in the control plane (C2).
     - A licence present with no key set cannot be trusted: read-only, logged `[licence]`.
     - Tests and the shadow sign licences with a throwaway key pair the same way.
+31. **Operator access to the console** (added 2026-09-29 with C2a, §9 Q8).
+    - The console has operator accounts only, created from the command line
+      (`npm run create-operator`); there is no sign-up page.
+    - Every login takes a password and a second factor. Each operator chooses, in their profile,
+      between an **authenticator app** (TOTP, RFC 6238, 6 digits, 30 s, ±1 step) and a **code sent
+      by email** (6 digits, valid 10 minutes, a new code voids the previous one).
+    - Changing the method takes effect only once a code of the new method is typed: a wrong code
+      keeps the old method.
+    - Activating a method issues 10 single-use **backup codes**, shown once and stored hashed. Each
+      one replaces the second factor once.
+    - Five wrong codes in a row lock the login for 15 minutes.
+    - An operator session expires after 12 hours, or after 30 minutes without a request.
 
 ## 4. Architecture
 
@@ -393,12 +409,31 @@ hint.
 1. **C1: entitlement in the instance** (implemented 2026-09-29, branch `feature/control-plane-c1-entitlement`). The licence reader, `enforceSubscription`, the plan chip, the
    402 errors, the quotas and the banners (rules 9–16, 23). A licence written by hand drives it, so
    it can ship before the console.
-2. **C2: the console.** Catalogue, customers, lifecycle, Qonto invoices and reminders, operator
-   alerts, deprovisioning (rules 1–8, 17–20). Onboarding records the customer and issues its
-   licence. The provisioning steps (process, route, TLS) call the hosting scripts of phase H. Until
-   phase H they are a checklist the operator ticks by hand.
-3. **C3: addresses and login.** `app.<domain>`, the directory, `login_hint`, the central OAuth relay,
-   slug rules (rules 21–28).
+2. **C2: the console**, in two PRs (decided 2026-09-29, §9 Q9). Onboarding records the customer
+   and issues its licence. The provisioning steps (process, route, TLS) call the hosting scripts of
+   phase H. Until phase H they are a checklist the operator ticks by hand.
+   - **C2a** (implemented 2026-09-29, branch `feature/control-plane-c2-console`): the operator
+     login and its second factor (rule 31), the catalogue (rules 1–6), the customers, onboarding
+     and the fleet (rules 7–8), the slug rules (rule 21), the licence issued and written to the
+     instance's data directory or downloaded, the daily lifecycle, a payment recorded by hand
+     (rules 15, 19), the on-screen alerts (rule 18), deprovisioning (rule 20).
+   - **C2b:** the Qonto renewal invoice and its payment link, the reminders and « Relancer
+     maintenant », the editable email templates (rule 17), the operator's daily email (rule 18).
+3. **C3: addresses and login.** `app.<domain>`, the directory, the central OAuth relay, the slug
+   rename (rules 22–28). The slug rules themselves (rule 21) shipped with C2a, which needs them at
+   onboarding.
+
+**Running the console.** `control-plane/server` (Express, its own SQLite database) serves the API
+and the built client; `npm run dev:console` runs both in dev (API :4100, client :3200). Its
+environment:
+- `CP_INSTANCES_ROOT`: the instances' directories, `<root>/<slug>/data/guestflow.db`.
+- `CP_LICENCE_PRIVATE_KEY`: the Ed25519 private key of rule 30, base64 DER PKCS8. The console
+  refuses to start without it.
+- `CP_DATA_DIR`: its database, the key that encrypts the TOTP seeds, and the exports.
+- `CP_DOMAIN`, `CP_PUBLIC_URL`, `CP_SESSION_SECRET`, `CP_SMTP_*`, `CP_PORT`.
+- `CP_NOW` moves its clock, outside production only, to walk a customer through the lifecycle.
+
+Operators are created with `npm run create-operator -- --email … --name …` (rule 31).
 
 ### 4.1 Server side
 
@@ -406,21 +441,31 @@ hint.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| database | `database.js`, `schema.sql` | Tables of §5, idempotent migrations. |
-| models | `catalogueModel.js` | Plans, prices, quotas, plugin sets, versions (rules 1–6). |
-| models | `customersModel.js`, `subscriptionsModel.js`, `invoicesModel.js` | Customers, subscription periods, invoices and their payment state. |
-| models | `directoryModel.js` | HMAC email → customer pairs (rule 26). |
-| models | `auditModel.js` | Every catalogue change, override and deprovisioning, with its reason. |
-| controllers | `catalogueController.js` | Nested-set checks (rule 2), impact count (rule 5), versioning. |
-| controllers | `customersController.js` | Onboarding (rule 7), fleet (rule 8), overrides (rule 19), deprovisioning (rule 20), slug rename (rule 22). |
-| controllers | `loginController.js` | Email lookup and redirect (rules 24–27). |
-| controllers | `oauthRelayController.js` | Central OAuth callbacks (rule 28). |
-| utils | `lifecycle.js` | Pure state machine: `(endsAt, payments, overrides, now) → state` (rule 14). |
-| utils | `licence.js` | Builds and signs the JWS (rule 9). |
-| utils | `provisioner.js` | Directory, key, process unit, Caddy route, first admin; one retryable function per step (rule 7). |
-| utils | `billing/qonto.js` | Qonto (§9 Q7): create the renewal invoice with its payment link, and read its payment state. A provider interface keeps the door open to automatic renewal later. |
-| tasks | `scheduler.js` | Daily: state transitions, invoices, reminders, operator digest, licence re-issue, the 90-day erasure. Every minute: directory ingestion. |
-| routes | `console/*`, `public/login.js`, `public/oauth.js` | Thin. The console routes sit behind operator auth with 2FA; the others are public. |
+| database | `database.js` | Tables of §5, idempotent; seeds the catalogue decided on 2026-09-29 (rule 3). |
+| models | `catalogueModel.js` | Plans, prices, quotas, the lowest plan of each plugin, add-ons, versions (rules 1–6). |
+| models | `customersModel.js` | Customers, their subscription, add-ons and grandfathered plugins. |
+| models | `invoicesModel.js` | Invoices; in C2a only `manual` ones, a payment recorded by the operator. |
+| models | `auditModel.js` | The journal (catalogue changes, state transitions, overrides, deprovisioning) and the overrides with their reason. |
+| models | `provisioningModel.js` | The creation and deprovisioning steps, and the export links. |
+| models | `operatorsModel.js`, `metaModel.js` | Operator accounts and their second factor (rule 31); the last daily run. |
+| models | `directoryModel.js` (C3) | HMAC email → customer pairs (rule 26). |
+| controllers | `catalogueController.js` | The matrix, one click at a time with the nesting refusal (rule 2), the impact (rule 5), the save with its version and the grandfathering (rules 5–6). |
+| controllers | `customersController.js` | Onboarding and its steps (rule 7), the fleet (rule 8), payment and overrides (rules 15, 19), plan change, the licence (rule 9), deprovisioning and erasure (rule 20). C3: slug rename (rule 22). |
+| controllers | `alertsController.js` | The home page alerts (rule 18). |
+| controllers | `authController.js` | Password, then TOTP, email or backup code; the lockout; the method change (rule 31). |
+| controllers | `loginController.js`, `oauthRelayController.js` (C3) | Email lookup and redirect (rules 24–27); central OAuth callbacks (rule 28). |
+| middleware | `requireOperator.js` | Every console route but the login needs the second factor; 12 h / 30 min idle session. |
+| utils | `lifecycle.js` | Pure state machine on Paris days: `(endsAt, trialEndsAt, billing, forceActiveUntil, archivedAt, today) → state`; the renewal (rules 14, 15, 19). |
+| utils | `licenceIssuer.js` | Builds the rule 9 payload, signs it with GuestFlow's own `signLicence`, writes it atomically to the instance. |
+| utils | `instances.js` | Where an instance lives; reads its `plugins` table read-only. |
+| utils | `firstAdmin.js` | Runs the instance's `scripts/create-first-admin.js` against its database (rule 7). |
+| utils | `exporter.js`, `eraser.js` | The deprovisioning export; the erasure that only ever removes `<root>/<slug>` (rule 20). |
+| utils | `totp.js`, `secrets.js`, `mailer.js`, `slug.js`, `days.js`, `clock.js`, `gf.js` | RFC 6238; AES-256-GCM for the TOTP seeds; SMTP; rule 21; Paris days; `CP_NOW`; the GuestFlow modules shared by path. |
+| utils | `billing/qonto.js` (C2b) | Qonto (§9 Q7): the renewal invoice with its payment link, and its payment state. |
+| tasks | `scheduler.js` | Daily at 04:00 Paris time, catching up a missed day: states, licence re-issue, the 90-day erasure. C2b adds invoices, reminders and the operator email; C3 the directory ingestion. |
+| routes | `auth.js`, `console.js`, `exports.js` | Thin. `/api/auth/*` (rate-limited), `/api/*` behind `requireOperator`, `/exports/:token` public (the token is the credential). |
+| — | `app.js`, `context.js`, `index.js` | The Express app, the wiring with every external injected (tests use an in-memory database), the entry point. |
+| scripts | `control-plane/server/scripts/create-operator.js` | Creates an operator; there is no sign-up page (rule 31). |
 
 **GuestFlow instance (`server/src/`) — touched:**
 
@@ -437,25 +482,31 @@ hint.
 | routes | `public/bookingRequests.js` (C1) | Booking endpoint closed in `read_only` (rule 14). |
 | routes | `subscription.js` (new, C1) | `GET /api/subscription` gives the banner payload; admin-only through the role guard. |
 | index.js | | Session cookie stays host-only; a test pins it (rule 23). |
+| utils, scripts | `firstAdmin.js` + `scripts/create-first-admin.js` (new, C2a) | The first administrator of a hosted instance, created through the instance's own `usersModel`; prints the temporary password for the console's invitation; removes the unused bootstrap account (rule 7). |
 
 ### 4.2 Client side
 
-**Control plane (`control-plane/client/src/`) — new**, built with the same MUI theme and generic
-components as GuestFlow (`PageActionBar`, `StatusBadge`, `DataPageScaffold`, `ConfirmDialog`,
-`FormDialog`, `EmptyState`):
+**Control plane (`control-plane/client/src/`) — new.** It imports GuestFlow's theme and generic
+components straight from `client/src` as `@gf/…` (`PageActionBar`, `StatusBadge`,
+`ResponsiveTable`, `FormDialog`, `DialogProvider`, `LoadingState`, `ErrorAlert`), and resolves
+React, MUI and the router from its own `node_modules` so both trees share one copy
+(`control-plane/client/shared.config.js`).
 
 | Layer | File | Responsibility |
 |---|---|---|
-| pages | `FleetPage.jsx` | Rule 8: counters and a table on `md+`, cards on `xs`. |
-| pages | `CustomerPage.jsx` | Subscription, invoices, reminders history, overrides, deprovisioning. |
-| pages | `NewCustomerPage.jsx` | Rule 7 form and the provisioning steps. |
-| pages | `CataloguePage.jsx` | The plan × plugin matrix (rules 2–6), prices, quotas, history. |
-| pages | `EmailTemplatesPage.jsx` | Reminder texts (rule 17). |
-| components | `PlanMatrix.jsx` | Specific to the catalogue. |
-| components | `ProvisioningSteps.jsx` | Specific to onboarding. |
-| components | `LifecycleTimeline.jsx` | Generic: states on a date axis. |
+| pages | `LoginPage.jsx` | Password, then the second factor or a backup code (rule 31). |
+| pages | `ProfilePage.jsx` | The second-factor method, its QR code, the backup codes shown once (rule 31). |
+| pages | `FleetPage.jsx` | Rules 8 and 18: alerts, counters as filters, a table on `sm+`, cards on `xs`. |
+| pages | `NewCustomerPage.jsx` | Rule 7 form, checked by the server as it is typed. |
+| pages | `CustomerPage.jsx` | Subscription, creation and deprovisioning steps, invoices, history, and the actions of rules 15, 19, 20. |
+| pages | `CataloguePage.jsx` | The matrix, prices, quotas, add-ons, the impact before saving and the versions (rules 1–6). |
+| pages | `EmailTemplatesPage.jsx` (C2b) | Reminder texts (rule 17). |
+| components | `PlanMatrix.jsx` | Specific: the matrix, one card per plan on `xs`. |
+| components | `ProvisioningSteps.jsx` | Specific: steps green, red, to do or skipped, with their one action. |
+| components | `LifecycleChip.jsx` | Generic: a subscription state as a `StatusBadge`. |
+| components | `KeyValues.jsx` | Generic: a « label : value » list, stacked on `xs`. |
 
-**Login page (`control-plane/client/src/public/LoginLookupPage.jsx`) — new.**
+**Login page (`control-plane/client/src/public/LoginLookupPage.jsx`) — new, C3.**
 
 **GuestFlow instance (`client/src/`) — touched:**
 
@@ -479,11 +530,24 @@ components as GuestFlow (`PageActionBar`, `StatusBadge`, `DataPageScaffold`, `Co
   - `POST /login/lookup {email}` →
     `{ spaces: [{ name, url }] }` (the `url` carries `login_hint`), or `{ spaces: [] }`, or `429`.
   - `GET /oauth/:provider/callback`.
-- **Control plane, console** (operator session + 2FA):
-  - `/api/catalogue`;
-  - `/api/customers`;
-  - `/api/customers/:id/{renew, remind, override, deprovision, rename}`;
-  - `/api/templates`.
+- **Control plane, operator login** (rate-limited): `POST /api/auth/login {email, password}` →
+  `{ step: 'second-factor', method, message }`; `POST /api/auth/verify {code}` (6 digits or a
+  `xxxxx-xxxxx` backup code) → `{ operator, notice }`; `POST /api/auth/resend`; `POST
+  /api/auth/logout`; `GET /api/auth/me`; `POST /api/auth/mfa/start {method}` → `{ qrDataUrl,
+  secret }` for the app; `POST /api/auth/mfa/confirm {code}` → `{ operator, backupCodes }`.
+- **Control plane, console** (operator session + second factor):
+  - `GET /api/alerts`;
+  - `GET /api/catalogue`, `POST /api/catalogue/toggle {lowest, pluginId, planCode}` (409
+    `NESTED`), `POST /api/catalogue/impact {lowest}`, `PUT /api/catalogue {lowest, plans, addons,
+    reason}`;
+  - `GET /api/customers` (fleet rows + counters), `POST /api/customers/preview` (field errors, the
+    summary, the add-ons on offer), `POST /api/customers` (400 with `errors` per field),
+    `GET /api/customers/:id`;
+  - `POST /api/customers/:id/{payment, extend, force-active, plan, deprovision, reactivate,
+    cancel-erase, erase}` and `POST /api/customers/:id/steps/:step {action}`; `GET
+    /api/customers/:id/licence` (the `.jws`);
+  - C2b: `remind`, `/api/templates`; C3: `rename`.
+- **Control plane, public:** `GET /exports/:token` (410 once expired).
 
 ## 5. Data model
 
@@ -491,19 +555,24 @@ components as GuestFlow (`PageActionBar`, `StatusBadge`, `DataPageScaffold`, `Co
 
 | Table | Contents |
 |---|---|
-| `plans` | `code`, `name`, `rank`, `priceMonthlyCents`, `priceYearlyCents`, `maxUnits`, `maxUsers` |
-| `plan_plugins` | `planCode`, `pluginId` (the lowest plan holding it; higher plans inherit) |
+| `plans` | `code`, `name`, `rank`, `priceMonthlyCents`, `priceYearlyCents`, `maxUnits`, `maxUsers` (null = unlimited) |
+| `plan_plugins` | `pluginId`, `planCode` (the lowest plan holding it; higher plans inherit) |
 | `addons` | `pluginId`, `priceMonthlyCents` |
 | `catalogue_versions` | `version`, `snapshotJson`, `changedBy`, `changedAt`, `reason` |
-| `customers` | `slug`, `companyName`, `contactName`, `contactEmail`, `state`, `createdAt`, `archivedAt`, `eraseAt` |
-| `subscriptions` | `customerId`, `planCode`, `billing` (`monthly` \| `yearly`), `startsAt`, `endsAt`, `trialEndsAt`, `catalogueVersion` |
+| `customers` | `slug` (unique until erased), `companyName`, `contactName`, `contactEmail`, `state`, `stateSince`, `createdAt`, `archivedAt`, `eraseAt`, `erasedAt` |
+| `subscriptions` | `customerId`, `planCode`, `billing` (`monthly` \| `yearly`), `periodMonths`, `startsAt`, `endsAt`, `trialEndsAt`, `forceActiveUntil`, `catalogueVersion` |
 | `customer_addons` | `customerId`, `pluginId`, `since` |
 | `grandfathered_plugins` | `customerId`, `pluginId`, `since` |
-| `invoices` | `customerId`, `periodStart`, `periodEnd`, `amountCents`, `provider`, `providerRef`, `payUrl`, `status`, `paidAt` |
-| `reminders` | `customerId`, `invoiceId`, `kind`, `sentAt` |
+| `invoices` | `customerId`, `periodStart`, `periodEnd`, `amountCents`, `provider`, `providerRef`, `payUrl`, `status`, `paidAt`, `createdAt` |
 | `overrides` | `customerId`, `kind`, `reason`, `operator`, `at` |
-| `directory` | `emailHmac`, `customerId` |
-| `provisioning_steps` | `customerId`, `step`, `status`, `error`, `at` |
+| `provisioning_steps` | `customerId`, `step`, `status` (`ok` \| `failed` \| `todo` \| `skipped`), `detail`, `at` |
+| `audit` | `at`, `day`, `operator`, `customerId`, `kind`, `text` (the sentence the history shows) |
+| `exports` | `token`, `customerId`, `path`, `createdAt`, `expiresAt` |
+| `operators` | `email`, `name`, `passwordHash`, `mfaMethod`, `totpSecret` (encrypted), `pendingMethod`, `pendingTotpSecret`, `backupCodes` (hashed), `failedCount`, `lockedUntil` |
+| `mfa_codes` | `operatorId`, `codeHash`, `expiresAt` (the email code) |
+| `meta` | `key`, `value` (the last daily run) |
+| `reminders` (C2b) | `customerId`, `invoiceId`, `kind`, `sentAt` |
+| `directory` (C3) | `emailHmac`, `customerId` |
 
 **Instance:** no new table. The licence and the directory file are files in the data directory,
 next to the database.
@@ -512,7 +581,30 @@ next to the database.
 
 The interactive summary shows each screen in a state you can manipulate: the plan matrix with its
 refusals, the lifecycle on a date slider, the login lookup, and the customer's Plugins page for
-each plan.
+each plan. The C2a console screens have their own mock
+(`docs/specs/2026-09-29-control-plane-c2a-console.html`).
+
+- **Console shell:** a green app bar with « Clients », « Catalogue », « Profil » and a logout
+  button; the navigation scrolls sideways on `xs` rather than wrapping. Every page opens with
+  GuestFlow's `PageActionBar`; on `xs` the customer page's actions fold into its « … » menu.
+- **Console login:** a centred card. Step 1 asks for the email and the password; step 2 shows the
+  server's sentence (the app's code, or « Un code à 6 chiffres vient d'être envoyé à a•••n@… »),
+  one code field, « Renvoyer le code » for the email method only, and « Utiliser un code de
+  secours ». A lockout brings back step 1 with its message.
+- **Profile:** the current method and the backup codes left; choosing the app shows its QR code and
+  its key in groups of four; the new method is active only after « Activer » with a valid code, and
+  the 10 backup codes are then shown once.
+- **New customer:** two cards (identity, subscription) and the server's summary below them. The slug
+  error shows as it is typed; the other errors after a save attempt. Add-ons the chosen plan
+  already includes are ticked, disabled and labelled « inclus dans le forfait ». Saving opens the
+  customer's page on its steps.
+- **Customer page:** the subscription card and the creation steps side by side on `md+`, stacked on
+  `xs`; then the deprovisioning steps when there are some, the invoices and the history. Each
+  action opens a `FormDialog` (full screen on `xs`); a refused action toasts the server's message
+  and the dialog stays open. « Déprovisionner » lists the five steps and stays disabled until the
+  slug is typed; « Effacer maintenant » asks for the slug again.
+- **Alerts:** at the top of the fleet, one `Alert` per line, coloured by severity; a click opens
+  the customer.
 
 - **Catalogue (console):**
   - a matrix with 12 rows (plugins) and 3 columns (plans);
@@ -520,9 +612,16 @@ each plan.
     Essentiel »;
   - saving opens a confirmation listing the impact: « 3 clients Pro gagnent Linge (disponible, non
     installé) », « 2 clients gardent Recettes (hors forfait, conservé) »;
-  - on `xs` the matrix becomes one card per plan.
+  - on `xs` the matrix becomes one card per plan;
+  - every click goes to the server, which answers the new matrix and a sentence (« Linge descend en
+    Essentiel. »), or the refusal (« Refusé : … est inclus via Essentiel. … retirez-le d'abord du
+    forfait Essentiel. ») as a toast;
+  - prices are typed in euros, quotas as whole numbers or left empty for unlimited; the add-ons can
+    be priced, added and removed; nothing is saved before « Enregistrer », which asks for a reason.
 - **Fleet (console):** a sticky `PageActionBar` with « Nouveau client », the three counters as
-  filter chips, the table, and a row click that opens the customer.
+  filter chips, the table (sortable by every column), and a row click that opens the customer. On
+  `xs`, one card per customer: name and state, address and plan, end date and days left. Version,
+  process and last backup read « — » until phase H.
 - **Instance banners** (`SubscriptionBanner`, at the top of the main area on every page, admins
   only; « Renouveler » opens `payUrl` when the licence carries one). The instance only knows
   `endsAt`, not the grace length, so no banner quotes a later date:
@@ -554,15 +653,35 @@ each plan.
 
 ### Server unit tests
 
-- **Control plane:**
-  - `lifecycle.js`: every transition at its day boundary, in Paris time; renewal from each state;
-    override.
-  - Catalogue: nested-set refusals; inheritance; impact count; grandfathering; versioning.
-  - Licence: signature round-trip; tampered payload refused; expiry.
+- **Control plane (C2a, implemented): `control-plane/server/src/tests/`, 48 tests** (`node --test`,
+  one file per subject, fixtures in `helpers.js`: an in-memory database, a temporary instances root,
+  a throwaway key pair, a clock the test moves, a recording mailer).
+  - `lifecycle.unit.test.js` (9, rules 14, 15, 19): every boundary, yearly and monthly `due`, the
+    trial, Paris days, forced active until a date, a renewal from the end or from today.
+  - `operator-auth.unit.test.js` (6, rule 31): the RFC 6238 vectors, one step of drift, password
+    then email code, expiry and replacement of the email code, switching to the app only once its
+    code is typed with 10 hashed single-use backup codes, the 15-minute lockout.
+  - `catalogue.unit.test.js` (7, rules 1–3, 5, 6): the seeded plans, the nesting refusal and
+    cascade, the impact before saving, grandfathering and its withdrawal on a plan change, versions
+    with author and reason, the price a customer was sold under, quota and price validation.
+  - `licence-issuer.unit.test.js` (4, rule 9): every field verified by the instance's own reader,
+    atomic re-issue, the download when the instance directory is missing, another key refused.
+  - `customers.unit.test.js` (10, rules 4, 7, 8, 15, 19, 21): the slug rules, the preview, the
+    onboarding steps and the invitation, the retry of a failed step, no second invitation, the
+    fleet and its counters, a payment, the overrides, add-ons and add-ons already included.
+  - `deprovisioning.unit.test.js` (7, rule 20): the slug confirmation, the order and the export
+    contents, a failed export archives nothing, an instance that never existed, reactivation, the
+    erasure after 90 days or on demand, the eraser's path guard.
+  - `alerts.unit.test.js` (1, rule 18), `scheduler.unit.test.js` (1, rules 9, 14),
+    `http.unit.test.js` (3, rules 7, 8, 20, 31): nothing but the login before the second factor,
+    the idle expiry, the routes and the public export link.
+- **Instance (C2a, implemented): `server/src/tests/control-plane-first-admin.unit.test.js`, 2 tests**
+  (rule 7): the script against a real database (admin, password to change, bootstrap account
+  removed, idempotent); a used bootstrap account is never removed.
+- **Control plane (C3):**
   - Login lookup: 0, 1 and n spaces; suspended; rate limit; no email stored in clear.
   - OAuth relay: valid, expired and foreign `state`.
-  - Provisioner: each step's retry is idempotent.
-  - Scheduler: reminder days; no duplicate reminder on the same day.
+- **Control plane (C2b):** reminder days; no duplicate reminder on the same day; the Qonto invoice.
 - **Instance (C1, implemented): `server/src/tests/subscription-entitlement.unit.test.js`, 28 tests.**
   - Licence reader (rules 9, 10, 29, 30): a valid licence; a tampered payload; another key; expired;
     missing when managed; missing when unmanaged; present when unmanaged; no key; the one-minute
@@ -584,6 +703,16 @@ each plan.
   - `components/__tests__/PluginCard.plan.test.jsx` (3): chip and disabled Installer with its hint;
     installed outside the plan; unchanged inside the plan.
   - `pages/__tests__/LoginPage.login-hint.test.jsx` (2).
+- **Console client (C2a, implemented): `control-plane/client/src/__tests__/`, 19 Vitest tests.**
+  - `PlanMatrix.nesting.test.jsx` (4, rules 2, 3, 5): the inherited cell and the refusal, the
+    redrawn matrix, one card per plan on a phone, the impact and the reason before saving.
+  - `FleetPage.counters.test.jsx` (3, rules 8, 18): alerts, a counter as a filter, cards on a phone.
+  - `NewCustomerPage.slug.test.jsx` (4, rules 4, 7, 21): the slug refused as typed, the server's
+    summary and add-ons, a refused save, the customer page after saving.
+  - `CustomerPage.actions.test.jsx` (5, rules 4, 5, 7, 15, 19, 20): the step actions, the payment
+    preview, an override refused, deprovisioning behind the slug, the plan change.
+  - `LoginPage.second-factor.test.jsx` (3, rule 31): the email code and its resend, the app and a
+    backup code, the lockout.
 
 ### Manual UI verification
 
@@ -604,13 +733,33 @@ licences signed with a throwaway key):
 - **Unmanaged restart, no licence:** `state: null`, 12 plugins, nothing out of plan.
 - **`/login?login_hint=`:** the email is filled in and the password field has the focus.
 
-**Still to do with C2 and C3:**
+**C2a, done 2026-09-29** (console on :4100/:3200, a throwaway key, the shadow database copied to
+`<CP_INSTANCES_ROOT>/domaine-ombre/data/` and served by an instance on :4101 with
+`GUESTFLOW_MANAGED=1`):
+- **Login:** password, then the emailed code read from the dev log; later the switch to the app
+  (a wrong code refused and the email method kept; the right one gives the 10 backup codes).
+- **Onboarding:** « admin » refused as typed; a Premium yearly customer created; the licence was
+  written into the instance's data directory and the instance's own script created the admin, whose
+  invitation carried the `login_hint` link. The instance then answered `planName: Premium`.
+- **Catalogue:** clicking an inherited cell was refused with its reason; Neat moved to à la carte;
+  the impact said « 1 client Premium garde Assurance annulation Neat déjà installé »; saved as v2
+  with its reason. Changing the customer to Pro warned that Neat would go; the instance then showed
+  the 4 Premium plugins out of plan (Neat as « Option à la carte ») and `/api/tariff-recipes` 404.
+- **Lifecycle** (`CP_NOW`): 19 days before the end the instance read `due`, 3 days after `grace`,
+  13 days after `read_only`, and refused a client write with `402 SUBSCRIPTION_READ_ONLY`; the
+  fleet showed « Domaine Ombre passe aujourd'hui en « Lecture seule » » and its counter.
+- **Payment:** the dialog previewed « Nouvelle échéance : 12/10/2028 … État : Actif » and the
+  customer went back to active.
+- **Deprovisioning:** disabled until the slug was typed; the export (database, `reservations.csv`,
+  `clients.csv`) was downloadable from its emailed link; then reactivated.
+- **375 px:** login, fleet cards, customer page with its actions in the « … » menu, the catalogue
+  as three cards, the profile: no horizontal scroll.
+- Found and fixed on the way: an add-on the chosen plan already includes could be sold on top of it
+  (rule 4), and the nesting refusal read « retirez-le d'abord de Essentiel ».
 
-- **Console:**
-  - create a customer on a local shadow;
-  - move the clock through every state (the instance reads a licence written by hand);
-  - downgrade Premium → Pro and check the Plugins page;
-  - deprovision, then reactivate.
+**Still to do with C2b and C3:**
+
+- **C2b:** the Qonto renewal invoice and its reminders on the sandbox.
 - **Login:** reach two local instances (`*.localhost`) from `app.localhost` with one email that
   belongs to both.
 - Check at 375 px: login, banners, the matrix as cards.
@@ -642,3 +791,10 @@ licences signed with a throwaway key):
 - **Q7 — Billing tool.** *Resolved 2026-09-29:* **Qonto**. The renewal is an invoice with a payment
   link, emailed and reminded (rule 17); there is no automatic debit. Stripe Billing and GoCardless
   are set aside for now.
+- **Q8 — Second factor of the console.** *Resolved 2026-09-29:* both an authenticator app and a
+  code by email, each operator chooses (rule 31).
+- **Q9 — One PR or two for the console.** *Resolved 2026-09-29:* two, C2a then C2b (§4).
+- **Q10 — The `due` window for monthly billing.** *Resolved 2026-09-29:* 7 days before the end
+  for monthly billing, 30 days for yearly (rule 14). Found on the C2a mock: with 30 days
+  everywhere, a monthly customer would have seen the renewal banner, and received the invoice, on
+  the first day of every paid month.

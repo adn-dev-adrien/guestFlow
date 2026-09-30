@@ -139,3 +139,66 @@ jobs:
 
       - name: 🧪 Run the client unit suite
         run: cd client && npm test
+
+  # specs/control-plane-plans-and-access.md — the control plane (the operator console) is its own app
+  # in `control-plane/`, deployed separately, tested here with the rest. Its server requires
+  # GuestFlow's licence and password modules and runs `server/scripts/create-first-admin.js` in the
+  # tests, so the GuestFlow server's dependencies are installed too.
+  console-server:
+    name: control-plane server (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📚 Install deps (console server + GuestFlow server)
+        run: |
+          cd server && npm ci && cd ..
+          cd control-plane/server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        run: |
+          (cd server && env npm_config_build_from_source=true npm rebuild better-sqlite3)
+          (cd control-plane/server && env npm_config_build_from_source=true npm rebuild better-sqlite3)
+
+      - name: 🧪 Run the control-plane server suite
+        run: cd control-plane/server && npm test
+
+  # The console's client imports GuestFlow's theme and generic components from `client/src` (`@gf/`)
+  # but resolves React, MUI and the router from its own node_modules (control-plane/client/shared.config.js),
+  # so only its own dependencies are installed.
+  console-client:
+    name: control-plane client (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📚 Install console client deps
+        run: cd control-plane/client && npm ci
+
+      - name: 🧪 Run the control-plane client suite
+        run: cd control-plane/client && npm test
+
+      - name: 🏗️ Build the console
+        run: cd control-plane/client && npm run build
