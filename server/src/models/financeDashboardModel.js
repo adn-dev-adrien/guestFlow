@@ -13,6 +13,7 @@ const yoy = require('../utils/yearOverYear');
 const { buildInsights } = require('../utils/financeInsights');
 const { readRevenueGoals } = require('../utils/revenueGoals');
 const { exerciseMonths } = require('../utils/exerciseOverview');
+const { curveAxis, dayOffset } = require('../utils/financeCurveAxis');
 const { bookingChannelOf } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { round2 } = require('../utils/paymentStatus');
@@ -197,13 +198,15 @@ function createDashboardModel(database, finance) {
     }));
 
     // Cumulative curve (rule 9) — last year only when the whole window is comparable.
-    const step = daysBetween(win.from, win.to) > CUMULATIVE_DAILY_UP_TO ? 7 : 1;
+    const daily = daysBetween(win.from, win.to) <= CUMULATIVE_DAILY_UP_TO;
+    const step = daily ? 1 : 7;
     const prevStays = comparable && comparable.range.complete ? comparable.prev.reservations : null;
     const cumulative = [];
     for (let day = win.from; ; day = addDays(day, step)) {
       const d = day > win.to ? win.to : day;
       cumulative.push({
         day: d,
+        x: dayOffset(win.from, d),
         current: d <= win.asOf ? round2(summary.reservations.filter((r) => r.attributionDate <= d).reduce((n, r) => n + r.totalSejour, 0)) : null,
         previous: prevStays ? round2(prevStays.filter((r) => r.attributionDate <= yoy.shiftYear(d, -1)).reduce((n, r) => n + r.totalSejour, 0)) : null,
       });
@@ -240,6 +243,7 @@ function createDashboardModel(database, finance) {
           } : null,
           goal: goalAmount ? { amount: goalAmount, ratio: ratio(revenue, goalAmount), remaining: round2(Math.max(0, goalAmount - revenue)) } : null,
           cumulative,
+          axis: curveAxis(win.from, win.to, daily),
         },
         insights: buildInsights({
           bestMonth: best ? { month: best.month, revenue: best.past + best.upcoming, previous: best.previous } : null,

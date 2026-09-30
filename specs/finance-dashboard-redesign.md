@@ -10,7 +10,9 @@
 
 Validation summary with the interactive mock-up: `docs/specs/2026-09-29-finance-page-redesign-v2.html`
 (version 3). The earlier three-direction exploration is in
-`docs/specs/2026-09-29-finance-page-redesign-proposals.html`.
+`docs/specs/2026-09-29-finance-page-redesign-proposals.html`. The visual finish after the first
+release (rules 30-32: radii, ink banner, calendar graduations) is in
+`docs/specs/2026-09-29-finance-dashboard-polish.html`.
 
 Supersedes the UI of `specs/finance-exercise-overview-charts.md` (the « vue de l'exercice » block is
 replaced by this page) and the layout sections of `finance-overview-rework.md`,
@@ -57,7 +59,7 @@ without losing anything today's page shows.
 5. Money follows the page's existing basis: Σ « total de séjour » (TTC, net of platform commission,
    caisse interne excluded), attributed by **attribution date**; HT element by element.
 
-### 3.2 Hero (green banner)
+### 3.2 Hero (banner)
 
 6. Shows the window's revenue, its HT, the number of stays, and « au <date> » while the window is
    running.
@@ -69,6 +71,7 @@ without losing anything today's page shows.
 9. **Cumulative curve** of the window's revenue (weekly points past 62 days, daily below), current
    year solid; last year dashed **only when every month of the window is comparable** (§3.6).
    Otherwise the legend says the curve comes once the whole period has a year of history.
+   Its graduations follow rule 30.
 10. Hovering the curve shows the date, this year's cumulated revenue and, when drawn, last year's.
 
 ### 3.3 Faits marquants
@@ -158,6 +161,29 @@ without losing anything today's page shows.
 28. Below the current exercise's field, a hint shows today's revenue and the resulting percentage.
 29. The goal is net of commissions, like the hero figure (the hint says so).
 
+### 3.9 Visual finish (feedback of 2026-09-29, after 3.7.0)
+
+30. **The curve is graduated on the calendar, never on its sampled points**: the 1st of each month
+    (« oct. », « nov. »…) past 62 days, the 1st, 8th, 15th, 22nd and 29th (« 8 août ») below. When a
+    month name could appear twice (window over 366 days), January is labelled by its year (« 2026 »).
+    The server sends the graduations (`hero.axis`) and each point's position in days (`x`); the client
+    draws a numeric axis and never computes a date. Labels that would overlap are skipped, the first
+    one is kept. *Why:* the points are weekly from the window's first day, so labelling them gave
+    « 22 oct., 19 nov., 17 déc. » — a day of the month that changed at every tick.
+31. **The banner is ink** (`#27251F`, the theme's text colour) with honey accents (`#E3B566`: the
+    kicker line, the curve, the goal bar): a flat fill, no gradient, no halo, every text opaque or at
+    80 % white at least. The four figures sit in a 2 × 2 grid separated by hairlines, each cell
+    vertically centred. *Why:* on a desktop screen the green gradient and the honey halo lay under
+    « 28 % » and « 14 % », and the translucent pill-shaped cells made the text look off-centre; Adrien
+    chose ink over a flat fir green and over a white card.
+    > **Sans test** — a colour choice, checked on screen at 1440 and 390 px (manual verification of
+    > rules 30-32 below and the polish summary).
+32. **Radii follow the design system**: 14 px for every card (banner, tiles, insight cards — the
+    theme's `shape.borderRadius`, i.e. `borderRadius: 1` in `sx`), 10 px for inner frames (logement
+    strip cards, the banner's figure grid, occupancy charts, the detail panel's summary), 8 px for icon
+    badges, 6 px for tooltips. A plain number in `sx.borderRadius` is **multiplied by 14**: 3.5 gave
+    49 px tiles and 4.5 a 63 px banner in 3.7.0, so inner radii are written in px.
+
 **Edge cases:**
 - A logement with no sellable night in the window (closed all along) → occupancy « — », never ÷ 0.
 - Empty window → hero 0 €, figures 0 / « — », tables in their empty state, charts keep their axes.
@@ -198,7 +224,7 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `FinancePage.jsx` | T (rewrite) | URL state, loads `/dashboard`, lays out strip → hero → insights → tiles + detail → charts |
-| `components/` | `FinanceHero.jsx` | C | Green banner: revenue, badge, goal bar, 4 figures, cumulative curve (Recharts `AreaChart`) |
+| `components/` | `FinanceHero.jsx` | C | Ink banner: revenue, badge, goal bar, 4 figures in a grid, cumulative curve (Recharts `AreaChart`, numeric axis on `hero.axis`) |
 | `components/` | `PeriodSelector.jsx` | C | Generic: segmented *Exercice / Mois / Personnalisée* + month select / date pair with its refusal message |
 | `components/` | `ChoiceCardStrip.jsx` | C | Generic: horizontally scrollable selectable cards (label, value, caption, colour dot) |
 | `components/` | `InsightCard.jsx` | C | Generic: icon + bold line + caption, tone (success / warning / error / info) |
@@ -237,7 +263,8 @@ séjour », attribution date, HT, `comptaCollected`, remaining-to-pay, settled. 
     "occupancy": 0.36, "revenuePerNight": 127, "directShare": 0.40,
     "yoy": { "current": 40120, "previous": 39700, "change": 1.1, "months": 9, "totalMonths": 12 } | null,
     "goal": { "amount": 85000, "ratio": 0.72, "remaining": 23547 } | null,
-    "cumulative": [ { "day": "2026-01-01", "current": 812, "previous": null } ]
+    "cumulative": [ { "day": "2026-01-01", "x": 0, "current": 812, "previous": null } ],   // x = days since the window's first day
+    "axis": [ { "x": 0, "label": "janv." }, { "x": 31, "label": "févr." } ]              // rule 30
   },
   "insights": [ { "key": "bestMonth", "tone": "success", "title": "Juillet, meilleur mois de l'exercice", "text": "11 938 €, contre 12 257 € l'an dernier." } ],
   "properties": [ { "propertyId": 1, "name": "…", "color": "#2F5D46", "revenue": 22104, "occupancy": 0.38, "revenuePerNight": 154 } ],
@@ -282,7 +309,7 @@ brique, then the platform-neutral greys), so a logement keeps its colour across 
 ## 6. UI / UX
 
 Order, top to bottom: `PageActionBar` (« Suivi financier », refresh) → toolbar (exercise + period
-selector) → logements strip → green hero → three insight cards → six tiles (+ open table) → « Revenu
+selector) → logements strip → ink hero → three insight cards → six tiles (+ open table) → « Revenu
 par mois » and « Taux d'occupation » side by side.
 
 - **lg / md**: hero on two columns (figure + goal | four figures), curve full width inside the hero;
@@ -316,6 +343,9 @@ par mois » and « Taux d'occupation » side by side.
 - [x] `finance-exercise-months.unit.test.js` (4) — the exercise's month list the charts and the Mois
       selector share.
 - [x] `settings-revenue-goals.unit.test.js` (6) — rules 26-27: validation, empty = no goal, persistence.
+- [x] `finance-curve-axis.unit.test.js` (5) — rule 30: one graduation per month on the 1st, weekly on a
+      month, a custom window starting mid-month, January named by its year on a long window, points
+      and graduations on the same day scale.
 - Removed with their code: `financeBreakdown.unit.test.js`, `finance-exercise-overview.unit.test.js`;
   the breakdown case of `finance-refunds.unit.test.js` now reads `getSummary`.
 
@@ -329,6 +359,8 @@ par mois » and « Taux d'occupation » side by side.
       opens / closes its table, logement strip above the hero and in the URL, window read from the
       URL, payment checkbox PATCHes then reloads, a refused payment shows its message, cards on xs.
 - [x] `SettingsFiscalYearSection.revenue-goals.test.jsx` (4) — refusals disable Enregistrer, hint.
+- [x] `FinanceDashboard.radii.test.jsx` (3) — rule 32: tile and banner at 14 px, logement card at
+      10 px, as the browser computes them from the theme.
 - Removed with their components: the `FinanceExerciseOverview`, `RankedBarList`,
   `FinanceBreakdownDialog`, `ChannelBreakdownCard` suites and `FinancePage.test.jsx`.
 
@@ -341,6 +373,13 @@ par mois » and « Taux d'occupation » side by side.
 - [x] Every block of today's page found again (mapping table of the summary HTML).
 - [x] 375 / 900 / 1280 px, no horizontal page scroll; tables as cards on a phone.
 - [x] E2E suite.
+
+### Manual UI verification of rules 30-32 (2026-09-29, dev database)
+- [x] 1440 px: ink banner, figures centred in their grid, tiles and strip at 14 / 10 px; graduations
+      oct. → sept. on the exercise, 1 / 8 / 15 / 22 / 29 août on a month, « 2025 … 2026 » on a
+      21-month custom window.
+- [x] 390 px: banner single column, graduations thinned without overlap, no horizontal scroll.
+- [x] Client Vitest (1407), server suite (4587), E2E suite (84 passed, 1 skipped).
 
 ## 8. Out of scope
 
@@ -360,3 +399,6 @@ All resolved on 2026-09-29:
 - Q: Direction, occupancy chart, last year in the month chart, default tile?
   - A: Direction A with the green hero of C; small multiples per logement; last year's column side by
     side; no tile open on arrival (mock-up version 3).
+- Q (2026-09-29, after 3.7.0): colour of the banner once the gradient and halo go?
+  - A: **Ink** (`#27251F`) with honey accents, chosen on `docs/specs/2026-09-29-finance-dashboard-polish.html`
+    over a flat fir green and a white card (rule 31).

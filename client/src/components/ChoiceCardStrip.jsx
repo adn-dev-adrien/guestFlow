@@ -25,7 +25,7 @@ export default function ChoiceCardStrip({ items, selected, onSelect, ariaLabel }
             onClick={() => onSelect(item.value ?? null)}
             sx={{
               flex: '0 0 auto', minWidth: 172, minHeight: 44, display: 'block', textAlign: 'left',
-              bgcolor: on ? 'rgba(47,93,70,0.06)' : 'background.paper', borderRadius: 3, px: 1.5, py: 1.25,
+              bgcolor: on ? 'rgba(47,93,70,0.06)' : 'background.paper', borderRadius: '10px', px: 1.5, py: 1.25,
               border: '1.5px solid', borderColor: on ? 'primary.main' : 'transparent',
               boxShadow: '0 2px 10px rgba(60,54,36,0.07)', transition: 'border-color .15s, transform .1s',
               '&:hover': { transform: 'translateY(-1px)' },

@@ -20,7 +20,7 @@ export function SeriesTooltip({ active, payload, title, previousLabel, formatVal
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <Box sx={{ bgcolor: '#27251F', color: '#fff', px: 1.25, py: 0.75, borderRadius: 1, fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
+    <Box sx={{ bgcolor: '#27251F', color: '#fff', px: 1.25, py: 0.75, borderRadius: '6px', fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
       <Box sx={{ fontWeight: 700 }}>{title}</Box>
       <Box sx={{ textTransform: 'capitalize' }}>{p.label} : {p.current == null ? '—' : formatValue(p.current)}</Box>
       {p.previous != null && <Box>{previousLabel} : {formatValue(p.previous)}</Box>}
@@ -38,7 +38,7 @@ export default function SmallMultiplesLineChart({ series, currentLabel, previous
       </Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
         {series.map((s) => (
-          <Box key={s.key} data-testid={`small-multiple-${s.key}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 2.5, px: 1.25, pt: 1, pb: 0.5, minWidth: 0 }}>
+          <Box key={s.key} data-testid={`small-multiple-${s.key}`} sx={{ border: 1, borderColor: 'divider', borderRadius: '10px', px: 1.25, pt: 1, pb: 0.5, minWidth: 0 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, fontSize: 12.5, fontWeight: 600, mb: 0.5 }}>
               <Box component="span" sx={{ color: s.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>● {s.title}</Box>
               {s.caption && <Typography component="span" variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{s.caption}</Typography>}

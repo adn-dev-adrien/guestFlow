@@ -27,7 +27,7 @@ export default function InsightCard({ tone = 'info', title, text, icon }) {
   return (
     <Card sx={{ height: '100%' }}>
       <CardContent sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', '&:last-child': { pb: 2 } }}>
-        <Box sx={{ width: 36, height: 36, borderRadius: 2.5, bgcolor: t.bg, color: t.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 36px' }}>
+        <Box sx={{ width: 36, height: 36, borderRadius: '8px', bgcolor: t.bg, color: t.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 36px' }}>
           {icon || t.icon}
         </Box>
         <Box>

@@ -25,7 +25,7 @@ export default function SelectableTile({ label, value, caption, dotColor, valueC
       aria-label={`${label} : ${selected ? 'masquer' : 'afficher'} le détail`}
       sx={{
         position: 'relative', display: 'block', width: '100%', height: '100%', textAlign: 'left', minHeight: 44,
-        bgcolor: 'background.paper', borderRadius: 3.5, px: 1.75, py: 1.5,
+        bgcolor: 'background.paper', borderRadius: 1, px: 2, py: 1.5,
         border: '1.5px solid', borderColor: selected ? 'primary.main' : 'transparent',
         boxShadow: '0 3px 16px rgba(60,54,36,0.09)', transition: 'border-color .15s, transform .1s',
         '&:hover': { transform: 'translateY(-2px)' },
