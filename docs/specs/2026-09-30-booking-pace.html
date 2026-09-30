@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Réservations à date</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A38;--honey:#C99038;--sand:#D9C9A3;--paper:#F8F5EF;--card:#fff;
+  --ink:#27251F;--muted:#6E6A5E;--divider:rgba(60,54,36,.1);--shadow:0 3px 16px rgba(60,54,36,.09);
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;--error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --r-card:14px;--r-inner:10px;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 var(--sans)}
+.doc{max-width:1240px;margin:0 auto;padding:28px 16px 64px}
+h1{font:600 1.6rem/1.2 var(--serif);margin:0 0 4px}
+h2{font:600 1.15rem/1.3 var(--serif);margin:36px 0 10px}
+.lead{color:var(--muted);margin:0 0 20px;max-width:860px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+.box{background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);padding:16px 18px}
+.box h3{font:600 .95rem/1.3 var(--serif);margin:0 0 6px}
+.box ul{margin:0;padding-left:18px}.box li{margin:3px 0}
+.box p{margin:4px 0}
+code{font:12.5px ui-monospace,Menlo,monospace;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+.warnbox{background:var(--warning-bg);border-left:4px solid var(--honey)}
+.errbox{background:var(--error-bg);border-left:4px solid var(--error)}
+
+.controls{position:sticky;top:0;z-index:5;background:var(--paper);padding:10px 0;display:flex;gap:14px 18px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--divider);margin-bottom:18px}
+.ctl{display:flex;flex-direction:column;gap:3px}
+.ctl>label{font-size:11.5px;color:var(--muted);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--r-inner);overflow:hidden;background:#fff;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:7px 12px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;min-height:38px}
+.seg button+button{border-left:1px solid var(--divider)}
+.seg button[aria-pressed=true]{background:rgba(47,93,70,.1);color:var(--primary);font-weight:600}
+
+.stage{margin:0 auto;transition:max-width .25s}
+.stage.mobile{max-width:390px}
+
+/* the card as it would appear on the Suivi financier */
+.card{background:#fff;border-radius:var(--r-card);box-shadow:var(--shadow);padding:18px 20px 14px}
+.stage.mobile .card{padding:14px 12px 12px}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.card-title{font:600 1.08rem/1.3 var(--serif);margin:0}
+.card-sub{color:var(--muted);font-size:12.5px;margin:2px 0 0}
+.summary{margin:14px 0 6px;font-size:15px;line-height:1.45}
+.summary b.num{font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge.success{background:var(--success-bg);color:var(--success)}
+.badge.error{background:var(--error-bg);color:var(--error)}
+.badge.neutral{background:#EFEBE2;color:var(--muted)}
+.notice{background:var(--info-bg);color:var(--info);border-radius:var(--r-inner);padding:9px 12px;font-size:13px;margin:10px 0 4px}
+.chips{display:flex;gap:10px;margin:10px 0 4px;flex-wrap:wrap}
+.stage.mobile .chips{flex-direction:column}
+.pchip{flex:1 1 0;min-width:190px;border:1px solid var(--divider);border-radius:var(--r-inner);padding:8px 12px}
+.pchip .l{font-size:12px;color:var(--muted)}
+.pchip .v{font-weight:700;font-size:1.1rem;font-variant-numeric:tabular-nums}
+.pchip .v small{font-weight:500;color:var(--muted);font-size:12.5px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:12px 0 2px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-2px}
+.chart-scroll{overflow-x:auto;position:relative;-webkit-overflow-scrolling:touch}
+svg text{font:11px var(--sans);fill:var(--muted)}
+svg .mo{cursor:pointer}
+svg .mo:hover .hit{fill:rgba(47,93,70,.05)}
+svg .mo.sel .hit{fill:rgba(201,144,56,.12)}
+.tip{position:fixed;pointer-events:none;background:#27251F;color:#fff;padding:8px 11px;border-radius:7px;font-size:12px;line-height:1.55;white-space:nowrap;font-variant-numeric:tabular-nums;display:none;z-index:50;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.tip b{font-weight:600}
+.tip .t{font-weight:700;margin-bottom:2px}
+.caption{font-size:12px;color:var(--muted);margin-top:6px}
+.curve-panel{border-top:1px solid var(--divider);margin-top:12px;padding-top:12px}
+.curve-panel h4{margin:0;font:600 .98rem/1.3 var(--serif)}
+.closebtn{border:1px solid var(--divider);background:#fff;border-radius:8px;min-width:40px;min-height:40px;cursor:pointer;font-size:18px;display:none}
+.stage.mobile .closebtn{display:inline-block}
+.curve-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+.opt{border:1.5px solid var(--divider);border-radius:var(--r-inner);padding:10px 12px;margin-top:8px}
+.opt.rec{border-color:var(--primary)}
+.opt b{display:block}
+.tag{display:inline-block;font-size:11px;font-weight:700;color:var(--primary);background:rgba(47,93,70,.1);border-radius:6px;padding:1px 7px;margin-left:6px}
+table.t{border-collapse:collapse;width:100%;font-size:13px}
+table.t td,table.t th{border-bottom:1px solid var(--divider);padding:6px 8px;text-align:left;vertical-align:top}
+table.t th{color:var(--muted);font-weight:600;font-size:12px}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<h1>Réservations à date, comparées à l'an dernier</h1>
+<p class="lead">Résumé de la spec <code>specs/booking-pace.md</code> (30/09/2026, arbitrages tranchés). Une nouvelle carte sur le Suivi financier : pour chacun des 12 prochains mois de séjour, ce qui est réservé aujourd'hui, ce qui l'était l'an dernier à la même date, et ce que ce mois a fait au final.</p>
+
+<div class="grid2">
+  <div class="box">
+    <h3>Le constat</h3>
+    <p>Le Suivi financier compare au passé, mais rien ne dit, à une date donnée, si les mois à venir se remplissent plus vite ou moins vite que l'an dernier. C'est le « réservations à date » des logiciels d'hôtellerie et de camping.</p>
+    <p>GuestFlow sait quand chaque réservation est entrée (<code>createdAt</code>). Il peut donc reconstituer l'état du carnet à n'importe quelle date passée.</p>
+  </div>
+  <div class="box">
+    <h3>Ce que font les autres</h3>
+    <ul>
+      <li><b>PriceLabs, Beyond, AirDNA</b> : trois séries par mois de séjour, <i>cette année à date</i>, <i>l'an dernier à la même date</i>, <i>l'an dernier au final</i>.</li>
+      <li><b>Septeo</b> (baromètre eSeason) : les réservations <i>prises</i> sur une fenêtre de dates, comparées à la même fenêtre N-1, en % d'écart. Les écrans du produit ne sont pas publics.</li>
+      <li><b>Access Group, PriceLabs</b> : une <i>courbe de montée en charge</i> par mois, et le « % du final N-1 déjà atteint ».</li>
+    </ul>
+  </div>
+</div>
+
+<h2>La carte, à manipuler</h2>
+<p class="lead">Données fictives : trois logements sur trois ans. Survolez un mois pour le détail, cliquez-le pour sa montée en charge. Le sélecteur « Historique des fiches » montre la carte telle qu'elle sera en prod aujourd'hui, puis telle qu'elle sera quand il y aura un an de fiches (à partir d'avril 2027).</p>
+
+<div class="controls">
+  <div class="ctl"><label>Mesure</label><div class="seg" id="segMetric">
+    <button data-v="reservations" aria-pressed="true">Réservations</button><button data-v="nights">Nuits</button><button data-v="revenue">CA des nuits</button>
+  </div></div>
+  <div class="ctl"><label>Logement</label><div class="seg" id="segProp">
+    <button data-v="all" aria-pressed="true">Tous</button><button data-v="0">Gîte</button><button data-v="1">L'Estiva</button><button data-v="2">Lodge</button>
+  </div></div>
+  <div class="ctl"><label>Historique des fiches</label><div class="seg" id="segHist">
+    <button data-v="prod" aria-pressed="true">Prod aujourd'hui</button><button data-v="import">Avec un an d'historique</button>
+  </div></div>
+  <div class="ctl"><label>Écran</label><div class="seg" id="segScreen">
+    <button data-v="desktop" aria-pressed="true">Ordinateur</button><button data-v="mobile">Mobile</button>
+  </div></div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <p class="card-title">Réservations à venir, à date</p>
+        <p class="card-sub" id="cardSub"></p>
+      </div>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div id="notice"></div>
+    <div class="chips" id="chips"></div>
+    <div class="legend">
+      <span><i style="background:var(--primary)"></i>Cette année, à date</span>
+      <span><i style="background:var(--sand)"></i>L'an dernier à la même date</span>
+      <span><i style="border:1.5px dashed #9B8C68;background:transparent"></i>L'an dernier, au final</span>
+    </div>
+    <div class="chart-scroll" id="chartWrap"></div>
+    <div class="caption" id="caption"></div>
+    <div class="curve-panel" id="curvePanel" hidden>
+      <div class="curve-head"><h4 id="curveTitle"></h4><button class="closebtn" id="closeCurve" aria-label="Fermer">×</button></div>
+      <p class="card-sub" id="curveSub"></p>
+      <div id="curveWrap"></div>
+      <div class="legend" style="margin-top:4px">
+        <span><i style="background:var(--primary)"></i>Cette année</span>
+        <span><i style="border-top:2px dashed #9B8C68;height:0;border-radius:0;vertical-align:3px"></i>L'an dernier</span>
+        <span><i style="background:var(--honey);width:2px;border-radius:0"></i>Aujourd'hui</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<h2>Les règles de calcul</h2>
+<div class="grid3">
+  <div class="box"><h3>Ce qui compte comme réservé à une date</h3>
+    <p>Une réservation (pas un devis) dont la date de réservation est antérieure ou égale à cette date, et qui n'était pas encore annulée ce jour-là. Une réservation annulée plus tard comptait donc bien l'an dernier à date.</p></div>
+  <div class="box"><h3>Par nuit de séjour, jamais par encaissement</h3>
+    <p><b>Réservations</b> : dans le mois d'arrivée. <b>Nuits</b> : chaque nuit dans son mois. <b>CA des nuits</b> : le total de séjour réparti à parts égales sur les nuits.</p>
+    <p>Ce CA n'est pas le « Revenu par mois » de la page, qui suit la date d'encaissement. Chez Solio on paie tout à la réservation, donc ce mois-là serait celui de la réservation.</p></div>
+  <div class="box"><h3>Jamais un faux zéro</h3>
+    <p>Si on ne connaît pas les dates de réservation d'il y a un an, la barre « l'an dernier à la même date » n'est pas dessinée. Un 0 se lirait « l'an dernier rien n'était réservé », et vous sembleriez en avance.</p></div>
+</div>
+
+<h2>Le risque : les données de la prod</h2>
+<div class="grid2">
+  <div class="box errbox"><h3><code>createdAt</code> n'est pas toujours la date de réservation</h3>
+    <p>Une réservation arrivée par iCal porte l'heure de la synchro : c'est fiable, à une heure près. Mais toutes celles importées au démarrage de GuestFlow (avril 2026) portent le <b>jour de l'import</b>, même si le client avait réservé des mois avant.</p>
+    <p><b>Décision :</b> on lit simplement la date de création de la fiche. La comparaison à date apparaît donc un an après l'import initial, <b>vers le 13 avril 2027</b>. D'ici là, la carte montre cette année et le final de l'an dernier. Je n'ai pas pu mesurer la prod : la lecture de la base m'a été refusée.</p></div>
+  <div class="box warnbox"><h3>Les annulations iCal effacent la réservation</h3>
+    <p>Quand vous validez une annulation venue d'un flux iCal, la ligne est supprimée, avec son historique. L'an dernier « à la même date » perd donc les séjours annulés depuis. Il est sous-estimé et vous sembleriez en avance.</p>
+    <p><b>Décision :</b> une petite table garde la trace du séjour annulé (dates, logement, montant, date de création de la fiche, date d'annulation).</p></div>
+</div>
+
+<h2>Ce qu'on ne fait pas (dans cette livraison)</h2>
+<div class="box"><ul>
+  <li>Choisir une autre date que « aujourd'hui » pour relire le carnet tel qu'il était (la « machine à remonter le temps » de Key Data ou Access Group).</li>
+  <li>Une projection de fin de mois (« vous devriez finir à… »).</li>
+  <li>Le rythme par canal (Booking, Airbnb, direct…).</li>
+  <li>Une colonne « date de réservation » distincte, sa saisie, ou l'import des exports des plateformes.</li>
+</ul></div>
+
+<h2>Arbitrages tranchés le 30/09/2026</h2>
+<div class="box"><table class="t">
+  <tr><th>Question</th><th>Décision</th></tr>
+  <tr><td>A1 · Mesure par défaut</td><td><b>Réservations</b> ; Nuits et CA des nuits restent dans le sélecteur.</td></tr>
+  <tr><td>A2 · Date de réservation</td><td><b>La date de création de la fiche</b>, sans colonne ni import. La comparaison à date apparaît vers le 13 avril 2027.</td></tr>
+  <tr><td>A3 · Séjours annulés par iCal</td><td><b>Garder leur trace</b> dans une petite table, écrite juste avant la suppression.</td></tr>
+  <tr><td>A4 · Montée en charge d'un mois</td><td><b>Dans cette livraison</b>, au clic sur un mois.</td></tr>
+</table></div>
+
+</div>
+
+<script>
+(function(){
+const TODAY = new Date(Date.UTC(2026,8,30));
+const DAY = 86400000;
+const PROPS = [
+  {name:'Gîte', price:[95,95,100,110,120,135,160,175,130,110,95,100], cap:6},
+  {name:"L'Estiva", price:[0,0,0,70,80,95,115,125,90,75,0,0], cap:6},
+  {name:'Lodge', price:[120,120,125,135,150,170,210,230,160,135,120,130], cap:8}
+];
+const DEMAND = [.25,.3,.35,.45,.55,.7,.95,1,.6,.4,.25,.35];
+const IMPORT_DAY = new Date(Date.UTC(2026,3,12));
+
+let seed = 20260930;
+const rnd = () => { seed = (seed*1664525+1013904223) % 4294967296; return seed/4294967296; };
+
+// ---- synthetic stays, Oct 2024 → Sep 2027, with booking dates and cancellations
+const stays = [];
+PROPS.forEach((p, pi) => {
+  let d = new Date(Date.UTC(2024,9,1));
+  const end = new Date(Date.UTC(2027,9,1));
+  while (d < end) {
+    const m = d.getUTCMonth();
+    const open = p.price[m] > 0;
+    const growth = d.getUTCFullYear() >= 2026 && d.getUTCMonth() + d.getUTCFullYear()*12 >= 2026*12+9 ? 1.1 : 1;
+    if (open && rnd() < DEMAND[m] * 0.55 * growth) {
+      const nights = 2 + Math.floor(rnd() * (m >= 6 && m <= 7 ? 8 : 4));
+      const start = new Date(d);
+      const lead = Math.floor(Math.pow(rnd(), 1.15) * (m >= 5 && m <= 7 ? 340 : 200)) + 2;
+      const booked = new Date(start.getTime() - lead*DAY);
+      let cancelled = null;
+      if (rnd() < 0.08) cancelled = new Date(booked.getTime() + Math.floor(rnd()*lead)*DAY);
+      stays.push({p:pi, start, nights, booked, cancelled, total: nights * p.price[m] * (0.9 + rnd()*0.25)});
+      d = new Date(start.getTime() + (nights + Math.floor(rnd()*3))*DAY);
+    } else d = new Date(d.getTime() + DAY);
+  }
+});
+// future stays cannot be booked after today
+for (let i = stays.length - 1; i >= 0; i--) if (stays[i].booked > TODAY) stays.splice(i, 1);
+
+const state = { metric:'reservations', prop:'all', hist:'prod', screen:'desktop', sel:null };
+const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const MSHORT = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const fmtN = (v) => new Intl.NumberFormat("fr-FR",{maximumFractionDigits:0}).format(Math.round(v));
+const fmtK = (v) => new Intl.NumberFormat("fr-FR",{maximumFractionDigits:1}).format(v/1000) + " k";
+const fmt = (v) => state.metric === 'revenue' ? fmtN(v) + ' €' : fmtN(v);
+const unit = (v) => state.metric === 'nights' ? (Math.round(v) > 1 ? 'nuits' : 'nuit') : state.metric === 'reservations' ? (Math.round(v) > 1 ? 'réservations' : 'réservation') : '';
+const withUnit = (v) => state.metric === 'revenue' ? fmt(v) : fmt(v) + ' ' + unit(v);
+const minusYear = (dt) => new Date(Date.UTC(dt.getUTCFullYear()-1, dt.getUTCMonth(), Math.min(dt.getUTCDate(), dt.getUTCMonth()===1?28:31)));
+
+function bookedDate(s) {
+  if (state.hist === 'import') return s.booked;
+  return s.booked < IMPORT_DAY ? IMPORT_DAY : s.booked;
+}
+const known = (s) => state.hist === 'import' || s.start >= new Date(Date.UTC(2026,3,1));
+const onBooks = (s, at) => known(s) && bookedDate(s) <= at && !(s.cancelled && s.cancelled <= at);
+
+// value of stay s for month (y, m)
+function valueIn(s, y, m) {
+  const ms = Date.UTC(y, m, 1), me = Date.UTC(y, m+1, 1);
+  if (state.metric === 'reservations') return (s.start.getTime() >= ms && s.start.getTime() < me) ? 1 : 0;
+  const a = Math.max(s.start.getTime(), ms), b = Math.min(s.start.getTime() + s.nights*DAY, me);
+  const n = Math.max(0, Math.round((b - a) / DAY));
+  return state.metric === 'nights' ? n : s.total * n / s.nights;
+}
+function total(y, m, at) {
+  let v = 0;
+  for (const s of stays) {
+    if (state.prop !== 'all' && s.p !== Number(state.prop)) continue;
+    if (!onBooks(s, at)) continue;
+    v += valueIn(s, y, m);
+  }
+  return v;
+}
+const paceStart = () => state.hist === 'import' ? new Date(Date.UTC(2024,3,1)) : new Date(IMPORT_DAY.getTime() + DAY);
+const coverageStart = () => state.hist === 'import' ? new Date(Date.UTC(2024,9,1)) : new Date(Date.UTC(2026,3,1));
+
+function compute() {
+  const ly = minusYear(TODAY);
+  const comparableAsOf = ly >= paceStart();
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const y = TODAY.getUTCFullYear() + Math.floor((TODAY.getUTCMonth()+i)/12);
+    const m = (TODAY.getUTCMonth()+i) % 12;
+    const covered = new Date(Date.UTC(y-1, m, 1)) >= coverageStart();
+    const current = total(y, m, TODAY);
+    const stly = comparableAsOf && covered ? total(y-1, m, ly) : null;
+    const final = covered ? total(y-1, m, TODAY) : null;
+    months.push({y, m, current, stly, final,
+      delta: stly == null ? null : current - stly,
+      pct: stly ? (current - stly) / stly : null,
+      remaining: final == null ? null : Math.max(0, final - current),
+      reached: final ? current / final : null});
+  }
+  const comp = months.filter(x => x.stly != null);
+  const cur = comp.reduce((n,x)=>n+x.current,0), st = comp.reduce((n,x)=>n+x.stly,0);
+  const pick = (days) => {
+    const from = new Date(TODAY.getTime() - days*DAY), lyTo = ly, lyFrom = new Date(ly.getTime() - days*DAY);
+    let a = 0, b = 0;
+    for (const s of stays) {
+      if (state.prop !== 'all' && s.p !== Number(state.prop)) continue;
+      if (!known(s)) continue;
+      const bd = bookedDate(s);
+      const unitVal = state.metric === 'reservations' ? 1 : state.metric === 'nights' ? s.nights : s.total;
+      if (bd > from && bd <= TODAY && s.start > TODAY) a += unitVal;
+      if (s.cancelled && s.cancelled > from && s.cancelled <= TODAY && s.start > TODAY && bd <= from) a -= unitVal;
+      if (bd > lyFrom && bd <= lyTo && s.start > lyTo) b += unitVal;
+      if (s.cancelled && s.cancelled > lyFrom && s.cancelled <= lyTo && s.start > lyTo && bd <= lyFrom) b -= unitVal;
+    }
+    return {a, b: comparableAsOf ? b : null};
+  };
+  return {months, comparableAsOf, cur, st, n: comp.length, p7: pick(7), p30: pick(30),
+          all: months.reduce((n,x)=>n+x.current,0)};
+}
+
+function toneOf(pct){ if (pct == null) return 'neutral'; if (pct > 0.05) return 'success'; if (pct < -0.05) return 'error'; return 'neutral'; }
+function badge(delta, pct){
+  const t = toneOf(pct), arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '=';
+  const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
+  const p = pct == null ? '' : ` (${pct>0?'+':pct<0?'−':''}${Math.abs(Math.round(pct*100))} %)`;
+  return `<span class="badge ${t}">${arrow} ${sign}${fmt(Math.abs(delta))}${p}</span>`;
+}
+
+function render() {
+  const r = compute();
+  document.getElementById('cardSub').textContent =
+    `Au 30 septembre 2026 · ${state.prop === 'all' ? 'tous les logements' : PROPS[state.prop].name} · 12 prochains mois de séjour`;
+  const label = state.metric === 'nights' ? 'nuits réservées' : state.metric === 'reservations' ? 'réservations' : 'de CA des nuits réservé';
+  const sum = document.getElementById('summary');
+  if (r.n) {
+    const d = r.cur - r.st, pct = r.st ? d / r.st : null;
+    const scope = r.n === 12 ? 'pour les 12 prochains mois' : `sur les ${r.n} mois comparables`;
+    sum.innerHTML = `Au 30 sept., <b class="num">${fmt(r.cur)}</b> ${label} ${scope}, contre <b class="num">${fmt(r.st)}</b> l'an dernier à la même date : ${badge(d, pct)}`;
+  } else {
+    sum.innerHTML = `Au 30 sept., <b class="num">${fmt(r.all)}</b> ${label} pour les 12 prochains mois.`;
+  }
+  document.getElementById('notice').innerHTML = r.comparableAsOf ? '' :
+    `<div class="notice">La comparaison à date s'affichera à partir du <b>13 avril 2027</b> : il faut un an de dates de réservation. En attendant, les pointillés montrent ce que chaque mois a fait l'an dernier, quand GuestFlow le connaît.</div>`;
+  const chip = (lbl, p) => `<div class="pchip"><div class="l">${lbl}</div><div class="v">${p.a>=0?'+':'−'}${withUnit(Math.abs(p.a))} ${p.b==null?'':`<small>· l'an dernier ${p.b>=0?'+':'−'}${withUnit(Math.abs(p.b))}</small>`}</div></div>`;
+  document.getElementById('chips').innerHTML = chip('Pris ces 7 derniers jours', r.p7) + chip('Pris ces 30 derniers jours', r.p30);
+  document.getElementById('caption').textContent = state.metric === 'revenue'
+    ? "CA des nuits : total de séjour réparti sur ses nuits. Ce n'est pas le « Revenu par mois », qui suit la date d'encaissement."
+    : state.metric === 'reservations' ? "Une réservation compte dans son mois d'arrivée." : 'Chaque nuit compte dans le mois où elle tombe.';
+  drawBars(r.months);
+  if (state.sel != null) drawCurve(r.months[state.sel]); else document.getElementById('curvePanel').hidden = true;
+}
+
+function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; }
+
+function drawBars(months) {
+  const mobile = state.screen === 'mobile';
+  const colW = mobile ? 58 : 84, padL = 44, padT = 10, h = 220, axisH = 44;
+  const W = padL + colW * 12 + 6;
+  const max = niceMax(Math.max(...months.map(x => Math.max(x.current, x.stly || 0, x.final || 0))) * 1.05);
+  const y = (v) => padT + h - (v / max) * h;
+  let s = `<svg width="${W}" height="${padT+h+axisH}" role="img" aria-label="Réservations à date par mois">`;
+  for (let k = 0; k <= 4; k++) {
+    const v = max * k / 4, yy = y(v);
+    s += `<line x1="${padL}" x2="${W}" y1="${yy}" y2="${yy}" stroke="rgba(60,54,36,.08)"/>`;
+    s += `<text x="${padL-6}" y="${yy+4}" text-anchor="end">${state.metric==='revenue' ? (v>=1000? fmtK(v) : fmtN(v)) : fmtN(v)}</text>`;
+  }
+  months.forEach((mo, i) => {
+    const x0 = padL + i * colW, bw = mobile ? 17 : 24, gap = 3;
+    const cx = x0 + colW/2;
+    s += `<g class="mo${state.sel===i?' sel':''}" data-i="${i}"><rect class="hit" x="${x0+2}" y="${padT}" width="${colW-4}" height="${h+axisH}" rx="8" fill="transparent"/>`;
+    if (mo.final != null) {
+      const fw = bw*2 + gap + 10;
+      s += `<rect x="${cx - fw/2}" y="${y(mo.final)}" width="${fw}" height="${Math.max(0, y(0)-y(mo.final))}" rx="4" fill="rgba(217,201,163,.18)" stroke="#9B8C68" stroke-dasharray="4 3" stroke-width="1.2"/>`;
+    }
+    if (mo.stly != null) s += `<rect x="${cx - bw - gap/2}" y="${y(mo.stly)}" width="${bw}" height="${y(0)-y(mo.stly)}" rx="3" fill="var(--sand)"/>`;
+    const curX = mo.stly != null ? cx + gap/2 : cx - bw/2;
+    s += `<rect x="${curX}" y="${y(mo.current)}" width="${bw}" height="${y(0)-y(mo.current)}" rx="3" fill="var(--primary)"/>`;
+    s += `<text x="${cx}" y="${padT+h+15}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${MSHORT[mo.m]}${mo.m===0||i===0?' '+String(mo.y).slice(2):''}</text>`;
+    let dl = '—', col = 'var(--muted)';
+    if (mo.delta != null) {
+      const t = toneOf(mo.pct);
+      col = t === 'success' ? 'var(--success)' : t === 'error' ? 'var(--error)' : 'var(--muted)';
+      dl = (mo.delta > 0 ? '▲ +' : mo.delta < 0 ? '▼ −' : '= ') + (state.metric==='revenue' ? (Math.abs(mo.delta)>=1000? fmtN(Math.abs(mo.delta)/1000)+' k' : fmtN(Math.abs(mo.delta))) : fmtN(Math.abs(mo.delta)));
+    }
+    s += `<text x="${cx}" y="${padT+h+33}" text-anchor="middle" style="fill:${col};font-weight:700">${dl}</text></g>`;
+  });
+  s += `<line x1="${padL}" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(60,54,36,.25)"/></svg>`;
+  const wrap = document.getElementById('chartWrap');
+  wrap.innerHTML = s;
+  wrap.querySelectorAll('.mo').forEach(g => {
+    const i = Number(g.dataset.i), mo = months[i];
+    g.addEventListener('mousemove', (e) => showTip(e, tipHtml(mo)));
+    g.addEventListener('mouseleave', hideTip);
+    g.addEventListener('click', () => { state.sel = state.sel === i ? null : i; hideTip(); render(); });
+  });
+}
+
+function tipHtml(mo) {
+  const M = MONTHS[mo.m][0].toUpperCase() + MONTHS[mo.m].slice(1);
+  let h = `<div class="t">${M} ${mo.y}</div>À date : <b>${withUnit(mo.current)}</b>`;
+  if (mo.stly != null) h += `<br>${M} ${mo.y-1} à la même date : <b>${withUnit(mo.stly)}</b>`;
+  else h += `<br>${M} ${mo.y-1} à la même date : <i>inconnu</i>`;
+  if (mo.final != null) h += `<br>${M} ${mo.y-1} au final : <b>${withUnit(mo.final)}</b>`;
+  if (mo.reached != null) h += `<br>Déjà ${Math.round(mo.reached*100)} % du final de l'an dernier`;
+  if (mo.remaining) h += ` · reste ${withUnit(mo.remaining)}`;
+  return h;
+}
+const tip = document.getElementById('tip');
+function showTip(e, html){ tip.innerHTML = html; tip.style.display = 'block';
+  const w = tip.offsetWidth; let x = e.clientX + 14; if (x + w > window.innerWidth - 8) x = e.clientX - w - 14;
+  tip.style.left = Math.max(8, x) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; }
+function hideTip(){ tip.style.display = 'none'; }
+
+function drawCurve(mo) {
+  const panel = document.getElementById('curvePanel'); panel.hidden = false;
+  const M = MONTHS[mo.m][0].toUpperCase() + MONTHS[mo.m].slice(1);
+  document.getElementById('curveTitle').textContent = `Montée en charge · ${M} ${mo.y}`;
+  const first = Date.UTC(mo.y, mo.m, 1), firstLy = Date.UTC(mo.y-1, mo.m, 1);
+  const todayDb = Math.round((first - TODAY.getTime()) / DAY);
+  document.getElementById('curveSub').textContent =
+    `Cumul réservé pour ${MONTHS[mo.m]}, selon le nombre de jours avant le 1er du mois. Aujourd'hui : J-${todayDb}.`;
+  const pts = [], step = 5;
+  for (let db = 365; db >= 0; db -= step) {
+    const cur = db >= todayDb ? total(mo.y, mo.m, new Date(first - db*DAY)) : null;
+    const lyAt = new Date(firstLy - db*DAY);
+    const ly = (mo.final != null && lyAt >= paceStart()) ? total(mo.y-1, mo.m, lyAt) : null;
+    pts.push({db, cur, ly});
+  }
+  const mobile = state.screen === 'mobile';
+  const W = mobile ? 350 : 1100, H = 220, pl = 44, pr = 10, pt = 10, pb = 26;
+  const max = niceMax(Math.max(1, ...pts.map(p => Math.max(p.cur||0, p.ly||0))) * 1.08);
+  const x = (db) => pl + (365 - db) / 365 * (W - pl - pr);
+  const y = (v) => pt + (H - pt - pb) * (1 - v / max);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px" role="img" aria-label="Montée en charge">`;
+  for (let k = 0; k <= 4; k++) { const v = max*k/4; s += `<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(60,54,36,.08)"/><text x="${pl-6}" y="${y(v)+4}" text-anchor="end">${state.metric==='revenue'&&v>=1000?fmtK(v):fmtN(v)}</text>`; }
+  [365,300,240,180,120,90,60,30,0].forEach(db => { if (mobile && [300,240,90].includes(db)) return; s += `<text x="${x(db)}" y="${H-8}" text-anchor="middle">${db===0?'J':'J-'+db}</text>`; });
+  const path = (key) => { let d = '', on = false; pts.forEach(p => { if (p[key] == null) { on = false; return; } d += (on ? 'L' : 'M') + x(p.db).toFixed(1) + ' ' + y(p[key]).toFixed(1) + ' '; on = true; }); return d; };
+  s += `<path d="${path('ly')}" fill="none" stroke="#9B8C68" stroke-width="2" stroke-dasharray="6 4"/>`;
+  s += `<path d="${path('cur')}" fill="none" stroke="var(--primary)" stroke-width="2.5"/>`;
+  if (todayDb <= 365) s += `<line x1="${x(todayDb)}" x2="${x(todayDb)}" y1="${pt}" y2="${H-pb}" stroke="var(--honey)" stroke-width="2"/><text x="${x(todayDb)+4}" y="${pt+10}" style="fill:var(--warning);font-weight:600">aujourd'hui</text>`;
+  s += `</svg>`;
+  if (mo.final != null && !pts.some(p => p.ly != null)) s += `<div class="notice">Courbe de l'an dernier indisponible : les dates de réservation de ${MONTHS[mo.m]} ${mo.y-1} ne sont pas connues.</div>`;
+  document.getElementById('curveWrap').innerHTML = s;
+}
+
+function bindSeg(id, key) {
+  document.getElementById(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state[key] = b.dataset.v;
+    [...e.currentTarget.children].forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+    if (key === 'screen') { document.getElementById('stage').classList.toggle('mobile', state.screen === 'mobile'); state.sel = null; }
+    render();
+  });
+}
+bindSeg('segMetric','metric'); bindSeg('segProp','prop'); bindSeg('segHist','hist'); bindSeg('segScreen','screen');
+document.getElementById('closeCurve').addEventListener('click', () => { state.sel = null; render(); });
+render();
+})();
+</script>
+</body>
+</html>
