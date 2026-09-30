@@ -6,6 +6,7 @@
 function buildOperatorsModel(db) {
   const byEmailStmt = db.prepare('SELECT * FROM operators WHERE email = ?');
   const byIdStmt = db.prepare('SELECT * FROM operators WHERE id = ?');
+  const listStmt = db.prepare('SELECT id, email, name FROM operators ORDER BY id');
   const insertStmt = db.prepare('INSERT INTO operators (email, name, passwordHash) VALUES (?, ?, ?)');
   const setPasswordStmt = db.prepare('UPDATE operators SET passwordHash = ? WHERE id = ?');
   const failStmt = db.prepare('UPDATE operators SET failedCount = failedCount + 1 WHERE id = ?');
@@ -23,6 +24,8 @@ function buildOperatorsModel(db) {
   return {
     byEmail: (email) => byEmailStmt.get(String(email || '').trim().toLowerCase()) || null,
     byId: (id) => byIdStmt.get(id) || null,
+    // Who receives the daily email (rule 18).
+    list: () => listStmt.all(),
     create: ({ email, name, passwordHash }) => Number(insertStmt.run(String(email).trim().toLowerCase(), name || '', passwordHash).lastInsertRowid),
     setPassword: (id, hash) => setPasswordStmt.run(hash, id),
     recordFailure: (id) => failStmt.run(id),

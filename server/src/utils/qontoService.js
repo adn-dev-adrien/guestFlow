@@ -12,7 +12,10 @@ const { buildQontoClient } = require('./qontoClient');
 const { getValidQontoAccessToken } = require('./qontoAuth');
 const { resolveQontoConfig } = require('./qontoConfig');
 const { classifyQontoOutcome, qontoConnectionState, errorCodeOf, errorMessageOf } = require('./qontoHealth');
-const settingsModelDefault = require('../models/settingsModel');
+// GuestFlow's settings are loaded on first use only: the control plane (control-plane/) requires this
+// module with its own settings and must never open an instance database (specs/control-plane-plans-and-access.md rule 32).
+let loadedSettings;
+const guestflowSettings = () => (loadedSettings = loadedSettings || require('../models/settingsModel'));
 
 /** Where a call came from, so the operator reads "le paiement public a échoué", not "une erreur". */
 const ORIGINS = {
@@ -23,6 +26,7 @@ const ORIGINS = {
   webhook: 'notification Qonto',
   'webhook-register': 'abonnement au webhook',
   admin: 'réglages',
+  billing: 'facturation des abonnements',
 };
 
 function notConfiguredError() {
@@ -32,7 +36,7 @@ function notConfiguredError() {
 }
 
 /** A client wired with the effective configuration (database over environment). */
-function buildConfiguredQontoClient({ settings = settingsModelDefault, env = process.env, config } = {}) {
+function buildConfiguredQontoClient({ settings = guestflowSettings(), env = process.env, config } = {}) {
   const resolved = config || resolveQontoConfig({ settings, env });
   return buildQontoClient({
     sandbox: resolved.sandbox,
@@ -45,14 +49,14 @@ function buildConfiguredQontoClient({ settings = settingsModelDefault, env = pro
 }
 
 /** Rule 13: a success erases the recorded failure, so the page shows now and not last month. */
-function recordQontoSuccess({ settings = settingsModelDefault, now = new Date() } = {}) {
+function recordQontoSuccess({ settings = guestflowSettings(), now = new Date() } = {}) {
   if (!settings || typeof settings.recordQontoHealth !== 'function') return;
   const at = now.toISOString();
   settings.recordQontoHealth({ lastCheckAt: at, lastSuccessAt: at, lastErrorAt: '', lastErrorCode: '', lastErrorMessage: '', lastErrorOrigin: '' });
 }
 
 /** Rule 12: a failure is recorded with its code, its message and where it happened. */
-function recordQontoFailure({ settings = settingsModelDefault, error, origin = 'admin', now = new Date() } = {}) {
+function recordQontoFailure({ settings = guestflowSettings(), error, origin = 'admin', now = new Date() } = {}) {
   if (!settings || typeof settings.recordQontoHealth !== 'function') return;
   const at = now.toISOString();
   settings.recordQontoHealth({
@@ -76,7 +80,7 @@ function recordQontoFailure({ settings = settingsModelDefault, error, origin = '
  * after « Tester la connexion », would erase the diagnosis the test had just recorded and leave the
  * page claiming a connection the test had refused. Failures are always recorded, whoever calls.
  */
-async function withQonto({ settings = settingsModelDefault, env = process.env, origin = 'admin', recordSuccess = true }, fn) {
+async function withQonto({ settings = guestflowSettings(), env = process.env, origin = 'admin', recordSuccess = true }, fn) {
   const config = resolveQontoConfig({ settings, env });
   try {
     if (!config.configured) throw notConfiguredError();
@@ -98,7 +102,7 @@ async function withQonto({ settings = settingsModelDefault, env = process.env, o
  * connection that works while the link provider is not enabled produces payment links that cannot be
  * paid — a state the old page displayed as a plain « Connecté ».
  */
-async function runQontoConnectionTest({ settings = settingsModelDefault, env = process.env, now = new Date() } = {}) {
+async function runQontoConnectionTest({ settings = guestflowSettings(), env = process.env, now = new Date() } = {}) {
   const config = resolveQontoConfig({ settings, env });
   if (!config.configured) {
     const error = notConfiguredError();
@@ -121,7 +125,7 @@ async function runQontoConnectionTest({ settings = settingsModelDefault, env = p
 // ----- What the settings page reads and writes (rules 1, 3, 4, 11, 15) -----
 
 /** The credentials payload: secrets masked to booleans (rule 3), client id in clear (rule 4). */
-function qontoCredentialsPayload({ settings = settingsModelDefault, env = process.env } = {}) {
+function qontoCredentialsPayload({ settings = guestflowSettings(), env = process.env } = {}) {
   const config = resolveQontoConfig({ settings, env });
   const present = typeof settings.qontoSecretsPresence === 'function'
     ? settings.qontoSecretsPresence()
@@ -147,7 +151,7 @@ function qontoCredentialsPayload({ settings = settingsModelDefault, env = proces
 }
 
 /** The verified state the badge renders (rule 11): a stored token is not a working connection. */
-function qontoStatusPayload({ settings = settingsModelDefault, env = process.env } = {}) {
+function qontoStatusPayload({ settings = guestflowSettings(), env = process.env } = {}) {
   const config = resolveQontoConfig({ settings, env });
   const info = settings.qontoConnectionInfo();
   const health = typeof settings.qontoHealth === 'function'
@@ -177,7 +181,7 @@ function qontoStatusPayload({ settings = settingsModelDefault, env = process.env
  * Keeping those tokens would leave the page showing a connection that cannot work — which is the
  * precise lie this spec exists to remove.
  */
-function applyQontoCredentials({ settings = settingsModelDefault, env = process.env, body = {} } = {}) {
+function applyQontoCredentials({ settings = guestflowSettings(), env = process.env, body = {} } = {}) {
   const before = resolveQontoConfig({ settings, env });
 
   settings.storeQontoCredentials({

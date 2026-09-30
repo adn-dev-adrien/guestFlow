@@ -36,4 +36,8 @@ const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && t
 
 const frDay = (day) => (day ? day.split('-').reverse().join('/') : '');
 
-module.exports = { parisDay, addDays, addMonths, daysBetween, isDay, frDay };
+// An instant as the operator reads it: « 30/09/2026 10:42 », Paris time.
+const stampFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const frStamp = (iso) => (iso ? stampFmt.format(new Date(iso)).replace(',', '') : '');
+
+module.exports = { parisDay, addDays, addMonths, daysBetween, isDay, frDay, frStamp };

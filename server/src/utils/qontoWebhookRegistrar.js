@@ -14,7 +14,10 @@
 
 const crypto = require('crypto');
 
-const settingsModelDefault = require('../models/settingsModel');
+// GuestFlow's settings are loaded on first use only: the control plane (control-plane/) requires this
+// module with its own settings and must never open an instance database (specs/control-plane-plans-and-access.md rule 32).
+let loadedSettings;
+const guestflowSettings = () => (loadedSettings = loadedSettings || require('../models/settingsModel'));
 const { resolveQontoConfig } = require('./qontoConfig');
 const { withQonto, recordQontoFailure } = require('./qontoService');
 
@@ -43,7 +46,7 @@ const sameCallback = (a, b) => String(a || '').trim().replace(/\/+$/, '') === St
  * @returns {Promise<{action: 'skipped'|'adopted'|'created'|'unconfigured'|'failed', id?: string, callbackUrl?: string, error?: Error}>}
  */
 async function ensureWebhookSubscription({
-  settings = settingsModelDefault,
+  settings = guestflowSettings(),
   env = process.env,
   origin = 'webhook-register',
   randomSecret = defaultRandomSecret,

@@ -46,6 +46,8 @@ const ORIGIN_LABELS = {
   'manual-link': 'lien créé à la main',
   webhook: 'notification Qonto',
   admin: 'réglages',
+  // The control plane's renewal invoices (specs/control-plane-plans-and-access.md rule 32).
+  billing: 'facturation des abonnements',
 };
 
 const formatStamp = (iso) => {
