@@ -165,13 +165,14 @@ textarea{min-height:64px}
 <b>Les risques</b>
 <ul class="tight">
 <li>La vérification repose sur les appels Qonto. Si Qonto ne répond pas, la création de facture est retentée à chaque passe et une alerte s'affiche. L'état du client, lui, suit toujours le calendrier : il ne dépend jamais de Qonto.</li>
-<li>La connexion de l'organisation ADN Dev aux liens de paiement (onboarding Mollie) se fait une fois dans Qonto : c'est un prérequis de la mise en service.</li>
+<li>La connexion de l'organisation ADN Dev aux liens de paiement (onboarding Mollie) se fait une fois, depuis la page Paiements de la console, comme dans GuestFlow : c'est un prérequis de la mise en service.</li>
 </ul>
 <b>Décidé le 30/09</b>
 <ul class="tight">
 <li>Q11 : une facture Qonto avec son lien.</li>
 <li>Q12 : l'organisation ADN Dev.</li>
 <li>Q13 : un mode par modèle, livré en Manuel.</li>
+<li>Q14 : le module Qonto de GuestFlow repris en entier, paramétrage compris.</li>
 </ul>
 </div>
 </div>
@@ -269,10 +270,11 @@ textarea{min-height:64px}
 </div>
 
 <!-- ================= 5. REGLAGES ================= -->
-<h2>5. Réglages : la connexion Qonto d'ADN Dev</h2>
+<h2>5. Réglages : le module Qonto de GuestFlow, repris tel quel</h2>
+<p>La console affiche <b>la même page « Paiements en ligne » que GuestFlow</b>, à la même adresse <code>/parametres/paiements</code>, avec les mêmes routes, le même OAuth, le même webhook automatique et le même diagnostic. Seul le stockage change : la base de la console, avec les secrets chiffrés. Rien ne passe par des variables d'environnement. La facture porte l'IBAN du compte choisi dans la connexion du provider.</p>
 <div class="frame">
-<div class="url">https://console.guestflow.fr/reglages</div>
-<div class="pab"><span class="t">Réglages</span></div>
+<div class="url">https://console.guestflow.fr/parametres/paiements</div>
+<div class="pab"><span class="t">Paiements en ligne</span><button class="btn primary" id="qSave">Enregistrer</button></div>
 <div class="body"><div class="card" id="qCard"></div></div>
 </div>
 
@@ -424,18 +426,30 @@ $('tplClose').onclick=()=>$('tplEd').classList.remove('show');
 renderTpl();
 
 // ---------- 5. settings ----------
-const q={connected:false,account:'',tested:null};
+const q={step:0,env:'production',clientId:'',secret:false,tested:null,provider:false};
 function renderQ(){
   const c=$('qCard');
-  if(!q.connected){c.innerHTML=`<h3>Qonto</h3><p><span class="st st-read_only">Non connecté</span></p><p class="muted">Rien n'est facturé tant que la console n'est pas connectée à l'organisation ADN Dev. L'accueil affiche une alerte.</p><button class="btn primary" id="qConn">Connecter Qonto</button>`;$('qConn').onclick=()=>{q.connected=true;toast('Retour de Qonto : organisation ADN Dev connectée');renderQ();};return;}
-  c.innerHTML=`<h3>Qonto</h3><dl class="kv"><dt>Connexion</dt><dd><span class="st st-active">Connecté</span> · ADN Dev · production</dd><dt>Liens de paiement</dt><dd><span class="st st-active">Activés</span> (onboarding fait dans Qonto)</dd><dt>Dernier appel</dt><dd>${q.tested||'—'}</dd></dl>
-  <span class="lab">Compte dont l'IBAN figure sur les factures</span><select id="qAcc"><option value="">Choisir un compte…</option><option value="main" ${q.account==='main'?'selected':''}>Compte principal · FR76 •••• 4412</option><option value="tax" ${q.account==='tax'?'selected':''}>Provisions TVA · FR76 •••• 9087</option></select>
-  <div class="err" id="qErr"></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="qTest">Tester la connexion</button><button class="btn" id="qRe">Reconnecter</button></div>`;
-  $('qAcc').onchange=(e)=>{q.account=e.target.value;toast(q.account?'Compte enregistré':'');};
-  $('qTest').onclick=()=>{if(!q.account){$('qErr').textContent='Choisissez le compte à imprimer sur les factures : sans lui, Qonto refuse la facture.';return;}q.tested='réussi à l’instant';toast('Connexion Qonto : OK (organisation, compte et liens de paiement)');renderQ();};
-  $('qRe').onclick=()=>toast('Redirection vers Qonto…');
+  const badge=q.step<2?'<span class="st st-archived">'+(q.step===0?'Non configuré':'Non vérifié')+'</span>':(q.provider?'<span class="st st-active">Connecté</span>':'<span class="st st-grace">Provider de liens à connecter</span>');
+  c.innerHTML=`<h3>Connexion bancaire ${badge}</h3>
+  <div class="grid2"><div><span class="lab">Environnement</span><select id="qEnv"><option value="sandbox" ${q.env==='sandbox'?'selected':''}>Sandbox</option><option value="production" ${q.env==='production'?'selected':''}>Production</option></select></div>
+  <div><span class="lab">Client ID</span><input type="text" id="qId" value="${q.clientId}" placeholder="ex. 3f1c…"></div></div>
+  <div class="grid2"><div><span class="lab">Client secret</span><input type="password" id="qSec" placeholder="${q.secret?'•••••••• (enregistré, chiffré)':'à saisir'}"></div>
+  <div><span class="lab">URL de redirection à déclarer chez Qonto</span><input type="text" readonly value="https://console.guestflow.fr/api/payments/qonto/callback"></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" id="qConn" ${q.step<1?'disabled':''}>Connexion</button><button class="btn" id="qTest" ${q.step<2?'disabled':''}>Tester la connexion</button></div>
+  <p class="muted" style="margin-top:8px">${q.tested?'Dernière vérification : '+q.tested+'. Webhook des liens de paiement abonné automatiquement.':'Enregistre d’abord les identifiants, puis « Connexion » ouvre Qonto (organisation ADN Dev).'}</p>
+  ${q.step>=2 && !q.provider?`<div class="card" style="margin-top:10px"><h3>Connexion du provider de liens</h3>
+   <span class="lab">Compte bancaire (son IBAN figurera sur les factures)</span><select><option>Compte principal — FR76 •••• 4412</option></select>
+   <span class="lab">Téléphone</span><input type="text" value="+33612345678"><span class="lab">Site web</span><input type="text" value="https://guestflow.fr">
+   <span class="lab">Description de l'activité (≥ 80 caractères)</span><textarea>Édition du logiciel GuestFlow de gestion des locations de vacances, vendu sur abonnement aux gîtes et chambres d'hôtes.</textarea>
+   <button class="btn primary" id="qProv" style="margin-top:8px">Connecter le provider</button></div>`:''}`;
+  $('qEnv').onchange=(e)=>{q.env=e.target.value;};
+  $('qId').oninput=(e)=>{q.clientId=e.target.value;};
+  $('qSec').oninput=(e)=>{q.secretDraft=e.target.value;};
+  $('qConn').onclick=()=>{q.step=2;q.tested='réussie à l’instant';toast('Retour de Qonto : ADN Dev autorisée, connexion vérifiée');renderQ();};
+  $('qTest').onclick=()=>{q.tested='réussie à l’instant';toast(q.provider?'Connexion Qonto : OK':'Connexion OK, mais le provider de liens n’est pas encore activé');renderQ();};
+  const pv=$('qProv'); if(pv) pv.onclick=()=>{q.provider=true;toast('Provider de liens activé ✓');renderQ();};
 }
+$('qSave').onclick=()=>{ if(!q.clientId.trim()||!(q.secret||q.secretDraft)){toast('Refusé : le client ID et le client secret sont nécessaires pour se connecter.');return;} q.secret=true;q.step=Math.max(q.step,1);toast('Paramètres enregistrés');renderQ();};
 renderQ();
 
 // ---------- 6. postcode ----------

@@ -426,16 +426,23 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       one replaces the second factor once.
     - Five wrong codes in a row lock the login for 15 minutes.
     - An operator session expires after 12 hours, or after 30 minutes without a request.
-32. **The console's Qonto connection** (added 2026-09-30 with C2b, §9 Q12).
+32. **The console's Qonto connection** (added 2026-09-30 with C2b, §9 Q12, Q14).
     - The console invoices from the Qonto organisation that sells GuestFlow, **ADN Dev**, never from
       a customer's or Solio's.
-    - « Réglages » connects it with OAuth 2 and the scopes `offline_access`, `organization.read`,
-      `payment_link.read`, `payment_link.write`, `client.read`, `client.write`,
-      `client_invoice.read` and `client_invoice.write`. The Qonto app's id and secret come from the
-      environment (`CP_QONTO_*`); the tokens are stored encrypted, like the TOTP seeds.
-    - The operator picks the bank account whose IBAN is printed on the invoices.
-    - The page shows the connection, the payment-link provider's status (its onboarding is done
-      once in Qonto) and « Tester la connexion ».
+    - **It is GuestFlow's own Qonto module, settings included** (decided by the owner on
+      2026-09-30): the same page « Paiements en ligne » (`client/src/pages/PaymentsSettingsPage.jsx`),
+      at the same path `/parametres/paiements`, with the same card (environment, client id, secrets
+      masked, « Connexion », « Tester la connexion », the verified diagnosis and the last failure),
+      the same payment-link provider form (bank account, phone, website, description, KYC
+      redirect), the same routes `/api/payments/qonto/*`, the same OAuth flow, the same automatic
+      webhook subscription and the same signature check (specs/qonto-settings-in-app.md,
+      specs/settings-one-save-and-automatic-webhook.md, specs/online-payments-qonto.md). Nothing is
+      set through the console's environment: a secret Qonto regenerates is rotated from the page.
+    - Only the storage differs: the console keeps these settings in its own database, secrets and
+      tokens encrypted with its own key, and its public URL is `CP_PUBLIC_URL`.
+    - The console asks Qonto for the instance's scopes plus `client.read`, `client.write`,
+      `client_invoice.read` and `client_invoice.write`.
+    - The invoices print the IBAN of the bank account chosen in the provider connection.
     - Without a working connection nothing is invoiced, and the home page says so.
 33. **Email templates and their mode** (added 2026-09-30 with C2b, §9 Q13).
     - Five templates: `invoice`, `reminder_before`, `reminder_due`, `reminder_after`,
@@ -537,10 +544,12 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | utils | `firstAdmin.js` | Runs the instance's `scripts/create-first-admin.js` against its database (rule 7). |
 | utils | `exporter.js`, `eraser.js` | The deprovisioning export; the erasure that only ever removes `<root>/<slug>` (rule 20). |
 | utils | `totp.js`, `secrets.js`, `mailer.js`, `slug.js`, `days.js`, `clock.js`, `gf.js` | RFC 6238; AES-256-GCM for the TOTP seeds; SMTP; rule 21; Paris days; `CP_NOW`; the GuestFlow modules shared by path. |
-| utils | `qontoBilling.js` (C2b) | Qonto (§9 Q7): the client, the invoice, its link, their payment state, cancel and deactivate. OAuth and links reuse the instance's `utils/qontoClient.js` and `qontoAuth.js` by path. |
+| models | `qontoSettingsModel.js` (C2b) | The settings interface GuestFlow's Qonto module expects (`qontoCredentials`, `qontoTokens`, `recordQontoHealth`…), on the console's own table, secrets encrypted (rule 32). |
+| utils | `qontoBilling.js` (C2b) | The renewal in Qonto terms: the client, the invoice and its lines, the attached link, their payment state, cancel and deactivate — every call through GuestFlow's `withQonto`. |
 | utils | `templates.js` (C2b) | Placeholder rendering and validation (rule 33). |
 | controllers | `billingController.js` (C2b) | The invoice of a period, the emails due that day, the approval queue, « Relancer maintenant », payment detection (rules 17, 33, 34). |
-| controllers | `settingsController.js` (C2b) | The Qonto connection, its bank account and its test (rule 32); the email templates (rule 33). |
+| controllers | `templatesController.js` (C2b) | The email templates, their mode and their preview (rule 33). |
+| routes | `payments.js` (C2b) | GuestFlow's `/api/payments/qonto/*` and `/api/payments/settings`, built by the shared `createQontoSettingsController` over the console's settings; the webhook is public, the rest behind `requireOperator` (rule 32). |
 | tasks | `scheduler.js` | Daily at 04:00 Paris time, catching up a missed day: states, licence re-issue, the 90-day erasure, then (C2b) invoices, emails and the operator's email. Every 15 minutes (C2b): payment detection. C3: the directory ingestion. |
 | routes | `auth.js`, `console.js`, `exports.js` | Thin. `/api/auth/*` (rate-limited), `/api/*` behind `requireOperator`, `/exports/:token` public (the token is the credential). |
 | — | `app.js`, `context.js`, `index.js` | The Express app, the wiring with every external injected (tests use an in-memory database), the entry point. |
@@ -561,6 +570,11 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | routes | `public/bookingRequests.js` (C1) | Booking endpoint closed in `read_only` (rule 14). |
 | routes | `subscription.js` (new, C1) | `GET /api/subscription` gives the banner payload; admin-only through the role guard. |
 | index.js | | Session cookie stays host-only; a test pins it (rule 23). |
+| controllers | `qontoSettingsController.js` (new, C2b) | `createQontoSettingsController({ settings, env, scopes, … })`: the Qonto settings handlers moved out of `paymentsController.js` unchanged, so the console mounts the same ones over its own settings (rule 32). |
+| controllers | `paymentsController.js`, `qontoWebhookController.js` (C2b) | Use the factory above and the shared signature check; behaviour unchanged. |
+| utils | `qontoClient.js` (C2b) | Gains the invoicing calls: client, client invoice, invoice payment link, cancel, link deactivation; `getAuthorizeUrl` already takes the scopes. |
+| utils | `qontoWebhookSignature.js` (new, C2b) | `verifySignature` and `extractPaymentLinkId`, out of the webhook controller. |
+| utils | `qontoService.js`, `qontoWebhookRegistrar.js` (C2b) | Load GuestFlow's settings model only when no `settings` is passed, so the console can require them without opening an instance database. |
 | utils, scripts | `firstAdmin.js` + `scripts/create-first-admin.js` (new, C2a) | The first administrator of a hosted instance, created through the instance's own `usersModel`; prints the temporary password for the console's invitation; removes the unused bootstrap account (rule 7). |
 
 ### 4.2 Client side
@@ -580,12 +594,14 @@ React, MUI and the router from its own `node_modules` so both trees share one co
 | pages | `CustomerPage.jsx` | Subscription, creation and deprovisioning steps, invoices, history, and the actions of rules 15, 19, 20. |
 | pages | `CataloguePage.jsx` | The matrix, prices, quotas, add-ons, the impact before saving and the versions (rules 1–6). |
 | pages | `EmailTemplatesPage.jsx` (C2b) | The five templates, their mode and the server's preview (rule 33). |
-| pages | `SettingsPage.jsx` (C2b) | The Qonto connection, the bank account, the test (rule 32). |
 | components | `EmailQueue.jsx` (C2b) | Specific: the emails awaiting approval, with their preview, « Envoyer » and « Ignorer »; on the home page and the customer page. |
 | components | `PlanMatrix.jsx` | Specific: the matrix, one card per plan on `xs`. |
 | components | `ProvisioningSteps.jsx` | Specific: steps green, red, to do or skipped, with their one action. |
 | components | `LifecycleChip.jsx` | Generic: a subscription state as a `StatusBadge`. |
 | components | `KeyValues.jsx` | Generic: a « label : value » list, stacked on `xs`. |
+
+The console also mounts GuestFlow's `PaymentsSettingsPage` at `/parametres/paiements` (rule 32);
+its `api.js` calls land on the console's identical `/api/payments/*` routes.
 
 **Login page (`control-plane/client/src/public/LoginLookupPage.jsx`) — new, C3.**
 
@@ -630,9 +646,9 @@ React, MUI and the router from its own `node_modules` so both trees share one co
   - C2b: `POST /api/customers/:id/{remind, check-payment}` (`remind` takes `{preview: true}` for
     the text first); `POST /api/emails/:id/{send, ignore}`; `GET /api/templates`, `PUT
     /api/templates/:key {subject, body, sendMode}` (400 `UNKNOWN_PLACEHOLDER`), `POST
-    /api/templates/:key/preview {subject, body}`; `GET /api/settings/qonto`, `GET
-    /api/settings/qonto/connect` (the redirect), `GET /api/settings/qonto/callback`, `PUT
-    /api/settings/qonto {bankAccountId}`, `POST /api/settings/qonto/test`. C3: `rename`.
+    /api/templates/:key/preview {subject, body}`; GuestFlow's own `/api/payments/settings` and
+    `/api/payments/qonto/{authorize, callback, status, credentials, test, bank-accounts,
+    connect-provider, refresh-connection, webhook}`, same contracts (rule 32). C3: `rename`.
 - **Control plane, public:** `GET /exports/:token` (410 once expired).
 
 ## 5. Data model
@@ -656,7 +672,8 @@ React, MUI and the router from its own `node_modules` so both trees share one co
 | `exports` | `token`, `customerId`, `path`, `createdAt`, `expiresAt` |
 | `operators` | `email`, `name`, `passwordHash`, `mfaMethod`, `totpSecret` (encrypted), `pendingMethod`, `pendingTotpSecret`, `backupCodes` (hashed), `failedCount`, `lockedUntil` |
 | `mfa_codes` | `operatorId`, `codeHash`, `expiresAt` (the email code) |
-| `meta` | `key`, `value` (the last daily run; C2b: the Qonto tokens, encrypted, and the bank account) |
+| `meta` | `key`, `value` (the last daily run) |
+| `qonto_settings` (C2b) | one row: the columns GuestFlow's Qonto module reads and writes (environment, client id, secrets and tokens encrypted, connection, health, webhook subscription) |
 | `reminders` (C2b) | `customerId`, `invoiceId`, `kind`, `status` (`pending` \| `sent` \| `ignored` \| `dropped` \| `failed`), `recipient`, `subject`, `body`, `preparedAt`, `handledAt`, `operator`, `error`; unique (`invoiceId`, `kind`) except `reminder_manual` |
 | `email_templates` (C2b) | `key`, `subject`, `body`, `sendMode` (`manual` \| `auto`), `updatedAt`, `updatedBy` |
 | `payment_failures` (C2b) | `invoiceId`, `providerPaymentId` (unique), `status`, `at` |
@@ -707,9 +724,7 @@ each plan. The C2a console screens have their own mock
   « Relancer maintenant »). « Modifier » opens a `FormDialog` (full screen on `xs`) with the subject,
   the text, the placeholders as chips that insert at the cursor, and the server's rendering below;
   an unknown placeholder shows the server's refusal under the text.
-- **Réglages (C2b):** a `StatusCard`-like card « Qonto »: connected or not, the organisation, the
-  payment-link provider, the last success or error; « Connecter Qonto » / « Reconnecter »; the bank
-  account select; « Tester la connexion ».
+- **Réglages (C2b):** GuestFlow's « Paiements en ligne » page, unchanged (rule 32).
 - **Console navigation (C2b):** « Clients », « Catalogue », « Emails », « Réglages », « Profil ».
 
 - **Catalogue (console):**
@@ -799,7 +814,12 @@ each plan. The C2a console screens have their own mock
     deactivates the link; deprovisioning cancels; a plan change keeps the open invoice.
   - `email-templates.unit.test.js` (rule 33): rendering, the unknown-placeholder refusal, the mode.
   - `operator-digest.unit.test.js` (rule 18): the daily email's lines, nothing sent when empty.
-  - `qonto-settings.unit.test.js` (rule 32): OAuth state, encrypted tokens, bank account, test.
+  - `qonto-settings.unit.test.js` (rule 32): GuestFlow's handlers over the console's settings: the
+    credentials saved and masked, secrets encrypted at rest, the OAuth state, the callback storing
+    the tokens, the console's scopes, the webhook signature.
+- **Instance (C2b):** the existing Qonto suites keep passing unchanged after the move to
+  `createQontoSettingsController` and `qontoWebhookSignature`; `qonto-invoicing-client.unit.test.js`
+  covers the new client calls (payloads, amounts, the money guard).
 - **Instance (C1, implemented): `server/src/tests/subscription-entitlement.unit.test.js`, 28 tests.**
   - Licence reader (rules 9, 10, 29, 30): a valid licence; a tampered payload; another key; expired;
     missing when managed; missing when unmanaged; present when unmanaged; no key; the one-minute
@@ -917,6 +937,8 @@ licences signed with a throwaway key):
 - **Q11 — What the console creates in Qonto.** *Resolved 2026-09-30:* a numbered Qonto client
   invoice with a payment link attached to it, rather than a payment link alone (rule 17).
 - **Q12 — Which Qonto organisation.** *Resolved 2026-09-30:* ADN Dev (rule 32).
+- **Q14 — The console's Qonto settings.** *Resolved 2026-09-30:* GuestFlow's own Qonto module and
+  settings page, reused whole, rather than a console page fed by environment variables (rule 32).
 - **Q13 — Do the customer emails go on their own.** *Resolved 2026-09-30:* a mode per template,
   shipped as Manuel with an approval queue, like GuestFlow's own emails (rule 33).
 - **Q10 — The `due` window for monthly billing.** *Resolved 2026-09-29:* 7 days before the end
