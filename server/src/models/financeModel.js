@@ -208,6 +208,46 @@ function createFinanceModel(database) {
     // specs/finance-pending-global-remaining.md — « En attente de règlement » is GLOBAL (every finished
     // stay, period ignored) and counts the RESTANT DÛ (Σ remainingToPay), so it equals the operational
     // « Paiements en attente » chip and never double-counts what « Encaissé » already holds.
+    // specs/booking-pace.md §3.1 — every stay that is or was on the books, with its « total de séjour »:
+    // live reservations, manually cancelled ones (kept with `cancelledAt`), and those an approved iCal
+    // cancellation deleted (`booking_pace_cancellations`). A cancelled stay is valued as it stood on the
+    // books, before any refund of its cancellation.
+    getPaceStays({ propertyId } = {}) {
+      const scope = scopeSql({ propertyId });
+      const hasCancelledAt = hasReservationColumn('cancelledAt');
+      const rows = database.prepare(`
+        SELECT r.*, ${REFUND_COLS}
+        FROM reservations r
+        WHERE r.kind ${hasCancelledAt ? "IN ('reservation', 'cancelled')" : "= 'reservation'"}${scope.sql}
+      `).all(...scope.params);
+      const stays = rows.map((r) => {
+        const cancelledOn = hasCancelledAt && r.kind === 'cancelled' ? String(r.cancelledAt || '').slice(0, 10) || null : null;
+        return {
+          propertyId: r.propertyId,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          totalSejour: totalSejour(cancelledOn ? { ...r, refundsBookTtc: 0 } : r),
+          bookedOn: String(r.createdAt || '').slice(0, 10) || null,
+          cancelledOn,
+        };
+      });
+      const hasLedger = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'booking_pace_cancellations'").get();
+      if (hasLedger) {
+        const ledgerScope = scopeSql({ propertyId }, 'l');
+        database.prepare(`SELECT * FROM booking_pace_cancellations l WHERE 1 = 1${ledgerScope.sql}`)
+          .all(...ledgerScope.params)
+          .forEach((l) => stays.push({
+            propertyId: l.propertyId,
+            startDate: l.startDate,
+            endDate: l.endDate,
+            totalSejour: Number(l.totalSejour || 0),
+            bookedOn: String(l.reservationCreatedAt || '').slice(0, 10) || null,
+            cancelledOn: String(l.cancelledAt || '').slice(0, 10) || null,
+          }));
+      }
+      return stays;
+    },
+
     getSummary({ from, to, fiscalYear, propertyId, knownAt } = {}) {
       const scope = scopeSql({ propertyId, knownAt });
       const devisScope = scopeSql({ propertyId, knownAt }, 'reservations');

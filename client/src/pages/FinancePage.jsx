@@ -17,6 +17,7 @@ import FinanceHero from '../components/FinanceHero';
 import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
+import BookingPaceCard from '../components/BookingPaceCard';
 import { formatCurrencyRounded } from '../utils/formatters';
 import api from '../api';
 
@@ -87,7 +88,11 @@ export default function FinancePage() {
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
-  const refreshAll = async () => { await Promise.all([loadDashboard(), loadDetail()]); };
+  const [paceRefresh, setPaceRefresh] = useState(0);
+  const refreshAll = async () => {
+    setPaceRefresh((n) => n + 1);
+    await Promise.all([loadDashboard(), loadDetail()]);
+  };
 
   const openTile = (key) => {
     setDetail({ data: null, loading: false, error: false });
@@ -277,6 +282,9 @@ export default function FinancePage() {
                     />
                   </CardContent>
                 </Card>
+              </Grid>
+              <Grid size={12}>
+                <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
             </Grid>
           </>

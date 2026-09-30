@@ -2623,6 +2623,26 @@ try {
   console.warn('[translations] collecte au démarrage impossible :', err.message);
 }
 
+// ---------- BOOKING PACE (specs/booking-pace.md §5) ----------
+// A stay deleted by an approved iCal cancellation keeps counting « on the books » on the dates it was:
+// icalCancellationModel.approve writes it here, in the same transaction as the DELETE. The booking date
+// of a reservation is its `createdAt`, hence the index. Additive, starts empty.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS booking_pace_cancellations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    propertyId INTEGER,
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
+    totalSejour REAL NOT NULL DEFAULT 0,
+    reservationCreatedAt TEXT,
+    cancelledAt TEXT NOT NULL DEFAULT (datetime('now')),
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_booking_pace_cancellations_property ON booking_pace_cancellations(propertyId)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(createdAt)');
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

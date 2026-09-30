@@ -31,6 +31,8 @@
  * date-drift model.
  */
 
+const { totalSejour } = require('./financeModel').helpers;
+
 function buildModel(database) {
   // Bound to the SAME database so a test factory gets a matching pair. Its statements are
   // prepared lazily, so this stays a no-op on a schema without the compensations table.
@@ -159,6 +161,18 @@ function buildModel(database) {
     'DELETE FROM ical_import_events WHERE reservationId = ?',
   );
   const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
+  // specs/booking-pace.md §5 — the deleted stay keeps counting « on the books » on the dates it was.
+  // Lazy: a schema without the ledger (older test fixtures) skips it.
+  const recordPaceCancellation = (reservationId) => {
+    const hasLedger = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'booking_pace_cancellations'").get();
+    if (!hasLedger) return;
+    const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+    if (!row || (row.kind || 'reservation') !== 'reservation') return;
+    database.prepare(`
+      INSERT INTO booking_pace_cancellations (reservationId, propertyId, startDate, endDate, totalSejour, reservationCreatedAt)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(row.id, row.propertyId, row.startDate, row.endDate, totalSejour(row), row.createdAt || null);
+  };
   const ackApproved = database.prepare(`
     UPDATE ical_cancellation_alerts
        SET acknowledgedAt = datetime('now'), outcome = 'approved'
@@ -195,6 +209,7 @@ function buildModel(database) {
     const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;
     // History BEFORE delete so the reservationId FK is still resolvable.
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
+    recordPaceCancellation(cancellation.reservationId);
     deleteImportEvents.run(cancellation.reservationId);
     deleteReservation.run(cancellation.reservationId);
     ackApproved.run(id);

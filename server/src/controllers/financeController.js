@@ -2,6 +2,7 @@
 
 const model = require('../models/financeModel');
 const dashboard = require('../models/financeDashboardModel');
+const bookingPace = require('../models/bookingPaceModel');
 
 // specs/finance-dashboard-redesign.md §4.3 — the whole page in one payload, and each tile's table.
 const dashboardParams = (q) => ({
@@ -17,6 +18,19 @@ function getDashboard(req, res) {
 
 function getDashboardDetail(req, res) {
   const result = dashboard.getDashboardDetail(req.params.tile, dashboardParams(req.query));
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  return res.json(result.data);
+}
+
+// specs/booking-pace.md §4.3 — réservations à date vs l'an dernier, and one month's pickup curve.
+function getPace(req, res) {
+  const result = bookingPace.getPace({ propertyId: req.query.propertyId, metric: req.query.metric });
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  return res.json(result.data);
+}
+
+function getPaceMonth(req, res) {
+  const result = bookingPace.getPaceMonth(req.params.month, { propertyId: req.query.propertyId, metric: req.query.metric });
   if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
   return res.json(result.data);
 }
@@ -41,4 +55,4 @@ function setTouristTaxDeclared(req, res) {
   return res.json({ ok: true, declaredAt: result.data.declaredAt });
 }
 
-module.exports = { getDashboard, getDashboardDetail, goalContext, touristTax, setTouristTaxDeclared };
+module.exports = { getDashboard, getDashboardDetail, getPace, getPaceMonth, goalContext, touristTax, setTouristTaxDeclared };
