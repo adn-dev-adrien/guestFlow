@@ -176,6 +176,8 @@ without losing anything today's page shows.
     vertically centred. *Why:* on a desktop screen the green gradient and the honey halo lay under
     « 28 % » and « 14 % », and the translucent pill-shaped cells made the text look off-centre; Adrien
     chose ink over a flat fir green and over a white card.
+    > **Sans test** — a colour choice, checked on screen at 1440 and 390 px (manual verification of
+    > rules 30-32 below and the polish summary).
 32. **Radii follow the design system**: 14 px for every card (banner, tiles, insight cards — the
     theme's `shape.borderRadius`, i.e. `borderRadius: 1` in `sx`), 10 px for inner frames (logement
     strip cards, the banner's figure grid, occupancy charts, the detail panel's summary), 8 px for icon
@@ -357,6 +359,8 @@ par mois » and « Taux d'occupation » side by side.
       opens / closes its table, logement strip above the hero and in the URL, window read from the
       URL, payment checkbox PATCHes then reloads, a refused payment shows its message, cards on xs.
 - [x] `SettingsFiscalYearSection.revenue-goals.test.jsx` (4) — refusals disable Enregistrer, hint.
+- [x] `FinanceDashboard.radii.test.jsx` (3) — rule 32: tile and banner at 14 px, logement card at
+      10 px, as the browser computes them from the theme.
 - Removed with their components: the `FinanceExerciseOverview`, `RankedBarList`,
   `FinanceBreakdownDialog`, `ChannelBreakdownCard` suites and `FinancePage.test.jsx`.
 
@@ -375,7 +379,7 @@ par mois » and « Taux d'occupation » side by side.
       oct. → sept. on the exercise, 1 / 8 / 15 / 22 / 29 août on a month, « 2025 … 2026 » on a
       21-month custom window.
 - [x] 390 px: banner single column, graduations thinned without overlap, no horizontal scroll.
-- [x] Client Vitest (1404), server suite (4587), E2E suite (84 passed, 1 skipped).
+- [x] Client Vitest (1407), server suite (4587), E2E suite (84 passed, 1 skipped).
 
 ## 8. Out of scope
 
