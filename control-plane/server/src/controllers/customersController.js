@@ -8,7 +8,8 @@
 
 const crypto = require('crypto');
 const { stateOf, daysLeft, renewedEndsAt, STATE_LABELS } = require('../utils/lifecycle');
-const { parisDay, addDays, addMonths, isDay, frDay } = require('../utils/days');
+const { parisDay, addDays, addMonths, isDay, frDay, frStamp } = require('../utils/days');
+const { KINDS } = require('../utils/templates');
 const { slugError } = require('../utils/slug');
 const { buildPayload, pluginsOfPlan } = require('../utils/licenceIssuer');
 const { exportInstance } = require('../utils/exporter');
@@ -22,6 +23,8 @@ const ERASE_AFTER_DAYS = 90;
 const EXPORT_LINK_DAYS = 30;
 const FORCE_ACTIVE_DEFAULT_DAYS = 7;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Rule 7 (C2b): where a customer can be invoiced from. Qonto wants an ISO country code.
+const COUNTRIES = { FR: 'France', BE: 'Belgique', CH: 'Suisse', LU: 'Luxembourg', MC: 'Monaco', ES: 'Espagne', IT: 'Italie', DE: 'Allemagne' };
 
 // Rule 7: the automatic steps run by the console, the manual ones ticked by the operator until
 // phase H provides the hosting scripts.
@@ -43,11 +46,13 @@ const REACTIVATE_STEPS = [
 const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS];
 
 const BILLING_LABELS = { monthly: 'mensuel', yearly: 'annuel' };
+const INVOICE_STATUS = { pending: 'En préparation', open: 'À payer', paid: 'Payée', cancelled: 'Annulée' };
+const EMAIL_STATUS = { pending: 'À valider', sent: 'Envoyé', ignored: 'Ignoré', dropped: 'Retiré de la file', failed: 'Échec' };
 const pluginName = (id) => (gfPlugins.findPlugin(id) || { name: id }).name;
 
 function createCustomersController(ctx) {
-  const { models, now, mailer, instances, issuer, runFirstAdmin, domain, consoleUrl, exportsDir } = ctx;
-  const { customers, catalogue, invoices, audit, provisioning } = models;
+  const { models, now, mailer, instances, issuer, runFirstAdmin, domain, consoleUrl, exportsDir, qonto } = ctx;
+  const { customers, catalogue, invoices, audit, provisioning, emails } = models;
 
   const today = () => parisDay(now());
   const stamp = () => now().toISOString();
@@ -63,13 +68,38 @@ function createCustomersController(ctx) {
     return c;
   }
 
-  // Rule 6: a customer's price is the one of the catalogue version they were sold under.
-  function monthlyPriceCents(c) {
+  // Rule 6: a customer's price is the one of the catalogue version they were sold under. One line for
+  // the plan and one per add-on, per month excl. VAT: the renewal invoice prints the same lines.
+  function priceLines(c) {
     const snap = catalogue.snapshot(c.catalogueVersion) || { plans: catalogue.plans(), addons: catalogue.addons() };
     const plan = snap.plans.find((p) => p.code === c.planCode) || catalogue.plan(c.planCode);
-    const base = c.billing === 'yearly' ? plan.priceYearlyCents : plan.priceMonthlyCents;
     const addonPrice = (id) => ((snap.addons.find((a) => a.pluginId === id) || catalogue.addons().find((a) => a.pluginId === id) || {}).priceMonthlyCents || 0);
-    return base + c.addons.reduce((sum, id) => sum + addonPrice(id), 0);
+    return [
+      { title: `GuestFlow ${catalogue.plan(c.planCode).name}`, monthlyCents: c.billing === 'yearly' ? plan.priceYearlyCents : plan.priceMonthlyCents },
+      ...c.addons.map((id) => ({ title: `Option ${pluginName(id)}`, monthlyCents: addonPrice(id) })),
+    ];
+  }
+
+  function monthlyPriceCents(c) {
+    return priceLines(c).reduce((sum, l) => sum + l.monthlyCents, 0);
+  }
+
+  // Rule 7 (C2b): the billing identity, checked the same way at creation and on edit.
+  function readBilling(body, errors) {
+    const billing = {
+      billingStreet: String(body.billingStreet || '').trim(),
+      billingPostcode: String(body.billingPostcode || '').trim(),
+      billingCity: String(body.billingCity || '').trim(),
+      billingCountry: String(body.billingCountry || 'FR').trim().toUpperCase(),
+      vatNumber: String(body.vatNumber || '').replace(/\s+/g, '').toUpperCase(),
+    };
+    if (!billing.billingStreet) errors.billingStreet = 'L’adresse est obligatoire : Qonto ne facture pas un client sans adresse.';
+    if (!COUNTRIES[billing.billingCountry]) errors.billingCountry = 'Pays non pris en charge.';
+    if (!billing.billingPostcode) errors.billingPostcode = 'Le code postal est obligatoire.';
+    else if (billing.billingCountry === 'FR' && !/^\d{5}$/.test(billing.billingPostcode)) errors.billingPostcode = 'Code postal français : 5 chiffres.';
+    if (!billing.billingCity) errors.billingCity = 'La ville est obligatoire.';
+    if (billing.vatNumber && !/^[A-Z]{2}[A-Z0-9]{2,13}$/.test(billing.vatNumber)) errors.vatNumber = 'Numéro de TVA invalide (ex. FR12345678901).';
+    return billing;
   }
 
   // Rule 4: the add-ons on offer for a plan. One the plan already includes is shown as such and
@@ -185,6 +215,7 @@ function createCustomersController(ctx) {
     const plan = catalogue.plan(c.planCode);
     const archived = Boolean(c.archivedAt);
     const forced = c.forceActiveUntil && day <= c.forceActiveUntil;
+    const openInvoice = invoices.unsettled(c.id).find((i) => i.status === 'open') || null;
     return {
       id: c.id,
       slug: c.slug,
@@ -217,22 +248,58 @@ function createCustomersController(ctx) {
       steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS]),
       deprovisionSteps: stepsView(c, DEPROVISION_STEPS),
       history: audit.forCustomer(c.id).map((h) => ({ at: h.at, day: frDay(h.day), operator: h.operator, text: h.text })),
+      billingIdentity: {
+        street: c.billingStreet,
+        postcode: c.billingPostcode,
+        city: c.billingCity,
+        country: c.billingCountry,
+        vatNumber: c.vatNumber,
+        lines: [
+          { label: 'Adresse', value: c.billingStreet ? `${c.billingStreet}, ${c.billingPostcode} ${c.billingCity}, ${COUNTRIES[c.billingCountry] || c.billingCountry}` : 'À compléter : aucune facture ne part sans adresse.' },
+          { label: 'N° de TVA', value: c.vatNumber || '—' },
+          { label: 'Client Qonto', value: c.qontoClientId ? 'créé' : 'créé à la première facture' },
+        ],
+      },
+      countries: Object.entries(COUNTRIES).map(([code, name]) => ({ code, name })),
       invoices: invoices.list(c.id).map((i) => ({
-        id: i.id, period: `${frDay(i.periodStart)} → ${frDay(i.periodEnd)}`, amount: euros(i.amountCents), status: i.status, provider: i.provider, reference: i.providerRef,
+        id: i.id,
+        number: i.number || '—',
+        period: `${frDay(i.periodStart)} → ${frDay(i.periodEnd)}`,
+        amount: euros(i.amountCents),
+        total: i.totalCents != null ? euros(i.totalCents) : '—',
+        status: i.status,
+        statusLabel: INVOICE_STATUS[i.status] || i.status,
+        provider: i.provider,
+        detail: invoiceDetail(i),
+        invoiceUrl: i.invoiceUrl || null,
+        payUrl: i.status === 'open' ? i.payUrl : null,
+      })),
+      emails: emails.forCustomer(c.id).map((e) => ({
+        id: e.id,
+        name: (KINDS[e.kind] || { name: e.kind }).name,
+        status: e.status,
+        statusLabel: EMAIL_STATUS[e.status] || e.status,
+        at: frStamp(e.handledAt || e.preparedAt),
+        recipient: e.recipient,
+        subject: e.subject,
+        body: e.body,
+        operator: e.operator,
+        error: e.error,
       })),
       plans: catalogue.plans().map((p) => ({ code: p.code, name: p.name, addonChoices: addonChoices(p.code) })),
-      paymentPreview: archived ? [] : [1, 12].map((months) => {
+      paymentPreview: archived ? [] : (openInvoice ? [openInvoice.months] : [1, 12]).map((months) => {
         const endsAt = renewedEndsAt(c.endsAt, months, day);
         const after = stateOf({ ...c, endsAt, forceActiveUntil: null }, day);
         const from = c.endsAt > day ? 'la période s’ajoute à l’échéance actuelle' : 'l’échéance est passée : la période part d’aujourd’hui';
+        const closes = openInvoice ? `Solde la facture ${openInvoice.number} et désactive son lien de paiement ; rapprochez le virement dans Qonto. ` : '';
         return {
           months,
-          amount: `${euros(monthlyPriceCents(c) * months)} HT`,
-          text: `Nouvelle échéance : ${frDay(endsAt)} (${from}). État : ${STATE_LABELS[after]}.`,
+          amount: openInvoice ? `${euros(openInvoice.amountCents)} HT` : `${euros(monthlyPriceCents(c) * months)} HT`,
+          text: `${closes}Nouvelle échéance : ${frDay(endsAt)} (${from}). État : ${STATE_LABELS[after]}.`,
         };
       }),
       defaults: {
-        paymentMonths: c.periodMonths,
+        paymentMonths: openInvoice ? openInvoice.months : c.periodMonths,
         extendTo: addDays(c.endsAt, 15),
         forceActiveUntil: addDays(day, FORCE_ACTIVE_DEFAULT_DAYS),
       },
@@ -246,8 +313,19 @@ function createCustomersController(ctx) {
         reactivate: archived,
         cancelErase: archived && Boolean(c.eraseAt),
         eraseNow: archived,
+        editBilling: !archived,
+        remind: !archived && Boolean(openInvoice),
+        remindHint: openInvoice ? null : 'Aucune facture ouverte à relancer.',
+        checkPayment: Boolean(openInvoice) && qonto.ready(),
       },
     };
+  }
+
+  function invoiceDetail(i) {
+    if (i.provider === 'manual') return i.providerRef ? `Enregistré à la main « ${i.providerRef} »` : 'Enregistré à la main';
+    if (i.status === 'pending') return i.lastError || 'Création dans Qonto à la prochaine passe.';
+    if (i.status === 'paid') return i.paidBy === 'manual' ? `Soldée à la main le ${frStamp(i.paidAt)}, lien désactivé` : `Payée le ${frStamp(i.paidAt)}`;
+    return '';
   }
 
   function counterKeys(c, day) {
@@ -327,6 +405,7 @@ function createCustomersController(ctx) {
     const requested = Array.isArray(body.addons) ? [...new Set(body.addons)] : [];
     const { unknown, addons } = planRow ? keepSellableAddons(requested, planRow.code) : { unknown: false, addons: [] };
     if (unknown) errors.addons = 'Option inconnue.';
+    const billingIdentity = readBilling(body, errors);
     const trial = Boolean(body.trial);
     const trialEndsAt = trial && startsAt ? addDays(startsAt, TRIAL_DAYS) : null;
 
@@ -348,7 +427,7 @@ function createCustomersController(ctx) {
       errors,
       summary,
       record: {
-        customer: { slug, companyName, contactName, contactEmail },
+        customer: { slug, companyName, contactName, contactEmail, ...billingIdentity },
         subscription: {
           planCode: planRow && planRow.code,
           billing,
@@ -366,7 +445,13 @@ function createCustomersController(ctx) {
   function preview(body) {
     const { errors, summary } = plan(body);
     const planRow = catalogue.plan(body.planCode);
-    return { errors, summary, addonChoices: planRow ? addonChoices(planRow.code) : [], defaults: { startsAt: today() } };
+    return {
+      errors,
+      summary,
+      addonChoices: planRow ? addonChoices(planRow.code) : [],
+      countries: Object.entries(COUNTRIES).map(([code, name]) => ({ code, name })),
+      defaults: { startsAt: today(), billingCountry: 'FR' },
+    };
   }
 
   async function create(body, operator) {
@@ -427,6 +512,19 @@ function createCustomersController(ctx) {
     customers.setForceActiveUntil(c.id, null);
     journal(c.id, operator, 'payment', `Paiement enregistré (${months} mois, ${euros(amountCents)} HT${reference ? `, « ${reference} »` : ''}) : échéance au ${frDay(endsAt)}`);
     refresh(c.id, operator);
+    return view(c.id);
+  }
+
+  // Rule 7 (C2b): correcting the billing identity. The next invoice goes to a Qonto client created
+  // from the new address; an invoice already issued keeps the old one.
+  function setBilling(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    const errors = {};
+    const billing = readBilling(body, errors);
+    if (Object.keys(errors).length) throw httpError(400, 'INVALID', Object.values(errors)[0], { errors });
+    customers.setBilling(c.id, billing);
+    journal(c.id, operator, 'billing', `Facturation : ${billing.billingStreet}, ${billing.billingPostcode} ${billing.billingCity}${billing.vatNumber ? `, TVA ${billing.vatNumber}` : ''}`);
     return view(c.id);
   }
 
@@ -597,6 +695,7 @@ function createCustomersController(ctx) {
     create,
     stepAction,
     recordPayment,
+    setBilling,
     extend,
     forceActive,
     changePlan,
@@ -607,6 +706,9 @@ function createCustomersController(ctx) {
     eraseNow,
     eraseDue,
     monthlyPriceCents,
+    priceLines,
+    journal,
+    urlOf,
   };
 }
 

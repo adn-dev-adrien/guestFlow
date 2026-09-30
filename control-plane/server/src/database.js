@@ -1,7 +1,8 @@
 /**
  * The control plane's own SQLite database (specs/control-plane-plans-and-access.md §5). Idempotent:
  * every table is created if missing, and the catalogue is seeded once with the plans the owner
- * decided on 2026-09-29 (rule 3).
+ * decided on 2026-09-29 (rule 3). C2b adds the Qonto settings, the email templates and the customer
+ * emails, and the billing columns of `customers` and `invoices`.
  */
 
 const Database = require('better-sqlite3');
@@ -140,7 +141,91 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS qonto_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  qontoEnvironment TEXT NOT NULL DEFAULT '',
+  qontoClientId TEXT NOT NULL DEFAULT '',
+  qontoClientSecretEncrypted TEXT NOT NULL DEFAULT '',
+  qontoStagingTokenEncrypted TEXT NOT NULL DEFAULT '',
+  qontoWebhookSecretEncrypted TEXT NOT NULL DEFAULT '',
+  publicSiteOrigin TEXT NOT NULL DEFAULT '',
+  qontoAccessTokenEncrypted TEXT NOT NULL DEFAULT '',
+  qontoRefreshTokenEncrypted TEXT NOT NULL DEFAULT '',
+  qontoTokenExpiresAt TEXT NOT NULL DEFAULT '',
+  qontoConnectedAt TEXT NOT NULL DEFAULT '',
+  qontoConnectionId TEXT NOT NULL DEFAULT '',
+  qontoConnectionStatus TEXT NOT NULL DEFAULT 'not_connected',
+  qontoLastCheckAt TEXT NOT NULL DEFAULT '',
+  qontoLastSuccessAt TEXT NOT NULL DEFAULT '',
+  qontoLastErrorAt TEXT NOT NULL DEFAULT '',
+  qontoLastErrorCode TEXT NOT NULL DEFAULT '',
+  qontoLastErrorMessage TEXT NOT NULL DEFAULT '',
+  qontoLastErrorOrigin TEXT NOT NULL DEFAULT '',
+  qontoWebhookSubscriptionId TEXT NOT NULL DEFAULT '',
+  qontoWebhookCallbackUrl TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS email_templates (
+  key TEXT PRIMARY KEY,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  sendMode TEXT NOT NULL DEFAULT 'manual' CHECK (sendMode IN ('manual', 'auto')),
+  updatedAt TEXT,
+  updatedBy TEXT
+);
+CREATE TABLE IF NOT EXISTS reminders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customerId INTEGER NOT NULL REFERENCES customers(id),
+  invoiceId INTEGER NOT NULL REFERENCES invoices(id),
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'sent', 'ignored', 'dropped', 'failed')),
+  recipient TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  preparedAt TEXT NOT NULL,
+  handledAt TEXT,
+  operator TEXT,
+  error TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_reminders_scheduled ON reminders(invoiceId, kind) WHERE kind <> 'reminder_manual';
+CREATE INDEX IF NOT EXISTS idx_reminders_customer ON reminders(customerId, id);
+CREATE TABLE IF NOT EXISTS payment_failures (
+  providerPaymentId TEXT PRIMARY KEY,
+  invoiceId INTEGER NOT NULL REFERENCES invoices(id),
+  status TEXT NOT NULL,
+  at TEXT NOT NULL
+);
 `;
+
+// Columns added after a table first shipped (C2b): added when missing, so a console database created
+// by C2a carries on (specs/control-plane-plans-and-access.md §5).
+const ADDED_COLUMNS = {
+  customers: {
+    billingStreet: "TEXT NOT NULL DEFAULT ''",
+    billingPostcode: "TEXT NOT NULL DEFAULT ''",
+    billingCity: "TEXT NOT NULL DEFAULT ''",
+    billingCountry: "TEXT NOT NULL DEFAULT 'FR'",
+    vatNumber: "TEXT NOT NULL DEFAULT ''",
+    qontoClientId: 'TEXT',
+  },
+  invoices: {
+    months: 'INTEGER',
+    totalCents: 'INTEGER',
+    number: 'TEXT',
+    invoiceUrl: 'TEXT',
+    payLinkId: 'TEXT',
+    paidBy: 'TEXT',
+    lastError: 'TEXT',
+  },
+};
+
+function addMissingColumns(db) {
+  for (const [table, columns] of Object.entries(ADDED_COLUMNS)) {
+    const present = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+    for (const [name, type] of Object.entries(columns)) {
+      if (!present.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+    }
+  }
+}
 
 // Rule 3, decided 2026-09-29: the plugins each plan adds (higher plans inherit), prices in cents
 // excl. VAT (monthly billing / per month when billed yearly), quotas (null = unlimited).
@@ -181,13 +266,23 @@ function seedCatalogue(db) {
   })();
 }
 
+// Rule 33: the five templates, the four scheduled ones in « Manuel ».
+function seedTemplates(db) {
+  const { DEFAULT_TEMPLATES } = require('./utils/templates');
+  const insert = db.prepare("INSERT OR IGNORE INTO email_templates (key, subject, body, sendMode) VALUES (?, ?, ?, 'manual')");
+  for (const t of DEFAULT_TEMPLATES) insert.run(t.key, t.subject, t.body);
+}
+
 function openDatabase(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   if (file !== ':memory:') db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  addMissingColumns(db);
   seedCatalogue(db);
+  db.prepare('INSERT OR IGNORE INTO qonto_settings (id) VALUES (1)').run();
+  seedTemplates(db);
   return db;
 }
 

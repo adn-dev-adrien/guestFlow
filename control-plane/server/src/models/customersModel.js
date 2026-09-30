@@ -1,10 +1,13 @@
 /**
- * Customers, their subscription, their add-ons and their grandfathered plugins (rules 4, 5, 7, 20).
+ * Customers, their billing identity, their subscription, their add-ons and their grandfathered
+ * plugins (rules 4, 5, 7, 20).
  */
 
 function buildCustomersModel(db) {
-  const insertCustomerStmt = db.prepare(`INSERT INTO customers (slug, companyName, contactName, contactEmail, state, stateSince, createdAt)
-    VALUES (@slug, @companyName, @contactName, @contactEmail, @state, @stateSince, @createdAt)`);
+  const insertCustomerStmt = db.prepare(`INSERT INTO customers (slug, companyName, contactName, contactEmail, state, stateSince, createdAt,
+    billingStreet, billingPostcode, billingCity, billingCountry, vatNumber)
+    VALUES (@slug, @companyName, @contactName, @contactEmail, @state, @stateSince, @createdAt,
+    @billingStreet, @billingPostcode, @billingCity, @billingCountry, @vatNumber)`);
   const insertSubStmt = db.prepare(`INSERT INTO subscriptions (customerId, planCode, billing, periodMonths, startsAt, endsAt, trialEndsAt, catalogueVersion)
     VALUES (@customerId, @planCode, @billing, @periodMonths, @startsAt, @endsAt, @trialEndsAt, @catalogueVersion)`);
   const insertAddonStmt = db.prepare('INSERT OR IGNORE INTO customer_addons (customerId, pluginId, since) VALUES (?, ?, ?)');
@@ -27,6 +30,9 @@ function buildCustomersModel(db) {
   const unarchiveStmt = db.prepare('UPDATE customers SET archivedAt = NULL, eraseAt = NULL WHERE id = ?');
   const setEraseAtStmt = db.prepare('UPDATE customers SET eraseAt = ? WHERE id = ?');
   const erasedStmt = db.prepare('UPDATE customers SET erasedAt = ?, eraseAt = NULL WHERE id = ?');
+  const setBillingStmt = db.prepare(`UPDATE customers SET billingStreet = @billingStreet, billingPostcode = @billingPostcode,
+    billingCity = @billingCity, billingCountry = @billingCountry, vatNumber = @vatNumber, qontoClientId = NULL WHERE id = @id`);
+  const setQontoClientStmt = db.prepare('UPDATE customers SET qontoClientId = ? WHERE id = ?');
   const dueErasureStmt = db.prepare('SELECT id FROM customers WHERE archivedAt IS NOT NULL AND erasedAt IS NULL AND eraseAt IS NOT NULL AND eraseAt <= ?');
 
   const withLists = (row) => row && ({
@@ -38,7 +44,9 @@ function buildCustomersModel(db) {
   return {
     create({ customer, subscription, addons, since }) {
       return db.transaction(() => {
-        const id = Number(insertCustomerStmt.run(customer).lastInsertRowid);
+        const id = Number(insertCustomerStmt.run({
+          billingStreet: '', billingPostcode: '', billingCity: '', billingCountry: 'FR', vatNumber: '', ...customer,
+        }).lastInsertRowid);
         insertSubStmt.run({ ...subscription, customerId: id });
         for (const a of addons) insertAddonStmt.run(id, a, since);
         return id;
@@ -59,6 +67,10 @@ function buildCustomersModel(db) {
         for (const a of addons) insertAddonStmt.run(id, a, since);
       })();
     },
+    // A changed billing identity forgets the Qonto client, so the next invoice goes to one created
+    // from the new address (rule 7).
+    setBilling: (id, billing) => setBillingStmt.run({ ...billing, id }),
+    setQontoClientId: (id, clientId) => setQontoClientStmt.run(clientId, id),
     addGrandfathered: (id, pluginId, since) => insertGrandfatheredStmt.run(id, pluginId, since),
     archive: (id, at, eraseAt) => archiveStmt.run(at, eraseAt, id),
     unarchive: (id) => unarchiveStmt.run(id),

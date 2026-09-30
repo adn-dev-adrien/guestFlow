@@ -10,13 +10,13 @@ test('rules 9 and 14 — once a day, after 04:00 Paris time, catching up a misse
   const { ctx, now } = makeContext({ at: '2026-10-01T01:30:00Z' });
   const c = await ctx.controllers.customers.create({ ...NEW_CUSTOMER, billing: 'monthly', length: 1, startsAt: '2026-09-01' }, 'op');
   const sched = createScheduler(ctx, () => {});
-  assert.equal(sched.tick(), null, '03:30 in Paris: not yet');
+  assert.equal(await sched.tick(), null, '03:30 in Paris: not yet');
   now.set('2026-10-01T02:05:00Z');
-  const run = sched.tick();
-  assert.deepEqual(run, { day: '2026-10-01', refreshed: 1, erased: 0 });
+  const run = await sched.tick();
+  assert.deepEqual(run, { day: '2026-10-01', refreshed: 1, erased: 0, invoiced: 0, notified: 0 });
   assert.equal(ctx.controllers.customers.view(c.id).state, 'grace');
-  assert.equal(sched.tick(), null, 'not twice the same day');
+  assert.equal(await sched.tick(), null, 'not twice the same day');
   now.set('2026-10-09T15:00:00Z');
-  assert.equal(sched.tick().day, '2026-10-09');
+  assert.equal((await sched.tick()).day, '2026-10-09');
   assert.equal(ctx.controllers.customers.view(c.id).state, 'read_only');
 });
