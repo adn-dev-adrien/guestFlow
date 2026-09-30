@@ -50,7 +50,7 @@ test('rule 3 — reservations in the arrival month, nights split across months, 
   assert.equal(pace.valueInMonth(s, '2026-11', 'nights'), 0);
 });
 
-test('rules 5-7 — current, same date last year, final last year, écart, reste, part atteinte', () => {
+test('rules 1, 5-7 — booking date = fiche creation; current, same date last year, final last year, écart, reste, part atteinte', () => {
   const { db, get } = setup();
   seedImport(db);
   // Last year: two October stays booked before 30/09/2025, one booked after.
@@ -203,7 +203,7 @@ test('§5 — an approved iCal cancellation writes the ledger and keeps counting
   assert.equal(curve.points.find((p) => p.daysBefore === 35).current, 1);
 });
 
-test('logement filter and refusals', () => {
+test('rule 4 — the logement filter applies; unknown metric, logement or month refused', () => {
   const { db, get, model } = setup();
   seedImport(db);
   insert(db, { propertyId: 2, startDate: '2026-10-10', endDate: '2026-10-12', createdAt: '2026-08-01 10:00:00' });
