@@ -4,6 +4,21 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-09-30
+
+### Summary
+- Suivi financier : cartes et tuiles retrouvent les coins de la charte, bien moins arrondis qu'en 3.7.0.
+- Le bandeau du chiffre d'affaires passe en encre et miel, plus lisible sur ordinateur, avec ses quatre chiffres bien centrés.
+- La courbe du chiffre d'affaires est graduée au 1er de chaque mois (chaque semaine sur un mois) au lieu de dates irrégulières.
+
+### Fixed
+- **Suivi financier — visual finish** (spec `finance-dashboard-redesign.md` rules 30-32, 2026-09-29). Cards and
+  tiles back to the design system's 14 px radius (a numeric `sx` radius was multiplied by the theme's 14:
+  49 px tiles, a 63 px banner); the revenue banner is ink with honey accents, flat, its four figures in a
+  hairline grid; the cumulative curve is graduated on the 1st of each month (weekly on a « Mois » window)
+  instead of on its weekly points. `hero.axis` and `cumulative[].x` added to `/api/finance/dashboard`.
+  +5 server tests, +3 client tests.
+
 ## [3.7.0] - 2026-09-29
 
 ### Summary
