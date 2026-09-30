@@ -43,6 +43,23 @@ function mapQontoStatus(qontoStatus) {
   }
 }
 
+// The fields of a client invoice the callers read. `invoice_url` is Qonto's public page of the
+// invoice (valid 180 days); the total comes as cents when Qonto sends them, else from the amount.
+function mapInvoice(inv) {
+  const totalCents = inv.total_amount_cents != null
+    ? Number(inv.total_amount_cents)
+    : (inv.total_amount && inv.total_amount.value != null ? Math.round(Number(inv.total_amount.value) * 100) : null);
+  return {
+    id: inv.id,
+    number: inv.number || null,
+    status: inv.status || null,
+    invoiceUrl: inv.invoice_url || null,
+    paidAt: inv.paid_at || null,
+    totalCents,
+    raw: inv,
+  };
+}
+
 function buildQontoClient(config = {}) {
   const env = config.env || process.env;
   const sandbox = config.sandbox !== undefined
@@ -243,6 +260,99 @@ function buildQontoClient(config = {}) {
       return { status: c.status || 'not_connected', connectionLocation: c.connection_location || null, bankAccountId: c.bank_account_id || null, raw: c };
     },
 
+    // ----- Client invoices (specs/control-plane-plans-and-access.md rule 17) -----
+    //
+    // The control plane invoices its customers from its own Qonto organisation: a Qonto client once
+    // per customer, a numbered invoice per period, and a payment link attached to that invoice.
+    // Scopes: `client.write`, `client_invoice.read`, `client_invoice.write`.
+
+    // A company client carrying what Qonto requires before it will invoice it: address, currency and
+    // locale.
+    async createClient({ accessToken, name, email, street, postcode, city, countryCode = 'FR', vatNumber }) {
+      const payload = {
+        kind: 'company',
+        name: String(name),
+        email: email ? String(email) : undefined,
+        currency: 'EUR',
+        locale: 'fr',
+        billing_address: { street_address: String(street), zip_code: String(postcode), city: String(city), country_code: String(countryCode) },
+        ...(vatNumber ? { vat_number: String(vatNumber) } : {}),
+      };
+      const json = await send(`${apiBase}/v2/clients`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) }, 'create client');
+      const c = json.client || json;
+      return { id: c.id, raw: c };
+    },
+
+    // An `unpaid` (finalised, numbered) invoice. `items` carry HT cents and a VAT rate in percent;
+    // Qonto takes the rate as a decimal string ("0.2" for 20 %). Same money guard as the payment
+    // links: the total Qonto computed must be the total we mean to charge.
+    async createClientInvoice({ accessToken, clientId, issueDate, dueDate, performanceStart, performanceEnd, items, iban, expectedTotalCents, currency = 'EUR' }) {
+      const wireItems = items.map((it) => ({
+        title: String(it.title).slice(0, 40),
+        ...(it.description ? { description: String(it.description) } : {}),
+        quantity: '1',
+        unit_price: { value: (Math.round(Number(it.amountCents)) / 100).toFixed(2), currency },
+        vat_rate: String(Number(it.vatRate || 0) / 100),
+      }));
+      const payload = {
+        client_id: String(clientId),
+        issue_date: issueDate,
+        due_date: dueDate,
+        currency,
+        status: 'unpaid',
+        performance_start_date: performanceStart,
+        performance_end_date: performanceEnd,
+        payment_methods: { iban: String(iban) },
+        items: wireItems,
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
+      const json = await send(`${apiBase}/v2/client_invoices`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create client invoice');
+      const inv = mapInvoice(json.client_invoice || json);
+      if (expectedTotalCents != null && inv.totalCents != null && inv.totalCents !== Math.round(Number(expectedTotalCents))) {
+        const err = new Error(`Qonto invoice total ${inv.totalCents}c ≠ expected ${Math.round(Number(expectedTotalCents))}c`);
+        // The invoice exists in Qonto by now: its id goes with the error so the caller can cancel it.
+        err.status = 500; err.body = { code: 'AMOUNT_MISMATCH', invoiceId: inv.id, charged: inv.totalCents, expected: Math.round(Number(expectedTotalCents)), items: wireItems };
+        // eslint-disable-next-line no-console
+        console.error(`[qonto] client-invoice total mismatch: ${JSON.stringify(err.body)}`);
+        throw err;
+      }
+      return inv;
+    },
+
+    async getClientInvoice({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get client invoice');
+      return mapInvoice(json.client_invoice || json);
+    },
+
+    async cancelClientInvoice({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}/mark_as_canceled`, { method: 'POST', headers: apiHeaders(accessToken) }, 'cancel client invoice');
+      return mapInvoice(json.client_invoice || json);
+    },
+
+    // A payment link attached to an invoice: Qonto takes the invoice's number, debtor and amount.
+    async createInvoicePaymentLink({ accessToken, invoiceId, invoiceNumber, debitorName, amountCents, currency = 'EUR', paymentMethods = ['credit_card', 'apple_pay'] }) {
+      const payload = {
+        payment_link: {
+          invoice_id: String(invoiceId),
+          invoice_number: String(invoiceNumber),
+          debitor_name: String(debitorName),
+          amount: { value: (Math.round(Number(amountCents)) / 100).toFixed(2), currency },
+          potential_payment_methods: paymentMethods,
+        },
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
+      const json = await send(`${apiBase}/v2/payment_links`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create invoice payment link');
+      const link = json.payment_link || json;
+      return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
+    },
+
+    // A link that must not be paid any more (paid another way, or its invoice cancelled).
+    async deactivatePaymentLink({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH', headers: apiHeaders(accessToken) }, 'deactivate payment link');
+      const link = json.payment_link || json;
+      return { id: link.id || id, status: link.status || 'canceled' };
+    },
+
     // Re-check the provider-connection status (after the user completes onboarding — no webhook needed).
     async getConnection({ accessToken }) {
       const json = await send(`${apiBase}/v2/payment_links/connections`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get connection');
@@ -252,4 +362,4 @@ function buildQontoClient(config = {}) {
   };
 }
 
-module.exports = { buildQontoClient, mapQontoStatus, DEFAULT_SCOPES, SANDBOX_HOSTS, PROD_HOSTS };
+module.exports = { buildQontoClient, mapQontoStatus, mapInvoice, DEFAULT_SCOPES, SANDBOX_HOSTS, PROD_HOSTS };
