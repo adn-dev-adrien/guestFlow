@@ -8,7 +8,6 @@ router.get('/', termsController.getOverview);
 router.put('/draft', termsController.saveDraft);
 router.post('/preview', termsController.preview);
 router.post('/publish', termsController.publish);
-router.put('/enforcement', termsController.updateEnforcement);
 router.get('/versions/:version', termsController.getVersion);
 
 module.exports = router;

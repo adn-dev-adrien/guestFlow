@@ -307,12 +307,17 @@ test('the plugin mounts and routes are wired in the server', () => {
   // The five plugin modules mount through the loader, behind the same guard
   // (specs/plugins-phase-1-sdk.md rule 5 — covered in plugins-phase-1-sdk.unit.test.js).
   for (const [mount, id] of [
-    ['/public/v1', 'WEBSITE_BOOKING'], ['/api/resource-bookings', 'HOURLY_RESOURCES'],
+    ['/api/resource-bookings', 'HOURLY_RESOURCES'],
     ['/api/payments', 'ONLINE_PAYMENT'], ['/api/laundry', 'LINEN'], ['/api/neat', 'NEAT'],
   ]) {
     assert.ok(index.includes(`app.use('${mount}', requirePlugin(PLUGINS.${id})`), mount);
   }
-  assert.ok(index.indexOf('pluginLoader.mountPublic(app)') < index.indexOf("app.use('/public/v1', "), 'gate before /public/v1');
+  // specs/plugins-phase-2-hosts.md rule 23 — the whole /public/v1 tree comes from plugin modules,
+  // mounted in list order: gate-access before website-booking.
+  assert.ok(!index.includes("app.use('/public/v1'"), 'no core /public/v1 tree');
+  assert.ok(index.includes('pluginLoader.mountPublic(app)'));
+  const modules = read('plugins/index.js');
+  assert.ok(modules.indexOf("require('./gate-access')") < modules.indexOf("require('./website-booking')"), 'gate before website-booking');
   assert.ok(index.includes('pluginLoader.mountApi(app)'));
   assert.match(read('routes/accounting.js'), /router\.get\('\/sales', exportOn,/);
   assert.doesNotMatch(read('routes/accounting.js'), /cancellation-compensations', exportOn/);
@@ -320,7 +325,7 @@ test('the plugin mounts and routes are wired in the server', () => {
   assert.doesNotMatch(read('routes/reservations.js'), /'\/:id\/sas/);
   assert.match(read('plugins/sas/index.js'), /ctx\.route\('get', '\/api\/reservations\/:id\/sas'/);
   assert.match(read('routes/planning.js'), /'\/resource-cards', requirePlugin\(PLUGINS\.HOURLY_RESOURCES\)/);
-  assert.match(read('routes/public/bookingRequests.js'), /'\/:id\/pay', bookingRequestLimiter, requirePlugin\(ONLINE_PAYMENT\)/);
+  assert.match(read('plugins/website-booking/routes/bookingRequests.js'), /'\/:id\/pay', bookingRequestLimiter, requireOnlinePayment,/);
 });
 
 // ---------- jobs and direct calls (rule 15) ----------

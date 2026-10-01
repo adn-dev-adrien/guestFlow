@@ -119,12 +119,6 @@ try {
   logErrorMarker(`Encryption migration failed: ${err.message}`);
 }
 
-// Public API key for the trusted WordPress proxy (specs/public-api.md). Auto-generated and
-// persisted to server/.env.local on first boot. The value is NEVER logged (logs may be shipped);
-// the operator reads it from .env.local and copies it into the WordPress proxy settings.
-getOrCreateSecret('PUBLIC_API_KEY', 32);
-logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
-
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
@@ -133,18 +127,13 @@ require('./utils/vapid').ensureVapid();
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Public API (specs/public-api.md) — a SEPARATE tree from the internal `/api/*` admin API. It is
-// key-authenticated (X-API-Key / Bearer) and rate-limited inside its own router, and it never
-// passes through the `/api` session guard below. The distinct `/public/v1` path is the safety
-// crux: the admin guard can neither expose nor block it.
-// The public mounts of plugin modules come BEFORE the generic tree: the Sowel connector
-// (/public/v1/gate) carries its own key and its own signature and must not go through the WordPress
-// proxy's. Each tree answers 404 PLUGIN_INACTIVE while its plugin is off
-// (specs/plugins-phase-0-foundation.md rule 15): the WordPress site then shows its "unavailable"
-// state, and Sowel stops receiving keys.
+// Public API (specs/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
+// admin API: it never passes through the `/api` session guard below, so that guard can neither
+// expose nor block it. Every prefix belongs to a plugin module, each with its own key: the WordPress
+// site's (website-booking) and the Sowel connector's (gate-access, /public/v1/gate). Each answers 404
+// PLUGIN_INACTIVE while its plugin is off (specs/plugins-phase-0-foundation.md rule 15): the
+// WordPress site then shows its "unavailable" state, and Sowel stops receiving keys.
 pluginLoader.mountPublic(app);
-
-app.use('/public/v1', requirePlugin(PLUGINS.WEBSITE_BOOKING), require('./routes/public'));
 
 // Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
 // emails. Public by nature (a guest opens it from an email): no session, no API key, own limiter.

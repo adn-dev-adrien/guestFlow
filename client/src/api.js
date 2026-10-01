@@ -565,8 +565,10 @@ const api = {
   saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
   previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload }),
   publishTerms: () => request('/terms/publish', { method: 'POST' }),
-  updateTermsEnforcement: (requireTermsAcceptance) => request('/terms/enforcement', { method: 'PUT', body: { requireTermsAcceptance } }),
   getTermsVersion: (version) => request(`/terms/versions/${version}`),
+  // The « Réservation en ligne » card of the website-booking plugin (specs/plugins-phase-2-hosts.md rule 25).
+  getOnlineBooking: () => request('/terms/online-booking'),
+  updateTermsEnforcement: (requireTermsAcceptance) => request('/terms/enforcement', { method: 'PUT', body: { requireTermsAcceptance } }),
 
   // Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §4.3).
   getNeatSettings: () => request('/neat/settings'),

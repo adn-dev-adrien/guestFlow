@@ -10,4 +10,5 @@ module.exports = [
   require('./tariff-recipes'),
   require('./gate-access'),
   require('./sas'),
+  require('./website-booking'),
 ];

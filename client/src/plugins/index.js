@@ -6,7 +6,8 @@ import googleCalendar from './google-calendar';
 import tariffRecipes from './tariff-recipes';
 import gateAccess from './gate-access';
 import sas from './sas';
+import websiteBooking from './website-booking';
 
-const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas];
+const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking];
 
 export default PLUGIN_MODULES;

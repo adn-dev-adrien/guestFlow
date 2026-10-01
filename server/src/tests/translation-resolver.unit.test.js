@@ -11,7 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { forLang } = require('../utils/translationResolver');
-const { toPublicOption, toPublicResource } = require('../utils/publicProjections');
+const { toPublicOption, toPublicResource } = require('../plugins/website-booking/publicProjections');
 const { optionKey, resourceKey, categoryKey } = require('../utils/translationCollector');
 
 const CATALOGUE = new Map([

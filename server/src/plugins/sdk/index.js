@@ -31,6 +31,38 @@ const CORE_MODULES = Object.freeze({
   reservationSettlement: '../../utils/reservationSettlement', // what the stay still owes at the door
   platformNameFormat: '../../utils/platformNameFormat', // direct channel vs platform for the stay step
   receptionView: '../../utils/receptionView', // the reception's money-stripped reads and commits
+  // website-booking — the public API prices, checks and records with the core's own models (rule 23)
+  propertiesModel: '../../models/propertiesModel', // the catalogue the site lists
+  resourcesModel: '../../models/resourcesModel', // resources offered and checked on a quote
+  propertyOptionDefaultsModel: '../../models/propertyOptionDefaultsModel', // defaults merged into a quote
+  propertyDefaultOptions: '../../utils/propertyDefaultOptions', // the merge of those defaults
+  clientsModel: '../../models/clientsModel', // find or create the guest of a booking request
+  devisModel: '../../models/devisModel', // a booking request creates a draft devis
+  termsModel: '../../models/termsModel', // current CGV version, the acceptance record (rule 26)
+  updateStateModel: '../../models/updateStateModel', // the WordPress plugin release the manifest serves
+  neatSubscriptionsModel: '../../models/neatSubscriptionsModel', // Neat insurance pricing on a quote
+  pricing: '../../utils/pricing', // the quote engine
+  reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
+  capacity: '../../utils/capacity', // guest capacity of a property
+  blockedDates: '../../utils/blockedDates', // availability, shared with the public payment
+  mealPortions: '../../utils/mealPortions', // per-person card options and their caps
+  neatGuestPricing: '../../utils/neatGuestPricing', // the insurance price shown on a quote
+  neatClient: '../../utils/neatClient', // the Neat quote call
+  translationResolver: '../../utils/translationResolver', // the English catalogue
+  optionVisibility: '../../utils/optionVisibility', // internal options never reach the site
+  optionGrouping: '../../utils/optionGrouping', // options grouped by category
+  publicLabels: '../../utils/publicLabels', // public wording, shared with the core meal portions
+  publicDevisToken: '../../utils/publicDevisToken', // the capability token of a website devis
+  publicPaymentMode: '../../utils/publicPaymentMode', // full or deposit, shared with the public payment
+  attributionChannel: '../../utils/attributionChannel', // request origin, read by finance (rule 26)
+  babyBedResource: '../../utils/babyBedResource', // the baby-bed flag of a public resource
+  releaseClient: '../../utils/releaseClient', // the allowed download hosts of the plugin manifest
+  notificationService: '../../utils/notificationService', // « Nouvelle demande de devis » (rule 26)
+  publicHttp: '../../controllers/public/publicHttp', // the public envelope, shared with the public payment
+  publicPaymentController: '../../controllers/public/publicPaymentController', // pay/status, online-payment's until phase 3
+  rateLimiters: '../../middleware/rateLimiters', // the booking-request and payment-status limiters
+  enforceSubscription: '../../middleware/enforceSubscription', // closedWhenReadOnly on the only public write
+  requirePlugin: '../../middleware/requirePlugin', // pay/status also need online-payment
 });
 
 function coreModule(name) {

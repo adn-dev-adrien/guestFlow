@@ -12,7 +12,7 @@ const {
   isPerPersonCardOption, servingsFor, portionCap, clampPortions, portionWording,
 } = require('../utils/mealPortions');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { toPublicOptionLimits } = require('../utils/publicProjections');
+const { toPublicOptionLimits } = require('../plugins/website-booking/publicProjections');
 const { mergePropertyDefaultsIntoPayload } = require('../utils/propertyDefaultOptions');
 const { runMealPortionQuantitiesMigration } = require('../utils/migrateMealPortionQuantities');
 
@@ -325,7 +325,7 @@ function buildBookingController({ options, captures }) {
       checkOptionApplicability: () => null,
       checkResourceApplicability: () => null,
     },
-    '../../models/settingsModel': { termsSettings: () => ({ requireTermsAcceptance: false }), upsert: () => {} },
+    '../settings': { termsSettings: () => ({ requireTermsAcceptance: false }), recordPluginVersion: () => {} },
     '../../models/termsModel': { getCurrent: () => ({ id: 1, version: 1 }), insertAcceptance: () => {} },
   };
   Module.prototype.require = function patched(id) {
@@ -333,7 +333,7 @@ function buildBookingController({ options, captures }) {
     return origRequire.call(this, id);
   };
   try {
-    const path = '../controllers/public/publicBookingRequestController';
+    const path = '../plugins/website-booking/controllers/publicBookingRequestController';
     delete require.cache[require.resolve(path)];
     return require(path);
   } finally {

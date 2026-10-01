@@ -282,17 +282,6 @@ function buildController({
         return res.status(502).json({ error: 'REMINDER_FAILED', message: String((err && err.message) || err) });
       }
     },
-
-    /**
-     * GET /api/dashboard/public-devis-pending
-     *
-     * Site-origin devis awaiting handling (specs/site-booking-notifications.md §3 rule 5). Feeds
-     * the DevisPublicRequestAlert; empty `alerts: []` when nothing is pending.
-     */
-    publicDevisPending(req, res) {
-      const alerts = injectedReservationsModel.listPendingPublicDevis();
-      return res.json({ alerts });
-    },
   };
 }
 
