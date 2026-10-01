@@ -1,0 +1,280 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const Module = require('module');
+
+// Security coverage for the PUBLIC booking-request controller (specs/public-api.md). The pure
+// security logic (API key, anti-leak projections, input validation) is unit-tested elsewhere; this
+// pins the CONTROLLER orchestration that previously had only manual (curl) coverage:
+//   - honeypot → respond like success but PERSIST NOTHING (anti-spam);
+//   - a request creates a DRAFT DEVIS (never a confirmed reservation), flagged requestOrigin='public';
+//   - price-override / non-whitelisted fields from the body NEVER reach the persisted record;
+//   - server-side re-checks reject blocked dates / min-nights / over-capacity / unknown property.
+//
+// Real modules used: publicInputValidation (the validation IS the security boundary) + publicHttp.
+// Mocked: the DB, the catalog/quote helpers (availability + engine), and the persistence models —
+// so we assert exactly what the controller decides to write.
+
+function withMocks(modules, fn) {
+  const origRequire = Module.prototype.require;
+  Module.prototype.require = function patched(id) {
+    if (Object.prototype.hasOwnProperty.call(modules, id)) return modules[id];
+    return origRequire.call(this, id);
+  };
+  try { return fn(); } finally { Module.prototype.require = origRequire; }
+}
+
+function fakeRes() {
+  return {
+    statusCode: 200, body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(payload) { this.body = payload; return this; },
+  };
+}
+
+function buildController({
+  property = { maxGuests: 10, maxBabies: 2 },
+  blockedNight = false,
+  engineQuote = { error: null, minNightsBreached: false, requiredMinNights: 1, finalPrice: 300 },
+  optError = null,
+  clientFound = false,
+  captures,
+} = {}) {
+  const dbMock = {
+    transaction: (fn) => (...args) => fn(...args),
+    prepare(sql) {
+      const s = String(sql || '');
+      return {
+        get() {
+          if (/FROM properties/i.test(s)) return property; // null → 404
+          return undefined;
+        },
+        run(...args) {
+          if (/UPDATE reservations SET requestOrigin/i.test(s)) { captures.requestOriginToken = args[0]; captures.requestOriginUpdateId = args[1]; }
+          if (/UPDATE reservations SET attributionChannel/i.test(s)) captures.attribution = args;
+          return { changes: 1 };
+        },
+      };
+    },
+  };
+  const clientsModelMock = {
+    findByEmail: () => (clientFound ? { id: 7, firstName: 'Jean', lastName: 'Dupont' } : undefined),
+    insert: (payload) => { captures.clientInsert = payload; return { id: 7 }; },
+  };
+  const devisModelMock = {
+    create: (payload) => { captures.devisCreate = payload; return { ok: true, status: 201, data: { id: 99, devisNumber: '2026-06-00042', finalPrice: 300 } }; },
+  };
+  const catalogMock = {
+    computeBlockedDates: () => (blockedNight ? ['BLOCKED'] : []),
+    rangeHasBlockedNight: () => blockedNight,
+  };
+  const quoteMock = {
+    buildEngineQuote: () => engineQuote,
+    checkOptionApplicability: () => optError,
+    checkResourceApplicability: () => null,
+  };
+
+  const controllerModule = '../controllers/publicBookingRequestController';
+  return withMocks({
+    '../../database': dbMock,
+    '../../models/clientsModel': clientsModelMock,
+    '../../models/devisModel': devisModelMock,
+    './publicCatalogController': catalogMock,
+    './publicQuoteController': quoteMock,
+    // CGV (specs/terms-acceptance-record.md): a published version, accepted by validBody() — the
+    // enforcement itself is covered by terms-acceptance.unit.test.js.
+    '../settings': { termsSettings: () => ({ requireTermsAcceptance: true }), recordPluginVersion: () => {} },
+    '../../models/termsModel': {
+      getCurrent: () => ({ id: 1, version: 1 }),
+      insertAcceptance: (row) => { captures.termsAcceptance = row; },
+    },
+    // publicInputValidation + publicHttp load for real (the security validation + the envelope).
+  }, () => {
+    delete require.cache[require.resolve(controllerModule)];
+    return require(controllerModule);
+  });
+}
+
+function validBody(over = {}) {
+  return {
+    propertyId: 1,
+    startDate: '2026-09-10', endDate: '2026-09-17',
+    adults: 2, children: 0, teens: 0, babies: 0,
+    options: [],
+    guest: { firstName: 'Marie', lastName: 'Durand', email: 'marie@example.com', phone: '+33612345678' },
+    message: 'Bonjour',
+    termsVersion: 1,
+    ...over,
+  };
+}
+
+test('honeypot filled → 201 fake success, NOTHING persisted', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ _hp: 'i-am-a-bot' }) }, res);
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(res.body, { data: { status: 'pending' } });
+  assert.equal(captures.devisCreate, undefined, 'no devis created');
+  assert.equal(captures.clientInsert, undefined, 'no client created');
+});
+
+test('valid request → creates a DRAFT DEVIS (platform direct), marks requestOrigin=public, never a reservation', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.data.status, 'pending');
+  assert.equal(res.body.data.reference, '2026-06-00042');
+  // The ONLY persistence path is devisModel.create — there is no reservation-create call in scope.
+  assert.ok(captures.devisCreate, 'devis created');
+  assert.equal(captures.devisCreate.platform, 'direct', 'forced to direct');
+  assert.equal(captures.devisCreate.clientId, 7);
+  // requestOrigin marked on the freshly-created devis row, with a per-devis capability token that is
+  // both persisted and returned to the proxy (specs/public-online-payment.md §7).
+  assert.equal(captures.requestOriginUpdateId, 99);
+  assert.ok(captures.requestOriginToken && captures.requestOriginToken.length >= 32, 'a capability token is minted');
+  assert.equal(res.body.data.publicToken, captures.requestOriginToken, 'the minted token is returned to the proxy');
+});
+
+test('price-override / non-whitelisted fields from the body never reach the persisted devis', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({
+    customPrice: 1, discountPercent: 90, depositPaid: true, offeredOptionIds: [1], platform: 'airbnb',
+  }) }, res);
+  assert.equal(res.statusCode, 201);
+  const sent = captures.devisCreate;
+  assert.equal('customPrice' in sent, false, 'customPrice dropped');
+  assert.equal('discountPercent' in sent, false, 'discountPercent dropped');
+  assert.equal('depositPaid' in sent, false);
+  assert.equal('offeredOptionIds' in sent, false);
+  assert.equal(sent.platform, 'direct', 'platform forced to direct, body value ignored');
+});
+
+test('blocked dates → 409 DATES_UNAVAILABLE, nothing persisted', () => {
+  const captures = {};
+  const controller = buildController({ blockedNight: true, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error.code, 'DATES_UNAVAILABLE');
+  assert.equal(captures.devisCreate, undefined);
+});
+
+test('min-nights breached → 409 MIN_NIGHTS, nothing persisted', () => {
+  const captures = {};
+  const controller = buildController({ engineQuote: { error: null, minNightsBreached: true, requiredMinNights: 3 }, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error.code, 'MIN_NIGHTS');
+  assert.equal(captures.devisCreate, undefined);
+});
+
+// specs/property-capacity-single-total.md §3 rule 2 — the mix no longer matters, only the total.
+// Before the one-total model a `maxChildren: 0` property refused this request outright (409), so a
+// guest travelling with a child simply could not book online.
+test('1 adulte + 1 enfant under the total → accepted, request persisted', () => {
+  const captures = {};
+  const controller = buildController({ property: { maxGuests: 5, maxBabies: 1 }, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ adults: 1, children: 1 }) }, res);
+  assert.notEqual(res.statusCode, 409);
+  assert.ok(captures.devisCreate, 'the booking request was persisted');
+});
+
+test('over capacity → 409 OVER_CAPACITY, nothing persisted', () => {
+  const captures = {};
+  const controller = buildController({ property: { maxGuests: 1, maxBabies: 0 }, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ adults: 5 }) }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error.code, 'OVER_CAPACITY');
+  assert.equal(captures.devisCreate, undefined);
+});
+
+test('unknown property → 404 PROPERTY_NOT_FOUND', () => {
+  const captures = {};
+  const controller = buildController({ property: null, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error.code, 'PROPERTY_NOT_FOUND');
+  assert.equal(captures.devisCreate, undefined);
+});
+
+test('invalid guest (bad email / missing fields) → 422 VALIDATION_FAILED, nothing persisted', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ guest: { firstName: 'X', email: 'not-an-email' } }) }, res);
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.error.code, 'VALIDATION_FAILED');
+  assert.equal(captures.devisCreate, undefined);
+});
+
+test('existing client by email is reused, not duplicated', () => {
+  const captures = {};
+  const controller = buildController({ clientFound: true, captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.clientInsert, undefined, 'no new client inserted');
+  assert.equal(captures.devisCreate.clientId, 7, 'reused existing client');
+});
+
+test('baby beds are forwarded as a couchage count (not a resource), capped at the number of babies', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ babies: 1, babyBeds: 3 }) }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.devisCreate.babyBeds, 1, 'capped to the number of babies');
+  assert.deepEqual(captures.devisCreate.selectedResources, [], 'never injected as a resource line');
+});
+
+test('babyBeds defaults to 0 when absent', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(captures.devisCreate.babyBeds, 0);
+});
+
+// specs/site-traffic-analytics.md rules 15-17 — the visit's source is stored with the request, and a
+// broken source never costs the guest their booking.
+test('a valid attribution is classified and stored on the new devis', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody({ attribution: { referrer: 'l.instagram.com', landingPath: '/la-granja/' } }), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  const [channel, label, raw, at, id] = captures.attribution;
+  assert.equal(channel, 'social');
+  assert.equal(label, 'Instagram');
+  assert.deepEqual(JSON.parse(raw), { referrer: 'l.instagram.com', landingPath: '/la-granja/' });
+  assert.ok(!Number.isNaN(Date.parse(at)));
+  assert.equal(id, 99);
+});
+
+// specs/site-traffic-analytics.md rule 14 — an older plugin sends nothing: unknown, never an error.
+test('a request without attribution goes through and records no source', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody(), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.attribution, undefined);
+});
+
+test('an invalid attribution is dropped and the request still goes through', () => {
+  const captures = {};
+  const ctrl = buildController({ captures });
+  const res = fakeRes();
+  ctrl.create({ body: validBody({ attribution: 'x'.repeat(9000) }), visitor: {} }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.attribution, undefined);
+  assert.equal(captures.requestOriginUpdateId, 99);
+});

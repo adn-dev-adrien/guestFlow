@@ -181,10 +181,6 @@ const COLUMNS = [
   'neatFieldMappingJson',
   'neatContractFieldsJson',
   'neatMarginPercent',
-  // CGV (specs/terms-acceptance-record.md rules 10, 17): the emergency switch of the enforcement, and
-  // the plugin version last seen on a booking request.
-  'requireTermsAcceptance',
-  'lastSeenPluginVersion',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -203,7 +199,6 @@ const NUMERIC_DEFAULTS = {
   towelStockMedium: 0,
   towelStockSmall: 0,
   towelStockBathMat: 0,
-  requireTermsAcceptance: 1,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
@@ -340,16 +335,6 @@ function createSettingsModel(databaseInstance) {
         recipientEmail: identity.recipient,
         fromEmail: identity.fromEmail,
         publicUrl: String(row.publicUrl || '').trim(),
-      };
-    },
-
-    // CGV enforcement (specs/terms-acceptance-record.md rule 17). Only an explicit 0 lifts it: a
-    // partially-migrated DB keeps the safe default, ON.
-    termsSettings() {
-      const row = readRaw();
-      return {
-        requireTermsAcceptance: Number(row.requireTermsAcceptance) !== 0,
-        lastSeenPluginVersion: String(row.lastSeenPluginVersion || ''),
       };
     },
 

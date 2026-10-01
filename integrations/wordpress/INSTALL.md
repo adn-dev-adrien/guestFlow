@@ -19,12 +19,16 @@ exposed to the page. All pricing/availability/validation logic stays in GuestFlo
    ```
    - A **JSON** body `{"data":[...]}` → the public API is live. ✅
    - **HTML** (`<!DOCTYPE html>…`) → you are hitting an older GuestFlow build **without** the public
-     API; it falls through to the SPA. Deploy a GuestFlow build that includes `server/src/routes/public`
-     (push to the `release` branch) before continuing. ❌
+     API; it falls through to the SPA. Deploy a GuestFlow build that includes the public API before
+     continuing. ❌
+   - **HTTP 404 `{"error":"PLUGIN_INACTIVE","plugin":"website-booking"}`** → the « Réservation depuis le
+     site » plugin is not installed or is off: install it from the Plugins page. ❌
    - **HTTP 000 / connection error over `http://`** → the server is HTTPS-only (see §4 SSL). Use `https://`.
 
 2. The **`PUBLIC_API_KEY`** value, found in GuestFlow's `server/.env.local`
    (`PUBLIC_API_KEY=…`). On a PM2 deploy this is typically `…/guestflow/current/server/.env.local`.
+   It is created when the « Réservation depuis le site » plugin is installed; uninstalling the plugin
+   never rotates it.
 
 3. **Network reachability from the WordPress host to GuestFlow.** If WordPress runs in **Docker**,
    `localhost` inside the container is the *container*, not the host — use the host's LAN IP/hostname

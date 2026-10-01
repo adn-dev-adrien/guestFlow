@@ -5,8 +5,8 @@
  *                        boot goes on. Then, for every installed module, its migrations and its
  *                        boot hooks.
  *   migrate(db, id)      one module's migrations — install time (rule 6).
- *   mountPublic(app)     `/public/...` mounts, outside the /api guards (index.js calls it before the
- *                        generic /public/v1 tree).
+ *   mountPublic(app)     `/public/...` mounts, outside the /api guards, in module-list order — the
+ *                        whole /public/v1 tree since specs/plugins-phase-2-hosts.md rule 23.
  *   mountApi(app)        `/api/...` mounts and single routes, after the core routers.
  *   startJobs()          the declared jobs, each tick skipped while the plugin is not live.
  *   roleMatchers(role)   the allowlist entries plugins declared for a restricted role

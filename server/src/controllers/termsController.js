@@ -11,18 +11,6 @@ const { TERMS_VARIABLES, buildTermsVariables, renderVersion } = require('../util
 
 const MAX_MARKDOWN_LENGTH = 200000;
 
-// First plugin release that sends the acceptance (specs/terms-acceptance-record.md §3.3).
-const MIN_PLUGIN_VERSION = '1.8.0';
-
-function isVersionBelow(version, minimum) {
-  const a = String(version || '').split('.').map(Number);
-  const b = minimum.split('.').map(Number);
-  for (let i = 0; i < 3; i += 1) {
-    if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i];
-  }
-  return false;
-}
-
 const PARIS_DATE_TIME = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
   day: '2-digit', month: '2-digit', year: 'numeric',
@@ -73,7 +61,6 @@ function shapeVersionSummary(v) {
 
 function buildOverview(deps = {}) {
   const model = deps.termsModel || termsModel;
-  const settings = (deps.settingsModel || settingsModel).termsSettings();
   const draft = model.getDraft();
   const current = model.getCurrent();
   const vars = currentVariables(deps);
@@ -97,12 +84,6 @@ function buildOverview(deps = {}) {
     unknownVariables: draftRender.unknown,
     variables: TERMS_VARIABLES,
     versions: model.listVersionsWithCounts().map(shapeVersionSummary),
-    requireTermsAcceptance: settings.requireTermsAcceptance,
-    lastSeenPluginVersion: settings.lastSeenPluginVersion,
-    // Rule 18 — a site still on an older plugin sends no acceptance: every booking is refused while
-    // the enforcement is on.
-    pluginOutdated: Boolean(settings.lastSeenPluginVersion) && isVersionBelow(settings.lastSeenPluginVersion, MIN_PLUGIN_VERSION),
-    minPluginVersion: MIN_PLUGIN_VERSION,
   };
 }
 
@@ -174,13 +155,6 @@ function getVersion(req, res) {
   });
 }
 
-function updateEnforcement(req, res) {
-  const value = req.body?.requireTermsAcceptance;
-  if (typeof value !== 'boolean') return res.status(400).json({ error: 'requireTermsAcceptance doit être un booléen.' });
-  settingsModel.upsert({ requireTermsAcceptance: value ? 1 : 0 });
-  return res.json(buildOverview());
-}
-
 /**
  * The fiche block (rules 21-22). `not_applicable` for a back-office devis; `missing` for a website
  * request without acceptance (before this feature, or while the emergency switch was off).
@@ -212,11 +186,9 @@ module.exports = {
   preview,
   publish,
   getVersion,
-  updateEnforcement,
   buildOverview,
   publishDraft,
   buildFicheBlock,
   staleVariables,
   parisDateTimeLabel,
-  isVersionBelow,
 };

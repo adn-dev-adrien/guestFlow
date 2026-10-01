@@ -22,7 +22,7 @@ const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents 
 const { tokensMatch } = require('../../utils/publicDevisToken');
 const { calculateReservationQuote } = require('../../utils/pricing');
 const settingsModel = require('../../models/settingsModel');
-const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
+const { computeBlockedDates, rangeHasBlockedNight } = require('../../utils/blockedDates');
 const { ok, fail, failT } = require('./publicHttp');
 
 // Build the site success URL from the configured site origin + a caller-supplied path. Allowlisted to

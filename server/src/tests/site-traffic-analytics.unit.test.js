@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 // specs/site-traffic-analytics.md §3.C — the source of a website booking request: the validator that
 // never refuses (rule 15), the channel classification (rule 16), the ready-to-render origin (rule 19)
 // and the row of the « Canaux de réservation » card a reservation belongs to (rule 21).
-const { validateAttribution } = require('../utils/publicInputValidation');
+const { validateAttribution } = require('../plugins/website-booking/publicInputValidation');
 const { classifyAttribution, originDisplay, bookingChannelOf, platformDisplayName } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 
