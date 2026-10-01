@@ -283,6 +283,9 @@ const api = {
   // specs/finance-dashboard-redesign.md §4.3 — the Suivi financier and the table behind each tile.
   getFinanceDashboard: (params = {}) => request(`/finance/dashboard?${financeQuery(params)}`),
   getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
+  // specs/booking-pace.md §4.3 — réservations à date vs last year, and one month's pickup curve.
+  getFinancePace: (params = {}) => request(`/finance/pace?${financeQuery(params)}`),
+  getFinancePaceMonth: (month, params = {}) => request(`/finance/pace/${encodeURIComponent(month)}?${financeQuery(params)}`),
   getFinanceGoalContext: () => request('/finance/goal-context'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
