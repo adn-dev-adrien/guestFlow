@@ -78,8 +78,11 @@ function fakeRes() {
 
 // ---------- §3.A the modules (rules 1-4) ----------
 
-test('rule 1-2: the five plugin modules are listed once, each with an id and a register function', () => {
-  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS].sort());
+// specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
+const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
+
+test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
+  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS].sort());
   MODULES.forEach((m) => assert.equal(typeof m.register, 'function', m.id));
 });
 

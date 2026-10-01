@@ -314,8 +314,10 @@ test('the plugin mounts and routes are wired in the server', () => {
   }
   // specs/plugins-phase-2-hosts.md rule 23 — the whole /public/v1 tree comes from plugin modules,
   // mounted in list order: gate-access before website-booking.
-  assert.ok(!index.includes("app.use('/public/v1'"), 'no core /public/v1 tree');
+  assert.ok(!/app\.use\('\/public\/v1', (requirePlugin|require\()/.test(index), 'no core /public/v1 tree');
   assert.ok(index.includes('pluginLoader.mountPublic(app)'));
+  // …and a path no plugin owns answers a JSON 404, never the SPA (rule 23).
+  assert.ok(index.indexOf("app.use('/public/v1', (req, res) =>") > index.indexOf('pluginLoader.mountPublic(app)'), 'JSON 404 after the plugin mounts');
   const modules = read('plugins/index.js');
   assert.ok(modules.indexOf("require('./gate-access')") < modules.indexOf("require('./website-booking')"), 'gate before website-booking');
   assert.ok(index.includes('pluginLoader.mountApi(app)'));

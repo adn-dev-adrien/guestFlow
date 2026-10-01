@@ -134,6 +134,8 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // PLUGIN_INACTIVE while its plugin is off (specs/plugins-phase-0-foundation.md rule 15): the
 // WordPress site then shows its "unavailable" state, and Sowel stops receiving keys.
 pluginLoader.mountPublic(app);
+// No tree catches /public/v1 any more: a path no plugin owns gets a JSON 404, never the SPA.
+app.use('/public/v1', (req, res) => require('./controllers/public/publicHttp').fail(res, 404, 'NOT_FOUND', 'Ressource introuvable.'));
 
 // Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
 // emails. Public by nature (a guest opens it from an email): no session, no API key, own limiter.
