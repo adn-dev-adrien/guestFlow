@@ -5,8 +5,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const accountingController = require('../controllers/accountingController');
-const { CSV_HEADERS } = require('../utils/accountingExport');
+const accountingController = require('../controller');
+const { CSV_HEADERS } = require('../accountingExport');
 
 const ACCOUNT = CSV_HEADERS.indexOf('Compte');
 

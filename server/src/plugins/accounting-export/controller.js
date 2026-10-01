@@ -1,12 +1,13 @@
 /**
  * Accounting controller — orchestrates the monthly sales CSV export and the platform-commission
- * preview. Thin: delegates to accountingModel (data), utils/accountingExport (engine) and utils/csv
- * (serializer). Accessible to both admins and the read-only accountant role.
+ * preview. Thin: delegates to accountingModel (data), accountingExport (engine) and the core CSV
+ * serializer. Accessible to both admins and the read-only accountant role.
  */
 
-const defaultAccountingModel = require('../models/accountingModel');
-const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('../utils/accountingExport');
-const { serializeCsv } = require('../utils/csv');
+const sdk = require('../sdk');
+const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('./accountingExport');
+
+const { serializeCsv } = sdk.coreModule('csv');
 
 function parseMonthYear(query) {
   const month = Number(query.month);
@@ -111,8 +112,7 @@ function createAccountingController(accountingModel) {
   };
 }
 
-const defaultController = createAccountingController(defaultAccountingModel);
-
-module.exports = defaultController;
-module.exports.create = createAccountingController;
-module.exports.__test = { parseMonthYear, monthEntries };
+module.exports = {
+  create: createAccountingController,
+  __test: { parseMonthYear, monthEntries },
+};

@@ -63,6 +63,14 @@ const CORE_MODULES = Object.freeze({
   rateLimiters: '../../middleware/rateLimiters', // the booking-request and payment-status limiters
   enforceSubscription: '../../middleware/enforceSubscription', // closedWhenReadOnly on the only public write
   requirePlugin: '../../middleware/requirePlugin', // pay/status also need online-payment
+  // accounting-export
+  platformsModel: '../../models/platformsModel', // the journal's commission config; the account plan writes its two columns (rule 20)
+  refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
+  cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
+  midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
+  complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
+  csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
+  settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
 });
 
 function coreModule(name) {

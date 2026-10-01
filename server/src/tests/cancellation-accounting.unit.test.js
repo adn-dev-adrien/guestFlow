@@ -12,7 +12,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 
 const { cancelReservation } = require('../utils/cancelReservation');
-const accountingModelFactory = require('../models/accountingModel');
+const accountingModelFactory = require('../plugins/accounting-export/accountingModel');
 const reservationsModelFactory = require('../models/reservationsModel');
 const refundsModelFactory = require('../models/refundsModel');
 const compensationsModelFactory = require('../models/cancellationCompensationsModel');
@@ -99,7 +99,7 @@ test('the pair nets to zero: same amount out of the séjour revenue, into the in
 test('the journal of the cancellation month balances, entry by entry', () => {
   const { db, accounting, deps } = seed();
   cancelReservation(deps, 10, { today: CANCELLED_ON, vatRate: 10 });
-  const { buildRows } = require('../utils/accountingExport');
+  const { buildRows } = require('../plugins/accounting-export/accountingExport');
   const entries = [
     ...accounting.refundsByMonth({ month: 8, year: 2026 }),
     ...accounting.compensationsByMonth({ month: 8, year: 2026 }),

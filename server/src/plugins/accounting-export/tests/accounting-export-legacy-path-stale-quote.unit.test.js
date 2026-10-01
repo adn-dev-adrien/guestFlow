@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { create: createAccountingModel } = require('../models/accountingModel');
+const { create: createAccountingModel } = require('../accountingModel');
 
 // 2026-06-05 regression net.
 //
@@ -217,7 +217,7 @@ test('Chloé scenario — end-to-end via entryToRows: the actual CSV rows produc
   // Drive the full chain: model → entryToRows. This validates that the absorption residue
   // on the last credit line stays within ±0,02 € (= clean rounding noise), NOT the -87 €
   // mismatch that the prod bug produced.
-  const { entryToRows } = require('../utils/accountingExport');
+  const { entryToRows } = require('../accountingExport');
   const db = createDb();
   seedChloeReservation(db);
   const model = createAccountingModel(db);

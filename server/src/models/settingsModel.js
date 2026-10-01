@@ -73,21 +73,9 @@ const COLUMNS = [
   'quoteValidityDays',
   'companyLogoPath',
   'vatRate',
-  // accounting-platform-commission-and-no-deposit.md §3.1 + §3.7 rule 17b. Single source of
-  // truth for the per-platform commission accounting:
-  //   - `defaultCommissionAccountNumber` is the 6226xx fallback when a platform row doesn't
-  //     have its own number set on `/comptabilite/plateformes`.
-  //   - `vatRateCommission` is the global VAT rate applied to platform commissions whose
-  //     row carries `hasVatOnCommission = 1`. Lives in Settings → Général → Taux de TVA.
-  'defaultCommissionAccountNumber',
-  'vatRateCommission',
-  // specs/cancellation-compensation.md §3.3 rule 19. `cancellationCompensationAccount` is the
-  // produit account credited when a platform pays an indemnity for a cancelled stay (edited on
-  // `/comptabilite/plateformes`); `vatRateCancellationCompensation` is its VAT rate — 0 by default
-  // (indemnity outside the scope of VAT), edited in Settings → Général → Taux de TVA next to the
-  // other two rates.
-  'cancellationCompensationAccount',
-  'vatRateCancellationCompensation',
+  // The four account and VAT settings of the accounting export (commission account and rate,
+  // cancellation-compensation account and rate) live in plugin_settings since
+  // specs/plugins-phase-2-hosts.md rule 19; their app_settings columns stay in place, unread.
   // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
   // window of the Suivi financier. Plain integer — nothing secret, no encryption.
   'fiscalYearEndMonth',
@@ -186,8 +174,6 @@ const COLUMNS = [
 const NUMERIC_DEFAULTS = {
   quoteValidityDays: 30,
   vatRate: 10,
-  vatRateCommission: 20,
-  vatRateCancellationCompensation: 0,
   smtpSecure: 0,
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,

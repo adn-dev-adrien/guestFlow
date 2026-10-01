@@ -8,11 +8,11 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const accountingModel = require('../models/accountingModel');
-const refundsModel = require('../models/refundsModel');
-const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('../utils/accountingExport');
+const accountingModel = require('../accountingModel');
+const refundsModel = require('../../../models/refundsModel');
+const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('../accountingExport');
 
-const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
+const SCHEMA = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'schema.sql'), 'utf8');
 
 const DEBIT = CSV_HEADERS.indexOf('Débit');
 const CREDIT = CSV_HEADERS.indexOf('Crédit');

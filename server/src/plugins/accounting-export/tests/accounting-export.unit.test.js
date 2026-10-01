@@ -4,10 +4,10 @@ const assert = require('node:assert/strict');
 const {
   entryToRows, buildRows, entryToStructured, buildStructuredEntries, CSV_HEADERS,
   __test: { classifyLine, libelleFor, zerofyMoneyColumns },
-} = require('../utils/accountingExport');
+} = require('../accountingExport');
 const {
   buildClientAccount, accountLabel, SALES_JOURNAL_CODE, PASS_THROUGH_ACCOUNTS,
-} = require('../constants/accounting');
+} = require('../accountPlan');
 
 // Pure engine: encaissement entries → balanced double-entry journal rows.
 // Column layout (aligned with the accountant's `Exemple export ventes SOLIO.csv`):

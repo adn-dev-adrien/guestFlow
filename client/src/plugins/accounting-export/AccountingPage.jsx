@@ -12,20 +12,14 @@ import EuroIcon from '@mui/icons-material/Euro';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import api from '../api';
-import PageActionBar from '../components/PageActionBar';
-import MonthYearPicker from '../components/MonthYearPicker';
-import { useAuth } from '../hooks/useAuth';
-import { userHasRole, ADMIN } from '../constants/roles';
-import { formatCurrency, displayDate } from '../utils/formatters';
 import { alpha } from '@mui/material/styles';
-import { useToast } from '../components/DialogProvider';
-import ErrorAlert from '../components/ErrorAlert';
-import EmptyState from '../components/EmptyState';
-import LoadingState from '../components/LoadingState';
-import StatusBadge from '../components/StatusBadge';
-import PlatformChip from '../components/PlatformChip';
-import CancellationCompensationsSection from '../components/CancellationCompensationsSection';
+import {
+  api, PageActionBar, MonthYearPicker, useAuth, userHasRole, ADMIN, formatCurrency, displayDate, useToast,
+  ErrorAlert, EmptyState, LoadingState, StatusBadge, PlatformChip,
+} from '../sdk';
+
+// The core page « Indemnités d'annulation » (specs/plugins-phase-2-hosts.md rule 21).
+const COMPENSATIONS_PATH = '/finance/indemnites';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
 // VAT (44571xxx) = blue, tourist-tax pass-through (46710000) = purple. Used to colour rows and
@@ -109,15 +103,6 @@ export default function AccountingPage() {
       .finally(() => { if (mounted) { setLoading(false); setSalesLoading(false); } });
     return () => { mounted = false; };
   }, [month, year, reloadNonce]);
-
-  // Banking or reopening a cancellation compensation adds/removes an entry in the month's journal.
-  // The compensations card is self-contained, so it announces the change and the journal + CSV
-  // preview reload from it — otherwise the card above would keep showing a stale écriture.
-  useEffect(() => {
-    const onCompensationsChanged = () => setReloadNonce((n) => n + 1);
-    window.addEventListener('guestflow:compensations-changed', onCompensationsChanged);
-    return () => window.removeEventListener('guestflow:compensations-changed', onCompensationsChanged);
-  }, []);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -236,9 +221,13 @@ export default function AccountingPage() {
           </CardContent>
         </Card>
 
-        {/* Indemnités d'annulation (specs/cancellation-compensation.md §6.3). Read-only for the
-            accountant role — the server refuses their writes anyway. */}
-        <CancellationCompensationsSection month={month} year={year} canEdit={canOpenReservation} />
+        {/* The compensations have their own core page; the journal above still carries their
+            entries (specs/plugins-phase-2-hosts.md rule 21). */}
+        <Box sx={{ mt: -1.5, mb: 3, textAlign: { xs: 'left', sm: 'right' } }}>
+          <Link component={RouterLink} to={COMPENSATIONS_PATH} variant="body2">
+            Indemnités d&apos;annulation →
+          </Link>
+        </Box>
 
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>

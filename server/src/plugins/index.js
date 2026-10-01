@@ -11,4 +11,5 @@ module.exports = [
   require('./gate-access'),
   require('./sas'),
   require('./website-booking'),
+  require('./accounting-export'),
 ];

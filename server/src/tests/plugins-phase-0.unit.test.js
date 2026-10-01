@@ -319,8 +319,10 @@ test('the plugin mounts and routes are wired in the server', () => {
   const modules = read('plugins/index.js');
   assert.ok(modules.indexOf("require('./gate-access')") < modules.indexOf("require('./website-booking')"), 'gate before website-booking');
   assert.ok(index.includes('pluginLoader.mountApi(app)'));
-  assert.match(read('routes/accounting.js'), /router\.get\('\/sales', exportOn,/);
-  assert.doesNotMatch(read('routes/accounting.js'), /cancellation-compensations', exportOn/);
+  // specs/plugins-phase-2-hosts.md rule 19 — the export's routes left for its plugin module; the
+  // compensations stay core, ungated.
+  assert.doesNotMatch(read('routes/accounting.js'), /'\/sales|'\/platforms|platform-accounts|requirePlugin/);
+  assert.match(read('routes/accounting.js'), /router\.get\('\/cancellation-compensations', compensationsController\.list\)/);
   // The SAS routes moved into the `sas` module (specs/plugins-phase-2-hosts.md rule 8).
   assert.doesNotMatch(read('routes/reservations.js'), /'\/:id\/sas/);
   assert.match(read('plugins/sas/index.js'), /ctx\.route\('get', '\/api\/reservations\/:id\/sas'/);

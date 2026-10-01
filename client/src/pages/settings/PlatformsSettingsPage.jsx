@@ -10,9 +10,9 @@
  * Desktop: one table. Mobile: one card per platform.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import {
-  Alert, Box, Card, CardContent, Link, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
+  Alert, Box, Card, CardContent, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -25,6 +25,7 @@ import PlatformColorPicker from '../../components/PlatformColorPicker';
 import { useToast } from '../../components/DialogProvider';
 import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import { formatPlatformLabel } from '../../constants/platforms';
+import Slot from '../../plugins/sdk/Slot';
 
 const TAX_OPTIONS = [
   { value: 'platform', label: 'Plateforme → commune' },
@@ -187,8 +188,8 @@ export default function PlatformsSettingsPage() {
         {loadError && <ErrorAlert message="Impossible de charger les plateformes." onRetry={load} sx={{ mb: 2 }} />}
         <Alert severity="info" sx={{ mb: 2 }}>
           Ces réglages valent pour <strong>tous</strong> les logements : chaque fiche logement ne garde
-          que ses calendriers. Les comptes comptables se règlent dans le{' '}
-          <Link component={RouterLink} to="/comptabilite/plateformes">Plan comptable</Link>.
+          que ses calendriers.
+          <Slot name="settings.platforms.links" page="platforms" />
         </Alert>
         {!draft && !loadError && <LoadingState label="Chargement des plateformes…" />}
         {draft && !isMobile && (

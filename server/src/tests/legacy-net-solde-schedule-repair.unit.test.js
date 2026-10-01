@@ -16,8 +16,8 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { runLegacyNetSoldeRepair } = require('../utils/legacyNetSoldeRepair');
-const { __test: { buildEntry } } = require('../models/accountingModel');
-const { buildRows } = require('../utils/accountingExport');
+const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
+const { buildRows } = require('../plugins/accounting-export/accountingExport');
 
 const COMMISSION_CONTEXT = {
   defaultAccount: '622600', vatRateCommission: 20, vatRate: 10, platformByName: new Map(),

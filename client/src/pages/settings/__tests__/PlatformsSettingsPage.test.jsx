@@ -7,6 +7,8 @@ import { vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
+// The « Plan comptable » link is a slot of the accounting export (specs/plugins-phase-2-hosts.md rule 19).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: { getPlatformSettings: vi.fn(), savePlatformSettings: vi.fn() },

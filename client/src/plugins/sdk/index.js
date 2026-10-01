@@ -32,3 +32,7 @@ export { PRICE_TYPE_LABELS } from '../../components/reservation/extrasLabels';
 export { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
 // The hourly-resource step keeps its phase 0 switch until phase 3 (rule 11).
 export { HOURLY_RESOURCES } from '../../constants/plugins';
+// accounting-export
+export { default as MonthYearPicker } from '../../components/MonthYearPicker';
+export { default as PlatformChip } from '../../components/PlatformChip';
+export { ADMIN, userHasRole } from '../../constants/roles';

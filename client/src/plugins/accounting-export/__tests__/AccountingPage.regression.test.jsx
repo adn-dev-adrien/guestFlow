@@ -21,11 +21,11 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
-import theme from '../../theme';
-import DialogProvider from '../../components/DialogProvider';
+import theme from '../../../theme';
+import DialogProvider from '../../../components/DialogProvider';
 
 // Mock the API + auth BEFORE importing AccountingPage so the page picks up the mocks.
-vi.mock('../../api', () => ({
+vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getAccountingPlatforms: vi.fn(),
@@ -35,13 +35,13 @@ vi.mock('../../api', () => ({
     getCancellationCompensations: vi.fn(() => Promise.resolve({ pending: [], received: [], totals: { pendingExpected: 0, receivedInMonth: 0 } })),
   },
 }));
-vi.mock('../../hooks/useAuth', () => ({
+vi.mock('../../../hooks/useAuth', () => ({
   __esModule: true,
   useAuth: vi.fn(),
 }));
 
-import api from '../../api';
-import { useAuth } from '../../hooks/useAuth';
+import api from '../../../api';
+import { useAuth } from '../../../hooks/useAuth';
 import AccountingPage from '../AccountingPage';
 
 function setAuth(user) {

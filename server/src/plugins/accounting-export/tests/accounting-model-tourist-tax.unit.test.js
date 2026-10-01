@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry } } = require('../models/accountingModel');
+const { __test: { buildEntry } } = require('../accountingModel');
 
 // Regression tests for the accounting export's handling of the tourist tax across the three flows:
 //   1. Direct booking — tax baked into deposit + balance; export pro-rates against totalStayTtc.

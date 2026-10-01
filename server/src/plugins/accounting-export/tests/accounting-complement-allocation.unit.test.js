@@ -10,8 +10,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry, buildEndOfStayEntry } } = require('../models/accountingModel');
-const { entryToRows } = require('../utils/accountingExport');
+const { __test: { buildEntry, buildEndOfStayEntry } } = require('../accountingModel');
+const { entryToRows } = require('../accountingExport');
 
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 

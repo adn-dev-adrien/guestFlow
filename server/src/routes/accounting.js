@@ -1,36 +1,16 @@
 /**
- * Accounting routes — read-only, accessible to admin AND accountant (the role guard in
- * middleware/enforceRoleAccess allows GETs here for accountant; everything else is admin-only).
+ * Cancellation compensations (specs/cancellation-compensation.md §4.3) — core: the dashboard alert and
+ * the « Indemnités d'annulation » page settle them without the accounting export. The export's own
+ * routes under /api/accounting (journal, CSV, account plan) belong to the `accounting-export` plugin
+ * (specs/plugins-phase-2-hosts.md rule 19).
+ *
+ * The accountant reads the list (middleware/enforceRoleAccess); every write is admin-only.
  */
 
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/accountingController');
-const platformAccountsController = require('../controllers/platformAccountsController');
 const compensationsController = require('../controllers/cancellationCompensationsController');
-const requirePlugin = require('../middleware/requirePlugin');
-const { ACCOUNTING_EXPORT } = require('../constants/plugins');
 
-// The accounting export is a plugin (specs/plugins-phase-0-foundation.md); the cancellation
-// compensations below are core — the dashboard alert settles them without the accounting page.
-const exportOn = requirePlugin(ACCOUNTING_EXPORT);
-
-router.get('/sales.csv', exportOn, controller.salesCsv);
-router.get('/sales', exportOn, controller.salesJson);
-router.get('/platforms', exportOn, controller.platformsPreview);
-
-// accounting-platform-commission-and-no-deposit.md §3.7 + §4.3. Dedicated page
-// `/comptabilite/plateformes` accessible to admin + accountant; PUT is whitelisted on the
-// accountant role guard in middleware/enforceRoleAccess.js.
-router.get('/platform-accounts', exportOn, platformAccountsController.getAll);
-router.put('/platform-accounts', exportOn, platformAccountsController.saveAll);
-// Operator-triggered rescan: re-runs the union INSERT OR IGNORE from `ical_sources` +
-// `reservations.platform` so a brand-new platform name surfaces without a server restart.
-router.post('/platform-accounts/refresh', exportOn, platformAccountsController.refresh);
-
-// specs/cancellation-compensation.md §4.3 — what a platform owes (or has paid) us for a cancelled
-// stay. The GETs are readable by the accountant like the rest of `/accounting/*`; every write is
-// admin-only (the role guard refuses non-GET here — deliberately NOT whitelisted).
 router.get('/cancellation-compensations', compensationsController.list);
 router.post('/cancellation-compensations', compensationsController.create);
 router.put('/cancellation-compensations/:id', compensationsController.update);

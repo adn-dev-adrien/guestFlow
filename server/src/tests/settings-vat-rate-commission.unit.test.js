@@ -5,8 +5,10 @@ const Database = require('better-sqlite3');
 const settingsModel = require('../models/settingsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 
-// accounting-platform-commission-and-no-deposit.md §3.7 rule 17b + §7.1.
-// The global commission VAT rate sits next to vatRate in Settings → Général → Taux de TVA.
+// accounting-platform-commission-and-no-deposit.md §3.7 rule 17b + §7.1. The commission and
+// cancellation-indemnity rates (and their accounts) moved to the accounting-export plugin's settings
+// (specs/plugins-phase-2-hosts.md rule 19): the core settings model no longer reads or writes them,
+// and their app_settings columns stay in place, unread. The plugin's tests cover the new store.
 
 const DDL = `
   CREATE TABLE app_settings (
@@ -53,20 +55,21 @@ function freshModel() {
   return { model: settingsModel.create(db), db };
 }
 
-test('vatRateCommission defaults to 20 on a fresh row', () => {
+test('the core settings model no longer reads the accounting rates and accounts', () => {
   const { model } = freshModel();
   const row = model.read();
-  assert.equal(row.vatRateCommission, 20);
+  assert.equal('vatRateCommission' in row, false);
+  assert.equal('defaultCommissionAccountNumber' in row, false);
+  assert.equal(row.vatRate, 10);
 });
 
-test('vatRateCommission round-trips through upsert; GET /settings no longer carries it', () => {
-  // specs/settings-rationalization.md rule 14 — the rate is edited on Plan comptable
-  // (GET|PUT /api/accounting/platform-accounts), next to the accounts that use it.
-  const { model } = freshModel();
-  model.upsert({ vatRate: 5.5, vatRateCommission: 19.6 });
-  const row = model.read();
-  assert.equal(row.vatRateCommission, 19.6);
-  const shaped = shapeResponse(row);
+test('the core settings model no longer writes them; GET /settings does not carry them', () => {
+  const { model, db } = freshModel();
+  model.upsert({ vatRate: 5.5, vatRateCommission: 19.6, defaultCommissionAccountNumber: '62260001' });
+  const stored = db.prepare('SELECT vatRateCommission, defaultCommissionAccountNumber FROM app_settings WHERE id = 1').get();
+  assert.equal(stored.vatRateCommission, 20, 'the old column keeps its value, unread');
+  assert.equal(stored.defaultCommissionAccountNumber, '622600');
+  const shaped = shapeResponse(model.read());
   assert.equal(shaped.vat.rate, 5.5);
   assert.equal('rateCommission' in shaped.vat, false);
   assert.equal('rateCancellationCompensation' in shaped.vat, false);

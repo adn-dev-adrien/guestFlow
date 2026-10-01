@@ -8,11 +8,13 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const accountingModel = require('../models/accountingModel');
-const compensationsModel = require('../models/cancellationCompensationsModel');
-const { buildRows, buildStructuredEntries, CSV_HEADERS, __test } = require('../utils/accountingExport');
+const accountingModel = require('../accountingModel');
+const { createAccountSettings } = require('../settings');
+const { ensurePluginSettingsTable } = require('../../../utils/pluginsSchema');
+const compensationsModel = require('../../../models/cancellationCompensationsModel');
+const { buildRows, buildStructuredEntries, CSV_HEADERS, __test } = require('../accountingExport');
 
-const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
+const SCHEMA = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'schema.sql'), 'utf8');
 
 const DEBIT = CSV_HEADERS.indexOf('Débit');
 const CREDIT = CSV_HEADERS.indexOf('Crédit');
@@ -38,8 +40,10 @@ const DRAFT = {
 function freshDb({ vatRate = 0, account = null } = {}) {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
-  db.prepare('INSERT INTO app_settings (id, vatRate, vatRateCancellationCompensation) VALUES (1, 10, ?)').run(vatRate);
-  if (account) db.prepare('UPDATE app_settings SET cancellationCompensationAccount = ? WHERE id = 1').run(account);
+  db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
+  // The account and its VAT rate are the export's own settings (specs/plugins-phase-2-hosts.md rule 19).
+  ensurePluginSettingsTable(db);
+  createAccountSettings(db).write({ vatRateCancellationCompensation: vatRate, ...(account ? { cancellationCompensationAccount: account } : {}) });
   return { db, compensations: compensationsModel.buildModel(db), accounting: accountingModel.create(db) };
 }
 
