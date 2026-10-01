@@ -6,7 +6,7 @@
 | **Branch** | `feature/plugins-phase-2` (from `inte/plugins`, after the master sync [#649](https://github.com/adn-dev-adrien/guestFlow/pull/649)) |
 | **Created** | 2026-10-01 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened, target `inte/plugins`) |
+| **Related PR** | [#650](https://github.com/adn-dev-adrien/guestFlow/pull/650) (target `inte/plugins`) |
 | **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §5.3 owner's split, §6 extension points, phasing §12 |
 | **Previous phase** | [`specs/plugins-phase-1-sdk.md`](plugins-phase-1-sdk.md) (merged into `inte/plugins`, #632) |
 | **Summary for review** | [`docs/specs/2026-10-01-plugins-phase-2-hosts.html`](../docs/specs/2026-10-01-plugins-phase-2-hosts.html) |
