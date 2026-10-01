@@ -6,7 +6,8 @@
  * 0 = "I don't track this type" — the simulation skips it and the UI hides any line for that
  * type elsewhere (Planning + Dashboard).
  *
- * Persists to `app_settings.bedLinenStock*` / `towelStock*` via `PUT /api/settings { linenStock: {...} }`.
+ * Persists to the `linen` plugin's settings via `PUT /api/plugins/linen/settings`
+ * (specs/plugins-phase-2-hosts.md rule 15).
  * Uses the same dirty-form guard pattern as the rest of SettingsPage so navigation away with
  * unsaved changes prompts a confirmation.
  */
@@ -15,15 +16,22 @@ import { useNavigate } from 'react-router';
 import { Box, Card, CardContent, Stack, Typography, TextField, FormHelperText } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import BathtubIcon from '@mui/icons-material/Bathtub';
-import api from '../api';
-import PageActionBar from '../components/PageActionBar';
-import SettingsLaundrySection from '../components/SettingsLaundrySection';
-import ConfirmDialog from '../components/ConfirmDialog';
-import ErrorAlert from '../components/ErrorAlert';
-import { useToast } from '../components/DialogProvider';
-import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
+import {
+  api, PageActionBar, ConfirmDialog, ErrorAlert, useToast, useDirtyFormGuard,
+} from '../sdk';
+import SettingsLaundrySection from './SettingsLaundrySection';
 
 const EMPTY = { bedSingle: 0, bedDouble: 0, bedBaby: 0, towelLarge: 0, towelMedium: 0, towelSmall: 0, towelBathMat: 0 };
+// Form field → plugin setting key.
+const SETTING_KEYS = {
+  bedSingle: 'bedLinenStockSingle',
+  bedDouble: 'bedLinenStockDouble',
+  bedBaby: 'bedLinenStockBaby',
+  towelLarge: 'towelStockLarge',
+  towelMedium: 'towelStockMedium',
+  towelSmall: 'towelStockSmall',
+  towelBathMat: 'towelStockBathMat',
+};
 
 function clampInt(value) {
   const n = Math.floor(Number(value) || 0);
@@ -57,13 +65,12 @@ export default function LinenStockPage() {
     let mounted = true;
     (async () => {
       try {
-        const data = await api.getSettings();
+        const data = (await api.getPluginSettings('linen')) || {};
         if (!mounted) return;
-        const linenStock = (data && data.linenStock) || EMPTY;
-        const shaped = { ...EMPTY, ...linenStock };
+        const shaped = Object.fromEntries(Object.entries(SETTING_KEYS).map(([field, key]) => [field, clampInt(data[key])]));
         setSavedForm(shaped);
         setDraft(shaped);
-        const wd = data && data.laundry && Number.isInteger(Number(data.laundry.weekday)) ? Number(data.laundry.weekday) : 2;
+        const wd = data.laundryWeekday !== '' && Number.isInteger(Number(data.laundryWeekday)) ? Number(data.laundryWeekday) : 2;
         setLaundryWeekday(wd);
         setSavedWeekday(wd);
       } catch (err) {
@@ -80,7 +87,10 @@ export default function LinenStockPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.updateSettings({ linenStock: draft, laundry: { weekday: laundryWeekday } });
+      await api.savePluginSettings('linen', {
+        ...Object.fromEntries(Object.entries(SETTING_KEYS).map(([field, key]) => [key, draft[field]])),
+        laundryWeekday,
+      });
       setSavedForm(draft);
       setSavedWeekday(laundryWeekday);
       showSuccess('Enregistré.');

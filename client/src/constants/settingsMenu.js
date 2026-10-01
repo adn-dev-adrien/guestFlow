@@ -13,7 +13,6 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import DateRangeIcon from '@mui/icons-material/DateRange';
-import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PercentIcon from '@mui/icons-material/Percent';
 import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
@@ -33,7 +32,6 @@ const BASE_MENU = [
   null,
   { path: '/parametres/options-ressources', label: 'Options & ressources', Icon: ExtensionIcon, matches: ['/options', '/resources'] },
   { path: '/parametres/vacances-fermetures', label: 'Vacances & fermetures', Icon: DateRangeIcon, matches: ['/school-holidays', '/establishment-closures'] },
-  { path: '/parametres/stock-blanchisserie', label: 'Linge', Icon: LocalLaundryServiceIcon },
   null,
   { path: '/parametres/paiements', label: 'Paiements en ligne', Icon: PaymentsIcon },
   { path: '/settings/tva-exercice', label: 'TVA & exercice', Icon: PercentIcon },

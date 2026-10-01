@@ -21,10 +21,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { cyan } from '@mui/material/colors';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
-import api from '../api';
-import DateField from './DateField';
-import QuantityField from './QuantityField';
-import { formatLinenBlock } from '../utils/formatLinen';
+import { api, DateField, QuantityField } from '../sdk';
+import { formatLinenBlock } from './formatLinen';
 
 const GROUPS = [
   { title: 'Draps', items: [{ key: 'doubleBeds', label: 'Double' }, { key: 'singleBeds', label: 'Simple' }, { key: 'babyBeds', label: 'Bébé' }] },

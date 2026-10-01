@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 const previewLaundryExtraTrip = vi.fn();
-vi.mock('../../api', () => ({ default: { previewLaundryExtraTrip: (...args) => previewLaundryExtraTrip(...args) } }));
+vi.mock('../../../api', () => ({ default: { previewLaundryExtraTrip: (...args) => previewLaundryExtraTrip(...args) } }));
 
 import LaundryExtraTripDialog from '../LaundryExtraTripDialog';
 

@@ -68,7 +68,6 @@ import SystemSettingsPage from './pages/settings/SystemSettingsPage';
 import TermsSettingsPage from './pages/settings/TermsSettingsPage';
 import PluginsPage from './pages/PluginsPage';
 import AccountPage from './pages/AccountPage';
-import LinenStockPage from './pages/LinenStockPage';
 import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
 import OptionsResourcesPage from './pages/OptionsResourcesPage';
 import PaymentsSettingsPage from './pages/PaymentsSettingsPage';
@@ -741,7 +740,6 @@ function AppShell() {
           <Route path="/settings/integrations" element={pluginRoute('/settings/integrations', <IntegrationsSettingsPage />)} />
           <Route path="/settings/systeme" element={<SystemSettingsPage />} />
           <Route path="/settings/utilisateurs" element={<UserManagementPage />} />
-          <Route path="/parametres/stock-blanchisserie" element={pluginRoute('/parametres/stock-blanchisserie', <LinenStockPage />)} />
           <Route path="/parametres/tarifs" element={<Navigate to="/parametres/options-ressources?tab=sas" replace />} />
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />

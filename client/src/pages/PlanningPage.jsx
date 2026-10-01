@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Chip, Divider,
@@ -9,16 +9,11 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import PageActionBar from '../components/PageActionBar';
-import ConfirmDialog from '../components/ConfirmDialog';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import { useToast } from '../components/DialogProvider';
-import LaundryDayCard from '../components/LaundryDayCard';
-import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
-import LaundryExtraTripDialog from '../components/LaundryExtraTripDialog';
 import OptionDayCard from '../components/OptionDayCard';
 import BreakfastPrepDialog from '../components/BreakfastPrepDialog';
 import ReservationCard from '../components/ReservationCard';
@@ -34,7 +29,8 @@ import { useAuth } from '../hooks/useAuth';
 import { isReceptionOnly } from '../constants/roles';
 import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
-import { LINEN, HOURLY_RESOURCES, SAS } from '../constants/plugins';
+import { HOURLY_RESOURCES, SAS } from '../constants/plugins';
+import { useSlot } from '../plugins/sdk/useSlot';
 
 // A plugin's planning data is only fetched while the plugin is active
 // (specs/plugins-phase-0-foundation.md rule 18); otherwise its empty shape stands in.
@@ -42,23 +38,11 @@ const fetchIf = (active, call, empty) => (active ? call().catch(() => empty) : P
 
 const DAYS_AHEAD = 14;
 
-// Laundry summary entries keyed by date — the whole entry (dropOff, pickUp, kind, and the extra-trip
-// fields pickUpAll / leftAtLaundry) goes straight to LaundryDayCard.
-function indexLaundryDays(laundryDays) {
-  const out = {};
-  for (const ld of (laundryDays || [])) out[ld.date] = ld;
-  return out;
-}
-
-function indexExtraTrips(trips) {
-  const out = {};
-  for (const t of (trips || [])) out[t.date] = t;
-  return out;
-}
+// A `planning.days` contribution is identified by its plugin and its key.
+const contributionId = (c) => `${c.pluginId}:${c.key}`;
 
 // Day-card palette (PlanningPage). Tuned 2026-06-02 to make arrivals stand out from departures
-// without going flashy, with the laundry card carrying its own laundry-themed tone (see the
-// matching constant in LaundryDayCard).
+// without going flashy; a plugin's card (e.g. the laundry) carries its own tone.
 //   - Arrivals: warm peach (MUI orange[50]) — welcoming, attention-grabbing. See
 //     `components/ReservationCard.js` for the canonical ARRIVAL_BG constant.
 //   - Departures: very pale grey (MUI grey[100]) — fades into the page on purpose. See
@@ -190,7 +174,6 @@ export default function PlanningPage() {
   // The SAS locks themselves (specs/reception-sas-today-only.md) ride along in the reservation
   // payload — the cards read them directly, nothing to pass down from here.
   const receptionMode = isReceptionOnly(user);
-  const linenOn = usePlugin(LINEN);
   const hourlyOn = usePlugin(HOURLY_RESOURCES);
   const sasOn = usePlugin(SAS);
   // Reused by every "card / row click → open reservation" handler below (arrivals,
@@ -303,10 +286,11 @@ export default function PlanningPage() {
   const [properties, setProperties] = useState([]);
   const [resourceBookingsMap, setResourceBookingsMap] = useState({});
   const [departuresMap, setDeparturesMap] = useState({});
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Map ISO date → laundry-day
-  // payload `{ dropOff, pickUp }`. Server emits zero-everywhere days too; LaundryDayCard hides
-  // them silently so we don't need to filter here.
-  const [laundryByDate, setLaundryByDate] = useState({});
+  // Cards plugins add to the days (slot `planning.days`, specs/plugins-phase-2-hosts.md rule 5):
+  // contribution id → { [date]: entry }, each loaded by the contribution's own `load`.
+  const dayContributions = useSlot('planning.days');
+  const actionContributions = useSlot('planning.actions');
+  const [contributedByDate, setContributedByDate] = useState({});
   // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.2). Map ISO date
   // → `{ items: [{ reservationId, clientName, propertyName, persons }], totalPersons }`.
   // Empty days are not included; `BreakfastDayCard` hides itself if data is missing.
@@ -318,26 +302,6 @@ export default function PlanningPage() {
   // Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4). Map ISO date →
   // `{ items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] }`.
   const [resourceCardsByDate, setResourceCardsByDate] = useState({});
-  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
-  // → per-type clean snapshot to display as the 3rd block on each laundry day.
-  const [inventoryByDate, setInventoryByDate] = useState({});
-  // specs/skip-laundry-trip.md §4.2 — global set of ISO dates the operator marked as
-  // not-made. Loaded once on mount + kept in sync by the toggle handler. Empty Set on
-  // initial render so the cards default to "not skipped" while the request is in flight.
-  const [skippedLaundryDates, setSkippedLaundryDates] = useState(() => new Set());
-  // specs/manual-laundry-additions.md — per-trip manual linen (date → {6 counts}, only non-empty
-  // trips) + the date of the open editor (null = closed) + its in-flight save flag.
-  const [manualAdditionsByDate, setManualAdditionsByDate] = useState({});
-  const [editManualDate, setEditManualDate] = useState(null);
-  const [manualSaving, setManualSaving] = useState(false);
-  // specs/laundry-extra-trip.md — extra laundry trips on a free date (date → { pickUpAll, pickUp }),
-  // used to prefill the edit dialog; the cards themselves read the summary entries (kind 'extra').
-  // `extraDialog` = { mode: 'create' | 'edit', date } | null; `deleteExtraDate` = the date awaiting
-  // the delete confirmation.
-  const [extraTripsByDate, setExtraTripsByDate] = useState({});
-  const [extraDialog, setExtraDialog] = useState(null);
-  const [extraSaving, setExtraSaving] = useState(false);
-  const [deleteExtraDate, setDeleteExtraDate] = useState(null);
 
   // specs/planning-breakfast-prep-popup.md — the breakfast card item whose preparation popup
   // is open (null = closed). The fiche stays reachable from the popup's « Fiche » button.
@@ -370,101 +334,27 @@ export default function PlanningPage() {
     api.getProperties().then(setProperties);
   }, []);
 
-  // specs/skip-laundry-trip.md §4.2 — load the global laundry-skip set once on mount. Silent
-  // fallback to empty Set on failure: every LaundryDayCard then renders in its default
-  // (non-skipped) state, the toggle still works, and a subsequent successful toggle/refetch
-  // will hydrate the state. No user-visible error on this read.
-  useEffect(() => {
-    fetchIf(linenOn, () => api.listLaundrySkips(), { skips: [] })
-      .then((res) => setSkippedLaundryDates(new Set(res?.skips || [])));
-  }, [linenOn]);
+  // Loads the contributed day cards of [from, to]. `merge` adds a window the infinite scroll reached;
+  // otherwise the contribution's dates are replaced. A failed load leaves that contribution's cards
+  // out and says so; the other cards render.
+  // The last date the contributions were loaded for. Kept apart from `lastLoadedRef`, which the
+  // infinite scroll clears when no reservation follows: a reload must still cover every day shown.
+  const contributedUntilRef = useRef(null);
+  const loadContributions = useCallback((contributions, range, { merge = false } = {}) => Promise.all(
+    contributions.map((c) => Promise.resolve()
+      .then(() => c.load(range))
+      .then((byDate) => setContributedByDate((prev) => ({
+        ...prev,
+        [contributionId(c)]: merge ? { ...(prev[contributionId(c)] || {}), ...(byDate || {}) } : (byDate || {}),
+      })))
+      .catch(() => showError(c.errorMessage || 'Une partie du planning n’a pas pu être chargée.'))),
+  ), [showError]);
 
-  // After any laundry mutation (skip toggle, manual line, extra trip), refetch the whole laundry
-  // state: the summary, the inventory projection, the manual lines and the extra trips. Refetch up
-  // to the BUSINESS horizon, not the UI horizon — the server knows the inventory horizon (= last
-  // reservation endDate); we just ask for "everything from today" and let it cap. This keeps the
-  // handlers independent from the scroll position — Adrien specifically asked for this on 2026-06-05
-  // (an earlier fix relied on `lastLoadedRef.current`, which conflated business state with UI state
-  // and broke when the user had scrolled past the affected cards).
-  //
-  // 2026-06-05 — the summary MUST be part of it: an earlier skip handler only refetched the
-  // inventory, assuming the summary endpoint was "raw reservation aggregation, not affected by
-  // skips". That broke when `planningController.laundrySummary` became skip-aware — the À apporter /
-  // À récupérer numbers stayed frozen ("la carte blanchisserie suivante ne change pas").
-  const refetchLaundryState = useCallback(async () => {
-    const [summary, inventory, additions, extras] = await Promise.all([
-      fetchIf(linenOn, () => api.getLaundryPlanningSummary({ from: startDate }), { laundryDays: [] }),
-      fetchIf(linenOn, () => api.getLinenInventory(), { byLaundryDay: {} }),
-      fetchIf(linenOn, () => api.getLaundryManualAdditions(), { additions: {} }),
-      fetchIf(linenOn, () => api.getLaundryExtraTrips(), { trips: [] }),
-    ]);
-    setLaundryByDate(indexLaundryDays(summary?.laundryDays));
-    setInventoryByDate(inventory?.byLaundryDay || {});
-    setManualAdditionsByDate(additions?.additions || {});
-    setExtraTripsByDate(indexExtraTrips(extras?.trips));
-  }, [startDate, linenOn]);
-
-  // Per-card skip toggle. Optimistic update first (instant UI feedback), then API call. On
-  // failure: revert to the previous Set + surface a snackbar (rule 12 in the spec). After
-  // success: refetch the laundry state (summary + inventory — see `refetchLaundryState`).
-  const handleToggleLaundrySkip = useCallback(async (date, nextValue) => {
-    const previous = skippedLaundryDates;
-    const next = new Set(previous);
-    if (nextValue) next.add(date); else next.delete(date);
-    setSkippedLaundryDates(next);
-    try {
-      if (nextValue) await api.addLaundrySkip(date);
-      else await api.removeLaundrySkip(date);
-      await refetchLaundryState();
-    } catch (err) {
-      setSkippedLaundryDates(previous);
-      showError(`Impossible d'enregistrer le voyage non réalisé. ${err?.message || ''}`);
-    }
-  }, [skippedLaundryDates, refetchLaundryState]);
-
-  // specs/manual-laundry-additions.md — save a trip's manual linen, then refetch the laundry state so
-  // the À apporter / disponible-après totals and the « dont ajout manuel » caption update together.
-  // Closes the editor on success.
-  const handleSaveManualAddition = useCallback(async (date, counts) => {
-    setManualSaving(true);
-    try {
-      await api.setLaundryManualAddition(date, counts);
-      await refetchLaundryState();
-      setEditManualDate(null);
-    } catch (err) {
-      showError(`Impossible d'enregistrer l'ajout manuel. ${err?.message || ''}`);
-    } finally {
-      setManualSaving(false);
-    }
-  }, [refetchLaundryState]);
-
-  // specs/laundry-extra-trip.md §3.5 rules 18-20 — create / edit an extra trip (PUT upsert), then
-  // refetch the laundry state so the new card, the surrounding weekly cards and the stock line move
-  // together. Delete goes through a ConfirmDialog first.
-  const handleSaveExtraTrip = useCallback(async (date, payload) => {
-    setExtraSaving(true);
-    try {
-      await api.setLaundryExtraTrip(date, payload);
-      await refetchLaundryState();
-      setExtraDialog(null);
-    } catch (err) {
-      showError(`Impossible d'enregistrer le voyage exceptionnel. ${err?.message || ''}`);
-    } finally {
-      setExtraSaving(false);
-    }
-  }, [refetchLaundryState]);
-
-  const handleDeleteExtraTrip = useCallback(async () => {
-    const date = deleteExtraDate;
-    setDeleteExtraDate(null);
-    if (!date) return;
-    try {
-      await api.deleteLaundryExtraTrip(date);
-      await refetchLaundryState();
-    } catch (err) {
-      showError(`Impossible de supprimer le voyage exceptionnel. ${err?.message || ''}`);
-    }
-  }, [deleteExtraDate, refetchLaundryState]);
+  // `reload()` of a contribution: its cards over the whole window shown, the others untouched.
+  const reloadContributions = useCallback((contributions) => loadContributions(contributions, {
+    from: startDate,
+    to: contributedUntilRef.current || addDays(startDate, DAYS_AHEAD - 1),
+  }), [loadContributions, startDate]);
 
   // Detect scheduling conflicts
   const detectAlerts = useCallback((days, props = []) => {
@@ -571,13 +461,10 @@ export default function PlanningPage() {
     setLoadError(false);
     try {
       const to = addDays(from, DAYS_AHEAD - 1);
-      const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, resourceCardsSummary, manualAdditions, extraTrips] = await Promise.all([
+      contributedUntilRef.current = to;
+      const [reservationsBase, rbEvents, breakfastSummary, optionCardsSummary, resourceCardsSummary] = await Promise.all([
         api.getReservations({ from, to }),
         fetchIf(hourlyOn, () => api.getResourceBookingPlanningEvents(from, to), []),
-        // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
-        fetchIf(linenOn, () => api.getLaundryPlanningSummary({ from, to }), { laundryDays: [] }),
-        // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
-        fetchIf(linenOn, () => api.getLinenInventory(), { byLaundryDay: {} }),
         // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
         // Non-blocking like the others; an empty map keeps the planning fully functional.
         api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
@@ -585,11 +472,8 @@ export default function PlanningPage() {
         api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
         // specs/resource-hourly-scheduling.md §3.4 — resource session cards. Non-blocking.
         fetchIf(hourlyOn, () => api.getPlanningResourceCards({ from, to }), { resourceCardsByDate: {} }),
-        // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
-        // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
-        fetchIf(linenOn, () => api.getLaundryManualAdditions(), { additions: {} }),
-        // specs/laundry-extra-trip.md — extra trips, for the edit dialog's prefill.
-        fetchIf(linenOn, () => api.getLaundryExtraTrips(), { trips: [] }),
+        // The plugins' day cards — non-blocking: a failed contribution only loses its own cards.
+        loadContributions(dayContributions, { from, to }),
       ]);
       const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
       const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -631,20 +515,12 @@ export default function PlanningPage() {
       }
       setResourceBookingsMap(rbByDate);
 
-      // Build laundryByDate from the new endpoint. Keys are ISO dates → LaundryDayCard props.
-      setLaundryByDate(indexLaundryDays(laundrySummary?.laundryDays));
-      setManualAdditionsByDate(manualAdditions?.additions || {});
-      setExtraTripsByDate(indexExtraTrips(extraTrips?.trips));
       // Breakfast map (date → { items, totalPersons }) directly from the server payload.
       setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
       // Option-driven planning cards (specs/option-planning-card.md §3.3).
       setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
       // Resource session cards (specs/resource-hourly-scheduling.md §3.4).
       setResourceCardsByDate(resourceCardsSummary?.resourceCardsByDate || {});
-
-      // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
-      // horizon; LaundryDayCard filters the types it actually renders.
-      setInventoryByDate(inventoryProjection?.byLaundryDay || {});
 
       detectAlerts(days, properties);
       lastLoadedRef.current = to;
@@ -667,13 +543,10 @@ export default function PlanningPage() {
       if (doc.scrollHeight - window.scrollY - window.innerHeight < 200 && !loading && lastLoadedRef.current) {
         const nextStart = addDays(lastLoadedRef.current, 1);
         const nextEnd = addDays(nextStart, DAYS_AHEAD - 1);
-        // Pull the next-window laundry summary alongside the reservations so the new days
-        // surface their LaundryDayCard right after they scroll into view. Non-blocking; an
+        // The plugins' day cards of the next window, merged into what is shown. Non-blocking; an
         // error here must not stop the infinite scroll.
-        fetchIf(linenOn, () => api.getLaundryPlanningSummary({ from: nextStart, to: nextEnd }), { laundryDays: [] })
-          .then((summary) => {
-            setLaundryByDate((prev) => ({ ...prev, ...indexLaundryDays(summary?.laundryDays) }));
-          });
+        contributedUntilRef.current = nextEnd;
+        loadContributions(dayContributions, { from: nextStart, to: nextEnd }, { merge: true });
         // Same incremental pattern for breakfast: fetch the next window and merge into
         // the existing map so the new days surface their BreakfastDayCard on scroll.
         api.getBreakfastPlanningSummary({ from: nextStart, to: nextEnd })
@@ -822,14 +695,15 @@ export default function PlanningPage() {
         title="Planning"
         titleOnXs
         center={renderDateNav()}
-        // specs/laundry-extra-trip.md §3.5 rule 17 — admin only (the reception role sees the card
-        // read-only; the server refuses its writes anyway).
-        actionsBefore={receptionMode || !linenOn ? [] : [{
-          icon: <LocalLaundryServiceIcon />,
-          tooltip: 'Ajouter un voyage blanchisserie exceptionnel',
-          onClick: () => setExtraDialog({ mode: 'create', date: null }),
-          color: 'info',
-        }]}
+        // Buttons plugins add to the bar (slot `planning.actions`, specs/plugins-phase-2-hosts.md
+        // rule 6); `reload()` reloads that plugin's day cards.
+        actionsBefore={actionContributions.map((c) => ({
+          node: (
+            <Suspense key={contributionId(c)} fallback={null}>
+              <c.Component reload={() => reloadContributions(dayContributions.filter((d) => d.pluginId === c.pluginId))} />
+            </Suspense>
+          ),
+        }))}
       />
       {/* xs fallback for the bar's hidden `center` — same date cluster, compact strip. */}
       <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
@@ -847,35 +721,14 @@ export default function PlanningPage() {
           <EmptyState message={`Aucune arrivée ni créneau ressource sur les ${DAYS_AHEAD} prochains jours.`} />
         )}
 
-        {/* Merge reservation days + resource booking days + laundry days with content.
-            §3.7 / 2026-06-03 fix: a Tuesday that has only a laundry card (no arrivals, no
-            departures, no resource bookings) must STILL render. We add `laundryByDate` keys to
-            the date set, filtered to days where the LaundryDayCard would render something
-            (mirrors its rule-13 silence test — beds + towels > 0 on at least one side, OR at
-            least one stay flagged as "declares linen, no quantity yet" —
-            specs/laundry-counts-explicit-option-only.md §3.2, whose whole point is a week that
-            would otherwise total zero on both sides). */}
+        {/* Merge reservation days + resource booking days + the dates the plugins' day cards
+            return (specs/plugins-phase-2-hosts.md rule 5): a day with only a laundry card still
+            renders. Each contribution decides which of its dates carry a card. */}
         {[...new Set([
           ...planningDays.map((d) => d.date),
           ...Object.keys(resourceBookingsMap),
           ...Object.keys(departuresMap),
-          ...Object.keys(laundryByDate).filter((d) => {
-            const data = laundryByDate[d];
-            if (!data) return false;
-            const sum = (side) => {
-              if (!side) return 0;
-              return Number(side.singleBeds || 0) + Number(side.doubleBeds || 0) + Number(side.babyBeds || 0)
-                   + Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0);
-            };
-            // specs/laundry-extra-trip.md §3.5 rule 19 — an extra trip is always shown.
-            return data.kind === 'extra'
-              || sum(data.dropOff) + sum(data.pickUp) > 0
-              || (data.dropOff?.incomplete?.length || 0) > 0;
-          }),
-          // specs/skip-laundry-trip.md §3.3 rule 11 — a skipped card is ALWAYS shown so the
-          // operator can revert it. Add every skipped date to the date set; the LaundryDayCard
-          // receives a {} placeholder for `data` below when laundryByDate has nothing.
-          ...skippedLaundryDates,
+          ...dayContributions.flatMap((c) => Object.keys(contributedByDate[contributionId(c)] || {})),
           // specs/breakfast-option-and-planning-card.md §3 rule 8 — a date that has ONLY a
           // breakfast card (no arrival/departure/laundry) must still render so the operator
           // sees it. Filter to days where there's actually at least one item.
@@ -897,6 +750,10 @@ export default function PlanningPage() {
             arrivals: reservations,
             departures: dayDepartures,
             resourceCards: resourceCardsByDate[date]?.items,
+            // A plugin card counts only if its contribution says what it holds to tick (rule 7).
+            contributed: dayContributions
+              .filter((c) => c.countTasks && contributedByDate[contributionId(c)]?.[date])
+              .map((c) => c.countTasks(contributedByDate[contributionId(c)][date])),
           });
           const allReady = dayTasks.allDone;
 
@@ -993,30 +850,22 @@ export default function PlanningPage() {
             time: b.startTime,
             node: <ResourceBookingsSection bookings={[b]} />,
           }));
-          // Weekly bed-linen card (specs/weekly-bed-linen-tracking.md) — time-less → bottom. Same
-          // placeholder logic as before: a skipped date with no payload still renders so the toggle
-          // stays revertable (specs/skip-laundry-trip.md §3.3 rule 11).
-          const laundryData = laundryByDate[date] || (skippedLaundryDates.has(date) ? { dropOff: {}, pickUp: {} } : null);
-          if (laundryData) {
+          // The plugins' day cards (slot `planning.days`) — time-less, placed among the day's other
+          // time-less cards by their `rank`.
+          dayContributions.forEach((c) => {
+            const entry = contributedByDate[contributionId(c)]?.[date];
+            if (!entry) return;
             entries.push({
-              key: `laundry-${date}`,
+              key: `${contributionId(c)}-${date}`,
               time: null,
+              rank: c.rank,
               node: (
-                <LaundryDayCard
-                  data={laundryData}
-                  inventoryAfter={inventoryByDate[date]}
-                  date={date}
-                  isSkipped={skippedLaundryDates.has(date)}
-                  onToggleSkip={handleToggleLaundrySkip}
-                  manualAddition={manualAdditionsByDate[date]}
-                  onEditManual={setEditManualDate}
-                  onOpenReservation={(id) => navigate(`/reservations/${id}`)}
-                  onEditExtra={receptionMode ? undefined : (d) => setExtraDialog({ mode: 'edit', date: d })}
-                  onDeleteExtra={receptionMode ? undefined : setDeleteExtraDate}
-                />
+                <Suspense fallback={null}>
+                  <c.Component date={date} entry={entry} reload={() => reloadContributions([c])} />
+                </Suspense>
               ),
             });
-          }
+          });
           const orderedEntries = orderDayEntries(entries);
 
           return (
@@ -1076,32 +925,6 @@ export default function PlanningPage() {
         onClose={() => setSas(null)}
         onCommitted={() => { setSas(null); loadPlanning(startDate); }}
         canOpenReservation={!receptionMode}
-      />
-
-      <LaundryExtraTripDialog
-        open={!!extraDialog}
-        mode={extraDialog?.mode || 'create'}
-        date={extraDialog?.date || null}
-        current={extraDialog?.mode === 'edit' ? extraTripsByDate[extraDialog.date] || null : null}
-        saving={extraSaving}
-        onClose={() => setExtraDialog(null)}
-        onSave={handleSaveExtraTrip}
-      />
-      <ConfirmDialog
-        open={!!deleteExtraDate}
-        title="Supprimer ce voyage exceptionnel ?"
-        message="Le linge de cette date retournera dans le calcul du voyage suivant."
-        confirmLabel="Supprimer"
-        onClose={() => setDeleteExtraDate(null)}
-        onConfirm={handleDeleteExtraTrip}
-      />
-      <LaundryManualAdditionsDialog
-        open={!!editManualDate}
-        date={editManualDate}
-        current={editManualDate ? manualAdditionsByDate[editManualDate] : null}
-        saving={manualSaving}
-        onClose={() => setEditManualDate(null)}
-        onSave={handleSaveManualAddition}
       />
 
       <BreakfastPrepDialog

@@ -46,7 +46,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
-import { formatSheets, formatTowels } from '../utils/formatLinen';
+import { formatSheets, formatTowels } from './formatLinen';
 
 // Laundry-themed palette (2026-06-02). Cyan reads as "fresh / water / linen" without leaning
 // clinical or flashy. Three tones cascade — bg subtle → border just defined enough to pop off

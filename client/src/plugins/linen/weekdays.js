@@ -1,9 +1,6 @@
 /**
- * Weekday options for any "pick a day of week" Select in the app.
+ * Weekday options of the « Jour de blanchisserie » Select (specs/weekly-bed-linen-tracking.md).
  * Values follow `Date.prototype.getDay()` convention: 0 = Sunday … 6 = Saturday.
- *
- * Currently consumed by SettingsLaundrySection (specs/weekly-bed-linen-tracking.md). Extract on
- * first reuse — future cleaning-day / reporting-day pickers should consume this constant.
  */
 
 export const WEEKDAY_OPTIONS = [

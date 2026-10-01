@@ -18,7 +18,7 @@ import {
   Card, CardContent, Stack, Typography, Box, TextField, MenuItem,
 } from '@mui/material';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
-import { WEEKDAY_OPTIONS } from '../constants/weekdays';
+import { WEEKDAY_OPTIONS } from './weekdays';
 
 export default function SettingsLaundrySection({
   value = 2,

@@ -38,7 +38,7 @@ vi.mock('react-router', async (importOriginal) => {
 });
 
 // Self-contained dashboard widgets (each self-fetches; covered by their own suites).
-vi.mock('../../components/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../plugins/linen/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalNewReservationsAlert', () => ({ __esModule: true, default: () => null }));
