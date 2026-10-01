@@ -19,7 +19,8 @@ function emptyRecord(id) {
     failed: null,
     mounts: [],
     routes: [],
-    reception: [],
+    // role → [{ method, re }] allowlist entries (specs/plugins-phase-2-hosts.md rule 3).
+    roleAccess: { reception: [], accountant: [] },
     migrations: [],
     settings: [],
     jobs: [],

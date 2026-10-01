@@ -45,9 +45,14 @@ function createContext(id, { db, settingsModel } = {}) {
       if (!path.startsWith('/api/')) throw new Error(`${prefix} routes must live under /api/`);
       record.routes.push({ method, path, handlers });
     },
-    // Reception-role allowlist entries, matched like enforceRoleAccess's own ({ method, re } on the
-    // path below /api).
-    reception(entries) { record.reception.push(...entries); },
+    // Allowlist entries for a restricted role, matched like enforceRoleAccess's own ({ method, re }
+    // on the path below /api) — specs/plugins-phase-2-hosts.md rule 3. `reception(entries)` is its
+    // shorthand from phase 1.
+    roleAccess(role, entries) {
+      if (!Object.prototype.hasOwnProperty.call(record.roleAccess, role)) throw new Error(`${prefix} unknown role ${role}`);
+      record.roleAccess[role].push(...entries);
+    },
+    reception(entries) { record.roleAccess.reception.push(...entries); },
     migrations(list) { record.migrations.push(...list); },
     settings,
     jobs: {

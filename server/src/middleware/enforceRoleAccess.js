@@ -82,8 +82,13 @@ const RECEPTION_MATCHERS = [
 // Plugin modules add their own reception entries (specs/plugins-phase-1-sdk.md rule 5). Their
 // routes stay behind requirePlugin, so an entry of an inactive plugin still ends in a 404.
 function isReceptionAllowed(method, path) {
-  const pluginMatchers = require('../plugins/loader').receptionMatchers();
+  const pluginMatchers = require('../plugins/loader').roleMatchers('reception');
   return [...RECEPTION_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
+}
+
+// specs/plugins-phase-2-hosts.md rule 3 — the accountant's plugin entries (the accounting export).
+function isAccountantPluginAllowed(method, path) {
+  return require('../plugins/loader').roleMatchers('accountant').some((m) => m.method === method && m.re.test(path));
 }
 
 function isSelfPath(path) {
@@ -99,6 +104,7 @@ function enforceRoleAccess(req, res, next) {
     if (isSelfPath(req.path)) return next();
     if (req.method === 'GET' && isAccountingPath(req.path)) return next();
     if (isAccountantWritablePath(req.method, req.path)) return next();
+    if (isAccountantPluginAllowed(req.method, req.path)) return next();
   }
 
   if (userHasRole(req.user, RECEPTION)) {

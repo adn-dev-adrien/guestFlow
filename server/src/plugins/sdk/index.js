@@ -9,8 +9,25 @@
  * Everything is resolved lazily: plugins load while the core is still booting.
  */
 
+// specs/plugins-phase-2-hosts.md rule 2 — the core modules the plugins moved in phase 2 still call:
+// the money they read or write stays in the core (the SAS commit, the journal's inputs, pricing), the
+// plugin only calls it. One reviewed list, one line per module, each with the plugin that needs it.
+// `coreModule(name)` refuses anything else, so a plugin cannot reach the core by a side door.
+const CORE_MODULES = Object.freeze({
+  database: '../../database', // every plugin model binds to the app's database in production
+  settingsModel: '../../models/settingsModel', // core settings a plugin reads (company, VAT, fiscal year)
+});
+
+function coreModule(name) {
+  const target = CORE_MODULES[name];
+  if (!target) throw new Error(`[sdk] core module "${name}" is not exposed to plugins`);
+  return require(target); // eslint-disable-line import/no-dynamic-require, global-require
+}
+
 module.exports = Object.freeze({
   core: require('./coreServices'),
+  coreModule,
+  CORE_MODULE_NAMES: Object.freeze(Object.keys(CORE_MODULES)),
   models: Object.freeze({
     properties: (db) => require('../../models/propertiesModel').buildModel(db),
     closures: (db) => require('../../models/establishmentClosuresModel').create(db),
