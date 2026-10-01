@@ -259,3 +259,20 @@ test('specs/plugins-phase-2-hosts.md rule 29: a new database has no laundry tabl
   // An existing database (Solio): the tables are already there, the migration only records itself.
   assert.equal(applyPluginSchema(db, 'linen'), 0);
 });
+
+test('specs/plugins-phase-2-hosts.md rule 16: what is sold and booked stays core, and the erasure leaves it', async () => {
+  for (const table of ['options', 'property_option_bath_mats', 'linen_priced_items', 'reservations']) {
+    assert.match(SCHEMA, new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`), table);
+  }
+  const db = freshDb();
+  const { plugins, settingsModel } = boot(db, { installed: ['linen'] });
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte')").run();
+  db.prepare("INSERT INTO options (id, title, countsAsBedLinen, countsAsBathMat) VALUES (7, 'Linge de lit', 1, 0), (8, 'Tapis de bain', 0, 1)").run();
+  db.prepare('INSERT INTO property_option_bath_mats (propertyId, optionId, quantity) VALUES (1, 8, 2)').run();
+  db.prepare("INSERT INTO linen_priced_items (label, price) VALUES ('Drap', 15)").run();
+  createController(plugins, { registry, db: () => db, settingsModel: () => settingsModel, loader: () => loader })
+    .uninstall({ params: { id: 'linen' }, query: { purge: '1' } }, fakeRes());
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM options WHERE countsAsBedLinen = 1 OR countsAsBathMat = 1').get().n, 2);
+  assert.equal(db.prepare('SELECT quantity FROM property_option_bath_mats').get().quantity, 2);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM linen_priced_items').get().n, 1);
+});
