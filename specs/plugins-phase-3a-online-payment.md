@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/plugins-phase-3` (from `inte/plugins` after #650) |
 | **Created** | 2026-10-01 |
 | **Author** | Adrien |
-| **Related PR** | — (target `inte/plugins`) |
+| **Related PR** | [#651](https://github.com/adn-dev-adrien/guestFlow/pull/651) (target `inte/plugins`) |
 | **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, phasing §12 |
 | **Previous phase** | [`specs/plugins-phase-2-hosts.md`](plugins-phase-2-hosts.md) (merged into `inte/plugins`, #650) |
 | **Summary for review** | [`docs/specs/2026-10-01-plugins-phase-3a-online-payment.html`](../docs/specs/2026-10-01-plugins-phase-3a-online-payment.html) |
