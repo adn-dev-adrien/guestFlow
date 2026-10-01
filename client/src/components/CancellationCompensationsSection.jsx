@@ -264,7 +264,8 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
                     </TableCell>
                     {canEdit && (
                       <TableCell align="right">
-                        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                        {/* Stacked: three actions side by side pushed the table past the page width. */}
+                        <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                           <Button size="small" startIcon={<PaymentsIcon />} disabled={busy} onClick={() => setDialog({ mode: 'receive', compensation: c })}>
                             Encaisser
                           </Button>

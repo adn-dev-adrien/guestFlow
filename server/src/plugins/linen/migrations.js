@@ -13,7 +13,7 @@
 
 const { SETTING_KEYS } = require('./settings');
 
-const SETTINGS_COPY_MARKER = 'plugin_settings_from_app_settings_v2:linen';
+const SETTINGS_COPY_MARKER = 'plugin_settings_copied_from_app_settings:linen';
 
 function createTables(db) {
   db.exec(`

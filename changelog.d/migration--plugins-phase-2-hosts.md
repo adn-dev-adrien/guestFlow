@@ -1,0 +1,1 @@
+- Linge (8), Export comptable (4) and Site WordPress (2) copy their settings from `app_settings` into `plugin_settings` once, through a migration of their own. The old columns stay in place, unread, for one release. The three laundry tables leave the baseline of a new database and appear when Linge is installed.

@@ -8,5 +8,8 @@
 
 const CLIENT_PORT = process.env.E2E_CLIENT_PORT || '3000';
 const CLIENT_URL = `http://localhost:${CLIENT_PORT}`;
+// The backend the suite starts, 4000 by default. E2E_SERVER_PORT moves it when a dev server already
+// holds 4000: the Vite server of the suite then proxies to it (GUESTFLOW_API_PORT, client/vite.config.js).
+const SERVER_PORT = process.env.E2E_SERVER_PORT || '4000';
 
-module.exports = { CLIENT_PORT, CLIENT_URL };
+module.exports = { CLIENT_PORT, CLIENT_URL, SERVER_PORT };

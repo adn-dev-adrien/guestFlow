@@ -254,7 +254,7 @@ test('specs/plugins-phase-2-hosts.md rule 22 — describe lists the configured p
   db.close();
 });
 
-test('specs/plugins-phase-2-hosts.md rule 22 — the purge resets the settings and the platform columns, keeps the money, and the journal is identical after a reinstall', async () => {
+test('specs/plugins-phase-2-hosts.md rules 20 + 22 — the plugin writes the platform columns it owns; the purge resets the settings and those columns, keeps the money, and the journal is identical after a reinstall', async () => {
   const db = freshDb();
   bankCompensation(db);
   const before = boot(db, { installed: true });
