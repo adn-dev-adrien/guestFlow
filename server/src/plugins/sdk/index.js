@@ -59,10 +59,9 @@ const CORE_MODULES = Object.freeze({
   releaseClient: '../../utils/releaseClient', // the allowed download hosts of the plugin manifest
   notificationService: '../../utils/notificationService', // « Nouvelle demande de devis » (rule 26)
   publicHttp: '../../controllers/public/publicHttp', // the public envelope, shared with the public payment
-  publicPaymentController: '../../controllers/public/publicPaymentController', // pay/status, online-payment's until phase 3
+  publicPaymentController: '../../controllers/public/publicPaymentController', // pay/status, the core's provider-neutral money path
   rateLimiters: '../../middleware/rateLimiters', // the booking-request and payment-status limiters
   enforceSubscription: '../../middleware/enforceSubscription', // closedWhenReadOnly on the only public write
-  requirePlugin: '../../middleware/requirePlugin', // pay/status also need online-payment
   // accounting-export
   platformsModel: '../../models/platformsModel', // the journal's commission config; the account plan writes its two columns (rule 20)
   refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
@@ -71,6 +70,10 @@ const CORE_MODULES = Object.freeze({
   complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
   csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
+  // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
+  paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
+  paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money
+  paymentEffectDeps: '../../utils/paymentEffectDeps', // confirmation email, conflict check, notifications
 });
 
 function coreModule(name) {

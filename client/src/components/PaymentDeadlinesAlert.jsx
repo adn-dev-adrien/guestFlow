@@ -75,7 +75,10 @@ export default function PaymentDeadlinesAlert() {
     setBusyId(cancelRow.reservationId);
     try {
       const result = await api.cancelReservation(cancelRow.reservationId, { reason, notifyClient });
-      showSuccess(result?.retainedDepositAmount > 0
+      // specs/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
+      // success: one toast at a time, so the warning carries the cancellation with it.
+      if (result?.paymentLinksWarning) showError(`Séjour annulé. ${result.paymentLinksWarning}`);
+      else showSuccess(result?.retainedDepositAmount > 0
         ? `Séjour annulé — acompte de ${formatCurrency(result.retainedDepositAmount)} conservé en indemnité.`
         : 'Séjour annulé — les dates sont remises à la vente.');
       setCancelRow(null);

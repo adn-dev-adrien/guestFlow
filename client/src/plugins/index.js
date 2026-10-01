@@ -9,7 +9,8 @@ import sas from './sas';
 import websiteBooking from './website-booking';
 import accountingExport from './accounting-export';
 import linen from './linen';
+import onlinePayment from './online-payment';
 
-const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen];
+const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment];
 
 export default PLUGIN_MODULES;

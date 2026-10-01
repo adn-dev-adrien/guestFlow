@@ -115,7 +115,7 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lich
 <h2>Ce qu’on propose</h2>
 <ul class="tight">
   <li><b>Le cœur garde le chemin de l’argent</b> : demander un montant, enregistrer ce qui est payé, confirmer le séjour. Il parle à <b>un fournisseur de paiement</b> par une petite interface : créer un lien, lire s’il est payé, le désactiver.</li>
-  <li><b>Qonto devient ce fournisseur</b>, dans le plugin « Paiement en ligne » : connexion, webhook, réglages, vérification toutes les 5 minutes.</li>
+  <li><b>Qonto devient ce fournisseur</b>, dans le plugin « Paiement en ligne » : connexion, webhook, réglages, vérification de rattrapage (toutes les 8 heures, comme aujourd’hui).</li>
   <li><b>Une seule fonction enregistre un paiement</b>, qu’il soit coché à la main ou reçu en ligne.</li>
   <li><b>Chaque lien abandonné est désactivé chez Qonto.</b> Si Qonto ne répond pas, GuestFlow réessaie à chaque vérification et te prévient.</li>
   <li><b>« Adresse du site public »</b> passe dans Paramètres › Conditions générales, car c’est le cœur qui s’en sert pour le lien des CGV dans les emails.</li>
@@ -186,7 +186,7 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lich
     <label class="chk"><input type="checkbox" id="guestPaid"> le client a payé entre-temps</label>
   </div>
   <div class="sbody">
-    <div class="pane"><h4>Fiche · Réservation R-2026-071 · Leroy</h4>
+    <div class="pane"><h4>Les liens de la réservation R-2026-071 · Leroy (ce que GuestFlow enregistre)</h4>
       <div id="cWarn"></div>
       <table><thead><tr><th>Lien</th><th>Montant</th><th>GuestFlow</th><th>Chez Qonto</th></tr></thead>
       <tbody><tr><td>Solde</td><td>820,00 €</td><td id="cLocal"><span class="badge ok">ouvert</span></td><td id="cRemote">payable</td></tr></tbody></table>
@@ -284,13 +284,13 @@ function rc(){
   if(cState==='open'){L.innerHTML='<span class="badge ok">ouvert</span>';R.textContent='payable';W.innerHTML='';}
   if(cState==='cancelled'){L.innerHTML='<span class="badge">annulé</span>';R.textContent='désactivé';W.innerHTML='';}
   if(cState==='pending'){L.innerHTML='<span class="badge">annulé</span> <span class="badge ko">Désactivation en attente</span>';R.textContent='encore payable';
-    W.innerHTML='<div class="warn">Le lien de paiement n’a pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque vérification ; tu peux aussi le désactiver depuis Qonto.</div>';}
+    W.innerHTML='<div class="warn"><b>Séjour annulé</b> — Les dates sont remises à la vente. Le lien de paiement n’a pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque vérification ; tu peux aussi le désactiver depuis Qonto.</div>';}
   if(cState==='paidAfter'){L.innerHTML='<span class="badge">annulé</span> <span class="badge ko">payé après annulation</span>';R.textContent='payé 820,00 €';W.innerHTML='';}
 }
 document.getElementById('doCancel').onclick=()=>{
   const log=document.getElementById('cLog');
   if(val('qa')==='ok'){cState='cancelled';log.innerHTML='POST /api/reservations/71/cancel\n  <span class="ok">200 { "paymentLinksNotDeactivated": 0 }</span>';document.getElementById('doPoll').disabled=true;}
-  else{cState='pending';log.innerHTML='POST /api/reservations/71/cancel\n  <span class="was">200 { "paymentLinksNotDeactivated": 1 }</span>  (l’annulation est faite quand même)';document.getElementById('doPoll').disabled=false;}
+  else{cState='pending';log.innerHTML='POST /api/reservations/71/cancel\n  <span class="was">200 { "paymentLinksNotDeactivated": 1, "paymentLinksWarning": "Le lien de paiement n’a pas pu…" }</span>  (l’annulation est faite quand même)';document.getElementById('doPoll').disabled=false;}
   rc();
 };
 document.getElementById('doPoll').onclick=()=>{

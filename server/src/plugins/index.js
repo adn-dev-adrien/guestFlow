@@ -13,4 +13,5 @@ module.exports = [
   require('./website-booking'),
   require('./accounting-export'),
   require('./linen'),
+  require('./online-payment'),
 ];

@@ -17,7 +17,9 @@ const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reserva
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { checkGuestCapacity } = require('../utils/capacity');
-const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
+const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
+const { recordStayPayment, defaultDeps: stayPaymentDeps } = require('../utils/stayPaymentRecorder');
+const paymentProviders = require('../utils/paymentProviders');
 const { resolveComplementPayment } = require('../utils/complementPayment');
 const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { sasDetailAmount, sasDetailAmountAuto, storedMidStayLines } = require('../utils/midStayExtras');
@@ -494,6 +496,9 @@ function getById(req, res) {
     neat: neatController.buildFicheBlock(reservation),
     // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance, ready to print.
     cgv: termsController.buildFicheBlock(reservation),
+    // specs/plugins-phase-3a-online-payment.md rules 5, 18 — the payment buttons follow this, null
+    // while no payment provider is ready.
+    onlinePayment: paymentProviders.summary(),
   });
 }
 
@@ -1289,10 +1294,11 @@ function updatePayment(req, res) {
     const willBeDepositPaid = Boolean(depositPaid);
     const date = willBeDepositPaid ? (depositPaidDate || new Date().toISOString().split('T')[0]) : null;
     try {
-      db.transaction(() => {
-        if (!wasDepositPaid && willBeDepositPaid) {
-          captureContribsOnFlip({ db, reservation: beforeRow, bucket: 'deposit' });
-        } else if (wasDepositPaid && !willBeDepositPaid) {
+      if (!wasDepositPaid && willBeDepositPaid) {
+        // specs/plugins-phase-3a-online-payment.md rule 1 — the same write an online payment makes.
+        recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'deposit', paidDate: date });
+      } else db.transaction(() => {
+        if (wasDepositPaid && !willBeDepositPaid) {
           clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'deposit' });
         }
         model.updatePaymentField(
@@ -1313,10 +1319,10 @@ function updatePayment(req, res) {
     const willBeBalancePaid = Boolean(balancePaid);
     const date = willBeBalancePaid ? (balancePaidDate || new Date().toISOString().split('T')[0]) : null;
     try {
-      db.transaction(() => {
-        if (!wasBalancePaid && willBeBalancePaid) {
-          captureContribsOnFlip({ db, reservation: beforeRow, bucket: 'balance' });
-        } else if (wasBalancePaid && !willBeBalancePaid) {
+      if (!wasBalancePaid && willBeBalancePaid) {
+        recordStayPayment(stayPaymentDeps(), { reservationId: Number(id), bucket: 'balance', paidDate: date });
+      } else db.transaction(() => {
+        if (wasBalancePaid && !willBeBalancePaid) {
           clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'balance' });
         }
         model.updatePaymentField(

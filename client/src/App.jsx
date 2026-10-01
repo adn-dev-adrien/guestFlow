@@ -71,7 +71,6 @@ import PluginsPage from './pages/PluginsPage';
 import AccountPage from './pages/AccountPage';
 import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
 import OptionsResourcesPage from './pages/OptionsResourcesPage';
-import PaymentsSettingsPage from './pages/PaymentsSettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import CompensationsPage from './pages/CompensationsPage';
@@ -711,7 +710,6 @@ function AppShell() {
           <Route path="/parametres/tarifs" element={<Navigate to="/parametres/options-ressources?tab=sas" replace />} />
           <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
           <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
-          <Route path="/parametres/paiements" element={pluginRoute('/parametres/paiements', <PaymentsSettingsPage />)} />
           <Route path="/parametres/conditions-generales" element={<TermsSettingsPage />} />
           <Route path="/parametres/plugins" element={<PluginsPage />} />
           {/* « Mon compte » — every role (rule 6). Legacy paths redirect to it. */}

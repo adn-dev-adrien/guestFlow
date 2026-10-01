@@ -11,7 +11,9 @@
  *      all of them at once — no query to hunt down, and none that can be forgotten;
  *   3. the requalification pair, when an acompte had actually been collected: an avoir reversing the
  *      séjour revenue + VAT, and an indemnity crediting the same sum VAT-free, both dated today;
- *   4. open payment links are cancelled — a dead stay must not stay payable.
+ *   4. open payment links are cancelled — a dead stay must not stay payable. They are returned as
+ *      `cancelledLinks`: deactivating them at the provider is network, so it happens after the commit
+ *      (specs/plugins-phase-3a-online-payment.md rule 7).
  *
  * Amounts, échéances and paid flags are deliberately NOT touched: they are history now, and the
  * accounting reads still need them exactly as they were.
@@ -68,6 +70,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
 
   let refundId = null;
   let compensationId = null;
+  const cancelledLinks = [];
   database.transaction(() => {
     reservationsModel.addHistoryEntry(id, 'cancel', [
       { field: 'kind', label: 'Statut', from: 'Réservation', to: 'Annulée' },
@@ -81,7 +84,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
       compensationId = compensationsModel.createReceived(requalification.compensation).id;
     }
     for (const link of paymentLinksModel.listForReservation(id)) {
-      if (String(link.status) === 'open') paymentLinksModel.updateStatus(link.id, 'cancelled');
+      if (String(link.status) === 'open') cancelledLinks.push(paymentLinksModel.updateStatus(link.id, 'cancelled'));
     }
   })();
 
@@ -92,6 +95,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     writtenOffBalance,
     refundId,
     compensationId,
+    cancelledLinks,
     clientEmail: String(row.email || '').trim(),
   };
 }

@@ -40,3 +40,5 @@ export { ADMIN, userHasRole } from '../../constants/roles';
 export { default as DateField } from '../../components/DateField';
 export { default as QuantityField } from '../../components/QuantityField';
 export { isReceptionOnly } from '../../constants/roles';
+// online-payment (specs/plugins-phase-3a-online-payment.md rule 17) — its pages import `./ui`.
+export { default as HelpedTextField } from '../../components/HelpedTextField';

@@ -9,6 +9,7 @@ const { EVENTS } = require('./eventBus');
 const coreServices = require('./coreServices');
 
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
+const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', 'getPayment', 'getLinkStatus', 'cancelLink'];
 
 function createContext(id, { db, settingsModel } = {}) {
   const record = registry.ensure(id);
@@ -54,6 +55,21 @@ function createContext(id, { db, settingsModel } = {}) {
       record.roleAccess[role].push(...entries);
     },
     reception(entries) { record.roleAccess.reception.push(...entries); },
+    // A POST under /api/ that no session reaches — a provider calling back. It bypasses the session,
+    // role and read-only guards, so the plugin authenticates it itself (specs/plugins-phase-3a-online-payment.md rule 12).
+    webhook(path, handler) {
+      if (!path.startsWith('/api/')) throw new Error(`${prefix} webhooks must live under /api/`);
+      record.webhooks.push({ path, handler });
+    },
+    // The payment provider the core's money path talks to (rule 4). One per instance.
+    paymentProvider(provider) {
+      PROVIDER_MEMBERS.forEach((m) => {
+        if (provider == null || provider[m] == null) throw new Error(`${prefix} payment provider lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.paymentProvider);
+      if (other) throw new Error(`${prefix} a payment provider is already declared by ${other.id}`);
+      record.paymentProvider = provider;
+    },
     migrations(list) { record.migrations.push(...list); },
     settings,
     jobs: {

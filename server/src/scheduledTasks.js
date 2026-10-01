@@ -10,7 +10,6 @@ const icalExportRangesModel = require('./models/icalExportRangesModel');
 // (specs/no-automatic-email-without-approval.md §3 rule 2b).
 const emailAutoSendScheduler = require('./utils/emailAutoSendScheduler');
 const emailLogModel       = require('./models/emailLogModel');
-const settingsModel       = require('./models/settingsModel');
 const { isoToday } = require('./utils/emailAutoSendRunner');
 
 // Arrival/departure push (specs/pwa-push-notifications.md §3.3).
@@ -20,15 +19,6 @@ const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner'
 // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md §3 rules 7-9).
 const { runBreakfastPush } = require('./utils/breakfastPushRunner');
 const breakfastModel = require('./models/breakfastModel');
-
-// Online-payment polling (specs/online-payments-qonto.md §3.3): detect paid Qonto links → convert.
-const paymentLinksModel = require('./models/paymentLinksModel');
-const devisModel = require('./models/devisModel');
-const { withQonto } = require('./utils/qontoService');
-const { runPaymentPoll } = require('./utils/paymentPollRunner');
-const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
-const { resolvePaymentPollTickMs } = require('./utils/paymentPollSchedule');
-const { ensureWebhookSubscription } = require('./utils/qontoWebhookRegistrar');
 
 const { whenPluginActive } = require('./utils/pluginScheduling');
 const PLUGINS = require('./constants/plugins');
@@ -137,41 +127,6 @@ async function runBreakfastPushPass(reason = 'tick') {
   }
 }
 
-// Online payments: poll open Qonto links → mark paid → convert devis / flag deposit. Skips silently
-// when Qonto isn't connected (no token) so it's a no-op until the operator connects.
-let paymentPollInProgress = false;
-async function runPaymentPollPass(reason = 'cron') {
-  if (paymentPollInProgress) return;
-  if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
-  paymentPollInProgress = true;
-  try {
-    // The webhook is the paid signal; this pass is the safety net behind it. Making sure the
-    // subscription exists is therefore part of the safety net, not a separate chore
-    // (specs/settings-one-save-and-automatic-webhook.md rule 11). It costs no Qonto call once the
-    // subscription is recorded (rule 10), and it never throws.
-    await ensureWebhookSubscription({ settings: settingsModel });
-    // Through `withQonto` so a broken connection is recorded and shown in Réglages → Paiements
-    // instead of failing silently every pass (specs/qonto-settings-in-app.md rule 12).
-    const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
-      ...buildPaymentEffectDeps(),
-      qontoClient: client,
-      getAccessToken: () => accessToken,
-    }));
-    if (summary.retired > 0) console.log(`[payments] ${reason}: ${summary.retired} expired link(s) retired without a Qonto call`);
-    if (summary.stoppedBy) console.warn(`[payments] ${reason}: pass stopped by ${summary.stoppedBy} after ${summary.checked} link(s); the rest wait for the next tick`);
-    if (summary.paid > 0) {
-      console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
-      // A paid link may just have flipped an insured reservation's acompte — subscribe now, not
-      // at the next Neat tick (specs/neat-cancellation-insurance-subscription.md rule 8).
-      require('./controllers/neatController').kickPass('payment-poll');
-    }
-  } catch (err) {
-    console.error('[payments] poll pass error:', err && err.message ? err.message : err);
-  } finally {
-    paymentPollInProgress = false;
-  }
-}
-
 // Neat cancellation-insurance subscriptions (specs/neat-cancellation-insurance-subscription.md
 // §3.2 rule 8): scan insured + deposit-paid reservations, subscribe due jobs, retry failures.
 // The controller owns the pass (re-entrancy guard + real deps) and bails silently while the
@@ -224,16 +179,6 @@ function startScheduledTasks() {
   const BREAKFAST_PUSH_TICK = 60 * 1000;
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
-
-  // Online-payment polling: three passes a day (specs/payment-polling-fair-use.md rule 11). The
-  // webhook confirms in real time and the guest's success page reconciles on demand; this is the
-  // net that catches a webhook that never arrived.
-  const PAYMENT_POLL_TICK = resolvePaymentPollTickMs();
-  // Every plugin pass below skips its tick while its plugin is inactive
-  // (specs/plugins-phase-0-foundation.md rule 15).
-  const paymentPoll = whenPluginActive(PLUGINS.ONLINE_PAYMENT, runPaymentPollPass);
-  setInterval(() => paymentPoll('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
-  setTimeout(() => paymentPoll('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
 
   // Neat subscriptions: every 5 min (the payment flows kick the pass for the nominal case; this
   // tick is the retry ladder + the safety net). Boot pass 150 s after start.

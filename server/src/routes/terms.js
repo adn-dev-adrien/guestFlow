@@ -9,5 +9,7 @@ router.put('/draft', termsController.saveDraft);
 router.post('/preview', termsController.preview);
 router.post('/publish', termsController.publish);
 router.get('/versions/:version', termsController.getVersion);
+// specs/plugins-phase-3a-online-payment.md rule 15.
+router.put('/public-site-origin', termsController.updatePublicSiteOrigin);
 
 module.exports = router;

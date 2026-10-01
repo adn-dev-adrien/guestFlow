@@ -14,6 +14,7 @@ const registry = require('./registry');
 const EVENTS = Object.freeze([
   'reservation.created',
   'reservation.updated',
+  'reservation.paid',
   'reservation.cancelled',
   'reservation.deleted',
   'ical.imported',

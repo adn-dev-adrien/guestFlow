@@ -105,16 +105,19 @@ test('specs/plugins-phase-2-hosts.md rule 23 — once installed, the same paths 
   assert.deepEqual(gate.body, inactive('gate-access'), 'gate-access keeps its own switch');
 }));
 
+// Amended by specs/plugins-phase-3a-online-payment.md rule 5: the second plugin is whichever declares
+// the payment provider — online-payment, here.
 test('specs/plugins-phase-2-hosts.md rule 23 — /booking-requests/:id/pay and /status need website-booking AND online-payment', () => withSecretsSpy(async () => {
-  let app = boot({ installed: [ID] });
+  const withPayments = [gateAccess, websiteBooking, require('../../online-payment')];
+  let app = boot({ installed: [ID], modules: withPayments });
   for (const [method, url] of [['POST', '/public/v1/booking-requests/1/pay'], ['GET', '/public/v1/booking-requests/1/status']]) {
     const res = await call(app, method, url, { headers: visitor('198.51.100.2'), body: method === 'POST' ? {} : undefined });
     assert.deepEqual(res.body, inactive('online-payment'), url);
   }
-  app = boot({ installed: ['online-payment'] });
+  app = boot({ installed: ['online-payment'], modules: withPayments });
   const off = await call(app, 'GET', '/public/v1/booking-requests/1/status', { headers: visitor('198.51.100.2') });
   assert.deepEqual(off.body, inactive(ID));
-  app = boot({ installed: [ID, 'online-payment'] });
+  app = boot({ installed: [ID, 'online-payment'], modules: withPayments });
   const both = await call(app, 'GET', '/public/v1/booking-requests/1/status', { headers: visitor('198.51.100.2') });
   assert.notEqual(both.body && both.body.error, 'PLUGIN_INACTIVE', 'the core handler answers');
 }));

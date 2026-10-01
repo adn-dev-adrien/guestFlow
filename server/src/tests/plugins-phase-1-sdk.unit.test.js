@@ -80,9 +80,11 @@ function fakeRes() {
 
 // specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
 const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
+// specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment.
+const PHASE_3_IDS = ['online-payment'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
-  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS].sort());
+  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS].sort());
   MODULES.forEach((m) => assert.equal(typeof m.register, 'function', m.id));
 });
 
@@ -288,8 +290,9 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   const timeouts = [];
   loader.startJobs({ setIntervalFn: (fn, ms) => intervals.push([fn, ms]), setTimeoutFn: (fn, ms) => timeouts.push(ms) });
   const HOUR = 60 * 60 * 1000;
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [15 * 60 * 1000, HOUR, HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 130 * 1000, 140 * 1000, 160 * 1000]);
+  // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s.
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 130 * 1000, 140 * 1000, 160 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };
@@ -349,7 +352,8 @@ test('rule 9: a handler runs only while its plugin is live, and a throwing one n
 test('rule 9: Google subscribes to the five events it used to be called for', () => {
   const db = freshDb();
   boot(db, { installed: [] });
-  assert.deepEqual([...registry.get('google-calendar').handlers.keys()].sort(), [...eventBus.EVENTS].sort());
+  // reservation.paid (phase 3a) changes nothing in a calendar event.
+  assert.deepEqual([...registry.get('google-calendar').handlers.keys()].sort(), eventBus.EVENTS.filter((e) => e !== 'reservation.paid').sort());
 });
 
 // ---------- email variables (rule 10) ----------

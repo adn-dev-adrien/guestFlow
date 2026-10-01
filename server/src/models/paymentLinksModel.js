@@ -1,13 +1,15 @@
 /**
  * Payment links model — sole DB access for `payment_links`
- * (specs/online-payments-qonto.md §5).
+ * (specs/online-payments-qonto.md §5, provider-neutral since specs/plugins-phase-3a-online-payment.md
+ * rule 6).
  *
- * One row per Qonto payment link issued for a reservation/devis (deposit / balance / full /
- * complement). The polling pass reads `status='open'` rows, checks Qonto, and flips them to `paid`.
- * Amounts are stored in **cents** (integer, exact — never float euros).
+ * One row per payment link a provider issued for a reservation/devis (deposit / balance / full /
+ * complement). The polling pass reads `status='open'` rows, asks the provider, and flips them to `paid`.
+ * Amounts are stored in **cents** (integer, exact — never float euros). The rows are core data: they
+ * are the trace of what was asked and paid online, and outlive the provider's plugin.
  *
  * API:
- *   create({ reservationId, type, amountCents, currency?, qontoPaymentLinkId?, url?, status?, expiresAt? }) → row
+ *   create({ reservationId, type, amountCents, currency?, provider?, providerLinkId?, url?, status?, expiresAt? }) → row
  *   listOpen()                              → all status='open' rows
  *   retireExpired({ now })                  → flips open links past a known expiresAt to 'expired'; returns them
  *   listPollable({ now, force, cadence })   → the open links due for a provider check (the polling worklist)
@@ -15,8 +17,12 @@
  *   hasKnownExpiry(link)                    → whether the link carries a real expiry date
  *   listForReservation(reservationId)       → every link for a reservation, newest first
  *   findOpenForReservation(reservationId, type) → the current open link of that type, or undefined
- *   markPaid(id, { qontoPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
+ *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
+ *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
+ *   cancel(id, { remotePending })           → 'cancelled', with the remote-deactivation marker when pending
+ *   listRemoteCancelPending()               → cancelled rows whose deactivation at the provider is owed
+ *   clearRemoteCancelPending(id, { providerPaymentId?, paidAt? }) → the provider settled it (deactivated, or paid)
  *   findById(id)
  *
  * Poll cadence (specs/payment-polling-fair-use.md rules 1, 3, 4, 9): a link is due every pass while
@@ -77,14 +83,14 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 }
 
 function buildModel(database) {
-  const SELECT_COLS = `id, reservationId, type, qontoPaymentLinkId, url, amountCents, currency,
-    status, qontoPaymentId, createdAt, paidAt, expiresAt, lastPolledAt`;
+  const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
+    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt`;
 
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
-      (reservationId, type, qontoPaymentLinkId, url, amountCents, currency, status, expiresAt)
+      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, expiresAt)
     VALUES
-      (@reservationId, @type, @qontoPaymentLinkId, @url, @amountCents, @currency, @status, @expiresAt)
+      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, @expiresAt)
   `);
 
   function findById(id) {
@@ -99,7 +105,8 @@ function buildModel(database) {
     const info = insertStmt.run({
       reservationId: Number(payload.reservationId),
       type,
-      qontoPaymentLinkId: payload.qontoPaymentLinkId == null ? null : String(payload.qontoPaymentLinkId),
+      provider: String(payload.provider || 'qonto'),
+      providerLinkId: payload.providerLinkId == null ? null : String(payload.providerLinkId),
       url: String(payload.url || ''),
       amountCents: Math.round(Number(payload.amountCents || 0)),
       currency: String(payload.currency || 'EUR'),
@@ -162,26 +169,26 @@ function buildModel(database) {
     ).get(Number(reservationId), String(type));
   }
 
-  // Resolve a link by its Qonto id (the webhook receives the remote id, not our row id).
-  function findByQontoPaymentLinkId(qontoId) {
-    if (!qontoId) return undefined;
+  // Resolve a link by its provider id (the webhook receives the remote id, not our row id).
+  function findByProviderLinkId(provider, linkId) {
+    if (!linkId) return undefined;
     return database.prepare(
-      `SELECT ${SELECT_COLS} FROM payment_links WHERE qontoPaymentLinkId = ? ORDER BY id DESC LIMIT 1`
-    ).get(String(qontoId));
+      `SELECT ${SELECT_COLS} FROM payment_links WHERE provider = ? AND providerLinkId = ? ORDER BY id DESC LIMIT 1`
+    ).get(String(provider), String(linkId));
   }
 
   // Idempotent: only an `open` or `expired` row transitions to `paid`. `expired` is accepted because
   // rule 1 retires links on our own clock, and a payment in flight at that moment must still be
   // processed once. A late/duplicate call on an already-paid (or cancelled) row changes nothing and
   // reports it didn't flip — so the polling pass never double-processes a payment.
-  function markPaid(id, { qontoPaymentId, paidAt } = {}) {
+  function markPaid(id, { providerPaymentId, paidAt } = {}) {
     const info = database.prepare(`
       UPDATE payment_links
          SET status = 'paid',
-             qontoPaymentId = COALESCE(?, qontoPaymentId),
+             providerPaymentId = COALESCE(?, providerPaymentId),
              paidAt = COALESCE(?, datetime('now'))
        WHERE id = ? AND status IN ('open', 'expired')
-    `).run(qontoPaymentId == null ? null : String(qontoPaymentId), paidAt == null ? null : String(paidAt), Number(id));
+    `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id));
     return { flipped: Number(info.changes) > 0, row: findById(id) };
   }
 
@@ -189,6 +196,33 @@ function buildModel(database) {
     const s = String(status);
     if (!VALID_STATUSES.has(s)) throw new Error(`Invalid payment link status: ${s}`);
     database.prepare("UPDATE payment_links SET status = ? WHERE id = ?").run(s, Number(id));
+    return findById(id);
+  }
+
+  // specs/plugins-phase-3a-online-payment.md rule 7 — the row is abandoned locally at once; when the
+  // provider could not deactivate it, the marker keeps it on the poll's retry list (rule 8).
+  function cancel(id, { remotePending = false } = {}) {
+    database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ? WHERE id = ?")
+      .run(remotePending ? new Date().toISOString() : null, Number(id));
+    return findById(id);
+  }
+
+  function listRemoteCancelPending() {
+    return database.prepare(
+      `SELECT ${SELECT_COLS} FROM payment_links WHERE status = 'cancelled' AND remoteCancelPendingAt IS NOT NULL ORDER BY id`
+    ).all();
+  }
+
+  // The provider settled a pending deactivation: deactivated, or — rule 8 — paid after all, in which
+  // case the payment's id and date stay on the row for the refund.
+  function clearRemoteCancelPending(id, { providerPaymentId = null, paidAt = null } = {}) {
+    database.prepare(`
+      UPDATE payment_links
+         SET remoteCancelPendingAt = NULL,
+             providerPaymentId = COALESCE(?, providerPaymentId),
+             paidAt = COALESCE(?, paidAt)
+       WHERE id = ?
+    `).run(providerPaymentId == null ? null : String(providerPaymentId), paidAt == null ? null : String(paidAt), Number(id));
     return findById(id);
   }
 
@@ -202,9 +236,12 @@ function buildModel(database) {
     hasKnownExpiry,
     listForReservation,
     findOpenForReservation,
-    findByQontoPaymentLinkId,
+    findByProviderLinkId,
     markPaid,
     updateStatus,
+    cancel,
+    listRemoteCancelPending,
+    clearRemoteCancelPending,
   };
 }
 

@@ -84,7 +84,32 @@ function buildOverview(deps = {}) {
     unknownVariables: draftRender.unknown,
     variables: TERMS_VARIABLES,
     versions: model.listVersionsWithCounts().map(shapeVersionSummary),
+    // specs/plugins-phase-3a-online-payment.md rule 15 — edited here since the CGV link of the emails
+    // is its core reader. The stored value only: an origin set in the environment stays there.
+    publicSiteOrigin: String((deps.settingsModel || settingsModel).read().publicSiteOrigin || ''),
   };
+}
+
+/**
+ * The public site origin: '' (unset) or an http(s) origin without path, query or fragment. Returns the
+ * cleaned value, or `{ error }` in French.
+ */
+function parsePublicSiteOrigin(raw) {
+  const value = String(raw == null ? '' : raw).trim().replace(/\/+$/, '');
+  if (!value) return { value: '' };
+  let url;
+  try { url = new URL(value); } catch { url = null; }
+  const ok = url && (url.protocol === 'https:' || url.protocol === 'http:')
+    && (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash && !url.username;
+  if (!ok) return { error: 'Adresse invalide : saisis seulement le domaine, par exemple https://www.domainesolio.com' };
+  return { value: url.origin };
+}
+
+function updatePublicSiteOrigin(req, res) {
+  const parsed = parsePublicSiteOrigin(req.body && req.body.publicSiteOrigin);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  settingsModel.storePublicSiteOrigin(parsed.value);
+  return res.json(buildOverview());
 }
 
 function validateTexts(body) {
@@ -182,6 +207,8 @@ function buildFicheBlock(reservation, deps = {}) {
 
 module.exports = {
   getOverview,
+  updatePublicSiteOrigin,
+  parsePublicSiteOrigin,
   saveDraft,
   preview,
   publish,

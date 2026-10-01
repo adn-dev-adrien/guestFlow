@@ -74,15 +74,20 @@ Other facts the design rests on:
 ### 3.A The core money path
 
 1. **One core function records a stay payment.** `server/src/utils/stayPaymentRecorder.js`
-   `recordStayPayment(db, { reservationId, bucket, paidDate })`, `bucket` ∈ `deposit | balance | full`:
+   `recordStayPayment(deps, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure })`,
+   `bucket` ∈ `deposit | balance | full`:
    - one `database.transaction`;
    - for each bucket that flips 0→1 (`full` = deposit, then balance): `captureContribsOnFlip`, the flag
      and its date, `updatedAt`, `releaseStayBucket`;
    - a bucket already paid is left untouched (idempotent);
-   - a capture failure throws and rolls everything back.
+   - by hand, a capture failure throws and rolls everything back (the fiche answers 409, as before);
+   - online (`keepPaymentOnCaptureFailure`), the money is already received: the flag is ticked anyway,
+     as it always was, the capture is skipped and the failure logged — a payment the guest made never
+     vanishes from the stay.
 
    `reservationsController.updatePayment` (manual 0→1 flips) and the online path both call it. The
-   1→0 un-flip stays where it is: only a human un-ticks a payment.
+   1→0 un-flip stays where it is: only a human un-ticks a payment. A manual tick writes no history line,
+   and neither does an online payment: its trace is the `payment_links` row.
 2. **The paid effect of a link is core and provider-neutral.** `paymentPollRunner.processPaidLink`
    keeps its order:
    - `markPaid` (atomic: only the caller that flips the link continues);
@@ -121,11 +126,16 @@ Other facts the design rests on:
    - The fiche payload carries `onlinePayment: { provider, label } | null`.
    - The dashboard payment rows carry `remindType: null` (defect 1); `POST
      /api/dashboard/payment-deadlines/:id/remind` answers the same 409.
-   - The public `pay` / `status` answer the 404 envelope they answer today when the plugin is off.
+   - The public `pay` / `status` answer the 404 envelope they answered while the plugin was off
+     (`{ error: 'PLUGIN_INACTIVE', plugin: 'online-payment' }`) when no provider plugin is live. A live
+     provider that is not connected still answers, and fails like it always did (502
+     `QONTO_API_ERROR`).
 6. **`payment_links` becomes provider-neutral.**
    - `qontoPaymentLinkId` → `providerLinkId`, `qontoPaymentId` → `providerPaymentId`.
    - A new `provider` column (`'qonto'` for every existing row).
+   - A new `remoteCancelPendingAt` column (rule 8).
    - The poll and the webhook find a link by `(provider, providerLinkId)`.
+   - The migration lives in `utils/paymentLinksProviderMigration.js`, called by `database.js`.
    - The rows are core data: they survive uninstall and erase (phase 0 rule 20 already keeps them).
 
 ### 3.B No abandoned link stays payable (defect 3)
@@ -134,29 +144,40 @@ Other facts the design rests on:
    - **cancelling a stay** (`utils/cancelReservation.js`) closes its open links;
    - **`ensurePaymentLink`** retires an open link whose amount no longer matches the record.
 
-   In both, after the local write, the core calls `provider.cancelLink(providerLinkId)`.
+   A third place does the same: the public `pay` retires an open link of the other public type when
+   the property's payment mode changed between the quote and the payment.
+
+   In all three, after the local write, the core calls `provider.cancelLink(providerLinkId)`
+   (`utils/paymentLinkDeactivation.js`).
    - On success the row is `cancelled`.
    - On failure (provider down, plugin off, error) the row is `cancelled` with `remoteCancelPendingAt`
      set, and the action still succeeds.
-8. **A pending deactivation is retried, and a payment on it is caught.** Each poll pass first retries
-   `cancelLink` on the rows with `remoteCancelPendingAt`, before polling open links.
+8. **A pending deactivation is retried, and a payment on it is caught.** Each poll pass (every 8 hours
+   by default, rule 14) first reads the payment of each row with `remoteCancelPendingAt`, then retries
+   `cancelLink`, before polling open links.
    - Success clears the marker.
+   - A failure leaves it for the next pass; a rate limit stops the pass, as for open links.
    - If the provider reports the link **paid** instead, nothing is recorded on the stay. The admin
      gets a push and an email « Paiement reçu sur un lien annulé », with the reservation number and the
      amount, and the row keeps `providerPaymentId` and `paidAt` for the refund. The marker is then
      cleared.
 9. **The admin is told when a deactivation failed.**
-   - The cancellation answer carries `paymentLinksNotDeactivated: n`. When `n > 0`, the fiche shows a
-     warning: « Le lien de paiement n’a pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque
-     vérification ; tu peux aussi le désactiver depuis Qonto. »
-   - The fiche's payment section lists such a link with the badge « Désactivation en attente ».
+   - The cancellation answer carries `paymentLinksNotDeactivated: n` and, when `n > 0`,
+     `paymentLinksWarning`, worded by the server with the provider's label: « Le lien de paiement n’a
+     pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque vérification ; tu peux aussi le
+     désactiver depuis Qonto. »
+   - The fiche closes on a cancellation: the warning follows the « Séjour annulé » message of its
+     dialog. The dashboard card shows it in its error toast, « Séjour annulé. » first.
+   - `GET /api/payments/reservations/:id/payment-links` carries `remoteCancelPending` on each row. The
+     fiche has no payment-link list today; none is added.
 
 ### 3.C The plugin `online-payment`
 
 10. **What moves into `server/src/plugins/online-payment/`.**
     - `qonto/`: `qontoClient`, `qontoConfig`, `qontoService`, `qontoAuth`, `qontoHealth`,
       `qontoWebhookSignature`, `qontoWebhookRegistrar`, `httpRetry`, `paymentProviderValidation`.
-    - `qontoSettingsController` and `qontoWebhookController`.
+    - `qontoSettingsController` and `webhookController` (from `qontoWebhookController`).
+    - `paymentPollSchedule.js`: the poll cadence, now the plugin job's.
     - `provider.js`: the rule 4 adapter over `qontoClient` (`cancelLink` = `deactivatePaymentLink`).
     - `settingsStore.js`: rule 13.
 
@@ -177,12 +198,17 @@ Other facts the design rests on:
     - A webhook of an inactive plugin answers the 404 envelope.
     - The handler re-reads the payment at Qonto, then calls the core `processPaidLink`.
 13. **Settings.**
-    - The 20 `qonto*` columns of `app_settings` are copied once into `plugin_settings` by the plugin
-      migration `settings_from_app_settings_v1`.
+    - The 19 `qonto*` columns of `app_settings` are copied once into `plugin_settings` by the plugin
+      migration `settings_from_app_settings_v1`, under the same names, the secrets as their stored
+      blobs.
+    - The generic `PUT /api/plugins/online-payment/settings` refuses every key: these values come from
+      the OAuth flow and the Paiements page only.
     - The five encrypted ones are declared secret: access token, refresh token, client secret,
       staging token, webhook secret.
     - `settingsStore.js` implements, over `ctx.settings`, the method names `qontoService` and the
       registrar use today (`qontoTokens`, `storeQontoTokens`, `qontoCredentials`, …).
+    - The store reads `publicUrl` and `publicSiteOrigin` from the core settings of the plugin's own
+      database.
     - `qontoService` loads that store when no store is passed. The control plane keeps passing its own
       (`qonto_settings`) and is otherwise unchanged.
     - `settingsModel` drops the Qonto methods and columns. The old columns stay in the table, unread;
@@ -194,7 +220,12 @@ Other facts the design rests on:
     - The core `scheduledTasks.js` loses its payment block.
 15. **`publicSiteOrigin` stays core.** Its field « Adresse du site public » moves from the Qonto card to
     **Paramètres › Conditions générales**, since the CGV URL of the emails is the core reader.
-    `qontoConfig` keeps reading it for the return URL of a public payment.
+    - `GET /api/terms` carries `publicSiteOrigin`; `PUT /api/terms/public-site-origin` saves it.
+    - The server accepts '' or an http(s) origin without path, query or fragment, and stores it without
+      its trailing slash. Anything else: 400 « Adresse invalide : saisis seulement le domaine, par
+      exemple https://www.domainesolio.com ».
+    - `settingsModel.publicSiteOrigin()` reads it over `PUBLIC_SITE_ORIGIN`; the public payment builds
+      its return URL from it, and `qontoConfig` keeps showing it on the Paiements page.
 16. **Uninstall.**
     - Deactivating keeps everything.
     - Deactivation is still refused while a link is open (`OPEN_PAYMENT_LINKS`, phase 0).
@@ -205,12 +236,16 @@ Other facts the design rests on:
 
 17. **The settings page moves.** `PaymentsSettingsPage` and `QontoConnectionCard` move to
     `client/src/plugins/online-payment/`. They contribute the route `/parametres/paiements` and the
-    menu entry « Paiements en ligne ». The control plane's `App.jsx` imports the page from its new
+    menu entry « Paiements en ligne », placed with `before: '/settings/tva-exercice'` (the menu slot
+    learns `before`, to open a family). The control plane's `App.jsx` imports the page from its new
     path.
+    - The two files import the core through `plugins/sdk/ui.js`, the SDK's generic components without
+      the plugin registry, so the console renders the page without loading the instance's plugins.
+    - The card loses its « Origine publique du site » field (rule 15).
 18. **The fiche buttons are core and follow the server.**
     - « Envoyer la demande de paiement » (devis) and « Envoyer la demande de solde » (direct
       reservation with a positive unpaid balance) show when `onlinePayment` is non-null. They no longer
-      ask `usePlugin(ONLINE_PAYMENT)`.
+      ask `usePlugin(ONLINE_PAYMENT)`. `GET /api/devis/:id` carries `onlinePayment` too.
     - Their messages name the provider label instead of hard-coding Qonto.
 19. **The dashboard card** hides « Envoyer la demande / Relancer » on `remindType: null`, as it already
     does for platform bookings.
@@ -218,8 +253,8 @@ Other facts the design rests on:
 ### 3.E Existing databases, new customers
 
 20. **Upgrade.**
-    - The `payment_links` rename runs in `database.js` (`ALTER TABLE … RENAME COLUMN`, idempotent),
-      with `provider` defaulting to `'qonto'`.
+    - The `payment_links` rename runs at boot (`ALTER TABLE … RENAME COLUMN`, idempotent), with
+      `provider` defaulting to `'qonto'`.
     - The settings copy runs at the plugin's first boot.
     - A Solio-like database keeps its connection, webhook subscription and open links. The first poll
       after the upgrade finds them by `(provider, providerLinkId)`.
@@ -232,40 +267,50 @@ Other facts the design rests on:
 
 | Layer | File | Status | Responsibility |
 |---|---|---|---|
-| `utils/` | `stayPaymentRecorder.js` | C | Rule 1: the one transaction that records a paid bucket |
-| `utils/` | `paymentProviders.js` | C | Rule 4: the registered provider, `active()` |
-| `utils/` | `paymentPollRunner.js` | T | Provider-neutral; calls the recorder; retries pending deactivations (rule 8) |
-| `utils/` | `paymentRequestService.js` | T | `createLink` and `cancelLink` from the provider; stale link deactivated (rule 7) |
-| `utils/` | `cancelReservation.js` | T | Deactivates open links after the transaction (rule 7) |
-| `utils/` | `paymentDeadlines.js` | T | `remindType: null` without an active provider |
-| `utils/` | `scheduledTasks.js` | T | Payment block removed |
-| `models/` | `paymentLinksModel.js` | T | Neutral columns, `findByProviderLinkId`, `remoteCancelPendingAt` |
-| `models/` | `settingsModel.js` | T | Qonto methods and columns removed |
+| `utils/` | `stayPaymentRecorder.js` | C | Rules 1, 3: the one transaction that records a paid bucket; `reservation.paid` |
+| `utils/` | `paymentProviders.js` | C | Rules 4–5: the declared provider, `active()`, `summary()`, `NO_PROVIDER` |
+| `utils/` | `paymentLinkDeactivation.js` | C | Rule 7: deactivate abandoned links, mark the ones the provider refused |
+| `utils/` | `paymentLinksProviderMigration.js` | C | Rules 6, 20: neutral columns, `provider`, `remoteCancelPendingAt` |
+| `utils/` | `paymentPollRunner.js` | T | Provider-neutral; records through the recorder; retries owed deactivations (rule 8) |
+| `utils/` | `paymentRequestService.js` | T | Link from `provider.createLink`; stale link deactivated (rule 7) |
+| `utils/` | `cancelReservation.js` | T | Returns the links it cancelled |
+| `utils/` | `paymentEffectDeps.js` | T | + `notifyPaidAfterCancel` |
+| `utils/` | `notificationService.js` | T | + « Paiement reçu sur un lien annulé » (push + email, rule 8) |
+| — | `scheduledTasks.js` | T | Payment block removed |
+| `models/` | `paymentLinksModel.js` | T | Neutral columns, `findByProviderLinkId`, `cancel`, `listRemoteCancelPending`, `clearRemoteCancelPending` |
+| `models/` | `settingsModel.js` | T | Qonto methods and columns removed; `publicSiteOrigin()`, `storePublicSiteOrigin()` |
 | `controllers/` | `paymentsController.js` | T | Provider from `paymentProviders`; 409 `NO_PAYMENT_PROVIDER` |
-| `controllers/` | `reservationsController.js` | T | `updatePayment` uses the recorder; `getById` adds `onlinePayment` |
-| `controllers/` | `dashboardController.js` | T | Remind refuses without a provider |
-| `controllers/public/` | `publicPaymentController.js` | T | Provider from `paymentProviders`; same contract |
-| `routes/` | `payments.js` | T | Keeps the provider-neutral routes only |
-| `middleware/` | `enforceSubscription.js` | T | Webhook exemption from the loader |
-| `plugins/sdk/` | `createContext.js`, `eventBus.js`, `index.js` | T | `ctx.paymentProvider`, `ctx.webhook`, event `reservation.paid`; Qonto entries leave `CORE_MODULES` |
-| `plugins/` | `loader.js` | T | Mounts webhooks; `isWebhook()` |
-| `plugins/online-payment/` | `index.js`, `provider.js`, `settingsStore.js`, `migrations.js`, `qonto/*`, controllers, `tests/` | C | Rules 10–16 |
-| `plugins/website-booking/` | `routes/bookingRequests.js` | T | Gate on the active provider instead of `requirePlugin('online-payment')` |
+| `controllers/` | `reservationsController.js` | T | `updatePayment` records 0→1 flips through the recorder; `getById` adds `onlinePayment` |
+| `controllers/` | `devisController.js` | T | `getOne` adds `onlinePayment` |
+| `controllers/` | `reservationCancellationController.js` | T | Deactivates after the commit; `paymentLinksNotDeactivated`, `paymentLinksWarning` |
+| `controllers/` | `dashboardController.js` | T | `remindType: null` and 409 without a provider |
+| `controllers/` | `termsController.js` | T | `publicSiteOrigin` in the overview; `updatePublicSiteOrigin` (rule 15) |
+| `controllers/public/` | `publicPaymentController.js` | T | Provider from `paymentProviders`; `requireProvider`; same contract |
+| `routes/` | `payments.js`, `terms.js` | T | Provider-neutral payment routes only; `PUT /terms/public-site-origin` |
+| `middleware/` | `enforceSubscription.js` | T | Webhook exemption from the loader (injectable) |
+| `plugins/sdk/` | `createContext.js`, `registry.js`, `eventBus.js`, `index.js` | T | `ctx.paymentProvider`, `ctx.webhook`, event `reservation.paid`; `CORE_MODULES` gains the three payment modules the plugin calls |
+| `plugins/` | `loader.js`, `index.js` | T | Mounts webhooks, `isWebhook()`; registers the module |
+| `plugins/online-payment/` | `index.js`, `provider.js`, `settingsStore.js`, `webhookController.js`, `qontoSettingsController.js`, `paymentPollSchedule.js`, `qonto/*`, `tests/` | C (mostly moved) | Rules 10–16 |
+| `plugins/website-booking/` | `routes/bookingRequests.js` | T | Gate on a declared provider |
 | — | `index.js` | T | Guards ask the loader; `/api/payments` mounted without `requirePlugin` |
-| — | `database.js`, `schema.sql` | T | Rule 20 migration |
+| — | `database.js`, `schema.sql` | T | Rule 20 migration; fresh databases get the neutral table |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | Status | Responsibility |
 |---|---|---|---|
 | `plugins/online-payment/` | `index.js`, `PaymentsSettingsPage.jsx`, `QontoConnectionCard.jsx` | C (moved) | Route and menu contribution (rule 17) |
-| `pages/` | `ReservationPage.jsx` | T | Buttons from `onlinePayment`; deactivation warning (rules 9, 18) |
-| `pages/settings/` | `TermsSettingsPage.jsx` | T | « Adresse du site public » (rule 15) |
-| `components/` | `PaymentDeadlinesAlert.jsx` | — | Already hides on `remindType: null` |
-| `constants/` | `plugins.js`, `settingsMenu.js` | T | Route and menu entry leave the core lists |
-| `plugins/` | `index.js` | T | Registers the module |
+| `plugins/sdk/` | `ui.js` | C | The generic components without the registry (rule 17) |
+| `plugins/sdk/` | `index.js` | T | Exports `HelpedTextField` |
+| `components/` | `PublicSiteOriginCard.jsx` | C | The address field and its own save (rule 15). Specific: one setting, one page |
+| `pages/` | `ReservationPage.jsx` | T | Buttons from `onlinePayment`; cancellation warning (rules 9, 18) |
+| `pages/settings/` | `TermsSettingsPage.jsx` | T | Hosts `PublicSiteOriginCard` |
+| `components/` | `PaymentDeadlinesAlert.jsx` | T | Cancellation warning (rule 9); already hides on `remindType: null` |
+| `constants/` | `plugins.js`, `settingsMenu.js`, `roles.js` | T | Route and menu entry leave the core lists; the menu slot learns `before` |
+| — | `api.js` | T | `saveTermsPublicSiteOrigin` |
+| — | `App.jsx` | T | The core route goes |
 
-It reuses `PageActionBar`, `StatusBadge` and `ErrorAlert`; no new generic component.
+It reuses `PageActionBar`, `StatusBadge`, `HelpedTextField` and `ErrorAlert`.
 
 `control-plane/`: `server/src/utils/gf.js` points at the moved files, and `client/src/App.jsx` imports
 the moved page. No behaviour change.
@@ -274,12 +319,16 @@ the moved page. No behaviour change.
 
 | Endpoint | Change |
 |---|---|
-| `GET /api/reservations/:id` | + `onlinePayment: { provider, label } \| null` |
-| `POST /api/reservations/:id/cancel` | + `paymentLinksNotDeactivated: n` |
+| `GET /api/reservations/:id`, `GET /api/devis/:id` | + `onlinePayment: { provider, label } \| null` |
+| `POST /api/reservations/:id/cancel` | + `paymentLinksNotDeactivated: n`, `paymentLinksWarning: string \| null` |
 | `POST\|GET /api/payments/reservations/:id/payment-links`, `POST …/payment-emails`, `POST /api/payments/poll` | Same URLs; 409 `NO_PAYMENT_PROVIDER` without a provider |
-| `GET /api/payments/reservations/:id/payment-links` | Rows carry `provider`, `remoteCancelPending` |
+| `GET /api/payments/reservations/:id/payment-links` | Rows carry `provider`, `providerLinkId`, `providerPaymentId`, `remoteCancelPending` |
+| `GET /api/dashboard/payment-deadlines` | `remindType: null` without a provider |
 | `POST /api/dashboard/payment-deadlines/:id/remind` | 409 `NO_PAYMENT_PROVIDER` without a provider |
+| `GET /api/terms` | + `publicSiteOrigin` |
+| `PUT /api/terms/public-site-origin` | New: `{ publicSiteOrigin }` → the overview, or 400 |
 | `/api/payments/qonto/*`, `/api/payments/settings` | Same URLs, mounted by the plugin |
+| `PUT /api/plugins/online-payment/settings` | 400 on every key |
 | `/public/v1/booking-requests/:id/pay\|status` | Unchanged |
 
 ## 5. Data model
@@ -289,64 +338,69 @@ the moved page. No behaviour change.
   - `qontoPaymentId` → `providerPaymentId`;
   - `+ provider TEXT NOT NULL DEFAULT 'qonto'`;
   - `+ remoteCancelPendingAt TEXT`;
-  - the index moves to `(provider, providerLinkId)`.
-- **`plugin_settings`** (`online-payment`): the 20 Qonto keys, five of them secret.
-- **`app_settings`**: the 20 `qonto*` columns stay, unread, and reset on erase. `publicSiteOrigin`
+  - `+ idx_payment_links_provider (provider, providerLinkId)`.
+- **`plugin_settings`** (`online-payment`): the 19 Qonto keys, five of them secret.
+- **`app_settings`**: the 19 `qonto*` columns stay, unread, and are emptied on erase. `publicSiteOrigin`
   stays core.
 - **Migration note** in `changelog.d/migration--plugins-phase-3a-online-payment.md`.
 
 ## 6. UI / UX
 
 - **Paramètres › Paiements en ligne:**
-  - unchanged, except that « Adresse du site public » leaves it;
-  - it disappears with the plugin.
-- **Paramètres › Conditions générales:** a field « Adresse du site public », with the help text « Sert à
-  construire le lien vers vos conditions générales dans les emails, et le retour après un paiement en
-  ligne. »
+  - unchanged, except that « Origine publique du site » leaves it;
+  - it disappears with the plugin, menu entry included.
+- **Paramètres › Conditions générales:** a card « Adresse du site public » between the published
+  versions and the online-booking card. One field, the help text « Sert à construire le lien vers vos
+  conditions générales dans les emails, et le retour après un paiement en ligne. », and its own button
+  « Enregistrer l’adresse » (the page bar saves the CGV draft). The server's refusal shows under the
+  field.
 - **Fiche:**
   - the two buttons follow `onlinePayment`;
-  - after a cancellation that could not deactivate a link, a warning alert sits under the action bar
-    until the page is left;
-  - in the payment links list, the badge « Désactivation en attente ».
-- **Tableau de bord:** with no provider, the payment cards keep their amounts and « Reporter », without
-  « Envoyer la demande / Relancer ».
-- **Mobile:** nothing new in the layout. The warning alert is full width at 375 px; the moved field
-  follows the CGV page's column.
+  - after a cancellation that could not deactivate a link, the « Séjour annulé » message carries the
+    warning.
+- **Tableau de bord:**
+  - with no provider, the payment cards keep their amounts and « Reporter », without « Envoyer la
+    demande / Relancer »;
+  - a cancellation with a link not deactivated shows the warning in the error toast.
+- **Mobile:** the address card stacks the field over a full-width button at 375 px; nothing else moves.
 
 ## 7. Test plan
 
-### Server — new tests
+### Server — new tests (25)
 
-| File | Covers |
-|---|---|
-| `stay-payment-recorder.unit.test.js` | Rules 1–3: the deposit, balance and full flips capture the contribs like the manual path (same rows, same cents); idempotent; rollback on capture failure; `reservation.paid` emitted |
-| `payment-provider-interface.unit.test.js` | Rules 4–6: one provider max; `active()` null when not live or not ready; 409 `NO_PAYMENT_PROVIDER` on the four endpoints; `remindType: null`; `onlinePayment` on the fiche |
-| `payment-link-deactivation.unit.test.js` | Rules 7–9: cancellation and stale-amount replacement call `cancelLink`; a failure sets the marker without failing the action; the poll retries; a paid pending link is not recorded and notifies |
-| `plugins/online-payment/tests/phase-3a-online-payment.unit.test.js` | Rules 10–16 and 20: isolation, routes at the same URLs, webhook through the guards (and 404 when off), settings copy and secrets, erase keeps `payment_links`, poll job gated, upgrade rename keeps open links findable |
+| File | Tests | Covers |
+|---|---|---|
+| `stay-payment-recorder.unit.test.js` | 5 | Rules 1–3: same rows by hand and online; full; idempotent; failed capture (rollback by hand, kept online); `reservation.paid` |
+| `payment-provider-interface.unit.test.js` | 6 | Rules 4–6, 20: missing member; one provider; `active()`; 409 on the endpoints; dashboard; the upgrade migration |
+| `payment-link-deactivation.unit.test.js` | 7 | Rules 7–9: deactivated; refused → marked; stale link; retry; paid after cancel; failing retry; admin email |
+| `plugins/online-payment/tests/phase-3a-online-payment.unit.test.js` | 7 | Rules 4, 10–16, 21: provider; routes and webhook at their URLs; settings copy and secrets; poll job; erase keeps payments; open-link blocker; a new customer has no provider |
 
 ### Moved and updated tests
 
-- The 29 Qonto/payment suites keep their cases.
-  - The Qonto ones move under `plugins/online-payment/tests/`.
-  - The neutral ones stay and are updated to the new column names.
-- `plugins-phase-0` and `plugins-phase-1-sdk` assert the new gates; the source scan of
-  `paymentPollRunner` follows the file.
-- The control plane's `qonto-settings` and billing suites run unchanged against the moved files.
+- The 15 Qonto suites and `payment-provider-validation`, `payment-poll-tick` moved under
+  `plugins/online-payment/tests/`, with `qontoSettingsFixture` rebuilt over the plugin store;
+  `settings-qonto` now tests the store.
+- The neutral suites stay and use the new names and the provider stubs: `payment-links-model`,
+  `payment-poll-runner`, `payment-poll-fair-use`, `payment-request-service`, `payment-request-type`.
+- `plugins-phase-0`, `plugins-phase-1-sdk`, `subscription-entitlement`, `dashboard-remind-refuses-platform`
+  and website-booking's `phase-2-website-booking` assert the new gates, jobs and events.
+- The control plane's suites run unchanged against the moved files (87).
+- Server total: 4,765.
 
-### Client (Vitest)
+### Client (Vitest) — new tests (7)
 
-- The fiche buttons follow `onlinePayment`.
-- The deactivation warning shows on `paymentLinksNotDeactivated > 0`.
-- `TermsSettingsPage` saves `publicSiteOrigin`.
-- `QontoConnectionCard` has no origin field any more.
-- The plugin registry lists the module.
-- The control-plane `PaymentsSettingsPage` import resolves.
+- `PaymentDeadlinesAlert.payment-provider.test.jsx` (2): no « Relancer » on `remindType: null`; the
+  cancellation warning.
+- `PublicSiteOriginCard.test.jsx` (2): saves; shows the refusal.
+- `plugins/online-payment/__tests__/module.test.js` (2): menu entry before « TVA & exercice »; route.
+- `QontoConnectionCard.test.jsx` (moved, +1): no address field.
+- Client total: 1,499.
 
-### E2E
+### E2E (95: 94 passed, 1 skipped as before)
 
-- The existing suite, unchanged.
-- A new spec: without the plugin, the fiche shows no payment button and `/parametres/paiements`
-  redirects.
+- `e2e/specs/plugins/online-payment.spec.js` (3): no payment request without a connected provider, and
+  409; the page and its menu entry go with the plugin and come back; the address saved with the CGV,
+  refused with a path.
 
 ### Manual verification
 
@@ -354,7 +408,7 @@ the moved page. No behaviour change.
   - upgrade: links renamed, `provider='qonto'`, settings copied;
   - plugin off: no button, dashboard without « Relancer », 409 on the endpoints;
   - erase, then reinstall.
-- **Qonto sandbox, with Adrien's sandbox credentials** (§9):
+- **Qonto sandbox, with Adrien's sandbox credentials** (Q1):
   - create a link, pay it, and check that the stay's contribs equal a manual tick;
   - cancel a stay with an open link, and check that the link is refused at Qonto;
   - cut the network during a cancellation, then check the marker and the retry.

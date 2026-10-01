@@ -307,11 +307,14 @@ test('the plugin mounts and routes are wired in the server', () => {
   // The five plugin modules mount through the loader, behind the same guard
   // (specs/plugins-phase-1-sdk.md rule 5 — covered in plugins-phase-1-sdk.unit.test.js).
   for (const [mount, id] of [
-    ['/api/resource-bookings', 'HOURLY_RESOURCES'],
-    ['/api/payments', 'ONLINE_PAYMENT'], ['/api/neat', 'NEAT'],
+    ['/api/resource-bookings', 'HOURLY_RESOURCES'], ['/api/neat', 'NEAT'],
   ]) {
     assert.ok(index.includes(`app.use('${mount}', requirePlugin(PLUGINS.${id})`), mount);
   }
+  // specs/plugins-phase-3a-online-payment.md rules 5, 11 — the payment links are the core's, refused
+  // without a provider; Qonto's own routes come from its plugin.
+  assert.ok(index.includes("app.use('/api/payments', require('./routes/payments'))"));
+  assert.match(read('plugins/online-payment/index.js'), /ctx\.mount\('\/api\/payments', router\)/);
   // specs/plugins-phase-2-hosts.md rule 23 — the whole /public/v1 tree comes from plugin modules,
   // mounted in list order: gate-access before website-booking.
   assert.ok(!/app\.use\('\/public\/v1', (requirePlugin|require\()/.test(index), 'no core /public/v1 tree');
@@ -348,10 +351,12 @@ test('the scheduler wraps every plugin pass', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scheduledTasks.js'), 'utf8');
   // The jobs of the five plugin modules run through the loader (plugins-phase-1-sdk.unit.test.js).
   for (const [id, pass] of [
-    ['ONLINE_PAYMENT', 'runPaymentPollPass'], ['NEAT', 'runNeatSubscriptionPass'],
+    ['NEAT', 'runNeatSubscriptionPass'],
   ]) {
     assert.ok(src.includes(`whenPluginActive(PLUGINS.${id}, ${pass})`), pass);
   }
+  // The payment poll is the online-payment module's job (specs/plugins-phase-3a-online-payment.md rule 14).
+  assert.ok(!src.includes('runPaymentPollPass'));
 });
 
 test('Google sync: an inactive plugin makes every push, delete and reconcile a no-op', () => {

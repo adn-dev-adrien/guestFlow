@@ -22,6 +22,7 @@ function financeError(body) {
 function createController(model, {
   emitPluginEvent = require('../plugins/sdk/eventBus').emit,
   termsFicheBlock = (devis) => require('./termsController').buildFicheBlock(devis),
+  onlinePayment = () => require('../utils/paymentProviders').summary(),
 } = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {
@@ -37,7 +38,8 @@ function createController(model, {
     const devis = model.findById(req.params.id);
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
     // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
-    return res.json({ ...devis, cgv: termsFicheBlock(devis) });
+    // specs/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
+    return res.json({ ...devis, cgv: termsFicheBlock(devis), onlinePayment: onlinePayment() });
   }
 
   function updateStatus(req, res) {

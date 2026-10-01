@@ -35,23 +35,24 @@ function seed() {
 }
 
 function addLink(db, links, reservationId, { qontoId, createdAgoMs = 0, expiresAt = null, lastPolledAt = null, type = 'deposit' }) {
-  const row = links.create({ reservationId, type, amountCents: 9000, qontoPaymentLinkId: qontoId, url: `https://pay/${qontoId}`, expiresAt });
+  const row = links.create({ reservationId, type, amountCents: 9000, providerLinkId: qontoId, url: `https://pay/${qontoId}`, expiresAt });
   db.prepare('UPDATE payment_links SET createdAt = ?, lastPolledAt = ? WHERE id = ?').run(sqliteAgo(createdAgoMs), lastPolledAt, row.id);
   return row.id;
 }
 
-// A Qonto stub recording every call, in order, as [endpoint, remote id].
+// A payment-provider stub (specs/plugins-phase-3a-online-payment.md rule 4) recording every call, in
+// order, as [endpoint, remote id].
 function countingQonto({ paid = false, linkStatus = 'open' } = {}) {
   const calls = [];
   return {
+    id: 'qonto',
     calls,
-    getPaymentLinkPayments: async ({ id }) => {
+    getPayment: async (id) => {
       calls.push(['payments', id]);
-      return paid
-        ? { paid: true, paidPayment: { id: 'pay_1', paid_at: '2026-09-15T11:59:00Z' }, payments: [{ status: 'paid' }] }
-        : { paid: false, paidPayment: null, payments: [] };
+      return paid ? { paid: true, paymentId: 'pay_1', paidAt: '2026-09-15T11:59:00Z' } : { paid: false };
     },
-    getPaymentLink: async ({ id }) => { calls.push(['link', id]); return { id, mappedStatus: linkStatus, raw: {} }; },
+    getLinkStatus: async (id) => { calls.push(['link', id]); return linkStatus; },
+    cancelLink: async () => {},
   };
 }
 
@@ -59,8 +60,7 @@ const pollDeps = (db, links, qonto, extra = {}) => ({
   database: db,
   paymentLinksModel: links,
   devisModel: devisModel.buildModel(db),
-  qontoClient: qonto,
-  getAccessToken: async () => 'tok_test',
+  provider: qonto,
   now: NOW,
   ...extra,
 });
@@ -126,13 +126,13 @@ test('rule 5: with a known future expiry the status call is skipped; with none i
 test('rule 2: markPaid flips an expired link once and is a no-op on a paid or cancelled one', () => {
   const { links } = seed();
   const expired = links.create({ reservationId: 1, type: 'deposit', amountCents: 100, status: 'expired' });
-  const first = links.markPaid(expired.id, { qontoPaymentId: 'pay_late' });
+  const first = links.markPaid(expired.id, { providerPaymentId: 'pay_late' });
   assert.equal(first.flipped, true);
   assert.equal(first.row.status, 'paid');
-  assert.equal(links.markPaid(expired.id, { qontoPaymentId: 'pay_late' }).flipped, false, 'a paid link stays final');
+  assert.equal(links.markPaid(expired.id, { providerPaymentId: 'pay_late' }).flipped, false, 'a paid link stays final');
 
   const cancelled = links.create({ reservationId: 1, type: 'deposit', amountCents: 100, status: 'cancelled' });
-  const res = links.markPaid(cancelled.id, { qontoPaymentId: 'pay_x' });
+  const res = links.markPaid(cancelled.id, { providerPaymentId: 'pay_x' });
   assert.equal(res.flipped, false);
   assert.equal(res.row.status, 'cancelled');
 });
@@ -144,8 +144,8 @@ test('rule 2 edge case: a link retired locally and then reported paid converts t
   assert.equal(statusOf(db, id), 'expired');
 
   const emails = [];
-  const deps = { database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, sendConfirmation: async (rid) => { emails.push(rid); }, paidPayment: { id: 'pay_late' } };
-  const link = links.findByQontoPaymentLinkId('ql_late');
+  const deps = { database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, sendConfirmation: async (rid) => { emails.push(rid); }, paidPayment: { paymentId: 'pay_late' } };
+  const link = links.findByProviderLinkId('qonto', 'ql_late');
   const first = await processPaidLink({ ...deps, link });
   const second = await processPaidLink({ ...deps, link });
 

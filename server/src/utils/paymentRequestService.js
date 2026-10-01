@@ -60,13 +60,17 @@ function resolveRequestType(row, requested = null) {
 }
 
 // Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
-//   deps: { database, paymentLinksModel, resolveAmountCents, createLink({ title, amountCents, items?, expectedTotalCents? }),
-//           resolveItems?(id, type, row) → { components, vatRatePercent } | null }
+//   deps: { database, paymentLinksModel, resolveAmountCents, provider (utils/paymentProviders),
+//           resolveItems?(id, type, row) → { components, vatRatePercent } | null, deactivateLinks?(links) }
+// `provider.createLink` returns { id, url, status, expiresAt }; a stale link is deactivated at the
+// provider, not only closed here (specs/plugins-phase-3a-online-payment.md rule 7).
 // When resolveItems yields components, the link is created as a VAT basket (specs/payment-links-vat.md):
 // Qonto shows the real TVA while the charged total stays exactly amountCents. Absent/mismatched → the
 // legacy single 0 %-VAT line (total-only) is used, so the charged amount is never at risk.
 async function ensurePaymentLink(deps, id, type) {
-  const { database, paymentLinksModel, resolveAmountCents, createLink, resolveItems } = deps;
+  const { database, paymentLinksModel, resolveAmountCents, provider, resolveItems } = deps;
+  const deactivateLinks = deps.deactivateLinks
+    || ((links) => require('./paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel, providerFor: () => provider }));
   if (!LINK_TYPES[type]) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
 
   // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
@@ -83,9 +87,9 @@ async function ensurePaymentLink(deps, id, type) {
   const existing = paymentLinksModel.findOpenForReservation(id, type);
   if (existing && existing.url) {
     if (Number(existing.amountCents) === Number(amountCents)) {
-      return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true };
+      return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
     }
-    paymentLinksModel.updateStatus(existing.id, 'cancelled');
+    await deactivateLinks([paymentLinksModel.updateStatus(existing.id, 'cancelled')]);
   }
 
   // Build the VAT basket when the caller can split the amount; only trust it when the components sum to
@@ -103,12 +107,13 @@ async function ensurePaymentLink(deps, id, type) {
       }
     }
   }
-  const link = await createLink(linkArgs);
+  if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
+  const link = await provider.createLink(linkArgs, { origin: deps.origin || 'manual-link' });
   const row = paymentLinksModel.create({
     reservationId: id, type, amountCents,
-    qontoPaymentLinkId: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null,
+    provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status, expiresAt: link.expiresAt || null,
   });
-  return { id: row.id, type, amountCents, url: link.url, status: link.mappedStatus, qontoPaymentLinkId: link.id, reused: false };
+  return { id: row.id, type, amountCents, url: link.url, status: link.status, providerLinkId: link.id, reused: false };
 }
 
 // Create/reuse the link AND email the matching `<type>_request` template to the guest.

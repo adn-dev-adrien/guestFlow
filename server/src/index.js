@@ -92,8 +92,8 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // 50 KB). Pinning the limit ourselves keeps a runaway client (or an attacker who got past
 // auth) from eating the Pi's RAM via a multi-MB body. 256 KB leaves headroom for future
 // growth without inviting abuse. Spotted in the 2026-06-01 security audit (finding M1).
-// Capture the raw request bytes so the Qonto webhook can verify its HMAC signature against the exact
-// payload (the parsed body can't be re-serialised byte-for-byte). specs/public-online-payment.md §3bis.
+// Capture the raw request bytes so a plugin's webhook (Qonto) can verify its HMAC signature against the
+// exact payload (the parsed body can't be re-serialised byte-for-byte). specs/public-online-payment.md §3bis.
 app.use(express.json({
   limit: '256kb',
   verify: (req, _res, buf) => { req.rawBody = buf; },
@@ -159,9 +159,9 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api', (req, res, next) => {
   if (req.path === '/version') return next();
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
-  // The Qonto webhook is a server-to-server call (no session) authenticated by its HMAC signature
-  // inside the controller — it must bypass the session guard, like the OAuth callback's browser flow.
-  if (req.method === 'POST' && req.path === '/payments/qonto/webhook') return next();
+  // A plugin's webhook is a server-to-server call (no session) the plugin authenticates itself — the
+  // Qonto one by its HMAC signature (specs/plugins-phase-3a-online-payment.md rule 12).
+  if (pluginLoader.isWebhook(req.method, req.path)) return next();
   return requireAuth(req, res, next);
 });
 
@@ -170,7 +170,7 @@ app.use('/api', (req, res, next) => {
 app.use('/api', (req, res, next) => {
   if (req.path === '/version') return next();
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
-  if (req.method === 'POST' && req.path === '/payments/qonto/webhook') return next();
+  if (pluginLoader.isWebhook(req.method, req.path)) return next();
   if (!req.user) return next(); // requireAuth above already 401'd if no session
   return enforceRoleAccess(req, res, next);
 });
@@ -193,7 +193,7 @@ app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
-app.use('/api/payments', requirePlugin(PLUGINS.ONLINE_PAYMENT), require('./routes/payments'));
+app.use('/api/payments', require('./routes/payments'));
 app.use('/api/translations', require('./routes/translations'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));

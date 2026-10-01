@@ -1,0 +1,2 @@
+- `payment_links`: `qontoPaymentLinkId` → `providerLinkId`, `qontoPaymentId` → `providerPaymentId`, new `provider` (`'qonto'` for every existing row) and `remoteCancelPendingAt`. Existing open links stay findable by the poll and the webhook.
+- The 19 `qonto*` columns of `app_settings` are copied once into `plugin_settings` (`online-payment`), secrets as their encrypted values; the old columns stay, unread, and are emptied by « Effacer aussi ses données ». `publicSiteOrigin` stays in `app_settings`.
