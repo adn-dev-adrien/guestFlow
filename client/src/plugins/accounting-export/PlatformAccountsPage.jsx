@@ -8,13 +8,9 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SyncIcon from '@mui/icons-material/Sync';
-import api from '../api';
-import PageActionBar from '../components/PageActionBar';
-import ErrorAlert from '../components/ErrorAlert';
-import LoadingState from '../components/LoadingState';
-import ConfirmDialog from '../components/ConfirmDialog';
-import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
-import { useToast } from '../components/DialogProvider';
+import {
+  api, PageActionBar, ErrorAlert, LoadingState, ConfirmDialog, useDirtyFormGuard, useToast,
+} from '../sdk';
 
 /**
  * PlatformAccountsPage — `/comptabilite/plateformes`.

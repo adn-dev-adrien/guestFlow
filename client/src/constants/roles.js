@@ -55,10 +55,9 @@ export const ROUTE_ROLES = Object.freeze({
   '/reservations/upcoming':  [ADMIN],
   '/finance':                [ADMIN],
   '/finance/tourist-tax':    [ADMIN],
-  '/comptabilite':           [ADMIN, ACCOUNTANT],
-  // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — dedicated page for the
-  // per-platform commission config, reachable by both admin and accountant.
-  '/comptabilite/plateformes': [ADMIN, ACCOUNTANT],
+  // specs/plugins-phase-2-hosts.md rule 21 — core; read-only for the accountant. Comptabilité and
+  // Plan comptable are pages of the accounting-export module (MODULE_ROUTE_ROLES below).
+  '/finance/indemnites':     [ADMIN, ACCOUNTANT],
   '/devis':                  [ADMIN],
   // specs/email-automation.md — admin-only Emails page + history.
   '/emails':                 [ADMIN],

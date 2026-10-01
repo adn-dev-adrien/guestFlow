@@ -20,9 +20,9 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import DialogProvider from '../../components/DialogProvider';
+import DialogProvider from '../../../components/DialogProvider';
 
-vi.mock('../../api', () => ({
+vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getPlatformAccounts: vi.fn(),
@@ -30,13 +30,13 @@ vi.mock('../../api', () => ({
     refreshPlatformAccounts: vi.fn(),
   },
 }));
-vi.mock('../../hooks/useAuth', () => ({
+vi.mock('../../../hooks/useAuth', () => ({
   __esModule: true,
   useAuth: vi.fn(),
 }));
 
-import api from '../../api';
-import { useAuth } from '../../hooks/useAuth';
+import api from '../../../api';
+import { useAuth } from '../../../hooks/useAuth';
 import PlatformAccountsPage from '../PlatformAccountsPage';
 
 function setAuth(user) {

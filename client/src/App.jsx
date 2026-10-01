@@ -43,6 +43,7 @@ import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
 import { visibleSettingsMenu, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
 import { isRouteEnabled } from './constants/plugins';
+import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { allContributions } from './plugins/sdk/registry';
 
 import Dashboard from './pages/Dashboard';
@@ -74,8 +75,7 @@ import OptionsResourcesPage from './pages/OptionsResourcesPage';
 import PaymentsSettingsPage from './pages/PaymentsSettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
-import AccountingPage from './pages/AccountingPage';
-import PlatformAccountsPage from './pages/PlatformAccountsPage';
+import CompensationsPage from './pages/CompensationsPage';
 import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import EmailHistoryPage from './pages/EmailHistoryPage';
 import ScrollToTop from './components/ScrollToTop';
@@ -103,10 +103,9 @@ const navItems = [
 
 // Children-of-each-parent map — keeps the parent visibility decision in one place. Hard-coded
 // (matches the JSX below) instead of derived from ROUTE_ROLES because the JSX itself is hand-rolled
-// and the children's order matters for display.
+// and the children's order matters for display. « Suivi financier » reads constants/financeMenu.js.
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
-const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
 const SETTINGS_CHILDREN  = ['/settings', ...SETTINGS_PATHS];
 
 function NavContent({ onItemClick }) {
@@ -120,7 +119,8 @@ function NavContent({ onItemClick }) {
   const can = (path) => canSeeRoute(user, path);
   const canAnyOf = (paths) => canSeeAnyRoute(user, paths);
   const showCalendar = canAnyOf(CALENDAR_CHILDREN);
-  const showFinance  = canAnyOf(FINANCE_CHILDREN);
+  const financeEntries = FINANCE_MENU.filter((entry) => canSeeFinanceEntry(user, entry));
+  const showFinance  = financeEntries.length > 0;
   const showSettings = canAnyOf(SETTINGS_CHILDREN);
 
   const [properties, setProperties] = useState([]);
@@ -174,7 +174,7 @@ function NavContent({ onItemClick }) {
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
-    if (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite')) {
+    if (isFinancePath(location.pathname)) {
       setFinanceMenuOpen(true);
       setCalendarMenuOpen(false);
       setEmailsMenuOpen(false);
@@ -225,7 +225,7 @@ function NavContent({ onItemClick }) {
                   setFinanceMenuOpen(false);
                   setSettingsMenuOpen(false);
                 } else if (item.path === '/finance') {
-                  setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite')) ? true : (prev) => !prev);
+                  setFinanceMenuOpen(isFinancePath(location.pathname) ? true : (prev) => !prev);
                   setCalendarMenuOpen(false);
                   setEmailsMenuOpen(false);
                   setSettingsMenuOpen(false);
@@ -251,7 +251,7 @@ function NavContent({ onItemClick }) {
                   : item.path === '/emails'
                     ? location.pathname.startsWith('/emails')
                   : item.path === '/finance'
-                    ? (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite'))
+                    ? isFinancePath(location.pathname)
                     : item.path === '/settings'
                       ? isSettingsPath(location.pathname)
                       : location.pathname === item.path
@@ -390,58 +390,21 @@ function NavContent({ onItemClick }) {
             {item.path === '/finance' && (
               <Collapse in={financeMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                  {can('/finance') && (
+                  {/* Core entries and the `finance.menu` slot (specs/plugins-phase-2-hosts.md rule 19). */}
+                  {financeEntries.map((entry) => (
                   <ListItemButton
+                    key={entry.key}
                     component={Link}
-                    to="/finance"
-                    onClick={(e) => onItemClick && onItemClick(e, '/finance')}
-                    selected={location.pathname === '/finance'}
+                    to={entry.path}
+                    onClick={(e) => onItemClick && onItemClick(e, entry.path)}
+                    selected={location.pathname === entry.path}
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
-                    <ListItemText primary="Vue générale" slotProps={{
+                    <ListItemText primary={entry.label} slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
-                  )}
-                  {can('/finance/tourist-tax') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/finance/tourist-tax"
-                    onClick={(e) => onItemClick && onItemClick(e, '/finance/tourist-tax')}
-                    selected={location.pathname === '/finance/tourist-tax'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemText primary="Taxe de séjour" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/comptabilite') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/comptabilite"
-                    onClick={(e) => onItemClick && onItemClick(e, '/comptabilite')}
-                    selected={location.pathname === '/comptabilite'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemText primary="Comptabilité" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/comptabilite/plateformes') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/comptabilite/plateformes"
-                    onClick={(e) => onItemClick && onItemClick(e, '/comptabilite/plateformes')}
-                    selected={location.pathname === '/comptabilite/plateformes'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemText primary="Plan comptable" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
+                  ))}
                 </List>
               </Collapse>
             )}
@@ -562,7 +525,8 @@ function AppShell() {
   // Non-admin roles are confined client-side to their allowed surface (the server already 403s every
   // other endpoint, but we redirect so they don't see empty shells). A user who also holds admin
   // keeps the full app. Combined non-admin roles get the union of their allowed paths.
-  // - Accountant → /comptabilite* + /mon-compte (specs/admin-account-management.md).
+  // - Accountant → /comptabilite* + « Indemnités d'annulation » + /mon-compte while the accounting
+  //   export is live, « Mon compte » alone otherwise (specs/plugins-phase-2-hosts.md rules 3, 21).
   // - Reception  → / + /planning + /mon-compte (specs/reception-role-checkin-only.md).
   // A page of an inactive plugin is not there (specs/plugins-phase-0-foundation.md rule 19): a URL
   // typed by hand lands on the home page, or on « Mon compte » for a role that has no home page.
@@ -579,10 +543,13 @@ function AppShell() {
     if (!isAccountant && !isReception) return;
     const path = location.pathname;
     const own = path === '/mon-compte' || path === '/account';
-    const allowed = (isAccountant && (path.startsWith('/comptabilite') || own))
+    const exportLive = canSeeRoute(user, '/comptabilite');
+    const accountantPage = exportLive && (path.startsWith('/comptabilite') || path === COMPENSATIONS_PATH);
+    const allowed = (isAccountant && (accountantPage || own))
       || (isReception && (path === '/' || path === '/planning' || own));
     if (allowed) return;
-    navigate(isReception ? '/' : '/comptabilite', { replace: true });
+    if (isReception) navigate('/', { replace: true });
+    else navigate(exportLive ? '/comptabilite' : '/mon-compte', { replace: true });
   }, [user, location.pathname, navigate]);
 
   useEffect(() => {
@@ -729,6 +696,7 @@ function AppShell() {
           <Route path="/devis" element={<DevisPage />} />
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
+          <Route path={COMPENSATIONS_PATH} element={<CompensationsPage />} />
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/resource-planning" element={pluginRoute('/resource-planning', <ResourcePlanningPage />)} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
@@ -753,8 +721,6 @@ function AppShell() {
           <Route path="/settings/password" element={<Navigate to="/mon-compte" replace />} />
           <Route path="/comptes" element={<Navigate to="/mon-compte" replace />} />
           <Route path="/account" element={<Navigate to="/mon-compte" replace />} />
-          <Route path="/comptabilite" element={pluginRoute('/comptabilite', <AccountingPage />)} />
-          <Route path="/comptabilite/plateformes" element={pluginRoute('/comptabilite/plateformes', <PlatformAccountsPage />)} />
           <Route path="/emails"            element={<EmailTemplatesPage />} />
           <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
