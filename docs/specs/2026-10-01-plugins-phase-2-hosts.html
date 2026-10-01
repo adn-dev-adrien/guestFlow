@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase 2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.app{display:grid;grid-template-columns:200px 1fr;gap:14px}
+@media (max-width:760px){.app{grid-template-columns:1fr}}
+.nav{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px;font-size:13.5px}
+.nav div{padding:6px 8px;border-radius:6px}
+.nav .sub{padding-left:22px;color:var(--muted)}
+.nav .new{color:var(--ok);font-weight:600}
+.panes{display:grid;gap:12px}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pane h4{margin:0 0 8px;font:600 14px var(--serif);color:var(--sapin)}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.pcard b{flex:1;min-width:150px}
+.chip{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+.chip.w{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.chip.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:36px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.laundry{border-left:4px solid var(--info)}
+.gone{display:none}
+.srv{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto}
+.srv .ok{color:var(--ok)} .srv .ko{color:var(--ko)} .srv .was{color:var(--ocre)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.steps span{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--fieldline)}
+.steps span.l{border-color:var(--info);color:var(--info);font-weight:600}
+.pc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--field)}
+.pc+.pc{margin-top:8px}
+.pc-main{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pname{flex:1;min-width:160px;cursor:pointer;background:none;border:0;padding:0;text-align:left;color:inherit;font:inherit;min-height:40px}
+.pname b{display:block;font-size:14px}
+.pname small{display:block;font-size:12px;color:var(--muted)}
+.pbtn{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 12px;min-height:44px;cursor:pointer;border:1px solid var(--fieldline);background:transparent;color:inherit}
+.pbtn.danger{border-color:var(--ko);color:var(--ko)}
+.pbtn.danger.armed{background:var(--ko);color:#fff}
+.pbtn.primary{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.pdet{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+.pinfo{margin:8px 0;font-size:12.5px;color:var(--muted)}
+.perase{margin:8px 0;font-size:12.5px;color:var(--ko);font-weight:600}
+.frame{border:1px solid var(--line);border-radius:10px;background:var(--field);overflow:hidden;margin:0 auto;transition:max-width .2s}
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--card)}
+.bar .t{font:600 15px var(--serif);color:var(--sapin);flex:1;min-width:140px}
+.bar select{font:inherit;font-size:13px;min-height:40px;border:1px solid var(--fieldline);border-radius:7px;background:var(--field);color:var(--ink);padding:0 8px}
+.ib{appearance:none;width:44px;height:44px;border-radius:8px;border:1px solid var(--fieldline);background:var(--sapin);color:var(--paper);font-size:20px;cursor:pointer}
+.ib[disabled]{opacity:.35;cursor:not-allowed}
+.fbody{padding:10px 12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.row .who{flex:1;min-width:150px}
+.row .amt{font-weight:700;min-width:80px;text-align:right}
+.form{border:1px solid var(--ocre);border-radius:8px;padding:10px;margin:8px 0;display:grid;gap:8px}
+.form label{font-size:12px;font-weight:600;color:var(--muted)}
+.form input,.form select{font:inherit;min-height:42px;border:1px solid var(--fieldline);border-radius:7px;padding:0 10px;background:var(--field);color:var(--ink);width:100%}
+.err{color:var(--ko);font-size:12.5px;font-weight:600}
+.empty{color:var(--ghost);font-style:italic;font-size:13px;padding:6px 0}
+@media (max-width:420px){.row .amt{text-align:left}}
+</style>
+<body>
+<div class="wrap">
+<h1>Plugins — phase 2 : le planning et le sas deviennent des hôtes, et quatre plugins sortent du cœur</h1>
+<div class="meta">Spec à valider · référence : <code>specs/plugins-phase-2-hosts.md</code> · branche <code>feature/plugins-phase-2</code> → <code>inte/plugins</code> · une seule PR (ton choix P5)</div>
+
+<h2>Le constat</h2>
+<p>Après la phase 1, sept plugins vivent encore dans le cœur, derrière les interrupteurs de la phase 0. Cette phase en sort quatre : <b>Linge</b>, <b>Export comptable</b>, <b>Site WordPress</b> et <b>Arrivée et départ guidés</b> (le sas). Les trois autres (bain à l'heure, Neat, Qonto) écrivent des lignes de prix et des paiements : ils attendent la phase 3.</p>
+<div class="cols2">
+  <div class="card"><h3>Ce que la cartographie a mesuré</h3>
+    <ul class="tight">
+      <li><b>Linge</b> : 3 tables, 8 réglages. Le planning charge et dessine les cartes blanchisserie lui-même.</li>
+      <li><b>Export comptable</b> : aucune table, un journal recalculé à chaque lecture. Ses 6 routes sont mêlées à celles des indemnités, qui restent au cœur.</li>
+      <li><b>Site WordPress</b> : toute l'API <code>/public/v1</code>, aucune table. La clé d'API est créée à chaque démarrage, même sans le plugin.</li>
+      <li><b>Sas</b> : un dialogue de 2 000 lignes. Sa validation écrit l'argent du séjour (530 lignes dans le modèle des réservations).</li>
+    </ul></div>
+  <div class="alert"><b>Six chemins tournent encore plugin éteint.</b> L'écran les cache, le serveur non :
+    <ul class="tight">
+      <li>l'alerte de manque de linge du tableau de bord ;</li>
+      <li>l'alerte « Demandes du site » ;</li>
+      <li>les prix « Facturables au SAS » ;</li>
+      <li>le bouton sas de la page « À venir » ;</li>
+      <li>les étapes linge et serviettes, côté données et côté validation du sas ;</li>
+      <li>la notification d'arrivée, qui pointe vers le sas.</li>
+    </ul></div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="tbl"><table>
+<tr><th>Plugin</th><th>Ce qui part dans le plugin</th><th>Ce qui reste au cœur</th></tr>
+<tr><td><b>Linge</b></td><td>Les tournées et le stock, les cartes et le bouton du planning, l'alerte de manque et la chip « Linge insuffisant ». Les étapes linge <b>et serviettes</b> du sas (ton choix P6).</td><td>Les options de linge vendues, les lits de chaque séjour, « Lits à préparer ».</td></tr>
+<tr><td><b>Export comptable</b></td><td>Les pages Comptabilité et Plan comptable, le rôle Comptable. Les comptes et taux, <b>y compris ceux des indemnités</b> (P7).</td><td>Les indemnités d'annulation, sur une <b>nouvelle page du Suivi financier</b> (P7).</td></tr>
+<tr><td><b>Site WordPress</b></td><td><code>/public/v1</code> sauf <code>/gate</code> (les adresses ne changent pas), la clé d'API, l'alerte « Demandes du site », la carte « Réservation en ligne » de la page CGV.</td><td>La rédaction des CGV, les acceptations (preuves légales), l'origine des demandes, le badge « Site internet ».</td></tr>
+<tr><td><b>Sas</b></td><td>Les routes, le contrôleur, le dialogue, l'onglet « Facturables au SAS », ses accès Accueil.</td><td><b>La validation d'arrivée et de départ</b> : c'est l'argent du séjour. Le plugin l'appelle via le SDK.</td></tr>
+</table></div>
+<p>Le planning et le sas deviennent des <b>hôtes</b> :</p>
+<ul class="tight">
+  <li><b>le planning</b> reçoit des cartes et des boutons de plugins (<code>planning.days</code>, <code>planning.actions</code>) ;</li>
+  <li><b>le sas</b> reçoit des étapes, au départ aussi (<code>sas.departure.steps</code>), placées où le plugin le dit (<code>after</code>).</li>
+</ul>
+
+<div class="cols2">
+  <div class="card"><h3>Ce qu'on ne fait pas</h3>
+    <ul class="tight">
+      <li>Bain à l'heure, Neat, Qonto : phase 3.</li>
+      <li>Les étapes de sas qui encaissent, venant d'un plugin : ce contrat arrive en phase 3, avec les lignes de prix.</li>
+      <li>La checklist de départ configurable : elle n'existe pas encore.</li>
+      <li>Les options de linge restent au cœur, parce qu'elles se vendent.</li>
+      <li>Le téléchargement des plugins : phase 4.</li>
+    </ul></div>
+  <div class="note"><b>Le risque.</b> Le sas et l'export comptable touchent à l'argent. On ne déplace donc pas ce code : la validation du sas et les données du journal restent dans le cœur, avec leurs tests. Seuls changent qui appelle ce code et qui l'affiche.
+    <br><br><b>Déjà réglé à part :</b>
+    <ul class="tight">
+      <li>le bug des CGV d'une demande convertie : <b>PR #648</b>, sur master ;</li>
+      <li>la synchronisation de <code>inte/plugins</code> avec master v3.8.0 : <b>PR #649</b>, à merger avec « Create a merge commit ».</li>
+    </ul></div>
+</div>
+
+<h2>Essaie : chaque plugin éteint ne laisse aucune trace</h2>
+<p>Coche ou décoche les quatre plugins. À gauche, le menu et les écrans ; à droite, ce que répond le serveur. En <span style="color:var(--ocre)">ocre</span>, les six fuites d'aujourd'hui, que la phase 2 ferme.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Plugins actifs</span>
+    <label class="chk"><input type="checkbox" data-p="linen" checked> Linge</label>
+    <label class="chk"><input type="checkbox" data-p="acc" checked> Export comptable</label>
+    <label class="chk"><input type="checkbox" data-p="web" checked> Site WordPress</label>
+    <label class="chk"><input type="checkbox" data-p="sas" checked> Sas</label>
+    <span class="lab">Serveur</span>
+    <div class="seg" id="era"><button aria-pressed="false" data-e="before">Aujourd'hui</button><button aria-pressed="true" data-e="after">Après la phase 2</button></div>
+  </div>
+  <div class="sbody">
+    <div class="app">
+      <div class="nav">
+        <div><b>Tableau de bord</b></div>
+        <div><b>Planning</b></div>
+        <div><b>À venir</b></div>
+        <div><b>Suivi financier</b></div>
+        <div class="sub">Vue d'ensemble</div>
+        <div class="sub">Taxe de séjour</div>
+        <div class="sub new">Indemnités d'annulation ✦</div>
+        <div class="sub" data-show="acc">Comptabilité</div>
+        <div class="sub" data-show="acc">Plan comptable</div>
+        <div><b>Paramètres</b></div>
+        <div class="sub" data-show="linen">Linge</div>
+        <div class="sub">Options &amp; ressources<span data-show="sas"> · Facturables au SAS</span></div>
+        <div class="sub">Conditions générales</div>
+      </div>
+      <div class="panes">
+        <div class="pane"><h4>Tableau de bord — alertes</h4>
+          <div class="pcard" data-show="linen"><b>Linge : stock insuffisant mardi</b><span class="chip w">2 draps doubles</span></div>
+          <div class="pcard" data-show="web"><b>Demandes du site</b><span class="chip i">1 nouvelle</span></div>
+          <div class="pcard"><b>Indemnité en attente — Booking</b><span class="chip w">48,00 €</span></div>
+        </div>
+        <div class="pane"><h4>Planning — mardi 6 octobre</h4>
+          <div class="pcard"><b>Arrivée · Martin · Gîte</b><span class="chip w" data-show="linen">Linge insuffisant</span><button class="mini" data-show="sas">Sas d'arrivée</button></div>
+          <div class="pcard"><b>Petit-déjeuner · 4 pers.</b></div>
+          <div class="pcard laundry" data-show="linen"><b>Blanchisserie · tournée du mardi</b><span class="chip i">12 draps · 18 serviettes</span><button class="mini">Sauter</button></div>
+          <div data-show="linen" style="margin-top:6px"><button class="mini">+ Tournée supplémentaire</button></div>
+        </div>
+        <div class="pane"><h4>À venir</h4>
+          <div class="pcard"><b>Dubois · Lodge · ven. 9</b><button class="mini" data-show="sas" data-leak="upcoming">Sas d'arrivée</button></div>
+        </div>
+        <div class="pane"><h4>Sas d'arrivée — les étapes</h4>
+          <div class="steps" id="steps"></div>
+        </div>
+        <div class="pane"><h4>Paramètres › Conditions générales</h4>
+          <div class="pcard"><b>Version 3 publiée</b><button class="mini">Nouvelle version</button></div>
+          <div class="pcard" data-show="web"><b>Réservation en ligne · exiger l'acceptation</b><span class="chip i">plugin WordPress 1.14.0</span></div>
+        </div>
+        <div class="pane"><h4>Ce que répond le serveur</h4><div class="srv" id="srv"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Essaie : désinstaller avec ou sans effacement</h2>
+<p>Linge, Export comptable et Site WordPress proposent maintenant « Effacer aussi ses données ». Le Sas, non : tout ce qu'il enregistre fait partie des séjours. Clique sur un nom pour ouvrir son détail.</p>
+<div class="studio"><div class="sbody" id="plist"></div></div>
+
+<h2>Essaie : la page « Indemnités d'annulation »</h2>
+<p>Elle reprend la section qui n'existait que sur Comptabilité. Elle est désormais au cœur, donc visible sans l'export comptable. Change de rôle, de mois et de largeur, ajoute une indemnité (essaie un montant vide ou négatif), encaisse-la, rouvre-la.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Rôle</span>
+    <div class="seg" id="role"><button aria-pressed="true" data-r="admin">Admin</button><button aria-pressed="false" data-r="acc">Comptable</button></div>
+    <span class="lab">Largeur</span>
+    <div class="seg" id="width"><button aria-pressed="true" data-w="900">Bureau</button><button aria-pressed="false" data-w="375">375 px</button></div>
+  </div>
+  <div class="sbody">
+    <div class="frame" id="frame" style="max-width:900px">
+      <div class="bar">
+        <span class="t">Indemnités d'annulation</span>
+        <select id="month" aria-label="Mois"><option value="2026-09">Septembre 2026</option><option value="2026-10" selected>Octobre 2026</option></select>
+        <button class="ib" id="add" title="Ajouter" aria-label="Ajouter">+</button>
+      </div>
+      <div class="fbody">
+        <div id="formSlot"></div>
+        <h3 style="margin-top:6px">Encaissées en <span id="mlabel">octobre 2026</span></h3>
+        <div id="banked"></div>
+        <h3>En attente</h3>
+        <div id="pending"></div>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:10px">Sur Comptabilité, la section est remplacée par un lien « Indemnités d'annulation → ». Le journal garde leurs écritures.</p>
+  </div>
+</div>
+
+<h2>Les arbitrages</h2>
+<div class="tbl"><table>
+<tr><th>#</th><th>Question</th><th>Ton choix (01/10)</th></tr>
+<tr><td>P5</td><td>Découpage</td><td>Une seule PR</td></tr>
+<tr><td>P6</td><td>Étape serviettes du sas</td><td>Au plugin Linge</td></tr>
+<tr><td>P7</td><td>Indemnités sans l'export comptable</td><td>Page du Suivi financier ; compte 758 et TVA avec le plugin</td></tr>
+<tr><td>P8</td><td>Bug CGV d'une demande convertie</td><td>PR séparée sur master (#648)</td></tr>
+</table></div>
+<p class="muted">Aucune question ouverte. Si la maquette te va, je passe à l'implémentation.</p>
+</div>
+
+<script>
+const on = { linen: true, acc: true, web: true, sas: true };
+let era = 'after';
+
+const ARRIVAL = [
+  ['Accueil'], ['Portail'], ['Caution'], ['Règlement'], ['Prestations'], ['Petit-déjeuner'],
+  ['Linge de lit', 'linen'], ['Ménage'], ['Serviettes', 'linen'], ['Vente petit-déj.'], ['Restauration'],
+  ['Météo'], ['Récapitulatif'],
+];
+
+const SERVER = [
+  { url: 'GET /api/dashboard/linen-shortage', p: 'linen', leak: true },
+  { url: 'GET /api/planning/laundry', p: 'linen' },
+  { url: 'GET /api/dashboard/public-devis-pending', p: 'web', leak: true },
+  { url: 'POST /public/v1/booking-requests', p: 'web' },
+  { url: 'GET /public/v1/gate/keys', p: null },
+  { url: 'GET /api/accounting/sales.csv', p: 'acc' },
+  { url: 'GET /api/accounting/cancellation-compensations', p: null },
+  { url: 'PUT /api/settings/repair-amounts', p: 'sas', leak: true },
+  { url: 'GET /api/reservations/:id/sas', p: 'sas' },
+  { url: 'GET …/sas → linenItems, bathLinen', p: 'linen', leak: true, field: true },
+  { url: 'push arrivée → lien', p: 'sas', leak: true, push: true },
+];
+
+function renderApp() {
+  document.querySelectorAll('[data-show]').forEach((el) => {
+    const p = el.dataset.show;
+    let visible = on[p];
+    if (el.dataset.leak === 'upcoming' && era === 'before') visible = true;
+    el.classList.toggle('gone', !visible);
+  });
+  const steps = document.getElementById('steps');
+  steps.innerHTML = '';
+  if (!on.sas) { steps.innerHTML = '<span class="muted" style="border:0">Pas de sas : le plugin est éteint.</span>'; }
+  else ARRIVAL.forEach(([label, p]) => {
+    if (p && !on[p]) return;
+    const s = document.createElement('span');
+    s.textContent = label;
+    if (p) s.className = 'l';
+    steps.appendChild(s);
+  });
+  const srv = document.getElementById('srv');
+  srv.innerHTML = SERVER.map((r) => {
+    const live = r.p === null || on[r.p];
+    let out;
+    if (r.push) out = on.sas ? '<span class="ok">/planning?sas=42</span>' : (era === 'before' ? '<span class="was">/planning?sas=42 (fuite)</span>' : '<span class="ok">/reservations/42</span>');
+    else if (r.field && !on.sas && era === 'after') out = '<span class="ko">— (pas de sas)</span>';
+    else if (r.field) out = live ? '<span class="ok">présents</span>' : (era === 'before' ? '<span class="was">présents (fuite)</span>' : '<span class="ko">absents</span>');
+    else if (live) out = '<span class="ok">200</span>';
+    else if (r.leak && era === 'before') out = '<span class="was">200 (fuite)</span>';
+    else out = '<span class="ko">404 PLUGIN_INACTIVE</span>';
+    return `${r.url}\n   → ${out}`;
+  }).join('\n');
+}
+document.querySelectorAll('[data-p]').forEach((c) => c.addEventListener('change', () => { on[c.dataset.p] = c.checked; renderApp(); renderPlugins(); }));
+document.querySelectorAll('#era button').forEach((b) => b.addEventListener('click', () => {
+  era = b.dataset.e;
+  document.querySelectorAll('#era button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  renderApp();
+}));
+
+const PLUGINS = [
+  { id: 'linen', name: 'Linge', desc: 'Stock, tournées de blanchisserie, lits à préparer', erase: '3 tournées sautées · 2 ajouts manuels · 1 tournée supplémentaire · le stock et le jour de blanchisserie' },
+  { id: 'acc', name: 'Export comptable', desc: 'Journal des ventes, plan comptable, rôle Comptable', erase: 'les comptes de 4 plateformes · les comptes et taux par défaut' },
+  { id: 'web', name: 'Site WordPress', desc: 'Réservation en ligne depuis le site', erase: 'le réglage d’exigence des CGV · la dernière version du plugin WordPress vue' },
+  { id: 'sas', name: 'Arrivée et départ guidés', desc: 'Le sas pas à pas de l’accueil et du départ', erase: null },
+];
+const ui = {};
+function renderPlugins() {
+  const list = document.getElementById('plist');
+  list.innerHTML = '';
+  PLUGINS.forEach((p) => {
+    const st = ui[p.id] || (ui[p.id] = { open: false, purge: false, armed: false });
+    const card = document.createElement('div');
+    card.className = 'pc';
+    const installed = on[p.id];
+    card.innerHTML = `<div class="pc-main">
+      <button class="pname" data-open><b>${p.name}</b><small>${p.desc}</small></button>
+      <span class="chip ${installed ? 'i' : 'w'}">${installed ? 'Installé · actif' : 'Disponible'}</span>
+    </div>`;
+    if (st.open) {
+      const det = document.createElement('div');
+      det.className = 'pdet';
+      if (!installed) {
+        det.innerHTML = '<button class="pbtn primary" data-install>Installer</button>';
+      } else {
+        let html = '';
+        if (p.erase) {
+          html += `<label class="chk"><input type="checkbox" data-purge ${st.purge ? 'checked' : ''}> Effacer aussi ses données</label>`;
+          html += st.purge
+            ? `<div class="perase">Seront effacés : ${p.erase}. C'est définitif.</div>`
+            : '<div class="pinfo">Tes données sont conservées : en le réinstallant, tu retrouves tout.</div>';
+        } else {
+          html += '<div class="pinfo">Ses données font partie des séjours (paiements, caution, compléments) : elles sont toujours conservées.</div>';
+        }
+        const label = st.armed ? (st.purge ? 'Désinstaller et effacer' : 'Confirmer la désinstallation') : 'Désinstaller';
+        html += `<button class="pbtn danger ${st.armed && st.purge ? 'armed' : ''}" data-uninstall>${label}</button>`;
+        det.innerHTML = html;
+      }
+      card.appendChild(det);
+    }
+    card.querySelector('[data-open]').addEventListener('click', () => { st.open = !st.open; st.armed = false; renderPlugins(); });
+    card.querySelectorAll('[data-purge]').forEach((c) => c.addEventListener('change', () => { st.purge = c.checked; st.armed = false; renderPlugins(); }));
+    card.querySelectorAll('[data-uninstall]').forEach((b) => b.addEventListener('click', () => {
+      if (!st.armed) { st.armed = true; renderPlugins(); return; }
+      on[p.id] = false; st.armed = false; st.purge = false;
+      document.querySelector(`[data-p="${p.id}"]`).checked = false;
+      renderPlugins(); renderApp();
+    }));
+    card.querySelectorAll('[data-install]').forEach((b) => b.addEventListener('click', () => {
+      on[p.id] = true;
+      document.querySelector(`[data-p="${p.id}"]`).checked = true;
+      renderPlugins(); renderApp();
+    }));
+    list.appendChild(card);
+  });
+}
+
+let role = 'admin';
+let month = '2026-10';
+let formOpen = false;
+let formError = '';
+let comps = [
+  { id: 1, who: 'Booking · Leroy · Gîte', amount: 48, status: 'pending', due: '12/10/2026' },
+  { id: 2, who: 'Airbnb · Nguyen · Lodge', amount: 120, status: 'banked', month: '2026-09', on: '18/09/2026' },
+  { id: 3, who: 'Gîtes de France · Petit · Estiva', amount: 65, status: 'banked', month: '2026-10', on: '01/10/2026' },
+];
+const euros = (n) => n.toFixed(2).replace('.', ',') + ' €';
+const MONTHS = { '2026-09': 'septembre 2026', '2026-10': 'octobre 2026' };
+function renderComp() {
+  const canEdit = role === 'admin';
+  document.getElementById('add').disabled = !canEdit;
+  document.getElementById('mlabel').textContent = MONTHS[month];
+  const slot = document.getElementById('formSlot');
+  slot.innerHTML = '';
+  if (formOpen && canEdit) {
+    slot.innerHTML = `<div class="form">
+      <div><label for="fplat">Plateforme</label><select id="fplat"><option>Booking</option><option>Airbnb</option><option>Abritel</option></select></div>
+      <div><label for="fwho">Séjour annulé</label><select id="fwho"><option>Moreau · Gîte · 14-16 nov.</option><option>Garcia · Lodge · 2-5 déc.</option></select></div>
+      <div><label for="famt">Montant versé par la plateforme (€)</label><input id="famt" inputmode="decimal" placeholder="0,00"></div>
+      ${formError ? `<div class="err" role="alert">${formError}</div>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="pbtn primary" id="fsave">Enregistrer</button><button class="pbtn" id="fcancel">Annuler</button></div>
+    </div>`;
+    document.getElementById('fcancel').onclick = () => { formOpen = false; formError = ''; renderComp(); };
+    document.getElementById('fsave').onclick = () => {
+      const raw = document.getElementById('famt').value.trim().replace(',', '.');
+      const n = Number(raw);
+      if (!raw || !Number.isFinite(n) || n <= 0) { formError = 'Le montant doit être un nombre positif.'; renderComp(); return; }
+      const plat = document.getElementById('fplat').value;
+      const who = document.getElementById('fwho').value.split(' · ').slice(0, 2).join(' · ');
+      comps.push({ id: Date.now(), who: `${plat} · ${who}`, amount: Math.round(n * 100) / 100, status: 'pending', due: '—' });
+      formOpen = false; formError = ''; renderComp();
+    };
+  }
+  const row = (c, actions) => `<div class="row"><span class="who">${c.who}<br><small class="muted">${c.status === 'banked' ? 'Encaissée le ' + c.on : 'Attendue · ' + c.due}</small></span><span class="amt">${euros(c.amount)}</span>${actions}</div>`;
+  const banked = comps.filter((c) => c.status === 'banked' && c.month === month);
+  document.getElementById('banked').innerHTML = banked.length
+    ? banked.map((c) => row(c, canEdit ? `<button class="mini" data-reopen="${c.id}">Rouvrir</button>` : '')).join('')
+    : '<div class="empty">Aucune indemnité encaissée ce mois-ci.</div>';
+  const pending = comps.filter((c) => c.status === 'pending');
+  document.getElementById('pending').innerHTML = pending.length
+    ? pending.map((c) => row(c, canEdit ? `<button class="mini" data-bank="${c.id}">Encaisser</button><button class="mini" data-del="${c.id}">Supprimer</button>` : '')).join('')
+    : '<div class="empty">Aucune indemnité en attente.</div>';
+  document.querySelectorAll('[data-bank]').forEach((b) => b.onclick = () => { const c = comps.find((x) => x.id == b.dataset.bank); c.status = 'banked'; c.month = '2026-10'; c.on = '01/10/2026'; renderComp(); });
+  document.querySelectorAll('[data-reopen]').forEach((b) => b.onclick = () => { const c = comps.find((x) => x.id == b.dataset.reopen); c.status = 'pending'; c.due = '—'; renderComp(); });
+  document.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { comps = comps.filter((x) => x.id != b.dataset.del); renderComp(); });
+}
+document.getElementById('add').onclick = () => { formOpen = true; formError = ''; renderComp(); };
+document.getElementById('month').onchange = (e) => { month = e.target.value; renderComp(); };
+document.querySelectorAll('#role button').forEach((b) => b.addEventListener('click', () => {
+  role = b.dataset.r; formOpen = false;
+  document.querySelectorAll('#role button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  renderComp();
+}));
+document.querySelectorAll('#width button').forEach((b) => b.addEventListener('click', () => {
+  document.getElementById('frame').style.maxWidth = b.dataset.w + 'px';
+  document.querySelectorAll('#width button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+}));
+
+renderApp(); renderPlugins(); renderComp();
+</script>
+</body>
+</html>
