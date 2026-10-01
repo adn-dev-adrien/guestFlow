@@ -12,4 +12,5 @@ module.exports = [
   require('./sas'),
   require('./website-booking'),
   require('./accounting-export'),
+  require('./linen'),
 ];

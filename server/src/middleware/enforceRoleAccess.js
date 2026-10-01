@@ -55,11 +55,6 @@ const RECEPTION_MATCHERS = [
   { method: 'GET', re: /^\/planning\// },
   { method: 'POST', re: /^\/planning\/option-cards\/done$/ },
   { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
-  // Laundry skips + manual additions (operational, no money).
-  { method: 'GET', re: /^\/laundry(\/|$)/ },
-  { method: 'POST', re: /^\/laundry\/skips$/ },
-  { method: 'DELETE', re: /^\/laundry\/skips\// },
-  { method: 'PUT', re: /^\/laundry\/manual-additions\// },
   // Resource-booking planning events (read-only, for the Planning resource lane).
   { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
 ];

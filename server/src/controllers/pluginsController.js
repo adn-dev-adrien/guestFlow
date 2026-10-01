@@ -220,6 +220,15 @@ function createController(model = defaultModel, deps = {}) {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const unknown = Object.keys(body).filter((key) => !record.settings.some((k) => k.key === key));
       if (unknown.length) return res.status(400).json({ error: 'UNKNOWN_SETTING', keys: unknown });
+      // A declared `validate(value) → message | null` refuses the whole write (specs/plugins-phase-2-hosts.md
+      // rule 15: the linen stock and laundry day keep the checks the core settings form had).
+      const errors = {};
+      record.settings.forEach(({ key, validate }) => {
+        if (!validate || !Object.prototype.hasOwnProperty.call(body, key)) return;
+        const message = validate(body[key]);
+        if (message) errors[key] = message;
+      });
+      if (Object.keys(errors).length) return res.status(400).json({ error: 'INVALID_SETTING', errors });
       record.settings.forEach(({ key, secret }) => {
         if (!Object.prototype.hasOwnProperty.call(body, key)) return;
         const value = body[key];

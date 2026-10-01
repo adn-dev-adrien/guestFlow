@@ -15,7 +15,8 @@ function createContext(id, { db, settingsModel } = {}) {
   const prefix = `[plugin:${id}]`;
 
   const settings = {
-    // [{ key, secret?, default? }] — the keys `GET/PUT /api/plugins/:id/settings` accept (rule 7).
+    // [{ key, secret?, default?, validate? }] — the keys `GET/PUT /api/plugins/:id/settings` accept
+    // (rule 7); `validate(value)` returns a French message to refuse a write, or null.
     declare(keys) { record.settings.push(...keys); },
     get(key) {
       const decl = record.settings.find((k) => k.key === key);

@@ -36,3 +36,7 @@ export { HOURLY_RESOURCES } from '../../constants/plugins';
 export { default as MonthYearPicker } from '../../components/MonthYearPicker';
 export { default as PlatformChip } from '../../components/PlatformChip';
 export { ADMIN, userHasRole } from '../../constants/roles';
+// linen (specs/plugins-phase-2-hosts.md §3.D)
+export { default as DateField } from '../../components/DateField';
+export { default as QuantityField } from '../../components/QuantityField';
+export { isReceptionOnly } from '../../constants/roles';
