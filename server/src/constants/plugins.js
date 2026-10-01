@@ -75,9 +75,9 @@ const PLUGIN_CATALOG = Object.freeze([
   {
     id: SAS,
     name: 'Arrivée et départ guidés',
-    description: 'Le sas pas à pas de l’accueil, objets trouvés, liste de départ.',
+    description: 'Le sas pas à pas de l’accueil et du départ.',
     icon: 'door',
-    surfaces: ['Le bouton sas des cartes du planning', 'L’onglet « Facturables au SAS »', 'La carte objets trouvés', 'Le rôle « Accueil » et son écran d’accueil'],
+    surfaces: ['Le bouton sas des cartes du planning', 'L’onglet « Facturables au SAS »', 'Le rôle « Accueil » et son écran d’accueil'],
   },
   {
     id: TARIFF_RECIPES,

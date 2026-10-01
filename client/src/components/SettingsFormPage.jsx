@@ -10,6 +10,7 @@
  *   onSave?:       () => void        — defaults to form.save()
  *   onCancel?:     () => void        — defaults to form.cancel()
  *   dirty?:        boolean           — overrides form.isDirty (a card saving through its own endpoint)
+ *   saveBlocked?:  boolean           — a field is invalid client-side: Enregistrer stays disabled
  *   actionsBefore?: Action[]         — PageActionBar extra actions
  *   children:      ReactNode         — the page's cards
  */
@@ -19,7 +20,7 @@ import PageActionBar from './PageActionBar';
 import ErrorAlert from './ErrorAlert';
 import ConfirmDialog from './ConfirmDialog';
 
-export default function SettingsFormPage({ title, form, onSave, onCancel, dirty, actionsBefore, children }) {
+export default function SettingsFormPage({ title, form, onSave, onCancel, dirty, saveBlocked = false, actionsBefore, children }) {
   const isDirty = dirty === undefined ? form.isDirty : dirty;
   const busy = form.loading || form.saving;
   const subtitle = isDirty ? (
@@ -39,7 +40,8 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
         titleOnXs
         subtitle={subtitle}
         onSave={onSave || (() => form.save())}
-        saveDisabled={!isDirty || busy}
+        saveDisabled={!isDirty || busy || saveBlocked}
+        saveTooltip={saveBlocked ? 'Corrigez les champs en rouge avant d’enregistrer' : undefined}
         saveBusy={form.saving}
         onCancel={onCancel || form.cancel}
         cancelDisabled={!isDirty || busy}

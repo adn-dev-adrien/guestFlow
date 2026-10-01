@@ -4,6 +4,85 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-10-01
+
+### Summary
+- Suivi financier : nouvelle carte « Réservations à venir, à date » qui compare les 12 prochains mois à la même date l'an dernier.
+- Elle compte en réservations, nuits ou CA des nuits, montre le rythme des 7 et 30 derniers jours, et un clic sur un mois trace sa montée en charge.
+- La comparaison n'apparaît qu'un an après l'import initial : la date de réservation retenue est celle de la création de la fiche.
+
+### Added
+- **Réservations à venir, à date** on the Suivi financier (`specs/booking-pace.md`): for each of the
+  next twelve stay months, what is booked today next to what was booked on the same date last year
+  and what that month finally made, in réservations, nuits or CA des nuits; the pickup of the last
+  7 / 30 days; a click on a month shows its « montée en charge ». The booking date is the fiche's
+  creation date, so the comparison appears one year after the initial import.
+
+### Migration
+- New table `booking_pace_cancellations` (written when an iCal cancellation is approved, so the
+  deleted stay keeps counting on the dates it was booked) and index `idx_reservations_createdAt`.
+  Additive; no existing row changes.
+
+## [3.7.1] - 2026-09-30
+
+### Summary
+- Suivi financier : cartes et tuiles retrouvent les coins de la charte, bien moins arrondis qu'en 3.7.0.
+- Le bandeau du chiffre d'affaires passe en encre et miel, plus lisible sur ordinateur, avec ses quatre chiffres bien centrés.
+- La courbe du chiffre d'affaires est graduée au 1er de chaque mois (chaque semaine sur un mois) au lieu de dates irrégulières.
+
+### Fixed
+- **Suivi financier — visual finish** (spec `finance-dashboard-redesign.md` rules 30-32, 2026-09-29). Cards and
+  tiles back to the design system's 14 px radius (a numeric `sx` radius was multiplied by the theme's 14:
+  49 px tiles, a 63 px banner); the revenue banner is ink with honey accents, flat, its four figures in a
+  hairline grid; the cumulative curve is graduated on the 1st of each month (weekly on a « Mois » window)
+  instead of on its weekly points. `hero.axis` and `cumulative[].x` added to `/api/finance/dashboard`.
+  +5 server tests, +3 client tests.
+
+## [3.7.0] - 2026-09-29
+
+### Summary
+- Le Suivi financier devient un tableau de bord unique, piloté par une période (exercice, mois ou dates) et un filtre par logement.
+- En tête, un bandeau vert réunit revenu, nuits vendues, occupation, revenu par nuit et part en direct, avec la comparaison à l'an dernier.
+- Six tuiles (Encaissé, À encaisser, En retard, Réservations, Logements, Canaux) ouvrent chacune le tableau détaillé correspondant.
+- Nouveau : fixez un objectif de chiffre d'affaires annuel dans Réglages → TVA & exercice ; aucun objectif n'est défini à l'installation.
+- Le calendrier ne se bloque plus en fin de défilement : les mois suivants se chargent sans avoir à remonter.
+
+### Changed
+- **Suivi financier redesigned as a single dashboard.** One window (exercise, month or custom dates)
+  and a logement filter drive the whole page: a green banner with the revenue, the annual goal, nights
+  sold, occupancy, revenue per night and the direct share over a cumulative curve; three « faits
+  marquants »; six tiles (Encaissé, À encaisser, En retard, Réservations, Logements, Canaux), each
+  opening its own table; « Revenu par mois » with last year's column beside each month, and one
+  occupancy chart per logement. The comparison with last year appears month by month as soon as
+  history exists. Nothing from the former page is lost: its tables now open from the tiles.
+
+### Fixed
+- **Calendar — scrolling past the preloaded months no longer stalls.** On the dashboard and the
+  Calendrier page, scrolling down (or up) sometimes stopped loading months: the calendar sat at its end
+  and the whole page scrolled instead, until you scrolled back up a little. It happened whenever a month
+  was shorter than the loading margin (an empty month on mobile) or a fast wheel flick jumped over it.
+  The next month is now requested again as soon as the previous one is displayed.
+
+### Migration
+- **Annual revenue goal** (`specs/finance-dashboard-redesign.md` §5): `app_settings.revenueGoals` (TEXT, JSON `{ "<exercise key>": amount }`) is added on startup. Existing installs start with no goal; nothing else changes.
+
+## [3.6.0] - 2026-09-29
+
+### Summary
+- Le Suivi financier ouvre sur une vue de l'exercice : revenu, nuits vendues, part en direct, revenu par mois, par logement et par canal.
+- Dans « Revenu par mois », la part encore à venir de chaque mois apparaît en miel, le reste en vert.
+- La carte « Objets oubliés » disparaît de la fiche réservation, ainsi que la phrase correspondante du mail de remerciement J+1.
+- À l'installation, cette phrase est retirée de vos modèles d'emails, en conservant vos propres modifications autour.
+
+### Added
+- **Suivi financier — vue de l'exercice.** Under the two exercise cards, a new block shows the selected exercise at a glance: three tiles (« Revenu de l'exercice », « Nuits vendues », « Part en direct » — website + saisie directe), « Revenu par mois » with the part still to come in miel, « Par logement » and « Par canal » (at most five slices). Months, logements and channels all add up to « Revenu total sur l'exercice » (`specs/finance-exercise-overview-charts.md`).
+
+### Removed
+- **« Objets oubliés »** (spec `guest-email-sequence.md` rule 33, removed 2026-09-28): the card on the reservation page, the endpoint `PATCH /api/reservations/:id/lost-items` and the J+1 thank-you sentence (« Nous avons retrouvé … » and its fallback « Un objet oublié ? Dites-le nous, nous mettons tout de côté. ») are gone. The field was empty on every production reservation.
+
+### Migration
+- **Lost items removed** (spec `guest-email-sequence.md` rule 33, §5): the one-shot `remove_lost_items_token_v1` strips the `{{lostItemsParagraph}}` line (and the blank line it leaves) from every stored email template, FR and EN, keeping any operator edit around it; `reservations.lostItems` is dropped (`ALTER TABLE … DROP COLUMN`, guarded by `PRAGMA table_info`). The column was empty on 100 % of production rows, so no data is lost.
+
 ## [3.5.0] - 2026-09-28
 
 ### Summary

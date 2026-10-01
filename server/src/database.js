@@ -290,6 +290,9 @@ tryAddAppSettingsCol('vatRate', "ALTER TABLE app_settings ADD COLUMN vatRate REA
 // year, i.e. exactly the behaviour of every annual figure before this spec, so existing rows keep
 // reading the same way until the operator changes it.
 tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN fiscalYearEndMonth INTEGER NOT NULL DEFAULT 12");
+// Annual revenue goal per exercise, JSON `{ "<exercise key>": amount }` (specs/finance-dashboard-redesign.md
+// §5). NULL = no goal anywhere, which is what every existing install starts with.
+tryAddAppSettingsCol('revenueGoals', "ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT");
 // SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
 // Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
 tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");
@@ -2390,6 +2393,31 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (dropped.length) console.log(`[migration:settings-rationalization] dropped ${dropped.join(', ')}`);
 }
 
+// ---------- « OBJETS OUBLIÉS » REMOVED (specs/guest-email-sequence.md rule 33, 2026-09-28) ----------
+// One-shot: the stored templates lose their `{{lostItemsParagraph}}` line (operator edits kept).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'remove_lost_items_token_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runStripLostItemsTokenMigration } = require('./utils/removeLostItemsMigration');
+    const updated = db.transaction(() => {
+      const count = runStripLostItemsTokenMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return count;
+    })();
+    console.log(`[migration:remove-lost-items] ${updated} template field(s) no longer quote the lost items`);
+  }
+}
+// Idempotent: `reservations.lostItems` was empty on every production row when it was dropped.
+try {
+  if (require('./utils/removeLostItemsMigration').dropLostItemsColumn(db)) {
+    console.log('[migration:remove-lost-items] dropped reservations.lostItems');
+  }
+} catch (err) {
+  // A column left behind is inert (nothing reads it any more): never block the boot on it.
+  console.warn('[migration:remove-lost-items] reservations.lostItems not dropped:', err.message);
+}
+
 // ---------- CGV (specs/terms-acceptance-record.md §5) ----------
 // The draft the operator edits, the published versions (insert-only: a version is never edited nor
 // deleted — it is what a guest accepted), and the acceptances recorded on public booking requests.
@@ -2511,6 +2539,26 @@ try {
   // French, which is what a missing translation falls back to anyway (rule 14).
   console.warn('[translations] collecte au démarrage impossible :', err.message);
 }
+
+// ---------- BOOKING PACE (specs/booking-pace.md §5) ----------
+// A stay deleted by an approved iCal cancellation keeps counting « on the books » on the dates it was:
+// icalCancellationModel.approve writes it here, in the same transaction as the DELETE. The booking date
+// of a reservation is its `createdAt`, hence the index. Additive, starts empty.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS booking_pace_cancellations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    propertyId INTEGER,
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
+    totalSejour REAL NOT NULL DEFAULT 0,
+    reservationCreatedAt TEXT,
+    cancelledAt TEXT NOT NULL DEFAULT (datetime('now')),
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_booking_pace_cancellations_property ON booking_pace_cancellations(propertyId)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(createdAt)');
 
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur

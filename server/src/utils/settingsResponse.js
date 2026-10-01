@@ -6,6 +6,7 @@
  */
 
 const { resolveEmailIdentity } = require('./emailIdentity');
+const { readRevenueGoals } = require('./revenueGoals');
 
 function formatUpdatedAtLabel(updatedAt) {
   if (!updatedAt) return null;
@@ -57,6 +58,8 @@ function shapeResponse(row) {
     // financier is derived from it server-side.
     accounting: {
       fiscalYearEndMonth: row.fiscalYearEndMonth == null ? 12 : Number(row.fiscalYearEndMonth),
+      // specs/finance-dashboard-redesign.md §3.8 — `{ "<exercise key>": amount }`, {} when none.
+      revenueGoals: readRevenueGoals(row.revenueGoals),
     },
     // SMTP block. The password is masked: the row comes from settingsModel.read(), which
     // substitutes smtpPasswordEncrypted with the boolean smtpPasswordSet. `fromEmail`, `username` and

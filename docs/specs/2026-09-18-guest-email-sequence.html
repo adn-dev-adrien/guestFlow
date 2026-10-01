@@ -107,7 +107,7 @@ textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);bo
 <ul class="tight summary">
   <li><b>Six mails</b> : confirmation (directs seulement), J-7, J-2, J+1, bons cadeau, vœux. Le J+7 est supprimé.</li>
   <li><b>Envoi automatique, uniquement pour ce qui est à venir.</b> Le jour où tu actives l'envoi devient la date de départ de la séquence. Aucun mail daté d'avant ne part, et un séjour terminé avant cette date ne reçoit rien (pas de J+1, pas de mails de saison).</li>
-  <li><b>J+1</b> : lien Instagram (« Si vous êtes nostalgiques de votre séjour… ») et objets oubliés, saisis sur la fiche.</li>
+  <li><b>J+1</b> : lien Instagram (« Si vous êtes nostalgiques de votre séjour… »). <i>Les objets oubliés, d'abord retenus, ont été retirés le 28/09/2026 (règle 33).</i></li>
   <li><b>Une case sur la fiche client</b> : « Ne pas envoyer les mails après séjour ».</li>
   <li><b>Cadeaux</b> : une planche du terroir offerte au bénéficiaire (bon commandé avant le 15 décembre), le petit-déjeuner du premier matin (séjour réservé avant fin février).</li>
   <li><b>Accès portail</b> : il ira dans le J-2 dès que la PR #547 sera mergée.</li>
@@ -165,7 +165,6 @@ textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);bo
     <label class="chk"><input type="checkbox" id="cautionIn"> Caution déjà reçue</label>
     <label class="chk"><input type="checkbox" id="cancelled"> Séjour annulé</label>
     <label class="chk"><input type="checkbox" id="noPostStay"> Client : « Ne pas envoyer les mails après séjour »</label>
-    <label class="f" for="lostItems">Objets oubliés (fiche réservation)</label><input type="text" id="lostItems" placeholder="ex. un doudou lapin bleu" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;min-height:42px">
     <label class="chk"><input type="checkbox" id="unsub"> S'est désinscrit</label>
     <label class="chk"><input type="checkbox" id="nextStay"> A déjà une nouvelle résa à venir</label>
   </div>
@@ -283,17 +282,17 @@ const NOTED={
 };
 const PRESETS=[
  {id:"famille",t:"Famille à La Granja, juillet",d:"Direct, 7 nuits, 2 enfants, petit-déjeuner",
-  v:{activation:"2026-09-28",lostItems:"",prop:"granja",channel:"direct",booked:"2027-03-02",start:"2027-07-10",end:"2027-07-17",adults:2,children:2,babies:0,doubleBeds:1,singleBeds:2,opts:["petitdej"]},sel:"j7"},
+  v:{activation:"2026-09-28",prop:"granja",channel:"direct",booked:"2027-03-02",start:"2027-07-10",end:"2027-07-17",adults:2,children:2,babies:0,doubleBeds:1,singleBeds:2,opts:["petitdej"]},sel:"j7"},
  {id:"bebe",t:"Jeunes parents à L'Estiva",d:"Direct, bébé sans lit réservé",
-  v:{activation:"2026-09-28",lostItems:"",prop:"estiva",channel:"direct",booked:"2027-02-14",start:"2027-05-21",end:"2027-05-24",adults:2,children:0,babies:1,doubleBeds:1,singleBeds:0,opts:[]},sel:"j7"},
+  v:{activation:"2026-09-28",prop:"estiva",channel:"direct",booked:"2027-02-14",start:"2027-05-21",end:"2027-05-24",adults:2,children:0,babies:1,doubleBeds:1,singleBeds:0,opts:[]},sel:"j7"},
  {id:"gdf",t:"Gîtes de France, La Granja",d:"Bébé avec lit réservé, bières, sans ménage",
-  v:{activation:"2026-09-28",lostItems:"un doudou lapin bleu",prop:"granja",channel:"gdf",booked:"2027-01-10",start:"2027-04-17",end:"2027-04-24",adults:4,children:1,babies:1,doubleBeds:2,singleBeds:1,opts:["litbebe","biere"]},sel:"j2"},
+  v:{activation:"2026-09-28",prop:"granja",channel:"gdf",booked:"2027-01-10",start:"2027-04-17",end:"2027-04-24",adults:4,children:1,babies:1,doubleBeds:2,singleBeds:1,opts:["litbebe","biere"]},sel:"j2"},
  {id:"airbnb",t:"Airbnb à L'Estiva",d:"Import iCal, aucune ligne d'option",
-  v:{activation:"2026-09-28",lostItems:"",prop:"estiva",channel:"airbnb",booked:"2027-02-11",start:"2027-06-18",end:"2027-06-21",adults:2,children:1,babies:0,doubleBeds:1,singleBeds:1,opts:[]},sel:"j1"},
+  v:{activation:"2026-09-28",prop:"estiva",channel:"airbnb",booked:"2027-02-11",start:"2027-06-18",end:"2027-06-21",adults:2,children:1,babies:0,doubleBeds:1,singleBeds:1,opts:[]},sel:"j1"},
  {id:"lastmin",t:"Dernière minute",d:"Réservée la veille, 1 nuit",
-  v:{activation:"2026-09-28",lostItems:"",prop:"granja",channel:"direct",booked:"2026-10-01",start:"2026-10-02",end:"2026-10-03",adults:2,children:0,babies:0,doubleBeds:1,singleBeds:0,opts:[]},sel:"confirm"},
+  v:{activation:"2026-09-28",prop:"granja",channel:"direct",booked:"2026-10-01",start:"2026-10-02",end:"2026-10-03",adults:2,children:0,babies:0,doubleBeds:1,singleBeds:0,opts:[]},sel:"confirm"},
  {id:"cancel",t:"Séjour annulé",d:"Plus rien ne part après l'annulation",
-  v:{activation:"2026-09-28",lostItems:"",prop:"estiva",channel:"direct",booked:"2027-01-05",start:"2027-06-05",end:"2027-06-08",adults:2,children:0,babies:0,doubleBeds:1,singleBeds:0,opts:[],cancelled:true},sel:"j7"}
+  v:{activation:"2026-09-28",prop:"estiva",channel:"direct",booked:"2027-01-05",start:"2027-06-05",end:"2027-06-08",adults:2,children:0,babies:0,doubleBeds:1,singleBeds:0,opts:[],cancelled:true},sel:"j7"}
 ];
 const st={prop:"granja",booked:new Set(),sel:"confirm",ver:"new",preset:null};
 // Lowest season nightly price per property (server/src/recipes: gite-2027 « Très basse », aventura-lodge-2026 « Basse »).
@@ -320,7 +319,7 @@ const longFr=(d)=>`${WD[d.getUTCDay()]} ${dn(d)} ${MO[d.getUTCMonth()]} ${d.getU
 const shortFr=(d)=>`${dn(d)} ${MOS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 
 /* ---------------- controls ---------------- */
-const FIELDS=["activation","lostItems","channel","booked","start","end","adults","children","babies","doubleBeds","singleBeds"];
+const FIELDS=["activation","channel","booked","start","end","adults","children","babies","doubleBeds","singleBeds"];
 const CHECKS=["complement","cautionIn","cancelled","noPostStay","unsub","nextStay"];
 $("presets").innerHTML=PRESETS.map(p=>`<button data-p="${p.id}"><b>${esc(p.t)}</b><span>${esc(p.d)}</span></button>`).join("");
 $("presets").addEventListener("click",e=>{const b=e.target.closest("button");if(b)loadPreset(b.dataset.p);});
@@ -349,7 +348,7 @@ function ctx(){
   const x={p,has,s:D($("start").value),e:D($("end").value),b:D($("booked").value),channel:$("channel").value,
     adults:n("adults"),children:n("children"),babies:n("babies"),doubleBeds:n("doubleBeds"),singleBeds:n("singleBeds")};
   CHECKS.forEach(c=>x[c]=$(c).checked);
-  x.act=D($("activation").value);x.lostItems=$("lostItems").value.trim();
+  x.act=D($("activation").value);
   x.direct=x.channel==="direct";x.relay=x.channel==="airbnb"||x.channel==="booking";
   x.platformName={gdf:"votre espace Gîtes de France",airbnb:"Airbnb",booking:"Booking"}[x.channel]||"";
   x.nights=days(x.s,x.e);x.lead=days(x.b,x.s);
@@ -478,7 +477,6 @@ const MAILS={
     `Nous espérons que vous êtes bien rentrés, avec un peu du calme d'ici dans vos bagages.`,``,
     review,``,
     `Et si quelque chose a manqué à votre séjour, même un détail, nous aimerions vraiment le savoir : il suffit de répondre à ce mail. C'est ainsi que le domaine s'améliore, un séjour après l'autre.`,``,
-    x.lostItems?S("b-booked",`Nous avons retrouvé ${x.lostItems} après votre départ : dites-nous si nous vous le renvoyons.`):`Un objet oublié ? Dites-le nous, nous mettons tout de côté.`,``,
     S("b-chg","Si vous êtes nostalgiques de votre séjour, n'hésitez pas à nous suivre sur les réseaux sociaux : https://www.instagram.com/domainesolio"),``,
     `Le domaine change de visage à chaque saison : les agneaux au printemps, les longues soirées d'été, les couleurs de l'automne, le bain nordique qui fume dans l'air froid de l'hiver. Si l'envie vous prend d'en découvrir une autre, vous serez toujours les bienvenus.`,``,
     `Avec toute notre amitié,`,SIGN);}},

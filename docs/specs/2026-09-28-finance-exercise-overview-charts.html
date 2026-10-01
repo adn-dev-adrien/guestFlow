@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Suivi financier — vue de l'exercice</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 6px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:6px 0}
+.muted{color:var(--muted)}
+code{font:12.5px var(--mono);background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0}
+.q b{color:var(--sapin)}
+.q .prop{color:var(--muted);font-size:13.5px}
+
+/* ——— controls ——— */
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:14px 0}
+.ctl{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.ctl .k{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--ocre);margin-bottom:6px}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{font:13px var(--sans);padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.ctl input[type=range]{width:100%}
+.ctl .val{font:600 13px var(--sans);color:var(--sapin)}
+
+/* ——— app mock (always the light « Maison » app palette) ——— */
+.stage{background:#E9E4D8;border-radius:12px;padding:14px;overflow:hidden}
+.frame{--p:#2F5D46;--m:#C99038;--bg:#F8F5EF;--c:#fff;--t:#27251F;--t2:#6E6A5E;--d:#E4DED2;
+  container-type:inline-size;margin:0 auto;background:var(--bg);color:var(--t);border-radius:10px;
+  padding:14px;font:14px/1.45 var(--sans);transition:max-width .25s;max-width:100%}
+.frame.mobile{max-width:375px}
+.appbar{display:flex;align-items:center;justify-content:space-between;background:var(--c);border:1px solid var(--d);border-radius:8px;padding:8px 12px;margin-bottom:12px}
+.appbar b{font:600 17px var(--serif)}
+.pill{border:1px solid var(--d);border-radius:6px;padding:5px 10px;font-size:13px;background:var(--c)}
+.selrow{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.selrow .cap{font-size:12px;color:var(--t2)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.tile{background:var(--c);border:1px solid var(--d);border-left:3px solid var(--p);border-radius:8px;padding:10px 14px;cursor:pointer;transition:transform .1s,box-shadow .1s;text-align:left;font:inherit;color:inherit}
+.tile:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.tile.static{cursor:default}.tile.static:hover{transform:none;box-shadow:none}
+.tile .l{font-size:13px;color:var(--t2)}
+.tile .v{font:700 28px/1.2 var(--sans);font-variant-numeric:tabular-nums;margin:4px 0}
+.tile .s{font-size:12px;color:var(--t2);font-variant-numeric:tabular-nums}
+.mcard{background:var(--c);border:1px solid var(--d);border-radius:8px;padding:12px 14px;margin-bottom:12px;position:relative}
+.mcard h4{font:600 16px var(--serif);margin:0 0 2px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.mcard h4 small{font:400 12px var(--sans);color:var(--t2)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--t2);margin:4px 0 8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.months{display:flex;align-items:flex-end;gap:6px;height:200px;border-bottom:1px solid var(--d);padding-top:8px}
+.col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;cursor:default;min-width:0}
+.col .up{background:var(--m);border-radius:4px 4px 0 0}
+.col .past{background:var(--p);border-radius:4px 4px 0 0}
+.col .up + .past{border-radius:0}
+.col:hover .up,.col:hover .past{filter:brightness(1.12)}
+.axis{display:flex;gap:6px;font-size:11px;color:var(--t2);margin-top:4px}
+.axis span{flex:1;text-align:center}
+.tip{position:absolute;pointer-events:none;background:#27251F;color:#fff;font-size:12px;line-height:1.45;padding:7px 9px;border-radius:6px;white-space:nowrap;z-index:5;display:none;font-variant-numeric:tabular-nums}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two .mcard{margin-bottom:0}
+.rank{list-style:none;margin:8px 0 0;padding:0}
+.rank li{margin:0 0 10px}
+.rank .row{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
+.rank .row b{font-variant-numeric:tabular-nums}
+.rank .bar{height:8px;background:#E6EBE3;border-radius:4px;margin-top:4px;overflow:hidden}
+.rank .bar span{display:block;height:100%;background:var(--p);border-radius:4px;transition:width .3s}
+.donutbox{display:flex;align-items:center;gap:16px;margin-top:8px}
+.donutbox svg{flex:0 0 130px}
+.donutbox path{cursor:default;transition:opacity .15s}
+.donutbox svg:hover path{opacity:.45}.donutbox svg path:hover{opacity:1}
+.clegend{list-style:none;margin:0;padding:0;font-size:13px}
+.clegend li{margin:4px 0;display:flex;align-items:center;gap:6px}
+.clegend i{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.empty{color:var(--t2);font-size:13px;text-align:center;padding:24px 0}
+.ghost{border:1px dashed #C9C0AC;border-radius:8px;padding:14px;color:var(--t2);font-size:13px;text-align:center;background:rgba(255,255,255,.4)}
+.oldcards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.oldcards .tile{border-left-color:#31556E}
+.warn{background:#F6EDD7;color:#6b4f14;border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:12px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#27251F;color:#fff;padding:9px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.on{opacity:1}
+@container (max-width:600px){
+  .tiles,.oldcards,.two{grid-template-columns:1fr}
+  .months{height:160px;gap:3px}.axis{gap:3px}
+  .donutbox{flex-direction:column;align-items:flex-start}
+  .tile .v{font-size:24px}
+}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Suivi financier : la vue de l'exercice</h1>
+<p class="meta">Spec <code>specs/finance-exercise-overview-charts.md</code> · statut <b>Implemented</b> · branche <code>feature/finance-exercise-charts</code> · 28/09/2026</p>
+
+<h2>Ce qui est tranché (28/09/2026)</h2>
+<div class="q"><b>1. Emplacement : à côté.</b> <span class="prop">Les deux cartes d'exercice actuelles restent ; le nouveau bloc vient juste en dessous.</span></div>
+<div class="q"><b>2. Miel = à venir.</b> <span class="prop">Colonne empilée : vert pour ce qui est encaissé ou passé, miel pour la part à venir.</span></div>
+<div class="q"><b>3. Direct = site + saisie directe.</b> <span class="prop">Tout ce qui n'est pas passé par une plateforme.</span></div>
+<div class="q"><b>4. Rattachement = date comptable.</b> <span class="prop">La somme des 12 mois est égale au revenu de l'exercice.</span></div>
+
+<h2>Le constat</h2>
+<ul class="tight">
+  <li>Le site vitrine montre un tableau de bord que l'application n'a pas : ses chiffres sont saisis en dur dans la page.</li>
+  <li>Le serveur calcule déjà le total de l'exercice, ses nuits et son découpage par logement.</li>
+  <li>Il ne calcule <b>ni le découpage par mois, ni la part en direct</b>. Le découpage par canal n'existe que « depuis le début de l'exercice », pas sur l'exercice entier.</li>
+</ul>
+
+<h2>Essayer</h2>
+<p class="muted">Les données sont fictives mais cohérentes : environ 250 séjours générés sur 4 logements. Les calculs suivent les règles de la spec, donc les totaux se recoupent pour de vrai. Survolez les colonnes et les parts du donut, et cliquez sur les tuiles.</p>
+
+<div class="controls">
+  <div class="ctl"><div class="k">1 · Emplacement</div><div class="seg" data-ctl="place">
+    <button data-v="add">S'ajoute à côté (retenu)</button><button data-v="replace">Remplace les 2 cartes</button></div></div>
+  <div class="ctl"><div class="k">2 · Couleur miel</div><div class="seg" data-ctl="miel">
+    <button data-v="upcoming">À venir (retenu)</button><button data-v="summer">Juillet-août, décoratif</button><button data-v="none">Aucune</button></div></div>
+  <div class="ctl"><div class="k">3 · Direct</div><div class="seg" data-ctl="direct">
+    <button data-v="both">Site + saisie (retenu)</button><button data-v="site">Site seulement</button></div></div>
+  <div class="ctl"><div class="k">4 · Rattachement au mois</div><div class="seg" data-ctl="attach">
+    <button data-v="attr">Date comptable (retenu)</button><button data-v="nights">Réparti sur les nuits</button></div></div>
+  <div class="ctl"><div class="k">Exercice</div><div class="seg" data-ctl="fy">
+    <button data-v="cal">2026 (clôture décembre)</button><button data-v="sep">2025-2026 (clôture septembre)</button></div></div>
+  <div class="ctl"><div class="k">Aujourd'hui · <span class="val" id="todayLbl"></span></div>
+    <input type="range" id="today" min="0" max="455" step="1" aria-label="Date du jour simulée"></div>
+  <div class="ctl"><div class="k">Largeur</div><div class="seg" data-ctl="width">
+    <button data-v="desk">Ordinateur</button><button data-v="mobile">Téléphone (375 px)</button></div></div>
+</div>
+
+<div class="stage">
+  <div class="frame" id="frame">
+    <div class="appbar"><b>Suivi financier</b><span class="pill">⟳</span></div>
+    <div class="selrow"><span class="pill" id="fyPill"></span><span class="cap" id="fyCap"></span></div>
+    <div id="warn"></div>
+    <div id="old"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="mcard" id="monthCard">
+      <h4>Revenu par mois <small id="monthCap"></small></h4>
+      <div class="legend" id="mLegend"></div>
+      <div class="months" id="months"></div>
+      <div class="axis" id="axis"></div>
+      <div class="tip" id="mtip"></div>
+    </div>
+    <div class="two">
+      <div class="mcard"><h4>Par logement</h4><ul class="rank" id="rank"></ul></div>
+      <div class="mcard"><h4>Par canal</h4><div class="donutbox" id="donut"></div></div>
+    </div>
+    <div class="ghost" style="margin-top:12px">Période du / au, ses cartes, « Revenu par logement », « Canaux de réservation », suivi opérationnel, projection : <b>inchangés</b></div>
+  </div>
+</div>
+
+<h2>Les règles de calcul</h2>
+<ul class="tight">
+  <li><b>La fenêtre, c'est l'exercice entier</b> sélectionné en haut de page. La période du/au n'a aucun effet sur ce bloc.</li>
+  <li><b>Le montant, c'est le « total de séjour » TTC</b>, net de commission, caisse interne exclue. C'est la même base que tous les autres chiffres de la page. Le HT s'affiche en info-bulle et sous la tuile.</li>
+  <li><b>La somme des mois, celle des logements et celle des canaux sont égales au revenu de l'exercice.</b> Un test serveur le vérifie.</li>
+  <li><b>Par canal :</b> au plus 5 parts. Au-delà, les plus petites sont regroupées dans « Autres ». Les pourcentages sont arrondis côté serveur pour que leur somme fasse 100. Chaque plateforme garde sa couleur habituelle ; Direct passe en vert sapin, comme la tuile « Part en direct ».</li>
+  <li><b>Le serveur fait tout le calcul.</b> Il ajoute une clé <code>exerciseOverview</code> à <code>GET /api/finance/summary</code> ; la page se contente de l'afficher.</li>
+</ul>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+  <li>Toucher à la section période, à ses graphiques ou au tableau « Canaux de réservation ».</li>
+  <li>Comparer avec l'exercice précédent (pas de colonnes N-1).</li>
+  <li>Cliquer sur un mois, un logement ou un canal pour voir le détail.</li>
+  <li>Changer la couleur de la puce « Direct » ailleurs dans l'application.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="note">Il est faible : le calcul ne fait que lire des données déjà en base, sans migration ni écriture. Le seul vrai piège est un écart entre le graphique et les cartes. On le ferme en calculant les trois découpages dans la boucle qui produit déjà « Revenu total sur l'exercice », et un test vérifie l'égalité des sommes.</div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // ——— deterministic fictitious dataset ———
+  let seed = 20260928;
+  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const DAY = 86400000;
+  const iso = (d) => new Date(d).toISOString().slice(0, 10);
+  const add = (s, n) => iso(Date.parse(s + 'T00:00:00Z') + n * DAY);
+  const PROPS = [
+    { id: 1, name: 'Le Lodge des Prés', price: 150 },
+    { id: 2, name: 'Le Gîte du Four', price: 142 },
+    { id: 3, name: 'La Roulotte', price: 92 },
+    { id: 4, name: 'La Cabane perchée', price: 104 },
+    { id: 5, name: 'La Yourte', price: 70, closedFrom: '2026-01-01' },
+  ];
+  const OCC = [.3, .38, .42, .45, .52, .68, .95, 1, .55, .5, .3, .42];
+  const CH = [['saisie', .12], ['site', .26], ['Airbnb', .19], ['Booking.com', .17], ['Gîtes de France', .13], ['Abritel', .08], ['GreenGo', .03], ['Abracadaroom', .02]];
+  const pickCh = () => { let x = rnd(), acc = 0; for (const [c, w] of CH) { acc += w; if (x < acc) return c; } return 'site'; };
+  const stays = [];
+  for (const p of PROPS) {
+    let d = '2025-09-01';
+    const endGen = p.closedFrom || '2027-01-31';
+    while (d < endGen) {
+      const m = Number(d.slice(5, 7)) - 1;
+      if (rnd() < OCC[m] * 0.42) {
+        const nights = 2 + Math.floor(rnd() * rnd() * 6);
+        const season = (m === 6 || m === 7) ? 1.25 : 1;
+        const revenue = Math.round(p.price * nights * season * (0.9 + rnd() * 0.2));
+        const end = add(d, nights);
+        const neverPaidBefore = rnd() < 0.12;
+        const paid = add(d, -Math.floor(rnd() * 40));
+        stays.push({ prop: p.name, start: d, end, nights, revenue, ch: pickCh(), paidDate: neverPaidBefore ? null : paid });
+        d = add(end, Math.floor(rnd() * 2));
+      } else d = add(d, 1);
+    }
+  }
+
+  // ——— state ———
+  const S = { place: 'add', miel: 'upcoming', direct: 'both', attach: 'attr', fy: 'cal', width: 'desk', todayIdx: 0 };
+  const DAY0 = '2025-10-01';
+  S.todayIdx = (Date.parse('2026-09-28') - Date.parse(DAY0)) / DAY;
+  const today = () => add(DAY0, S.todayIdx);
+  const FY = {
+    cal: { label: '2026', from: '2026-01-01', to: '2026-12-31' },
+    sep: { label: '2025-2026', from: '2025-10-01', to: '2026-09-30' },
+  };
+  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+  const eur = (n) => nf.format(Math.round(n)) + ' €';
+  const PLATFORM_COLORS = { 'Airbnb': '#FF5A5F', 'Booking.com': '#003580', 'Gîtes de France': '#e6c832', 'Abritel': '#1565c0', 'GreenGo': '#4CAF50', 'Abracadaroom': '#00bcd4', 'Direct': '#2F5D46', 'Direct (saisie)': '#c9a227', 'Autres': '#757575' };
+
+  // Attribution date: solde paid date when already paid (≤ today), else departure — spec rule 3.
+  const attribution = (s, t) => (s.paidDate && s.paidDate <= t) ? s.paidDate : s.end;
+
+  function compute() {
+    const fy = FY[S.fy], t = today();
+    const monthKeys = [];
+    for (let d = fy.from; d <= fy.to; d = add(d.slice(0, 8) + '28', 5).slice(0, 8) + '01') monthKeys.push(d.slice(0, 7));
+    const months = new Map(monthKeys.map((k) => [k, { key: k, past: 0, upcoming: 0, nights: 0 }]));
+    const byProp = new Map(), byCh = new Map();
+    let total = 0, toDate = 0, nights = 0, attrTotal = 0;
+    for (const s of stays) {
+      const a = attribution(s, t);
+      const inFy = a >= fy.from && a <= fy.to;
+      if (inFy) {
+        attrTotal += s.revenue;
+        total += s.revenue; nights += s.nights;
+        if (a <= t) toDate += s.revenue;
+        byProp.set(s.prop, (byProp.get(s.prop) || 0) + s.revenue);
+        const chKey = s.ch === 'site' ? 'Direct' : s.ch === 'saisie' ? (S.direct === 'both' ? 'Direct' : 'Direct (saisie)') : s.ch;
+        const c = byCh.get(chKey) || { revenue: 0, count: 0 }; c.revenue += s.revenue; c.count += 1; byCh.set(chKey, c);
+      }
+      if (S.attach === 'attr') {
+        if (!inFy) continue;
+        const m = months.get(a.slice(0, 7));
+        m[a <= t ? 'past' : 'upcoming'] += s.revenue; m.nights += s.nights;
+      } else {
+        const perNight = s.revenue / s.nights;
+        for (let i = 0; i < s.nights; i++) {
+          const n = add(s.start, i);
+          const m = months.get(n.slice(0, 7));
+          if (!m) continue;
+          m[n <= t ? 'past' : 'upcoming'] += perNight; m.nights += 1;
+        }
+      }
+    }
+    // Largest-remainder percentages summing to 100 (rule 14).
+    let chans = [...byCh.entries()].map(([label, v]) => ({ label, ...v })).sort((x, y) => y.revenue - x.revenue);
+    if (chans.length > 5) {
+      const rest = chans.slice(4);
+      chans = chans.slice(0, 4).concat({ label: 'Autres', revenue: rest.reduce((n, c) => n + c.revenue, 0), count: rest.reduce((n, c) => n + c.count, 0) });
+    }
+    if (total > 0) {
+      const raw = chans.map((c) => (c.revenue / total) * 100);
+      const floor = raw.map(Math.floor);
+      let left = 100 - floor.reduce((a, b) => a + b, 0);
+      raw.map((r, i) => [r - floor[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => floor[i]++);
+      chans.forEach((c, i) => { c.percent = floor[i]; });
+    }
+    const directRev = (byCh.get('Direct') || { revenue: 0 }).revenue;
+    const props = [...byProp.entries()].map(([name, revenue]) => ({ name, revenue })).filter((p) => p.revenue > 0).sort((a, b) => b.revenue - a.revenue);
+    const monthSum = [...months.values()].reduce((n, m) => n + m.past + m.upcoming, 0);
+    return { fy, t, months: [...months.values()], props, chans, total, toDate, nights, direct: directRev, monthSum };
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const fmtDate = (s) => s.split('-').reverse().join('/');
+  const toast = (msg) => { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), 2200); };
+
+  function render() {
+    const R = compute();
+    $('frame').classList.toggle('mobile', S.width === 'mobile');
+    $('todayLbl').textContent = fmtDate(R.t);
+    $('fyPill').textContent = 'Exercice ' + R.fy.label + (R.t >= R.fy.from && R.t <= R.fy.to ? ' (en cours)' : '');
+    $('fyCap').textContent = 'du ' + fmtDate(R.fy.from) + ' au ' + fmtDate(R.fy.to);
+
+    const gap = Math.round(R.monthSum - R.total);
+    $('warn').innerHTML = (S.attach === 'nights' && gap !== 0)
+      ? `<div class="warn">Écart de <b>${eur(Math.abs(gap))}</b> entre la somme des 12 mois (${eur(R.monthSum)}) et le revenu de l'exercice (${eur(R.total)}) : une partie des nuits tombe hors de l'exercice comptable, ou l'inverse.</div>` : '';
+
+    $('old').innerHTML = S.place === 'add'
+      ? `<div class="oldcards"><button class="tile" data-bd="yearToDate"><div class="l">Revenus <small>depuis le début de l'exercice</small></div><div class="v">${eur(R.toDate)}</div><div class="s">${eur(R.toDate * .9)} HT</div></button><button class="tile" data-bd="yearTotal"><div class="l">Revenu total <small>sur l'exercice</small></div><div class="v">${eur(R.total)}</div><div class="s">${eur(R.total * .9)} HT</div></button></div>` : '';
+
+    const pct = R.total > 0 ? Math.round(R.direct / R.total * 100) + ' %' : '—';
+    $('tiles').innerHTML =
+      `<button class="tile" data-bd="yearTotal"><div class="l">Revenu de l'exercice</div><div class="v">${eur(R.total)}</div><div class="s">${S.place === 'replace' ? 'dont ' + eur(R.toDate) + ' à ce jour · ' : ''}${eur(R.total * .9)} HT</div></button>` +
+      `<button class="tile" data-bd="yearTotal"><div class="l">Nuits vendues</div><div class="v">${nf.format(R.nights)}</div><div class="s">${R.props.length} logement${R.props.length > 1 ? 's' : ''}</div></button>` +
+      `<div class="tile static"><div class="l">Part en direct</div><div class="v">${pct}</div><div class="s">${eur(R.direct)} sur ${eur(R.total)}${S.direct === 'site' ? ' · site seul' : ''}</div></div>`;
+
+    $('monthCap').textContent = 'TTC · exercice ' + R.fy.label;
+    $('mLegend').innerHTML = S.miel === 'upcoming'
+      ? '<span><i style="background:#2F5D46"></i>Encaissé ou passé</span><span><i style="background:#C99038"></i>À venir</span>'
+      : S.miel === 'summer' ? '<span class="muted">Juillet et août en miel, sans légende : c\'est ce que fait le site vitrine</span>' : '';
+    const max = Math.max(1, ...R.months.map((m) => m.past + m.upcoming));
+    $('months').innerHTML = R.months.map((m, i) => {
+      const tot = m.past + m.upcoming;
+      const mi = Number(m.key.slice(5, 7));
+      let past = m.past, up = m.upcoming, pastColor = '';
+      if (S.miel !== 'upcoming') { past = tot; up = 0; if (S.miel === 'summer' && (mi === 7 || mi === 8)) pastColor = 'background:#C99038'; }
+      return `<div class="col" data-i="${i}">${up > 0 ? `<div class="up" style="height:${up / max * 100}%"></div>` : ''}<div class="past" style="height:${past / max * 100}%;${pastColor}"></div></div>`;
+    }).join('');
+    $('axis').innerHTML = R.months.map((m) => `<span>${MONTHS[Number(m.key.slice(5, 7)) - 1][0].toUpperCase()}</span>`).join('');
+    $('months').onmousemove = (e) => {
+      const col = e.target.closest('.col'); const tip = $('mtip');
+      if (!col) { tip.style.display = 'none'; return; }
+      const m = R.months[col.dataset.i]; const mi = Number(m.key.slice(5, 7)) - 1; const tot = m.past + m.upcoming;
+      tip.innerHTML = `<b>${MONTHS[mi]} ${m.key.slice(0, 4)}</b><br>${eur(tot)} TTC · ${eur(tot * .9)} HT<br>${Math.round(m.nights)} nuit${m.nights > 1 ? 's' : ''}${m.upcoming > 0 ? `<br>dont ${eur(m.upcoming)} à venir` : ''}`;
+      const card = $('monthCard').getBoundingClientRect(), c = col.getBoundingClientRect();
+      tip.style.display = 'block';
+      const x = Math.min(Math.max(c.left - card.left + c.width / 2 - tip.offsetWidth / 2, 4), card.width - tip.offsetWidth - 4);
+      tip.style.left = x + 'px'; tip.style.top = '52px';
+    };
+    $('months').onmouseleave = () => { $('mtip').style.display = 'none'; };
+
+    $('rank').innerHTML = R.props.length ? R.props.map((p) => `<li><div class="row"><span>${p.name}</span><b>${eur(p.revenue)}</b></div><div class="bar"><span style="width:${p.revenue / R.props[0].revenue * 100}%"></span></div></li>`).join('')
+      : '<li class="empty">Aucun revenu sur cet exercice.</li>';
+
+    if (!R.total) { $('donut').innerHTML = '<div class="empty" style="width:100%">Aucun revenu sur cet exercice.</div>'; }
+    else {
+      let a0 = -Math.PI / 2; const cx = 65, cy = 65, ro = 60, ri = 36;
+      const arcs = R.chans.map((c) => {
+        const a1 = a0 + c.revenue / R.total * Math.PI * 2; const large = a1 - a0 > Math.PI ? 1 : 0;
+        const P = (r, a) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
+        const d = `M${P(ro, a0)} A${ro} ${ro} 0 ${large} 1 ${P(ro, a1 - 0.0001)} L${P(ri, a1 - 0.0001)} A${ri} ${ri} 0 ${large} 0 ${P(ri, a0)}Z`;
+        a0 = a1;
+        return `<path d="${d}" fill="${PLATFORM_COLORS[c.label] || '#757575'}" data-l="${c.label}"><title>${c.label} · ${eur(c.revenue)} · ${c.count} réservation${c.count > 1 ? 's' : ''}</title></path>`;
+      }).join('');
+      $('donut').innerHTML = `<svg viewBox="0 0 130 130" width="130" height="130" role="img" aria-label="Répartition par canal">${arcs}<text x="65" y="62" text-anchor="middle" font-size="9" fill="#6E6A5E" id="dl">Total</text><text x="65" y="76" text-anchor="middle" font-size="11" font-weight="700" fill="#27251F" id="dv">${eur(R.total)}</text></svg>` +
+        `<ul class="clegend">${R.chans.map((c) => `<li><i style="background:${PLATFORM_COLORS[c.label] || '#757575'}"></i>${c.label} · ${c.percent} %</li>`).join('')}</ul>`;
+      $('donut').querySelectorAll('path').forEach((p) => {
+        const c = R.chans.find((x) => x.label === p.dataset.l);
+        p.onmouseenter = () => { $('dl').textContent = c.label; $('dv').textContent = eur(c.revenue); };
+        p.onmouseleave = () => { $('dl').textContent = 'Total'; $('dv').textContent = eur(R.total); };
+      });
+    }
+    document.querySelectorAll('[data-bd]').forEach((b) => { b.onclick = () => toast('Ouvre le détail existant (« ' + (b.dataset.bd === 'yearTotal' ? 'Revenu total sur l\'exercice' : 'Revenus depuis le début') + ' »)'); });
+    document.querySelectorAll('.seg').forEach((seg) => seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(S[seg.dataset.ctl] === b.dataset.v))));
+  }
+
+  document.querySelectorAll('.seg').forEach((seg) => seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return; S[seg.dataset.ctl] = b.dataset.v; render();
+  }));
+  const range = $('today'); range.value = S.todayIdx;
+  range.addEventListener('input', () => { S.todayIdx = Number(range.value); render(); });
+  render();
+})();
+</script>
+</body>
+</html>

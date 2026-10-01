@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Suivi financier — refonte, version 3</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:6px 0}
+code{font:12.5px var(--mono);background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px}
+.tbl{overflow-x:auto;margin:10px 0}
+table.doc{width:100%;border-collapse:collapse;font-size:13.5px}
+table.doc th,table.doc td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+table.doc th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.bar{position:sticky;top:0;z-index:30;background:var(--paper);border-bottom:1px solid var(--line);margin:0 -16px 14px;padding:10px 16px}
+.ctls{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.ctls .k{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--ocre);margin-right:4px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:4px}
+.seg button{font:13px var(--sans);padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;min-height:34px}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+
+/* ================= app mock — light « Maison » palette ================= */
+.stage{background:#E6E0D2;border-radius:14px;padding:14px;overflow:hidden}
+.app{--p:#2F5D46;--m:#C99038;--bg:#F8F5EF;--c:#fff;--t:#27251F;--t2:#6E6A5E;--d:rgba(60,54,36,.1);--ok:#3E7D54;--okbg:#E6EFE7;--ko:#A8433A;--kobg:#F7E8E5;--wn:#8F6A1D;--wnbg:#F6EDD7;--in:#31556E;--inbg:#E4EDF3;
+  container-type:inline-size;margin:0 auto;background:var(--bg);color:var(--t);border-radius:12px;padding:16px;font:14px/1.45 var(--sans);max-width:100%}
+.app.mobile{max-width:390px}
+.app *{box-sizing:border-box}
+.app button{font:inherit;color:inherit}
+.card{background:var(--c);border-radius:14px;padding:16px;box-shadow:0 3px 16px rgba(60,54,36,.09);position:relative;min-width:0}
+.card h4{font:600 16px var(--serif);margin:0 0 2px}
+.sub{font-size:12px;color:var(--t2)}
+.num{font-variant-numeric:tabular-nums}
+.lbl{font-size:12px;font-weight:600;color:var(--t2)}
+.delta{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.delta.up{background:var(--okbg);color:var(--ok)} .delta.down{background:var(--kobg);color:var(--ko)} .delta.flat{background:#EEEBE4;color:var(--t2)}
+.tip{position:absolute;pointer-events:none;background:#27251F;color:#fff;font-size:12px;line-height:1.5;padding:8px 10px;border-radius:8px;white-space:nowrap;z-index:6;display:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+svg text{font-family:var(--sans)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--t2);flex-wrap:wrap;margin:6px 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* top bar */
+.a-top{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;background:var(--c);border-radius:14px;padding:10px 14px;margin-bottom:14px;box-shadow:0 3px 16px rgba(60,54,36,.09);flex-wrap:wrap}
+.a-top b{font:600 18px var(--serif)}
+.a-sel{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.a-pill{border:1px solid var(--d);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--c);min-height:36px}
+.pseg{display:inline-flex;background:#F1EDE4;border-radius:9px;padding:3px;gap:2px}
+.pseg button{border:0;background:transparent;border-radius:7px;padding:5px 11px;font-size:13px;cursor:pointer;min-height:30px}
+.pseg button.on{background:var(--c);box-shadow:0 1px 4px rgba(60,54,36,.15);font-weight:600}
+.err{color:var(--ko);font-size:12px}
+
+/* logement strip */
+.strip{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 6px;margin-bottom:12px;scrollbar-width:thin}
+.lg{flex:0 0 auto;min-width:168px;background:var(--c);border:1.5px solid transparent;border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;box-shadow:0 2px 10px rgba(60,54,36,.07);transition:border-color .15s,transform .1s}
+.lg:hover{transform:translateY(-1px)}
+.lg.on{border-color:var(--p);background:#F4F8F5}
+.lg .nm{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+.lg .nm i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.lg .v{font:700 17px var(--sans);font-variant-numeric:tabular-nums;margin-top:2px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.65fr 1fr;gap:14px;margin-bottom:14px}
+.big{font:700 44px/1.05 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin:6px 0 4px}
+.goal{margin:12px 0 4px}
+.goal .track{height:10px;background:#EFEBE3;border-radius:99px;overflow:hidden}
+.goal .fill{height:100%;background:linear-gradient(90deg,#3E7D54,#2F5D46);border-radius:99px;transition:width .4s}
+.goal .gl{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-top:5px}
+.ins{list-style:none;margin:8px 0 0;padding:0}
+.ins li{display:flex;gap:11px;padding:10px 0;border-top:1px solid var(--d)}
+.ins li:first-child{border-top:0}
+.ins .ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 34px}
+.ins b{display:block;font-size:13.5px}
+.ins span{font-size:12.5px;color:var(--t2)}
+
+/* tiles + detail */
+.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.tile{background:var(--c);border:1.5px solid transparent;border-radius:14px;padding:12px 13px;cursor:pointer;text-align:left;box-shadow:0 3px 16px rgba(60,54,36,.09);position:relative;transition:border-color .15s,transform .1s;min-width:0}
+.tile:hover{transform:translateY(-2px)}
+.tile.on{border-color:var(--p)}
+.tile.on:after{content:"";position:absolute;left:50%;bottom:-9px;width:14px;height:14px;background:var(--c);border-right:1.5px solid var(--p);border-bottom:1.5px solid var(--p);transform:translateX(-50%) rotate(45deg)}
+.tile .kv{font:700 21px/1.2 var(--sans);font-variant-numeric:tabular-nums;margin:3px 0 2px;white-space:nowrap}
+.tile .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .dot{position:absolute;right:11px;top:11px;width:8px;height:8px;border-radius:50%}
+.detail{margin:12px 0 14px;border:1.5px solid var(--p)}
+.detail .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.x{border:1px solid var(--d);background:var(--c);border-radius:8px;min-width:36px;min-height:36px;cursor:pointer}
+.dt{width:100%;border-collapse:collapse;font-size:13px}
+.dt th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);font-weight:600;text-align:left;padding:7px 8px;border-bottom:1px solid var(--d);white-space:nowrap}
+.dt td{padding:8px;border-bottom:1px solid var(--d);vertical-align:middle}
+.dt td.r,.dt th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dt tbody tr{cursor:pointer}
+.dt tbody tr:hover{background:#FAF8F3}
+.dt tfoot td{font-weight:700;border-top:2px solid var(--d);border-bottom:0}
+.dt .grp td{background:#F6F3EC;font-weight:600;cursor:default}
+.dt .ind td:first-child{padding-left:22px}
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;margin:1px 2px 1px 0}
+.chip.ok{background:var(--okbg);color:var(--ok)} .chip.ko{background:var(--kobg);color:var(--ko)} .chip.wn{background:var(--wnbg);color:var(--wn)} .chip.nt{background:#EEEBE4;color:var(--t2)}
+.pf{display:inline-block;font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:6px;white-space:nowrap}
+.ck{display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ck input{width:17px;height:17px;accent-color:#2F5D46;cursor:pointer}
+.btn{border:1px solid var(--d);background:var(--c);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12.5px;min-height:34px;white-space:nowrap}
+.btn.pr{background:var(--p);color:#fff;border-color:var(--p)}
+.scroll{overflow-x:auto}
+.mcards{display:none}
+.mc{border:1px solid var(--d);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.mc .t{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.proj{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;background:#F6F3EC;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px}
+.proj input{border:1px solid var(--d);border-radius:7px;padding:5px 8px;font:13px var(--sans);min-height:34px}
+
+/* charts */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mult{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mult .one{border:1px solid var(--d);border-radius:10px;padding:8px 10px}
+.mult .one .nm{font-size:12.5px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
+.mult .one .nm > span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgd{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.lgd button{border:1px solid var(--d);background:var(--c);border-radius:99px;padding:3px 10px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:30px}
+.lgd button.off{opacity:.4}
+.lgd i{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+
+/* green hero (from direction C) */
+.C-hero{border-radius:18px;padding:22px 24px 14px;color:#fff;background:linear-gradient(135deg,#2F5D46 0%,#244A38 55%,#1E3D2F 100%);position:relative;margin-bottom:14px;box-shadow:0 8px 28px rgba(36,74,56,.28)}
+.C-hero:before{content:"";position:absolute;right:0;top:0;width:320px;height:260px;border-radius:0 18px 0 100%;background:radial-gradient(circle at 80% 10%,rgba(201,144,56,.38),rgba(201,144,56,0) 65%);pointer-events:none}
+.C-hero .hi{font:600 15px var(--serif);opacity:.92}
+.C-hero .bigw{font:700 48px/1.05 var(--sans);font-variant-numeric:tabular-nums;margin:8px 0 8px;letter-spacing:-.01em}
+.C-hero .delta.up{background:rgba(255,255,255,.18);color:#fff}
+.C-hero .delta.down{background:rgba(255,130,110,.3);color:#fff}
+.C-hero .delta.flat{background:rgba(255,255,255,.14);color:#fff}
+.C-heroGrid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:end;position:relative;z-index:1}
+.C-goal{margin-top:14px;max-width:520px}
+.C-goal .track{height:10px;background:rgba(255,255,255,.18);border-radius:99px;overflow:hidden}
+.C-goal .fill{height:100%;background:linear-gradient(90deg,#E3B566,#C99038);border-radius:99px;transition:width .5s}
+.C-goal .gl{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;opacity:.92;margin-top:6px;flex-wrap:wrap}
+.C-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.C-mini div{background:rgba(255,255,255,.1);border-radius:12px;padding:10px 12px}
+.C-mini b{display:block;font:700 20px var(--sans);font-variant-numeric:tabular-nums}
+.C-mini span{font-size:12px;opacity:.85}
+.C-curve{position:relative;z-index:1;margin-top:14px;border-top:1px solid rgba(255,255,255,.14);padding-top:6px}
+.C-curve .legend{color:rgba(255,255,255,.85)}
+.C-ins{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.C-in{display:flex;gap:12px;align-items:flex-start}
+.C-in .ic{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:0 0 36px}
+.C-in b{display:block;font-size:13.5px;margin-bottom:2px}
+.C-in span{font-size:12.5px;color:var(--t2)}
+@container (max-width:760px){ .C-heroGrid,.C-ins{grid-template-columns:1fr} .C-hero .bigw{font-size:36px} .C-hero{padding:18px 16px 12px} }
+@container (max-width:1000px){ .tiles{grid-template-columns:repeat(3,1fr)} }
+@container (max-width:760px){ .hero,.charts{grid-template-columns:1fr} }
+@container (max-width:560px){
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .big{font-size:34px}
+  .a-top{flex-direction:column;align-items:stretch}
+  .tile.on:after{display:none}
+  .scroll{display:none}.mcards{display:block}
+  .mult{grid-template-columns:1fr}
+}
+
+/* settings mock */
+.set{max-width:640px;background:#F8F5EF;border-radius:12px;padding:16px;font:14px/1.45 var(--sans);color:#27251F}
+.set .card{box-shadow:none;border:1px solid rgba(60,54,36,.14)}
+.set label{display:block;font-size:12px;font-weight:600;color:#6E6A5E;margin:0 0 4px}
+.set select,.set input{width:100%;border:1px solid rgba(60,54,36,.25);border-radius:8px;padding:9px 11px;font:14px var(--sans);background:#fff;color:#27251F;min-height:42px}
+.set input.bad{border-color:#A8433A;background:#FDF7F6}
+.set .hint{font-size:12px;color:#6E6A5E;margin-top:4px}
+.set .bad-msg{font-size:12px;color:#A8433A;margin-top:4px;font-weight:600}
+.set .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media (max-width:560px){.set .row{grid-template-columns:1fr}}
+.set .savebar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px}
+.set .savebar button{border-radius:8px;padding:8px 14px;border:1px solid rgba(60,54,36,.2);background:#fff;cursor:pointer;font:600 13px var(--sans);min-height:40px}
+.set .savebar button.pr{background:#2F5D46;color:#fff;border-color:#2F5D46}
+.set .savebar button:disabled{opacity:.45;cursor:not-allowed}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Suivi financier : la refonte, version 3</h1>
+<p class="meta">Spec <code>specs/finance-dashboard-redesign.md</code> · statut <b>Approved</b> · 29/09/2026 · base : direction A « Banque » · chiffres <b>fictifs</b> (établissement de démonstration, 4 logements), calculés pour de vrai sur ~500 séjours générés · rien n'est encore construit</p>
+
+<div class="note">
+<b>Version 3 :</b> le bandeau vert revient en tête avec la courbe intégrée, les vignettes d'occupation n'affichent plus que leur logement au survol, les tuiles ne répètent plus les chiffres du bandeau, et aucune tuile n'est ouverte à l'arrivée.<br><br><b>Ce qui avait changé depuis la version 1 :</b>
+<ul class="tight">
+  <li><b>Toute la page tient dans un seul tableau de bord.</b> Les cartes d'exercice et de période, « Revenu par logement », « Répartition », « Canaux de réservation », le suivi opérationnel et la projection sont tous repris. Aucune information ne disparaît : chaque tuile ouvre, juste en dessous d'elle, le tableau qui correspond.</li>
+  <li><b>Les logements passent en tête.</b> Ils filtrent tout ce qui se trouve en dessous.</li>
+  <li><b>L'an dernier est bien plus visible</b> dans « Revenu par mois ». Deux variantes sont proposées.</li>
+  <li><b>L'occupation devient un graphique en courbes</b> : une couleur par logement, trait plein pour cette année, pointillé pour l'an dernier. Trois variantes sont proposées.</li>
+  <li><b>La comparaison avec l'an dernier</b> s'active mois par mois, dès qu'un mois de l'an dernier contient des données.</li>
+  <li><b>L'objectif annuel</b> se règle dans Réglages → TVA & exercice. La maquette du réglage est en bas de page.</li>
+</ul>
+</div>
+
+<h2>Essayer</h2>
+<div class="bar"><div class="ctls">
+  <span><span class="k">Historique</span><span class="seg" data-ctl="hist"><button data-v="2024-01-01">2 ans</button><button data-v="2025-04-01">depuis avril 2025</button><button data-v="2026-04-01">depuis avril 2026 (ta situation)</button></span></span>
+  <span><span class="k">Largeur</span><span class="seg" data-ctl="width"><button data-v="desk">Ordinateur</button><button data-v="mobile">Téléphone</button></span></span>
+</div></div>
+<p class="muted" style="font-size:13px">Essaie « depuis avril 2025 » : l'écart avec l'an dernier ne compare que les mois qui existent des deux côtés, et le dit. « Depuis avril 2026 », c'est ta situation : pas encore d'an dernier, donc aucune pastille. Tout est cliquable : période, logements, tuiles, cases à cocher des paiements, légende du graphique d'occupation.</p>
+
+<div class="stage"><div class="app" id="app"></div></div>
+
+<h2>Où va chaque élément de la page actuelle</h2>
+<div class="tbl"><table class="doc">
+<thead><tr><th>Aujourd'hui</th><th>Dans la refonte</th></tr></thead>
+<tbody>
+<tr><td>Sélecteur d'exercice</td><td>Barre du haut, à côté du choix de période</td></tr>
+<tr><td>Cartes « Revenus depuis le début de l'exercice » et « Revenu total sur l'exercice »</td><td>Le grand chiffre en tête (période « Exercice »). La part à venir apparaît sur la courbe et dans les tuiles</td></tr>
+<tr><td>Période « Du / Au » et ses cartes (revenu, encaissé, en attente)</td><td>Période « Personnalisée » dans la barre du haut : toute la page suit la période choisie</td></tr>
+<tr><td>Détail au clic sur une carte (fenêtre)</td><td>Le tableau qui s'ouvre sous chaque tuile, sans fenêtre</td></tr>
+<tr><td>« Revenu par logement » (TTC, HT, nuits)</td><td>Bandeau des logements + tuile « Logements » (nuits, occupation, prix moyen, RevPAR, TTC, HT)</td></tr>
+<tr><td>« Répartition » (encaissé / en attente)</td><td>Tuiles « Encaissé », « À encaisser », « En retard »</td></tr>
+<tr><td>« Canaux de réservation » (sources du site, demandes, conversion)</td><td>Tuile « Canaux », enrichie des commissions et du net</td></tr>
+<tr><td>Suivi opérationnel : paiements en retard / en attente (cases à cocher, « Tout solder »), réservations à venir, réservations de la période</td><td>Tuiles « En retard » et « À encaisser », tous exercices comme aujourd'hui (cases et « Tout solder » conservées) ; « Réservations » avec le filtre « De la période / À venir (toutes dates) »</td></tr>
+<tr><td>Projection à une date</td><td>Champ « D'ici le … » dans le tableau « À encaisser », avec les mêmes trois totaux</td></tr>
+</tbody></table></div>
+
+<h2>Réglages → TVA & exercice : l'objectif annuel</h2>
+<p>L'objectif vit à côté du mois de clôture, dans la carte « Exercice comptable » : c'est lui qui définit ce qu'« un exercice » veut dire. Il y a un objectif <b>par exercice</b> (l'en-cours et le suivant, pour préparer l'année) ; laissé vide, la barre disparaît du Suivi financier. Tape une valeur : la barre de la maquette au-dessus suit.</p>
+<div class="set" id="settings"></div>
+
+<h2>La règle de comparaison avec l'an dernier</h2>
+<ul class="tight">
+  <li><b>Un mois est comparable</b> dès que le même mois de l'an dernier contient des données. On ne l'invente jamais.</li>
+  <li><b>Graphiques :</b> la barre ou la courbe de l'an dernier n'apparaît que sur les mois comparables.</li>
+  <li><b>Pastilles d'écart</b> (grand chiffre, tuiles, logements) : on ne compare que les mois comparables de la période, des deux côtés. Tant que tous ne le sont pas, la pastille le précise (« sur 6 mois comparables »). Sans aucun mois comparable, pas de pastille.</li>
+  <li><b>Chez toi</b> (données depuis avril 2026), les premières pastilles apparaîtront en avril 2027, et le graphique de l'an dernier se remplira mois après mois.</li>
+</ul>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+  <li>Le prix de la nuitée « hébergement seul » : le revenu par nuit suit la base de la page (options comprises), et le libellé le dit.</li>
+  <li>Le rythme de réservation et le délai de réservation : pour les réservations iCal, GuestFlow ne connaît que la date d'import.</li>
+  <li>L'origine des voyageurs, les clients fidèles, les avis : données absentes ou trop rares.</li>
+  <li>Des objectifs par logement ou par mois.</li>
+  <li>Aucun calcul dans le navigateur : le serveur livre chaque chiffre, chaque tableau et chaque phrase déjà prêts.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="note">C'est une réécriture complète de la page la plus consultée pour l'argent. Deux garde-fous : (1) les règles de calcul existantes (total de séjour, date comptable, HT, restant dû) sont <b>réutilisées telles quelles</b>, jamais réécrites ; (2) chaque tableau est testé pour que son total égale sa tuile, et le hero égale la somme des logements et des mois. Le tableau « Où va chaque élément » ci-dessus sert de liste de contrôle à la recette : chaque bloc d'aujourd'hui doit être retrouvé.</div>
+
+<h2>Décidé le 29/09/2026</h2>
+<ul class="tight">
+  <li><b>Occupation :</b> une vignette par logement (trait plein cette année, pointillé l'an dernier) ; l'info-bulle d'une vignette ne parle que de son logement.</li>
+  <li><b>An dernier dans « Revenu par mois » :</b> barres côte à côte. Au survol, une ligne par année : « Juillet 2026 : 11 938 € », puis « Juillet 2025 : 12 257 € ».</li>
+  <li><b>À l'arrivée :</b> aucune tuile ouverte, la page reste courte.</li>
+  <li><b>Tête de page :</b> le bandeau vert de la proposition C, avec la courbe cumulée intégrée. Ses quatre chiffres (nuits, occupation, prix moyen, direct) ne répètent aucune tuile : les tuiles portent ce que leur tableau détaille.</li>
+</ul>
+
+</div>
+
+<script>
+(function(){
+// ———————————————————————— fictitious data ————————————————————————
+let seed = 20260929;
+const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const DAY = 864e5, D = (s) => Date.parse(s + 'T00:00:00Z'), iso = (t) => new Date(t).toISOString().slice(0, 10), add = (s, n) => iso(D(s) + n * DAY);
+const TODAY = '2026-09-29';
+const PROPS = [
+  { id: 'lodge', name: 'Le Lodge des Prés', short: 'Lodge', price: 150, closed: [], color: '#2F5D46' },
+  { id: 'four', name: 'Le Gîte du Four', short: 'Gîte', price: 136, closed: [], color: '#C99038' },
+  { id: 'roulotte', name: 'La Roulotte', short: 'Roulotte', price: 86, closed: [11, 12, 1, 2, 3], color: '#31556E' },
+  { id: 'cabane', name: 'La Cabane perchée', short: 'Cabane', price: 108, closed: [1, 2], color: '#A8433A' },
+];
+const CH = {
+  saisie: { label: 'Direct (saisie)', color: '#6B8F76', fee: 0, ota: false, lead: [20, 120], w: .12 },
+  site: { label: 'Site internet', color: '#2F5D46', fee: 0, ota: false, lead: [25, 140], w: .24 },
+  airbnb: { label: 'Airbnb', color: '#FF5A5F', fee: .155, ota: true, lead: [4, 70], w: .22 },
+  booking: { label: 'Booking.com', color: '#003580', fee: .17, ota: true, lead: [2, 60], w: .18 },
+  gdf: { label: 'Gîtes de France', color: '#C9A800', fee: .18, ota: false, lead: [15, 110], w: .15 },
+  abritel: { label: 'Abritel', color: '#1565C0', fee: .08, ota: true, lead: [10, 90], w: .09 },
+};
+const SOURCES = [['search', 'Recherche', .45], ['social', 'Réseaux sociaux', .3], ['direct', 'Accès direct', .25]];
+const FIRST = ['Claire', 'Julien', 'Sophie', 'Thomas', 'Camille', 'Nicolas', 'Laura', 'Antoine', 'Emma', 'Hugo', 'Léa', 'Paul', 'Chloé', 'Louis', 'Manon', 'Arthur', 'Inès', 'Mathis'];
+const LAST = ['Martin', 'Bernard', 'Dubois', 'Laurent', 'Moreau', 'Girard', 'Roux', 'Fournier', 'Morel', 'Mercier', 'Blanc', 'Faure', 'Garnier', 'Chevalier', 'Perrin', 'Robin'];
+const OCC = [.28, .36, .4, .5, .56, .7, .93, .98, .6, .5, .3, .42], PRICE = [.92, .92, .95, 1, 1.02, 1.1, 1.28, 1.32, 1.05, .98, .92, 1.05];
+const pick = (obj) => { const e = Object.entries(obj); let x = rnd(), a = 0; for (const [k, v] of e) { a += v.w; if (x < a) return k; } return e[0][0]; };
+const stays = [];
+for (const p of PROPS) {
+  let d = '2024-01-02';
+  while (d < '2027-02-01') {
+    const m = +d.slice(5, 7);
+    if (p.closed.includes(m)) { d = add(d, 1); continue; }
+    if (rnd() < OCC[m - 1] * .44 * (d >= '2025-10-01' ? 1.1 : 1)) {
+      const nights = 2 + Math.floor(rnd() * rnd() * 6) + (m === 7 || m === 8 ? 1 : 0);
+      const ch = pick(CH), c = CH[ch];
+      const gross = Math.round(p.price * nights * PRICE[m - 1] * (d >= '2026-01-01' ? 1.04 : 1) * (.92 + rnd() * .16));
+      const extras = rnd() < .32 ? Math.round(30 + rnd() * 110) : 0;
+      const commission = Math.round(gross * c.fee), net = gross - commission + extras;
+      const lead = Math.round(c.lead[0] + (c.lead[1] - c.lead[0]) * rnd() * rnd());
+      const end = add(d, nights), created = add(d, -lead);
+      const s = { id: stays.length + 1, ref: 'R' + (1041 + stays.length), client: `${FIRST[Math.floor(rnd() * FIRST.length)]} ${LAST[Math.floor(rnd() * LAST.length)]}`, prop: p.id, ch, start: d, end, nights, gross, extras, commission, net, created, cancelled: rnd() < .05 };
+      if (ch === 'site') { let x = rnd(), a = 0; for (const [k, , w] of SOURCES) { a += w; if (x < a) { s.src = k; break; } } }
+      if (c.ota) { s.dep = 0; s.depDue = null; s.bal = net; s.balDue = add(d, 1); }
+      else { s.dep = Math.round(net * .3); s.bal = net - s.dep; s.depDue = add(created, 7) < d ? add(created, 7) : created; s.balDue = lead > 30 ? add(d, -30) : created; }
+      s.depPaid = s.dep === 0 || (s.depDue <= TODAY && rnd() < .96); s.depPaidOn = s.dep && s.depPaid ? s.depDue : null;
+      s.balPaid = s.balDue <= TODAY && rnd() < (c.ota ? .98 : .93); s.balPaidOn = s.balPaid ? s.balDue : null;
+      if (created <= TODAY) stays.push(s);
+      d = add(end, rnd() < .5 ? 0 : 1 + Math.floor(rnd() * 3));
+    } else d = add(d, 1);
+  }
+}
+const attrOf = (s) => (s.balPaid ? s.balPaidOn : s.end);
+const collectedOf = (s) => (s.depPaid ? s.dep : 0) + (s.balPaid ? s.bal : 0);
+const remainingOf = (s) => s.net - collectedOf(s);
+const overdueOf = (s) => (!s.depPaid && s.depDue && s.depDue < TODAY ? s.dep : 0) + (!s.balPaid && s.balDue < TODAY ? s.bal : 0);
+// Request counts of the website, per source (synthetic).
+const REQUESTS = { search: 3.1, social: 4.4, direct: 2.2 };
+
+// ———————————————————————— the « server » ————————————————————————
+const MN = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const FY = { 2026: { key: 2026, from: '2026-01-01', to: '2026-12-31' }, 2025: { key: 2025, from: '2025-01-01', to: '2025-12-31' } };
+const y1 = (s) => `${+s.slice(0, 4) - 1}${s.slice(4)}`;
+const daysIn = (ym) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+const monthsBetween = (from, to) => { const out = []; let y = +from.slice(0, 4), m = +from.slice(5, 7); while (`${y}-${String(m).padStart(2, '0')}` <= to.slice(0, 7)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } } return out; };
+const sum = (l, f) => l.reduce((n, x) => n + (typeof f === 'function' ? f(x) : x[f]), 0);
+
+function compute() {
+  const fy = FY[S.fy], hist = S.hist;
+  let win;
+  if (S.period === 'fy') win = { from: fy.from, to: fy.to, label: `Exercice ${fy.key}` };
+  else if (S.period === 'month') { const ym = S.month; win = { from: ym + '-01', to: `${ym}-${daysIn(ym)}`, label: `${MN[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}` }; }
+  else win = { from: S.from, to: S.to, label: `du ${fmtD(S.from)} au ${fmtD(S.to)}` };
+  const asOf = win.to < TODAY ? win.to : TODAY;
+  const exists = (s) => !s.cancelled && s.start >= hist;
+  const inProp = (s) => !S.prop || s.prop === S.prop;
+  const props = PROPS.filter((p) => !S.prop || p.id === S.prop);
+  const all = stays.filter((s) => exists(s) && inProp(s));
+  const inWin = (s, a, b) => attrOf(s) >= a && attrOf(s) <= b;
+  const cur = all.filter((s) => inWin(s, win.from, win.to));
+  const n1all = all.filter((s) => s.created <= y1(TODAY));
+  // Rule: a month is comparable when the same month a year earlier has data.
+  const hasData = (ym) => ym >= hist.slice(0, 7);
+  const winMonths = monthsBetween(win.from, win.to);
+  const comparable = winMonths.filter((ym) => hasData(y1(ym + '-01').slice(0, 7)));
+  const inMonths = (s, list) => list.includes(attrOf(s).slice(0, 7));
+  const curComp = sum(cur.filter((s) => inMonths(s, comparable)), 'net');
+  const n1Comp = sum(n1all.filter((s) => inMonths(s, comparable.map((ym) => y1(ym + '-01').slice(0, 7)))), 'net');
+  const cmp = comparable.length ? { cur: curComp, n1: n1Comp, months: comparable.length, total: winMonths.length } : null;
+  const occNights = (list, ym) => { let n = 0; for (const s of list) for (let i = 0; i < s.nights; i++) if (add(s.start, i).slice(0, 7) === ym) n++; return n; };
+  const sellable = (p, ym) => (p.closed.includes(+ym.slice(5, 7)) ? 0 : daysIn(ym));
+  // Exercise-wide monthly series (charts always show the selected exercise).
+  const months = monthsBetween(fy.from, fy.to).map((ym) => {
+    const ymN1 = y1(ym + '-01').slice(0, 7), comp = hasData(ymN1);
+    const l = all.filter((s) => attrOf(s).slice(0, 7) === ym);
+    const inPeriod = ym >= win.from.slice(0, 7) && ym <= win.to.slice(0, 7);
+    return {
+      ym, label: `${MN[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`, initial: MN[+ym.slice(5, 7) - 1][0].toUpperCase(), inPeriod,
+      past: sum(l.filter((s) => attrOf(s) <= TODAY), 'net'), upcoming: sum(l.filter((s) => attrOf(s) > TODAY), 'net'),
+      n1: comp ? sum(n1all.filter((s) => attrOf(s).slice(0, 7) === ymN1), 'net') : null,
+      occ: PROPS.map((p) => { const sel = sellable(p, ym); const selN1 = sellable(p, ymN1); const lp = all.filter((s) => s.prop === p.id);
+        return { id: p.id, cur: sel ? occNights(lp, ym) / sel : null, n1: comp && selN1 ? occNights(lp.filter((s) => s.created <= y1(TODAY)), ymN1) / selN1 : null }; }),
+    };
+  });
+  // Window KPIs.
+  const nights = sum(cur, 'nights');
+  const sellWin = sum(winMonths, (ym) => sum(props, (p) => sellable(p, ym)));
+  const nightsOcc = sum(winMonths, (ym) => occNights(cur, ym));
+  const accom = sum(cur, (s) => s.gross - s.commission);
+  const collectedWin = sum(cur, collectedOf);
+  const toCollect = all.filter((s) => remainingOf(s) > 0 && !overdueOf(s));
+  const late = all.filter((s) => overdueOf(s) > 0);
+  const channels = Object.entries(CH).map(([key, c]) => { const l = cur.filter((s) => s.ch === key); return { key, ...c, count: l.length, nights: sum(l, 'nights'), gross: sum(l, (s) => s.gross + s.extras), commission: sum(l, 'commission'), net: sum(l, 'net') }; });
+  const revenue = sum(cur, 'net');
+  const direct = sum(channels.filter((c) => !c.fee), 'net');
+  const perProp = PROPS.map((p) => {
+    const l = cur.filter((s) => s.prop === p.id), sel = sum(winMonths, (ym) => sellable(p, ym)), occ = sum(winMonths, (ym) => occNights(l, ym));
+    const n1c = comparable.length ? sum(n1all.filter((s) => s.prop === p.id && inMonths(s, comparable.map((ym) => y1(ym + '-01').slice(0, 7)))), 'net') : null;
+    const cc = sum(l.filter((s) => inMonths(s, comparable)), 'net');
+    return { ...p, net: sum(l, 'net'), ht: sum(l, 'net') / 1.1, nights: sum(l, 'nights'), occ: sel ? occ / sel : 0, adr: sum(l, 'nights') ? sum(l, (s) => s.gross - s.commission) / sum(l, 'nights') : 0, revpar: sel ? sum(l, (s) => s.gross - s.commission) / sel : 0, cmp: n1c ? { cur: cc, n1: n1c } : null };
+  });
+  // Cumulative curve over the window.
+  const span = (D(win.to) - D(win.from)) / DAY, step = span > 62 ? 7 : 1, cumul = [];
+  for (let t = D(win.from); t <= D(win.to) + (step - 1) * DAY; t += step * DAY) {
+    const day = iso(Math.min(t, D(win.to))), dayN1 = y1(day);
+    // The cumulative N-1 curve needs the whole window a year earlier: a curve that starts mid-way at
+    // zero would read as a collapse. Until then the comparison is month by month (chart below).
+    cumul.push({ day, cur: day <= asOf ? sum(cur.filter((s) => attrOf(s) <= day), 'net') : null, n1: comparable.length === winMonths.length ? sum(n1all.filter((s) => attrOf(s) >= y1(win.from) && attrOf(s) <= dayN1), 'net') : null });
+  }
+  const best = months.reduce((b, m) => (m.past + m.upcoming > b.past + b.upcoming ? m : b), months[0]);
+  const avgFee = (() => { const o = channels.filter((c) => c.fee); const g = sum(o, 'gross'); return g ? sum(o, 'commission') / g : 0; })();
+  return { fy, win, asOf, cur, all, cmp, months, revenue, ht: revenue / 1.1, nights, occ: sellWin ? nightsOcc / sellWin : 0, adr: nights ? accom / nights : 0, collectedWin, toCollect, late, channels, direct, perProp, cumul, best, avgFee, commission: sum(channels, 'commission') };
+}
+
+// ———————————————————————— helpers ————————————————————————
+const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+const eur = (n) => nf.format(Math.round(n)) + ' €';
+const eurK = (n) => n >= 10000 ? (Math.round(n / 100) / 10).toString().replace('.', ',') + ' k€' : eur(n);
+const pct = (x) => Math.round(x * 100) + ' %';
+const MA = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const fmtD = (s) => `${+s.slice(8, 10)} ${MA[+s.slice(5, 7) - 1]}`;
+const dd = (s) => s.split('-').reverse().join('/');
+function delta(cmp, cur, n1, pt) {
+  if (!cmp || !n1) return '';
+  const d = pt ? (cur - n1) * 100 : (cur - n1) / n1 * 100;
+  const partial = cmp.months < cmp.total ? ` sur ${cmp.months} mois comparable${cmp.months > 1 ? 's' : ''}` : '';
+  if (Math.abs(d) < .5) return `<span class="delta flat">= stable vs N-1${partial}</span>`;
+  const txt = (d > 0 ? '+' : '−') + (pt ? String(Math.round(Math.abs(d) * 10) / 10).replace('.', ',') + ' pt' : Math.round(Math.abs(d)) + ' %');
+  return `<span class="delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${txt} vs N-1${partial}</span>`;
+}
+const pf = (key) => `<span class="pf" style="background:${CH[key].color}">${CH[key].label.replace(' (saisie)', '')}</span>`;
+const propName = (id) => PROPS.find((p) => p.id === id).name;
+function bindTip(card, sel, html) {
+  const tip = card.querySelector('.tip');
+  card.querySelectorAll(sel).forEach((el) => {
+    el.addEventListener('mouseenter', () => { tip.innerHTML = html(el); tip.style.display = 'block'; });
+    el.addEventListener('mousemove', (e) => { const r = card.getBoundingClientRect(); let x = e.clientX - r.left + 14, y = e.clientY - r.top - tip.offsetHeight - 10; if (x + tip.offsetWidth > r.width - 4) x = e.clientX - r.left - tip.offsetWidth - 14; if (y < 4) y = e.clientY - r.top + 18; tip.style.left = x + 'px'; tip.style.top = y + 'px'; });
+    el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+}
+
+// ———————————————————————— state ————————————————————————
+const S = { occ: 'multiples', n1: 'pair', hist: '2025-04-01', width: 'desk', fy: 2026, period: 'fy', month: '2026-09', from: '2026-07-01', to: '2026-08-31', prop: null, tile: null, projDate: '2026-10-31', resFilter: 'all', hidden: {}, goals: { 2026: '85000', 2027: '' } };
+
+// ———————————————————————— sections ————————————————————————
+function topBar(R) {
+  const months = monthsBetween(R.fy.from, R.fy.to);
+  let per = `<span class="pseg" role="group" aria-label="Période">${[['fy', 'Exercice'], ['month', 'Mois'], ['custom', 'Personnalisée']].map(([v, l]) => `<button data-per="${v}" class="${S.period === v ? 'on' : ''}">${l}</button>`).join('')}</span>`;
+  if (S.period === 'month') per += `<select class="a-pill" id="monthSel">${months.map((ym) => `<option value="${ym}" ${ym === S.month ? 'selected' : ''}>${MN[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}</option>`).join('')}</select>`;
+  if (S.period === 'custom') per += `<input class="a-pill" type="date" id="fromIn" value="${S.from}" aria-label="Du"><input class="a-pill" type="date" id="toIn" value="${S.to}" aria-label="Au">${S.customErr ? `<span class="err">${S.customErr}</span>` : ''}`;
+  return `<div class="a-top"><b>Suivi financier</b><div class="a-sel"><select class="a-pill" id="fySel" aria-label="Exercice">${[2026, 2025].map((k) => `<option value="${k}" ${k === S.fy ? 'selected' : ''}>Exercice ${k}${k === 2026 ? ' (en cours)' : ''}</option>`).join('')}</select>${per}</div></div>`;
+}
+function strip(R) {
+  const all = { id: '', name: 'Tous les logements', net: R.revenue, occ: R.occ, color: '#27251F' };
+  const items = [all, ...R.perProp];
+  return `<div class="strip" role="group" aria-label="Logement">${items.map((p) => `<button class="lg ${(S.prop || '') === p.id ? 'on' : ''}" data-prop="${p.id}"><div class="nm">${p.id ? `<i style="background:${p.color}"></i>` : ''}${p.name}</div><div class="v">${eur(p.net)}</div><div class="sub">${p.id ? `${pct(p.occ)} occupé · ${eur(p.adr)}/nuit` : 'toute l\'exploitation'}</div></button>`).join('')}</div>`;
+}
+
+function hero(R) {
+  const goal = S.period === 'fy' && !S.prop ? Number(S.goals[R.fy.key]) || 0 : 0;
+  const gp = goal ? Math.min(1, R.revenue / goal) : 0;
+  const saved = Math.round(R.direct * R.avgFee), bestT = R.best.past + R.best.upcoming;
+  const hasN1Curve = R.cumul.some((p) => p.n1 != null);
+  return `<div class="C-hero" id="cumCard">
+    <div class="C-heroGrid">
+      <div>
+        <div class="hi">Chiffre d'affaires · ${R.win.label}${R.asOf < R.win.to ? ` · au ${fmtD(R.asOf)}` : ''}${S.prop ? ' · ' + propName(S.prop) : ''}</div>
+        <div class="bigw">${eur(R.revenue)}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">${delta(R.cmp, R.cmp?.cur, R.cmp?.n1)}<span style="opacity:.85">${eur(R.ht)} HT · net de commissions · ${R.cur.length} séjours</span></div>
+        ${goal ? `<div class="C-goal"><div class="track"><div class="fill" style="width:${gp * 100}%"></div></div><div class="gl"><span><b>${pct(gp)}</b> de l'objectif · reste ${eur(Math.max(0, goal - R.revenue))}</span><span>objectif ${eur(goal)}</span></div></div>` : ''}
+      </div>
+      <div class="C-mini">
+        <div><b>${nf.format(R.nights)}</b><span>nuits vendues</span></div>
+        <div><b>${pct(R.occ)}</b><span>taux d'occupation</span></div>
+        <div><b>${eur(R.adr)}</b><span>revenu moyen / nuit</span></div>
+        <div><b>${pct(R.revenue ? R.direct / R.revenue : 0)}</b><span>en direct</span></div>
+      </div>
+    </div>
+    <div class="C-curve">
+      <div class="legend"><span><i style="background:#fff"></i>Cumulé ${R.fy.key}</span>${hasN1Curve ? `<span><i style="height:0;border-top:2.5px dashed rgba(255,255,255,.75);width:16px;border-radius:0;vertical-align:3px"></i>Même période, an dernier</span>` : R.cmp ? '<span>Courbe de l\'an dernier dès que toute la période aura un an d\'historique ; en attendant, comparaison mois par mois plus bas</span>' : ''}</div>
+      ${cumulChart(R)}
+    </div>
+    <div class="tip"></div>
+  </div>
+  <div class="C-ins">
+    <div class="card C-in"><span class="ic" style="background:#E6EFE7;color:#3E7D54"><svg width="19" height="19" viewBox="0 0 21 21"><path d="M4 14l4-4 3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><b>${MN[+R.best.ym.slice(5, 7) - 1].replace(/^./, (c) => c.toUpperCase())}, meilleur mois de l'exercice</b><span>${eur(bestT)}${R.best.n1 ? `, contre ${eur(R.best.n1)} l'an dernier` : ''}.</span></div></div>
+    <div class="card C-in"><span class="ic" style="background:#F6EDD7;color:#8F6A1D"><svg width="19" height="19" viewBox="0 0 21 21"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 10.5h5M10.5 8v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><div><b>Le direct vous a évité ${eur(saved)} de commissions</b><span>${eur(R.direct)} réservés en direct, au taux moyen de vos plateformes (${pct(R.avgFee)}).</span></div></div>
+    <div class="card C-in"><span class="ic" style="background:${R.late.length ? '#F7E8E5' : '#E4EDF3'};color:${R.late.length ? '#A8433A' : '#31556E'}"><svg width="19" height="19" viewBox="0 0 21 21"><circle cx="10.5" cy="10.5" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 6.5v4.5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div><b>${R.late.length ? `${R.late.length} séjour${R.late.length > 1 ? 's' : ''} en retard de paiement` : 'Aucun paiement en retard'}</b><span>${R.late.length ? `${eur(sum(R.late, overdueOf))} à relancer : tuile « En retard ».` : 'Tout est à jour.'}</span></div></div>
+  </div>`;
+}
+function cumulChart(R, h = 120) {
+  const W = 720, n = R.cumul.length, max = Math.max(1, ...R.cumul.map((p) => Math.max(p.cur || 0, p.n1 || 0)));
+  const X = (i) => 4 + i * (W - 8) / Math.max(1, n - 1), Y = (v) => h - 6 - v / max * (h - 18);
+  const line = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const cur = R.cumul.map((p, i) => p.cur == null ? null : [X(i), Y(p.cur)]).filter(Boolean);
+  const n1 = R.cumul.map((p, i) => p.n1 == null ? null : [X(i), Y(p.n1)]).filter(Boolean);
+  let s = `<svg viewBox="0 0 ${W} ${h + 18}" width="100%" preserveAspectRatio="none" style="height:${h + 18}px;display:block"><defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>`;
+  [.5, 1].forEach((g) => { s += `<line x1="0" x2="${W}" y1="${Y(max * g)}" y2="${Y(max * g)}" stroke="rgba(255,255,255,.12)"/>`; });
+  if (n1.length > 1) s += `<path d="${line(n1)}" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2.2" stroke-dasharray="6 4"/>`;
+  if (cur.length > 1) s += `<path d="${line(cur)} L${cur[cur.length - 1][0]} ${h - 6} L${cur[0][0]} ${h - 6}Z" fill="url(#ga)"/><path d="${line(cur)}" fill="none" stroke="#fff" stroke-width="2.8" stroke-linejoin="round"/><circle cx="${cur[cur.length - 1][0]}" cy="${cur[cur.length - 1][1]}" r="5" fill="#E3B566" stroke="#fff" stroke-width="2"/>`;
+  R.cumul.forEach((p, i) => { s += `<rect class="hit" data-i="${i}" x="${X(i) - W / n / 2}" y="0" width="${W / n}" height="${h}" fill="transparent"/>`; });
+  return `<div style="position:relative"><span style="position:absolute;right:2px;top:${Y(max) - 16}px;font-size:10.5px;color:rgba(255,255,255,.65)">${eurK(max)}</span>${s}</svg><div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.72);margin-top:-14px">${[0, .25, .5, .75, 1].map((f) => `<span>${fmtD(R.cumul[Math.round(f * (n - 1))].day)}</span>`).join('')}</div></div>`;
+}
+
+const TILES = [
+  { key: 'collected', label: 'Encaissé', color: '#3E7D54' },
+  { key: 'tocollect', label: 'À encaisser', color: '#C99038' },
+  { key: 'late', label: 'En retard', color: '#A8433A' },
+  { key: 'stays', label: 'Réservations', color: '#31556E' },
+  { key: 'props', label: 'Logements', color: '#2F5D46' },
+  { key: 'channels', label: 'Canaux', color: '#6B8F76' },
+];
+function tileValue(R, k) {
+  if (k === 'collected') return [eur(R.collectedWin), `${pct(R.revenue ? R.collectedWin / R.revenue : 0)} du chiffre d'affaires`];
+  if (k === 'tocollect') return [eur(sum(R.toCollect, remainingOf)), `${R.toCollect.length} séjour${R.toCollect.length > 1 ? 's' : ''} · tous exercices`];
+  if (k === 'late') return [eur(sum(R.late, overdueOf)), R.late.length ? `${R.late.length} séjour${R.late.length > 1 ? 's' : ''} · tous exercices` : 'rien à relancer'];
+  if (k === 'stays') { const up = R.all.filter((s) => s.start > TODAY).length; return [`${R.cur.length} séjours`, `${up} à venir, toutes dates`]; }
+  if (k === 'props') { const top = R.perProp.filter((p) => !S.prop || p.id === S.prop).sort((a, b) => b.net - a.net)[0]; return [S.prop ? eur(top.net) : `${PROPS.length} logements`, S.prop ? `${eur(top.revpar)} de RevPAR` : `en tête : ${top.short}`]; }
+  return [`− ${eur(R.commission)}`, 'commissions payées'];
+}
+function tiles(R) {
+  const t = S.tile;
+  return `<div class="tiles">${TILES.map((x) => { const [v, sub] = tileValue(R, x.key); return `<button class="tile ${t === x.key ? 'on' : ''}" data-tile="${x.key}" aria-expanded="${t === x.key}"><span class="dot" style="background:${x.color}"></span><div class="lbl">${x.label}</div><div class="kv" ${x.key === 'late' && R.late.length ? 'style="color:#A8433A"' : ''}>${v}</div><div class="sub">${sub}</div></button>`; }).join('')}</div>` + (t ? detail(R, t) : '<p class="sub" style="margin:8px 2px 14px">Cliquez sur une tuile pour afficher le tableau correspondant.</p>');
+}
+
+// Detail tables — each one the heir of a block of today's page.
+function table(head, rows, foot, mobile) {
+  return `<div class="scroll"><table class="dt"><thead><tr>${head.map((h) => `<th class="${h[1] || ''}">${h[0]}</th>`).join('')}</tr></thead><tbody>${rows.join('') || `<tr><td colspan="${head.length}" class="sub" style="text-align:center;padding:24px">Rien à afficher.</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot}</tr></tfoot>` : ''}</table></div><div class="mcards">${mobile.join('') || '<p class="sub">Rien à afficher.</p>'}</div>`;
+}
+function detail(R, k) {
+  const X = `<button class="x" data-tile="${k}" aria-label="Fermer">✕</button>`;
+  let hd = '', body = '';
+  const payChips = (s) => `${s.dep ? `<span class="chip ${s.depPaid ? 'ok' : s.depDue < TODAY ? 'ko' : 'nt'}">Acompte ${s.depPaid ? 'payé' : 'non payé'}</span>` : ''}<span class="chip ${s.balPaid ? 'ok' : s.balDue < TODAY ? 'ko' : 'nt'}">${CH[s.ch].ota ? 'Versement plateforme' : 'Solde'} ${s.balPaid ? 'reçu' : 'attendu'}</span>`;
+  if (k === 'collected') {
+    const pays = [];
+    R.cur.forEach((s) => { if (s.dep && s.depPaid) pays.push({ s, on: s.depPaidOn, kind: 'Acompte', amt: s.dep }); if (s.balPaid) pays.push({ s, on: s.balPaidOn, kind: CH[s.ch].ota ? 'Versement plateforme' : 'Solde', amt: s.bal }); });
+    pays.sort((a, b) => (a.on < b.on ? 1 : -1));
+    hd = `<div><h4>Encaissé · ${R.win.label}</h4><div class="sub">Chaque paiement reçu, du plus récent au plus ancien — comme un relevé</div></div>`;
+    body = table([['Date'], ['Séjour'], ['Client'], ['Logement'], ['Canal'], ['Paiement'], ['Montant', 'r']],
+      pays.slice(0, 40).map((p) => `<tr data-open="${p.s.ref}"><td>${dd(p.on)}</td><td>${p.s.ref}</td><td>${p.s.client}</td><td>${propName(p.s.prop)}</td><td>${pf(p.s.ch)}</td><td>${p.kind}</td><td class="r" style="color:#3E7D54;font-weight:700">+ ${eur(p.amt)}</td></tr>`),
+      `<td colspan="6">Total encaissé${pays.length > 40 ? ` · 40 derniers affichés sur ${pays.length}` : ''}</td><td class="r">${eur(sum(pays, 'amt'))}</td>`,
+      pays.slice(0, 12).map((p) => `<div class="mc"><div class="t"><span>${p.s.client}</span><span style="color:#3E7D54">+ ${eur(p.amt)}</span></div><div class="sub">${dd(p.on)} · ${p.kind} · ${propName(p.s.prop)}</div></div>`));
+  } else if (k === 'tocollect') {
+    const until = S.projDate;
+    const rows = R.toCollect.filter((s) => s.start <= until).sort((a, b) => (a.start > b.start ? 1 : -1));
+    const tot = sum(rows, 'net'), col = sum(rows, collectedOf);
+    hd = `<div><h4>À encaisser</h4><div class="sub">Séjours pas encore soldés, tous exercices confondus · cochez un paiement à sa réception</div></div>`;
+    body = `<div class="proj"><label>Arrivées d'ici le <input type="date" id="projIn" value="${until}"></label><span>Total de séjour <b class="num">${eur(tot)}</b></span><span>Déjà encaissé <b class="num">${eur(col)}</b></span><span>Reste <b class="num" style="color:#8F6A1D">${eur(tot - col)}</b></span></div>` +
+      table([['Client'], ['Logement'], ['Séjour'], ['Canal'], ['Acompte', 'r'], ['Solde', 'r'], ['Reste', 'r'], ['']],
+        rows.map((s) => `<tr data-open="${s.ref}"><td>${s.client}</td><td>${propName(s.prop)}</td><td>${dd(s.start)} → ${dd(s.end)}</td><td>${pf(s.ch)}</td><td class="r">${s.dep ? `<label class="ck" data-stop><input type="checkbox" data-pay="${s.id}:dep" ${s.depPaid ? 'checked' : ''}>${eur(s.dep)}</label>` : '—'}</td><td class="r"><label class="ck" data-stop><input type="checkbox" data-pay="${s.id}:bal" ${s.balPaid ? 'checked' : ''}>${eur(s.bal)}</label></td><td class="r"><b>${eur(remainingOf(s))}</b></td><td><button class="btn" data-settle="${s.id}" data-stop>Tout solder</button></td></tr>`),
+        `<td colspan="6">Total</td><td class="r">${eur(sum(rows, remainingOf))}</td><td></td>`,
+        rows.map((s) => `<div class="mc"><div class="t"><span>${s.client}</span><span>${eur(remainingOf(s))}</span></div><div class="sub">${propName(s.prop)} · ${dd(s.start)} → ${dd(s.end)}</div><div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${s.dep ? `<label class="ck"><input type="checkbox" data-pay="${s.id}:dep" ${s.depPaid ? 'checked' : ''}>Acompte ${eur(s.dep)}</label>` : ''}<label class="ck"><input type="checkbox" data-pay="${s.id}:bal" ${s.balPaid ? 'checked' : ''}>Solde ${eur(s.bal)}</label><button class="btn" data-settle="${s.id}">Tout solder</button></div></div>`));
+  } else if (k === 'late') {
+    const rows = R.late.slice().sort((a, b) => (a.end > b.end ? 1 : -1));
+    hd = `<div><h4>En retard</h4><div class="sub">Échéances dépassées, tous exercices confondus — à relancer</div></div>`;
+    body = table([['Client'], ['Logement'], ['Séjour'], ['Éléments en retard'], ['Montant', 'r'], ['']],
+      rows.map((s) => `<tr data-open="${s.ref}"><td>${s.client}</td><td>${propName(s.prop)}</td><td>${dd(s.start)} → ${dd(s.end)}</td><td>${!s.depPaid && s.dep && s.depDue < TODAY ? `<span class="chip ko">Acompte ${eur(s.dep)} · échu ${dd(s.depDue)}</span>` : ''}${!s.balPaid && s.balDue < TODAY ? `<span class="chip ko">${CH[s.ch].ota ? 'Versement' : 'Solde'} ${eur(s.bal)} · échu ${dd(s.balDue)}</span>` : ''}</td><td class="r" style="color:#A8433A;font-weight:700">${eur(overdueOf(s))}</td><td><button class="btn" data-settle="${s.id}" data-stop>Marquer payé</button></td></tr>`),
+      `<td colspan="4">Total</td><td class="r" style="color:#A8433A">${eur(sum(rows, overdueOf))}</td><td></td>`,
+      rows.map((s) => `<div class="mc"><div class="t"><span>${s.client}</span><span style="color:#A8433A">${eur(overdueOf(s))}</span></div><div class="sub">${propName(s.prop)} · ${dd(s.start)} → ${dd(s.end)}</div><button class="btn" style="margin-top:6px" data-settle="${s.id}">Marquer payé</button></div>`));
+  } else if (k === 'stays') {
+    const f = S.resFilter;
+    const rows = (f === 'upcoming' ? R.all.filter((s) => s.start > TODAY) : R.cur).slice().sort((a, b) => (a.start > b.start ? 1 : -1));
+    hd = `<div><h4>Réservations · ${R.win.label}</h4><div class="sub">Rattachées à la période par leur date comptable</div></div><span class="pseg">${[['all', 'De la période'], ['upcoming', 'À venir (toutes dates)']].map(([v, l]) => `<button data-rf="${v}" class="${f === v ? 'on' : ''}">${l}</button>`).join('')}</span>`;
+    body = table([['Client'], ['Logement'], ['Dates'], ['Canal'], ['Nuits', 'r'], ['Total de séjour', 'r'], ['Suivi paiement']],
+      rows.map((s) => `<tr data-open="${s.ref}"><td>${s.client}</td><td>${propName(s.prop)}</td><td>${dd(s.start)} → ${dd(s.end)}</td><td>${pf(s.ch)}</td><td class="r">${s.nights}</td><td class="r"><b>${eur(s.net)}</b></td><td>${remainingOf(s) ? `<span class="chip wn">Reste ${eur(remainingOf(s))}</span>` : '<span class="chip ok">Réglé</span>'}${payChips(s)}</td></tr>`),
+      `<td colspan="4">Total · ${rows.length} séjours</td><td class="r">${sum(rows, 'nights')}</td><td class="r">${eur(sum(rows, 'net'))}</td><td></td>`,
+      rows.map((s) => `<div class="mc"><div class="t"><span>${s.client}</span><span>${eur(s.net)}</span></div><div class="sub">${propName(s.prop)} · ${dd(s.start)} → ${dd(s.end)} · ${s.nights} nuits</div><div style="margin-top:4px">${remainingOf(s) ? `<span class="chip wn">Reste ${eur(remainingOf(s))}</span>` : '<span class="chip ok">Réglé</span>'}</div></div>`));
+  } else if (k === 'props') {
+    const rows = R.perProp.filter((p) => !S.prop || p.id === S.prop);
+    hd = `<div><h4>Logements · ${R.win.label}</h4><div class="sub">Nuits, occupation, revenu moyen par nuit vendue et RevPAR (revenu ÷ nuits ouvrables)</div></div>`;
+    body = table([['Logement'], ['Nuits', 'r'], ['Occupation', 'r'], ['Revenu / nuit', 'r'], ['RevPAR', 'r'], ['TTC', 'r'], ['HT', 'r'], ['vs N-1', 'r']],
+      rows.map((p) => `<tr data-prop-row="${p.id}"><td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.color};margin-right:7px"></span>${p.name}</td><td class="r">${p.nights}</td><td class="r">${pct(p.occ)}</td><td class="r">${eur(p.adr)}</td><td class="r">${eur(p.revpar)}</td><td class="r"><b>${eur(p.net)}</b></td><td class="r">${eur(p.ht)}</td><td class="r">${p.cmp ? delta(R.cmp, p.cmp.cur, p.cmp.n1).replace(/ vs N-1.*?</, '<') : '<span class="sub">—</span>'}</td></tr>`),
+      `<td>Total</td><td class="r">${sum(rows, 'nights')}</td><td class="r">${pct(R.occ)}</td><td class="r">${eur(R.adr)}</td><td class="r"></td><td class="r">${eur(sum(rows, 'net'))}</td><td class="r">${eur(sum(rows, 'ht'))}</td><td></td>`,
+      rows.map((p) => `<div class="mc"><div class="t"><span>${p.name}</span><span>${eur(p.net)}</span></div><div class="sub">${p.nights} nuits · ${pct(p.occ)} occupé · ${eur(p.adr)}/nuit</div></div>`));
+  } else {
+    const site = R.channels.find((c) => c.key === 'site');
+    const siteRows = SOURCES.map(([key, label]) => { const l = R.cur.filter((s) => s.ch === 'site' && s.src === key); const req = Math.round(l.length * REQUESTS[key]); return { label, count: l.length, nights: sum(l, 'nights'), net: sum(l, 'net'), req, conv: req ? l.length / req : null }; });
+    const others = R.channels.filter((c) => c.key !== 'site' && c.count).sort((a, b) => b.net - a.net);
+    const reqT = sum(siteRows, 'req');
+    hd = `<div><h4>Canaux · ${R.win.label}</h4><div class="sub">Ce que chaque canal rapporte vraiment, commission déduite</div></div>`;
+    const row = (c, cls = '') => `<tr class="${cls}"><td>${c.color ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:7px"></span>` : ''}${c.label}</td><td class="r">${c.count}</td><td class="r">${c.nights}</td><td class="r">${c.gross != null ? eur(c.gross) : ''}</td><td class="r" style="color:#A8433A">${c.commission ? '− ' + eur(c.commission) : '—'}</td><td class="r"><b>${eur(c.net)}</b></td><td class="r">${pct(R.revenue ? c.net / R.revenue : 0)}</td><td class="r">${c.req != null ? `${c.req} · ${c.conv == null ? '—' : pct(c.conv)}` : ''}</td></tr>`;
+    body = table([['Canal'], ['Séjours', 'r'], ['Nuits', 'r'], ['Brut', 'r'], ['Commission', 'r'], ['Net', 'r'], ['Part', 'r'], ['Demandes · conversion', 'r']],
+      [`<tr class="grp"><td colspan="8">Site internet · ${eur(site.net)} · ${reqT} demandes</td></tr>`, ...siteRows.filter((c) => c.count || c.req).map((c) => row({ ...c, gross: c.net, commission: 0 }, 'ind')), ...others.map((c) => row(c))],
+      `<td>Total</td><td class="r">${R.cur.length}</td><td class="r">${R.nights}</td><td class="r">${eur(sum(R.channels, 'gross'))}</td><td class="r" style="color:#A8433A">− ${eur(R.commission)}</td><td class="r">${eur(R.revenue)}</td><td class="r">100 %</td><td></td>`,
+      [site, ...others].map((c) => `<div class="mc"><div class="t"><span>${c.label}</span><span>${eur(c.net)}</span></div><div class="sub">${c.count} séjours${c.commission ? ` · commission ${eur(c.commission)}` : ''}</div></div>`));
+  }
+  return `<div class="card detail" id="detail"><div class="hd">${hd}<div style="display:flex;gap:8px;align-items:center">${X}</div></div>${body}</div>`;
+}
+
+// ———————————————————————— charts ————————————————————————
+function monthChart(R) {
+  const W = 720, h = 200, n = R.months.length, bw = (W - 16) / n;
+  const max = Math.max(1, ...R.months.map((m) => Math.max(m.past + m.upcoming, m.n1 || 0)));
+  const Y = (v) => v / max * (h - 12);
+  let s = `<svg viewBox="0 0 ${W} ${h + 22}" width="100%" preserveAspectRatio="none" style="height:${h + 22}px;display:block">`;
+  R.months.forEach((m, i) => { if (S.period !== 'fy' && m.inPeriod) s += `<rect x="${8 + i * bw}" y="0" width="${bw}" height="${h}" fill="#F3EFE6"/>`; });
+  [.5, 1].forEach((g) => { s += `<line x1="0" x2="${W}" y1="${h - g * (h - 12)}" y2="${h - g * (h - 12)}" stroke="#EFEBE3"/>`; });
+  const n1pts = [];
+  R.months.forEach((m, i) => {
+    const x = 8 + i * bw;
+    const pair = S.n1 === 'pair' && m.n1 != null;
+    const cw = pair ? bw * .36 : bw * .56, cx = pair ? x + bw * .5 : x + (bw - cw) / 2;
+    if (pair) { const hn = Y(m.n1); s += `<rect x="${x + bw * .12}" y="${h - hn}" width="${bw * .36}" height="${hn}" rx="4" fill="#D9CFBA"/>`; }
+    const hp = Y(m.past), hu = Y(m.upcoming);
+    if (hu) s += `<rect x="${cx}" y="${h - hp - hu}" width="${cw}" height="${hu}" rx="4" fill="#C99038"/>`;
+    if (hp) s += `<rect x="${cx}" y="${h - hp}" width="${cw}" height="${hp}" rx="${hu ? 0 : 4}" fill="#2F5D46"/>${hu ? '' : ''}`;
+    if (hp && hu) s += `<rect x="${cx}" y="${h - hp - 2}" width="${cw}" height="4" fill="#C99038"/>`;
+    if (m.n1 != null) n1pts.push([x + bw / 2, h - Y(m.n1)]);
+    s += `<rect class="hit" data-i="${i}" x="${x}" y="0" width="${bw}" height="${h}" fill="transparent"/><text x="${x + bw / 2}" y="${h + 16}" text-anchor="middle" font-size="11" fill="${m.inPeriod && S.period !== 'fy' ? '#27251F' : '#6E6A5E'}" font-weight="${m.inPeriod && S.period !== 'fy' ? 700 : 400}">${m.initial}</text>`;
+  });
+  if (S.n1 === 'line' && n1pts.length) {
+    s += `<path d="${n1pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="#6E5A34" stroke-width="2.6" stroke-dasharray="7 4"/>`;
+    n1pts.forEach((p) => { s += `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="#fff" stroke="#6E5A34" stroke-width="2.4"/>`; });
+  }
+  return s + '</svg>';
+}
+function occSeries(R) {
+  return PROPS.filter((p) => !S.prop || p.id === S.prop).map((p) => ({ p, cur: R.months.map((m) => m.occ.find((o) => o.id === p.id).cur), n1: R.months.map((m) => m.occ.find((o) => o.id === p.id).n1) }));
+}
+function linePath(vals, X, Y) {
+  let d = '', pen = false;
+  vals.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; pen = true; });
+  return d;
+}
+function occChart(R, series, { h = 200, W = 720, thin = false, avg = false } = {}) {
+  const n = 12, X = (i) => 20 + i * (W - 40) / (n - 1), Y = (v) => h - 8 - v * (h - 20);
+  let s = `<svg viewBox="0 0 ${W} ${h + 20}" width="100%" preserveAspectRatio="none" style="height:${h + 20}px;display:block">`;
+  [0, .5, 1].forEach((g) => { s += `<line x1="16" x2="${W}" y1="${Y(g)}" y2="${Y(g)}" stroke="#EFEBE3"/><text x="0" y="${Y(g) + 3}" font-size="10" fill="#A39E92">${g * 100}</text>`; });
+  series.forEach(({ p, cur, n1 }) => {
+    if (S.hidden[p.id]) return;
+    const w = thin ? 1.4 : 2.6, op = thin ? .45 : 1;
+    s += `<path d="${linePath(n1, X, Y)}" fill="none" stroke="${p.color}" stroke-width="${w}" stroke-dasharray="6 4" opacity="${op * .85}"/>`;
+    s += `<path d="${linePath(cur, X, Y)}" fill="none" stroke="${p.color}" stroke-width="${w}" opacity="${op}" stroke-linejoin="round"/>`;
+    if (!thin) cur.forEach((v, i) => { if (v != null) s += `<circle cx="${X(i)}" cy="${Y(v)}" r="3" fill="${p.color}"/>`; });
+  });
+  if (avg) {
+    const mean = (k) => Array.from({ length: n }, (_, i) => { const v = series.filter((x) => !S.hidden[x.p.id]).map((x) => x[k][i]).filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; });
+    s += `<path d="${linePath(mean('n1'), X, Y)}" fill="none" stroke="#27251F" stroke-width="3" stroke-dasharray="7 4" opacity=".7"/><path d="${linePath(mean('cur'), X, Y)}" fill="none" stroke="#27251F" stroke-width="3.4"/>`;
+  }
+  R.months.forEach((m, i) => { s += `<text x="${X(i)}" y="${h + 15}" text-anchor="middle" font-size="11" fill="#6E6A5E">${m.initial}</text><rect class="hit" data-i="${i}" x="${X(i) - (W - 40) / 22}" y="0" width="${(W - 40) / 11}" height="${h}" fill="transparent"/>`; });
+  return s + '</svg>';
+}
+function charts(R) {
+  const hasN1 = R.months.some((m) => m.n1 != null);
+  const series = occSeries(R);
+  let occ = '';
+  const legend = `<div class="lgd">${series.map(({ p }) => `<button data-hide="${p.id}" class="${S.hidden[p.id] ? 'off' : ''}"><i style="background:${p.color}"></i>${p.short}</button>`).join('')}</div>`;
+  const key = `<div class="legend"><span><i style="background:#27251F;height:3px;width:14px;vertical-align:3px"></i>${R.fy.key} (trait plein)</span>${hasN1 ? `<span><i style="height:0;border-top:2.5px dashed #27251F;width:16px;border-radius:0;vertical-align:3px"></i>${R.fy.key - 1} (pointillé)</span>` : ''}</div>`;
+  if (S.occ === 'multiples') occ = key + `<div class="mult">${series.map((x) => { const yr = x.cur.filter((v) => v != null); const avgC = yr.length ? yr.reduce((a, b) => a + b, 0) / yr.length : 0; return `<div class="one" data-one="${x.p.id}"><div class="nm"><span style="color:${x.p.color}">● ${x.p.name}</span><span style="white-space:nowrap;font-weight:400;color:#6E6A5E">moy. <b style="color:#27251F">${pct(avgC)}</b></span></div>${occChart(R, [x], { h: 90, W: 340 })}</div>`; }).join('')}</div>`;
+  else occ = legend + key + occChart(R, series, { thin: S.occ === 'avg', avg: S.occ === 'avg' }) + (S.occ === 'avg' ? '<div class="sub">Trait noir épais : moyenne des logements affichés. Cliquez un logement dans la légende pour le masquer.</div>' : '<div class="sub">Cliquez un logement dans la légende pour le masquer.</div>');
+  return `<div class="charts">
+    <div class="card" id="mCard"><h4>Revenu par mois</h4><div class="sub">Exercice ${R.fy.key}${S.period !== 'fy' ? ' · la période choisie est surlignée' : ''}</div>
+      <div class="legend"><span><i style="background:#2F5D46"></i>Encaissé ou passé</span><span><i style="background:#C99038"></i>À venir</span>${hasN1 ? (S.n1 === 'pair' ? `<span><i style="background:#D9CFBA"></i>${R.fy.key - 1}</span>` : `<span><i style="height:0;border-top:2.5px dashed #6E5A34;width:16px;border-radius:0;vertical-align:3px"></i>${R.fy.key - 1}</span>`) : '<span>Pas encore d\'an dernier à comparer</span>'}</div>
+      ${monthChart(R)}<div class="tip"></div></div>
+    <div class="card" id="oCard"><h4>Taux d'occupation</h4><div class="sub">Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement</div>${occ}<div class="tip"></div></div>
+  </div>`;
+}
+
+// ———————————————————————— render ————————————————————————
+const app = document.getElementById('app');
+function render() {
+  const keepProp = S.prop; S.prop = null; const Rall = compute(); S.prop = keepProp;
+  const R = S.prop ? compute() : Rall;
+  if (S.tile === undefined) S.tile = null;
+  app.classList.toggle('mobile', S.width === 'mobile');
+  app.innerHTML = topBar(R) + strip(Rall) + hero(R) + tiles(R) + charts(R);
+  document.querySelectorAll('.bar .seg').forEach((seg) => seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(String(S[seg.dataset.ctl]) === b.dataset.v))));
+  // wiring
+  app.querySelector('#fySel').onchange = (e) => { S.fy = +e.target.value; S.month = `${S.fy}-${S.month.slice(5)}`; S.from = `${S.fy}${S.from.slice(4)}`; S.to = `${S.fy}${S.to.slice(4)}`; render(); };
+  app.querySelectorAll('[data-per]').forEach((b) => { b.onclick = () => { S.period = b.dataset.per; render(); }; });
+  const ms = app.querySelector('#monthSel'); if (ms) ms.onchange = (e) => { S.month = e.target.value; render(); };
+  const fi = app.querySelector('#fromIn'), ti = app.querySelector('#toIn');
+  const setCustom = () => { if (!fi.value || !ti.value) { S.customErr = 'Choisissez deux dates.'; render(); return; } if (fi.value > ti.value) { S.customErr = 'La date de début doit précéder la date de fin.'; render(); return; } S.customErr = null; S.from = fi.value; S.to = ti.value; render(); };
+  if (fi) { fi.onchange = setCustom; ti.onchange = setCustom; }
+  app.querySelectorAll('[data-prop]').forEach((b) => { b.onclick = () => { S.prop = b.dataset.prop || null; render(); }; });
+  app.querySelectorAll('[data-tile]').forEach((b) => { b.onclick = () => { S.tile = S.tile === b.dataset.tile ? null : b.dataset.tile; render(); if (S.tile) app.querySelector('#detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }; });
+  app.querySelectorAll('[data-rf]').forEach((b) => { b.onclick = () => { S.resFilter = b.dataset.rf; render(); }; });
+  app.querySelectorAll('[data-stop]').forEach((el) => el.addEventListener('click', (e) => e.stopPropagation()));
+  app.querySelectorAll('[data-pay]').forEach((c) => { c.onchange = () => { const [id, f] = c.dataset.pay.split(':'); const s = stays.find((x) => x.id === +id); if (f === 'dep') { s.depPaid = c.checked; s.depPaidOn = c.checked ? TODAY : null; } else { s.balPaid = c.checked; s.balPaidOn = c.checked ? TODAY : null; } render(); }; });
+  app.querySelectorAll('[data-settle]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); const s = stays.find((x) => x.id === +b.dataset.settle); if (s.dep && !s.depPaid) { s.depPaid = true; s.depPaidOn = TODAY; } if (!s.balPaid) { s.balPaid = true; s.balPaidOn = TODAY; } render(); }; });
+  app.querySelectorAll('[data-open]').forEach((tr) => { tr.onclick = () => toast(`Ouvre la fiche de la réservation ${tr.dataset.open}`); });
+  app.querySelectorAll('[data-prop-row]').forEach((tr) => { tr.onclick = () => { S.prop = tr.dataset.propRow; render(); }; });
+  const pi = app.querySelector('#projIn'); if (pi) pi.onchange = () => { S.projDate = pi.value || TODAY; render(); };
+  app.querySelectorAll('[data-hide]').forEach((b) => { b.onclick = () => { S.hidden[b.dataset.hide] = !S.hidden[b.dataset.hide]; render(); }; });
+  const cum = app.querySelector('#cumCard'); bindTip(cum, '.hit', (el) => { const p = R.cumul[el.dataset.i]; return `<b>au ${fmtD(p.day)}</b><br>${p.cur == null ? '—' : eur(p.cur)} cette année${p.n1 != null ? `<br>${eur(p.n1)} l'an dernier` : ''}`; });
+  // specs/finance-dashboard-redesign.md rule 22 — one line per year: « Juillet 2026 : 11 938 € ».
+  bindTip(app.querySelector('#mCard'), '.hit', (el) => { const m = R.months[el.dataset.i]; const t = m.past + m.upcoming; const name = MN[+m.ym.slice(5, 7) - 1].replace(/^./, (c) => c.toUpperCase()); return `<b>${name} ${m.ym.slice(0, 4)} : ${eur(t)}</b>${m.upcoming ? ` (dont ${eur(m.upcoming)} à venir)` : ''}${m.n1 != null ? `<br>${name} ${m.ym.slice(0, 4) - 1} : ${eur(m.n1)}` : ''}`; });
+  const oc = app.querySelector('#oCard');
+  // A vignette's tooltip speaks of its own logement only.
+  if (S.occ === 'multiples') bindTip(oc, '.one .hit', (el) => { const i = +el.dataset.i, m = R.months[i], x = occSeries(R).find((o) => o.p.id === el.closest('.one').dataset.one); return `<b>${x.p.name}</b><br><span style="text-transform:capitalize">${m.label}</span> : ${x.cur[i] == null ? 'fermé' : pct(x.cur[i])}${x.n1[i] != null ? `<br>${m.ym.slice(0, 4) - 1} : ${pct(x.n1[i])}` : ''}`; });
+  else bindTip(oc, '.hit', (el) => { const i = +el.dataset.i, m = R.months[i]; return `<b style="text-transform:capitalize">${m.label}</b>` + occSeries(R).filter((x) => !S.hidden[x.p.id]).map((x) => `<br><span style="color:${x.p.color === '#2F5D46' ? '#8FC3A5' : x.p.color}">●</span> ${x.p.short} : ${x.cur[i] == null ? 'fermé' : pct(x.cur[i])}${x.n1[i] != null ? ` <span style="opacity:.7">(${pct(x.n1[i])} N-1)</span>` : ''}`).join(''); });
+  renderSettings(R);
+}
+let toastEl;
+function toast(msg) { if (!toastEl) { toastEl = document.createElement('div'); toastEl.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#27251F;color:#fff;padding:9px 14px;border-radius:8px;font:13px var(--sans);z-index:50;transition:opacity .2s'; document.body.appendChild(toastEl); } toastEl.textContent = msg; toastEl.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => { toastEl.style.opacity = 0; }, 1800); }
+
+// ———————————————————————— settings mock ————————————————————————
+const setEl = document.getElementById('settings');
+const saved = { ...S.goals };
+function validateGoal(v) {
+  const t = String(v).trim().replace(/\s/g, '').replace(',', '.');
+  if (t === '') return { ok: true, value: '' };
+  if (/^-/.test(t)) return { ok: false, msg: 'L\'objectif doit être supérieur à 0 €. Laissez vide pour ne pas en fixer.' };
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return { ok: false, msg: 'Un montant en euros, sans lettres (ex. 85 000).' };
+  const n = Number(t);
+  if (n <= 0) return { ok: false, msg: 'L\'objectif doit être supérieur à 0 €. Laissez vide pour ne pas en fixer.' };
+  if (n > 10000000) return { ok: false, msg: 'Montant trop élevé : 10 000 000 € au plus.' };
+  return { ok: true, value: String(n) };
+}
+const draft = { 2026: S.goals[2026], 2027: S.goals[2027] };
+function renderSettings(R) {
+  if (setEl.dataset.built) { updateSettings(); return; }
+  setEl.dataset.built = '1';
+  setEl.innerHTML = `<div class="savebar"><button id="setCancel">Annuler</button><button class="pr" id="setSave">Enregistrer</button></div>
+  <div class="card"><h4 style="font-size:17px">Exercice comptable</h4><p class="sub" style="margin-bottom:12px">Sur quel mois votre bilan est-il arrêté ? Le suivi financier calcule ses totaux annuels sur cet exercice.</p>
+    <label for="closing">Mois de clôture</label><select id="closing"><option>Décembre</option></select><div class="hint">L'exercice suit l'année civile : du 1er janvier au 31 décembre.</div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(60,54,36,.12)"><b style="font-size:14px">Objectif de chiffre d'affaires</b><div class="hint" style="margin-top:2px">Net de commissions, comme le chiffre affiché en tête du Suivi financier. Laissez vide pour ne pas afficher de barre.</div>
+    <div class="row">
+      <div><label for="g2026">Exercice 2026 (en cours)</label><input id="g2026" inputmode="decimal" placeholder="Aucun objectif" value="${fmtIn(draft[2026])}"><div class="msg" id="m2026"></div></div>
+      <div><label for="g2027">Exercice 2027</label><input id="g2027" inputmode="decimal" placeholder="Aucun objectif" value="${fmtIn(draft[2027])}"><div class="msg" id="m2027"></div></div>
+    </div></div></div>`;
+  ['2026', '2027'].forEach((k) => { setEl.querySelector('#g' + k).addEventListener('input', (e) => { draft[k] = e.target.value; updateSettings(); }); });
+  setEl.querySelector('#setSave').onclick = () => { const a = validateGoal(draft[2026]), b = validateGoal(draft[2027]); if (!a.ok || !b.ok) return; S.goals[2026] = a.value; S.goals[2027] = b.value; saved[2026] = a.value; saved[2027] = b.value; toast('Réglages enregistrés — la barre d\'objectif est à jour'); render(); };
+  setEl.querySelector('#setCancel').onclick = () => { draft[2026] = saved[2026]; draft[2027] = saved[2027]; setEl.querySelector('#g2026').value = fmtIn(saved[2026]); setEl.querySelector('#g2027').value = fmtIn(saved[2027]); updateSettings(); };
+  updateSettings();
+}
+function fmtIn(v) { return v === '' ? '' : nf.format(Number(v)); }
+function updateSettings() {
+  let allOk = true, dirty = false;
+  ['2026', '2027'].forEach((k) => {
+    const r = validateGoal(draft[k]); const inp = setEl.querySelector('#g' + k), m = setEl.querySelector('#m' + k);
+    inp.classList.toggle('bad', !r.ok); allOk = allOk && r.ok;
+    if (r.ok && r.value !== saved[k]) dirty = true;
+    if (!r.ok) m.innerHTML = `<div class="bad-msg">${r.msg}</div>`;
+    else if (k === '2026' && r.value) { const rev = compute2026(); m.innerHTML = `<div class="hint">Aujourd'hui : ${eur(rev)}, soit ${pct(Math.min(1, rev / Number(r.value)))} de l'objectif.</div>`; }
+    else m.innerHTML = '';
+  });
+  const sv = setEl.querySelector('#setSave'); sv.disabled = !allOk || !dirty;
+  sv.title = !allOk ? 'Corrigez le montant en rouge avant d\'enregistrer' : '';
+}
+function compute2026() { const k = { ...S }; S.fy = 2026; S.period = 'fy'; S.prop = null; const r = compute().revenue; Object.assign(S, k); return r; }
+
+document.querySelectorAll('.bar .seg').forEach((seg) => seg.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; S[seg.dataset.ctl] = b.dataset.v; render(); }));
+S.tile = null;
+render();
+})();
+</script>
+</body>
+</html>

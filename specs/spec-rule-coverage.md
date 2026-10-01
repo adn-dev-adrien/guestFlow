@@ -101,6 +101,11 @@ n'ont aucun test ?** » — et empêcher qu'une règle **nouvelle** soit livrée
     > **Sans test** — c'est de la configuration de workflow (`if: github.event_name ==
     > 'pull_request'`), prouvée par l'exécution du job lui-même : il tourne sur cette PR, et nulle
     > part ailleurs.
+13. **Une spec remplacée ne porte plus de règles.** Quand la ligne **Status** d'une spec dit
+    « superseded », ses règles ne décrivent plus le produit : elles sortent du rapport et ne bloquent
+    jamais la barrière. Ajouté le 2026-10-01 : la synchronisation de `master` dans `inte/plugins`
+    (#649) apportait `finance-exercise-overview-charts.md`, remplacée sur `master` avec ses tests, et
+    la barrière la lisait comme 14 règles neuves sans test.
 
 **Edge cases :**
 
@@ -181,6 +186,8 @@ Et pour la barrière, sur une PR :
       plages `4-5` ; listes `28 + 30b` ; rattachement à la spec la plus proche au-dessus ; exemption
       `> **Sans test**` ; citations orphelines ; et la barrière : une règle ajoutée sans citation
       échoue, avec citation passe, une règle modifiée avertit sans échouer.
+- [x] `tests/spec-rule-coverage-superseded.unit.test.js` (2) — règle 13 : la ligne Status décide ; une
+      spec remplacée n'a pas de règles, ni au rapport ni à la barrière.
 
 ### Vérification réelle (2026-09-01)
 

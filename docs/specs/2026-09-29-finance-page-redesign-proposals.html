@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Suivi financier — propositions de design</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 15px/1.3 var(--sans);margin:18px 0 6px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:6px 0}
+code{font:12.5px var(--mono);background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
+@media (max-width:820px){.cols3{grid-template-columns:1fr}}
+.insp{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.insp b{display:block;font:600 14px var(--sans);color:var(--sapin);margin-bottom:4px}
+.insp span{font-size:13.5px;color:var(--muted)}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.tag.y{background:rgba(47,107,58,.14);color:var(--ok)} .tag.p{background:rgba(184,123,42,.16);color:var(--ocre)} .tag.n{background:rgba(163,58,42,.13);color:var(--ko)}
+
+/* controls */
+.bar{position:sticky;top:0;z-index:30;background:var(--paper);padding:10px 0;border-bottom:1px solid var(--line);margin:0 -16px 14px;padding-left:16px;padding-right:16px}
+.ctls{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.ctls .k{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--ocre);margin-right:4px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:4px}
+.seg button{font:13px var(--sans);padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;min-height:34px}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.seg.big button{font-weight:600;padding:8px 14px}
+.pitch{margin:8px 0 12px;font-size:14px;color:var(--muted)}
+.pitch b{color:var(--ink)}
+
+/* ================= app mock — always the light « Maison » palette ================= */
+.stage{background:#E6E0D2;border-radius:14px;padding:14px;overflow:hidden}
+.app{--p:#2F5D46;--p2:#244A38;--m:#C99038;--bg:#F8F5EF;--c:#fff;--t:#27251F;--t2:#6E6A5E;--d:rgba(60,54,36,.1);--ok:#3E7D54;--okbg:#E6EFE7;--ko:#A8433A;--kobg:#F7E8E5;--wn:#8F6A1D;--wnbg:#F6EDD7;
+  container-type:inline-size;margin:0 auto;background:var(--bg);color:var(--t);border-radius:12px;padding:16px;font:14px/1.45 var(--sans);max-width:100%;transition:max-width .25s}
+.app.mobile{max-width:390px}
+.app *{box-sizing:border-box}
+.a-top{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--c);border-radius:14px;padding:10px 14px;margin-bottom:14px;box-shadow:0 3px 16px rgba(60,54,36,.09)}
+.a-top b{font:600 18px var(--serif)}
+.a-sel{display:flex;gap:8px;flex-wrap:wrap}
+.a-pill{border:1px solid var(--d);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--c);cursor:pointer}
+.card{background:var(--c);border-radius:14px;padding:16px;box-shadow:0 3px 16px rgba(60,54,36,.09);position:relative;min-width:0}
+.card h4{font:600 16px var(--serif);margin:0 0 2px}
+.card .sub{font-size:12px;color:var(--t2)}
+.g{display:grid;gap:14px;margin-bottom:14px}
+.num{font-variant-numeric:tabular-nums}
+.delta{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.delta.up{background:var(--okbg);color:var(--ok)} .delta.down{background:var(--kobg);color:var(--ko)} .delta.flat{background:#EEE;color:var(--t2)}
+.lbl{font-size:12px;font-weight:600;color:var(--t2);letter-spacing:.01em}
+.kv{font:700 26px/1.15 var(--sans);font-variant-numeric:tabular-nums;margin:4px 0}
+.tip{position:absolute;pointer-events:none;background:#27251F;color:#fff;font-size:12px;line-height:1.45;padding:7px 9px;border-radius:8px;white-space:nowrap;z-index:5;display:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+svg text{font-family:var(--sans)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--t2);flex-wrap:wrap;margin:6px 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.legend i.dash{height:0;border-top:2px dashed #9A958A;border-radius:0;width:14px;vertical-align:3px}
+
+/* A — banque */
+.A-hero{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px}
+.A-big{font:700 46px/1.05 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin:6px 0}
+.A-treso .seg3{display:flex;height:14px;border-radius:99px;overflow:hidden;margin:12px 0}
+.A-treso .row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--d);font-size:13.5px}
+.A-treso .row:first-of-type{border-top:0}
+.A-tx{list-style:none;margin:0;padding:0}
+.A-tx li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--d)}
+.A-tx li:first-child{border-top:0}
+.A-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex:0 0 34px}
+.A-tx .mid{flex:1;min-width:0} .A-tx .mid div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.A-tx .amt{font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* B — pilotage */
+.B-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+.B-kpi{padding:12px}
+.B-kpi .kv{font-size:22px}
+.B-heat{display:grid;gap:3px;font-size:11.5px}
+.B-heat .h{color:var(--t2);text-align:center;font-size:11px}
+.B-heat .n{color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;align-self:center}
+.B-heat .c{height:30px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:600;font-variant-numeric:tabular-nums;cursor:default}
+.B-heat .c.closed{background:repeating-linear-gradient(45deg,#EFEBE3,#EFEBE3 4px,#E4DFD4 4px,#E4DFD4 8px);color:#A39E92;font-weight:400}
+.B-ch{width:100%;border-collapse:collapse;font-size:13px}
+.B-ch th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--t2);text-align:right;padding:6px 8px;border-bottom:1px solid var(--d);font-weight:600}
+.B-ch th:first-child,.B-ch td:first-child{text-align:left}
+.B-ch td{text-align:right;padding:8px;border-bottom:1px solid var(--d);font-variant-numeric:tabular-nums;white-space:nowrap}
+.B-ch .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.B-ch .neg{color:var(--ko)}
+
+/* C — maison */
+.C-hero{border-radius:18px;padding:22px 24px;color:#fff;background:linear-gradient(135deg,#2F5D46 0%,#244A38 55%,#1E3D2F 100%);position:relative;overflow:hidden;margin-bottom:14px;box-shadow:0 8px 28px rgba(36,74,56,.28)}
+.C-hero:after{content:"";position:absolute;right:-60px;top:-80px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(201,144,56,.35),rgba(201,144,56,0) 70%)}
+.C-hero .hi{font:600 15px var(--serif);opacity:.9}
+.C-hero .big{font:700 48px/1.05 var(--sans);font-variant-numeric:tabular-nums;margin:8px 0 6px;letter-spacing:-.01em}
+.C-hero .delta.up{background:rgba(255,255,255,.16);color:#fff}
+.C-hero .delta.down{background:rgba(255,120,100,.25);color:#fff}
+.C-goal{margin-top:16px;max-width:520px;position:relative;z-index:1}
+.C-goal .track{height:10px;background:rgba(255,255,255,.18);border-radius:99px;overflow:hidden}
+.C-goal .fill{height:100%;background:linear-gradient(90deg,#E3B566,#C99038);border-radius:99px;transition:width .5s}
+.C-goal .gl{display:flex;justify-content:space-between;font-size:12.5px;opacity:.9;margin-top:6px}
+.C-heroGrid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:end;position:relative;z-index:1}
+.C-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.C-mini div{background:rgba(255,255,255,.1);border-radius:12px;padding:10px 12px}
+.C-mini b{display:block;font:700 20px var(--sans);font-variant-numeric:tabular-nums}
+.C-mini span{font-size:12px;opacity:.85}
+.C-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+.C-kpi{display:flex;gap:12px;align-items:center}
+.C-kpi .kv{font-size:22px}
+.C-ins{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.C-in{display:flex;gap:12px;align-items:flex-start}
+.C-in .ic{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 38px}
+.C-in b{display:block;font-size:14px;margin-bottom:2px}
+.C-in span{font-size:12.5px;color:var(--t2)}
+.C-props{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.C-prop{border:1px solid var(--d);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center;cursor:pointer;transition:border-color .15s,background .15s}
+.C-prop:hover{border-color:var(--p);background:#FAFBF8}
+.C-prop.on{border-color:var(--p);background:#F1F6F2}
+.C-prop .nm{font-weight:600;font-size:13.5px}
+.C-prop .sm{font-size:12px;color:var(--t2)}
+.two{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-bottom:14px}
+.two.B-two{grid-template-columns:1fr 1.25fr}
+
+@container (max-width:900px){
+  .B-kpis{grid-template-columns:repeat(3,1fr)}
+  .C-kpis{grid-template-columns:repeat(2,1fr)}
+}
+@container (max-width:640px){
+  .A-hero,.two,.two.B-two,.C-heroGrid,.C-ins{grid-template-columns:1fr}
+  .B-kpis{grid-template-columns:repeat(2,1fr)}
+  .A-big,.C-hero .big{font-size:36px}
+  .C-hero{padding:18px}
+  .a-top{flex-direction:column;align-items:flex-start}
+  .B-heat{font-size:10px}.B-heat .c{height:26px;font-size:10px}
+  .B-hideXs{display:none}
+}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Suivi financier : trois directions de design</h1>
+<p class="meta">Proposition du 29/09/2026 · rien n'est encore construit · chiffres <b>fictifs</b> (un établissement de démonstration à 4 logements), mais calculés pour de vrai à partir de ~500 séjours générés</p>
+
+<div class="note"><b>Déjà fait, à part :</b> la tuile « Revenu de l'exercice » en double est retirée (PR #635). Les trois propositions ci-dessous vont plus loin : elles redessinent le haut de la page.</div>
+
+<h2>Ce dont je me suis inspiré</h2>
+<div class="cols3">
+  <div class="insp"><b>Outils bancaires et comptables</b><span>Qonto, Pennylane, Shine, le tableau de bord Stripe : <b>un grand chiffre en tête</b> avec sa variation, une courbe cumulée contre l'an dernier, la trésorerie en barre segmentée, des mouvements qui se lisent comme un relevé.</span></div>
+  <div class="insp"><b>Logiciels hôtels et campings</b><span>Les PMS du métier (Septeo, Mews, Cloudbeds, Lodgify…) parlent en indicateurs d'hébergeur : <b>taux d'occupation, prix moyen par nuit, RevPAR, durée moyenne de séjour, délai de réservation</b>, et le « pace » : où en sont les réservations à venir par rapport à l'an dernier à la même date.</span></div>
+  <div class="insp"><b>Ce que GuestFlow a en plus</b><span>Les commissions réelles par plateforme, la part en direct, les encaissements échéance par échéance. On peut donc montrer <b>ce que chaque canal rapporte vraiment</b>, net de commission, ce que la plupart des outils ne font pas.</span></div>
+</div>
+
+<h2>Essayer</h2>
+<div class="bar">
+  <div class="ctls">
+    <span><span class="k">Direction</span><span class="seg big" data-ctl="dir"><button data-v="A">A · Banque</button><button data-v="B">B · Tour de contrôle</button><button data-v="C">C · Maison (conseillée)</button></span></span>
+    <span><span class="k">Largeur</span><span class="seg" data-ctl="width"><button data-v="desk">Ordinateur</button><button data-v="mobile">Téléphone</button></span></span>
+  </div>
+</div>
+<p class="pitch" id="pitch"></p>
+<p class="muted" style="font-size:13px">Les pastilles « vs N-1 » supposent une année d'historique : chez toi, elles n'apparaîtront qu'à l'exercice prochain (voir le tableau des indicateurs). Tout est cliquable : l'exercice et le logement en haut de la maquette, les tuiles, les points des courbes, les cases de la grille. La comparaison avec l'an dernier se fait toujours « à la même date », comme dans un PMS.</p>
+
+<div class="stage"><div class="app" id="app"></div></div>
+
+<h2>Les indicateurs, et d'où ils viendraient</h2>
+<div class="tbl"><table id="kpiTable">
+<thead><tr><th>Indicateur</th><th>Ce qu'il dit</th><th>Source dans GuestFlow</th><th>Disponible</th></tr></thead>
+<tbody><tr><td><b>Chiffre d'affaires</b></td><td>Ce que vous gagnez, net de commission</td><td>Déjà calculé (« total de séjour »)</td><td><span class="tag y">Oui</span></td></tr><tr><td><b>Encaissé / à encaisser / en retard</b></td><td>La trésorerie des séjours</td><td>Déjà calculé (échéances)</td><td><span class="tag y">Oui</span></td></tr><tr><td><b>Taux d'occupation</b></td><td>Nuits vendues ÷ nuits ouvrables</td><td>Nuits des réservations + fermetures (<code>establishment_closures</code>)</td><td><span class="tag p">Oui, avec une réserve : aucune date de mise en vente par logement</span></td></tr><tr><td><b>Prix moyen / nuit, RevPAR</b></td><td>Ce que rapporte une nuit vendue / une nuit ouvrable</td><td>Chiffre d'affaires ÷ nuits (÷ nuits ouvrables pour le RevPAR)</td><td><span class="tag y">Oui (12 résas Lodgify sans prix à compléter)</span></td></tr><tr><td><b>Durée moyenne, voyageurs par séjour</b></td><td>Le profil des séjours</td><td>Dates, adultes / enfants / bébés</td><td><span class="tag y">Oui</span></td></tr><tr><td><b>Commissions par canal</b></td><td>Ce que chaque plateforme vous coûte vraiment</td><td>Commissions saisies sur les réservations</td><td><span class="tag p">Partiel : 61 % des résas plateforme ont leur commission</span></td></tr><tr><td><b>Part en direct, commissions évitées</b></td><td>Ce que le direct vous fait gagner</td><td>Canal + taux moyen des plateformes</td><td><span class="tag y">Oui</span></td></tr><tr><td><b>Options et extras</b></td><td>Ce que rapportent petit-déj, bain nordique, linge…</td><td>Options, lignes libres, ressources</td><td><span class="tag y">Oui</span></td></tr><tr><td><b>Comparaison N-1</b></td><td>Mieux ou moins bien que l'an dernier</td><td>Même calcul sur l'exercice précédent</td><td><span class="tag n">Pas avant l'an prochain : les données commencent en avril 2026</span></td></tr><tr><td><b>Délai de réservation, réservations à venir vs N-1</b></td><td>Quand les clients réservent, où en est la saison prochaine</td><td>Date de création des réservations</td><td><span class="tag p">Fiable pour le direct ; pour l'iCal, c'est la date d'import, pas la date où le client a réservé</span></td></tr><tr><td><b>Origine des voyageurs, clients fidèles</b></td><td>D'où ils viennent, qui revient</td><td>Code postal (1 client sur 3), langue</td><td><span class="tag n">Trop peu renseigné aujourd'hui</span></td></tr><tr><td><b>Avis et notes</b></td><td>Satisfaction</td><td>—</td><td><span class="tag n">Aucune donnée</span></td></tr></tbody></table></div>
+<p class="muted" style="font-size:13px">Mesuré le 29/09/2026 sur la base de dev (copie de la production) : 2 logements, 55 réservations, toutes à partir d'avril 2026.</p>
+
+<h2>Ce qu'il faudra trancher</h2>
+<ul class="tight">
+  <li><b>La direction</b> : A, B, C, ou un mélange (le hero de C avec la grille d'occupation de B, par exemple).</li>
+  <li><b>L'objectif annuel</b> (barre dorée de C) : c'est une <b>donnée nouvelle</b> à saisir dans les Réglages, un montant par exercice. Sans lui, la barre disparaît.</li>
+  <li><b>Le filtre par logement</b> en haut de page : il recalcule tout le bloc, et c'est ce que font les PMS.</li>
+  <li><b>La comparaison à N-1</b> : la maquette la montre partout, mais tes données ne commencent qu'en avril 2026. Jusqu'à l'exercice prochain, les pastilles afficheraient « nouveau » ; on peut aussi les masquer tant qu'il n'y a pas d'année de référence.</li>
+  <li><b>La place de l'existant</b> : les cartes période, « Revenu par logement », « Canaux de réservation » et le suivi opérationnel restent en dessous ; certains font doublon avec la nouvelle tête de page et pourraient partir.</li>
+</ul>
+
+<h2>Ce qu'on ne ferait pas</h2>
+<ul class="tight">
+  <li>Aucun chiffre calculé dans le navigateur : comme aujourd'hui, le serveur livre tout prêt (la maquette calcule en JavaScript uniquement parce qu'elle est autonome).</li>
+  <li>Pas d'avis clients ni de note moyenne : GuestFlow n'a pas ces données.</li>
+  <li>Pas de prévision « intelligente » : le pace compare des faits (réservé à date), il ne devine rien.</li>
+</ul>
+
+</div>
+
+<script>
+(function(){
+// ———————————————————————— fictitious data ————————————————————————
+let seed = 424242;
+const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const DAY = 864e5;
+const D = (s) => Date.parse(s + 'T00:00:00Z');
+const iso = (t) => new Date(t).toISOString().slice(0, 10);
+const add = (s, n) => iso(D(s) + n * DAY);
+const TODAY = '2026-09-29';
+const PROPS = [
+  { id: 'lodge', name: 'Le Lodge des Prés', short: 'Lodge', price: 150, closed: [], hue: '#2F5D46' },
+  { id: 'four', name: 'Le Gîte du Four', short: 'Gîte', price: 136, closed: [], hue: '#4E7A5F' },
+  { id: 'roulotte', name: 'La Roulotte', short: 'Roulotte', price: 86, closed: [11, 12, 1, 2, 3], hue: '#C99038' },
+  { id: 'cabane', name: 'La Cabane perchée', short: 'Cabane', price: 108, closed: [1, 2], hue: '#8A6B3E' },
+];
+const CHANNELS = [
+  { key: 'direct', label: 'Direct', color: '#2F5D46', w: .36, fee: 0, lead: [25, 140] },
+  { key: 'airbnb', label: 'Airbnb', color: '#FF5A5F', w: .22, fee: .155, lead: [4, 70] },
+  { key: 'booking', label: 'Booking.com', color: '#003580', w: .18, fee: .17, lead: [2, 60] },
+  { key: 'gdf', label: 'Gîtes de France', color: '#D4B21F', w: .15, fee: .18, lead: [15, 110] },
+  { key: 'abritel', label: 'Abritel', color: '#1565C0', w: .09, fee: .08, lead: [10, 90] },
+];
+const OCC = [.28, .36, .4, .5, .56, .7, .93, .98, .6, .5, .3, .42];
+const PRICE = [.92, .92, .95, 1, 1.02, 1.1, 1.28, 1.32, 1.05, .98, .92, 1.05];
+const pickCh = () => { let x = rnd(), a = 0; for (const c of CHANNELS) { a += c.w; if (x < a) return c; } return CHANNELS[0]; };
+const stays = [];
+for (const p of PROPS) {
+  let d = '2024-01-01';
+  while (d < '2027-02-01') {
+    const m = Number(d.slice(5, 7));
+    const growth = d >= '2025-10-01' ? 1.1 : 1;
+    if (p.closed.includes(m)) { d = add(d, 1); continue; }
+    if (rnd() < OCC[m - 1] * 0.44 * growth) {
+      const nights = 2 + Math.floor(rnd() * rnd() * 6) + (m === 7 || m === 8 ? 1 : 0);
+      const ch = pickCh();
+      const gross = Math.round(p.price * nights * PRICE[m - 1] * (d >= '2026-01-01' ? 1.04 : 1) * (0.92 + rnd() * .16));
+      const extras = rnd() < .32 ? Math.round(30 + rnd() * 110) : 0;
+      const commission = Math.round(gross * ch.fee);
+      const lead = Math.round(ch.lead[0] + (ch.lead[1] - ch.lead[0]) * rnd() * rnd());
+      const end = add(d, nights);
+      const created = add(d, -lead);
+      const cancelled = rnd() < .05;
+      const paidRaw = rnd() < .9 ? add(d, -Math.round(rnd() * 30)) : null;
+      const paid = paidRaw && paidRaw <= TODAY ? paidRaw : null;
+      if (created <= TODAY) stays.push({ prop: p.id, ch: ch.key, start: d, end, nights, gross, extras, commission, net: gross - commission + extras, created, cancelled, paid, attr: paid || end, ref: 'R' + String(stays.length + 1041) });
+      d = add(end, rnd() < .5 ? 0 : 1 + Math.floor(rnd() * 3));
+    } else d = add(d, 1);
+  }
+}
+
+// ———————————————————————— the « server » ————————————————————————
+const FY = { 2026: { key: 2026, label: '2026', from: '2026-01-01', to: '2026-12-31' }, 2025: { key: 2025, label: '2025', from: '2025-01-01', to: '2025-12-31' } };
+const monthsOf = (fy) => Array.from({ length: 12 }, (_, i) => `${fy.from.slice(0, 4)}-${String(i + 1).padStart(2, '0')}`);
+const daysIn = (ym) => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+const minusYear = (s) => `${+s.slice(0, 4) - 1}${s.slice(4)}`;
+const MN = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+function compute(fyKey, propId) {
+  const fy = FY[fyKey];
+  const asOf = fy.to < TODAY ? fy.to : TODAY;          // a closed exercise is read in full
+  const asOfN1 = minusYear(asOf);
+  const prev = { from: minusYear(fy.from), to: minusYear(fy.to) };
+  const inProp = (s) => !propId || s.prop === propId;
+  const props = PROPS.filter((p) => !propId || p.id === propId);
+  // On the books at a date: created by then, not cancelled, attributed inside the window.
+  const book = (from, to, at) => stays.filter((s) => inProp(s) && !s.cancelled && s.created <= at && s.attr >= from && s.attr <= to);
+  const cur = book(fy.from, fy.to, asOf), n1 = book(prev.from, prev.to, asOfN1), n1full = book(prev.from, prev.to, prev.to);
+  const sum = (l, k) => l.reduce((n, s) => n + s[k], 0);
+  const revenue = sum(cur, 'net'), revenueN1 = sum(n1, 'net');
+  const realised = cur.filter((s) => s.attr <= TODAY), upcoming = cur.filter((s) => s.attr > TODAY);
+  // Night-based occupancy per logement × month.
+  const occNights = (list, ym) => { let n = 0; for (const s of list) for (let i = 0; i < s.nights; i++) if (add(s.start, i).slice(0, 7) === ym) n++; return n; };
+  const months = monthsOf(fy).map((ym) => {
+    const inM = (s) => s.attr.slice(0, 7) === ym;
+    const m = +ym.slice(5, 7);
+    const sellable = props.reduce((n, p) => n + (p.closed.includes(m) ? 0 : daysIn(ym)), 0);
+    const nightsSold = occNights(cur, ym);
+    return {
+      ym, m, label: `${MN[m - 1]} ${ym.slice(0, 4)}`, initial: MN[m - 1][0].toUpperCase(),
+      past: sum(realised.filter(inM), 'net'), upcoming: sum(upcoming.filter(inM), 'net'),
+      n1: sum(n1full.filter((s) => s.attr.slice(0, 7) === minusYear(ym + '-01').slice(0, 7)), 'net'),
+      sellable, nightsSold, occ: sellable ? nightsSold / sellable : null,
+      perProp: PROPS.map((p) => { const sel = p.closed.includes(m) ? 0 : daysIn(ym); return { id: p.id, occ: sel ? occNights(cur.filter((s) => s.prop === p.id), ym) / sel : null }; }),
+    };
+  });
+  const sellable = sum(months, 'sellable'), nightsSold = sum(months, 'nightsSold');
+  const sellableN1 = monthsOf(fy).reduce((n, ym) => n + props.reduce((k, p) => k + (p.closed.includes(+ym.slice(5, 7)) ? 0 : daysIn(ym)), 0), 0);
+  const nightsN1 = monthsOf(fy).reduce((n, ym) => n + occNights(n1, minusYear(ym + '-01').slice(0, 7)), 0);
+  const accom = sum(cur, 'gross') - sum(cur, 'commission');
+  const accomN1 = sum(n1, 'gross') - sum(n1, 'commission');
+  const stayNights = sum(cur, 'nights');
+  const leads = cur.map((s) => (D(s.start) - D(s.created)) / DAY).sort((a, b) => a - b);
+  const leadsN1 = n1.map((s) => (D(s.start) - D(s.created)) / DAY).sort((a, b) => a - b);
+  const median = (l) => l.length ? l[Math.floor(l.length / 2)] : 0;
+  const k = {
+    revenue, revenueN1,
+    occ: sellable ? nightsSold / sellable : 0, occN1: sellableN1 ? nightsN1 / sellableN1 : 0,
+    adr: stayNights ? accom / stayNights : 0, adrN1: sum(n1, 'nights') ? accomN1 / sum(n1, 'nights') : 0,
+    revpar: sellable ? accom / sellable : 0, revparN1: sellableN1 ? accomN1 / sellableN1 : 0,
+    los: cur.length ? stayNights / cur.length : 0, losN1: n1.length ? sum(n1, 'nights') / n1.length : 0,
+    lead: median(leads), leadN1: median(leadsN1),
+    stays: cur.length, nights: stayNights,
+  };
+  const channels = CHANNELS.map((c) => {
+    const l = cur.filter((s) => s.ch === c.key);
+    return { ...c, count: l.length, gross: sum(l, 'gross') + sum(l, 'extras'), commission: sum(l, 'commission'), net: sum(l, 'net') };
+  }).filter((c) => c.count).sort((a, b) => b.net - a.net);
+  const commissionTotal = sum(channels, 'commission');
+  const directNet = (channels.find((c) => c.key === 'direct') || { net: 0 }).net;
+  const avgFee = (() => { const ota = channels.filter((c) => c.key !== 'direct'); const g = sum(ota, 'gross'); return g ? sum(ota, 'commission') / g : 0; })();
+  const perProp = PROPS.filter((p) => !propId || p.id === propId).map((p) => {
+    const l = cur.filter((s) => s.prop === p.id);
+    const sel = monthsOf(fy).reduce((n, ym) => n + (p.closed.includes(+ym.slice(5, 7)) ? 0 : daysIn(ym)), 0);
+    const nts = monthsOf(fy).reduce((n, ym) => n + occNights(l, ym), 0);
+    return { ...p, net: sum(l, 'net'), occ: sel ? nts / sel : 0, adr: sum(l, 'nights') ? (sum(l, 'gross') - sum(l, 'commission')) / sum(l, 'nights') : 0 };
+  }).sort((a, b) => b.net - a.net);
+  // Cumulative revenue by day of the exercise, this year and N-1 (attributed ≤ day, known ≤ day).
+  const cumul = [];
+  for (let t = D(fy.from); t <= D(fy.to); t += 7 * DAY) {
+    const day = iso(t), dayN1 = minusYear(day);
+    cumul.push({ day, cur: day <= asOf ? sum(cur.filter((s) => s.attr <= day), 'net') : null, n1: sum(n1full.filter((s) => s.attr <= dayN1), 'net') });
+  }
+  // Treasury of the exercise.
+  const late = cur.filter((s) => s.end < TODAY && !s.paid);
+  const treso = { collected: sum(cur.filter((s) => s.paid), 'net'), toCome: sum(cur.filter((s) => !s.paid && s.end >= TODAY), 'net'), late: sum(late, 'net'), lateCount: late.length };
+  const recent = stays.filter((s) => inProp(s) && !s.cancelled && s.paid && s.paid <= asOf).sort((a, b) => (b.paid > a.paid ? 1 : -1)).slice(0, 6);
+  // Pace — the next six months, nights on the books today vs a year ago for the same months.
+  const pace = [];
+  if (fy.to >= TODAY) {
+    let ym = TODAY.slice(0, 7);
+    for (let i = 0; i < 6; i++) {
+      const [y, m] = ym.split('-').map(Number);
+      const ymN1 = `${y - 1}-${String(m).padStart(2, '0')}`;
+      const now = occNights(stays.filter((s) => inProp(s) && !s.cancelled && s.created <= TODAY), ym);
+      const then = occNights(stays.filter((s) => inProp(s) && !s.cancelled && s.created <= minusYear(TODAY)), ymN1);
+      pace.push({ ym, label: `${MN[m - 1]} ${y}`, short: MN[m - 1].slice(0, 3) + '.', now, then });
+      ym = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    }
+  }
+  const best = months.reduce((b, m) => (m.past + m.upcoming > b.past + b.upcoming ? m : b), months[0]);
+  const cancelled = stays.filter((s) => inProp(s) && s.cancelled && s.attr >= fy.from && s.attr <= fy.to && s.created <= asOf).length;
+  return { fy, asOf, k, months, channels, commissionTotal, directNet, avgFee, perProp, cumul, treso, recent, pace, best, cancelled, goal: fyKey === 2026 ? (propId ? null : 80000) : null };
+}
+
+// ———————————————————————— helpers ————————————————————————
+const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+const eur = (n) => nf.format(Math.round(n)) + ' €';
+const eurK = (n) => n >= 10000 ? (Math.round(n / 100) / 10).toString().replace('.', ',') + ' k€' : eur(n);
+const pct = (x) => Math.round(x * 100) + ' %';
+const dec1 = (x) => (Math.round(x * 10) / 10).toString().replace('.', ',');
+const fmtD = (s) => `${+s.slice(8, 10)} ${MN[+s.slice(5, 7) - 1].slice(0, 4).replace(/\.$/, '')}.`;
+function delta(cur, prev, { inverse = false, unit = '%', label = 'vs N-1' } = {}) {
+  if (!prev) return `<span class="delta flat">nouveau</span>`;
+  let d, txt;
+  if (unit === 'pt') { d = (cur - prev) * 100; txt = (d >= 0 ? '+' : '−') + dec1(Math.abs(d)) + ' pt'; }
+  else if (unit === 'j') { d = cur - prev; txt = (d >= 0 ? '+' : '−') + Math.round(Math.abs(d)) + ' j'; }
+  else { d = (cur - prev) / prev * 100; txt = (d >= 0 ? '+' : '−') + Math.round(Math.abs(d)) + ' %'; }
+  const good = inverse ? d < 0 : d > 0;
+  if (Math.abs(d) < 0.5) return `<span class="delta flat" title="${label}">= stable</span>`;
+  const cls = good ? 'up' : 'down';
+  const arrow = d > 0 ? '▲' : '▼';
+  return `<span class="delta ${cls}" title="${label}">${arrow} ${txt}</span>`;
+}
+function spark(values, color, w = 110, h = 30) {
+  const v = values.map((x) => x || 0), max = Math.max(1, ...v), step = w / (v.length - 1);
+  const pts = v.map((x, i) => `${(i * step).toFixed(1)},${(h - 2 - x / max * (h - 4)).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+function ring(x, color, size = 54, stroke = 7, label) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, x || 0));
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#EDE9E0" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/><text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle" font-size="${size / 4.2}" font-weight="700" fill="#27251F">${label ?? pct(f)}</text></svg>`;
+}
+function donut(items, size = 140) {
+  const tot = items.reduce((n, i) => n + i.v, 0) || 1; let a0 = -Math.PI / 2; const cx = size / 2, ro = size / 2 - 2, ri = ro * .6;
+  const P = (r, a) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cx + r * Math.sin(a)).toFixed(2)}`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` + items.map((it) => {
+    const a1 = a0 + it.v / tot * Math.PI * 2 - 0.0001, large = a1 - a0 > Math.PI ? 1 : 0;
+    const d = `M${P(ro, a0)} A${ro} ${ro} 0 ${large} 1 ${P(ro, a1)} L${P(ri, a1)} A${ri} ${ri} 0 ${large} 0 ${P(ri, a0)}Z`; a0 = a1 + 0.0001;
+    return `<path d="${d}" fill="${it.c}"><title>${it.t}</title></path>`;
+  }).join('') + `</svg>`;
+}
+// Tooltip helper bound to a card element.
+function bindTip(card, sel, html) {
+  const tip = card.querySelector('.tip');
+  card.querySelectorAll(sel).forEach((el) => {
+    el.addEventListener('mouseenter', () => { tip.innerHTML = html(el); tip.style.display = 'block'; });
+    el.addEventListener('mousemove', (e) => {
+      const r = card.getBoundingClientRect();
+      let x = e.clientX - r.left + 12, y = e.clientY - r.top - tip.offsetHeight - 10;
+      if (x + tip.offsetWidth > r.width - 4) x = e.clientX - r.left - tip.offsetWidth - 12;
+      if (y < 4) y = e.clientY - r.top + 16;
+      tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    });
+    el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+}
+
+// Month bars with N-1 ghost and the miel « à venir » part.
+function monthBars(R, { h = 190, showN1 = true } = {}) {
+  const W = 720, pad = 8, n = R.months.length, bw = (W - pad * 2) / n;
+  const max = Math.max(1, ...R.months.map((m) => Math.max(m.past + m.upcoming, showN1 ? m.n1 : 0)));
+  let s = `<svg viewBox="0 0 ${W} ${h + 22}" width="100%" preserveAspectRatio="none" style="height:${h + 22}px;display:block">`;
+  [0.25, .5, .75, 1].forEach((g) => { s += `<line x1="0" x2="${W}" y1="${h - g * (h - 10)}" y2="${h - g * (h - 10)}" stroke="#EFEBE3"/>`; });
+  R.months.forEach((m, i) => {
+    const x = pad + i * bw, inner = bw * .56, bx = x + (bw - inner) / 2;
+    const hp = m.past / max * (h - 10), hu = m.upcoming / max * (h - 10), hn = m.n1 / max * (h - 10);
+    if (showN1 && m.n1) s += `<rect x="${bx - 4}" y="${h - hn}" width="${inner + 8}" height="${hn}" rx="6" fill="none" stroke="#B9B3A6" stroke-dasharray="3 3"/>`;
+    if (hu) s += `<rect x="${bx}" y="${h - hp - hu}" width="${inner}" height="${hu}" rx="${hp ? 0 : 5}" fill="#C99038"/>`;
+    if (hu && hp) s += `<rect x="${bx}" y="${h - hp - hu}" width="${inner}" height="5" rx="5" fill="#C99038"/>`;
+    if (hp) s += `<rect x="${bx}" y="${h - hp}" width="${inner}" height="${hp}" rx="${hu ? 0 : 5}" fill="#2F5D46"/>`;
+    if (hp && !hu) s += `<rect x="${bx}" y="${h - hp}" width="${inner}" height="${Math.min(5, hp)}" rx="5" fill="#2F5D46"/>`;
+    s += `<rect class="hit" data-i="${i}" x="${x}" y="0" width="${bw}" height="${h}" fill="transparent"/>`;
+    s += `<text x="${x + bw / 2}" y="${h + 16}" text-anchor="middle" font-size="11" fill="#6E6A5E">${m.initial}</text>`;
+  });
+  return s + `</svg>`;
+}
+const monthTip = (R) => (el) => { const m = R.months[el.dataset.i]; const t = m.past + m.upcoming; return `<b style="text-transform:capitalize">${m.label}</b><br>${eur(t)}${m.upcoming ? ` · dont ${eur(m.upcoming)} à venir` : ''}<br>N-1 : ${eur(m.n1)}${m.occ != null ? `<br>Occupation ${pct(m.occ)}` : ''}`; };
+
+// Cumulative area chart this year vs N-1.
+function cumulChart(R, h = 220) {
+  const W = 720, max = Math.max(1, ...R.cumul.map((p) => Math.max(p.cur || 0, p.n1))), n = R.cumul.length;
+  const X = (i) => 4 + i * (W - 8) / (n - 1), Y = (v) => h - 6 - v / max * (h - 20);
+  const cur = R.cumul.map((p, i) => p.cur == null ? null : [X(i), Y(p.cur)]).filter(Boolean);
+  const n1 = R.cumul.map((p, i) => [X(i), Y(p.n1)]);
+  const line = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  let s = `<svg viewBox="0 0 ${W} ${h + 20}" width="100%" preserveAspectRatio="none" style="height:${h + 20}px;display:block"><defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2F5D46" stop-opacity=".28"/><stop offset="1" stop-color="#2F5D46" stop-opacity="0"/></linearGradient></defs>`;
+  [0.25, .5, .75, 1].forEach((g) => { s += `<line x1="0" x2="${W}" y1="${Y(max * g)}" y2="${Y(max * g)}" stroke="#EFEBE3"/><text x="${W - 4}" y="${Y(max * g) - 4}" text-anchor="end" font-size="10" fill="#A39E92">${eurK(max * g)}</text>`; });
+  s += `<path d="${line(n1)}" fill="none" stroke="#B9B3A6" stroke-width="2" stroke-dasharray="5 4"/>`;
+  if (cur.length > 1) s += `<path d="${line(cur)} L${cur[cur.length - 1][0]} ${h - 6} L${cur[0][0]} ${h - 6}Z" fill="url(#ga)"/><path d="${line(cur)}" fill="none" stroke="#2F5D46" stroke-width="2.6" stroke-linejoin="round"/><circle cx="${cur[cur.length - 1][0]}" cy="${cur[cur.length - 1][1]}" r="5" fill="#2F5D46" stroke="#fff" stroke-width="2"/>`;
+  ['janv.', 'avr.', 'juil.', 'oct.'].forEach((t, i) => { s += `<text x="${X(Math.round(i * (n - 1) / 4)) + 2}" y="${h + 14}" font-size="10.5" fill="#6E6A5E">${t}</text>`; });
+  R.cumul.forEach((p, i) => { s += `<rect class="hit" data-i="${i}" x="${X(i) - (W / n) / 2}" y="0" width="${W / n}" height="${h}" fill="transparent"/>`; });
+  return s + `</svg>`;
+}
+
+// ———————————————————————— the three directions ————————————————————————
+const S = { dir: 'C', width: 'desk', fy: 2026, prop: null };
+const PITCH = {
+  A: '<b>A · Banque.</b> On lit la page comme son compte : un grand chiffre, sa courbe contre l\'an dernier, la trésorerie des séjours et les derniers encaissements. Sobre, très lisible, peu d\'indicateurs métier.',
+  B: '<b>B · Tour de contrôle.</b> Le tableau de bord d\'un PMS : six indicateurs d\'hébergeur avec leur tendance, la grille d\'occupation logement × mois, les réservations à venir contre l\'an dernier et la rentabilité réelle de chaque canal. Dense, pour piloter.',
+  C: '<b>C · Maison, ma recommandation.</b> Un mélange des deux, dans l\'identité GuestFlow : une tête de page chaleureuse avec le chiffre, la tendance et l\'objectif, quatre indicateurs d\'hébergeur, trois « faits marquants » écrits en français, puis les graphiques. C\'est la plus « wahou » sans devenir un cockpit.',
+};
+
+function header(R, title) {
+  const sel = `<select class="a-pill" id="fySel" aria-label="Exercice">${Object.values(FY).sort((a, b) => b.key - a.key).map((f) => `<option value="${f.key}" ${f.key === S.fy ? 'selected' : ''}>Exercice ${f.label}${f.key === 2026 ? ' (en cours)' : ''}</option>`).join('')}</select>`;
+  const pr = `<select class="a-pill" id="propSel" aria-label="Logement"><option value="">Tous les logements</option>${PROPS.map((p) => `<option value="${p.id}" ${S.prop === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}</select>`;
+  return `<div class="a-top"><b>${title}</b><div class="a-sel">${sel}${pr}</div></div>`;
+}
+
+function renderA(R) {
+  const k = R.k, t = R.treso, tot = t.collected + t.toCome + t.late || 1;
+  const chColor = (key) => (CHANNELS.find((c) => c.key === key) || {}).color;
+  const propName = (id) => PROPS.find((p) => p.id === id).name;
+  return header(R, 'Suivi financier') + `
+  <div class="A-hero">
+    <div class="card" id="A-cum">
+      <div class="lbl">Chiffre d'affaires · exercice ${R.fy.label}${R.asOf < R.fy.to ? ` · au ${fmtD(R.asOf)}` : ''}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="A-big">${eur(k.revenue)}</div>${delta(k.revenue, k.revenueN1)}</div>
+      <div class="sub">${eur(k.revenueN1)} l'an dernier à la même date · ${k.stays} séjours · ${nf.format(k.nights)} nuits</div>
+      <div class="legend"><span><i style="background:#2F5D46"></i>${R.fy.label}, cumulé</span><span><i class="dash"></i>${R.fy.key - 1}</span></div>
+      ${cumulChart(R)}
+      <div class="tip"></div>
+    </div>
+    <div class="card A-treso">
+      <h4>Trésorerie des séjours</h4><div class="sub">Tout ce qui est rattaché à l'exercice</div>
+      <div class="seg3"><div style="width:${t.collected / tot * 100}%;background:#2F5D46"></div><div style="width:${t.toCome / tot * 100}%;background:#C99038"></div><div style="width:${t.late / tot * 100}%;background:#A8433A"></div></div>
+      <div class="row"><span><span class="legend" style="margin:0"><span><i style="background:#2F5D46"></i>Encaissé</span></span></span><b class="num">${eur(t.collected)}</b></div>
+      <div class="row"><span><span class="legend" style="margin:0"><span><i style="background:#C99038"></i>À encaisser</span></span></span><b class="num">${eur(t.toCome)}</b></div>
+      <div class="row"><span><span class="legend" style="margin:0"><span><i style="background:#A8433A"></i>En retard · ${t.lateCount} séjour${t.lateCount > 1 ? 's' : ''}</span></span></span><b class="num" style="color:#A8433A">${eur(t.late)}</b></div>
+      <div class="row"><span class="sub">Commissions versées aux plateformes</span><b class="num">− ${eur(R.commissionTotal)}</b></div>
+    </div>
+  </div>
+  <div class="two">
+    <div class="card" id="A-months"><h4>Revenu par mois</h4><div class="legend"><span><i style="background:#2F5D46"></i>Encaissé ou passé</span><span><i style="background:#C99038"></i>À venir</span><span><i class="dash"></i>${R.fy.key - 1}</span></div>${monthBars(R)}<div class="tip"></div></div>
+    <div class="card"><h4>Derniers encaissements</h4><ul class="A-tx">${R.recent.map((s) => `<li><span class="A-av" style="background:${chColor(s.ch)}">${(CHANNELS.find((c) => c.key === s.ch).label)[0]}</span><div class="mid"><div>Séjour ${s.ref} · ${propName(s.prop)}</div><div class="sub">${fmtD(s.paid)} · ${CHANNELS.find((c) => c.key === s.ch).label} · ${s.nights} nuits</div></div><span class="amt">+ ${eur(s.net)}</span></li>`).join('') || '<li class="sub">Aucun encaissement.</li>'}</ul></div>
+  </div>`;
+}
+
+function renderB(R) {
+  const k = R.k;
+  const sp = (f) => spark(R.months.map(f), '#2F5D46');
+  const tiles = [
+    ['Chiffre d\'affaires', eurK(k.revenue), delta(k.revenue, k.revenueN1), sp((m) => m.past + m.upcoming)],
+    ['Taux d\'occupation', pct(k.occ), delta(k.occ, k.occN1, { unit: 'pt' }), sp((m) => m.occ)],
+    ['Prix moyen / nuit', eur(k.adr), delta(k.adr, k.adrN1), ''],
+    ['RevPAR', eur(k.revpar), delta(k.revpar, k.revparN1), ''],
+    ['Durée moyenne', dec1(k.los) + ' nuits', delta(k.los, k.losN1), ''],
+    ['Réservé à l\'avance', Math.round(k.lead) + ' j', delta(k.lead, k.leadN1, { unit: 'j' }), ''],
+  ];
+  const heatColor = (x) => x == null ? '' : `background:rgba(47,93,70,${(0.08 + x * 0.92).toFixed(2)});color:${x > .45 ? '#fff' : '#27251F'}`;
+  const showProps = PROPS.filter((p) => !S.prop || p.id === S.prop);
+  const maxPace = Math.max(1, ...R.pace.map((p) => Math.max(p.now, p.then)));
+  return header(R, 'Suivi financier') + `
+  <div class="B-kpis">${tiles.map(([l, v, d, s]) => `<div class="card B-kpi"><div class="lbl">${l}</div><div class="kv">${v}</div><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">${d}${s ? `<span class="B-hideXs">${s}</span>` : ''}</div></div>`).join('')}</div>
+  <div class="card" id="B-heat" style="margin-bottom:14px"><h4>Occupation par logement</h4><div class="sub">Nuits vendues ÷ nuits ouvrables, mois par mois · hachuré = fermé</div>
+    <div class="B-heat" style="grid-template-columns:minmax(64px,1.3fr) repeat(12,1fr);margin-top:10px">
+      <span></span>${R.months.map((m) => `<span class="h">${m.initial}</span>`).join('')}
+      ${showProps.map((p) => `<span class="n" title="${p.name}">${p.short}</span>` + R.months.map((m, i) => { const o = m.perProp.find((x) => x.id === p.id).occ; return o == null ? `<span class="c closed">—</span>` : `<span class="c" data-p="${p.id}" data-i="${i}" style="${heatColor(o)}">${Math.round(o * 100)}</span>`; }).join('')).join('')}
+    </div><div class="tip"></div></div>
+  <div class="two B-two">
+    <div class="card" id="B-pace"><h4>Réservations à venir</h4><div class="sub">Nuits déjà réservées aujourd'hui, contre l'an dernier à la même date</div>
+      ${R.pace.length ? `<div class="legend"><span><i style="background:#2F5D46"></i>Aujourd'hui</span><span><i style="background:#D8D2C4"></i>Il y a un an</span></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;height:170px;padding-top:8px">${R.pace.map((p, i) => `<div class="pc" data-i="${i}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end"><div style="display:flex;gap:3px;align-items:flex-end;height:100%;width:100%;justify-content:center"><div style="width:38%;height:${p.then / maxPace * 100}%;background:#D8D2C4;border-radius:4px 4px 0 0"></div><div style="width:38%;height:${p.now / maxPace * 100}%;background:#2F5D46;border-radius:4px 4px 0 0"></div></div><span style="font-size:11px;color:#6E6A5E">${p.short}</span></div>`).join('')}</div>` : `<p class="sub" style="padding:40px 0;text-align:center">Exercice clos : plus rien à venir.</p>`}
+      <div class="tip"></div></div>
+    <div class="card"><h4>Ce que rapporte chaque canal</h4><div class="sub">Net = ce qui vous reste après commission</div>
+      <div style="overflow-x:auto"><table class="B-ch"><thead><tr><th>Canal</th><th class="B-hideXs">Séjours</th><th class="B-hideXs">Brut</th><th>Commission</th><th>Net</th></tr></thead><tbody>
+      ${R.channels.map((c) => `<tr><td><span class="dot" style="background:${c.color}"></span>${c.label}</td><td class="B-hideXs">${c.count}</td><td class="B-hideXs">${eur(c.gross)}</td><td class="${c.commission ? 'neg' : ''}">${c.commission ? '− ' + eur(c.commission) : '—'}</td><td><b>${eur(c.net)}</b></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="sub" style="margin-top:8px">${R.cancelled} annulation${R.cancelled > 1 ? 's' : ''} sur l'exercice · ${eur(R.commissionTotal)} de commissions au total</p></div>
+  </div>`;
+}
+
+function renderC(R) {
+  const k = R.k, goal = R.goal, gp = goal ? Math.min(1, k.revenue / goal) : 0;
+  const saved = Math.round(R.directNet * R.avgFee);
+  const bestTot = R.best.past + R.best.upcoming;
+  const lateTxt = R.treso.lateCount ? `${R.treso.lateCount} séjour${R.treso.lateCount > 1 ? 's' : ''} terminé${R.treso.lateCount > 1 ? 's' : ''} attend${R.treso.lateCount > 1 ? 'ent' : ''} encore ${eur(R.treso.late)}.` : 'Aucun séjour terminé n\'attend de paiement.';
+  const paceNow = R.pace.reduce((n, p) => n + p.now, 0), paceThen = R.pace.reduce((n, p) => n + p.then, 0);
+  const ins = [
+    { c: '#E6EFE7', f: '#3E7D54', i: '<path d="M4 14l4-4 3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 6h4v4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>', b: `${MN[R.best.m - 1][0].toUpperCase() + MN[R.best.m - 1].slice(1)}, votre meilleur mois`, s: `${eur(bestTot)}, ${pct(R.best.occ || 0)} d'occupation.` },
+    { c: '#F6EDD7', f: '#8F6A1D', i: '<circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 10.5h5M10.5 8v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>', b: `Le direct vous a évité ${eur(saved)} de commissions`, s: `${eur(R.directNet)} réservés en direct, au taux moyen de vos plateformes (${pct(R.avgFee)}).` },
+    R.pace.length
+      ? { c: '#E4EDF3', f: '#31556E', i: '<rect x="4" y="5" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 9h13M8 3v4M13 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', b: `${nf.format(paceNow)} nuits déjà réservées pour les 6 prochains mois`, s: `${paceThen ? (paceNow >= paceThen ? '+' : '−') + Math.round(Math.abs(paceNow - paceThen) / paceThen * 100) + ' % par rapport à l\'an dernier à la même date.' : ''}` }
+      : { c: '#F7E8E5', f: '#A8433A', i: '<circle cx="10.5" cy="10.5" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 6.5v4.5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', b: 'Paiements', s: lateTxt },
+  ];
+  return header(R, 'Suivi financier') + `
+  <div class="C-hero">
+    <div class="C-heroGrid">
+      <div>
+        <div class="hi">Exercice ${R.fy.label}${R.asOf < R.fy.to ? ` · au ${fmtD(R.asOf)}` : ' · clos'}${S.prop ? ' · ' + PROPS.find((p) => p.id === S.prop).name : ''}</div>
+        <div class="big">${eur(k.revenue)}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;opacity:.95">${delta(k.revenue, k.revenueN1)}<span>contre ${eur(k.revenueN1)} l'an dernier à la même date</span></div>
+        ${goal ? `<div class="C-goal"><div class="track"><div class="fill" style="width:${gp * 100}%"></div></div><div class="gl"><span>${pct(gp)} de l'objectif</span><span>objectif ${eur(goal)}</span></div></div>` : ''}
+      </div>
+      <div class="C-mini">
+        <div><b>${eur(R.treso.collected)}</b><span>encaissé</span></div>
+        <div><b>${eur(R.treso.toCome)}</b><span>à encaisser</span></div>
+        <div><b>${nf.format(k.nights)}</b><span>nuits vendues</span></div>
+        <div><b>${k.stays}</b><span>séjours</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="C-kpis">
+    <div class="card C-kpi">${ring(k.occ, '#2F5D46')}<div><div class="lbl">Taux d'occupation</div><div class="kv">${pct(k.occ)}</div>${delta(k.occ, k.occN1, { unit: 'pt' })}</div></div>
+    <div class="card C-kpi">${ring(Math.min(1, k.adr / 250), '#C99038', 54, 7, '€')}<div><div class="lbl">Prix moyen / nuit</div><div class="kv">${eur(k.adr)}</div>${delta(k.adr, k.adrN1)}</div></div>
+    <div class="card C-kpi">${ring(Math.min(1, k.los / 7), '#31556E', 54, 7, dec1(k.los))}<div><div class="lbl">Durée moyenne</div><div class="kv">${dec1(k.los)} nuits</div>${delta(k.los, k.losN1)}</div></div>
+    <div class="card C-kpi">${ring(k.revenue ? R.directNet / k.revenue : 0, '#2F5D46')}<div><div class="lbl">Part en direct</div><div class="kv">${pct(k.revenue ? R.directNet / k.revenue : 0)}</div><span class="sub">${eur(R.directNet)}</span></div></div>
+  </div>
+  <div class="C-ins">${ins.map((x) => `<div class="card C-in"><span class="ic" style="background:${x.c};color:${x.f}"><svg width="21" height="21" viewBox="0 0 21 21">${x.i}</svg></span><div><b>${x.b}</b><span>${x.s}</span></div></div>`).join('')}</div>
+  <div class="two">
+    <div class="card" id="C-months"><h4>Revenu par mois</h4><div class="legend"><span><i style="background:#2F5D46"></i>Encaissé ou passé</span><span><i style="background:#C99038"></i>À venir</span><span><i class="dash"></i>${R.fy.key - 1}</span></div>${monthBars(R)}<div class="tip"></div></div>
+    <div class="card"><h4>Par canal</h4><div class="sub">Net de commission</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px">${donut(R.channels.map((c) => ({ v: c.net, c: c.color, t: `${c.label} · ${eur(c.net)}` })), 130)}
+      <div style="flex:1;min-width:150px">${R.channels.map((c) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;margin:5px 0"><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c.color};margin-right:6px"></span>${c.label}</span><b class="num">${pct(k.revenue ? c.net / k.revenue : 0)}</b></div>`).join('')}</div></div></div>
+  </div>
+  <div class="card"><h4>Vos logements</h4><div class="sub">Cliquez sur un logement pour recentrer toute la page</div>
+    <div class="C-props" style="margin-top:10px">${(S.prop ? PROPS.filter((p) => p.id === S.prop) : R.perProp).map((p) => { const pp = R.perProp.find((x) => x.id === p.id) || p; return `<div class="C-prop ${S.prop === p.id ? 'on' : ''}" data-prop="${p.id}" role="button" tabindex="0">${ring(pp.occ, p.hue, 50, 6)}<div><div class="nm">${p.name}</div><div class="num" style="font-weight:700">${eur(pp.net)}</div><div class="sm">${eur(pp.adr)} / nuit</div></div></div>`; }).join('')}
+    ${S.prop ? `<div class="C-prop" data-prop="" role="button" tabindex="0" style="justify-content:center;color:#2F5D46;font-weight:600">← Tous les logements</div>` : ''}</div></div>`;
+}
+
+// ———————————————————————— render loop ————————————————————————
+const app = document.getElementById('app');
+function render() {
+  const R = compute(S.fy, S.prop);
+  app.classList.toggle('mobile', S.width === 'mobile');
+  app.innerHTML = S.dir === 'A' ? renderA(R) : S.dir === 'B' ? renderB(R) : renderC(R);
+  document.getElementById('pitch').innerHTML = PITCH[S.dir];
+  document.querySelectorAll('.seg').forEach((seg) => seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(String(S[seg.dataset.ctl]) === b.dataset.v))));
+  app.querySelector('#fySel').onchange = (e) => { S.fy = +e.target.value; render(); };
+  app.querySelector('#propSel').onchange = (e) => { S.prop = e.target.value || null; render(); };
+  app.querySelectorAll('[data-prop]').forEach((el) => { const go = () => { S.prop = el.dataset.prop || null; render(); }; el.onclick = go; el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+  ['#A-months', '#C-months'].forEach((id) => { const c = app.querySelector(id); if (c) bindTip(c, '.hit', monthTip(R)); });
+  const cum = app.querySelector('#A-cum');
+  if (cum) bindTip(cum, '.hit', (el) => { const p = R.cumul[el.dataset.i]; return `<b>au ${fmtD(p.day)}</b><br>${p.cur == null ? '—' : eur(p.cur)} cette année<br>${eur(p.n1)} l'an dernier`; });
+  const heat = app.querySelector('#B-heat');
+  if (heat) bindTip(heat, '.c[data-p]', (el) => { const m = R.months[el.dataset.i]; const p = PROPS.find((x) => x.id === el.dataset.p); const o = m.perProp.find((x) => x.id === p.id).occ; return `<b>${p.name}</b><br><span style="text-transform:capitalize">${m.label}</span> : ${pct(o)} occupé`; });
+  const pace = app.querySelector('#B-pace');
+  if (pace) bindTip(pace, '.pc', (el) => { const p = R.pace[el.dataset.i]; return `<b style="text-transform:capitalize">${p.label}</b><br>${p.now} nuits réservées aujourd'hui<br>${p.then} il y a un an à la même date`; });
+}
+document.querySelectorAll('.seg').forEach((seg) => seg.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; S[seg.dataset.ctl] = b.dataset.v; render(); }));
+render();
+
+})();
+</script>
+</body>
+</html>

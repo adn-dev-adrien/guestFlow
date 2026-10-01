@@ -48,7 +48,13 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    reservation prefilled with that date (`/reservations/new?startDate=…`, logement chosen on the page).
 6. **Navigation = infinite scroll**: months are stacked vertically in a bounded scroll container;
    scrolling near the bottom appends the next month, near the top prepends the previous one (scroll
-   position maintained). Each month carries a **sticky label**. An « Aujourd'hui » button refocuses the
+   position maintained). An edge is released as soon as its requested month is **rendered**, and the
+   hook re-checks right then: while the scroller is still within 200 px of that edge it chains the next
+   month (at most 6 per scroll event), without waiting for another scroll event. The earlier release —
+   « only once a scroll event lands ≥ 200 px from the edge » — stalled the calendar whenever a month was
+   shorter than 200 px (an empty mobile agenda) or a fast wheel notch jumped over that band: the
+   scroller sat at its end and the whole page scrolled instead (fixed 2026-09-29). Each month carries a
+   **sticky label**. An « Aujourd'hui » button refocuses the
    current month; today's day cell is highlighted. No previous/next buttons.
 7. **Opens on the current month.** On load the calendar scrolls so the **current month** sits at the top
    of the container. Because the focus scroll runs before the reservations finish loading and the mobile
@@ -104,6 +110,9 @@ endDate`).
   filter + sort. `frRange`: single day + range. Component render (desktop): ≥ 3 stacked months, bars from
   loaded data, « Aujourd'hui » + scroll hint. Mobile render (`useMediaQuery` forced): agenda rows
   (logement + client), no 7-column header. (`CumulativeMonthCalendar.test.js` + `.mobile.test.js`)
+- [x] Unit (`useInfiniteMonthScroll`, 3 tests): one scroll event at the bottom chains short months until the
+  scroller is clear of the edge; repeated returns to the bottom keep appending without scrolling away
+  first; a zero-height layout stays bounded. (`hooks/__tests__/useInfiniteMonthScroll.edge-chain.test.jsx`)
 - [ ] _(superseded)_ a stay within one week → one segment on the right
   lane; a stay crossing a week boundary → two segments; two overlapping stays → two lanes.
 - [ ] Manual (dev): the overview shows all logements' reservations as platform-coloured bars on one month;
