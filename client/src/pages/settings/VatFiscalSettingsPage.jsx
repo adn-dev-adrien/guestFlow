@@ -2,16 +2,17 @@
  * VatFiscalSettingsPage — Paramètres → TVA & exercice (specs/settings-rationalization.md rule 2).
  *
  * The stay VAT rate and the accounting closing month. The commission and cancellation-indemnity
- * rates live on Plan comptable (rule 14), linked from here.
+ * rates live on Plan comptable (rule 14), linked from here by the accounting export
+ * (slot `settings.platforms.links`, specs/plugins-phase-2-hosts.md rule 19).
  */
 import React, { useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router';
-import { Link, Typography } from '@mui/material';
+import { useNavigate } from 'react-router';
 import useSettingsForm from '../../hooks/useSettingsForm';
 import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsVatSection from '../../components/SettingsVatSection';
 import SettingsFiscalYearSection, { hasInvalidRevenueGoal } from '../../components/SettingsFiscalYearSection';
 import api from '../../api';
+import Slot from '../../plugins/sdk/Slot';
 
 export default function VatFiscalSettingsPage() {
   const navigate = useNavigate();
@@ -33,10 +34,7 @@ export default function VatFiscalSettingsPage() {
         onChange={(key, value) => form.setField('vat', key, value)}
         disabled={disabled}
       />
-      <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5, mb: 3 }}>
-        Les taux sur les commissions et les indemnités d'annulation se règlent dans le{' '}
-        <Link component={RouterLink} to="/comptabilite/plateformes">Plan comptable</Link>.
-      </Typography>
+      <Slot name="settings.platforms.links" page="vat" />
       <SettingsFiscalYearSection
         values={form.draft.accounting}
         errors={form.errors}

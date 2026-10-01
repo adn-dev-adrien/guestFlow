@@ -13,8 +13,8 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
-const { create: createAccountingModel } = require('../models/accountingModel');
-const { entryToStructured } = require('../utils/accountingExport');
+const { create: createAccountingModel } = require('../plugins/accounting-export/accountingModel');
+const { entryToStructured } = require('../plugins/accounting-export/accountingExport');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -257,7 +257,7 @@ test('le total remis est la somme des seaux, moins la réduction, plus le pourbo
 // écritures. C'est le changement de forme qu'il faut lui annoncer : le vérifier ici, c'est vérifier
 // ce qui atterrit réellement dans son fichier.
 test('le CSV du comptable porte la remise et le pourboire', async () => {
-  const { buildRows, CSV_HEADERS } = require('../utils/accountingExport');
+  const { buildRows, CSV_HEADERS } = require('../plugins/accounting-export/accountingExport');
   const db = insertPayment(freshDb(), { arrivalPaymentReduction: 50 });
   const rows = buildRows(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }));
   const compte = CSV_HEADERS.indexOf('Compte');

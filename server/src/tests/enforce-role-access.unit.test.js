@@ -28,15 +28,19 @@ test('admin: any method / any path → passes', () => {
   assert.equal(call({ role: 'admin', method: 'DELETE', path: '/clients/9' }).nextCalled, true);
 });
 
-// specs/accountant-accounting-export.md rule 17
-test('accountant: GET /accounting/sales.csv → passes', () => {
-  const { res, nextCalled } = call({ role: 'accountant', method: 'GET', path: '/accounting/sales.csv' });
-  assert.equal(nextCalled, true);
-  assert.equal(res.statusCode, 200);
-});
-
-test('accountant: GET /accounting/platforms → passes', () => {
-  assert.equal(call({ role: 'accountant', method: 'GET', path: '/accounting/platforms' }).nextCalled, true);
+// specs/plugins-phase-2-hosts.md rule 3 — the journal, the CSV and the account plan are entries of the
+// accounting-export plugin (plugins/accounting-export/tests/phase-2-accounting-export.unit.test.js).
+// No plugin is registered here: the core alone grants the accountant none of them.
+test('accountant: the core alone does not open the export routes', () => {
+  for (const [method, path] of [
+    ['GET', '/accounting/sales.csv'], ['GET', '/accounting/sales'], ['GET', '/accounting/platforms'],
+    ['GET', '/accounting/platform-accounts'], ['PUT', '/accounting/platform-accounts'],
+    ['POST', '/accounting/platform-accounts/refresh'],
+  ]) {
+    const { res, nextCalled } = call({ role: 'accountant', method, path });
+    assert.equal(nextCalled, false, `${method} ${path}`);
+    assert.equal(res.statusCode, 403);
+  }
 });
 
 test('accountant: self endpoints (me / logout / change-password / version) → pass', () => {
@@ -56,8 +60,8 @@ test('accountant: POST or DELETE on accounting → 403 (read-only role)', () => 
   }
 });
 
-// specs/cancellation-compensation.md §3.3 rule 21 — the accountant reads the compensations like the
-// rest of `/accounting/*`, but never writes them: the whitelist stays limited to platform-accounts.
+// specs/cancellation-compensation.md §3.3 rule 21 — the accountant reads the compensations, but never
+// writes them. The read is core (specs/plugins-phase-2-hosts.md rules 3 and 21).
 test('accountant: GET the cancellation compensations → passes, every write → 403', () => {
   assert.equal(call({ role: 'accountant', method: 'GET', path: '/accounting/cancellation-compensations' }).nextCalled, true);
   const writes = [

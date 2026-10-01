@@ -73,21 +73,9 @@ const COLUMNS = [
   'quoteValidityDays',
   'companyLogoPath',
   'vatRate',
-  // accounting-platform-commission-and-no-deposit.md §3.1 + §3.7 rule 17b. Single source of
-  // truth for the per-platform commission accounting:
-  //   - `defaultCommissionAccountNumber` is the 6226xx fallback when a platform row doesn't
-  //     have its own number set on `/comptabilite/plateformes`.
-  //   - `vatRateCommission` is the global VAT rate applied to platform commissions whose
-  //     row carries `hasVatOnCommission = 1`. Lives in Settings → Général → Taux de TVA.
-  'defaultCommissionAccountNumber',
-  'vatRateCommission',
-  // specs/cancellation-compensation.md §3.3 rule 19. `cancellationCompensationAccount` is the
-  // produit account credited when a platform pays an indemnity for a cancelled stay (edited on
-  // `/comptabilite/plateformes`); `vatRateCancellationCompensation` is its VAT rate — 0 by default
-  // (indemnity outside the scope of VAT), edited in Settings → Général → Taux de TVA next to the
-  // other two rates.
-  'cancellationCompensationAccount',
-  'vatRateCancellationCompensation',
+  // The four account and VAT settings of the accounting export (commission account and rate,
+  // cancellation-compensation account and rate) live in plugin_settings since
+  // specs/plugins-phase-2-hosts.md rule 19; their app_settings columns stay in place, unread.
   // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
   // window of the Suivi financier. Plain integer — nothing secret, no encryption.
   'fiscalYearEndMonth',
@@ -121,21 +109,6 @@ const COLUMNS = [
   'instagramUrl',
   'poolSeasonStart',
   'poolSeasonEnd',
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sun .. 6=Sat, default
-  // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
-  // (400 INVALID_WEEKDAY).
-  'laundryWeekday',
-  // Linen inventory & shortage tracking (specs/linen-inventory-shortage-tracking.md §3.1).
-  // Global stock per type, integer ≥ 0. 0 = "I don't track this type" → simulation skips it
-  // and the UI hides any line for that type.
-  'bedLinenStockSingle',
-  'bedLinenStockDouble',
-  'bedLinenStockBaby',
-  'towelStockLarge',
-  'towelStockMedium',
-  'towelStockSmall',
-  // Bath mat as a 7th linen type (specs/laundry-bath-mat.md §3 rule 7). Stock shared across properties.
-  'towelStockBathMat',
   // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
   // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
   'qontoAccessTokenEncrypted',
@@ -181,29 +154,14 @@ const COLUMNS = [
   'neatFieldMappingJson',
   'neatContractFieldsJson',
   'neatMarginPercent',
-  // CGV (specs/terms-acceptance-record.md rules 10, 17): the emergency switch of the enforcement, and
-  // the plugin version last seen on a booking request.
-  'requireTermsAcceptance',
-  'lastSeenPluginVersion',
 ];
 
 const NUMERIC_DEFAULTS = {
   quoteValidityDays: 30,
   vatRate: 10,
-  vatRateCommission: 20,
-  vatRateCancellationCompensation: 0,
   smtpSecure: 0,
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,
-  laundryWeekday: 2,
-  bedLinenStockSingle: 0,
-  bedLinenStockDouble: 0,
-  bedLinenStockBaby: 0,
-  towelStockLarge: 0,
-  towelStockMedium: 0,
-  towelStockSmall: 0,
-  towelStockBathMat: 0,
-  requireTermsAcceptance: 1,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
@@ -340,16 +298,6 @@ function createSettingsModel(databaseInstance) {
         recipientEmail: identity.recipient,
         fromEmail: identity.fromEmail,
         publicUrl: String(row.publicUrl || '').trim(),
-      };
-    },
-
-    // CGV enforcement (specs/terms-acceptance-record.md rule 17). Only an explicit 0 lifts it: a
-    // partially-migrated DB keeps the safe default, ON.
-    termsSettings() {
-      const row = readRaw();
-      return {
-        requireTermsAcceptance: Number(row.requireTermsAcceptance) !== 0,
-        lastSeenPluginVersion: String(row.lastSeenPluginVersion || ''),
       };
     },
 

@@ -1,10 +1,7 @@
 const router = require('express').Router();
 const controller = require('../controllers/reservationsController');
-const sasController = require('../controllers/sasController');
 const refundsController = require('../controllers/refundsController');
 const cancellationController = require('../controllers/reservationCancellationController');
-const requirePlugin = require('../middleware/requirePlugin');
-const PLUGINS = require('../constants/plugins');
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
@@ -15,10 +12,6 @@ router.get('/search', controller.search);
 router.get('/occupied-dates/:propertyId', controller.occupiedDates);
 router.get('/:id', controller.getById);
 router.get('/:id/history', controller.getHistory);
-// Arrival / departure SAS (specs/arrival-departure-sas.md)
-router.get('/:id/sas', requirePlugin(PLUGINS.SAS), sasController.getSas);
-router.post('/:id/sas/arrival', requirePlugin(PLUGINS.SAS), sasController.commitArrival);
-router.post('/:id/sas/departure', requirePlugin(PLUGINS.SAS), sasController.commitDeparture);
 // Remboursements (specs/reservation-refunds.md §4.3). Admin-only through the standard role guard;
 // deliberately reachable on a past-locked reservation — an early departure is discovered after the stay.
 router.get('/:id/refunds', refundsController.list);

@@ -9,4 +9,8 @@ module.exports = [
   require('./google-calendar'),
   require('./tariff-recipes'),
   require('./gate-access'),
+  require('./sas'),
+  require('./website-booking'),
+  require('./accounting-export'),
+  require('./linen'),
 ];

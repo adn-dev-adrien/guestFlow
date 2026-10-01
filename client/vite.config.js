@@ -37,9 +37,10 @@ export default defineConfig({
     // unmatched request to the backend — Vite requires explicit prefixes, so without this
     // entry the dev server returns 404 for every `<img src="/uploads/…">` and the dynamic
     // favicon stays at the bundled default.
+    // GUESTFLOW_API_PORT lets the E2E suite run its own backend beside a dev server on 4000.
     proxy: {
-      '/api': 'http://localhost:4000',
-      '/uploads': 'http://localhost:4000',
+      '/api': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
+      '/uploads': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
     },
   },
 

@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const { toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
 // `buildStayPayment` répond « cette étape est-elle applicable ? » : elle vit dans le contrôleur du
 // SAS, exposée pour être épinglée sans monter tout le harnais HTTP.
-const { __test: { buildStayPayment } } = require('../controllers/sasController');
+const { __test: { buildStayPayment } } = require('../plugins/sas/controller');
 
 // specs/collect-stay-payment-at-check-in.md rule 25 — fail-closed sur l'écriture : `stayPaid` et
 // `stayPaidCash` venant d'un compte réception sont retirés, jamais honorés.

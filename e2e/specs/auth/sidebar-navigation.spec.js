@@ -11,6 +11,8 @@ const ROUTES = [
   { url: '/calendar',                    heading: 'Calendrier', exact: true },
   { url: '/finance',                     heading: 'Suivi financier' },
   { url: '/comptabilite',                heading: 'Comptabilité' },
+  // specs/plugins-phase-2-hosts.md rule 21 — the core compensations page.
+  { url: '/finance/indemnites',          heading: "Indemnités d'annulation" },
   { url: '/devis',                       heading: 'Devis' },
   // Paramètres pages (specs/settings-rationalization.md rule 2).
   { url: '/settings/etablissement',      heading: 'Établissement', exact: true },

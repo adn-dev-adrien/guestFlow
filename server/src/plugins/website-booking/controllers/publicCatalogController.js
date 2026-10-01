@@ -1,0 +1,136 @@
+/**
+ * Public catalog controller (specs/public-api.md) — read-only property list/detail, per-property
+ * options, and consolidated availability. Reuses the existing models + occupancy util; applies the
+ * public projections so nothing sensitive leaks. No business logic lives here beyond orchestration.
+ */
+
+const sdk = require('../../sdk');
+
+const db = sdk.coreModule('database');
+const propertiesModel = sdk.coreModule('propertiesModel');
+const optionsModel = sdk.coreModule('optionsModel');
+const settingsModel = sdk.coreModule('settingsModel');
+const { isNeatPricingActive } = sdk.coreModule('neatGuestPricing');
+const resourcesModel = sdk.coreModule('resourcesModel');
+const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
+const { validateAvailabilityQuery } = require('../publicInputValidation');
+const {
+  toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
+  toPublicCancellationInsurance,
+} = require('../publicProjections');
+const { ok, failT, langOf } = sdk.coreModule('publicHttp');
+const translationResolver = sdk.coreModule('translationResolver');
+const { isClientVisibleOption } = sdk.coreModule('optionVisibility');
+const { groupOptionsByCategory } = sdk.coreModule('optionGrouping');
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function propertyExists(propertyId) {
+  return Boolean(db.prepare('SELECT 1 FROM properties WHERE id = ?').get(Number(propertyId)));
+}
+
+function listProperties(req, res) {
+  const lang = langOf(req);
+  return ok(res, propertiesModel.list().map((row) => toPublicProperty(row, lang)));
+}
+
+function getProperty(req, res) {
+  // Read-only on purpose: the public API never mutates server state on a GET, so we use the
+  // side-effect-free reader instead of getByIdWithDetails (which seeds default timed options).
+  const property = propertiesModel.getByIdPublicReadOnly(Number(req.params.id));
+  if (!property) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  return ok(res, toPublicPropertyDetail(property, langOf(req)));
+}
+
+/** Public catalog ordering: cheapest first (ties keep the model's order via a stable sort). */
+function byPriceAsc(a, b) {
+  return Number(a.price || 0) - Number(b.price || 0);
+}
+
+/**
+ * Option ids that are OFFERED defaults for a property — included in the price, not a client choice,
+ * so they must not surface as selectable on the public booking form
+ * (specs/property-default-option-applicability.md rule 4). Guarded for schemas without the table.
+ */
+function offeredDefaultOptionIds(propertyId) {
+  try {
+    return new Set(
+      db.prepare('SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1')
+        .all(Number(propertyId)).map((row) => Number(row.optionId))
+    );
+  } catch { return new Set(); }
+}
+
+function listOptions(req, res) {
+  const propertyId = Number(req.params.id);
+  if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  const lang = langOf(req);
+  const translate = translationResolver.forLang(lang);
+  const excluded = offeredDefaultOptionIds(propertyId);
+  const visible = optionsModel.listForProperty(propertyId)
+    .filter((opt) => !excluded.has(Number(opt.id)))
+    // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never reach the public catalog.
+    // Filtered BEFORE grouping so a category whose options are all internal yields no group at all
+    // (specs/option-categories.md §3 rule 14).
+    .filter(isClientVisibleOption)
+    .map((opt) => toPublicOption(opt, lang, translate));
+  // The cancellation insurance leaves the supplements lists entirely
+  // (specs/cancellation-insurance.md §3.3 rule 18): it gets its own block, with a mandatory
+  // Oui/Non choice, and must never also appear as one row among the extras. Picked out of the
+  // ALREADY filtered list, so an insurance the property offers for free, hides from clients or
+  // doesn't apply to simply isn't there.
+  const insuranceOption = visible.find((opt) => opt.isCancellationInsurance) || null;
+  const selectable = visible.filter((opt) => !opt.isCancellationInsurance);
+  // Grouped, render-ready payload (specs/option-categories.md §4.4). Cheapest-first ordering is
+  // preserved inside each bucket — the widget renders what it receives, in order.
+  const { ungrouped, groups } = groupOptionsByCategory(selectable);
+  // Rule 16 — the grouping above ran on the FRENCH category, so the drawer groups identically in
+  // both languages; only the label it shows is translated, here, once the buckets are settled.
+  return ok(res, {
+    ungrouped: ungrouped.slice().sort(byPriceAsc),
+    groups: groups.map((g) => ({
+      category: translate.category(g.category),
+      options: g.options.slice().sort(byPriceAsc).map((o) => ({ ...o, category: translate.category(o.category) })),
+    })),
+    // Null while unpriced (rule 15) — the projection enforces it: no block, and the site then has
+    // no mandatory question to ask. With Neat pricing active the block stays even at a static 0
+    // and its label announces a per-stay tariff (neat-cancellation-insurance rule 13).
+    cancellationInsurance: toPublicCancellationInsurance(insuranceOption, {
+      neatPricingActive: isNeatPricingActive(settingsModel),
+      lang,
+    }),
+  });
+}
+
+function listResources(req, res) {
+  const propertyId = Number(req.params.id);
+  if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  const lang = langOf(req);
+  // resourcesModel.list resolves applicability (resource_properties pivot, empty = global) and the
+  // EFFECTIVE per-property price (property_resource_prices). Public projection strips stock/slots.
+  return ok(res, resourcesModel.list(propertyId).map((row) => toPublicResource(row, lang, translationResolver.forLang(lang))).sort(byPriceAsc));
+}
+
+function getAvailability(req, res) {
+  const propertyId = Number(req.params.id);
+  if (!propertyExists(propertyId)) return failT(res, req, 404, 'PROPERTY_NOT_FOUND', 'propertyNotFound');
+  const v = validateAvailabilityQuery({ from: req.query.from, to: req.query.to, todayIso: todayIso() });
+  if (!v.ok) return failT(res, req, 422, 'VALIDATION_FAILED', 'periodInvalid', v.errors);
+  const blockedDates = computeBlockedDates(propertyId, v.value.from, v.value.to);
+  return ok(res, toPublicAvailability({ propertyId, from: v.value.from, to: v.value.to, blockedDates }));
+}
+
+module.exports = {
+  listProperties,
+  getProperty,
+  listOptions,
+  listResources,
+  getAvailability,
+  // shared helpers — the availability check lives in the core (utils/blockedDates.js), where the
+  // public payment of online-payment also reads it
+  computeBlockedDates,
+  rangeHasBlockedNight,
+  propertyExists,
+};

@@ -15,7 +15,7 @@ const {
   repriceQuoteWithNeatSync, CACHE_FRESH_MS,
 } = require('../utils/neatGuestPricing');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { toPublicCancellationInsurance } = require('../utils/publicProjections');
+const { toPublicCancellationInsurance } = require('../plugins/website-booking/publicProjections');
 
 // ---- fakes ----
 

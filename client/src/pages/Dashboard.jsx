@@ -15,17 +15,13 @@ import ResponsiveTable from '../components/ResponsiveTable';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
-import LinenShortageAlert from '../components/LinenShortageAlert';
 import PaymentDeadlinesAlert from '../components/PaymentDeadlinesAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
-import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
-import PluginGate from '../components/PluginGate';
-import { LINEN, WEBSITE_BOOKING } from '../constants/plugins';
 import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
@@ -364,9 +360,6 @@ export default function Dashboard() {
           {/* New GuestFlow version published (specs/self-update-and-releases.md §6.1). Admin-only,
               self-contained: renders nothing when up to date, postponed, or already updating. */}
           <UpdateAvailableAlert />
-          {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
-              contained: renders nothing when no shortage is projected. */}
-          <PluginGate id={LINEN}><LinenShortageAlert /></PluginGate>
           {/* Échéances de paiement dépassées (specs/payment-schedule-and-cancellation.md §3.4).
               Sits high: it is the only surface that says an acompte or un solde is late, and the
               only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
@@ -388,14 +381,12 @@ export default function Dashboard() {
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <IcalNewReservationsAlert />
-          {/* The other plugin alerts, e.g. the tariff-recipe runs to review. */}
+          {/* The other plugin alerts, e.g. the linen shortage, the tariff-recipe runs to review and the
+              website requests still pending (specs/plugins-phase-2-hosts.md rules 15, 25). */}
           <Slot name="dashboard.alerts" />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <EmailPendingAlert />
-          {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
-              Self-contained: renders nothing when there is no pending website request. */}
-          <PluginGate id={WEBSITE_BOOKING}><DevisPublicRequestAlert /></PluginGate>
         </>
       )}
 

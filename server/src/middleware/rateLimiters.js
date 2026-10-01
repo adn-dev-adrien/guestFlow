@@ -34,7 +34,7 @@ const ONE_HOUR = 60 * 60 * 1000;
 /**
  * Public limiters count per website VISITOR, not per caller (specs/terms-acceptance-record.md rule 24):
  * every public call comes from the one WordPress host, so keying on `req.ip` capped the whole site at
- * the per-visitor budget. `req.visitor` is set by middleware/visitorContext.js AFTER the API-key check,
+ * the per-visitor budget. `req.visitor` is set by plugins/website-booking/visitorContext.js AFTER the API-key check,
  * so the relayed address is only ever honoured for the authenticated proxy.
  */
 function publicVisitorKey(req) {

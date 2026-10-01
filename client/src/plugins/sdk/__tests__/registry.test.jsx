@@ -19,10 +19,12 @@ const SRC = path.resolve(__dirname, '../../..');
 
 beforeEach(() => enabled.clear());
 
-test('rule 2: the five modules are listed once', () => {
-  expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual(
-    ['gate-access', 'google-calendar', 'school-holidays', 'tariff-recipes', 'weather-alerts'],
-  );
+// specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds accounting-export, linen, sas, website-booking.
+test('rule 2: the modules are listed once', () => {
+  expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual([
+    'accounting-export', 'gate-access', 'google-calendar', 'linen', 'sas', 'school-holidays',
+    'tariff-recipes', 'weather-alerts', 'website-booking',
+  ]);
 });
 
 function readTree(dir, acc = {}) {

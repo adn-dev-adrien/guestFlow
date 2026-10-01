@@ -21,11 +21,22 @@ function hhmm(date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+// specs/plugins-phase-2-hosts.md rule 12 (gap 6) — the push opens the SAS only while the plugin is
+// live; otherwise it opens the reservation's page.
+const defaultIsSasLive = () => require('../plugins/sdk/registry').isLive('sas');
+
+function pushUrl(mode, reservationId, isSasLive) {
+  const id = Number(reservationId);
+  return isSasLive() ? `/planning?sas=${mode}&reservationId=${id}` : `/reservations/${id}`;
+}
+
 function clientName(r) {
   return `${String(r.firstName || '').trim()} ${String(r.lastName || '').trim()}`.trim();
 }
 
-async function runArrivalDeparturePush({ reservationsModel, pushService, now = new Date(), firstRun = false, logger = console } = {}) {
+async function runArrivalDeparturePush({
+  reservationsModel, pushService, now = new Date(), firstRun = false, logger = console, isSasLive = defaultIsSasLive,
+} = {}) {
   const today = isoToday(now);
   const nowHHMM = hhmm(now);
   let sent = 0;
@@ -39,7 +50,7 @@ async function runArrivalDeparturePush({ reservationsModel, pushService, now = n
         await pushService.sendToPref('arrivals', {
           title: `Arrivée ${r.checkInTime}`,
           body: `${name}${r.propertyName ? ` · ${r.propertyName}` : ''}`.trim(),
-          url: `/planning?sas=arrival&reservationId=${Number(r.id)}`,
+          url: pushUrl('arrival', r.id, isSasLive),
         });
         sent += 1;
       }
@@ -58,7 +69,7 @@ async function runArrivalDeparturePush({ reservationsModel, pushService, now = n
         await pushService.sendToPref('departures', {
           title: `Départ ${r.checkOutTime}`,
           body: `${name}${r.propertyName ? ` · ${r.propertyName}` : ''}`.trim(),
-          url: `/planning?sas=departure&reservationId=${Number(r.id)}`,
+          url: pushUrl('departure', r.id, isSasLive),
         });
         sent += 1;
       }

@@ -73,19 +73,6 @@ db.exec(`
   )
 `);
 
-// ---------- LAUNDRY TRIP SKIPS ----------
-// specs/skip-laundry-trip.md §5. Global per-date skip — when the operator marks a laundry
-// trip as not made, the simulation engine (utils/linenInventory.js) defers that day's
-// drop-off + pick-up to the next non-skipped trip. Additive table, starts empty, no
-// migration. Date format YYYY-MM-DD (10 chars) enforced via CHECK so a malformed insert
-// fails at the DB boundary.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS laundry_trip_skips (
-    tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
-    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
-
 // specs/laundry-bath-mat.md §5 — per-property bath-mat quantity for the "Tapis de bain" option.
 // Mirror of property_option_prices: an absent row means quantity 0 for that property. Additive,
 // starts empty, no data migration.
@@ -100,40 +87,8 @@ db.exec(`
   )
 `);
 
-// specs/manual-laundry-additions.md §5 — global per-trip manual linen additions. One row per
-// laundry date holds six non-negative per-type counts; they fold into À apporter / À récupérer and
-// the inventory simulation like reservation linen. Additive table, starts empty, no migration.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS laundry_trip_manual_additions (
-    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
-    singleBeds   INTEGER NOT NULL DEFAULT 0,
-    doubleBeds   INTEGER NOT NULL DEFAULT 0,
-    babyBeds     INTEGER NOT NULL DEFAULT 0,
-    largeTowels  INTEGER NOT NULL DEFAULT 0,
-    mediumTowels INTEGER NOT NULL DEFAULT 0,
-    smallTowels  INTEGER NOT NULL DEFAULT 0,
-    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
-
-// specs/laundry-extra-trip.md §5 — global extra laundry trips on a free date (early pick-up). One
-// row per date: `pickUpAll` (default 1) or the seven per-type quantities actually taken back when the
-// pick-up is partial. The summary ledger + the inventory engine read it. Additive, starts empty.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS laundry_extra_trips (
-    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
-    pickUpAll    INTEGER NOT NULL DEFAULT 1,
-    singleBeds   INTEGER NOT NULL DEFAULT 0,
-    doubleBeds   INTEGER NOT NULL DEFAULT 0,
-    babyBeds     INTEGER NOT NULL DEFAULT 0,
-    largeTowels  INTEGER NOT NULL DEFAULT 0,
-    mediumTowels INTEGER NOT NULL DEFAULT 0,
-    smallTowels  INTEGER NOT NULL DEFAULT 0,
-    bathMats     INTEGER NOT NULL DEFAULT 0,
-    createdAt    TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
+// The laundry tables (skips, manual additions, extra trips) belong to the `linen` plugin and are
+// created by its migrations (specs/plugins-phase-2-hosts.md rule 29).
 
 // ---------- APP SETTINGS ----------
 db.exec(`

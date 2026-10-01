@@ -1,7 +1,7 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 const path = require('path');
-const { CLIENT_PORT, CLIENT_URL } = require('./e2e/clientUrl');
+const { CLIENT_PORT, CLIENT_URL, SERVER_PORT } = require('./e2e/clientUrl');
 
 // E2E configuration for the smoke suite (specs/e2e-playwright-smoke-suite.md §3 + §4).
 // The suite covers ~24 user-visible flows and serves as the safety net for the upcoming
@@ -58,9 +58,9 @@ module.exports = defineConfig({
       command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test'
         + ' GUESTFLOW_SESSION_SECRET="' + E2E_SESSION_SECRET + '"'
         + ' GUESTFLOW_ENCRYPTION_KEY="' + E2E_ENCRYPTION_KEY + '"'
-        + ' PORT=4000'
+        + ` PORT=${SERVER_PORT}`
         + ' node src/index.js',
-      url: 'http://127.0.0.1:4000/api/version',
+      url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
       // server from a previous run would leave the server pointing at an unlinked inode
       // while dbSeed opens a fresh empty file at the same path.
@@ -70,10 +70,10 @@ module.exports = defineConfig({
       stderr: 'pipe',
     },
     {
-      // Frontend — Vite dev server. Proxies /api/* to :4000 (client/vite.config.js).
+      // Frontend — Vite dev server. Proxies /api/* to the backend above (client/vite.config.js).
       // `BROWSER=none` keeps it from popping a Safari window on macOS. `--strictPort` makes a
       // busy port fail loudly instead of silently serving the suite from a neighbour's app.
-      command: `cd client && BROWSER=none npx vite --port ${CLIENT_PORT} --strictPort`,
+      command: `cd client && BROWSER=none GUESTFLOW_API_PORT=${SERVER_PORT} npx vite --port ${CLIENT_PORT} --strictPort`,
       url: CLIENT_URL,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
       // server from a previous run would leave the server pointing at an unlinked inode

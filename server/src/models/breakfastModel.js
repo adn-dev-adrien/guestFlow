@@ -36,10 +36,10 @@
  * to the requested window. Single-pass query is cheap on a SQLite Pi (no JOIN
  * explosion on dates).
  *
- * Mirrors the factory pattern of `laundryModel.js`.
+ * Factory `buildModel(db)`, like the other models.
  */
 
-const { addDays } = require('../utils/laundryWindow');
+const { addDays } = require('../utils/dateDays');
 const { formatTimeShort } = require('../utils/dateFr');
 
 // Last-resort breakfast time when neither the reservation nor the option carries one
@@ -47,7 +47,7 @@ const { formatTimeShort } = require('../utils/dateFr');
 const FALLBACK_BREAKFAST_TIME = '09:00';
 
 // Two-line ISO string comparators co-located here (lexicographic compare on the
-// `YYYY-MM-DD` shape is correct date order). Not worth promoting into `laundryWindow`
+// `YYYY-MM-DD` shape is correct date order). Not worth promoting into `dateDays`
 // for a single consumer.
 function isoMax(a, b) { return a > b ? a : b; }
 function isoMin(a, b) { return a < b ? a : b; }

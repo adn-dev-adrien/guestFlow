@@ -78,8 +78,11 @@ function fakeRes() {
 
 // ---------- §3.A the modules (rules 1-4) ----------
 
-test('rule 1-2: the five plugin modules are listed once, each with an id and a register function', () => {
-  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS].sort());
+// specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
+const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
+
+test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
+  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS].sort());
   MODULES.forEach((m) => assert.equal(typeof m.register, 'function', m.id));
 });
 
@@ -377,7 +380,7 @@ test('rule 10: the four email paths take the plugin variables and no longer call
 
 test('rule 12: the Plugins list says which plugins are erasable and what an erasure would take', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['school-holidays', 'linen'] });
+  const { plugins } = boot(db, { installed: ['school-holidays', 'neat'] });
   db.prepare("INSERT INTO school_holidays (label) VALUES ('Toussaint'), ('Noël')").run();
   const res = fakeRes();
   createController(plugins, { registry, db: () => db }).list({}, res);
@@ -385,9 +388,9 @@ test('rule 12: the Plugins list says which plugins are erasable and what an eras
   assert.equal(holidays.hasModule, true);
   assert.equal(holidays.erasable, true);
   assert.deepEqual(holidays.data.map((l) => l.label), ['2 périodes de vacances', 'l’état de synchronisation']);
-  const linen = res.body.find((p) => p.id === 'linen');
-  assert.equal(linen.erasable, false);
-  assert.deepEqual(linen.data, []);
+  const neat = res.body.find((p) => p.id === 'neat');
+  assert.equal(neat.erasable, false);
+  assert.deepEqual(neat.data, []);
 });
 
 test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', async () => {
@@ -410,12 +413,12 @@ test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; 
 
 test('rule 22: a plugin without a module refuses ?purge=1 and keeps its data', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['linen'] });
+  const { plugins } = boot(db, { installed: ['neat'] });
   const res = fakeRes();
-  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'linen' }, query: { purge: '1' } }, res);
+  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'neat' }, query: { purge: '1' } }, res);
   assert.equal(res.statusCode, 409);
   assert.deepEqual(res.body, { error: 'NOT_ERASABLE' });
-  assert.ok(plugins.get('linen'));
+  assert.ok(plugins.get('neat'));
 });
 
 test('rule 23: an erasure obeys the refusals of phase 0 rule 8', () => {
@@ -474,7 +477,7 @@ test('rule 17: the SAS payload carries plugin data only for live plugins, and no
   assert.deepEqual(eventBus.sasData(5), { 'gate-access': { available: true } });
   buildPluginsModel(db).setEnabled('gate-access', false);
   assert.deepEqual(eventBus.sasData(5), {});
-  const sas = fs.readFileSync(path.join(SRC, 'controllers/sasController.js'), 'utf8');
+  const sas = fs.readFileSync(path.join(SRC, 'plugins/sas/controller.js'), 'utf8');
   assert.match(sas, /portalCode: String\(settings\.portalCode/);
   assert.match(sas, /pluginData: pluginSasData\(reservation\.id\)/);
   assert.doesNotMatch(sas, /gateAccess:/);

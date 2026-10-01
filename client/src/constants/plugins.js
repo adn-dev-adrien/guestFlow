@@ -33,9 +33,6 @@ export const MODULE_ROUTE_ROLES = Object.freeze(
 // (Intégrations holds the sections of four plugins). Plugin modules add their own pages.
 export const ROUTE_PLUGINS = Object.freeze({
   '/resource-planning': HOURLY_RESOURCES,
-  '/comptabilite': ACCOUNTING_EXPORT,
-  '/comptabilite/plateformes': ACCOUNTING_EXPORT,
-  '/parametres/stock-blanchisserie': LINEN,
   '/parametres/paiements': ONLINE_PAYMENT,
   '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS],
   ...Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.pluginId])),

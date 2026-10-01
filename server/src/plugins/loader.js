@@ -5,11 +5,12 @@
  *                        boot goes on. Then, for every installed module, its migrations and its
  *                        boot hooks.
  *   migrate(db, id)      one module's migrations — install time (rule 6).
- *   mountPublic(app)     `/public/...` mounts, outside the /api guards (index.js calls it before the
- *                        generic /public/v1 tree).
+ *   mountPublic(app)     `/public/...` mounts, outside the /api guards, in module-list order — the
+ *                        whole /public/v1 tree since specs/plugins-phase-2-hosts.md rule 23.
  *   mountApi(app)        `/api/...` mounts and single routes, after the core routers.
  *   startJobs()          the declared jobs, each tick skipped while the plugin is not live.
- *   receptionMatchers()  the reception-role allowlist entries plugins declared.
+ *   roleMatchers(role)   the allowlist entries plugins declared for a restricted role
+ *                        (specs/plugins-phase-2-hosts.md rule 3); receptionMatchers() is its phase 1 form.
  */
 
 const registry = require('./sdk/registry');
@@ -92,8 +93,10 @@ function startJobs({ setIntervalFn = setInterval, setTimeoutFn = setTimeout } = 
   });
 }
 
-function receptionMatchers() {
-  return registry.all().flatMap((record) => record.reception.map((m) => ({ ...m, pluginId: record.id })));
+function roleMatchers(role) {
+  return registry.all().flatMap((record) => (record.roleAccess[role] || []).map((m) => ({ ...m, pluginId: record.id })));
 }
 
-module.exports = { registerAll, migrate, runInstallHooks, mountPublic, mountApi, startJobs, receptionMatchers };
+const receptionMatchers = () => roleMatchers('reception');
+
+module.exports = { registerAll, migrate, runInstallHooks, mountPublic, mountApi, startJobs, roleMatchers, receptionMatchers };
