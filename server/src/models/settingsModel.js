@@ -91,6 +91,9 @@ const COLUMNS = [
   // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
   // window of the Suivi financier. Plain integer — nothing secret, no encryption.
   'fiscalYearEndMonth',
+  // Revenue goal per exercise, JSON (specs/finance-dashboard-redesign.md §3.8). Validated and merged
+  // by the settings controller through utils/revenueGoals.js.
+  'revenueGoals',
   // SMTP for the account-management flow (specs/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.

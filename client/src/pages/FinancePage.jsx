@@ -1,113 +1,118 @@
+// Suivi financier — one dashboard, one window (specs/finance-dashboard-redesign.md). The page renders
+// the server's `/finance/dashboard` payload and, for the tile that is open, its detail table: every
+// figure, total, ratio and French sentence comes ready-made. Local state is the URL (window + logement)
+// and which tile is open.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import {
-  Box, Typography, Card, CardContent, Grid, TextField, MenuItem, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Divider,
-  Accordion, AccordionSummary, AccordionDetails,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Box, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from 'recharts';
 import PageActionBar from '../components/PageActionBar';
-import OperationalPaymentsTable from '../components/OperationalPaymentsTable';
-import FinanceBreakdownDialog from '../components/FinanceBreakdownDialog';
 import LoadingState from '../components/LoadingState';
-import EmptyState from '../components/EmptyState';
-import PageTabs from '../components/PageTabs';
-import ChannelBreakdownCard from '../components/ChannelBreakdownCard';
 import ErrorAlert from '../components/ErrorAlert';
-import StatusBadge from '../components/StatusBadge';
-import PlatformChip from '../components/PlatformChip';
-import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
+import PeriodSelector from '../components/PeriodSelector';
+import ChoiceCardStrip from '../components/ChoiceCardStrip';
+import InsightCard from '../components/InsightCard';
+import SelectableTile from '../components/SelectableTile';
+import FinanceHero from '../components/FinanceHero';
+import FinanceDetailPanel from '../components/FinanceDetailPanel';
+import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
+import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
+import BookingPaceCard from '../components/BookingPaceCard';
+import { formatCurrencyRounded } from '../utils/formatters';
 import api from '../api';
 
-const RADIAN = Math.PI / 180;
-const TABULAR = { fontVariantNumeric: 'tabular-nums' };
-// specs/finance-overview-rework.md §3.4 — the amounts sit INSIDE the camembert (white text at each slice
-// centroid). White-on-fill is legible and matches `common.white`.
-const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
-  if (!value) return null;
-  const r = innerRadius + (outerRadius - innerRadius) * 0.6;
-  const x = cx + r * Math.cos(-midAngle * RADIAN);
-  const y = cy + r * Math.sin(-midAngle * RADIAN);
-  return (
-    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
-      {formatCurrencyRounded(value)}
-    </text>
-  );
-};
+const DETAIL_ID = 'finance-detail';
+const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
+const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
+const FORMAT = { amount: formatCurrencyRounded, percent, date: shortDate };
+const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+const iso = (d) => d.toISOString().slice(0, 10);
 
-// specs/fiscal-year-and-nights-sold.md §3.4 rule 20 + §6.2 — « Gîte 187 nuits · Lodge 142 nuits ».
-// Logements with no night in the window drop out; nothing to show → no line at all.
-const nightsLine = (byProperty) => (byProperty || [])
-  .filter((p) => p.nights > 0)
-  .map((p) => `${p.propertyName} ${p.nights} nuit${p.nights > 1 ? 's' : ''}`)
-  .join(' · ');
+// The tiles, in order, each with what its figure reads from `dashboard.tiles` (rule 13).
+const TILES = [
+  { key: 'collected', label: 'Encaissé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
+  { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
+  { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
+  { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
+  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), `${t.revPar == null ? '—' : formatCurrencyRounded(t.revPar)} de RevPAR`] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
+  { key: 'channels', label: 'Canaux', dot: '#6B8F76', read: (t) => [`− ${formatCurrencyRounded(t.commission)}`, 'commissions payées'] },
+];
 
 export default function FinancePage() {
   const navigate = useNavigate();
-  const theme = useTheme();
-  const [from, setFrom] = useState(() => {
-    const d = new Date(); d.setDate(1);
-    return d.toISOString().split('T')[0];
-  });
-  const [to, setTo] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + 1, 0);
-    return d.toISOString().split('T')[0];
-  });
-  // specs/finance-overview-rework.md §3.4 — the projection date defaults to today + 1 month.
-  const [projectionDate, setProjectionDate] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + 1);
-    return d.toISOString().split('T')[0];
-  });
-  // specs/fiscal-year-and-nights-sold.md §3.5 — the selected exercise lives in the URL (`?exercice=`)
-  // so the back button restores it after opening a reservation, exactly like AccountingPage's
-  // `?month=&year=`. Empty → the server answers on the current exercise.
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedFiscalYear = searchParams.get('exercice') || '';
-  const setSelectedFiscalYear = (key) => {
-    const next = new URLSearchParams(searchParams);
-    if (key) next.set('exercice', String(key)); else next.delete('exercice');
-    setSearchParams(next, { replace: true });
+  // Rule 4 — the window and the logement live in the URL, so « back » from a reservation restores them.
+  const params = {
+    fiscalYear: searchParams.get('exercice') || '',
+    period: searchParams.get('periode') || 'fy',
+    month: searchParams.get('mois') || '',
+    from: searchParams.get('du') || '',
+    to: searchParams.get('au') || '',
+    propertyId: searchParams.get('logement') || '',
   };
-  const [summary, setSummary] = useState(null);
-  const [projection, setProjection] = useState(null);
-  const [operational, setOperational] = useState(null);
-  const [loadError, setLoadError] = useState(false);
-  const [financeViewTab, setFinanceViewTab] = useState('overdue');
-  // specs/finance-per-property-revenue-chart.md — window of the « Revenu par logement » chart.
-  const [chartTab, setChartTab] = useState('period');
-  // specs/finance-card-breakdown.md — the card whose breakdown dialog is open (null = closed).
-  const [breakdownMetric, setBreakdownMetric] = useState(null);
+  const setParams = (next) => {
+    const map = { fiscalYear: 'exercice', period: 'periode', month: 'mois', from: 'du', to: 'au', propertyId: 'logement' };
+    const out = new URLSearchParams(searchParams);
+    Object.entries(next).forEach(([k, v]) => { if (v == null || v === '' || (k === 'period' && v === 'fy')) out.delete(map[k]); else out.set(map[k], String(v)); });
+    setSearchParams(out, { replace: true });
+  };
+  const paramsKey = searchParams.toString();
 
-  // Loaders no longer swallow errors silently (specs/ds-sweep-finance.md §3.8): any failure raises a
-  // retryable ErrorAlert instead of leaving the page blank.
-  const loadSummary = useCallback(async () => {
-    try { setSummary(await api.getFinanceSummary(from, to, selectedFiscalYear)); } catch { setLoadError(true); }
-  }, [from, to, selectedFiscalYear]);
-  const loadProjection = useCallback(async () => {
-    try { setProjection(await api.getFinanceProjection(projectionDate)); } catch { setLoadError(true); }
-  }, [projectionDate]);
-  const loadOperational = useCallback(async () => {
-    try { setOperational(await api.getFinanceOperational()); } catch { setLoadError(true); }
-  }, []);
+  const [dashboard, setDashboard] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [tile, setTile] = useState(null);
+  const [detail, setDetail] = useState({ data: null, loading: false, error: false });
+  const [staysScope, setStaysScope] = useState('window');
+  const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return iso(d); });
 
-  useEffect(() => { loadSummary(); }, [loadSummary]);
-  useEffect(() => { loadProjection(); }, [loadProjection]);
-  useEffect(() => { loadOperational(); }, [loadOperational]);
+  const loadDashboard = useCallback(async () => {
+    try {
+      setLoadError(null);
+      setDashboard(await api.getFinanceDashboard(params));
+    } catch (err) {
+      setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+    }
+  }, [paramsKey]);
 
-  const refreshAll = useCallback(async () => {
-    setLoadError(false);
-    await Promise.all([loadSummary(), loadProjection(), loadOperational()]);
-  }, [loadSummary, loadProjection, loadOperational]);
+  const loadDetail = useCallback(async () => {
+    if (!tile) return;
+    setDetail((d) => ({ ...d, loading: true, error: false }));
+    try {
+      const data = await api.getFinanceDashboardDetail(tile, { ...params, until, scope: staysScope });
+      setDetail({ data, loading: false, error: false });
+    } catch {
+      setDetail({ data: null, loading: false, error: true });
+    }
+  }, [tile, paramsKey, until, staysScope]);
 
-  const handleTogglePayment = async (reservation, field) => {
-    await api.markPayment(reservation.id, { [field]: !reservation[field] });
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => { loadDetail(); }, [loadDetail]);
+
+  const [paceRefresh, setPaceRefresh] = useState(0);
+  const refreshAll = async () => {
+    setPaceRefresh((n) => n + 1);
+    await Promise.all([loadDashboard(), loadDetail()]);
+  };
+
+  const openTile = (key) => {
+    setDetail({ data: null, loading: false, error: false });
+    setTile((current) => (current === key ? null : key));
+  };
+
+  // Rule 15 — a payment ticked here is written through the reservation's payment endpoint, then every
+  // figure is reloaded together.
+  const [paymentError, setPaymentError] = useState(null);
+  const markPayment = async (id, payload) => {
+    setPaymentError(null);
+    try {
+      await api.markPayment(id, payload);
+    } catch (e) {
+      setPaymentError(e.message || 'Le paiement n\'a pas pu être enregistré.');
+      return;
+    }
     await refreshAll();
   };
-
-  // specs/finance-overview-rework.md §3.6 — « Tout solder » marks every still-open component paid.
+  const handleTogglePayment = (reservation, field) => markPayment(reservation.id, { [field]: !reservation[field] });
   const handleSettleAll = async (r) => {
     const payload = {};
     if (!r.depositDisabled && Number(r.depositAmount || 0) > 0 && !r.depositPaid) payload.depositPaid = true;
@@ -115,517 +120,176 @@ export default function FinancePage() {
     if (Number(r.complementAmount || 0) > 0 && !r.complementPaid) payload.complementPaid = true;
     if (Number(r.endOfStayComplementAmount || 0) > 0 && !r.endOfStayComplementPaid) payload.endOfStayComplementPaid = true;
     if (Object.keys(payload).length === 0) return;
-    await api.markPayment(r.id, payload);
-    await refreshAll();
+    await markPayment(r.id, payload);
   };
 
-  // Pie « Encaissé » vs « En attente », colored from theme tokens (specs/ds-sweep-finance.md §3.3).
-  const pieData = summary ? [
-    { name: 'Encaissé', value: summary.totalCollected, fill: theme.palette.success.main },
-    { name: 'En attente', value: summary.totalPending, fill: theme.palette.warning.main },
-  ] : [];
-
-  // specs/finance-per-property-revenue-chart.md — the chart windows: « Sur la période » (du/au) or
-  // « Depuis le début de l'année » (Jan 1 → today). Both arrays are zero-seeded server-side, so keep
-  // only logements with actual revenue for the bars (the « Aucun revenu… » empty state relies on it).
-  const chartSource = chartTab === 'year' ? summary?.yearToDateByProperty : summary?.revenueByProperty;
-  const barData = chartSource?.filter((p) => p.revenue > 0).map((p) => ({ name: p.propertyName, revenue: p.revenue, revenueHt: p.revenueHt, nights: p.nights })) || [];
-
-  // In-bar label: TTC bold, its HT beneath (discreet, mirrors the KPI cards' HT sub-line), then the
-  // nights sold over the same window (specs/fiscal-year-and-nights-sold.md §3.4 rule 21 — this is
-  // where the period's nights are read).
-  //
-  // A bar too short to hold all three lines does NOT drop the nights: they move just above the bar,
-  // in the chart's text color. A low-revenue logement is exactly where nights-vs-revenue is worth
-  // reading, so that line must survive a short bar.
-  const renderBarLabel = ({ x, y, width, height, index }) => {
-    const d = barData[index];
-    if (!d) return null;
-    const cx = x + width / 2;
-    const cy = y + height / 2;
-    const nightsLabel = `${d.nights} nuit${d.nights > 1 ? 's' : ''}`;
-    const nightsAboveBar = (
-      <text x={cx} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600} fill={theme.palette.text.secondary}>
-        {nightsLabel}
-      </text>
-    );
-    if (height < 40) {
-      return (
-        <g>
-          {nightsAboveBar}
-          <text x={cx} y={cy} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
-            {formatCurrencyRounded(d.revenue)}
-          </text>
-        </g>
-      );
-    }
-    if (height < 62) {
-      return (
-        <g>
-          {nightsAboveBar}
-          <text x={cx} y={cy - 8} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
-            {formatCurrencyRounded(d.revenue)}
-          </text>
-          <text x={cx} y={cy + 10} fill="rgba(255,255,255,0.75)" textAnchor="middle" dominantBaseline="central" fontSize={10}>
-            {formatCurrencyRounded(d.revenueHt)} HT
-          </text>
-        </g>
-      );
-    }
-    return (
-      <g>
-        <text x={cx} y={cy - 18} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
-          {formatCurrencyRounded(d.revenue)}
-        </text>
-        <text x={cx} y={cy} fill="rgba(255,255,255,0.75)" textAnchor="middle" dominantBaseline="central" fontSize={10}>
-          {formatCurrencyRounded(d.revenueHt)} HT
-        </text>
-        <text x={cx} y={cy + 18} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
-          {nightsLabel}
-        </text>
-      </g>
-    );
+  const d = dashboard;
+  const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
+  const defaultMonth = () => {
+    const now = new Date().toISOString().slice(0, 7);
+    return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
   };
-
-  const overduePayments = operational?.overdue.reservations || [];
-  const overdueReservationsCount = operational?.overdue.count || 0;
-  const overdueTotalAmount = operational?.overdue.totalAmount || 0;
-  const hasOverdue = overdueReservationsCount > 0;
-  const activeTab = (!hasOverdue && financeViewTab === 'overdue') ? 'pending' : financeViewTab;
-  const pendingPayments = operational?.pending.reservations || [];
-  const pendingTotals = operational?.pending.totals || {};
-  const upcomingReservations = operational?.upcoming.reservations || [];
-  const upcomingTotals = operational?.upcoming.totals || {};
-
-  // KPI cards — neutral « Maison » tiles (2026-07-16 decision): white card, muted kpiLabel + tabular
-  // kpiValue, thin semantic left accent (no more full-color backgrounds).
-  // The three turnover cards carry the nights sold per logement; « Encaissé » / « En attente » are
-  // subsets of échéances, not sets of stays, so they carry none (spec §3.4 rules 18-19).
-  const yearCards = summary ? [
-    { metric: 'yearToDate', label: 'Revenus', caption: "depuis le début de l'exercice jusqu'à aujourd'hui", value: summary.yearToDate, valueHt: summary.yearToDateHt, nights: nightsLine(summary.yearToDateByProperty), accent: 'info.main' },
-    { metric: 'yearTotal', label: 'Revenu total', caption: "sur l'exercice", value: summary.yearTotal, valueHt: summary.yearTotalHt, nights: nightsLine(summary.yearTotalByProperty), accent: 'primary.main' },
-  ] : [];
-  const periodCards = summary ? [
-    // The period's nights live in the « Revenu par logement » chart, not on this card (2026-08-12
-    // decision — the chart already splits the period per logement, so the card stays a single figure).
-    { metric: 'revenueTotal', label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, accent: 'primary.main' },
-    { metric: 'totalCollected', label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, accent: 'success.main' },
-    // specs/finance-pending-global-remaining.md — period-free figure (every finished stay's restant dû).
-    { metric: 'totalPending', label: 'En attente de règlement', caption: 'séjours terminés', value: summary.totalPending, valueHt: summary.totalPendingHt, accent: 'warning.main' },
-  ] : [];
-
-  const renderCard = (c, size) => (
-    <Grid key={c.label} size={size}>
-      <Card
-        onClick={() => setBreakdownMetric(c.metric)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBreakdownMetric(c.metric); } }}
-        role="button"
-        tabIndex={0}
-        aria-label={`Voir le détail : ${c.label}`}
-        sx={{ height: '100%', cursor: 'pointer', borderLeft: '3px solid', borderColor: c.accent, transition: 'transform .1s, box-shadow .1s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }}
-      >
-        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.5, '&:last-child': { pb: 1.5 } }}>
-          <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>
-            {c.label}
-            {c.caption && <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
-          </Typography>
-          <Typography variant="kpiValue" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', my: 1 }}>{formatCurrencyRounded(c.value)}</Typography>
-          {c.nights && (
-            <Typography variant="caption" color="text.secondary">{c.nights}</Typography>
-          )}
-          {c.valueHt != null && (
-            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', ...TABULAR }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
-          )}
-        </CardContent>
-      </Card>
-    </Grid>
-  );
-
-  const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider', ...TABULAR };
-
-  const projectionCard = (
-    <Accordion defaultExpanded={false} sx={{ mb: 3 }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Typography variant="sectionHeader">Projection à une date</Typography>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Box sx={{ mb: 2 }}>
-          <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} />
-        </Box>
-        {projection && (
-          <>
-            <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>Total de séjour d'ici cette date</Typography>
-                <Typography variant="kpiValue">{formatCurrencyRounded(projection.total)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>Déjà encaissé</Typography>
-                <Typography variant="kpiValue">{formatCurrencyRounded(projection.collected)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>En attente</Typography>
-                <Typography variant="kpiValue">{formatCurrencyRounded(projection.pending)}</Typography>
-              </Grid>
-            </Grid>
-            {projection.details.length === 0 ? (
-              <EmptyState message="Aucune réservation d'ici cette date." py={3} />
-            ) : (
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 760 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Encaissé</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">État</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {projection.details.map((d) => (
-                      <TableRow key={d.reservationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${d.reservationId}`)}>
-                        <TableCell>{d.clientName}</TableCell>
-                        <TableCell>{d.propertyName}</TableCell>
-                        <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
-                        <TableCell align="right" sx={TABULAR}>{formatCurrency(d.collected)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, ...TABULAR }}>{formatCurrency(d.totalSejour)}</TableCell>
-                        <TableCell align="center">
-                          <StatusBadge status={d.settled ? 'success' : 'warning'} label={d.settled ? 'Réglé' : 'En attente'} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={3} sx={footerCellSx}>Total</TableCell>
-                      <TableCell align="right" sx={footerCellSx}>{formatCurrency(projection.collected)}</TableCell>
-                      <TableCell align="right" sx={footerCellSx}>{formatCurrency(projection.total)}</TableCell>
-                      <TableCell sx={footerCellSx} />
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </TableContainer>
-            )}
-          </>
-        )}
-      </AccordionDetails>
-    </Accordion>
-  );
+  const defaultCustom = () => {
+    const start = new Date(); start.setDate(1);
+    const end = new Date(start); end.setMonth(end.getMonth() + 1, 0);
+    return { from: iso(start), to: iso(end) };
+  };
 
   return (
     <Box>
       <PageActionBar
         title="Suivi financier"
-        actionsBefore={[
-          { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' },
-        ]}
+        actionsBefore={[{ icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' }]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
-        {loadError && <ErrorAlert message="Impossible de charger les données financières." onRetry={refreshAll} sx={{ mb: 2 }} />}
-        {!summary && !loadError && <LoadingState label="Chargement du suivi financier…" />}
-
-        {/* Row 0 — exercise selector. Deliberately NOT in PageActionBar.center, which is hidden on xs
-            (specs/fiscal-year-and-nights-sold.md §6.3); it is a filter, not an action. */}
-        {summary?.fiscalYear && (
-          <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 2 }, mb: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' } }}>
-            <TextField
-              select
-              size="small"
-              label="Exercice"
-              value={summary.fiscalYear.key}
-              onChange={(e) => setSelectedFiscalYear(e.target.value)}
-              sx={{ minWidth: { sm: 200 } }}
-            >
-              {(summary.fiscalYears || []).map((fy) => (
-                <MenuItem key={fy.key} value={fy.key}>
-                  {fy.label}{fy.isCurrent ? ' (en cours)' : ''}
-                </MenuItem>
-              ))}
-            </TextField>
-            <Typography variant="caption" color="text.secondary">
-              du {displayDate(summary.fiscalYear.from)} au {displayDate(summary.fiscalYear.to)}
-            </Typography>
-          </Box>
-        )}
-        {/* Row 1 — exercise cards at the very top (independent of the selected period). */}
-        {summary && (
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            {yearCards.map((c) => renderCard(c, { xs: 12, sm: 6 }))}
-          </Grid>
-        )}
-        {/* Period selector — drives the period cards + charts below it. */}
-        <Card sx={{ mb: 2 }}>
-          <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField label="Du" type="date" value={from} onChange={e => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-            <TextField label="Au" type="date" value={to} onChange={e => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          </CardContent>
-        </Card>
-        {/* Row 2 — period cards (depend on the du/au range). */}
-        {summary && (
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            {periodCards.map((c) => renderCard(c, { xs: 12, sm: 4 }))}
-          </Grid>
-        )}
-        {/* Charts */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 12, md: 7 }}>
-            <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Typography variant="sectionHeader">Revenu par logement</Typography>
-                <PageTabs
-                  value={chartTab}
-                  onChange={setChartTab}
-                  variant="card"
-                  ariaLabel="Période du graphique"
-                  items={[
-                    { value: 'period', label: 'Sur la période' },
-                    { value: 'year', label: "Depuis le début de l'exercice" },
-                  ]}
-                />
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  {chartTab === 'period'
-                    ? `Période du ${displayDate(from)} au ${displayDate(to)} · montants TTC`
-                    // Bounds come from the payload — the client never derives an exercise itself.
-                    : `Exercice ${summary?.fiscalYear?.label || ''} · depuis le ${displayDate(summary?.fiscalYear?.from)} · montants TTC`}
-                </Typography>
-                {barData.length === 0 ? (
-                  <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <EmptyState
-                      message={chartTab === 'period' ? 'Aucun revenu sur la période sélectionnée.' : "Aucun revenu depuis le début de l'année."}
-                      py={2}
-                    />
-                  </Box>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={barData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis />
-                      <RechartsTooltip formatter={(value, name, item) => `${formatCurrencyRounded(value)} (${formatCurrencyRounded(item?.payload?.revenueHt || 0)} HT) · ${item?.payload?.nights || 0} nuit${(item?.payload?.nights || 0) > 1 ? 's' : ''}`} />
-                      <Bar dataKey="revenue" fill={theme.palette.primary.main} name="Total de séjour" radius={[4, 4, 0, 0]}>
-                        <LabelList dataKey="revenue" content={renderBarLabel} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
-            <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Typography variant="sectionHeader" gutterBottom>Répartition</Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" labelLine={false} label={renderPieLabel}>
-                      {pieData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
-                    </Pie>
-                    <Legend />
-                    <RechartsTooltip formatter={(value) => formatCurrencyRounded(value)} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-        {/* specs/site-traffic-analytics.md rule 21 — same window as « Revenu par logement ». */}
-        <ChannelBreakdownCard
-          breakdown={chartTab === 'year' ? summary?.yearToDateByChannel : summary?.revenueByChannel}
-          caption="Même fenêtre et même total que « Revenu par logement » · montants TTC"
-        />
-        <Divider sx={{ my: 3 }} />
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, gap: 1.5 }}>
-              <Typography variant="sectionHeader">Suivi opérationnel</Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                <Chip size="small" color={overdueReservationsCount > 0 ? 'error' : 'success'} label={`${overdueReservationsCount} retard${overdueReservationsCount > 1 ? 's' : ''}`} />
-                <Chip size="small" color={overdueTotalAmount > 0 ? 'error' : 'success'} label={`Retard total: ${formatCurrency(overdueTotalAmount)}`} />
-                <Chip size="small" label={`En attente: ${pendingPayments.length}`} />
-                <Chip size="small" label={`À venir: ${upcomingReservations.length}`} />
-                <Chip size="small" label={`Période: ${(summary?.reservations || []).length}`} />
-              </Box>
+        {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
+        {!d && !loadError && <LoadingState label="Chargement du suivi financier…" />}
+        {d && (
+          <>
+            {/* Toolbar — exercise + window (rules 1-2). A filter, so it stays in the page, visible on xs. */}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 }}>
+              <TextField select size="small" label="Exercice" value={d.fiscalYear.key} onChange={(e) => setParams({ fiscalYear: e.target.value, period: 'fy', month: '' })} sx={{ minWidth: 190 }}>
+                {d.fiscalYears.map((fy) => <MenuItem key={fy.key} value={fy.key}>{fy.label}{fy.isCurrent ? ' (en cours)' : ''}</MenuItem>)}
+              </TextField>
+              <PeriodSelector
+                kind={d.window.kind}
+                month={d.window.month || params.month}
+                from={params.from || defaultCustom().from}
+                to={params.to || defaultCustom().to}
+                months={d.months}
+                onChange={(w) => {
+                  if (w.kind === 'fy') setParams({ period: 'fy', month: '', from: '', to: '' });
+                  else if (w.kind === 'month') setParams({ period: 'month', month: w.month || defaultMonth(), from: '', to: '' });
+                  else setParams({ period: 'custom', month: '', from: w.from, to: w.to });
+                }}
+              />
             </Box>
 
-            <PageTabs
-              value={activeTab}
-              onChange={setFinanceViewTab}
-              variant="card"
-              ariaLabel="Vues financières"
+            {/* Rule 12 — the logements strip filters everything below it. */}
+            <ChoiceCardStrip
+              ariaLabel="Logement"
+              selected={d.propertyId}
+              onSelect={(id) => setParams({ propertyId: id })}
               items={[
-                ...(hasOverdue ? [{ value: 'overdue', label: 'Paiements en retard' }] : []),
-                { value: 'pending', label: 'Paiements en attente' },
-                { value: 'upcoming', label: 'Réservations à venir' },
-                { value: 'period', label: 'Réservations période' },
+                { value: null, label: 'Tous les logements', figure: formatCurrencyRounded(d.totalRevenue), caption: `${percent(d.totalOccupancy)} occupé` },
+                ...d.properties.map((p) => ({
+                  value: p.propertyId, label: p.name, color: p.color, figure: formatCurrencyRounded(p.revenue),
+                  caption: `${percent(p.occupancy)} occupé · ${p.revenuePerNight == null ? '—' : formatCurrencyRounded(p.revenuePerNight)}/nuit`,
+                })),
               ]}
             />
 
-            {activeTab === 'overdue' && (
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 920 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Éléments en retard</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Montant en retard</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {overduePayments.map((r) => (
-                      <TableRow key={`overdue-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
-                        <TableCell>{r.firstName} {r.lastName}</TableCell>
-                        <TableCell>{r.propertyName}</TableCell>
-                        <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {r.depositOverdue && (
-                              <Chip size="small" color="error" label={`Acompte: ${formatCurrency(r.depositAmount)} (échu ${displayDate(r.depositDueDate)})`} />
-                            )}
-                            {r.balanceOverdue && (
-                              <Chip size="small" color="error" label={`Solde: ${formatCurrency(r.balanceAmount)} (échu ${displayDate(r.balanceDueDate)})`} />
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700, ...TABULAR }}>{formatCurrency(r.overdueAmount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                      <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{formatCurrency(overdueTotalAmount)}</TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </TableContainer>
+            <FinanceHero
+              hero={d.hero}
+              windowLabel={d.window.label}
+              asOf={d.window.asOf < d.window.to ? d.window.asOf : null}
+              propertyName={selectedProperty ? selectedProperty.name : null}
+              fiscalYearLabel={d.fiscalYear.label}
+              format={FORMAT}
+            />
+
+            {d.insights.length > 0 && (
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                {d.insights.map((i) => (
+                  <Grid key={i.key} size={{ xs: 12, md: 12 / d.insights.length }}>
+                    <InsightCard tone={i.tone} title={i.title} text={i.text} />
+                  </Grid>
+                ))}
+              </Grid>
             )}
 
-            {activeTab === 'pending' && (
-              pendingPayments.length === 0 ? (
-                <EmptyState message="Aucun paiement en attente." py={3} />
-              ) : (
-                <>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                  <StatusBadge status="success" label={`En attente de paiement : ${formatCurrency(pendingTotals.remainingToPay)}`} />
-                </Box>
-                <OperationalPaymentsTable
-                  rows={pendingPayments}
-                  totals={pendingTotals}
-                  interactive
-                  showEndOfStayComplement
-                  onTogglePayment={handleTogglePayment}
-                  onSettleAll={handleSettleAll}
-                  onOpenReservation={(id) => navigate(`/reservations/${id}`)}
-                  minWidth={1180}
-                />
-                </>
-              )
+            {/* Rule 13 — six tiles; the open one shows its table just below the row. */}
+            <Grid container spacing={1.5}>
+              {TILES.map((t) => {
+                const [value, caption] = t.read(d.tiles[t.key]);
+                return (
+                  <Grid key={t.key} size={{ xs: 6, md: 4, xl: 2 }}>
+                    <SelectableTile
+                      label={t.label}
+                      value={value}
+                      caption={caption}
+                      dotColor={t.dot}
+                      valueColor={t.alert && t.alert(d.tiles[t.key]) ? 'error.main' : undefined}
+                      selected={tile === t.key}
+                      onClick={() => openTile(t.key)}
+                      controls={DETAIL_ID}
+                    />
+                  </Grid>
+                );
+              })}
+            </Grid>
+            {paymentError && <ErrorAlert message={paymentError} sx={{ mt: 1.5 }} />}
+            {tile ? (
+              <FinanceDetailPanel
+                id={DETAIL_ID}
+                tile={tile}
+                data={detail.data}
+                loading={detail.loading}
+                error={detail.error}
+                onRetry={loadDetail}
+                windowLabel={d.window.label}
+                staysScope={staysScope}
+                onStaysScopeChange={setStaysScope}
+                until={until}
+                onUntilChange={setUntil}
+                onClose={() => setTile(null)}
+                onOpenReservation={(id) => navigate(`/reservations/${id}`)}
+                onTogglePayment={handleTogglePayment}
+                onSettleAll={handleSettleAll}
+                onSelectProperty={(id) => setParams({ propertyId: id })}
+              />
+            ) : (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, mb: 2 }}>
+                Cliquez sur une tuile pour afficher le tableau correspondant.
+              </Typography>
             )}
 
-            {/* « Réservations à venir » — same payments table, read-only, without « Compl. fin de séjour ». */}
-            {activeTab === 'upcoming' && (
-              upcomingReservations.length === 0 ? (
-                <EmptyState message="Aucune réservation à venir." py={3} />
-              ) : (
-                <>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                  <StatusBadge status="success" label={`En attente de paiement : ${formatCurrency(upcomingTotals.remainingToPay)}`} />
-                </Box>
-                <OperationalPaymentsTable
-                  rows={upcomingReservations}
-                  totals={upcomingTotals}
-                  onOpenReservation={(id) => navigate(`/reservations/${id}`)}
-                  minWidth={960}
-                />
-                </>
-              )
-            )}
-
-            {activeTab === 'period' && (
-              summary ? (
-                <>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                  <StatusBadge status="neutral" label={`Période du ${displayDate(from)} au ${displayDate(to)}`} />
-                </Box>
-                <TableContainer>
-                  <Table size="small" sx={{ minWidth: 920 }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Suivi paiement</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {summary.reservations.map((r) => (
-                        <TableRow key={`period-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
-                          <TableCell>{r.firstName} {r.lastName}</TableCell>
-                          <TableCell>{r.propertyName}</TableCell>
-                          <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                          <TableCell><PlatformChip platform={r.platform} /></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700, ...TABULAR }}>{formatCurrency(r.totalSejour)}</TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
-                              {/* settled honours caisse interne (§3.6). */}
-                              <Chip label={r.settled ? 'Réglé' : `Reste ${formatCurrency(r.remainingDue)}`} size="small" color={r.settled ? 'success' : 'warning'} />
-                              {r.depositDisabled ? (
-                                <Chip label="Acompte désactivé" size="small" variant="outlined" sx={{ fontStyle: 'italic' }} />
-                              ) : (
-                                <Chip
-                                  label={`Acompte ${r.depositPaid ? 'payé' : 'non payé'}${r.depositDueDate && !r.depositPaid ? ` (${displayDate(r.depositDueDate)})` : ''}`}
-                                  size="small"
-                                  color={r.depositPaid ? 'success' : 'default'}
-                                  variant={r.depositPaid ? 'filled' : 'outlined'}
-                                />
-                              )}
-                              <Chip
-                                label={`Solde ${r.balancePaid ? 'payé' : 'non payé'}${r.balanceDueDate && !r.balancePaid ? ` (${displayDate(r.balanceDueDate)})` : ''}`}
-                                size="small"
-                                color={r.balancePaid ? 'success' : 'default'}
-                                variant={r.balancePaid ? 'filled' : 'outlined'}
-                              />
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                        <TableCell align="right" sx={footerCellSx}>{formatCurrency(summary.revenueTotal)}</TableCell>
-                        <TableCell sx={footerCellSx} />
-                      </TableRow>
-                    </TableFooter>
-                  </Table>
-                </TableContainer>
-                </>
-              ) : (
-                <EmptyState message="Aucune donnée disponible sur cette période." py={3} />
-              )
-            )}
-          </CardContent>
-        </Card>
-        {/* Projection moved to the very end of the page. */}
-        {projectionCard}
+            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+              <Grid size={{ xs: 12, lg: 6 }}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="sectionHeader">Revenu par mois</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Exercice {d.fiscalYear.label}{d.window.kind !== 'fy' ? ' · la période choisie est surlignée' : ''}
+                    </Typography>
+                    <MonthlyRevenueChart
+                      months={d.revenueMonths}
+                      highlightWindow={d.window.kind !== 'fy'}
+                      previousYear={d.fiscalYear.previousLabel}
+                      formatAmount={formatCurrencyRounded}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid size={{ xs: 12, lg: 6 }}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="sectionHeader">Taux d'occupation</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                      Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement
+                    </Typography>
+                    <SmallMultiplesLineChart
+                      currentLabel={d.fiscalYear.label}
+                      previousLabel={d.fiscalYear.previousLabel}
+                      formatValue={percent}
+                      series={d.occupancy.map((o) => ({
+                        key: String(o.propertyId),
+                        title: o.name,
+                        color: o.color,
+                        caption: o.average == null ? '—' : `moy. ${percent(o.average)}`,
+                        points: o.months.map((m) => ({ key: m.month, tick: m.initial, label: m.label, current: m.current, previous: m.previous })),
+                      }))}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid size={12}>
+                <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
+              </Grid>
+            </Grid>
+          </>
+        )}
       </Box>
-
-      {/* Breakdown of a clicked card figure — the reservations behind the amount. */}
-      <FinanceBreakdownDialog
-        open={!!breakdownMetric}
-        metric={breakdownMetric}
-        from={from}
-        to={to}
-        fiscalYear={summary?.fiscalYear?.key}
-        onClose={() => setBreakdownMetric(null)}
-        onOpenReservation={(id) => navigate(`/reservations/${id}`)}
-      />
     </Box>
   );
 }

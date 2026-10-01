@@ -148,7 +148,7 @@ export default function CalendarPage() {
     const now = new Date();
     setSelectedProp(propertyId);
     lastLoadedRange.current = { from: '', to: '' };
-    focusOnMonth(now.getFullYear(), now.getMonth(), { resetNavLocks: true });
+    focusOnMonth(now.getFullYear(), now.getMonth());
   };
 
   useEffect(() => { loadProperties(); }, []);

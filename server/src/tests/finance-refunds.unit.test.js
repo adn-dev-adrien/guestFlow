@@ -94,12 +94,12 @@ test('le revenu par logement et la projection suivent le même net', () => {
   assert.equal(model.getProjection({ date: '2026-08-31' }).total, 456);
 });
 
-test('le détail d’une carte finance affiche lui aussi le total net de remboursement', () => {
+test('le tableau des réservations de la période affiche lui aussi le total net de remboursement', () => {
   const { model, refunds } = freshDb();
   refunds.create(1, refund());
-  const breakdown = model.getBreakdown({ metric: 'revenueTotal', ...PERIOD });
-  assert.equal(breakdown.data.total, 456);
-  assert.equal(breakdown.data.rows[0].amount, 456);
+  const summary = model.getSummary(PERIOD);
+  assert.equal(summary.revenueTotal, 456);
+  assert.equal(summary.reservations[0].totalSejour, 456);
 });
 
 // ── Moteur de prix : le « total de séjour » de la fiche ───────────────────────

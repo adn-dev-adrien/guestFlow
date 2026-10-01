@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suivi financier — finitions</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A38;--honey:#C99038;--paper:#F8F5EF;--card:#fff;
+  --ink:#27251F;--muted:#6E6A5E;--divider:rgba(60,54,36,.1);--shadow:0 3px 16px rgba(60,54,36,.09);
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;--error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --r-card:14px;--r-inner:10px;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 var(--sans)}
+.doc{max-width:1240px;margin:0 auto;padding:28px 16px 64px}
+h1{font:600 1.6rem/1.2 var(--serif);margin:0 0 4px}
+h2{font:600 1.15rem/1.3 var(--serif);margin:36px 0 10px}
+.lead{color:var(--muted);margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);padding:16px 18px}
+.box h3{font:600 .95rem/1.3 var(--serif);margin:0 0 6px}
+.box ul{margin:0;padding-left:18px}.box li{margin:3px 0}
+code{font:12.5px ui-monospace,Menlo,monospace;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+.bad{color:var(--error);font-weight:600}.good{color:var(--success);font-weight:600}
+
+/* controls */
+.controls{position:sticky;top:0;z-index:5;background:var(--paper);padding:10px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--divider);margin-bottom:18px}
+.seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--r-inner);overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:8px 14px;font:inherit;color:var(--muted);cursor:pointer;min-height:40px}
+.seg button+button{border-left:1px solid var(--divider)}
+.seg button[aria-pressed=true]{background:rgba(47,93,70,.1);color:var(--primary);font-weight:600}
+.controls label{font-size:12px;color:var(--muted);font-weight:600}
+
+/* stage */
+.stage{margin:0 auto;transition:max-width .25s}
+.stage.mobile{max-width:390px}
+
+/* strip */
+.strip{display:flex;gap:10px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px}
+.chip{flex:0 0 auto;min-width:170px;background:#fff;border-radius:var(--r-inner);border:1.5px solid transparent;box-shadow:var(--shadow);padding:9px 12px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.chip[aria-pressed=true]{border-color:var(--primary);background:#F3F6F2}
+.chip b{display:block;font-size:1.05rem;font-variant-numeric:tabular-nums}
+.chip small{color:var(--muted)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+
+/* hero */
+.hero{border-radius:var(--r-card);padding:22px 24px 12px;margin-bottom:14px;box-shadow:var(--shadow)}
+.hero-top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px;align-items:center}
+.stage.mobile .hero-top{grid-template-columns:1fr;gap:16px}
+.hero .kicker{font:600 1rem/1.3 var(--serif)}
+.hero .big{font-weight:700;font-size:3rem;line-height:1.05;margin:8px 0;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stage.mobile .hero .big{font-size:2.25rem}
+.hero .sub{font-size:13.5px}
+.figs{display:grid;grid-template-columns:1fr 1fr;border-radius:var(--r-inner);overflow:hidden}
+.fig{padding:12px 16px;display:flex;flex-direction:column;justify-content:center;min-height:72px}
+.fig .v{font-weight:700;font-size:1.35rem;line-height:1.2;font-variant-numeric:tabular-nums}
+.fig .l{font-size:12.5px;margin-top:2px}
+.curve{margin-top:16px;padding-top:8px}
+.legend{font-size:12px;display:flex;gap:14px;margin:4px 0}
+svg text{font:11px var(--sans)}
+.tip{position:absolute;pointer-events:none;background:#27251F;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;line-height:1.5;white-space:nowrap;font-variant-numeric:tabular-nums;display:none}
+
+/* hero themes */
+.hero.sapin{background:#2F5D46;color:#fff}
+.hero.sapin .sub,.hero.sapin .fig .l,.hero.sapin .legend{color:rgba(255,255,255,.88)}
+.hero.sapin .figs{background:rgba(0,0,0,.14)}
+.hero.sapin .fig{border-right:1px solid rgba(255,255,255,.14);border-bottom:1px solid rgba(255,255,255,.14)}
+.hero.sapin .curve{border-top:1px solid rgba(255,255,255,.16)}
+.hero.papier{background:#fff;color:var(--ink)}
+.hero.papier .kicker{color:var(--primary)}
+.hero.papier .sub,.hero.papier .fig .l,.hero.papier .legend{color:var(--muted)}
+.hero.papier .figs{background:#F6F3EC}
+.hero.papier .fig{border-right:1px solid var(--divider);border-bottom:1px solid var(--divider)}
+.hero.papier .curve{border-top:1px solid var(--divider)}
+.hero.encre{background:#27251F;color:#fff}
+.hero.encre .kicker{color:#E3B566}
+.hero.encre .sub,.hero.encre .fig .l,.hero.encre .legend{color:rgba(255,255,255,.82)}
+.hero.encre .figs{background:rgba(255,255,255,.06)}
+.hero.encre .fig{border-right:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1)}
+.hero.encre .curve{border-top:1px solid rgba(255,255,255,.12)}
+.fig:nth-child(2n){border-right:0!important}.fig:nth-child(n+3){border-bottom:0!important}
+
+/* insights + tiles */
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.stage.mobile .row3{grid-template-columns:1fr}
+.stage.mobile .tiles{grid-template-columns:1fr 1fr}
+.ins{background:#fff;border-radius:var(--r-card);box-shadow:var(--shadow);padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.ins .ic{flex:0 0 34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.ins b{display:block;font-size:13.5px}.ins span{color:var(--muted);font-size:13.5px}
+.tile{position:relative;background:#fff;border-radius:var(--r-card);box-shadow:var(--shadow);border:1.5px solid transparent;padding:12px 16px;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:44px}
+.tile:hover{border-color:rgba(47,93,70,.35)}
+.tile[aria-pressed=true]{border-color:var(--primary)}
+.tile .l{font-size:11.5px;font-weight:600;color:var(--muted)}
+.tile .v{display:block;font-weight:700;font-size:1.3rem;line-height:1.25;margin:2px 0;font-variant-numeric:tabular-nums}
+.tile .c{font-size:12px;color:var(--muted)}
+.tile .dot{position:absolute;top:13px;right:12px;margin:0}
+.panel{background:#fff;border-radius:var(--r-card);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:12px;color:var(--muted);font-size:13px}
+
+/* before/after */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cmp .t{background:#fff;box-shadow:var(--shadow);padding:12px 16px}
+.cmp .cap{font-size:12px;color:var(--muted);margin-top:6px}
+table.plain{border-collapse:collapse;width:100%;font-size:13px}
+table.plain td,table.plain th{padding:6px 8px;border-bottom:1px solid var(--divider);text-align:left}
+table.plain td.n{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Suivi financier — finitions de la version 3.7.0</h1>
+  <p class="lead">Retour d'Adrien du 29/09 : les chiffres sont bons, la forme non. Tuiles trop arrondies, bandeau vert peu lisible sur ordinateur, dates de la courbe irrégulières, texte mal centré dans les tuiles vertes. Spec de référence : <code>specs/finance-dashboard-redesign.md</code>.</p>
+
+  <div class="grid2">
+    <div class="box">
+      <h3>Constat</h3>
+      <ul>
+        <li><b>Rayons multipliés par 14.</b> Le thème fixe <code>shape.borderRadius: 14</code> et MUI multiplie tout rayon numérique du <code>sx</code> par ce facteur. <code>borderRadius: 4.5</code> donnait <span class="bad">63 px</span> au bandeau, <code>3.5</code> <span class="bad">49 px</span> aux tuiles, <code>3</code> <span class="bad">42 px</span> aux chiffres du bandeau. La charte dit <span class="good">14 px</span>. C'est un bug, pas un choix.</li>
+        <li><b>Axe de la courbe.</b> Le serveur envoie un point tous les 7 jours depuis le 1er octobre ; l'axe affichait donc les dates des points (22 oct., 19 nov., 17 déc.…), jamais un début de mois.</li>
+        <li><b>Lisibilité du bandeau.</b> Le halo miel en haut à droite passe sous « 28 % » et « 14 % », les libellés sont à 85 % d'opacité, et les chiffres flottent dans des pilules translucides.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Ce qu'on propose</h3>
+      <ul>
+        <li>Rayons alignés sur la charte : <b>14 px</b> pour les cartes, <b>10 px</b> pour les éléments internes (bandeau des logements, cadres de graphique), 8 px pour les pastilles d'icône.</li>
+        <li>Axe de la courbe : <b>une étiquette par mois</b> (« oct. », « nov. »…), placée sur le 1er. Le serveur fournit les graduations, le client ne calcule aucune date. Sur la fenêtre « Mois », une étiquette par semaine (1, 8, 15, 22, 29).</li>
+        <li>Bandeau : fond uni, sans dégradé ni halo ; les quatre chiffres deviennent une grille de 2 × 2 cases séparées par des filets, texte entièrement opaque, centrée verticalement.</li>
+        <li>Teinte du bandeau : <b>encre</b>, retenue par Adrien le 29/09 parmi les trois ci-dessous.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Ce qu'on ne fait pas</h3>
+      <ul>
+        <li>Aucun chiffre ni calcul ne change ; l'API reste identique à un champ près (<code>hero.axis</code>).</li>
+        <li>Pas de refonte de la mise en page : ordre des blocs, tuiles, tableaux et graphiques du bas restent.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Risque</h3>
+      <ul>
+        <li>Faible. Le même piège (rayon numérique × 14) existe peut-être ailleurs dans l'application ; on corrige les composants de cette page et on liste les autres occurrences sans les toucher.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Maquette — manipulez-la</h2>
+  <div class="controls">
+    <label>Teinte du bandeau</label>
+    <div class="seg" id="theme">
+      <button aria-pressed="false" data-v="sapin">Vert sapin uni</button>
+      <button aria-pressed="false" data-v="papier">Clair (papier)</button>
+      <button aria-pressed="true" data-v="encre">Encre</button>
+    </div>
+    <label>Écran</label>
+    <div class="seg" id="width">
+      <button aria-pressed="true" data-v="desktop">Ordinateur</button>
+      <button aria-pressed="false" data-v="mobile">Téléphone</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="strip" id="strip"></div>
+
+    <section class="hero encre" id="hero">
+      <div class="hero-top">
+        <div>
+          <div class="kicker" id="kicker"></div>
+          <div class="big" id="big"></div>
+          <div class="sub" id="sub"></div>
+        </div>
+        <div class="figs" id="figs"></div>
+      </div>
+      <div class="curve" style="position:relative">
+        <div class="legend"><span>● Cumulé</span></div>
+        <svg id="chart" width="100%" height="130" role="img" aria-label="Chiffre d'affaires cumulé"></svg>
+        <div class="tip" id="tip"></div>
+      </div>
+    </section>
+
+    <div class="row3" id="insights"></div>
+    <div class="row3 tiles" id="tiles"></div>
+    <div class="panel" id="panel" hidden></div>
+  </div>
+
+  <h2>Avant / après — le rayon seul</h2>
+  <div class="cmp">
+    <div><div class="t" style="border-radius:49px"><div style="font-size:11.5px;font-weight:600;color:var(--muted)">Encaissé</div><div style="font-weight:700;font-size:1.3rem">18 227 €</div><div style="font-size:12px;color:var(--muted)">81 % du chiffre d'affaires</div></div><div class="cap">Aujourd'hui : 49 px (3,5 × 14)</div></div>
+    <div><div class="t" style="border-radius:14px"><div style="font-size:11.5px;font-weight:600;color:var(--muted)">Encaissé</div><div style="font-weight:700;font-size:1.3rem">18 227 €</div><div style="font-size:12px;color:var(--muted)">81 % du chiffre d'affaires</div></div><div class="cap">Proposé : 14 px, comme toutes les cartes de GuestFlow</div></div>
+  </div>
+
+  <h2>Rayons corrigés</h2>
+  <div class="box">
+    <table class="plain">
+      <tr><th>Élément</th><th>Écrit</th><th class="n">Rendu aujourd'hui</th><th class="n">Proposé</th></tr>
+      <tr><td>Bandeau</td><td><code>4.5</code></td><td class="n">63 px</td><td class="n">14 px</td></tr>
+      <tr><td>Tuiles</td><td><code>3.5</code></td><td class="n">49 px</td><td class="n">14 px</td></tr>
+      <tr><td>Chiffres du bandeau</td><td><code>3</code></td><td class="n">42 px</td><td class="n">10 px (grille)</td></tr>
+      <tr><td>Bandeau des logements</td><td><code>3</code></td><td class="n">42 px</td><td class="n">10 px</td></tr>
+      <tr><td>Cadres « Taux d'occupation », encart du détail</td><td><code>2.5</code></td><td class="n">35 px</td><td class="n">10 px</td></tr>
+      <tr><td>Pastille d'icône des faits marquants</td><td><code>2.5</code></td><td class="n">35 px (un rond)</td><td class="n">8 px</td></tr>
+    </table>
+  </div>
+
+  <h2>Arbitrage — tranché le 29/09 : encre</h2>
+  <div class="box">
+    <b>Teinte du bandeau.</b> Vert sapin uni : l'identité « Maison », contraste blanc sur vert de 7,9 : 1. Clair : le bandeau devient une carte comme les autres, avec le chiffre en encre et la courbe verte ; le plus sobre et le plus lisible, mais le haut de page perd son point d'appel. Encre : sombre et neutre, accent miel ; tranche avec le reste de l'application, qui n'a aucune surface foncée.
+  </div>
+</div>
+
+<script>
+const eur = v => Math.round(v).toLocaleString('fr-FR').replace(/ | /g,' ') + ' €';
+const DATA = {
+  revenue:22630.41, revenueHt:20498.69, stays:46,
+  figs:[['116','nuits vendues'],['28 %',"taux d'occupation"],['195 €','revenu moyen / nuit'],['14 %','en direct']],
+  cumulative:[["2025-10-01",0],["2025-10-08",0],["2025-10-15",0],["2025-10-22",0],["2025-10-29",0],["2025-11-05",0],["2025-11-12",0],["2025-11-19",0],["2025-11-26",0],["2025-12-03",0],["2025-12-10",0],["2025-12-17",0],["2025-12-24",0],["2025-12-31",0],["2026-01-07",0],["2026-01-14",0],["2026-01-21",0],["2026-01-28",0],["2026-02-04",0],["2026-02-11",0],["2026-02-18",0],["2026-02-25",0],["2026-03-04",569],["2026-03-11",569],["2026-03-18",569],["2026-03-25",569],["2026-04-01",569],["2026-04-08",1376.2],["2026-04-15",1975.2],["2026-04-22",2552.2],["2026-04-29",3178.2],["2026-05-06",3178.2],["2026-05-13",3804.2],["2026-05-20",4635.28],["2026-05-27",5789.02],["2026-06-03",6692.02],["2026-06-10",6867.46],["2026-06-17",7460.52],["2026-06-24",7902.75],["2026-07-01",8120.92],["2026-07-08",9026.13],["2026-07-15",9272.07],["2026-07-22",10503.68],["2026-07-29",11709.84],["2026-08-05",13850.81],["2026-08-12",14522.27],["2026-08-19",14827.67],["2026-08-26",20433.44],["2026-09-02",21806.39],["2026-09-09",21806.39],["2026-09-16",21924.41],["2026-09-23",21924.41]],
+  months:['oct.','nov.','déc.','janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.'],
+  from:'2025-10-01', to:'2026-09-30'
+};
+const THEMES = {
+  sapin:{line:'#fff',fill:'rgba(255,255,255,.22)',axis:'rgba(255,255,255,.8)',grid:'rgba(255,255,255,.14)'},
+  papier:{line:'#2F5D46',fill:'rgba(47,93,70,.14)',axis:'#6E6A5E',grid:'rgba(60,54,36,.1)'},
+  encre:{line:'#E3B566',fill:'rgba(227,181,102,.2)',axis:'rgba(255,255,255,.75)',grid:'rgba(255,255,255,.1)'}
+};
+let theme='encre', width='desktop', selectedProp='all', selectedTile=null;
+
+const day = s => Date.parse(s+'T00:00:00Z')/864e5;
+function fmtDay(s){const d=new Date(s+'T00:00:00Z');return d.getUTCDate()+' '+DATA.months[(d.getUTCMonth()+3)%12]}
+
+function drawChart(){
+  const svg=document.getElementById('chart'), W=svg.clientWidth, H=130, pad={l:6,r:6,t:8,b:22};
+  const t=THEMES[theme], d0=day(DATA.from), d1=day(DATA.to), max=Math.max(...DATA.cumulative.map(p=>p[1]))*1.08;
+  const x=v=>pad.l+(v-d0)/(d1-d0)*(W-pad.l-pad.r), y=v=>pad.t+(1-v/max)*(H-pad.t-pad.b);
+  const pts=DATA.cumulative.map(([dd,v])=>[x(day(dd)),y(v)]);
+  let s='';
+  const mobile=width==='mobile';
+  DATA.months.forEach((m,i)=>{
+    const dt=new Date(Date.UTC(2025,9+i,1)).toISOString().slice(0,10), X=x(day(dt));
+    s+=`<line x1="${X}" x2="${X}" y1="${pad.t}" y2="${H-pad.b}" stroke="${t.grid}"/>`;
+    if(!mobile||i%3===0) s+=`<text x="${X+3}" y="${H-6}" fill="${t.axis}">${m}</text>`;
+  });
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join('');
+  s+=`<path d="${line}L${pts.at(-1)[0]} ${H-pad.b}L${pts[0][0]} ${H-pad.b}Z" fill="${t.fill}"/>`;
+  s+=`<path d="${line}" fill="none" stroke="${t.line}" stroke-width="2.4" stroke-linejoin="round"/>`;
+  s+=`<circle id="hov" r="4" fill="${t.line}" style="display:none"/>`;
+  svg.innerHTML=s;
+  const tip=document.getElementById('tip'), hov=svg.querySelector('#hov');
+  svg.onmousemove=e=>{
+    const r=svg.getBoundingClientRect(), mx=e.clientX-r.left;
+    let best=0;pts.forEach((p,i)=>{if(Math.abs(p[0]-mx)<Math.abs(pts[best][0]-mx))best=i});
+    const [dd,v]=DATA.cumulative[best];
+    hov.setAttribute('cx',pts[best][0]);hov.setAttribute('cy',pts[best][1]);hov.style.display='';
+    tip.innerHTML=`<b>au ${fmtDay(dd)}</b><br>${eur(v)} cette année`;tip.style.display='block';
+    tip.style.left=Math.min(pts[best][0]+10,W-150)+'px';tip.style.top='10px';
+  };
+  svg.onmouseleave=()=>{tip.style.display='none';hov.style.display='none'};
+}
+
+function render(){
+  const stage=document.getElementById('stage');stage.className='stage '+(width==='mobile'?'mobile':'');
+  document.getElementById('hero').className='hero '+theme;
+  const props=[['all','Tous les logements',DATA.revenue,'28 % occupé',null],['1','Gite',18047.48,'32 % occupé · 212 €/nuit','#2F5D46'],['2','Aventura lodge',4582.93,'20 % occupé · 148 €/nuit','#C99038']];
+  document.getElementById('strip').innerHTML=props.map(([k,n,v,c,col])=>`<button class="chip" data-k="${k}" aria-pressed="${k===selectedProp}">${col?`<span class="dot" style="background:${col}"></span>`:''}${n}<b>${eur(v)}</b><small>${c}</small></button>`).join('');
+  document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{selectedProp=b.dataset.k;render()});
+  document.getElementById('kicker').textContent="Chiffre d'affaires · Exercice 2025-2026 · au 29 sept.";
+  document.getElementById('big').textContent=eur(DATA.revenue);
+  document.getElementById('sub').textContent=`${eur(DATA.revenueHt)} HT · net de commissions · ${DATA.stays} séjours`;
+  document.getElementById('figs').innerHTML=DATA.figs.map(([v,l])=>`<div class="fig"><span class="v">${v}</span><span class="l">${l}</span></div>`).join('');
+  const ins=[['#E6EFE7','#3E7D54','↗',"Août, meilleur mois de l'exercice",'8 226 €.'],['#F6EDD7','#8F6A1D','€','Le direct vous a évité 449 € de commissions','3 163 € réservés en direct, au taux moyen de vos plateformes (14 %).'],['#E4EDF3','#31556E','i','Aucun paiement en retard','Tout est à jour.']];
+  document.getElementById('insights').innerHTML=ins.map(([bg,fg,ic,t,x])=>`<div class="ins"><div class="ic" style="background:${bg};color:${fg}">${ic}</div><div><b>${t}</b><span>${x}</span></div></div>`).join('');
+  const tiles=[['Encaissé','18 227 €',"81 % du chiffre d'affaires",'#3E7D54'],['À encaisser','4 399 €','7 séjours · tous exercices','#C99038'],['En retard','0 €','rien à relancer','#A8433A'],['Réservations','46 séjours','7 à venir','#31556E'],['Logements','2 logements','en tête : Gite','#2F5D46'],['Canaux','− 2 588 €','commissions payées','#6E9A80']];
+  document.getElementById('tiles').innerHTML=tiles.map(([l,v,c,col],i)=>`<button class="tile" data-i="${i}" aria-pressed="${selectedTile===i}"><span class="dot" style="background:${col}"></span><span class="l">${l}</span><span class="v">${v}</span><span class="c">${c}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;selectedTile=selectedTile===i?null:i;render()});
+  const panel=document.getElementById('panel');panel.hidden=selectedTile==null;
+  if(selectedTile!=null)panel.textContent=`Tableau « ${tiles[selectedTile][0]} » — inchangé, seul son rayon passe à 14 px.`;
+  drawChart();
+}
+function bindSeg(id,set){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#'+id+' button').forEach(o=>o.setAttribute('aria-pressed',o===b));set(b.dataset.v);render()})}
+bindSeg('theme',v=>theme=v);bindSeg('width',v=>width=v);
+window.addEventListener('resize',drawChart);
+render();
+</script>
+</body>
+</html>
