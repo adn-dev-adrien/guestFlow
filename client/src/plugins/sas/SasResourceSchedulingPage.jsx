@@ -5,8 +5,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import SlotPickerGrid from '../SlotPickerGrid';
-import api from '../../api';
+import { api, SlotPickerGrid } from '../sdk';
 
 /**
  * Arrival SAS — « Planifier les ressources »

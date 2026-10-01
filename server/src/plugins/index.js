@@ -9,4 +9,5 @@ module.exports = [
   require('./google-calendar'),
   require('./tariff-recipes'),
   require('./gate-access'),
+  require('./sas'),
 ];

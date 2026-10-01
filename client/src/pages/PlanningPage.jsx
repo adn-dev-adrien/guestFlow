@@ -23,7 +23,7 @@ import OptionDayCard from '../components/OptionDayCard';
 import BreakfastPrepDialog from '../components/BreakfastPrepDialog';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
-import ReservationSasDialog from '../components/sas/ReservationSasDialog';
+import Slot from '../plugins/sdk/Slot';
 import { readSasDeepLink, readBreakfastDeepLink } from '../utils/sasDeepLink';
 import { orderDayEntries } from '../utils/planningDayOrder';
 import { displayDate } from '../utils/formatters';
@@ -1069,12 +1069,13 @@ export default function PlanningPage() {
         })}
       </Box>
 
-      <ReservationSasDialog
+      <Slot
+        name="sas.dialog"
         open={!!sas}
         reservationId={sas?.reservationId}
         mode={sas?.mode || 'arrival'}
         onClose={() => setSas(null)}
-        onCommitted={() => { setSas(null); loadPlanning(startDate); }}
+        onDone={() => { setSas(null); loadPlanning(startDate); }}
         canOpenReservation={!receptionMode}
       />
 

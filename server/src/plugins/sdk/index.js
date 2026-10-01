@@ -16,6 +16,21 @@
 const CORE_MODULES = Object.freeze({
   database: '../../database', // every plugin model binds to the app's database in production
   settingsModel: '../../models/settingsModel', // core settings a plugin reads (company, VAT, fiscal year)
+  // sas
+  reservationsModel: '../../models/reservationsModel', // the SAS reads the stay and calls the core commit (its money)
+  linenItemsModel: '../../models/linenItemsModel', // « Facturables » linen prices, read and edited by the SAS
+  repairAmountsModel: '../../models/repairAmountsModel', // « Facturables » repair prices; the departure commit prices from them
+  breakfastModel: '../../models/breakfastModel', // the breakfast page state of the arrival SAS
+  optionsModel: '../../models/optionsModel', // the catalogue the arrival SAS may still sell
+  resourceSchedulingModel: '../../models/resourceSchedulingModel', // the hourly-resource step (phase 0 switch until phase 3)
+  sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
+  arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
+  optionCategoriesMigration: '../../utils/optionCategoriesMigration', // CATERING_CATEGORY, the « Restauration » catalogue
+  roles: '../../constants/roles', // isReceptionOnly — the reception role stays core (rule 13)
+  sasEditWindow: '../../utils/sasEditWindow', // the reception's day window, shared with the fiche and the status toggle
+  reservationSettlement: '../../utils/reservationSettlement', // what the stay still owes at the door
+  platformNameFormat: '../../utils/platformNameFormat', // direct channel vs platform for the stay step
+  receptionView: '../../utils/receptionView', // the reception's money-stripped reads and commits
 });
 
 function coreModule(name) {

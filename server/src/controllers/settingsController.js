@@ -17,8 +17,6 @@ const path = require('path');
 const fs = require('fs');
 
 const settingsModel = require('../models/settingsModel');
-const linenItemsModel = require('../models/linenItemsModel');
-const repairAmountsModel = require('../models/repairAmountsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
@@ -283,36 +281,12 @@ async function sendSmtpTest(req, res) {
   }
 }
 
-// Priced linen items (Réglages → Blanchisserie) — specs/arrival-departure-sas.md §3.4.
-function getLinenItems(req, res) {
-  return res.json(linenItemsModel.list());
-}
-function updateLinenItems(req, res) {
-  const items = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.items) ? req.body.items : null);
-  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-  return res.json(linenItemsModel.replaceAll(items));
-}
-
-// Repair amounts (« Tarifs facturables ») — specs/extinguisher-seal-and-repair-amounts.md.
-function getRepairAmounts(req, res) {
-  return res.json(repairAmountsModel.list());
-}
-function updateRepairAmounts(req, res) {
-  const items = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.items) ? req.body.items : null);
-  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-  return res.json(repairAmountsModel.replaceAll(items));
-}
-
 module.exports = {
   getSettings,
   updateSettings,
   uploadLogo,
   deleteLogo,
   sendSmtpTest,
-  getLinenItems,
-  updateLinenItems,
-  getRepairAmounts,
-  updateRepairAmounts,
   // exported for tests
   __test: { SMTP_FIELDS },
 };

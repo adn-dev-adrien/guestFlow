@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildStayPayment } } = require('../controllers/sasController');
+const { __test: { buildStayPayment } } = require('../controller');
 
 const ctx = { isDeparture: false, receptionOnly: false };
 

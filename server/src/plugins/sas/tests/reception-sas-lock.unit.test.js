@@ -11,9 +11,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { isReceptionOnly } = require('../constants/roles');
+const { isReceptionOnly } = require('../../../constants/roles');
 
 const Module = require('module');
+
+// Every plugin live, as before phase 2: the linen gating of the SAS has its own suite
+// (phase-2-sas.unit.test.js).
+require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
 
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;
@@ -53,16 +57,16 @@ function buildController({ captures, reservation }) {
     return () => null;
   } });
 
-  const controllerModule = '../controllers/sasController';
+  const controllerModule = '../controller';
   return withMocks({
     // constants/roles + utils/sasEditWindow are deliberately NOT mocked → the real predicate and the
     // real window arithmetic run, so this test guards the actual wiring.
-    '../models/reservationsModel': reservationsModelMock,
-    '../models/linenItemsModel': { list: () => [] },
-    '../models/settingsModel': { read: () => ({}) },
-    '../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
-    '../models/repairAmountsModel': { list: () => [] },
-    '../utils/sasAudit': { buildSasSnapshot: () => ({}), computeSasChanges: () => [] },
+    '../../models/reservationsModel': reservationsModelMock,
+    '../../models/linenItemsModel': { list: () => [] },
+    '../../models/settingsModel': { read: () => ({}) },
+    '../../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
+    '../../models/repairAmountsModel': { list: () => [] },
+    './sasAudit': { buildSasSnapshot: () => ({}), computeSasChanges: () => [] },
   }, () => {
     delete require.cache[require.resolve(controllerModule)];
     return require(controllerModule);

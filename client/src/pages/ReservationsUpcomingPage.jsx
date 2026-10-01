@@ -8,9 +8,11 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import ReservationCard from '../components/ReservationCard';
-import ReservationSasDialog from '../components/sas/ReservationSasDialog';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
+import Slot from '../plugins/sdk/Slot';
+import { usePlugin } from '../hooks/usePlugins';
+import { SAS } from '../constants/plugins';
 import { withFrom } from '../utils/navigation';
 
 const ORIGIN = '/reservations/upcoming';
@@ -37,6 +39,8 @@ export default function ReservationsUpcomingPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [sas, setSas] = useState(null);
+  // specs/plugins-phase-2-hosts.md rule 9 (gap 4) — the arrival SAS opens only while its plugin is active.
+  const sasOn = usePlugin(SAS);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -139,7 +143,7 @@ export default function ReservationsUpcomingPage() {
                 reservation={r}
                 onToggleReady={handleToggleReady}
                 onOpenReservation={openReservation}
-                onOpenSas={openArrivalSas}
+                onOpenSas={sasOn ? openArrivalSas : undefined}
                 onOpenClient={openClient}
               />
             ))}
@@ -147,12 +151,13 @@ export default function ReservationsUpcomingPage() {
         );
       })}
 
-      <ReservationSasDialog
+      <Slot
+        name="sas.dialog"
         open={!!sas}
         reservationId={sas?.reservationId}
         mode={sas?.mode || 'arrival'}
         onClose={() => setSas(null)}
-        onCommitted={() => { setSas(null); loadUpcoming(); }}
+        onDone={() => { setSas(null); loadUpcoming(); }}
       />
     </Box>
   );

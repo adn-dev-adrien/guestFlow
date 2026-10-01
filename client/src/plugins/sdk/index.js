@@ -17,3 +17,18 @@ export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as SecretRevealField } from '../../components/SecretRevealField';
 export { default as SasKeypadCode } from '../../components/sas/SasKeypadCode';
 export { displayDate } from '../../utils/formatters';
+// sas — what the guided arrival/departure dialog and its « Facturables » tab render with
+// (specs/plugins-phase-2-hosts.md rule 8). The steps of other plugins reach it through the slots.
+export { default as Slot } from './Slot';
+export { useSlot } from './useSlot';
+export { default as OccurrenceGrid } from '../../components/OccurrenceGrid';
+export { default as SlotPickerGrid } from '../../components/SlotPickerGrid';
+export { default as WheatIcon } from '../../components/WheatIcon';
+export { default as BaguetteIcon } from '../../components/BaguetteIcon';
+export { default as useDirtyFormGuard } from '../../hooks/useDirtyFormGuard';
+export { formatCurrency, displayDateLong } from '../../utils/formatters';
+export { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
+export { PRICE_TYPE_LABELS } from '../../components/reservation/extrasLabels';
+export { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
+// The hourly-resource step keeps its phase 0 switch until phase 3 (rule 11).
+export { HOURLY_RESOURCES } from '../../constants/plugins';

@@ -5,7 +5,10 @@
  * A forward-only sequence of single-purpose pages; every page has « Quitter » (closes, writes
  * NOTHING). All decisions are accumulated in memory and committed in ONE call at the final recap.
  *
- * Props: { open, reservationId, mode: 'arrival'|'departure', onClose, onCommitted }
+ * Props: { open, reservationId, mode: 'arrival'|'departure', onClose, onDone, canOpenReservation }
+ *
+ * Contributed by the `sas` plugin to the `sas.dialog` slot (specs/plugins-phase-2-hosts.md rule 9).
+ * Other plugins add read-only pages through `sas.arrival.steps` / `sas.departure.steps` (rule 10).
  */
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,8 +23,6 @@ import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
-import WheatIcon from '../WheatIcon';
-import BaguetteIcon from '../BaguetteIcon';
 import CloseIcon from '@mui/icons-material/Close';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -46,22 +47,13 @@ import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router';
-import api from '../../api';
-import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
-import ConfirmDialog from '../ConfirmDialog';
-import OccurrenceGrid from '../OccurrenceGrid';
-import LoadingState from '../LoadingState';
-import ErrorAlert from '../ErrorAlert';
-import { useToast } from '../DialogProvider';
-import SasKeypadCode from './SasKeypadCode';
+import {
+  api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
+  useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
+  sasLockTitle, sasLockMessage, usePlugin, HOURLY_RESOURCES, Slot, useSlot, WheatIcon, BaguetteIcon,
+} from '../sdk';
 import OfferableLine from './OfferableLine';
-import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
-import { PRICE_TYPE_LABELS } from '../reservation/extrasLabels';
-import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
-import { usePlugin } from '../../hooks/usePlugins';
-import { HOURLY_RESOURCES, LINEN } from '../../constants/plugins';
-import Slot from '../../plugins/sdk/Slot';
-import { useSlot } from '../../plugins/sdk/useSlot';
+import placePluginSteps from './placePluginSteps';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 // The real price of a stored end-of-stay line: what it is billed at, or what it WOULD be billed at
@@ -217,7 +209,7 @@ function IntroDateRow({ kind, date, time }) {
   );
 }
 
-export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted, canOpenReservation = true }) {
+export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onDone, canOpenReservation = true }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -309,13 +301,17 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       return next;
     });
   }, []);
-  // specs/plugins-phase-0-foundation.md rule 16 — the steps an inactive plugin brings are skipped.
+  // specs/plugins-phase-0-foundation.md rule 16 — the hourly-resource step keeps its switch until
+  // phase 3. The linen and towel steps follow the payload instead: the server sends their data only
+  // while `linen` is live (specs/plugins-phase-2-hosts.md rule 11).
   const hourlyOn = usePlugin(HOURLY_RESOURCES);
-  const linenOn = usePlugin(LINEN);
-  // Arrival steps of plugin modules (specs/plugins-phase-1-sdk.md rule 13), e.g. the weather alert:
-  // each loads its data in the background when the arrival SAS opens and shows, just before the
-  // recap, only when `isShown(data)`. Their key doubles as the step key.
-  const pluginSteps = useSlot('sas.arrival.steps');
+  // Steps of plugin modules (specs/plugins-phase-1-sdk.md rule 13, specs/plugins-phase-2-hosts.md
+  // rule 10), e.g. the weather alert: each loads its data in the background when the SAS opens and
+  // shows only when `isShown(data)`, after the page its `after` names or just before the recap.
+  // Their key doubles as the step key.
+  const arrivalPluginSteps = useSlot('sas.arrival.steps');
+  const departurePluginSteps = useSlot('sas.departure.steps');
+  const pluginSteps = mode === 'arrival' ? arrivalPluginSteps : departurePluginSteps;
   const [pluginStepData, setPluginStepData] = useState({});
   const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;
   const metaFor = (key) => {
@@ -524,12 +520,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     return () => { cancelled = true; };
   }, [open, reservationId, mode]);
 
-  // Plugin steps — background load on open, arrival SAS only. Non-blocking: the wizard renders
-  // normally and a step appears (before the recap) once/if its data says so; a failed load shows
-  // nothing.
+  // Plugin steps — background load on open, for the steps of the SAS being run. Non-blocking: the
+  // wizard renders normally and a step appears once/if its data says so; a failed load shows nothing.
   const pluginStepKeys = pluginSteps.map((c) => `${c.pluginId}:${c.key}`).join(',');
   useEffect(() => {
-    if (!open || !reservationId || mode !== 'arrival' || pluginSteps.length === 0) return undefined;
+    if (!open || !reservationId || pluginSteps.length === 0) return undefined;
     let cancelled = false;
     setPluginStepData({});
     pluginSteps.forEach((c) => {
@@ -574,11 +569,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     // (specs/reopen-completed-sas.md §3 rule 3), so a mis-marked return can be corrected.
     const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
     const sales = data.sasSales || {};
+    // Plugin steps (e.g. the weather alert), each only when its data calls for it.
+    const shownPluginSteps = pluginSteps.filter((c) => c.isShown(pluginStepData[c.key]));
     if (mode === 'arrival') {
       // Arrival caution is hidden as soon as it's received, even in re-edit (specs/sas-hide-settled-steps.md §3).
       const cautionStep = Number(r.cautionAmount || 0) > 0 && !r.cautionReceived;
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
-      return [
+      return placePluginSteps([
         'intro',
         // The keypad code of the property, and/or the key a plugin holds for the stay (rule 17).
         (data.portalCode || data.pluginData?.['gate-access']?.available) ? 'portal' : null,
@@ -593,13 +590,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // everything is scheduled.
         hourlyOn && data.resourceScheduling?.applicable ? 'resourceScheduling' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
-        linenOn && r.bedLinenAlert ? 'linen' : null,
-        (linenOn && r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
+        r.bedLinenAlert ? 'linen' : null,
+        (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         // Ménage step is hidden when the cleaning is already included (specs/sas-hide-settled-steps.md §3);
         // the vaisselle/poubelles reminder then moves to the recap.
         data.cleaning?.included ? null : 'cleaning',
         // specs/sas-bath-linen-upsell.md §3.1 — offer bath linen when the guest didn't take it.
-        linenOn && data.bathLinen?.available ? 'bathLinen' : null,
+        data.bathLinen?.available ? 'bathLinen' : null,
         // specs/sas-breakfast-and-catering-upsell.md §3.1 — the sale steps close the check-in: the
         // breakfast (offer → mornings → composition) then the « Restauration » catalogue.
         sales.breakfast?.available ? 'breakfastSale' : null,
@@ -610,14 +607,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         sales.catering?.available ? 'cateringAsk' : null,
         (sales.catering?.available && cateringWanted === true) ? 'cateringItems' : null,
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
-        // Plugin steps (e.g. the weather alert): last pages before the recap, each only when its
-        // data calls for it.
-        ...pluginSteps.map((c) => (c.isShown(pluginStepData[c.key]) ? c.key : null)),
         'recap',
-      ].filter(Boolean);
+      ].filter(Boolean), shownPluginSteps);
     }
     const cautionReturnStep = Number(r.cautionAmount || 0) > 0 && r.cautionReceived && (!r.cautionReturned || isEditing);
-    return [
+    return placePluginSteps([
       'intro',
       // specs/defer-arrival-complement-to-checkout.md §3.1 rule 1 — the end-of-stay ménage page is
       // dropped when the cleaning is already sold (booked option, « Ménage » added at check-in, or
@@ -631,9 +625,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'extinguisher',
       extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
-    ].filter(Boolean);
+    ].filter(Boolean), shownPluginSteps);
   }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
-    breakfastSold, cateringWanted, hourlyOn, linenOn]);
+    breakfastSold, cateringWanted, hourlyOn]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -1086,7 +1080,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           offeredArrivalExtras: arrivalRecall ? offeredRefsOf(arrivalRecallLines) : undefined,
         });
       }
-      if (onCommitted) onCommitted();
+      if (onDone) onDone();
       if (onClose) onClose();
     } catch (e) {
       // specs/reception-sas-today-only.md §3.3 rule 14 — the SAS left the reception edit window while

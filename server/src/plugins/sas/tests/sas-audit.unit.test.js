@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
+const { buildSasSnapshot, computeSasChanges } = require('../sasAudit');
 
 const baseRow = {
   cautionReceived: 0, cautionReturned: 0,

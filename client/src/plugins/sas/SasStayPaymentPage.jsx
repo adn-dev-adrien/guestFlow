@@ -15,7 +15,7 @@
 
 import React from 'react';
 import { Stack, Typography, Alert } from '@mui/material';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency } from '../sdk';
 
 const MODE_CAPTION = {
   card: 'Encaissé par CB ou chèque.',
