@@ -22,7 +22,7 @@ import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 
 import theme from '../../../theme';
-import DialogProvider from '../../DialogProvider';
+import DialogProvider from '../../../components/DialogProvider';
 import ReservationSasDialog from '../ReservationSasDialog';
 
 const BASE_RES = {
@@ -106,7 +106,7 @@ export function renderDialog(props) {
   return render(
     <MemoryRouter>
       <ThemeProvider theme={theme}><DialogProvider>
-        <ReservationSasDialog open reservationId={1} onClose={() => {}} onCommitted={() => {}} {...props} />
+        <ReservationSasDialog open reservationId={1} onClose={() => {}} onDone={() => {}} {...props} />
       </DialogProvider></ThemeProvider>
     </MemoryRouter>,
   );

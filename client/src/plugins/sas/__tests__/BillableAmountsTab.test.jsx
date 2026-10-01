@@ -4,16 +4,16 @@ import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
 
-import theme from '../../theme';
-import DialogProvider from '../../components/DialogProvider';
-import BillableAmountsPage from '../BillableAmountsPage';
-import api from '../../api';
+import theme from '../../../theme';
+import DialogProvider from '../../../components/DialogProvider';
+import BillableAmountsTab from '../BillableAmountsTab';
+import api from '../../../api';
 
 // specs/ds-sweep-settings.md §3.1 rule 1 — the page owns ONE bar-level save for both lists (the two
 // content « Enregistrer » rows are gone), load failures render a retryable ErrorAlert, and the keyed
 // extinguisher repair row stays protected (specs/extinguisher-seal-and-repair-amounts.md).
 
-vi.mock('../../api', () => ({
+vi.mock('../../../api', () => ({
   default: {
     getLinenItems: vi.fn(),
     getRepairAmounts: vi.fn(),
@@ -28,7 +28,7 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <ThemeProvider theme={theme}>
-        <DialogProvider><BillableAmountsPage /></DialogProvider>
+        <DialogProvider><BillableAmountsTab /></DialogProvider>
       </ThemeProvider>
     </MemoryRouter>,
   );

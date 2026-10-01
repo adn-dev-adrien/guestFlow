@@ -1,7 +1,7 @@
 /**
  * SettingsBillableAmountsSection — « Facturables au SAS » form (Options & ressources, third tab).
  * specs/extinguisher-seal-and-repair-amounts.md; presentational since the phase-3 sweep
- * (specs/ds-sweep-settings.md §3.1 rule 1): BillableAmountsPage owns load/save/dirty/guard and the
+ * (specs/ds-sweep-settings.md §3.1 rule 1): BillableAmountsTab owns load/save/dirty/guard and the
  * canonical bar-level « Enregistrer » — this section only renders the two editable lists.
  *
  * Props:

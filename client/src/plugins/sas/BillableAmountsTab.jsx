@@ -1,6 +1,7 @@
 /**
- * BillableAmountsPage — the « Facturables au SAS » tab of Options & ressources
- * (specs/settings-rationalization.md rule 2; `/parametres/tarifs` redirects there).
+ * BillableAmountsTab — the « Facturables au SAS » tab of Options & ressources
+ * (specs/settings-rationalization.md rule 2; `/parametres/tarifs` redirects there). Contributed by the
+ * `sas` plugin to the `optionsResources.tabs` slot (specs/plugins-phase-2-hosts.md rule 8).
  *
  * The prices billable during the SAS: missing linen and repair amounts. The page OWNS the data (load / one bar-level save for both lists / dirty
  * guard — specs/ds-sweep-settings.md §3.1 rule 1: the two content « Enregistrer » rows moved into
@@ -10,15 +11,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { useNavigate } from 'react-router';
-import PageActionBar from '../components/PageActionBar';
-import ErrorAlert from '../components/ErrorAlert';
-import ConfirmDialog from '../components/ConfirmDialog';
-import SettingsBillableAmountsSection from '../components/SettingsBillableAmountsSection';
-import { useToast } from '../components/DialogProvider';
-import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
-import api from '../api';
+import {
+  api, PageActionBar, ErrorAlert, ConfirmDialog, useToast, useDirtyFormGuard,
+} from '../sdk';
+import SettingsBillableAmountsSection from './SettingsBillableAmountsSection';
 
-export default function BillableAmountsPage({ barTabs }) {
+export default function BillableAmountsTab({ barTabs }) {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [linen, setLinen] = useState([]);
