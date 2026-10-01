@@ -15,6 +15,7 @@ const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
+const { LINEN } = require('../constants/plugins');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 
@@ -917,18 +918,21 @@ function createReservationsModel(database) {
 
       // Bed-linen adequacy flag for the planning arrival card (specs/planning-arrival-alerts.md
       // §3 rule 6). Skipped for properties where bed linen is a default-offered option (the
-      // operator doesn't manage linen per stay there).
-      const bedLinenProvidedByDefault = Boolean(database.prepare(`
-        SELECT 1 FROM property_option_defaults d
-        JOIN options o ON o.id = d.optionId
-        WHERE d.propertyId = ? AND o.autoOptionType = 'bed_linen' AND d.offered = 1
-        LIMIT 1
-      `).get(reservation.propertyId));
-      reservation.bedLinenAlert = computeBedLinenAlert({
-        reservation,
-        options: reservation.options,
-        bedLinenProvidedByDefault,
-      });
+      // operator doesn't manage linen per stay there). Absent while the `linen` plugin is not live
+      // (specs/plugins-phase-2-hosts.md rule 17).
+      if (require('../plugins/sdk/registry').isLive(LINEN)) {
+        const bedLinenProvidedByDefault = Boolean(database.prepare(`
+          SELECT 1 FROM property_option_defaults d
+          JOIN options o ON o.id = d.optionId
+          WHERE d.propertyId = ? AND o.autoOptionType = 'bed_linen' AND d.offered = 1
+          LIMIT 1
+        `).get(reservation.propertyId));
+        reservation.bedLinenAlert = computeBedLinenAlert({
+          reservation,
+          options: reservation.options,
+          bedLinenProvidedByDefault,
+        });
+      }
       // specs/per-platform-tourist-tax-three-way.md — the tourist-tax portion of the complement,
       // computed server-side so the SAS arrival recap can itemise a « Taxe de séjour » line. The tax
       // is in the complement ONLY when it's forced there (touristTaxInComplement = 1) or WE collect it
@@ -1109,21 +1113,6 @@ function createReservationsModel(database) {
       if (!HAS_RESERVATION_NUMBER) return '';
       const row = database.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(reservationId);
       return (row && row.reservationNumber) || '';
-    },
-
-    // Batched lookup of (id, firstName, lastName, startDate, endDate) for a list of reservation
-    // ids. Used by the Dashboard linen-shortage alert to label impacted chips with the client
-    // name instead of a bare #id.
-    findClientNamesByIds(ids) {
-      const cleanIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
-      if (cleanIds.length === 0) return [];
-      const placeholders = cleanIds.map(() => '?').join(',');
-      return database.prepare(`
-        SELECT r.id, r.startDate, r.endDate, c.firstName, c.lastName
-          FROM reservations r
-          LEFT JOIN clients c ON c.id = r.clientId
-         WHERE r.id IN (${placeholders})
-      `).all(...cleanIds);
     },
 
     // Dashboard card (specs/dashboard-ical-new-reservations.md): reservations imported via iCal

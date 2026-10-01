@@ -308,7 +308,7 @@ test('the plugin mounts and routes are wired in the server', () => {
   // (specs/plugins-phase-1-sdk.md rule 5 — covered in plugins-phase-1-sdk.unit.test.js).
   for (const [mount, id] of [
     ['/public/v1', 'WEBSITE_BOOKING'], ['/api/resource-bookings', 'HOURLY_RESOURCES'],
-    ['/api/payments', 'ONLINE_PAYMENT'], ['/api/laundry', 'LINEN'], ['/api/neat', 'NEAT'],
+    ['/api/payments', 'ONLINE_PAYMENT'], ['/api/neat', 'NEAT'],
   ]) {
     assert.ok(index.includes(`app.use('${mount}', requirePlugin(PLUGINS.${id})`), mount);
   }

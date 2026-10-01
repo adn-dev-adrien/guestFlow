@@ -156,29 +156,6 @@ function validateMonthDay(value) {
   return null;
 }
 
-// Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sunday … 6=Saturday,
-// JavaScript Date.getDay() convention. Returns a French error message on out-of-range.
-function validateLaundryWeekday(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  if (!Number.isInteger(n)) return 'Doit être un entier entre 0 (dimanche) et 6 (samedi).';
-  if (n < 0 || n > 6) return 'Doit être un entier entre 0 (dimanche) et 6 (samedi).';
-  return null;
-}
-
-// Linen inventory & shortage tracking (specs/linen-inventory-shortage-tracking.md §3.1). A
-// stock count: non-negative integer capped at 999 (Adrien's house keeps ~80 sets max per
-// type; 999 is well above + dodges overflow noise). Empty / null treated as 0 (the form's
-// helper text reads "Indiquez 0 si vous ne souhaitez pas suivre ce type").
-function validateLinenStockCount(value) {
-  if (value === '' || value == null) return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 'Doit être un entier entre 0 et 999.';
-  if (!Number.isInteger(n)) return 'Doit être un entier entre 0 et 999.';
-  if (n < 0 || n > 999) return 'Doit être un entier entre 0 et 999.';
-  return null;
-}
-
 module.exports = {
   validateEmail,
   validateHeaderSafeText,
@@ -192,8 +169,6 @@ module.exports = {
   smtpPortForSecure,
   validatePublicUrl,
   validateMonthDay,
-  validateLaundryWeekday,
-  validateLinenStockCount,
   // exported for tests
   __test: { trimOrEmpty, stripWhitespace },
 };

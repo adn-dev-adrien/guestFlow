@@ -121,21 +121,6 @@ const COLUMNS = [
   'instagramUrl',
   'poolSeasonStart',
   'poolSeasonEnd',
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sun .. 6=Sat, default
-  // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
-  // (400 INVALID_WEEKDAY).
-  'laundryWeekday',
-  // Linen inventory & shortage tracking (specs/linen-inventory-shortage-tracking.md §3.1).
-  // Global stock per type, integer ≥ 0. 0 = "I don't track this type" → simulation skips it
-  // and the UI hides any line for that type.
-  'bedLinenStockSingle',
-  'bedLinenStockDouble',
-  'bedLinenStockBaby',
-  'towelStockLarge',
-  'towelStockMedium',
-  'towelStockSmall',
-  // Bath mat as a 7th linen type (specs/laundry-bath-mat.md §3 rule 7). Stock shared across properties.
-  'towelStockBathMat',
   // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
   // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
   'qontoAccessTokenEncrypted',
@@ -195,14 +180,6 @@ const NUMERIC_DEFAULTS = {
   smtpSecure: 0,
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,
-  laundryWeekday: 2,
-  bedLinenStockSingle: 0,
-  bedLinenStockDouble: 0,
-  bedLinenStockBaby: 0,
-  towelStockLarge: 0,
-  towelStockMedium: 0,
-  towelStockSmall: 0,
-  towelStockBathMat: 0,
   requireTermsAcceptance: 1,
 };
 

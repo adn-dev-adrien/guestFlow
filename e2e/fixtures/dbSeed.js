@@ -51,18 +51,21 @@ function seedPendingCancellation({ reservationId, sourceId, eventUid }) {
 }
 
 /**
- * Stamp the app_settings stock columns so the linen simulation projects a shortage given the
- * reservations already in the DB (specs/linen-inventory-shortage-tracking.md §5). The caller
- * is responsible for having seeded enough reservations to actually exceed the stock.
+ * Stamp the linen stock in the `linen` plugin's settings so the linen simulation projects a shortage
+ * given the reservations already in the DB (specs/linen-inventory-shortage-tracking.md §5,
+ * specs/plugins-phase-2-hosts.md rule 15). The caller is responsible for having seeded enough
+ * reservations to actually exceed the stock.
  */
 function setLinenStock({ single = 0, double = 0, baby = 0, large = 0, medium = 0, small = 0 } = {}) {
   return withDb((db) => {
-    db.prepare(`
-      UPDATE app_settings SET
-        bedLinenStockSingle = ?, bedLinenStockDouble = ?, bedLinenStockBaby = ?,
-        towelStockLarge = ?, towelStockMedium = ?, towelStockSmall = ?
-      WHERE id = 1
-    `).run(single, double, baby, large, medium, small);
+    const upsert = db.prepare(`
+      INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES ('linen', ?, ?, datetime('now'))
+      ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `);
+    Object.entries({
+      bedLinenStockSingle: single, bedLinenStockDouble: double, bedLinenStockBaby: baby,
+      towelStockLarge: large, towelStockMedium: medium, towelStockSmall: small,
+    }).forEach(([key, value]) => upsert.run(key, String(value)));
   });
 }
 

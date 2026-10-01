@@ -100,24 +100,6 @@ function shapeResponse(row) {
       poolSeasonStart: row.poolSeasonStart || '06-15',
       poolSeasonEnd: row.poolSeasonEnd || '08-31',
     },
-    // Laundry block — weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Surfaced
-    // to the client as `weekday: 0..6` (Date.getDay() convention) so the SettingsLaundrySection
-    // Select can map values directly to the WEEKDAY_OPTIONS constant.
-    laundry: {
-      weekday: row.laundryWeekday == null ? 2 : Number(row.laundryWeekday),
-    },
-    // Linen stock block — inventory & shortage tracking
-    // (specs/linen-inventory-shortage-tracking.md §3.1). All six values surfaced as integers,
-    // with 0 = "type not tracked" (the LinenStockPage form binds these directly).
-    linenStock: {
-      bedSingle:   Number(row.bedLinenStockSingle || 0),
-      bedDouble:   Number(row.bedLinenStockDouble || 0),
-      bedBaby:     Number(row.bedLinenStockBaby   || 0),
-      towelLarge:  Number(row.towelStockLarge     || 0),
-      towelMedium: Number(row.towelStockMedium    || 0),
-      towelSmall:  Number(row.towelStockSmall     || 0),
-      towelBathMat: Number(row.towelStockBathMat  || 0),
-    },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),
   };

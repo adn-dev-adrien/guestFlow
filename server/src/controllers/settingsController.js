@@ -88,23 +88,6 @@ const EMAILS_FIELDS = [
   { input: 'poolSeasonEnd', column: 'poolSeasonEnd', validator: validation.validateMonthDay },
 ];
 
-// Laundry group (specs/weekly-bed-linen-tracking.md). Single field: weekday index.
-const LAUNDRY_FIELDS = [
-  { input: 'weekday', column: 'laundryWeekday', validator: validation.validateLaundryWeekday },
-];
-
-// Linen-stock group (specs/linen-inventory-shortage-tracking.md §3.1). 6 integer counts ≥ 0,
-// each capped at 999 by the validator. Stock is global across all properties.
-const LINEN_STOCK_FIELDS = [
-  { input: 'bedSingle',   column: 'bedLinenStockSingle', validator: validation.validateLinenStockCount },
-  { input: 'bedDouble',   column: 'bedLinenStockDouble', validator: validation.validateLinenStockCount },
-  { input: 'bedBaby',     column: 'bedLinenStockBaby',   validator: validation.validateLinenStockCount },
-  { input: 'towelLarge',  column: 'towelStockLarge',     validator: validation.validateLinenStockCount },
-  { input: 'towelMedium', column: 'towelStockMedium',    validator: validation.validateLinenStockCount },
-  { input: 'towelSmall',  column: 'towelStockSmall',     validator: validation.validateLinenStockCount },
-  { input: 'towelBathMat', column: 'towelStockBathMat',  validator: validation.validateLinenStockCount },
-];
-
 // Accounting group — the closing month driving every annual window of the Suivi financier
 // (specs/fiscal-year-and-nights-sold.md §4.1).
 const ACCOUNTING_FIELDS = [
@@ -114,14 +97,6 @@ const ACCOUNTING_FIELDS = [
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
-
-// Columns that must be coerced to a non-negative integer floor at the boundary (defensive
-// against the form sending strings or decimals). The validator already rejects out-of-range
-// values; the coercion here protects against malformed-but-in-range inputs.
-const INTEGER_COUNT_COLUMNS = new Set([
-  'bedLinenStockSingle', 'bedLinenStockDouble', 'bedLinenStockBaby',
-  'towelStockLarge', 'towelStockMedium', 'towelStockSmall', 'towelStockBathMat',
-]);
 
 // Columns whose value ends up VERBATIM inside an email header — `From: "<name>" <address>` and
 // `To: <address>` (specs/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
@@ -149,8 +124,6 @@ function updateSettings(req, res) {
   const vat = pickGroup(body, 'vat');
   const accounting = pickGroup(body, 'accounting');
   const smtp = pickGroup(body, 'smtp');
-  const laundry = pickGroup(body, 'laundry');
-  const linenStock = pickGroup(body, 'linenStock');
   const notifications = pickGroup(body, 'notifications');
   const emails = pickGroup(body, 'emails');
 
@@ -171,12 +144,6 @@ function updateSettings(req, res) {
         // Switch on the client; normalize to 0/1 for SQLite.
         if (BOOLEAN_INT_COLUMNS.has(column)) {
           payload[column] = (value === true || value === 1 || value === '1') ? 1 : 0;
-        } else if (INTEGER_COUNT_COLUMNS.has(column)) {
-          // Defensive coercion for the linen-stock columns: floor to a non-negative int even
-          // when the form sends a string-decimal or a negative (the validator already runs
-          // above, but the coercion here keeps the DB row clean if the validator path is
-          // bypassed in a future refactor).
-          payload[column] = Math.max(0, Math.floor(Number(value) || 0));
         } else if (TRIMMED_TEXT_COLUMNS.has(column)) {
           payload[column] = String(value == null ? '' : value).trim();
         } else {
@@ -190,8 +157,6 @@ function updateSettings(req, res) {
   applyGroup(quote, QUOTE_FIELDS);
   applyGroup(vat, VAT_FIELDS);
   applyGroup(smtp, SMTP_FIELDS);
-  applyGroup(laundry, LAUNDRY_FIELDS);
-  applyGroup(linenStock, LINEN_STOCK_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
   applyGroup(emails, EMAILS_FIELDS);
   applyGroup(accounting, ACCOUNTING_FIELDS);

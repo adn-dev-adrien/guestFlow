@@ -11,8 +11,6 @@ const controller = require('../controllers/planningController');
 const requirePlugin = require('../middleware/requirePlugin');
 const PLUGINS = require('../constants/plugins');
 
-router.get('/laundry', requirePlugin(PLUGINS.LINEN), controller.laundrySummary);
-router.get('/linen-inventory', requirePlugin(PLUGINS.LINEN), controller.linenInventory);
 router.get('/breakfast', controller.breakfastSummary);
 router.get('/option-cards', controller.optionCards);
 router.post('/option-cards/done', controller.setOptionCardDone);

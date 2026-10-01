@@ -209,7 +209,6 @@ app.use('/api/establishment-closures', require('./routes/establishmentClosures')
 app.use('/api/users', require('./routes/users'));
 app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));
-app.use('/api/laundry', requirePlugin(PLUGINS.LINEN), require('./routes/laundry'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 // specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
 app.use('/api/email-templates', require('./routes/emailTemplates'));
