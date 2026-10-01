@@ -314,8 +314,10 @@ test('the plugin mounts and routes are wired in the server', () => {
   }
   assert.ok(index.indexOf('pluginLoader.mountPublic(app)') < index.indexOf("app.use('/public/v1', "), 'gate before /public/v1');
   assert.ok(index.includes('pluginLoader.mountApi(app)'));
-  assert.match(read('routes/accounting.js'), /router\.get\('\/sales', exportOn,/);
-  assert.doesNotMatch(read('routes/accounting.js'), /cancellation-compensations', exportOn/);
+  // specs/plugins-phase-2-hosts.md rule 19 — the export's routes left for its plugin module; the
+  // compensations stay core, ungated.
+  assert.doesNotMatch(read('routes/accounting.js'), /'\/sales|'\/platforms|platform-accounts|requirePlugin/);
+  assert.match(read('routes/accounting.js'), /router\.get\('\/cancellation-compensations', compensationsController\.list\)/);
   assert.match(read('routes/reservations.js'), /'\/:id\/sas', requirePlugin\(PLUGINS\.SAS\)/);
   assert.match(read('routes/planning.js'), /'\/resource-cards', requirePlugin\(PLUGINS\.HOURLY_RESOURCES\)/);
   assert.match(read('routes/public/bookingRequests.js'), /'\/:id\/pay', bookingRequestLimiter, requirePlugin\(ONLINE_PAYMENT\)/);

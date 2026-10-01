@@ -174,8 +174,8 @@ app.use('/api', (req, res, next) => {
   return requireAuth(req, res, next);
 });
 
-// Role-based access (runs after auth): accountants reach only `/api/accounting/*` (GET) + self routes;
-// every other business endpoint is admin-only.
+// Role-based access (runs after auth): the accountant and reception roles reach only their allowlists
+// (core entries + those of live plugins) + self routes; every other business endpoint is admin-only.
 app.use('/api', (req, res, next) => {
   if (req.path === '/version') return next();
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();

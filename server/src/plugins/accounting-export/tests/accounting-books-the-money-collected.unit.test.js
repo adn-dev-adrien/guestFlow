@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry, buildEndOfStayEntry, splitByDestination } } = require('../models/accountingModel');
-const { entryToRows } = require('../utils/accountingExport');
+const { __test: { buildEntry, buildEndOfStayEntry, splitByDestination } } = require('../accountingModel');
+const { entryToRows } = require('../accountingExport');
 
 // specs/accounting-books-the-money-collected.md — the five reservations of the 2026-08-24 coherence
 // audit, as regressions. Each one broke a different way before this spec; together they pin the two

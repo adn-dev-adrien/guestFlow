@@ -51,7 +51,7 @@ test('un complément ENCAISSÉ reste sous « arrivée », marqueur ou pas', () =
 // ── la comptabilité ne bouge pas d'un centime ───────────────────────────────
 
 test('règle 18 — reportée ou non, la même réservation produit les mêmes écritures', () => {
-  const { __test: { buildEntry } } = require('../models/accountingModel');
+  const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
   const row = (deferred) => ({
     id: 1, firstName: 'Jean', lastName: 'Dupont', platform: 'direct',
     depositAmount: 60, depositPaid: 1, depositPaidDate: '2026-07-01',

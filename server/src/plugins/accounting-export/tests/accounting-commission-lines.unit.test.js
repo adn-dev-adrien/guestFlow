@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry } } = require('../models/accountingModel');
-const { entryToRows, __test: { classifyLine } } = require('../utils/accountingExport');
+const { __test: { buildEntry } } = require('../accountingModel');
+const { entryToRows, __test: { classifyLine } } = require('../accountingExport');
 
 // accounting-platform-commission-and-no-deposit.md §3.5 + §7.1.
 // Drives the per-platform commission-as-journal-line behaviour through `buildEntry` +

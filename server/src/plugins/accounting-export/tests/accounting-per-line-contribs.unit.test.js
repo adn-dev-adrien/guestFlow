@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry } } = require('../models/accountingModel');
+const { __test: { buildEntry } } = require('../accountingModel');
 
 // Per-line per-bucket contribution attribution (spec force-item-to-complement.md §5).
 // Drives `buildEntry` with synthetic `perLineData` to verify the contrib-driven path emits

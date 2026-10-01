@@ -5,9 +5,10 @@
  * the `user_roles` join table by `requireAuth`). `admin` short-circuits the check.
  *
  * - **Admin** → unrestricted (default).
- * - **Accountant** → may only **GET** the accounting endpoints (`/api/accounting/*`) and call the
- *   self routes (`/auth/me`, `/auth/logout`, `/auth/change-password`, `/users/me`). Anything else →
- *   **403 FORBIDDEN_ROLE**. The accountant role is read-only by construction.
+ * - **Accountant** → may read the cancellation compensations (core) and call the self routes
+ *   (`/auth/me`, `/auth/logout`, `/auth/change-password`, `/users/me`); the journal, the CSV and the
+ *   account plan are the `accounting-export` plugin's entries, granted only while it is live
+ *   (specs/plugins-phase-2-hosts.md rule 3). Anything else → **403 FORBIDDEN_ROLE**.
  * - **Reception** (specs/reception-role-checkin-only.md) → may only reach the operational surface
  *   needed to run the on-site check-in / check-out: the finance-stripped reservation reads, the SAS
  *   read + commits, the check-in/out status toggle, the property list, and the Planning housekeeping
@@ -30,20 +31,11 @@ const SELF_ENDPOINTS = new Set([
   '/version',
 ]);
 
-function isAccountingPath(path) {
-  return /^\/accounting(\/|$)/.test(path);
-}
-
-// accounting-platform-commission-and-no-deposit.md §3.7 rule 19. The accountant must be able
-// to edit the per-platform commission config from `/comptabilite/plateformes`, so PUT on
-// this one path is exempt from the "accountant = GET-only" rule. Other PUTs under
-// `/accounting/*` remain admin-only. The POST /refresh endpoint is the operator-triggered
-// rescan from the dedicated page — same allow-list as PUT.
-function isAccountantWritablePath(method, path) {
-  if (method === 'PUT' && path === '/accounting/platform-accounts') return true;
-  if (method === 'POST' && path === '/accounting/platform-accounts/refresh') return true;
-  return false;
-}
+// specs/cancellation-compensation.md §6.3 — the accountant reads the compensations, on the core page
+// « Indemnités d'annulation » (specs/plugins-phase-2-hosts.md rule 21). Every write stays admin-only.
+const ACCOUNTANT_MATCHERS = [
+  { method: 'GET', re: /^\/accounting\/cancellation-compensations$/ },
+];
 
 // specs/reception-role-checkin-only.md §3.6 rule 11 — the exact method+path allowlist for the
 // reception role. Anchored regexes so `:id` params match but sibling paths (`/history`, `/search`,
@@ -86,9 +78,11 @@ function isReceptionAllowed(method, path) {
   return [...RECEPTION_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
 }
 
-// specs/plugins-phase-2-hosts.md rule 3 — the accountant's plugin entries (the accounting export).
-function isAccountantPluginAllowed(method, path) {
-  return require('../plugins/loader').roleMatchers('accountant').some((m) => m.method === method && m.re.test(path));
+// specs/plugins-phase-2-hosts.md rule 3 — the core entries, plus those of the accounting export. Its
+// routes stay behind requirePlugin, so an entry of an inactive plugin still ends in a 404.
+function isAccountantAllowed(method, path) {
+  const pluginMatchers = require('../plugins/loader').roleMatchers('accountant');
+  return [...ACCOUNTANT_MATCHERS, ...pluginMatchers].some((m) => m.method === method && m.re.test(path));
 }
 
 function isSelfPath(path) {
@@ -102,9 +96,7 @@ function enforceRoleAccess(req, res, next) {
   // grants (calls next) — none rejects — so the final fail-closed 403 fires when no branch matched.
   if (userHasRole(req.user, ACCOUNTANT)) {
     if (isSelfPath(req.path)) return next();
-    if (req.method === 'GET' && isAccountingPath(req.path)) return next();
-    if (isAccountantWritablePath(req.method, req.path)) return next();
-    if (isAccountantPluginAllowed(req.method, req.path)) return next();
+    if (isAccountantAllowed(req.method, req.path)) return next();
   }
 
   if (userHasRole(req.user, RECEPTION)) {
@@ -118,6 +110,6 @@ function enforceRoleAccess(req, res, next) {
 
 module.exports = enforceRoleAccess;
 module.exports.__test = {
-  isAccountingPath, isSelfPath, isAccountantWritablePath, isReceptionAllowed,
-  SELF_ENDPOINTS, RECEPTION_MATCHERS,
+  isSelfPath, isAccountantAllowed, isReceptionAllowed,
+  SELF_ENDPOINTS, ACCOUNTANT_MATCHERS, RECEPTION_MATCHERS,
 };

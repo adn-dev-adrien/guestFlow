@@ -17,22 +17,23 @@
  *   on the solde entry (specs/tourist-tax-on-solde.md) — or on the complement when the routing
  *   sends it there (owner-collect platforms / `touristTaxInComplement`).
  *
- * Factory `create(db)` (+ a default bound to the production DB), mirroring the other models.
+ * Factory `create(db, { settings })`; the plugin builds it on `ctx.db`. The money it reads is core
+ * data: this model never writes (specs/plugins-phase-2-hosts.md rule 19).
  */
 
-const db = require('../database');
-const { isPlatformCollectingTouristTax } = require('../utils/pricing');
-const platformsModel = require('./platformsModel');
-const settingsModel = require('./settingsModel');
-const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
-const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = require('../utils/midStayExtras');
-const { createModel: createRefundsModel } = require('./refundsModel');
-const { buildModel: buildCompensationsModel } = require('./cancellationCompensationsModel');
-const { DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT } = require('../constants/accounting');
-const { parseComplementAllocation } = require('../utils/complementAllocation');
-const { parseGroup } = require('../utils/arrivalPaymentGroup');
+const sdk = require('../sdk');
+const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT } = require('./accountPlan');
+const { createAccountSettings } = require('./settings');
 
-function createAccountingModel(database) {
+const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
+const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = sdk.coreModule('midStayExtras');
+const { createModel: createRefundsModel } = sdk.coreModule('refundsModel');
+const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationCompensationsModel');
+const { parseComplementAllocation } = sdk.coreModule('complementAllocation');
+const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
+
+// `settings` — the export's account and VAT settings (./settings), bound to `database` by default.
+function createAccountingModel(database, { settings = createAccountSettings(database) } = {}) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
   // reservationsModel ones so a minimal test schema without them degrades to the legacy attribution
   // (nothing sold mid-stay) instead of failing the query.
@@ -140,7 +141,7 @@ function createAccountingModel(database) {
 
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
-      const commissionContext = buildCommissionContext(database);
+      const commissionContext = buildCommissionContext(settings.read());
 
       return reservations.flatMap((row) => {
         const perLineData = buildPerLineData(database, row);
@@ -220,7 +221,7 @@ function createAccountingModel(database) {
     // Indemnités d'annulation encaissées dans le mois (specs/cancellation-compensation.md §3.3
     // rule 15): one entry per compensation whose `receivedDate` falls in the month. A `pending`
     // compensation is NOT accounting — no money moved yet, so it never reaches this list.
-    // The account + VAT rate are read once here so `utils/accountingExport` stays pure.
+    // The account + VAT rate are read once here so `accountingExport` stays pure.
     compensationsByMonth({ month, year }) {
       // A minimal test schema (several accounting suites build one by hand) has no compensations
       // table; an export run there simply has no indemnity to report.
@@ -231,8 +232,7 @@ function createAccountingModel(database) {
       const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
       // Read from the INJECTED database, not the module-level settings model: an export run built
       // on a test/replica DB must use that DB's chart of accounts, never production's.
-      const settings = readCompensationSettings(database);
-      const { account, vatRatePercent } = settings;
+      const { account, vatRatePercent } = compensationSettings(settings.read());
       return compensations.listReceivedByMonth({ from, nextMonth })
         .map((row) => buildCompensationEntry(row, { account, vatRatePercent }))
         .filter(Boolean);
@@ -248,18 +248,11 @@ function hasTable(database, name) {
   }
 }
 
-// Chart-of-accounts settings for compensations, straight from the given database. Falls back to the
-// shipped defaults (75880000 / 0 %) when the columns predate the migration.
-function readCompensationSettings(database) {
-  let row = null;
-  try {
-    row = database.prepare('SELECT cancellationCompensationAccount, vatRateCancellationCompensation FROM app_settings WHERE id = 1').get();
-  } catch {
-    row = null;
-  }
+// The compensation half of the export's settings (75880000 / 0 % unless the operator changed them).
+function compensationSettings(accountSettings) {
   return {
-    account: (row && row.cancellationCompensationAccount) || DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
-    vatRatePercent: row && row.vatRateCancellationCompensation != null ? Number(row.vatRateCancellationCompensation) : 0,
+    account: accountSettings.cancellationCompensationAccount,
+    vatRatePercent: Number(accountSettings.vatRateCancellationCompensation) || 0,
   };
 }
 
@@ -352,13 +345,14 @@ function buildRefundEntry(refund) {
 // One-shot snapshot of the per-platform commission config + the global default account +
 // the global VAT rate. Computed once per export-run and threaded into every `buildEntry`
 // call so we don't re-query the DB for every line.
-function buildCommissionContext(database) {
-  const settings = settingsModel.read ? settingsModel.read() : database.prepare('SELECT * FROM app_settings WHERE id = 1').get();
-  const defaultAccount = (settings && settings.defaultCommissionAccountNumber) || DEFAULT_COMMISSION_ACCOUNT;
-  const vatRateCommission = settings && settings.vatRateCommission != null ? Number(settings.vatRateCommission) : 20;
+function buildCommissionContext(accountSettings) {
+  const core = sdk.coreModule('settingsModel').read();
+  const defaultAccount = accountSettings.defaultCommissionAccountNumber || DEFAULT_COMMISSION_ACCOUNT;
+  const vatRateCommission = Number(accountSettings.vatRateCommission);
   // General sales VAT rate (same one the stay/options use) — applied to the end-of-stay complement.
-  const vatRate = settings && settings.vatRate != null ? Number(settings.vatRate) : 10;
+  const vatRate = core && core.vatRate != null ? Number(core.vatRate) : 10;
   // Index platforms by lowercased name for case-insensitive matching (`Airbnb` vs `airbnb`).
+  const platformsModel = sdk.coreModule('platformsModel');
   const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
   const byName = new Map();
   for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
@@ -1037,8 +1031,7 @@ function bucketFromTtc(name, ttc, ratePercent) {
   return { name, ht, vat, ratePercent: rate };
 }
 
-const defaultModel = createAccountingModel(db);
-defaultModel.create = createAccountingModel;
-
-module.exports = defaultModel;
-module.exports.__test = { buildEntry, buildEndOfStayEntry, splitByDestination };
+module.exports = {
+  create: createAccountingModel,
+  __test: { buildEntry, buildEndOfStayEntry, splitByDestination },
+};

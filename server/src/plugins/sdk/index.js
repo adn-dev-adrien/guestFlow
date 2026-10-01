@@ -16,6 +16,16 @@
 const CORE_MODULES = Object.freeze({
   database: '../../database', // every plugin model binds to the app's database in production
   settingsModel: '../../models/settingsModel', // core settings a plugin reads (company, VAT, fiscal year)
+  // accounting-export
+  platformsModel: '../../models/platformsModel', // the journal's commission config; the account plan writes its two columns (rule 20)
+  refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
+  cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
+  pricing: '../../utils/pricing', // which platforms collect the tourist tax, for the journal's tax line
+  midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
+  complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
+  arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single collection an entry belongs to
+  csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
+  settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
 });
 
 function coreModule(name) {

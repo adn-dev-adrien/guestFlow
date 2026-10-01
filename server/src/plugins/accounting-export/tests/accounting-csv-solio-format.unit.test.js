@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { CSV_HEADERS, buildRows } = require('../utils/accountingExport');
-const { serializeCsv } = require('../utils/csv');
+const { CSV_HEADERS, buildRows } = require('../accountingExport');
+const { serializeCsv } = require('../../../utils/csv');
 
 // Pinned-format tests for the accountant CSV (Adrien's `Exemple export ventes SOLIO.csv`).
 //

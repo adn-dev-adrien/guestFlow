@@ -61,7 +61,7 @@ const {
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   DISCOUNT_ACCOUNT,
   TIP_ACCOUNT,
-} = require('../constants/accounting');
+} = require('./accountPlan');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
 // after `Mois` is intentional (it's in the example header byte-for-byte) — DO NOT trim it.

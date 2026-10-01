@@ -12,8 +12,8 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
-const { __test: { buildEntry } } = require('../models/accountingModel');
-const { CSV_HEADERS, buildRows } = require('../utils/accountingExport');
+const { __test: { buildEntry } } = require('../plugins/accounting-export/accountingModel');
+const { CSV_HEADERS, buildRows } = require('../plugins/accounting-export/accountingExport');
 const { serializeCsv } = require('../utils/csv');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');

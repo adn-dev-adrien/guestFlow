@@ -118,8 +118,8 @@ test('reception + admin → admin wins (unrestricted)', () => {
 test('reception + accountant → union of both branches', () => {
   // Reception operational surface…
   assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/reservations/42/sas' }).nextCalled, true);
-  // …plus the accountant read-only accounting.
-  assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/accounting/sales.csv' }).nextCalled, true);
+  // …plus the accountant's core read (the compensations; the export's entries are its plugin's).
+  assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/accounting/cancellation-compensations' }).nextCalled, true);
   // But neither branch grants clients.
   assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/clients' }).nextCalled, false);
 });

@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { create: createAccountingModel, __test: { buildEntry } } = require('../models/accountingModel');
-const { entryToRows, buildStructuredEntries } = require('../utils/accountingExport');
+const { create: createAccountingModel, __test: { buildEntry } } = require('../accountingModel');
+const { entryToRows, buildStructuredEntries } = require('../accountingExport');
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 

@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __test: { buildEntry } } = require('../models/accountingModel');
-const { entryToRows } = require('../utils/accountingExport');
+const { __test: { buildEntry } } = require('../accountingModel');
+const { entryToRows } = require('../accountingExport');
 
 // specs/platform-brut-excludes-offered-tourist-tax.md §1 + rules 8-9 — the accountant's 2026-08-24
 // report, end to end. Réservation #22225 (Stéphane Grimaud, Gîtes de France, 26-28 June 2026) as the

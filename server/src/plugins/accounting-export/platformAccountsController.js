@@ -1,13 +1,11 @@
 /**
  * Platform accounts controller — thin GET/PUT pair for `/api/accounting/platform-accounts`.
  *
- * Accessible to both admin AND accountant (the role gate in `middleware/enforceRoleAccess`
- * whitelists this route pair). Mirrors the shape of accountingController for consistency.
+ * Accessible to both admin AND accountant (the plugin's accountant entries — see index.js — open
+ * this route pair). Mirrors the shape of the accounting controller for consistency.
  *
  * Spec: accounting-platform-commission-and-no-deposit.md §3.7 + §4.3.
  */
-
-const model = require('../models/platformAccountsModel');
 
 function createController(platformAccountsModel) {
   return {
@@ -28,7 +26,4 @@ function createController(platformAccountsModel) {
   };
 }
 
-const defaultController = createController(model);
-defaultController.create = createController;
-
-module.exports = defaultController;
+module.exports = { create: createController };

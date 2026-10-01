@@ -2,51 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const platformAccountsModel = require('../models/platformAccountsModel');
-const platformsModel = require('../models/platformsModel');
-const settingsModel = require('../models/settingsModel');
+const platformAccountsModel = require('../platformAccountsModel');
+const platformsModel = require('../../../models/platformsModel');
+const { ensurePluginSettingsTable } = require('../../../utils/pluginsSchema');
 
-// accounting-platform-commission-and-no-deposit.md §7.1 — model + endpoint behaviour.
+// accounting-platform-commission-and-no-deposit.md §7.1 — model + endpoint behaviour. The four
+// account and VAT settings live in plugin_settings (specs/plugins-phase-2-hosts.md rule 19).
 
-// Mirrors settings-model.unit.test.js DDL so settingsModel.create(db) can read every column
-// it lists in COLUMNS without a "no such column" error.
 const DDL = `
-  CREATE TABLE app_settings (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    googleCalendarId TEXT DEFAULT '',
-    companyName TEXT DEFAULT '',
-    companyAddress TEXT DEFAULT '',
-    companyEmail TEXT DEFAULT '',
-    companyPhone TEXT DEFAULT '',
-    companySiret TEXT DEFAULT '',
-    companyTva TEXT DEFAULT '',
-    companyIban TEXT DEFAULT '',
-    companyBic TEXT DEFAULT '',
-    companyBankName TEXT DEFAULT '',
-    quoteFooterText TEXT DEFAULT '',
-    quoteValidityDays INTEGER DEFAULT 30,
-    companyLogoPath TEXT DEFAULT '',
-    vatRate REAL NOT NULL DEFAULT 10,
-    defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600',
-    vatRateCommission REAL NOT NULL DEFAULT 20,
-    vatRateCancellationCompensation REAL NOT NULL DEFAULT 0,
-    smtpHost TEXT DEFAULT '',
-    smtpSecure INTEGER NOT NULL DEFAULT 0,
-    smtpUsername TEXT DEFAULT '',
-    smtpPasswordEncrypted TEXT DEFAULT '',
-    smtpFromEmail TEXT DEFAULT '',
-    smtpFromName TEXT DEFAULT 'GuestFlow',
-    publicUrl TEXT DEFAULT '',
-    laundryWeekday INTEGER NOT NULL DEFAULT 2,
-    bedLinenStockSingle INTEGER NOT NULL DEFAULT 0,
-    bedLinenStockDouble INTEGER NOT NULL DEFAULT 0,
-    bedLinenStockBaby INTEGER NOT NULL DEFAULT 0,
-    towelStockLarge INTEGER NOT NULL DEFAULT 0,
-    towelStockMedium INTEGER NOT NULL DEFAULT 0,
-    towelStockSmall INTEGER NOT NULL DEFAULT 0,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now'))
-  );
   CREATE TABLE ical_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, platformLabel TEXT NOT NULL DEFAULT '');
   CREATE TABLE platforms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,13 +22,12 @@ const DDL = `
 function freshModel() {
   const db = new Database(':memory:');
   db.exec(DDL);
-  db.prepare('INSERT INTO app_settings (id) VALUES (1)').run();
+  ensurePluginSettingsTable(db);
   db.prepare("INSERT INTO platforms (name) VALUES ('direct')").run();
   db.prepare("INSERT INTO platforms (name) VALUES ('Airbnb')").run();
   db.prepare("INSERT INTO platforms (name) VALUES ('Gîtes de France')").run();
   const platforms = platformsModel.create(db);
-  const settings = settingsModel.create(db);
-  return { model: platformAccountsModel.create(db, { platforms, settings }), db, platforms, settings };
+  return { model: platformAccountsModel.create(db, { platforms }), db, platforms };
 }
 
 test('getAll returns defaults + every platform with isDirect flag', () => {
