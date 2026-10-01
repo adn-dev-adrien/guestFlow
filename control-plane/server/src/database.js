@@ -2,7 +2,8 @@
  * The control plane's own SQLite database (specs/control-plane-plans-and-access.md §5). Idempotent:
  * every table is created if missing, and the catalogue is seeded once with the plans the owner
  * decided on 2026-09-29 (rule 3). C2b adds the Qonto settings, the email templates and the customer
- * emails, and the billing columns of `customers` and `invoices`.
+ * emails, and the billing columns of `customers` and `invoices`. C3 adds the directory and the old
+ * slugs kept for 12 months.
  */
 
 const Database = require('better-sqlite3');
@@ -188,6 +189,18 @@ CREATE TABLE IF NOT EXISTS reminders (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_reminders_scheduled ON reminders(invoiceId, kind) WHERE kind <> 'reminder_manual';
 CREATE INDEX IF NOT EXISTS idx_reminders_customer ON reminders(customerId, id);
+CREATE TABLE IF NOT EXISTS directory (
+  emailHmac TEXT NOT NULL,
+  customerId INTEGER NOT NULL REFERENCES customers(id),
+  seenAt TEXT NOT NULL,
+  PRIMARY KEY (emailHmac, customerId)
+);
+CREATE INDEX IF NOT EXISTS idx_directory_customer ON directory(customerId);
+CREATE TABLE IF NOT EXISTS slug_aliases (
+  slug TEXT PRIMARY KEY,
+  customerId INTEGER NOT NULL REFERENCES customers(id),
+  until TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS payment_failures (
   providerPaymentId TEXT PRIMARY KEY,
   invoiceId INTEGER NOT NULL REFERENCES invoices(id),

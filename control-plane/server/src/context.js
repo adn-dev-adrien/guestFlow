@@ -14,6 +14,7 @@ const { buildOperatorsModel } = require('./models/operatorsModel');
 const { buildMetaModel } = require('./models/metaModel');
 const { buildEmailsModel } = require('./models/emailsModel');
 const { buildQontoSettingsModel } = require('./models/qontoSettingsModel');
+const { buildDirectoryModel } = require('./models/directoryModel');
 const { createQontoBilling, BILLING_SCOPES } = require('./utils/qontoBilling');
 const { qontoSettingsController } = require('./utils/gf');
 const { createInstances } = require('./utils/instances');
@@ -24,10 +25,11 @@ const { createAlertsController } = require('./controllers/alertsController');
 const { createAuthController } = require('./controllers/authController');
 const { createBillingController } = require('./controllers/billingController');
 const { createTemplatesController } = require('./controllers/templatesController');
+const { createLoginController } = require('./controllers/loginController');
 
 // `qonto` replaces the Qonto facade in tests; the console itself builds it over its own settings,
 // with no environment fallback: Qonto is configured from the Paiements page only (rule 32).
-function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto }) {
+function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto, directoryKey }) {
   const publicUrl = consoleUrl || `https://console.${domain}`;
   const models = {
     catalogue: buildCatalogueModel(db),
@@ -39,6 +41,7 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     meta: buildMetaModel(db),
     emails: buildEmailsModel(db),
     qontoSettings: buildQontoSettingsModel(db, { secrets, publicUrl }),
+    directory: buildDirectoryModel(db),
   };
   const instances = createInstances({ root: instancesRoot });
   const ctx = {
@@ -54,6 +57,7 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     consoleUrl: publicUrl,
     exportsDir: path.join(dataDir, 'exports'),
     qonto: qonto || createQontoBilling({ settings: models.qontoSettings, env: {} }),
+    directoryKey,
   };
   const customers = createCustomersController(ctx);
   const billing = createBillingController(ctx, customers);
@@ -64,6 +68,7 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     alerts: createAlertsController(ctx, customers, billing),
     auth: createAuthController(ctx),
     templates: createTemplatesController(ctx),
+    login: createLoginController(ctx, customers),
     // GuestFlow's own Qonto settings handlers, over the console's settings (rule 32).
     qontoSettings: qontoSettingsController.createQontoSettingsController({
       settings: models.qontoSettings, env: {}, scopes: BILLING_SCOPES, now: () => now().getTime(),

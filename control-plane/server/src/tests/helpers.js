@@ -25,9 +25,9 @@ function makeMailer() {
   return { sent, async send(msg) { sent.push(msg); } };
 }
 
-// A minimal GuestFlow instance directory: data/guestflow.db with a `plugins` table and a couple of
-// tables the export reads.
-function makeInstance(root, slug, { installed = [] } = {}) {
+// A minimal GuestFlow instance directory: data/guestflow.db with a `plugins` table, a `users` table
+// (the directory reads it) and a couple of tables the export reads.
+function makeInstance(root, slug, { installed = [], users = [] } = {}) {
   const dataDir = path.join(root, slug, 'data');
   fs.mkdirSync(dataDir, { recursive: true });
   const db = new Database(path.join(dataDir, 'guestflow.db'));
@@ -38,6 +38,9 @@ function makeInstance(root, slug, { installed = [] } = {}) {
     INSERT INTO clients (name, email) VALUES ('Jo Martin', 'jo@example.fr');`);
   const insert = db.prepare('INSERT INTO plugins (id, enabled, source) VALUES (?, 1, ?)');
   for (const id of installed) insert.run(id, 'builtin');
+  db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL, isActive INTEGER NOT NULL DEFAULT 1)');
+  const insertUser = db.prepare('INSERT INTO users (email, isActive) VALUES (?, ?)');
+  for (const u of users) insertUser.run(u.email, u.isActive === false ? 0 : 1);
   db.close();
   return dataDir;
 }
@@ -111,6 +114,7 @@ function makeContext({ at = '2026-09-29T10:00:00Z', firstAdmin, qonto } = {}) {
     domain: 'guestflow.test',
     consoleUrl: 'https://console.guestflow.test',
     qonto,
+    directoryKey: crypto.randomBytes(32),
     runFirstAdmin: async (args) => {
       firstAdminCalls.push(args);
       return firstAdmin ? firstAdmin(args) : { created: true, temporaryPassword: 'Tmp-Passw0rd' };

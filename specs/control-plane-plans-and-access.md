@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
-| **Branch** | C1: `feature/control-plane-c1-entitlement`; C2a: `feature/control-plane-c2-console`; C2b: `feature/control-plane-c2b-billing` |
+| **Status** | Implemented |
+| **Branch** | C1: `feature/control-plane-c1-entitlement`; C2a: `feature/control-plane-c2-console`; C2b: `feature/control-plane-c2b-billing`; C3: `feature/control-plane-c3-login` |
 | **Created** | 2026-09-29 |
 | **Author** | Adrien |
-| **Related PR** | C1: https://github.com/adn-dev-adrien/guestFlow/pull/637; C2a: https://github.com/adn-dev-adrien/guestFlow/pull/641; C2b: https://github.com/adn-dev-adrien/guestFlow/pull/644 |
-| **Summary for review** | `docs/specs/2026-09-29-control-plane-plans-and-access.html`; C2a console screens: `docs/specs/2026-09-29-control-plane-c2a-console.html`; C2b billing screens: `docs/specs/2026-09-30-control-plane-c2b-billing.html` |
+| **Related PR** | C1: https://github.com/adn-dev-adrien/guestFlow/pull/637; C2a: https://github.com/adn-dev-adrien/guestFlow/pull/641; C2b: https://github.com/adn-dev-adrien/guestFlow/pull/644; C3: https://github.com/adn-dev-adrien/guestFlow/pull/646 |
+| **Summary for review** | `docs/specs/2026-09-29-control-plane-plans-and-access.html`; C2a console screens: `docs/specs/2026-09-29-control-plane-c2a-console.html`; C2b billing screens: `docs/specs/2026-09-30-control-plane-c2b-billing.html`; C3 login and rename: `docs/specs/2026-09-30-control-plane-c3-login.html` |
 
 ---
 
@@ -346,15 +346,22 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - It is unique across the fleet, including archived customers until they are erased.
     - These slugs are reserved: `app`, `www`, `auth`, `api`, `admin`, `console`, `mail`, `status`,
       `demo`.
-22. **Renaming a slug** is an operator action with a checklist shown before it runs:
-    - the WordPress plugin setting;
-    - the iCal feed URLs on every platform;
-    - the Google and Qonto re-connections;
-    - the push re-subscriptions.
+22. **Renaming a slug** (detailed 2026-09-30 with C3). « Changer l'adresse » on the customer page.
+    - The new slug follows rule 21. The old one stays reserved for 12 months, so nobody else can
+      take it, and answers `301` to the new address for those 12 months.
+    - Before it runs, the console lists what must be redone, each item to tick:
+      - the WordPress plugin setting (the API base URL);
+      - the iCal export feed URLs pasted on every platform;
+      - the redirect URIs declared in the customer's own Google and Qonto applications (rule 28),
+        then « Connecter » again in the instance;
+      - the instance's public URL (Réglages → Envoi d'emails);
+      - the push notifications, which each device accepts again.
 
-    The old address answers `301` to the new one for 12 months.
-
-    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
+      « Changer l'adresse » stays disabled until every item is ticked and the new slug is valid.
+    - The console renames the customer, journals it, and re-issues the licence (written to the new
+      directory when it exists, downloadable otherwise, as in rule 9). Until phase H, a manual step
+      « Dossier renommé, processus et route relancés, redirection 301 posée jusqu'au … » follows.
+    - The directory (rule 26) follows at its next read.
 23. **Isolated sessions.**
     - The session cookie stays **host-only** (no `Domain=` attribute), so one instance's cookie is
       never sent to another.
@@ -364,41 +371,53 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 
     | The email belongs to | What happens |
     |---|---|
-    | one active instance | The browser is redirected to `https://<slug>.<domain>/login?login_hint=<email>`. The instance's login page opens with the email filled in and the focus on the password. |
+    | one instance | The browser is redirected to `https://<slug>.<domain>/login?login_hint=<email>`. The instance's login page opens with the email filled in and the focus on the password. |
     | several instances (e.g. an accountant working for two gîtes) | A list of the spaces, by company name and address. Each one leads to the same redirect. |
     | a suspended or archived instance | The redirect happens anyway, and the instance's address shows its own suspended or closed page. |
     | no instance | A neutral answer: « Aucun espace GuestFlow n'est associé à cette adresse. Vérifiez l'orthographe ou contactez la personne qui vous a invité. » |
 
     `app.<domain>` remembers the last space chosen in a cookie of its own for 90 days, and offers it
-    directly on the next visit: « Continuer vers Domaine Solio ».
+    directly on the next visit: « Continuer vers Domaine Solio », or « Utiliser une autre adresse ».
+
+    Details (C3, 2026-09-30):
+    - The console's process serves the page when the request's host is `app.<domain>`
+      (`CP_APP_HOST`), and nothing else on that host. The page is HTML rendered by the server, with
+      no script: it works on any phone, and there is no second client bundle to ship.
+    - The email is matched trimmed and case-insensitive.
+    - In the list, each space is a button; choosing one redirects like a single match.
+    - The cookie `gf_space` holds only the slug, host-only on `app.<domain>`, `HttpOnly`,
+      `SameSite=Lax`. A remembered space that was erased or renamed is forgotten silently.
+    - The page carries its own Content-Security-Policy: no script, nothing framed, and
+      `form-action 'self' https://*.<domain>`. Helmet's default `form-action 'self'` blocks a form
+      whose answer redirects to the customer's space: found in the browser on the first run.
 25. **Passwords never leave the instance.**
     - The central page receives only an email. It never sees a password, a session or a user's
       role.
     - Password reset, first login and password change stay on the instance's page.
-
-    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
-26. **The directory.**
+    - The page has no password field. The lookup reads only `email` and ignores any other field; it
+      answers company names and addresses, nothing about the account.
+26. **The directory** (reworked 2026-09-30 with C3, §9 Q16).
     - The control plane keeps `(HMAC-SHA256(email), customerId)` pairs, never the email in clear.
-    - Each instance reports its active accounts:
-      - on every user create, update, deactivate or delete, the instance writes the list of HMACs of
-        its active emails to its data directory;
-      - the control plane reads it every minute.
-    - A nightly full rebuild corrects any drift.
-
-    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
+      The HMAC key is the console's own (`CP_DATA_DIR/.directory-key`, created on first run).
+    - Every minute it reads, read-only, the active accounts of each instance (`users` where
+      `isActive = 1`), like it already reads the installed plugins (rule 5). It normalises each email
+      (trimmed, lower-case) and replaces that customer's pairs in one transaction. The instance
+      changes nothing and receives no key; a full read every minute leaves no drift to rebuild.
+    - A customer whose database cannot be read keeps its last pairs. An erased customer's pairs are
+      removed with it.
+    - Suspended and archived customers stay in the directory (rule 24).
 27. **The login page is rate-limited.** It allows 10 lookups per minute per IP, then answers `429`,
     because a lookup reveals whether an email has a space. The owner accepts that trade-off for
     convenience (§9 Q5, decided 2026-09-29): the address of a gîte's staff is not a secret held against the public.
+    The `429` is the page itself, with « Trop de recherches depuis votre connexion. Réessayez dans une
+    minute. »
+28. **OAuth callbacks are central.** _(Withdrawn 2026-09-30, §9 Q17.)_ Google Agenda and Qonto are
+    plugins, not installed on a new space, and their settings pages stay hidden until they are. A
+    hosted customer who installs one connects it with their own application, declared with their own
+    address `https://<slug>.<domain>/…/callback`, from the plugin's page, as Solio does. With no
+    shared application, there is nothing to relay.
 
-    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
-28. **OAuth callbacks are central.**
-    - Google refuses wildcard redirect URIs. Google Calendar and Qonto therefore return to one
-      callback, `https://auth.<domain>/oauth/<provider>/callback`.
-    - That callback resolves the customer from a `state` signed by the instance and forwards the code
-      to `<slug>.<domain>` (study §9.4).
-    - A `state` older than 10 minutes, or signed with a key of another customer, is refused.
-
-    > **Sans test** — pas encore implémentée : livrée avec la connexion commune (C3), dont les tests remplaceront cette ligne.
+    > **Sans test** — retirée le 2026-09-30 : chaque client connecte ses propres applications, il n'y a pas de rappel central à tester (§9 Q17).
 29. **Unmanaged instances** (added 2026-09-29 during C1).
     - An instance is **managed** when the hosting sets `GUESTFLOW_MANAGED=1`.
     - An unmanaged instance **with no licence file** enforces nothing: all plugins, no quota, no
@@ -504,9 +523,11 @@ hint.
      renewal invoice and its payment link, the reminders and « Relancer maintenant » (rule 17), the
      email templates and their mode (rule 33), payment detection (rule 34), the operator's daily
      email and the remaining alerts (rule 18), the billing identity (rule 7).
-3. **C3: addresses and login.** `app.<domain>`, the directory, the central OAuth relay, the slug
-   rename (rules 22–28). The slug rules themselves (rule 21) shipped with C2a, which needs them at
-   onboarding.
+3. **C3: addresses and login** (implemented 2026-09-30, one PR, §9 Q15; branch
+   `feature/control-plane-c3-login`). The page
+   `app.<domain>`, the directory read from the instances, the rate limit, and the slug rename
+   (rules 22, 24–27). The central OAuth relay (rule 28) is withdrawn. The slug rules themselves
+   (rule 21) shipped with C2a, which needs them at onboarding.
 
 **Running the console.** `control-plane/server` (Express, its own SQLite database) serves the API
 and the built client; `npm run dev:console` runs both in dev (API :4100, client :3200). Its
@@ -516,6 +537,8 @@ environment:
   refuses to start without it.
 - `CP_DATA_DIR`: its database, the key that encrypts the TOTP seeds, and the exports.
 - `CP_DOMAIN`, `CP_PUBLIC_URL`, `CP_SESSION_SECRET`, `CP_SMTP_*`, `CP_PORT`.
+- `CP_APP_HOST` (C3): the host of the shared login page, `app.<CP_DOMAIN>` by default
+  (`app.localhost` in dev).
 - `CP_NOW` moves its clock, outside production only, to walk a customer through the lifecycle.
 
 Operators are created with `npm run create-operator -- --email … --name …` (rule 31).
@@ -534,12 +557,15 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | models | `auditModel.js` | The journal (catalogue changes, state transitions, overrides, deprovisioning) and the overrides with their reason. |
 | models | `provisioningModel.js` | The creation and deprovisioning steps, and the export links. |
 | models | `operatorsModel.js`, `metaModel.js` | Operator accounts and their second factor (rule 31); the last daily run. |
-| models | `directoryModel.js` (C3) | HMAC email → customer pairs (rule 26). |
+| models | `directoryModel.js` (C3) | HMAC email → customer pairs, replaced per customer (rule 26); the reserved old slugs (rule 22). |
 | controllers | `catalogueController.js` | The matrix, one click at a time with the nesting refusal (rule 2), the impact (rule 5), the save with its version and the grandfathering (rules 5–6). |
-| controllers | `customersController.js` | Onboarding and its steps (rule 7), the fleet (rule 8), payment and overrides (rules 15, 19), plan change, the licence (rule 9), deprovisioning and erasure (rule 20). C3: slug rename (rule 22). |
+| controllers | `customersController.js` | Onboarding and its steps (rule 7), the fleet (rule 8), payment and overrides (rules 15, 19), plan change, the licence (rule 9), deprovisioning and erasure (rule 20). C3: slug rename with its checklist (rule 22). |
 | controllers | `alertsController.js` | The home page alerts (rule 18). |
 | controllers | `authController.js` | Password, then TOTP, email or backup code; the lockout; the method change (rule 31). |
-| controllers | `loginController.js`, `oauthRelayController.js` (C3) | Email lookup and redirect (rules 24–27); central OAuth callbacks (rule 28). |
+| controllers | `loginController.js` (C3) | The lookup: an email → one space, several, or none; the remembered space; the instance login URL with its hint (rules 24, 25); `readDirectory`, each instance's active accounts into the directory (rule 26). |
+| utils | `directory.js` (C3) | The normalised email and its HMAC under the console's key (rule 26). `instances.readActiveEmails` reads the accounts, read-only. |
+| utils | `loginPage.js` (C3) | The HTML of `app.<domain>`: the form, the list, the neutral answer, the remembered space, the 429; every value escaped (rules 24, 27). |
+| routes | `public.js` (C3) | Mounted for the host `app.<domain>` only: `GET /`, `POST /lookup` (rate-limited), `POST /go`, `POST /forget` (rules 24, 27). |
 | middleware | `requireOperator.js` | Every console route but the login needs the second factor; 12 h / 30 min idle session. |
 | utils | `lifecycle.js` | Pure state machine on Paris days: `(endsAt, trialEndsAt, billing, forceActiveUntil, archivedAt, today) → state`; the renewal (rules 14, 15, 19). |
 | utils | `licenceIssuer.js` | Builds the rule 9 payload, signs it with GuestFlow's own `signLicence`, writes it atomically to the instance. |
@@ -553,7 +579,7 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | controllers | `billingController.js` (C2b) | The invoice of a period, the emails due that day, the approval queue, « Relancer maintenant », payment detection (rules 17, 33, 34). |
 | controllers | `templatesController.js` (C2b) | The email templates, their mode and their preview (rule 33). |
 | routes | `payments.js` (C2b) | GuestFlow's `/api/payments/qonto/*` and `/api/payments/settings`, built by the shared `createQontoSettingsController` over the console's settings; the webhook is public, the rest behind `requireOperator` (rule 32). |
-| tasks | `scheduler.js` | Daily at 04:00 Paris time, catching up a missed day: states, licence re-issue, the 90-day erasure, then (C2b) invoices, emails and the operator's email. Every 15 minutes (C2b): payment detection. C3: the directory ingestion. |
+| tasks | `scheduler.js` | Daily at 04:00 Paris time, catching up a missed day: states, licence re-issue, the 90-day erasure, then (C2b) invoices, emails and the operator's email. Every 15 minutes (C2b): payment detection. Every minute (C3): the directory read. |
 | routes | `auth.js`, `console.js`, `exports.js` | Thin. `/api/auth/*` (rate-limited), `/api/*` behind `requireOperator`, `/exports/:token` public (the token is the credential). |
 | — | `app.js`, `context.js`, `index.js` | The Express app, the wiring with every external injected (tests use an in-memory database), the entry point. |
 | scripts | `control-plane/server/scripts/create-operator.js` | Creates an operator; there is no sign-up page (rule 31). |
@@ -567,7 +593,7 @@ Operators are created with `npm run create-operator -- --email … --name …` (
 | plugins/sdk | `registry.js` (C1) | `isLive` also asks the licence, so routes, public mounts, jobs and `requirePlugin` all drop a plugin outside the plan (rule 12). |
 | middleware | `enforceSubscription.js` (new, C1) | `enforceSubscription()`: read-only → 402 on writes except the allow-list of rule 14, mounted on `/api` after the role guard. `closedWhenReadOnly()`: the website booking 503. |
 | controllers | `pluginsController.js` (C1) | 402 `PLAN_REQUIRED` on install and activate; `outOfPlan`, `planChip`, `planHint` in the list payload (rules 11–12). |
-| controllers | `authController.js` (C1) | `enabledPlugins` leaves out the plugins outside the licence (rule 12). C3: writes the directory file on user changes (rule 26). |
+| controllers | `authController.js` (C1) | `enabledPlugins` leaves out the plugins outside the licence (rule 12). |
 | controllers | `neatController.js` (C1) | Its job asks `isLive`, like every other plugin gate. |
 | controllers, models | `propertiesController.js` + `propertiesModel.count()`, `usersController.js` + `usersModel.countActive()` (C1) | 402 `QUOTA_REACHED` (rule 13), for users before the welcome email. |
 | routes | `public/bookingRequests.js` (C1) | Booking endpoint closed in `read_only` (rule 14). |
@@ -606,7 +632,10 @@ React, MUI and the router from its own `node_modules` so both trees share one co
 The console also mounts GuestFlow's `PaymentsSettingsPage` at `/parametres/paiements` (rule 32);
 its `api.js` calls land on the console's identical `/api/payments/*` routes.
 
-**Login page (`control-plane/client/src/public/LoginLookupPage.jsx`) — new, C3.**
+**Login page (`app.<domain>`) — C3:** rendered by the server (`utils/loginPage.js`), no client
+code. The customer page gains « Changer l'adresse », a `FormDialog` with the new slug checked as
+it is typed and the rule 22 checklist, and « Anciennes adresses » in its subscription card
+(`formerAddresses` in the customer payload).
 
 **GuestFlow instance (`client/src/`) — touched:**
 
@@ -626,10 +655,11 @@ its `api.js` calls land on the console's identical `/api/payments/*` routes.
     Premium' | 'Option à la carte' | null` and `planHint: string | null`.
   - New errors, each with a French `message`: `402 PLAN_REQUIRED {plan}`, `402 QUOTA_REACHED
     {quota, limit}`, `402 SUBSCRIPTION_READ_ONLY`, and on the public API `503 BOOKING_UNAVAILABLE`.
-- **Control plane, public:**
-  - `POST /login/lookup {email}` →
-    `{ spaces: [{ name, url }] }` (the `url` carries `login_hint`), or `{ spaces: [] }`, or `429`.
-  - `GET /oauth/:provider/callback`.
+- **Control plane, public, host `app.<domain>`** (HTML, forms, no JSON):
+  - `GET /` → the form, or the remembered space;
+  - `POST /lookup {email}` → `303` to `https://<slug>.<domain>/login?login_hint=<email>` for one
+    space, the list for several, the neutral answer for none, `429` past 10 per minute per IP;
+  - `POST /go {slug, email}` → the same `303`, and the `gf_space` cookie; `POST /forget` clears it.
 - **Control plane, operator login** (rate-limited): `POST /api/auth/login {email, password}` →
   `{ step: 'second-factor', method, message }`; `POST /api/auth/verify {code}` (6 digits or a
   `xxxxx-xxxxx` backup code) → `{ operator, notice }`; `POST /api/auth/resend`; `POST
@@ -651,7 +681,10 @@ its `api.js` calls land on the console's identical `/api/payments/*` routes.
     /api/templates/:key {subject, body, sendMode}` (400 `UNKNOWN_PLACEHOLDER`), `POST
     /api/templates/:key/preview {subject, body}`; GuestFlow's own `/api/payments/settings` and
     `/api/payments/qonto/{authorize, callback, status, credentials, test, bank-accounts,
-    connect-provider, refresh-connection, webhook}`, same contracts (rule 32). C3: `rename`.
+    connect-provider, refresh-connection, webhook}`, same contracts (rule 32).
+  - C3: `POST /api/customers/:id/rename/preview {slug}` → `{ error, url, until, checklist: [{ key,
+    label }] }`; `POST /api/customers/:id/rename {slug, checked: [keys]}` (400 `CHECKLIST` until
+    every item is ticked, 400 with the slug's error).
 - **Control plane, public:** `GET /exports/:token` (410 once expired); `POST
   /api/payments/qonto/webhook` (Qonto's signature, 503 without a secret, 401 on a bad one).
 - **Control plane payloads (C2b):** `GET /api/alerts` → `{ alerts: [{ customerId, link?, severity,
@@ -689,7 +722,8 @@ its `api.js` calls land on the console's identical `/api/payments/*` routes.
 | `reminders` (C2b) | `customerId`, `invoiceId`, `kind`, `status` (`pending` \| `sent` \| `ignored` \| `dropped` \| `failed`), `recipient`, `subject`, `body`, `preparedAt`, `handledAt`, `operator`, `error`; unique (`invoiceId`, `kind`) except `reminder_manual` |
 | `email_templates` (C2b) | `key`, `subject`, `body`, `sendMode` (`manual` \| `auto`), `updatedAt`, `updatedBy` |
 | `payment_failures` (C2b) | `invoiceId`, `providerPaymentId` (unique), `status`, `at` |
-| `directory` (C3) | `emailHmac`, `customerId` |
+| `directory` (C3) | `emailHmac`, `customerId`, `seenAt` |
+| `slug_aliases` (C3) | `slug`, `customerId`, `until` (the old address, reserved and redirected for 12 months) |
 
 **Instance:** no new table. The licence and the directory file are files in the data directory,
 next to the database.
@@ -779,8 +813,14 @@ each plan. The C2a console screens have their own mock
   hors forfait ».
 - **Instance login page:** with `?login_hint=`, the email is filled in and the password field has
   the focus; without it, the email field has the focus as before.
-- **Login (`app.<domain>`):** a centred card with the logo, one email field and « Continuer ». It is
-  full-width on `xs` with no horizontal scroll.
+- **Login (`app.<domain>`):** a centred card on GuestFlow's paper background, the serif
+  « GuestFlow » title, one email field and « Continuer ». Several spaces: a list of buttons, the
+  company name above the address. No space: the neutral sentence and the form again. A remembered
+  space: « Continuer vers Domaine Solio » and « Utiliser une autre adresse ». Full-width on `xs`,
+  44 px targets, no horizontal scroll, no script.
+- **Changer l'adresse (console, C3):** the new slug with the server's error as it is typed and the
+  new address below it; the five items to tick; the date until which the old address redirects;
+  « Changer l'adresse » disabled until the slug is valid and every item ticked.
 
 ## 7. Test plan
 
@@ -811,9 +851,23 @@ each plan. The C2a console screens have their own mock
 - **Instance (C2a, implemented): `server/src/tests/control-plane-first-admin.unit.test.js`, 2 tests**
   (rule 7): the script against a real database (admin, password to change, bootstrap account
   removed, idempotent); a used bootstrap account is never removed.
-- **Control plane (C3):**
-  - Login lookup: 0, 1 and n spaces; suspended; rate limit; no email stored in clear.
-  - OAuth relay: valid, expired and foreign `state`.
+- **Control plane (C3, implemented): 11 more tests, 87 in all.** `helpers.js` instances now carry a
+  `users` table.
+  - `directory.unit.test.js` (2, rule 26): active accounts only, normalised, no account email
+    anywhere in the console's database; the next read replaces, an unreadable instance keeps its
+    pairs, an archived space stays findable, erasure removes them.
+  - `login-lookup.unit.test.js` (2, rules 24, 25): none, invalid, one (case and spaces ignored),
+    several sorted by name, only names and addresses; a suspended space still a match; the hint.
+  - `login-page.unit.test.js` (4, rules 24, 25, 27) over HTTP on the `app` host: no password field
+    and no script, the page's own CSP; the `303` with `login_hint` and the host-only cookie, other
+    fields ignored; the list, `/go`, the neutral answer, the remembered space, `/forget`, a renamed
+    space forgotten; the `429` page after 10; each host answers nothing of the other's.
+  - `slug-rename.unit.test.js` (3, rules 21, 22): the preview and the slug's refusals; refused until
+    every item is ticked, then renamed, journaled, licence re-issued under the new slug, the manual
+    step; the old slug taken for 12 months, then free.
+- **Console client (C3, implemented): 1 more Vitest test, 30 in all.** `CustomerPage.rename.test.jsx`
+  (rule 22): the slug refused as typed, the new address and the date, the button enabled only when
+  the slug is valid and every item ticked.
 - **Control plane (C2b, implemented): 28 more tests, 76 in all**, with a fake Qonto facade in
   `helpers.js` (`makeFakeQonto`: the test pays a link, fails an attempt, or marks an invoice paid).
   - `billing-invoice.unit.test.js` (7, rules 6, 7, 17, 18, 32): the monthly invoice at D-7 with its
@@ -939,15 +993,29 @@ moved by hand):
 - 375 px: home, customer page, emails, new customer (the postcode refused as typed), Paiements: no
   horizontal scroll.
 
-**Still to do with C2b and C3:**
+**C3, done 2026-09-30** (the console on :4100 with `appHost: 'app.localhost'`, two instance
+databases with a `users` table, the client on :3200):
+- The first « Continuer » was refused by the browser: helmet's `form-action 'self'` blocked the
+  form (and, in production, would block its redirect to the space). The page now has its own CSP;
+  a test pins it.
+- `app.localhost:4100`: « Compta@Lamy.fr » with spaces listed the two spaces; « Le Moulin » sent a
+  `303` to `https://moulin.guestflow.fr/login?login_hint=compta%40lamy.fr`, which the browser
+  followed; the next visit offered « Continuer vers … »; « Utiliser une autre adresse » cleared it.
+- The console: « Changer l'adresse » on Le Moulin, the slug checked as typed, the button disabled
+  until the five items were ticked; after it, « Anciennes adresses : moulin.guestflow.fr → redirigée
+  jusqu'au 01/10/2027 » and the history line; the remembered `moulin` was then forgotten on
+  `app.localhost`.
+- 375 px: the login page (48 px targets) and the customer page, no horizontal scroll.
+
+**Still to do:**
 
 - **C2b, against Qonto itself:** the ADN Dev application (with the `client*` and `client_invoice*`
   scopes) is not created yet. On its sandbox: connect, connect the payment-link provider, invoice a
   customer, pay the link with the test card, match a transfer, and confirm two points the
   documentation leaves open: the VAT rate format of an invoice line (`"0.2"` is sent) and the
   `paid` state read on an invoice link.
-- **Login:** reach two local instances (`*.localhost`) from `app.localhost` with one email that
-  belongs to both.
+- **C3 against a real host:** the proxy routing of `app.<domain>` to the console and the `301` of an
+  old address come with phase H.
 - Check at 375 px: login, banners, the matrix as cards.
 
 ## 8. Out of scope
@@ -959,6 +1027,8 @@ moved by hand):
 - **Central identity** (one password for all spaces, SSO): rejected in rule 25 for isolation.
   Reconsider only if customers ask.
 - **VAT handling beyond French VAT on French customers** (D7).
+- **A central OAuth callback** (rule 28, withdrawn 2026-09-30): only if the platform ever offers
+  shared Google and Qonto applications.
 
 ## 9. Open questions
 
@@ -987,6 +1057,13 @@ moved by hand):
   settings page, reused whole, rather than a console page fed by environment variables (rule 32).
 - **Q13 — Do the customer emails go on their own.** *Resolved 2026-09-30:* a mode per template,
   shipped as Manuel with an approval queue, like GuestFlow's own emails (rule 33).
+- **Q15 — One PR or two for C3.** *Resolved 2026-09-30:* one.
+- **Q16 — How the directory learns the emails.** *Resolved 2026-09-30:* the console reads each
+  instance's active accounts every minute, read-only, and keeps only their HMAC, rather than a file
+  of HMACs written by the instance (rule 26).
+- **Q17 — Whose Google and Qonto applications a hosted customer uses.** *Resolved 2026-09-30:*
+  their own, declared with their own address, from the plugin's page; the plugins are not installed
+  by default and their pages stay hidden until they are. The central relay (rule 28) is withdrawn.
 - **Q10 — The `due` window for monthly billing.** *Resolved 2026-09-29:* 7 days before the end
   for monthly billing, 30 days for yearly (rule 14). Found on the C2a mock: with 30 days
   everywhere, a monthly customer would have seen the renewal banner, and received the invoice, on

@@ -10,6 +10,8 @@
  *
  * Every 15 minutes: the open invoices are checked in Qonto, so a payment renews within the quarter
  * hour even when the webhook never came.
+ *
+ * Every minute: the directory is read from the instances' active accounts (rule 26).
  */
 
 const { parisDay } = require('../utils/days');
@@ -65,14 +67,24 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
     }
   }
 
+  function readDirectory() {
+    try {
+      return controllers.login.readDirectory();
+    } catch (err) {
+      log(`[scheduler] directory read failed: ${err.message}`);
+      return 0;
+    }
+  }
+
   function start(intervalMs = 60000) {
     tick();
-    const timers = [setInterval(tick, intervalMs), setInterval(checkPayments, PAYMENT_CHECK_MS)];
+    readDirectory();
+    const timers = [setInterval(tick, intervalMs), setInterval(checkPayments, PAYMENT_CHECK_MS), setInterval(readDirectory, intervalMs)];
     for (const t of timers) t.unref();
     return () => timers.forEach(clearInterval);
   }
 
-  return { runDaily, isDue, tick, checkPayments, start };
+  return { runDaily, isDue, tick, checkPayments, readDirectory, start };
 }
 
 module.exports = { createScheduler, RUN_HOUR, PAYMENT_CHECK_MS };

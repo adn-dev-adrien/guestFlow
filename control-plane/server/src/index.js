@@ -6,7 +6,8 @@
  *   CP_INSTANCES_ROOT        the instances' directories, <root>/<slug>/data (required)
  *   CP_LICENCE_PRIVATE_KEY   Ed25519 private key, base64 DER PKCS8 (required; rule 30)
  *   CP_DOMAIN                customers live at <slug>.<CP_DOMAIN> (default guestflow.fr)
- *   CP_PUBLIC_URL            the console's own address, for the export links
+ *   CP_PUBLIC_URL            the console's own address, for the export links and Qonto's return
+ *   CP_APP_HOST              the shared login page's host (default app.<CP_DOMAIN>; rule 24)
  *   CP_SESSION_SECRET        required in production
  *   CP_SMTP_HOST/PORT/USER/PASS/FROM
  *   CP_PORT                  default 4100
@@ -47,6 +48,7 @@ const ctx = createContext({
   now: () => clock.now(env),
   mailer: createMailer(env),
   secrets: createSecrets(loadOrCreateKey(dataDir)),
+  directoryKey: loadOrCreateKey(dataDir, '.directory-key'),
   privateKey,
   instancesRoot,
   dataDir,
@@ -60,6 +62,7 @@ const app = createApp(ctx, {
   sessionStore: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
   secureCookies: production,
   clientDist: path.join(__dirname, '..', '..', 'client', 'dist'),
+  appHost: env.CP_APP_HOST || `app.${env.CP_DOMAIN || 'guestflow.fr'}`,
 });
 
 createScheduler(ctx).start();

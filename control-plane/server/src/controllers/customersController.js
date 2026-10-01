@@ -43,7 +43,21 @@ const DEPROVISION_STEPS = [
 const REACTIVATE_STEPS = [
   { step: 'restart', label: 'Processus et route relancés depuis le dossier', kind: 'manual', hint: 'À faire à la main jusqu’à la phase H.' },
 ];
-const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS];
+// Rule 22: moving the directory and redirecting the old address is the hosting's job, by hand until
+// phase H.
+const RENAME_STEPS = [
+  { step: 'rename', label: 'Dossier renommé, processus et route relancés, redirection 301 posée', kind: 'manual' },
+];
+const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS];
+// Rule 22: what must be redone when the address changes, each item ticked before it runs.
+const RENAME_CHECKLIST = [
+  { key: 'wordpress', label: 'Réglage du plugin WordPress (adresse de l’API)' },
+  { key: 'ical', label: 'Adresses des flux iCal collées sur chaque plateforme' },
+  { key: 'oauth', label: 'Adresses de retour des applications Google et Qonto du client, puis « Connecter » à nouveau' },
+  { key: 'publicUrl', label: 'URL publique de l’espace (Réglages → Envoi d’emails)' },
+  { key: 'push', label: 'Notifications push : chaque appareil les accepte à nouveau' },
+];
+const ALIAS_MONTHS = 12;
 
 const BILLING_LABELS = { monthly: 'mensuel', yearly: 'annuel' };
 const INVOICE_STATUS = { pending: 'En préparation', open: 'À payer', paid: 'Payée', cancelled: 'Annulée' };
@@ -52,11 +66,14 @@ const pluginName = (id) => (gfPlugins.findPlugin(id) || { name: id }).name;
 
 function createCustomersController(ctx) {
   const { models, now, mailer, instances, issuer, runFirstAdmin, domain, consoleUrl, exportsDir, qonto } = ctx;
-  const { customers, catalogue, invoices, audit, provisioning, emails } = models;
+  const { customers, catalogue, invoices, audit, provisioning, emails, directory } = models;
 
   const today = () => parisDay(now());
   const stamp = () => now().toISOString();
   const urlOf = (slug) => `https://${slug}.${domain}`;
+
+  // Rule 21 with rule 22: an old slug stays taken while it still redirects.
+  const slugTaken = (slug) => customers.slugTaken(slug) || directory.aliasTaken(slug, today());
 
   function journal(customerId, operator, kind, text) {
     audit.log({ at: stamp(), day: today(), operator, customerId, kind, text });
@@ -245,7 +262,8 @@ function createCustomersController(ctx) {
       archivedAt: c.archivedAt,
       eraseAt: c.eraseAt,
       eraseAtLabel: c.eraseAt ? frDay(c.eraseAt) : null,
-      steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS]),
+      steps: stepsView(c, [...CREATE_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS]),
+      formerAddresses: directory.aliasesOf(c.id, day).map((a) => `${a.slug}.${domain} → redirigée jusqu’au ${frDay(a.until)}`),
       deprovisionSteps: stepsView(c, DEPROVISION_STEPS),
       history: audit.forCustomer(c.id).map((h) => ({ at: h.at, day: frDay(h.day), operator: h.operator, text: h.text })),
       billingIdentity: {
@@ -311,6 +329,7 @@ function createCustomersController(ctx) {
         downloadLicence: true,
         deprovision: !archived,
         reactivate: archived,
+        rename: !archived,
         cancelErase: archived && Boolean(c.eraseAt),
         eraseNow: archived,
         editBilling: !archived,
@@ -382,7 +401,7 @@ function createCustomersController(ctx) {
     const slug = String(body.slug || '').trim();
     if (!companyName) errors.companyName = 'Le nom de la société est obligatoire.';
     if (!EMAIL_RE.test(contactEmail)) errors.contactEmail = 'Adresse email invalide.';
-    const slugErr = slugError(slug, customers.slugTaken);
+    const slugErr = slugError(slug, slugTaken);
     if (slugErr) errors.slug = slugErr;
     const planRow = catalogue.plan(body.planCode);
     if (!planRow) errors.planCode = 'Forfait inconnu.';
@@ -525,6 +544,40 @@ function createCustomersController(ctx) {
     if (Object.keys(errors).length) throw httpError(400, 'INVALID', Object.values(errors)[0], { errors });
     customers.setBilling(c.id, billing);
     journal(c.id, operator, 'billing', `Facturation : ${billing.billingStreet}, ${billing.billingPostcode} ${billing.billingCity}${billing.vatNumber ? `, TVA ${billing.vatNumber}` : ''}`);
+    return view(c.id);
+  }
+
+  // --- the address (rule 22) -------------------------------------------------------------------
+
+  function renamePreview(id, body) {
+    const c = mustGet(id);
+    const slug = String(body.slug || '').trim();
+    const error = slug === c.slug ? 'C’est déjà son adresse.' : (slug ? slugError(slug, slugTaken) : null);
+    const until = addMonths(today(), ALIAS_MONTHS);
+    return {
+      error,
+      url: slug && !error ? urlOf(slug) : null,
+      until: `L’ancienne adresse ${c.slug}.${domain} reste réservée et redirige (301) jusqu’au ${frDay(until)}.`,
+      checklist: RENAME_CHECKLIST,
+    };
+  }
+
+  function rename(id, body, operator) {
+    const c = mustGet(id);
+    if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    const slug = String(body.slug || '').trim();
+    const { error } = renamePreview(id, { slug });
+    if (!slug || error) throw httpError(400, 'INVALID', error || 'Nouvelle adresse obligatoire.');
+    const checked = new Set(Array.isArray(body.checked) ? body.checked : []);
+    const missing = RENAME_CHECKLIST.filter((i) => !checked.has(i.key));
+    if (missing.length) throw httpError(400, 'CHECKLIST', `À cocher d’abord : ${missing.map((i) => i.label).join(' ; ')}.`);
+    const until = addMonths(today(), ALIAS_MONTHS);
+    customers.setSlug(c.id, slug);
+    directory.addAlias(c.slug, c.id, until);
+    provisioning.set(c.id, 'rename', 'todo',
+      `Déplacer ${c.slug}/ vers ${slug}/, relancer le processus et la route, rediriger ${c.slug}.${domain} vers ${slug}.${domain} jusqu’au ${frDay(until)}.`, stamp());
+    journal(c.id, operator, 'rename', `Adresse : ${c.slug} → ${slug} ; l’ancienne redirige jusqu’au ${frDay(until)}`);
+    refresh(c.id, operator);
     return view(c.id);
   }
 
@@ -676,6 +729,7 @@ function createCustomersController(ctx) {
     const c = customers.get(id);
     eraseInstance({ instances, slug: c.slug });
     customers.markErased(c.id, stamp());
+    directory.removeCustomer(c.id);
     journal(c.id, operator, 'erase', 'Données et dossier de l’instance effacés ; l’adresse est de nouveau libre');
     return { erased: true, id: c.id };
   }
@@ -702,6 +756,8 @@ function createCustomersController(ctx) {
     licenceDownload,
     deprovision,
     reactivate,
+    renamePreview,
+    rename,
     cancelErase,
     eraseNow,
     eraseDue,
@@ -709,6 +765,7 @@ function createCustomersController(ctx) {
     priceLines,
     journal,
     urlOf,
+    RENAME_CHECKLIST,
   };
 }
 
