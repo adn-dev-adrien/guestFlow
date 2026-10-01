@@ -4,6 +4,25 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-10-01
+
+### Summary
+- Suivi financier : nouvelle carte « Réservations à venir, à date » qui compare les 12 prochains mois à la même date l'an dernier.
+- Elle compte en réservations, nuits ou CA des nuits, montre le rythme des 7 et 30 derniers jours, et un clic sur un mois trace sa montée en charge.
+- La comparaison n'apparaît qu'un an après l'import initial : la date de réservation retenue est celle de la création de la fiche.
+
+### Added
+- **Réservations à venir, à date** on the Suivi financier (`specs/booking-pace.md`): for each of the
+  next twelve stay months, what is booked today next to what was booked on the same date last year
+  and what that month finally made, in réservations, nuits or CA des nuits; the pickup of the last
+  7 / 30 days; a click on a month shows its « montée en charge ». The booking date is the fiche's
+  creation date, so the comparison appears one year after the initial import.
+
+### Migration
+- New table `booking_pace_cancellations` (written when an iCal cancellation is approved, so the
+  deleted stay keeps counting on the dates it was booked) and index `idx_reservations_createdAt`.
+  Additive; no existing row changes.
+
 ## [3.7.1] - 2026-09-30
 
 ### Summary
