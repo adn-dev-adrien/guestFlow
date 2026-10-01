@@ -1,28 +1,37 @@
 /**
- * Arrival / departure SAS controller (specs/arrival-departure-sas.md §4.1).
+ * Arrival / departure SAS controller (specs/arrival-departure-sas.md §4.1; plugin `sas` per
+ * specs/plugins-phase-2-hosts.md rule 8).
  *
  * Assembles the data the SAS wizard needs (caution, options, bed-linen alert, cleaning
  * included? + property cleaning price, complements, priced linen items, portal code) and
  * commits the operator's decisions in a single call per SAS (no per-step writes).
  */
 
-const reservationsModel = require('../models/reservationsModel');
-const linenItemsModel = require('../models/linenItemsModel');
-const settingsModel = require('../models/settingsModel');
-const breakfastModel = require('../models/breakfastModel');
-const optionsModel = require('../models/optionsModel');
-const repairAmountsModel = require('../models/repairAmountsModel');
-const resourceSchedulingModel = require('../models/resourceSchedulingModel');
-const { buildSasSaleOffers } = require('../utils/sasOptionSale');
-const { parseGroup } = require('../utils/arrivalPaymentGroup');
-const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
-const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
-const { isReceptionOnly } = require('../constants/roles');
-const { sasLockReason } = require('../utils/sasEditWindow');
-const { stayDueAtArrival } = require('../utils/reservationSettlement');
-const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
-const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = require('../utils/receptionView');
-const { sasData: pluginSasData } = require('../plugins/sdk/eventBus');
+const sdk = require('../sdk');
+const { sasData: pluginSasData } = require('../sdk/eventBus');
+const registry = require('../sdk/registry');
+const { buildSasSnapshot, computeSasChanges } = require('./sasAudit');
+
+// The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
+// the reception view are core modules this controller calls, never copies.
+const reservationsModel = sdk.coreModule('reservationsModel');
+const linenItemsModel = sdk.coreModule('linenItemsModel');
+const settingsModel = sdk.coreModule('settingsModel');
+const breakfastModel = sdk.coreModule('breakfastModel');
+const optionsModel = sdk.coreModule('optionsModel');
+const repairAmountsModel = sdk.coreModule('repairAmountsModel');
+const resourceSchedulingModel = sdk.coreModule('resourceSchedulingModel');
+const { buildSasSaleOffers } = sdk.coreModule('sasOptionSale');
+const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
+const { CATERING_CATEGORY } = sdk.coreModule('optionCategoriesMigration');
+const { isReceptionOnly } = sdk.coreModule('roles');
+const { sasLockReason } = sdk.coreModule('sasEditWindow');
+const { stayDueAtArrival } = sdk.coreModule('reservationSettlement');
+const { formatPlatformName, isDirectChannel } = sdk.coreModule('platformNameFormat');
+const { toReceptionStayPayment, toReceptionSasCommit, toReceptionReservationView } = sdk.coreModule('receptionView');
+
+// specs/plugins-phase-2-hosts.md rule 11 (P6) — the bed-linen and towel steps belong to `linen`.
+const linenLive = () => registry.isLive('linen');
 
 // specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
 // has never been committed: a past, future or already-committed SAS is refused. The rule depends on
@@ -173,9 +182,48 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
   };
 }
 
+// specs/plugins-phase-2-hosts.md rule 11 (gap 5) — without `linen`, the arrival SAS has no bed-linen
+// or towel step, so its payload carries neither their data nor the reservation's bed-linen alert. The
+// priced items stay in the DEPARTURE payload: « Objets manquants » is a SAS step, priced from them.
+function withoutLinenAlert(reservation) {
+  if (linenLive() || !('bedLinenAlert' in reservation)) return reservation;
+  const copy = { ...reservation };
+  delete copy.bedLinenAlert;
+  return copy;
+}
+
+// Rule 11 — without `linen`, the arrival commit ignores the bed-linen and towel decisions: the towel
+// upsell is left as it is, and the bed-linen lines already stored are sent back unchanged (the commit
+// replaces every SAS-origin line, so leaving them out would drop money a previous check-in recorded).
+function withoutLinenDecisions(reservationId, body) {
+  if (linenLive()) return body;
+  const bedLabels = new Set(linenItemsModel.list()
+    .filter((i) => i.category === 'bed').map((i) => String(i.label).trim()));
+  const isBedLine = (label) => bedLabels.has(String(label || '').trim());
+  const stored = (reservationsModel.listSasArrivalCustomLines(reservationId) || [])
+    .filter((l) => isBedLine(l.description))
+    .map((l) => ({ label: l.description, amount: l.amount, offered: Number(l.offered) === 1 }));
+  const sent = Array.isArray(body.complementItems) ? body.complementItems : [];
+  return {
+    ...body,
+    complementItems: [...sent.filter((i) => !isBedLine(i && i.label)), ...stored],
+    bathLinenAdded: undefined,
+    bathLinenOffered: false,
+  };
+}
+
+function linenPayload(build, { isDeparture }) {
+  const live = linenLive();
+  const out = {};
+  if (live || isDeparture) out.linenItems = linenItemsModel.list();
+  if (live) out.bathLinen = build();
+  return out;
+}
+
 function getSas(req, res) {
-  const reservation = reservationsModel.getByIdWithDetails(req.params.id);
-  if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const found = reservationsModel.getByIdWithDetails(req.params.id);
+  if (!found) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const reservation = withoutLinenAlert(found);
 
   // Cleaning is "included" when the reservation already carries it: a booked option (by
   // `autoOptionType='cleaning'` tag OR by name « ménage » — same rule as the J-1 email, see
@@ -219,7 +267,7 @@ function getSas(req, res) {
     cleaning: { included: cleaningIncluded, price: cleaningPrice, sasOrigin: upsells.cleaning.sasOrigin },
     // specs/sas-bath-linen-upsell.md §3.1 — bath-linen upsell (per-person price, mirrors the engine).
     // Still offered while the only row present is our own, so the operator can undo it.
-    bathLinen: (() => {
+    ...linenPayload(() => {
       const offer = reservationsModel.getBathLinenOfferForReservation(reservation);
       if (!upsells.bathLinen.sasOrigin) return { ...offer, sasOrigin: false };
       return {
@@ -232,14 +280,13 @@ function getSas(req, res) {
         label: offer.label,
         sasOrigin: true,
       };
-    })(),
+    }, { isDeparture }),
     // specs/collect-stay-payment-at-check-in.md — the séjour still owed at the door (last-minute
     // stays arrive unpaid). `{ applicable: false }` for a reception-only user: no amount is served.
     stayPayment: buildStayPayment(reservation, { isDeparture, receptionOnly: isReceptionOnly(req.user) }),
     // specs/single-payment-at-check-in.md §3.1 — may the recap settle the stay AND the complement in
     // ONE gesture? The server answers, so the client never decides it from amounts it does not own.
     arrivalPayment: buildArrivalPayment(reservation, { isDeparture, receptionOnly: isReceptionOnly(req.user) }),
-    linenItems: linenItemsModel.list(),
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
     // itemised detail) so the departure SAS can recall it when it was never settled.
     // `includeOffered` is the SAS flavour (specs/sas-offer-complement-lines.md §4.3): the already-offered
@@ -281,6 +328,7 @@ function commitArrival(req, res) {
   // specs/collect-stay-payment-at-check-in.md §3.6 rule 25 — fail-closed: a reception-only commit
   // never settles the stay. The fields are dropped silently; the rest of the check-in goes through.
   if (isReceptionOnly(req.user)) req.body = toReceptionSasCommit(req.body);
+  req.body = withoutLinenDecisions(Number(req.params.id), req.body || {});
   const {
     cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
@@ -429,4 +477,4 @@ function commitDeparture(req, res) {
 module.exports = { getSas, commitArrival, commitDeparture };
 // Le repli d'historique de la règle 10 est de la logique pure sur une liste de changements : exposé
 // pour être épinglé sans monter tout le harnais du contrôleur.
-module.exports.__test = { foldGroupedPayment, buildStayPayment };
+module.exports.__test = { foldGroupedPayment, buildStayPayment, withoutLinenDecisions };

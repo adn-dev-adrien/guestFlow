@@ -2,19 +2,9 @@ const router = require('express').Router();
 
 const settingsController = require('../controllers/settingsController');
 const logoUpload = require('../middleware/multerLogoUpload');
-const requirePlugin = require('../middleware/requirePlugin');
-const PLUGINS = require('../constants/plugins');
 
 router.get('/', settingsController.getSettings);
 router.put('/', settingsController.updateSettings);
-
-// Priced linen items (Blanchisserie) — specs/arrival-departure-sas.md §3.4.
-router.get('/linen-items', settingsController.getLinenItems);
-router.put('/linen-items', settingsController.updateLinenItems);
-
-// Repair amounts (« Tarifs facturables ») — specs/extinguisher-seal-and-repair-amounts.md.
-router.get('/repair-amounts', settingsController.getRepairAmounts);
-router.put('/repair-amounts', settingsController.updateRepairAmounts);
 
 router.post('/logo', (req, res) => {
   logoUpload.single('logo')(req, res, (err) => {

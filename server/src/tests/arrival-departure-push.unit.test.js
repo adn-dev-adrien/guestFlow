@@ -37,6 +37,8 @@ function stubPush() {
 
 const NOW = new Date(2026, 5, 14, 16, 0, 0); // 2026-06-14 16:00 local
 const TODAY = '2026-06-14';
+// The deep link targets the SAS while the plugin is live (specs/plugins-phase-2-hosts.md rule 12).
+const SAS_ON = () => true;
 
 test('dueArrivals: today + check-in reached + not stamped; sends « arrivals » and stamps once', async () => {
   const db = freshDb();
@@ -46,13 +48,13 @@ test('dueArrivals: today + check-in reached + not stamped; sends « arrivals » 
   addRes(db, { id: 3, clientId: 1, propertyId: 1, startDate: '2026-06-15', endDate: '2026-06-18', checkInTime: '10:00' }); // another day
 
   const push = stubPush();
-  const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW });
+  const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW, isSasLive: SAS_ON });
   assert.equal(res.sent, 1);
   assert.deepEqual(push.calls.map((c) => c.pref), ['arrivals']);
   assert.match(push.calls[0].payload.body, /Jean Dupont · Gîte/);
   assert.equal(push.calls[0].payload.url, '/planning?sas=arrival&reservationId=1');
   // Stamped → a second pass sends nothing.
-  const res2 = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW });
+  const res2 = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW, isSasLive: SAS_ON });
   assert.equal(res2.sent, 0);
 });
 
@@ -61,7 +63,7 @@ test('departures fire on « departures » pref at check-out time', async () => {
   const model = createReservationsModel(db);
   addRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: '2026-06-10', endDate: TODAY, checkOutTime: '10:00' });
   const push = stubPush();
-  const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW });
+  const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW, isSasLive: SAS_ON });
   assert.equal(res.sent, 1);
   assert.equal(push.calls[0].pref, 'departures');
   assert.equal(push.calls[0].payload.url, '/planning?sas=departure&reservationId=1');
@@ -73,11 +75,11 @@ test('firstRun stamps already-due events WITHOUT sending (no restart flood)', as
   addRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: TODAY, endDate: '2026-06-18', checkInTime: '09:00' });
   addRes(db, { id: 2, clientId: 1, propertyId: 1, startDate: '2026-06-10', endDate: TODAY, checkOutTime: '10:00' });
   const push = stubPush();
-  const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW, firstRun: true });
+  const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW, isSasLive: SAS_ON, firstRun: true });
   assert.equal(res.sent, 0, 'nothing sent on the first run');
   assert.equal(res.stamped, 2, 'both already-due events stamped');
   assert.equal(push.calls.length, 0);
   // Next (normal) pass sends nothing because they were stamped.
-  const res2 = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW });
+  const res2 = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW, isSasLive: SAS_ON });
   assert.equal(res2.sent, 0);
 });

@@ -8,6 +8,10 @@ const assert = require('node:assert/strict');
 
 const Module = require('module');
 
+// Every plugin live, as before phase 2: the linen gating of the SAS has its own suite
+// (phase-2-sas.unit.test.js).
+require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
+
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;
   Module.prototype.require = function patched(id) {
@@ -47,17 +51,17 @@ function readSas({ mode, sold, sasOrigin }) {
   } });
 
   const controller = withMocks({
-    '../models/reservationsModel': reservationsModelMock,
-    '../models/linenItemsModel': { list: () => [] },
-    '../models/settingsModel': { read: () => ({ portalCode: '' }) },
-    '../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
-    '../models/repairAmountsModel': { list: () => [] },
-    '../models/resourceSchedulingModel': { getSchedulingPayload: () => ({ applicable: true, resources: [{ resourceId: 2 }] }) },
+    '../../models/reservationsModel': reservationsModelMock,
+    '../../models/linenItemsModel': { list: () => [] },
+    '../../models/settingsModel': { read: () => ({ portalCode: '' }) },
+    '../../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
+    '../../models/repairAmountsModel': { list: () => [] },
+    '../../models/resourceSchedulingModel': { getSchedulingPayload: () => ({ applicable: true, resources: [{ resourceId: 2 }] }) },
   }, () => {
-    delete require.cache[require.resolve('../controllers/sasController')];
-    return require('../controllers/sasController');
+    delete require.cache[require.resolve('../controller')];
+    return require('../controller');
   });
-  delete require.cache[require.resolve('../controllers/sasController')];
+  delete require.cache[require.resolve('../controller')];
 
   const res = fakeRes();
   controller.getSas({ params: { id: 1 }, query: mode ? { mode } : {}, user: { roles: ['admin'] } }, res);

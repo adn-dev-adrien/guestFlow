@@ -12,14 +12,14 @@ const Module = require('module');
 function loadWithGroup(group) {
   const origRequire = Module.prototype.require;
   Module.prototype.require = function patched(id) {
-    if (id === '../models/reservationsModel') {
+    if (id === '../../models/reservationsModel') {
       return new Proxy({}, { get: (_, k) => (k === 'getRow' ? () => ({ arrivalPaymentGroup: group }) : () => null) });
     }
     return origRequire.call(this, id);
   };
   try {
-    delete require.cache[require.resolve('../controllers/sasController')];
-    return require('../controllers/sasController').__test.foldGroupedPayment;
+    delete require.cache[require.resolve('../controller')];
+    return require('../controller').__test.foldGroupedPayment;
   } finally { Module.prototype.require = origRequire; }
 }
 

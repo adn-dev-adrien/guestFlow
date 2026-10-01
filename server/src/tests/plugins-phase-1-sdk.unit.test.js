@@ -474,7 +474,7 @@ test('rule 17: the SAS payload carries plugin data only for live plugins, and no
   assert.deepEqual(eventBus.sasData(5), { 'gate-access': { available: true } });
   buildPluginsModel(db).setEnabled('gate-access', false);
   assert.deepEqual(eventBus.sasData(5), {});
-  const sas = fs.readFileSync(path.join(SRC, 'controllers/sasController.js'), 'utf8');
+  const sas = fs.readFileSync(path.join(SRC, 'plugins/sas/controller.js'), 'utf8');
   assert.match(sas, /portalCode: String\(settings\.portalCode/);
   assert.match(sas, /pluginData: pluginSasData\(reservation\.id\)/);
   assert.doesNotMatch(sas, /gateAccess:/);
