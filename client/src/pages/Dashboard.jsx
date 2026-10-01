@@ -22,10 +22,9 @@ import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
-import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
 import PluginGate from '../components/PluginGate';
-import { LINEN, WEBSITE_BOOKING } from '../constants/plugins';
+import { LINEN } from '../constants/plugins';
 import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
@@ -388,14 +387,12 @@ export default function Dashboard() {
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
           <IcalNewReservationsAlert />
-          {/* The other plugin alerts, e.g. the tariff-recipe runs to review. */}
+          {/* The other plugin alerts, e.g. the tariff-recipe runs to review and the website requests
+              still pending (specs/plugins-phase-2-hosts.md rule 25). */}
           <Slot name="dashboard.alerts" />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
           <EmailPendingAlert />
-          {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
-              Self-contained: renders nothing when there is no pending website request. */}
-          <PluginGate id={WEBSITE_BOOKING}><DevisPublicRequestAlert /></PluginGate>
         </>
       )}
 

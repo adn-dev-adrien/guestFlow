@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import { useNavigate } from 'react-router';
-import api from '../api';
+import { api } from '../sdk';
 
 export default function DevisPublicRequestAlert() {
   const navigate = useNavigate();

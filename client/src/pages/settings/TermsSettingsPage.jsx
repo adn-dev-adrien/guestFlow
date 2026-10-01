@@ -1,13 +1,14 @@
 /**
  * Paramètres → Conditions générales (specs/terms-acceptance-record.md §3.1, §6).
  *
- * The CGV draft (Markdown FR + EN, rendered by the server), its publication as an immutable version,
- * the published versions, and the emergency switch of the online enforcement. Every label, date and
- * verdict (can publish? stale facts? outdated plugin?) comes from GET /api/terms.
+ * The CGV draft (Markdown FR + EN, rendered by the server), its publication as an immutable version
+ * and the published versions. Every label, date and verdict (can publish? stale facts?) comes from
+ * GET /api/terms. The online enforcement belongs to the website-booking plugin: its alerts and its
+ * « Réservation en ligne » card fill the slot `terms.settings` (specs/plugins-phase-2-hosts.md rule 25).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Card, CardContent, Chip, FormControlLabel, Stack, Switch, Tab, Table, TableBody,
+  Alert, Box, Button, Card, CardContent, Chip, Stack, Tab, Table, TableBody,
   TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -21,6 +22,7 @@ import EmptyState from '../../components/EmptyState';
 import MarkdownEditorField from '../../components/MarkdownEditorField';
 import ArchivedHtmlDialog from '../../components/ArchivedHtmlDialog';
 import { useToast } from '../../components/DialogProvider';
+import Slot from '../../plugins/sdk/Slot';
 import api from '../../api';
 
 const PREVIEW_DELAY_MS = 400;
@@ -47,7 +49,6 @@ export default function TermsSettingsPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
-  const [confirmDisable, setConfirmDisable] = useState(false);
   const [versionView, setVersionView] = useState(null);
   const previewSeq = useRef(0);
 
@@ -116,16 +117,6 @@ export default function TermsSettingsPage() {
     }
   };
 
-  const setEnforcement = async (value) => {
-    setConfirmDisable(false);
-    try {
-      applyOverview(await api.updateTermsEnforcement(value));
-      showSuccess(value ? 'Acceptation des CGV exigée' : 'Exigence désactivée');
-    } catch (e) {
-      showError(e.message || 'Échec de l’enregistrement.');
-    }
-  };
-
   const openVersion = async (version) => {
     setVersionView({ version, loading: true, documents: [], subtitle: null, error: '' });
     try {
@@ -180,22 +171,12 @@ export default function TermsSettingsPage() {
         }]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 1280, mx: 'auto' }}>
-        {!overview.current && overview.requireTermsAcceptance && (
-          <Alert severity="error">
-            Aucune version publiée : la réservation en ligne est fermée. Publiez vos conditions générales pour la rouvrir.
-          </Alert>
-        )}
+        <Slot name="terms.settings" placement="alerts" currentVersion={overview.current?.version ?? null} />
         {overview.current && overview.staleVariables.length > 0 && (
           <Alert severity="warning">
             Un élément cité a changé depuis la version {overview.current.version} (
             {overview.staleVariables.map((n) => `{{${n}}}`).join(', ')}
             ) : publiez une nouvelle version pour l’intégrer. D’ici là, le site affiche la version {overview.current.version} telle qu’elle a été publiée.
-          </Alert>
-        )}
-        {overview.pluginOutdated && overview.requireTermsAcceptance && (
-          <Alert severity="error">
-            Le site utilise le plugin {overview.lastSeenPluginVersion}, qui n’envoie pas l’acceptation : toutes les demandes de réservation sont refusées.
-            Mettez-le à jour en {overview.minPluginVersion} ou désactivez l’exigence ci-dessous.
           </Alert>
         )}
 
@@ -281,31 +262,7 @@ export default function TermsSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card variant="outlined">
-          <CardContent sx={{ p: { xs: 1.5, sm: 3 } }}>
-            <Typography variant="sectionHeader" component="h2">Réservation en ligne</Typography>
-            <FormControlLabel
-              sx={{ mt: 1 }}
-              control={(
-                <Switch
-                  checked={overview.requireTermsAcceptance}
-                  onChange={(e) => (e.target.checked ? setEnforcement(true) : setConfirmDisable(true))}
-                />
-              )}
-              label="Exiger l’acceptation des CGV sur le site"
-            />
-            <Typography variant="body2" color="text.secondary">
-              {overview.requireTermsAcceptance
-                ? 'Une demande de réservation sans case cochée, ou acceptée sur une version dépassée, est refusée.'
-                : 'Exigence désactivée : les demandes sans acceptation sont créées, sans preuve. À réserver aux urgences.'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {overview.lastSeenPluginVersion
-                ? `Dernière demande reçue du plugin WordPress ${overview.lastSeenPluginVersion}.`
-                : 'Version du plugin WordPress : pas encore vue sur une demande.'}
-            </Typography>
-          </CardContent>
-        </Card>
+        <Slot name="terms.settings" placement="card" currentVersion={overview.current?.version ?? null} />
       </Box>
 
       <ConfirmDialog
@@ -316,14 +273,6 @@ export default function TermsSettingsPage() {
         message={`La version ${overview.nextVersion} sera figée et proposée aux clients dès maintenant. Elle ne pourra plus être modifiée.`}
         confirmLabel="Publier"
         confirmColor="success"
-      />
-      <ConfirmDialog
-        open={confirmDisable}
-        onClose={() => setConfirmDisable(false)}
-        onConfirm={() => setEnforcement(false)}
-        title="Désactiver l’exigence ?"
-        message="Les demandes de réservation seront acceptées même sans case cochée, et sans preuve d’acceptation. Réservez ce réglage aux urgences."
-        confirmLabel="Désactiver"
       />
       <ArchivedHtmlDialog
         open={Boolean(versionView)}
