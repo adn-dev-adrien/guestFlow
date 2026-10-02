@@ -33,6 +33,9 @@ function emptyRecord(id) {
     // specs/plugins-phase-3a-online-payment.md rules 4, 12.
     paymentProvider: null,
     webhooks: [],
+    // specs/plugins-phase-3b-neat.md rules 1, 12.
+    quotePostProcessor: null,
+    reservationBlocks: [],
   };
 }
 

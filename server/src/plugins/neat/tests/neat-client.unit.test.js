@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildNeatClient, BASE_URLS } = require('../utils/neatClient');
+const { buildNeatClient, BASE_URLS } = require('../client');
 
 // A scripted fetch: each call shifts the next response off the queue and records the request.
 function stubFetch(script) {

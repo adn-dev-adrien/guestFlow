@@ -34,14 +34,11 @@ function warnDecryptFailure(col, reason) {
   console.warn(`[settingsModel] decrypt failed for "${col}" (${reason}). The current GUESTFLOW_ENCRYPTION_KEY can't decrypt the stored blob. Re-saisis la valeur depuis Paramètres pour la re-chiffrer avec la clé courante.`);
 }
 
-// Columns encrypted at rest (AES-256-GCM). SMTP + Neat credentials. The Google, Météo-France and
-// Qonto secrets moved to plugin_settings with their plugins (specs/plugins-phase-1-sdk.md §5,
-// specs/plugins-phase-3a-online-payment.md rule 13); their old columns stay in the table, unread.
+// Columns encrypted at rest (AES-256-GCM). The Google, Météo-France, Qonto and Neat secrets moved to
+// plugin_settings with their plugins (specs/plugins-phase-1-sdk.md §5, plugins-phase-3a-online-payment.md
+// rule 13, plugins-phase-3b-neat.md rule 10); their old columns stay in the table, unread.
 const ENCRYPTED_COLUMNS = [
   'smtpPasswordEncrypted',
-  // Neat service-account secret (specs/neat-cancellation-insurance-subscription.md §3.1 rule 1).
-  // Stored encrypted, never returned to the client (masked to a boolean below).
-  'neatClientSecretEncrypted',
 ];
 
 const COLUMNS = [
@@ -101,21 +98,6 @@ const COLUMNS = [
   // (specs/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
   // online-payment plugin's settings (rule 13); they stay in the table, unread.
   'publicSiteOrigin',
-  // Neat cancellation-insurance connection (specs/neat-cancellation-insurance-subscription.md §3.1).
-  // The secret is encrypted (above); the rest is non-secret configuration read through `neatConfig()`.
-  'neatEnvironment',
-  'neatClientId',
-  'neatClientSecretEncrypted',
-  'neatSalesChannelId',
-  'neatSalesChannelLabel',
-  'neatContractId',
-  'neatContractLabel',
-  'neatPaymentMethodId',
-  'neatPaymentMethodKind',
-  'neatPaymentMethodLabel',
-  'neatFieldMappingJson',
-  'neatContractFieldsJson',
-  'neatMarginPercent',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -127,7 +109,6 @@ const NUMERIC_DEFAULTS = {
 };
 
 const STRING_DEFAULT_OVERRIDES = {
-  neatEnvironment: 'staging',
   poolSeasonStart: '06-15',
   poolSeasonEnd: '08-31',
 };
@@ -143,8 +124,6 @@ const DEFAULTS = COLUMNS.reduce((acc, col) => {
 // the UI knows whether to show "Modifier" on a MaskedTextField vs. "Configurer".
 const HTTP_MASKED_COLUMNS = {
   smtpPasswordEncrypted: 'smtpPasswordSet',
-  // Neat secret is never exposed; the client only learns whether it's configured.
-  neatClientSecretEncrypted: 'neatClientSecretSet',
 };
 
 function createSettingsModel(databaseInstance) {
@@ -263,39 +242,6 @@ function createSettingsModel(databaseInstance) {
 
     storePublicSiteOrigin(value) {
       this.upsert({ publicSiteOrigin: String(value == null ? '' : value).trim().replace(/\/+$/, '') });
-    },
-
-    // Neat connection + configuration, secret decrypted, for internal use only (never over HTTP).
-    // `marginPercent` is null when unset (Neat-derived guest pricing inactive, rule 13).
-    // Missing/undecryptable secret → `clientSecret: ''` and the feature reads as unconfigured.
-    neatConfig() {
-      const row = readRaw();
-      let clientSecret = '';
-      const blob = row.neatClientSecretEncrypted || '';
-      if (blob) {
-        const r = safeDecrypt(blob);
-        if (r.ok) clientSecret = r.value;
-        else warnDecryptFailure('neatClientSecretEncrypted', r.reason);
-      }
-      const rawMargin = row.neatMarginPercent;
-      const marginPercent = rawMargin === null || rawMargin === undefined || rawMargin === ''
-        ? null
-        : Number(rawMargin);
-      return {
-        environment: String(row.neatEnvironment || 'staging') === 'production' ? 'production' : 'staging',
-        clientId: String(row.neatClientId || '').trim(),
-        clientSecret,
-        salesChannelId: String(row.neatSalesChannelId || ''),
-        salesChannelLabel: String(row.neatSalesChannelLabel || ''),
-        contractId: String(row.neatContractId || ''),
-        contractLabel: String(row.neatContractLabel || ''),
-        paymentMethodId: String(row.neatPaymentMethodId || ''),
-        paymentMethodKind: String(row.neatPaymentMethodKind || ''),
-        paymentMethodLabel: String(row.neatPaymentMethodLabel || ''),
-        fieldMappingJson: String(row.neatFieldMappingJson || ''),
-        contractFieldsJson: String(row.neatContractFieldsJson || ''),
-        marginPercent: Number.isFinite(marginPercent) ? marginPercent : null,
-      };
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.

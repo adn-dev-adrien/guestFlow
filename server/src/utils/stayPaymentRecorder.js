@@ -29,12 +29,11 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  * @param {object} deps.db                better-sqlite3 handle
  * @param {object} deps.reservationsModel getRow(id), releaseStayBucket(id, bucket)
  * @param {Function} [deps.emit]          plugin event bus emit (reservation.paid)
- * @param {Function} [deps.afterPayment]  core follow-up once the payment is committed
  * @param {{ reservationId: number, bucket: string, paidDate?: string, keepPaymentOnCaptureFailure?: boolean }} payment
  * @returns {{ flipped: string[], captureFailed: string[] }} the buckets this call ticked, and those
  *   ticked without their capture
  */
-function recordStayPayment({ db, reservationsModel, emit, afterPayment }, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure = false }) {
+function recordStayPayment({ db, reservationsModel, emit }, { reservationId, bucket, paidDate, keepPaymentOnCaptureFailure = false }) {
   const buckets = BUCKETS[bucket];
   if (!buckets) throw new Error(`Unknown payment bucket: ${bucket}`);
   const id = Number(reservationId);
@@ -65,16 +64,12 @@ function recordStayPayment({ db, reservationsModel, emit, afterPayment }, { rese
 
   if (flipped.length) {
     if (emit) emit('reservation.paid', { reservationId: id, bucket });
-    if (afterPayment) {
-      try { afterPayment({ reservationId: id, bucket }); } catch { /* a follow-up never undoes a payment */ }
-    }
   }
   return { flipped, captureFailed };
 }
 
 // The wiring the core uses, on the app's database or on a given one (the poll and webhook effects take
-// theirs injected). Until Neat leaves the core (phase 3b) it is kicked here, the single place every
-// payment now passes through (rule 3).
+// theirs injected). Neat listens to `reservation.paid` (specs/plugins-phase-3b-neat.md rule 9).
 function depsFor(database) {
   const appDb = require('../database');
   const reservationsModel = require('../models/reservationsModel');
@@ -83,7 +78,6 @@ function depsFor(database) {
     db: onApp ? appDb : database,
     reservationsModel: onApp ? reservationsModel : reservationsModel.create(database),
     emit: require('../plugins/sdk/eventBus').emit,
-    afterPayment: onApp ? () => require('../controllers/neatController').kickPass('payment') : null,
   };
 }
 

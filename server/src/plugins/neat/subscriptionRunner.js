@@ -9,13 +9,13 @@
  * fire-and-forget the pass.
  */
 
-const { calculateReservationQuote } = require('./pricing');
-const { buildReservationEngineInput } = require('./reservationEngineInput');
-const { isDirectChannel } = require('./platformNameFormat');
-const { readNeatConfig } = require('./neatGuestPricing');
+const sdk = require('../sdk');
+const { readNeatConfig } = require('./pricing');
 const {
   parseMappingJson, validateMapping, buildServiceFieldValues, buildCustomerPayload,
-} = require('./neatFieldMapping');
+} = require('./fieldMapping');
+
+const isDirectChannel = (platform) => sdk.coreModule('platformNameFormat').isDirectChannel(platform);
 
 const NOTIFY_THROTTLE_MS = 24 * 60 * 60 * 1000;
 
@@ -46,6 +46,8 @@ function subscriptionConfig(cfg) {
 // The stay snapshot the field mapping prices/subscribes from — replayed through the SAME engine as
 // the fiche (locked snapshots included), so Neat is told exactly what the guest was billed.
 function buildStaySnapshot(db, reservation) {
+  const { calculateReservationQuote } = sdk.coreModule('pricing');
+  const { buildReservationEngineInput } = sdk.coreModule('reservationEngineInput');
   const quote = calculateReservationQuote(buildReservationEngineInput(db, reservation));
   if (quote.error) throw new Error(`quote failed: ${quote.error}`);
   const insuranceLine = (quote.optionLines || []).find((line) => {

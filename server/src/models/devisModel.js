@@ -34,8 +34,8 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { mergePropertyDefaultsIntoPayload, carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
 const { isPerPersonCardOption } = require('../utils/mealPortions');
 const settingsModel = require('./settingsModel');
-const neatSubscriptionsModel = require('./neatSubscriptionsModel');
-const { repriceQuoteWithNeatSync } = require('../utils/neatGuestPricing');
+const quotePostProcessors = require('../utils/quotePostProcessors');
+const insuranceOffer = require('../utils/insuranceOffer');
 
 /**
  * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -416,18 +416,18 @@ function createModel(database) {
       // acompte on a stay too close to collect one, contradicting the fiche's own live recompute.
       bookingDate: existing?.createdAt || getTodayIsoDate(),
     };
+    // specs/plugins-phase-3b-neat.md rule 5 — while no plugin offers the insurance, a devis keeps the
+    // line it carries exactly as quoted, even past its validity, and cannot gain one.
+    const gate = insuranceOffer.gateSelection({
+      db: database, bookingId: existing?.id, selectedOptions: engineInput.selectedOptions, lockedOptionLines: engineInput.lockedOptionLines,
+    });
+    if (gate.error) return { error: gate.error.error, status: gate.error.status, code: gate.error.code };
+    engineInput.selectedOptions = gate.selectedOptions;
+    engineInput.lockedOptionLines = gate.lockedOptionLines;
     const quote = calculateReservationQuote(engineInput);
-    // Neat-derived insurance price (specs/neat-cancellation-insurance-subscription.md rule 13):
-    // sync, cache-only — the async preview paths (public /quote, fiche calculate-price) warm the
-    // cache, so the persisted devis prices the insurance exactly as the preview announced it. Cold
-    // cache / feature off → the quote stands as computed (static tariff).
-    return repriceQuoteWithNeatSync({
-      engineInput,
-      quote,
-      settingsModel,
-      cacheModel: neatSubscriptionsModel,
-      calculate: calculateReservationQuote,
-    }).quote;
+    // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): cache only — the
+    // previews (public /quote, fiche calculate-price) warm it, so the devis bills what they announced.
+    return quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   }
 
   // ---- replay the quote of a PERSISTED devis (specs/devis-pdf-total-parity.md §3.1) ----
@@ -590,7 +590,7 @@ function createModel(database) {
     // Server-side enforcement of property option defaults (specs/devis-pdf-and-tourist-tax-fixes.md §3.3
     // rules 11–13). Idempotent: if the client already shipped the default optionId we leave it alone.
     const defaultsModel = propertyOptionDefaultsModel.buildModel(database);
-    const payloadWithDefaults = mergePropertyDefaultsIntoPayload(
+    const mergedDefaults = mergePropertyDefaultsIntoPayload(
       payload,
       Number(payload.propertyId),
       defaultsModel,
@@ -600,8 +600,16 @@ function createModel(database) {
         ? { quantityFor: (optionId) => defaultPortionQuantity(database, payload, optionId) }
         : {},
     );
+    // A property default never adds the insurance while it is not offered (phase 3b rule 5); a payload
+    // that asks for it keeps it, and the gate refuses it.
+    const insuranceId = insuranceOffer.insuranceOptionId(database);
+    const askedInsurance = (payload.selectedOptions || []).some((o) => Number(o.optionId) === insuranceId);
+    const payloadWithDefaults = askedInsurance ? mergedDefaults : {
+      ...mergedDefaults, selectedOptions: insuranceOffer.dropInsurance(database, mergedDefaults.selectedOptions),
+    };
 
     const quote = computeQuote(payloadWithDefaults, null, property);
+    if (quote.code === insuranceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
     const devisNumber = database.generateDevisNumber();
 
     // §3.1 + §3.2 — bind `createdAt` + `validUntil` explicitly. `validUntil` =
@@ -709,6 +717,7 @@ function createModel(database) {
     };
 
     const quote = computeQuote(payloadWithIncluded, existing, property);
+    if (quote.code === insuranceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
     // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
     const beforeSnapshot = snapshotFromDb(numId);
     // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and the payload

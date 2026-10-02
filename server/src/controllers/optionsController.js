@@ -1,6 +1,7 @@
 // Options controller — thin handlers over optionsModel.
 
 const model = require('../models/optionsModel');
+const { insuranceOffered } = require('../utils/quotePostProcessors');
 
 // The early-arrival / late-departure options are edited on each property (specs/settings-rationalization.md
 // rule 15): the catalogue view (`?view=catalogue`) leaves them out; every other caller gets them all.
@@ -34,13 +35,25 @@ function validatePercentPrice(payload) {
   return null;
 }
 
+// specs/plugins-phase-3b-neat.md rule 21 — no option becomes the cancellation insurance while no plugin
+// offers it.
+function insuranceFlagRefused(req, res) {
+  if (!req.body || !req.body.isCancellationInsurance || insuranceOffered()) return false;
+  res.status(400).json({ error: 'L’assurance annulation demande le plugin Neat.' });
+  return true;
+}
+
 function create(req, res) {
+  if (insuranceFlagRefused(req, res)) return undefined;
   const invalid = validatePercentPrice(req.body);
   if (invalid) return res.status(422).json({ error: 'VALIDATION_FAILED', details: [invalid] });
   return res.json(model.create(req.body));
 }
 
 function update(req, res) {
+  // The hidden insurance answers as if it did not exist (rule 21).
+  if (!model.get(req.params.id)) return res.status(404).json({ error: 'Option non trouvée' });
+  if (insuranceFlagRefused(req, res)) return undefined;
   const invalid = validatePercentPrice(req.body);
   if (invalid) return res.status(422).json({ error: 'VALIDATION_FAILED', details: [invalid] });
   return res.json(model.update(req.params.id, req.body));

@@ -8,8 +8,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { createNeatController } = require('../controllers/neatController');
-const { buildModel } = require('../models/neatSubscriptionsModel');
+const { createNeatController } = require('../controller');
+const { buildModel } = require('../subscriptionsModel');
 const {
   freshNeatDb, fakeNeatSettings, insertReservation, fakeNeatClientFactory, fakePushService, silentLogger,
   CONTRACT_FIELDS, MAPPING,

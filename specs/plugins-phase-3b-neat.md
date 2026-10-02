@@ -85,8 +85,8 @@ arrives.
   - the cancellation insurance offered nowhere: no tile, no public block, no line in Options;
   - no chip, card or push toggle;
   - every line already on a stay or a devis shown, unchanged and read-only.
-- No contract changes: `/api/neat/*`, the public quote payload, the fiche's `neat` field, the settings
-  and the subscriptions already made.
+- No contract changes for anything outside the app: `/api/neat/*`, the public quote payload, the
+  settings and the subscriptions already made. The fiche's `neat` block moves under `pluginBlocks`.
 
 ## 3. Functional rules
 
@@ -151,8 +151,10 @@ arrives.
      someone remove it.
 6. **The public site follows** `insuranceOffered()`:
    - `cancellationInsurance` is `null` in the catalogue and the quote: the site asks no question;
-   - a booking request that sends the insurance has it ignored, as for an option the property does not
-     offer.
+   - a quote or a booking request that sends the insurance is refused like any option the property
+     does not offer: 422 `VALIDATION_FAILED` « optionUnavailable »;
+   - the public quote prices the insurance through `quotePostProcessors.livePrice()`, whether or not the
+     visitor ticked it, so the amount beside the Oui/Non choice is the amount billed.
 
    The WordPress contract (`cancellationInsurance` and its fields) is unchanged: `null` is already a
    value it handles (unpriced insurance, today).
@@ -194,7 +196,8 @@ arrives.
     - The generic `PUT /api/plugins/neat/settings` refuses every key: the Neat card and its
       discovery/selection/mapping flow write them, with their validation (feature spec §4.3).
     - `settingsStore.js` implements `neatConfig()` and `upsert(payload)` over `ctx.settings`, with
-      today's shape: environment `'staging'` by default, and `marginPercent` null when unset.
+      today's shape: environment `'staging'` by default, and `marginPercent` null when unset. Its
+      `isConfigured()` feeds the erase description.
     - `settingsModel` drops `neatConfig` and the Neat columns from its lists. The old columns stay in
       the table, unread. Erase empties them, as 3a does for Qonto.
 11. **Tables.**
@@ -205,11 +208,11 @@ arrives.
     - A database where the plugin was never installed has no Neat table, and nothing in the core
       queries one.
 12. **The fiche block is an SDK feature.**
-    - `ctx.reservationBlock(key, build)` adds `build(reservation)` under `key` to the payload of
-      `GET /api/reservations/:id`, only while the plugin is live.
+    - `ctx.reservationBlock(key, build)` adds `build(reservation)` under `pluginBlocks[key]` in the
+      payload of `GET /api/reservations/:id`, only while the plugin is live.
     - Neat declares `neat` with today's `buildFicheBlock`: `null` for a platform stay, or with no job.
-    - The payload field keeps its name and shape. A block that throws gives `null` and a log line,
-      never a failed fiche.
+    - The block keeps today's shape; it moves from `neat` to `pluginBlocks.neat`, which only the fiche
+      reads. A block that throws gives `null` and a log line, never a failed fiche.
     - Retry and void answer `{ neat }`, as today.
 13. **Push.**
     - The `neat` push preference column stays core (`user_push_prefs`), and the pass still sends through
@@ -240,19 +243,21 @@ arrives.
     - The page bar still saves the card's draft through its ref, as Météo does.
 16. **The chip and actions on the insurance row become a slot.**
     - `reservation.optionLine` takes contributions
-      `{ id, appliesTo(option), Component }`. `OptionRow` renders, under the line, each live
+      `{ key, appliesTo(option), Component }`. `OptionRow` renders, under the line, each live
       contribution whose `appliesTo` matches.
-    - Each contribution receives the plugin's fiche block (`blocks[id]`) and an `onBlockChange` to
-      replace it.
-    - Neat contributes `appliesTo: (o) => o.isCancellationInsurance` and the chip, the premium line, the
-      « ligne retirée » warning, « Relancer » and « Résilier chez Neat » (with its confirmation). It
-      calls `/api/neat/...` itself.
+    - Each contribution receives `option`, its plugin's block (`pluginBlocks[pluginId]`), an
+      `onBlockChange` to replace it, and the stay's `reservationId` and `guestName`.
+    - Neat contributes `NeatInsuranceStatus`, for `appliesTo: (o) => o.isCancellationInsurance`: the chip,
+      the premium line, the « ligne retirée » warning, « Réessayer maintenant » and « Résilier chez
+      Neat » (with its confirmation). It calls `/api/neat/...` itself, through the `api` client that
+      keeps every endpoint, as for the other plugins.
+    - The chip, once beside the option's title, opens the block under the line.
     - `ReservationPage` and `OptionRow` lose every Neat state, callback and import. The page keeps the
       payload's plugin blocks, generically.
 17. **Push preferences** render the toggles the server lists as `available`.
-18. **Uninstall dialog.** `PluginCard` renders the data lines as a list; a line with `warning: true`
-    shows in the warning colour with its icon, above the erase checkbox. Today the lines are joined on
-    one line.
+18. **Uninstall dialog.** In `PluginCard`, a data line with `warning: true` shows apart, in the
+    warning colour with its icon, above « Effacer aussi ses données », before the operator chooses. The
+    other lines stay in the « Seront effacés : … C’est définitif. » sentence, as today.
 
 ### 3.E Existing databases, new customers
 
@@ -288,12 +293,13 @@ arrives.
       Today that is the insurance; the field is generic.
     - Each entry is marked `readOnly: true`, with the reason « Assurance annulation : plugin Neat
       inactif ».
-    - The client merges these entries into the stay's option list. It renders their tile with the
-      line's quantity and price, without the switch or the quantity control.
-23. **The Options page** hides the « Assurance annulation » flag of the option form while Neat is not
-    live (`usePlugin(NEAT)`, as for every plugin surface since phase 0; the server's 400 of rule 21 is the
-    guard). The page follows `GET /api/options`, so the option row is gone with it. Reactivating
-    Neat brings both back with the stored price, type and properties.
+    - The client adds these entries to the stay's option list and to its ungrouped options. Their tile
+      reads « Prix figé : 23,00 € » and « Lecture seule »; its switch is disabled, with the reason as
+      tooltip; the quantity, complement and moments controls are not drawn.
+23. **The Options page** follows `GET /api/options`: without Neat the insurance row is not listed, so it
+    cannot be edited. The form has no « Assurance annulation » control (the seeder sets the flag), so
+    nothing else changes; the 400 of rule 21 guards the API. Reactivating Neat brings the row back with
+    its stored price, type and properties.
 
 ## 4. Architecture
 
@@ -310,24 +316,24 @@ arrives.
 | `models/` | `neatSubscriptionsModel.js` | M | → `plugins/neat/`, built over `ctx.db` |
 | `models/` | `settingsModel.js` | T | `neatConfig` and the Neat columns removed |
 | `models/` | `devisModel.js` | T | `applySync` in place of `repriceQuoteWithNeatSync` |
-| `models/` | `pushSubscriptionsModel.js` | T | `available` keys (rule 13) |
 | `controllers/` | `neatController.js` | M | → `plugins/neat/controller.js`, over the plugin store |
 | `controllers/` | `reservationsController.js` | T | `applyLive` / `applySync`; kicks removed; plugin blocks in `getById` (rule 12) |
 | `controllers/` | `reservationsController.js`, `devisController.js`, `models/devisModel.js` | T | Stored insurance line kept, addition refused, `frozenOptions` (rules 5, 22) |
 | `controllers/` | `optionsController.js`, `models/optionsModel.js` | T | Insurance hidden, 404, flag refused (rule 21) |
 | `models/` | `propertiesModel.js` | T | Property `options` / `optionGroups` without the insurance (rule 21) |
-| `controllers/` | push preferences controller (`routes/push.js`) | T | `available` in the preferences answer |
+| `controllers/` | `pushController.js` | T | `available` in the preferences answer (rule 13) |
+| `utils/` | `pluginReservationBlocks.js` | C | Rule 12: the blocks of live plugins, a throwing one as `null` |
 | `routes/` | `neat.js` | M | → `plugins/neat/routes.js` |
-| `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js` | T | `ctx.quotePostProcessor`, `ctx.reservationBlock`; `CORE_MODULES`: `quotePostProcessors` in, the three `neat*` out, `platformNameFormat` for `isDirectChannel` |
+| `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js` | T | `ctx.quotePostProcessor`, `ctx.reservationBlock`; `CORE_MODULES`: the three `neat*` out; `quotePostProcessors`, `insuranceOffer` (website-booking), `reservationEngineInput`, `pushService` (neat) in |
 | `plugins/` | `index.js` | T | Registers the module |
 | `plugins/neat/` | `index.js`, `pricing.js`, `settingsStore.js`, `controller.js`, `routes.js`, `client.js`, `fieldMapping.js`, `subscriptionRunner.js`, `subscriptionsModel.js`, `migrations.js`, `tests/` | C (mostly moved) | Rules 7–14 |
-| `plugins/website-booking/` | `controllers/publicQuoteController.js`, `controllers/publicCatalogController.js` | T | `applyLive` and `dynamicInsurance()` from the core (rule 6) |
-| `controllers/` | `pluginsController.js` | T | Data lines may carry `warning: true` (rule 14) |
+| `plugins/website-booking/` | `controllers/publicQuoteController.js`, `controllers/publicCatalogController.js`, `publicProjections.js` | T | `livePrice()` and `dynamicInsurance()` from the core (rule 6) |
 | — | `index.js` | T | `/api/neat` mount removed |
 | — | `database.js`, `schema.sql` | T | Neat tables no longer created by the core (rule 11) |
 
-`optionsModel.getCancellationInsurance(propertyId, { neatPricingActive })` keeps its signature; the flag
-is renamed `dynamicPrice` and fed by `dynamicInsurance()`.
+`optionsModel.getCancellationInsurance(propertyId, { dynamicPrice })` and the public projection rename
+their `neatPricingActive` flag `dynamicPrice`, fed by `dynamicInsurance()`. `pluginsController` is
+unchanged: the data lines of `describe` reach the client as they are, `warning` included.
 
 ### 4.2 Client side (`client/src/`)
 
@@ -335,27 +341,26 @@ is renamed `dynamicPrice` and fed by `dynamicInsurance()`.
 |---|---|---|---|
 | `plugins/neat/` | `index.js`, `SettingsNeatSection.jsx`, `NeatInsuranceStatus.jsx` | C (card moved) | `settings.integrations` (rule 15), `reservation.optionLine` (rule 16) |
 | `components/reservation/` | `OptionRow.jsx` | T | Renders the `reservation.optionLine` slot; read-only tile for a `frozenOptions` entry (rule 22); Neat code removed |
-| `pages/` | `OptionsPage.jsx` | T | Insurance flag behind `usePlugin(NEAT)` (rule 23) |
-| `pages/` | `ReservationPage.jsx` | T | Keeps the payload's plugin blocks; Neat state and callbacks removed |
+| `components/reservation/` | `mockReservationForm.js` | T | The test context carries `pluginBlocks`, `setPluginBlock`, `pluginLineContext` |
+| `pages/` | `ReservationPage.jsx` | T | Keeps the payload's plugin blocks and adds the `frozenOptions`; Neat state and callbacks removed |
 | `pages/settings/` | `IntegrationsSettingsPage.jsx` | T | Contributions only |
 | `components/` | `SettingsPushNotificationsSection.jsx` | T | Toggles from `available` |
-| `components/` | `PluginCard.jsx` | T | Data lines as a list; warning lines (rule 18) |
-| — | `api.js` | T | The `neat` calls move into the plugin, which uses the SDK's `request` |
+| `components/` | `PluginCard.jsx` | T | Warning lines apart, before the choice (rule 18) |
 
-It reuses `StatusBadge`, `ConfirmDialog`, `ErrorAlert` and `HelpedTextField`. `NeatInsuranceStatus` is
-specific (one plugin, one line). The slot is generic.
+It reuses `StatusBadge`, `ErrorAlert`, `MaskedTextField` and the app dialogs. `NeatInsuranceStatus` is
+specific (one plugin, one line). The slot is generic. `api.js` and `OptionsPage.jsx` are unchanged.
 
 ### 4.3 API contract
 
 | Endpoint | Change |
 |---|---|
 | `/api/neat/*` | Same URLs, mounted by the plugin; 404 `PLUGIN_INACTIVE` when off (as today) |
-| `GET /api/reservations/:id` | `neat` unchanged in shape; present only while the plugin is live |
+| `GET /api/reservations/:id` | `neat` → `pluginBlocks.neat`, same shape; present only while the plugin is live |
 | `GET /api/reservations/:id`, `GET /api/devis/:id` | + `frozenOptions: [{ …option, readOnly: true, readOnlyReason }]` |
 | `POST /api/reservations`, `PUT /api/reservations/:id`, devis create/update | 422 `INSURANCE_NOT_OFFERED` on an addition while not offered; a stored line is kept as stored |
 | `GET /api/options`, `GET /api/properties/:id` | Insurance absent while not offered |
-| `GET\|PUT /api/options/:id` (insurance) | 404 while not offered; the flag answers 400 |
-| `POST /api/reservations/calculate-price`, `/public/v1/quote` | Neat price only while the plugin is live and ready |
+| `GET\|PUT /api/options/:id` (insurance) | 404 while not offered; `POST`/`PUT` with the flag answer 400 |
+| `POST /api/reservations/calculate-price`, `/public/v1/quote` | Neat price only while the plugin is live and ready; the insurance refused while not offered (422) |
 | `/public/v1/properties/:id/options` | `cancellationInsurance`: `null` at 0 €, static price label, while off (rule 6) |
 | `GET /api/push/preferences` | + `available: string[]` |
 | `GET /api/plugins` | A data line may carry `warning: true` |
@@ -374,64 +379,78 @@ specific (one plugin, one line). The slot is generic.
 
 - **Paramètres › Intégrations:** unchanged order (Google, Neat, Météo, Sowel). The Neat card goes with
   the plugin.
-- **Fiche, insurance row:** unchanged look (chip, premium line, warning, buttons), now drawn by the
-  plugin. With the plugin off, the row shows its price and nothing else.
+- **Fiche, insurance row:** the chip, the premium line, the warning and the buttons, now drawn by the
+  plugin in one block under the line (the chip used to sit beside the title).
 - **Fiche and devis, plugin off:**
   - no « Assurance annulation » tile on a stay without it;
-  - on a stay with it, the tile shows its frozen price, greyed, without a switch, with the tooltip
-    « Assurance annulation : plugin Neat inactif ».
+  - on a stay with it, the tile reads « Prix figé : 23,00 € » and « Lecture seule », its switch
+    disabled with the tooltip « Assurance annulation : plugin Neat inactif ».
 - **Public site, plugin off:** no insurance block, no question.
-- **Paramètres › Options, plugin off:** no insurance option, and no « Assurance annulation » box in the
-  option form.
+- **Paramètres › Options, plugin off:** no insurance option in the list.
 - **Profil › Notifications:** « Souscriptions Neat » only while the plugin is live.
-- **Plugins › Neat › Désinstaller:** the data lines as a list. With active subscriptions, an ochre
-  warning line above « Effacer aussi ses données », and the button stays available.
-- **Mobile:** the uninstall dialog's list stacks at 375 px; the insurance row's buttons stay full-width
-  under the line, as today.
+- **Plugins › Neat › Désinstaller:** with active subscriptions, an ochre warning line above « Effacer
+  aussi ses données »; the other lines in the « Seront effacés » sentence; the button stays available.
+- **Mobile:** the warning wraps at 375 px; the insurance row's buttons stay full-width under the line,
+  as today.
 
 ## 7. Test plan
 
-### Server — new tests
+### Server — new tests (24)
 
-| File | Covers |
-|---|---|
-| `quote-post-processor.unit.test.js` | Rules 1–4: missing member; one per key; unknown keys ignored; throw → quote unchanged; live vs sync; inactive plugin → no call, `dynamicInsurance()` false |
-| `insurance-price-plugin-off.unit.test.js` | Rules 3, 5, 6: sold line frozen to the cent across a save; expired devis keeps its line; removal or quantity change ignored; adding → 422; public quote and catalogue `null`; booking request ignores it |
-| `insurance-offer-follows-neat.unit.test.js` | Rules 21–23: catalogue, property options and public catalogue hide it; 404 on get/put; 400 on the flag; `frozenOptions` on a stay that carries it; back with its settings on reactivation |
-| `plugins/neat/tests/phase-3b-neat.unit.test.js` | Rules 7–14, 19–20: routes at their URLs; settings copy and secret; tables kept on upgrade; job cadence; the three events start a pass; fiche block only while live; push `available`; erase with active subscriptions → warning line, then erased; new customer |
+| File | Tests | Covers |
+|---|---|---|
+| `quote-post-processor.unit.test.js` | 6 | Rules 1–4: missing member; one per key; sync vs live; unknown keys and non-amounts ignored; a throw leaves the quote; an inactive plugin is never called, offered or dynamic |
+| `insurance-price-plugin-off.unit.test.js` | 5 | Rules 3, 5: a sold line kept at 23 € with the lock dropped; removal and quantity change ignored; a devis keeps its line; an addition → 422, a default never adds it; with Neat the gate steps aside |
+| `insurance-offer-follows-neat.unit.test.js` | 5 | Rules 6, 21–23: catalogue, property and site lists hide it, row kept; 404 and the flag refused; `frozenOptions`; the site refuses it like an unavailable option; back with its settings |
+| `plugins/neat/tests/phase-3b-neat.unit.test.js` | 8 | Rules 1, 7–14, 19–20: the processor declared, gone when off; `/api/neat` only while live; settings copied, secret encrypted, tables kept; the job and its three events; the fiche block only while live; push `available`; erase warns, then erases, reinstall empty; a new customer has no insurance |
 
 ### Moved and updated tests
 
-- The six Neat suites and `neatFixtures.js` move under `plugins/neat/tests/`:
-  `neat-client`, `neat-controller`, `neat-field-mapping`, `neat-guest-pricing`,
-  `neat-subscription-scan`, `neat-subscription-worker`.
-- `reservation-engine-input-card-options`, `stay-payment-recorder`, `plugins-phase-0`,
-  `plugins-phase-1-sdk`, `push-subscriptions-model` and website-booking's suites assert the new seams.
+- The six Neat suites and `neatFixtures.js` moved under `plugins/neat/tests/` (`neat-client`,
+  `neat-controller`, `neat-field-mapping`, `neat-guest-pricing`, `neat-subscription-scan`,
+  `neat-subscription-worker`); `neat-guest-pricing` now drives the pricing through the core's
+  post-processor.
+- A shared non-test module `tests/insuranceOfferFixture.js` offers the insurance in the suites that
+  exercise it (`cancellation-insurance-option-crud`, website-booking's `public-cancellation-insurance`).
+- `plugins-phase-0`, `plugins-phase-1-sdk` (Neat joins the modules and the jobs; `hourly-resources` is
+  now the module-less example), `stay-payment-recorder` (the event is the only follow-up),
+  `public-projections-language` and `public-quote-catalogue-language` assert the new seams.
+- Server total: 4,789.
 
-### Client (Vitest)
+### Client (Vitest) — new tests (5)
 
-- `plugins/neat/__tests__/NeatInsuranceStatus.test.jsx`: the chip per status; retry; void after
-  confirmation.
-- `OptionRow.plugin-slot.test.jsx`: a contribution renders under a matching line only.
-- `PluginCard.erase-warning.test.jsx`: the warning line.
-- `SettingsPushNotificationsSection.available.test.jsx`: no Neat toggle when not available.
-- Moved: `SettingsNeatSection.*`, `ExtrasSection.neat-status` (rewritten over the slot),
-  `IntegrationsSettingsPage.neat-save`.
+- `plugins/neat/__tests__/NeatInsuranceStatus.test.jsx` (6, rewritten from
+  `ExtrasSection.neat-status` over the slot): the chip per status; retry; void after confirmation;
+  the answer handed back to the fiche.
+- `OptionRow.plugin-slot.test.jsx` (2): a contribution under the matching line only; a frozen option
+  read-only at its price.
+- `PluginCard.erase-warning.test.jsx` (1): the warning before the choice; erasing still possible.
+- `SettingsPushNotificationsSection.available.test.jsx` (2): the Neat toggle follows `available`.
+- Moved: `SettingsNeatSection.*`, `IntegrationsSettingsPage.neat-save`, `neatSectionFixtures`.
+- Client total: 1,504.
 
-### E2E
+### E2E (96: 95 passed, 1 skipped as before)
 
-- `e2e/specs/plugins/neat.spec.js`:
-  - plugin off: no Neat card, no push toggle, no « Tarif calculé pour vos dates » on the public options;
-  - erase dialog lists the data lines.
+- `e2e/specs/plugins/neat.spec.js` (1): switched off, the insurance leaves the catalogue (404 on the
+  option), the Neat card and the push toggle go and `/api/neat` answers 404; switched on, the option
+  comes back with its price and type.
 
-### Manual verification
+### Manual verification (done 2026-10-02)
 
-- **Shadow on :4101** (a copy of the dev database, secrets purged):
-  - upgrade: settings and tables kept;
-  - a Neat-priced sold line, seeded through the cache, stays at its price after deactivation and a
-    save, while a new devis has no insurance tile;
-  - the uninstall dialog with a seeded active subscription;
-  - 375 px.
+- **Shadow on :4102**, a copy of the 3a shadow (dev database v3.8, secrets purged):
+  - upgrade: the settings copy and `tables_v1` ran;
+  - a stay sold with the insurance at 24 € (8 € × 3 nights), Neat active; Neat deactivated: the
+    catalogue, the property tiles and its groups lose the insurance, `GET /api/options/32` → 404;
+  - the option raised to 12 € a night, then a save without the line and with « Utiliser les tarifs
+    actuels », then one with quantity 4: the line stays 1 × 24,00 €;
+  - a new stay or a preview asking for it → 422 `INSURANCE_NOT_OFFERED`; the preview of the sold stay
+    shows 24 €; the push preferences no longer list `neat`;
+  - the fiche at 1280 and 375 px: « Prix figé : 24,00 € », « Lecture seule », switch disabled; a save
+    from the fiche keeps the line;
+  - Neat back with a seeded active subscription: « Neat : souscrite », the premium and « Résilier chez
+    Neat » under the line at 375 px;
+  - Plugins › Neat at 375 px: the warning before « Effacer aussi ses données »; erase → tables and
+    settings gone, the line kept and shown read-only; reinstall → no subscription, the option back.
 - **No Neat sandbox check:** Neat's staging credentials have still not been received. The subscription
   flow is moved untouched and covered by its moved suites.
 

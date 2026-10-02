@@ -30,12 +30,11 @@ function addStay(db, { propertyId = 1 } = {}) {
     VALUES ('reservation', ?, 1, '2026-11-10', '2026-11-12', 2, 200, 200, 60, 140, 'direct', '2000-01-01 00:00:00')`).run(propertyId).lastInsertRowid);
 }
 
-function depsOn(db, events = [], after = []) {
+function depsOn(db, events = []) {
   return {
     db,
     reservationsModel: reservationsModelModule.create(db),
     emit: (name, payload) => events.push([name, payload]),
-    afterPayment: (payment) => after.push(payment),
   };
 }
 
@@ -104,12 +103,11 @@ test('rule 1 — a failed capture ticks nothing by hand, but never loses money a
   assert.equal(row.accommodationSoldeContribTtc, null, 'and no half-written contribs');
 });
 
-test('rules 2–3 — a recorded payment emits reservation.paid and runs the core follow-up once', () => {
+// Since specs/plugins-phase-3b-neat.md rule 9 the event is the only follow-up: Neat listens to it.
+test('rules 2–3 — a recorded payment emits reservation.paid once', () => {
   const db = seed();
   const id = addStay(db);
   const events = [];
-  const after = [];
-  recordStayPayment(depsOn(db, events, after), { reservationId: id, bucket: 'deposit' });
+  recordStayPayment(depsOn(db, events), { reservationId: id, bucket: 'deposit' });
   assert.deepEqual(events, [['reservation.paid', { reservationId: id, bucket: 'deposit' }]]);
-  assert.deepEqual(after, [{ reservationId: id, bucket: 'deposit' }]);
 });

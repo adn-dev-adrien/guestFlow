@@ -219,8 +219,8 @@ test('the cancellation-insurance block is translated, percentages included', () 
 
 test('a Neat-priced insurance announces itself in the right language', () => {
   const insurance = { id: 9, title: 'Assurance annulation', titleEn: 'Cancellation insurance', priceType: 'per_stay', price: 0 };
-  const fr = toPublicCancellationInsurance(insurance, { neatPricingActive: true });
-  const en = toPublicCancellationInsurance(insurance, { neatPricingActive: true, lang: 'en' });
+  const fr = toPublicCancellationInsurance(insurance, { dynamicPrice: true });
+  const en = toPublicCancellationInsurance(insurance, { dynamicPrice: true, lang: 'en' });
   assert.equal(fr.priceLabel, 'Tarif calculé pour vos dates de séjour');
   assert.equal(en.priceLabel, 'Price calculated for your dates');
 });

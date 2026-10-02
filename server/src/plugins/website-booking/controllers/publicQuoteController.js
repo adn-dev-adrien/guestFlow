@@ -20,10 +20,7 @@ const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogCo
 const { resolvePublicPaymentMode } = sdk.coreModule('publicPaymentMode');
 const { mergePropertyDefaultsIntoPayload } = sdk.coreModule('propertyDefaultOptions');
 const propertyOptionDefaultsModel = sdk.coreModule('propertyOptionDefaultsModel');
-const settingsModel = sdk.coreModule('settingsModel');
-const neatSubscriptionsModel = sdk.coreModule('neatSubscriptionsModel');
-const { resolveInsurancePricing, buildQuoteSnapshot, isNeatPricingActive } = sdk.coreModule('neatGuestPricing');
-const { buildNeatClient } = sdk.coreModule('neatClient');
+const quotePostProcessors = sdk.coreModule('quotePostProcessors');
 const { ok, failT, langOf } = sdk.coreModule('publicHttp');
 const translationResolver = sdk.coreModule('translationResolver');
 const { isPerPersonCardOption } = sdk.coreModule('mealPortions');
@@ -110,7 +107,7 @@ function buildEngineQuote(input) {
     // the operator fixes the slots later (specs/public-planning-options.md). A per-person one counts
     // portions, capped by what the stay can serve (specs/site-meal-portions.md).
     planningCardAsQuantity: true,
-    // Neat-derived insurance price (see resolveNeatPricing) — absent on the first run.
+    // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2) — absent on the first run.
     cancellationInsurancePriceOverride: input.cancellationInsurancePriceOverride,
   });
 }
@@ -124,9 +121,9 @@ function buildEngineQuote(input) {
  * diverge. A fixed-price insurance (`per_stay`, `per_person`…) is priced through the engine's own
  * multipliers instead.
  */
-function buildCancellationInsurance(input, engineQuote, neatPricing, { lang = 'fr', translate = null } = {}) {
-  const neatActive = isNeatPricingActive(settingsModel);
-  const option = optionsModel.getCancellationInsurance(Number(input.propertyId), { neatPricingActive: neatActive });
+function buildCancellationInsurance(input, engineQuote, insurancePrice, { lang = 'fr', translate = null } = {}) {
+  const dynamicPrice = quotePostProcessors.dynamicInsurance();
+  const option = optionsModel.getCancellationInsurance(Number(input.propertyId), { dynamicPrice });
   if (!option) return null;
   const optionId = Number(option.id);
   const selected = (input.options || []).some((o) => Number(o.optionId) === optionId);
@@ -134,40 +131,15 @@ function buildCancellationInsurance(input, engineQuote, neatPricing, { lang = 'f
   const line = (engineQuote.optionLines || []).find((l) => Number(l.optionId) === optionId);
   const amount = line
     ? Number(line.totalPrice || 0)
-    : (neatPricing
-      ? Number(neatPricing.unitPrice)
+    : (insurancePrice !== null
+      ? Number(insurancePrice)
       : (String(option.priceType) === 'percent_of_stay'
         ? computePercentOfStayAmount(option.price, engineQuote.cancellationInsuranceBase)
         : roundMoney(Number(option.price || 0)
           * getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0)))));
   return toPublicCancellationInsurance(option, {
-    amount, selected, neatPricingActive: neatActive, lang, translate,
+    amount, selected, dynamicPrice, lang, translate,
   });
-}
-
-// Neat-derived guest price for this stay (spec neat-cancellation-insurance-subscription rule 13):
-// resolved AFTER a first engine run (the snapshot needs the engine's amounts), null when the
-// feature is inactive, the property has no insurance, or Neat + cache are both silent — the
-// engine then prices the flagged option from its static tariff exactly as before.
-async function resolveNeatPricing(input, engineQuote) {
-  const option = optionsModel.getCancellationInsurance(Number(input.propertyId), {
-    neatPricingActive: isNeatPricingActive(settingsModel),
-  });
-  if (!option) return null;
-  const optionId = Number(option.id);
-  const line = (engineQuote.optionLines || []).find((l) => Number(l.optionId) === optionId);
-  const property = db.prepare('SELECT name FROM properties WHERE id = ?').get(Number(input.propertyId));
-  const snapshot = buildQuoteSnapshot({
-    startDate: input.startDate,
-    endDate: input.endDate,
-    engineQuote,
-    insuranceLineTotal: line ? Number(line.totalPrice || 0) : 0,
-    propertyName: property ? String(property.name || '') : '',
-  });
-  return resolveInsurancePricing(
-    { settingsModel, cacheModel: neatSubscriptionsModel, buildClient: buildNeatClient },
-    snapshot,
-  );
 }
 
 /**
@@ -210,12 +182,12 @@ async function quote(req, res) {
     return failT(res, req, 422, 'VALIDATION_FAILED', 'quoteRefused', [{ field: 'quote', issue: engineQuote.error }]);
   }
 
-  // Neat-derived insurance price (rule 13): re-run the engine with the resolved override so a
-  // selected insurance line is billed at premium + margin. The double run is cheap (pure, sync)
-  // and keeps the engine the single pricing authority.
-  const neatPricing = await resolveNeatPricing(v.value, engineQuote);
-  if (neatPricing) {
-    engineQuote = buildEngineQuote({ ...v.value, cancellationInsurancePriceOverride: neatPricing.unitPrice });
+  // The insurance price a plugin sets for this stay (specs/plugins-phase-3b-neat.md rule 2), priced
+  // whether or not the visitor ticked it: the engine re-runs with it, so a selected line is billed at
+  // that price and the engine stays the single pricing authority.
+  const insurancePrice = await quotePostProcessors.livePrice({ engineInput: { db, ...v.value }, quote: engineQuote });
+  if (insurancePrice !== null) {
+    engineQuote = buildEngineQuote({ ...v.value, cancellationInsurancePriceOverride: insurancePrice });
   }
 
   const blocked = computeBlockedDates(v.value.propertyId, v.value.startDate, v.value.endDate);
@@ -226,7 +198,7 @@ async function quote(req, res) {
 
   return ok(res, toPublicQuote(engineQuote, {
     available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
-    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, neatPricing, { lang, translate }),
+    cancellationInsurance: buildCancellationInsurance(v.value, engineQuote, insurancePrice, { lang, translate }),
     optionLimits: buildOptionLimits(v.value, engineQuote, lang),
     lang,
     translate,

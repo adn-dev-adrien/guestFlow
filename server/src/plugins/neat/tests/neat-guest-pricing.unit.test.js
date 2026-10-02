@@ -1,5 +1,6 @@
 /**
- * specs/neat-cancellation-insurance-subscription.md §3.2 rule 13 — utils/neatGuestPricing.js.
+ * specs/neat-cancellation-insurance-subscription.md §3.2 rule 13 — plugins/neat/pricing.js, declared to
+ * the core as its quote post-processor (specs/plugins-phase-3b-neat.md rules 1–2).
  *
  * Guest price = ceil(premium × (1 + margin/100)); resolution ladder fresh cache → live → stale
  * cache → null; the engine override prices the flagged insurance stay-wide; a sold line stays
@@ -12,10 +13,13 @@ const Database = require('better-sqlite3');
 
 const {
   computeGuestPrice, resolveInsurancePricing, resolveInsurancePricingSync,
-  repriceQuoteWithNeatSync, CACHE_FRESH_MS,
-} = require('../utils/neatGuestPricing');
-const { calculateReservationQuote } = require('../utils/pricing');
-const { toPublicCancellationInsurance } = require('../plugins/website-booking/publicProjections');
+  createInsuranceProcessor, CACHE_FRESH_MS,
+} = require('../pricing');
+const registry = require('../../sdk/registry');
+const { createContext } = require('../../sdk/createContext');
+const quotePostProcessors = require('../../../utils/quotePostProcessors');
+const { calculateReservationQuote } = require('../../../utils/pricing');
+const { toPublicCancellationInsurance } = require('../../website-booking/publicProjections');
 
 // ---- fakes ----
 
@@ -213,32 +217,38 @@ test('a SOLD insurance line stays frozen whole — even when the override disapp
   db.close();
 });
 
-test('repriceQuoteWithNeatSync re-runs the engine off the warm cache; preview === billed', () => {
+// The processor as the plugin declares it, on a live `neat`.
+function declareProcessor(settings, cache) {
+  registry.reset();
+  registry.configure({ isActive: () => true, allows: () => true });
+  createContext('neat', {}).quotePostProcessor(createInsuranceProcessor({
+    settings, cacheModel: () => cache, buildClient: () => { throw new Error('no network in a save'); },
+  }));
+}
+
+test.after(() => registry.reset());
+
+test('the core re-runs the engine off the warm cache through the processor; preview === billed', () => {
   const db = engineDb();
   const engineInput = { ...STAY, db };
   const quote = calculateReservationQuote(engineInput);
-  const cache = fakeCache({ premium: 17.5, fetchedAt: new Date().toISOString() });
-  const { quote: repriced, neatPricing } = repriceQuoteWithNeatSync({
-    engineInput, quote, settingsModel: fakeSettings(), cacheModel: cache, calculate: calculateReservationQuote,
-  });
-  assert.equal(neatPricing.unitPrice, 23);
+  declareProcessor(fakeSettings(), fakeCache({ premium: 17.5, fetchedAt: new Date().toISOString() }));
+  const repriced = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   assert.equal(insurance(repriced).totalPrice, 23, 'the billed line IS the resolved price');
   db.close();
 });
 
-test('repriceQuoteWithNeatSync is a no-op on a cold cache or an inactive config', () => {
+test('the processor leaves the quote alone on a cold cache or an inactive config', () => {
   const db = engineDb();
   const engineInput = { ...STAY, db };
   const quote = calculateReservationQuote(engineInput);
-  const cold = repriceQuoteWithNeatSync({
-    engineInput, quote, settingsModel: fakeSettings(), cacheModel: fakeCache(null), calculate: calculateReservationQuote,
-  });
-  assert.equal(cold.neatPricing, null);
-  assert.equal(insurance(cold.quote).totalPrice, 9, 'static tariff');
-  const inactive = repriceQuoteWithNeatSync({
-    engineInput, quote, settingsModel: { }, cacheModel: fakeCache(null), calculate: calculateReservationQuote,
-  });
-  assert.equal(inactive.neatPricing, null, 'a settingsModel without neatConfig reads as unconfigured');
+  declareProcessor(fakeSettings(), fakeCache(null));
+  const cold = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
+  assert.equal(insurance(cold).totalPrice, 9, 'static tariff');
+  declareProcessor({}, fakeCache({ premium: 17.5, fetchedAt: new Date().toISOString() }));
+  assert.equal(quotePostProcessors.dynamicInsurance(), false, 'a store without neatConfig reads as unconfigured');
+  const inactive = quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
+  assert.equal(insurance(inactive).totalPrice, 9);
   db.close();
 });
 
@@ -247,7 +257,7 @@ test('repriceQuoteWithNeatSync is a no-op on a cold cache or an inactive config'
 test('with Neat pricing active a 0-priced insurance stays visible and announces the per-stay tariff', () => {
   const option = { id: 42, title: 'Assurance annulation', priceType: 'per_night', price: 0 };
   assert.equal(toPublicCancellationInsurance(option), null, 'unpriced + inactive → hidden (rule 15)');
-  const block = toPublicCancellationInsurance(option, { neatPricingActive: true, amount: 23 });
+  const block = toPublicCancellationInsurance(option, { dynamicPrice: true, amount: 23 });
   assert.equal(block.priceLabel, 'Tarif calculé pour vos dates de séjour');
   assert.equal(block.amount, 23);
 });

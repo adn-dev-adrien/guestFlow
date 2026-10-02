@@ -6,6 +6,16 @@
 const model = require('../models/pushSubscriptionsModel');
 const vapid = require('../utils/vapid');
 const pushService = require('../utils/pushService');
+const registry = require('../plugins/sdk/registry');
+const PLUGINS = require('../constants/plugins');
+
+// specs/plugins-phase-3b-neat.md rule 13 — the toggles a user can set: a plugin's channel only while
+// that plugin is live. A stored preference is kept as it is either way.
+const PLUGIN_CHANNELS = { neat: PLUGINS.NEAT };
+function withAvailable(prefs) {
+  const available = Object.keys(prefs).filter((key) => !PLUGIN_CHANNELS[key] || registry.isLive(PLUGIN_CHANNELS[key]));
+  return { ...prefs, available };
+}
 
 function getPublicKey(req, res) {
   res.json({ publicKey: vapid.getPublicKey(), configured: vapid.isConfigured() });
@@ -27,13 +37,13 @@ function unsubscribe(req, res) {
 function getPreferences(req, res) {
   const userId = req.user && req.user.id;
   if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
-  return res.json(model.getPreferences(userId));
+  return res.json(withAvailable(model.getPreferences(userId)));
 }
 
 function updatePreferences(req, res) {
   const userId = req.user && req.user.id;
   if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
-  return res.json(model.setPreferences(userId, req.body || {}));
+  return res.json(withAvailable(model.setPreferences(userId, req.body || {})));
 }
 
 // Send a test push to every device of the current user (ignores preferences). Returns the fan-out

@@ -307,10 +307,13 @@ test('the plugin mounts and routes are wired in the server', () => {
   // The five plugin modules mount through the loader, behind the same guard
   // (specs/plugins-phase-1-sdk.md rule 5 — covered in plugins-phase-1-sdk.unit.test.js).
   for (const [mount, id] of [
-    ['/api/resource-bookings', 'HOURLY_RESOURCES'], ['/api/neat', 'NEAT'],
+    ['/api/resource-bookings', 'HOURLY_RESOURCES'],
   ]) {
     assert.ok(index.includes(`app.use('${mount}', requirePlugin(PLUGINS.${id})`), mount);
   }
+  // specs/plugins-phase-3b-neat.md rule 8 — /api/neat comes from the neat plugin.
+  assert.ok(!index.includes("'/api/neat'"));
+  assert.match(read('plugins/neat/index.js'), /ctx\.mount\('\/api\/neat', buildRouter\(controller\)\)/);
   // specs/plugins-phase-3a-online-payment.md rules 5, 11 — the payment links are the core's, refused
   // without a provider; Qonto's own routes come from its plugin.
   assert.ok(index.includes("app.use('/api/payments', require('./routes/payments'))"));
@@ -347,16 +350,13 @@ test('whenPluginActive: the tick is skipped while inactive and resumes when acti
   assert.deepEqual(calls, ['boot']);
 });
 
-test('the scheduler wraps every plugin pass', () => {
+test('the scheduler runs no plugin pass of its own', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scheduledTasks.js'), 'utf8');
-  // The jobs of the five plugin modules run through the loader (plugins-phase-1-sdk.unit.test.js).
-  for (const [id, pass] of [
-    ['NEAT', 'runNeatSubscriptionPass'],
-  ]) {
-    assert.ok(src.includes(`whenPluginActive(PLUGINS.${id}, ${pass})`), pass);
-  }
-  // The payment poll is the online-payment module's job (specs/plugins-phase-3a-online-payment.md rule 14).
+  // Every plugin job runs through the loader (plugins-phase-1-sdk.unit.test.js): the payment poll
+  // (specs/plugins-phase-3a-online-payment.md rule 14), then Neat (specs/plugins-phase-3b-neat.md rule 9).
   assert.ok(!src.includes('runPaymentPollPass'));
+  assert.ok(!src.includes('runNeatSubscriptionPass'));
+  assert.ok(!src.includes('whenPluginActive('));
 });
 
 test('Google sync: an inactive plugin makes every push, delete and reconcile a no-op', () => {
@@ -369,7 +369,7 @@ test('Google sync: an inactive plugin makes every push, delete and reconcile a n
 });
 
 test('Neat: an inactive plugin skips the pass, including the kicks from the payment flows', async () => {
-  const { createNeatController } = require('../controllers/neatController');
+  const { createNeatController } = require('../plugins/neat/controller');
   const neat = createNeatController({ pluginActive: () => false });
   assert.deepEqual(await neat.runPass('kick'), { skipped: 'plugin-inactive' });
 });
