@@ -80,8 +80,9 @@ function fakeRes() {
 
 // specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
 const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
-// specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment.
-const PHASE_3_IDS = ['online-payment'];
+// specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
+// (specs/plugins-phase-3b-neat.md rule 7).
+const PHASE_3_IDS = ['online-payment', 'neat'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
   assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS].sort());
@@ -290,9 +291,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   const timeouts = [];
   loader.startJobs({ setIntervalFn: (fn, ms) => intervals.push([fn, ms]), setTimeoutFn: (fn, ms) => timeouts.push(ms) });
   const HOUR = 60 * 60 * 1000;
-  // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s.
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 130 * 1000, 140 * 1000, 160 * 1000]);
+  // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s; the Neat pass
+  // in phase 3b: 5 min, first pass at 150 s.
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 160 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };
@@ -384,7 +386,7 @@ test('rule 10: the four email paths take the plugin variables and no longer call
 
 test('rule 12: the Plugins list says which plugins are erasable and what an erasure would take', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['school-holidays', 'neat'] });
+  const { plugins } = boot(db, { installed: ['school-holidays', 'hourly-resources'] });
   db.prepare("INSERT INTO school_holidays (label) VALUES ('Toussaint'), ('Noël')").run();
   const res = fakeRes();
   createController(plugins, { registry, db: () => db }).list({}, res);
@@ -392,9 +394,9 @@ test('rule 12: the Plugins list says which plugins are erasable and what an eras
   assert.equal(holidays.hasModule, true);
   assert.equal(holidays.erasable, true);
   assert.deepEqual(holidays.data.map((l) => l.label), ['2 périodes de vacances', 'l’état de synchronisation']);
-  const neat = res.body.find((p) => p.id === 'neat');
-  assert.equal(neat.erasable, false);
-  assert.deepEqual(neat.data, []);
+  const hourly = res.body.find((p) => p.id === 'hourly-resources');
+  assert.equal(hourly.erasable, false);
+  assert.deepEqual(hourly.data, []);
 });
 
 test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', async () => {
@@ -417,12 +419,12 @@ test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; 
 
 test('rule 22: a plugin without a module refuses ?purge=1 and keeps its data', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['neat'] });
+  const { plugins } = boot(db, { installed: ['hourly-resources'] });
   const res = fakeRes();
-  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'neat' }, query: { purge: '1' } }, res);
+  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'hourly-resources' }, query: { purge: '1' } }, res);
   assert.equal(res.statusCode, 409);
   assert.deepEqual(res.body, { error: 'NOT_ERASABLE' });
-  assert.ok(plugins.get('neat'));
+  assert.ok(plugins.get('hourly-resources'));
 });
 
 test('rule 23: an erasure obeys the refusals of phase 0 rule 8', () => {

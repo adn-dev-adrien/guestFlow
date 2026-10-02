@@ -21,9 +21,12 @@ const PREF_LABELS = [
   ['departures', 'Départs'],
   // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6).
   ['breakfast', 'Petit déjeuner'],
-  // Neat subscription failures (specs/neat-cancellation-insurance-subscription.md rule 11).
+  // Neat subscription failures (specs/neat-cancellation-insurance-subscription.md rule 11) — listed
+  // only while the neat plugin is live (specs/plugins-phase-3b-neat.md rule 17).
   ['neat', 'Souscriptions Neat'],
 ];
+// What the server lists as `available`; without its answer, the core channels only.
+const CORE_KEYS = ['newReservation', 'arrivals', 'departures', 'breakfast'];
 
 export default function SettingsPushNotificationsSection() {
   const supported = pushSupported();
@@ -142,7 +145,7 @@ export default function SettingsPushNotificationsSection() {
               </Box>
 
               <Stack spacing={0.5}>
-                {PREF_LABELS.map(([key, label]) => (
+                {PREF_LABELS.filter(([key]) => (prefs.available || CORE_KEYS).includes(key)).map(([key, label]) => (
                   <FormControlLabel
                     key={key}
                     control={<Switch checked={Boolean(prefs[key])} onChange={(e) => onTogglePref(key, e.target.checked)} />}

@@ -10,6 +10,7 @@ const coreServices = require('./coreServices');
 
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', 'getPayment', 'getLinkStatus', 'cancelLink'];
+const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 
 function createContext(id, { db, settingsModel } = {}) {
   const record = registry.ensure(id);
@@ -69,6 +70,21 @@ function createContext(id, { db, settingsModel } = {}) {
       const other = registry.all().find((r) => r.id !== id && r.paymentProvider);
       if (other) throw new Error(`${prefix} a payment provider is already declared by ${other.id}`);
       record.paymentProvider = provider;
+    },
+    // The quote post-processor (specs/plugins-phase-3b-neat.md rule 1): its single output is the
+    // cancellation insurance unit price, so at most one per instance.
+    quotePostProcessor(processor) {
+      PROCESSOR_MEMBERS.forEach((m) => {
+        if (processor == null || processor[m] == null) throw new Error(`${prefix} quote post-processor lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.quotePostProcessor);
+      if (other) throw new Error(`${prefix} the cancellation insurance price is already declared by ${other.id}`);
+      record.quotePostProcessor = processor;
+    },
+    // (reservation) → a block added under `key` to the fiche payload while the plugin is live (rule 12).
+    reservationBlock(key, build) {
+      if (typeof build !== 'function') throw new Error(`${prefix} reservation block "${key}" needs a builder`);
+      record.reservationBlocks.push({ key, build });
     },
     migrations(list) { record.migrations.push(...list); },
     settings,

@@ -5,6 +5,11 @@ const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatTimeShort } = require('../utils/dateFr');
 const { normalizeCategory, pinCancellationInsurance } = require('../utils/optionGrouping');
+const { insuranceOffered } = require('../utils/quotePostProcessors');
+
+// specs/plugins-phase-3b-neat.md rule 21 — the catalogue hides the cancellation insurance while no plugin
+// offers it. The row and its settings stay; they come back with the plugin.
+const hiddenInsurance = (o) => Number(o && o.isCancellationInsurance ? 1 : 0) === 1 && !insuranceOffered();
 
 function normalizeProgressiveOptionTiers(raw) {
   let parsed = [];
@@ -272,7 +277,7 @@ function createOptionsModel(database) {
       const english = englishTitles();
       // Same reading order as the fiche: the cancellation insurance sits just after « Départ
       // tardif » instead of under « A » (specs/cancellation-insurance.md §3.2 rule 17bis).
-      return pinCancellationInsurance(rows).map((o) => attachEnglish(decoratePlanningCard({
+      return pinCancellationInsurance(rows.filter((o) => !hiddenInsurance(o))).map((o) => attachEnglish(decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
@@ -284,7 +289,7 @@ function createOptionsModel(database) {
 
     get(id) {
       const option = database.prepare('SELECT * FROM options WHERE id = ?').get(id);
-      if (!option) return null;
+      if (!option || hiddenInsurance(option)) return null;
       option.propertyIds = propertyIdsFor(id);
       option.propertyPrices = propertyPricesFor(id);
       option.propertyDefaults = propertyDefaultsFor(id);
@@ -316,7 +321,7 @@ function createOptionsModel(database) {
         ORDER BY ${HAS_OPTION_CATEGORY ? 'o.category, ' : ''}o.title
       `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
       const english = englishTitles();
-      return rows.map((o) => {
+      return rows.filter((o) => !hiddenInsurance(o)).map((o) => {
         const { __propertyPrice, ...rest } = o;
         return attachEnglish(decoratePlanningCard({
           ...rest,
@@ -334,16 +339,16 @@ function createOptionsModel(database) {
      * when no option carries the flag, when it isn't applicable to that property, or when it is
      * still unpriced — an insurance at 0 is not an offer (rule 15).
      */
-    // `neatPricingActive` (specs/neat-cancellation-insurance-subscription.md rule 13): with the
-    // Neat-derived guest price active, the insurance is sellable even at a static price of 0 — the
-    // static tariff is then only the fallback. Without it, unpriced = invisible (rule 15).
-    getCancellationInsurance(propertyId, { neatPricingActive = false } = {}) {
+    // `dynamicPrice` (specs/plugins-phase-3b-neat.md rule 2): with a plugin pricing it per stay, the
+    // insurance is sellable even at a static price of 0 — the static tariff is then only the
+    // fallback. Without it, unpriced = invisible (rule 15).
+    getCancellationInsurance(propertyId, { dynamicPrice = false } = {}) {
       if (!HAS_OPTION_CANCELLATION_INSURANCE) return null;
       const found = this.listForProperty(propertyId)
         .filter((o) => Number(o.isCancellationInsurance || 0) === 1)
         .sort((a, b) => Number(a.id) - Number(b.id))[0] || null;
       if (!found) return null;
-      if (Number(found.price || 0) <= 0 && !neatPricingActive) return null;
+      if (Number(found.price || 0) <= 0 && !dynamicPrice) return null;
       return found;
     },
 

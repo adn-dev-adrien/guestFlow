@@ -181,7 +181,7 @@ function frNumber(value) {
  * yet (catalogue call), in which case the site falls back to `priceLabel`.
  */
 function toPublicCancellationInsurance(option, {
-  amount = null, selected = false, neatPricingActive = false, lang = 'fr', translate = null,
+  amount = null, selected = false, dynamicPrice = false, lang = 'fr', translate = null,
 } = {}) {
   if (!option) return null;
   const tr = isResolver(translate) ? translate : null;
@@ -191,10 +191,10 @@ function toPublicCancellationInsurance(option, {
   // Neat-derived pricing (specs/neat-cancellation-insurance-subscription.md rule 13): the static
   // tariff is only a fallback, so a 0 no longer hides the block — and there is no per-unit label
   // to print before the dates are picked, the premium being per-stay on the Neat side.
-  if (price <= 0 && !neatPricingActive) return null;
+  if (price <= 0 && !dynamicPrice) return null;
   const labels = optionPriceLabels(priceType, false, null, lang);
   const L = labelsFor(lang);
-  const priceLabel = neatPricingActive
+  const priceLabel = dynamicPrice
     ? L.computedForYourDates
     : (isPercent
       ? `${frNumber(price)} % ${L.priceUnit.percent_of_stay}`

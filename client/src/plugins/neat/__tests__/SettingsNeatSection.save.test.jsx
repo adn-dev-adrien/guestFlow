@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 // « Enregistrer » buttons. It now tells the page when it holds unsaved changes, and the page's
 // action bar writes it through a ref.
 
-vi.mock('../../api', () => ({
+vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getNeatSettings: vi.fn(),
@@ -17,8 +17,8 @@ vi.mock('../../api', () => ({
   },
 }));
 
-import api from '../../api';
-import DialogProvider from '../DialogProvider';
+import api from '../../../api';
+import DialogProvider from '../../../components/DialogProvider';
 import SettingsNeatSection from '../SettingsNeatSection';
 
 import { CONFIGURED_SETTINGS } from './neatSectionFixtures';

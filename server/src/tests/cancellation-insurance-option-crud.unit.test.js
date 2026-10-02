@@ -8,6 +8,12 @@ const Database = require('better-sqlite3');
 const Module = require('module');
 
 const optionsModel = require('../models/optionsModel');
+const { offerInsurance, withdrawInsurance } = require('./insuranceOfferFixture');
+
+// The insurance is offered while a plugin prices it (specs/plugins-phase-3b-neat.md rule 21); the
+// hidden case has its own suite (insurance-offer-follows-neat).
+test.before(() => offerInsurance());
+test.after(() => withdrawInsurance());
 
 const DDL = `
   CREATE TABLE options (
@@ -85,6 +91,7 @@ function buildController(calls) {
       return {
         create: (p) => { calls.push(['create', p]); return { id: 1 }; },
         update: (id2, p) => { calls.push(['update', p]); return { ok: true }; },
+        get: (id2) => ({ id: Number(id2) }),
       };
     }
     return origRequire.call(this, id);

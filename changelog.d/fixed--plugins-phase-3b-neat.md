@@ -1,0 +1,3 @@
+- A deactivated but configured Neat no longer prices the insurance nor calls Neat on every fiche preview and public quote.
+- The website no longer announces « Tarif calculé pour vos dates » while Neat is off.
+- The push preference « Souscriptions Neat » shows only while the Neat plugin is active.

@@ -169,18 +169,4 @@ function buildModel(database) {
   };
 }
 
-const defaultModel = (() => {
-  try {
-    return buildModel(require('../database'));
-  } catch {
-    return null;
-  }
-})();
-
-if (defaultModel) {
-  defaultModel.buildModel = buildModel;
-  defaultModel.retryDelayMs = retryDelayMs;
-  module.exports = defaultModel;
-} else {
-  module.exports = { buildModel, retryDelayMs };
-}
+module.exports = { buildModel, retryDelayMs };

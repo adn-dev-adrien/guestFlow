@@ -6,7 +6,7 @@
  * Props:
  *   plugin    { id, name, description, icon, surfaces, state, blocker, erasable, data, outOfPlan,
  *             planChip, planHint } as GET /api/plugins returns it — `data` lists what an erasure
- *             would take; `outOfPlan` marks a plugin the subscription does not include, `planChip`
+ *             would take, a line with `warning: true` being shown apart, before the choice; `outOfPlan` marks a plugin the subscription does not include, `planChip`
  *             names the plan that does and `planHint` says how to get it
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
@@ -27,6 +27,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SchoolIcon from '@mui/icons-material/School';
 import ThunderstormIcon from '@mui/icons-material/Thunderstorm';
 import ExtensionIcon from '@mui/icons-material/Extension';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StatusBadge from './StatusBadge';
 
 const ICONS = {
@@ -52,7 +53,10 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
   const installed = plugin.state !== 'available';
   const failed = plugin.state === 'failed';
   const outOfPlan = Boolean(plugin.outOfPlan);
-  const eraseLines = (plugin.data || []).map((line) => line.label).join(' · ');
+  const eraseLines = (plugin.data || []).filter((line) => !line.warning).map((line) => line.label).join(' · ');
+  // specs/plugins-phase-3b-neat.md rule 18 — what an erasure cannot undo elsewhere (Neat: subscriptions
+  // that stay in force at Neat), said before the operator chooses.
+  const eraseWarnings = (plugin.data || []).filter((line) => line.warning);
 
   const primary = plugin.state === 'available'
     ? { action: 'install', label: 'Installer', variant: 'contained' }
@@ -138,6 +142,12 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
           {installed && (
             <>
               {/* A plugin module can take its data with it (rules 21-22); the others always keep it. */}
+              {plugin.erasable && eraseWarnings.map((line) => (
+                <Stack key={line.label} direction="row" spacing={1} sx={{ alignItems: 'flex-start', mb: 1, color: 'warning.dark' }}>
+                  <WarningAmberIcon fontSize="small" sx={{ mt: '2px' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{line.label}</Typography>
+                </Stack>
+              ))}
               {plugin.erasable && (
                 <FormControlLabel
                   sx={{ display: 'flex', minHeight: 44, mb: 0.5 }}
