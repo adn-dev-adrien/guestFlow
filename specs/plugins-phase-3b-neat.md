@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | **Status** | Implemented |
-| **Branch** | `feature/plugins-phase-3b` (stacked on `feature/plugins-phase-3`, PR #651) |
+| **Branch** | `feature/plugins-phase-3b` (from `feature/plugins-phase-3`; #651 merged into `inte/plugins` meanwhile) |
 | **Created** | 2026-10-02 |
 | **Author** | Adrien |
-| **Related PR** | [#652](https://github.com/adn-dev-adrien/guestFlow/pull/652) (target `inte/plugins`, after #651) |
+| **Related PR** | [#652](https://github.com/adn-dev-adrien/guestFlow/pull/652) (target `inte/plugins`) |
 | **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — §6 extension points, phasing §12 |
 | **Previous phase** | [`specs/plugins-phase-3a-online-payment.md`](plugins-phase-3a-online-payment.md) (PR #651) |
 | **Feature spec** | [`specs/neat-cancellation-insurance-subscription.md`](neat-cancellation-insurance-subscription.md) — its rules hold unchanged |
