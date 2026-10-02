@@ -291,7 +291,45 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, notifyNewIcalReservation, notifyBookingConflict, __test: { buildDevisEmail, buildReservationEmail, buildConflictEmail } };
+  // specs/plugins-phase-3a-online-payment.md rule 8 — a link GuestFlow had abandoned (stay cancelled,
+  // amount replaced) but could not deactivate was paid anyway. Nothing is recorded on the stay: the
+  // admin refunds from the provider. Best-effort: never throws.
+  function buildPaidAfterCancelEmail(resa, link, publicUrl) {
+    const amount = (Number(link.amountCents || 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+    const ref = resa.devisNumber || `#${Number(resa.id)}`;
+    const subject = `⚠️ Paiement reçu sur un lien annulé — ${ref} · ${amount}`;
+    const lines = [
+      'Un client a payé un lien de paiement que GuestFlow avait annulé mais n’avait pas pu désactiver.',
+      'Le paiement n’est pas enregistré sur le séjour.',
+      'Action requise : rembourser ce paiement depuis votre espace du prestataire de paiement.',
+      '',
+      `Réservation : ${ref}`,
+      `Montant : ${amount}`,
+      `Logement : ${resa.propertyName || ''}`,
+      `Séjour : du ${resa.startDate} au ${resa.endDate}`,
+    ];
+    const url = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
+    if (url) lines.push('', `Ouvrir la réservation : ${url}`);
+    return { subject, text: lines.join('\n') };
+  }
+
+  async function notifyPaidAfterCancel(link) {
+    try {
+      const resa = loadReservation(link.reservationId);
+      if (!resa) return { sent: false, skipped: 'not_found' };
+      const { subject, text } = buildPaidAfterCancelEmail(resa, link, '');
+      await pushNewReservation({ title: '⚠️ Paiement reçu sur un lien annulé', body: subject.replace(/^⚠️ Paiement reçu sur un lien annulé — /, ''), url: `/reservations/${Number(resa.id)}` });
+      const ctx = resolveContext();
+      if (ctx.skip) return { sent: false, skipped: ctx.skip };
+      const email = buildPaidAfterCancelEmail(resa, link, ctx.publicUrl);
+      return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+    } catch (err) {
+      logger.warn('[notificationService.notifyPaidAfterCancel]', err && err.message ? err.message : err);
+      return { sent: false, skipped: 'error' };
+    }
+  }
+
+  return { notifyNewSiteDevis, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, __test: { buildDevisEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail } };
 }
 
 const defaultService = buildNotificationService();

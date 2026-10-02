@@ -1,0 +1,3 @@
+- **The dashboard « Envoyer la demande / Relancer » no longer creates a Qonto link while online payment is off.**
+- **A payment received online is now recorded exactly like the same payment ticked by hand**: the acompte or solde is split onto the stay's lines, as the accounting expects (it was only ticked).
+- **A payment link GuestFlow abandons is now deactivated at Qonto** — when a stay is cancelled, or a link is replaced because the amount changed. If Qonto cannot be reached, GuestFlow retries at each check and says so; a payment that still lands on such a link is never booked on the stay, and the admin is told to refund it.

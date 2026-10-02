@@ -236,16 +236,18 @@ CREATE TABLE IF NOT EXISTS payment_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL,
     type TEXT NOT NULL,
-    qontoPaymentLinkId TEXT,
+    providerLinkId TEXT,
     url TEXT NOT NULL DEFAULT '',
     amountCents INTEGER NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'EUR',
     status TEXT NOT NULL DEFAULT 'open',
-    qontoPaymentId TEXT,
+    providerPaymentId TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     paidAt TEXT,
     expiresAt TEXT,
     lastPolledAt TEXT,
+    provider TEXT NOT NULL DEFAULT 'qonto',
+    remoteCancelPendingAt TEXT,
     CHECK (type IN ('deposit', 'balance', 'full', 'complement')),
     CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
   );
@@ -681,6 +683,8 @@ CREATE INDEX IF NOT EXISTS idx_ical_tokens_propertyId ON ical_tokens(propertyId)
 CREATE INDEX IF NOT EXISTS idx_payment_links_reservation ON payment_links(reservationId);
 
 CREATE INDEX IF NOT EXISTS idx_payment_links_status ON payment_links(status);
+
+CREATE INDEX IF NOT EXISTS idx_payment_links_provider ON payment_links(provider, providerLinkId);
 
 CREATE INDEX IF NOT EXISTS idx_pricing_rules_propertyId ON pricing_rules(propertyId);
 

@@ -34,26 +34,14 @@ function warnDecryptFailure(col, reason) {
   console.warn(`[settingsModel] decrypt failed for "${col}" (${reason}). The current GUESTFLOW_ENCRYPTION_KEY can't decrypt the stored blob. Re-saisis la valeur depuis Paramètres pour la re-chiffrer avec la clé courante.`);
 }
 
-// Columns encrypted at rest (AES-256-GCM). SMTP + Qonto + Neat credentials. The Google and
-// Météo-France secrets moved to plugin_settings with their plugins (specs/plugins-phase-1-sdk.md §5);
-// their old columns stay in the table, unread, for one release.
+// Columns encrypted at rest (AES-256-GCM). SMTP + Neat credentials. The Google, Météo-France and
+// Qonto secrets moved to plugin_settings with their plugins (specs/plugins-phase-1-sdk.md §5,
+// specs/plugins-phase-3a-online-payment.md rule 13); their old columns stay in the table, unread.
 const ENCRYPTED_COLUMNS = [
   'smtpPasswordEncrypted',
-  // Qonto OAuth tokens (specs/online-payments-qonto.md §3.1). The client id/secret live in
-  // .env.local (app-level); these per-connection tokens are obtained via the OAuth flow and stored
-  // encrypted, never returned to the client (masked to booleans below).
-  'qontoAccessTokenEncrypted',
-  'qontoRefreshTokenEncrypted',
   // Neat service-account secret (specs/neat-cancellation-insurance-subscription.md §3.1 rule 1).
   // Stored encrypted, never returned to the client (masked to a boolean below).
   'neatClientSecretEncrypted',
-  // Qonto application credentials (specs/qonto-settings-in-app.md §3 rules 1 + 3). Editable from
-  // Réglages → Paiements so a secret Qonto regenerates can be rotated without a shell. Encrypted,
-  // and masked to booleans below — the client id is NOT here on purpose (rule 4: it is a public
-  // identifier, and the operator must be able to compare it with the Qonto portal).
-  'qontoClientSecretEncrypted',
-  'qontoStagingTokenEncrypted',
-  'qontoWebhookSecretEncrypted',
 ];
 
 const COLUMNS = [
@@ -109,36 +97,10 @@ const COLUMNS = [
   'instagramUrl',
   'poolSeasonStart',
   'poolSeasonEnd',
-  // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
-  // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
-  'qontoAccessTokenEncrypted',
-  'qontoRefreshTokenEncrypted',
-  'qontoTokenExpiresAt',
-  'qontoConnectionId',
-  'qontoConnectionStatus',
-  'qontoConnectedAt',
-  // Qonto application settings, editable in the interface (specs/qonto-settings-in-app.md §3
-  // rules 1-7). Empty means "keep reading the environment" (rule 2), so an installation configured
-  // through .env.local is unaffected until someone opens the form.
-  'qontoEnvironment',
-  'qontoClientId',
-  'qontoClientSecretEncrypted',
-  'qontoStagingTokenEncrypted',
-  'qontoWebhookSecretEncrypted',
+  // The public website's origin: the CGV link of the emails and the return page of an online payment
+  // (specs/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
+  // online-payment plugin's settings (rule 13); they stay in the table, unread.
   'publicSiteOrigin',
-  // The verified state of the connection (rules 11-13): what the last real call to Qonto did, so the
-  // page can stop claiming "Connecté" on the mere presence of a token.
-  'qontoLastCheckAt',
-  'qontoLastSuccessAt',
-  'qontoLastErrorAt',
-  'qontoLastErrorCode',
-  'qontoLastErrorMessage',
-  'qontoLastErrorOrigin',
-  // The payment-link webhook subscription GuestFlow created or adopted
-  // (specs/settings-one-save-and-automatic-webhook.md rules 8-10). Not secrets: an id and a public
-  // URL. Their only job is to make the next check free when nothing has moved.
-  'qontoWebhookSubscriptionId',
-  'qontoWebhookCallbackUrl',
   // Neat cancellation-insurance connection (specs/neat-cancellation-insurance-subscription.md §3.1).
   // The secret is encrypted (above); the rest is non-secret configuration read through `neatConfig()`.
   'neatEnvironment',
@@ -181,17 +143,8 @@ const DEFAULTS = COLUMNS.reduce((acc, col) => {
 // the UI knows whether to show "Modifier" on a MaskedTextField vs. "Configurer".
 const HTTP_MASKED_COLUMNS = {
   smtpPasswordEncrypted: 'smtpPasswordSet',
-  // Qonto tokens are never exposed; the client only learns whether a connection exists.
-  qontoAccessTokenEncrypted: 'qontoAccessTokenSet',
-  qontoRefreshTokenEncrypted: 'qontoConnected',
-  // Météo-France key is never exposed; the client only learns whether it's configured.
   // Neat secret is never exposed; the client only learns whether it's configured.
   neatClientSecretEncrypted: 'neatClientSecretSet',
-  // Qonto application secrets are never exposed (specs/qonto-settings-in-app.md §3 rule 3): the
-  // credentials form writes them and reads back only whether they are configured.
-  qontoClientSecretEncrypted: 'qontoClientSecretSet',
-  qontoStagingTokenEncrypted: 'qontoStagingTokenSet',
-  qontoWebhookSecretEncrypted: 'qontoWebhookSecretSet',
 };
 
 function createSettingsModel(databaseInstance) {
@@ -301,177 +254,15 @@ function createSettingsModel(databaseInstance) {
       };
     },
 
-    // ----- Qonto connection (specs/online-payments-qonto.md §3.1) -----
-
-    // Persist the OAuth tokens (encrypted via upsert's ENCRYPTED_COLUMNS handling). `expiresAt` is an
-    // ISO timestamp; `connectedAt` is stamped now. Never logged.
-    storeQontoTokens({ accessToken, refreshToken, expiresAt }) {
-      this.upsert({
-        qontoAccessTokenEncrypted: accessToken == null ? '' : String(accessToken),
-        qontoRefreshTokenEncrypted: refreshToken == null ? '' : String(refreshToken),
-        qontoTokenExpiresAt: expiresAt == null ? '' : String(expiresAt),
-        qontoConnectedAt: new Date().toISOString(),
-      });
+    // The public website's origin, without its trailing slash, over PUBLIC_SITE_ORIGIN
+    // (specs/plugins-phase-3a-online-payment.md rule 15). '' when neither is set.
+    publicSiteOrigin() {
+      const stored = String(readRaw().publicSiteOrigin || '').trim();
+      return (stored || String(process.env.PUBLIC_SITE_ORIGIN || '').trim()).replace(/\/+$/, '');
     },
 
-    // Decrypted tokens for internal use (the token manager / API calls). NEVER exposed via HTTP.
-    // On key mismatch a token decodes to '' and a marker fires — the manager then treats the
-    // connection as missing rather than crashing.
-    qontoTokens() {
-      const row = readRaw();
-      const dec = (col) => {
-        const blob = row[col];
-        if (!blob) return '';
-        const r = safeDecrypt(blob);
-        if (r.ok) return r.value;
-        warnDecryptFailure(col, r.reason);
-        return '';
-      };
-      return {
-        accessToken: dec('qontoAccessTokenEncrypted'),
-        refreshToken: dec('qontoRefreshTokenEncrypted'),
-        expiresAt: String(row.qontoTokenExpiresAt || '').trim() || null,
-      };
-    },
-
-    // ----- Qonto application settings (specs/qonto-settings-in-app.md §3 rules 1-3, 8) -----
-
-    // The credentials as stored HERE only. `resolveQontoConfig` is what merges them over the
-    // environment (rule 2); this accessor stays dumb on purpose.
-    qontoCredentials() {
-      const row = readRaw();
-      const dec = (col) => {
-        const blob = row[col];
-        if (!blob) return '';
-        const r = safeDecrypt(blob);
-        if (r.ok) return r.value;
-        warnDecryptFailure(col, r.reason);
-        return '';
-      };
-      return {
-        environment: String(row.qontoEnvironment || '').trim(),
-        clientId: String(row.qontoClientId || '').trim(),
-        clientSecret: dec('qontoClientSecretEncrypted'),
-        stagingToken: dec('qontoStagingTokenEncrypted'),
-        webhookSecret: dec('qontoWebhookSecretEncrypted'),
-        publicSiteOrigin: String(row.publicSiteOrigin || '').trim(),
-        redirectUri: '',
-      };
-    },
-
-    // Whether each secret is configured, without decrypting anything — what the settings payload
-    // shows the operator (rule 3).
-    qontoSecretsPresence() {
-      const row = readRaw();
-      return {
-        clientSecret: Boolean(row.qontoClientSecretEncrypted),
-        stagingToken: Boolean(row.qontoStagingTokenEncrypted),
-        webhookSecret: Boolean(row.qontoWebhookSecretEncrypted),
-      };
-    },
-
-    /**
-     * Write the credentials. A key left `undefined` keeps its stored value, `''` erases it — the
-     * three-state write every masked secret field in GuestFlow uses. Values are trimmed (rule 8):
-     * a secret copied from a web page carries a trailing newline, and Qonto rejects it exactly like
-     * a wrong one, which is a full hour of diagnosis for an invisible character.
-     */
-    storeQontoCredentials({ environment, clientId, clientSecret, stagingToken, webhookSecret, publicSiteOrigin } = {}) {
-      const payload = {};
-      const set = (col, value, transform = (v) => String(v).trim()) => {
-        if (value === undefined) return;
-        payload[col] = value == null ? '' : transform(value);
-      };
-      set('qontoEnvironment', environment, (v) => (String(v).trim().toLowerCase() === 'production' ? 'production' : 'sandbox'));
-      set('qontoClientId', clientId);
-      set('qontoClientSecretEncrypted', clientSecret);
-      set('qontoStagingTokenEncrypted', stagingToken);
-      set('qontoWebhookSecretEncrypted', webhookSecret);
-      set('publicSiteOrigin', publicSiteOrigin, (v) => String(v).trim().replace(/\/+$/, ''));
-      if (Object.keys(payload).length) this.upsert(payload);
-    },
-
-    // ----- Payment-link webhook subscription
-    // (specs/settings-one-save-and-automatic-webhook.md §3 rules 8-10) -----
-
-    // What GuestFlow believes Qonto is subscribed to. Empty id = nothing recorded, which is what
-    // makes the next check reach Qonto instead of trusting the record.
-    qontoWebhookSubscription() {
-      const row = readRaw();
-      return {
-        id: String(row.qontoWebhookSubscriptionId || '').trim(),
-        callbackUrl: String(row.qontoWebhookCallbackUrl || '').trim(),
-      };
-    },
-
-    storeQontoWebhookSubscription({ id, callbackUrl } = {}) {
-      const payload = {};
-      if (id !== undefined) payload.qontoWebhookSubscriptionId = id == null ? '' : String(id).trim();
-      if (callbackUrl !== undefined) payload.qontoWebhookCallbackUrl = callbackUrl == null ? '' : String(callbackUrl).trim();
-      if (Object.keys(payload).length) this.upsert(payload);
-    },
-
-    // ----- Verified connection health (specs/qonto-settings-in-app.md §3 rules 11-13) -----
-
-    // Record what the last real call to Qonto did. Keys left undefined are untouched, so a success
-    // can clear the error columns by passing them empty.
-    recordQontoHealth({ lastCheckAt, lastSuccessAt, lastErrorAt, lastErrorCode, lastErrorMessage, lastErrorOrigin } = {}) {
-      const payload = {};
-      const set = (col, value) => { if (value !== undefined) payload[col] = value == null ? '' : String(value); };
-      set('qontoLastCheckAt', lastCheckAt);
-      set('qontoLastSuccessAt', lastSuccessAt);
-      set('qontoLastErrorAt', lastErrorAt);
-      set('qontoLastErrorCode', lastErrorCode);
-      set('qontoLastErrorMessage', lastErrorMessage);
-      set('qontoLastErrorOrigin', lastErrorOrigin);
-      if (Object.keys(payload).length) this.upsert(payload);
-    },
-
-    /**
-     * The verified state. `lastError` is null once a success came after it (rule 13) — the page must
-     * show the current state, not an old scar.
-     */
-    qontoHealth() {
-      const row = readRaw();
-      const str = (col) => String(row[col] || '').trim();
-      const errorAt = str('qontoLastErrorAt');
-      const successAt = str('qontoLastSuccessAt');
-      const stale = Boolean(errorAt && successAt && Date.parse(successAt) >= Date.parse(errorAt));
-      return {
-        lastCheckAt: str('qontoLastCheckAt') || null,
-        lastSuccessAt: successAt || null,
-        lastError: errorAt && !stale
-          ? {
-            at: errorAt,
-            code: str('qontoLastErrorCode'),
-            message: str('qontoLastErrorMessage'),
-            origin: str('qontoLastErrorOrigin'),
-          }
-          : null,
-      };
-    },
-
-    // Provider-connection metadata (non-secret). Status ∈ not_connected | pending | enabled.
-    storeQontoConnection({ connectionId, status }) {
-      const payload = {};
-      if (connectionId !== undefined) payload.qontoConnectionId = connectionId == null ? '' : String(connectionId);
-      if (status !== undefined) payload.qontoConnectionStatus = status == null ? '' : String(status);
-      this.upsert(payload);
-    },
-
-    qontoConnectionInfo() {
-      const row = readRaw();
-      return {
-        connected: Boolean(row.qontoRefreshTokenEncrypted),
-        connectionId: String(row.qontoConnectionId || '').trim(),
-        connectionStatus: String(row.qontoConnectionStatus || 'not_connected').trim() || 'not_connected',
-        connectedAt: String(row.qontoConnectedAt || '').trim() || null,
-      };
-    },
-
-    // True once the OAuth flow has stored a refresh token (the durable credential).
-    qontoConnected() {
-      return Boolean(readRaw().qontoRefreshTokenEncrypted);
+    storePublicSiteOrigin(value) {
+      this.upsert({ publicSiteOrigin: String(value == null ? '' : value).trim().replace(/\/+$/, '') });
     },
 
     // Neat connection + configuration, secret decrypted, for internal use only (never over HTTP).

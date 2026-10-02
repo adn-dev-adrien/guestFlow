@@ -563,6 +563,8 @@ const api = {
   // CGV — draft, preview, publication, versions, enforcement (specs/terms-acceptance-record.md §4.4).
   getTerms: () => request('/terms'),
   saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
+  // specs/plugins-phase-3a-online-payment.md rule 15.
+  saveTermsPublicSiteOrigin: (publicSiteOrigin) => request('/terms/public-site-origin', { method: 'PUT', body: { publicSiteOrigin } }),
   previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload }),
   publishTerms: () => request('/terms/publish', { method: 'POST' }),
   getTermsVersion: (version) => request(`/terms/versions/${version}`),

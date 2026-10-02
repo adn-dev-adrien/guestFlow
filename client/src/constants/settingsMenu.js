@@ -13,7 +13,6 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import DateRangeIcon from '@mui/icons-material/DateRange';
-import PaymentsIcon from '@mui/icons-material/Payments';
 import PercentIcon from '@mui/icons-material/Percent';
 import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import CableIcon from '@mui/icons-material/Cable';
@@ -33,7 +32,6 @@ const BASE_MENU = [
   { path: '/parametres/options-ressources', label: 'Options & ressources', Icon: ExtensionIcon, matches: ['/options', '/resources'] },
   { path: '/parametres/vacances-fermetures', label: 'Vacances & fermetures', Icon: DateRangeIcon, matches: ['/school-holidays', '/establishment-closures'] },
   null,
-  { path: '/parametres/paiements', label: 'Paiements en ligne', Icon: PaymentsIcon },
   { path: '/settings/tva-exercice', label: 'TVA & exercice', Icon: PercentIcon },
   { path: '/settings/emails', label: 'Emails & notifications', Icon: AlternateEmailIcon },
   { path: '/settings/integrations', label: 'Intégrations', Icon: CableIcon },
@@ -44,12 +42,18 @@ const BASE_MENU = [
 ];
 
 // Entries of plugin modules (specs/plugins-phase-1-sdk.md rule 13, slot `settings.menu`), each placed
-// right after the entry its `after` names.
+// right after the entry its `after` names — or right before the one its `before` names, to open a
+// family (specs/plugins-phase-3a-online-payment.md rule 17).
 function withModuleEntries(menu, modules) {
   const out = [...menu];
   modules.forEach((mod) => ((mod.contributes && mod.contributes['settings.menu']) || []).forEach((entry) => {
-    const at = out.findIndex((e) => e && e.path === entry.after);
-    const { after, ...item } = entry;
+    const { after, before, ...item } = entry;
+    if (before) {
+      const at = out.findIndex((e) => e && e.path === before);
+      out.splice(at === -1 ? out.length : at, 0, item);
+      return;
+    }
+    const at = out.findIndex((e) => e && e.path === after);
     out.splice(at === -1 ? out.length : at + 1, 0, item);
   }));
   return out;

@@ -24,6 +24,9 @@ function buildController({
   // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
   sendDepositRequest = (id) => require('./paymentsController').sendDepositRequestFor(id),
   sendBalanceRequest = (id) => require('./paymentsController').sendBalanceRequestFor(id),
+  // specs/plugins-phase-3a-online-payment.md rule 5 — a request is a payment link: without a provider
+  // the row offers no « Envoyer la demande / Relancer » and the endpoint refuses.
+  hasPaymentProvider = () => Boolean(require('../utils/paymentProviders').active()),
   today: injectedToday = null,
 } = {}) {
   const resolveToday = () => injectedToday || getTodayIsoDate();
@@ -159,7 +162,9 @@ function buildController({
         }
         return { ...row, payoutDueDays: payoutDaysByPlatform.get(key) };
       });
-      const rows = buildPaymentDeadlineRows(candidates, today);
+      const canRequest = hasPaymentProvider();
+      const rows = buildPaymentDeadlineRows(candidates, today)
+        .map((row) => (canRequest || !row.remindType ? row : { ...row, remindType: null }));
       return res.json({ rows });
     },
 
@@ -190,6 +195,7 @@ function buildController({
       if (type !== 'deposit' && type !== 'balance') {
         return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de relance invalide (deposit/balance).' });
       }
+      if (!hasPaymentProvider()) return res.status(409).json(require('../utils/paymentProviders').NO_PROVIDER);
       // specs/platform-payout-due-date.md rule 20 — a platform booking is paid by the platform, never
       // by the guest. The card already hides the button; refusing here means the email cannot be sent
       // by hand either, whatever a stale client or a direct API call asks for.

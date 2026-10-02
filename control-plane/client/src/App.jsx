@@ -18,7 +18,7 @@ import CustomerPage from './pages/CustomerPage';
 import CataloguePage from './pages/CataloguePage';
 import ProfilePage from './pages/ProfilePage';
 import EmailTemplatesPage from './pages/EmailTemplatesPage';
-import PaymentsSettingsPage from '@gf/pages/PaymentsSettingsPage';
+import PaymentsSettingsPage from '@gf/plugins/online-payment/PaymentsSettingsPage';
 import api from './api';
 
 const NAV = [

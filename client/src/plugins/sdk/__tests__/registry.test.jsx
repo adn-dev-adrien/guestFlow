@@ -22,7 +22,7 @@ beforeEach(() => enabled.clear());
 // specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds accounting-export, linen, sas, website-booking.
 test('rule 2: the modules are listed once', () => {
   expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual([
-    'accounting-export', 'gate-access', 'google-calendar', 'linen', 'sas', 'school-holidays',
+    'accounting-export', 'gate-access', 'google-calendar', 'linen', 'online-payment', 'sas', 'school-holidays',
     'tariff-recipes', 'weather-alerts', 'website-booking',
   ]);
 });

@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase 3a</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.app{display:grid;grid-template-columns:200px 1fr;gap:14px}
+@media (max-width:760px){.app{grid-template-columns:1fr}}
+.nav{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px;font-size:13.5px}
+.nav div{padding:6px 8px;border-radius:6px}
+.nav .sub{padding-left:22px;color:var(--muted)}
+.nav .new{color:var(--ok);font-weight:600}
+.panes{display:grid;gap:12px}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pane h4{margin:0 0 8px;font:600 14px var(--serif);color:var(--sapin)}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.pcard b{flex:1;min-width:150px}
+.chip{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+.chip.w{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.chip.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:36px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.laundry{border-left:4px solid var(--info)}
+.gone{display:none}
+.srv{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto}
+.srv .ok{color:var(--ok)} .srv .ko{color:var(--ko)} .srv .was{color:var(--ocre)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.steps span{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--fieldline)}
+.steps span.l{border-color:var(--info);color:var(--info);font-weight:600}
+.pc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--field)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--field)}
+.bar .t{font:600 15px var(--serif);color:var(--sapin);flex:1;min-width:140px}
+.ib{appearance:none;min-width:44px;min-height:44px;border-radius:9px;border:1px solid var(--fieldline);background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.ib.s{border-color:var(--ok);color:var(--ok)} .ib.i{border-color:var(--info);color:var(--info)} .ib.p{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.tip{font-size:11.5px;color:var(--muted);display:block;text-align:center}
+.warn{border-left:4px solid var(--ocre);background:color-mix(in srgb,var(--ocre) 10%,var(--card));padding:10px 12px;border-radius:6px;margin:8px 0;font-size:13.5px}
+.err{color:var(--ko);font-size:13px;margin-top:4px}
+.field{display:flex;flex-direction:column;gap:4px;max-width:520px}
+.field input{font:inherit;min-height:44px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+.field input.bad{border-color:var(--ko)}
+.help{font-size:12.5px;color:var(--muted)}
+.btn{appearance:none;font:inherit;font-weight:600;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);cursor:pointer}
+.btn.o{background:transparent;color:var(--sapin)}
+.flow{display:grid;gap:6px;margin:8px 0}
+.flow div{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13.5px;background:var(--field)}
+.flow .y{border-color:var(--ok)} .flow .n{border-color:var(--ko);color:var(--ko)} .flow .x{opacity:.45;text-decoration:line-through}
+.badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));color:var(--ok)}
+.badge.ko{background:color-mix(in srgb,var(--ko) 15%,var(--card));color:var(--ko)}
+@media (max-width:600px){.bar .t{flex-basis:100%}}
+</style>
+<body>
+<div class="wrap">
+<h1>Plugins — phase 3a : le paiement en ligne sort du cœur</h1>
+<div class="meta">Spec <code>specs/plugins-phase-3a-online-payment.md</code> · 1er octobre 2026 · première des trois PR de la phase 3 (3b Neat, 3c bain à l’heure)</div>
+
+<h2>Le constat</h2>
+<p>Le paiement en ligne est le seul plugin qui encaisse de l’argent. Son code est encore dans le cœur, et il est écrit pour Qonto à chaque ligne. La cartographie a trouvé trois défauts, que tu as choisi de corriger dans cette PR :</p>
+<div class="cols2">
+  <div class="card"><h3>1 · « Relancer » sans plugin</h3>Le bouton du tableau de bord crée un lien Qonto même quand le paiement en ligne est éteint.</div>
+  <div class="card"><h3>2 · Deux façons d’enregistrer un paiement</h3>Un paiement reçu par Qonto coche « acompte payé » directement. Il saute la répartition du montant entre les lignes du séjour, que la comptabilité lit. Cocher le même acompte à la main la fait.</div>
+  <div class="card"><h3>3 · Des liens abandonnés encore payables</h3>Annuler un séjour, ou remplacer un lien dont le montant a changé, ferme le lien dans GuestFlow seulement. Chez Qonto il reste payable, et personne ne le voit.</div>
+  <div class="card"><h3>Ce qui ne doit pas bouger</h3>Les adresses enregistrées chez Qonto (webhook, retour OAuth), les réponses lues par le site WordPress, les liens déjà envoyés, la console qui réutilise le module Qonto.</div>
+</div>
+
+<h2>Ce qu’on propose</h2>
+<ul class="tight">
+  <li><b>Le cœur garde le chemin de l’argent</b> : demander un montant, enregistrer ce qui est payé, confirmer le séjour. Il parle à <b>un fournisseur de paiement</b> par une petite interface : créer un lien, lire s’il est payé, le désactiver.</li>
+  <li><b>Qonto devient ce fournisseur</b>, dans le plugin « Paiement en ligne » : connexion, webhook, réglages, vérification de rattrapage (toutes les 8 heures, comme aujourd’hui).</li>
+  <li><b>Une seule fonction enregistre un paiement</b>, qu’il soit coché à la main ou reçu en ligne.</li>
+  <li><b>Chaque lien abandonné est désactivé chez Qonto.</b> Si Qonto ne répond pas, GuestFlow réessaie à chaque vérification et te prévient.</li>
+  <li><b>« Adresse du site public »</b> passe dans Paramètres › Conditions générales, car c’est le cœur qui s’en sert pour le lien des CGV dans les emails.</li>
+</ul>
+
+<h2>1 · Le plugin éteint ne laisse rien</h2>
+<div class="studio">
+  <div class="sbar"><span class="lab">Paiement en ligne</span>
+    <div class="seg" id="st">
+      <button data-v="off" aria-pressed="false">Pas installé</button>
+      <button data-v="nc" aria-pressed="false">Installé, Qonto non connecté</button>
+      <button data-v="on" aria-pressed="true">Qonto connecté</button>
+    </div>
+    <div class="seg" id="kd">
+      <button data-v="devis" aria-pressed="true">Devis</button>
+      <button data-v="resa" aria-pressed="false">Réservation, solde dû</button>
+    </div>
+  </div>
+  <div class="sbody">
+    <div class="app">
+      <div class="nav"><div><b>Paramètres</b></div><div class="sub">Logements</div><div class="sub">Conditions générales</div><div class="sub" id="navPay">Paiements en ligne</div><div class="sub">Plugins</div></div>
+      <div class="panes">
+        <div class="pane"><h4>Fiche</h4>
+          <div class="bar"><span class="t" id="fT">Devis D-2026-118 · Martin</span>
+            <span><button class="ib i" title="Télécharger PDF">⎙</button></span>
+            <span id="bPay"><button class="ib s" title="">€</button><span class="tip" id="bPayTip"></span></span>
+            <span><button class="ib p" title="Enregistrer">✓</button></span>
+          </div>
+        </div>
+        <div class="pane"><h4>Tableau de bord · Paiements attendus</h4>
+          <div class="pcard"><b>Dupont · Gîte · 12–19 oct.</b><span class="chip w">Solde 640,00 €</span>
+            <button class="mini" id="bRem">Relancer</button><button class="mini">Reporter</button></div>
+        </div>
+        <div class="pane"><h4>Ce que répond le serveur</h4><div class="srv" id="srv1"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Un paiement en ligne = un paiement coché à la main</h2>
+<div class="studio">
+  <div class="sbar"><span class="lab">Le client paie</span>
+    <div class="seg" id="bk">
+      <button data-v="deposit" aria-pressed="true">L’acompte</button>
+      <button data-v="balance" aria-pressed="false">Le solde</button>
+      <button data-v="full" aria-pressed="false">Tout le séjour</button>
+    </div>
+    <div class="seg" id="when">
+      <button data-v="now" aria-pressed="false">Aujourd’hui</button>
+      <button data-v="after" aria-pressed="true">Après la PR</button>
+    </div>
+  </div>
+  <div class="sbody"><div class="cols2">
+    <div><div class="lab">Coché à la main sur la fiche</div><div class="flow" id="fManual"></div></div>
+    <div><div class="lab">Reçu par Qonto</div><div class="flow" id="fOnline"></div></div>
+  </div><p class="muted" id="fNote"></p></div>
+</div>
+
+<h2>3 · Annuler un séjour qui a un lien ouvert</h2>
+<div class="studio">
+  <div class="sbar"><span class="lab">Qonto au moment de l’annulation</span>
+    <div class="seg" id="qa">
+      <button data-v="ok" aria-pressed="true">Répond</button>
+      <button data-v="down" aria-pressed="false">Ne répond pas</button>
+    </div>
+    <button class="btn o" id="doCancel">Annuler le séjour</button>
+    <button class="btn o" id="doPoll" disabled>Passe de vérification</button>
+    <label class="chk"><input type="checkbox" id="guestPaid"> le client a payé entre-temps</label>
+  </div>
+  <div class="sbody">
+    <div class="pane"><h4>Les liens de la réservation R-2026-071 · Leroy (ce que GuestFlow enregistre)</h4>
+      <div id="cWarn"></div>
+      <table><thead><tr><th>Lien</th><th>Montant</th><th>GuestFlow</th><th>Chez Qonto</th></tr></thead>
+      <tbody><tr><td>Solde</td><td>820,00 €</td><td id="cLocal"><span class="badge ok">ouvert</span></td><td id="cRemote">payable</td></tr></tbody></table>
+    </div>
+    <div class="pane" style="margin-top:12px"><h4>Notifications</h4><div class="srv" id="cLog">—</div></div>
+  </div>
+</div>
+
+<h2>4 · L’adresse du site public passe dans les CGV</h2>
+<div class="studio">
+  <div class="sbar"><span class="lab">Paramètres › Conditions générales</span></div>
+  <div class="sbody">
+    <div class="field"><label for="orig"><b>Adresse du site public</b></label>
+      <input id="orig" value="https://www.domainesolio.com" autocomplete="off">
+      <span class="help">Sert à construire le lien vers vos conditions générales dans les emails, et le retour après un paiement en ligne.</span>
+      <span class="err" id="origErr"></span>
+    </div>
+    <p style="margin-top:10px">Lien envoyé dans les emails : <code id="origOut"></code></p>
+  </div>
+</div>
+
+<h2>5 · Désactiver, désinstaller le plugin</h2>
+<div class="studio">
+  <div class="sbar">
+    <label class="chk"><input type="checkbox" id="erase"> Effacer aussi ses données</label>
+    <label class="chk"><input type="checkbox" id="openLink"> un lien est encore ouvert</label>
+  </div>
+  <div class="sbody"><div class="cols2">
+    <div><div class="lab">Effacé</div><div class="flow" id="uGone"></div></div>
+    <div><div class="lab">Gardé</div><div class="flow" id="uKept"></div></div>
+  </div><div id="uBlock"></div></div>
+</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li>Neat (3b) et le bain à l’heure (3c).</li>
+  <li>Un deuxième fournisseur (Stripe…) : l’interface le permet, aucun n’est écrit.</li>
+  <li>Un registre des paiements : un paiement reste une case cochée sur le séjour plus la ligne du lien.</li>
+  <li>Rembourser chez Qonto un paiement reçu sur un lien annulé : GuestFlow te prévient, tu rembourses à la main.</li>
+</ul>
+
+<h2>Les risques</h2>
+<ul class="tight">
+  <li><b>La migration renomme deux colonnes de <code>payment_links</code></b>. Les liens ouverts de Solio doivent rester retrouvables : un test rejoue la mise à jour sur une base v3.8, la copie de la base de dev aussi.</li>
+  <li><b>La désactivation chez Qonto n’a jamais tourné côté instance.</b> Elle est testée en unitaire. Pour la voir pour de vrai, il me faut ta connexion sandbox Qonto sur l’instance de test (Q1).</li>
+  <li><b>La console réutilise le module Qonto</b> : ses imports suivent les fichiers déplacés, et ses suites tournent en CI.</li>
+</ul>
+
+<h2>Arbitrages</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>Question</th><th>Choix</th></tr></thead><tbody>
+<tr><td>P9</td><td>Découpage de la phase 3</td><td>3 PR enchaînées : 3a Qonto, 3b Neat, 3c bain à l’heure</td></tr>
+<tr><td>P10</td><td>Prix d’un plugin éteint</td><td>Le vendu reste gelé, le reste au tarif standard (3b, 3c)</td></tr>
+<tr><td>P11</td><td>Défauts Qonto</td><td>Les trois corrigés ici</td></tr>
+<tr><td>P12</td><td>Effacer Neat avec des contrats actifs</td><td>Avertir puis effacer (3b)</td></tr>
+<tr><td>Q1</td><td>Vérification en sandbox de la désactivation</td><td>Tu connectes ta sandbox Qonto sur l’instance de test</td></tr>
+</tbody></table></div>
+</div>
+
+<script>
+function seg(id, cb){const el=document.getElementById(id);el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));cb();});}
+const val=id=>document.querySelector('#'+id+' button[aria-pressed="true"]').dataset.v;
+
+function r1(){
+  const st=val('st'), kd=val('kd'), live=st==='on';
+  document.getElementById('navPay').style.display = st==='off'?'none':'';
+  document.getElementById('fT').textContent = kd==='devis'?'Devis D-2026-118 · Martin':'Réservation R-2026-064 · Dupont';
+  document.getElementById('bPay').style.display = live?'':'none';
+  document.getElementById('bPayTip').textContent = kd==='devis'?'Envoyer la demande de paiement':'Envoyer la demande de solde';
+  document.getElementById('bRem').style.display = live?'':'none';
+  const s=document.getElementById('srv1');
+  s.innerHTML = live
+    ? 'GET /api/reservations/64\n  <span class="ok">"onlinePayment": { "provider": "qonto", "label": "Qonto" }</span>\n\nPOST /api/payments/reservations/64/payment-emails\n  <span class="ok">200 { "sent": true, "type": "balance", "amountCents": 64000 }</span>'
+    : 'GET /api/reservations/64\n  <span class="was">"onlinePayment": null</span>\n\nPOST /api/payments/reservations/64/payment-emails\n  <span class="ko">409 NO_PAYMENT_PROVIDER « Aucun moyen de paiement en ligne n’est connecté. »</span>\n\nPOST /api/dashboard/payment-deadlines/64/remind\n  <span class="ko">409 NO_PAYMENT_PROVIDER</span>  <span class="was">(aujourd’hui : un lien Qonto est créé)</span>';
+}
+seg('st',r1); seg('kd',r1); r1();
+
+function r2(){
+  const bk=val('bk'), after=val('when')==='after';
+  const names={deposit:['acompte'],balance:['solde'],full:['acompte','solde']}[bk];
+  const steps=n=>[['y','Répartition de l’'+n+' entre les lignes du séjour (lue par la comptabilité)'],['y','Case « '+n+' payé » + date'],['y','Le sas rend la main sur ce paiement'],['y','Date de modification du séjour']];
+  const man=names.flatMap(steps);
+  document.getElementById('fManual').innerHTML=man.map(([c,t])=>'<div class="'+c+'">'+t+'</div>').join('');
+  const onl=after?man:names.flatMap(n=>[['x','Répartition de l’'+n+' entre les lignes du séjour'],['y','Case « '+n+' payé » + date'],['x','Le sas rend la main sur ce paiement'],['x','Date de modification du séjour']]);
+  const extra=bk==='deposit'||bk==='full'?[['y','Devis converti en réservation, email de confirmation']]:[];
+  document.getElementById('fOnline').innerHTML=extra.concat(onl).map(([c,t])=>'<div class="'+c+'">'+t+'</div>').join('');
+  document.getElementById('fNote').textContent = after
+    ? 'Les deux chemins appellent la même fonction du cœur, dans une seule transaction : si la répartition échoue, rien n’est coché.'
+    : 'Aujourd’hui le paiement en ligne coche la case sans le reste : la comptabilité de ce séjour ne voit pas la répartition de l’acompte.';
+}
+seg('bk',r2); seg('when',r2); r2();
+
+let cState='open';
+function rc(){
+  const L=document.getElementById('cLocal'), R=document.getElementById('cRemote'), W=document.getElementById('cWarn');
+  if(cState==='open'){L.innerHTML='<span class="badge ok">ouvert</span>';R.textContent='payable';W.innerHTML='';}
+  if(cState==='cancelled'){L.innerHTML='<span class="badge">annulé</span>';R.textContent='désactivé';W.innerHTML='';}
+  if(cState==='pending'){L.innerHTML='<span class="badge">annulé</span> <span class="badge ko">Désactivation en attente</span>';R.textContent='encore payable';
+    W.innerHTML='<div class="warn"><b>Séjour annulé</b> — Les dates sont remises à la vente. Le lien de paiement n’a pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque vérification ; tu peux aussi le désactiver depuis Qonto.</div>';}
+  if(cState==='paidAfter'){L.innerHTML='<span class="badge">annulé</span> <span class="badge ko">payé après annulation</span>';R.textContent='payé 820,00 €';W.innerHTML='';}
+}
+document.getElementById('doCancel').onclick=()=>{
+  const log=document.getElementById('cLog');
+  if(val('qa')==='ok'){cState='cancelled';log.innerHTML='POST /api/reservations/71/cancel\n  <span class="ok">200 { "paymentLinksNotDeactivated": 0 }</span>';document.getElementById('doPoll').disabled=true;}
+  else{cState='pending';log.innerHTML='POST /api/reservations/71/cancel\n  <span class="was">200 { "paymentLinksNotDeactivated": 1, "paymentLinksWarning": "Le lien de paiement n’a pas pu…" }</span>  (l’annulation est faite quand même)';document.getElementById('doPoll').disabled=false;}
+  rc();
+};
+document.getElementById('doPoll').onclick=()=>{
+  const log=document.getElementById('cLog');
+  if(document.getElementById('guestPaid').checked){cState='paidAfter';
+    log.innerHTML+='\n\nPasse de vérification : Qonto dit que le lien est <span class="ko">payé</span>\n  rien n’est enregistré sur le séjour annulé\n  <span class="ko">Push + email : « Paiement reçu sur un lien annulé » · R-2026-071 · 820,00 € — à rembourser depuis Qonto</span>';}
+  else{cState='cancelled';log.innerHTML+='\n\nPasse de vérification : nouvel essai de désactivation\n  <span class="ok">désactivé chez Qonto, l’alerte disparaît</span>';}
+  document.getElementById('doPoll').disabled=true; rc();
+};
+document.getElementById('qa').addEventListener('click',()=>{cState='open';document.getElementById('cLog').textContent='—';document.getElementById('doPoll').disabled=true;rc();});
+seg('qa',()=>{}); rc();
+
+function ro(){
+  const i=document.getElementById('orig'), v=i.value.trim(), e=document.getElementById('origErr'), o=document.getElementById('origOut');
+  let ok=false, clean='';
+  try{const u=new URL(v);ok=(u.protocol==='https:'||u.protocol==='http:')&&(u.pathname==='/'||u.pathname==='')&&!u.search&&!u.hash;clean=u.origin;}catch(_){ok=false;}
+  if(v===''){i.classList.remove('bad');e.textContent='';o.textContent='(aucun lien vers les CGV dans les emails)';return;}
+  i.classList.toggle('bad',!ok);
+  e.textContent=ok?'':'Adresse invalide : saisis seulement le domaine, par exemple https://www.domainesolio.com';
+  o.textContent=ok?clean+'/cgv/?v=3':'—';
+}
+document.getElementById('orig').addEventListener('input',ro); ro();
+
+function ru(){
+  const er=document.getElementById('erase').checked, open=document.getElementById('openLink').checked;
+  const gone=er?['Connexion Qonto (jetons, identifiants)','Secret du webhook, abonnement webhook','État de santé de la connexion']:[];
+  const kept=['Les liens de paiement envoyés, payés ou non','Les cases acompte / solde payés et leurs dates','Les emails de demande de paiement envoyés','L’adresse du site public (cœur)'].concat(er?[]:['La connexion Qonto, prête si tu réinstalles']);
+  document.getElementById('uGone').innerHTML=gone.length?gone.map(t=>'<div class="n">'+t+'</div>').join(''):'<div class="muted">rien</div>';
+  document.getElementById('uKept').innerHTML=kept.map(t=>'<div class="y">'+t+'</div>').join('');
+  document.getElementById('uBlock').innerHTML=open?'<div class="alert">Désactivation refusée : 1 lien de paiement est en attente. Attends son paiement ou annule-le avant de désactiver.</div>':'';
+}
+document.getElementById('erase').onchange=ru; document.getElementById('openLink').onchange=ru; ru();
+</script>
+</body>
+</html>

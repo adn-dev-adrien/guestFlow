@@ -14,7 +14,6 @@ const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const ALLOWED_WRITES = [
   ['POST', /^\/properties\/\d+\/ical-sources\/(\d+\/sync|sync-all)$/],
   ['POST', /^\/google-calendar\/sync-now$/],
-  ['POST', /^\/payments\/qonto\/webhook$/],
   ['POST', /^\/payments\/poll$/],
   ['POST', /^\/payments\/reservations\/\d+\/(payment-links|payment-emails)$/],
   ['PATCH', /^\/reservations\/\d+\/payment$/],
@@ -32,12 +31,15 @@ function isAllowedWrite(method, path) {
   return ALLOWED_WRITES.some(([m, re]) => m === method && re.test(path));
 }
 
-function enforceSubscription({ isReadOnly } = {}) {
+function enforceSubscription({ isReadOnly, isWebhook } = {}) {
   const readOnly = isReadOnly || (() => require('../utils/licence').isReadOnly());
+  const webhook = isWebhook || ((method, path) => require('../plugins/loader').isWebhook(method, path));
   return function enforceSubscriptionMiddleware(req, res, next) {
     if (READ_METHODS.has(req.method)) return next();
     if (!readOnly()) return next();
     if (isAllowedWrite(req.method, req.path)) return next();
+    // A provider calling back about a payment (specs/plugins-phase-3a-online-payment.md rule 12).
+    if (webhook(req.method, req.path)) return next();
     return res.status(402).json(READ_ONLY_BODY);
   };
 }

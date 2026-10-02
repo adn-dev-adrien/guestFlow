@@ -71,8 +71,6 @@ export const ROUTE_ROLES = Object.freeze({
   // Combined menu pages (tabs over the standalone pages above).
   '/parametres/options-ressources':  [ADMIN],
   '/parametres/vacances-fermetures': [ADMIN],
-  // specs/online-payments-qonto.md — dedicated payments page (Qonto connection).
-  '/parametres/paiements':   [ADMIN],
   // specs/terms-acceptance-record.md — the CGV the site shows and the guests accept.
   '/parametres/conditions-generales': [ADMIN],
   // specs/settings-rationalization.md rule 2 — the pages split out of the former « Générale ».

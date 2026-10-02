@@ -23,6 +23,7 @@ const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const { createEmailService } = require('../utils/emailService');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 const { cancelReservation } = require('../utils/cancelReservation');
+const { deactivateAbandonedLinks } = require('../utils/paymentLinkDeactivation');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 
 // POST /api/reservations/:id/cancel — { reason?, notifyClient? }
@@ -39,6 +40,11 @@ async function cancel(req, res) {
     },
   );
   if (result.error) return res.status(result.status).json({ error: result.message, code: result.error });
+
+  // specs/plugins-phase-3a-online-payment.md rules 7, 9 — the stay is cancelled whatever the provider
+  // answers; a link it could not deactivate is retried by the poll and named to the operator.
+  const { notDeactivated } = await deactivateAbandonedLinks(result.cancelledLinks, { paymentLinksModel });
+  const providerLabel = (require('../utils/paymentProviders').declared() || {}).label || 'le prestataire de paiement';
 
   let emailSent = false;
   if (req.body && req.body.notifyClient && result.clientEmail) {
@@ -67,6 +73,10 @@ async function cancel(req, res) {
     refundId: result.refundId,
     compensationId: result.compensationId,
     emailSent,
+    paymentLinksNotDeactivated: notDeactivated,
+    paymentLinksWarning: notDeactivated > 0
+      ? `Le lien de paiement n’a pas pu être désactivé chez ${providerLabel}. GuestFlow réessaie à chaque vérification ; tu peux aussi le désactiver depuis ${providerLabel}.`
+      : null,
   });
   // Fire-and-forget, exactly like a delete: the dates are free in GuestFlow the moment the
   // transaction commits, and the plugins (Google) catch up right after.

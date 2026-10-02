@@ -25,6 +25,8 @@ function controllerFor(platform, sent) {
     reservationsModel: { getPlatform: () => platform },
     sendDepositRequest: async (id) => { sent.push(['deposit', id]); return { httpStatus: 200, body: { ok: true } }; },
     sendBalanceRequest: async (id) => { sent.push(['balance', id]); return { httpStatus: 200, body: { ok: true } }; },
+    // A payment provider is connected (specs/plugins-phase-3a-online-payment.md rule 5).
+    hasPaymentProvider: () => true,
   });
 }
 

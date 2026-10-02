@@ -1613,12 +1613,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL,
     type TEXT NOT NULL,
-    qontoPaymentLinkId TEXT,
+    providerLinkId TEXT,
     url TEXT NOT NULL DEFAULT '',
     amountCents INTEGER NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'EUR',
     status TEXT NOT NULL DEFAULT 'open',
-    qontoPaymentId TEXT,
+    providerPaymentId TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     paidAt TEXT,
     expiresAt TEXT,
@@ -1635,6 +1635,9 @@ db.exec(`
   const plCols = db.prepare('PRAGMA table_info(payment_links)').all().map((c) => c.name);
   if (!plCols.includes('lastPolledAt')) db.exec('ALTER TABLE payment_links ADD COLUMN lastPolledAt TEXT');
 }
+
+// Provider-neutral payment links (specs/plugins-phase-3a-online-payment.md rules 6, 8, 20).
+require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(db);
 
 // Bilingual templates (specs/email-language-fr-en.md): optional English subject/body. Additive +
 // idempotent; must run BEFORE the seed so fresh installs insert the EN side too.

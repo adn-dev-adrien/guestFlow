@@ -38,7 +38,7 @@ import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PluginGate from '../components/PluginGate';
 import { usePlugin } from '../hooks/usePlugins';
-import { WEBSITE_BOOKING, ONLINE_PAYMENT, NEAT } from '../constants/plugins';
+import { WEBSITE_BOOKING, NEAT } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
@@ -211,7 +211,9 @@ export default function ReservationPage() {
   const [neatBlock, setNeatBlock] = useState(null);
   // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance block, shaped by the server.
   const [cgvBlock, setCgvBlock] = useState(null);
-  const onlinePaymentOn = usePlugin(ONLINE_PAYMENT);
+  // specs/plugins-phase-3a-online-payment.md rule 18 — the payment buttons follow the server: null
+  // while no payment provider is ready.
+  const [onlinePayment, setOnlinePayment] = useState(null);
   const neatOn = usePlugin(NEAT);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   // Bumped after any server-side finance mutation the live quote depends on — un remboursement, une
@@ -869,6 +871,7 @@ export default function ReservationPage() {
           });
           setNeatBlock(res.neat || null);
           setCgvBlock(res.cgv || null);
+          setOnlinePayment(res.onlinePayment || null);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -892,6 +895,7 @@ export default function ReservationPage() {
         } else if (editingDevisId) {
           const devis = await api.getDevisById(editingDevisId);
           setCgvBlock(devis.cgv || null);
+          setOnlinePayment(devis.onlinePayment || null);
           const { options: catalogueOptions } = await loadPropertyContext(devis.propertyId, props);
 
           const allRes = await api.getReservations({ propertyId: devis.propertyId });
@@ -2489,9 +2493,13 @@ export default function ReservationPage() {
       setCancelDialogOpen(false);
       await alert({
         title: 'Séjour annulé',
-        message: result?.retainedDepositAmount > 0
-          ? `Les dates sont remises à la vente. L'acompte de ${formatCurrency(result.retainedDepositAmount)} est conservé à titre d'indemnité (hors TVA).`
-          : 'Les dates sont remises à la vente. Aucun acompte n\'avait été encaissé : rien n\'est conservé.',
+        message: [
+          result?.retainedDepositAmount > 0
+            ? `Les dates sont remises à la vente. L'acompte de ${formatCurrency(result.retainedDepositAmount)} est conservé à titre d'indemnité (hors TVA).`
+            : 'Les dates sont remises à la vente. Aucun acompte n\'avait été encaissé : rien n\'est conservé.',
+          // specs/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
+          result?.paymentLinksWarning,
+        ].filter(Boolean).join(' '),
       });
       navigateBackWithFrom(navigate, from);
     } catch (err) {
@@ -2801,7 +2809,7 @@ export default function ReservationPage() {
       // (the server recomputes from the SAVED devis).
       const saved = await handleSaveReservation(() => {});
       if (!saved) return;
-      // The server creates/reuses the Qonto link AND emails it to the client in one action.
+      // The server creates/reuses the provider's link AND emails it to the client in one action.
       const r = await api.sendPaymentRequestEmail(editingDevisId);
       const euros = formatCurrency(Number(r.amountCents || 0) / 100);
       const isDeposit = r.type === 'deposit';
@@ -2814,7 +2822,7 @@ export default function ReservationPage() {
       });
       if (check) await handleCheckDepositPayment();
     } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande de paiement (Qonto connecté ? email client renseigné ?).' });
+      await alert({ title: 'Erreur', message: e.message || `Impossible d’envoyer la demande de paiement (${onlinePayment?.label || 'paiement en ligne'} connecté ? email client renseigné ?).` });
     }
   };
 
@@ -2830,7 +2838,7 @@ export default function ReservationPage() {
       const euros = formatCurrency(Number(r.amountCents || 0) / 100);
       showSuccess(`Demande de solde envoyée — email avec le lien de paiement (${euros}) envoyé à ${r.recipientEmail || 'le client'}.`);
     } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande de solde (Qonto connecté ? email client renseigné ?).' });
+      await alert({ title: 'Erreur', message: e.message || `Impossible d’envoyer la demande de solde (${onlinePayment?.label || 'paiement en ligne'} connecté ? email client renseigné ?).` });
     }
   };
 
@@ -3044,14 +3052,15 @@ export default function ReservationPage() {
     }] : []),
     ...(isDevisMode
       ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
-    // specs/online-payments-qonto.md §3.4 — generate + send the Qonto deposit payment link for this devis.
-    ...(onlinePaymentOn && isDevisMode && editingDevisId
+    // specs/online-payments-qonto.md §3.4 — generate + send the deposit payment link for this devis,
+    // while a payment provider is ready (specs/plugins-phase-3a-online-payment.md rule 18).
+    ...(onlinePayment && isDevisMode && editingDevisId
       ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande de paiement', onClick: handleSendPaymentRequest, color: 'success' }] : []),
     // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
     // collected online but the solde is still due (reservation, positive balance, not yet paid).
     // Réservation PLATEFORME exclue : le solde est encaissé par la plateforme et nous est reversé,
     // on ne le réclame jamais au client — envoyer ce lien serait une double demande de paiement.
-    ...(onlinePaymentOn && !isDevisMode && editingReservationId && !isPlatformReservation
+    ...(onlinePayment && !isDevisMode && editingReservationId && !isPlatformReservation
       && !form.balancePaid && Number(pricingQuote?.balanceAmount || 0) > 0
       ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];

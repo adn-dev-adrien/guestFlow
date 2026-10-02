@@ -1,19 +1,21 @@
 /**
  * Public online full-payment controller (specs/public-online-payment.md §3). Two server-to-server
  * routes (the WordPress proxy calls them with the public API key):
- *   - `pay`    : create/reuse the Qonto FULL link for a public devis (availability re-checked, engine
- *                amount, return URL allowlisted) → { paymentUrl, amountCents }.
+ *   - `pay`    : create/reuse the FULL (or deposit) link for a public devis (availability re-checked,
+ *                engine amount, return URL allowlisted) → { paymentUrl, amountCents }.
  *   - `status` : on-demand poll of the devis's link → pending | paid | confirmed | conflict (+ recap).
  *
  * Confirmation itself (convert devis → block dates → confirmation email) is the shared `processPaidLink`
- * effect, driven primarily by the Qonto webhook and reconciled here on demand.
+ * effect, driven primarily by the provider's webhook and reconciled here on demand. The link comes from
+ * the active payment provider (specs/plugins-phase-3a-online-payment.md rule 4); the answers are the
+ * WordPress contract and do not change — `QONTO_API_ERROR` included, through `provider.errorCode`.
  */
 
 const db = require('../../database');
 const devisModel = require('../../models/devisModel');
 const paymentLinksModel = require('../../models/paymentLinksModel');
-const { withQonto } = require('../../utils/qontoService');
-const { resolveQontoConfig } = require('../../utils/qontoConfig');
+const paymentProviders = require('../../utils/paymentProviders');
+const { deactivateAbandonedLinks } = require('../../utils/paymentLinkDeactivation');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
@@ -28,7 +30,7 @@ const { ok, fail, failT } = require('./publicHttp');
 // Build the site success URL from the configured site origin + a caller-supplied path. Allowlisted to
 // the origin to prevent open redirects; returns '' (no redirect) when unset/invalid.
 function buildReturnUrl(returnPath) {
-  const origin = resolveQontoConfig({ settings: settingsModel }).publicSiteOrigin;
+  const origin = settingsModel.publicSiteOrigin();
   if (!origin) return '';
   const path = String(returnPath || '/').trim();
   // Only a same-origin path: must start with a single '/'. Reject protocol-relative ('//host') and full
@@ -49,8 +51,17 @@ function loadPublicDevis(id, token) {
   return { row };
 }
 
+// Without a provider plugin the routes answer the envelope they answered while online payment was off
+// (rule 5). A provider that is live but not connected still answers, and fails like it always did.
+function requireProvider(req, res, next) {
+  const provider = paymentProviders.declared();
+  if (provider) return next();
+  return res.status(404).json({ error: 'PLUGIN_INACTIVE', plugin: 'online-payment' });
+}
+
 async function pay(req, res) {
   const id = Number(req.params.id);
+  const provider = paymentProviders.declared();
   const token = req.body && req.body.token;
   const { row, error } = loadPublicDevis(id, token);
   if (error === 'not_found') return failT(res, req, 404, 'DEVIS_NOT_FOUND', 'devisNotFound');
@@ -70,7 +81,9 @@ async function pay(req, res) {
   // If the property's mode flipped between the quote and this pay, retire an open link of the OTHER
   // public type so the guest can't pay the stale one and we don't leave a dangling open link.
   const stale = paymentLinksModel.findOpenForReservation(id, linkType === 'deposit' ? 'full' : 'deposit');
-  if (stale && stale.url) paymentLinksModel.updateStatus(stale.id, 'cancelled');
+  if (stale && stale.url) {
+    await deactivateAbandonedLinks([paymentLinksModel.updateStatus(stale.id, 'cancelled')], { paymentLinksModel, providerFor: () => provider });
+  }
 
   const redirectUrl = buildReturnUrl(req.body && req.body.returnPath);
   try {
@@ -87,8 +100,9 @@ async function pay(req, res) {
       resolveItems: (_id, _type, r) => (mode === 'deposit'
         ? depositPaymentComponents(db, id, r)
         : fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)),
-      createLink: ({ title, amountCents, items, expectedTotalCents }) => withAccessToken((client, at) =>
-        client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents, redirectUrl: redirectUrl || undefined })),
+      provider,
+      redirectUrl: redirectUrl || undefined,
+      origin: 'public-payment',
     }, id, linkType);
     return ok(res, { paymentUrl: link.url, amountCents: link.amountCents, currency: 'EUR', status: link.status, paymentMode: mode });
   } catch (err) {
@@ -99,15 +113,8 @@ async function pay(req, res) {
         ? fail(res, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', err.message)
         : failT(res, req, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', 'paymentProviderError');
     }
-    return failT(res, req, 502, 'QONTO_API_ERROR', 'paymentProviderError');
+    return failT(res, req, 502, provider.errorCode, 'paymentProviderError');
   }
-}
-
-// The visitor keeps seeing the generic message (specs/qonto-settings-in-app.md §3 rule 14); the
-// failure itself is recorded by `withQonto` so it reaches the operator's Réglages → Paiements —
-// on 2026-09-06 this exact path failed for eighteen days without anyone being told.
-async function withAccessToken(fn) {
-  return withQonto({ settings: settingsModel, origin: 'public-payment' }, fn);
 }
 
 // Minimal, non-PII recap of a confirmed booking. When only the acompte was collected online (deposit
@@ -156,16 +163,16 @@ async function status(req, res) {
   const mode = resolvePublicPaymentMode(db, row.propertyId, depositPaymentCents(db, id, row));
   const link = paymentLinksModel.findOpenForReservation(id, mode)
     || paymentLinksModel.findOpenForReservation(id, mode === 'deposit' ? 'full' : 'deposit');
-  if (link && link.qontoPaymentLinkId) {
+  const provider = paymentProviders.declared();
+  if (link && link.providerLinkId && provider && link.provider === provider.id) {
     try {
       // Exempt from the poll cadence (the guest is waiting on this page), but the call still counts
-      // towards it (specs/payment-polling-fair-use.md rules 4 and 10).
+      // towards it (specs/payment-polling-fair-use.md rules 4 and 10). The provider records a failure
+      // where the operator reads it (specs/qonto-settings-in-app.md §3 rule 14).
       paymentLinksModel.touchPolled(link.id);
-      const pay = await withAccessToken((client, accessToken) => client.getPaymentLinkPayments({ accessToken, id: link.qontoPaymentLinkId }));
+      const pay = await provider.getPayment(link.providerLinkId, { origin: 'public-payment' });
       if (pay.paid) {
-        await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay.paidPayment });
-        // Insured + acompte just paid → subscribe at Neat now (neat spec rule 8). Fire-and-forget.
-        require('../neatController').kickPass('public-payment-status');
+        await processPaidLink({ ...buildPaymentEffectDeps(), link, paidPayment: pay });
         const reloaded = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(id);
         if (reloaded && reloaded.convertedReservationId) return asConfirmed(reloaded.convertedReservationId);
         return ok(res, { status: 'paid' });
@@ -175,4 +182,4 @@ async function status(req, res) {
   return ok(res, { status: 'pending' });
 }
 
-module.exports = { pay, status, __test: { buildReturnUrl } };
+module.exports = { pay, status, requireProvider, __test: { buildReturnUrl } };

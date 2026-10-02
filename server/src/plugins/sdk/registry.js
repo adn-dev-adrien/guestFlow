@@ -30,6 +30,9 @@ function emptyRecord(id) {
     onInstall: [],
     onBoot: [],
     data: null,
+    // specs/plugins-phase-3a-online-payment.md rules 4, 12.
+    paymentProvider: null,
+    webhooks: [],
   };
 }
 

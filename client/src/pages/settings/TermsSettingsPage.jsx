@@ -2,7 +2,8 @@
  * Paramètres → Conditions générales (specs/terms-acceptance-record.md §3.1, §6).
  *
  * The CGV draft (Markdown FR + EN, rendered by the server), its publication as an immutable version
- * and the published versions. Every label, date and verdict (can publish? stale facts?) comes from
+ * and the published versions, and the public site's address the CGV link is built on
+ * (specs/plugins-phase-3a-online-payment.md rule 15). Every label, date and verdict (can publish? stale facts?) comes from
  * GET /api/terms. The online enforcement belongs to the website-booking plugin: its alerts and its
  * « Réservation en ligne » card fill the slot `terms.settings` (specs/plugins-phase-2-hosts.md rule 25).
  */
@@ -22,6 +23,7 @@ import EmptyState from '../../components/EmptyState';
 import MarkdownEditorField from '../../components/MarkdownEditorField';
 import ArchivedHtmlDialog from '../../components/ArchivedHtmlDialog';
 import { useToast } from '../../components/DialogProvider';
+import PublicSiteOriginCard from '../../components/PublicSiteOriginCard';
 import Slot from '../../plugins/sdk/Slot';
 import api from '../../api';
 
@@ -261,6 +263,8 @@ export default function TermsSettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        <PublicSiteOriginCard value={overview.publicSiteOrigin} onSaved={(o) => setOverview(o)} />
 
         <Slot name="terms.settings" placement="card" currentVersion={overview.current?.version ?? null} />
       </Box>

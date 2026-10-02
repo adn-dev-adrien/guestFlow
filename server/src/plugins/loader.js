@@ -9,6 +9,7 @@
  *                        whole /public/v1 tree since specs/plugins-phase-2-hosts.md rule 23.
  *   mountApi(app)        `/api/...` mounts and single routes, after the core routers.
  *   startJobs()          the declared jobs, each tick skipped while the plugin is not live.
+ *   isWebhook(m, path)   whether the guards must let a plugin's webhook through (phase 3a rule 12).
  *   roleMatchers(role)   the allowlist entries plugins declared for a restricted role
  *                        (specs/plugins-phase-2-hosts.md rule 3); receptionMatchers() is its phase 1 form.
  */
@@ -74,6 +75,7 @@ function mountPublic(app) {
 
 function mountApi(app) {
   registry.all().forEach((record) => {
+    record.webhooks.forEach((w) => app.post(w.path, gate(record.id), w.handler));
     record.routes.forEach((r) => app[r.method](r.path, gate(record.id), ...r.handlers));
     record.mounts.filter((m) => !m.public).forEach((m) => app.use(m.path, gate(record.id), m.router));
   });
@@ -99,4 +101,11 @@ function roleMatchers(role) {
 
 const receptionMatchers = () => roleMatchers('reception');
 
-module.exports = { registerAll, migrate, runInstallHooks, mountPublic, mountApi, startJobs, roleMatchers, receptionMatchers };
+// Whether `path` (below /api, as the guards see it) is a webhook a plugin declared — the guards let it
+// through to the plugin's own authentication (specs/plugins-phase-3a-online-payment.md rule 12).
+function isWebhook(method, path) {
+  if (method !== 'POST') return false;
+  return registry.all().some((record) => record.webhooks.some((w) => w.path === `/api${path}`));
+}
+
+module.exports = { registerAll, migrate, runInstallHooks, mountPublic, mountApi, startJobs, roleMatchers, receptionMatchers, isWebhook };

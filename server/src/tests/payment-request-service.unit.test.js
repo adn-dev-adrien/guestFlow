@@ -27,23 +27,37 @@ function fakeLinksModel(db) {
     findOpenForReservation: (id, type) =>
       db.prepare("SELECT * FROM payment_links WHERE reservationId = ? AND type = ? AND status = 'open' ORDER BY id DESC LIMIT 1").get(id, type),
     create: (row) => {
-      const info = db.prepare(`INSERT INTO payment_links (reservationId, type, amountCents, qontoPaymentLinkId, url, status, expiresAt)
-                               VALUES (@reservationId, @type, @amountCents, @qontoPaymentLinkId, @url, @status, @expiresAt)`).run(row);
+      const info = db.prepare(`INSERT INTO payment_links (reservationId, type, amountCents, provider, providerLinkId, url, status, expiresAt)
+                               VALUES (@reservationId, @type, @amountCents, @provider, @providerLinkId, @url, @status, @expiresAt)`).run({ provider: 'qonto', ...row });
       return { id: Number(info.lastInsertRowid), ...row };
     },
-    updateStatus: (id, status) => { db.prepare('UPDATE payment_links SET status = ? WHERE id = ?').run(status, id); },
+    updateStatus: (id, status) => {
+      db.prepare('UPDATE payment_links SET status = ? WHERE id = ?').run(status, id);
+      return db.prepare('SELECT * FROM payment_links WHERE id = ?').get(id);
+    },
   };
 }
 
+// `createLink` keeps the Qonto client's answer shape; the provider stub adapts it the way
+// plugins/online-payment/provider.js does (specs/plugins-phase-3a-online-payment.md rule 4).
 function baseDeps(db, over = {}) {
-  return {
+  const deps = {
     database: db,
     paymentLinksModel: fakeLinksModel(db),
     resolveAmountCents: () => 9000, // 90.00 €
     createLink: async ({ amountCents }) => ({ id: 'ql_new', url: 'https://pay.qonto/ql_new', mappedStatus: 'open', expirationDate: null, amountCents }),
     sendTemplate: async () => ({ sent: true, emailLogId: 1, recipientEmail: 'jean@x.fr' }),
+    deactivateLinks: async () => ({ notDeactivated: 0 }),
     ...over,
   };
+  deps.provider = {
+    id: 'qonto',
+    createLink: async (args) => {
+      const link = await deps.createLink(args);
+      return { id: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null };
+    },
+  };
+  return deps;
 }
 
 test('ensurePaymentLink: creates a link via createLink + persists it', async () => {
@@ -55,12 +69,12 @@ test('ensurePaymentLink: creates a link via createLink + persists it', async () 
   assert.equal(link.reused, false);
   assert.equal(link.url, 'https://pay/ql_1');
   assert.equal(link.amountCents, 9000);
-  assert.ok(db.prepare('SELECT 1 FROM payment_links WHERE qontoPaymentLinkId = ?').get('ql_1'));
+  assert.ok(db.prepare('SELECT 1 FROM payment_links WHERE providerLinkId = ?').get('ql_1'));
 });
 
 test('ensurePaymentLink: reuses an open link without calling createLink', async () => {
   const { db, devisId } = seed();
-  fakeLinksModel(db).create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_open', url: 'https://pay/open', status: 'open', expiresAt: null });
+  fakeLinksModel(db).create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_open', url: 'https://pay/open', status: 'open', expiresAt: null });
   let createCalls = 0;
   const deps = baseDeps(db, { createLink: async () => { createCalls++; return {}; } });
   const link = await ensurePaymentLink(deps, devisId, 'deposit');
@@ -72,7 +86,7 @@ test('ensurePaymentLink: reuses an open link without calling createLink', async 
 test('ensurePaymentLink: an open link whose amount drifted is cancelled + a fresh link is minted at the current amount', async () => {
   const { db, devisId } = seed();
   // A stale open link for 90.00 € (e.g. before the devis was edited).
-  const stale = fakeLinksModel(db).create({ reservationId: devisId, type: 'full', amountCents: 9000, qontoPaymentLinkId: 'ql_stale', url: 'https://pay/stale', status: 'open', expiresAt: null });
+  const stale = fakeLinksModel(db).create({ reservationId: devisId, type: 'full', amountCents: 9000, providerLinkId: 'ql_stale', url: 'https://pay/stale', status: 'open', expiresAt: null });
   let createArgs = null;
   const deps = baseDeps(db, { resolveAmountCents: () => 12000, createLink: async (a) => { createArgs = a; return { id: 'ql_fresh', url: 'https://pay/fresh', mappedStatus: 'open' }; } });
 

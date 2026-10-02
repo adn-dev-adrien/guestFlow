@@ -6,12 +6,12 @@ const { bookingRequestLimiter, paymentStatusLimiter } = sdk.coreModule('rateLimi
 const ctrl = require('../controllers/publicBookingRequestController');
 const { closedWhenReadOnly } = sdk.coreModule('enforceSubscription');
 
-// Online full-payment for a public devis (specs/public-online-payment.md §3) stays a core handler of
-// online-payment until phase 3 (specs/plugins-phase-2-hosts.md rule 23): it needs both plugins. Both
-// routes require the per-devis capability token (§7); /status is throttled tighter than the broad
-// public limiter.
+// Online payment for a public devis (specs/public-online-payment.md §3) is the core's provider-neutral
+// money path: it answers while a payment provider plugin is live (specs/plugins-phase-3a-online-payment.md
+// rule 5). Both routes require the per-devis capability token (§7); /status is throttled tighter than
+// the broad public limiter.
 const payCtrl = sdk.coreModule('publicPaymentController');
-const requireOnlinePayment = sdk.coreModule('requirePlugin')('online-payment');
+const requireOnlinePayment = payCtrl.requireProvider;
 
 router.post('/', bookingRequestLimiter, closedWhenReadOnly(), ctrl.create);
 router.post('/:id/pay', bookingRequestLimiter, requireOnlinePayment, payCtrl.pay);
