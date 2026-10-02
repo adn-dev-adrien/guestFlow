@@ -21,15 +21,17 @@ function loadArrivalComplementDetail(database, reservationId) {
   }
 }
 
-// specs/terms-acceptance-record.md rule 26 — the CGV version `{{cgvUrl}}` points at: the one the guest
-// accepted, else the current one, else null. Guarded like the loader above: a minimal/legacy schema
-// without the CGV tables simply yields no link.
+// specs/terms-acceptance-record.md rules 26 and 29 — the CGV version `{{cgvUrl}}` points at: the one the
+// guest accepted (on the stay, or on the devis it was converted from), else the current one, else null.
+// Guarded like the loader above: a minimal/legacy schema without the CGV tables simply yields no link.
 function loadTermsVersion(database, reservationId) {
   try {
     const accepted = database.prepare(`
       SELECT v.version FROM terms_acceptances a JOIN terms_versions v ON v.id = a.termsVersionId
-       WHERE a.reservationId = ? ORDER BY a.id DESC LIMIT 1
-    `).get(Number(reservationId));
+       WHERE a.reservationId = @id
+          OR a.reservationId IN (SELECT id FROM reservations WHERE convertedReservationId = @id)
+       ORDER BY a.id DESC LIMIT 1
+    `).get({ id: Number(reservationId) });
     if (accepted) return accepted.version;
     const current = database.prepare('SELECT MAX(version) AS v FROM terms_versions').get();
     return current && current.v ? current.v : null;

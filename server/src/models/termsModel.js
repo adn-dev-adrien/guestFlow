@@ -42,7 +42,8 @@ function createTermsModel(database) {
     SELECT a.*, v.version, v.publishedAt, v.contentHash
       FROM terms_acceptances a
       JOIN terms_versions v ON v.id = a.termsVersionId
-     WHERE a.reservationId = ?
+     WHERE a.reservationId = @id
+        OR a.reservationId IN (SELECT id FROM reservations WHERE convertedReservationId = @id)
      ORDER BY a.id DESC
      LIMIT 1
   `));
@@ -104,8 +105,11 @@ function createTermsModel(database) {
         pluginVersion: row.pluginVersion || null,
       });
     },
+    // A website request is a devis; converting it inserts a new reservation row, and the acceptance
+    // stays on the devis (append-only, rule 19). The stay therefore reads its devis's acceptance
+    // (rule 29).
     findAcceptanceByReservation(reservationId) {
-      return acceptanceByReservationStmt().get(reservationId) || null;
+      return acceptanceByReservationStmt().get({ id: Number(reservationId) }) || null;
     },
   };
 }
