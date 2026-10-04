@@ -21,7 +21,7 @@ function buildInvoicesModel(db) {
   const failureStmt = db.prepare('INSERT OR IGNORE INTO payment_failures (providerPaymentId, invoiceId, status, at) VALUES (?, ?, ?, ?)');
   const recentFailuresStmt = db.prepare(`SELECT f.*, i.customerId, i.number FROM payment_failures f JOIN invoices i ON i.id = f.invoiceId
     WHERE f.at >= ? ORDER BY f.at`);
-  const markPaidStmt = db.prepare("UPDATE invoices SET status = 'paid', paidAt = @paidAt, paidBy = @paidBy WHERE id = @id AND status = 'open'");
+  const markPaidStmt = db.prepare("UPDATE invoices SET status = 'paid', paidAt = @paidAt, paidBy = @paidBy WHERE id = @id AND status IN ('open', 'pending')");
 
   return {
     insert: (invoice) => Number(insertStmt.run({
@@ -38,7 +38,8 @@ function buildInvoicesModel(db) {
     // Rule 34: a failed attempt is recorded once, whatever the number of passes that see it.
     recordFailure: ({ providerPaymentId, invoiceId, status, at }) => failureStmt.run(providerPaymentId, invoiceId, status, at).changes === 1,
     failuresSince: (at) => recentFailuresStmt.all(at),
-    // Once only: the second detection of the same payment (webhook, then poll) changes nothing.
+    // Once only: the second detection of the same payment (webhook, then poll) changes nothing. A
+    // pending invoice can be settled too, by a payment recorded by hand (rule 34).
     markPaid: ({ id, paidAt, paidBy }) => markPaidStmt.run({ id, paidAt, paidBy }).changes === 1,
   };
 }

@@ -2,9 +2,12 @@
  * Operator login and second factor (specs/control-plane-plans-and-access.md rule 31).
  *
  * Login is two steps: the password opens a *pending* session; the second factor — a TOTP code, an
- * email code or a backup code — turns it into an operator session. Five wrong answers in a row lock
- * the account for 15 minutes. Changing the method takes effect only once a code of the new method
- * is typed, and issues 10 fresh backup codes, shown once.
+ * email code or a backup code — turns it into an operator session. Five wrong codes in a row lock
+ * the account for 15 minutes. Only the second factor counts: a wrong password locks nothing, so
+ * knowing an operator's email is not enough to lock them out (the per-IP limit slows guessing), and
+ * an unknown email and a wrong password answer the same. Changing the method takes the password,
+ * takes effect only once a code of the new method is typed, and issues 10 fresh backup codes, shown
+ * once and stored with the password hash.
  */
 
 const crypto = require('crypto');
@@ -20,6 +23,9 @@ const BACKUP_CODES = 10;
 const BACKUP_RE = /^[a-z0-9]{5}-[a-z0-9]{5}$/;
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+// Spends the same time on an unknown email as on a known one.
+const DUMMY_HASH = passwordHash.hashPassword(crypto.randomBytes(16).toString('hex'));
+const LEGACY_BACKUP_HASH = /^[0-9a-f]{64}$/;
 const sixDigits = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 const backupCode = () => {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -66,12 +72,19 @@ function createAuthController(ctx) {
     return ok;
   }
 
+  // Codes stored before 2026-10-04 are plain SHA-256; they keep working until used.
   function useBackupCode(op, code) {
     const hashes = JSON.parse(op.backupCodes || '[]');
-    const h = sha256(String(code).trim().toLowerCase());
-    if (!hashes.includes(h)) return false;
-    operators.setBackupCodes(op.id, JSON.stringify(hashes.filter((x) => x !== h)));
+    const value = String(code).trim().toLowerCase();
+    const match = hashes.find((h) => (LEGACY_BACKUP_HASH.test(h) ? h === sha256(value) : passwordHash.verifyPassword(value, h)));
+    if (!match) return false;
+    operators.setBackupCodes(op.id, JSON.stringify(hashes.filter((x) => x !== match)));
     return true;
+  }
+
+  function useTotp(op, secret, code) {
+    const step = totp.matchTotpStep(secrets.decrypt(secret), code, now());
+    return step !== null && operators.useTotpStep(op.id, step);
   }
 
   function secondStep(op) {
@@ -87,12 +100,10 @@ function createAuthController(ctx) {
   // Step 1 → { operatorId (for the session's pending slot), step payload }
   async function login({ email, password }) {
     const op = operators.byEmail(email);
-    if (!op) throw httpError(401, 'BAD_CREDENTIALS', 'Email ou mot de passe incorrect.');
-    assertNotLocked(op);
-    if (!passwordHash.verifyPassword(String(password || ''), op.passwordHash)) {
-      fail(op);
+    if (!passwordHash.verifyPassword(String(password || ''), op ? op.passwordHash : DUMMY_HASH) || !op) {
       throw httpError(401, 'BAD_CREDENTIALS', 'Email ou mot de passe incorrect.');
     }
+    assertNotLocked(op);
     if (op.mfaMethod === 'email') await sendEmailCode(op, 'login');
     return { operatorId: op.id, payload: secondStep(op) };
   }
@@ -106,7 +117,7 @@ function createAuthController(ctx) {
     let ok = false;
     let usedBackup = false;
     if (BACKUP_RE.test(value)) ok = usedBackup = useBackupCode(op, value);
-    else if (op.mfaMethod === 'totp') ok = Boolean(op.totpSecret) && totp.verifyTotp(secrets.decrypt(op.totpSecret), value, now());
+    else if (op.mfaMethod === 'totp') ok = Boolean(op.totpSecret) && useTotp(op, op.totpSecret, value);
     else ok = checkEmailCode(op, value);
     if (!ok) {
       fail(op);
@@ -146,9 +157,13 @@ function createAuthController(ctx) {
     return publicOperator(op);
   }
 
-  // Profile: start switching to a method; nothing changes until `confirmMethod`.
-  async function startMethod(operatorId, { method }) {
+  // Profile: start switching to a method; nothing changes until `confirmMethod`. The password is
+  // asked again: a stolen session cookie alone must not be enough to take the account over.
+  async function startMethod(operatorId, { method, password }) {
     const op = operators.byId(operatorId);
+    if (!passwordHash.verifyPassword(String(password || ''), op.passwordHash)) {
+      throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect : la méthode actuelle reste en place.');
+    }
     if (method === 'totp') {
       const secret = totp.generateSecret();
       operators.setPending(op.id, 'totp', secrets.encrypt(secret));
@@ -174,9 +189,16 @@ function createAuthController(ctx) {
     const ok = op.pendingMethod === 'totp'
       ? totp.verifyTotp(secrets.decrypt(op.pendingTotpSecret), code, now())
       : checkEmailCode(op, code);
-    if (!ok) throw httpError(400, 'BAD_CODE', 'Code incorrect : la méthode actuelle reste en place.');
+    if (!ok) {
+      operators.recordPendingFailure(op.id);
+      if (operators.byId(op.id).pendingFailures >= MAX_FAILURES) {
+        operators.dropPending(op.id);
+        throw httpError(429, 'TOO_MANY_CODES', 'Trop de codes incorrects : le changement est annulé, la méthode actuelle reste en place.');
+      }
+      throw httpError(400, 'BAD_CODE', 'Code incorrect : la méthode actuelle reste en place.');
+    }
     const codes = Array.from({ length: BACKUP_CODES }, backupCode);
-    operators.activatePending(op.id, JSON.stringify(codes.map(sha256)));
+    operators.activatePending(op.id, JSON.stringify(codes.map((c) => passwordHash.hashPassword(c))));
     const fresh = operators.byId(op.id);
     return {
       operator: publicOperator(fresh),

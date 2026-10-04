@@ -120,7 +120,7 @@ function makeContext({ at = '2026-09-29T10:00:00Z', firstAdmin, qonto } = {}) {
       return firstAdmin ? firstAdmin(args) : { created: true, temporaryPassword: 'Tmp-Passw0rd' };
     },
   });
-  return { ctx, root, dataDir, now, mailer, publicKey, firstAdminCalls, cleanup() {
+  return { ctx, root, dataDir, exportsDir: ctx.exportsDir, now, mailer, publicKey, firstAdminCalls, cleanup() {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(dataDir, { recursive: true, force: true });
   } };

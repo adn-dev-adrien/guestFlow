@@ -81,6 +81,9 @@ export default function LoginPage({ onSignedIn }) {
                 <Link component="button" type="button" onClick={() => { setBackup(!backup); setCode(''); }} sx={{ minHeight: 44 }}>
                   {backup ? 'Revenir au code' : 'Utiliser un code de secours'}
                 </Link>
+                <Link component="button" type="button" onClick={() => { setStep(null); setCode(''); setBackup(false); setError(''); setInfo(''); }} sx={{ minHeight: 44 }}>
+                  Changer d’email
+                </Link>
               </Stack>
             </Stack>
           )}

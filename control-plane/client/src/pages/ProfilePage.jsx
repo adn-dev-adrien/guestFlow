@@ -1,6 +1,7 @@
 /**
- * The operator's profile: the second factor (specs/control-plane-plans-and-access.md rule 31). The
- * new method takes effect once its code is typed, and its 10 backup codes are shown once.
+ * The operator's profile: the second factor (specs/control-plane-plans-and-access.md rule 31).
+ * Changing it takes the password; the new method takes effect once its code is typed, and its 10
+ * backup codes are shown once.
  */
 import React, { useState } from 'react';
 import { Box, Button, Card, CardContent, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
@@ -14,13 +15,15 @@ export default function ProfilePage({ operator, onChanged }) {
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState('');
   const [codes, setCodes] = useState(null);
+  const [password, setPassword] = useState('');
 
   async function start(method) {
     if (!method) return;
     setCodes(null);
     setCode('');
     try {
-      setSetup(await api.mfaStart(method));
+      setSetup(await api.mfaStart(method, password));
+      setPassword('');
     } catch (err) {
       showError(err.message);
     }
@@ -52,7 +55,11 @@ export default function ProfilePage({ operator, onChanged }) {
               { label: 'Codes de secours restants', value: String(operator.backupCodesLeft) },
             ]} />
             <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>Changer de méthode :</Typography>
-            <ToggleButtonGroup exclusive value={setup ? setup.method : null} onChange={(e, v) => start(v)} sx={{ flexWrap: 'wrap' }}>
+            {!setup && (
+              <TextField label="Mot de passe actuel" type="password" autoComplete="current-password" value={password}
+                onChange={(e) => setPassword(e.target.value)} fullWidth sx={{ mb: 1.5, maxWidth: 360 }} />
+            )}
+            <ToggleButtonGroup exclusive value={setup ? setup.method : null} onChange={(e, v) => start(v)} disabled={!setup && !password} sx={{ flexWrap: 'wrap' }}>
               <ToggleButton value="totp" sx={{ minHeight: 44 }}>Appli d’authentification</ToggleButton>
               <ToggleButton value="email" sx={{ minHeight: 44 }}>Code par email</ToggleButton>
             </ToggleButtonGroup>

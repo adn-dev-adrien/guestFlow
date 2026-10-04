@@ -84,7 +84,11 @@ export default function FleetPage() {
         {alerts.length > 0 && (
           <Stack spacing={1} aria-label="À traiter aujourd’hui">
             {alerts.map((a, i) => (
-              <Alert key={i} severity={a.severity} onClick={() => navigate(a.link || `/clients/${a.customerId}`)} sx={{ cursor: 'pointer' }}>{a.text}</Alert>
+              <Alert key={i} severity={a.severity} role="button" tabIndex={0} sx={{ cursor: 'pointer' }}
+                onClick={() => navigate(a.link || `/clients/${a.customerId}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(a.link || `/clients/${a.customerId}`); } }}>
+                {a.text}
+              </Alert>
             ))}
           </Stack>
         )}

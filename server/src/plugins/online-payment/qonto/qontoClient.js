@@ -268,7 +268,9 @@ function buildQontoClient(config = {}) {
 
     // A company client carrying what Qonto requires before it will invoice it: address, currency and
     // locale.
-    async createClient({ accessToken, name, email, street, postcode, city, countryCode = 'FR', vatNumber }) {
+    // `idempotencyKey`: the caller's own, stable across retries of the same creation, so a call
+    // repeated after a lost answer gets the object Qonto already made (control plane rule 17).
+    async createClient({ accessToken, name, email, street, postcode, city, countryCode = 'FR', vatNumber, idempotencyKey }) {
       const payload = {
         kind: 'company',
         name: String(name),
@@ -278,7 +280,8 @@ function buildQontoClient(config = {}) {
         billing_address: { street_address: String(street), zip_code: String(postcode), city: String(city), country_code: String(countryCode) },
         ...(vatNumber ? { vat_number: String(vatNumber) } : {}),
       };
-      const json = await send(`${apiBase}/v2/clients`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) }, 'create client');
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
+      const json = await send(`${apiBase}/v2/clients`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create client');
       const c = json.client || json;
       return { id: c.id, raw: c };
     },
@@ -286,7 +289,7 @@ function buildQontoClient(config = {}) {
     // An `unpaid` (finalised, numbered) invoice. `items` carry HT cents and a VAT rate in percent;
     // Qonto takes the rate as a decimal string ("0.2" for 20 %). Same money guard as the payment
     // links: the total Qonto computed must be the total we mean to charge.
-    async createClientInvoice({ accessToken, clientId, issueDate, dueDate, performanceStart, performanceEnd, items, iban, expectedTotalCents, currency = 'EUR' }) {
+    async createClientInvoice({ accessToken, clientId, issueDate, dueDate, performanceStart, performanceEnd, items, iban, expectedTotalCents, currency = 'EUR', idempotencyKey }) {
       const wireItems = items.map((it) => ({
         title: String(it.title).slice(0, 40),
         ...(it.description ? { description: String(it.description) } : {}),
@@ -305,7 +308,7 @@ function buildQontoClient(config = {}) {
         payment_methods: { iban: String(iban) },
         items: wireItems,
       };
-      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
       const json = await send(`${apiBase}/v2/client_invoices`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create client invoice');
       const inv = mapInvoice(json.client_invoice || json);
       if (expectedTotalCents != null && inv.totalCents != null && inv.totalCents !== Math.round(Number(expectedTotalCents))) {
@@ -330,7 +333,7 @@ function buildQontoClient(config = {}) {
     },
 
     // A payment link attached to an invoice: Qonto takes the invoice's number, debtor and amount.
-    async createInvoicePaymentLink({ accessToken, invoiceId, invoiceNumber, debitorName, amountCents, currency = 'EUR', paymentMethods = ['credit_card', 'apple_pay'] }) {
+    async createInvoicePaymentLink({ accessToken, invoiceId, invoiceNumber, debitorName, amountCents, currency = 'EUR', paymentMethods = ['credit_card', 'apple_pay'], idempotencyKey }) {
       const payload = {
         payment_link: {
           invoice_id: String(invoiceId),
@@ -340,7 +343,7 @@ function buildQontoClient(config = {}) {
           potential_payment_methods: paymentMethods,
         },
       };
-      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
       const json = await send(`${apiBase}/v2/payment_links`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create invoice payment link');
       const link = json.payment_link || json;
       return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };

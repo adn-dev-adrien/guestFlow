@@ -28,7 +28,7 @@ const api = {
   verify: (code) => request('POST', '/api/auth/verify', { code }),
   resend: () => request('POST', '/api/auth/resend', {}),
   logout: () => request('POST', '/api/auth/logout', {}),
-  mfaStart: (method) => request('POST', '/api/auth/mfa/start', { method }),
+  mfaStart: (method, password) => request('POST', '/api/auth/mfa/start', { method, password }),
   mfaConfirm: (code) => request('POST', '/api/auth/mfa/confirm', { code }),
 
   alerts: () => request('GET', '/api/alerts'),
@@ -52,6 +52,7 @@ const api = {
   remindPreview: (id) => request('POST', `/api/customers/${id}/remind`, { preview: true }),
   remind: (id) => request('POST', `/api/customers/${id}/remind`, {}),
   checkPayment: (id) => request('POST', `/api/customers/${id}/check-payment`, {}),
+  retryInvoice: (id) => request('POST', `/api/customers/${id}/invoice/retry`, {}),
   sendEmail: (id) => request('POST', `/api/emails/${id}/send`, {}),
   ignoreEmail: (id) => request('POST', `/api/emails/${id}/ignore`, {}),
 
@@ -61,7 +62,7 @@ const api = {
 
   catalogue: () => request('GET', '/api/catalogue'),
   toggleCell: (lowest, pluginId, planCode) => request('POST', '/api/catalogue/toggle', { lowest, pluginId, planCode }),
-  catalogueImpact: (lowest) => request('POST', '/api/catalogue/impact', { lowest }),
+  catalogueImpact: (draft) => request('POST', '/api/catalogue/impact', draft),
   saveCatalogue: (body) => request('PUT', '/api/catalogue', body),
 };
 

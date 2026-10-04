@@ -62,8 +62,15 @@ function createLicenceIssuer({ privateKey, instances }) {
       if (!fs.existsSync(dir)) return { written: false, reason: `Dossier de l’instance introuvable (${dir}).` };
       const file = path.join(dir, gfLicence.FILE_NAME);
       const tmp = `${file}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, token, { mode: 0o640 });
-      fs.renameSync(tmp, file);
+      // A directory the console cannot write (rights, full disk) is a failed step, never an
+      // exception: the daily run must go on with the other customers.
+      try {
+        fs.writeFileSync(tmp, token, { mode: 0o640 });
+        fs.renameSync(tmp, file);
+      } catch (err) {
+        fs.rmSync(tmp, { force: true });
+        return { written: false, reason: `Écriture impossible dans ${dir} (${err.code || err.message}).` };
+      }
       return { written: true, path: file };
     },
   };

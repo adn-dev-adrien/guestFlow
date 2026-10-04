@@ -59,3 +59,11 @@ it('rule 31 — a lockout goes back to the password step with its message', asyn
   expect(await screen.findByText('Trop d’essais : réessayez après 10:15.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Se connecter' })).toBeInTheDocument();
 });
+
+it('rule 31 — « Changer d’email » goes back to the first step', async () => {
+  api.login.mockResolvedValue({ step: 'second-factor', method: 'email', message: 'Un code a été envoyé.' });
+  show();
+  signIn();
+  fireEvent.click(await screen.findByRole('button', { name: 'Changer d’email' }));
+  expect(screen.getByRole('button', { name: 'Se connecter' })).toBeInTheDocument();
+});

@@ -12,6 +12,9 @@ function buildProvisioningModel(db) {
   const insertExportStmt = db.prepare('INSERT INTO exports (token, customerId, path, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?)');
   const getExportStmt = db.prepare('SELECT * FROM exports WHERE token = ?');
   const latestExportStmt = db.prepare('SELECT * FROM exports WHERE customerId = ? ORDER BY createdAt DESC LIMIT 1');
+  const exportsOfStmt = db.prepare('SELECT * FROM exports WHERE customerId = ?');
+  const expiredStmt = db.prepare('SELECT * FROM exports WHERE expiresAt < ?');
+  const expireExportStmt = db.prepare('UPDATE exports SET expiresAt = ? WHERE token = ? AND expiresAt > ?');
   return {
     set: (customerId, step, status, detail, at) => upsertStmt.run(customerId, step, status, detail || '', at),
     list: (customerId) => listStmt.all(customerId),
@@ -21,6 +24,10 @@ function buildProvisioningModel(db) {
     addExport: ({ token, customerId, path, createdAt, expiresAt }) => insertExportStmt.run(token, customerId, path, createdAt, expiresAt),
     getExport: (token) => getExportStmt.get(token) || null,
     latestExport: (customerId) => latestExportStmt.get(customerId) || null,
+    exportsOf: (customerId) => exportsOfStmt.all(customerId),
+    expiredExports: (day) => expiredStmt.all(day),
+    // The row stays, so its link answers « expiré » (410) rather than « inconnu ».
+    expireExport: (token, day) => expireExportStmt.run(day, token, day),
   };
 }
 

@@ -7,6 +7,7 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
 const { stateOf, daysLeft, renewedEndsAt, STATE_LABELS } = require('../utils/lifecycle');
 const { parisDay, addDays, addMonths, isDay, frDay, frStamp } = require('../utils/days');
 const { KINDS } = require('../utils/templates');
@@ -74,6 +75,27 @@ function createCustomersController(ctx) {
 
   // Rule 21 with rule 22: an old slug stays taken while it still redirects.
   const slugTaken = (slug) => customers.slugTaken(slug) || directory.aliasTaken(slug, today());
+
+  // Rule 22: until the operator ticks « Dossier renommé… », the instance still runs from its old
+  // directory and answers at its old address.
+  function renamePending(c) {
+    const row = provisioning.get(c.id, 'rename');
+    return Boolean(row && row.status === 'todo');
+  }
+
+  function servedSlug(c) {
+    if (!renamePending(c)) return c.slug;
+    const alias = directory.aliasesOf(c.id, today())[0];
+    return alias ? alias.slug : c.slug;
+  }
+
+  // An action that moves the end date carries the end date the operator was looking at: a second
+  // click, or a second tab, finds it changed and is refused instead of counting twice.
+  function assertExpectedEndsAt(c, body) {
+    if (String((body || {}).expectedEndsAt || '') !== c.endsAt) {
+      throw httpError(409, 'STALE', 'L’échéance de ce client vient de changer : rechargez la page avant de recommencer.');
+    }
+  }
 
   function journal(customerId, operator, kind, text) {
     audit.log({ at: stamp(), day: today(), operator, customerId, kind, text });
@@ -172,8 +194,16 @@ function createCustomersController(ctx) {
     return result;
   }
 
-  function reissueAll(operator) {
-    return customers.list().filter((c) => !c.erasedAt).map((c) => refresh(c.id, operator));
+  // One customer's failure never stops the others.
+  function reissueAll(operator, log = (msg) => console.log(msg)) {
+    return customers.list().filter((c) => !c.erasedAt).map((c) => {
+      try {
+        return refresh(c.id, operator);
+      } catch (err) {
+        log(`[licence] ${c.slug}: ${err.message}`);
+        return null;
+      }
+    });
   }
 
   async function runFirstAdminStep(id) {
@@ -232,7 +262,8 @@ function createCustomersController(ctx) {
     const plan = catalogue.plan(c.planCode);
     const archived = Boolean(c.archivedAt);
     const forced = c.forceActiveUntil && day <= c.forceActiveUntil;
-    const openInvoice = invoices.unsettled(c.id).find((i) => i.status === 'open') || null;
+    const unsettled = invoices.unsettled(c.id)[0] || null;
+    const openInvoice = unsettled && unsettled.status === 'open' ? unsettled : null;
     return {
       id: c.id,
       slug: c.slug,
@@ -305,19 +336,21 @@ function createCustomersController(ctx) {
         error: e.error,
       })),
       plans: catalogue.plans().map((p) => ({ code: p.code, name: p.name, addonChoices: addonChoices(p.code) })),
-      paymentPreview: archived ? [] : (openInvoice ? [openInvoice.months] : [1, 12]).map((months) => {
+      paymentPreview: archived ? [] : (unsettled ? [unsettled.months] : [1, 12]).map((months) => {
         const endsAt = renewedEndsAt(c.endsAt, months, day);
         const after = stateOf({ ...c, endsAt, forceActiveUntil: null }, day);
         const from = c.endsAt > day ? 'la période s’ajoute à l’échéance actuelle' : 'l’échéance est passée : la période part d’aujourd’hui';
-        const closes = openInvoice ? `Solde la facture ${openInvoice.number} et désactive son lien de paiement ; rapprochez le virement dans Qonto. ` : '';
+        const closes = unsettled
+          ? `Solde la facture ${unsettled.number || 'en préparation'}${unsettled.payLinkId ? ' et désactive son lien de paiement' : ''} ; rapprochez le virement dans Qonto. `
+          : '';
         return {
           months,
-          amount: openInvoice ? `${euros(openInvoice.amountCents)} HT` : `${euros(monthlyPriceCents(c) * months)} HT`,
+          amount: unsettled ? `${euros(unsettled.amountCents)} HT` : `${euros(monthlyPriceCents(c) * months)} HT`,
           text: `${closes}Nouvelle échéance : ${frDay(endsAt)} (${from}). État : ${STATE_LABELS[after]}.`,
         };
       }),
       defaults: {
-        paymentMonths: openInvoice ? openInvoice.months : c.periodMonths,
+        paymentMonths: unsettled ? unsettled.months : c.periodMonths,
         extendTo: addDays(c.endsAt, 15),
         forceActiveUntil: addDays(day, FORCE_ACTIVE_DEFAULT_DAYS),
       },
@@ -327,15 +360,18 @@ function createCustomersController(ctx) {
         forceActive: !archived,
         changePlan: !archived,
         downloadLicence: true,
-        deprovision: !archived,
+        deprovision: !archived && !renamePending(c),
+        deprovisionHint: renamePending(c) ? 'Terminez d’abord le changement d’adresse (dossier renommé).' : null,
         reactivate: archived,
         rename: !archived,
         cancelErase: archived && Boolean(c.eraseAt),
-        eraseNow: archived,
+        eraseNow: archived && stopped(c),
+        eraseHint: archived && !stopped(c) ? 'Cochez d’abord « Processus et route arrêtés ».' : null,
         editBilling: !archived,
         remind: !archived && Boolean(openInvoice),
         remindHint: openInvoice ? null : 'Aucune facture ouverte à relancer.',
         checkPayment: Boolean(openInvoice) && qonto.ready(),
+        retryInvoice: Boolean(unsettled && unsettled.status === 'pending' && unsettled.held) && qonto.ready(),
       },
     };
   }
@@ -343,6 +379,7 @@ function createCustomersController(ctx) {
   function invoiceDetail(i) {
     if (i.provider === 'manual') return i.providerRef ? `Enregistré à la main « ${i.providerRef} »` : 'Enregistré à la main';
     if (i.status === 'pending') return i.lastError || 'Création dans Qonto à la prochaine passe.';
+    if (i.status === 'paid' && i.paidBy === 'manual' && !i.payLinkId) return `Soldée à la main le ${frStamp(i.paidAt)}`;
     if (i.status === 'paid') return i.paidBy === 'manual' ? `Soldée à la main le ${frStamp(i.paidAt)}, lien désactivé` : `Payée le ${frStamp(i.paidAt)}`;
     return '';
   }
@@ -359,7 +396,7 @@ function createCustomersController(ctx) {
     const day = today();
     const plans = catalogue.plans();
     const rows = customers.list().map((c) => {
-      const facts = instances.readFacts(c.slug);
+      const facts = instances.readFacts(servedSlug(c));
       return {
         id: c.id,
         slug: c.slug,
@@ -501,6 +538,8 @@ function createCustomersController(ctx) {
       if (action !== 'done' && action !== 'undo') throw httpError(400, 'INVALID', 'Action inconnue.');
       provisioning.set(c.id, step, action === 'done' ? 'ok' : 'todo', '', stamp());
       journal(c.id, operator, 'step', `Étape « ${def.label} » ${action === 'done' ? 'marquée faite' : 'rouverte'}`);
+      // The directory now exists under the new slug: the licence can land there.
+      if (step === 'rename' && action === 'done') refresh(c.id, operator);
     } else {
       if (action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
       if (step === 'licence') issueLicence(c.id);
@@ -516,6 +555,7 @@ function createCustomersController(ctx) {
   function recordPayment(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    assertExpectedEndsAt(c, body);
     const months = Number(body.months);
     if (months !== 1 && months !== 12) throw httpError(400, 'INVALID', 'Durée payée : 1 ou 12 mois.');
     const reference = String(body.reference || '').trim();
@@ -590,6 +630,7 @@ function createCustomersController(ctx) {
   function extend(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    assertExpectedEndsAt(c, body);
     const reason = requireReason(body);
     if (!isDay(body.endsAt) || body.endsAt <= c.endsAt) throw httpError(400, 'INVALID', 'La nouvelle date doit suivre l’échéance actuelle.');
     customers.setEndsAt(c.id, body.endsAt);
@@ -669,6 +710,7 @@ function createCustomersController(ctx) {
   async function deprovision(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
+    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Terminez d’abord le changement d’adresse : le dossier de l’instance porte encore l’ancien nom.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
 
     // 1. The export. A failure stops here: nothing is archived without its data safe.
@@ -703,9 +745,10 @@ function createCustomersController(ctx) {
     const c = mustGet(id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Ce client n’est pas archivé.');
     customers.unarchive(c.id);
+    dropExports(c.id);
     provisioning.clear(c.id, 'deprov-');
     provisioning.set(c.id, 'restart', 'todo', '', stamp());
-    journal(c.id, operator, 'reactivate', 'Réactivé depuis son dossier ; effacement annulé');
+    journal(c.id, operator, 'reactivate', 'Réactivé depuis son dossier ; effacement annulé, export et son lien supprimés');
     refresh(c.id, operator);
     return view(c.id);
   }
@@ -718,9 +761,33 @@ function createCustomersController(ctx) {
     return view(c.id);
   }
 
+  // Rule 20: an instance is erased only once its process and route are stopped.
+  function stopped(c) {
+    const row = provisioning.get(c.id, 'deprov-stop');
+    return Boolean(row && row.status === 'ok');
+  }
+
+  // The export archives hold the whole database: they go with the link (rule 20).
+  function dropExports(customerId) {
+    for (const exp of provisioning.exportsOf(customerId)) {
+      fs.rmSync(exp.path, { force: true });
+      provisioning.expireExport(exp.token, addDays(today(), -1));
+    }
+  }
+
+  function purgeExpiredExports() {
+    const expired = provisioning.expiredExports(today()).filter((exp) => fs.existsSync(exp.path));
+    for (const exp of expired) {
+      fs.rmSync(exp.path, { force: true });
+      journal(exp.customerId, 'système', 'deprovision', 'Archive d’export supprimée : son lien de 30 jours a expiré');
+    }
+    return expired.length;
+  }
+
   function eraseNow(id, body, operator) {
     const c = mustGet(id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
+    if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', 'Cochez d’abord « Processus et route arrêtés » : on n’efface pas une instance qui tourne.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     return erase(c.id, operator);
   }
@@ -728,14 +795,20 @@ function createCustomersController(ctx) {
   function erase(id, operator) {
     const c = customers.get(id);
     eraseInstance({ instances, slug: c.slug });
+    dropExports(c.id);
     customers.markErased(c.id, stamp());
     directory.removeCustomer(c.id);
-    journal(c.id, operator, 'erase', 'Données et dossier de l’instance effacés ; l’adresse est de nouveau libre');
+    journal(c.id, operator, 'erase', 'Données, dossier de l’instance et archive d’export effacés ; l’adresse est de nouveau libre');
     return { erased: true, id: c.id };
   }
 
+  // A customer whose process is not marked stopped waits, and the alerts say so.
   function eraseDue(operator) {
-    return customers.dueForErasure(today()).map((id) => erase(id, operator));
+    return customers.dueForErasure(today()).filter((id) => stopped(customers.get(id))).map((id) => erase(id, operator));
+  }
+
+  function erasureBlocked() {
+    return customers.dueForErasure(today()).map((id) => customers.get(id)).filter((c) => !stopped(c));
   }
 
   return {
@@ -761,6 +834,10 @@ function createCustomersController(ctx) {
     cancelErase,
     eraseNow,
     eraseDue,
+    erasureBlocked,
+    purgeExpiredExports,
+    assertExpectedEndsAt,
+    servedSlug,
     monthlyPriceCents,
     priceLines,
     journal,

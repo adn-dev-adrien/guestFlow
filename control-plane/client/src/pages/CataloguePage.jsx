@@ -17,11 +17,6 @@ import { useToast } from '@gf/components/DialogProvider';
 import PlanMatrix from '../components/PlanMatrix';
 import api from '../api';
 
-// Amounts are typed in euros and stored in cents; an empty quota means unlimited.
-const toEuros = (cents) => String(cents / 100).replace('.', ',');
-const toCents = (text) => Math.round(Number(String(text).replace(',', '.')) * 100);
-const toQuota = (text) => (String(text).trim() === '' ? null : Number(text));
-
 export default function CataloguePage() {
   const { showError, showSuccess } = useToast();
   const [cat, setCat] = useState(null);
@@ -37,11 +32,8 @@ export default function CataloguePage() {
     setCat(view);
     setLowest(view.lowest);
     setMatrix(view.matrix);
-    setPlans(view.plans.map((p) => ({
-      code: p.code, name: p.name, monthly: toEuros(p.priceMonthlyCents), yearly: toEuros(p.priceYearlyCents),
-      units: p.maxUnits === null ? '' : String(p.maxUnits), users: p.maxUsers === null ? '' : String(p.maxUsers),
-    })));
-    setAddons(view.addons.map((a) => ({ pluginId: a.pluginId, name: a.name, price: toEuros(a.priceMonthlyCents) })));
+    setPlans(view.plans.map((p) => ({ code: p.code, name: p.name, monthly: p.monthly, yearly: p.yearly, units: p.units, users: p.users })));
+    setAddons(view.addons.map((a) => ({ pluginId: a.pluginId, name: a.name, price: a.price })));
   }
   const load = () => { setError(null); api.catalogue().then(reset).catch((err) => setError(err.message)); };
   useEffect(load, []);
@@ -59,13 +51,13 @@ export default function CataloguePage() {
 
   const body = () => ({
     lowest,
-    plans: plans.map((p) => ({ code: p.code, priceMonthlyCents: toCents(p.monthly), priceYearlyCents: toCents(p.yearly), maxUnits: toQuota(p.units), maxUsers: toQuota(p.users) })),
-    addons: addons.map((a) => ({ pluginId: a.pluginId, priceMonthlyCents: toCents(a.price) })),
+    plans: plans.map((p) => ({ code: p.code, monthly: p.monthly, yearly: p.yearly, units: p.units, users: p.users })),
+    addons: addons.map((a) => ({ pluginId: a.pluginId, price: a.price })),
   });
 
   async function askSave() {
     try {
-      const { lines } = await api.catalogueImpact(lowest);
+      const { lines } = await api.catalogueImpact(body());
       setSaving({ lines, reason: '' });
     } catch (err) {
       showError(err.message);
@@ -166,7 +158,7 @@ export default function CataloguePage() {
               <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
                 {saving.lines.map((l) => <Typography key={l} component="li" variant="body2" sx={{ mb: 0.5 }}>{l}</Typography>)}
               </Box>
-            ) : <Typography variant="body2">Aucun plugin ne change de forfait ; seuls les prix, quotas ou options changent.</Typography>}
+            ) : <Typography variant="body2">Rien ne change pour les clients.</Typography>}
             <TextField label="Motif (obligatoire)" value={saving.reason} onChange={(e) => setSaving((s) => ({ ...s, reason: e.target.value }))} multiline minRows={2} />
           </Stack>
         )}

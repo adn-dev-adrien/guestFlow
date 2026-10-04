@@ -22,6 +22,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import RestoreIcon from '@mui/icons-material/Restore';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
+import ReplayIcon from '@mui/icons-material/Replay';
 import PageActionBar from '@gf/components/PageActionBar';
 import FormDialog from '@gf/components/FormDialog';
 import LoadingState from '@gf/components/LoadingState';
@@ -68,6 +69,7 @@ export default function CustomerPage() {
   const [dialog, setDialog] = useState(null);
   const [draft, setDraft] = useState({});
   const [busyStep, setBusyStep] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [renameCheck, setRenameCheck] = useState(null);
 
   const load = useCallback(() => {
@@ -87,6 +89,8 @@ export default function CustomerPage() {
   const set = (key) => (value) => setDraft((d) => ({ ...d, [key]: value }));
 
   async function act(fn, success) {
+    if (busy) return;
+    setBusy(true);
     try {
       const next = await fn();
       if (next && next.erased) {
@@ -96,9 +100,11 @@ export default function CustomerPage() {
       }
       setC(next);
       setDialog(null);
-      if (success) showSuccess(success);
+      if (next.notice || success) showSuccess(next.notice || success);
     } catch (err) {
       showError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -147,20 +153,21 @@ export default function CustomerPage() {
     .map((e) => ({ id: e.id, name: e.name, preparedOn: e.at, recipient: e.recipient, subject: e.subject, body: e.body }));
 
   const before = [
-    a.pay && { icon: <PaymentsIcon />, tooltip: 'Enregistrer un paiement', color: 'success', onClick: () => openDialog('pay', { months: c.defaults.paymentMonths, reference: '' }) },
+    a.pay && { icon: <PaymentsIcon />, tooltip: 'Enregistrer un paiement', color: 'success', onClick: () => openDialog('pay', { months: c.defaults.paymentMonths, reference: '', expectedEndsAt: c.endsAt }) },
+    a.retryInvoice && { icon: <ReplayIcon />, tooltip: 'Réessayer la facture', color: 'warning', onClick: () => act(() => api.retryInvoice(c.id)) },
     a.checkPayment && { icon: <SyncIcon />, tooltip: 'Vérifier le paiement', color: 'info', onClick: checkPayment },
     !c.archivedAt && { icon: <SendIcon />, tooltip: a.remind ? 'Relancer maintenant' : a.remindHint, color: 'info', disabled: !a.remind, ariaLabel: 'Relancer maintenant', onClick: openRemind },
-    a.extend && { icon: <EventIcon />, tooltip: 'Prolonger', color: 'info', onClick: () => openDialog('extend', { endsAt: c.defaults.extendTo, reason: '' }) },
+    a.extend && { icon: <EventIcon />, tooltip: 'Prolonger', color: 'info', onClick: () => openDialog('extend', { endsAt: c.defaults.extendTo, reason: '', expectedEndsAt: c.endsAt }) },
     a.forceActive && { icon: <LockOpenIcon />, tooltip: 'Remettre en actif', color: 'info', onClick: () => openDialog('force', { until: c.defaults.forceActiveUntil, reason: '' }) },
     a.rename && { icon: <DriveFileRenameOutlineIcon />, tooltip: 'Changer l’adresse', color: 'info', onClick: () => { setRenameCheck(null); openDialog('rename', { slug: '', checked: [] }); } },
     a.changePlan && { icon: <SwapHorizIcon />, tooltip: 'Changer de forfait', color: 'info', onClick: () => openDialog('plan', { planCode: c.planCode, billing: c.billing, addons: c.addons.map((x) => x.id) }) },
     { icon: <DownloadIcon />, tooltip: 'Télécharger la licence', onClick: () => { window.location.href = api.licenceUrl(c.id); } },
   ].filter(Boolean);
   const after = [
-    a.deprovision && { icon: <DeleteForeverIcon />, tooltip: 'Déprovisionner', color: 'error', onClick: () => openDialog('deprovision', { confirmSlug: '' }) },
+    !c.archivedAt && { icon: <DeleteForeverIcon />, tooltip: a.deprovision ? 'Déprovisionner' : a.deprovisionHint, ariaLabel: 'Déprovisionner', color: 'error', disabled: !a.deprovision, onClick: () => openDialog('deprovision', { confirmSlug: '' }) },
     a.reactivate && { icon: <RestoreIcon />, tooltip: 'Réactiver', color: 'success', onClick: () => act(() => api.reactivate(c.id), 'Client réactivé.') },
     a.cancelErase && { icon: <EventBusyIcon />, tooltip: 'Annuler l’effacement', color: 'info', onClick: () => act(() => api.cancelErase(c.id), 'Effacement annulé.') },
-    a.eraseNow && { icon: <DeleteForeverIcon />, tooltip: 'Effacer maintenant', color: 'error', onClick: () => openDialog('erase', { confirmSlug: '' }) },
+    c.archivedAt && { icon: <DeleteForeverIcon />, tooltip: a.eraseNow ? 'Effacer maintenant' : a.eraseHint, ariaLabel: 'Effacer maintenant', color: 'error', disabled: !a.eraseNow, onClick: () => openDialog('erase', { confirmSlug: '' }) },
   ].filter(Boolean);
 
   const preview = c.paymentPreview.find((p) => p.months === draft.months);
@@ -255,7 +262,7 @@ export default function CustomerPage() {
         </Box>
       </Stack>
 
-      <FormDialog open={dialog === 'pay'} onClose={() => setDialog(null)} title="Enregistrer un paiement reçu"
+      <FormDialog submitBusy={busy} open={dialog === 'pay'} onClose={() => setDialog(null)} title="Enregistrer un paiement reçu"
         onSubmit={() => act(() => api.recordPayment(c.id, draft), 'Paiement enregistré.')}>
         <Stack spacing={2}>
           <Typography variant="body2">Un virement ou un paiement hors lien. La fin recule de la durée payée et l’état redevient actif, quel qu’il soit.</Typography>
@@ -267,12 +274,12 @@ export default function CustomerPage() {
         </Stack>
       </FormDialog>
 
-      <FormDialog open={dialog === 'remind'} onClose={() => setDialog(null)} title="Relancer maintenant" submitLabel="Envoyer"
+      <FormDialog submitBusy={busy} open={dialog === 'remind'} onClose={() => setDialog(null)} title="Relancer maintenant" submitLabel="Envoyer"
         onSubmit={() => act(() => api.remind(c.id), 'Relance envoyée.')}>
         {draft.preview && <MailPreview to={draft.preview.to} subject={draft.preview.subject} body={draft.preview.body} />}
       </FormDialog>
 
-      <FormDialog open={dialog === 'billing'} onClose={() => setDialog(null)} title="Facturation"
+      <FormDialog submitBusy={busy} open={dialog === 'billing'} onClose={() => setDialog(null)} title="Facturation"
         onSubmit={() => act(() => api.setBilling(c.id, draft), 'Facturation enregistrée.')}>
         <Stack spacing={2}>
           <Typography variant="body2">La prochaine facture part vers un client Qonto créé avec cette adresse ; une facture déjà émise garde l’ancienne.</Typography>
@@ -288,9 +295,9 @@ export default function CustomerPage() {
         </Stack>
       </FormDialog>
 
-      <FormDialog open={dialog === 'rename'} onClose={() => setDialog(null)} title={`Changer l’adresse de ${c.companyName}`} submitLabel="Changer l’adresse"
+      <FormDialog submitBusy={busy} open={dialog === 'rename'} onClose={() => setDialog(null)} title={`Changer l’adresse de ${c.companyName}`} submitLabel="Changer l’adresse"
         submitDisabled={!renameCheck || Boolean(renameCheck.error) || !draft.slug || (draft.checked || []).length < renameCheck.checklist.length}
-        onSubmit={() => act(() => api.rename(c.id, draft.slug, draft.checked), 'Adresse changée ; licence réémise.')}>
+        onSubmit={() => act(() => api.rename(c.id, draft.slug, draft.checked), 'Adresse changée. Une fois le dossier déplacé, cochez l’étape : la licence y sera écrite.')}>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
           <TextField label="Nouvelle adresse" value={draft.slug || ''} onChange={(e) => set('slug')(e.target.value.trim())} autoComplete="off"
             error={Boolean(draft.slug && renameCheck && renameCheck.error)}
@@ -305,7 +312,7 @@ export default function CustomerPage() {
         </Stack>
       </FormDialog>
 
-      <FormDialog open={dialog === 'extend'} onClose={() => setDialog(null)} title="Prolonger l’abonnement (geste commercial)" submitLabel="Prolonger"
+      <FormDialog submitBusy={busy} open={dialog === 'extend'} onClose={() => setDialog(null)} title="Prolonger l’abonnement (geste commercial)" submitLabel="Prolonger"
         onSubmit={() => act(() => api.extend(c.id, draft), 'Abonnement prolongé.')}>
         <Stack spacing={2}>
           <TextField label="Nouvelle date de fin" type="date" value={draft.endsAt || ''} onChange={(e) => set('endsAt')(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
@@ -313,7 +320,7 @@ export default function CustomerPage() {
         </Stack>
       </FormDialog>
 
-      <FormDialog open={dialog === 'force'} onClose={() => setDialog(null)} title="Remettre en actif" submitLabel="Remettre en actif"
+      <FormDialog submitBusy={busy} open={dialog === 'force'} onClose={() => setDialog(null)} title="Remettre en actif" submitLabel="Remettre en actif"
         onSubmit={() => act(() => api.forceActive(c.id, draft), 'Client remis en actif.')}>
         <Stack spacing={2}>
           <Typography variant="body2">L’état reste « Actif » jusqu’à la date choisie, puis le calendrier reprend la main.</Typography>
@@ -322,7 +329,7 @@ export default function CustomerPage() {
         </Stack>
       </FormDialog>
 
-      <FormDialog open={dialog === 'plan'} onClose={() => setDialog(null)} title="Changer de forfait"
+      <FormDialog submitBusy={busy} open={dialog === 'plan'} onClose={() => setDialog(null)} title="Changer de forfait"
         onSubmit={() => act(() => api.changePlan(c.id, draft), 'Forfait changé ; licence réémise.')}>
         {dialog === 'plan' && (
           <Stack spacing={2}>
@@ -348,7 +355,7 @@ export default function CustomerPage() {
         )}
       </FormDialog>
 
-      <FormDialog open={dialog === 'deprovision'} onClose={() => setDialog(null)} title={`Déprovisionner ${c.companyName} ?`}
+      <FormDialog submitBusy={busy} open={dialog === 'deprovision'} onClose={() => setDialog(null)} title={`Déprovisionner ${c.companyName} ?`}
         submitLabel="Déprovisionner" submitColor="error" submitDisabled={draft.confirmSlug !== c.slug}
         onSubmit={() => act(() => api.deprovision(c.id, draft.confirmSlug), 'Client déprovisionné.')}>
         <Stack spacing={2}>
@@ -359,7 +366,7 @@ export default function CustomerPage() {
         </Stack>
       </FormDialog>
 
-      <FormDialog open={dialog === 'erase'} onClose={() => setDialog(null)} title="Effacer maintenant ?"
+      <FormDialog submitBusy={busy} open={dialog === 'erase'} onClose={() => setDialog(null)} title="Effacer maintenant ?"
         submitLabel="Effacer définitivement" submitColor="error" submitDisabled={draft.confirmSlug !== c.slug}
         onSubmit={() => act(() => api.eraseNow(c.id, draft.confirmSlug), 'Données effacées ; l’adresse est de nouveau libre.')}>
         <Stack spacing={2}>

@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const Database = require('better-sqlite3');
 const { createFirstAdmin, splitName } = require('../utils/firstAdmin');
 
@@ -18,6 +18,10 @@ function run(dbPath, email, name) {
     env: { PATH: process.env.PATH, DB_PATH: dbPath }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
   });
   return JSON.parse(out.trim().split('\n').pop());
+}
+
+function runRaw(dbPath, email) {
+  return spawnSync(process.execPath, [SCRIPT, '--email', email, '--name', 'X'], { env: { PATH: process.env.PATH, DB_PATH: dbPath }, encoding: 'utf8' });
 }
 
 test('rule 7 — the script creates an admin who must change the password, and closes the bootstrap account', () => {
@@ -53,4 +57,25 @@ test('rule 7 — a bootstrap account someone already used is never removed', () 
   assert.deepEqual(r, { created: true, temporaryPassword: 'Tmp', removedBootstrap: false });
   assert.deepEqual(calls[0].roles, ['admin']);
   assert.deepEqual(splitName('  Jean  de la Fontaine '), { firstName: 'Jean', lastName: 'de la Fontaine' });
+});
+
+test('rule 7 — a database at another version than the script is refused and left untouched', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-first-admin-'));
+  const dbPath = path.join(dir, 'guestflow.db');
+  try {
+    run(dbPath, 'claire@aulnes.fr', 'Claire Martin');
+    let db = new Database(dbPath);
+    const last = db.prepare('SELECT name FROM migrations ORDER BY rowid DESC LIMIT 1').get().name;
+    db.prepare('DELETE FROM migrations WHERE name = ?').run(last);
+    db.close();
+    const refused = runRaw(dbPath, 'jo@aulnes.fr');
+    assert.equal(refused.status, 3);
+    assert.match(refused.stderr, /n’est pas à la version de ce script/);
+    db = new Database(dbPath, { readonly: true });
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM migrations WHERE name = ?').get(last).n, 0, 'nothing migrated');
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM users WHERE email = 'jo@aulnes.fr'").get().n, 0);
+    db.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
