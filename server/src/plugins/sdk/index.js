@@ -22,7 +22,7 @@ const CORE_MODULES = Object.freeze({
   repairAmountsModel: '../../models/repairAmountsModel', // « Facturables » repair prices; the departure commit prices from them
   breakfastModel: '../../models/breakfastModel', // the breakfast page state of the arrival SAS
   optionsModel: '../../models/optionsModel', // the catalogue the arrival SAS may still sell
-  resourceSchedulingModel: '../../models/resourceSchedulingModel', // the hourly-resource step (phase 0 switch until phase 3)
+  sasCommitHooks: '../../utils/sasCommitHooks', // the steps of other plugins, around the core commit (phase 3c rule 6)
   sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
   arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
   optionCategoriesMigration: '../../utils/optionCategoriesMigration', // CATERING_CATEGORY, the « Restauration » catalogue
@@ -76,6 +76,8 @@ const CORE_MODULES = Object.freeze({
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push
+  // hourly-resources — the resources, the stays and their sessions stay core tables (phase 3c rule 16)
+  dateFr: '../../utils/dateFr', // the planning cards' and the occupancy strip's French times
 });
 
 function coreModule(name) {

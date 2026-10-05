@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const resourceBookingsModel = require('../models/resourceBookingsModel');
+const resourceBookingsModel = require('../bookingsModel');
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);

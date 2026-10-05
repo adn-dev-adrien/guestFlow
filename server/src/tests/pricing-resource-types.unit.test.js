@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
+const { liveHourlyResources } = require('./hourlyResourcesFixture');
+
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+liveHourlyResources();
 
 // Regression: selecting a non-hourly resource (per_stay / per_person / per_night /
 // per_person_per_night) used to throw "priceType is not defined" in the resource-line builder,

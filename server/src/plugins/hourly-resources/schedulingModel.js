@@ -10,11 +10,10 @@
  * fetch: the resource row, its per-property rate, the reservation's sold hours, and the occupancy.
  */
 
-const db = require('../database');
-const resourcesModel = require('./resourcesModel');
-const resourceOccupancyModel = require('./resourceOccupancyModel');
-const { buildDays, validateBlock, toAbsMinutes } = require('../utils/resourceAvailability');
-const { eveningSupplement, toMinutes } = require('../utils/resourceHourlyPricing');
+const resourcesModel = require('../sdk').coreModule('resourcesModel');
+const resourceOccupancyModel = require('./occupancyModel');
+const { buildDays, validateBlock, toAbsMinutes } = require('./availability');
+const { eveningSupplement, toMinutes } = require('./hourlyPricing');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -124,11 +123,6 @@ function createModel(database) {
     return supplementsFor(soldSchedulableResources(reservation));
   }
 
-  /** The labels the supplements of this stay are written under, owed or not. */
-  function supplementLabels(reservation) {
-    return soldSchedulableResources(reservation).map(supplementLabel);
-  }
-
   /**
    * `notBefore` = max(now, check-in) and `notAfter` = check-out, both in absolute minutes.
    * `now` is injectable so the payload is reproducible under test.
@@ -206,10 +200,12 @@ function createModel(database) {
    * each one sees the ones before it, so two blocks in the same payload cannot overlap each other.
    * Returns the first offender, or `{ ok: true }` with the per-resource evening supplements.
    */
-  function validateBlocks({ reservation, blocks = [], now = new Date() }) {
+  function validateBlocks({ reservation, blocks = [], resourceIds = [], now = new Date() }) {
     const entries = soldSchedulableResources(reservation);
     const { notBefore, notAfter } = stayBounds(reservation, now);
-    const accepted = new Map(); // resourceId → blocks accepted so far
+    // resourceId → blocks accepted so far. A resource the picker showed starts empty: removing all its
+    // blocks clears its sessions, so its supplement goes too.
+    const accepted = new Map(resourceIds.map((id) => [Number(id), []]));
 
     for (const block of blocks) {
       const entry = entries.find((e) => Number(e.resource.id) === Number(block?.resourceId));
@@ -246,11 +242,8 @@ function createModel(database) {
 
   return {
     getSchedulingPayload, getFreeSlots, validateBlocks, soldSchedulableResources, stayBounds,
-    storedSupplements, supplementLabels,
+    storedSupplements,
   };
 }
 
-const defaultModel = createModel(db);
-defaultModel.create = createModel;
-
-module.exports = defaultModel;
+module.exports = { create: createModel };

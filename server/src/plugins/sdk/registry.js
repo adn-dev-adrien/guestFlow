@@ -36,6 +36,9 @@ function emptyRecord(id) {
     // specs/plugins-phase-3b-neat.md rules 1, 12.
     quotePostProcessor: null,
     reservationBlocks: [],
+    // specs/plugins-phase-3c-hourly-resources.md rules 1, 6.
+    priceLineContributor: null,
+    sasCommits: [],
   };
 }
 

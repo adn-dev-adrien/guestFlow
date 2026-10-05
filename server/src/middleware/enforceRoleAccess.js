@@ -54,9 +54,6 @@ const RECEPTION_MATCHERS = [
   // Planning housekeeping reads + the two "done" toggles.
   { method: 'GET', re: /^\/planning\// },
   { method: 'POST', re: /^\/planning\/option-cards\/done$/ },
-  { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
-  // Resource-booking planning events (read-only, for the Planning resource lane).
-  { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
 ];
 
 // Plugin modules add their own reception entries (specs/plugins-phase-1-sdk.md rule 5). Their

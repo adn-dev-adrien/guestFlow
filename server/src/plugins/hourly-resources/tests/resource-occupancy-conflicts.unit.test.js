@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const resourceBookingsModel = require('../models/resourceBookingsModel');
-const resourceOccupancyModel = require('../models/resourceOccupancyModel');
+const resourceBookingsModel = require('../bookingsModel');
+const resourceOccupancyModel = require('../occupancyModel');
 
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.5 — a resource is occupied by standalone
 // bookings AND by the sessions placed on reservations. `countConflicts` used to read only the former,

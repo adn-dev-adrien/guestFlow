@@ -1,4 +1,4 @@
-const { priceSessions, toMinutes } = require('./resourceHourlyPricing');
+const priceLineContributors = require('./priceLineContributors');
 const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
 const { checkChangeover } = require('./changeover');
@@ -1903,81 +1903,34 @@ function calculateReservationQuote({
 
       const resourceId = Number(selected.resourceId);
       const resourceForFlags = resourcesById.get(resourceId);
-      const hourlyScheduled = resourceForFlags
-        && Number(resourceForFlags.showsPlanningCard || 0) === 1
-        && resourceForFlags.priceType === 'per_hour';
-      const sessions = Array.isArray(selected?.sessions) ? selected.sessions : [];
+      const lockedForLine = lockedResourcesById.get(resourceId);
 
-      // Hourly-scheduled resource: when the operator HAS scheduled sessions, they are the source of
-      // truth and the line is priced from the time-banded grid (specs/resource-hourly-scheduling.md
-      // §3.3). With no valid session the line falls through to the generic hourly-QUANTITY path below
-      // — the resource was simply sold by the hour and will be placed on real slots during the arrival
-      // SAS (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rules 1-3).
-      //
-      // This used to `return null` instead, which erased an enabled resource from the summary AND from
-      // the total, silently: at quote time nobody knows which evening the guests will want the nordic
-      // bath, so the fiche's Switch legitimately leaves the sessions empty. `planningCardAsQuantity`
-      // (the public/site flow) no longer gates the branch — every caller now behaves the same way.
-      // A SOLD line is never re-priced by its sessions (specs/hourly-resource-quantity-and-sas-scheduling.md
-      // §3.4 rule 22, rule 30): placing its hours — at the arrival SAS or on the fiche — only says WHEN
-      // they are used. It goes through the locked snapshot like every other sold line, with its sold
-      // hours, and the evening difference is billed once, by the SAS supplement. Re-pricing it here
-      // billed the evening twice: once in the line, once in the supplement.
-      let placed = null;
-      if (hourlyScheduled && sessions.length > 0) {
-        const priced = priceSessions(
-          sessions,
-          {
-            dayRate: resourceForFlags.price,
-            eveningRate: resourceForFlags.hourlyEveningRate,
-            eveningStart: resourceForFlags.hourlyEveningStart,
-            slotMinutes: resourceForFlags.slotDuration,
-            openTime: resourceForFlags.openTime,
-            closeTime: resourceForFlags.closeTime,
-            minMinutes: resourceForFlags.minimumUsageMinutes,
-          },
-          resourceForFlags.freeMinutes,
-        );
-        if (priced.validSessions.length > 0 && lockedResourcesById.has(resourceId)) {
-          placed = { sessions: priced.validSessions, scheduledHours: priced.totalHours };
-        } else if (priced.validSessions.length > 0) {
-          const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
-          const lockedLine = lockedResourcesById.get(resourceId);
-          const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
-          return {
-            resourceId,
-            name: resourceForFlags.name,
-            // Hours the guest gets, NOT the session count — `billedUnits` is what is charged after the
-            // free allowance (§3.1 rule 7). The SAS reads `quantity` to know how much is left to place,
-            // and the summary renders it as « ×N h ».
-            quantity: priced.totalHours,
-            unitPrice: priced.unitPrice,
-            billedUnits: priced.billedHours,
-            sessions: priced.validSessions,
-            // How many of the sold hours actually sit on a slot. The summary renders « à planifier »
-            // from it, and the arrival SAS reads it to know what is left to place — neither has to do
-            // time arithmetic (§3.1 rule 5, CLAUDE.md §6.0 « render, don't compute »).
-            scheduledHours: priced.totalHours,
-            ...applyOfferedToLine(priced.totalPrice, offered),
-            ...pickContribsAndForce(selected, lockedLine),
-          };
-        }
-        // Every session invalid (a resource reconfigured under a saved booking): fall through to the
-        // quantity path rather than dropping the line and its money.
+      // specs/plugins-phase-3c-hourly-resources.md rules 1–3 — a live plugin may price this line (an
+      // hour of nordic bath placed on the evening band). The engine keeps the rest: an UNSOLD line
+      // takes the plugin's amounts; a SOLD one goes through the locked snapshot below with its sold
+      // hours, never fewer, so placing them never re-prices it (hourly-resource-quantity-and-sas-
+      // scheduling.md rules 30–31).
+      const contributed = resourceForFlags
+        ? priceLineContributors.priceLine(resourceForFlags, { selected, sold: Boolean(lockedForLine), startDate, endDate, nights, persons })
+        : null;
+      if (contributed && !lockedForLine && contributed.totalPrice !== undefined) {
+        const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
+        return {
+          resourceId,
+          name: resourceForFlags.name,
+          nameEn: resourceForFlags.nameEn || null,
+          quantity: contributed.quantity,
+          unitPrice: contributed.unitPrice,
+          billedUnits: contributed.billedUnits,
+          ...contributed.extra,
+          ...applyOfferedToLine(contributed.totalPrice, hasExplicitOffered ? Boolean(selected?.offered) : false),
+          ...pickContribsAndForce(selected, lockedForLine),
+        };
       }
 
-      // The fiche may send a scheduled resource with its sessions but no explicit quantity. When those
-      // sessions turn out unusable, the hours they described are still what was sold — derive them
-      // rather than letting the line fall to 0 and disappear.
       const declaredQuantity = Math.max(0, Number(selected?.quantity || 0));
-      // Sold hours never shrink to the hours placed so far: a partly placed line keeps them all.
-      const quantity = placed
-        ? roundMoney(Math.max(declaredQuantity, placed.scheduledHours))
-        : (declaredQuantity <= 0 && hourlyScheduled && sessions.length > 0)
-        ? roundMoney(sessions.reduce(
-          (sum, s) => sum + Math.max(0, toMinutes(s?.end) - toMinutes(s?.start)),
-          0,
-        ) / 60)
+      const quantity = contributed
+        ? roundMoney(lockedForLine ? Math.max(declaredQuantity, contributed.quantity) : contributed.quantity)
         : declaredQuantity;
       debugResourceLine('parsed.quantity', { quantity });
       if (quantity <= 0) {
@@ -2001,16 +1954,12 @@ function calculateReservationQuote({
         resource
       });
       
-      const isComplexResource = Number(resource.isComplex || 0) === 1
-        || resource.isComplex === true
-        || String(resource.isComplex || '').toLowerCase() === 'true';
-      const usesHourlyQuantity = resource.priceType === 'per_hour'
-        || isComplexResource
-        || Number(resource.freeMinutes || 0) > 0;
+      // Rule 4 — hours are for `per_hour` only: a slot setting or a free hour left on another price
+      // type no longer turns it into an hourly line.
+      const usesHourlyQuantity = resource.priceType === 'per_hour';
 
       debugResourceLine('pricing.type_flags', {
         resourceId,
-        isComplexResource,
         usesHourlyQuantity,
         freeMinutes: Number(resource.freeMinutes || 0),
       });
@@ -2048,9 +1997,7 @@ function calculateReservationQuote({
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        // Sold by the hour, nothing placed on a slot yet: the arrival SAS is where these hours get
-        // scheduled. Only meaningful for a schedulable resource — 0 elsewhere is simply « n/a ».
-        ...(placed || (hourlyScheduled ? { scheduledHours: 0 } : {})),
+        ...(contributed ? contributed.extra : {}),
         ...applyOfferedToLine(merged.totalPrice, offered),
         ...pickContribsAndForce(selected, lockedLine),
       };

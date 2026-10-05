@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildDays, validateBlock, toAbsMinutes } = require('../utils/resourceAvailability');
+const { buildDays, validateBlock, toAbsMinutes } = require('../availability');
 
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 / §3.4 — which start times the SAS may
 // offer, and why the others are refused. The Bain nordique is the reference resource: 60-min slots,

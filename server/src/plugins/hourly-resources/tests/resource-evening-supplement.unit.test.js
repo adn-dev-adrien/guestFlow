@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { eveningSupplement, priceRange } = require('../utils/resourceHourlyPricing');
+const { eveningSupplement, priceRange } = require('../hourlyPricing');
 
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 22 — the hours are SOLD at the day
 // rate on the devis. Placing one in the evening band during the arrival SAS owes the difference,

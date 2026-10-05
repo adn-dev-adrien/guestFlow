@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { buildModel } = require('../models/planningResourceCardsModel');
+const { buildModel } = require('../planningCardsModel');
 
 const HOT_TUB = 2;
 

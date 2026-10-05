@@ -11,6 +11,8 @@ const coreServices = require('./coreServices');
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', 'getPayment', 'getLinkStatus', 'cancelLink'];
 const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
+const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
+const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 
 function createContext(id, { db, settingsModel } = {}) {
   const record = registry.ensure(id);
@@ -80,6 +82,26 @@ function createContext(id, { db, settingsModel } = {}) {
       const other = registry.all().find((r) => r.id !== id && r.quotePostProcessor);
       if (other) throw new Error(`${prefix} the cancellation insurance price is already declared by ${other.id}`);
       record.quotePostProcessor = processor;
+    },
+    // The price-line contributor (specs/plugins-phase-3c-hourly-resources.md rule 1): it prices the
+    // resource lines of its price types, inside the engine's loop. At most one per price type.
+    priceLineContributor(contributor) {
+      CONTRIBUTOR_MEMBERS.forEach((m) => {
+        if (contributor == null || contributor[m] == null) throw new Error(`${prefix} price-line contributor lacks "${m}"`);
+      });
+      contributor.priceTypes.forEach((type) => {
+        const other = registry.all().find((r) => r.id !== id && r.priceLineContributor
+          && r.priceLineContributor.priceTypes.includes(type));
+        if (other) throw new Error(`${prefix} the "${type}" lines are already priced by ${other.id}`);
+      });
+      record.priceLineContributor = contributor;
+    },
+    // A commit hook for one of the plugin's arrival SAS steps (rule 6).
+    sasCommit(hook) {
+      SAS_COMMIT_MEMBERS.forEach((m) => {
+        if (hook == null || hook[m] == null) throw new Error(`${prefix} SAS commit hook lacks "${m}"`);
+      });
+      record.sasCommits.push(hook);
     },
     // (reservation) → a block added under `key` to the fiche payload while the plugin is live (rule 12).
     // The key is the plugin's id: the fiche hands each plugin's line component the block of its id.

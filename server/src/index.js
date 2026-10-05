@@ -14,9 +14,7 @@ const { startScheduledTasks } = require('./scheduledTasks');
 const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
 const enforceRoleAccess = require('./middleware/enforceRoleAccess');
-const requirePlugin = require('./middleware/requirePlugin');
 const { enforceSubscription } = require('./middleware/enforceSubscription');
-const PLUGINS = require('./constants/plugins');
 const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
 const {
   shouldEnforceHttps,
@@ -184,7 +182,6 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/options', require('./routes/options'));
 app.use('/api/resources', require('./routes/resources'));
-app.use('/api/resource-bookings', requirePlugin(PLUGINS.HOURLY_RESOURCES), require('./routes/resourceBookings'));
 app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/finance', require('./routes/finance'));

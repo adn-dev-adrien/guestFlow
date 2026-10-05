@@ -326,13 +326,16 @@ function createModel(database) {
       WHERE r.kind = 'reservation' AND rr.resourceId = ?
       ORDER BY r.startDate DESC, r.id DESC
     `).all(Number(id));
-    const bookings = database.prepare(`
+    // The external bookings belong to the `hourly-resources` plugin: its table exists only once it
+    // was installed (specs/plugins-phase-3c-hourly-resources.md rule 16).
+    const hasBookings = Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get());
+    const bookings = hasBookings ? database.prepare(`
       SELECT rb.id, rb.date, rb.startTime, rb.endTime, rb.propertyId, p.name AS propertyName, rb.clientName
       FROM resource_bookings rb
       LEFT JOIN properties p ON p.id = rb.propertyId
       WHERE rb.resourceId = ?
       ORDER BY rb.date DESC, rb.startTime
-    `).all(Number(id));
+    `).all(Number(id)) : [];
     return {
       resource,
       reservationsCount: reservations.length,

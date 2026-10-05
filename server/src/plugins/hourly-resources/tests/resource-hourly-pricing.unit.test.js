@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { priceRange, priceSessions, isValidSession } = require('../utils/resourceHourlyPricing');
+const { priceRange, priceSessions, isValidSession } = require('../hourlyPricing');
 
 // specs/resource-hourly-scheduling.md §3.3/§3.5 — time-banded hourly pricing.
 // Bain nordique grid: day 30 €/h (12:00–20:00), evening 50 €/h (20:00–22:00), 30-min slots.

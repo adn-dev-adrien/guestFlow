@@ -8,6 +8,10 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing');
+const { liveHourlyResources } = require('./hourlyResourcesFixture');
+
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+liveHourlyResources();
 
 function seedDb() {
   const db = new Database(':memory:');

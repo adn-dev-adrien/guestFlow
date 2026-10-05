@@ -1182,6 +1182,15 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- SAS LINES A PLUGIN BILLS ----------
+// specs/plugins-phase-3c-hourly-resources.md rules 6–7 and §5. A custom line the arrival SAS writes
+// for a plugin (the evening supplement of an hourly resource) carries `<pluginId>:<key>`, so the
+// dialog never takes it for one of its own and a re-commit replaces it. NULL on every other line.
+{
+  const rcoCols = db.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name);
+  if (!rcoCols.includes('sasLineKey')) db.exec('ALTER TABLE reservation_custom_options ADD COLUMN sasLineKey TEXT');
+}
+
 // ---------- SAS ARRIVAL UPSELLS → CATALOGUE OPTION ----------
 // specs/sas-upsells-activate-catalogue-option.md §5. The arrival SAS used to write « Ménage » and
 // « Linge de toilette » as CUSTOM lines, which the laundry + linen-stock aggregators (they join

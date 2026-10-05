@@ -1,12 +1,11 @@
 /**
- * Planning controller — aggregate endpoints for the Planning page: breakfast, option cards and
- * resource cards. The laundry endpoints belong to the `linen` plugin
- * (specs/plugins-phase-2-hosts.md rule 4).
+ * Planning controller — aggregate endpoints for the Planning page: breakfast and option cards. The
+ * laundry endpoints belong to the `linen` plugin (specs/plugins-phase-2-hosts.md rule 4), the resource
+ * cards to `hourly-resources` (specs/plugins-phase-3c-hourly-resources.md rule 10).
  */
 
 const breakfastModel = require('../models/breakfastModel');
 const planningOptionCardsModel = require('../models/planningOptionCardsModel');
-const planningResourceCardsModel = require('../models/planningResourceCardsModel');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -17,7 +16,6 @@ function isIsoDate(value) {
 function buildController({
   breakfastModel: injectedBreakfastModel = breakfastModel,
   planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
-  planningResourceCardsModel: injectedResourceCardsModel = planningResourceCardsModel,
 } = {}) {
   return {
     /**
@@ -89,46 +87,6 @@ function buildController({
       });
       if (result && result.error) {
         const status = result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND' ? 404 : 400;
-        return res.status(status).json({ error: result.error });
-      }
-      return res.json(result);
-    },
-
-    /**
-     * GET /api/planning/resource-cards?from=YYYY-MM-DD&to=YYYY-MM-DD
-     * Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4): one card per session.
-     */
-    resourceCards(req, res) {
-      const from = (req.query && req.query.from) || '';
-      const to = (req.query && req.query.to) || '';
-      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      const resourceCardsByDate = injectedResourceCardsModel.cardsInRange({ from, to });
-      return res.json({ resourceCardsByDate });
-    },
-
-    /**
-     * POST /api/planning/resource-cards/done
-     * Body: { reservationId, resourceId, date, start, done, kind? } — toggles one session's « préparé »
-     * flag, or its « démarrer » one with `kind: 'ignition'` (specs/resource-ignition-task.md §3 rule 6).
-     */
-    setResourceCardDone(req, res) {
-      const body = req.body || {};
-      const reservationId = Number(body.reservationId);
-      const resourceId = Number(body.resourceId);
-      const date = String(body.date || '');
-      if (!Number.isInteger(reservationId) || reservationId <= 0
-        || !Number.isInteger(resourceId) || resourceId <= 0
-        || !isIsoDate(date)) {
-        return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-      }
-      const result = injectedResourceCardsModel.setSessionDone({
-        reservationId, resourceId, date, start: String(body.start || ''), done: Boolean(body.done),
-        kind: body.kind === 'ignition' ? 'ignition' : 'session',
-      });
-      if (result && result.error) {
-        const status = result.error === 'NOT_FOUND' || result.error === 'SESSION_NOT_FOUND' ? 404 : 400;
         return res.status(status).json({ error: result.error });
       }
       return res.json(result);

@@ -16,8 +16,7 @@
  * (§3.4 rule 19), and no consumer needs it to decide whether a slot is free.
  */
 
-const db = require('../database');
-const { formatTimeShort } = require('../utils/dateFr');
+const { formatTimeShort } = require('../sdk').coreModule('dateFr');
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -145,7 +144,4 @@ function createModel(database) {
   return { listRange, listForStay, countConflicts, parseSessions };
 }
 
-const defaultModel = createModel(db);
-defaultModel.create = createModel;
-
-module.exports = defaultModel;
+module.exports = { create: createModel };

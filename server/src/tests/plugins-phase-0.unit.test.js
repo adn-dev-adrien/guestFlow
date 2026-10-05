@@ -304,13 +304,9 @@ test('requirePlugin over HTTP: a mounted router disappears and comes back with i
 test('the plugin mounts and routes are wired in the server', () => {
   const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
   const index = read('index.js');
-  // The five plugin modules mount through the loader, behind the same guard
-  // (specs/plugins-phase-1-sdk.md rule 5 — covered in plugins-phase-1-sdk.unit.test.js).
-  for (const [mount, id] of [
-    ['/api/resource-bookings', 'HOURLY_RESOURCES'],
-  ]) {
-    assert.ok(index.includes(`app.use('${mount}', requirePlugin(PLUGINS.${id})`), mount);
-  }
+  // specs/plugins-phase-3c-hourly-resources.md rule 10 — the external bookings come from their plugin.
+  assert.ok(!index.includes("'/api/resource-bookings'"));
+  assert.match(read('plugins/hourly-resources/index.js'), /ctx\.mount\('\/api\/resource-bookings', buildRouter\(controller\)\)/);
   // specs/plugins-phase-3b-neat.md rule 8 — /api/neat comes from the neat plugin.
   assert.ok(!index.includes("'/api/neat'"));
   assert.match(read('plugins/neat/index.js'), /ctx\.mount\('\/api\/neat', buildRouter\(controller\)\)/);
@@ -334,7 +330,8 @@ test('the plugin mounts and routes are wired in the server', () => {
   // The SAS routes moved into the `sas` module (specs/plugins-phase-2-hosts.md rule 8).
   assert.doesNotMatch(read('routes/reservations.js'), /'\/:id\/sas/);
   assert.match(read('plugins/sas/index.js'), /ctx\.route\('get', '\/api\/reservations\/:id\/sas'/);
-  assert.match(read('routes/planning.js'), /'\/resource-cards', requirePlugin\(PLUGINS\.HOURLY_RESOURCES\)/);
+  assert.doesNotMatch(read('routes/planning.js'), /resource-cards/);
+  assert.match(read('plugins/hourly-resources/index.js'), /ctx\.route\('get', '\/api\/planning\/resource-cards'/);
   assert.match(read('plugins/website-booking/routes/bookingRequests.js'), /'\/:id\/pay', bookingRequestLimiter, requireOnlinePayment,/);
 });
 

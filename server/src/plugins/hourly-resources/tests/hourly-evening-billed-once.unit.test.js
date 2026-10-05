@@ -12,10 +12,13 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const Module = require('module');
 
-const { calculateReservationQuote } = require('../utils/pricing').__test;
+const { calculateReservationQuote } = require('../../../utils/pricing').__test;
 const { seed } = require('./hourlySchedulingFixture');
+const { createSasStep } = require('../sasStep');
 
-require('../plugins/sdk/registry').configure({ isActive: () => true, allows: () => true });
+require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
+// The engine prices `per_hour` lines through this plugin's contributor (phase 3c rule 11).
+require('../../sdk/registry').ensure('hourly-resources').priceLineContributor = require('../pricing').createHourlyContributor();
 
 // ── The engine: a sold line is frozen, whatever its sessions say ───────────────────────────────────
 
@@ -147,7 +150,6 @@ test('rule 32: the stored sessions owe their supplement when the step did not ru
   assert.deepEqual(ctx.scheduling.storedSupplements(ctx.reservation), [
     { resourceId: ctx.resourceId, label: 'Bain nordique — supplément soirée', amount: 20 },
   ]);
-  assert.deepEqual(ctx.scheduling.supplementLabels(ctx.reservation), ['Bain nordique — supplément soirée']);
 });
 
 test('rule 26: the SAS payload hands the placed hours back with their supplement', () => {
@@ -166,7 +168,9 @@ function fakeRes() {
   };
 }
 
-// The controller validates against the real clock: freeze it before the stay.
+// The SAS controller, with this plugin's step declared: the commit contract runs it around the core
+// commit (specs/plugins-phase-3c-hourly-resources.md rule 6). It validates against the real clock:
+// freeze it before the stay.
 function commitArrival(ctx, body, t) {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   const writes = [];
@@ -176,11 +180,15 @@ function commitArrival(ctx, body, t) {
     if (k === 'commitArrivalSas') return (id, args) => { writes.push(args); return 0; };
     return () => null;
   } });
-  // The SAS is the plugin `sas`; it reaches the core through `sdk.coreModule`, whose requires are
-  // relative to the SDK.
+  const registry = require('../../sdk/registry');
+  registry.ensure('hourly-resources').sasCommits = [
+    createSasStep({ scheduling: () => ctx.scheduling, reservations: reservationsModelMock }).hook,
+  ];
+  const hooks = require('../../../utils/sasCommitHooks');
+  // The SAS reaches the core through `sdk.coreModule`, whose requires are relative to the SDK.
   const mocks = {
     '../../models/reservationsModel': reservationsModelMock,
-    '../../models/resourceSchedulingModel': ctx.scheduling,
+    '../../utils/sasCommitHooks': { prepare: (args) => hooks.prepare({ ...args, db: ctx.db }) },
     '../../models/linenItemsModel': { list: () => [] },
     '../../models/settingsModel': { read: () => ({}) },
     '../../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
@@ -194,41 +202,55 @@ function commitArrival(ctx, body, t) {
   };
   let controller;
   try {
-    delete require.cache[require.resolve('../plugins/sas/controller')];
-    controller = require('../plugins/sas/controller');
+    delete require.cache[require.resolve('../../sas/controller')];
+    controller = require('../../sas/controller');
   } finally { Module.prototype.require = origRequire; }
   const res = fakeRes();
   controller.commitArrival({ params: { id: '500' }, body, user: { id: 1, roles: ['admin'] } }, res);
   return { res, items: writes[0] && writes[0].complementItems };
 }
 
+const step = (ctx, blocks) => ({ resourceScheduling: { blocks: blocks.map((b) => ({ ...b, resourceId: ctx.resourceId })), resourceIds: [ctx.resourceId] } });
+const SUPPLEMENT = (ctx, amount) => ({ label: 'Bain nordique — supplément soirée', amount, sasLineKey: `hourly-resources:evening:${ctx.resourceId}` });
+
 const OLD_SUPPLEMENT = { label: 'Bain nordique — supplément soirée', amount: 20 };
 
+// What the previous commit stored: the supplement, tagged as this plugin's line (rule 7; the
+// migration tags the lines written before the phase).
+function seedReopened(ctx) {
+  ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin, sasLineKey)
+    VALUES (500, 'Bain nordique — supplément soirée', 20, 1, 1, ?)`).run(`hourly-resources:evening:${ctx.resourceId}`);
+  return ctx;
+}
+
 test('rule 26: a re-opened SAS that sends the old supplement back bills it once', (t) => {
-  const ctx = seed({ hoursSold: 2, sessions: DAY_AND_EVENING });
+  const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { res, items } = commitArrival(ctx, {
     complementItems: [OLD_SUPPLEMENT, { label: 'Drap housse', amount: 15 }],
-    resourceBlocks: DAY_AND_EVENING.map((b) => ({ ...b, resourceId: ctx.resourceId })),
+    pluginSteps: step(ctx, DAY_AND_EVENING),
   }, t);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(items, [
-    { label: 'Drap housse', amount: 15, offered: false },
-    { label: 'Bain nordique — supplément soirée', amount: 20 },
-  ]);
+  assert.deepEqual(items, [{ label: 'Drap housse', amount: 15, offered: false }, SUPPLEMENT(ctx, 20)]);
 });
 
 test('rule 32: a commit without the step recomputes the supplement instead of keeping a copy', (t) => {
-  const ctx = seed({ hoursSold: 2, sessions: DAY_AND_EVENING });
+  const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, { complementItems: [OLD_SUPPLEMENT] }, t);
-  assert.deepEqual(items, [{ label: 'Bain nordique — supplément soirée', amount: 20 }]);
+  assert.deepEqual(items, [SUPPLEMENT(ctx, 20)]);
 });
 
 test('rule 32: hours moved to the day band drop the supplement', (t) => {
-  const ctx = seed({ hoursSold: 2, sessions: DAY_AND_EVENING });
+  const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
   const { items } = commitArrival(ctx, {
     complementItems: [OLD_SUPPLEMENT],
-    resourceBlocks: [{ resourceId: ctx.resourceId, date: '2026-09-12', start: '17:00', end: '19:00' }],
+    pluginSteps: step(ctx, [{ date: '2026-09-12', start: '17:00', end: '19:00' }]),
   }, t);
+  assert.deepEqual(items, []);
+});
+
+test('rule 26: removing every block of a resource clears its sessions and its supplement', (t) => {
+  const ctx = seedReopened(seed({ hoursSold: 2, sessions: DAY_AND_EVENING }));
+  const { items } = commitArrival(ctx, { complementItems: [OLD_SUPPLEMENT], pluginSteps: step(ctx, []) }, t);
   assert.deepEqual(items, []);
 });
 
@@ -236,7 +258,7 @@ test('rule 32: hours moved to the day band drop the supplement', (t) => {
 
 test('rule 33: a fiche save keeps the SAS marker on the lines the SAS wrote', () => {
   const ctx = seed({ hoursSold: 2 });
-  const lines = require('../models/bookingLinesModel').buildModel(ctx.db);
+  const lines = require('../../../models/bookingLinesModel').buildModel(ctx.db);
   ctx.db.prepare(`INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin)
     VALUES (500, 'Bain nordique — supplément soirée', 20, 1, 1), (500, 'Bouquet', 12, 0, 0)`).run();
 

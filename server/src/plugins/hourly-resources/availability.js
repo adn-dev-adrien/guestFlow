@@ -19,7 +19,7 @@
  * use ending at 22:00 can still keep the resource warm for the next morning's 06:00 slot.
  */
 
-const { toMinutes, eveningSupplement } = require('./resourceHourlyPricing');
+const { toMinutes, eveningSupplement } = require('./hourlyPricing');
 
 const MINUTES_PER_DAY = 1440;
 

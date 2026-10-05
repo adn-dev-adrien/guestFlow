@@ -4,8 +4,8 @@
 
 const Database = require('better-sqlite3');
 
-const resourceSchedulingModel = require('../models/resourceSchedulingModel');
-const { create: createReservationsModel } = require('../models/reservationsModel');
+const resourceSchedulingModel = require('../schedulingModel');
+const { create: createReservationsModel } = require('../../../models/reservationsModel');
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCautionAmount REAL DEFAULT 0);
@@ -56,7 +56,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, description TEXT NOT NULL,
     amount REAL NOT NULL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0,
     inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL, soldeContribTtc REAL,
-    sasArrivalOrigin INTEGER NOT NULL DEFAULT 0
+    sasArrivalOrigin INTEGER NOT NULL DEFAULT 0, sasLineKey TEXT
   );
   CREATE TABLE reservation_options (
     reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL, quantity REAL DEFAULT 0,

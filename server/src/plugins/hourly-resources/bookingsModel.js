@@ -6,9 +6,8 @@
  * Exports a default model bound to the production database, and a `create(db)` factory for tests.
  */
 
-const db = require('../database');
-const { priceSessions } = require('../utils/resourceHourlyPricing');
-const resourceOccupancyModel = require('./resourceOccupancyModel');
+const { priceSessions } = require('./hourlyPricing');
+const resourceOccupancyModel = require('./occupancyModel');
 
 const JOIN_QUERY = `
   SELECT rb.*,
@@ -293,7 +292,4 @@ function createModel(database) {
   };
 }
 
-const defaultModel = createModel(db);
-defaultModel.create = createModel;
-
-module.exports = defaultModel;
+module.exports = { create: createModel };

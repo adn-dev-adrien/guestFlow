@@ -7,6 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed } = require('./hourlySchedulingFixture');
+const { createSasStep } = require('../sasStep');
 
 // A fixed clock well before the stay, so `notBefore` is always the check-in.
 const NOW = new Date('2026-09-01T09:00:00Z');
@@ -193,6 +194,12 @@ test('a resource not sold on the reservation is refused', () => {
 
 // ── What the commit writes ─────────────────────────────────────────────────────────────────────────
 
+// The step's write runs inside the core commit (specs/plugins-phase-3c-hourly-resources.md rule 6).
+const writeStep = (ctx, blocks) => ctx.reservations.commitArrivalSas(500, {
+  pluginWrites: [(db) => createSasStep({ scheduling: () => ctx.scheduling, reservations: {} }).hook
+    .write(db, ctx.reservation, { blocks, resourceIds: [ctx.resourceId] })],
+});
+
 function storedSessions(ctx) {
   const row = ctx.db.prepare('SELECT sessions FROM reservation_resources WHERE reservationId = 500 AND resourceId = ?').get(ctx.resourceId);
   return JSON.parse(row.sessions || 'null');
@@ -200,12 +207,10 @@ function storedSessions(ctx) {
 
 test('the commit writes the placed blocks as sessions, ordered', () => {
   const ctx = seed();
-  ctx.reservations.commitArrivalSas(500, {
-    resourceBlocks: [
-      { resourceId: ctx.resourceId, date: '2026-09-13', start: '14:00', end: '15:00' },
-      { resourceId: ctx.resourceId, date: '2026-09-12', start: '20:00', end: '21:00' },
-    ],
-  });
+  writeStep(ctx, [
+    { resourceId: ctx.resourceId, date: '2026-09-13', start: '14:00', end: '15:00' },
+    { resourceId: ctx.resourceId, date: '2026-09-12', start: '20:00', end: '21:00' },
+  ]);
   assert.deepEqual(storedSessions(ctx), [
     { date: '2026-09-12', start: '20:00', end: '21:00' },
     { date: '2026-09-13', start: '14:00', end: '15:00' },
@@ -214,9 +219,7 @@ test('the commit writes the placed blocks as sessions, ordered', () => {
 
 test('the commit REPLACES the sessions instead of appending to them', () => {
   const ctx = seed({ sessions: [{ date: '2026-09-12', start: '11:00', end: '12:00' }] });
-  ctx.reservations.commitArrivalSas(500, {
-    resourceBlocks: [{ resourceId: ctx.resourceId, date: '2026-09-13', start: '14:00', end: '15:00' }],
-  });
+  writeStep(ctx, [{ resourceId: ctx.resourceId, date: '2026-09-13', start: '14:00', end: '15:00' }]);
   assert.deepEqual(storedSessions(ctx), [{ date: '2026-09-13', start: '14:00', end: '15:00' }]);
 });
 
@@ -234,7 +237,6 @@ test('the evening supplement lands in the arrival complement as a SAS line', () 
     .supplements[0].amount;
   const complement = ctx.reservations.commitArrivalSas(500, {
     complementItems: [{ label: 'Bain nordique — supplément soirée', amount }],
-    resourceBlocks: [{ resourceId: ctx.resourceId, date: '2026-09-12', start: '20:00', end: '22:00' }],
   });
   assert.equal(complement, 40);
   const rows = ctx.db.prepare('SELECT description, amount, inComplement, sasArrivalOrigin FROM reservation_custom_options WHERE reservationId = 500').all();
@@ -249,7 +251,6 @@ test('re-committing recomputes the supplement instead of stacking it', () => {
   const ctx = seed();
   const args = {
     complementItems: [{ label: 'Bain nordique — supplément soirée', amount: 40 }],
-    resourceBlocks: [{ resourceId: ctx.resourceId, date: '2026-09-12', start: '20:00', end: '22:00' }],
   };
   ctx.reservations.commitArrivalSas(500, args);
   const second = ctx.reservations.commitArrivalSas(500, args);
@@ -258,7 +259,6 @@ test('re-committing recomputes the supplement instead of stacking it', () => {
   // Moving the block into the day band removes the supplement entirely.
   const third = ctx.reservations.commitArrivalSas(500, {
     complementItems: [],
-    resourceBlocks: [{ resourceId: ctx.resourceId, date: '2026-09-12', start: '14:00', end: '16:00' }],
   });
   assert.equal(third, 0);
 });

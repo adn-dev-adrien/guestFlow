@@ -5,6 +5,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildContext, __test } = require('../utils/emailContextBuilder');
+const { liveHourlyResources } = require('./hourlyResourcesFixture');
+
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+liveHourlyResources();
 
 const SAMPLE_SETTINGS = { companyName: 'GuestFlow Demo', companyPhone: '+33102030405', companyEmail: 'demo@gf.test' };
 
@@ -388,7 +392,7 @@ test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices ren
 
 test('lang="en": nordic-bath scheduled slot recalled in English', () => {
   const { vars } = buildContext({
-    ...baseInput({ resources: [{ name: 'Bain nordique', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
+    ...baseInput({ resources: [{ name: 'Bain nordique', priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
     lang: 'en',
   });
   assert.match(vars.nordicBathSchedule, /on 11 July 2026 from 18:00 to 19:30/);
@@ -452,10 +456,26 @@ test('nordicBathReminder: gear sentence only when no slot scheduled', () => {
   assert.equal(vars.nordicBathSchedule, '');
 });
 
+// specs/plugins-phase-3c-hourly-resources.md rule 15 — the slots come from the stay's hourly lines,
+// and only while the plugin is live.
+test('nordicBathReminder no longer recalls a slot once hourly resources are off', () => {
+  require('./hourlyResourcesFixture').withdrawHourlyResources();
+  try {
+    const { vars } = buildContext(baseInput({
+      resources: [{ name: 'Bain nordique', priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:00' }]) }],
+    }));
+    assert.match(vars.nordicBathReminder, /bain nordique/);
+    assert.doesNotMatch(vars.nordicBathReminder, /créneau/);
+  } finally {
+    liveHourlyResources();
+  }
+});
+
 test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', () => {
   const { vars } = buildContext(baseInput({
     resources: [{
       name: 'Bain nordique',
+      priceType: 'per_hour',
       sessions: JSON.stringify([
         { date: '2026-07-12', start: '18:00', end: '19:30' },
         { date: '2026-07-13', start: '17:00', end: '18:00' },

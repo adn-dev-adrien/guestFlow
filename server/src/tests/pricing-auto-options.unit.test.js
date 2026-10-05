@@ -654,11 +654,11 @@ test('calculateReservationQuote late check-out uses progressive extra-night pric
   db.close();
 });
 
-test('calculateReservationQuote treats complex hourly resources as hourly and applies free minutes', () => {
+test('calculateReservationQuote prices a per_hour resource by the hour and applies free minutes', () => {
   const db = createPricingTestDb();
   db.prepare(`
     INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
-    VALUES (20, 'Bain nordique', 1, 50, 'per_stay', 1, '[1]')
+    VALUES (20, 'Bain nordique', 1, 50, 'per_hour', 1, '[1]')
   `).run();
   db.prepare(`
     INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
@@ -693,11 +693,11 @@ test('calculateReservationQuote treats complex hourly resources as hourly and ap
   db.close();
 });
 
-test('calculateReservationQuote keeps an offered complex hourly resource at zero while preserving its original price', () => {
+test('calculateReservationQuote keeps an offered per_hour resource at zero while preserving its original price', () => {
   const db = createPricingTestDb();
   db.prepare(`
     INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
-    VALUES (21, 'Bain nordique offert', 1, 50, 'per_stay', 1, '[1]')
+    VALUES (21, 'Bain nordique offert', 1, 50, 'per_hour', 1, '[1]')
   `).run();
   db.prepare(`
     INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
@@ -733,11 +733,11 @@ test('calculateReservationQuote keeps an offered complex hourly resource at zero
   db.close();
 });
 
-test('calculateReservationQuote lets a previously offered complex resource be unoffered and reapplies free first hour', () => {
+test('calculateReservationQuote lets a previously offered per_hour resource be unoffered and reapplies free first hour', () => {
   const db = createPricingTestDb();
   db.prepare(`
     INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
-    VALUES (22, 'Bain nordique toggle', 1, 50, 'per_stay', 1, '[1]')
+    VALUES (22, 'Bain nordique toggle', 1, 50, 'per_hour', 1, '[1]')
   `).run();
   db.prepare(`
     INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
@@ -763,7 +763,7 @@ test('calculateReservationQuote lets a previously offered complex resource be un
       quantity: 2,
       unitPrice: 50,
       billedUnits: 2,
-      priceType: 'per_stay',
+      priceType: 'per_hour',
       totalPrice: 0,
       offered: true,
     }],
@@ -781,11 +781,11 @@ test('calculateReservationQuote lets a previously offered complex resource be un
   db.close();
 });
 
-test('calculateReservationQuote keeps offered complex resource original total aligned with free first hour when locked snapshot was zeroed', () => {
+test('calculateReservationQuote keeps an offered per_hour resource original total aligned with free first hour when locked snapshot was zeroed', () => {
   const db = createPricingTestDb();
   db.prepare(`
     INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
-    VALUES (23, 'Bain nordique locked offered', 1, 50, 'per_stay', 1, '[1]')
+    VALUES (23, 'Bain nordique locked offered', 1, 50, 'per_hour', 1, '[1]')
   `).run();
   db.prepare(`
     INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
@@ -811,7 +811,7 @@ test('calculateReservationQuote keeps offered complex resource original total al
       quantity: 2,
       unitPrice: 50,
       billedUnits: 2,
-      priceType: 'per_stay',
+      priceType: 'per_hour',
       totalPrice: 0,
       offered: true,
     }],
@@ -829,87 +829,9 @@ test('calculateReservationQuote keeps offered complex resource original total al
   db.close();
 });
 
-test('calculateReservationQuote treats legacy boolean string isComplex as hourly for free first hour', () => {
-  const db = createPricingTestDb();
-  db.prepare(`
-    INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
-    VALUES (24, 'Bain nordique legacy', 1, 50, 'per_stay', 0, '[1]')
-  `).run();
-  db.prepare(`
-    UPDATE resources SET isComplex = 'true' WHERE id = 24
-  `).run();
-  db.prepare(`
-    INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
-    VALUES (1, 24, 50, 60)
-  `).run();
-
-  const quote = calculateReservationQuote({
-    db,
-    propertyId: 1,
-    startDate: '2026-07-10',
-    endDate: '2026-07-12',
-    checkInTime: '15:00',
-    checkOutTime: '10:00',
-    adults: 2,
-    children: 0,
-    teens: 0,
-    discountPercent: 0,
-    customPrice: '',
-    selectedOptions: [],
-    selectedResources: [{ resourceId: 24, quantity: 2, unitPrice: 50 }],
-    depositPaid: false,
-    balancePaid: false,
-  });
-
-  assert.equal(quote.resourceLines.length, 1);
-  assert.equal(quote.resourceLines[0].resourceId, 24);
-  assert.equal(quote.resourceLines[0].billedUnits, 1);
-  assert.equal(quote.resourceLines[0].totalPrice, 50);
-
-  db.close();
-});
-
-test('calculateReservationQuote treats numeric-string isComplex as hourly for free first hour', () => {
-  const db = createPricingTestDb();
-  db.prepare(`
-    INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
-    VALUES (25, 'Bain nordique legacy numeric', 1, 30, 'per_stay', 0, '[1]')
-  `).run();
-  db.prepare(`
-    UPDATE resources SET isComplex = '1' WHERE id = 25
-  `).run();
-  db.prepare(`
-    INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
-    VALUES (1, 25, 30, 60)
-  `).run();
-
-  const quote = calculateReservationQuote({
-    db,
-    propertyId: 1,
-    startDate: '2026-07-10',
-    endDate: '2026-07-12',
-    checkInTime: '15:00',
-    checkOutTime: '10:00',
-    adults: 2,
-    children: 0,
-    teens: 0,
-    discountPercent: 0,
-    customPrice: '',
-    selectedOptions: [],
-    selectedResources: [{ resourceId: 25, quantity: 2, unitPrice: 30, offered: true }],
-    depositPaid: false,
-    balancePaid: false,
-  });
-
-  assert.equal(quote.resourceLines.length, 1);
-  assert.equal(quote.resourceLines[0].billedUnits, 1);
-  assert.equal(quote.resourceLines[0].originalTotalPrice, 30);
-  assert.equal(quote.resourceLines[0].totalPrice, 0);
-
-  db.close();
-});
-
-test('calculateReservationQuote ignores non-hourly multipliers for complex resources and bills free-first-hour correctly', () => {
+// specs/plugins-phase-3c-hourly-resources.md rule 4 — slot settings or a free hour left on another price
+// type no longer turn it into an hourly line: it keeps its multiplier.
+test('calculateReservationQuote prices a slotted per_person_per_night resource by its type, free minutes ignored', () => {
   const db = createPricingTestDb();
   db.prepare(`
     INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
@@ -939,8 +861,8 @@ test('calculateReservationQuote ignores non-hourly multipliers for complex resou
   });
 
   assert.equal(quote.resourceLines.length, 1);
-  assert.equal(quote.resourceLines[0].billedUnits, 1);
-  assert.equal(quote.resourceLines[0].originalTotalPrice, 30);
+  assert.equal(quote.resourceLines[0].billedUnits, 8); // 2 × 2 persons × 2 nights
+  assert.equal(quote.resourceLines[0].originalTotalPrice, 240);
   assert.equal(quote.resourceLines[0].totalPrice, 0);
 
   db.close();

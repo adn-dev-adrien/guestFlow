@@ -106,6 +106,11 @@ function buildCgvUrl(settings, termsVersion) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
+// The core may ask whether a plugin is live, never import it (specs/plugins-phase-0-foundation.md).
+function hourlyResourcesLive() {
+  try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
+}
+
 function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   const stayContent = buildStayContent({
@@ -180,14 +185,20 @@ function buildContext({ reservation, client, property, options = [], resources =
 
   // Nordic-bath reminder (specs/email-automation.md): guests who booked the « Bain nordique »
   // resource must bring their own swimsuit / towel / flip-flops (nothing is provided). Matched on
-  // the resource name. If hourly sessions are scheduled on the booking, recall the date/time too.
+  // the resource name. The slots recalled are those of the stay's hourly lines, whatever their
+  // name, and only while hourly resources are a live plugin
+  // (specs/plugins-phase-3c-hourly-resources.md rule 15).
   const nordicResource = (resources || []).find((rr) => normalizeName(rr.name).includes('nordique'));
   const hasNordicBath = Boolean(nordicResource);
   const parseSessions = (raw) => {
     if (Array.isArray(raw)) return raw;
     try { const parsed = JSON.parse(raw || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
   };
-  const nordicBathSchedule = (nordicResource ? parseSessions(nordicResource.sessions) : [])
+  const scheduledSessions = hasNordicBath && hourlyResourcesLive()
+    ? (resources || []).filter((rr) => rr.priceType === 'per_hour').flatMap((rr) => parseSessions(rr.sessions))
+      .sort((a, b) => String(a && a.date).localeCompare(String(b && b.date)) || String(a && a.start).localeCompare(String(b && b.start)))
+    : [];
+  const nordicBathSchedule = scheduledSessions
     .filter((s) => s && s.date)
     .map((s) => {
       const day = formatDateLong(s.date, L);

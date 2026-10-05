@@ -16,7 +16,7 @@
  * a 09:00 one has to be lit the night before.
  */
 
-const { formatTimeShort } = require('../utils/dateFr');
+const { formatTimeShort } = require('../sdk').coreModule('dateFr');
 
 function buildModel(database) {
   // The thermal columns landed with specs/hourly-resource-quantity-and-sas-scheduling.md; a minimal
@@ -228,8 +228,4 @@ function buildModel(database) {
   };
 }
 
-const db = require('../database');
-const defaultModel = buildModel(db);
-defaultModel.buildModel = buildModel;
-
-module.exports = defaultModel;
+module.exports = { buildModel };
