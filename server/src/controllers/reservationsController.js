@@ -1194,8 +1194,9 @@ function update(req, res) {
 
   if (!pastReservationLocked && reservationOptions) model.replaceOptions(id, quote.optionLines);
   if (!pastReservationLocked) {
+    const sasOriginLabels = model.sasOriginCustomLabels(id);
     model.deleteCustomOptions(id);
-    if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines);
+    if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
   }
   if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
 

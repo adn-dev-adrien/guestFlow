@@ -1760,8 +1760,12 @@ function createReservationsModel(database) {
       bookingLines.deleteCustomOptions(reservationId);
     },
 
-    insertCustomOptions(reservationId, optionLines) {
-      bookingLines.insertCustomOptions(reservationId, optionLines);
+    sasOriginCustomLabels(reservationId) {
+      return bookingLines.sasOriginCustomLabels(reservationId);
+    },
+
+    insertCustomOptions(reservationId, optionLines, sasOriginLabels = []) {
+      bookingLines.insertCustomOptions(reservationId, optionLines, sasOriginLabels);
     },
 
     replaceNights(reservationId, nightlyBreakdown) {

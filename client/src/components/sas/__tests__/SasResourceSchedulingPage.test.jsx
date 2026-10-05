@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach } from 'vitest';
 
-import SasResourceSchedulingPage from '../SasResourceSchedulingPage';
+import SasResourceSchedulingPage, { seedResourceBlocks } from '../SasResourceSchedulingPage';
 import api from '../../../api';
 
 vi.mock('../../../api', () => ({ default: { getResourceFreeSlots: vi.fn() } }));
@@ -48,7 +48,7 @@ const SCHEDULING = {
 
 // Mirrors how ReservationSasDialog owns the blocks: in memory, until the single commit.
 function Harness({ scheduling = SCHEDULING }) {
-  const [blocks, setBlocks] = useState([]);
+  const [blocks, setBlocks] = useState(() => seedResourceBlocks(scheduling));
   return (
     <SasResourceSchedulingPage
       reservationId={500}
@@ -148,12 +148,30 @@ test('once every hour is placed, no more slots are offered', async () => {
   expect(screen.getByText('Toutes les heures achetées sont placées.')).toBeInTheDocument();
 });
 
-test('a resource with nothing left to place is not rendered at all', () => {
-  render(<Harness scheduling={{
-    applicable: false,
-    resources: [{ ...SCHEDULING.resources[0], hoursRemaining: 0 }],
-  }} />);
-  expect(screen.queryByText('Bain nordique')).not.toBeInTheDocument();
+// §3.4 rule 26 — the commit replaces the sessions, so a re-opened SAS starts from the placed hours.
+const PLACED = {
+  ...SCHEDULING,
+  resources: [{
+    ...SCHEDULING.resources[0],
+    hoursPlaced: 2,
+    hoursRemaining: 0,
+    sessions: [{ date: '2026-09-12', start: '20:00', end: '22:00', supplement: 40 }],
+  }],
+};
+
+test('a re-opened SAS starts from the hours already placed, with their supplement', () => {
+  expect(seedResourceBlocks(PLACED)).toEqual([{
+    resourceId: 2, date: '2026-09-12', dayLabel: 'sam. 12 sept.', start: '20:00', end: '22:00',
+    supplement: 40, durationMinutes: 120,
+  }]);
+});
+
+test('placed hours are shown and can be moved: removing one gives it back', async () => {
+  render(<Harness scheduling={PLACED} />);
+  expect(screen.getByText('Tout est planifié')).toBeInTheDocument();
+  expect(screen.getByText(/20:00–22:00/)).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText('Retirer le créneau'));
+  await waitFor(() => expect(screen.getByText('2 h à planifier')).toBeInTheDocument());
 });
 
 test('a placed block reads with the French day label, not a raw ISO date', () => {
