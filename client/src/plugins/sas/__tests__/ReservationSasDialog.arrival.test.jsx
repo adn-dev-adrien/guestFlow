@@ -87,6 +87,8 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
     // fixture (nothing owed), so the acompte / solde are left strictly untouched.
     stayPaid: undefined,
     stayPaidCash: false,
+    // specs/plugins-phase-3c-hourly-resources.md rule 6 — no step of another plugin ran.
+    pluginSteps: {},
   });
 });
 

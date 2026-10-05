@@ -175,7 +175,7 @@ function buildController({ captures = [], storedLines = [] } = {}) {
     '../../models/settingsModel': { read: () => ({ portalCode: '' }) },
     '../../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
     '../../models/repairAmountsModel': { list: () => [] },
-    '../../models/resourceSchedulingModel': { getSchedulingPayload: () => ({ applicable: false, resources: [] }) },
+    '../../models/resourceSchedulingModel': { getSchedulingPayload: () => ({ applicable: false, resources: [] }), storedSupplements: () => [], supplementLabels: () => [] },
     './sasAudit': { buildSasSnapshot: () => ({}), computeSasChanges: () => [] },
   });
 }

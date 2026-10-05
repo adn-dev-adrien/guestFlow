@@ -262,6 +262,53 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
     implementation). It used to be suppressed for sessions. Now that the reset gates both kinds
     identically (rule 28), hiding it showed the grid as freer than the server will actually allow.
 
+### 3.6 The evening is billed once (fix, 2026-10-05)
+
+Found while mapping phase 3c of the plugins (`specs/plugins-phase-3c-hourly-resources.md` §1, defects
+1–2). Three money defects, all from the same seam between the line and the supplement:
+
+- **The evening was billed twice.** After the SAS placed an evening hour (supplement on the
+  complement), the next fiche save re-sent the sessions and the engine re-priced the SOLD line at the
+  evening rate — rule 22 says the quoted price is never re-played, and the sessions branch skipped the
+  locked snapshot every other sold line goes through.
+- **A re-opened SAS doubled the supplement.** The dialog kept the old supplement as a preserved custom
+  line and sent it back; the server appended the fresh one.
+- **A re-opened SAS deleted the hours already placed.** Rule 26 was never wired: the picker started
+  empty and listed only the resources with hours left, so the commit — which replaces the sessions —
+  kept only the new blocks. A later fiche save then shrank the sold hours to the hours placed.
+
+30. **A sold line is never re-priced by its sessions.** While a resource line has a locked snapshot,
+    its sessions only say when the hours are used: the engine prices it like any sold line — its hours
+    through `mergeLineWithLockedSnapshot` — and carries `sessions` and `scheduledHours` for display. An
+    unsold line (a new devis, « Utiliser les tarifs actuels ») is still priced from its sessions (rule 2).
+    **The supplement subtracts what the line already bills for the evening**: per resource, the
+    evening difference of the placed hours minus `max(0, line amount − day rate × billed units)` (an
+    offered line counts `unitPrice × billedUnits`). A line sold with its evening already priced owes
+    nothing more; a line sold at the day rate owes the full difference, as before.
+31. **The hours sold never shrink to the hours placed.** On a sold line, `quantity` is the greater of the
+    hours declared and the hours on a slot.
+32. **The supplement is the server's, recomputed on every arrival commit.** From the step's blocks when
+    it ran, from the stored sessions otherwise — so evening hours placed on the fiche after the sale
+    are billed at the next commit. Any incoming custom line carrying a supplement label
+    (« <resource> — supplément soirée ») is dropped before the fresh ones are added. A paid complement
+    stays frozen, as for every SAS line.
+
+33. **A fiche save keeps the SAS's own lines its own.** A fiche save rewrites the custom lines (DELETE +
+    INSERT) and dropped their `sasArrivalOrigin` marker: the old supplement became an ordinary line that
+    a re-opened SAS could neither replace nor see, and the fresh supplement doubled it. The marker is
+    now carried over by label, one row per stored SAS line, as it already was for the catalogue options
+    the SAS sells. This also protects the linen lines.
+
+**The recap shows the supplement the server bills.** `getSas` returns each resource's current
+`supplement` and its `supplementLabel`; `GET /api/resources/:id/free-slots` returns the supplement of
+the blocks on the picker. The recap lists « + <resource> — supplément soirée » from those amounts
+(never offerable) and counts it in the total to collect — it used to show nothing on a first SAS and
+the stale preserved line on a re-opened one.
+
+Rule 26 is now wired: `getSas` returns each resource's placed sessions with their own supplement
+badge, the dialog starts from them (`seedResourceBlocks`), and the step lists every sold resource, so
+a placed block can be removed or moved. The dialog also clears its blocks when it opens on another stay.
+
 **Edge cases:**
 - Resource enabled, quantity 0 → no line (unchanged; the Switch always sets ≥ 1).
 - Every session invalid after a resource reconfiguration → falls back to quantity pricing (rule 2)
@@ -287,6 +334,12 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 ---
 
 ## 4. Architecture
+
+> **Since phase 3c of the plugins** (`specs/plugins-phase-3c-hourly-resources.md`), the hourly code below
+> lives in the `hourly-resources` plugin: `server/src/plugins/hourly-resources/` and
+> `client/src/plugins/hourly-resources/`. The pricing goes through the core's price-line contributor, the
+> SAS step through its commit contract (`pluginSteps.resourceScheduling` in place of `resourceBlocks`),
+> the planning cards through `planning.days`. The paths in the tables are the ones of this spec's time.
 
 > **Fat backend, thin frontend.** Slot states, capacity/turnover arithmetic, the thermal model, the
 > evening supplement, the remaining-hours budget and every validation are computed server-side. The SAS
@@ -345,8 +398,8 @@ offers **only slots that are genuinely bookable** — open, free, not in the pas
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/properties/:id` | — | `{ …, resources: [{ id, name, price, freeMinutes, priceType, showsPlanningCard, slotDuration, openTime, closeTime, minimumUsageMinutes, quantity }] }` | Rule 8, additive. |
-| GET | `/api/resources/:id/free-slots` | query `reservationId, pending=<json blocks>` | `{ days: [{ date, weekdayLabel, closed, occupancy: [{ start, end }], slots: [{ start, end, state, warm, supplement }] }] }` | Rules 12-15, 19, 21-22, 25. `state ∈ free \| taken \| heating \| past \| closed`. `occupancy` carries **no** client identity and **excludes** the in-run `pending` blocks (rule 19). The stay range and the property come from the reservation — the client passes neither. |
-| GET | `/api/reservations/:id/sas?mode=arrival` | — | `{ …, resourceScheduling: { applicable, resources: [{ resourceId, name, hoursSold, hoursPlaced, hoursRemaining, slotDuration, minimumUsageMinutes, sessions, days: […] }] } }` | Rules 17-18, additive to the existing payload; `days` has the same shape as `free-slots`. |
+| GET | `/api/resources/:id/free-slots` | query `reservationId, pending=<json blocks>` | `{ days: [{ date, weekdayLabel, closed, occupancy: [{ start, end }], slots: [{ start, end, state, warm, supplement }] }], supplement }` | Rules 12-15, 19, 21-22, 25, 32 (`supplement`: what the `pending` blocks owe). `state ∈ free \| taken \| heating \| past \| closed`. `occupancy` carries **no** client identity and **excludes** the in-run `pending` blocks (rule 19). The stay range and the property come from the reservation — the client passes neither. |
+| GET | `/api/reservations/:id/sas?mode=arrival` | — | `{ …, resourceScheduling: { applicable, resources: [{ resourceId, name, hoursSold, hoursPlaced, hoursRemaining, slotDuration, minimumUsageMinutes, sessions: [{ date, start, end, supplement }], supplement, supplementLabel, days: […] }] } }` | Rules 17-18, 26, 32, additive to the existing payload; `days` has the same shape as `free-slots`. |
 | POST | `/api/reservations/:id/sas/arrival` | `{ …, resourceBlocks: [{ resourceId, date, start, end }] }` | `{ ok, complementAmount, eveningSupplement }` | Rules 24, 26-27. `409 { error: 'SLOT_CONFLICT', block, reason }` with `reason ∈ taken \| heating \| past \| closed \| budget \| duration`; writes nothing. |
 | GET | `/api/resource-bookings?resourceId&weekStart` | — | `[{ …, kind: 'booking' \| 'session', reservationId, turnoverMinutes }]` | Rule 29, unified occupancy. |
 | PUT/POST | `/api/resources/:id` | `{ …, heatUpMinutes, heatRetentionMinutes }` | resource | Rule 11, additive. |
@@ -528,6 +581,15 @@ new file, next to the assertions they replace (three of which pinned the old, bu
 - [x] skipping the step (no `resourceBlocks`) writes nothing and leaves the hours unplaced
 - [x] the occupancy returned to the SAS carries no client name (rule 19)
 
+- [x] `tests/hourly-evening-billed-once.unit.test.js` (12) — rules 26, 30–32: a sold line keeps its
+      amount after an evening placement; a partly placed line keeps its hours; an unsold line is still
+      priced from its sessions; the supplement subtracts the evening already in the line (sold, offered);
+      the stored sessions owe their supplement; the payload hands the sessions back with their badge; a
+      re-opened SAS bills one supplement, with or without the step; hours moved to the day band drop it.
+      9 of the 11 fail on the code before the fix.
+- [x] Same file (+1): rule 33 — a fiche save keeps the SAS marker on the SAS's own lines, by label.
+- `tests/hourlySchedulingFixture.js` — the stay fixture, shared with `sas-resource-scheduling`.
+
 ### Server — extended existing tests
 
 - [x] `tests/devis-extras-parity.unit.test.js` — `recomputeDevisQuote` keeps `sessions`
@@ -545,6 +607,11 @@ new file, next to the assertions they replace (three of which pinned the old, bu
       🔥 warm badge and the « +40 € » supplement badge render; the occupancy strip shows times but no
       name; delete frees the hour; « Planifier plus tard » advances with nothing placed; a failed slot
       load shows the error, **not** an empty grid.
+- [x] `ReservationSasDialog.evening-supplement.test.jsx` — rule 32: a re-opened SAS shows the
+      supplement once, counts it in the total and never sends it back.
+- [x] Rule 26: a re-opened SAS starts from the placed hours with their supplement; a fully placed
+      resource is still listed and removing a block gives the hour back (replaces « a resource with
+      nothing left to place is not rendered »).
 - [x] `components/SlotPickerGrid` — renders each state from the server payload without deriving any of
       them locally, including the « enchaîne » badge of a reset-end slot (rule 20.bis).
 - [x] **Long stay (rule 18.bis)** — all 14 days of a fortnight render, picking one far down the strip

@@ -73,6 +73,8 @@ test('listOptions excludes options that are OFFERED defaults for the property (i
 });
 
 test('listResources returns resources sorted by price ascending', () => {
+  // The bath is sold by the hour: on sale only while its plugin is live (phase 3c rule 18).
+  require('../../../tests/hourlyResourcesFixture').liveHourlyResources();
   const controller = buildController({ resources: [
     { id: 1, name: 'Bain nordique', note: '', priceType: 'per_hour', price: 55 },
     { id: 2, name: 'Lit bébé', note: '', priceType: 'per_stay', price: 0 },

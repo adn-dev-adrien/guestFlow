@@ -14,6 +14,7 @@ const {
 const { getTodayIsoDate } = sdk.coreModule('reservationHelpers');
 const optionsModel = sdk.coreModule('optionsModel');
 const resourcesModel = sdk.coreModule('resourcesModel');
+const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { validateStayInput } = require('../publicInputValidation');
 const { toPublicQuote, toPublicCancellationInsurance, toPublicOptionLimits } = require('../publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
@@ -38,7 +39,8 @@ function checkOptionApplicability(propertyId, options) {
 /** Reject any resource id that is not applicable to the property. Returns an error list or null. */
 function checkResourceApplicability(propertyId, resources) {
   if (!resources || !resources.length) return null;
-  const applicable = new Set(resourcesModel.list(propertyId).map((r) => Number(r.id)));
+  // Phase 3c rule 18 — a resource sold by the hour is not on sale while no plugin offers it.
+  const applicable = new Set(hideUnoffered(resourcesModel.list(propertyId)).map((r) => Number(r.id)));
   const errors = resources
     .filter((r) => !applicable.has(Number(r.resourceId)))
     .map((r) => ({ field: 'resources', issue: `resource ${r.resourceId} is not available for this property` }));

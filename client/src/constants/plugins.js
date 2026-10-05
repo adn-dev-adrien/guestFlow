@@ -32,7 +32,6 @@ export const MODULE_ROUTE_ROLES = Object.freeze(
 // Pages that only exist for a plugin. An array means « visible while any of them is active »
 // (Intégrations holds the sections of four plugins). Plugin modules add their own pages.
 export const ROUTE_PLUGINS = Object.freeze({
-  '/resource-planning': HOURLY_RESOURCES,
   '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS],
   ...Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.pluginId])),
 });

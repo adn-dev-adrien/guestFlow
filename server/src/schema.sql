@@ -486,28 +486,6 @@ CREATE TABLE IF NOT EXISTS reservations (
     FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE CASCADE
   );
 
-CREATE TABLE IF NOT EXISTS resource_bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    resourceId INTEGER NOT NULL,
-    reservationId INTEGER,
-    clientId INTEGER,
-    clientName TEXT,
-    clientPhone TEXT,
-    propertyId INTEGER,
-    date TEXT NOT NULL,
-    startTime TEXT NOT NULL,
-    endTime TEXT NOT NULL,
-    notes TEXT DEFAULT '',
-    totalPrice REAL DEFAULT 0,
-    paid INTEGER DEFAULT 0,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE,
-    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE SET NULL,
-    FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE SET NULL,
-    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
-  );
-
 CREATE TABLE IF NOT EXISTS resource_properties (
     resourceId INTEGER NOT NULL,
     propertyId INTEGER NOT NULL,
@@ -689,16 +667,12 @@ CREATE INDEX IF NOT EXISTS idx_reservations_propertyId ON reservations(propertyI
 
 CREATE INDEX IF NOT EXISTS idx_reservations_startDate ON reservations(startDate);
 
-CREATE INDEX IF NOT EXISTS idx_resource_bookings_date ON resource_bookings(date);
 
 
 CREATE INDEX IF NOT EXISTS idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
 
-CREATE INDEX IF NOT EXISTS idx_resource_bookings_propertyId ON resource_bookings(propertyId);
 
-CREATE INDEX IF NOT EXISTS idx_resource_bookings_reservationId ON resource_bookings(reservationId);
 
-CREATE INDEX IF NOT EXISTS idx_resource_bookings_resourceId ON resource_bookings(resourceId);
 
 CREATE INDEX IF NOT EXISTS idx_resource_properties_resourceId ON resource_properties(resourceId);
 
@@ -706,7 +680,6 @@ CREATE INDEX IF NOT EXISTS idx_resource_properties_resourceId ON resource_proper
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_ical_sources_property_platform ON ical_sources(propertyId, platformKey);
 
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_resource_bookings_slot ON resource_bookings(resourceId, date, startTime, endTime);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_users_email ON users(email);
 

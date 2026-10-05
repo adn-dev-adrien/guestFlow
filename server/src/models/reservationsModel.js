@@ -437,11 +437,9 @@ function createReservationsModel(database) {
     try { return database.prepare('PRAGMA table_info(properties)').all().some((c) => c.name === 'maxGuests'); }
     catch { return false; }
   })();
-  // Hours placed on real slots (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4). Same guard
-  // rationale: a minimal test schema without the column just never writes a session.
-  const HAS_RR_SESSIONS = (() => {
-    try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions'); }
-    catch { return false; }
+  // specs/plugins-phase-3c-hourly-resources.md rules 6–7 — which plugin line of the SAS a custom row is.
+  const HAS_RCO_SAS_LINE_KEY = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
   // Extras baseline captured when the stay starts (specs/mid-stay-extras-to-end-of-stay-complement.md
   // §3.1). Guarded so minimal test schemas without the column simply never route anything to the
@@ -843,6 +841,7 @@ function createReservationsModel(database) {
           COALESCE(rco.offered, 0) as offered,
           COALESCE(rco.inComplement, 0) as inComplement,
           COALESCE(rco.sasArrivalOrigin, 0) as sasArrivalOrigin,
+          ${HAS_RCO_SAS_LINE_KEY ? 'rco.sasLineKey' : 'NULL'} as sasLineKey,
           rco.acompteContribTtc as acompteContribTtc,
           rco.soldeContribTtc as soldeContribTtc,
           1 as isCustom
@@ -1303,11 +1302,6 @@ function createReservationsModel(database) {
       return database.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
     },
 
-    getResourceFreeMinutes(propertyId, resourceId) {
-      const row = database.prepare('SELECT freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(Number(propertyId), Number(resourceId));
-      return Number(row?.freeMinutes || 0);
-    },
-
     getResourceReservedQuantity(resourceId, startDate, endDate, excludeId) {
       let sql = `
         SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
@@ -1749,8 +1743,12 @@ function createReservationsModel(database) {
       bookingLines.deleteCustomOptions(reservationId);
     },
 
-    insertCustomOptions(reservationId, optionLines) {
-      bookingLines.insertCustomOptions(reservationId, optionLines);
+    sasOriginCustomLabels(reservationId) {
+      return bookingLines.sasOriginCustomLabels(reservationId);
+    },
+
+    insertCustomOptions(reservationId, optionLines, sasOriginLabels = []) {
+      bookingLines.insertCustomOptions(reservationId, optionLines, sasOriginLabels);
     },
 
     replaceNights(reservationId, nightlyBreakdown) {
@@ -2584,10 +2582,10 @@ function createReservationsModel(database) {
       // (so the laundry + the linen stock keep counting it), and each `complementItems` entry carries
       // its own `offered` flag.
       offeredExtras, cleaningOffered, bathLinenOffered,
-      // specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 24 — the hours the guest placed
-      // on real slots, `[{ resourceId, date, start, end }]`. Already validated by the controller;
-      // `undefined` = the step was skipped → the stored sessions are left exactly as they were.
-      resourceBlocks,
+      // specs/plugins-phase-3c-hourly-resources.md rule 6 — what the plugins' steps write, each a
+      // `(db) => void` already validated by the controller. They run inside this transaction, so a
+      // throwing one rolls the whole commit back.
+      pluginWrites = [],
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
@@ -2647,24 +2645,7 @@ function createReservationsModel(database) {
           }
         }
 
-        // Hours placed on real slots during the SAS. REPLACE, never append: a re-opened SAS must be
-        // able to move or remove a block (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4
-        // rule 26). Only the resources named in the payload are rewritten, so a resource the operator
-        // never opened keeps its sessions.
-        if (HAS_RR_SESSIONS && Array.isArray(resourceBlocks)) {
-          const byResource = new Map();
-          for (const b of resourceBlocks) {
-            const key = Number(b?.resourceId);
-            if (!key) continue;
-            if (!byResource.has(key)) byResource.set(key, []);
-            byResource.get(key).push({ date: b.date, start: b.start, end: b.end });
-          }
-          const writeSessions = database.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?');
-          for (const [resourceId, sessions] of byResource) {
-            sessions.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start).localeCompare(String(b.start)));
-            writeSessions.run(JSON.stringify(sessions), reservationId, resourceId);
-          }
-        }
+        for (const write of pluginWrites) write(database);
 
         // Arrival complement — REPLACE the SAS-origin lines (specs/reopen-completed-sas.md §4 rule 4).
         // Drop the rows a prior run of THIS SAS created (sasArrivalOrigin=1), then re-insert the current
@@ -2734,10 +2715,14 @@ function createReservationsModel(database) {
           let added = 0;
           if (items.length > 0) {
             const maxSort = database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m;
-            const insert = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
+            // A line a plugin bills carries its key (rule 7), so the dialog never takes it for its own.
+            const insert = HAS_RCO_SAS_LINE_KEY
+              ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
+              : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
             let sort = Number(maxSort) + 1;
             for (const it of items) {
-              insert.run(reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, it.offered ? 1 : 0, sort);
+              const values = [reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, it.offered ? 1 : 0, sort];
+              insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
               sort += 1;
             }
             added = Math.round(items.filter((it) => !it.offered).reduce((s, it) => s + Number(it.amount), 0) * 100) / 100;

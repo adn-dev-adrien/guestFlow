@@ -51,7 +51,6 @@ export const ROUTE_ROLES = Object.freeze({
   '/':                       [ADMIN, RECEPTION],
   '/planning':               [ADMIN, RECEPTION],
   '/calendar':               [ADMIN],
-  '/resource-planning':      [ADMIN],
   '/reservations/upcoming':  [ADMIN],
   '/finance':                [ADMIN],
   '/finance/tourist-tax':    [ADMIN],

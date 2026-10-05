@@ -13,6 +13,11 @@ function tryAll(fn, fallback) {
   try { return fn(); } catch { return fallback; }
 }
 
+// The core may ask whether a plugin is live, never import it (specs/plugins-phase-0-foundation.md).
+function hourlyResourcesLive() {
+  try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
+}
+
 function loadStayFacts(database, reservation) {
   const propertyId = Number(reservation && reservation.propertyId);
 
@@ -36,15 +41,16 @@ function loadStayFacts(database, reservation) {
       `).all(propertyId, propertyId), [])
     : [];
 
-  // Included nordic-bath minutes: the bath resource is recognised by its name, as everywhere else in
-  // the emails (emailContextBuilder's nordicResource).
-  const bathFreeMinutes = propertyId
+  // Included nordic-bath minutes: those of the property's hourly resource that shows on the planning,
+  // whatever its name, and only while hourly resources are a live plugin — without it nothing is
+  // sold by the hour (specs/plugins-phase-3c-hourly-resources.md rules 15, 18).
+  const bathFreeMinutes = propertyId && hourlyResourcesLive()
     ? tryAll(() => {
       const row = database.prepare(`
         SELECT prp.freeMinutes AS minutes
           FROM property_resource_prices prp
           JOIN resources res ON res.id = prp.resourceId
-         WHERE prp.propertyId = ? AND LOWER(res.name) LIKE '%nordique%'
+         WHERE prp.propertyId = ? AND res.priceType = 'per_hour' AND res.showsPlanningCard = 1
          LIMIT 1
       `).get(propertyId);
       return row ? Number(row.minutes || 0) : 0;

@@ -82,7 +82,7 @@ function fakeRes() {
 const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
 // specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
 // (specs/plugins-phase-3b-neat.md rule 7).
-const PHASE_3_IDS = ['online-payment', 'neat'];
+const PHASE_3_IDS = ['online-payment', 'neat', 'hourly-resources'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
   assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS].sort());
@@ -427,9 +427,13 @@ test('rule 10: the four email paths take the plugin variables and no longer call
 
 // ---------- erasure (rule 12, rules 20-24) ----------
 
+// Every catalogue plugin has a module since phase 3c: a catalogue entry whose module is not loaded
+// stands for a plugin without one.
+const WITHOUT_HOURLY_MODULE = MODULES.filter((m) => m.id !== 'hourly-resources');
+
 test('rule 12: the Plugins list says which plugins are erasable and what an erasure would take', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['school-holidays', 'hourly-resources'] });
+  const { plugins } = boot(db, { installed: ['school-holidays', 'hourly-resources'], modules: WITHOUT_HOURLY_MODULE });
   db.prepare("INSERT INTO school_holidays (label) VALUES ('Toussaint'), ('Noël')").run();
   const res = fakeRes();
   createController(plugins, { registry, db: () => db }).list({}, res);
@@ -462,7 +466,7 @@ test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; 
 
 test('rule 22: a plugin without a module refuses ?purge=1 and keeps its data', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['hourly-resources'] });
+  const { plugins } = boot(db, { installed: ['hourly-resources'], modules: WITHOUT_HOURLY_MODULE });
   const res = fakeRes();
   createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'hourly-resources' }, query: { purge: '1' } }, res);
   assert.equal(res.statusCode, 409);

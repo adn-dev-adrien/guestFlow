@@ -17,18 +17,35 @@ function validateResourcePayload(body) {
   return '';
 }
 
-const reservationsModel = require('../models/reservationsModel');
-const resourceSchedulingModel = require('../models/resourceSchedulingModel');
 
-function createController(model) {
+// specs/plugins-phase-3c-hourly-resources.md rule 18 — a resource sold by the hour is offered only
+// while its plugin is live: hidden from the lists, 404 on its own URLs, its price type refused.
+const resourceOffer = require('../utils/resourceOffer');
+
+function createController(model, { isOffered = resourceOffer.isOffered } = {}) {
+  const offeredOnly = (resources) => (Array.isArray(resources) ? resources.filter(isOffered) : resources);
+  const NOT_FOUND = { error: 'Ressource non trouvée' };
+  const findOffered = (id) => {
+    const resource = model.findById(id);
+    return resource && isOffered(resource) ? resource : null;
+  };
+  // A resource that exists but is not offered answers like a missing one.
+  const hidden = (id) => {
+    const resource = model.findById(id);
+    return Boolean(resource) && !isOffered(resource);
+  };
+  const refusedPriceType = (body) => (body && body.priceType && !isOffered({ priceType: body.priceType })
+    ? resourceOffer.PRICE_TYPE_REFUSED
+    : '');
+
   function list(req, res) {
-    return res.json(model.list(req.query.propertyId));
+    return res.json(offeredOnly(model.list(req.query.propertyId)));
   }
 
   function availability(req, res) {
     const { propertyId, startDate, endDate, excludeReservationId } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ error: 'startDate et endDate requis' });
-    return res.json(model.availability(propertyId, startDate, endDate, excludeReservationId));
+    return res.json(offeredOnly(model.availability(propertyId, startDate, endDate, excludeReservationId)));
   }
 
   function babyBedAvailability(req, res) {
@@ -38,26 +55,27 @@ function createController(model) {
   }
 
   function getOne(req, res) {
-    const resource = model.findById(req.params.id);
-    if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
+    const resource = findOffered(req.params.id);
+    if (!resource) return res.status(404).json(NOT_FOUND);
     return res.json(resource);
   }
 
   function getDeleteImpact(req, res) {
+    if (hidden(req.params.id)) return res.status(404).json(NOT_FOUND);
     const impact = model.getDeleteImpact(req.params.id);
     if (!impact) return res.status(404).json({ error: 'Ressource non trouvée' });
     return res.json(impact);
   }
 
   function create(req, res) {
-    const error = validateResourcePayload(req.body);
+    const error = validateResourcePayload(req.body) || refusedPriceType(req.body);
     if (error) return res.status(400).json({ error });
     return res.json({ id: model.insert(req.body) });
   }
 
   function update(req, res) {
-    if (!model.findById(req.params.id)) return res.status(404).json({ error: 'Ressource non trouvée' });
-    const error = validateResourcePayload(req.body);
+    if (!findOffered(req.params.id)) return res.status(404).json(NOT_FOUND);
+    const error = validateResourcePayload(req.body) || refusedPriceType(req.body);
     if (error) return res.status(400).json({ error });
     model.update(req.params.id, req.body);
     return res.json({ ok: true });
@@ -66,6 +84,7 @@ function createController(model) {
   function remove(req, res) {
     const id = Number(req.params.id);
     const force = String((req.query && req.query.force) || '').toLowerCase() === 'true';
+    if (hidden(id)) return res.status(404).json(NOT_FOUND);
     const impact = model.getDeleteImpact(id);
     if (!impact) return res.status(404).json({ error: 'Ressource non trouvée' });
 
@@ -86,36 +105,7 @@ function createController(model) {
     return res.json({ ok: true });
   }
 
-  /**
-   * Bookable slots of one resource over a reservation's stay, for the arrival SAS picker
-   * (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rules 21, 25). Every slot comes back
-   * already classified — the client renders states, it never derives them.
-   *
-   * `pending` carries the blocks the operator has placed earlier in this SAS run: not persisted yet,
-   * but they occupy their slot and keep the resource warm for the next one.
-   */
-  function freeSlots(req, res) {
-    const reservation = reservationsModel.getByIdWithDetails(req.query.reservationId);
-    if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-
-    let pending = [];
-    if (req.query.pending) {
-      try {
-        const parsed = JSON.parse(req.query.pending);
-        pending = Array.isArray(parsed) ? parsed : [];
-      } catch { return res.status(400).json({ error: 'pending invalide' }); }
-    }
-
-    const payload = resourceSchedulingModel.getFreeSlots({
-      reservation,
-      resourceId: req.params.id,
-      pending,
-    });
-    if (!payload) return res.status(404).json({ error: 'RESOURCE_NOT_SOLD_ON_RESERVATION' });
-    return res.json(payload);
-  }
-
-  return { list, availability, babyBedAvailability, getOne, getDeleteImpact, create, update, remove, freeSlots };
+  return { list, availability, babyBedAvailability, getOne, getDeleteImpact, create, update, remove };
 }
 
 const defaultController = createController(require('../models/resourcesModel'));

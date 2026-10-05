@@ -57,9 +57,11 @@ test('changing the hours commits the new quantity on blur', () => {
   expect(setResourceQuantity).toHaveBeenCalledWith(2, 2);
 });
 
-test('the session editor is still offered below the hours', () => {
+// The editor is the hourly-resources plugin's, drawn through `reservation.resourceLine`
+// (specs/plugins-phase-3c-hourly-resources.md rule 21) — loaded lazily.
+test('the session editor is still offered below the hours', async () => {
   renderWith();
-  expect(screen.getByText('Séances')).toBeInTheDocument();
+  expect(await screen.findByText('Séances')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Ajouter une séance/i })).toBeInTheDocument();
 });
 

@@ -43,6 +43,7 @@ import { withFrom } from './utils/navigation';
 import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
 import { visibleSettingsMenu, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected } from './constants/settingsMenu';
+import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
 import { isRouteEnabled } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { allContributions } from './plugins/sdk/registry';
@@ -60,7 +61,6 @@ import FinancePage from './pages/FinancePage';
 import TouristTaxPage from './pages/TouristTaxPage';
 import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
-import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import EstablishmentSettingsPage from './pages/settings/EstablishmentSettingsPage';
 import PlatformsSettingsPage from './pages/settings/PlatformsSettingsPage';
 import VatFiscalSettingsPage from './pages/settings/VatFiscalSettingsPage';
@@ -103,7 +103,7 @@ const navItems = [
 // Children-of-each-parent map — keeps the parent visibility decision in one place. Hard-coded
 // (matches the JSX below) instead of derived from ROUTE_ROLES because the JSX itself is hand-rolled
 // and the children's order matters for display. « Suivi financier » reads constants/financeMenu.js.
-const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
+const CALENDAR_CHILDREN  = ['/calendar', ...CALENDAR_PATHS];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const SETTINGS_CHILDREN  = ['/settings', ...SETTINGS_PATHS];
 
@@ -159,7 +159,7 @@ function NavContent({ onItemClick }) {
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
-    if (location.pathname === '/resource-planning') {
+    if (CALENDAR_PATHS.includes(location.pathname)) {
       setCalendarMenuOpen(true);
       setEmailsMenuOpen(false);
       setFinanceMenuOpen(false);
@@ -214,7 +214,7 @@ function NavContent({ onItemClick }) {
               {...linkProps}
               onClick={(e) => {
                 if (item.path === '/calendar') {
-                  setCalendarMenuOpen((location.pathname.startsWith('/calendar') || location.pathname === '/resource-planning') ? true : (prev) => !prev);
+                  setCalendarMenuOpen(isCalendarPath(location.pathname) ? true : (prev) => !prev);
                   setEmailsMenuOpen(false);
                   setFinanceMenuOpen(false);
                   setSettingsMenuOpen(false);
@@ -315,22 +315,24 @@ function NavContent({ onItemClick }) {
             {item.path === '/calendar' && (
               <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                  {can('/resource-planning') && (
+                  {/* Entries of plugin modules (slot `calendar.menu`), e.g. Calendrier › Ressources. */}
+                  {CALENDAR_ENTRIES.filter((entry) => can(entry.path)).map((entry) => (
                   <ListItemButton
+                    key={entry.path}
                     component={Link}
-                    to="/resource-planning"
-                    onClick={(e) => onItemClick && onItemClick(e, '/resource-planning')}
-                    selected={location.pathname === '/resource-planning'}
+                    to={entry.path}
+                    onClick={(e) => onItemClick && onItemClick(e, entry.path)}
+                    selected={location.pathname === entry.path}
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemText
-                      primary="Ressources"
+                      primary={entry.label}
                       slotProps={{
                         primary: { variant: 'body2', fontStyle: 'italic' }
                       }}
                     />
                   </ListItemButton>
-                  )}
+                  ))}
                   {properties.map((p) => (
                     <ListItemButton
                       key={`calendar-${p.id}`}
@@ -697,7 +699,6 @@ function AppShell() {
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path={COMPENSATIONS_PATH} element={<CompensationsPage />} />
           <Route path="/planning" element={<PlanningPage />} />
-          <Route path="/resource-planning" element={pluginRoute('/resource-planning', <ResourcePlanningPage />)} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           {/* Paramètres (specs/settings-rationalization.md rule 2). */}
           <Route path="/settings" element={<Navigate to="/settings/etablissement" replace />} />

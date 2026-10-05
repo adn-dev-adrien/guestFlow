@@ -1,8 +1,9 @@
 import { countDayTasks } from '../planningDayTasks';
 
 // specs/planning-day-task-count.md — the Planning day chip counts every tickable card of the day
-// (issue #15): arrivals, departures and resource sessions. It used to count arrivals only, so a day
-// made of departures read « 0/0 » and never turned green.
+// (issue #15): arrivals, departures and what the plugins' cards hold to tick — the resource sessions
+// come from the hourly-resources plugin (specs/plugins-phase-3c-hourly-resources.md rule 22). It used to
+// count arrivals only, so a day made of departures read « 0/0 » and never turned green.
 
 test('arrivals only: the historical behaviour is preserved', () => {
   expect(countDayTasks({ arrivals: [{ checkInReady: 1 }, { checkInReady: 0 }] }))
@@ -16,8 +17,8 @@ test('departures count — a day of departures only can reach 2/2', () => {
     .toEqual({ done: 1, total: 2, allDone: false });
 });
 
-test('resource session cards count, with their own done flag', () => {
-  expect(countDayTasks({ resourceCards: [{ done: true }, { done: false }] }))
+test('a plugin\'s cards count what its contribution says', () => {
+  expect(countDayTasks({ contributed: [{ done: 1, total: 2 }] }))
     .toEqual({ done: 1, total: 2, allDone: false });
 });
 
@@ -25,15 +26,15 @@ test('the three add up, and one pending card keeps the day off green', () => {
   const day = {
     arrivals: [{ checkInReady: 1 }],
     departures: [{ checkOutDone: 1 }],
-    resourceCards: [{ done: false }],
+    contributed: [{ done: 0, total: 1 }],
   };
   expect(countDayTasks(day)).toEqual({ done: 2, total: 3, allDone: false });
-  expect(countDayTasks({ ...day, resourceCards: [{ done: true }] }))
+  expect(countDayTasks({ ...day, contributed: [{ done: 1, total: 1 }] }))
     .toEqual({ done: 3, total: 3, allDone: true });
 });
 
 test('an empty day is 0/0 and is never « all done »', () => {
-  expect(countDayTasks({ arrivals: [], departures: [], resourceCards: [] }))
+  expect(countDayTasks({ arrivals: [], departures: [], contributed: [] }))
     .toEqual({ done: 0, total: 0, allDone: false });
 });
 

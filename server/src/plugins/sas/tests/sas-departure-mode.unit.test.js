@@ -56,7 +56,6 @@ function readSas({ mode, sold, sasOrigin }) {
     '../../models/settingsModel': { read: () => ({ portalCode: '' }) },
     '../../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
     '../../models/repairAmountsModel': { list: () => [] },
-    '../../models/resourceSchedulingModel': { getSchedulingPayload: () => ({ applicable: true, resources: [{ resourceId: 2 }] }) },
   }, () => {
     delete require.cache[require.resolve('../controller')];
     return require('../controller');
@@ -71,14 +70,12 @@ function readSas({ mode, sold, sasOrigin }) {
 test('check-out read: a ménage sold by the arrival SAS counts as included — no end-of-stay ménage step', () => {
   const body = readSas({ mode: 'departure', sold: true, sasOrigin: true });
   assert.equal(body.cleaning.included, true, 'the host was already paid — the guest is not asked again');
-  assert.equal(body.resourceScheduling.applicable, false, 'nothing is scheduled at check-out');
 });
 
 test('check-in read: the SAS keeps the right to undo its OWN ménage upsell', () => {
   const body = readSas({ mode: 'arrival', sold: true, sasOrigin: true });
   assert.equal(body.cleaning.included, false, 'the step stays visible, pre-selected « ajouté »');
   assert.equal(body.cleaning.sasOrigin, true);
-  assert.equal(body.resourceScheduling.applicable, true, 'the arrival read carries the scheduling payload');
 });
 
 test('a ménage sold on the fiche is included on BOTH ends', () => {

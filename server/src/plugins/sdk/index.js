@@ -22,7 +22,7 @@ const CORE_MODULES = Object.freeze({
   repairAmountsModel: '../../models/repairAmountsModel', // « Facturables » repair prices; the departure commit prices from them
   breakfastModel: '../../models/breakfastModel', // the breakfast page state of the arrival SAS
   optionsModel: '../../models/optionsModel', // the catalogue the arrival SAS may still sell
-  resourceSchedulingModel: '../../models/resourceSchedulingModel', // the hourly-resource step (phase 0 switch until phase 3)
+  sasCommitHooks: '../../utils/sasCommitHooks', // the steps of other plugins, around the core commit (phase 3c rule 6)
   sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
   arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
   optionCategoriesMigration: '../../utils/optionCategoriesMigration', // CATERING_CATEGORY, the « Restauration » catalogue
@@ -47,6 +47,7 @@ const CORE_MODULES = Object.freeze({
   mealPortions: '../../utils/mealPortions', // per-person card options and their caps
   quotePostProcessors: '../../utils/quotePostProcessors', // the insurance price a plugin sets on a quote (phase 3b rule 2)
   insuranceOffer: '../../utils/insuranceOffer', // no insurance on the site while no plugin offers it (phase 3b rule 6)
+  resourceOffer: '../../utils/resourceOffer', // nothing sold by the hour on the site while no plugin offers it (phase 3c rule 18)
   translationResolver: '../../utils/translationResolver', // the English catalogue
   optionVisibility: '../../utils/optionVisibility', // internal options never reach the site
   optionGrouping: '../../utils/optionGrouping', // options grouped by category
@@ -76,6 +77,8 @@ const CORE_MODULES = Object.freeze({
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push
+  // hourly-resources — the resources, the stays and their sessions stay core tables (phase 3c rule 16)
+  dateFr: '../../utils/dateFr', // the planning cards' and the occupancy strip's French times
 });
 
 function coreModule(name) {

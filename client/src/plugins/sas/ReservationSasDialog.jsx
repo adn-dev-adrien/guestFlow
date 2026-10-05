@@ -30,9 +30,7 @@ import DialpadIcon from '@mui/icons-material/Dialpad';
 import SavingsIcon from '@mui/icons-material/Savings';
 import RoomServiceIcon from '@mui/icons-material/RoomService';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
-import HotTubIcon from '@mui/icons-material/HotTub';
 import PaymentsIcon from '@mui/icons-material/Payments';
-import SasResourceSchedulingPage from './SasResourceSchedulingPage';
 import SasStayPaymentPage from './SasStayPaymentPage';
 import KingBedIcon from '@mui/icons-material/KingBed';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
@@ -50,7 +48,7 @@ import { useNavigate } from 'react-router';
 import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
-  sasLockTitle, sasLockMessage, usePlugin, HOURLY_RESOURCES, Slot, useSlot, WheatIcon, BaguetteIcon,
+  sasLockTitle, sasLockMessage, Slot, useSlot, WheatIcon, BaguetteIcon,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import placePluginSteps from './placePluginSteps';
@@ -106,7 +104,6 @@ function stepMeta(key, mode) {
     case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
     case 'stayPayment': return { title: 'Séjour', Icon: PaymentsIcon };
     case 'options': return { title: 'Prestations', Icon: RoomServiceIcon };
-    case 'resourceScheduling': return { title: 'Planifier', Icon: HotTubIcon };
     case 'breakfast': return { title: 'Petit déjeuner', Icon: FreeBreakfastIcon };
     // specs/sas-breakfast-and-catering-upsell.md — the two sale steps at the end of the check-in.
     case 'breakfastSale':
@@ -228,7 +225,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [cleaningAdded, setCleaningAdded] = useState(false);
   // Hours the operator placed on real slots during this run. In-memory only until the single commit
   // at the recap (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 24).
-  const [resourceBlocks, setResourceBlocks] = useState([]);
   // specs/sas-bath-linen-upsell.md — arrival bath-linen upsell: add it or not. Settlement (incl. « en
   // fin de séjour ») is chosen once, for the whole complement, on the recap — never at option selection.
   const [bathLinenAdded, setBathLinenAdded] = useState(false);
@@ -304,7 +300,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // specs/plugins-phase-0-foundation.md rule 16 — the hourly-resource step keeps its switch until
   // phase 3. The linen and towel steps follow the payload instead: the server sends their data only
   // while `linen` is live (specs/plugins-phase-2-hosts.md rule 11).
-  const hourlyOn = usePlugin(HOURLY_RESOURCES);
   // Steps of plugin modules (specs/plugins-phase-1-sdk.md rule 13, specs/plugins-phase-2-hosts.md
   // rule 10), e.g. the weather alert: each loads its data in the background when the SAS opens and
   // shows only when `isShown(data)`, after the page its `after` names or just before the recap.
@@ -314,6 +309,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const pluginSteps = mode === 'arrival' ? arrivalPluginSteps : departurePluginSteps;
   const [pluginStepData, setPluginStepData] = useState({});
   const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;
+  // specs/plugins-phase-3c-hourly-resources.md rule 6 — a step without `load` reads what its plugin
+  // put in the SAS payload (`pluginData[pluginId]`). A step that collects keeps a value: `initialValue`
+  // seeds it, `payloadOf` is what the commit sends under `pluginSteps[key]` when the step ran, and
+  // `recapLines` / `recapNotes` are what the recap shows of it, step run or not.
+  const stepDataFor = (step) => (step.load ? pluginStepData[step.key] : data?.pluginData?.[step.pluginId]);
+  const [pluginStepValues, setPluginStepValues] = useState({});
+  // The lines a plugin billed at an earlier SAS while that plugin is off now: kept as stored by the
+  // server (rule 8), shown as they are, never offered.
+  const [storedPluginLines, setStoredPluginLines] = useState([]);
+  const setPluginStepValue = (key) => (update) => setPluginStepValues((prev) => ({
+    ...prev, [key]: typeof update === 'function' ? update(prev[key]) : update,
+  }));
   const metaFor = (key) => {
     const step = pluginStepFor(key);
     return step ? { title: step.title, Icon: step.Icon } : stepMeta(key, mode);
@@ -329,7 +336,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
-    setPluginStepData({}); setOffered(new Set());
+    setPluginStepData({}); setPluginStepValues({}); setStoredPluginLines([]); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
     // still undo its own upsell) and at check-out (where it can never be billed twice).
@@ -337,6 +344,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       .then((d) => {
         if (cancelled) return;
         setData(d); setStepKey('intro');
+        setPluginStepValues(Object.fromEntries(pluginSteps
+          .filter((step) => !step.load && step.initialValue)
+          .map((step) => [step.key, step.initialValue(d?.pluginData?.[step.pluginId])])));
         const res = d?.reservation || {};
         const b = d?.breakfast;
         if (b?.applicable) {
@@ -446,7 +456,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             && String(o.autoOptionType || '') === type && Number(o.sasArrivalOrigin || 0) === 1);
           if (Number(sasUpsellRow('cleaning')?.offered || 0) === 1) seed.add('cleaning');
           if (Number(sasUpsellRow('bathroom_linen')?.offered || 0) === 1) seed.add('bathLinen');
-          (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1).forEach((o) => {
+          // A line a plugin bills (`sasLineKey`) is the plugin's, recomputed at every commit
+          // (specs/plugins-phase-3c-hourly-resources.md rule 7): its step's recap shows it, it is
+          // never carried back as a preserved line.
+          const livePluginIds = new Set(pluginSteps.filter((step) => step.recapLines).map((step) => step.pluginId));
+          setStoredPluginLines((res.options || [])
+            .filter((o) => o.isCustom && o.sasLineKey && !livePluginIds.has(String(o.sasLineKey).split(':')[0]))
+            .map((o) => ({ label: String(o.description || o.title || ''), amount: Number(o.unitPrice ?? o.amount ?? 0) })));
+          (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1 && !o.sasLineKey).forEach((o) => {
             const label = String(o.description || o.title || '');
             const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
             const lineOffered = Number(o.offered || 0) === 1;
@@ -527,7 +544,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (!open || !reservationId || pluginSteps.length === 0) return undefined;
     let cancelled = false;
     setPluginStepData({});
-    pluginSteps.forEach((c) => {
+    pluginSteps.filter((c) => c.load).forEach((c) => {
       Promise.resolve(c.load({ reservationId }))
         .then((stepData) => { if (!cancelled) setPluginStepData((prev) => ({ ...prev, [c.key]: stepData })); })
         .catch(() => {});
@@ -570,7 +587,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
     const sales = data.sasSales || {};
     // Plugin steps (e.g. the weather alert), each only when its data calls for it.
-    const shownPluginSteps = pluginSteps.filter((c) => c.isShown(pluginStepData[c.key]));
+    const shownPluginSteps = pluginSteps.filter((c) => c.isShown(stepDataFor(c)));
     if (mode === 'arrival') {
       // Arrival caution is hidden as soon as it's received, even in re-edit (specs/sas-hide-settled-steps.md §3).
       const cautionStep = Number(r.cautionAmount || 0) > 0 && !r.cautionReceived;
@@ -585,10 +602,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // prepaid stay) and for a reception-only user, who never sees the stay amounts.
         data.stayPayment?.applicable ? 'stayPayment' : null,
         hasOptions ? 'options' : null,
-        // Place the hours bought by the hour on real slots, right after the read-only prestations
-        // list (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 17). Skipped once
-        // everything is scheduled.
-        hourlyOn && data.resourceScheduling?.applicable ? 'resourceScheduling' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
@@ -627,7 +640,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'recap',
     ].filter(Boolean), shownPluginSteps);
   }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
-    breakfastSold, cateringWanted, hourlyOn]);
+    breakfastSold, cateringWanted]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -740,6 +753,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     ...l, offerKey: `preserved:${i}`, real: round2(l.amount), amount: billed(`preserved:${i}`, l.amount),
   }));
   const preservedArrivalSum = preservedArrivalLines.reduce((s, l) => s + l.amount, 0);
+  // What the steps of other plugins bill, priced by the server (rule 7) — never offerable.
+  const pluginRecapLines = pluginSteps
+    .filter((step) => step.recapLines && pluginStepValues[step.key] !== undefined)
+    .flatMap((step) => step.recapLines(pluginStepValues[step.key], stepDataFor(step)));
+  const pluginRecapSum = [...pluginRecapLines, ...storedPluginLines].reduce((sum, l) => sum + Number(l.amount || 0), 0);
 
   // Detail of the PRE-EXISTING complement (the « déjà dû »): every extra routed to the complément
   // (options / resources / custom — `inComplement`), with its quantity + unit price, EXCLUDING the
@@ -787,7 +805,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // whether the settlement was one gesture or two; the server re-prices every line either way.
   const arrivalComplementTotal = round2(
     Math.max(0, round2(Number(r?.complementAmount || 0) - sasOriginSum - preExistingOfferDelta))
-    + arrivalAdded + preservedArrivalSum,
+    + arrivalAdded + preservedArrivalSum + pluginRecapSum,
   );
   const unifiableNow = mode === 'arrival'
     && Boolean(data?.arrivalPayment?.complementOpen)
@@ -907,19 +925,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }, [mode, r]);
   const departureGrandTotal = Math.round((endOfStayTotal + recalledArrivalAmount) * 100) / 100;
 
-  // What the guest bought but nobody placed on a slot — the hours the server still owed, minus the
-  // ones placed during this run. Recalled on the recap so a skipped step never loses them.
-  const unplacedResourceHours = useMemo(() => (
-    (data?.resourceScheduling?.resources || [])
-      .map((resource) => {
-        const placedMinutes = resourceBlocks
-          .filter((b) => Number(b.resourceId) === Number(resource.resourceId))
-          .reduce((sum, b) => sum + Number(b.durationMinutes || 0), 0);
-        const hours = Math.max(0, Math.round((resource.hoursRemaining - placedMinutes / 60) * 100) / 100);
-        return { resourceId: resource.resourceId, name: resource.name, hours };
-      })
-      .filter((u) => u.hours > 0)
-  ), [data, resourceBlocks]);
+  // What the steps of other plugins recall on the recap (the hours of a bath on no slot, rule 6).
+  const pluginRecapNotes = pluginSteps
+    .filter((step) => step.recapNotes && pluginStepValues[step.key] !== undefined)
+    .flatMap((step) => step.recapNotes(pluginStepValues[step.key], stepDataFor(step)));
 
   // specs/sas-breakfast-and-catering-upsell.md §3.1 — selling the breakfast seeds the composition the
   // operator is about to fill in: the option's serving hour and the defaults a never-committed
@@ -1030,13 +1039,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // this SAS made on an earlier run.
           stayPaid: activeKeys.includes('stayPayment') ? (stayPayMode === 'card' || stayPayMode === 'cash') : undefined,
           stayPaidCash: stayPayMode === 'cash',
-          // Hours placed on real slots. `undefined` when the step never ran, so a SAS that does not
-          // touch scheduling leaves the stored sessions exactly as they were
-          // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rules 23-24). The server
-          // re-validates every block and refuses the whole commit on a conflict.
-          resourceBlocks: activeKeys.includes('resourceScheduling')
-            ? resourceBlocks.map((b) => ({ resourceId: b.resourceId, date: b.date, start: b.start, end: b.end }))
-            : undefined,
+          // What the steps of other plugins collected, only for the steps that ran: a SAS that never
+          // showed one leaves its data exactly as it was (specs/plugins-phase-3c-hourly-resources.md
+          // rule 6). The server re-validates each and may refuse the whole commit.
+          pluginSteps: Object.fromEntries(pluginSteps
+            .filter((step) => step.payloadOf && activeKeys.includes(step.key))
+            .map((step) => [step.key, step.payloadOf(pluginStepValues[step.key], stepDataFor(step))])),
         };
         // The composition page ran — either for a booked breakfast or for one just sold (its counts
         // would otherwise be written back as zeros).
@@ -1225,18 +1233,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Stack>
         );
       }
-      case 'resourceScheduling':
-        return (
-          <SasResourceSchedulingPage
-            reservationId={r.id}
-            scheduling={data.resourceScheduling}
-            blocks={resourceBlocks}
-            onAdd={(block) => setResourceBlocks((prev) => [...prev, block])}
-            onRemove={(idx, block) => setResourceBlocks((prev) => prev.filter((b) => (
-              !(b.resourceId === block.resourceId && b.date === block.date && b.start === block.start)
-            )))}
-          />
-        );
       case 'breakfast':
         return (
           <Stack spacing={1.5}>
@@ -1626,6 +1622,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   onToggle={() => toggleOffered(l.offerKey)}
                 />
               ))}
+              {[...pluginRecapLines, ...storedPluginLines].map((l, i) => (
+                <OfferableLine key={`e${i}`} prefix="+ " text={`${l.label} : ${formatCurrency(l.amount)}`} />
+              ))}
               {preservedArrivalLines.map((l, i) => (
                 <OfferableLine
                   key={`p${i}`}
@@ -1647,13 +1646,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 </Typography>
               )}
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
-              {/* Hours sold but never placed on a slot. The step is skippable on purpose, so the recap
-                  is what keeps them from being forgotten
-                  (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 23). */}
-              {unplacedResourceHours.map((u) => (
-                <Typography key={u.resourceId} variant="body2" color="warning.main">
-                  {u.name} : {u.hours} h non planifiée{u.hours > 1 ? 's' : ''}.
-                </Typography>
+              {pluginRecapNotes.map((note) => (
+                <Typography key={note} variant="body2" color="warning.main">{note}</Typography>
               ))}
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
                 <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(arrivalAdded)}) manuellement.</Typography>
@@ -1791,7 +1785,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const step = pluginStepFor(stepKey);
         if (!step) return null;
         const { Component } = step;
-        return <Suspense fallback={null}><Component data={pluginStepData[stepKey]} /></Suspense>;
+        return (
+          <Suspense fallback={null}>
+            <Component
+              data={stepDataFor(step)}
+              value={pluginStepValues[stepKey]}
+              onChange={setPluginStepValue(stepKey)}
+              reservationId={r.id}
+            />
+          </Suspense>
+        );
       }
     }
   }
@@ -1816,14 +1819,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         </>;
       case 'stayPayment': return <>{quit}{next()}</>;
       case 'options': return <>{quit}{next()}</>;
-      // Not a yes/no safety question → neutral styling, like the ménage upsell. A check-in is never
-      // blocked by scheduling: « Planifier plus tard » moves on and the recap recalls what is left
-      // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 23).
-      case 'resourceScheduling':
-        return <>{quit}
-          <Button onClick={goNext} sx={{ color: 'text.secondary' }}>Planifier plus tard</Button>
-          <Button variant="contained" onClick={goNext}>Suivant</Button>
-        </>;
       case 'breakfast':
         return <>{quit}
           <Button variant="contained" onClick={() => { if (breakfastAnyMismatch) setBreakfastWarnOpen(true); else goNext(); }}>Suivant</Button>
@@ -1916,7 +1911,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>Valider et terminer</Button>
         </>;
-      default: return pluginStepFor(stepKey) ? <>{quit}{next()}</> : quit;
+      // A plugin step may be passed over with its own wording (« Planifier plus tard »): a check-in
+      // is never blocked by it.
+      default: {
+        const step = pluginStepFor(stepKey);
+        if (!step) return quit;
+        return <>{quit}
+          {step.skipLabel && <Button onClick={goNext} sx={{ color: 'text.secondary' }}>{step.skipLabel}</Button>}
+          {next()}
+        </>;
+      }
     }
   }
 

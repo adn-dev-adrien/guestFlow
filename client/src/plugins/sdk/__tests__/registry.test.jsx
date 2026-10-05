@@ -20,10 +20,11 @@ const SRC = path.resolve(__dirname, '../../..');
 beforeEach(() => enabled.clear());
 
 // specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds accounting-export, linen, sas, website-booking;
-// phase 3 online-payment and neat (specs/plugins-phase-3b-neat.md rule 15).
+// phase 3 online-payment, neat (specs/plugins-phase-3b-neat.md rule 15) and hourly-resources
+// (specs/plugins-phase-3c-hourly-resources.md rule 24).
 test('rule 2: the modules are listed once', () => {
   expect(PLUGIN_MODULES.map((m) => m.id).sort()).toEqual([
-    'accounting-export', 'gate-access', 'google-calendar', 'linen', 'neat', 'online-payment', 'sas', 'school-holidays',
+    'accounting-export', 'gate-access', 'google-calendar', 'hourly-resources', 'linen', 'neat', 'online-payment', 'sas', 'school-holidays',
     'tariff-recipes', 'weather-alerts', 'website-booking',
   ]);
 });

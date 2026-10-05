@@ -24,6 +24,7 @@ function createController(model, {
   termsFicheBlock = (devis) => require('./termsController').buildFicheBlock(devis),
   onlinePayment = () => require('../utils/paymentProviders').summary(),
   frozenOptions = (devisId) => require('../utils/insuranceOffer').frozenOptions(require('../database'), devisId),
+  frozenResources = (devisId) => require('../utils/resourceOffer').frozenResources(require('../database'), devisId),
 } = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {
@@ -40,9 +41,14 @@ function createController(model, {
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
     // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
     // specs/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
-    // specs/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only.
+    // specs/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only;
+    // specs/plugins-phase-3c-hourly-resources.md rule 18 — the same for the resources.
     return res.json({
-      ...devis, cgv: termsFicheBlock(devis), onlinePayment: onlinePayment(), frozenOptions: frozenOptions(devis.id),
+      ...devis,
+      cgv: termsFicheBlock(devis),
+      onlinePayment: onlinePayment(),
+      frozenOptions: frozenOptions(devis.id),
+      frozenResources: frozenResources(devis.id),
     });
   }
 

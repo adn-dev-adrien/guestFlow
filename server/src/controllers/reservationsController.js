@@ -30,6 +30,7 @@ const settingsModel = require('../models/settingsModel');
 const termsController = require('./termsController');
 const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
+const resourceOffer = require('../utils/resourceOffer');
 const { reservationBlocks } = require('../utils/pluginReservationBlocks');
 
 // specs/plugins-phase-3b-neat.md rule 5 — while no plugin offers the cancellation insurance, a booking
@@ -47,6 +48,17 @@ function gateInsurance(res, engineInput, bookingId) {
   engineInput.lockedOptionLines = gate.lockedOptionLines;
   // « Offert » is frozen too: a payload cannot turn the stored line into a free one, or back.
   engineInput.offeredOptionIds = insuranceOffer.freezeOffered(engineInput.offeredOptionIds, gate);
+  // specs/plugins-phase-3c-hourly-resources.md rule 18 — the same for a resource sold by the hour
+  // while no plugin offers it: kept as stored, never added.
+  const resources = resourceOffer.gateResources({
+    db, bookingId, selectedResources: engineInput.selectedResources, lockedResourceLines: engineInput.lockedResourceLines,
+  });
+  if (resources.error) {
+    res.status(resources.error.status).json({ error: resources.error.error, code: resources.error.code });
+    return false;
+  }
+  engineInput.selectedResources = resources.selectedResources;
+  engineInput.lockedResourceLines = resources.lockedResourceLines;
   return true;
 }
 const refundsModel = require('../models/refundsModel');
@@ -280,13 +292,8 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
   for (const rr of quote.resourceLines || []) {
     const resource = model.getResourceById(rr.resourceId);
     if (!resource) return { status: 400, body: { error: `Ressource introuvable (id=${rr.resourceId})` } };
-    const freeMinutes = model.getResourceFreeMinutes(propertyId, rr.resourceId);
-    const usesHourlyQuantity = resource.priceType === 'per_hour'
-      || Number(resource.isComplex || 0) === 1
-      || resource.isComplex === true
-      || String(resource.isComplex || '').toLowerCase() === 'true'
-      || freeMinutes > 0;
-    if (!usesHourlyQuantity) {
+    // specs/plugins-phase-3c-hourly-resources.md rule 4 — hours, and no stock check, for `per_hour` only.
+    if (resource.priceType !== 'per_hour') {
       const reserved = model.getResourceReservedQuantity(rr.resourceId, startDate, endDate, excludeId);
       const available = Number(resource.quantity) - Number(reserved);
       if (Number(rr.quantity || 0) > available) {
@@ -519,6 +526,9 @@ function getById(req, res) {
     // specs/plugins-phase-3b-neat.md rule 22 — the options this stay carries that the catalogue now
     // hides (the insurance without Neat): the fiche draws them read-only.
     frozenOptions: insuranceOffer.frozenOptions(db, reservation.id),
+    // specs/plugins-phase-3c-hourly-resources.md rule 18 — the same for the resources sold by the hour
+    // while no plugin offers them.
+    frozenResources: resourceOffer.frozenResources(db, reservation.id),
   });
 }
 
@@ -1205,8 +1215,9 @@ function update(req, res) {
 
   if (!pastReservationLocked && reservationOptions) model.replaceOptions(id, quote.optionLines);
   if (!pastReservationLocked) {
+    const sasOriginLabels = model.sasOriginCustomLabels(id);
     model.deleteCustomOptions(id);
-    if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines);
+    if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
   }
   if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
 

@@ -20,7 +20,7 @@ const settingsModel = sdk.coreModule('settingsModel');
 const breakfastModel = sdk.coreModule('breakfastModel');
 const optionsModel = sdk.coreModule('optionsModel');
 const repairAmountsModel = sdk.coreModule('repairAmountsModel');
-const resourceSchedulingModel = sdk.coreModule('resourceSchedulingModel');
+const sasCommitHooks = sdk.coreModule('sasCommitHooks');
 const { buildSasSaleOffers } = sdk.coreModule('sasOptionSale');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
 const { CATERING_CATEGORY } = sdk.coreModule('optionCategoriesMigration');
@@ -319,12 +319,6 @@ function getSas(req, res) {
         // invited to dinner can be served (specs/card-option-served-persons.md §3.1 rule 3).
         maxPersons: reservation.propertyMaxGuests,
       }),
-    // « Planifier les ressources » step (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4):
-    // the hours still owed per hourly resource + every slot of the stay, already classified
-    // free/taken/heating/past/closed. Arrival only — nothing is scheduled at check-out.
-    resourceScheduling: isDeparture
-      ? { applicable: false, resources: [] }
-      : resourceSchedulingModel.getSchedulingPayload(reservation),
   });
 }
 
@@ -348,7 +342,7 @@ function commitArrival(req, res) {
     // true means the operator chose « Régler séparément », and the four fields above are honoured
     // exactly as in v2.8.0.
     arrivalPaymentMode, arrivalPaymentSplit,
-    cleaningAdded, bathLinenAdded, resourceBlocks, soldOptions,
+    cleaningAdded, bathLinenAdded, pluginSteps, soldOptions,
     offeredExtras, cleaningOffered, bathLinenOffered,
   } = req.body || {};
 
@@ -383,33 +377,27 @@ function commitArrival(req, res) {
       grouped: undefined,
     };
 
-  // Hours placed on the resource picker. The picker only ever offers bookable slots, but its payload
-  // can be stale by the time it commits — so everything is re-checked here (opening window, capacity,
-  // turnover, thermal readiness, the sold-hours budget) and a conflict aborts the WHOLE commit rather
-  // than double-booking (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 27).
-  let eveningSupplements = [];
-  const blocks = Array.isArray(resourceBlocks) ? resourceBlocks : undefined;
-  if (blocks) {
-    const verdict = resourceSchedulingModel.validateBlocks({ reservation, blocks });
-    if (!verdict.ok) {
-      return res.status(409).json({ error: 'SLOT_CONFLICT', block: verdict.block, reason: verdict.reason });
-    }
-    eveningSupplements = verdict.supplements;
-  }
+  // The steps of other plugins (specs/plugins-phase-3c-hourly-resources.md rules 6–8): each checks
+  // its payload before anything is written — a refusal aborts the WHOLE commit, as the slot conflict
+  // of the scheduling step does — bills its own lines, recomputed on every commit, and writes inside
+  // the commit's transaction. A line a plugin billed that the dialog carries back is dropped.
+  const plugins = sasCommitHooks.prepare({ reservation, pluginSteps: pluginSteps || {} });
+  if (plugins.refusal) return res.status(plugins.refusal.status).json(plugins.refusal.body);
 
   const beforeSas = snapshotSas(Number(req.params.id));
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
-    // The evening supplement rides in as an ordinary SAS complement line, so it inherits the
+    // A plugin's line rides in as an ordinary SAS complement line, so it inherits the
     // replace-and-delta machinery for free: a re-committed SAS recomputes it instead of stacking it.
     // specs/sas-offer-complement-lines.md §3.2 — each item carries its own `offered` flag (a linen
-    // element noted but not billed). The evening supplement is never offered: it is machine-computed.
+    // element noted but not billed). A plugin line is never offered: it is machine-computed.
     complementItems: [
       ...(Array.isArray(complementItems) ? complementItems : [])
+        .filter((i) => !plugins.labels.has(String((i && i.label) || '').trim()))
         .map((i) => ({ label: i && i.label, amount: i && i.amount, offered: Boolean(i && i.offered) })),
-      ...eveningSupplements.map((s) => ({ label: s.label, amount: s.amount })),
+      ...plugins.items,
     ],
     breakfastTime,
     breakfastCoffee,
@@ -443,13 +431,13 @@ function commitArrival(req, res) {
     cleaningOffered: Boolean(cleaningOffered),
     bathLinenOffered: Boolean(bathLinenOffered),
     offeredExtras: normaliseOfferedRefs(offeredExtras),
-    resourceBlocks: blocks,
+    pluginWrites: plugins.writes,
   });
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
   return res.json({
     ok: true,
     complementAmount,
-    eveningSupplement: Math.round(eveningSupplements.reduce((s, x) => s + x.amount, 0) * 100) / 100,
+    pluginLines: plugins.items.map(({ label, amount }) => ({ label, amount })),
   });
 }
 

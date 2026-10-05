@@ -30,8 +30,9 @@ export { formatCurrency, displayDateLong } from '../../utils/formatters';
 export { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 export { PRICE_TYPE_LABELS } from '../../components/reservation/extrasLabels';
 export { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
-// The hourly-resource step keeps its phase 0 switch until phase 3 (rule 11).
-export { HOURLY_RESOURCES } from '../../constants/plugins';
+// hourly-resources (specs/plugins-phase-3c-hourly-resources.md §3.E) — its planning cards and pages.
+export { default as OptionDayCard } from '../../components/OptionDayCard';
+export { withFrom } from '../../utils/navigation';
 // accounting-export
 export { default as MonthYearPicker } from '../../components/MonthYearPicker';
 export { default as PlatformChip } from '../../components/PlatformChip';

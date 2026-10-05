@@ -15,4 +15,5 @@ module.exports = [
   require('./linen'),
   require('./online-payment'),
   require('./neat'),
+  require('./hourly-resources'),
 ];

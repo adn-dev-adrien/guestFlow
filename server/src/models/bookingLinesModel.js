@@ -139,28 +139,47 @@ function createBookingLinesModel(database) {
       database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(bookingId);
     },
 
-    insertCustomOptions(bookingId, optionLines) {
+    // The labels of the lines the arrival SAS wrote, one entry per row. A fiche save is a DELETE +
+    // INSERT, so `insertCustomOptions` carries the marker over by label; without it the SAS lost its
+    // own lines at the first save and a re-opened SAS billed them again
+    // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
+    // Each entry is `{ description, sasLineKey }`: the key of a line a plugin billed rides along
+    // (specs/plugins-phase-3c-hourly-resources.md rule 7).
+    sasOriginCustomLabels(bookingId) {
+      if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
+      const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
+      return database.prepare(`SELECT description, ${key} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
+        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null }));
+    },
+
+    insertCustomOptions(bookingId, optionLines, sasOriginLabels = []) {
+      const pendingSasLabels = [...sasOriginLabels];
       let sortOrder = 0;
       for (const line of optionLines || []) {
         if (!line.isCustom) continue;
         const forced = line.inComplement ? 1 : 0;
+        const description = String(line.title || line.description || '').trim();
+        const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
+        const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
         insertCustomOption({
           reservationId: bookingId,
-          description: String(line.title || line.description || '').trim(),
+          description,
           amount: Number(line.originalTotalPrice || line.totalPrice || 0),
           offered: line.offered ? 1 : 0,
           sortOrder,
           inComplement: forced,
           acompteContribTtc: forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
+          ...(sasLine ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey } : {}),
         });
         sortOrder += 1;
       }
     },
 
     replaceCustomOptions(bookingId, optionLines) {
+      const sasOriginLabels = model.sasOriginCustomLabels(bookingId);
       model.deleteCustomOptions(bookingId);
-      model.insertCustomOptions(bookingId, optionLines);
+      model.insertCustomOptions(bookingId, optionLines, sasOriginLabels);
     },
 
     // ── Resources ────────────────────────────────────────────────────────────────────────────────
