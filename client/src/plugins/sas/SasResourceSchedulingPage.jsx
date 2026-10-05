@@ -32,6 +32,27 @@ function dayLabel(day) {
 }
 
 /**
+ * The blocks a re-opened SAS starts from: the hours already placed, in the shape a freshly placed
+ * block has (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 26).
+ */
+export function seedResourceBlocks(scheduling) {
+  return (scheduling?.resources || []).flatMap((resource) => (resource.sessions || []).map((session) => {
+    const day = (resource.days || []).find((d) => d.date === session.date);
+    const [sh, sm] = String(session.start).split(':').map(Number);
+    const [eh, em] = String(session.end).split(':').map(Number);
+    return {
+      resourceId: resource.resourceId,
+      date: session.date,
+      dayLabel: day ? dayLabel(day) : session.date,
+      start: session.start,
+      end: session.end,
+      supplement: Number(session.supplement || 0),
+      durationMinutes: Math.max(0, (eh * 60 + em) - (sh * 60 + sm)),
+    };
+  }));
+}
+
+/**
  * The day strip of a long stay does not fit on a phone — a fortnight is 14 chips for ~3 visible.
  * It has always scrolled, but nothing said so: the last visible chip sat flush against the edge and
  * read as « that's all there is ». This adds the affordances that make the swipe discoverable —
@@ -148,7 +169,7 @@ function DayStrip({ days, activeDate, onPick }) {
   );
 }
 
-function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
+function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove, onSupplement }) {
   const [days, setDays] = useState(resource.days || []);
   const [activeDate, setActiveDate] = useState((resource.days || [])[0]?.date || '');
   const [loading, setLoading] = useState(false);
@@ -159,7 +180,9 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
     [blocks, resource.resourceId],
   );
   const placedMinutes = ownBlocks.reduce((sum, b) => sum + Number(b.durationMinutes || 0), 0);
-  const remaining = Math.max(0, Math.round((resource.hoursRemaining - placedMinutes / 60) * 100) / 100);
+  // The blocks start from the hours already placed (rule 26), so what is left is the sold hours minus
+  // every block on the card.
+  const remaining = Math.max(0, Math.round((resource.hoursSold - placedMinutes / 60) * 100) / 100);
 
   const refresh = async () => {
     setLoading(true);
@@ -171,6 +194,8 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
         pending: ownBlocks.map((b) => ({ date: b.date, start: b.start, end: b.end })),
       });
       setDays(payload?.days || []);
+      // The server's supplement for every block on the card — what the recap bills (rule 32).
+      if (onSupplement) onSupplement(resource.resourceId, Number(payload?.supplement || 0));
     } catch {
       // A failed refresh must SURFACE. An empty grid would read as « tout est libre » and invite a
       // double booking (specs/ds-sweep-planning.md rule 9).
@@ -285,8 +310,8 @@ function ResourceCard({ reservationId, resource, blocks, onAdd, onRemove }) {
   );
 }
 
-export default function SasResourceSchedulingPage({ reservationId, scheduling, blocks, onAdd, onRemove }) {
-  const resources = (scheduling?.resources || []).filter((r) => r.hoursRemaining > 0);
+export default function SasResourceSchedulingPage({ reservationId, scheduling, blocks, onAdd, onRemove, onSupplement }) {
+  const resources = scheduling?.resources || [];
   const totalSupplement = blocks.reduce((sum, b) => sum + Number(b.supplement || 0), 0);
 
   return (
@@ -299,6 +324,7 @@ export default function SasResourceSchedulingPage({ reservationId, scheduling, b
           blocks={blocks}
           onAdd={onAdd}
           onRemove={onRemove}
+          onSupplement={onSupplement}
         />
       ))}
       {totalSupplement > 0 && (

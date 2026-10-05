@@ -1918,6 +1918,12 @@ function calculateReservationQuote({
       // the total, silently: at quote time nobody knows which evening the guests will want the nordic
       // bath, so the fiche's Switch legitimately leaves the sessions empty. `planningCardAsQuantity`
       // (the public/site flow) no longer gates the branch — every caller now behaves the same way.
+      // A SOLD line is never re-priced by its sessions (specs/hourly-resource-quantity-and-sas-scheduling.md
+      // §3.4 rule 22, rule 30): placing its hours — at the arrival SAS or on the fiche — only says WHEN
+      // they are used. It goes through the locked snapshot like every other sold line, with its sold
+      // hours, and the evening difference is billed once, by the SAS supplement. Re-pricing it here
+      // billed the evening twice: once in the line, once in the supplement.
+      let placed = null;
       if (hourlyScheduled && sessions.length > 0) {
         const priced = priceSessions(
           sessions,
@@ -1932,7 +1938,9 @@ function calculateReservationQuote({
           },
           resourceForFlags.freeMinutes,
         );
-        if (priced.validSessions.length > 0) {
+        if (priced.validSessions.length > 0 && lockedResourcesById.has(resourceId)) {
+          placed = { sessions: priced.validSessions, scheduledHours: priced.totalHours };
+        } else if (priced.validSessions.length > 0) {
           const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
           const lockedLine = lockedResourcesById.get(resourceId);
           const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
@@ -1962,7 +1970,10 @@ function calculateReservationQuote({
       // sessions turn out unusable, the hours they described are still what was sold — derive them
       // rather than letting the line fall to 0 and disappear.
       const declaredQuantity = Math.max(0, Number(selected?.quantity || 0));
-      const quantity = (declaredQuantity <= 0 && hourlyScheduled && sessions.length > 0)
+      // Sold hours never shrink to the hours placed so far: a partly placed line keeps them all.
+      const quantity = placed
+        ? roundMoney(Math.max(declaredQuantity, placed.scheduledHours))
+        : (declaredQuantity <= 0 && hourlyScheduled && sessions.length > 0)
         ? roundMoney(sessions.reduce(
           (sum, s) => sum + Math.max(0, toMinutes(s?.end) - toMinutes(s?.start)),
           0,
@@ -2039,7 +2050,7 @@ function calculateReservationQuote({
         billedUnits: merged.billedUnits,
         // Sold by the hour, nothing placed on a slot yet: the arrival SAS is where these hours get
         // scheduled. Only meaningful for a schedulable resource — 0 elsewhere is simply « n/a ».
-        ...(hourlyScheduled ? { scheduledHours: 0 } : {}),
+        ...(placed || (hourlyScheduled ? { scheduledHours: 0 } : {})),
         ...applyOfferedToLine(merged.totalPrice, offered),
         ...pickContribsAndForce(selected, lockedLine),
       };
