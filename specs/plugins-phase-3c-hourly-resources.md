@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved |
 | **Branch** | `feature/plugins-phase-3c` (from `inte/plugins` at ed64b928) |
 | **Created** | 2026-10-05 |
 | **Author** | Adrien |
@@ -85,6 +85,15 @@ mapping of 2026-10-05 found seven defects**, two of them on money:
 **In Solio's data**, the bath is the only `per_hour` resource; the baby bed is `per_stay`, with no
 slots and no free minutes.
 
+**Defects 1 and 2 are fixed on `master` first** (decision P15): `fix/hourly-evening-billed-once`,
+`specs/hourly-resource-quantity-and-sas-scheduling.md` §3.6 rules 30–33. Writing that fix found two
+more, fixed with it:
+- a re-opened SAS deleted the hours already placed (the step started empty and the commit replaces
+  the sessions);
+- a fiche save dropped the SAS marker on the custom lines, so a re-opened SAS duplicated them.
+
+This phase moves the fixed behaviour into the plugin; it does not fix it again.
+
 ## 2. Goal
 
 - **The core owns the quote and its engine.** A plugin can price a resource line through **a price-line
@@ -165,11 +174,14 @@ slots and no free minutes.
    | `write(db, reservation, payload)` | Writes the plugin's data. Runs inside the commit's transaction |
 
    - **The payload** is `pluginSteps[<step>]` of `POST …/sas/arrival`. It is `undefined` when the step
-     did not run, and then no member is called: what the step stored before stays (feature spec rule 24).
+     did not run: `validate` and `write` are not called, and what the step stored before stays (feature
+     spec rule 24).
    - **Refusal.** A `validate` refusal aborts the whole commit with its status and body, as today's 409
      `SLOT_CONFLICT`.
-   - **Complement lines.** Each item joins the commit's complement items. Its `key` is stored on the row
-     (`reservation_options.sasLineKey`, `'<pluginId>:<key>'`).
+   - **Complement lines.** `complementItems` is called on **every** arrival commit while the plugin is
+     live, `payload` `undefined` when the step did not run: a plugin line is recomputed each time
+     (master rule 32). Each item joins the commit's complement items. Its `key` is stored on the row
+     (`reservation_custom_options.sasLineKey`, `'<pluginId>:<key>'`).
    - **Errors.** A `write` that throws rolls the commit back and answers 500. A plugin cannot leave a
      half-written SAS.
    - **Scope.** Arrival only for now: nothing is scheduled at check-out.
@@ -178,6 +190,7 @@ slots and no free minutes.
      dialog therefore never keeps it as « preserved » and never sends it back.
    - The commit drops any incoming custom item whose label equals a plugin line's label on that stay.
      This protects against an older dialog still open in a browser.
+   - A fiche save carries `sasLineKey` over with `sasArrivalOrigin` (master rule 33).
    - A re-commit replaces the plugin's lines with the ones it computes now, through the existing
      replace-and-delta machinery. A paid complement stays frozen, as today.
 8. **Live only.** `getSas` asks the step's data (`ctx.sasData`) and the commit calls the hooks only
@@ -362,7 +375,7 @@ slots and no free minutes.
 | `plugins/` | `index.js` | T | Registers the module |
 | `plugins/hourly-resources/` | `index.js`, `pricing.js`, `controller.js`, `routes.js`, `bookingsModel.js`, `occupancyModel.js`, `schedulingModel.js`, `planningCardsModel.js`, `hourlyPricing.js`, `availability.js`, `emailContext.js`, `migrations.js`, `tests/` | C (mostly moved) | Rules 9–17 |
 | — | `index.js` | T | `/api/resource-bookings` mount removed |
-| — | `database.js`, `schema.sql` | T | `resource_bookings` no longer created by the core; `reservation_options.sasLineKey` added |
+| — | `database.js`, `schema.sql` | T | `resource_bookings` no longer created by the core; `reservation_custom_options.sasLineKey` added |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -399,7 +412,7 @@ three slots are generic. The plugin's components are specific.
 
 - **`resource_bookings`**: unchanged columns. It is now created by the plugin migration `tables_v1`, and
   dropped on erase.
-- **`reservation_options.sasLineKey`** (TEXT, NULL): new core column. Existing supplement rows are
+- **`reservation_custom_options.sasLineKey`** (TEXT, NULL): new core column. Existing supplement rows are
   tagged at migration: a SAS-origin custom row whose label ends with « — supplément soirée » and names
   a `per_hour` resource of the stay gets `hourly-resources:evening:<resourceId>`.
 - **`resources`** (hourly columns), **`reservation_resources.sessions`**,
@@ -439,15 +452,14 @@ The interactive mock shows each screen in both states, plugin on and off.
 | File | Covers |
 |---|---|
 | `price-line-contributor.unit.test.js` | Rules 1–4: missing member; one per price type; `extra` closed; a throw gives the quantity price; an inactive plugin is never called; hours for `per_hour` only |
-| `hourly-line-frozen.unit.test.js` | Defect 1, rules 3, 13: a line sold at the day rate keeps its amount after evening sessions are saved; the SAS supplement is the only evening charge; a line sold with evening sessions owes no supplement for them |
 | `sas-commit-hooks.unit.test.js` | Rules 6–8: validate aborts the whole commit; items tagged with `sasLineKey`; `write` rolled back on a throw; step not run → nothing called; plugin off → ignored |
-| `sas-evening-supplement-once.unit.test.js` | Defect 2, rule 7: a re-opened SAS that sends the old supplement back as a custom line ends with one supplement; the migration tags existing rows |
+| `sas-plugin-lines.unit.test.js` | Rule 7: a re-opened SAS that sends the old supplement back as a custom line ends with one supplement; the migration tags existing rows |
 | `resource-offer-follows-plugin.unit.test.js` | Rules 18–20: catalogue, property and site lists hide `per_hour`; 404 and 400; a stored line kept, removal and hours change ignored; `frozenResources`; back with its settings |
 | `reservation-engine-input-sessions.unit.test.js` | Rule 5 |
 | `plugins/hourly-resources/tests/phase-3c-hourly.unit.test.js` | Rules 9–17, 25–26: routes only while live; `tables_v1` keeps rows; the SAS data and step only while live; email slot without the name; erase warns, then erases, sold lines kept; a new customer has no `per_hour` |
 
-The two money tests (`hourly-line-frozen`, `sas-evening-supplement-once`) are written first and must fail
-on `inte/plugins` before the fix.
+Master's `hourly-evening-billed-once.unit.test.js` moves under the plugin and must stay green through
+the move: it is the parity guard of defects 1–2.
 
 ### Moved and updated tests
 
@@ -500,15 +512,12 @@ on `inte/plugins` before the fix.
 
 ## 9. Open questions
 
-Proposals to decide on the mock; each is written into the rules above as proposed.
+None. Decided on 2026-10-05, on the mock:
 
-- **P14 — the plugin off.** Proposed: as P13, nothing sold by the hour is offered; a sold line stays
-  frozen and read-only (rules 18–20). Alternative: keep selling hours by quantity at the day rate,
-  without sessions (P10 as written, phase 0 rule 20).
-- **P15 — where the two money defects are fixed.** Proposed: in this phase and also in a separate
-  `fix/` PR on `master`, shipped in a patch release before `inte/plugins` reaches production, since
-  both defects bill guests today. Alternative: in this phase only.
-- **P16 — erasing with paid external bookings.** Proposed: warn, then erase (as P12). Alternative:
-  refuse while an external booking exists.
-- **P17 — the email tokens.** Proposed: the slot sentence moves to the plugin, found without the name;
-  the reminder stays core (rule 15). Alternative: leave the name match as it is, for later.
+- **P14 — the plugin off:** nothing sold by the hour is offered; a sold line stays frozen and
+  read-only (rules 18–20).
+- **P15 — the money defects:** fixed on `master` first, in a separate `fix/` PR shipped in a patch
+  release; this phase carries the fix into the plugin.
+- **P16 — erasing with paid external bookings:** warn, then erase (rule 17).
+- **P17 — the email tokens:** the slot sentence moves to the plugin, found without the name; the
+  reminder stays core (rule 15).
