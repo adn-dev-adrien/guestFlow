@@ -558,6 +558,23 @@ function gf_seo_render_schema() {
 		),
 	);
 
+	// Sans date de mise a jour, Perplexity et les apercus IA de Google tiennent la page pour
+	// perimee : l'audit GEO du 2026-10-05 plafonnait Perplexity a 40/100 sur toutes les pages.
+	if ( is_singular() ) {
+		$id       = get_queried_object_id();
+		$graphe[] = array(
+			'@type'         => 'WebPage',
+			'@id'           => get_permalink( $id ) . '#page',
+			'url'           => get_permalink( $id ),
+			'name'          => gf_seo_document_title(),
+			'inLanguage'    => $graphe[1]['inLanguage'],
+			'isPartOf'      => array( '@id' => home_url( '/#site' ) ),
+			'about'         => array( '@id' => home_url( '/#domaine' ) ),
+			'datePublished' => get_the_date( 'c', $id ),
+			'dateModified'  => get_the_modified_date( 'c', $id ),
+		);
+	}
+
 	// Structure, pas texte : sans ce repli l'anglais perdait le noeud `VacationRental` de La Granja
 	// et le `Campground` de L'Estiva — celui qui decrit le logement comme louable (regle 52).
 	$conf = gf_seo_config_structure();

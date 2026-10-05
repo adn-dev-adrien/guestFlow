@@ -67,7 +67,7 @@ function gf_seo_pages() {
 			'fil'         => 'Activités autour',
 			'fil_en'      => 'Things to do nearby',
 			'title'       => 'Que faire en Ardèche verte ? Nos idées autour de Satillieu',
-			'description' => 'Le Safari de Peaugres à 20 minutes, le lac de Devesset, la Via Fluvia, Annonay à 15 km : nos idées de sorties testées autour du Domaine Solio.',
+			'description' => 'Le Safari de Peaugres à 25 minutes, le lac de Devesset, la Via Fluvia, Annonay à 15 km : nos idées de sorties testées autour du Domaine Solio.',
 		),
 
 
@@ -277,6 +277,14 @@ function gf_seo_og_image() {
 }
 
 /**
+ * Locale Open Graph de la page affichee : `fr_FR` en dur publiait les pages anglaises comme
+ * francaises aupres des reseaux et des moteurs.
+ */
+function gf_seo_og_locale() {
+	return ( function_exists( 'gf_langue' ) && 'en' === gf_langue() ) ? 'en_GB' : 'fr_FR';
+}
+
+/**
  * Emission des balises meta.
  */
 function gf_seo_render_head() {
@@ -284,7 +292,7 @@ function gf_seo_render_head() {
 	$desc = gf_seo_description();
 	$url  = is_singular() ? get_permalink( get_queried_object_id() ) : home_url( '/' );
 	if ( is_front_page() ) {
-		$url = home_url( '/' );
+		$url = function_exists( 'pll_home_url' ) ? pll_home_url() : home_url( '/' );
 	}
 	$nom = gf_seo_domaine()['nom'];
 
@@ -303,7 +311,7 @@ function gf_seo_render_head() {
 
 	printf( "<meta property=\"og:type\" content=\"%s\" />\n", is_front_page() ? 'website' : 'article' );
 	printf( "<meta property=\"og:site_name\" content=\"%s\" />\n", esc_attr( $nom ) );
-	printf( "<meta property=\"og:locale\" content=\"fr_FR\" />\n" );
+	printf( "<meta property=\"og:locale\" content=\"%s\" />\n", gf_seo_og_locale() );
 	printf( "<meta property=\"og:title\" content=\"%s\" />\n", esc_attr( gf_seo_document_title() ) );
 	if ( $desc ) {
 		printf( "<meta property=\"og:description\" content=\"%s\" />\n", esc_attr( $desc ) );
@@ -374,7 +382,7 @@ function gf_seo_render_hreflang() {
 	printf( "<link rel=\"alternate\" hreflang=\"x-default\" href=\"%s\" />\n", esc_url( $versions['fr-FR'] ) );
 
 	foreach ( $versions as $code => $lien ) {
-		if ( 'fr-FR' === $code ) {
+		if ( str_replace( '-', '_', $code ) === gf_seo_og_locale() ) {
 			continue;
 		}
 		printf( "<meta property=\"og:locale:alternate\" content=\"%s\" />\n", esc_attr( str_replace( '-', '_', $code ) ) );
