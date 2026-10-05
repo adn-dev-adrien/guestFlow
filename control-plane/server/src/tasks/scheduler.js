@@ -4,7 +4,8 @@
  * Daily, at 04:00 Paris time — or at start-up when today's run was missed:
  *   1. every customer's state is recomputed and its licence re-issued (a licence is valid 7 days, so
  *      a daily re-issue keeps a week of margin);
- *   2. the archived customers whose 90 days are over are erased;
+ *   2. the archived customers whose 90 days are over are erased (once their process is marked
+ *      stopped), and the export archives whose link expired are deleted;
  *   3. the invoices that come due are created in Qonto, and their emails prepared or sent;
  *   4. the operators get the day's email when there is something in it.
  *
@@ -31,6 +32,7 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
     const day = parisDay(now());
     const refreshed = controllers.customers.reissueAll('système');
     const erased = controllers.customers.eraseDue('système');
+    controllers.customers.purgeExpiredExports();
     models.meta.set('lastDailyRun', day);
     const invoiced = await controllers.billing.runDaily(log);
     const notified = await controllers.billing.sendDigest(controllers.alerts.digestLines(), day)

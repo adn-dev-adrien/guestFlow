@@ -24,6 +24,7 @@ function consoleRoutes(ctx) {
   router.post('/customers/:id/rename', (req, res) => res.json(customers.rename(req.params.id, body(req), who(req))));
   router.post('/customers/:id/billing', (req, res) => res.json(customers.setBilling(req.params.id, body(req), who(req))));
   router.post('/customers/:id/remind', async (req, res) => res.json(await billing.remind(req.params.id, body(req), who(req))));
+  router.post('/customers/:id/invoice/retry', async (req, res) => res.json(await billing.retryInvoice(req.params.id, who(req))));
   router.post('/customers/:id/check-payment', async (req, res) => res.json(await billing.checkCustomer(req.params.id, who(req))));
   router.post('/customers/:id/extend', (req, res) => res.json(customers.extend(req.params.id, body(req), who(req))));
   router.post('/customers/:id/force-active', (req, res) => res.json(customers.forceActive(req.params.id, body(req), who(req))));

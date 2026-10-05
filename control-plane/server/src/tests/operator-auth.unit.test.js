@@ -1,6 +1,7 @@
 // specs/control-plane-plans-and-access.md rule 31 — operator access to the console: a password and a
 // second factor chosen by each operator (authenticator app or email code), backup codes, the
-// lockout, and a method that changes only once its own code is typed.
+// lockout (second factor only), a TOTP code accepted once, and a method that changes only with the
+// password and once its own code is typed.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -59,7 +60,8 @@ test('rule 31 — an email code expires after 10 minutes, and a new one voids th
 
 test('rule 31 — switching to the app takes effect only once its code is typed, and issues 10 backup codes', async () => {
   const { auth, id, operators, now } = setup();
-  const started = await auth.startMethod(id, { method: 'totp' });
+  await assert.rejects(auth.startMethod(id, { method: 'totp' }), (e) => e.body.error === 'BAD_PASSWORD', 'a session cookie alone is not enough');
+  const started = await auth.startMethod(id, { method: 'totp', password: 'correct horse battery' });
   assert.match(started.qrDataUrl, /^data:image\/png;base64,/);
   const secret = started.secret.replace(/\s/g, '');
   assert.throws(() => auth.confirmMethod(id, { code: '123456' }), (e) => e.body.error === 'BAD_CODE');
@@ -68,10 +70,14 @@ test('rule 31 — switching to the app takes effect only once its code is typed,
   assert.equal(confirmed.operator.mfaMethod, 'totp');
   assert.equal(confirmed.backupCodes.length, 10);
   assert.ok(!operators.byId(id).backupCodes.includes(confirmed.backupCodes[0]), 'backup codes are stored hashed');
+  assert.ok(JSON.parse(operators.byId(id).backupCodes).every((h) => h.startsWith('scrypt:')), 'with the slow password hash');
 
   const step = await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' });
   assert.equal(step.payload.method, 'totp');
-  assert.ok(auth.verify(id, { code: totp.totp(totp.base32Decode(secret), now()) }).operator);
+  const code = totp.totp(totp.base32Decode(secret), now());
+  assert.ok(auth.verify(id, { code }).operator);
+  await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' });
+  assert.throws(() => auth.verify(id, { code }), (e) => e.body.error === 'BAD_CODE', 'the same code never opens a second session');
 
   // A backup code works once.
   const used = auth.verify(id, { code: confirmed.backupCodes[0] });
@@ -79,7 +85,34 @@ test('rule 31 — switching to the app takes effect only once its code is typed,
   assert.throws(() => auth.verify(id, { code: confirmed.backupCodes[0] }), (e) => e.body.error === 'BAD_CODE');
 });
 
-test('rule 31 — five wrong answers lock the account for 15 minutes', async () => {
+test('rule 31 — wrong passwords lock nothing, and an unknown email answers like a wrong password', async () => {
+  const { auth, id } = setup();
+  for (let i = 0; i < 8; i += 1) {
+    await assert.rejects(auth.login({ email: 'adrien@adn-dev.fr', password: `wrong ${i}` }), (e) => e.status === 401 && e.body.error === 'BAD_CREDENTIALS');
+  }
+  await assert.rejects(auth.login({ email: 'nobody@adn-dev.fr', password: 'x' }), (e) => e.status === 401 && e.body.error === 'BAD_CREDENTIALS');
+  assert.equal((await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' })).operatorId, id);
+});
+
+test('rule 31 — five wrong codes while changing the method cancel the change', async () => {
+  const { auth, id, operators } = setup();
+  await auth.startMethod(id, { method: 'totp', password: 'correct horse battery' });
+  for (let i = 0; i < 4; i += 1) assert.throws(() => auth.confirmMethod(id, { code: '000000' }), (e) => e.body.error === 'BAD_CODE');
+  assert.throws(() => auth.confirmMethod(id, { code: '000000' }), (e) => e.body.error === 'TOO_MANY_CODES');
+  assert.equal(operators.byId(id).pendingMethod, null);
+  assert.throws(() => auth.confirmMethod(id, { code: '000000' }), (e) => e.body.error === 'NO_PENDING_METHOD');
+});
+
+test('rule 31 — backup codes stored before 2026-10-04 (plain SHA-256) still work once', async () => {
+  const { auth, id, operators } = setup();
+  const { sha256 } = require('../controllers/authController');
+  operators.setBackupCodes(id, JSON.stringify([sha256('abcde-fghjk')]));
+  await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' });
+  assert.ok(auth.verify(id, { code: 'abcde-fghjk' }).operator);
+  assert.throws(() => auth.verify(id, { code: 'abcde-fghjk' }), (e) => e.body.error === 'BAD_CODE');
+});
+
+test('rule 31 — five wrong codes lock the account for 15 minutes', async () => {
   const { auth, id, now } = setup();
   await auth.login({ email: 'adrien@adn-dev.fr', password: 'correct horse battery' });
   for (let i = 0; i < 4; i += 1) assert.throws(() => auth.verify(id, { code: '000000' }), (e) => e.body.error === 'BAD_CODE');

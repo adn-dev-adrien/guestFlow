@@ -228,6 +228,15 @@ const ADDED_COLUMNS = {
     payLinkId: 'TEXT',
     paidBy: 'TEXT',
     lastError: 'TEXT',
+    // Review fixes (2026-10-04): an invoice Qonto priced wrong is held until the operator retries it,
+    // and each retry is a new attempt with its own idempotency keys.
+    held: 'INTEGER NOT NULL DEFAULT 0',
+    attempt: 'INTEGER NOT NULL DEFAULT 0',
+  },
+  operators: {
+    // Rule 31: the last TOTP step accepted, so a code is never accepted twice.
+    lastTotpStep: 'INTEGER',
+    pendingFailures: 'INTEGER NOT NULL DEFAULT 0',
   },
 };
 

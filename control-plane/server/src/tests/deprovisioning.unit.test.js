@@ -79,6 +79,9 @@ test('rule 20 — erased after 90 days by the daily run, or earlier on a second 
   now.set('2026-12-27T10:00:00Z');
   assert.deepEqual(ctx.controllers.customers.eraseDue('système'), []);
   now.set('2026-12-28T10:00:00Z');
+  assert.deepEqual(ctx.controllers.customers.eraseDue('système'), [], 'the process is not marked stopped: it waits');
+  assert.ok(ctx.controllers.alerts.list().alerts.some((a) => /effacement en attente/.test(a.text)));
+  await ctx.controllers.customers.stepAction(c.id, 'deprov-stop', 'done', 'op');
   assert.equal(ctx.controllers.customers.eraseDue('système').length, 1);
   assert.equal(fs.existsSync(path.join(root, 'aulnes')), false);
   assert.throws(() => ctx.controllers.customers.view(c.id), (e) => e.status === 404);
@@ -87,6 +90,8 @@ test('rule 20 — erased after 90 days by the daily run, or earlier on a second 
   await other.ctx.controllers.customers.deprovision(other.c.id, { confirmSlug: 'aulnes' }, 'op');
   assert.equal(other.ctx.controllers.customers.cancelErase(other.c.id, 'op').eraseAt, null);
   assert.equal(other.ctx.controllers.customers.eraseDue('système').length, 0, 'a cancelled erasure never runs');
+  assert.throws(() => other.ctx.controllers.customers.eraseNow(other.c.id, { confirmSlug: 'aulnes' }, 'op'), (e) => e.body.error === 'NOT_STOPPED');
+  await other.ctx.controllers.customers.stepAction(other.c.id, 'deprov-stop', 'done', 'op');
   assert.throws(() => other.ctx.controllers.customers.eraseNow(other.c.id, { confirmSlug: 'x' }, 'op'), (e) => e.body.error === 'CONFIRM_SLUG');
   other.ctx.controllers.customers.eraseNow(other.c.id, { confirmSlug: 'aulnes' }, 'op');
   assert.equal(fs.existsSync(path.join(other.root, 'aulnes')), false);
@@ -97,4 +102,37 @@ test('rule 20 — the eraser only ever removes <root>/<slug>', () => {
   assert.throws(() => eraseInstance({ instances, slug: '../etc' }), /invalid slug/);
   assert.throws(() => eraseInstance({ instances, slug: '' }), /invalid slug/);
   assert.deepEqual(eraseInstance({ instances, slug: 'absent' }), { erased: false });
+});
+
+test('rule 20 — the export archive goes with its link: at 30 days, on reactivation, at erasure', async () => {
+  const { ctx, c, now, exportsDir } = await archivedCustomer();
+  await ctx.controllers.customers.deprovision(c.id, { confirmSlug: 'aulnes' }, 'op');
+  const [archive] = fs.readdirSync(exportsDir);
+  now.set('2026-10-29T10:00:00Z');
+  assert.equal(ctx.controllers.customers.purgeExpiredExports(), 0, 'day 30: still downloadable');
+  now.set('2026-10-31T10:00:00Z');
+  assert.equal(ctx.controllers.customers.purgeExpiredExports(), 1);
+  assert.equal(fs.existsSync(path.join(exportsDir, archive)), false);
+  assert.equal(ctx.controllers.customers.purgeExpiredExports(), 0, 'journaled once');
+
+  const other = await archivedCustomer();
+  await other.ctx.controllers.customers.deprovision(other.c.id, { confirmSlug: 'aulnes' }, 'op');
+  const token = /exports\/([A-Za-z0-9_-]+)/.exec(other.mailer.sent.find((m) => /Export/.test(m.subject)).text)[1];
+  other.ctx.controllers.customers.reactivate(other.c.id, 'op');
+  assert.deepEqual(fs.readdirSync(other.exportsDir), []);
+  assert.ok(other.ctx.models.provisioning.getExport(token).expiresAt < '2026-09-29', 'the link answers « expiré »');
+
+  const third = await archivedCustomer();
+  await third.ctx.controllers.customers.deprovision(third.c.id, { confirmSlug: 'aulnes' }, 'op');
+  await third.ctx.controllers.customers.stepAction(third.c.id, 'deprov-stop', 'done', 'op');
+  third.ctx.controllers.customers.eraseNow(third.c.id, { confirmSlug: 'aulnes' }, 'op');
+  assert.deepEqual(fs.readdirSync(third.exportsDir), [], 'erased with the instance');
+});
+
+test('rules 20, 22 — no deprovisioning while the directory still has the old name', async () => {
+  const { ctx, c } = await archivedCustomer();
+  const { RENAME_CHECKLIST } = ctx.controllers.customers;
+  ctx.controllers.customers.rename(c.id, { slug: 'les-aulnes', checked: RENAME_CHECKLIST.map((i) => i.key) }, 'op');
+  assert.equal(ctx.controllers.customers.view(c.id).actions.deprovision, false);
+  await assert.rejects(ctx.controllers.customers.deprovision(c.id, { confirmSlug: 'les-aulnes' }, 'op'), (e) => e.body.error === 'RENAME_PENDING');
 });

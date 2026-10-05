@@ -11,7 +11,7 @@
 
 const { plugins: gfPlugins } = require('../utils/gf');
 const { httpError } = require('../utils/httpError');
-const { euros } = require('../utils/money');
+const { euros, eurosText, parseEuros } = require('../utils/money');
 const { frDay } = require('../utils/days');
 
 const pluginName = (id) => (gfPlugins.findPlugin(id) || { name: id }).name;
@@ -62,10 +62,14 @@ function createCatalogueController(ctx, customersController) {
         ...p,
         priceLabel: `${euros(p.priceMonthlyCents)} / mois`,
         yearlyLabel: `${euros(p.priceYearlyCents)} / mois à l’année`,
+        monthly: eurosText(p.priceMonthlyCents),
+        yearly: eurosText(p.priceYearlyCents),
+        units: p.maxUnits === null ? '' : String(p.maxUnits),
+        users: p.maxUsers === null ? '' : String(p.maxUsers),
       })),
       lowest: validateLowest(lowest, plans),
       matrix: matrix(lowest, plans),
-      addons: catalogue.addons().map((a) => ({ ...a, name: pluginName(a.pluginId), priceLabel: `${euros(a.priceMonthlyCents)} HT / mois` })),
+      addons: catalogue.addons().map((a) => ({ ...a, name: pluginName(a.pluginId), priceLabel: `${euros(a.priceMonthlyCents)} HT / mois`, price: eurosText(a.priceMonthlyCents) })),
       addonChoices: gfPlugins.PLUGIN_IDS.map((id) => ({ pluginId: id, name: pluginName(id) })),
       versions: catalogue.versions().map((v) => ({ ...v, day: frDay(v.changedAt.slice(0, 10)) })),
     };
@@ -127,21 +131,58 @@ function createCatalogueController(ctx, customersController) {
     return { lines, grandfather };
   }
 
-  function impact({ lowest }) {
-    return { lines: analyse(validateLowest(lowest, catalogue.plans())).lines };
+  // Prices and quotas changed by a draft, said before saving: a price applies to new customers only
+  // (rule 6), a quota to everyone on the plan at the next licence.
+  function changeLines(plans, addons) {
+    const lines = [];
+    const quota = (n) => (n === null ? 'illimité' : String(n));
+    for (const p of catalogue.plans()) {
+      const next = plans.find((x) => x.code === p.code);
+      if (next.priceMonthlyCents !== p.priceMonthlyCents) lines.push(`${p.name} : ${euros(p.priceMonthlyCents)} → ${euros(next.priceMonthlyCents)} HT / mois (nouveaux clients uniquement).`);
+      if (next.priceYearlyCents !== p.priceYearlyCents) lines.push(`${p.name} à l’année : ${euros(p.priceYearlyCents)} → ${euros(next.priceYearlyCents)} HT / mois (nouveaux clients uniquement).`);
+      if (next.maxUnits !== p.maxUnits) lines.push(`${p.name} : logements ${quota(p.maxUnits)} → ${quota(next.maxUnits)} (tous ses clients).`);
+      if (next.maxUsers !== p.maxUsers) lines.push(`${p.name} : comptes ${quota(p.maxUsers)} → ${quota(next.maxUsers)} (tous ses clients).`);
+    }
+    const before = new Map(catalogue.addons().map((a) => [a.pluginId, a.priceMonthlyCents]));
+    for (const a of addons) {
+      if (!before.has(a.pluginId)) lines.push(`Nouvelle option ${pluginName(a.pluginId)} : ${euros(a.priceMonthlyCents)} HT / mois.`);
+      else if (before.get(a.pluginId) !== a.priceMonthlyCents) lines.push(`Option ${pluginName(a.pluginId)} : ${euros(before.get(a.pluginId))} → ${euros(a.priceMonthlyCents)} HT / mois (nouveaux clients uniquement).`);
+    }
+    for (const id of before.keys()) if (!addons.some((a) => a.pluginId === id)) lines.push(`Option ${pluginName(id)} retirée de la vente.`);
+    return lines;
   }
 
+  function impact(body) {
+    const plans = validatePlans(body.plans, catalogue.plans());
+    const addons = validateAddons(body.addons);
+    return { lines: [...analyse(validateLowest(body.lowest, catalogue.plans())).lines, ...changeLines(plans, addons)] };
+  }
+
+  // The client sends the fields as typed (`monthly`, `yearly`, `units`, `users`, add-on `price`);
+  // the server reads them. Cents fields are accepted too, for callers that already hold numbers.
   function validatePlans(input, plans) {
     if (!Array.isArray(input)) return plans;
     return plans.map((p) => {
       const edit = input.find((x) => x.code === p.code) || {};
-      const cents = (v, fallback) => (v === undefined ? fallback : v);
+      const price = (text, cents, fallback, label) => {
+        if (text === undefined) return cents === undefined ? fallback : cents;
+        const v = parseEuros(text);
+        if (v === null || v <= 0) throw httpError(400, 'INVALID', `Prix ${label} de ${p.name} invalide.`);
+        return v;
+      };
+      const count = (text, value, fallback, label) => {
+        if (text === undefined) return value === undefined ? fallback : value;
+        const s = String(text).trim();
+        if (s === '') return null;
+        if (!/^\d+$/.test(s)) throw httpError(400, 'INVALID', `Quota de ${label} de ${p.name} invalide (nombre entier, ou vide pour illimité).`);
+        return Number(s);
+      };
       const out = {
         code: p.code,
-        priceMonthlyCents: cents(edit.priceMonthlyCents, p.priceMonthlyCents),
-        priceYearlyCents: cents(edit.priceYearlyCents, p.priceYearlyCents),
-        maxUnits: edit.maxUnits === undefined ? p.maxUnits : edit.maxUnits,
-        maxUsers: edit.maxUsers === undefined ? p.maxUsers : edit.maxUsers,
+        priceMonthlyCents: price(edit.monthly, edit.priceMonthlyCents, p.priceMonthlyCents, 'mensuel'),
+        priceYearlyCents: price(edit.yearly, edit.priceYearlyCents, p.priceYearlyCents, 'annuel'),
+        maxUnits: count(edit.units, edit.maxUnits, p.maxUnits, 'logements'),
+        maxUsers: count(edit.users, edit.maxUsers, p.maxUsers, 'comptes'),
       };
       for (const k of ['priceMonthlyCents', 'priceYearlyCents']) {
         if (!Number.isInteger(out[k]) || out[k] < 0) throw httpError(400, 'INVALID', `Prix invalide pour ${p.name}.`);
@@ -158,9 +199,10 @@ function createCatalogueController(ctx, customersController) {
     const seen = new Set();
     return input.map((a) => {
       if (!gfPlugins.PLUGIN_IDS.includes(a.pluginId) || seen.has(a.pluginId)) throw httpError(400, 'INVALID', 'Option inconnue ou en double.');
-      if (!Number.isInteger(a.priceMonthlyCents) || a.priceMonthlyCents < 0) throw httpError(400, 'INVALID', `Prix invalide pour ${pluginName(a.pluginId)}.`);
+      const cents = a.price !== undefined ? parseEuros(a.price) : a.priceMonthlyCents;
+      if (!Number.isInteger(cents) || cents < 0) throw httpError(400, 'INVALID', `Prix de ${pluginName(a.pluginId)} invalide.`);
       seen.add(a.pluginId);
-      return { pluginId: a.pluginId, priceMonthlyCents: a.priceMonthlyCents };
+      return { pluginId: a.pluginId, priceMonthlyCents: cents };
     });
   }
 

@@ -103,3 +103,33 @@ test('rule 1 — quotas are whole numbers or unlimited; prices are never negativ
   catalogue.save({ plans: [{ code: 'pro', maxUsers: null }], reason: 'Comptes illimités en Pro' }, 'op');
   assert.equal(catalogue.view().plans.find((p) => p.code === 'pro').maxUsers, null);
 });
+
+test('rules 3, 6 — prices and quotas are read on the server as typed: an emptied price or « 1,5 » is refused', () => {
+  const { ctx } = makeContext();
+  const { catalogue } = ctx.controllers;
+  const pro = (fields) => ({ plans: [{ code: 'pro', ...fields }], reason: 'x' });
+  assert.throws(() => catalogue.save(pro({ monthly: '' }), 'op'), /Prix mensuel de Pro invalide/);
+  assert.throws(() => catalogue.save(pro({ monthly: '0' }), 'op'), /Prix mensuel de Pro invalide/);
+  assert.throws(() => catalogue.save(pro({ units: '1,5' }), 'op'), /Quota de logements de Pro invalide/);
+  assert.throws(() => catalogue.save(pro({ users: 'dix' }), 'op'), /Quota de comptes de Pro invalide/);
+  assert.throws(() => catalogue.save({ addons: [{ pluginId: 'neat', price: 'neuf' }], reason: 'x' }, 'op'), /Prix de .* invalide/);
+  const v = catalogue.save(pro({ monthly: '64,5', yearly: '54 €', units: '', users: '7' }), 'op');
+  const p = v.plans.find((x) => x.code === 'pro');
+  assert.deepEqual([p.priceMonthlyCents, p.priceYearlyCents, p.maxUnits, p.maxUsers], [6450, 5400, null, 7]);
+  assert.deepEqual([p.monthly, p.yearly, p.units, p.users], ['64,5', '54', '', '7'], 'shown back as the operator types them');
+});
+
+test('rules 5, 6 — the impact says every price and quota a draft changes, before saving', () => {
+  const { ctx } = makeContext();
+  const lines = ctx.controllers.catalogue.impact({
+    lowest: ctx.models.catalogue.lowest(),
+    plans: [{ code: 'pro', monthly: '69', units: '8' }],
+    addons: [{ pluginId: 'neat', price: '9' }],
+  }).lines.map((l) => l.replace(/\s/g, ' '));
+  assert.deepEqual(lines, [
+    'Pro : 59,00 € → 69,00 € HT / mois (nouveaux clients uniquement).',
+    'Pro : logements 6 → 8 (tous ses clients).',
+    'Option Accès au portail (Sowel) retirée de la vente.',
+    'Option Ressources à l’heure retirée de la vente.',
+  ]);
+});

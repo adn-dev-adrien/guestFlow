@@ -58,12 +58,19 @@ function generateSecret() {
   return base32Encode(crypto.randomBytes(20));
 }
 
-function verifyTotp(secretBase32, code, date) {
+// The time step the code belongs to (±1 step), or null. The caller refuses a step it already
+// accepted, so a code seen over a shoulder cannot open a second session.
+function matchTotpStep(secretBase32, code, date) {
   const candidate = String(code || '').replace(/\s/g, '');
-  if (!/^\d{6}$/.test(candidate)) return false;
+  if (!/^\d{6}$/.test(candidate)) return null;
   const key = base32Decode(secretBase32);
   const counter = Math.floor(date.getTime() / 1000 / STEP_SECONDS);
-  return [-1, 0, 1].some((drift) => crypto.timingSafeEqual(Buffer.from(hotp(key, counter + drift)), Buffer.from(candidate)));
+  const drift = [-1, 0, 1].find((d) => crypto.timingSafeEqual(Buffer.from(hotp(key, counter + d)), Buffer.from(candidate)));
+  return drift === undefined ? null : counter + drift;
+}
+
+function verifyTotp(secretBase32, code, date) {
+  return matchTotpStep(secretBase32, code, date) !== null;
 }
 
 function otpauthUri({ secret, account, issuer = 'Console GuestFlow' }) {
@@ -74,4 +81,4 @@ function otpauthUri({ secret, account, issuer = 'Console GuestFlow' }) {
 // "JBSW Y3DP …" — what an operator types when they cannot scan.
 const groupSecret = (secret) => secret.replace(/(.{4})/g, '$1 ').trim();
 
-module.exports = { base32Encode, base32Decode, hotp, totp, generateSecret, verifyTotp, otpauthUri, groupSecret };
+module.exports = { base32Encode, base32Decode, hotp, totp, generateSecret, matchTotpStep, verifyTotp, otpauthUri, groupSecret };

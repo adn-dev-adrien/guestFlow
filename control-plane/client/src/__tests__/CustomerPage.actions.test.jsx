@@ -33,7 +33,7 @@ it('rule 15 — the payment dialog shows the server’s preview for the chosen l
   fireEvent.click(screen.getByRole('button', { name: /12 mois/ }));
   expect(screen.getByText(/Nouvelle échéance : 29\/09\/2027/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  await waitFor(() => expect(api.recordPayment).toHaveBeenCalledWith(3, { months: 12, reference: '' }));
+  await waitFor(() => expect(api.recordPayment).toHaveBeenCalledWith(3, { months: 12, reference: '', expectedEndsAt: '2026-09-24' }));
   expect(await screen.findByText('Paiement enregistré.')).toBeInTheDocument();
 });
 
@@ -69,4 +69,24 @@ it('rules 4 and 5 — changing plan warns about what was kept out of plan, and s
   expect(screen.getByLabelText('Assurance annulation Neat — inclus dans le forfait')).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(api.changePlan).toHaveBeenCalledWith(3, { planCode: 'premium', billing: 'monthly', addons: [] }));
+});
+
+it('rule 15 — while the payment is being saved, the button is disabled: a double click sends once', async () => {
+  let resolve;
+  api.recordPayment.mockReturnValue(new Promise((r) => { resolve = r; }));
+  page();
+  fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer un paiement' }));
+  const save = await screen.findByRole('button', { name: 'Enregistrer' });
+  fireEvent.click(save);
+  fireEvent.click(save);
+  await waitFor(() => expect(save).toBeDisabled());
+  expect(api.recordPayment).toHaveBeenCalledTimes(1);
+  resolve({ ...customer, state: 'active', stateLabel: 'Actif' });
+  expect(await screen.findByText('Paiement enregistré.')).toBeInTheDocument();
+});
+
+it('rule 20 — erasing waits for the stop step, and the button says why', async () => {
+  api.customer.mockResolvedValue({ ...customer, archivedAt: '2026-09-29', actions: { ...customer.actions, deprovision: false, eraseNow: false, eraseHint: '« Processus et route arrêtés » à cocher d’abord.' } });
+  page();
+  expect(await screen.findByRole('button', { name: 'Effacer maintenant' })).toBeDisabled();
 });

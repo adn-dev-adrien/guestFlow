@@ -83,7 +83,9 @@ test('rules 7, 8 and 20 — create, list, act and download the export over HTTP'
     const lic = await s.call('GET', `/api/customers/${created.body.id}/licence`);
     assert.equal(lic.status, 200);
     assert.equal(lic.body.split('.').length, 3);
-    const refused = await s.call('POST', `/api/customers/${created.body.id}/extend`, { endsAt: '2027-12-01' });
+    const stale = await s.call('POST', `/api/customers/${created.body.id}/extend`, { endsAt: '2027-12-01', reason: 'geste' });
+    assert.equal(stale.status, 409);
+    const refused = await s.call('POST', `/api/customers/${created.body.id}/extend`, { endsAt: '2027-12-01', expectedEndsAt: created.body.endsAt });
     assert.equal(refused.status, 400);
     assert.equal(refused.body.message, 'Le motif est obligatoire.');
     await s.call('POST', `/api/customers/${created.body.id}/deprovision`, { confirmSlug: 'aulnes' });

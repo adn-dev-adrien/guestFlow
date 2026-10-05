@@ -134,6 +134,12 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    - A plugin **removed** from a plan stays allowed, as *grandfathered*, for customers who have
      already installed it. It is withdrawn only when they change plan. New customers do not get it.
    - The editor shows how many customers each change affects before it saves.
+   - That preview also lists every price and quota the draft changes (added 2026-10-04 after the
+     review): a price applies to new customers only (rule 6), a quota to every customer of the plan
+     at the next licence.
+   - Prices and quotas are sent as the operator typed them and read by the server: « 59,5 » is
+     59,50 €, an empty or non-numeric plan price is refused (a plan price is more than zero), an
+     empty quota is unlimited and « 1,5 » is refused. The editor never converts a number itself.
 6. **Every catalogue change is versioned.** The log records who changed it, when, and the before
    and after. A customer's subscription references the catalogue version it was sold under, so a
    past price can always be explained.
@@ -168,6 +174,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
      invited twice. The seeded bootstrap account (`admin@guestflow.local` and its documented
      password) is removed once the real admin exists, if nobody ever used it: on a hosted instance a
      well-known password must not stay open.
+   - Opening the instance's database runs the script's migrations. On an existing database the
+     script first replays them on a copy and refuses (exit 3, « Base de l’instance d’une autre version ») when they would change anything, so a console shipped with another version never
+     moves a customer's schema (added 2026-10-04 after the review).
    - The end date, the price and the field errors are computed by the server as the form is typed.
      With a trial, the subscription's end is the trial's end: the first paid period starts with the
      first payment.
@@ -197,6 +206,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
      bounds how stale it can be.
    - The control plane re-issues every licence daily and on every change. No network port is opened
      on the instance for this.
+   - A directory the console cannot write (rights, full disk) makes the licence step fail with the
+     reason; it never stops the daily run for the other customers (added 2026-10-04).
 10. **Missing or invalid licence.**
     - A missing, badly signed, or `expiresAt`-expired licence puts the instance in **read-only**
       (rule 16), never in suspended.
@@ -314,6 +325,20 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       (rule 33).
     - Every email, whether prepared, sent, ignored or failed, appears in the customer's history and
       in its « Emails » list.
+    - **Review fixes (2026-10-04).**
+      - A customer has **one unsettled invoice at a time** (in preparation or open). No other is
+        created until it is paid or cancelled, even when an extension (rule 19) moves the end date
+        past its period. The next one starts where the customer's end date then is.
+      - The emails' deadline D is the customer's **current end date**: an extension moves the
+        reminders with it, the invoice keeps the period it was issued for.
+      - An invoice Qonto totals differently is cancelled in Qonto (a failure to cancel is journaled,
+        « Annulez-la dans Qonto ») and **held**: no run creates it again, the alert turns red, and
+        « Réessayer la facture » on the customer page tries once more as a new attempt.
+      - Each creation call (client, invoice, link) carries an idempotency key derived from the local
+        row and its attempt, so a call repeated after a lost answer asks Qonto for the same object
+        rather than a second numbered invoice.
+      - An email is claimed before it leaves: two « Envoyer » at once send it once; the second gets
+        « Cet email n'est plus en attente ».
 
 18. **Operator alerts.** The console's home page, and a daily email to the operator, list:
     - the customers entering `due`, `grace`, `read_only` or `suspended` that day;
@@ -333,6 +358,14 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
 
     Every override is logged with its reason. « Remettre en actif » takes a date, 7 days ahead by
     default; the payment dialog shows, before saving, the new end date and the state it leads to.
+
+    Added 2026-10-04 after the review:
+    - « Enregistrer un paiement » and « Prolonger » carry the end date the operator was looking at;
+      when it has changed meanwhile (a second click, a second tab), the server refuses with `409
+      STALE` « Échéance modifiée entre-temps : recharger la page. ». Every dialog's
+      submit button is disabled and spins while its request is in flight.
+    - An extension while an invoice is unsettled leaves that invoice as issued; its payment then adds
+      its length to the extended date (the gesture is kept).
 
 ### E. Deprovisioning
 
@@ -355,6 +388,14 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       credential, until the 30 days are over (then `410`).
     - Stopping the process and the route is a manual step until phase H.
     - The erasure only ever removes `<CP_INSTANCES_ROOT>/<slug>`; any other path is refused.
+    - Added 2026-10-04 after the review:
+      - Nothing is erased, by hand or by the daily run, before « Processus et route arrêtés » is
+        ticked. A customer past its 90 days waits, and the alerts say so; « Effacer maintenant »
+        stays disabled with that reason.
+      - The export archive holds the whole database, so it goes with its link: its file is deleted
+        once the 30 days are over, and at reactivation or erasure (the link then answers « expiré »).
+      - Deprovisioning is refused while a rename (rule 22) is not finished: the directory still has
+        the old name.
 
 ### F. Addresses and login
 
@@ -380,6 +421,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       directory when it exists, downloadable otherwise, as in rule 9). Until phase H, a manual step
       « Dossier renommé, processus et route relancés, redirection 301 posée jusqu'au … » follows.
     - The directory (rule 26) follows at its next read.
+    - Until « Dossier renommé… » is ticked, the instance still runs from its old directory: the login
+      page sends its users to the old address, the directory and the fleet read the old directory,
+      and the licence (carrying the new slug) is written when the step is ticked (added 2026-10-04).
 23. **Isolated sessions.**
     - The session cookie stays **host-only** (no `Domain=` attribute), so one instance's cookie is
       never sent to another.
@@ -429,6 +473,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     convenience (§9 Q5, decided 2026-09-29): the address of a gîte's staff is not a secret held against the public.
     The `429` is the page itself, with « Trop de recherches depuis votre connexion. Réessayez dans une
     minute. »
+    The page that offers a remembered space (the `gf_space` cookie) names a company too, so it counts
+    against the same limit; without the cookie the empty form is always served (added 2026-10-04).
 28. **OAuth callbacks are central.** _(Withdrawn 2026-09-30, §9 Q17.)_ Google Agenda and Qonto are
     plugins, not installed on a new space, and their settings pages stay hidden until they are. A
     hosted customer who installs one connects it with their own application, declared with their own
@@ -462,6 +508,16 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Activating a method issues 10 single-use **backup codes**, shown once and stored hashed. Each
       one replaces the second factor once.
     - Five wrong codes in a row lock the login for 15 minutes.
+      Only the second factor counts (reworded 2026-10-04 after the review): a wrong password locks
+      nothing, so knowing an operator's email is not enough to lock them out of the console; the
+      per-IP limit slows password guessing. An unknown email and a wrong password get the same
+      answer, and « locked » is said only after the right password.
+    - A TOTP code is accepted once: its time step is remembered, so the same code cannot open a
+      second session (added 2026-10-04).
+    - Changing the method asks for the password again; five wrong codes of the new method cancel
+      the change, and the old method stays (added 2026-10-04).
+    - Backup codes are stored with the password hash (scrypt), not a fast hash; codes stored before
+      2026-10-04 (SHA-256) keep working until used.
     - An operator session expires after 12 hours, or after 30 minutes without a request.
 32. **The console's Qonto connection** (added 2026-09-30 with C2b, §9 Q12, Q14).
     - The console invoices from the Qonto organisation that sells GuestFlow, **ADN Dev**, never from
@@ -512,6 +568,10 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - « Enregistrer un paiement » (rule 19) while a Qonto invoice is open for the period marks that
       invoice paid instead of adding another, and deactivates its payment link so the customer
       cannot pay twice. The transfer is then matched in Qonto by the operator.
+      Added 2026-10-04 after the review: this applies to an invoice still in preparation too (it is
+      settled, never left orphaned). The link is read first: a card payment that just landed renews
+      the subscription and nothing is recorded by hand. Then the link is deactivated, and only then
+      is the invoice settled.
     - Deprovisioning cancels the open invoice in Qonto (`mark_as_canceled`) and deactivates its
       link.
     - A plan change while an invoice is open leaves that invoice as issued: the new price applies
@@ -681,19 +741,25 @@ it is typed and the rule 22 checklist, and « Anciennes adresses » in its subsc
 - **Control plane, operator login** (rate-limited): `POST /api/auth/login {email, password}` →
   `{ step: 'second-factor', method, message }`; `POST /api/auth/verify {code}` (6 digits or a
   `xxxxx-xxxxx` backup code) → `{ operator, notice }`; `POST /api/auth/resend`; `POST
-  /api/auth/logout`; `GET /api/auth/me`; `POST /api/auth/mfa/start {method}` → `{ qrDataUrl,
-  secret }` for the app; `POST /api/auth/mfa/confirm {code}` → `{ operator, backupCodes }`.
+  /api/auth/logout`; `GET /api/auth/me`; `POST /api/auth/mfa/start {method, password}` (400
+  `BAD_PASSWORD`) → `{ qrDataUrl, secret }` for the app; `POST /api/auth/mfa/confirm {code}` → `{ operator, backupCodes }` (429 `TOO_MANY_CODES`
+  after five wrong codes, the change cancelled).
 - **Control plane, console** (operator session + second factor):
   - `GET /api/alerts`;
   - `GET /api/catalogue`, `POST /api/catalogue/toggle {lowest, pluginId, planCode}` (409
-    `NESTED`), `POST /api/catalogue/impact {lowest}`, `PUT /api/catalogue {lowest, plans, addons,
-    reason}`;
+    `NESTED`), `POST /api/catalogue/impact {lowest, plans, addons}`, `PUT /api/catalogue {lowest, plans,
+    addons, reason}`. Since 2026-10-04 a plan is sent as typed, `{code, monthly, yearly, units,
+    users}`, and an add-on as `{pluginId, price}`; the view returns those same text fields;
   - `GET /api/customers` (fleet rows + counters), `POST /api/customers/preview` (field errors, the
     summary, the add-ons on offer), `POST /api/customers` (400 with `errors` per field),
     `GET /api/customers/:id`;
   - `POST /api/customers/:id/{payment, extend, force-active, plan, deprovision, reactivate,
     cancel-erase, erase}` and `POST /api/customers/:id/steps/:step {action}`; `GET
-    /api/customers/:id/licence` (the `.jws`);
+    /api/customers/:id/licence` (the `.jws`). Since 2026-10-04, `payment` and `extend` take
+    `expectedEndsAt` (409 `STALE` when it differs), `deprovision` answers 409 `RENAME_PENDING`
+    during a rename and `erase` 409 `NOT_STOPPED` before the stop step;
+  - `POST /api/customers/:id/invoice/retry` (2026-10-04) → the customer plus a `notice`; 409
+    `NO_PENDING_INVOICE`;
   - C2b: `POST /api/customers/:id/{remind, check-payment}` (`remind` takes `{preview: true}` for
     the text first); `POST /api/emails/:id/{send, ignore}`; `GET /api/templates`, `PUT
     /api/templates/:key {subject, body, sendMode}` (400 `UNKNOWN_PLACEHOLDER`), `POST
@@ -710,7 +776,8 @@ it is typed and the rule 22 checklist, and « Anciennes adresses » in its subsc
   the customer gains `billingIdentity { street, postcode, city, country, vatNumber, lines }`,
   `countries`, `invoices[] { number, period, amount, total, status, statusLabel, detail, invoiceUrl,
   payUrl }`, `emails[] { name, status, statusLabel, at, recipient, subject, body, operator, error }`
-  and `actions.{ editBilling, remind, remindHint, checkPayment }`; `check-payment` answers the
+  and `actions.{ editBilling, remind, remindHint, checkPayment }`; since 2026-10-04 also
+  `actions.{ retryInvoice, deprovisionHint, eraseHint }`, and `payment` may answer a `notice`; `check-payment` answers the
   customer plus a `notice`. The customer's `billing` stays the billing mode (`monthly` |
   `yearly`).
 
@@ -728,12 +795,12 @@ it is typed and the rule 22 checklist, and « Anciennes adresses » in its subsc
 | `subscriptions` | `customerId`, `planCode`, `billing` (`monthly` \| `yearly`), `periodMonths`, `startsAt`, `endsAt`, `trialEndsAt`, `forceActiveUntil`, `catalogueVersion` |
 | `customer_addons` | `customerId`, `pluginId`, `since` |
 | `grandfathered_plugins` | `customerId`, `pluginId`, `since` |
-| `invoices` | `customerId`, `periodStart`, `periodEnd`, `amountCents`, `provider`, `providerRef`, `payUrl`, `status`, `paidAt`, `createdAt`; C2b: `months`, `totalCents` (incl. VAT), `number`, `invoiceUrl`, `payLinkId`, `paidBy` (`qonto` \| `manual`), `lastError` |
+| `invoices` | `customerId`, `periodStart`, `periodEnd`, `amountCents`, `provider`, `providerRef`, `payUrl`, `status`, `paidAt`, `createdAt`; C2b: `months`, `totalCents` (incl. VAT), `number`, `invoiceUrl`, `payLinkId`, `paidBy` (`qonto` \| `manual`), `lastError`; 2026-10-04: `held` (a wrong total, retried by hand only), `attempt` (feeds the idempotency keys) |
 | `overrides` | `customerId`, `kind`, `reason`, `operator`, `at` |
 | `provisioning_steps` | `customerId`, `step`, `status` (`ok` \| `failed` \| `todo` \| `skipped`), `detail`, `at` |
 | `audit` | `at`, `day`, `operator`, `customerId`, `kind`, `text` (the sentence the history shows) |
 | `exports` | `token`, `customerId`, `path`, `createdAt`, `expiresAt` |
-| `operators` | `email`, `name`, `passwordHash`, `mfaMethod`, `totpSecret` (encrypted), `pendingMethod`, `pendingTotpSecret`, `backupCodes` (hashed), `failedCount`, `lockedUntil` |
+| `operators` | `email`, `name`, `passwordHash`, `mfaMethod`, `totpSecret` (encrypted), `pendingMethod`, `pendingTotpSecret`, `backupCodes` (scrypt-hashed since 2026-10-04), `failedCount`, `lockedUntil`; 2026-10-04: `lastTotpStep`, `pendingFailures` |
 | `mfa_codes` | `operatorId`, `codeHash`, `expiresAt` (the email code) |
 | `meta` | `key`, `value` (the last daily run) |
 | `qonto_settings` (C2b) | one row: the columns GuestFlow's Qonto module reads and writes (environment, client id, secrets and tokens encrypted, connection, health, webhook subscription) |
@@ -910,6 +977,31 @@ each plan. The C2a console screens have their own mock
     secrets encrypted and masked, a new application drops the old tokens; the Paiements routes
     behind the operator's session, `authorize` with the console's scopes and address, a forged
     `state`; the webhook's signature, then Qonto re-read before renewing.
+- **Review fixes (2026-10-04, implemented): control plane 102 tests (+15), instance first-admin 3
+  (+1), console client 34 (+4).**
+  - `billing-invoice.unit.test.js` (+3, rules 17, 19): the idempotency keys; a wrong total held
+    until « Réessayer la facture », retried as a new attempt; a failed cancel journaled; an
+    extension creates no second invoice, the reminders follow the new date and the payment adds to
+    it.
+  - `billing-payments.unit.test.js` (+4, rules 17, 34): a double click refused `STALE`; a card
+    payment that just landed wins; the link deactivated before settling; an invoice in preparation
+    settled by hand; two « Envoyer » at once send one email.
+  - `operator-auth.unit.test.js` (+3, rule 31): the password asked to change the method; a TOTP code
+    accepted once; wrong passwords lock nothing and an unknown email answers the same; five wrong
+    codes cancel a change; SHA-256 backup codes from before still work once.
+  - `catalogue.unit.test.js` (+2, rules 3, 5, 6): prices and quotas read as typed and refused when
+    empty or « 1,5 »; the impact lists price and quota changes.
+  - `deprovisioning.unit.test.js` (+2, rules 20, 22): nothing erased before the stop step; the export
+    archive deleted at 30 days, at reactivation and at erasure; no deprovisioning during a rename.
+  - `slug-rename.unit.test.js` (+1, rule 22): the old address until the directory is moved.
+  - `login-page.unit.test.js` (+1, rule 27): the remembered-space page counts against the limit.
+  - `control-plane-first-admin.unit.test.js` (+1, rule 7): a database at another version is refused
+    and left untouched.
+  - `qonto-invoicing-client.unit.test.js` (+1, rule 17): the caller's idempotency key on the client,
+    the invoice and the link.
+  - Console client: `CustomerPage.actions.test.jsx` (+2: the in-flight button, erase waiting for the
+    stop step), `LoginPage.second-factor.test.jsx` (+1: « Changer d'email »),
+    `ProfilePage.method-change.test.jsx` (1: the password first).
 - **Instance (C2b, implemented):** the existing Qonto and payment suites (464 tests) pass unchanged
   after the move to `createQontoSettingsController` and `qontoWebhookSignature`;
   `qonto-invoicing-client.unit.test.js` (5, rules 17, 32, 34) covers the new client calls: the

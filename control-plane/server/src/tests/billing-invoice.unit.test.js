@@ -40,7 +40,11 @@ test('rule 17 — a monthly customer is invoiced 7 days before the end, with its
     assert.equal(created.performanceEnd, '2026-12-01');
     assert.equal(created.dueDate, '2026-11-01');
     assert.equal(created.iban, s.qonto.state.iban);
-    assert.deepEqual(s.qonto.named('createLink')[0].args, { invoiceId: 'inv_2', invoiceNumber: 'F-2026-0002', debitorName: 'Gîte des Aulnes', amountCents: 7080 });
+    const { idempotencyKey, ...link } = s.qonto.named('createLink')[0].args;
+    assert.deepEqual(link, { invoiceId: 'inv_2', invoiceNumber: 'F-2026-0002', debitorName: 'Gîte des Aulnes', amountCents: 7080 });
+    assert.match(idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/, 'derived from the local invoice, so a lost answer is replayed, not duplicated');
+    assert.match(created.idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.notEqual(created.idempotencyKey, idempotencyKey);
 
     const licence = licencePayload(s.ctx.controllers.customers.licenceDownload(s.c.id).token);
     assert.equal(licence.payUrl, 'https://pay.test/links/pl_3', 'the instance’s « Renouveler » opens the link');
@@ -127,15 +131,66 @@ test('rules 7, 17, 18 — a failed invoice stays pending, alerted, and resumes w
   }
 });
 
-test('rule 17 — a total Qonto computes differently cancels that invoice instead of sending it', async () => {
+test('rule 17 — a total Qonto computes differently cancels that invoice and holds it until the operator retries', async () => {
   const s = await setup();
   try {
     const mismatch = Object.assign(new Error('mismatch'), { body: { code: 'AMOUNT_MISMATCH', invoiceId: 'inv_x', charged: 7081, expected: 7080 } });
     s.qonto.state.invoices.inv_x = { status: 'unpaid' };
     s.qonto.state.failNext = { step: 'createInvoice', error: mismatch };
-    const view = await s.run('2026-10-25T08:00:00Z');
+    let view = await s.run('2026-10-25T08:00:00Z');
     assert.deepEqual(s.qonto.named('cancelInvoice').map((c) => c.args), ['inv_x']);
-    assert.match(view.invoices[0].detail, /^Qonto a calculé 70,81\s€ au lieu de 70,80\s€ : facture annulée, à vérifier\.$/);
+    assert.match(view.invoices[0].detail, /^Montant Qonto 70,81\s€ au lieu de 70,80\s€ : facture bloquée\./);
+    assert.equal(view.actions.retryInvoice, true);
+    assert.ok(view.history.some((h) => h.text === 'Facture Qonto au mauvais montant annulée dans Qonto (inv_x)'));
+
+    view = await s.run('2026-10-26T08:00:00Z');
+    view = await s.run('2026-10-27T08:00:00Z');
+    assert.equal(s.qonto.named('createInvoice').length, 1, 'held: no invoice numbered and cancelled at every run');
+    assert.equal(s.ctx.controllers.alerts.list().alerts.find((a) => /Facture non créée/.test(a.text)).severity, 'error');
+
+    const first = s.qonto.named('createInvoice')[0].args.idempotencyKey;
+    view = await s.ctx.controllers.billing.retryInvoice(s.c.id, 'adrien');
+    assert.equal(view.invoices[0].status, 'open');
+    assert.match(view.notice, /^Facture F-2026-\d{4} créée\.$/);
+    assert.notEqual(s.qonto.named('createInvoice')[1].args.idempotencyKey, first, 'a retry is a new attempt');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('rule 17 — a wrong invoice Qonto refuses to cancel is journaled, never swallowed', async () => {
+  const s = await setup();
+  try {
+    const mismatch = Object.assign(new Error('mismatch'), { body: { code: 'AMOUNT_MISMATCH', invoiceId: 'inv_x', charged: 7081, expected: 7080 } });
+    s.qonto.state.failNext = { step: 'createInvoice', error: mismatch };
+    const cancel = s.qonto.cancelInvoice;
+    s.qonto.cancelInvoice = async () => { throw new Error('Qonto 503'); };
+    const view = await s.run('2026-10-25T08:00:00Z');
+    s.qonto.cancelInvoice = cancel;
+    assert.ok(view.history.some((h) => /^Facture Qonto au mauvais montant NON annulée \(inv_x\) : Qonto 503\. Annulez-la dans Qonto\.$/.test(h.text)));
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('rules 17, 19 — an extension never creates a second invoice; the reminders follow the new end date', async () => {
+  const s = await setup();
+  try {
+    let view = await s.run('2026-10-25T08:00:00Z');
+    view = s.ctx.controllers.customers.extend(s.c.id, { endsAt: '2026-11-16', reason: 'Panne', expectedEndsAt: view.endsAt }, 'adrien');
+    for (const day of ['2026-11-01', '2026-11-08', '2026-11-09', '2026-11-16']) view = await s.run(`${day}T08:00:00Z`);
+    assert.equal(s.qonto.named('createInvoice').length, 1, 'one unsettled invoice at a time');
+    assert.deepEqual(view.emails.map((e) => e.name).reverse(), ['Facture', 'Relance jour J'],
+      'D-7 of the old date was sent; D+7 of the old date is not a reminder any more, D of the new one is');
+    assert.match(view.emails[0].at, /^16\/11\/2026/, 'prepared on the new deadline');
+
+    s.qonto.pay('pl_3');
+    await s.ctx.controllers.billing.checkPayments(() => {});
+    view = s.ctx.controllers.customers.view(s.c.id);
+    assert.equal(view.endsAt, '2026-12-16', 'the period paid is added to the extended date');
+    view = await s.run('2026-12-09T08:00:00Z');
+    assert.equal(view.invoices[0].period, '16/12/2026 → 16/01/2027', 'the next invoice starts where the last one ended');
+    assert.equal(view.invoices.filter((i) => i.status === 'open').length, 1);
   } finally {
     s.cleanup();
   }

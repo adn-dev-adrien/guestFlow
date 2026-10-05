@@ -12,10 +12,13 @@ function buildOperatorsModel(db) {
   const failStmt = db.prepare('UPDATE operators SET failedCount = failedCount + 1 WHERE id = ?');
   const lockStmt = db.prepare('UPDATE operators SET failedCount = 0, lockedUntil = ? WHERE id = ?');
   const resetFailStmt = db.prepare('UPDATE operators SET failedCount = 0, lockedUntil = NULL WHERE id = ?');
-  const setPendingStmt = db.prepare('UPDATE operators SET pendingMethod = ?, pendingTotpSecret = ? WHERE id = ?');
+  const setPendingStmt = db.prepare('UPDATE operators SET pendingMethod = ?, pendingTotpSecret = ?, pendingFailures = 0 WHERE id = ?');
   const activateStmt = db.prepare(`UPDATE operators SET mfaMethod = pendingMethod, totpSecret = CASE WHEN pendingMethod = 'totp' THEN pendingTotpSecret ELSE NULL END,
-    pendingMethod = NULL, pendingTotpSecret = NULL, backupCodes = ? WHERE id = ?`);
+    pendingMethod = NULL, pendingTotpSecret = NULL, pendingFailures = 0, lastTotpStep = NULL, backupCodes = ? WHERE id = ?`);
   const setBackupStmt = db.prepare('UPDATE operators SET backupCodes = ? WHERE id = ?');
+  const totpStepStmt = db.prepare('UPDATE operators SET lastTotpStep = ? WHERE id = ? AND (lastTotpStep IS NULL OR lastTotpStep < ?)');
+  const pendingFailStmt = db.prepare('UPDATE operators SET pendingFailures = pendingFailures + 1 WHERE id = ?');
+  const dropPendingStmt = db.prepare('UPDATE operators SET pendingMethod = NULL, pendingTotpSecret = NULL, pendingFailures = 0 WHERE id = ?');
   const setCodeStmt = db.prepare(`INSERT INTO mfa_codes (operatorId, codeHash, expiresAt) VALUES (?, ?, ?)
     ON CONFLICT (operatorId) DO UPDATE SET codeHash = excluded.codeHash, expiresAt = excluded.expiresAt`);
   const getCodeStmt = db.prepare('SELECT * FROM mfa_codes WHERE operatorId = ?');
@@ -34,6 +37,10 @@ function buildOperatorsModel(db) {
     setPending: (id, method, totpSecret) => setPendingStmt.run(method, totpSecret || null, id),
     activatePending: (id, backupCodesJson) => activateStmt.run(backupCodesJson, id),
     setBackupCodes: (id, json) => setBackupStmt.run(json, id),
+    // false when that step (or a later one) was already accepted.
+    useTotpStep: (id, step) => totpStepStmt.run(step, id, step).changes === 1,
+    recordPendingFailure: (id) => pendingFailStmt.run(id),
+    dropPending: (id) => dropPendingStmt.run(id),
     setCode: (id, hash, expiresAt) => setCodeStmt.run(id, hash, expiresAt),
     getCode: (id) => getCodeStmt.get(id) || null,
     clearCode: (id) => clearCodeStmt.run(id),

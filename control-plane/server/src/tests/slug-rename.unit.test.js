@@ -62,3 +62,22 @@ test('rules 21, 22 — the old slug stays taken for 12 months, then is free agai
     s.cleanup();
   }
 });
+
+test('rule 22 — until the directory is moved, the login page and the directory use the old address', async () => {
+  const s = await setup();
+  try {
+    const Database = require('better-sqlite3');
+    const db = new Database(s.ctx.instances.dbPath('aulnes'));
+    db.prepare("INSERT INTO users (email) VALUES ('claire@aulnes.fr')").run();
+    db.close();
+    s.ctx.controllers.login.readDirectory();
+    s.customers.rename(s.c.id, { slug: 'aulnes-neuf', checked: s.all }, 'op');
+    s.ctx.controllers.login.readDirectory();
+    const during = s.ctx.controllers.login.lookup('claire@aulnes.fr');
+    assert.deepEqual(during.spaces.map((x) => x.address), ['aulnes.guestflow.test'], 'the old address still answers');
+    await s.customers.stepAction(s.c.id, 'rename', 'done', 'op');
+    assert.deepEqual(s.ctx.controllers.login.lookup('claire@aulnes.fr').spaces.map((x) => x.address), ['aulnes-neuf.guestflow.test']);
+  } finally {
+    s.cleanup();
+  }
+});

@@ -73,8 +73,11 @@ test('rules 19, 34 — a payment recorded by hand closes the open invoice and de
     const before = s.view();
     assert.equal(before.paymentPreview.length, 1);
     assert.match(before.paymentPreview[0].text, /^Solde la facture F-2026-0002 et désactive son lien de paiement/);
-    const v = await s.billing.recordPayment(s.c.id, { months: 1, reference: 'virement 27/10' }, 'adrien');
+    const v = await s.billing.recordPayment(s.c.id, { months: 1, reference: 'virement 27/10', expectedEndsAt: before.endsAt }, 'adrien');
     assert.equal(v.invoices.length, 1, 'no second invoice');
+    await assert.rejects(s.billing.recordPayment(s.c.id, { months: 1, expectedEndsAt: before.endsAt }, 'adrien'), (e) => e.body.error === 'STALE',
+      'a double click finds the end date moved and records nothing');
+    assert.equal(s.view().endsAt, '2026-12-01');
     assert.equal(v.invoices[0].detail.startsWith('Soldée à la main'), true);
     assert.equal(v.endsAt, '2026-12-01');
     assert.deepEqual(s.qonto.named('deactivateLink').map((c) => c.args), ['pl_3']);
@@ -111,6 +114,67 @@ test('rule 34 — a plan change keeps the invoice as issued; the next one carrie
     s.now.set('2026-11-24T08:00:00Z');
     await s.billing.runDaily(() => {});
     assert.deepEqual(s.qonto.named('createInvoice')[1].args.items.map((i) => [i.title, i.amountCents]), [['GuestFlow Premium — 1 mois', 9900]]);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('rule 34 — a card payment that just landed wins over the payment recorded by hand', async () => {
+  const s = await invoiced();
+  try {
+    s.qonto.pay('pl_3');
+    const v = await s.billing.recordPayment(s.c.id, { months: 1, expectedEndsAt: s.view().endsAt }, 'adrien');
+    assert.match(v.notice, /déjà payée en ligne/);
+    assert.equal(v.endsAt, '2026-12-01');
+    assert.equal(v.invoices.length, 1);
+    assert.equal(v.invoices[0].detail.startsWith('Payée le'), true);
+    assert.equal(s.qonto.named('deactivateLink').length, 0);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('rule 34 — the link is deactivated before the invoice is settled by hand', async () => {
+  const s = await invoiced();
+  try {
+    let settledWhenDeactivated = null;
+    const deactivate = s.qonto.deactivateLink;
+    s.qonto.deactivateLink = async (id) => { settledWhenDeactivated = s.view().invoices[0].status; return deactivate(id); };
+    await s.billing.recordPayment(s.c.id, { months: 1, expectedEndsAt: s.view().endsAt }, 'adrien');
+    assert.equal(settledWhenDeactivated, 'open');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('rule 34 — an invoice still in preparation is settled by a payment recorded by hand, not orphaned', async () => {
+  const qonto = makeFakeQonto();
+  const h = makeContext({ at: '2026-10-01T08:00:00Z', qonto });
+  try {
+    const c = await h.ctx.controllers.customers.create(MONTHLY, 'op');
+    h.now.set('2026-10-25T08:00:00Z');
+    qonto.state.failNext = { step: 'iban', error: new Error('Qonto 503') };
+    await h.ctx.controllers.billing.runDaily(() => {});
+    let v = h.ctx.controllers.customers.view(c.id);
+    assert.equal(v.invoices[0].status, 'pending');
+    assert.match(v.paymentPreview[0].text, /^Solde la facture en préparation ; rapprochez le virement dans Qonto\./);
+    v = await h.ctx.controllers.billing.recordPayment(c.id, { months: 1, expectedEndsAt: v.endsAt }, 'adrien');
+    assert.equal(v.invoices.length, 1);
+    assert.equal(v.invoices[0].status, 'paid');
+    assert.equal(v.endsAt, '2026-12-01');
+    assert.equal(h.ctx.controllers.alerts.list().alerts.filter((a) => /Facture non créée/.test(a.text)).length, 0);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('rule 17 — two clicks on « Envoyer » at once send one email', async () => {
+  const s = await invoiced();
+  try {
+    const [row] = s.billing.queue();
+    const results = await Promise.allSettled([s.billing.sendQueued(row.id, 'a'), s.billing.sendQueued(row.id, 'b')]);
+    assert.deepEqual(results.map((r) => r.status).sort(), ['fulfilled', 'rejected']);
+    assert.equal(s.mailer.sent.filter((m) => m.to === 'claire@aulnes.fr').length, 1);
   } finally {
     s.cleanup();
   }

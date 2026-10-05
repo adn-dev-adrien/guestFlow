@@ -34,19 +34,20 @@ function publicRoutes(ctx, { secureCookies = false } = {}) {
     return res.redirect(303, login.loginUrl(slug, email));
   };
 
-  router.get('/', (req, res) => {
-    const space = login.remembered(readCookie(req, COOKIE));
-    if (!space && readCookie(req, COOKIE)) res.clearCookie(COOKIE, cookieOptions);
-    return html(res, 200, space ? rememberedPage({ space }) : formPage());
-  });
-
-  // Rule 27: a lookup reveals whether an email has a space, so ten a minute per address.
+  // Rule 27: a lookup reveals whether an email has a space, so ten a minute per address. A remembered
+  // space names a company too, so the page that reads the cookie counts against the same limit.
   const limited = rateLimit({
     windowMs: 60 * 1000,
     limit: 10,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     handler: (req, res) => html(res, 429, formPage({ message: MESSAGES.tooMany })),
+  });
+
+  router.get('/', (req, res, next) => (readCookie(req, COOKIE) ? limited(req, res, next) : next()), (req, res) => {
+    const space = login.remembered(readCookie(req, COOKIE));
+    if (!space && readCookie(req, COOKIE)) res.clearCookie(COOKIE, cookieOptions);
+    return html(res, 200, space ? rememberedPage({ space }) : formPage());
   });
 
   // Rule 25: only `email` is read from the form.

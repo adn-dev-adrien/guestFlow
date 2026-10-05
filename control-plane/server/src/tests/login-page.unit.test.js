@@ -108,3 +108,15 @@ test('rule 24 — the console answers nothing on the app host, and the login pag
     await s.close();
   }
 });
+
+test('rule 27 — the remembered-space page counts against the same limit as the lookups', async () => {
+  const s = await start();
+  try {
+    const cookie = 'gf_space=moulin';
+    for (let i = 0; i < 10; i += 1) assert.equal((await s.call('GET', '/', { cookie: `gf_space=slug-${i}` })).status, 200);
+    assert.equal((await s.call('GET', '/', { cookie })).status, 429, 'cannot walk the slugs to read company names');
+    assert.equal((await s.call('GET', '/')).status, 200, 'without a cookie the empty form is always served');
+  } finally {
+    await s.close();
+  }
+});

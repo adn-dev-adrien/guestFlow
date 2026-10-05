@@ -85,3 +85,12 @@ test('rule 34: reading, cancelling an invoice and deactivating its link hit the 
     'PATCH /v2/payment_links/pl_1/deactivate',
   ]);
 });
+
+test('rule 17: the caller’s idempotency key is sent on the client, the invoice and the link', async () => {
+  const { fetchImpl, calls } = stubFetch({ client: { id: 'cl_1' }, client_invoice: { id: 'inv_1' }, payment_link: { id: 'pl_1', url: 'u' } });
+  const c = client(fetchImpl);
+  await c.createClient({ accessToken: 'at', name: 'n', street: 's', postcode: '07140', city: 'c', idempotencyKey: 'key-client' });
+  await c.createClientInvoice({ accessToken: 'at', clientId: 'cl_1', issueDate: 'd', dueDate: 'd', iban: 'x', items: [{ title: 't', amountCents: 100, vatRate: 20 }], idempotencyKey: 'key-invoice' });
+  await c.createInvoicePaymentLink({ accessToken: 'at', invoiceId: 'inv_1', invoiceNumber: 'F-1', debitorName: 'd', amountCents: 120, idempotencyKey: 'key-link' });
+  assert.deepEqual(calls.map((x) => x.opts.headers['X-Qonto-Idempotency-Key']), ['key-client', 'key-invoice', 'key-link']);
+});

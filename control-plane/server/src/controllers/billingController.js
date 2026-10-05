@@ -7,6 +7,7 @@
  * depends on it: the calendar drives the state, Qonto only moves the end date when it is paid.
  */
 
+const crypto = require('crypto');
 const { dueWindow, renewedEndsAt } = require('../utils/lifecycle');
 const { parisDay, addDays, addMonths, frDay } = require('../utils/days');
 const { KINDS, render } = require('../utils/templates');
@@ -29,6 +30,13 @@ function scheduleOf(billing) {
 
 const withVat = (cents) => cents + Math.round((cents * VAT_RATE) / 100);
 
+// The same call repeated after a lost answer carries the same key, so Qonto can return what it
+// created instead of numbering a second invoice. Derived from local ids, shaped as a UUID.
+function idempotencyKey(...parts) {
+  const h = crypto.createHash('sha256').update(parts.map((p) => String(p ?? '')).join('|')).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 function createBillingController(ctx, customersController) {
   const { models, now, mailer, qonto } = ctx;
   const { customers, invoices, emails, operators } = models;
@@ -49,12 +57,14 @@ function createBillingController(ctx, customersController) {
     return addDays(c.endsAt, -dueWindow(c.billing));
   }
 
-  function draftInvoice(c) {
+  // `periodStart` is the invoice's own when it already exists: an extension (rule 19) moves the
+  // customer's end date, never the period an invoice was issued for.
+  function draftInvoice(c, periodStart = c.endsAt) {
     const months = c.billing === 'yearly' ? 12 : 1;
-    const periodEnd = addMonths(c.endsAt, months);
+    const periodEnd = addMonths(periodStart, months);
     const lines = priceLines(c).map((l) => ({
       title: `${l.title} — ${months} mois`,
-      description: `Du ${frDay(c.endsAt)} au ${frDay(periodEnd)}`,
+      description: `Du ${frDay(periodStart)} au ${frDay(periodEnd)}`,
       amountCents: l.monthlyCents * months,
       vatRate: VAT_RATE,
     }));
@@ -71,7 +81,7 @@ function createBillingController(ctx, customersController) {
 
   function errorText(err) {
     if (err.code === 'QONTO_NOT_CONNECTED' || err.code === 'QONTO_NOT_CONFIGURED') return 'Qonto n’est pas connecté (Réglages → Paiements).';
-    if (err.body && err.body.code === 'AMOUNT_MISMATCH') return `Qonto a calculé ${euros(err.body.charged)} au lieu de ${euros(err.body.expected)} : facture annulée, à vérifier.`;
+    if (err.body && err.body.code === 'AMOUNT_MISMATCH') return `Montant Qonto ${euros(err.body.charged)} au lieu de ${euros(err.body.expected)} : facture bloquée. Vérifier, puis « Réessayer la facture ».`;
     return err.message || 'Erreur Qonto.';
   }
 
@@ -87,13 +97,14 @@ function createBillingController(ctx, customersController) {
         const created = await qonto.createClient({
           name: c.companyName, email: c.contactEmail, street: c.billingStreet, postcode: c.billingPostcode,
           city: c.billingCity, countryCode: c.billingCountry, vatNumber: c.vatNumber || undefined,
+          idempotencyKey: idempotencyKey('client', c.id, c.companyName, c.billingStreet, c.billingPostcode, c.billingCity, c.billingCountry, c.vatNumber),
         });
         clientId = created.id;
         customers.setQontoClientId(c.id, clientId);
       }
       let current = inv;
       if (!current.providerRef) {
-        const draft = draftInvoice(c);
+        const draft = draftInvoice(c, current.periodStart);
         const iban = await qonto.iban();
         let created;
         try {
@@ -101,10 +112,14 @@ function createBillingController(ctx, customersController) {
             clientId, issueDate: today(), dueDate: current.periodStart > today() ? current.periodStart : today(),
             performanceStart: current.periodStart, performanceEnd: current.periodEnd,
             items: draft.lines, iban, expectedTotalCents: current.totalCents,
+            idempotencyKey: idempotencyKey('invoice', current.id, current.attempt),
           });
         } catch (err) {
-          if (err.body && err.body.code === 'AMOUNT_MISMATCH' && err.body.invoiceId) {
-            await qonto.cancelInvoice(err.body.invoiceId).catch(() => {});
+          // A wrong amount is not retried at every run: each retry would number and cancel one more
+          // invoice. The row is held until the operator retries it.
+          if (err.body && err.body.code === 'AMOUNT_MISMATCH') {
+            invoices.update(current.id, { held: 1 });
+            if (err.body.invoiceId) await cancelWrongInvoice(c, err.body.invoiceId);
           }
           throw err;
         }
@@ -114,6 +129,7 @@ function createBillingController(ctx, customersController) {
       if (!current.payLinkId) {
         const link = await qonto.createLink({
           invoiceId: current.providerRef, invoiceNumber: current.number, debitorName: c.companyName, amountCents: current.totalCents,
+          idempotencyKey: idempotencyKey('link', current.id, current.attempt),
         });
         invoices.update(current.id, { payLinkId: link.id, payUrl: link.url, status: 'open', lastError: null });
         journal(c.id, 'système', 'invoice', `Facture ${current.number} créée dans Qonto (${current.months} mois, ${euros(current.amountCents)} HT, ${euros(current.totalCents)} TTC) avec son lien de paiement`);
@@ -128,25 +144,52 @@ function createBillingController(ctx, customersController) {
     return invoices.get(inv.id);
   }
 
-  async function ensureInvoice(c) {
-    if (c.archivedAt || today() < invoiceDay(c)) return null;
-    const existing = invoices.forPeriod(c.id, c.endsAt);
-    if (existing && existing.status !== 'pending') return existing;
-    if (!qonto.ready()) return existing || null;
-    let inv = existing;
-    if (!inv) {
-      const draft = draftInvoice(c);
-      const id = invoices.insert({
-        customerId: c.id, periodStart: c.endsAt, periodEnd: draft.periodEnd, months: draft.months,
-        amountCents: draft.amountCents, totalCents: draft.totalCents, provider: 'qonto', status: 'pending', createdAt: stamp(),
-      });
-      inv = invoices.get(id);
+  async function cancelWrongInvoice(c, qontoInvoiceId) {
+    try {
+      await qonto.cancelInvoice(qontoInvoiceId);
+      journal(c.id, 'système', 'invoice', `Facture Qonto au mauvais montant annulée dans Qonto (${qontoInvoiceId})`);
+    } catch (err) {
+      journal(c.id, 'système', 'invoice', `Facture Qonto au mauvais montant NON annulée (${qontoInvoiceId}) : ${errorText(err)}. Annulez-la dans Qonto.`);
     }
-    return complete(customers.get(c.id), inv);
+  }
+
+  // One unsettled invoice per customer at a time: until it is paid or cancelled, no other is
+  // created, even when an extension (rule 19) moved the end date past its period.
+  async function ensureInvoice(c) {
+    if (c.archivedAt) return null;
+    const unsettled = invoices.unsettled(c.id)[0];
+    if (unsettled) {
+      if (unsettled.status !== 'pending' || unsettled.held || !qonto.ready()) return unsettled;
+      return complete(customers.get(c.id), unsettled);
+    }
+    if (today() < invoiceDay(c)) return null;
+    const existing = invoices.forPeriod(c.id, c.endsAt);
+    if (existing) return existing;
+    if (!qonto.ready()) return null;
+    const draft = draftInvoice(c);
+    const id = invoices.insert({
+      customerId: c.id, periodStart: c.endsAt, periodEnd: draft.periodEnd, months: draft.months,
+      amountCents: draft.amountCents, totalCents: draft.totalCents, provider: 'qonto', status: 'pending', createdAt: stamp(),
+    });
+    return complete(customers.get(c.id), invoices.get(id));
+  }
+
+  // « Réessayer la facture »: a held invoice is tried again, as a new attempt.
+  async function retryInvoice(id, operator) {
+    const c = mustGet(id);
+    const inv = invoices.unsettled(c.id).find((i) => i.status === 'pending');
+    if (c.archivedAt || !inv) throw httpError(409, 'NO_PENDING_INVOICE', 'Aucune facture en préparation à réessayer.');
+    if (!qonto.ready()) throw httpError(409, 'QONTO_NOT_READY', 'Qonto n’est pas connecté (Réglages → Paiements).');
+    invoices.update(inv.id, { held: 0, attempt: inv.attempt + 1, lastError: null });
+    journal(c.id, operator, 'invoice', 'Création de la facture relancée à la main');
+    const after = await complete(customers.get(c.id), invoices.get(inv.id));
+    const view = customersController.view(c.id);
+    return { ...view, notice: after.status === 'open' ? `Facture ${after.number} créée.` : `Facture toujours non créée : ${after.lastError}` };
   }
 
   // --- the emails of an invoice (rules 17, 33) ------------------------------------------------
 
+  // The deadline is the customer's end date: an extension (rule 19) moves it, and the reminders with it.
   function varsFor(c, inv) {
     return {
       contactName: c.contactName || c.companyName,
@@ -154,7 +197,7 @@ function createBillingController(ctx, customersController) {
       planName: models.catalogue.plan(c.planCode).name,
       period: `${frDay(inv.periodStart)} → ${frDay(inv.periodEnd)}`,
       amount: euros(inv.totalCents),
-      deadline: frDay(inv.periodStart),
+      deadline: frDay(c.endsAt),
       invoiceNumber: inv.number || '',
       invoiceUrl: inv.invoiceUrl || '',
       payUrl: inv.payUrl || '',
@@ -178,7 +221,10 @@ function createBillingController(ctx, customersController) {
     }
   }
 
+  // The row is claimed before the email leaves: of two clicks at once, only one sends. → true sent,
+  // false failed, null when someone else had already handled it.
   async function deliver(row, operator) {
+    if (!emails.handle({ id: row.id, status: 'sent', at: stamp(), operator })) return null;
     try {
       await mailer.send({ to: row.recipient, subject: row.subject, text: row.body });
       emails.finish({ id: row.id, status: 'sent', at: stamp(), operator });
@@ -202,7 +248,7 @@ function createBillingController(ctx, customersController) {
   // Only the latest email whose day has come, and only once (rule 17).
   async function runEmails(c) {
     for (const inv of invoices.unsettled(c.id).filter((i) => i.status === 'open')) {
-      const due = scheduleOf(c.billing).filter((s) => addDays(inv.periodStart, s.offset) <= today());
+      const due = scheduleOf(c.billing).filter((s) => addDays(c.endsAt, s.offset) <= today());
       const latest = due[due.length - 1];
       if (!latest || emails.exists(inv.id, latest.kind)) continue;
       drop(inv.id, `remplacé par « ${KINDS[latest.kind].name} »`);
@@ -233,8 +279,7 @@ function createBillingController(ctx, customersController) {
 
   async function sendQueued(id, operator) {
     const row = emails.get(id);
-    if (!row || row.status !== 'pending') throw httpError(409, 'NOT_PENDING', 'Cet email n’est plus en attente.');
-    await deliver(row, operator);
+    if (!row || (await deliver(row, operator)) === null) throw httpError(409, 'NOT_PENDING', 'Cet email n’est plus en attente.');
     return { queue: queue() };
   }
 
@@ -268,7 +313,7 @@ function createBillingController(ctx, customersController) {
     customers.setEndsAt(c.id, endsAt);
     customers.setForceActiveUntil(c.id, null);
     drop(inv.id, 'la facture est payée');
-    journal(c.id, operator, 'payment', `Facture ${inv.number} ${paidBy === 'qonto' ? 'payée (Qonto)' : 'soldée à la main'} : ${euros(inv.amountCents)} HT, échéance au ${frDay(endsAt)}`);
+    journal(c.id, operator, 'payment', `Facture ${inv.number || '(en préparation)'} ${paidBy === 'qonto' ? 'payée (Qonto)' : 'soldée à la main'} : ${euros(inv.amountCents)} HT, échéance au ${frDay(endsAt)}`);
     refresh(c.id, operator);
     return true;
   }
@@ -327,22 +372,34 @@ function createBillingController(ctx, customersController) {
     if (inv && inv.status === 'open') await checkInvoice(inv);
   }
 
-  // Rule 34: a payment recorded by hand closes the open invoice instead of adding another, and its
-  // link is deactivated so the customer cannot pay twice.
+  // Rule 34: a payment recorded by hand closes the unsettled invoice (issued or still in
+  // preparation) instead of adding another. Its link is read first — a card payment may have just
+  // landed — then deactivated, and only then is the invoice settled, so the customer cannot pay twice.
   async function recordPayment(id, body, operator) {
     const c = mustGet(id);
-    const inv = invoices.unsettled(c.id).find((i) => i.status === 'open');
+    customersController.assertExpectedEndsAt(c, body);
+    const inv = invoices.unsettled(c.id)[0];
     if (c.archivedAt || !inv) return customersController.recordPayment(id, body, operator);
-    const reference = String(body.reference || '').trim();
-    settle(inv, { paidBy: 'manual', paidAt: stamp(), operator });
-    if (reference) journal(c.id, operator, 'payment', `Référence du paiement de la facture ${inv.number} : « ${reference} »`);
+    const label = inv.number || '(en préparation)';
+    if (inv.status === 'open' && inv.payLinkId && qonto.ready()) {
+      try {
+        if (await checkInvoice(inv, operator)) {
+          return { ...customersController.view(c.id), notice: `Facture ${label} déjà payée en ligne : abonnement renouvelé, rien d’enregistré.` };
+        }
+      } catch {
+        // Qonto unreachable: the operator's payment is recorded all the same.
+      }
+    }
     if (inv.payLinkId) {
       try {
         await qonto.deactivateLink(inv.payLinkId);
       } catch (err) {
-        journal(c.id, operator, 'payment', `Lien de paiement de la facture ${inv.number} non désactivé : ${errorText(err)}. Désactivez-le dans Qonto.`);
+        journal(c.id, operator, 'payment', `Lien de paiement de la facture ${label} non désactivé : ${errorText(err)}. Désactivez-le dans Qonto.`);
       }
     }
+    const reference = String(body.reference || '').trim();
+    settle(inv, { paidBy: 'manual', paidAt: stamp(), operator });
+    if (reference) journal(c.id, operator, 'payment', `Référence du paiement de la facture ${label} : « ${reference} »`);
     return customersController.view(c.id);
   }
 
@@ -381,7 +438,7 @@ function createBillingController(ctx, customersController) {
     for (const c of live) {
       for (const inv of invoices.unsettled(c.id)) {
         if (inv.status === 'pending' && inv.lastError) {
-          out.push({ customerId: c.id, severity: 'warning', text: `Facture non créée pour ${c.companyName} : ${inv.lastError}` });
+          out.push({ customerId: c.id, severity: inv.held ? 'error' : 'warning', text: `Facture non créée pour ${c.companyName} : ${inv.lastError}` });
         }
       }
     }
@@ -428,6 +485,7 @@ function createBillingController(ctx, customersController) {
     scheduleOf,
     draftInvoice,
     ensureInvoice,
+    retryInvoice,
     runEmails,
     runDaily,
     queue,
@@ -445,4 +503,4 @@ function createBillingController(ctx, customersController) {
   };
 }
 
-module.exports = { createBillingController, scheduleOf, VAT_RATE };
+module.exports = { createBillingController, scheduleOf, idempotencyKey, VAT_RATE };

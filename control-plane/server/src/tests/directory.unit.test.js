@@ -44,6 +44,7 @@ test('rule 26 — the next read replaces; an unreadable instance keeps its pairs
 
     await h.ctx.controllers.customers.deprovision(c.id, { confirmSlug: 'aulnes' }, 'op');
     assert.equal(login.lookup('jo@aulnes.fr').kind, 'one', 'an archived space stays findable');
+    await h.ctx.controllers.customers.stepAction(c.id, 'deprov-stop', 'done', 'op');
     h.ctx.controllers.customers.eraseNow(c.id, { confirmSlug: 'aulnes' }, 'op');
     assert.equal(h.ctx.models.directory.count(c.id), 0);
     assert.equal(login.lookup('jo@aulnes.fr').kind, 'none');
