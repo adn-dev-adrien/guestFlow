@@ -47,6 +47,7 @@ const CORE_MODULES = Object.freeze({
   mealPortions: '../../utils/mealPortions', // per-person card options and their caps
   quotePostProcessors: '../../utils/quotePostProcessors', // the insurance price a plugin sets on a quote (phase 3b rule 2)
   insuranceOffer: '../../utils/insuranceOffer', // no insurance on the site while no plugin offers it (phase 3b rule 6)
+  resourceOffer: '../../utils/resourceOffer', // nothing sold by the hour on the site while no plugin offers it (phase 3c rule 18)
   translationResolver: '../../utils/translationResolver', // the English catalogue
   optionVisibility: '../../utils/optionVisibility', // internal options never reach the site
   optionGrouping: '../../utils/optionGrouping', // options grouped by category

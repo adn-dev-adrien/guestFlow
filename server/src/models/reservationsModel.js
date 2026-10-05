@@ -1301,11 +1301,6 @@ function createReservationsModel(database) {
       return database.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
     },
 
-    getResourceFreeMinutes(propertyId, resourceId) {
-      const row = database.prepare('SELECT freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(Number(propertyId), Number(resourceId));
-      return Number(row?.freeMinutes || 0);
-    },
-
     getResourceReservedQuantity(resourceId, startDate, endDate, excludeId) {
       let sql = `
         SELECT COALESCE(SUM(rr2.quantity), 0) as reserved

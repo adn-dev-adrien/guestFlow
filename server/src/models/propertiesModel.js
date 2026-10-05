@@ -486,7 +486,8 @@ function createPropertiesModel(database) {
       // Availability (« déjà réservée », remaining quantity) still comes from the dedicated endpoint
       // once both stay dates are known; this is the catalogue, not the occupancy.
       try {
-        property.resources = resourcesModel.create(database).list(Number(id));
+        // Without the plugin, nothing sold by the hour (specs/plugins-phase-3c-hourly-resources.md rule 18).
+        property.resources = require('../utils/resourceOffer').hideUnoffered(resourcesModel.create(database).list(Number(id)));
       } catch (_) { property.resources = []; } // resources tables absent in minimal test schemas
       return property;
     },

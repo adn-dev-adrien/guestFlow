@@ -11,6 +11,7 @@ const propertiesModel = sdk.coreModule('propertiesModel');
 const optionsModel = sdk.coreModule('optionsModel');
 const quotePostProcessors = sdk.coreModule('quotePostProcessors');
 const resourcesModel = sdk.coreModule('resourcesModel');
+const { hideUnoffered } = sdk.coreModule('resourceOffer');
 const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
 const { validateAvailabilityQuery } = require('../publicInputValidation');
 const {
@@ -109,7 +110,7 @@ function listResources(req, res) {
   const lang = langOf(req);
   // resourcesModel.list resolves applicability (resource_properties pivot, empty = global) and the
   // EFFECTIVE per-property price (property_resource_prices). Public projection strips stock/slots.
-  return ok(res, resourcesModel.list(propertyId).map((row) => toPublicResource(row, lang, translationResolver.forLang(lang))).sort(byPriceAsc));
+  return ok(res, hideUnoffered(resourcesModel.list(propertyId)).map((row) => toPublicResource(row, lang, translationResolver.forLang(lang))).sort(byPriceAsc));
 }
 
 function getAvailability(req, res) {

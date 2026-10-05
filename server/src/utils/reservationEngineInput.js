@@ -40,10 +40,17 @@ function buildReservationEngineInput(db, reservation) {
     FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id
   `).all(reservation.id);
 
+  // specs/plugins-phase-3c-hourly-resources.md rule 5 — the sessions ride along, so a replay keeps the
+  // hours placed (`scheduledHours`); the amount is the locked snapshot's either way.
+  const hasSessions = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions');
   const resourceRows = db.prepare(`
-    SELECT resourceId, quantity, COALESCE(offered, 0) as offered, COALESCE(inComplement, 0) as inComplement
+    SELECT resourceId, quantity, COALESCE(offered, 0) as offered, COALESCE(inComplement, 0) as inComplement,
+      ${hasSessions ? 'sessions' : 'NULL AS sessions'}
     FROM reservation_resources WHERE reservationId = ?
   `).all(reservation.id);
+  const parseSessions = (raw) => {
+    try { const parsed = JSON.parse(raw || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+  };
 
   const offeredOptionIds = optionRows.filter((r) => Number(r.offered) === 1).map((r) => Number(r.optionId));
 
@@ -104,6 +111,7 @@ function buildReservationEngineInput(db, reservation) {
       quantity: r.quantity,
       offered: r.offered,
       inComplement: r.inComplement,
+      sessions: parseSessions(r.sessions),
     })),
     depositPaid: reservation.depositPaid,
     balancePaid: reservation.balancePaid,
