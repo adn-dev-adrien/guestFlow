@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/plugins-phase-3c` (from `inte/plugins` at ed64b928) |
 | **Created** | 2026-10-05 |
 | **Author** | Adrien |
@@ -126,15 +126,18 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
    |---|---|
    | `id` | `'hourly-resources'` |
    | `priceTypes` | `['per_hour']`: the resource price types it prices |
-   | `priceLine(input)` | `{ quantity, unitPrice, billedUnits, totalPrice, extra } \| null`, synchronous, no I/O |
+   | `priceLine(input)` | `{ quantity, unitPrice?, billedUnits?, totalPrice?, extra? } \| null`, synchronous, no I/O |
 
    - `input` is everything the engine knows about the line:
      - `resource`: its row, with the property's price and free minutes resolved;
      - `selected`: the payload entry (`quantity`, `sessions`);
+     - `sold`: true when the line has a locked snapshot;
      - the stay (`startDate`, `endDate`, `nights`, `persons`).
+   - **An answer without amounts** (`{ quantity, extra }`) means « price these hours as a plain
+     quantity »: the engine's generic path, through the lock when sold.
    - **`extra` is closed.** The engine copies `sessions`, `scheduledHours` and `detail` (a short French
      label such as « 2 h / 3 h planifiées ») onto the line, and nothing else.
-   - **`null` means « price it as a plain quantity »**: hours × the resource price, as the generic path.
+   - **`null` means « no contribution »**: the line is priced as if no plugin were there.
    - At most one contributor per price type per instance. A second one fails that plugin's
      registration, as with the payment provider (3a rule 4) and the post-processor (3b rule 1).
    - A contributor that throws gives `null` and a log line with the plugin id. Pricing never fails
@@ -216,21 +219,29 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
     `index.js`, `routes/resources.js` and `routes/planning.js` lose their `requirePlugin` lines. Roles
     are unchanged; reception keeps its planning access through `ctx.roleAccess`.
 11. **Pricing.** The plugin declares the rule 1 contributor for `per_hour`.
-    - **Sessions placed** (at least one valid): the line is priced from the time-banded grid, day and
+    - **Sessions placed** (at least one valid), line unsold: priced from the time-banded grid, day and
       evening rates, minus the free minutes, and `scheduledHours` = the hours placed.
-    - **No session:** sold hours × the day rate minus the free minutes, and `scheduledHours: 0`.
-    - **`detail`:** « x h / y h planifiées », or « À planifier » when no hour is placed.
+    - **Sessions placed, line sold:** `{ quantity, extra }` with the greater of the hours declared and
+      placed — the engine bills them through the lock (rule 3).
+    - **No usable session:** the hours declared (or those the unusable sessions described), as a plain
+      quantity, and `scheduledHours: 0`.
+    - **`detail`:** « x h / y h planifiées », or « À planifier » when no hour is placed; nothing once
+      every hour sold sits on a slot.
+    - A `per_hour` resource that does not show on the planning is left to the engine (`null`).
 
     The amount is the one today's two paths give, for an unsold line. A sold line is frozen by rule 3.
 12. **The SAS step.**
     - The plugin provides the step's data through `ctx.sasData`: today's `resourceScheduling` payload.
     - It contributes `SasResourceSchedulingPage` to `sas.arrival.steps`, at today's place.
+    - The step sends `{ blocks, resourceIds }`: every block on the picker — the hours placed before
+      included — and the resources it showed.
     - It declares the rule 6 commit hook:
       - `validate`: today's `validateBlocks` (opening hours, capacity, turnover, heat-up, sold-hours
         budget). A conflict gives the 409 `SLOT_CONFLICT`.
       - `complementItems`: one « <resource> — supplément soirée » per resource, with
         `key: 'evening:<resourceId>'`.
-      - `write`: the sessions, replaced per named resource, as today's `commitArrivalSas`.
+      - `write`: the sessions of every resource the step showed, replaced — by none when every block
+        was removed. A resource it did not show keeps its sessions.
 
     `commitArrivalSas` and `sas/controller.js` lose `resourceBlocks`. `sas/controller.js` loses the
     `resourceSchedulingModel` core module. The `HOURLY_RESOURCES` export leaves the client SDK.
@@ -240,19 +251,21 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
     - A line sold at the day rate owes the evening difference. A line sold with evening sessions
       already priced owes nothing for them.
     - The free minutes count once: on the sold line.
-14. **Planning.** The plugin contributes the ignition and session cards to `planning.days` (rule 18).
+14. **Planning.** The plugin contributes the ignition and session cards to `planning.days` (rule 22).
     It loads them from `/api/planning/resource-cards` and toggles them done through its own route.
-    External bookings show as session cards too.
-15. **Emails (defect 6, proposal P17).**
-    - The plugin contributes the slot sentence through `ctx.emailContext`.
-    - The bath is no longer found by its name. The slots recalled are the sessions of the stay's
-      `per_hour` resources that show on the planning.
+    External bookings show as cards too, with nothing to tick.
+15. **Emails (defect 6, decision P17).**
+    - The slot sentence is composed by the core, inside the reminder, in the email's language — a plugin
+      token would have to know the language. The core asks whether the plugin is live and never imports
+      it (phase 0).
+    - The bath is no longer found by its name for the slots. The slots recalled are the sessions of the
+      stay's `per_hour` lines.
     - The tokens keep their names (`hasNordicBath`, `nordicBathReminder`), so Solio's templates do not
       change.
     - The core keeps the reminder itself (swimsuit, towel), which does not depend on scheduling. Without
       the plugin, the reminder no longer recalls a slot.
-    - `stayFactsModel`'s free bath minutes read the free minutes of the stay's `per_hour` resource, not
-      the name.
+    - `stayFactsModel`'s free bath minutes read the free minutes of the property's `per_hour` resource that
+      shows on the planning, not the name, and are 0 while the plugin is off.
 16. **Tables.**
     - `resource_bookings` becomes the plugin's. Its migration `tables_v1` creates it with today's DDL
       (`CREATE TABLE IF NOT EXISTS`, so every row is kept).
@@ -263,13 +276,14 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
       only by the plugin, and by the engine for a locked line.
 17. **Uninstall (proposal P16, as P12).**
     - Deactivating keeps everything.
-    - « Effacer aussi ses données » drops `resource_bookings`, then empties the slots of the resources
-      (`isComplex`, opening hours, turnover, heat-up, evening and external rates) and the stays'
-      sessions.
-    - The lines sold stay, at their price.
-    - The uninstall dialog lists, with counts, « N réservations hors séjour » and « N séances planifiées
-      ». When external bookings hold money, a warning line apart shows it: « N réservations hors séjour,
-      X € encaissés, absents de la compta ». The erase button stays available (P16: warn, then erase).
+    - « Effacer aussi ses données » drops `resource_bookings`, then empties the slot settings of the
+      resources (`isComplex`, the planning card, turnover, heat-up, evening and external rates).
+    - The lines sold stay, at their price, **with their sessions**: they say when the hours sold are
+      used. The resources keep their price type and their free minutes.
+    - The uninstall dialog lists, with counts, « N réservations hors séjour » and « les réglages de
+      créneaux des ressources ». The external bookings paid for an amount get a warning line apart:
+      « N réservations hors séjour, X € encaissés, absents de la compta ». The erase button stays
+      available (P16: warn, then erase).
 
 ### 3.D The plugin turned off (proposal P14)
 
@@ -306,25 +320,31 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
 
 21. **New slots:**
     - **`resources.fields`**: `{ key, appliesTo(draft), Component }`. Each live contribution draws under
-      the resource form's base fields; it receives `draft` and `onChange(patch)`. The plugin draws the
-      price per hour, the free hour, the slots, the heat-up, the evening and external rates and the
-      planning switch. `ResourcesPage` loses `ComplexResourceFields`.
+      the resource form's base fields; it receives `draft` and `onChange(patch)`. The plugin draws, for a
+      `per_hour` resource, the minimum use, the slots, the heat-up, the evening and external rates and
+      the planning switch. The per-property price stays core for every resource; « (EUR/h) » and the
+      free hour show only on a `per_hour` one, which only exists while the plugin is live.
+      `ResourcesPage` loses `ComplexResourceFields`.
     - **`reservation.resourceLine`**: `{ key, appliesTo(resource), Component }`, drawn under a resource
-      line, mirroring `reservation.optionLine` (3b rule 16). The plugin draws the session picker.
-      `ExtrasSection` loses `ResourceSessions`.
-    - **`calendar.menu`**: entries `{ path, label, Icon, after }`, as `settings.menu`. The plugin adds
-      Calendrier › Ressources. `App.jsx` loses its hard-coded entry.
+      line, mirroring `reservation.optionLine` (3b rule 16). It receives `resource`, `sessions`, `stay`,
+      `onSessionsChange` and `disabled`. The plugin draws the session picker. `ExtrasSection` loses
+      `ResourceSessions`.
+    - **`calendar.menu`**: entries `{ path, label }`, drawn above the properties' calendars, each visible
+      through `canSeeRoute` like any page. The plugin adds Calendrier › Ressources, whose page is a route
+      it contributes. `App.jsx` loses its hard-coded entry and route.
 22. **`planning.days` takes timed entries.**
-    - An entry may carry `time` (`HH:MM`). Timed entries sort among the core's timed cards; entries
-      without a time stay at the bottom of the day, as linen's.
-    - A contribution may also return `countTasks(day)`, and the day's task count adds it.
-    - Its component receives `onChanged()`, which reloads that contribution.
+    - A contribution marked `timed` gives, for a day, a list of cards `{ key, time }`. Each sorts among
+      the core's timed cards; a contribution without `timed` gives one time-less card, at the bottom of
+      the day as linen's.
+    - `countTasks(entry)` returns `{ done, total }`, and the day's task count adds it; the core no longer
+      counts resource cards itself.
+    - Its component receives `reload()` and `onOpenReservation` (absent for the reception role).
 
     The core's `ResourceBookingsSection`, the session and ignition cards and their state leave
     `PlanningPage`.
 23. **Generic lines stay generic.**
-    - `PricingSummary` renders a line's `detail` when the server sends one. Its « à planifier » and
-      « 1ère heure offerte » code goes.
+    - `PricingSummary` renders a line's `detail` when the server sends one; its « à planifier » code
+      goes. « 1ère heure offerte » stays, on `per_hour` lines only (rule 4).
     - `ResourcesPage` shows « Prix » without « EUR/h » for every price type except `per_hour`, which the
       plugin draws.
 24. **Client module.** `client/src/plugins/hourly-resources/` holds:
@@ -333,7 +353,8 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
     - the resource fields and the session picker (extracted);
     - the planning cards.
 
-    `SlotPickerGrid` stays a core component exported by the SDK, as `OccurrenceGrid`.
+    `SlotPickerGrid` stays a core component exported by the SDK, as `OccurrenceGrid`; `OptionDayCard` and
+    `withFrom` join the SDK for the planning cards and the resource page.
 
 ### 3.F Existing databases, new customers
 
@@ -348,6 +369,26 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
 26. **A new customer** starts with the plugin not installed (phase 0). Resources are sold per stay,
     night or person; « à l’heure » appears once the plugin is installed.
 
+### 3.G Added during implementation (2026-10-05)
+
+27. **A SAS step may collect** (client side of rule 6). A `sas.arrival.steps` contribution may declare:
+    - no `load`: its data is `pluginData[pluginId]` of the SAS payload (the server's `ctx.sasData`);
+    - `initialValue(data)`: the step's value when the SAS opens, step shown or not;
+    - `payloadOf(value, data)`: what the commit sends under `pluginSteps[key]`, only when the step ran;
+    - `recapLines(value, data)` → `[{ label, amount }]`: lines the recap shows and counts in its total,
+      priced by the server, never offerable;
+    - `recapNotes(value, data)` → `[string]`: what the recap recalls (« Bain nordique : 1 h non
+      planifiée. »);
+    - `skipLabel`: a second footer button that moves on (« Planifier plus tard »).
+
+    Its `Component` receives `data`, `value`, `onChange(value | updater)` and `reservationId`.
+28. **Plugin lines on the recap while the plugin is off.** A line carrying a `sasLineKey` whose plugin has
+    no live step is shown as stored, counted in the total, never offered and never sent back: the server
+    keeps it (rule 8).
+29. **A fiche keeps a sold `per_hour` line whole while the plugin is off:** its sessions travel with it
+    through every save (the engine copies them when no plugin prices the line), and its tile is never
+    « Indispo ».
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -360,20 +401,24 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
 | `utils/` | `reservationEngineInput.js` | T | Sessions in replays (rule 5) |
 | `utils/` | `sasCommitHooks.js` | C | Rules 6–8: validate, complement items, write inside the transaction |
 | `utils/` | `resourceHourlyPricing.js`, `resourceAvailability.js` | M | → `plugins/hourly-resources/` |
-| `utils/` | `emailContextBuilder.js` | T | Slot sentence from the plugin; no name match (rule 15) |
+| `utils/` | `emailContextBuilder.js` | T | Slots from the stay's `per_hour` lines, only while the plugin is live (rule 15) |
 | `models/` | `resourceBookingsModel.js`, `resourceOccupancyModel.js`, `resourceSchedulingModel.js`, `planningResourceCardsModel.js` | M | → `plugins/hourly-resources/` |
 | `models/` | `reservationsModel.js` | T | `commitArrivalSas`: hooks in the transaction, `sasLineKey`, no `resourceBlocks` (rules 6–7, 12) |
-| `models/` | `resourcesModel.js` | T | `getDeleteImpact` guarded; hourly columns written only while live; `per_hour` hidden (rules 16, 18) |
-| `models/` | `stayFactsModel.js` | T | Free minutes of the `per_hour` resource (rule 15) |
+| `models/` | `resourcesModel.js` | T | `getDeleteImpact` guarded (rule 16) |
+| `models/` | `propertiesModel.js` | T | The property's resources without `per_hour` while off (rule 18) |
+| `models/` | `bookingLinesModel.js` | T | A fiche save carries `sasLineKey` over with `sasArrivalOrigin` (rule 7) |
+| `models/` | `stayFactsModel.js` | T | Free minutes of the `per_hour` resource on the planning, 0 while off (rule 15) |
 | `controllers/` | `reservationsController.js`, `devisController.js`, `models/devisModel.js` | T | `insertResourceLines` hours for `per_hour` only; stored line kept; `frozenResources` (rules 4, 18) |
-| `controllers/` | `resourcesController.js` | T | 404 and 400 while not offered (rule 18) |
+| `controllers/` | `resourcesController.js` | T | 404 and 400 while not offered; free slots moved out (rules 10, 18) |
+| `controllers/` | `planningController.js` | T | Resource cards moved out (rule 10) |
+| `middleware/` | `enforceRoleAccess.js` | T | The two reception entries move to the plugin (rule 10) |
 | `controllers/` | `resourceBookingsController.js` | M | → `plugins/hourly-resources/controller.js` |
 | `routes/` | `resourceBookings.js`, `resources.js`, `planning.js` | M/T | Hourly routes → the plugin (rule 10) |
 | `plugins/sdk/` | `createContext.js`, `registry.js`, `index.js` | T | `ctx.priceLineContributor`, `ctx.sasCommit`; `CORE_MODULES`: `resourceSchedulingModel` out |
 | `plugins/sas/` | `controller.js` | T | `pluginSteps`, `pluginLines`, the hooks; `resourceScheduling` and `resourceBlocks` removed (rules 6–8, 12) |
-| `plugins/website-booking/` | `publicProjections.js` | T | `per_hour` hidden and no scheduling note while off (rules 18–19) |
+| `plugins/website-booking/` | `controllers/publicCatalogController.js`, `controllers/publicQuoteController.js` | T | `per_hour` hidden from the catalogue and refused on a quote or a request while off (rules 18–19) |
 | `plugins/` | `index.js` | T | Registers the module |
-| `plugins/hourly-resources/` | `index.js`, `pricing.js`, `controller.js`, `routes.js`, `bookingsModel.js`, `occupancyModel.js`, `schedulingModel.js`, `planningCardsModel.js`, `hourlyPricing.js`, `availability.js`, `emailContext.js`, `migrations.js`, `tests/` | C (mostly moved) | Rules 9–17 |
+| `plugins/hourly-resources/` | `index.js`, `pricing.js`, `sasStep.js`, `controller.js`, `routes.js`, `bookingsModel.js`, `occupancyModel.js`, `schedulingModel.js`, `planningCardsModel.js`, `hourlyPricing.js`, `availability.js`, `migrations.js`, `tests/` | C (mostly moved) | Rules 9–17 |
 | — | `index.js` | T | `/api/resource-bookings` mount removed |
 | — | `database.js`, `schema.sql` | T | `resource_bookings` no longer created by the core; `reservation_custom_options.sasLineKey` added |
 
@@ -381,15 +426,17 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
 
 | Layer | File | Status | Responsibility |
 |---|---|---|---|
-| `plugins/hourly-resources/` | `index.js`, `ResourcePlanningPage.jsx`, `ResourceBookingDialog.jsx`, `resourceSessions.js`, `SasResourceSchedulingPage.jsx`, `HourlyResourceFields.jsx`, `ResourceSessionsPicker.jsx`, `PlanningResourceCard.jsx`, `planningDays.js` | C (mostly moved) | Rules 12, 14, 21, 24 |
-| `plugins/sas/` | `ReservationSasDialog.jsx` | T | `pluginSteps` payload; `pluginLines` never preserved (rule 7); `hourlyOn` removed |
+| `plugins/hourly-resources/` | `index.js`, `ResourcePlanningPage.jsx`, `ResourceBookingDialog.jsx`, `MiniDayPlanner.jsx`, `resourceSessions.js`, `SasResourceSchedulingPage.jsx`, `SasSchedulingStep.jsx`, `sasStep.js`, `scheduling.js`, `HourlyResourceFields.jsx`, `ResourceSessionsPicker.jsx`, `PlanningResourceCard.jsx`, `planningDays.js`, `planningTasks.js` | C (mostly moved) | Rules 12, 14, 21, 24, 27. `scheduling.js` and `planningTasks.js` are pure: the module list imports them without a cycle through the SDK |
+| `plugins/sas/` | `ReservationSasDialog.jsx` | T | Collecting plugin steps and `pluginSteps` (rule 27); lines with a `sasLineKey` never preserved, shown as stored when their plugin is off (rules 7, 28); the core scheduling step removed |
 | `pages/` | `ResourcesPage.jsx` | T | `resources.fields` slot; `ComplexResourceFields` removed (rule 21) |
 | `components/reservation/` | `ExtrasSection.jsx` | T | `reservation.resourceLine` slot; read-only tile for a `frozenResources` entry (rules 18, 21) |
 | `components/` | `PricingSummary.jsx` | T | Renders `detail` (rule 23) |
-| `pages/` | `PlanningPage.jsx` | T | Timed slot entries, `countTasks`, `onChanged`; hourly code removed (rule 22) |
-| `pages/` | `ReservationPage.jsx` | T | Adds `frozenResources`; sessions kept by the slot |
+| `pages/` | `PlanningPage.jsx` | T | `timed` contributions, `onOpenReservation`; hourly code removed (rule 22) |
+| `utils/` | `planningDayTasks.js` | T | Resource cards counted by their contribution only (rule 22) |
+| `pages/` | `ReservationPage.jsx` | T | Adds `frozenResources` to the list and the summary (rule 18) |
+| `constants/` | `plugins.js`, `roles.js` | T | `/resource-planning` comes from the module's route (rule 21) |
 | — | `App.jsx`, `constants/calendarMenu.js` (C) | T | `calendar.menu` slot (rule 21) |
-| `plugins/sdk/` | `index.js`, `registry.js` | T | Three slots declared; `HOURLY_RESOURCES` out |
+| `plugins/sdk/` | `index.js` | T | `OptionDayCard`, `withFrom` in; `HOURLY_RESOURCES` out |
 
 It reuses `SlotPickerGrid`, `OccurrenceGrid`, `FormDialog`, `ConfirmDialog` and `StatusBadge`. The
 three slots are generic. The plugin's components are specific.
@@ -403,8 +450,10 @@ three slots are generic. The plugin's components are specific.
 | `POST /api/reservations/calculate-price`, reservation and devis saves | A line may carry `detail`; a sold line is frozen; 422 `RESOURCE_NOT_OFFERED` on an addition while off |
 | `GET /api/resources`, `GET /api/properties/:id` | `per_hour` resources absent while off |
 | `GET\|PUT /api/resources/:id` (`per_hour`) | 404 while off; `priceType: 'per_hour'` answers 400 |
-| `GET /api/reservations/:id/sas` | `resourceScheduling` → `pluginData['hourly-resources']`; + `pluginLines` |
-| `POST /api/reservations/:id/sas/arrival` | `resourceBlocks` → `pluginSteps.resourceScheduling.blocks`; 409 `SLOT_CONFLICT` unchanged; answer `pluginLines` in place of `eveningSupplement` |
+| `GET /api/reservations/:id/sas` | `resourceScheduling` → `pluginData['hourly-resources']`; each custom line carries `sasLineKey` |
+| `GET /api/reservations/:id` | Each custom line carries `sasLineKey` |
+| `POST /api/reservations/:id/sas/arrival` | `resourceBlocks` → `pluginSteps.resourceScheduling: { blocks, resourceIds }`; 409 `SLOT_CONFLICT` unchanged; answer `pluginLines` in place of `eveningSupplement` |
+| `GET\|DELETE /api/resources/:id/delete-impact`, `DELETE /api/resources/:id` (`per_hour`) | 404 while off |
 | `/public/v1/**` | Same shape; `per_hour` resources absent and no scheduling note while off |
 | `GET /api/plugins` | `hourly-resources`: `hasModule: true`, `erasable: true`, its data lines |
 
@@ -416,8 +465,8 @@ three slots are generic. The plugin's components are specific.
   tagged at migration: a SAS-origin custom row whose label ends with « — supplément soirée » and names
   a `per_hour` resource of the stay gets `hourly-resources:evening:<resourceId>`.
 - **`resources`** (hourly columns), **`reservation_resources.sessions`**,
-  **`property_resource_prices.freeMinutes`**: unchanged. They are emptied on erase, except the free
-  minutes and the sessions of a sold line, which stay because they explain its price.
+  **`property_resource_prices.freeMinutes`**: unchanged. The erase empties the slot settings of the
+  resources; the free minutes and the sessions stay — every line is sold, and they explain it.
 - **Migration note** in `changelog.d/migration--plugins-phase-3c-hourly-resources.md`.
 
 ## 6. UI / UX
@@ -447,57 +496,75 @@ The interactive mock shows each screen in both states, plugin on and off.
 
 ## 7. Test plan
 
-### Server — new tests
+### Server — new tests (27)
 
-| File | Covers |
-|---|---|
-| `price-line-contributor.unit.test.js` | Rules 1–4: missing member; one per price type; `extra` closed; a throw gives the quantity price; an inactive plugin is never called; hours for `per_hour` only |
-| `sas-commit-hooks.unit.test.js` | Rules 6–8: validate aborts the whole commit; items tagged with `sasLineKey`; `write` rolled back on a throw; step not run → nothing called; plugin off → ignored |
-| `sas-plugin-lines.unit.test.js` | Rule 7: a re-opened SAS that sends the old supplement back as a custom line ends with one supplement; the migration tags existing rows |
-| `resource-offer-follows-plugin.unit.test.js` | Rules 18–20: catalogue, property and site lists hide `per_hour`; 404 and 400; a stored line kept, removal and hours change ignored; `frozenResources`; back with its settings |
-| `reservation-engine-input-sessions.unit.test.js` | Rule 5 |
-| `plugins/hourly-resources/tests/phase-3c-hourly.unit.test.js` | Rules 9–17, 25–26: routes only while live; `tables_v1` keeps rows; the SAS data and step only while live; email slot without the name; erase warns, then erases, sold lines kept; a new customer has no `per_hour` |
+| File | Tests | Covers |
+|---|---|---|
+| `price-line-contributor.unit.test.js` | 8 | Rules 1–4, 18: missing member; one per price type; `extra` closed; a sold line through the lock with its sold hours; a throw leaves the line to the engine; an inactive plugin is never called and `per_hour` not offered; hours for `per_hour` only; without a plugin a sold line keeps its sessions |
+| `sas-commit-hooks.unit.test.js` | 6 | Rules 6–8: a refusal aborts before any write; a step not run is not validated nor written, its lines recomputed; the line stored tagged and the write inside the commit; a throwing write rolls back; the labels a dialog copy is dropped by; plugin off → nothing called, its line kept as stored |
+| `resource-offer-follows-plugin.unit.test.js` | 6 | Rules 18–20: lists; 404 and 400, back when live; no addition; a sold line kept as stored (removal, hours, « offert », lock); `frozenResources`; the gate steps aside when live |
+| `reservation-engine-input-sessions.unit.test.js` | 2 | Rule 5 |
+| `plugins/hourly-resources/tests/phase-3c-hourly.unit.test.js` | 5 | Rules 9–17: what the module declares; `tables_v1` keeps the rows; the supplements written before are tagged, only those; the erasure warning and lines; what the erasure empties |
 
-Master's `hourly-evening-billed-once.unit.test.js` moves under the plugin and must stay green through
-the move: it is the parity guard of defects 1–2.
+Master's `hourly-evening-billed-once.unit.test.js` moved under the plugin with its fixture and stays green
+through the move (13): it is the parity guard of defects 1–2, its commit cases now driven through the
+plugin's hook (+1: removing every block clears the sessions and the supplement).
 
 ### Moved and updated tests
 
-- The hourly suites move under `plugins/hourly-resources/tests/`:
+- The hourly suites moved under `plugins/hourly-resources/tests/`:
   - `resource-bookings-model`, `resource-occupancy-conflicts`, `resource-availability`,
     `resource-hourly-pricing`, `resource-evening-supplement`, `resource-ignition-task`;
-  - `planning-resource-cards-model`, `sas-resource-scheduling`.
-- `pricing-resource-types`, `email-context-builder`, `devis-*`, `booking-lines-model` and the
-  website-booking public suites assert the new seams. The `sas` suites send `pluginSteps`.
-- `plugins-phase-1-sdk` (rules 12, 22): the module-less example becomes a test-only catalogue entry,
-  since every plugin now has a module. `plugins-phase-0` and `subscription-entitlement` follow.
+  - `planning-resource-cards-model`, `sas-resource-scheduling` (its commit cases write through the hook).
+- `tests/hourlyResourcesFixture.js` declares the live plugin for the suites that price `per_hour` lines:
+  `pricing-resource-types`, `devis-extras-parity`, `planning-card-public-pricing`, `email-context-builder`
+  (+1: no slot recalled once the plugin is off), website-booking's `public-catalog-sort-by-price`.
+- `pricing-auto-options`: the « complex resource » cases run on `per_hour` (rule 4); the two cases on a
+  string `isComplex` go; the multiplier case now checks that a slotted `per_person_per_night` keeps its
+  multiplier.
+- `plugins-phase-1-sdk` (rules 12, 22): the module-less example boots without the hourly module.
+  `plugins-phase-0` reads the mounts from the plugin. `sas-departure-mode` and `phase-2-sas` follow the
+  SAS controller.
+- Server total: 4,852.
 
 ### Client (Vitest)
 
-- `plugins/hourly-resources/__tests__/`: the session picker in the slot, the resource fields, the SAS
-  step (moved), the planning card.
-- `PlanningPage.timed-slot-entries.test.jsx`: a timed entry sorts among the timed cards; `countTasks`.
-- `ExtrasSection.frozen-resource.test.jsx`: a frozen bath read-only at its price.
-- `ReservationSasDialog.plugin-lines.test.jsx`: a plugin line is never sent back.
-- `ExtrasSection.hourly-plugin-inactive.test.jsx` is rewritten over `frozenResources`.
+- New in `plugins/hourly-resources/__tests__/`: `HourlyResourceFields` (2), `PlanningResourceCard` (4: a
+  session ticked and the cards reloaded; a booking with nothing to tick; the day count; the cards of a
+  window keyed by day). Moved: `SasResourceSchedulingPage`, `resourceSessions`.
+- `ReservationSasDialog.evening-supplement.test.jsx` (2): the supplement shown once and never sent
+  back; a re-opened step sends every block and the hours left.
+- `ReservationSasDialog.plugin-lines-off.test.jsx` (1): rule 28.
+- `ExtrasSection.hourly-plugin-inactive.test.jsx` rewritten over `frozenResources` (2).
+- Updated: `PricingSummary.resource-scheduling` (the server's `detail`), `ExtrasSection.hourly-resource-hours`
+  (the editor comes from the slot), `planningDayTasks` (counted by the contribution),
+  `ReservationSasDialog.arrival` (`pluginSteps`), the SDK registry.
+- Client total: 1,516.
 
-### E2E
+### E2E (97: 96 passed, 1 skipped as before)
 
 - `hourly-resource-sold-by-hour.spec.js` is kept.
-- New `e2e/specs/plugins/hourly-resources.spec.js`:
-  - switched off, the bath leaves the catalogue and Calendrier › Ressources goes;
-  - switched on, both come back.
+- New `e2e/specs/plugins/hourly-resources.spec.js` (1): switched off, the bath leaves the catalogue, its
+  URLs answer 404 and Calendrier › Ressources goes; switched on, both come back with the settings.
 
-### Manual verification
+### Manual verification (done 2026-10-05)
 
-- A shadow instance (a copy of the dev database) on its own ports:
-  - upgrade: `tables_v1` ran and the supplement rows are tagged;
-  - a stay sold with 2 h of bath at the day rate; at the SAS, an evening slot gives one supplement
-    line; a fiche save keeps the line amount; re-opening the SAS leaves one supplement;
-  - the plugin deactivated: the bath leaves the catalogue; the sold line is read-only at its price;
-    the SAS has no step; the planning has no card; Calendrier › Ressources is gone;
-  - checked at 1280 and 375 px;
-  - uninstall with a paid external booking: the warning, then the erase.
+- A copy of the dev database on its own ports:
+  - upgrade: the twelve plugins installed, `tables_v1` ran, the 3 external bookings kept;
+  - a stay sold with 3 h of bath at 30 €/h: the SAS (through `pluginSteps`) places 20:00, one
+    supplement of 20 € tagged `hourly-resources:evening:2`, the line stays 90 €;
+  - plugin on, at 1280 px: the fiche shows the sessions and « 1 h / 3 h planifiées »; Calendrier ›
+    Ressources is in the menu; the SAS step shows the placed block with its « +20 € », the recap one
+    supplement, the total 20 € and « 2 h non planifiées »; the planning shows the session card; the
+    resource form shows the hourly block, « EUR/h » and the free hour;
+  - plugin off: the bath leaves the list, `GET /api/resources/2` → 404, a new stay with it → 422; the
+    fiche shows « Prix figé : 90,00 € » and the reason, at 1280 and 375 px; the menu entry, the SAS step
+    and the planning card are gone; the recap still shows the supplement; a fiche save that drops the
+    line keeps it whole, sessions included;
+  - Plugins › Ressources à l'heure at 375 px, with one external booking paid 70 €: the warning before
+    « Effacer aussi ses données », then the list of what goes.
+- One run of the server suite saw `plugins-phase-1-sdk` « every moved route keeps its URL » fail once; it
+  passed on every rerun, alone and in the full suite.
 
 ## 8. Out of scope
 

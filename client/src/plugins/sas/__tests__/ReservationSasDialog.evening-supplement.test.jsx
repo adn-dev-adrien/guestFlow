@@ -1,6 +1,6 @@
 // The evening supplement in the arrival recap — specs/hourly-resource-quantity-and-sas-scheduling.md
 // §3.6 rules 26, 32, through the step the hourly-resources plugin contributes
-// (specs/plugins-phase-3c-hourly-resources.md rules 6–7, 12).
+// (specs/plugins-phase-3c-hourly-resources.md rules 6–7, 12, 27).
 //
 // One file per subject (CLAUDE.md §9). Fixtures used by more than one subject live in ./sasFixtures.
 import { screen, waitFor } from '@testing-library/react';

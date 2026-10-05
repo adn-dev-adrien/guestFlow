@@ -335,6 +335,12 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
 
 ## 4. Architecture
 
+> **Since phase 3c of the plugins** (`specs/plugins-phase-3c-hourly-resources.md`), the hourly code below
+> lives in the `hourly-resources` plugin: `server/src/plugins/hourly-resources/` and
+> `client/src/plugins/hourly-resources/`. The pricing goes through the core's price-line contributor, the
+> SAS step through its commit contract (`pluginSteps.resourceScheduling` in place of `resourceBlocks`),
+> the planning cards through `planning.days`. The paths in the tables are the ones of this spec's time.
+
 > **Fat backend, thin frontend.** Slot states, capacity/turnover arithmetic, the thermal model, the
 > evening supplement, the remaining-hours budget and every validation are computed server-side. The SAS
 > picker renders a ready-to-tap list of slots with their state and holds the guest's picks in memory

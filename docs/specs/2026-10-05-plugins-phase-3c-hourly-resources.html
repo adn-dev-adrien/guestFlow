@@ -414,7 +414,7 @@ function renderUn() {
   const n = un.ext === 'paid' ? 2 : un.ext === 'unpaid' ? 1 : 0;
   $('#dlgw').innerHTML = purge && un.ext === 'paid' ? '<div class="w">⚠ 2 réservations hors séjour, 140,00 € encaissés, absents de la compta</div>' : '';
   $('#dlgl').innerHTML = purge
-    ? `Seront effacés : ${n && un.ext !== 'paid' ? `${n} réservation hors séjour, ` : ''}14 séances planifiées, les réglages de créneaux. C’est définitif.<br><span class="muted">Les lignes vendues restent, à leur prix.</span>`
+    ? `Seront effacés : ${n && un.ext !== 'paid' ? `${n} réservation hors séjour · ` : ''}les réglages de créneaux des ressources. C’est définitif.<br><span class="muted">Les lignes vendues restent, à leur prix, avec leurs séances.</span>`
     : 'Tout est conservé. Le bain vendu reste visible, en lecture seule.';
   $('#dlgb').textContent = purge ? 'Désinstaller et effacer' : 'Désinstaller';
   $('#dlgr').textContent = '';

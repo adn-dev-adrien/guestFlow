@@ -1,4 +1,4 @@
-// specs/plugins-phase-3c-hourly-resources.md rule 18 (decision P14) — without the hourly-resources
+// specs/plugins-phase-3c-hourly-resources.md rules 18, 29 (decision P14) — without the hourly-resources
 // plugin nothing is sold by the hour: the server lists no per-hour resource, and one the stay already
 // carries comes back under `frozenResources`, which the fiche adds read-only — its price frozen, its
 // controls gone.

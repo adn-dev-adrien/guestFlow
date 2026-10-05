@@ -1,4 +1,4 @@
-// The price-line contributor (specs/plugins-phase-3c-hourly-resources.md rules 1–4).
+// The price-line contributor (specs/plugins-phase-3c-hourly-resources.md rules 1–4, 18, 26, 29).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -132,7 +132,7 @@ test('rule 4: slot settings and a free hour on another price type keep its multi
   assert.equal(line.totalPrice, 30);
 });
 
-test('rule 18: without a live plugin, a sold line keeps the sessions it carries, at its locked amount', () => {
+test('rules 18, 29: without a live plugin, a sold line keeps the sessions it carries, at its locked amount', () => {
   registry.reset();
   const sessions = [{ date: '2026-07-11', start: '20:00', end: '21:00' }];
   const line = lineOf(calculateReservationQuote({
@@ -142,4 +142,11 @@ test('rule 18: without a live plugin, a sold line keeps the sessions it carries,
   }), 14);
   assert.equal(line.totalPrice, 90);
   assert.deepEqual(line.sessions, sessions);
+});
+
+test('rule 26: a new customer, the plugin not installed, sells nothing by the hour', () => {
+  registry.reset();
+  registry.configure({ isActive: () => false, allows: () => true });
+  assert.equal(priceLineContributors.offered('per_hour'), false);
+  assert.equal(priceLineContributors.offered('per_night'), true);
 });

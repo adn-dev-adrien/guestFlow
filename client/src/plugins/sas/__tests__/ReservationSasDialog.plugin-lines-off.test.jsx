@@ -1,5 +1,5 @@
 // A line a plugin billed, re-opened while that plugin is off — specs/plugins-phase-3c-hourly-resources.md
-// rule 8 (decision P10): the server keeps it as stored, so the recap shows it as it is, in the total,
+// rules 8, 28 (decision P10): the server keeps it as stored, so the recap shows it as it is, in the total,
 // without « Offrir », and the commit never sends it back.
 //
 // One file per subject (CLAUDE.md §9). Fixtures used by more than one subject live in ./sasFixtures.
