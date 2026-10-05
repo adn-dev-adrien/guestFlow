@@ -6,7 +6,12 @@
  * plugin reads this list, creates or revokes the keys on its side, and posts the outcomes back.
  */
 
-const { computeWindow } = require('./gateWindow');
+const {
+  computeWindow,
+  toParisIso,
+  OPENS_BEFORE_CHECK_IN_MS,
+  CLOSES_AFTER_CHECK_OUT_MS,
+} = require('./gateWindow');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A stay enters the list this long before its arrival (rule 2). */
@@ -37,6 +42,46 @@ function describeStay(stay) {
   };
 }
 
+/**
+ * The `stay` block of contract v3 (specs/sowel-stays-in-keys.md): the property and the stay's own
+ * check-in / check-out instants, without the gate's margins. `null` — and the key goes out without
+ * it, the block is optional — when the property is not known any more.
+ */
+function stayBlock({ propertyId, propertyName, checkIn, checkOut }) {
+  const id = Number(propertyId);
+  if (propertyId === null || propertyId === undefined || !Number.isInteger(id) || id <= 0) return null;
+  if (!propertyName) return null;
+  const arrival = toParisIso(checkIn);
+  const departure = toParisIso(checkOut);
+  if (!arrival || !departure) return null;
+  return { propertyId: id, propertyName: String(propertyName), arrival, departure };
+}
+
+/** The stay of a reservation that still exists: its own dates and times, as the gate window reads them. */
+function stayOfReservation(stay) {
+  const window = computeWindow(stay);
+  if (!window) return null;
+  return stayBlock({ ...stay, checkIn: window.checkIn, checkOut: window.checkOut });
+}
+
+/**
+ * The stay of a DELETED reservation, from what was stored with its result: the listed window minus
+ * its margins. NULL `propertyId` (a row filed before the column existed) → no block.
+ */
+function stayOfStoredResult(row) {
+  const startMs = Date.parse(row.startsAt);
+  const endMs = Date.parse(row.endsAt);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+  return stayBlock({
+    propertyId: row.propertyId,
+    propertyName: row.propertyName,
+    checkIn: new Date(startMs + OPENS_BEFORE_CHECK_IN_MS),
+    checkOut: new Date(endMs - CLOSES_AFTER_CHECK_OUT_MS),
+  });
+}
+
+const withStay = (key, stay) => (stay ? { ...key, stay } : key);
+
 /** A result that says a key may exist in Sowel: anything but a successful revoke (rule 6). */
 function mayHoldKey(result) {
   if (!result || !result.action) return false;
@@ -64,16 +109,18 @@ function buildKeyList(model, now = new Date()) {
     if (endMs <= nowMs) continue;
     const hasKey = mayHoldKey({ action: stay.resultAction, ok: stay.resultOk });
     if (startMs > horizonMs && !hasKey) continue;
-    keys.push({ reservationId: String(stay.id), action: 'create', ...described });
+    keys.push(withStay({ reservationId: String(stay.id), action: 'create', ...described }, stayOfReservation(stay)));
   }
 
   for (const row of model.resultsWithoutLiveStay()) {
     if (!mayHoldKey(row)) continue;
     // A cancelled stay still has its dates; a deleted one only has the window listed with its key.
-    const described = row.rowId ? describeStay({ ...row, id: row.rowId }) : null;
+    const live = row.rowId ? { ...row, id: row.rowId, propertyId: row.livePropertyId } : null;
+    const described = live ? describeStay(live) : null;
     const window = described || { label: row.label || `#${row.reservationId}`, startsAt: row.startsAt, endsAt: row.endsAt };
     if (!window.endsAt || Date.parse(window.endsAt) <= nowMs) continue;
-    keys.push({ reservationId: String(row.reservationId), action: 'revoke', ...window });
+    const stay = described ? stayOfReservation(live) : stayOfStoredResult(row);
+    keys.push(withStay({ reservationId: String(row.reservationId), action: 'revoke', ...window }, stay));
   }
 
   return { now: now.toISOString(), keys };
@@ -128,6 +175,7 @@ module.exports = {
   ERROR_REASONS,
   keyLabel,
   describeStay,
+  stayBlock,
   mayHoldKey,
   buildKeyList,
   errorReason,

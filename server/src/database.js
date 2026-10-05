@@ -2655,6 +2655,12 @@ if (baselineDeferredError) {
   console.log('[schema] baseline rejoue avec succes apres les migrations gardees.');
 }
 
+// ---------- GATE KEYS — the stay of each key (specs/sowel-stays-in-keys.md) ----------
+// `gate_key_results.propertyId`, added to older databases and backfilled from the reservation.
+// After the baseline replay: on a database the first baseline pass stopped short of, the table only
+// exists from here.
+require('./models/gateKeysModel').migratePropertyId(db);
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);
