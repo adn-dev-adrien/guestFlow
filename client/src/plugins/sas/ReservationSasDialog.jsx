@@ -315,6 +315,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // `recapLines` / `recapNotes` are what the recap shows of it, step run or not.
   const stepDataFor = (step) => (step.load ? pluginStepData[step.key] : data?.pluginData?.[step.pluginId]);
   const [pluginStepValues, setPluginStepValues] = useState({});
+  // The lines a plugin billed at an earlier SAS while that plugin is off now: kept as stored by the
+  // server (rule 8), shown as they are, never offered.
+  const [storedPluginLines, setStoredPluginLines] = useState([]);
   const setPluginStepValue = (key) => (update) => setPluginStepValues((prev) => ({
     ...prev, [key]: typeof update === 'function' ? update(prev[key]) : update,
   }));
@@ -333,7 +336,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
-    setPluginStepData({}); setPluginStepValues({}); setOffered(new Set());
+    setPluginStepData({}); setPluginStepValues({}); setStoredPluginLines([]); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
     // still undo its own upsell) and at check-out (where it can never be billed twice).
@@ -456,6 +459,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // A line a plugin bills (`sasLineKey`) is the plugin's, recomputed at every commit
           // (specs/plugins-phase-3c-hourly-resources.md rule 7): its step's recap shows it, it is
           // never carried back as a preserved line.
+          const livePluginIds = new Set(pluginSteps.filter((step) => step.recapLines).map((step) => step.pluginId));
+          setStoredPluginLines((res.options || [])
+            .filter((o) => o.isCustom && o.sasLineKey && !livePluginIds.has(String(o.sasLineKey).split(':')[0]))
+            .map((o) => ({ label: String(o.description || o.title || ''), amount: Number(o.unitPrice ?? o.amount ?? 0) })));
           (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1 && !o.sasLineKey).forEach((o) => {
             const label = String(o.description || o.title || '');
             const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
@@ -750,7 +757,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const pluginRecapLines = pluginSteps
     .filter((step) => step.recapLines && pluginStepValues[step.key] !== undefined)
     .flatMap((step) => step.recapLines(pluginStepValues[step.key], stepDataFor(step)));
-  const pluginRecapSum = pluginRecapLines.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+  const pluginRecapSum = [...pluginRecapLines, ...storedPluginLines].reduce((sum, l) => sum + Number(l.amount || 0), 0);
 
   // Detail of the PRE-EXISTING complement (the « déjà dû »): every extra routed to the complément
   // (options / resources / custom — `inComplement`), with its quantity + unit price, EXCLUDING the
@@ -1615,7 +1622,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   onToggle={() => toggleOffered(l.offerKey)}
                 />
               ))}
-              {pluginRecapLines.map((l, i) => (
+              {[...pluginRecapLines, ...storedPluginLines].map((l, i) => (
                 <OfferableLine key={`e${i}`} prefix="+ " text={`${l.label} : ${formatCurrency(l.amount)}`} />
               ))}
               {preservedArrivalLines.map((l, i) => (

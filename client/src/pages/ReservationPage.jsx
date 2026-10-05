@@ -3372,7 +3372,7 @@ export default function ReservationPage() {
           nightlyBreakdown={nightlyBreakdown}
           offeredOptionIds={offeredOptionIds}
           propertyOptions={propertyOptions}
-          availableResources={availableResources}
+          availableResources={[...availableResources, ...frozenResources]}
           isIcalSource={isIcalSource}
           selectedProperty={selectedProperty}
           parsedTotalPrice={parsedTotalPrice}

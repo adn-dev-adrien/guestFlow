@@ -69,7 +69,8 @@ function register(ctx) {
       const lines = [];
       if (hasTable(db, 'resource_bookings')) {
         const all = db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n;
-        const paid = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(totalPrice), 0) AS amount FROM resource_bookings WHERE paid = 1').get();
+        // Money that is in no ledger: the bookings paid for an amount.
+        const paid = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(totalPrice), 0) AS amount FROM resource_bookings WHERE paid = 1 AND totalPrice > 0').get();
         if (paid.n > 0) {
           lines.push({
             label: `${plural(paid.n, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(paid.amount)} encaissés, absents de la compta`,

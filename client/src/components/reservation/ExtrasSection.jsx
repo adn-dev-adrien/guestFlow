@@ -198,7 +198,8 @@ export default function ExtrasSection() {
                     const isHourlyScheduled = Boolean(resource.showsPlanningCard) && isPerHour;
                     const readOnly = Boolean(resource.readOnly);
                     const hasFreeFirstHour = isPerHour && Number(resource.freeMinutes || 0) >= 60;
-                    const unavailable = Number(resource.available || 0) <= 0;
+                    // A read-only line is already on the stay: it is never « Indispo ».
+                    const unavailable = !readOnly && Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
                     const resourceConflict = Boolean(selected) && !isPerHour && (unavailable || requestedTooMuch);
                     let factorHint = '';

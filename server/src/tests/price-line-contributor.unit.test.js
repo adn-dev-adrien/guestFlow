@@ -131,3 +131,15 @@ test('rule 4: slot settings and a free hour on another price type keep its multi
   assert.equal(line.billedUnits, 3, '1 bike × 3 nights, no hour deducted');
   assert.equal(line.totalPrice, 30);
 });
+
+test('rule 18: without a live plugin, a sold line keeps the sessions it carries, at its locked amount', () => {
+  registry.reset();
+  const sessions = [{ date: '2026-07-11', start: '20:00', end: '21:00' }];
+  const line = lineOf(calculateReservationQuote({
+    db: pricingDb(), ...STAY,
+    lockedResourceLines: [{ resourceId: 14, quantity: 3, unitPrice: 30, billedUnits: 3, priceType: 'per_hour', totalPrice: 90, offered: 0 }],
+    selectedResources: [{ resourceId: 14, quantity: 3, sessions }],
+  }), 14);
+  assert.equal(line.totalPrice, 90);
+  assert.deepEqual(line.sessions, sessions);
+});

@@ -904,6 +904,10 @@ function lockedUnitPriceOr(lockedLine, currentUnitPrice) {
  * `originalTotalPrice`; offering only zeroes the billed `totalPrice`. This is the single place where
  * offering affects money, so toggling offered on/off is always lossless.
  */
+function storedSessionsOf(selected) {
+  return Array.isArray(selected?.sessions) && selected.sessions.length > 0 ? { sessions: selected.sessions } : {};
+}
+
 function applyOfferedToLine(realTotal, offered) {
   const real = roundMoney(realTotal);
   return {
@@ -1997,7 +2001,9 @@ function calculateReservationQuote({
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        ...(contributed ? contributed.extra : {}),
+        // Without a live plugin, a line keeps the sessions it carries: they still say when the hours
+        // sold are used (specs/plugins-phase-3c-hourly-resources.md rule 18).
+        ...(contributed ? contributed.extra : storedSessionsOf(selected)),
         ...applyOfferedToLine(merged.totalPrice, offered),
         ...pickContribsAndForce(selected, lockedLine),
       };
