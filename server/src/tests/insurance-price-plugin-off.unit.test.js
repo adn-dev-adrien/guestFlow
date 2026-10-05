@@ -40,10 +40,13 @@ const STAY = {
   startDate: '2026-11-10', endDate: '2026-11-13', customOptions: [], selectedResources: [], discountPercent: 0,
 };
 
-function price(db, bookingId, { selectedOptions, lockedOptionLines = [] }) {
+function price(db, bookingId, { selectedOptions, lockedOptionLines = [], offeredOptionIds = [] }) {
   const gate = insuranceOffer.gateSelection({ db, bookingId, selectedOptions, lockedOptionLines });
   if (gate.error) return gate;
-  const quote = calculateReservationQuote({ ...STAY, db, ...gate });
+  const quote = calculateReservationQuote({
+    ...STAY, db, selectedOptions: gate.selectedOptions, lockedOptionLines: gate.lockedOptionLines,
+    offeredOptionIds: insuranceOffer.freezeOffered(offeredOptionIds, gate),
+  });
   return { line: quote.optionLines.find((l) => Number(l.optionId) === INSURANCE) || null, gate };
 }
 
@@ -65,6 +68,33 @@ test('rule 5 — the line is read-only: removing it or changing its quantity is 
   const inflated = price(db, id, { selectedOptions: [{ optionId: INSURANCE, quantity: 5 }] });
   assert.equal(inflated.gate.selectedOptions.find((o) => o.optionId === INSURANCE).quantity, 1);
   assert.equal(inflated.line.totalPrice, 23);
+});
+
+test('rule 5 — « offert » is the stored one: a payload cannot make the line free, nor a preview price it otherwise', () => {
+  const { db, id } = seed();
+  const free = price(db, id, { selectedOptions: [{ optionId: INSURANCE, quantity: 1 }], offeredOptionIds: [INSURANCE] });
+  assert.equal(free.line.totalPrice, 23, 'still billed');
+  const forged = price(db, id, {
+    selectedOptions: [{ optionId: INSURANCE, quantity: 1 }],
+    lockedOptionLines: [{ optionId: INSURANCE, unitPrice: 1, billedUnits: 1, priceType: 'per_night', totalPrice: 1 }],
+  });
+  assert.equal(forged.line.totalPrice, 23, 'the body’s lock is replaced by the stored one');
+  db.prepare('UPDATE reservation_options SET offered = 1 WHERE optionId = ?').run(INSURANCE);
+  const offered = price(db, id, { selectedOptions: [{ optionId: INSURANCE, quantity: 1 }], offeredOptionIds: [] });
+  assert.equal(offered.gate.offeredStored, true);
+  assert.equal(offered.line.totalPrice, 0, 'an offered line stays offered');
+});
+
+test('rule 5 — the property defaults a new booking takes never carry the insurance while it is not offered', () => {
+  const { db } = seed({ withLine: false });
+  const { buildController } = require('../controllers/propertyOptionDefaultsController');
+  const ctrl = buildController({
+    model: { listForProperty: () => [{ optionId: INSURANCE, offered: 0 }, { optionId: 3, offered: 1 }] },
+    hideInsurance: (rows) => insuranceOffer.dropInsurance(db, rows),
+  });
+  const res = { json(b) { this.body = b; return this; }, status() { return this; } };
+  ctrl.listForProperty({ params: { id: '1' } }, res);
+  assert.deepEqual(res.body, [{ optionId: 3, offered: 1 }]);
 });
 
 test('rule 5 — a devis keeps its quoted line, past its validity too', () => {
@@ -92,4 +122,24 @@ test('rule 5 — with Neat active the gate steps aside: the line follows the pay
   const bare = seed({ withLine: false });
   const added = price(bare.db, bare.id, { selectedOptions: [{ optionId: INSURANCE, quantity: 1 }] });
   assert.equal(added.line.totalPrice, 9, 'at its Options price: 3 € × 3 nights');
+});
+
+test('rule 2 — a property that does not sell the insurance is never priced by the partner', () => {
+  const { db } = seed();
+  db.prepare("INSERT INTO properties (id, name) VALUES (2, 'Studio')").run();
+  const quotePostProcessors = require('../utils/quotePostProcessors');
+  const stay = (propertyId) => ({ engineInput: { db, ...STAY, propertyId }, quote: calculateReservationQuote({ ...STAY, db, propertyId, selectedOptions: [] }) });
+  assert.equal(quotePostProcessors.snapshotFor(stay(2)), null, 'no snapshot, so no call');
+  assert.notEqual(quotePostProcessors.snapshotFor(stay(1)), null);
+});
+
+test('rule 21 — the property page lists the insurance nowhere while it is not offered, « comprise » included', () => {
+  const { db } = seed({ withLine: false });
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, ?, 1)').run(INSURANCE);
+  const property = require('../models/propertiesModel').buildModel(db).getByIdWithDetails(1);
+  assert.equal(property.optionIds.includes(INSURANCE), false);
+  assert.equal((property.rateInclusions || []).some((l) => Number(l.optionId) === INSURANCE), false);
+  offerInsurance();
+  const offered = require('../models/propertiesModel').buildModel(db).getByIdWithDetails(1);
+  assert.equal(offered.optionIds.includes(INSURANCE), true);
 });

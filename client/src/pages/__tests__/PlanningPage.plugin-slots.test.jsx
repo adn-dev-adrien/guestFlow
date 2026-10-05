@@ -7,13 +7,13 @@ import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
 
 const slots = {};
-vi.mock('../../sdk/useSlot', () => ({ useSlot: (name) => slots[name] || [] }));
-vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: { roles: ['admin'], enabledPlugins: [] } }) }));
-vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => false }));
+vi.mock('../../plugins/sdk/useSlot', () => ({ useSlot: (name) => slots[name] || [] }));
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { roles: ['admin'], enabledPlugins: [] } }) }));
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => false }));
 const showError = vi.fn();
-vi.mock('../../../components/DialogProvider', () => ({ useToast: () => ({ showError, showSuccess: vi.fn() }) }));
-vi.mock('../../../components/sas/ReservationSasDialog', () => ({ default: () => null }));
-vi.mock('../../../api', () => ({
+vi.mock('../../components/DialogProvider', () => ({ useToast: () => ({ showError, showSuccess: vi.fn() }) }));
+vi.mock('../../components/sas/ReservationSasDialog', () => ({ default: () => null }));
+vi.mock('../../api', () => ({
   default: {
     getProperties: vi.fn().mockResolvedValue([]),
     getReservations: vi.fn().mockResolvedValue([]),
@@ -23,7 +23,7 @@ vi.mock('../../../api', () => ({
   },
 }));
 
-import PlanningPage from '../../../pages/PlanningPage';
+import PlanningPage from '../PlanningPage';
 
 const iso = (offset) => {
   const d = new Date();

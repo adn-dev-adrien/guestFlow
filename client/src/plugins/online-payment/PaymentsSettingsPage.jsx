@@ -63,7 +63,7 @@ const normalizeFrPhone = (raw) => {
   if (/^0\d{9}$/.test(p)) return `+33${p.slice(1)}`;
   return p;
 };
-const EMPTY_PROVIDER_FORM = { bankAccountId: '', phone: '', websiteUrl: 'https://domainesolio.com', businessDescription: '' };
+const EMPTY_PROVIDER_FORM = { bankAccountId: '', phone: '', websiteUrl: '', businessDescription: '' };
 
 export default function PaymentsSettingsPage() {
   const location = useLocation();
@@ -101,6 +101,8 @@ export default function PaymentsSettingsPage() {
     const data = await api.getPaymentSettings();
     setQonto(data.qonto);
     setCredentials(data.credentials);
+    const websiteUrl = data.providerDefaults && data.providerDefaults.websiteUrl;
+    if (websiteUrl) setProviderForm((f) => (f.websiteUrl ? f : { ...f, websiteUrl }));
     return data.qonto;
   }, []);
 

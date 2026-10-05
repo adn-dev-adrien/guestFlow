@@ -76,11 +76,12 @@ export default function PaymentDeadlinesAlert() {
     try {
       const result = await api.cancelReservation(cancelRow.reservationId, { reason, notifyClient });
       // specs/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
-      // success: one toast at a time, so the warning carries the cancellation with it.
-      if (result?.paymentLinksWarning) showError(`Séjour annulé. ${result.paymentLinksWarning}`);
-      else showSuccess(result?.retainedDepositAmount > 0
+      // success: one toast at a time, so the warning carries the cancellation, and the deposit kept.
+      const done = result?.retainedDepositAmount > 0
         ? `Séjour annulé — acompte de ${formatCurrency(result.retainedDepositAmount)} conservé en indemnité.`
-        : 'Séjour annulé — les dates sont remises à la vente.');
+        : 'Séjour annulé — les dates sont remises à la vente.';
+      if (result?.paymentLinksWarning) showError(`${done} ${result.paymentLinksWarning}`);
+      else showSuccess(done);
       setCancelRow(null);
       await refresh();
       window.dispatchEvent(new Event('guestflow:compensations-changed'));

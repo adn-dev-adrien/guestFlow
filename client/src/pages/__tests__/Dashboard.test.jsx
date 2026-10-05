@@ -164,7 +164,7 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
   };
 
   beforeEach(() => {
-    mockAuth.user = { roles: ['reception'] };
+    mockAuth.user = { roles: ['reception'], enabledPlugins: ['sas'] };
     api.getReservations.mockReset()
       .mockResolvedValueOnce([])          // 30-day window (KPI count — unused for reception)
       .mockResolvedValueOnce([arrival]);  // upcoming (drives arrivals/departures)
@@ -187,6 +187,15 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
     const nameCell = await screen.findByText('Marie Durand');
     nameCell.closest('tr').click();
     expect(navigateSpy).toHaveBeenCalledWith('/planning?sas=arrival&reservationId=42');
+  });
+
+  test('without the SAS (outside the plan, failed) a row leads nowhere, and the notice says so', async () => {
+    mockAuth.user = { roles: ['reception'], enabledPlugins: [] };
+    renderPage();
+    const nameCell = await screen.findByText('Marie Durand');
+    nameCell.closest('tr').click();
+    expect(navigateSpy).not.toHaveBeenCalledWith('/planning?sas=arrival&reservationId=42');
+    expect(screen.getByText('Arrivées et départs guidés indisponibles pour le moment.')).toBeInTheDocument();
   });
 });
 

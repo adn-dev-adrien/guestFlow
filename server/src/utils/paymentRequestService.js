@@ -89,6 +89,7 @@ async function ensurePaymentLink(deps, id, type) {
     if (Number(existing.amountCents) === Number(amountCents)) {
       return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, providerLinkId: existing.providerLinkId, reused: true };
     }
+    await require('./paymentLinkDeactivation').assertNotPaid(existing, provider);
     await deactivateLinks([paymentLinksModel.updateStatus(existing.id, 'cancelled')]);
   }
 

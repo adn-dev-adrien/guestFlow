@@ -84,7 +84,7 @@ test('rule 22 — a stay that carries the insurance gets it back read-only; one 
   const [frozen] = insuranceOffer.frozenOptions(db, insured);
   assert.equal(frozen.id, 10);
   assert.equal(frozen.readOnly, true);
-  assert.equal(frozen.readOnlyReason, 'Assurance annulation : plugin Neat inactif');
+  assert.equal(frozen.readOnlyReason, 'Lecture seule : plugin Neat inactif');
   assert.deepEqual(insuranceOffer.frozenOptions(db, bare), []);
   offerInsurance();
   assert.deepEqual(insuranceOffer.frozenOptions(db, insured), [], 'with Neat the tile is the ordinary one');

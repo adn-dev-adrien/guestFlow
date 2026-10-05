@@ -82,8 +82,10 @@ function createContext(id, { db, settingsModel } = {}) {
       record.quotePostProcessor = processor;
     },
     // (reservation) → a block added under `key` to the fiche payload while the plugin is live (rule 12).
+    // The key is the plugin's id: the fiche hands each plugin's line component the block of its id.
     reservationBlock(key, build) {
       if (typeof build !== 'function') throw new Error(`${prefix} reservation block "${key}" needs a builder`);
+      if (key !== id) throw new Error(`${prefix} a reservation block is keyed by the plugin id ("${id}"), not "${key}"`);
       record.reservationBlocks.push({ key, build });
     },
     migrations(list) { record.migrations.push(...list); },

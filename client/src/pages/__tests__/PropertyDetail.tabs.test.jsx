@@ -86,7 +86,7 @@ test('rule 22: with a tariff recipe, the extra-guest price is read-only and each
     pricingRules: [{ id: 1, label: 'Haute', startDate: '2027-07-01', endDate: '2027-08-31', pricePerNight: 247, minNights: 1, extraGuestPrice: 15 }],
   });
   renderAt('/properties/5?tab=tarifs');
-  expect(await screen.findByText(/Fixé par la recette/)).toBeInTheDocument();
+  expect(await screen.findByText(/Fixé saison par saison/)).toBeInTheDocument();
   expect(screen.queryByLabelText(/Supplément par personne/)).toBeNull();
   expect(screen.getByText('Voyageur suppl.')).toBeInTheDocument();
 });

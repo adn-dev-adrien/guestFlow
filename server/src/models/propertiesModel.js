@@ -446,9 +446,14 @@ function createPropertiesModel(database) {
           ORDER BY o.title COLLATE NOCASE
         `).all(Number(id), Number(id), Number(id));
       } catch (_) { property.rateInclusions = []; }
+      // specs/plugins-phase-3b-neat.md rule 21 — while no plugin offers the insurance, the property
+      // shows it nowhere, « comprise » included.
+      const { dropInsurance } = require('../utils/insuranceOffer');
+      property.rateInclusions = dropInsurance(database, property.rateInclusions);
 
       property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id);
-      property.optionIds = database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id).map((r) => r.optionId);
+      property.optionIds = dropInsurance(database, database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id))
+        .map((r) => r.optionId);
       // Options applicable to this property, each carrying its EFFECTIVE price for THIS property (the
       // per-property override when set, else the base price — specs/per-property-option-prices.md). The
       // reservation fiche consumes `property.options` so the option unit price it displays matches what

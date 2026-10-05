@@ -503,7 +503,7 @@ export default function FinanceSection() {
   const onDeleteRefund = async (refund) => {
     const ok = await confirm({
       title: 'Supprimer ce remboursement ?',
-      message: 'L\'écriture d\'avoir correspondante disparaîtra de l\'export comptable.',
+      message: 'L\'avoir correspondant sera supprimé.',
       confirmColor: 'error',
     });
     if (!ok) return;
@@ -950,7 +950,7 @@ export default function FinanceSection() {
                           size="small"
                           disabled={isReservationLocked}
                           sx={{ mb: 1.5 }}
-                          helperText="Frais retenus sur l'acompte (compta : compte de la plateforme)."
+                          helperText="Frais retenus sur l'acompte."
                         />
                       )}
                       <DateField
@@ -1036,7 +1036,7 @@ export default function FinanceSection() {
                       size="small"
                       disabled={isReservationLocked}
                       sx={{ mb: 1.5 }}
-                      helperText="Frais retenus sur le solde (compta : compte de la plateforme)."
+                      helperText="Frais retenus sur le solde."
                     />
                   )}
                   <DateField

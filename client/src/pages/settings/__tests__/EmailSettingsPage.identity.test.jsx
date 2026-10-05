@@ -28,6 +28,7 @@ vi.mock('../../../components/DialogProvider', () => {
 });
 
 vi.mock('../../../components/SettingsPushNotificationsSection', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => false }));
 
 import api from '../../../api';
 import EmailSettingsPage from '../EmailSettingsPage';

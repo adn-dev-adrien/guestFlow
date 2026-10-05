@@ -77,7 +77,7 @@ function register(ctx) {
         const active = count("status = 'active'");
         if (active > 0) {
           lines.push({
-            label: `${plural(active, 'souscription active', 'souscriptions actives')} chez Neat — ${active > 1 ? 'elles restent' : 'elle reste'} en vigueur chez Neat et ne pourr${active > 1 ? 'ont' : 'a'} plus être résiliée${active > 1 ? 's' : ''} depuis GuestFlow`,
+            label: `${plural(active, 'souscription active', 'souscriptions actives')}, toujours en vigueur chez Neat`,
             count: active,
             warning: true,
           });

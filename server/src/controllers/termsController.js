@@ -101,7 +101,7 @@ function parsePublicSiteOrigin(raw) {
   try { url = new URL(value); } catch { url = null; }
   const ok = url && (url.protocol === 'https:' || url.protocol === 'http:')
     && (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash && !url.username;
-  if (!ok) return { error: 'Adresse invalide : saisis seulement le domaine, par exemple https://www.domainesolio.com' };
+  if (!ok) return { error: 'Adresse invalide : le domaine seul, par exemple https://www.mon-site.fr' };
   return { value: url.origin };
 }
 

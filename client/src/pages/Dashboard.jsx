@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, Checkbox,
-  Button, Divider, TextField, Tooltip, IconButton, Stack, TableRow, TableCell,
+  Alert, Button, Divider, TextField, Tooltip, IconButton, Stack, TableRow, TableCell,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import EventIcon from '@mui/icons-material/Event';
@@ -29,6 +29,8 @@ import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
 import { isReceptionOnly } from '../constants/roles';
+import { usePlugin } from '../hooks/usePlugins';
+import { SAS } from '../constants/plugins';
 import { statusLockTooltip } from '../constants/receptionSasLock';
 import api from '../api';
 
@@ -62,6 +64,9 @@ export default function Dashboard() {
   // home: arrivals/departures lists only (no Paiements column, no KPI tiles, no admin alert banners,
   // no month calendar). A row tap opens the SAS on the Planning via the deep-link.
   const receptionMode = isReceptionOnly(user);
+  // A reception account only acts through the SAS: without it (outside the plan, failed) a row leads
+  // nowhere, so it is not offered as a link.
+  const sasOn = usePlugin(SAS);
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -144,12 +149,14 @@ export default function Dashboard() {
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
   // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
-  const openArrival = (r) => (receptionMode
-    ? navigate(`/planning?sas=arrival&reservationId=${r.id}`)
-    : openReservation(r));
-  const openDeparture = (r) => (receptionMode
-    ? navigate(`/planning?sas=departure&reservationId=${r.id}`)
-    : openReservation(r));
+  const openArrival = (r) => {
+    if (!receptionMode) openReservation(r);
+    else if (sasOn) navigate(`/planning?sas=arrival&reservationId=${r.id}`);
+  };
+  const openDeparture = (r) => {
+    if (!receptionMode) openReservation(r);
+    else if (sasOn) navigate(`/planning?sas=departure&reservationId=${r.id}`);
+  };
 
   // Date cluster — rendered in the bar `center` on sm+ and as a compact strip under the bar on xs
   // (PageActionBar hides `center` on xs). specs/ds-sweep-planning.md rule 1.
@@ -433,6 +440,9 @@ export default function Dashboard() {
               handled in the morning and the arrivals in the afternoon, so the first list is the one
               the operator needs first. */}
           <Stack spacing={3} sx={{ mb: 3 }}>
+            {receptionMode && !sasOn && (
+              <Alert severity="info">Arrivées et départs guidés indisponibles pour le moment.</Alert>
+            )}
             <Box>
               <Typography variant="sectionHeader" gutterBottom>Départs — {displayDate(selectedDate)}</Typography>
               <ResponsiveTable

@@ -267,7 +267,7 @@ export default function OptionRow({ opt }) {
               />
             </Tooltip>
             {readOnly && (
-              <Typography variant="caption" color="text.secondary">Lecture seule</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>{opt.readOnlyReason || 'Lecture seule'}</Typography>
             )}
             {isAutoTimedOption && (
               <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>

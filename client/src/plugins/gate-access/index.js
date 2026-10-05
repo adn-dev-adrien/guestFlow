@@ -12,14 +12,5 @@ export default {
     'reservation.cards': [{ key: 'gate', order: 10, Component: lazy(() => import('./GateAccessCard')) }],
     // Inside the SAS « Portail » step, when the SAS data says there is a key for the stay.
     'sas.portal': [{ key: 'gate', order: 10, Component: lazy(() => import('./SasGateAccessStep')) }],
-    // Declared by the server's email provider (rule 10); listed in the template editor while active.
-    'emailTemplates.tokens': [{
-      key: 'gate',
-      tokens: [
-        { label: 'Code portail', token: '{{gateAccessCode}}' },
-        { label: 'Lien portail', token: '{{gateAccessUrl}}' },
-      ],
-      conditions: [{ label: 'Si accès portail', token: '{{#if hasGateAccess}}' }],
-    }],
   },
 };

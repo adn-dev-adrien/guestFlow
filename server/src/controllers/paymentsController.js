@@ -162,13 +162,14 @@ async function sendDepositRequestFor(id) {
   return paymentRequestService.sendPaymentRequest(requestServiceDeps(provider), Number(id), 'deposit');
 }
 
-// Every payment link of a reservation/devis (newest first) — the status the UI renders.
-const listReservationPaymentLinks = withProvider((req, res) => res.json({
+// Every payment link of a reservation/devis (newest first) — the status the UI renders. Stored data:
+// readable with the provider disconnected, when the links waiting for deactivation matter most.
+const listReservationPaymentLinks = (req, res) => res.json({
   links: paymentLinksModel.listForReservation(Number(req.params.id)).map((link) => ({
     ...link,
     remoteCancelPending: Boolean(link.remoteCancelPendingAt),
   })),
-}));
+});
 
 // Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.

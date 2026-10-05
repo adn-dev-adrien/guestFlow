@@ -25,7 +25,7 @@ test('rule 21: unticked, the uninstall keeps the data and says so', async () => 
   const onAction = renderCard(plugin());
   await userEvent.click(screen.getByText('Vacances scolaires'));
   expect(screen.getByRole('checkbox', { name: 'Effacer aussi ses données' })).not.toBeChecked();
-  expect(screen.getByText(/Tes données sont conservées/)).toBeTruthy();
+  expect(screen.getByText(/^Données conservées\.$/)).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
   await userEvent.click(screen.getByRole('button', { name: 'Confirmer la désinstallation' }));
   expect(onAction).toHaveBeenCalledWith('uninstall', undefined);
@@ -36,7 +36,7 @@ test('rule 21: ticked, the card lists what goes, says it is final, and erases on
   await userEvent.click(screen.getByText('Vacances scolaires'));
   await userEvent.click(screen.getByRole('checkbox', { name: 'Effacer aussi ses données' }));
   expect(screen.getByText('Seront effacés : 34 périodes de vacances · l’état de synchronisation. C’est définitif.')).toBeTruthy();
-  expect(screen.queryByText(/Tes données sont conservées/)).toBeNull();
+  expect(screen.queryByText(/^Données conservées\.$/)).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
   expect(onAction).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Désinstaller et effacer' }));
@@ -47,11 +47,19 @@ test('rule 22: a plugin still in the core offers no erasure', async () => {
   renderCard(plugin({ id: 'linen', name: 'Linge', hasModule: false, erasable: false, data: [] }));
   await userEvent.click(screen.getByText('Linge'));
   expect(screen.queryByRole('checkbox')).toBeNull();
-  expect(screen.getByText(/Tes données sont conservées/)).toBeTruthy();
+  expect(screen.getByText(/^Données conservées\.$/)).toBeTruthy();
 });
 
-test('rule 4: a module that failed to start shows « Erreur » and says it could not start', () => {
+test('rule 4: a module that failed to start shows « Erreur », and offers no « Activer »', () => {
   renderCard(plugin({ state: 'failed' }));
   expect(screen.getByText('Erreur')).toBeTruthy();
-  expect(screen.getByText('Ce plugin n’a pas pu démarrer.')).toBeTruthy();
+  expect(screen.getByText('Échec du démarrage.')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Activer' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Désactiver' })).toBeNull();
+});
+
+test('phase 0 rule 8: the refusal is said before the click, and « Désactiver » is disabled', () => {
+  renderCard(plugin({ state: 'active', blocker: { code: 'OPEN_PAYMENT_LINKS', message: '1 lien de paiement en attente : à payer ou annuler d’abord.' } }));
+  expect(screen.getByText('1 lien de paiement en attente : à payer ou annuler d’abord.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Désactiver' })).toBeDisabled();
 });

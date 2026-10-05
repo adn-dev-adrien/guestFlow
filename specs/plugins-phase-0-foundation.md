@@ -74,15 +74,19 @@ what is installed and active. A new customer starts with none; Solio keeps all t
    edit* them disappear.
 8. **Refusals** — deactivating or uninstalling is refused, with the reason and the way out, when it would
    leave something live without its tool:
-   - `online-payment` while a payment link is still `open` → « 1 lien de paiement est en attente. Attends
-     son paiement ou annule-le avant de désactiver. » (plural: « N liens … Attends leur paiement ou
-     annule-les … »)
-   - `sas` while an active user holds the reception role without admin → « 1 compte Accueil est actif.
-     Change son rôle dans Utilisateurs d'abord. » (plural: « N comptes Accueil sont actifs. Change leur
+   - `online-payment` while a payment link is still `open` → « 1 lien de paiement en attente : à payer
+     ou annuler d'abord. » (plural: « N liens de paiement en attente : … »); and, since 2026-10-04,
+     while a link cancelled here is still payable at the provider (`remoteCancelPendingAt`) → « 1 lien
+     annulé encore payable chez le prestataire : à désactiver d'abord. » (code
+     `LINKS_PENDING_DEACTIVATION`)
+   - `sas` while an active user holds the reception role without admin → « 1 compte Accueil actif :
+     changer son rôle dans Utilisateurs d'abord. » (plural: « N comptes Accueil actifs : changer leur
      rôle … »)
    - `accounting-export` while an active user holds the accountant role without admin → same wording
      with « Comptable ».
-   The server is authoritative; the page shows the same message before the click (status `blocked`).
+   The server is authoritative; the page shows the same message under the card before the click, and
+   « Désactiver » and « Désinstaller » are disabled while it holds (fixed 2026-10-04: the message used
+   to appear only after the refused click).
 9. Only an admin reaches the Plugins page and its API. Every role receives the list of active plugins
    (rule 14).
 
@@ -165,6 +169,15 @@ what is installed and active. A new customer starts with none; Solio keeps all t
   chip and actions disappear.
 
 ---
+
+### Review fixes (2026-10-04)
+
+- Rule 8: the refusal is shown before the click and disables the buttons it refuses (above); a link
+  cancelled but still payable at the provider blocks `online-payment` too.
+- Rule 12 edge case: an erasure that fails leaves the plugin installed **and inactive**, as this spec
+  always said; the controller now sets it so (it used to stay active).
+- Every message of the Plugins page is impersonal and short (owner's rule, 2026-10-05).
+- Tests: `plugins-phase-0.unit.test.js` (messages), `PluginCard.erasure.test.jsx` (+1: the refusal before the click), `plugins-phase-1-sdk.unit.test.js` (a failed erasure leaves the plugin inactive).
 
 ## 4. Architecture
 
@@ -263,8 +276,8 @@ The interactive mock-up is in the summary page. Copy:
 - Menu entry and page title: « Plugins ». Tabs « Installés » / « Disponibles ». Search placeholder
   « Chercher un plugin… ».
 - Card actions: « Activer », « Désactiver », « Installer ». Detail: « Ce qu'il ajoute », « Désinstaller »,
-  second click « Confirmer la désinstallation ». Uninstall note: « Tes données sont conservées : en le
-  réinstallant, tu retrouves tout. »
+  second click « Confirmer la désinstallation ». Uninstall note: « Données conservées. » (2026-10-04:
+  every text is impersonal and short — no « tu », no « vous »).
 - Status: `StatusBadge` « Actif » (success) / « Inactif » (neutral).
 - Refusals: rule 8 wording, in red under the card.
 - `PageActionBar title="Plugins"` without Save/Cancel: each action is immediate.

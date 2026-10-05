@@ -20,7 +20,7 @@ const { buildModel: buildPluginSettingsModel } = require('../models/pluginSettin
 const { buildModel: buildPluginsModel } = require('../models/pluginsModel');
 const { createController } = require('../controllers/pluginsController');
 const {
-  ensurePluginsTable, ensurePluginSettingsTable, copyAppSettingsToPlugins, SETTINGS_COPY_MIGRATION,
+  ensurePluginsTable, ensurePluginSettingsTable, copyAppSettingsToPlugins, resyncAfterRollback, SETTINGS_COPY_MIGRATION,
 } = require('../utils/pluginsSchema');
 const { isEncrypted } = require('../utils/encryption');
 
@@ -155,6 +155,21 @@ test('rule 4: a module that throws in register is failed, answers 404, and the o
   assert.equal(res.body.find((p) => p.id === 'weather-alerts').state, 'failed');
 });
 
+test('rule 4: a module that throws after declaring a route answers 404 PLUGIN_INACTIVE there, not another router', async () => {
+  const db = freshDb();
+  const broken = {
+    id: 'weather-alerts',
+    register(ctx) {
+      ctx.route('get', '/api/reservations/:id/weather-alerts', (req, res) => res.json({ ok: true }));
+      throw new Error('boom');
+    },
+  };
+  const { app } = boot(db, { installed: ['weather-alerts'], modules: [broken] });
+  const res = await request(app, 'GET', '/api/reservations/1/weather-alerts');
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'PLUGIN_INACTIVE');
+});
+
 // ---------- §3.B routes (rule 5) ----------
 
 test('rule 5: every moved route keeps its URL and answers 404 PLUGIN_INACTIVE while its plugin is off', async () => {
@@ -280,6 +295,34 @@ test('rules 7, 25: the copy migration moves the Météo key and the Google field
   assert.ok(db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(SETTINGS_COPY_MIGRATION));
   db.prepare("UPDATE app_settings SET googleOAuthConnectedEmail = 'changed@b.fr' WHERE id = 1").run();
   assert.equal(copyAppSettingsToPlugins(db), 0);
+});
+
+test('rule 25: a value a rollback wrote in the old columns is carried forward; an erased plugin stays erased', () => {
+  const db = freshDb();
+  const cols = new Set(db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name));
+  for (const col of ['googleOAuthRefreshTokenEncrypted', 'googleOAuthConnectedEmail', 'meteoFranceApiKeyEncrypted']) {
+    if (!cols.has(col)) db.exec(`ALTER TABLE app_settings ADD COLUMN ${col} TEXT DEFAULT ''`);
+  }
+  db.prepare('INSERT OR IGNORE INTO app_settings (id) VALUES (1)').run();
+  db.prepare("UPDATE app_settings SET googleOAuthRefreshTokenEncrypted = 'enc:v1:old', meteoFranceApiKeyEncrypted = 'enc:v1:m' WHERE id = 1").run();
+  copyAppSettingsToPlugins(db);
+  const value = (plugin, key) => (db.prepare('SELECT value FROM plugin_settings WHERE plugin_id = ? AND key = ?').get(plugin, key) || {}).value;
+  assert.equal(resyncAfterRollback(db), 0, 'nothing changed since the copy');
+
+  db.prepare("UPDATE plugin_settings SET value = 'enc:v1:forward' WHERE plugin_id = 'google-calendar' AND key = 'refreshToken'").run();
+  assert.equal(resyncAfterRollback(db), 0);
+  assert.equal(value('google-calendar', 'refreshToken'), 'enc:v1:forward', 'a forward write is never overwritten by the stale column');
+
+  // Rollback to v3.5: reconnecting Google writes the old column.
+  db.prepare("UPDATE app_settings SET googleOAuthRefreshTokenEncrypted = 'enc:v1:rollback', googleOAuthConnectedEmail = 'new@b.fr' WHERE id = 1").run();
+  assert.equal(resyncAfterRollback(db), 2);
+  assert.equal(value('google-calendar', 'refreshToken'), 'enc:v1:rollback');
+  assert.equal(value('google-calendar', 'connectedEmail'), 'new@b.fr');
+  assert.equal(resyncAfterRollback(db), 0, 'carried once');
+
+  db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'weather-alerts'").run();
+  assert.equal(resyncAfterRollback(db), 0);
+  assert.equal(value('weather-alerts', 'apiKey'), undefined, 'the erasure is not undone by the unchanged column');
 });
 
 // ---------- jobs (rule 8) ----------
@@ -451,6 +494,20 @@ test('rule 20: erasing the recipes keeps every season and price; the seasons bec
   assert.equal(tableExists(db, 'tariff_recipe_runs'), false);
 });
 
+test('rule 20: erasing the recipes leaves the « à partir de » price announced to guests unchanged', () => {
+  const db = freshDb();
+  const { plugins } = boot(db, { installed: ['tariff-recipes'] });
+  db.prepare("INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion) VALUES (1, 'Gîte', 'gite-2027', '3.0.0')").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, seasonKey, seasonRank) VALUES (1, 'Basse', 120, 'low', 1)").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 90)").run();
+  const { loadStayFacts } = require('../models/stayFactsModel');
+  const before = loadStayFacts(db, null).properties[0].minNightlyPrice;
+  createController(plugins, { registry, db: () => db, settingsModel: () => buildPluginSettingsModel(db) })
+    .uninstall({ params: { id: 'tariff-recipes' }, query: { purge: '1' } }, fakeRes());
+  assert.equal(before, 120);
+  assert.equal(loadStayFacts(db, null).properties[0].minNightlyPrice, 120, 'the leftover Standard rule still does not undercut');
+});
+
 test('rule 12: an erasure that fails halfway rolls everything back and keeps the plugin installed', () => {
   const db = freshDb();
   const mod = {
@@ -471,6 +528,7 @@ test('rule 12: an erasure that fails halfway rolls everything back and keeps the
   assert.equal(res.statusCode, 500);
   assert.equal(tableExists(db, 'w_t'), true);
   assert.ok(plugins.get('weather-alerts'));
+  assert.equal(Number(plugins.get('weather-alerts').enabled), 0, 'installed and inactive');
 });
 
 // ---------- gate paths that ran while inactive (§1), rules 17-18 ----------

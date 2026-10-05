@@ -85,7 +85,7 @@ const CancellationCompensationsSection = forwardRef(function CancellationCompens
   const handleReopen = useCallback(async (compensation) => {
     const ok = await confirm({
       title: "Rouvrir cette indemnité ?",
-      message: "Elle quittera immédiatement le journal comptable du mois. Si le CSV de ce mois a déjà été transmis au comptable, il faudra le renvoyer.",
+      message: "Elle repasse en attente. Un mois déjà transmis au comptable est à renvoyer.",
       confirmLabel: 'Rouvrir',
       confirmColor: 'warning',
     });

@@ -291,8 +291,8 @@ arrives.
     - The fiche payload (`GET /api/reservations/:id`, `GET /api/devis/:id`) lists, under
       `frozenOptions`, the catalogue entry of each option the stay carries but the catalogue now hides.
       Today that is the insurance; the field is generic.
-    - Each entry is marked `readOnly: true`, with the reason « Assurance annulation : plugin Neat
-      inactif ».
+    - Each entry is marked `readOnly: true`, with the reason « Lecture seule : plugin Neat inactif »
+      (written under the switch, not only in a tooltip, since 2026-10-04: a phone has no hover).
     - The client adds these entries to the stay's option list and to its ungrouped options. Their tile
       reads « Prix figé : 23,00 € » and « Lecture seule »; its switch is disabled, with the reason as
       tooltip; the quantity, complement and moments controls are not drawn.
@@ -300,6 +300,25 @@ arrives.
     cannot be edited. The form has no « Assurance annulation » control (the seeder sets the flag), so
     nothing else changes; the 400 of rule 21 guards the API. Reactivating Neat brings the row back with
     its stored price, type and properties.
+
+### Review fixes (2026-10-04)
+
+- Rule 5: on a booking that carries the insurance, everything about the line is the stored one —
+  quantity, complement, price lock **and « offert »** (`freezeOffered`). A payload cannot make it free,
+  and a preview's body cannot send its own lock for it: the stored lock replaces it, so the preview
+  prices what the save bills.
+- Rule 5: `GET /api/properties/:id/option-defaults` leaves the insurance out while it is not offered:
+  the client adds those defaults to a new booking, and a property with the insurance « par défaut »
+  could no longer create one (422 with no way to untick it).
+- Rule 21: the property payload (`optionIds`, `rateInclusions`) leaves it out too — a default
+  « offerte » insurance read « comprise » on the tariff page.
+- Rule 2: the partner is asked for a price only for a property that sells the insurance
+  (`property_options`), as before the move; it was called on every public quote.
+- Rule 12: a fiche block is keyed by its plugin's id (`ctx.reservationBlock(id, build)` refuses any
+  other key), the key the fiche reads it under.
+- Rule 18: the erasure warning is accurate and short: « N souscriptions actives, toujours en vigueur
+  chez Neat » — a reinstall on the same contract takes them back.
+- Tests: `insurance-price-plugin-off.unit.test.js` (+4: « offert » and the lock frozen, the defaults, the partner only where sold, the property page), `phase-3b-neat.unit.test.js` (+1: the block key; the warning), `OptionRow.plugin-slot.test.jsx`.
 
 ## 4. Architecture
 
@@ -383,8 +402,8 @@ specific (one plugin, one line). The slot is generic. `api.js` and `OptionsPage.
   plugin in one block under the line (the chip used to sit beside the title).
 - **Fiche and devis, plugin off:**
   - no « Assurance annulation » tile on a stay without it;
-  - on a stay with it, the tile reads « Prix figé : 23,00 € » and « Lecture seule », its switch
-    disabled with the tooltip « Assurance annulation : plugin Neat inactif ».
+  - on a stay with it, the tile reads « Prix figé : 23,00 € » and « Lecture seule : plugin Neat
+    inactif », its switch disabled.
 - **Public site, plugin off:** no insurance block, no question.
 - **Paramètres › Options, plugin off:** no insurance option in the list.
 - **Profil › Notifications:** « Souscriptions Neat » only while the plugin is live.

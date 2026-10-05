@@ -63,7 +63,16 @@ function buildQuoteSnapshot({ startDate, endDate, engineQuote, insuranceLineTota
 function snapshotFor({ engineInput, quote }) {
   if (!engineInput || !engineInput.db || !quote || quote.error) return null;
   const { db } = engineInput;
-  const insuranceOpt = db.prepare('SELECT id FROM options WHERE isCancellationInsurance = 1 ORDER BY id LIMIT 1').get();
+  // Only a property that sells the insurance is priced: no call to the partner for the others.
+  let insuranceOpt;
+  try {
+    insuranceOpt = db.prepare(`SELECT o.id FROM options o
+        JOIN property_options po ON po.optionId = o.id AND po.propertyId = ?
+       WHERE o.isCancellationInsurance = 1 ORDER BY o.id LIMIT 1`).get(Number(engineInput.propertyId));
+  } catch {
+    // A schema without per-property options (minimal test databases): every property sells it.
+    insuranceOpt = db.prepare('SELECT id FROM options WHERE isCancellationInsurance = 1 ORDER BY id LIMIT 1').get();
+  }
   if (!insuranceOpt) return null;
   const line = (quote.optionLines || []).find((l) => Number(l.optionId) === Number(insuranceOpt.id));
   const property = db.prepare('SELECT name FROM properties WHERE id = ?').get(Number(engineInput.propertyId));
@@ -136,5 +145,5 @@ async function applyLive({ engineInput, quote, calculate, logger = console }) {
 }
 
 module.exports = {
-  declared, active, insuranceOffered, dynamicInsurance, livePrice, syncPrice, applySync, applyLive, buildQuoteSnapshot,
+  declared, active, insuranceOffered, dynamicInsurance, livePrice, syncPrice, applySync, applyLive, buildQuoteSnapshot, snapshotFor,
 };

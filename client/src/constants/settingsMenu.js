@@ -30,7 +30,8 @@ const BASE_MENU = [
   { path: '/parametres/conditions-generales', label: 'Conditions générales', Icon: GavelIcon },
   null,
   { path: '/parametres/options-ressources', label: 'Options & ressources', Icon: ExtensionIcon, matches: ['/options', '/resources'] },
-  { path: '/parametres/vacances-fermetures', label: 'Vacances & fermetures', Icon: DateRangeIcon, matches: ['/school-holidays', '/establishment-closures'] },
+  // Named after what it holds: the school holidays only while their plugin is live.
+  { path: '/parametres/vacances-fermetures', label: 'Fermetures', labelWith: { plugin: 'school-holidays', label: 'Vacances & fermetures' }, Icon: DateRangeIcon, matches: ['/school-holidays', '/establishment-closures'] },
   null,
   { path: '/settings/tva-exercice', label: 'TVA & exercice', Icon: PercentIcon },
   { path: '/settings/emails', label: 'Emails & notifications', Icon: AlternateEmailIcon },
@@ -68,8 +69,9 @@ export const SETTINGS_ENTRIES = SETTINGS_MENU.filter(Boolean);
  * separate two families dropped (a family can empty out when its plugins are inactive —
  * specs/plugins-phase-0-foundation.md rule 16).
  */
-export function visibleSettingsMenu(isVisible) {
-  const kept = SETTINGS_MENU.filter((entry) => !entry || isVisible(entry.path));
+export function visibleSettingsMenu(isVisible, isPluginLive = () => true) {
+  const kept = SETTINGS_MENU.filter((entry) => !entry || isVisible(entry.path))
+    .map((entry) => (entry && entry.labelWith && isPluginLive(entry.labelWith.plugin) ? { ...entry, label: entry.labelWith.label } : entry));
   return kept.filter((entry, i) => entry || (i > 0 && kept[i - 1] && kept.slice(i + 1).some(Boolean)));
 }
 

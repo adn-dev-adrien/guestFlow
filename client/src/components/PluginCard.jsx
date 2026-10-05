@@ -13,7 +13,7 @@
  *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall', options?: { purge }) => void
  */
 import React, { useState } from 'react';
-import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Typography } from '@mui/material';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -58,7 +58,9 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
   // that stay in force at Neat), said before the operator chooses.
   const eraseWarnings = (plugin.data || []).filter((line) => line.warning);
 
-  const primary = plugin.state === 'available'
+  // Rule 8: a refusal is said before the click, and the buttons it would refuse are disabled.
+  const blocked = Boolean(plugin.blocker);
+  const primary = failed ? null : plugin.state === 'available'
     ? { action: 'install', label: 'Installer', variant: 'contained' }
     : plugin.state === 'active'
       ? { action: 'deactivate', label: 'Désactiver', variant: 'outlined' }
@@ -106,21 +108,23 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
               <Chip size="small" label={plugin.planChip} sx={{ mt: 0.5, fontWeight: 700 }} />
             )}
             {failed && (
-              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Ce plugin n’a pas pu démarrer.</Typography>
+              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Échec du démarrage.</Typography>
+            )}
+            {!installed && outOfPlan && plugin.planHint && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{plugin.planHint}</Typography>
+            )}
+            {installed && blocked && (
+              <Typography variant="body2" color="warning.dark" sx={{ mt: 0.5 }}>{plugin.blocker.message}</Typography>
             )}
           </Box>
         </CardActionArea>
         {!installed && outOfPlan && (
-          <Tooltip title={plugin.planHint || ''}>
-            <Box component="span" sx={{ flex: 'none', width: { xs: '100%', sm: 'auto' } }}>
-              <Button variant="contained" disabled sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>Installer</Button>
-            </Box>
-          </Tooltip>
+          <Button variant="contained" disabled sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}>Installer</Button>
         )}
-        {!outOfPlan && (
+        {!outOfPlan && primary && (
           <Button
             variant={primary.variant}
-            disabled={busy}
+            disabled={busy || (primary.action === 'deactivate' && blocked)}
             onClick={() => act(primary.action)}
             sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
           >
@@ -160,14 +164,12 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
                   {eraseLines ? `Seront effacés : ${eraseLines}. ` : ''}C’est définitif.
                 </Typography>
               ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Tes données sont conservées : en le réinstallant, tu retrouves tout.
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>Données conservées.</Typography>
               )}
               <Button
                 color="error"
                 variant={armed ? 'contained' : 'outlined'}
-                disabled={busy}
+                disabled={busy || blocked}
                 onClick={() => (armed ? act('uninstall', erase ? { purge: true } : undefined) : setArmed(true))}
                 sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
               >

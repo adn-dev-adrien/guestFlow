@@ -27,20 +27,26 @@ function load() {
  */
 export function useOnlineBooking(currentVersion) {
   const [view, setView] = useState(null);
+  // A failed read is said, with « Réessayer »: the emergency switch must never vanish silently.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    listeners.add(setView);
-    return () => { listeners.delete(setView); };
+    const listener = (next) => { setFailed(false); setView(next); };
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
   }, []);
 
-  useEffect(() => {
-    load().catch(() => {});
-  }, [currentVersion]);
+  const reload = useCallback(() => {
+    setFailed(false);
+    load().catch(() => setFailed(true));
+  }, []);
+
+  useEffect(reload, [currentVersion, reload]);
 
   const setEnforcement = useCallback(
     async (value) => publish(await api.updateTermsEnforcement(value)),
     [],
   );
 
-  return { view, setEnforcement };
+  return { view, failed, reload, setEnforcement };
 }

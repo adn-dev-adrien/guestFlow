@@ -22,7 +22,19 @@ const COLUMNS = {
   balance: { flag: 'balancePaid', date: 'balancePaidDate' },
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// The day on the server's clock (Europe/Paris in production), not the UTC one: a payment at 00:30 is
+// that day's.
+const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const todayIso = () => localDay(new Date());
+
+// A provider's timestamp as the day it is in Paris; null when it cannot be read.
+function paidDayOf(paidAt) {
+  if (!paidAt) return null;
+  const d = new Date(paidAt);
+  return Number.isNaN(d.getTime()) ? null : localDay(d);
+}
+
+const BUCKET_LABELS = { deposit: 'acompte', balance: 'solde' };
 
 /**
  * @param {object} deps
@@ -54,6 +66,9 @@ function recordStayPayment({ db, reservationsModel, emit }, { reservationId, buc
         // eslint-disable-next-line no-console
         console.error(`[payments] reservation ${id}: ${b} received but its contribs capture failed — ${err.message}`);
         captureFailed.push(b);
+        // Said on the stay, where the operator looks: its accounting split is missing.
+        db.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'payment_capture_failed', ?)")
+          .run(id, JSON.stringify([{ field: b, label: `Paiement en ligne (${BUCKET_LABELS[b]})`, from: null, to: 'reçu, répartition comptable non enregistrée' }]));
       }
       db.prepare(`UPDATE reservations SET ${COLUMNS[b].flag} = 1, ${COLUMNS[b].date} = ?, updatedAt = datetime('now') WHERE id = ?`)
         .run(date, id);
@@ -83,4 +98,4 @@ function depsFor(database) {
 
 const defaultDeps = () => depsFor(null);
 
-module.exports = { recordStayPayment, defaultDeps, depsFor, BUCKETS };
+module.exports = { paidDayOf, recordStayPayment, defaultDeps, depsFor, BUCKETS };
