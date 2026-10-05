@@ -61,7 +61,7 @@ test('specs/plugins-phase-2-hosts.md rule 25 — the CGV page shows the plugin c
   mockAuth.user.enabledPlugins = ['website-booking'];
   renderPage();
   expect(await screen.findByText('Réservation en ligne')).toBeInTheDocument();
-  expect(screen.getByText(/la réservation en ligne est fermée/)).toBeInTheDocument();
+  expect(screen.getByText(/réservation en ligne fermée/)).toBeInTheDocument();
   expect(api.getOnlineBooking).toHaveBeenCalledTimes(1);
 });
 
@@ -70,7 +70,7 @@ test('specs/plugins-phase-2-hosts.md rule 25 — without website-booking the CGV
   renderPage();
   expect(await screen.findByText('Brouillon')).toBeInTheDocument();
   expect(screen.queryByText('Réservation en ligne')).not.toBeInTheDocument();
-  expect(screen.queryByText(/la réservation en ligne est fermée/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/réservation en ligne fermée/)).not.toBeInTheDocument();
   expect(api.getOnlineBooking).not.toHaveBeenCalled();
 });
 

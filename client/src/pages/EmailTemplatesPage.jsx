@@ -26,7 +26,6 @@ import ErrorAlert from '../components/ErrorAlert';
 import LoadingState from '../components/LoadingState';
 import ResponsiveTable from '../components/ResponsiveTable';
 import { isValidEmail } from '../utils/validation';
-import { useSlot } from '../plugins/sdk/useSlot';
 
 const EMPTY_CLIENT = {
   lastName: '', firstName: '', streetNumber: '', street: '', postalCode: '',
@@ -119,13 +118,14 @@ function describeOffset(n) {
 }
 
 export default function EmailTemplatesPage() {
-  // The variables and conditions of active plugin modules (slot `emailTemplates.tokens`,
-  // specs/plugins-phase-1-sdk.md rule 13) — e.g. the Sowel gate key's code and link.
-  const pluginTokens = useSlot('emailTemplates.tokens');
-  const variableButtons = [...VARIABLE_BUTTONS, ...pluginTokens.flatMap((c) => c.tokens || [])];
+  // The variables and conditions of the live plugins, as the server declares them
+  // (specs/plugins-phase-1-sdk.md rule 13) — e.g. the Sowel gate key's code and link.
+  const [pluginTokens, setPluginTokens] = useState({ variables: [], conditions: [] });
+  useEffect(() => { api.getEmailPluginVariables().then(setPluginTokens).catch(() => {}); }, []);
+  const variableButtons = [...VARIABLE_BUTTONS, ...pluginTokens.variables];
   const conditionButtons = [
     ...CONDITION_BUTTONS.slice(0, -2),
-    ...pluginTokens.flatMap((c) => c.conditions || []),
+    ...pluginTokens.conditions,
     ...CONDITION_BUTTONS.slice(-2),
   ];
   const { confirm, alert } = useAppDialogs();

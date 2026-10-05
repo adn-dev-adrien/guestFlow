@@ -30,11 +30,9 @@ import {
 } from '@mui/material';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
-import api from '../api';
-import MaskedTextField from './MaskedTextField';
-import StatusBadge from './StatusBadge';
-import SummaryItem from './SummaryItem';
-import ErrorAlert from './ErrorAlert';
+import {
+  api, MaskedTextField, StatusBadge, SummaryItem, ErrorAlert,
+} from '../sdk';
 
 // Server error codes → French copy for the mapping rows (the 422 payload carries codes, not text).
 const MAPPING_ERROR_LABELS = {

@@ -34,7 +34,7 @@ export default function SystemSettingsPage() {
               disabled={form.loading || form.saving}
               error={Boolean(form.errors.publicUrl)}
               helperText={form.errors.publicUrl
-                || 'Utilisée dans les emails, le retour Google et les notifications Qonto (ex. https://guestflow.adn-dev.fr).'}
+                || 'Adresse de cet espace, utilisée dans les liens des emails (ex. https://guestflow.adn-dev.fr).'}
               fullWidth
               size="small"
             />

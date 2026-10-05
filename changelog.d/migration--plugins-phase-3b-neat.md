@@ -1,0 +1,3 @@
+- The 13 `neat*` columns of `app_settings` are copied once into `plugin_settings` (`neat`), the client secret as its encrypted value; the old columns stay, unread, and are emptied by « Effacer aussi ses données ».
+- `neat_subscriptions` and `neat_price_cache` are now created by the plugin (`tables_v1`); an existing database keeps every row. A database where Neat was never installed has neither table.
+- The fiche payload's `neat` block moves to `pluginBlocks.neat`.

@@ -340,6 +340,9 @@ export default function PlanningPage() {
   // The last date the contributions were loaded for. Kept apart from `lastLoadedRef`, which the
   // infinite scroll clears when no reservation follows: a reload must still cover every day shown.
   const contributedUntilRef = useRef(null);
+  // The window the infinite scroll already asked for: every scroll event near the bottom fires the
+  // handler, and `lastLoadedRef` only moves once the reservations are back.
+  const requestedFromRef = useRef(null);
   const loadContributions = useCallback((contributions, range, { merge = false } = {}) => Promise.all(
     contributions.map((c) => Promise.resolve()
       .then(() => c.load(range))
@@ -542,6 +545,8 @@ export default function PlanningPage() {
       const doc = document.documentElement;
       if (doc.scrollHeight - window.scrollY - window.innerHeight < 200 && !loading && lastLoadedRef.current) {
         const nextStart = addDays(lastLoadedRef.current, 1);
+        if (requestedFromRef.current === nextStart) return;
+        requestedFromRef.current = nextStart;
         const nextEnd = addDays(nextStart, DAYS_AHEAD - 1);
         // The plugins' day cards of the next window, merged into what is shown. Non-blocking; an
         // error here must not stop the infinite scroll.

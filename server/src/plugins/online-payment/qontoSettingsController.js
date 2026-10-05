@@ -136,6 +136,8 @@ function createQontoSettingsController({ settings, env = process.env, scopes = D
     return res.json({
       qonto: statusPayload(),
       credentials: qontoCredentialsPayload({ settings, env }),
+      // The website the provider form starts from: this space's own public site, never a fixed one.
+      providerDefaults: { websiteUrl: (settings.qontoCredentials().publicSiteOrigin || '') },
     });
   }
 

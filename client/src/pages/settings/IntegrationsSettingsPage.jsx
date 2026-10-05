@@ -1,28 +1,23 @@
 /**
  * IntegrationsSettingsPage — Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
  *
- * The connections to other services. The Neat card is core code; Google Agenda, the Météo-France key
- * and the Sowel gate-keys connector are the sections of their plugin modules (slot
- * `settings.integrations`, specs/plugins-phase-1-sdk.md rule 13), ordered around Neat by their
+ * The connections to other services: Google Agenda, Neat, the Météo-France key and the Sowel gate-keys
+ * connector are the sections of their plugin modules (slot `settings.integrations`,
+ * specs/plugins-phase-1-sdk.md rule 13; Neat since specs/plugins-phase-3b-neat.md rule 15), in their
  * `order`. A card with a draft (Neat, Météo) has no Save of its own: the bar saves it through its ref.
  */
 import React, { Suspense, useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import useSettingsForm from '../../hooks/useSettingsForm';
 import SettingsFormPage from '../../components/SettingsFormPage';
-import SettingsNeatSection from '../../components/SettingsNeatSection';
-import PluginGate from '../../components/PluginGate';
-import { NEAT } from '../../constants/plugins';
 import { useSlot } from '../../plugins/sdk/useSlot';
-
-const NEAT_ORDER = 20;
 
 export default function IntegrationsSettingsPage() {
   const navigate = useNavigate();
   const form = useSettingsForm({ groups: [], navigate });
   const { setExternalDirty } = form;
   const sections = useSlot('settings.integrations');
-  // Every card with a draft: Neat (core) and the plugin sections that expose save/reset.
+  // Every plugin section that exposes save/reset.
   const cardRefs = useRef({});
   const [dirtyCards, setDirtyCards] = useState({});
   const handleDirty = useCallback((key) => (dirty) => {
@@ -52,8 +47,6 @@ export default function IntegrationsSettingsPage() {
     onDirtyChange: handleDirty(key),
   });
 
-  const before = sections.filter((s) => (s.order ?? 100) < NEAT_ORDER);
-  const after = sections.filter((s) => (s.order ?? 100) >= NEAT_ORDER);
   const renderSection = ({ key, pluginId, Component }) => (
     <Suspense key={`${pluginId}:${key}`} fallback={null}>
       <Component {...bindCard(`${pluginId}:${key}`)} />
@@ -62,9 +55,7 @@ export default function IntegrationsSettingsPage() {
 
   return (
     <SettingsFormPage title="Intégrations" form={form} onSave={handleSave} onCancel={handleCancel}>
-      {before.map(renderSection)}
-      <PluginGate id={NEAT}><SettingsNeatSection {...bindCard('neat')} /></PluginGate>
-      {after.map(renderSection)}
+      {sections.map(renderSection)}
     </SettingsFormPage>
   );
 }

@@ -9,8 +9,7 @@ const sdk = require('../../sdk');
 const db = sdk.coreModule('database');
 const propertiesModel = sdk.coreModule('propertiesModel');
 const optionsModel = sdk.coreModule('optionsModel');
-const settingsModel = sdk.coreModule('settingsModel');
-const { isNeatPricingActive } = sdk.coreModule('neatGuestPricing');
+const quotePostProcessors = sdk.coreModule('quotePostProcessors');
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { computeBlockedDates, rangeHasBlockedNight } = sdk.coreModule('blockedDates');
 const { validateAvailabilityQuery } = require('../publicInputValidation');
@@ -94,11 +93,11 @@ function listOptions(req, res) {
       category: translate.category(g.category),
       options: g.options.slice().sort(byPriceAsc).map((o) => ({ ...o, category: translate.category(o.category) })),
     })),
-    // Null while unpriced (rule 15) — the projection enforces it: no block, and the site then has
-    // no mandatory question to ask. With Neat pricing active the block stays even at a static 0
-    // and its label announces a per-stay tariff (neat-cancellation-insurance rule 13).
+    // Null while unpriced (rule 15) or not offered (specs/plugins-phase-3b-neat.md rule 6) — the
+    // projection and the option list enforce it: no block, no mandatory question. With a plugin pricing
+    // it the block stays even at a static 0 and its label announces a per-stay tariff.
     cancellationInsurance: toPublicCancellationInsurance(insuranceOption, {
-      neatPricingActive: isNeatPricingActive(settingsModel),
+      dynamicPrice: quotePostProcessors.dynamicInsurance(),
       lang,
     }),
   });

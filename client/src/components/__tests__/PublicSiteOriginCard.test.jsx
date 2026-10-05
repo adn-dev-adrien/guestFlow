@@ -31,7 +31,7 @@ test('saves the address and hands the overview back', async () => {
 });
 
 test('shows the server refusal under the field', async () => {
-  api.saveTermsPublicSiteOrigin.mockRejectedValue(new Error('Adresse invalide : saisis seulement le domaine, par exemple https://www.domainesolio.com'));
+  api.saveTermsPublicSiteOrigin.mockRejectedValue(new Error('Adresse invalide : le domaine seul, par exemple https://www.mon-site.fr'));
   render(<PublicSiteOriginCard value="" onSaved={vi.fn()} />);
   await userEvent.type(screen.getByLabelText('Adresse du site public'), 'https://x.fr/page');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’adresse' }));

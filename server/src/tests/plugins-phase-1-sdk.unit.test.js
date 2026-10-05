@@ -20,7 +20,7 @@ const { buildModel: buildPluginSettingsModel } = require('../models/pluginSettin
 const { buildModel: buildPluginsModel } = require('../models/pluginsModel');
 const { createController } = require('../controllers/pluginsController');
 const {
-  ensurePluginsTable, ensurePluginSettingsTable, copyAppSettingsToPlugins, SETTINGS_COPY_MIGRATION,
+  ensurePluginsTable, ensurePluginSettingsTable, copyAppSettingsToPlugins, resyncAfterRollback, SETTINGS_COPY_MIGRATION,
 } = require('../utils/pluginsSchema');
 const { isEncrypted } = require('../utils/encryption');
 
@@ -80,8 +80,9 @@ function fakeRes() {
 
 // specs/plugins-phase-2-hosts.md rule 1 — phase 2 adds four modules to the five of this phase.
 const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
-// specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment.
-const PHASE_3_IDS = ['online-payment'];
+// specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
+// (specs/plugins-phase-3b-neat.md rule 7).
+const PHASE_3_IDS = ['online-payment', 'neat'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
   assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS].sort());
@@ -152,6 +153,21 @@ test('rule 4: a module that throws in register is failed, answers 404, and the o
   const res = fakeRes();
   view({}, res);
   assert.equal(res.body.find((p) => p.id === 'weather-alerts').state, 'failed');
+});
+
+test('rule 4: a module that throws after declaring a route answers 404 PLUGIN_INACTIVE there, not another router', async () => {
+  const db = freshDb();
+  const broken = {
+    id: 'weather-alerts',
+    register(ctx) {
+      ctx.route('get', '/api/reservations/:id/weather-alerts', (req, res) => res.json({ ok: true }));
+      throw new Error('boom');
+    },
+  };
+  const { app } = boot(db, { installed: ['weather-alerts'], modules: [broken] });
+  const res = await request(app, 'GET', '/api/reservations/1/weather-alerts');
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'PLUGIN_INACTIVE');
 });
 
 // ---------- §3.B routes (rule 5) ----------
@@ -281,6 +297,34 @@ test('rules 7, 25: the copy migration moves the Météo key and the Google field
   assert.equal(copyAppSettingsToPlugins(db), 0);
 });
 
+test('rule 25: a value a rollback wrote in the old columns is carried forward; an erased plugin stays erased', () => {
+  const db = freshDb();
+  const cols = new Set(db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name));
+  for (const col of ['googleOAuthRefreshTokenEncrypted', 'googleOAuthConnectedEmail', 'meteoFranceApiKeyEncrypted']) {
+    if (!cols.has(col)) db.exec(`ALTER TABLE app_settings ADD COLUMN ${col} TEXT DEFAULT ''`);
+  }
+  db.prepare('INSERT OR IGNORE INTO app_settings (id) VALUES (1)').run();
+  db.prepare("UPDATE app_settings SET googleOAuthRefreshTokenEncrypted = 'enc:v1:old', meteoFranceApiKeyEncrypted = 'enc:v1:m' WHERE id = 1").run();
+  copyAppSettingsToPlugins(db);
+  const value = (plugin, key) => (db.prepare('SELECT value FROM plugin_settings WHERE plugin_id = ? AND key = ?').get(plugin, key) || {}).value;
+  assert.equal(resyncAfterRollback(db), 0, 'nothing changed since the copy');
+
+  db.prepare("UPDATE plugin_settings SET value = 'enc:v1:forward' WHERE plugin_id = 'google-calendar' AND key = 'refreshToken'").run();
+  assert.equal(resyncAfterRollback(db), 0);
+  assert.equal(value('google-calendar', 'refreshToken'), 'enc:v1:forward', 'a forward write is never overwritten by the stale column');
+
+  // Rollback to v3.5: reconnecting Google writes the old column.
+  db.prepare("UPDATE app_settings SET googleOAuthRefreshTokenEncrypted = 'enc:v1:rollback', googleOAuthConnectedEmail = 'new@b.fr' WHERE id = 1").run();
+  assert.equal(resyncAfterRollback(db), 2);
+  assert.equal(value('google-calendar', 'refreshToken'), 'enc:v1:rollback');
+  assert.equal(value('google-calendar', 'connectedEmail'), 'new@b.fr');
+  assert.equal(resyncAfterRollback(db), 0, 'carried once');
+
+  db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'weather-alerts'").run();
+  assert.equal(resyncAfterRollback(db), 0);
+  assert.equal(value('weather-alerts', 'apiKey'), undefined, 'the erasure is not undone by the unchanged column');
+});
+
 // ---------- jobs (rule 8) ----------
 
 test('rule 8: the jobs keep today’s intervals and boot delays, and skip their tick while inactive', async () => {
@@ -290,9 +334,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   const timeouts = [];
   loader.startJobs({ setIntervalFn: (fn, ms) => intervals.push([fn, ms]), setTimeoutFn: (fn, ms) => timeouts.push(ms) });
   const HOUR = 60 * 60 * 1000;
-  // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s.
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 130 * 1000, 140 * 1000, 160 * 1000]);
+  // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s; the Neat pass
+  // in phase 3b: 5 min, first pass at 150 s.
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 160 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };
@@ -384,7 +429,7 @@ test('rule 10: the four email paths take the plugin variables and no longer call
 
 test('rule 12: the Plugins list says which plugins are erasable and what an erasure would take', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['school-holidays', 'neat'] });
+  const { plugins } = boot(db, { installed: ['school-holidays', 'hourly-resources'] });
   db.prepare("INSERT INTO school_holidays (label) VALUES ('Toussaint'), ('Noël')").run();
   const res = fakeRes();
   createController(plugins, { registry, db: () => db }).list({}, res);
@@ -392,9 +437,9 @@ test('rule 12: the Plugins list says which plugins are erasable and what an eras
   assert.equal(holidays.hasModule, true);
   assert.equal(holidays.erasable, true);
   assert.deepEqual(holidays.data.map((l) => l.label), ['2 périodes de vacances', 'l’état de synchronisation']);
-  const neat = res.body.find((p) => p.id === 'neat');
-  assert.equal(neat.erasable, false);
-  assert.deepEqual(neat.data, []);
+  const hourly = res.body.find((p) => p.id === 'hourly-resources');
+  assert.equal(hourly.erasable, false);
+  assert.deepEqual(hourly.data, []);
 });
 
 test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; a reinstall starts empty', async () => {
@@ -417,12 +462,12 @@ test('rules 12, 24: erasing drops the tables, the settings and the ledger rows; 
 
 test('rule 22: a plugin without a module refuses ?purge=1 and keeps its data', () => {
   const db = freshDb();
-  const { plugins } = boot(db, { installed: ['neat'] });
+  const { plugins } = boot(db, { installed: ['hourly-resources'] });
   const res = fakeRes();
-  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'neat' }, query: { purge: '1' } }, res);
+  createController(plugins, { registry, db: () => db }).uninstall({ params: { id: 'hourly-resources' }, query: { purge: '1' } }, res);
   assert.equal(res.statusCode, 409);
   assert.deepEqual(res.body, { error: 'NOT_ERASABLE' });
-  assert.ok(plugins.get('neat'));
+  assert.ok(plugins.get('hourly-resources'));
 });
 
 test('rule 23: an erasure obeys the refusals of phase 0 rule 8', () => {
@@ -449,6 +494,20 @@ test('rule 20: erasing the recipes keeps every season and price; the seasons bec
   assert.equal(tableExists(db, 'tariff_recipe_runs'), false);
 });
 
+test('rule 20: erasing the recipes leaves the « à partir de » price announced to guests unchanged', () => {
+  const db = freshDb();
+  const { plugins } = boot(db, { installed: ['tariff-recipes'] });
+  db.prepare("INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion) VALUES (1, 'Gîte', 'gite-2027', '3.0.0')").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, seasonKey, seasonRank) VALUES (1, 'Basse', 120, 'low', 1)").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 90)").run();
+  const { loadStayFacts } = require('../models/stayFactsModel');
+  const before = loadStayFacts(db, null).properties[0].minNightlyPrice;
+  createController(plugins, { registry, db: () => db, settingsModel: () => buildPluginSettingsModel(db) })
+    .uninstall({ params: { id: 'tariff-recipes' }, query: { purge: '1' } }, fakeRes());
+  assert.equal(before, 120);
+  assert.equal(loadStayFacts(db, null).properties[0].minNightlyPrice, 120, 'the leftover Standard rule still does not undercut');
+});
+
 test('rule 12: an erasure that fails halfway rolls everything back and keeps the plugin installed', () => {
   const db = freshDb();
   const mod = {
@@ -469,6 +528,7 @@ test('rule 12: an erasure that fails halfway rolls everything back and keeps the
   assert.equal(res.statusCode, 500);
   assert.equal(tableExists(db, 'w_t'), true);
   assert.ok(plugins.get('weather-alerts'));
+  assert.equal(Number(plugins.get('weather-alerts').enabled), 0, 'installed and inactive');
 });
 
 // ---------- gate paths that ran while inactive (§1), rules 17-18 ----------

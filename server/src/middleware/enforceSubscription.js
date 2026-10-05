@@ -20,11 +20,15 @@ const ALLOWED_WRITES = [
   ['POST', /^\/reservations\/\d+\/arrival-payment$/],
   ['POST', /^\/push\/subscribe$/],
   ['DELETE', /^\/push\/subscribe$/],
+  // Computations sent as POST that write nothing: opening a reservation recomputes its price.
+  ['POST', /^\/reservations\/calculate-price$/],
+  ['POST', /^\/properties\/\d+\/pricing\/progressive-preview$/],
+  ['POST', /^\/terms\/preview$/],
 ];
 
 const READ_ONLY_BODY = {
   error: 'SUBSCRIPTION_READ_ONLY',
-  message: 'Modification impossible : l’abonnement de cet espace est à renouveler.',
+  message: 'Modification impossible : abonnement à renouveler.',
 };
 
 function isAllowedWrite(method, path) {

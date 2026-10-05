@@ -4,20 +4,19 @@
  * Orchestrates: the Réglages card (feature-local settings + test-connection + discovery + field
  * mapping), the subscription pass (scheduled + kicked), the per-reservation actions (retry, void)
  * and the fiche's ready-to-render `neat` block. A DI factory (`createNeatController`) backs the
- * unit tests; the default instance binds the real models.
+ * unit tests; the plugin's `index.js` binds it to `ctx.db`, its settings store and the core push service
+ * (specs/plugins-phase-3b-neat.md rule 7).
  */
 
-const realDb = require('../database');
-const realSettingsModel = require('../models/settingsModel');
-const realNeatSubscriptionsModel = require('../models/neatSubscriptionsModel');
-const realPushService = require('../utils/pushService');
-const { buildNeatClient } = require('../utils/neatClient');
-const { runNeatSubscriptionPass, externalIdFor } = require('../utils/neatSubscriptionRunner');
+const sdk = require('../sdk');
+const { buildNeatClient } = require('./client');
+const { runNeatSubscriptionPass, externalIdFor } = require('./subscriptionRunner');
 const {
   SOURCES, contractServiceFields, parseMappingJson, validateMapping,
-} = require('../utils/neatFieldMapping');
-const { isDirectChannel } = require('../utils/platformNameFormat');
-const { readNeatConfig } = require('../utils/neatGuestPricing');
+} = require('./fieldMapping');
+const { readNeatConfig } = require('./pricing');
+
+const isDirectChannel = (platform) => sdk.coreModule('platformNameFormat').isDirectChannel(platform);
 
 const EMPTY_CFG = {
   environment: 'staging', clientId: '', clientSecret: '', salesChannelId: '',
@@ -27,15 +26,15 @@ const EMPTY_CFG = {
 };
 
 function createNeatController({
-  db = realDb,
-  settingsModel = realSettingsModel,
-  model = realNeatSubscriptionsModel,
+  db,
+  settingsModel,
+  model,
   buildClient = buildNeatClient,
-  pushService = realPushService,
+  pushService = null,
   now = () => new Date(),
   logger = console,
-  // specs/plugins-phase-0-foundation.md rule 15 — wired to the plugin state by the production
-  // instance; a factory built by a test runs its passes.
+  // specs/plugins-phase-0-foundation.md rule 15 — wired to the plugin state by the plugin; a factory
+  // built by a test runs its passes.
   pluginActive = () => true,
 } = {}) {
   let passInProgress = false;
@@ -349,10 +348,4 @@ function createNeatController({
   };
 }
 
-const defaultController = createNeatController({
-  pluginActive: () => require('../plugins/sdk/registry').isLive(require('../constants/plugins').NEAT),
-});
-defaultController.createNeatController = createNeatController;
-defaultController.externalIdFor = externalIdFor;
-
-module.exports = defaultController;
+module.exports = { createNeatController, externalIdFor };

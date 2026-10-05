@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 
 const {
   contractServiceFields, parseMappingJson, validateMapping, buildServiceFieldValues, buildCustomerPayload,
-} = require('../utils/neatFieldMapping');
+} = require('../fieldMapping');
 
 const FIELDS = [
   { id: 'f-start', title: 'Date de début', name: 'startDate', type: 'datetime', required: true, options: [] },

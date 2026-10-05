@@ -5,11 +5,12 @@
  * dictated; a link alone installs the key (a profile without a code).
  */
 
+// The labels are the editor's buttons: the server is the only place they are declared.
 const TOKENS = [
-  { name: 'gateAccessCode', label: 'Code d’accès au portail' },
-  { name: 'gateAccessUrl', label: 'Lien de la clé du portail' },
+  { name: 'gateAccessCode', label: 'Code portail' },
+  { name: 'gateAccessUrl', label: 'Lien portail' },
 ];
-const FLAGS = ['hasGateAccess'];
+const FLAGS = [{ name: 'hasGateAccess', label: 'Si accès portail' }];
 
 function gateEmailContext(invitation) {
   const code = invitation && invitation.code ? String(invitation.code) : '';

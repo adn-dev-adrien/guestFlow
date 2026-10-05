@@ -6,14 +6,14 @@
  * Props:
  *   plugin    { id, name, description, icon, surfaces, state, blocker, erasable, data, outOfPlan,
  *             planChip, planHint } as GET /api/plugins returns it — `data` lists what an erasure
- *             would take; `outOfPlan` marks a plugin the subscription does not include, `planChip`
+ *             would take, a line with `warning: true` being shown apart, before the choice; `outOfPlan` marks a plugin the subscription does not include, `planChip`
  *             names the plan that does and `planHint` says how to get it
  *   busy      boolean   an action on this card is running
  *   error     string?   refusal or failure message, shown in red under the card
  *   onAction  (action: 'install'|'activate'|'deactivate'|'uninstall', options?: { purge }) => void
  */
 import React, { useState } from 'react';
-import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Card, CardActionArea, Checkbox, Chip, Collapse, FormControlLabel, Stack, Typography } from '@mui/material';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -27,6 +27,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SchoolIcon from '@mui/icons-material/School';
 import ThunderstormIcon from '@mui/icons-material/Thunderstorm';
 import ExtensionIcon from '@mui/icons-material/Extension';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StatusBadge from './StatusBadge';
 
 const ICONS = {
@@ -52,9 +53,14 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
   const installed = plugin.state !== 'available';
   const failed = plugin.state === 'failed';
   const outOfPlan = Boolean(plugin.outOfPlan);
-  const eraseLines = (plugin.data || []).map((line) => line.label).join(' · ');
+  const eraseLines = (plugin.data || []).filter((line) => !line.warning).map((line) => line.label).join(' · ');
+  // specs/plugins-phase-3b-neat.md rule 18 — what an erasure cannot undo elsewhere (Neat: subscriptions
+  // that stay in force at Neat), said before the operator chooses.
+  const eraseWarnings = (plugin.data || []).filter((line) => line.warning);
 
-  const primary = plugin.state === 'available'
+  // Rule 8: a refusal is said before the click, and the buttons it would refuse are disabled.
+  const blocked = Boolean(plugin.blocker);
+  const primary = failed ? null : plugin.state === 'available'
     ? { action: 'install', label: 'Installer', variant: 'contained' }
     : plugin.state === 'active'
       ? { action: 'deactivate', label: 'Désactiver', variant: 'outlined' }
@@ -102,21 +108,23 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
               <Chip size="small" label={plugin.planChip} sx={{ mt: 0.5, fontWeight: 700 }} />
             )}
             {failed && (
-              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Ce plugin n’a pas pu démarrer.</Typography>
+              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>Échec du démarrage.</Typography>
+            )}
+            {!installed && outOfPlan && plugin.planHint && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{plugin.planHint}</Typography>
+            )}
+            {installed && blocked && (
+              <Typography variant="body2" color="warning.dark" sx={{ mt: 0.5 }}>{plugin.blocker.message}</Typography>
             )}
           </Box>
         </CardActionArea>
         {!installed && outOfPlan && (
-          <Tooltip title={plugin.planHint || ''}>
-            <Box component="span" sx={{ flex: 'none', width: { xs: '100%', sm: 'auto' } }}>
-              <Button variant="contained" disabled sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>Installer</Button>
-            </Box>
-          </Tooltip>
+          <Button variant="contained" disabled sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}>Installer</Button>
         )}
-        {!outOfPlan && (
+        {!outOfPlan && primary && (
           <Button
             variant={primary.variant}
-            disabled={busy}
+            disabled={busy || (primary.action === 'deactivate' && blocked)}
             onClick={() => act(primary.action)}
             sx={{ minHeight: 44, flex: 'none', width: { xs: '100%', sm: 'auto' } }}
           >
@@ -138,6 +146,12 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
           {installed && (
             <>
               {/* A plugin module can take its data with it (rules 21-22); the others always keep it. */}
+              {plugin.erasable && eraseWarnings.map((line) => (
+                <Stack key={line.label} direction="row" spacing={1} sx={{ alignItems: 'flex-start', mb: 1, color: 'warning.dark' }}>
+                  <WarningAmberIcon fontSize="small" sx={{ mt: '2px' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{line.label}</Typography>
+                </Stack>
+              ))}
               {plugin.erasable && (
                 <FormControlLabel
                   sx={{ display: 'flex', minHeight: 44, mb: 0.5 }}
@@ -150,14 +164,12 @@ export default function PluginCard({ plugin, busy = false, error = null, onActio
                   {eraseLines ? `Seront effacés : ${eraseLines}. ` : ''}C’est définitif.
                 </Typography>
               ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Tes données sont conservées : en le réinstallant, tu retrouves tout.
-                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>Données conservées.</Typography>
               )}
               <Button
                 color="error"
                 variant={armed ? 'contained' : 'outlined'}
-                disabled={busy}
+                disabled={busy || blocked}
                 onClick={() => (armed ? act('uninstall', erase ? { purge: true } : undefined) : setArmed(true))}
                 sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
               >

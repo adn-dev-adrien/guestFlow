@@ -277,6 +277,12 @@ function buildController({
       }
       const target = usersModel.findById(id);
       if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      // A reset reactivates the account, so a disabled one counts against the plan's quota
+      // (specs/control-plane-plans-and-access.md rule 13).
+      if (!target.isActive) {
+        const refusal = planQuota('users', () => usersModel.countActive());
+        if (refusal) return res.status(402).json(refusal);
+      }
       if (!settingsModel.smtpConfigured()) {
         return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
       }

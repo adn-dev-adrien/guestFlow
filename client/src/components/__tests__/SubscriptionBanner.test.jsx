@@ -26,7 +26,7 @@ import { act } from '@testing-library/react';
 import api from '../../api';
 import SubscriptionBanner from '../SubscriptionBanner';
 
-const status = (over = {}) => ({ state: 'due', endsAt: '2026-11-12', daysLeft: 20, planName: 'Pro', payUrl: null, ...over });
+const status = (over = {}) => ({ state: 'due', severity: 'info', text: 'Abonnement Pro jusqu’au 12/11/2026.', payUrl: null, ...over });
 
 beforeEach(() => {
   currentUser = { id: 1, roles: ['admin'] };
@@ -34,34 +34,22 @@ beforeEach(() => {
   showError.mockReset();
 });
 
-test('due: the end date and the renewal link', async () => {
+test('the server’s text, with the renewal link when there is one', async () => {
   api.getSubscription.mockResolvedValue(status({ payUrl: 'https://pay.qonto.com/abc' }));
   render(<SubscriptionBanner />);
-  expect(await screen.findByText('Votre abonnement Pro se termine le 12/11/2026.')).toBeTruthy();
+  expect(await screen.findByText('Abonnement Pro jusqu’au 12/11/2026.')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Renouveler' }).getAttribute('href')).toBe('https://pay.qonto.com/abc');
 });
 
-test('grace: a warning that names the lapsed date', async () => {
-  api.getSubscription.mockResolvedValue(status({ state: 'grace', daysLeft: -2 }));
+test('no link without one', async () => {
+  api.getSubscription.mockResolvedValue(status({ state: 'grace', severity: 'warning', text: 'Abonnement échu.' }));
   render(<SubscriptionBanner />);
-  expect(await screen.findByText('Abonnement échu depuis le 12/11/2026 : renouvelez-le pour garder l’accès complet.')).toBeTruthy();
+  expect(await screen.findByText('Abonnement échu.')).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'Renouveler' })).toBeNull();
 });
 
-test('read-only: says what still works', async () => {
-  api.getSubscription.mockResolvedValue(status({ state: 'read_only' }));
-  render(<SubscriptionBanner />);
-  expect(await screen.findByText(/Lecture seule : vos données restent consultables et exportables, la synchronisation des calendriers continue\./)).toBeTruthy();
-});
-
-test('trial: the days left', async () => {
-  api.getSubscription.mockResolvedValue(status({ state: 'trial', daysLeft: 12 }));
-  render(<SubscriptionBanner />);
-  expect(await screen.findByText('Période d’essai : 12 jours restants.')).toBeTruthy();
-});
-
 test('active or unmanaged: nothing shows', async () => {
-  for (const s of [status({ state: 'active' }), { state: null }]) {
+  for (const s of [status({ state: 'active', severity: null, text: null }), { state: null, text: null }]) {
     api.getSubscription.mockResolvedValue(s);
     const { container, unmount } = render(<SubscriptionBanner />);
     await waitFor(() => expect(api.getSubscription).toHaveBeenCalled());
@@ -81,7 +69,7 @@ test('rule 14: a write refused for the subscription is toasted for every role, e
   currentUser = { id: 2, roles: ['reception'] };
   render(<SubscriptionBanner />);
   act(() => {
-    window.dispatchEvent(new CustomEvent('guestflow:read-only', { detail: { message: 'Modification impossible : l’abonnement de cet espace est à renouveler.' } }));
+    window.dispatchEvent(new CustomEvent('guestflow:read-only', { detail: { message: 'Modification impossible : abonnement à renouveler.' } }));
   });
-  expect(showError).toHaveBeenCalledWith('Modification impossible : l’abonnement de cet espace est à renouveler.');
+  expect(showError).toHaveBeenCalledWith('Modification impossible : abonnement à renouveler.');
 });

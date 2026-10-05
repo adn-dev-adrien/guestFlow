@@ -10,8 +10,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildModel } = require('../models/neatSubscriptionsModel');
-const { runNeatSubscriptionPass } = require('../utils/neatSubscriptionRunner');
+const { buildModel } = require('../subscriptionsModel');
+const { runNeatSubscriptionPass } = require('../subscriptionRunner');
 const {
   freshNeatDb, fakeNeatSettings, insertReservation, fakeNeatClientFactory, fakePushService, silentLogger,
 } = require('./neatFixtures');

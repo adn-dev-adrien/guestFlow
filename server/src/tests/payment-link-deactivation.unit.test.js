@@ -26,7 +26,7 @@ function seed() {
   return { db, links: paymentLinksModel.buildModel(db), id };
 }
 
-function stubProvider({ cancelFails = false, paid = false } = {}) {
+function stubProvider({ cancelFails = false, paid = false, linkStatus = 'open' } = {}) {
   const calls = [];
   return {
     calls,
@@ -34,7 +34,7 @@ function stubProvider({ cancelFails = false, paid = false } = {}) {
     label: 'Qonto',
     createLink: async ({ amountCents }) => { calls.push(['create', amountCents]); return { id: `ql_${amountCents}`, url: 'https://pay/new', status: 'open', expiresAt: null }; },
     getPayment: async (linkId) => { calls.push(['payment', linkId]); return paid ? { paid: true, paymentId: 'pay_late', paidAt: '2026-11-01T10:00:00Z' } : { paid: false }; },
-    getLinkStatus: async () => 'open',
+    getLinkStatus: async () => linkStatus,
     cancelLink: async (linkId) => {
       calls.push(['cancel', linkId]);
       if (cancelFails) throw new Error('provider unreachable');
@@ -77,9 +77,28 @@ test('rule 7 — a link whose amount went stale is deactivated before the new on
   const link = await ensurePaymentLink({
     database: db, paymentLinksModel: links, provider, resolveAmountCents: () => 12000,
   }, id, 'deposit');
-  assert.deepEqual(provider.calls, [['cancel', 'ql_stale'], ['create', 12000]]);
+  assert.deepEqual(provider.calls, [['payment', 'ql_stale'], ['cancel', 'ql_stale'], ['create', 12000]], 'its payment is read first');
   assert.equal(links.findById(stale.id).status, 'cancelled');
   assert.equal(link.amountCents, 12000);
+});
+
+test('rule 7 — a stale link the guest already paid is never retired, and no new link is made', async () => {
+  const { db, links, id } = seed();
+  const stale = openLink(links, id, 'ql_stale', 9000);
+  const provider = stubProvider({ paid: true });
+  await assert.rejects(ensurePaymentLink({ database: db, paymentLinksModel: links, provider, resolveAmountCents: () => 12000 }, id, 'deposit'),
+    (e) => e.httpStatus === 409 && e.error === 'LINK_ALREADY_PAID');
+  assert.deepEqual(provider.calls, [['payment', 'ql_stale']]);
+  assert.equal(links.findById(stale.id).status, 'open', 'still open: the poll records its payment');
+});
+
+test('rule 8 — a link already dead at the provider is not retried forever', async () => {
+  const { db, links, id } = seed();
+  const row = links.cancel(openLink(links, id, 'ql_dead').id, { remotePending: true });
+  const provider = stubProvider({ cancelFails: true, linkStatus: 'expired' });
+  const summary = await runPaymentPoll({ database: db, paymentLinksModel: links, provider, devisModel: {} });
+  assert.equal(summary.results[0].status, 'already-inactive');
+  assert.equal(links.findById(row.id).remoteCancelPendingAt, null);
 });
 
 test('rule 8 — the poll retries an owed deactivation, then forgets it', async () => {

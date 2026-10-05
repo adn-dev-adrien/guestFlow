@@ -208,9 +208,6 @@ app.use('/api/email-sequence',  require('./routes/emailSequence'));
 // specs/self-update-and-releases.md — version probe + self-update control. Admin-only: the role
 // guard above is deny-by-default for every non-admin role, so no allowlist entry is needed.
 app.use('/api/system', require('./routes/system'));
-// specs/neat-cancellation-insurance-subscription.md — Neat connection, mapping, retry/void.
-// Admin-only through the same deny-by-default role guard.
-app.use('/api/neat', requirePlugin(PLUGINS.NEAT), require('./routes/neat'));
 // specs/terms-acceptance-record.md — the CGV the operator writes and publishes. Admin-only.
 app.use('/api/terms', require('./routes/terms'));
 // specs/plugins-phase-0-foundation.md — the Plugins page. Admin-only through the same role guard.
