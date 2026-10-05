@@ -223,7 +223,7 @@ test('online payment: an open payment link blocks deactivate and uninstall', () 
     assert.equal(res.statusCode, 409);
     assert.equal(res.body.error, 'PLUGIN_BLOCKED');
     assert.equal(res.body.code, 'OPEN_PAYMENT_LINKS');
-    assert.equal(res.body.message, '1 lien de paiement est en attente. Attends son paiement ou annule-le avant de désactiver.');
+    assert.equal(res.body.message, '1 lien de paiement en attente : à payer ou annuler d’abord.');
   }
   db.prepare("UPDATE payment_links SET status = 'paid'").run();
   assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
@@ -241,7 +241,7 @@ test('sas: an active reception-only user blocks it; admins and inactive users do
   const res = call('deactivate', 'sas');
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, 'RECEPTION_USERS');
-  assert.equal(res.body.message, '2 comptes Accueil sont actifs. Change leur rôle dans Utilisateurs d’abord.');
+  assert.equal(res.body.message, '2 comptes Accueil actifs : changer leur rôle dans Utilisateurs d’abord.');
 });
 
 test('accounting export: an active accountant-only user blocks it', () => {

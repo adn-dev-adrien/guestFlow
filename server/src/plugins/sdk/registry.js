@@ -49,9 +49,17 @@ module.exports = {
   get: (id) => records.get(id) || null,
   all: () => [...records.values()],
   has: (id) => records.has(id),
+  // The failed module keeps the URLs it declared, so they answer `404 PLUGIN_INACTIVE` like any
+  // inactive plugin (rule 4) instead of falling through to another router; nothing else of it runs.
   markFailed(id, err) {
+    const previous = records.get(id);
     const record = emptyRecord(id);
     record.failed = (err && err.message) || String(err);
+    if (previous) {
+      record.mounts = previous.mounts;
+      record.routes = previous.routes;
+      record.webhooks = previous.webhooks;
+    }
     records.set(id, record);
   },
   isLive: (id) => {

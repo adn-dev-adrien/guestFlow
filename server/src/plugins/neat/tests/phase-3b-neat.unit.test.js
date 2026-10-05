@@ -176,7 +176,7 @@ test('rule 14 — erasing warns about the active subscriptions first, then erase
   controller.list({}, list);
   const lines = list.body.find((p) => p.id === ID).data;
   assert.equal(lines[0].warning, true);
-  assert.match(lines[0].label, /^1 souscription active chez Neat — elle reste en vigueur chez Neat/);
+  assert.equal(lines[0].label, "1 souscription active, toujours en vigueur chez Neat");
   assert.deepEqual(lines.slice(1).map((l) => l.label), [
     'la connexion Neat (identifiants, contrat, mappage, marge)',
     '1 souscription en attente ou en échec',
@@ -202,4 +202,12 @@ test('rule 20 — a new customer starts without the plugin: no insurance offered
   boot(db, { installed: false });
   assert.equal(quotePostProcessors.insuranceOffered(), false);
   assert.equal(quotePostProcessors.dynamicInsurance(), false);
+});
+
+test('rule 12 — a fiche block is keyed by its plugin’s id, the key the fiche reads it under', () => {
+  const { createContext } = require('../../sdk/createContext');
+  const ctx = createContext('neat', { db: v38Db(), settingsModel: () => buildPluginSettingsModel(v38Db()) });
+  assert.throws(() => ctx.reservationBlock('insurance', () => null), /keyed by the plugin id \("neat"\)/);
+  assert.doesNotThrow(() => ctx.reservationBlock('neat', () => null));
+  registry.reset();
 });

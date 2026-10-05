@@ -163,11 +163,11 @@ Other facts the design rests on:
      cleared.
 9. **The admin is told when a deactivation failed.**
    - The cancellation answer carries `paymentLinksNotDeactivated: n` and, when `n > 0`,
-     `paymentLinksWarning`, worded by the server with the provider's label: « Le lien de paiement n’a
-     pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque vérification ; tu peux aussi le
-     désactiver depuis Qonto. »
+     `paymentLinksWarning`, worded by the server with the provider's label: « Lien de paiement encore
+     actif chez Qonto : à désactiver depuis Qonto. » (shortened 2026-10-04).
    - The fiche closes on a cancellation: the warning follows the « Séjour annulé » message of its
-     dialog. The dashboard card shows it in its error toast, « Séjour annulé. » first.
+     dialog. The dashboard card shows it in its error toast, after the cancellation's own message (the
+     deposit kept, when there is one — it used to be lost).
    - `GET /api/payments/reservations/:id/payment-links` carries `remoteCancelPending` on each row. The
      fiche has no payment-link list today; none is added.
 
@@ -260,6 +260,29 @@ Other facts the design rests on:
       after the upgrade finds them by `(provider, providerLinkId)`.
 21. **A new customer** starts with the plugin not installed (phase 0). Installing it and connecting Qonto
     is the only way to reach the fiche buttons and the dashboard reminder.
+
+### Review fixes (2026-10-04)
+
+- Rule 7: before an open link whose amount went stale (or the other public type) is retired, its
+  payment is read at the provider. Paid → nothing is retired and no new link is made: `409
+  LINK_ALREADY_PAID` « Le lien en cours vient d’être payé : aucun nouveau lien créé. » (the poll
+  records the payment). Unreadable → `502 PROVIDER_UNREACHABLE`.
+- Rule 8: a deactivation the provider refuses because the link is already dead (expired, or
+  deactivated in the provider's app) is checked with `getLinkStatus` and counts as done; such a link
+  is no longer retried at every pass.
+- Rule 16: deactivating or uninstalling `online-payment` is also refused while a link cancelled here
+  is still payable at the provider (`LINKS_PENDING_DEACTIVATION`), since only the plugin's poll
+  retries it.
+- Rule 3: a payment that lands on a stay already cancelled records nothing on it
+  (`reservation-cancelled`) and the admin gets the « Paiement reçu sur un lien annulé » notice. An
+  online payment is dated by the provider's `paidAt` as a Paris day (it was the UTC day of the
+  detection). A contribs capture that fails is written in the stay's history (« Paiement en ligne
+  (acompte) : reçu, répartition comptable non enregistrée »), not only in the server log.
+- Rule 5: `GET /api/payments/reservations/:id/payment-links` is stored data and answers without a
+  provider (it answered 409).
+- The provider form starts from this space's public site (`providerDefaults.websiteUrl`), never a
+  fixed address.
+- Tests: `payment-link-deactivation.unit.test.js` (+2), `stay-payment-recorder.unit.test.js` (+2, history line), `payment-provider-interface.unit.test.js`, `phase-3a-online-payment.unit.test.js` (+1), `PaymentDeadlinesAlert.payment-provider.test.jsx`.
 
 ## 4. Architecture
 

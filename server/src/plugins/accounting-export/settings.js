@@ -19,8 +19,20 @@ const DEFAULTS = Object.freeze({
 const KEYS = Object.freeze(Object.keys(DEFAULTS));
 const RATE_KEYS = new Set(['vatRateCommission', 'vatRateCancellationCompensation']);
 
+// The same checks as the Plan comptable page, so the generic PUT cannot store what the page refuses.
+function validateRate(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const n = Number(String(value).replace(',', '.'));
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? null : 'Doit être un nombre entre 0 et 100.';
+}
+
+function validateAccount(value) {
+  if (value == null || String(value).trim() === '') return null;
+  return /^\d{6,8}$/.test(String(value).trim()) ? null : 'Compte doit comporter 6 à 8 chiffres.';
+}
+
 // What `ctx.settings.declare` receives: the generic GET/PUT /api/plugins/accounting-export/settings.
-const DECLARED = KEYS.map((key) => ({ key, default: String(DEFAULTS[key]) }));
+const DECLARED = KEYS.map((key) => ({ key, default: String(DEFAULTS[key]), validate: RATE_KEYS.has(key) ? validateRate : validateAccount }));
 
 function parseValue(key, raw) {
   if (raw == null || String(raw).trim() === '') return DEFAULTS[key];

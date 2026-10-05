@@ -15,6 +15,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getEmailTemplates: vi.fn(),
+    getEmailPluginVariables: vi.fn().mockResolvedValue({ variables: [], conditions: [] }),
     createEmailTemplate: vi.fn(),
     updateEmailTemplate: vi.fn(),
     deleteEmailTemplate: vi.fn(),
@@ -67,6 +68,7 @@ beforeEach(() => {
   Object.values(api).forEach((m) => m?.mockReset?.());
   navigate.mockReset();
   api.getEmailTemplates.mockResolvedValue([REGISTRY_ROW, CUSTOM_ROW]);
+  api.getEmailPluginVariables.mockResolvedValue({ variables: [], conditions: [] });
   api.getPendingEmails.mockResolvedValue([]); // queue empty by default
   api.previewEmail.mockResolvedValue({ to: 'jane@s.com', subject: 'Sujet', body: 'Corps', missingVariables: [] });
   api.getPropertyEmailHooks.mockResolvedValue([

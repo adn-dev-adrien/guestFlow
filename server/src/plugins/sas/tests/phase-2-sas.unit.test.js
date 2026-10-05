@@ -222,12 +222,12 @@ const ARRIVAL_BODY = {
   cleaningAdded: true,
 };
 
-function commitArrival({ storedLines = [] } = {}) {
+function commitArrival({ storedLines = [], body = ARRIVAL_BODY } = {}) {
   registry.configure({ isActive: (id) => live.has(id), allows: () => true });
   const captures = [];
   const res = fakeRes();
   buildController({ captures, storedLines })
-    .commitArrival({ params: { id: '1' }, body: JSON.parse(JSON.stringify(ARRIVAL_BODY)), user: { roles: ['admin'] } }, res);
+    .commitArrival({ params: { id: '1' }, body: JSON.parse(JSON.stringify(body)), user: { roles: ['admin'] } }, res);
   assert.equal(res.statusCode, 200);
   return captures[0];
 }
@@ -247,6 +247,15 @@ test('specs/plugins-phase-2-hosts.md rule 11 — without linen, the arrival comm
     { label: 'Supplément soirée', amount: 15, offered: false },
     { label: 'Drap housse', amount: 12, offered: true },
   ]);
+});
+
+test('specs/plugins-phase-2-hosts.md rule 11 — without linen, « Offrir » on a stored bed-linen line is kept, at the stored amount', () => {
+  useLive('sas');
+  const args = commitArrival({
+    storedLines: [{ description: 'Drap housse', amount: 15, offered: 0 }],
+    body: { ...ARRIVAL_BODY, complementItems: [{ label: 'Drap housse', amount: 999, offered: true }] },
+  });
+  assert.deepEqual(args.complementItems, [{ label: 'Drap housse', amount: 15, offered: true }]);
 });
 
 test('specs/plugins-phase-2-hosts.md rule 11 — with linen live, the arrival commit receives the linen decisions as sent', () => {

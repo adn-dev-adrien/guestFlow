@@ -15,7 +15,7 @@ const NOT_OFFERED = Object.freeze({
   code: 'INSURANCE_NOT_OFFERED',
   error: 'L’assurance annulation n’est pas proposée sans le plugin Neat.',
 });
-const READ_ONLY_REASON = 'Assurance annulation : plugin Neat inactif';
+const READ_ONLY_REASON = 'Lecture seule : plugin Neat inactif';
 
 // A partial schema (test databases, a database older than the insurance) has no insurance to gate.
 function insuranceOptionId(db) {
@@ -44,7 +44,9 @@ function storedLine(db, bookingId, optionId) {
  * Rule 5 — the engine input of a quote or a save while the insurance is not offered.
  * `bookingId` is the stored reservation or devis being priced (0/undefined for a new one).
  * Returns `{ selectedOptions, lockedOptionLines }`, or `{ error }` (422) when the payload adds the
- * insurance to a booking that does not carry it.
+ * insurance to a booking that does not carry it. On a booking that carries it, everything about the
+ * line is the stored one — quantity, complement, price lock and « offert » (`optionId`,
+ * `offeredStored`), whatever the payload says.
  */
 function gateSelection({ db, bookingId, selectedOptions, lockedOptionLines, offered = insuranceOffered() }) {
   const unchanged = { selectedOptions, lockedOptionLines };
@@ -62,15 +64,24 @@ function gateSelection({ db, bookingId, selectedOptions, lockedOptionLines, offe
     quantity: Number(stored.quantity || 1),
     inComplement: Number(stored.inComplement || 0) === 1,
   };
-  const locks = Array.isArray(lockedOptionLines) ? lockedOptionLines : [];
-  const storedLock = locks.some((l) => Number(l.optionId) === optionId)
-    ? null
-    : bookingLinesModel.buildModel(db).getPricingSnapshot(Number(bookingId)).lockedOptionLines
-      .find((l) => Number(l.optionId) === optionId);
+  // The lock is always the stored one: a preview's body cannot price the line differently from the save.
+  const otherLocks = (Array.isArray(lockedOptionLines) ? lockedOptionLines : []).filter((l) => Number(l.optionId) !== optionId);
+  const storedLock = (bookingLinesModel.buildModel(db).getPricingSnapshot(Number(bookingId)).lockedOptionLines || [])
+    .find((l) => Number(l.optionId) === optionId);
+  const locks = storedLock ? [...otherLocks, storedLock] : otherLocks;
   return {
     selectedOptions: [...list.filter((o) => Number(o.optionId) !== optionId), kept],
-    lockedOptionLines: storedLock ? [...locks, storedLock] : lockedOptionLines,
+    lockedOptionLines: Array.isArray(lockedOptionLines) || storedLock ? locks : lockedOptionLines,
+    optionId,
+    offeredStored: Number(stored.offered || 0) === 1,
   };
+}
+
+/** The engine's `offeredOptionIds` with the stored line's « offert » in place of the payload's. */
+function freezeOffered(offeredOptionIds, gate) {
+  if (!gate || !gate.optionId) return offeredOptionIds;
+  const others = (offeredOptionIds || []).map(Number).filter((n) => n !== gate.optionId);
+  return gate.offeredStored ? [...others, gate.optionId] : others;
 }
 
 /** Option lists of a create path: a default the property would add is simply not added. */
@@ -93,5 +104,5 @@ function frozenOptions(db, bookingId, offered = insuranceOffered()) {
 }
 
 module.exports = {
-  NOT_OFFERED, READ_ONLY_REASON, insuranceOptionId, hideInsurance, gateSelection, dropInsurance, frozenOptions,
+  NOT_OFFERED, READ_ONLY_REASON, insuranceOptionId, hideInsurance, gateSelection, freezeOffered, dropInsurance, frozenOptions,
 };

@@ -96,10 +96,11 @@ function createAuthController(users, { activePlugins = () => [] } = {}) {
 }
 
 const defaultController = createAuthController(defaultUsersModel, {
-  // A plugin outside the licence reads as off everywhere (specs/control-plane-plans-and-access.md rule 12).
+  // The registry's answer: a plugin outside the licence (specs/control-plane-plans-and-access.md
+  // rule 12) or one that failed to start (specs/plugins-phase-1-sdk.md rule 4) reads as off everywhere.
   activePlugins: () => {
-    const licence = require('../utils/licence');
-    return require('../models/pluginsModel').listActiveIds().filter((id) => licence.allowsPlugin(id));
+    const registry = require('../plugins/sdk/registry');
+    return require('../models/pluginsModel').listActiveIds().filter((id) => registry.isLive(id));
   },
 });
 defaultController.create = createAuthController;

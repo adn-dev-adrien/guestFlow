@@ -424,6 +424,8 @@ function createModel(database) {
     if (gate.error) return { error: gate.error.error, status: gate.error.status, code: gate.error.code };
     engineInput.selectedOptions = gate.selectedOptions;
     engineInput.lockedOptionLines = gate.lockedOptionLines;
+    // « Offert » stays the stored one too (phase 3b rule 5).
+    engineInput.offeredOptionIds = insuranceOffer.freezeOffered(engineInput.offeredOptionIds, gate);
     const quote = calculateReservationQuote(engineInput);
     // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): cache only — the
     // previews (public /quote, fiche calculate-price) warm it, so the devis bills what they announced.

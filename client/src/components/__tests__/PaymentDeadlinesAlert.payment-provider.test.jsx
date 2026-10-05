@@ -58,12 +58,13 @@ test('rule 5 — without a payment provider the row keeps « Reporter » and los
 });
 
 test('rule 9 — a link the provider still accepts is named after the cancellation', async () => {
-  const warning = 'Le lien de paiement n’a pas pu être désactivé chez Qonto. GuestFlow réessaie à chaque vérification ; tu peux aussi le désactiver depuis Qonto.';
+  const warning = 'Lien de paiement encore actif chez Qonto : à désactiver depuis Qonto.';
   api.getPaymentDeadlines.mockResolvedValue({ rows: [ROW] });
-  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 0, paymentLinksNotDeactivated: 1, paymentLinksWarning: warning });
+  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 120, paymentLinksNotDeactivated: 1, paymentLinksWarning: warning });
   renderCard();
   await userEvent.click(await screen.findByRole('button', { name: 'Annuler le séjour' }));
   const dialog = await screen.findByRole('dialog');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler le séjour' }));
-  await waitFor(() => expect(screen.getByText(`Séjour annulé. ${warning}`)).toBeInTheDocument());
+  // The deposit kept is still said, with the warning.
+  await waitFor(() => expect(screen.getByText(/^Séjour annulé — acompte de 120,00\s€ conservé en indemnité\. Lien de paiement encore actif chez Qonto/)).toBeInTheDocument());
 });

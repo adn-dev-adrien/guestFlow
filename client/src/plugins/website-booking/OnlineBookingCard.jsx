@@ -11,7 +11,7 @@
  */
 import React, { useState } from 'react';
 import { Alert, Card, CardContent, FormControlLabel, Switch, Typography } from '@mui/material';
-import { ConfirmDialog, useToast } from '../sdk';
+import { ConfirmDialog, ErrorAlert, useToast } from '../sdk';
 import { useOnlineBooking } from './useOnlineBooking';
 
 function OnlineBookingAlerts({ view }) {
@@ -19,7 +19,7 @@ function OnlineBookingAlerts({ view }) {
     <>
       {view.bookingClosed && (
         <Alert severity="error">
-          Aucune version publiée : la réservation en ligne est fermée. Publiez vos conditions générales pour la rouvrir.
+          Aucune version publiée : réservation en ligne fermée jusqu’à la publication des conditions générales.
         </Alert>
       )}
       {view.outdatedPluginBlocks && (
@@ -86,7 +86,8 @@ function OnlineBookingSwitchCard({ view, setEnforcement }) {
 }
 
 export default function OnlineBookingCard({ placement, currentVersion = null }) {
-  const { view, setEnforcement } = useOnlineBooking(currentVersion);
+  const { view, failed, reload, setEnforcement } = useOnlineBooking(currentVersion);
+  if (failed && placement !== 'alerts') return <ErrorAlert message="Réservation en ligne : état illisible." onRetry={reload} />;
   if (!view) return null;
   if (placement === 'alerts') return <OnlineBookingAlerts view={view} />;
   return <OnlineBookingSwitchCard view={view} setEnforcement={setEnforcement} />;

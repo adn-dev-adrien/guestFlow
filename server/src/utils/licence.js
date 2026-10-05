@@ -17,6 +17,7 @@ const path = require('path');
 
 const FILE_NAME = 'licence.jws';
 const CACHE_MS = 60 * 1000;
+const RETRY_MS = 2 * 1000;
 const STATES = ['trial', 'active', 'due', 'grace', 'read_only', 'suspended', 'archived'];
 const READ_ONLY_STATES = new Set(['read_only', 'suspended', 'archived']);
 
@@ -60,10 +61,32 @@ function signLicence(payload, privateKey) {
   return `${head}.${body}.${b64url(sig)}`;
 }
 
+const frDay = (day) => (day ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : '');
+
+function bannerText(state, { endDay = null, daysLeft = null, planName = null } = {}) {
+  switch (state) {
+    case 'trial':
+      if (daysLeft !== null && daysLeft > 1) return { severity: 'info', text: `Période d’essai : ${daysLeft} jours restants.` };
+      if (daysLeft === 1 || daysLeft === 0) return { severity: 'info', text: 'Dernier jour de la période d’essai.' };
+      return { severity: 'info', text: 'Période d’essai.' };
+    case 'due':
+      return { severity: 'info', text: `Abonnement${planName ? ` ${planName}` : ''} jusqu’au ${frDay(endDay)}.` };
+    case 'grace':
+      return { severity: 'warning', text: `Abonnement échu depuis le ${frDay(endDay)} : à renouveler pour garder l’accès complet.` };
+    case 'read_only':
+    case 'suspended':
+    case 'archived':
+      return { severity: 'error', text: 'Lecture seule : données consultables et exportables, calendriers toujours synchronisés.' };
+    default:
+      return { severity: null, text: null };
+  }
+}
+
 function createLicenceReader({
   dataDir,
   publicKey,
   managed = false,
+  slug = null,
   now = () => new Date(),
   readFile = (file) => fs.readFileSync(file, 'utf8'),
   log = (msg) => console.error(msg),
@@ -78,7 +101,9 @@ function createLicenceReader({
     let token;
     try {
       token = readFile(file);
-    } catch {
+    } catch (err) {
+      // Rule 29: only an absent file is « no licence ». One that is there but unreadable is enforced.
+      if (err && err.code && err.code !== 'ENOENT') return { enforced: true, valid: false, reason: `unreadable (${err.code})` };
       return managed ? { enforced: true, valid: false, reason: 'missing' } : { enforced: false };
     }
     if (!keyObject) return { enforced: true, valid: false, reason: 'no verification key' };
@@ -88,16 +113,22 @@ function createLicenceReader({
     } catch (err) {
       return { enforced: true, valid: false, reason: err.message };
     }
-    if (!payload.expiresAt || Date.parse(payload.expiresAt) <= now().getTime()) {
-      return { enforced: true, valid: false, reason: 'expired' };
+    if (slug && payload.slug !== slug) return { enforced: true, valid: false, reason: `issued for another instance (${payload.slug})` };
+    // Fail closed: a date that cannot be read is no bound at all.
+    const expiresAt = Date.parse(payload.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= now().getTime()) {
+      return { enforced: true, valid: false, reason: 'expired', expired: payload };
     }
     if (!STATES.includes(payload.state)) return { enforced: true, valid: false, reason: 'unknown state' };
     return { enforced: true, valid: true, payload };
   }
 
+  // A file that does not verify may be half written: it is read again within seconds, not a minute.
+  const cacheMs = (lic) => (lic.enforced && !lic.valid && !lic.expired && lic.reason !== 'missing' ? RETRY_MS : CACHE_MS);
+
   function current() {
     const t = now().getTime();
-    if (cached && t - cachedAt < CACHE_MS) return cached;
+    if (cached && t - cachedAt < cacheMs(cached)) return cached;
     cached = load();
     cachedAt = t;
     const reason = cached.enforced && !cached.valid ? cached.reason : null;
@@ -112,12 +143,18 @@ function createLicenceReader({
     return lic.valid ? lic.payload.state : 'read_only';
   }
 
-  // An invalid licence keeps the plugins the stored states allow: the read-only guard already stops
-  // every write, and hiding screens would only make the instance harder to diagnose.
+  // The plugins of the licence in force — or, once it has expired, of that same signed licence: a
+  // plugin withdrawn from the plan never comes back because the console stopped re-issuing. Only a
+  // licence that cannot be read at all keeps the stored states (the read-only guard stops every
+  // write, and hiding screens would only make the instance harder to diagnose).
+  const pluginSource = (lic) => (lic.valid ? lic.payload : lic.expired || null);
+
   function allowsPlugin(id) {
     const lic = current();
-    if (!lic.enforced || !lic.valid) return true;
-    return Array.isArray(lic.payload.plugins) && lic.payload.plugins.includes(id);
+    if (!lic.enforced) return true;
+    const source = pluginSource(lic);
+    if (!source) return true;
+    return Array.isArray(source.plugins) && source.plugins.includes(id);
   }
 
   return {
@@ -139,16 +176,22 @@ function createLicenceReader({
     // The name of the lowest plan that includes the plugin; null when it is sold à la carte only.
     planFor(id) {
       const lic = current();
-      if (!lic.enforced || !lic.valid || !lic.payload.planOf) return null;
-      return lic.payload.planOf[id] || null;
+      const source = lic.enforced ? pluginSource(lic) : null;
+      if (!source || !source.planOf) return null;
+      return source.planOf[id] || null;
     },
+    // The banner as the admin reads it: `text` and `severity` are decided here, null when nothing
+    // is shown (nothing enforced, or active).
     banner() {
       const lic = current();
-      if (!lic.enforced) return { state: null };
-      if (!lic.valid) return { state: 'read_only', endsAt: null, daysLeft: null, planName: null, payUrl: null };
+      if (!lic.enforced) return { state: null, text: null };
+      if (!lic.valid) return { state: 'read_only', endsAt: null, daysLeft: null, planName: null, payUrl: null, ...bannerText('read_only') };
       const { state, endsAt, planName, plan, payUrl } = lic.payload;
-      const daysLeft = endsAt ? daysBetween(parisDay(now()), String(endsAt).slice(0, 10)) : null;
-      return { state, endsAt: endsAt || null, daysLeft, planName: planName || plan || null, payUrl: payUrl || null };
+      // A date-time is read as its Paris day, not its UTC one.
+      const endDay = endsAt ? (String(endsAt).length > 10 ? parisDay(new Date(endsAt)) : String(endsAt)) : null;
+      const daysLeft = endDay ? daysBetween(parisDay(now()), endDay) : null;
+      const name = planName || plan || null;
+      return { state, endsAt: endDay, daysLeft, planName: name, payUrl: payUrl || null, ...bannerText(state, { endDay, daysLeft, planName: name }) };
     },
     invalidate() { cached = null; },
   };
@@ -162,6 +205,7 @@ function defaults() {
       dataDir: resolvePaths().dataDir,
       publicKey: process.env.GUESTFLOW_LICENCE_PUBLIC_KEY,
       managed: process.env.GUESTFLOW_MANAGED === '1',
+      slug: process.env.GUESTFLOW_SLUG || null,
     });
   }
   return defaultReader;

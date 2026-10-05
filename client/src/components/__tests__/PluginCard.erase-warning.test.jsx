@@ -8,7 +8,7 @@ import { vi } from 'vitest';
 import theme from '../../theme';
 import PluginCard from '../PluginCard';
 
-const WARNING = '2 souscriptions actives chez Neat — elles restent en vigueur chez Neat et ne pourront plus être résiliées depuis GuestFlow';
+const WARNING = '2 souscriptions actives, toujours en vigueur chez Neat';
 const neat = {
   id: 'neat', name: 'Assurance annulation Neat', description: 'Souscription automatique', icon: 'umbrella',
   surfaces: ['Intégrations › Neat'], requires: [], state: 'active', blocker: null, hasModule: true, erasable: true,

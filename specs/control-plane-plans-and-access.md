@@ -202,15 +202,26 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
       (rule 16), never in suspended.
     - The failure is logged as `[licence]`.
     - A control-plane outage of less than 7 days therefore changes nothing for the customer.
+    - Added 2026-10-04 after the review:
+      - an `expiresAt` that cannot be read is no bound: the licence is refused (it read as valid
+        forever);
+      - when the instance knows its slug (`GUESTFLOW_SLUG`), a licence issued for another slug is
+        refused;
+      - a licence file that is there but unreadable (rights) is enforced and logged — only an absent
+        file is « no licence » (rule 29);
+      - a file that does not verify is read again within 2 seconds, not after a minute (a half-written
+        file);
+      - once expired, the plugins are still those of that signed licence: a plugin withdrawn from the
+        plan never comes back because the console stopped re-issuing. Only an unreadable licence
+        keeps the stored states.
 11. **Plugins outside the licence.**
     - `POST /api/plugins/:id/install` and `…/activate` answer `402 PLAN_REQUIRED` for a plugin
       outside `plugins[]`.
     - The Plugins page shows such a plugin under « Disponibles » with the chip « Forfait Pro » or
       « Forfait Premium » (« Option à la carte » when no plan includes it), and a disabled
-      « Installer » button whose tooltip is « Inclus dans le forfait Pro — contactez-nous pour
-      changer de forfait. » (« Disponible en option — contactez-nous pour l'ajouter à votre
-      abonnement. »). The server sends that text as `planHint`, and the 402 carries the same
-      `message`.
+      « Installer » button, with « Inclus dans le forfait Pro, sur demande. » (« En option, sur
+      demande. ») written under it — not in a tooltip, unreadable on a phone (2026-10-04). The server
+      sends that text as `planHint`, and the 402 carries the same `message`.
 12. **Downgrade.**
     - When the licence drops a plugin that is installed, the instance **treats it as inactive** from
       the next read: `isLive` answers false, so its routes, jobs, screens and `enabledPlugins` entry
@@ -223,6 +234,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Creating a unit or an account beyond the quota answers `402 QUOTA_REACHED`, and the page names
       the limit.
     - Existing units and accounts above a lowered quota keep working; only new ones are refused.
+    - Resetting the password of a disabled account reactivates it, so it counts as a new account
+      (2026-10-04: it used to bypass the quota). The message reads « Forfait Pro : 5 comptes
+      maximum. ».
 
 ### D. Subscription lifecycle, reminders and payment
 
@@ -255,6 +269,10 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     Read-only closes the WordPress booking endpoint (`POST /public/v1/booking-requests`) with
     `503 BOOKING_UNAVAILABLE` and the public message « Réservations en ligne momentanément
     indisponibles. ». The quote keeps answering. It never cancels a booking.
+    The computations sent as POST that write nothing stay allowed in read-only
+    (`/reservations/calculate-price`, `/properties/:id/pricing/progressive-preview`, `/terms/preview`):
+    opening a reservation recomputes its price, and it used to end in the refused-write toast
+    (2026-10-04).
 15. **Renewal.** A payment received for a renewal:
     - moves `endsAt` by the length paid (1 or 12 months);
     - sets the state to `active`, whatever it was, including `suspended`: the process restarts;
@@ -794,11 +812,16 @@ each plan. The C2a console screens have their own mock
   `endsAt`, not the grace length, so no banner quotes a later date:
   - `trial` is blue: « Période d'essai : 12 jours restants. » (« Dernier jour de la période
     d'essai. » on the last day).
-  - `due` is blue: « Votre abonnement Pro se termine le 12/11/2026. »
-  - `grace` is orange: « Abonnement échu depuis le 12/11/2026 : renouvelez-le pour garder l'accès
+  - `due` is blue: « Abonnement Pro jusqu'au 12/11/2026. »
+  - `grace` is orange: « Abonnement échu depuis le 12/11/2026 : à renouveler pour garder l'accès
     complet. »
-  - `read_only`, `suspended` and `archived` are red: « Lecture seule : vos données restent
-    consultables et exportables, la synchronisation des calendriers continue. »
+  - `read_only`, `suspended` and `archived` are red: « Lecture seule : données consultables et
+    exportables, calendriers toujours synchronisés. »
+
+  Since 2026-10-04 the server words the banner (`GET /api/subscription` adds `severity` and `text`,
+  `text: null` when nothing shows): a date-time `endsAt` is read as its Paris day, and a trial without
+  a usable day count reads « Période d'essai. » rather than « Dernier jour ».
+  The refused-write toast reads « Modification impossible : abonnement à renouveler. »
 
   On `xs` the banner is full width, its text wraps, and « Renouveler » stays a 44 px target.
 - **A refused write is never silent.** For every role, a `402 SUBSCRIPTION_READ_ONLY` also shows the
@@ -941,7 +964,7 @@ licences signed with a throwaway key):
   Uninstalled, Neat shows « Forfait Premium » and a disabled « Installer » with its tooltip.
 - **Premium:** the 4 plugins come back active, with no write.
 - **Essentiel, due in 10 days:** the blue banner with « Renouveler »; a 3rd unit is refused with
-  « Votre forfait Essentiel comprend 2 logements. … ».
+  « Forfait Essentiel : 2 logements maximum. ».
 - **Read-only:**
   - saving a client is refused with the toast (the fix above), at 375 px;
   - the red banner fits 375 px with no horizontal scroll;

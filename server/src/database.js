@@ -2401,13 +2401,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 
 // ---------- PLUGINS — specs/plugins-phase-0-foundation.md §5 ----------
 {
-  const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, copyAppSettingsToPlugins } = require('./utils/pluginsSchema');
+  const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, copyAppSettingsToPlugins, resyncAfterRollback } = require('./utils/pluginsSchema');
   ensurePluginsTable(db);
   ensurePluginSettingsTable(db);
   if (process.env.SKIP_MIGRATIONS !== 'true') {
     seedBuiltinPlugins(db);
     // specs/plugins-phase-1-sdk.md §5 — the moved plugins read their settings from plugin_settings.
     copyAppSettingsToPlugins(db);
+    resyncAfterRollback(db);
   }
 }
 

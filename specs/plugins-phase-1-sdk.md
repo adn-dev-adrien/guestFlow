@@ -84,8 +84,12 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
    they reach into both on purpose. A test walks the imports, on each side, and fails on any other
    import.
 4. **A plugin that fails to register** (it throws in `register`) is logged with its id and reported
-   `state: 'failed'` on the Plugins page, with the message « Ce plugin n'a pas pu démarrer. ». The
-   server boots anyway, and the plugin's routes answer 404 `PLUGIN_INACTIVE`.
+   `state: 'failed'` on the Plugins page, with the message « Échec du démarrage. ». The
+   server boots anyway, and the plugin's routes answer 404 `PLUGIN_INACTIVE` — the URLs it declared
+   before throwing are kept for that, instead of falling through to another router (fixed
+   2026-10-04). A failed plugin is off for the client too: it is not in the session's
+   `enabledPlugins`, so none of its menus, pages, slots or API calls appear (fixed 2026-10-04; the
+   session used to read the table only).
 
 ### 3.B What `register(ctx)` offers — server extension points
 
@@ -202,7 +206,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
     | `calendar.dayMarkers` | month view, week view, property pricing calendar, their legends | school-holidays |
     | `closures.tabs` | Vacances & fermetures, before « Fermetures » | school-holidays |
     | `property.tariff` | pricing seasons page | tariff-recipes (the recipe card) |
-    | `emailTemplates.tokens` | token picker of the email templates page | gate-access |
+    | ~~`emailTemplates.tokens`~~ | _(removed 2026-10-04: the editor reads `GET /api/email-templates/plugin-variables`, built from the server's `ctx.emailContext` declarations of the live plugins, so a token and its label are declared once)_ | — |
 
     The season badge (« recette · … » / « Manuelle ») and the recipe banner and column of the property
     tariff tab stay core: they display core data (`seasonKey`, the extra-guest fields) and only ask
@@ -261,8 +265,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
 
 21. In the detail of an installed plugin that has a module (the five), above « Désinstaller », a
     checkbox **« Effacer aussi ses données »**, unticked by default.
-    - **Unticked:** the phase 0 note, now shown as soon as the detail opens: « Tes données sont
-      conservées : en le réinstallant, tu retrouves tout. »
+    - **Unticked:** the phase 0 note, now shown as soon as the detail opens: « Données conservées. »
     - **Ticked:** the note is replaced by « Seront effacés : » followed by the server's list (rule 12),
       e.g. « 34 périodes de vacances · l'état de synchronisation ». The note ends with « C'est
       définitif. », and the confirm button turns red with the label « Désinstaller et effacer ».
@@ -306,7 +309,7 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins
-  page shows « Ce plugin n'a pas pu démarrer. » and offers Désinstaller.
+  page shows « Échec du démarrage. » and offers only Désinstaller (« Activer » did nothing, 2026-10-04).
 - **A migration fails at install time.** The install is refused, with 500
   `{ error: 'PLUGIN_MIGRATION_FAILED', plugin }`, and the plugin stays « Disponible ». The failed
   migration is not recorded in the ledger.
@@ -320,6 +323,28 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
   shows the error and the admin reconnects.
 
 ---
+
+### Review fixes (2026-10-04)
+
+- Rule 4: a failed plugin is off everywhere — server (`registry.isLive`), session `enabledPlugins`, and
+  its declared URLs answer `404 PLUGIN_INACTIVE`.
+- Rule 13: the email editor's plugin variables come from the server (`GET
+  /api/email-templates/plugin-variables` → `{ variables: [{ label, token }], conditions: [{ label,
+  token }] }`), from each live plugin's `ctx.emailContext({ tokens: [{ name, label }], flags: [{ name,
+  label }] })`. The template list hides the templates only an inactive plugin could send (the three «
+  … (lien de paiement) » ones of `online-payment`). The reminders' fallback line without a payment
+  link reads « Contactez-nous pour le règlement. ».
+- Rule 20, `tariff-recipes`: the erasure still clears the `seasonKey` tag, but the « à partir de »
+  price announced to guests now prefers the seasons a recipe wrote by their `seasonRank` too, which the
+  erasure keeps: erasing the recipes never changes that price (rule 20's « no erasure changes a
+  price », for the price shown as well as the price billed).
+- Rule 25: a value a rollback to v3.5 writes back into an old `app_settings` column (a new Google token
+  after reconnecting) is carried into `plugin_settings` at the next boot, then never again: the last
+  value seen of each copied column is kept in `legacy_settings_seen`, and only a change of the column
+  since then is carried. An unchanged column is never re-copied, so an erasure stays erased. Applies to
+  the nine columns of this phase's copy (Météo key, Google fields).
+- Every text of the Plugins page and of the moved plugins is impersonal and short.
+- Tests: `plugins-phase-1-sdk.unit.test.js` (+3: the URLs of a failed module, the « à partir de » price after erasure, the rollback carry-over), `PluginCard.erasure.test.jsx` (no « Activer » on a failed plugin), `EmailTemplatesPage` suites (variables from the server).
 
 ## 4. Architecture
 
@@ -437,11 +462,11 @@ The only visible change is the uninstall confirmation of the five moved plugins 
 interactively in the summary page. Copy:
 
 - Checkbox « Effacer aussi ses données », unticked.
-- Unticked note (unchanged): « Tes données sont conservées : en le réinstallant, tu retrouves tout. »
+- Unticked note: « Données conservées. »
 - Ticked note: « Seront effacés : <lines> . C'est définitif. »
 - Buttons: « Désinstaller » → second click « Confirmer la désinstallation » (unticked) or « Désinstaller et
   effacer » (ticked, `error` colour).
-- Failed plugin: `StatusBadge` « Erreur » (error) and the line « Ce plugin n'a pas pu démarrer. »
+- Failed plugin: `StatusBadge` « Erreur » (error) and the line « Échec du démarrage. »
 
 The other visible changes are fixes. Rule 17 shows the portal step without Sowel when a keypad code is
 filled. Rule 19 brings the Google message back. Rule 27 makes the next school-holiday sync import every

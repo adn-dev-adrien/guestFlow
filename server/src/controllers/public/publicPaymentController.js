@@ -15,7 +15,7 @@ const db = require('../../database');
 const devisModel = require('../../models/devisModel');
 const paymentLinksModel = require('../../models/paymentLinksModel');
 const paymentProviders = require('../../utils/paymentProviders');
-const { deactivateAbandonedLinks } = require('../../utils/paymentLinkDeactivation');
+const { deactivateAbandonedLinks, assertNotPaid } = require('../../utils/paymentLinkDeactivation');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
@@ -82,6 +82,11 @@ async function pay(req, res) {
   // public type so the guest can't pay the stale one and we don't leave a dangling open link.
   const stale = paymentLinksModel.findOpenForReservation(id, linkType === 'deposit' ? 'full' : 'deposit');
   if (stale && stale.url) {
+    try {
+      await assertNotPaid(stale, provider);
+    } catch (refusal) {
+      return res.status(refusal.httpStatus || 409).json({ error: refusal.error, message: refusal.message });
+    }
     await deactivateAbandonedLinks([paymentLinksModel.updateStatus(stale.id, 'cancelled')], { paymentLinksModel, providerFor: () => provider });
   }
 

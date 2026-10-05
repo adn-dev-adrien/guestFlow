@@ -42,7 +42,7 @@ beforeEach(() => {
 test('no published version → the closed-booking alert', async () => {
   api.getOnlineBooking.mockResolvedValue(view({ bookingClosed: true }));
   render(<OnlineBookingCard placement="alerts" currentVersion={null} />);
-  expect(await screen.findByText(/la réservation en ligne est fermée/)).toBeInTheDocument();
+  expect(await screen.findByText(/réservation en ligne fermée/)).toBeInTheDocument();
 });
 
 test('an outdated plugin with the enforcement on → the blocking warning', async () => {
@@ -64,4 +64,13 @@ test('turning the enforcement off asks for confirmation first', async () => {
 test('the card names the last plugin version seen on a request', async () => {
   render(<OnlineBookingCard placement="card" currentVersion={1} />);
   expect(await screen.findByText('Dernière demande reçue du plugin WordPress 1.8.0.')).toBeInTheDocument();
+});
+
+test('a failed read is said, with « Réessayer », instead of the card and its switch vanishing', async () => {
+  api.getOnlineBooking.mockRejectedValueOnce(new Error('down'));
+  render(<OnlineBookingCard placement="card" currentVersion={7} />);
+  expect(await screen.findByText('Réservation en ligne : état illisible.')).toBeInTheDocument();
+  api.getOnlineBooking.mockResolvedValueOnce(view());
+  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  expect(await screen.findByRole('switch')).toBeInTheDocument();
 });

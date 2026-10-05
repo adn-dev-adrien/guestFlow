@@ -51,14 +51,16 @@ function loadStayFacts(database, reservation) {
     }, 0)
     : 0;
 
-  // « À partir de » price per property (rule 27): the lowest nightly price of its seasons. Recipe
-  // seasons (tagged `seasonKey`) win when present, so a leftover untagged « Standard » rule cannot
-  // undercut the real grid.
+  // « À partir de » price per property (rule 27): the lowest nightly price of its seasons. Seasons a
+  // recipe wrote (tagged `seasonKey`, ranked `seasonRank`) win when present, so a leftover untagged
+  // « Standard » rule cannot undercut the real grid. The rank survives the recipe plugin's erasure,
+  // which clears only the tag: erasing it never changes the price announced.
   const properties = tryAll(() => database.prepare(`
     SELECT p.id, p.name, p.nameArticle,
            COALESCE(
              (SELECT MIN(pr.pricePerNight) FROM pricing_rules pr
-               WHERE pr.propertyId = p.id AND pr.pricePerNight > 0 AND COALESCE(pr.seasonKey, '') != ''),
+               WHERE pr.propertyId = p.id AND pr.pricePerNight > 0
+                 AND (COALESCE(pr.seasonKey, '') != '' OR pr.seasonRank IS NOT NULL)),
              (SELECT MIN(pr.pricePerNight) FROM pricing_rules pr
                WHERE pr.propertyId = p.id AND pr.pricePerNight > 0)
            ) AS minNightlyPrice

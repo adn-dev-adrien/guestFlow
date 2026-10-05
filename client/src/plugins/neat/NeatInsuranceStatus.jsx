@@ -76,8 +76,7 @@ export default function NeatInsuranceStatus({ block, onBlockChange, reservationI
       )}
       {block.status === 'line_removed_active' && (
         <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
-          La ligne assurance a été retirée mais la police Neat est toujours active.
-          Restaure la ligne ou résilie chez Neat.
+          Ligne retirée, police Neat toujours active : rétablir la ligne ou résilier chez Neat.
         </Typography>
       )}
       {(block.status === 'failed' || active) && (

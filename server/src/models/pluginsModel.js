@@ -16,7 +16,7 @@
  *   uninstall(id)           → deletes the row (the plugin's data is kept, rule 6)
  *   isActive(id)            → boolean
  *   listActiveIds()         → [id]
- *   countOpenPaymentLinks() / countOnlyRoleUsers(role) → blocker counts (rule 8)
+ *   countOpenPaymentLinks() / countPendingDeactivations() / countOnlyRoleUsers(role) → blocker counts (rule 8)
  */
 
 function buildModel(database) {
@@ -32,6 +32,16 @@ function buildModel(database) {
   const activeStmt = database.prepare('SELECT id FROM plugins WHERE enabled = 1 ORDER BY id');
   const isActiveStmt = database.prepare('SELECT 1 FROM plugins WHERE id = ? AND enabled = 1');
   const openLinksStmt = database.prepare("SELECT COUNT(*) AS n FROM payment_links WHERE status = 'open'");
+  // A link cancelled here but not yet deactivated at the provider is still payable there; only the
+  // plugin's poll retries it (specs/plugins-phase-3a-online-payment.md rule 8).
+  // Prepared on first use: a database from before phase 3a has no such column, and nothing pending.
+  const countPendingDeactivations = () => {
+    try {
+      return database.prepare('SELECT COUNT(*) AS n FROM payment_links WHERE remoteCancelPendingAt IS NOT NULL').get().n;
+    } catch {
+      return 0;
+    }
+  };
   // Active users holding `role` without admin: a combined admin account keeps every screen, so it
   // never needs the plugin that carries the role.
   const onlyRoleStmt = database.prepare(`
@@ -52,6 +62,7 @@ function buildModel(database) {
     isActive: (id) => Boolean(isActiveStmt.get(id)),
     listActiveIds: () => activeStmt.all().map((r) => r.id),
     countOpenPaymentLinks: () => openLinksStmt.get().n,
+    countPendingDeactivations,
     countOnlyRoleUsers: (role) => onlyRoleStmt.get(role).n,
   };
 }

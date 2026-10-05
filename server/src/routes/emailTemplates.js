@@ -2,6 +2,7 @@ const router = require('express').Router();
 const controller = require('../controllers/emailTemplatesController');
 
 router.get('/',       controller.list);
+router.get('/plugin-variables', controller.pluginVariables);
 router.get('/:id',    controller.getOne);
 router.post('/',      controller.create);
 router.put('/:id',    controller.update);

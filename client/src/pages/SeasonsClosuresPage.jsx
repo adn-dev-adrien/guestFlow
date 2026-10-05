@@ -14,6 +14,7 @@
 import React, { Suspense, useState } from 'react';
 import { Box } from '@mui/material';
 import PageTabs from '../components/PageTabs';
+import LoadingState from '../components/LoadingState';
 import EstablishmentClosuresPage from './EstablishmentClosuresPage';
 import { useSlot } from '../plugins/sdk/useSlot';
 
@@ -26,13 +27,13 @@ export default function SeasonsClosuresPage() {
 
   const items = [...pluginTabs.map((t) => ({ value: t.key, label: t.label })), CLOSURES];
   const current = items.some((i) => i.value === tab) ? tab : items[0].value;
-  const barTabs = <PageTabs value={current} onChange={setTab} items={items} ariaLabel="Vacances et fermetures" />;
+  const barTabs = <PageTabs value={current} onChange={setTab} items={items} ariaLabel="Vacances & fermetures" />;
   const pluginTab = pluginTabs.find((t) => t.key === current);
 
   return (
     <Box>
       {pluginTab
-        ? <Suspense fallback={null}><pluginTab.Component barTabs={barTabs} /></Suspense>
+        ? <Suspense fallback={<LoadingState />}><pluginTab.Component barTabs={barTabs} /></Suspense>
         : <EstablishmentClosuresPage barTabs={barTabs} />}
     </Box>
   );

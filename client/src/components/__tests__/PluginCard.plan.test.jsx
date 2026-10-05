@@ -14,7 +14,7 @@ const plugin = (over = {}) => ({
   surfaces: ['La carte Neat de la fiche'], requires: [], state: 'available', blocker: null,
   hasModule: false, erasable: false, data: [],
   outOfPlan: true, planChip: 'Forfait Premium',
-  planHint: 'Inclus dans le forfait Premium — contactez-nous pour changer de forfait.',
+  planHint: 'Inclus dans le forfait Premium, sur demande.',
   ...over,
 });
 
@@ -23,13 +23,11 @@ function renderCard(p, onAction = vi.fn()) {
   return onAction;
 }
 
-test('rule 11: the plan chip shows and « Installer » is disabled with the plan hint', async () => {
+test('rule 11: the plan chip shows and « Installer » is disabled, the plan hint written under it (readable on a phone)', () => {
   renderCard(plugin());
   expect(screen.getByText('Forfait Premium')).toBeTruthy();
-  const button = screen.getByRole('button', { name: 'Installer' });
-  expect(button).toBeDisabled();
-  await userEvent.hover(button.parentElement);
-  expect(await screen.findByRole('tooltip')).toHaveTextContent('Inclus dans le forfait Premium — contactez-nous pour changer de forfait.');
+  expect(screen.getByRole('button', { name: 'Installer' })).toBeDisabled();
+  expect(screen.getByText('Inclus dans le forfait Premium, sur demande.')).toBeTruthy();
 });
 
 test('rule 12: installed but outside the plan — off, data kept, no Activer, Désinstaller still there', async () => {

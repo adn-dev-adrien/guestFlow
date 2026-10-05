@@ -45,6 +45,8 @@ function gateInsurance(res, engineInput, bookingId) {
   }
   engineInput.selectedOptions = gate.selectedOptions;
   engineInput.lockedOptionLines = gate.lockedOptionLines;
+  // « Offert » is frozen too: a payload cannot turn the stored line into a free one, or back.
+  engineInput.offeredOptionIds = insuranceOffer.freezeOffered(engineInput.offeredOptionIds, gate);
   return true;
 }
 const refundsModel = require('../models/refundsModel');

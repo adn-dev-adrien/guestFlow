@@ -250,7 +250,7 @@ export default function UserManagementPage() {
             {!loading && !loadError && users.length === 0 && (
               <EmptyState
                 icon={<PersonAddAlt1Icon />}
-                message="Aucun autre compte. Utilisez « Ajouter un compte » pour inviter un collaborateur ou un comptable."
+                message="Aucun autre compte."
                 actionLabel="Ajouter un compte"
                 onAction={openCreate}
                 py={4}
