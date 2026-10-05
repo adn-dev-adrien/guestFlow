@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase 3c</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.app{display:grid;grid-template-columns:200px 1fr;gap:14px}
+@media (max-width:760px){.app{grid-template-columns:1fr}}
+.nav{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px;font-size:13.5px;align-self:start}
+.nav div{padding:6px 8px;border-radius:6px}
+.nav .sub{padding-left:22px;color:var(--muted)}
+.panes{display:grid;gap:12px}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pane h4{margin:0 0 8px;font:600 14px var(--serif);color:var(--sapin)}
+.line{border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin:8px 0;background:var(--field)}
+.line .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.line .top b{flex:1;min-width:160px}
+.line.ro{opacity:.85;background:color-mix(in srgb,var(--ghost) 8%,var(--field))}
+.line.dup{border-color:var(--ko)}
+.amt{font:600 15px var(--serif);color:var(--sapin)}
+.sub2{font-size:12.5px;color:var(--muted);margin-top:4px}
+.badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));color:var(--ok)}
+.badge.ko{background:color-mix(in srgb,var(--ko) 15%,var(--card));color:var(--ko)}
+.badge.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:40px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.mini:disabled{opacity:.45;cursor:not-allowed}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media (max-width:600px){.acts .mini{flex:1 1 100%;min-height:44px}}
+.field{display:flex;flex-direction:column;gap:4px;margin:8px 0;max-width:420px}
+.field label{font-size:12.5px;color:var(--muted)}
+.field select,.field input{font:inherit;min-height:44px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+.field input.bad,.field select.bad{border-color:var(--ko)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media (max-width:600px){.grid2{grid-template-columns:1fr}}
+.block{border-left:3px solid var(--info);padding:4px 0 4px 12px;margin:8px 0}
+.err{color:var(--ko);font-size:13px;margin-top:4px}
+.ok{color:var(--ok)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.steps span{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--fieldline)}
+.steps span.l{border-color:var(--info);color:var(--info);font-weight:600}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.pcard .h{font-weight:700;min-width:46px;color:var(--sapin)}
+.pcard b{flex:1;min-width:140px}
+.pcard.res{border-left:4px solid var(--info)}
+.pcard.done{opacity:.55;text-decoration:line-through}
+.total{display:flex;justify-content:space-between;border-top:2px solid var(--line);margin-top:10px;padding-top:8px;font-weight:700}
+.total .amt{font-size:17px}
+.dlg{max-width:520px;border:1px solid var(--line);border-radius:12px;background:var(--field);padding:16px;box-shadow:0 6px 22px rgba(0,0,0,.08)}
+.dlg h4{margin:0 0 6px;font:600 17px var(--serif);color:var(--sapin)}
+.dlg ul{margin:6px 0 10px;padding-left:20px;font-size:13.5px}
+.dlg li{margin:4px 0}
+.dlg .w{color:var(--ocre);font-weight:600;border-left:4px solid var(--ocre);padding:6px 10px;background:color-mix(in srgb,var(--ocre) 10%,var(--card));border-radius:6px;font-size:13.5px;margin:8px 0}
+.dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.btn{appearance:none;font:inherit;font-weight:600;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);cursor:pointer}
+.btn.o{background:transparent;color:var(--sapin)}
+.btn.ko{background:var(--ko);border-color:var(--ko)}
+@media (max-width:600px){.dlg .row .btn{flex:1 1 100%}}
+.log{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px;white-space:pre-wrap;overflow-wrap:anywhere}
+.q{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:12px 14px;margin:12px 0}
+.q h3{margin:0 0 6px}
+.opt{display:block;border:1px solid var(--fieldline);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;cursor:pointer;background:var(--field)}
+.opt input{margin-right:8px;accent-color:var(--lichen)}
+.opt.rec{border-color:var(--ok)}
+.gone{display:none}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Plugins — phase 3c : ressources à l’heure</h1>
+<div class="meta">Spec <code>specs/plugins-phase-3c-hourly-resources.md</code> · brouillon du 05/10/2026 · branche <code>feature/plugins-phase-3c</code> · aucun code écrit</div>
+
+<div class="alert"><b>Deux défauts d’argent en production aujourd’hui.</b> Après le sas, une soirée peut être facturée deux fois ; rouvrir le sas double le supplément. Démonstration ci-dessous, avant et après la correction.</div>
+
+<h2>Constat</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Ce qui est dans le cœur et ne devrait pas</h3>
+    <ul class="tight">
+      <li>Réservations hors séjour, occupation, créneaux, cartes d’allumage et de séance.</li>
+      <li>La branche « séances » du moteur de prix.</li>
+      <li>L’étape « Créneaux » du sas, côté serveur.</li>
+      <li>Les variables d’e-mail du bain, trouvé par le mot « nordique ».</li>
+      <li>Côté client : Calendrier › Ressources, les champs horaires du formulaire, le sélecteur de séances, les cartes du planning.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Les 7 défauts relevés</h3>
+    <ul class="tight">
+      <li><b>1.</b> Soirée facturée deux fois après le sas.</li>
+      <li><b>2.</b> Supplément doublé à la réouverture du sas.</li>
+      <li><b>3.</b> Plugin éteint : le serveur planifie, tarifie et rappelle encore les séances.</li>
+      <li><b>4.</b> Toute ressource avec « heure offerte » ou « à créneaux » est tarifée à l’heure.</li>
+      <li><b>5.</b> Les recalculs perdent les séances.</li>
+      <li><b>6.</b> Les e-mails cherchent le bain par son nom.</li>
+      <li><b>7.</b> Aucun point d’extension pour tarifer une ligne, écrire au sas, placer une carte horaire ou ajouter un menu.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu’on propose</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Trois contrats du cœur</h3>
+    <ul class="tight">
+      <li><b>Contributeur de ligne de prix</b> : le plugin tarife la ligne dans la boucle du moteur ; le gel des lignes vendues reste au moteur et couvre désormais ces lignes.</li>
+      <li><b>Contrat de validation du sas</b> : vérifier, ajouter des lignes de complément marquées, écrire dans la transaction.</li>
+      <li><b>Trois emplacements</b> : <code>resources.fields</code>, <code>reservation.resourceLine</code>, <code>calendar.menu</code> ; <code>planning.days</code> accepte une heure.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Le plugin <code>hourly-resources</code></h3>
+    <ul class="tight">
+      <li>Reprend tout le code horaire, aux mêmes URL.</li>
+      <li><code>resource_bookings</code> devient sa table, toutes les lignes gardées.</li>
+      <li>Aucun contrat extérieur ne change : API publique, URL, noms des variables d’e-mail.</li>
+      <li>En production, rien de visible ne bouge, sauf les deux défauts corrigés.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>1. Soirée facturée deux fois</h2>
+<p class="muted">Bain nordique vendu 2 h au tarif de jour (30 €/h). Au sas, une heure est placée à 21 h (tarif soirée 50 €/h).</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Version</span>
+    <div class="seg" id="ver"><button data-v="before" aria-pressed="true">Aujourd’hui</button><button data-v="after" aria-pressed="false">Après 3c</button></div>
+  </div>
+  <div class="sbody">
+    <div class="acts" style="margin-top:0">
+      <button class="mini" id="doSas">Valider le sas</button>
+      <button class="mini" id="doSave" disabled>Enregistrer la fiche</button>
+      <button class="mini" id="doReopen" disabled>Rouvrir et revalider le sas</button>
+      <button class="mini" id="doReset">Recommencer</button>
+    </div>
+    <div class="cols2" style="margin-top:10px">
+      <div class="pane"><h4>Fiche — lignes facturées</h4><div id="bill"></div></div>
+      <div class="pane"><h4>Journal</h4><div class="log" id="blog"></div></div>
+    </div>
+  </div>
+</div>
+
+<h2>2. Plugin actif ou éteint</h2>
+<p class="muted">Un séjour a déjà le bain (2 h, 60 €). Le plugin bascule ; chaque écran suit.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Plugin</span>
+    <div class="seg" id="pl"><button data-v="on" aria-pressed="true">Actif</button><button data-v="off" aria-pressed="false">Éteint</button></div>
+    <span class="lab">Largeur</span>
+    <div class="seg" id="wd"><button data-v="full" aria-pressed="true">Bureau</button><button data-v="375" aria-pressed="false">375 px</button></div>
+  </div>
+  <div class="sbody">
+    <div class="app" id="appbox">
+      <div class="nav" id="nav"></div>
+      <div class="panes">
+        <div class="pane">
+          <h4>Paramètres › Ressources — nouvelle ressource</h4>
+          <div class="grid2">
+            <div class="field"><label for="rname">Nom</label><input id="rname" value="Sauna"></div>
+            <div class="field"><label for="rtype">Type de prix</label><select id="rtype"></select></div>
+          </div>
+          <div id="rhourly"></div>
+          <div class="acts"><button class="mini" id="rsave">Enregistrer</button><button class="mini" id="rapi" title="Simule un appel API direct">Envoyer « À l’heure » à l’API</button></div>
+          <div id="rmsg"></div>
+        </div>
+        <div class="pane">
+          <h4>Fiche — ressources</h4>
+          <div id="fiche"></div>
+          <div class="acts"><button class="mini" id="addBath">Ajouter « Bain nordique »</button></div>
+          <div id="fmsg"></div>
+        </div>
+        <div class="pane">
+          <h4>Sas d’arrivée — étapes</h4>
+          <div class="steps" id="steps"></div>
+        </div>
+        <div class="pane">
+          <h4>Planning — samedi 10 octobre</h4>
+          <div id="plan"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>3. Désinstaller avec effacement</h2>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Hors séjour</span>
+    <div class="seg" id="ext"><button data-v="paid" aria-pressed="true">2 payées</button><button data-v="unpaid" aria-pressed="false">1 non payée</button><button data-v="none" aria-pressed="false">Aucune</button></div>
+    <label class="chk"><input type="checkbox" id="purge"> Effacer aussi ses données</label>
+  </div>
+  <div class="sbody">
+    <div class="dlg">
+      <h4>Désinstaller « Ressources à l’heure » ?</h4>
+      <div id="dlgw"></div>
+      <div id="dlgl" style="font-size:13.5px"></div>
+      <div class="row"><button class="btn o">Annuler</button><button class="btn ko" id="dlgb">Désinstaller</button></div>
+      <div id="dlgr" class="muted" style="font-size:13px;margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li>Les étapes linge du sas restent sur leur interrupteur de la phase 2 ; elles passeront au contrat de validation ensuite.</li>
+  <li>La colonne <code>resources.showsPlanningCard</code> garde son nom.</li>
+  <li>Le texte du rappel « maillot, serviette » reste au cœur (contenu Solio, sujet déjà ouvert).</li>
+  <li>Les réservations hors séjour restent hors compta, comme aujourd’hui.</li>
+</ul>
+
+<h2>Risques</h2>
+<ul class="tight">
+  <li><b>Moteur de prix</b> : la branche séances sort de <code>pricing.js</code>. Les suites de parité (<code>pricing-*</code>, <code>sas-*</code>, <code>devis-extras-parity</code>) doivent rester vertes, à l’euro près, pour Solio.</li>
+  <li><b>Lignes de supplément existantes</b> : la migration les reconnaît par leur libellé « — supplément soirée ». Une ligne renommée à la main ne serait pas reconnue ; elle reste alors une ligne libre, à son montant.</li>
+  <li><b>Navigateur resté ouvert</b> sur l’ancien sas : le serveur ignore un supplément renvoyé sous forme de ligne libre.</li>
+</ul>
+
+<h2>Arbitrages en attente</h2>
+<p class="muted">La spec suit l’option recommandée de chaque question ; rien n’est codé avant validation.</p>
+<div class="q"><h3>P14 — Plugin éteint</h3>
+  <label class="opt rec"><input type="radio" name="p14" checked>Plus proposées (recommandé) — comme l’assurance sans Neat : aucune vente à l’heure ; une ligne vendue reste figée, en lecture seule.</label>
+  <label class="opt"><input type="radio" name="p14">Vendues sans séances — des heures au tarif de jour, sans créneaux ni planning.</label></div>
+<div class="q"><h3>P15 — Où corriger les deux défauts d’argent</h3>
+  <label class="opt rec"><input type="radio" name="p15" checked>Ici et dans une PR <code>fix/</code> sur master (recommandé) — livrable en version corrective tout de suite.</label>
+  <label class="opt"><input type="radio" name="p15">Dans la 3c seulement — corrigé quand <code>inte/plugins</code> partira en production.</label></div>
+<div class="q"><h3>P16 — Effacer avec des réservations hors séjour payées</h3>
+  <label class="opt rec"><input type="radio" name="p16" checked>Avertir puis effacer (recommandé) — comme Neat (P12).</label>
+  <label class="opt"><input type="radio" name="p16">Refuser tant qu’il en reste.</label></div>
+<div class="q"><h3>P17 — Variables d’e-mail du bain</h3>
+  <label class="opt rec"><input type="radio" name="p17" checked>Créneau fourni par le plugin, sans chercher le nom (recommandé) — mêmes noms de variables, modèles inchangés.</label>
+  <label class="opt"><input type="radio" name="p17">Laisser la recherche « nordique » pour plus tard.</label></div>
+
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const eur = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+function seg(id, cb) {
+  document.querySelectorAll(`#${id} button`).forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    cb(b.dataset.v);
+  }));
+}
+function line(title, amount, sub, badge = '', cls = '') {
+  return `<div class="line ${cls}"><div class="top"><b>${title}</b><span class="amt">${eur(amount)}</span>${badge}</div>${sub ? `<div class="sub2">${sub}</div>` : ''}</div>`;
+}
+
+/* ---------- 1. double evening ---------- */
+const bill = { ver: 'before', step: 0, bath: 60, detail: 'À planifier', sups: [], log: [] };
+function renderBill() {
+  let html = line('Bain nordique', bill.bath, `2 h · ${bill.detail}`, bill.bath > 60 ? '<span class="badge ko">recalculée</span>' : '<span class="badge ok">figée</span>');
+  bill.sups.forEach((s, i) => {
+    html += line('Bain nordique — supplément soirée', s, 'Complément du sas', i > 0 ? '<span class="badge ko">en double</span>' : '', i > 0 ? 'dup' : '');
+  });
+  const total = bill.bath + bill.sups.reduce((a, b) => a + b, 0);
+  const ok = total === 80;
+  html += `<div class="total"><span>Total bain</span><span class="amt" style="color:var(${ok ? '--sapin' : '--ko'})">${eur(total)}</span></div>`;
+  if (bill.step > 0) html += `<div class="sub2">${ok ? '<span class="ok">Dû : 80,00 € (60 € + 20 € de soirée).</span>' : `<span style="color:var(--ko)">Dû : 80,00 €. Trop facturé : ${eur(total - 80)}.</span>`}</div>`;
+  $('#bill').innerHTML = html;
+  $('#blog').textContent = bill.log.join('\n') || 'En attente.';
+  $('#doSas').disabled = bill.step !== 0;
+  $('#doSave').disabled = bill.step === 0;
+  $('#doReopen').disabled = bill.step === 0;
+}
+function resetBill() { Object.assign(bill, { step: 0, bath: 60, detail: 'À planifier', sups: [], log: [] }); renderBill(); }
+$('#doSas').addEventListener('click', () => {
+  bill.step = 1; bill.detail = '2 h / 2 h planifiées'; bill.sups = [20];
+  bill.log.push('Sas : 1 h à 15 h, 1 h à 21 h → supplément soirée 20 €.');
+  renderBill();
+});
+$('#doSave').addEventListener('click', () => {
+  if (bill.ver === 'before') {
+    bill.bath = 80;
+    bill.log.push('Fiche enregistrée : les séances repartent, la ligne est recalculée au tarif soirée (30 + 50 = 80 €).');
+  } else {
+    bill.log.push('Fiche enregistrée : ligne vendue, prix figé à 60 €. Les séances ne servent qu’à l’affichage.');
+  }
+  renderBill();
+});
+$('#doReopen').addEventListener('click', () => {
+  if (bill.ver === 'before') {
+    bill.sups.push(20);
+    bill.log.push('Sas rouvert : l’ancien supplément revient comme ligne libre, le serveur en ajoute un nouveau.');
+  } else {
+    bill.sups = [Math.max(0, 30 + 50 - bill.bath)];
+    if (bill.sups[0] === 0) bill.sups = [];
+    bill.log.push(`Sas rouvert : le supplément est celui du plugin, remplacé — ${bill.sups.length ? eur(bill.sups[0]) : 'aucun'} (prix des créneaux − ce que la ligne facture déjà).`);
+  }
+  renderBill();
+});
+$('#doReset').addEventListener('click', resetBill);
+seg('ver', (v) => { bill.ver = v; resetBill(); });
+renderBill();
+
+/* ---------- 2. on / off ---------- */
+const st = { on: true, added: false };
+const TYPES = [['per_stay', 'Par séjour'], ['per_night', 'Par nuit'], ['per_person', 'Par personne'], ['per_hour', 'À l’heure']];
+function renderTypes() {
+  const sel = $('#rtype'); const cur = sel.value || 'per_hour';
+  sel.innerHTML = TYPES.filter(([v]) => st.on || v !== 'per_hour').map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  sel.value = TYPES.some(([v]) => v === cur) && (st.on || cur !== 'per_hour') ? cur : 'per_stay';
+  renderHourly();
+}
+function renderHourly() {
+  const h = st.on && $('#rtype').value === 'per_hour';
+  $('#rhourly').innerHTML = h ? `<div class="block">
+      <div class="grid2">
+        <div class="field"><label>Prix de jour (€/h)</label><input value="30"></div>
+        <div class="field"><label>Heure offerte</label><select><option>Aucune</option><option>1 h</option></select></div>
+        <div class="field"><label>Prix soirée (€/h) dès</label><input value="50 € · 20:00"></div>
+        <div class="field"><label>Créneaux</label><input value="60 min · 11:00–22:00"></div>
+        <div class="field"><label>Chauffe</label><input value="240 min"></div>
+        <div class="field"><label>Hors séjour (jour / soirée)</label><input value="50 € / 70 €"></div>
+      </div>
+      <label class="chk"><input type="checkbox" checked> Carte au planning</label>
+    </div>` : `<div class="grid2"><div class="field"><label>Prix (€)</label><input value="15"></div></div>`;
+}
+function renderOnOff() {
+  $('#nav').innerHTML = `<div>Planning</div><div>Calendrier</div><div class="sub">Réservations</div>${st.on ? '<div class="sub">Ressources</div>' : ''}<div>Finances</div><div>Paramètres</div>`;
+  renderTypes();
+  $('#rmsg').innerHTML = '';
+  let f = '';
+  if (st.on) {
+    f += line('Bain nordique', 60, '2 h · 1 h / 2 h planifiées');
+    f += `<div class="sub2" style="margin:-4px 0 8px 2px">Séances : sam. 10 oct. 15:00–16:00 · <a href="#" onclick="return false">Ajouter</a></div>`;
+  } else {
+    f += line('Bain nordique', 60, 'Prix figé : 60,00 € · Lecture seule : plugin Ressources à l’heure inactif', '<span class="badge">🔒</span>', 'ro');
+    f += `<div class="acts" style="margin-top:-2px"><button class="mini" disabled>− 1 h</button><button class="mini" disabled>+ 1 h</button><button class="mini" disabled>Retirer</button></div>`;
+  }
+  if (st.added && st.on) f += line('Bain nordique (2ᵉ séjour)', 30, '1 h · À planifier');
+  f += line('Lit bébé', 0, 'Par séjour · offert');
+  $('#fiche').innerHTML = f;
+  $('#fmsg').innerHTML = '';
+  $('#addBath').textContent = st.on ? 'Ajouter « Bain nordique »' : 'Ajouter « Bain nordique » (API)';
+  const steps = ['Accueil', 'Caution', 'Petit-déjeuner', ...(st.on ? ['Créneaux'] : []), 'Paiement', 'Récapitulatif'];
+  $('#steps').innerHTML = steps.map((s) => `<span class="${s === 'Créneaux' ? 'l' : ''}">${s}</span>`).join('');
+  let p = '';
+  if (st.on) {
+    p += `<div class="pcard res"><span class="h">11:00</span><b>Allumer le bain nordique</b><button class="mini" onclick="this.parentNode.classList.toggle('done')">Fait</button></div>`;
+    p += `<div class="pcard"><span class="h">12:00</span><b>Petit-déjeuner — Gîte</b></div>`;
+    p += `<div class="pcard res"><span class="h">15:00</span><b>Bain nordique — Martin (1 h)</b><button class="mini" onclick="this.parentNode.classList.toggle('done')">Fait</button></div>`;
+  } else {
+    p += `<div class="pcard"><span class="h">12:00</span><b>Petit-déjeuner — Gîte</b></div>`;
+  }
+  p += `<div class="pcard"><span class="h">—</span><b>Linge : tournée blanchisserie</b></div>`;
+  $('#plan').innerHTML = p;
+}
+$('#rtype').addEventListener('change', renderHourly);
+$('#rsave').addEventListener('click', () => {
+  $('#rmsg').innerHTML = `<div class="ok" style="font-size:13px;margin-top:6px">Ressource enregistrée.</div>`;
+});
+$('#rapi').addEventListener('click', () => {
+  $('#rmsg').innerHTML = st.on
+    ? `<div class="ok" style="font-size:13px;margin-top:6px">201 — enregistrée à l’heure.</div>`
+    : `<div class="err">400 — Le prix à l’heure demande le plugin Ressources à l’heure.</div>`;
+});
+$('#addBath').addEventListener('click', () => {
+  if (st.on) { st.added = true; renderOnOff(); $('#fmsg').innerHTML = '<div class="ok" style="font-size:13px">Ajouté.</div>'; return; }
+  $('#fmsg').innerHTML = '<div class="err">422 — Ce produit n’est plus proposé.</div>';
+});
+seg('pl', (v) => { st.on = v === 'on'; renderOnOff(); });
+seg('wd', (v) => { $('#appbox').style.maxWidth = v === '375' ? '375px' : ''; $('#appbox').style.gridTemplateColumns = v === '375' ? '1fr' : ''; });
+renderOnOff();
+
+/* ---------- 3. uninstall ---------- */
+const un = { ext: 'paid' };
+function renderUn() {
+  const purge = $('#purge').checked;
+  const n = un.ext === 'paid' ? 2 : un.ext === 'unpaid' ? 1 : 0;
+  $('#dlgw').innerHTML = purge && un.ext === 'paid' ? '<div class="w">⚠ 2 réservations hors séjour, 140,00 € encaissés, absents de la compta</div>' : '';
+  $('#dlgl').innerHTML = purge
+    ? `Seront effacés : ${n && un.ext !== 'paid' ? `${n} réservation hors séjour, ` : ''}14 séances planifiées, les réglages de créneaux. C’est définitif.<br><span class="muted">Les lignes vendues restent, à leur prix.</span>`
+    : 'Tout est conservé. Le bain vendu reste visible, en lecture seule.';
+  $('#dlgb').textContent = purge ? 'Désinstaller et effacer' : 'Désinstaller';
+  $('#dlgr').textContent = '';
+}
+$('#purge').addEventListener('change', renderUn);
+$('#dlgb').addEventListener('click', () => { $('#dlgr').textContent = $('#purge').checked ? 'Effacé. Une réinstallation repart à vide.' : 'Désinstallé. Les données attendent une réinstallation.'; });
+seg('ext', (v) => { un.ext = v; renderUn(); });
+renderUn();
+</script>
+</body>
+</html>
