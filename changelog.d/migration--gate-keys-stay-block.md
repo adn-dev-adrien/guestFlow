@@ -1,1 +1,0 @@
-- `gate_key_results.propertyId INTEGER` (nullable) added at start and backfilled from the reservation for every row whose reservation still exists. A row whose reservation was deleted earlier stays NULL and its revoke goes out without `stay`. No data rewritten or lost.
