@@ -78,7 +78,7 @@ try {
   if (fs.existsSync(process.env.DB_PATH)) {
     const pending = pendingChanges(process.env.DB_PATH);
     if (pending) {
-      console.error(`La base de l’instance n’est pas à la version de ce script (${pending.added.length} migration(s)${pending.changed ? ', schéma différent' : ''}) : lancez le script livré avec la version de l’instance.`);
+      console.error(`Base de l’instance d’une autre version (${pending.added.length} migration(s)${pending.changed ? ', schéma différent' : ''}) : lancer le script de sa version.`);
       process.exit(3);
     }
   }

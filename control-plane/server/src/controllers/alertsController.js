@@ -39,7 +39,7 @@ function createAlertsController(ctx, customersController, billingController) {
       alerts.push({ customerId: c.id, severity: 'error', text: `${c.companyName} : étape « ${labels.get(s.step) || s.step} » en échec.` });
     }
     for (const c of customersController.erasureBlocked()) {
-      alerts.push({ customerId: c.id, severity: 'warning', text: `${c.companyName} : effacement en attente, « Processus et route arrêtés » n’est pas coché.` });
+      alerts.push({ customerId: c.id, severity: 'warning', text: `${c.companyName} : effacement en attente de « Processus et route arrêtés ».` });
     }
     alerts.push(...billingController.alerts());
     return { alerts, queue: billingController.queue() };

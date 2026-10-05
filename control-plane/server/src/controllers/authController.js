@@ -162,7 +162,7 @@ function createAuthController(ctx) {
   async function startMethod(operatorId, { method, password }) {
     const op = operators.byId(operatorId);
     if (!passwordHash.verifyPassword(String(password || ''), op.passwordHash)) {
-      throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect : la méthode actuelle reste en place.');
+      throw httpError(400, 'BAD_PASSWORD', 'Mot de passe incorrect.');
     }
     if (method === 'totp') {
       const secret = totp.generateSecret();
@@ -193,7 +193,7 @@ function createAuthController(ctx) {
       operators.recordPendingFailure(op.id);
       if (operators.byId(op.id).pendingFailures >= MAX_FAILURES) {
         operators.dropPending(op.id);
-        throw httpError(429, 'TOO_MANY_CODES', 'Trop de codes incorrects : le changement est annulé, la méthode actuelle reste en place.');
+        throw httpError(429, 'TOO_MANY_CODES', 'Trop de codes incorrects : changement annulé.');
       }
       throw httpError(400, 'BAD_CODE', 'Code incorrect : la méthode actuelle reste en place.');
     }

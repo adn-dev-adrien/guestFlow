@@ -175,8 +175,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
      password) is removed once the real admin exists, if nobody ever used it: on a hosted instance a
      well-known password must not stay open.
    - Opening the instance's database runs the script's migrations. On an existing database the
-     script first replays them on a copy and refuses (exit 3, « n'est pas à la version de ce
-     script ») when they would change anything, so a console shipped with another version never
+     script first replays them on a copy and refuses (exit 3, « Base de l’instance d’une autre version ») when they would change anything, so a console shipped with another version never
      moves a customer's schema (added 2026-10-04 after the review).
    - The end date, the price and the field errors are computed by the server as the form is typed.
      With a trial, the subscription's end is the trial's end: the first paid period starts with the
@@ -345,7 +344,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     Added 2026-10-04 after the review:
     - « Enregistrer un paiement » and « Prolonger » carry the end date the operator was looking at;
       when it has changed meanwhile (a second click, a second tab), the server refuses with `409
-      STALE` « L'échéance de ce client vient de changer : rechargez la page ». Every dialog's
+      STALE` « Échéance modifiée entre-temps : recharger la page. ». Every dialog's
       submit button is disabled and spins while its request is in flight.
     - An extension while an invoice is unsettled leaves that invoice as issued; its payment then adds
       its length to the extended date (the gesture is kept).

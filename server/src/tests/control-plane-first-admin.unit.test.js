@@ -70,7 +70,7 @@ test('rule 7 — a database at another version than the script is refused and le
     db.close();
     const refused = runRaw(dbPath, 'jo@aulnes.fr');
     assert.equal(refused.status, 3);
-    assert.match(refused.stderr, /n’est pas à la version de ce script/);
+    assert.match(refused.stderr, /Base de l’instance d’une autre version/);
     db = new Database(dbPath, { readonly: true });
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM migrations WHERE name = ?').get(last).n, 0, 'nothing migrated');
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM users WHERE email = 'jo@aulnes.fr'").get().n, 0);

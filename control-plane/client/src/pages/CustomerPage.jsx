@@ -297,7 +297,7 @@ export default function CustomerPage() {
 
       <FormDialog submitBusy={busy} open={dialog === 'rename'} onClose={() => setDialog(null)} title={`Changer l’adresse de ${c.companyName}`} submitLabel="Changer l’adresse"
         submitDisabled={!renameCheck || Boolean(renameCheck.error) || !draft.slug || (draft.checked || []).length < renameCheck.checklist.length}
-        onSubmit={() => act(() => api.rename(c.id, draft.slug, draft.checked), 'Adresse changée. Une fois le dossier déplacé, cochez l’étape : la licence y sera écrite.')}>
+        onSubmit={() => act(() => api.rename(c.id, draft.slug, draft.checked), 'Adresse changée.')}>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
           <TextField label="Nouvelle adresse" value={draft.slug || ''} onChange={(e) => set('slug')(e.target.value.trim())} autoComplete="off"
             error={Boolean(draft.slug && renameCheck && renameCheck.error)}

@@ -86,7 +86,7 @@ it('rule 15 — while the payment is being saved, the button is disabled: a doub
 });
 
 it('rule 20 — erasing waits for the stop step, and the button says why', async () => {
-  api.customer.mockResolvedValue({ ...customer, archivedAt: '2026-09-29', actions: { ...customer.actions, deprovision: false, eraseNow: false, eraseHint: 'Cochez d’abord « Processus et route arrêtés ».' } });
+  api.customer.mockResolvedValue({ ...customer, archivedAt: '2026-09-29', actions: { ...customer.actions, deprovision: false, eraseNow: false, eraseHint: '« Processus et route arrêtés » à cocher d’abord.' } });
   page();
   expect(await screen.findByRole('button', { name: 'Effacer maintenant' })).toBeDisabled();
 });

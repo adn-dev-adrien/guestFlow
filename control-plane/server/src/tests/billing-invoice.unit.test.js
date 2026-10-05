@@ -139,7 +139,7 @@ test('rule 17 — a total Qonto computes differently cancels that invoice and ho
     s.qonto.state.failNext = { step: 'createInvoice', error: mismatch };
     let view = await s.run('2026-10-25T08:00:00Z');
     assert.deepEqual(s.qonto.named('cancelInvoice').map((c) => c.args), ['inv_x']);
-    assert.match(view.invoices[0].detail, /^Qonto a calculé 70,81\s€ au lieu de 70,80\s€ : facture bloquée/);
+    assert.match(view.invoices[0].detail, /^Montant Qonto 70,81\s€ au lieu de 70,80\s€ : facture bloquée\./);
     assert.equal(view.actions.retryInvoice, true);
     assert.ok(view.history.some((h) => h.text === 'Facture Qonto au mauvais montant annulée dans Qonto (inv_x)'));
 

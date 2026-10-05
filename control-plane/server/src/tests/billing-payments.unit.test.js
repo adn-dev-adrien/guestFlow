@@ -124,7 +124,7 @@ test('rule 34 — a card payment that just landed wins over the payment recorded
   try {
     s.qonto.pay('pl_3');
     const v = await s.billing.recordPayment(s.c.id, { months: 1, expectedEndsAt: s.view().endsAt }, 'adrien');
-    assert.match(v.notice, /vient d’être payée en ligne/);
+    assert.match(v.notice, /déjà payée en ligne/);
     assert.equal(v.endsAt, '2026-12-01');
     assert.equal(v.invoices.length, 1);
     assert.equal(v.invoices[0].detail.startsWith('Payée le'), true);

@@ -81,7 +81,7 @@ function createBillingController(ctx, customersController) {
 
   function errorText(err) {
     if (err.code === 'QONTO_NOT_CONNECTED' || err.code === 'QONTO_NOT_CONFIGURED') return 'Qonto n’est pas connecté (Réglages → Paiements).';
-    if (err.body && err.body.code === 'AMOUNT_MISMATCH') return `Qonto a calculé ${euros(err.body.charged)} au lieu de ${euros(err.body.expected)} : facture bloquée, à vérifier puis « Réessayer la facture ».`;
+    if (err.body && err.body.code === 'AMOUNT_MISMATCH') return `Montant Qonto ${euros(err.body.charged)} au lieu de ${euros(err.body.expected)} : facture bloquée. Vérifier, puis « Réessayer la facture ».`;
     return err.message || 'Erreur Qonto.';
   }
 
@@ -384,7 +384,7 @@ function createBillingController(ctx, customersController) {
     if (inv.status === 'open' && inv.payLinkId && qonto.ready()) {
       try {
         if (await checkInvoice(inv, operator)) {
-          return { ...customersController.view(c.id), notice: `La facture ${label} vient d’être payée en ligne : abonnement renouvelé, aucun paiement à la main enregistré.` };
+          return { ...customersController.view(c.id), notice: `Facture ${label} déjà payée en ligne : abonnement renouvelé, rien d’enregistré.` };
         }
       } catch {
         // Qonto unreachable: the operator's payment is recorded all the same.

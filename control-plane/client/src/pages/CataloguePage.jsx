@@ -158,7 +158,7 @@ export default function CataloguePage() {
               <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
                 {saving.lines.map((l) => <Typography key={l} component="li" variant="body2" sx={{ mb: 0.5 }}>{l}</Typography>)}
               </Box>
-            ) : <Typography variant="body2">Rien ne change pour les clients.</Typography>}
+            ) : <Typography variant="body2">Aucun impact sur les clients.</Typography>}
             <TextField label="Motif (obligatoire)" value={saving.reason} onChange={(e) => setSaving((s) => ({ ...s, reason: e.target.value }))} multiline minRows={2} />
           </Stack>
         )}

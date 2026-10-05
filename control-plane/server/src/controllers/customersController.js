@@ -93,7 +93,7 @@ function createCustomersController(ctx) {
   // click, or a second tab, finds it changed and is refused instead of counting twice.
   function assertExpectedEndsAt(c, body) {
     if (String((body || {}).expectedEndsAt || '') !== c.endsAt) {
-      throw httpError(409, 'STALE', 'L’échéance de ce client vient de changer : rechargez la page avant de recommencer.');
+      throw httpError(409, 'STALE', 'Échéance modifiée entre-temps : recharger la page.');
     }
   }
 
@@ -361,12 +361,12 @@ function createCustomersController(ctx) {
         changePlan: !archived,
         downloadLicence: true,
         deprovision: !archived && !renamePending(c),
-        deprovisionHint: renamePending(c) ? 'Terminez d’abord le changement d’adresse (dossier renommé).' : null,
+        deprovisionHint: renamePending(c) ? 'Changement d’adresse à terminer d’abord.' : null,
         reactivate: archived,
         rename: !archived,
         cancelErase: archived && Boolean(c.eraseAt),
         eraseNow: archived && stopped(c),
-        eraseHint: archived && !stopped(c) ? 'Cochez d’abord « Processus et route arrêtés ».' : null,
+        eraseHint: archived && !stopped(c) ? '« Processus et route arrêtés » à cocher d’abord.' : null,
         editBilling: !archived,
         remind: !archived && Boolean(openInvoice),
         remindHint: openInvoice ? null : 'Aucune facture ouverte à relancer.',
@@ -710,7 +710,7 @@ function createCustomersController(ctx) {
   async function deprovision(id, body, operator) {
     const c = mustGet(id);
     if (c.archivedAt) throw httpError(409, 'ARCHIVED', 'Client déjà archivé.');
-    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Terminez d’abord le changement d’adresse : le dossier de l’instance porte encore l’ancien nom.');
+    if (renamePending(c)) throw httpError(409, 'RENAME_PENDING', 'Changement d’adresse à terminer d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
 
     // 1. The export. A failure stops here: nothing is archived without its data safe.
@@ -748,7 +748,7 @@ function createCustomersController(ctx) {
     dropExports(c.id);
     provisioning.clear(c.id, 'deprov-');
     provisioning.set(c.id, 'restart', 'todo', '', stamp());
-    journal(c.id, operator, 'reactivate', 'Réactivé depuis son dossier ; effacement annulé, export et son lien supprimés');
+    journal(c.id, operator, 'reactivate', 'Réactivé depuis son dossier ; effacement annulé, export supprimé');
     refresh(c.id, operator);
     return view(c.id);
   }
@@ -779,7 +779,7 @@ function createCustomersController(ctx) {
     const expired = provisioning.expiredExports(today()).filter((exp) => fs.existsSync(exp.path));
     for (const exp of expired) {
       fs.rmSync(exp.path, { force: true });
-      journal(exp.customerId, 'système', 'deprovision', 'Archive d’export supprimée : son lien de 30 jours a expiré');
+      journal(exp.customerId, 'système', 'deprovision', 'Archive d’export supprimée (lien expiré)');
     }
     return expired.length;
   }
@@ -787,7 +787,7 @@ function createCustomersController(ctx) {
   function eraseNow(id, body, operator) {
     const c = mustGet(id);
     if (!c.archivedAt) throw httpError(409, 'NOT_ARCHIVED', 'Seul un client archivé peut être effacé.');
-    if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', 'Cochez d’abord « Processus et route arrêtés » : on n’efface pas une instance qui tourne.');
+    if (!stopped(c)) throw httpError(409, 'NOT_STOPPED', '« Processus et route arrêtés » à cocher d’abord.');
     if (String(body.confirmSlug || '') !== c.slug) throw httpError(400, 'CONFIRM_SLUG', `Tapez exactement « ${c.slug} » pour confirmer.`);
     return erase(c.id, operator);
   }

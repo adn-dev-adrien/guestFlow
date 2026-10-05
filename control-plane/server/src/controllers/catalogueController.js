@@ -138,15 +138,15 @@ function createCatalogueController(ctx, customersController) {
     const quota = (n) => (n === null ? 'illimité' : String(n));
     for (const p of catalogue.plans()) {
       const next = plans.find((x) => x.code === p.code);
-      if (next.priceMonthlyCents !== p.priceMonthlyCents) lines.push(`${p.name} : ${euros(p.priceMonthlyCents)} → ${euros(next.priceMonthlyCents)} HT / mois pour les nouveaux clients ; les clients actuels gardent leur prix.`);
-      if (next.priceYearlyCents !== p.priceYearlyCents) lines.push(`${p.name} à l’année : ${euros(p.priceYearlyCents)} → ${euros(next.priceYearlyCents)} HT / mois pour les nouveaux clients ; les clients actuels gardent leur prix.`);
-      if (next.maxUnits !== p.maxUnits) lines.push(`${p.name} : logements ${quota(p.maxUnits)} → ${quota(next.maxUnits)}, pour tous ses clients.`);
-      if (next.maxUsers !== p.maxUsers) lines.push(`${p.name} : comptes ${quota(p.maxUsers)} → ${quota(next.maxUsers)}, pour tous ses clients.`);
+      if (next.priceMonthlyCents !== p.priceMonthlyCents) lines.push(`${p.name} : ${euros(p.priceMonthlyCents)} → ${euros(next.priceMonthlyCents)} HT / mois (nouveaux clients uniquement).`);
+      if (next.priceYearlyCents !== p.priceYearlyCents) lines.push(`${p.name} à l’année : ${euros(p.priceYearlyCents)} → ${euros(next.priceYearlyCents)} HT / mois (nouveaux clients uniquement).`);
+      if (next.maxUnits !== p.maxUnits) lines.push(`${p.name} : logements ${quota(p.maxUnits)} → ${quota(next.maxUnits)} (tous ses clients).`);
+      if (next.maxUsers !== p.maxUsers) lines.push(`${p.name} : comptes ${quota(p.maxUsers)} → ${quota(next.maxUsers)} (tous ses clients).`);
     }
     const before = new Map(catalogue.addons().map((a) => [a.pluginId, a.priceMonthlyCents]));
     for (const a of addons) {
       if (!before.has(a.pluginId)) lines.push(`Nouvelle option ${pluginName(a.pluginId)} : ${euros(a.priceMonthlyCents)} HT / mois.`);
-      else if (before.get(a.pluginId) !== a.priceMonthlyCents) lines.push(`Option ${pluginName(a.pluginId)} : ${euros(before.get(a.pluginId))} → ${euros(a.priceMonthlyCents)} HT / mois pour les nouveaux clients.`);
+      else if (before.get(a.pluginId) !== a.priceMonthlyCents) lines.push(`Option ${pluginName(a.pluginId)} : ${euros(before.get(a.pluginId))} → ${euros(a.priceMonthlyCents)} HT / mois (nouveaux clients uniquement).`);
     }
     for (const id of before.keys()) if (!addons.some((a) => a.pluginId === id)) lines.push(`Option ${pluginName(id)} retirée de la vente.`);
     return lines;
@@ -167,14 +167,14 @@ function createCatalogueController(ctx, customersController) {
       const price = (text, cents, fallback, label) => {
         if (text === undefined) return cents === undefined ? fallback : cents;
         const v = parseEuros(text);
-        if (v === null || v <= 0) throw httpError(400, 'INVALID', `Prix ${label} invalide pour ${p.name} : un montant en euros, plus que zéro.`);
+        if (v === null || v <= 0) throw httpError(400, 'INVALID', `Prix ${label} de ${p.name} invalide.`);
         return v;
       };
       const count = (text, value, fallback, label) => {
         if (text === undefined) return value === undefined ? fallback : value;
         const s = String(text).trim();
         if (s === '') return null;
-        if (!/^\d+$/.test(s)) throw httpError(400, 'INVALID', `Quota de ${label} invalide pour ${p.name} : un nombre entier, ou vide pour illimité.`);
+        if (!/^\d+$/.test(s)) throw httpError(400, 'INVALID', `Quota de ${label} de ${p.name} invalide (nombre entier, ou vide pour illimité).`);
         return Number(s);
       };
       const out = {
@@ -200,7 +200,7 @@ function createCatalogueController(ctx, customersController) {
     return input.map((a) => {
       if (!gfPlugins.PLUGIN_IDS.includes(a.pluginId) || seen.has(a.pluginId)) throw httpError(400, 'INVALID', 'Option inconnue ou en double.');
       const cents = a.price !== undefined ? parseEuros(a.price) : a.priceMonthlyCents;
-      if (!Number.isInteger(cents) || cents < 0) throw httpError(400, 'INVALID', `Prix invalide pour ${pluginName(a.pluginId)} : un montant en euros.`);
+      if (!Number.isInteger(cents) || cents < 0) throw httpError(400, 'INVALID', `Prix de ${pluginName(a.pluginId)} invalide.`);
       seen.add(a.pluginId);
       return { pluginId: a.pluginId, priceMonthlyCents: cents };
     });
