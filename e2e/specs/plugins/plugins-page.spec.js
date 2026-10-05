@@ -44,7 +44,7 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
   await page.goto('/parametres/plugins');
   await googleCard(page).getByText(GOOGLE).click();
   await googleCard(page).getByRole('button', { name: 'Désinstaller' }).click();
-  await expect(googleCard(page).getByText(/Tes données sont conservées/)).toBeVisible();
+  await expect(googleCard(page).getByText(/^Données conservées\.$/)).toBeVisible();
   await googleCard(page).getByRole('button', { name: 'Confirmer la désinstallation' }).click();
 
   await expect(page.getByRole('tab', { name: 'Installés (11)' })).toBeVisible();
@@ -58,8 +58,9 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
 test('the SAS cannot be deactivated while a reception account is active', async ({ page }) => {
   await page.goto('/parametres/plugins');
   const sas = page.locator('.MuiCard-root').filter({ hasText: 'Arrivée et départ guidés' });
-  await sas.getByRole('button', { name: 'Désactiver' }).click();
-  await expect(sas.getByRole('alert')).toContainText('1 compte Accueil est actif');
+  // The refusal is said before the click, and the button it would refuse is disabled.
+  await expect(sas.getByText('1 compte Accueil actif : changer son rôle dans Utilisateurs d’abord.')).toBeVisible();
+  await expect(sas.getByRole('button', { name: 'Désactiver' })).toBeDisabled();
   await expect(sas.getByText('Actif', { exact: true })).toBeVisible();
 });
 

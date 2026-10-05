@@ -22,6 +22,7 @@
 const { templateAutoSends } = require('../utils/autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('../utils/guestEmailSequence');
 const { isoToday } = require('../utils/emailAutoSendRunner');
+const { PLUGIN_OF_TEMPLATE } = require('../utils/defaultEmailTemplatesRegistry');
 
 const DAY_OFFSET_MIN = -90;
 const DAY_OFFSET_MAX = 90;
@@ -68,6 +69,10 @@ function validateForUpdate(payload) {
  */
 function buildController(model, settingsModel, deps = {}) {
   const today = deps.today || (() => isoToday());
+  const isLive = deps.isLive || ((id) => require('../plugins/sdk/registry').isLive(id));
+  const editorTokens = deps.editorTokens || (() => require('../plugins/sdk/eventBus').editorTokens());
+  // A template only an inactive plugin could send is not listed (specs/plugins-phase-1-sdk.md rule 13).
+  const sendable = (row) => !PLUGIN_OF_TEMPLATE[row.stableKey] || isLive(PLUGIN_OF_TEMPLATE[row.stableKey]);
 
   function afterWrite(row) {
     if (row && SEQUENCE_STABLE_KEYS.includes(row.stableKey) && templateAutoSends(row)
@@ -78,7 +83,12 @@ function buildController(model, settingsModel, deps = {}) {
   }
 
   function list(req, res) {
-    return res.json(model.list());
+    return res.json(model.list().filter(sendable));
+  }
+
+  // GET /api/email-templates/plugin-variables — the live plugins' variables and conditions.
+  function pluginVariables(req, res) {
+    return res.json(editorTokens());
   }
 
   function getOne(req, res) {
@@ -131,7 +141,7 @@ function buildController(model, settingsModel, deps = {}) {
     return res.json({ ok: true });
   }
 
-  return { list, getOne, create, update, remove };
+  return { list, pluginVariables, getOne, create, update, remove };
 }
 
 const defaultController = (() => {

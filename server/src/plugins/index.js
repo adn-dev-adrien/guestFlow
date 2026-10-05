@@ -14,4 +14,5 @@ module.exports = [
   require('./accounting-export'),
   require('./linen'),
   require('./online-payment'),
+  require('./neat'),
 ];

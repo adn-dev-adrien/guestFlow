@@ -104,7 +104,7 @@ test('rule 29: an unmanaged instance with no licence file enforces nothing', () 
   assert.equal(r.isReadOnly(), false);
   assert.equal(r.allowsPlugin('neat'), true);
   assert.equal(r.quota('units'), null);
-  assert.deepEqual(r.banner(), { state: null });
+  assert.deepEqual(r.banner(), { state: null, text: null });
   assert.equal(r.logs.length, 0);
 });
 
@@ -137,6 +137,51 @@ test('rule 14: read_only, suspended and archived all stop writes; trial, due and
   }
 });
 
+test('rule 9: an expiry date that cannot be read is no bound — the licence is refused', () => {
+  for (const expiresAt of [1700000000, '31/12/2020', 'demain']) {
+    const r = reader({ payload: { ...PRO, expiresAt } });
+    assert.equal(r.current().valid, false, String(expiresAt));
+    assert.equal(r.isReadOnly(), true);
+  }
+});
+
+test('rule 9: a licence issued for another instance is refused when the instance knows its slug', () => {
+  const store = { [`/data/${FILE_NAME}`]: signLicence({ ...PRO, slug: 'aulnes' }, privateKey) };
+  const r = createLicenceReader({ dataDir: '/data', publicKey: PUBLIC_B64, managed: true, slug: 'solio', now: () => NOW, readFile: (f) => store[f], log: () => {} });
+  assert.equal(r.current().valid, false);
+  assert.match(r.current().reason, /another instance \(aulnes\)/);
+  assert.equal(reader().current().valid, true, 'no slug configured: not checked');
+});
+
+test('rule 29: a licence file that is there but unreadable is enforced, and logged', () => {
+  const r = createLicenceReader({
+    dataDir: '/data', publicKey: PUBLIC_B64, managed: false, now: () => NOW, log: (m) => r.logs.push(m),
+    readFile: () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); },
+  });
+  r.logs = [];
+  assert.equal(r.current().enforced, true);
+  assert.equal(r.isReadOnly(), true);
+  assert.match(r.logs[0], /unreadable \(EACCES\)/);
+});
+
+test('rule 12: once expired, the licence still decides the plugins — a withdrawn one never comes back', () => {
+  const r = reader({ payload: { ...PRO, expiresAt: '2026-10-01T00:00:00Z' } });
+  assert.equal(r.isReadOnly(), true);
+  assert.equal(r.allowsPlugin('linen'), true);
+  assert.equal(r.allowsPlugin('neat'), false);
+  assert.equal(r.planFor('neat'), 'Premium');
+  assert.equal(reader({ token: 'not.a.licence' }).allowsPlugin('neat'), true, 'unreadable: the stored states stay');
+});
+
+test('rule 9: a licence that does not verify is read again within seconds, not a minute', () => {
+  let t = NOW.getTime();
+  const r = reader({ token: 'half.written', now: () => new Date(t) });
+  assert.equal(r.current().valid, false);
+  r.store[`/data/${FILE_NAME}`] = signLicence(PRO, privateKey);
+  t += 3000;
+  assert.equal(r.current().valid, true);
+});
+
 test('an unknown state is refused rather than guessed', () => {
   assert.equal(reader({ payload: { ...PRO, state: 'paused' } }).current().reason, 'unknown state');
 });
@@ -146,14 +191,27 @@ test('an unknown state is refused rather than guessed', () => {
 test('the banner counts the days left in Paris days', () => {
   // 23:30 UTC on 11/11 is already 12/11 in Paris: the subscription ends today.
   const r = reader({ payload: { ...PRO, state: 'due', endsAt: '2026-11-12' }, now: () => new Date('2026-11-11T23:30:00Z') });
-  assert.deepEqual(r.banner(), { state: 'due', endsAt: '2026-11-12', daysLeft: 0, planName: 'Pro', payUrl: null });
+  assert.deepEqual(r.banner(), { state: 'due', endsAt: '2026-11-12', daysLeft: 0, planName: 'Pro', payUrl: null, severity: 'info', text: 'Abonnement Pro jusqu’au 12/11/2026.' });
   const later = reader({ payload: { ...PRO, state: 'grace', endsAt: '2026-11-12', payUrl: 'https://pay.qonto.com/x' }, now: () => new Date('2026-11-15T09:00:00Z') });
   assert.equal(later.banner().daysLeft, -3);
   assert.equal(later.banner().payUrl, 'https://pay.qonto.com/x');
+  assert.equal(later.banner().text, 'Abonnement échu depuis le 12/11/2026 : à renouveler pour garder l’accès complet.');
+});
+
+test('the banner reads a date-time as its Paris day, and words the trial without guessing', () => {
+  const at = (endsAt, now) => reader({ payload: { ...PRO, state: 'trial', endsAt }, now: () => new Date(now) }).banner();
+  const late = at('2026-11-11T23:00:00Z', '2026-11-01T10:00:00Z');
+  assert.equal(late.endsAt, '2026-11-12', '23:00 UTC is already the 12th in Paris');
+  assert.equal(late.text, 'Période d’essai : 11 jours restants.');
+  assert.equal(at('2026-11-01', '2026-11-01T10:00:00Z').text, 'Dernier jour de la période d’essai.');
+  assert.equal(reader({ payload: { ...PRO, state: 'trial', endsAt: null } }).banner().text, 'Période d’essai.');
 });
 
 test('an untrusted licence shows the read-only banner without dates', () => {
-  assert.deepEqual(reader({ files: {} }).banner(), { state: 'read_only', endsAt: null, daysLeft: null, planName: null, payUrl: null });
+  assert.deepEqual(reader({ files: {} }).banner(), {
+    state: 'read_only', endsAt: null, daysLeft: null, planName: null, payUrl: null,
+    severity: 'error', text: 'Lecture seule : données consultables et exportables, calendriers toujours synchronisés.',
+  });
 });
 
 // ---------- plugins outside the plan (rules 11, 12) ----------
@@ -183,7 +241,7 @@ test('rule 11: installing a plugin outside the plan answers 402 PLAN_REQUIRED wi
   assert.equal(res.statusCode, 402);
   assert.equal(res.body.error, 'PLAN_REQUIRED');
   assert.equal(res.body.plan, 'Premium');
-  assert.equal(res.body.message, 'Inclus dans le forfait Premium — contactez-nous pour changer de forfait.');
+  assert.equal(res.body.message, 'Inclus dans le forfait Premium, sur demande.');
   assert.equal(model.get('neat'), null);
 });
 
@@ -193,7 +251,7 @@ test('rule 11: the list marks a plugin outside the plan with its plan chip', asy
   const neat = list.find((p) => p.id === 'neat');
   assert.equal(neat.outOfPlan, true);
   assert.equal(neat.planChip, 'Forfait Premium');
-  assert.equal(neat.planHint, 'Inclus dans le forfait Premium — contactez-nous pour changer de forfait.');
+  assert.equal(neat.planHint, 'Inclus dans le forfait Premium, sur demande.');
   const sas = list.find((p) => p.id === 'sas');
   assert.deepEqual([sas.outOfPlan, sas.planChip], [false, null]);
 });
@@ -241,7 +299,7 @@ test('rule 13: one unit beyond the plan is refused with the plan named', () => {
     error: 'QUOTA_REACHED',
     quota: 'units',
     limit: 6,
-    message: 'Votre forfait Pro comprend 6 logements. Contactez-nous pour changer de forfait.',
+    message: 'Forfait Pro : 6 logements maximum.',
   });
 });
 
@@ -261,7 +319,7 @@ test('rule 13: an account beyond the quota is refused before any welcome email i
   const res = { status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
   await ctrl.create({ body: { firstName: 'A', lastName: 'B', email: 'a@b.fr', roles: ['admin'] }, user: { id: 1, roles: ['admin'] } }, res);
   assert.equal(res.statusCode, 402);
-  assert.equal(res.body.message, 'Votre forfait Pro comprend 5 comptes. Contactez-nous pour changer de forfait.');
+  assert.equal(res.body.message, 'Forfait Pro : 5 comptes maximum.');
   assert.equal(sent.length, 0);
 });
 
@@ -300,7 +358,7 @@ test('rule 14: in read-only a write answers 402 with the French message, a read 
     assert.equal(res.status, 402);
     assert.deepEqual(await res.json(), {
       error: 'SUBSCRIPTION_READ_ONLY',
-      message: 'Modification impossible : l’abonnement de cet espace est à renouveler.',
+      message: 'Modification impossible : abonnement à renouveler.',
     });
     res = await fetch(`${base}/api/clients/3`);
     assert.equal(res.status, 200);
@@ -322,6 +380,27 @@ test('rule 16: in read-only the calendar sync and collecting a payment keep work
       assert.equal(res.status, 200, `${method} ${path}`);
     }
   });
+});
+
+test('rule 14: in read-only, opening a reservation recomputes its price without a refusal', async () => {
+  await withApp(true, async (base) => {
+    for (const path of ['/api/reservations/calculate-price', '/api/properties/4/pricing/progressive-preview', '/api/terms/preview']) {
+      assert.equal((await fetch(`${base}${path}`, { method: 'POST' })).status, 200, path);
+    }
+  });
+  assert.equal(isAllowedWrite('POST', '/reservations/calculate-price/x'), false);
+});
+
+test('rule 13: resetting the password of a disabled account counts it against the quota', async () => {
+  const ctrl = buildUsersController({
+    usersModel: { countActive: () => 5, findById: () => ({ id: 7, isActive: 0, roles: ['admin'] }), resetUserPassword: () => { throw new Error('must not reset'); } },
+    settingsModel: { smtpConfigured: () => true },
+    planQuota: (quota, count) => quotaRefusal(quota, count, reader()),
+  });
+  const res = { status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  await ctrl.resetPassword({ params: { id: '7' }, user: { id: 1, roles: ['admin'] }, session: { user: { id: 1 } } }, res);
+  assert.equal(res.statusCode, 402);
+  assert.equal(res.body.error, 'QUOTA_REACHED');
 });
 
 test('rule 14: the allow-list is exact — a neighbouring write is still refused', () => {

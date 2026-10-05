@@ -10,6 +10,8 @@ import PricedItemsPage from '../components/PricedItemsPage';
 import { formatCurrency } from '../utils/formatters';
 import PropertiesMultiSelect from '../components/PropertiesMultiSelect';
 import OptionPropertyDefaultsMirror from '../components/OptionPropertyDefaultsMirror';
+import { usePlugin } from '../hooks/usePlugins';
+import { LINEN, WEBSITE_BOOKING } from '../constants/plugins';
 
 const OPTION_PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
@@ -101,7 +103,7 @@ export function CategoryField({ form, setForm, items }) {
           <TextField
             {...params}
             label="Catégorie"
-            helperText="Regroupe l'option dans un menu dépliant sur la fiche réservation et le site (laisser vide pour aucun regroupement)."
+            helperText="Regroupe l'option dans un menu dépliant (vide : aucun regroupement)."
           />
         )}
       />
@@ -522,6 +524,9 @@ function ProgressivePricingFields({ form, setForm }) {
 }
 
 export default function OptionsPage({ barTabs }) {
+  // The laundry settings of an option exist only with the linen plugin (specs/plugins-phase-2-hosts.md).
+  const linenOn = usePlugin(LINEN);
+  const websiteOn = usePlugin(WEBSITE_BOOKING);
   return (
     <PricedItemsPage
       barTabs={barTabs}
@@ -708,11 +713,7 @@ export default function OptionsPage({ barTabs }) {
             rows={2}
           />
           {form.isCancellationInsurance && (
-            <FormHelperText sx={{ m: 0 }}>
-              Option d&apos;assurance annulation — proposée dans son propre encart, avec un choix
-              obligatoire, dans le tunnel de réservation du site. Tant que son tarif est à 0, elle
-              n&apos;est proposée nulle part.
-            </FormHelperText>
+            <FormHelperText sx={{ m: 0 }}>Assurance annulation : proposée seulement avec un tarif supérieur à 0.</FormHelperText>
           )}
           <CategoryField form={form} setForm={setForm} items={items} />
           <PropertiesMultiSelect
@@ -744,13 +745,13 @@ export default function OptionsPage({ barTabs }) {
             <PlanningCardSection form={form} setForm={setForm} />
           )}
           {/* §3.5.ter — per-type linen controls visible iff the (hidden) flag is set. */}
-          {form.countsAsBedLinen && (
+          {linenOn && form.countsAsBedLinen && (
             <BedLinenIncludesFields form={form} setForm={setForm} />
           )}
-          {form.countsAsBathroomLinen && (
+          {linenOn && form.countsAsBathroomLinen && (
             <BathroomTowelCountsFields form={form} setForm={setForm} />
           )}
-          {form.countsAsBathMat && (
+          {linenOn && form.countsAsBathMat && (
             <BathMatPerPropertyField form={form} setForm={setForm} properties={properties} />
           )}
           {/* Client-visibility toggle (specs/laundry-bath-mat.md §3 rule 11) — generic to every
@@ -768,14 +769,14 @@ export default function OptionsPage({ barTabs }) {
             />
             <FormHelperText sx={{ mt: 0 }}>
               {(() => {
-                const masque = 'masquée des fiches de réservation, des emails clients, du devis et de la réservation en ligne';
-                if (form.countsAsBedLinen || form.countsAsBathroomLinen || form.countsAsBathMat) {
-                  return `Désactivé : usage interne — l'option reste comptée dans les cartes blanchisserie et le stock, mais ${masque}.`;
+                const hidden = `absente des fiches, emails et devis${websiteOn ? ' et du site' : ''}`;
+                if (linenOn && (form.countsAsBedLinen || form.countsAsBathroomLinen || form.countsAsBathMat)) {
+                  return `Désactivé : option interne, ${hidden}, toujours comptée dans le linge.`;
                 }
                 if (form.showsPlanningCard || form.autoOptionType === 'breakfast') {
-                  return `Désactivé : usage interne — l'option reste affichée comme carte de préparation dans le planning, mais ${masque}.`;
+                  return `Désactivé : option interne, ${hidden}, toujours sur le planning.`;
                 }
-                return `Désactivé : usage interne — l'option est ${masque}.`;
+                return `Désactivé : option interne, ${hidden}.`;
               })()}
             </FormHelperText>
           </Box>

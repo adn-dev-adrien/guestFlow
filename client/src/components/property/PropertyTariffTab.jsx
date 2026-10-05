@@ -3,9 +3,9 @@
  * rules 21-22): the seasons (recipe or manual) with the entry to « Gestion tarifaire », the
  * extra-guest price, the tourist tax, and a pointer to the stay VAT rate.
  *
- * When a tariff recipe is attached the extra-guest fields are read-only: the recipe sets them season
- * by season, and its seasons override the property values (pricing.js). The table then shows each
- * season's own extra-guest price.
+ * When the seasons carry their own extra-guest price (written by a tariff recipe), the extra-guest
+ * fields are read-only: those seasons override the property values (pricing.js), with or without the
+ * recipe plugin. The table then shows each season's own extra-guest price.
  *
  * Props:
  *   property, form, errors, updateField(field, value), onZeroFocus(event), canManage,
@@ -30,6 +30,9 @@ export default function PropertyTariffTab({
   const recipe = recipesOn ? property.tariffRecipeId : null;
   const seasons = [...(property.pricingRules || [])]
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')));
+  // Seasons that carry their own extra-guest price are priced with it, plugin or not: the column and
+  // the notice follow the data the engine applies, not the plugin.
+  const perSeason = seasons.some((r) => r.extraGuestPrice != null || (r.extraGuestTiers && r.extraGuestTiers !== '[]'));
   const number = (field, label, helperText, step = 0.01) => (
     <TextField
       label={label}
@@ -68,7 +71,7 @@ export default function PropertyTariffTab({
                 <TableCell>Type</TableCell>
                 <TableCell>Tarif base</TableCell>
                 <TableCell>Min nuits</TableCell>
-                {recipe && <TableCell>Voyageur suppl.</TableCell>}
+                {perSeason && <TableCell>Voyageur suppl.</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -92,11 +95,11 @@ export default function PropertyTariffTab({
                   <TableCell>{(r.pricingMode || 'fixed') === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
                   <TableCell>{formatCurrency(Number(r.pricePerNight || 0))}</TableCell>
                   <TableCell>{r.minNights}</TableCell>
-                  {recipe && <TableCell>{r.extraGuestPrice ? formatCurrency(Number(r.extraGuestPrice)) : '—'}</TableCell>}
+                  {perSeason && <TableCell>{r.extraGuestPrice ? formatCurrency(Number(r.extraGuestPrice)) : '—'}</TableCell>}
                 </TableRow>
               ))}
               {seasons.length === 0 && (
-                <TableRow><TableCell colSpan={recipe ? 6 : 5} align="center">Aucune saison tarifaire</TableCell></TableRow>
+                <TableRow><TableCell colSpan={perSeason ? 6 : 5} align="center">Aucune saison tarifaire</TableCell></TableRow>
               )}
             </TableBody>
           </TableCard>
@@ -106,9 +109,9 @@ export default function PropertyTariffTab({
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Voyageurs supplémentaires</Typography>
-          {recipe ? (
+          {perSeason ? (
             <Alert severity="info" variant="outlined">
-              Fixé par la recette, saison par saison (colonne « Voyageur suppl. » ci-dessus) : se modifie dans la gestion tarifaire.
+              Fixé saison par saison (colonne « Voyageur suppl. ») : modifiable dans la gestion tarifaire.
             </Alert>
           ) : (
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>

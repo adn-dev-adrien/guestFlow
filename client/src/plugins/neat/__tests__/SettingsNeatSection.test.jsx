@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // specs/neat-cancellation-insurance-subscription.md §6.1 — the « Assurance annulation (Neat) »
 // Réglages card: status badge, credentials (secret 3-way), margin, discovery selects, mapping rows.
 
-vi.mock('../../api', () => ({
+vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getNeatSettings: vi.fn(),
@@ -16,8 +16,8 @@ vi.mock('../../api', () => ({
   },
 }));
 
-import api from '../../api';
-import DialogProvider from '../DialogProvider';
+import api from '../../../api';
+import DialogProvider from '../../../components/DialogProvider';
 import SettingsNeatSection from '../SettingsNeatSection';
 
 import { BASE_SETTINGS, CONFIGURED_SETTINGS } from './neatSectionFixtures';

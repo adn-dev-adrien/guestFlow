@@ -23,10 +23,11 @@ function createController(model, {
   emitPluginEvent = require('../plugins/sdk/eventBus').emit,
   termsFicheBlock = (devis) => require('./termsController').buildFicheBlock(devis),
   onlinePayment = () => require('../utils/paymentProviders').summary(),
+  frozenOptions = (devisId) => require('../utils/insuranceOffer').frozenOptions(require('../database'), devisId),
 } = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {
-    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    if (result.error) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
     return res.status(result.status || 200).json(result.data);
   }
 
@@ -39,7 +40,10 @@ function createController(model, {
     if (!devis) return res.status(404).json({ error: 'Devis non trouvé' });
     // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance of a website request.
     // specs/plugins-phase-3a-online-payment.md rule 18 — the payment request button follows the provider.
-    return res.json({ ...devis, cgv: termsFicheBlock(devis), onlinePayment: onlinePayment() });
+    // specs/plugins-phase-3b-neat.md rule 22 — the options it carries that the catalogue hides, read-only.
+    return res.json({
+      ...devis, cgv: termsFicheBlock(devis), onlinePayment: onlinePayment(), frozenOptions: frozenOptions(devis.id),
+    });
   }
 
   function updateStatus(req, res) {

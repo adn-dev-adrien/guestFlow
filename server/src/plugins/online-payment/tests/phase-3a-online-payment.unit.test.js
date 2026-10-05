@@ -168,6 +168,19 @@ test('rule 16 — deactivating is still refused while a link is open', () => {
   assert.equal(res.body.code, 'OPEN_PAYMENT_LINKS');
 });
 
+test('rule 16 — deactivating is refused while a cancelled link is still payable at the provider', () => {
+  const db = v38Db();
+  const { plugins } = boot(db);
+  const links = paymentLinksModel.buildModel(db);
+  const row = links.create({ reservationId: 5, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_owed', url: 'u' });
+  links.cancel(row.id, { remotePending: true });
+  const res = fakeRes();
+  createController(plugins, { registry, db: () => db }).deactivate({ params: { id: ID } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'LINKS_PENDING_DEACTIVATION');
+  assert.equal(res.body.message, '1 lien annulé encore payable chez le prestataire : à désactiver d’abord.');
+});
+
 test('specs/plugins-phase-3a-online-payment.md rule 21 — a new customer starts without the plugin: no provider, nothing to ask for', async () => {
   const db = v38Db();
   boot(db, { installed: false });

@@ -69,13 +69,17 @@ test('rule 4 — active() is the provider of a live plugin that reports itself r
 
 test('rule 5 — without a provider the payment endpoints answer 409 NO_PAYMENT_PROVIDER', async () => {
   live([]);
-  for (const handler of ['createReservationPaymentLink', 'sendPaymentRequestEmail', 'listReservationPaymentLinks', 'pollPaymentsNow']) {
+  for (const handler of ['createReservationPaymentLink', 'sendPaymentRequestEmail', 'pollPaymentsNow']) {
     const r = res();
     await paymentsController[handler]({ params: { id: '1' }, body: {} }, r);
     assert.equal(r.statusCode, 409, handler);
     assert.deepEqual(r.body, { error: 'NO_PAYMENT_PROVIDER', message: 'Aucun moyen de paiement en ligne n’est connecté.' });
   }
   assert.deepEqual(await paymentsController.sendDepositRequestFor(1), { httpStatus: 409, body: paymentProviders.NO_PROVIDER });
+  // The links already made stay readable: stored data, needed most when the provider is gone.
+  const list = res();
+  await paymentsController.listReservationPaymentLinks({ params: { id: '1' }, body: {} }, list);
+  assert.notEqual(list.statusCode, 409);
 });
 
 test('rule 5 — the dashboard rows lose « Relancer » and the reminder refuses without a provider', async () => {

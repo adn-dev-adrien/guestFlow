@@ -48,8 +48,8 @@ vi.mock('../../../plugins/google-calendar/SettingsGoogleCalendarSection', () => 
 vi.mock('../../../plugins/gate-access/SettingsGateAccessSection', () => ({ __esModule: true, default: () => null }));
 
 import api from '../../../api';
-import IntegrationsSettingsPage from '../IntegrationsSettingsPage';
-import { CONFIGURED_SETTINGS } from '../../../components/__tests__/neatSectionFixtures';
+import IntegrationsSettingsPage from '../../../pages/settings/IntegrationsSettingsPage';
+import { CONFIGURED_SETTINGS } from './neatSectionFixtures';
 
 // Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));

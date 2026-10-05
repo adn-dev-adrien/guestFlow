@@ -11,6 +11,11 @@ const Module = require('module');
 const Database = require('better-sqlite3');
 
 const { buildModel } = require('../../../models/optionsModel');
+const { offerInsurance, withdrawInsurance } = require('../../../tests/insuranceOfferFixture');
+
+// The insurance is offered while a plugin prices it (specs/plugins-phase-3b-neat.md rule 5).
+test.before(() => offerInsurance());
+test.after(() => withdrawInsurance());
 
 function withMocks(modules, fn) {
   const origRequire = Module.prototype.require;

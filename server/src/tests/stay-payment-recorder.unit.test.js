@@ -9,7 +9,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const reservationsModelModule = require('../models/reservationsModel');
-const { recordStayPayment } = require('../utils/stayPaymentRecorder');
+const { recordStayPayment, paidDayOf } = require('../utils/stayPaymentRecorder');
 const { applyPaidEffect } = require('../utils/paymentPollRunner');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
@@ -30,12 +30,11 @@ function addStay(db, { propertyId = 1 } = {}) {
     VALUES ('reservation', ?, 1, '2026-11-10', '2026-11-12', 2, 200, 200, 60, 140, 'direct', '2000-01-01 00:00:00')`).run(propertyId).lastInsertRowid);
 }
 
-function depsOn(db, events = [], after = []) {
+function depsOn(db, events = []) {
   return {
     db,
     reservationsModel: reservationsModelModule.create(db),
     emit: (name, payload) => events.push([name, payload]),
-    afterPayment: (payment) => after.push(payment),
   };
 }
 
@@ -102,14 +101,37 @@ test('rule 1 — a failed capture ticks nothing by hand, but never loses money a
   const row = moneyRow(db, online);
   assert.equal(row.balancePaid, 1, 'the guest paid: the stay says so');
   assert.equal(row.accommodationSoldeContribTtc, null, 'and no half-written contribs');
+  const history = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'payment_capture_failed'").all(online);
+  assert.equal(history.length, 1, 'said on the stay, not only in the server log');
+  assert.match(history[0].changedFields, /répartition comptable non enregistrée/);
 });
 
-test('rules 2–3 — a recorded payment emits reservation.paid and runs the core follow-up once', () => {
+test('rule 3 — an online payment is dated by the provider’s time, as a local day', () => {
+  const db = seed();
+  const id = addStay(db);
+  const paidAt = '2026-10-04T22:30:00Z';
+  const local = new Date(paidAt);
+  const expected = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+  assert.equal(paidDayOf(paidAt), expected);
+  assert.equal(paidDayOf('pas une date'), null);
+  applyPaidEffect({ database: db, devisModel: {}, link: { reservationId: id, type: 'deposit' }, paidDate: paidDayOf(paidAt), recordPayment: (p) => recordStayPayment(depsOn(db), p) });
+  assert.equal(moneyRow(db, id).depositPaidDate, expected);
+});
+
+test('rule 3 — a payment that lands on a cancelled stay records nothing on it', () => {
+  const db = seed();
+  const id = addStay(db);
+  db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(id);
+  const effect = applyPaidEffect({ database: db, devisModel: {}, link: { reservationId: id, type: 'deposit' }, recordPayment: () => { throw new Error('must not record'); } });
+  assert.equal(effect.effect, 'reservation-cancelled');
+  assert.equal(moneyRow(db, id).depositPaid, 0);
+});
+
+// Since specs/plugins-phase-3b-neat.md rule 9 the event is the only follow-up: Neat listens to it.
+test('rules 2–3 — a recorded payment emits reservation.paid once', () => {
   const db = seed();
   const id = addStay(db);
   const events = [];
-  const after = [];
-  recordStayPayment(depsOn(db, events, after), { reservationId: id, bucket: 'deposit' });
+  recordStayPayment(depsOn(db, events), { reservationId: id, bucket: 'deposit' });
   assert.deepEqual(events, [['reservation.paid', { reservationId: id, bucket: 'deposit' }]]);
-  assert.deepEqual(after, [{ reservationId: id, bucket: 'deposit' }]);
 });

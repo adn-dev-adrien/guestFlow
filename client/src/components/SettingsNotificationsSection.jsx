@@ -14,6 +14,7 @@
  *   errors:   { notificationRecipientEmail?: string }
  *   onChange: (key, value) => void
  *   disabled: boolean
+ *   websiteOn: boolean — the website plugin is live, so its requests are notified too
  */
 import React from 'react';
 import {
@@ -26,6 +27,7 @@ export default function SettingsNotificationsSection({
   errors = {},
   onChange,
   disabled = false,
+  websiteOn = false,
 }) {
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
@@ -36,8 +38,7 @@ export default function SettingsNotificationsSection({
               Mes notifications
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Recevez un email à chaque nouvelle demande de devis depuis le site et à chaque nouvelle
-              réservation importée (iCal).
+              Un email à chaque nouvelle réservation{websiteOn ? ' ou demande depuis le site' : ''}.
             </Typography>
           </Box>
 

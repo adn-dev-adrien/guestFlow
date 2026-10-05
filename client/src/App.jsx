@@ -19,6 +19,7 @@ import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
+import LoadingState from './components/LoadingState';
 import UserManagementPage from './pages/UserManagementPage';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
@@ -411,7 +412,7 @@ function NavContent({ onItemClick }) {
                 <List disablePadding sx={{ px: 1, pb: 0.5 }}>
                   {/* specs/settings-rationalization.md rules 1-2 — entries by family, a thin divider
                       between families; the list lives in constants/settingsMenu.js. */}
-                  {visibleSettingsMenu(can).map((entry, index) => {
+                  {visibleSettingsMenu(can, (id) => (user?.enabledPlugins || []).includes(id)).map((entry, index) => {
                     if (!entry) return <Divider key={`settings-divider-${index}`} sx={{ mx: 2, my: 0.5 }} />;
                     const isProperties = entry.path === PROPERTIES_PATH;
                     return (
@@ -679,7 +680,7 @@ function AppShell() {
           <Route path="/" element={<Dashboard />} />
           {/* Pages of plugin modules (specs/plugins-phase-1-sdk.md rule 15), lazily loaded. */}
           {MODULE_PAGES.map(({ path, Component }) => (
-            <Route key={path} path={path} element={pluginRoute(path, <Suspense fallback={null}><Component /></Suspense>)} />
+            <Route key={path} path={path} element={pluginRoute(path, <Suspense fallback={<LoadingState />}><Component /></Suspense>)} />
           ))}
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/properties" element={<PropertiesPage />} />

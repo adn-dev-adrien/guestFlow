@@ -200,10 +200,18 @@ function withoutLinenDecisions(reservationId, body) {
   const bedLabels = new Set(linenItemsModel.list()
     .filter((i) => i.category === 'bed').map((i) => String(i.label).trim()));
   const isBedLine = (label) => bedLabels.has(String(label || '').trim());
+  const sent = Array.isArray(body.complementItems) ? body.complementItems : [];
+  // The amount is the stored one; « Offrir » on that line stays the operator's gesture.
+  const sentOffered = (label) => {
+    const line = sent.find((i) => i && String(i.label || '').trim() === String(label || '').trim());
+    return line ? Boolean(line.offered) : null;
+  };
   const stored = (reservationsModel.listSasArrivalCustomLines(reservationId) || [])
     .filter((l) => isBedLine(l.description))
-    .map((l) => ({ label: l.description, amount: l.amount, offered: Number(l.offered) === 1 }));
-  const sent = Array.isArray(body.complementItems) ? body.complementItems : [];
+    .map((l) => {
+      const offered = sentOffered(l.description);
+      return { label: l.description, amount: l.amount, offered: offered === null ? Number(l.offered) === 1 : offered };
+    });
   return {
     ...body,
     complementItems: [...sent.filter((i) => !isBedLine(i && i.label)), ...stored],

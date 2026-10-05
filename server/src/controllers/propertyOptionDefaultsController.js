@@ -24,12 +24,16 @@ function parseIdParam(value) {
   return n;
 }
 
-function buildController({ model = propertyOptionDefaultsModel } = {}) {
+// specs/plugins-phase-3b-neat.md rule 5 — the client adds these defaults to a new booking: while no
+// plugin offers the insurance, it is not among them, or creating a booking would be refused (422).
+const withoutUnofferedInsurance = (rows) => require('../utils/insuranceOffer').dropInsurance(require('../database'), rows);
+
+function buildController({ model = propertyOptionDefaultsModel, hideInsurance = withoutUnofferedInsurance } = {}) {
   return {
     listForProperty(req, res) {
       const propertyId = parseIdParam(req.params.id);
       if (!propertyId) return res.status(400).json({ error: 'INVALID_PROPERTY_ID' });
-      return res.json(model.listForProperty(propertyId));
+      return res.json(hideInsurance(model.listForProperty(propertyId)));
     },
 
     setForProperty(req, res) {

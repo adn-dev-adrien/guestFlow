@@ -325,6 +325,35 @@ without the core knowing it.
 
 ---
 
+### Review fixes (2026-10-04)
+
+- Rule 11: without `linen`, « Offrir » on a bed-linen line a previous check-in stored is kept — the
+  amount is still the stored one, never the client's. It used to be ignored by the server while the
+  screen showed it, so the recap and the record disagreed.
+- Rule 19: the four accounting settings declare the same checks as the Plan comptable page (VAT rate
+  0–100, comma accepted; account 6 to 8 digits), so `PUT /api/plugins/accounting-export/settings`
+  refuses what the page would (400 `INVALID_SETTING` with `errors` per key).
+- Rule 5: the planning's infinite scroll asks for a window once; scroll events near the bottom no
+  longer multiply the contributions' requests (5 per laundry window).
+- The host-contract test of the planning slots lives with the page
+  (`pages/__tests__/PlanningPage.plugin-slots.test.jsx`), not in the linen plugin's folder.
+- A plugin's absence leaves no trace in the core screens:
+  - the « Options » dialog shows the laundry blocks (sheet types, towels, bath mats) only with `linen`,
+    and its help texts name the site only with `website-booking`;
+  - the settings entry reads « Fermetures », and « Vacances & fermetures » only with `school-holidays`;
+  - the SAS points to « Options & ressources › Facturables au SAS » for its missing prices (the menu
+    « Réglages → Blanchisserie » never existed);
+  - a reception-only account without the SAS (outside the plan, failed) sees its lists without links
+    and « Arrivées et départs guidés indisponibles pour le moment. »;
+  - the property's tariff tab shows the « Voyageur suppl. » column, and keeps the extra-guest fields
+    read-only, whenever its seasons carry their own extra-guest price — the engine applies them with
+    or without `tariff-recipes`;
+  - help texts no longer name the accounting export, Qonto or the site where the plugin may be off.
+- Kept on purpose (owner's decision, 2026-10-05): what is history stays — « SAS arrivée / départ » in a
+  stay's history, « CGV acceptées en ligne », the origin badges of a booking made on the site, the
+  « Site internet » group in the finance pages.
+- Tests: `phase-2-sas.unit.test.js` (+1), `phase-2-accounting-export.unit.test.js` (settings refused), `roles.plugins.test.js` (+1: the closures label), `Dashboard.test.jsx` (+1: reception without the SAS), `PropertyDetail.tabs.test.jsx`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The linen gating of the SAS, the bed-linen alert, the push target,

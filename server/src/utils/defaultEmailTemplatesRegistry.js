@@ -153,7 +153,7 @@ const DEPOSIT_REMINDER_BODY = [
   '',
   'Acompte à régler : {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Régler l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  '{{#if hasPaymentLink}}Régler l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}',
   '',
   'Sans règlement de votre part, nous serons contraints de remettre vos dates à la vente.',
   '',
@@ -179,7 +179,7 @@ const DEPOSIT_REMINDER_BODY_EN = [
   '',
   'Deposit to pay: {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
+  '{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to arrange payment.{{/if}}',
   '',
   'Without your payment we will have to put your dates back on sale.',
   '',
@@ -209,7 +209,7 @@ const BALANCE_REMINDER_BODY = [
   '',
   'Solde à régler : {{balanceAmount}}',
   '',
-  '{{#if hasPaymentLink}}Régler le solde en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  '{{#if hasPaymentLink}}Régler le solde en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}',
   '',
   'Sans règlement de votre part d\'ici le {{cancelOnDate}}, votre séjour sera annulé et l\'acompte déjà versé restera acquis à titre d\'indemnité.',
   '',
@@ -235,7 +235,7 @@ const BALANCE_REMINDER_BODY_EN = [
   '',
   'Balance to pay: {{balanceAmount}}',
   '',
-  '{{#if hasPaymentLink}}Pay the balance online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
+  '{{#if hasPaymentLink}}Pay the balance online: {{paymentLink}}{{else}}Contact us to arrange payment.{{/if}}',
   '',
   'Without your payment by {{cancelOnDate}}, your stay will be cancelled and the deposit already paid will be retained as compensation.',
   '',
@@ -508,8 +508,12 @@ const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', '
 // waits in the manual queue. A new money template joins this list, and the seed test enforces the rule.
 const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder', 'full_request']);
 
+// The templates only a plugin can send: without it, the editor does not list them.
+const PLUGIN_OF_TEMPLATE = Object.freeze({ deposit_request: 'online-payment', balance_request: 'online-payment', full_request: 'online-payment' });
+
 module.exports = {
   DEFAULT_TEMPLATES,
+  PLUGIN_OF_TEMPLATE,
   EVENT_TRIGGERED_STABLE_KEYS,
   PAYMENT_STABLE_KEYS,
   // Exposed verbatim for tests that need the same body string the seed inserts.

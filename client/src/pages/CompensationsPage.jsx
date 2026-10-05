@@ -46,13 +46,13 @@ export default function CompensationsPage() {
 
   const monthNav = (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <IconButton size="small" onClick={() => go(-1)} aria-label="Mois précédent">
+      <IconButton onClick={() => go(-1)} aria-label="Mois précédent" sx={{ width: 44, height: 44 }}>
         <NavigateBeforeIcon />
       </IconButton>
       <Typography variant="body1" sx={{ fontWeight: 600, minWidth: 140, textAlign: 'center' }} aria-live="polite">
         {MONTH_LABELS[month - 1]} {year}
       </Typography>
-      <IconButton size="small" onClick={() => go(1)} aria-label="Mois suivant">
+      <IconButton onClick={() => go(1)} aria-label="Mois suivant" sx={{ width: 44, height: 44 }}>
         <NavigateNextIcon />
       </IconButton>
     </Box>

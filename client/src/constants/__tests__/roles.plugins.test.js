@@ -53,7 +53,14 @@ describe('visibleSettingsMenu', () => {
   const paths = (entries) => entries.map((e) => (e ? e.path : '—'));
 
   test('with every entry visible it is the full menu', () => {
-    expect(visibleSettingsMenu(() => true)).toEqual(SETTINGS_MENU);
+    expect(visibleSettingsMenu(() => true, () => false)).toEqual(SETTINGS_MENU);
+  });
+
+  test('the closures entry names the school holidays only while their plugin is live', () => {
+    const label = (live) => visibleSettingsMenu(() => true, (id) => live.includes(id))
+      .find((e) => e && e.path === '/parametres/vacances-fermetures').label;
+    expect(label([])).toBe('Fermetures');
+    expect(label(['school-holidays'])).toBe('Vacances & fermetures');
   });
 
   test('without plugins: no plugin entry, no leading, trailing or doubled divider', () => {

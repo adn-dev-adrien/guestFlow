@@ -44,13 +44,26 @@ function emit(name, payload = {}) {
   setImmediate(() => { dispatch(name, payload); });
 }
 
+// The variables and conditions the live plugins add to the template editor (rule 13).
+function editorTokens() {
+  const variables = [];
+  const conditions = [];
+  registry.all().filter((record) => registry.isLive(record.id)).forEach((record) => {
+    record.emailProviders.forEach((provider) => {
+      provider.tokens.forEach((t) => variables.push({ label: t.label, token: `{{${t.name}}}` }));
+      (provider.flags || []).forEach((f) => conditions.push({ label: f.label, token: `{{#if ${f.name}}}` }));
+    });
+  });
+  return { variables, conditions };
+}
+
 function emailContext(reservationId) {
   const tokens = {};
   const flags = {};
   registry.all().forEach((record) => {
     record.emailProviders.forEach((provider) => {
       provider.tokens.forEach((t) => { tokens[t.name] = ''; });
-      (provider.flags || []).forEach((f) => { flags[f] = false; });
+      (provider.flags || []).forEach((f) => { flags[f.name] = false; });
       if (!registry.isLive(record.id)) return;
       try {
         const built = provider.build(reservationId) || {};
@@ -81,4 +94,4 @@ function sasData(reservationId) {
   return out;
 }
 
-module.exports = { EVENTS, emit, dispatch, emailContext, sasData };
+module.exports = { EVENTS, emit, dispatch, emailContext, editorTokens, sasData };

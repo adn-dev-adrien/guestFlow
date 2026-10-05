@@ -17,8 +17,17 @@ function blockerFor(id, model) {
       return {
         code: 'OPEN_PAYMENT_LINKS',
         message: n > 1
-          ? `${n} liens de paiement sont en attente. Attends leur paiement ou annule-les avant de désactiver.`
-          : '1 lien de paiement est en attente. Attends son paiement ou annule-le avant de désactiver.',
+          ? `${n} liens de paiement en attente : à payer ou annuler d’abord.`
+          : '1 lien de paiement en attente : à payer ou annuler d’abord.',
+      };
+    }
+    const pending = model.countPendingDeactivations ? model.countPendingDeactivations() : 0;
+    if (pending > 0) {
+      return {
+        code: 'LINKS_PENDING_DEACTIVATION',
+        message: pending > 1
+          ? `${pending} liens annulés encore payables chez le prestataire : à désactiver d’abord.`
+          : '1 lien annulé encore payable chez le prestataire : à désactiver d’abord.',
       };
     }
   }
@@ -28,8 +37,8 @@ function blockerFor(id, model) {
       return {
         code: 'RECEPTION_USERS',
         message: n > 1
-          ? `${n} comptes Accueil sont actifs. Change leur rôle dans Utilisateurs d’abord.`
-          : '1 compte Accueil est actif. Change son rôle dans Utilisateurs d’abord.',
+          ? `${n} comptes Accueil actifs : changer leur rôle dans Utilisateurs d’abord.`
+          : '1 compte Accueil actif : changer son rôle dans Utilisateurs d’abord.',
       };
     }
   }
@@ -39,8 +48,8 @@ function blockerFor(id, model) {
       return {
         code: 'ACCOUNTANT_USERS',
         message: n > 1
-          ? `${n} comptes Comptable sont actifs. Change leur rôle dans Utilisateurs d’abord.`
-          : '1 compte Comptable est actif. Change son rôle dans Utilisateurs d’abord.',
+          ? `${n} comptes Comptable actifs : changer leur rôle dans Utilisateurs d’abord.`
+          : '1 compte Comptable actif : changer son rôle dans Utilisateurs d’abord.',
       };
     }
   }
@@ -71,9 +80,7 @@ function createController(model = defaultModel, deps = {}) {
 
   // specs/control-plane-plans-and-access.md rules 11–12 — a plugin outside the licence keeps its
   // stored state (so an upgrade brings it back untouched) and carries the plan that includes it.
-  const planHint = (plan) => (plan
-    ? `Inclus dans le forfait ${plan} — contactez-nous pour changer de forfait.`
-    : 'Disponible en option — contactez-nous pour l’ajouter à votre abonnement.');
+  const planHint = (plan) => (plan ? `Inclus dans le forfait ${plan}, sur demande.` : 'En option, sur demande.');
 
   function planView(id) {
     if (licence().allowsPlugin(id)) return { outOfPlan: false, planChip: null, planHint: null };
@@ -195,7 +202,9 @@ function createController(model = defaultModel, deps = {}) {
           purge(entry.id);
         } catch (err) {
           console.error(`[plugin:${entry.id}] erasure failed:`, err && err.message ? err.message : err);
-          return res.status(500).json({ error: 'PLUGIN_PURGE_FAILED', message: 'L’effacement a échoué : rien n’a été effacé.' });
+          // Rule 12: a failed erasure leaves the plugin installed and inactive.
+          model.setEnabled(entry.id, false);
+          return res.status(500).json({ error: 'PLUGIN_PURGE_FAILED', message: 'Échec de l’effacement : rien n’a été effacé.' });
         }
       }
       model.uninstall(entry.id);

@@ -40,14 +40,13 @@ const CORE_MODULES = Object.freeze({
   devisModel: '../../models/devisModel', // a booking request creates a draft devis
   termsModel: '../../models/termsModel', // current CGV version, the acceptance record (rule 26)
   updateStateModel: '../../models/updateStateModel', // the WordPress plugin release the manifest serves
-  neatSubscriptionsModel: '../../models/neatSubscriptionsModel', // Neat insurance pricing on a quote
   pricing: '../../utils/pricing', // the quote engine
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
   capacity: '../../utils/capacity', // guest capacity of a property
   blockedDates: '../../utils/blockedDates', // availability, shared with the public payment
   mealPortions: '../../utils/mealPortions', // per-person card options and their caps
-  neatGuestPricing: '../../utils/neatGuestPricing', // the insurance price shown on a quote
-  neatClient: '../../utils/neatClient', // the Neat quote call
+  quotePostProcessors: '../../utils/quotePostProcessors', // the insurance price a plugin sets on a quote (phase 3b rule 2)
+  insuranceOffer: '../../utils/insuranceOffer', // no insurance on the site while no plugin offers it (phase 3b rule 6)
   translationResolver: '../../utils/translationResolver', // the English catalogue
   optionVisibility: '../../utils/optionVisibility', // internal options never reach the site
   optionGrouping: '../../utils/optionGrouping', // options grouped by category
@@ -74,6 +73,9 @@ const CORE_MODULES = Object.freeze({
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money
   paymentEffectDeps: '../../utils/paymentEffectDeps', // confirmation email, conflict check, notifications
+  // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
+  reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
+  pushService: '../../utils/pushService', // « Souscriptions Neat » push
 });
 
 function coreModule(name) {

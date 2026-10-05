@@ -12,7 +12,7 @@ import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences'
 import { isWelcomePackLine } from '../../utils/welcomePackApply';
 import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
-import StatusBadge from '../StatusBadge';
+import { useSlot } from '../../plugins/sdk/useSlot';
 
 /**
  * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
@@ -160,10 +160,14 @@ export default function OptionRow({ opt }) {
     setOptionCardPersons, maxGuestsAllowed,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
     isDevisMode,
-    // specs/neat-cancellation-insurance-subscription.md §3.3 — the server-shaped Neat block +
-    // its two actions, rendered ONLY on the flagged insurance card.
-    neat, retryNeatSubscription, voidNeatSubscription,
+    // specs/plugins-phase-3b-neat.md rule 16 — what live plugins draw under a line, fed by the
+    // payload's `pluginBlocks`.
+    pluginBlocks, setPluginBlock, pluginLineContext,
   } = useReservationForm();
+  const lineContributions = useSlot('reservation.optionLine').filter((c) => c.appliesTo(opt));
+  // specs/plugins-phase-3b-neat.md rule 22 — an option the catalogue hides, shown because the stay
+  // carries it: its price stands, nothing about it can change.
+  const readOnly = Boolean(opt.readOnly);
 
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
   // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
@@ -244,28 +248,11 @@ export default function OptionRow({ opt }) {
               {isWelcomePackLine(selected) && (
                 <Chip size="small" color="success" variant="outlined" label="Pack de bienvenue" />
               )}
-              {/* specs/neat-cancellation-insurance-subscription.md §3.3 rule 14 — the Neat
-                  subscription state of this stay, server-derived. */}
-              {Boolean(opt.isCancellationInsurance) && neat && (
-                neat.status === 'failed' ? (
-                  <Tooltip title={neat.lastError || ''} arrow>
-                    <span><StatusBadge status="error" label="Neat : en échec" /></span>
-                  </Tooltip>
-                ) : (
-                  <StatusBadge
-                    status={{ active: 'success', pending: 'neutral', voided: 'neutral', line_removed_active: 'warning' }[neat.status] || 'neutral'}
-                    label={{
-                      active: 'Neat : souscrite',
-                      pending: 'Neat : en attente',
-                      voided: 'Neat : résiliée',
-                      line_removed_active: 'Ligne retirée — souscription active',
-                    }[neat.status] || neat.status}
-                  />
-                )
-              )}
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              {isBabyBedOption
+              {readOnly
+                ? `Prix figé : ${formatCurrency(selected?.totalPrice || 0)}`
+                : isBabyBedOption
                 ? `${formatCurrency(opt.price)} par lit bébé, pour le séjour`
                 : isAutoTimedOption
                   ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
@@ -273,10 +260,15 @@ export default function OptionRow({ opt }) {
             </Typography>
           </Box>
           <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
-            <FormControlLabel
-              sx={{ m: 0 }}
-              control={<Switch checked={enabled} disabled={isAutoTimedOption || isForcedByPropertyDefault} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
-            />
+            <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
+              <FormControlLabel
+                sx={{ m: 0 }}
+                control={<Switch checked={enabled} disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
+              />
+            </Tooltip>
+            {readOnly && (
+              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right' }}>{opt.readOnlyReason || 'Lecture seule'}</Typography>
+            )}
             {isAutoTimedOption && (
               <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
             )}
@@ -286,40 +278,18 @@ export default function OptionRow({ opt }) {
           </Stack>
         </Stack>
 
-        {/* specs/neat-cancellation-insurance-subscription.md §3.3 rules 13-16 — the premium
-            derivation (drift stays readable) + the per-state actions. Voiding is always manual. */}
-        {Boolean(opt.isCancellationInsurance) && neat && (
-          <Box sx={{ mt: 1 }}>
-            {neat.premiumAmount != null && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {`Prime Neat ${formatCurrency(neat.premiumAmount)}`}
-                {neat.marginPercent != null ? ` • marge +${neat.marginPercent} % • arrondi €↑` : ''}
-              </Typography>
-            )}
-            {neat.status === 'line_removed_active' && (
-              <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
-                La ligne assurance a été retirée mais la police Neat est toujours active.
-                Restaure la ligne ou résilie chez Neat.
-              </Typography>
-            )}
-            {(neat.status === 'failed' || neat.status === 'active' || neat.status === 'line_removed_active') && (
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5 }}>
-                {neat.status === 'failed' && (
-                  <Button size="small" variant="outlined" onClick={retryNeatSubscription} sx={{ minHeight: 44 }}>
-                    Réessayer maintenant
-                  </Button>
-                )}
-                {(neat.status === 'active' || neat.status === 'line_removed_active') && (
-                  <Button size="small" variant="outlined" color="error" onClick={voidNeatSubscription} sx={{ minHeight: 44 }}>
-                    Résilier chez Neat
-                  </Button>
-                )}
-              </Stack>
-            )}
-          </Box>
-        )}
+        {lineContributions.map(({ key, pluginId, Component }) => (
+          <React.Suspense key={`${pluginId}:${key}`} fallback={null}>
+            <Component
+              option={opt}
+              block={pluginBlocks ? pluginBlocks[pluginId] ?? null : null}
+              onBlockChange={(block) => setPluginBlock(pluginId, block)}
+              {...pluginLineContext}
+            />
+          </React.Suspense>
+        ))}
 
-        {enabled && !isAutoTimedOption && (
+        {enabled && !isAutoTimedOption && !readOnly && (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
             {/* Card-option (specs/option-planning-card.md §3.4): the occurrence
                 checklist below replaces the manual Qté — the selection drives the

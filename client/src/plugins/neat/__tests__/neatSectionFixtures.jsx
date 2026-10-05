@@ -2,7 +2,7 @@
 // (specs/neat-cancellation-insurance-subscription.md §6.1).
 //
 // A sibling non-test module, so a new subject never has to import — and therefore re-run — another
-// suite (CLAUDE.md §9 "one test file per subject"). `vi.mock('../../api')` stays in each test file:
+// suite (CLAUDE.md §9 "one test file per subject"). `vi.mock('../../../api')` stays in each test file:
 // Vitest hoists it per file.
 
 export const CONTRACT_FIELDS = [

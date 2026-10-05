@@ -37,8 +37,7 @@ import TermsAcceptanceLine from '../components/reservation/TermsAcceptanceLine';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PluginGate from '../components/PluginGate';
-import { usePlugin } from '../hooks/usePlugins';
-import { WEBSITE_BOOKING, NEAT } from '../constants/plugins';
+import { WEBSITE_BOOKING } from '../constants/plugins';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ReservationCancelDialog from '../components/ReservationCancelDialog';
 import api from '../api';
@@ -206,15 +205,17 @@ export default function ReservationPage() {
   // specs/reservation-refunds.md — the refund register is SERVER-OWNED: it never joins `form` (which is
   // the operator's editable draft), it is replaced wholesale by whatever the API returns.
   const [refundRegister, setRefundRegister] = useState(EMPTY_REFUND_REGISTER);
-  // specs/neat-cancellation-insurance-subscription.md §3.3 — the server-shaped Neat subscription
-  // block (chip + actions on the insurance card); null when there is nothing to show.
-  const [neatBlock, setNeatBlock] = useState(null);
+  // specs/plugins-phase-3b-neat.md rule 12 — what live plugins show on this stay, by plugin id
+  // (Neat: the subscription under the insurance line). Server-shaped; a plugin replaces its own.
+  const [pluginBlocks, setPluginBlocks] = useState({});
+  const setPluginBlock = useCallback((pluginId, block) => {
+    setPluginBlocks((prev) => ({ ...prev, [pluginId]: block }));
+  }, []);
   // specs/terms-acceptance-record.md rules 21-22 — the CGV acceptance block, shaped by the server.
   const [cgvBlock, setCgvBlock] = useState(null);
   // specs/plugins-phase-3a-online-payment.md rule 18 — the payment buttons follow the server: null
   // while no payment provider is ready.
   const [onlinePayment, setOnlinePayment] = useState(null);
-  const neatOn = usePlugin(NEAT);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   // Bumped after any server-side finance mutation the live quote depends on — un remboursement, une
   // note en séjour, le report du complément en fin de séjour — pour que l'effet de devis re-tourne et
@@ -322,6 +323,16 @@ export default function ReservationPage() {
       })));
     }
     return { property: propDetails, options };
+  }, []);
+
+  // specs/plugins-phase-3b-neat.md rule 22 — the options this stay carries that the catalogue now
+  // hides (the insurance without Neat), drawn read-only beside the others. Returns the full list.
+  const addFrozenOptions = useCallback((options, frozen) => {
+    const extra = (frozen || []).filter((f) => !options.some((o) => Number(o.id) === Number(f.id)));
+    if (extra.length === 0) return options;
+    setPropertyOptions((prev) => [...prev, ...extra]);
+    setPropertyOptionGroups((prev) => (prev ? { ...prev, ungrouped: [...(prev.ungrouped || []), ...extra] } : prev));
+    return [...options, ...extra];
   }, []);
 
   // Validity state of the devis being edited, straight from the server (`validUntil` + `expired`).
@@ -753,7 +764,8 @@ export default function ReservationPage() {
           const isPast = Boolean(res.startDate && res.startDate <= todayStr);
           setExistingReservationLocked(isPast);
           setPastUnlocked(false);
-          const { options: catalogueOptions } = await loadPropertyContext(res.propertyId, props);
+          const loaded = await loadPropertyContext(res.propertyId, props);
+          const catalogueOptions = addFrozenOptions(loaded.options, res.frozenOptions);
 
           // Load all reservations for this property to check conflicts
           const allRes = await api.getReservations({ propertyId: res.propertyId });
@@ -869,7 +881,7 @@ export default function ReservationPage() {
             refundTotals: res.refundTotals || { book: 0, withCash: 0 },
             collectedTtc: Number(res.collectedTtc || 0),
           });
-          setNeatBlock(res.neat || null);
+          setPluginBlocks(res.pluginBlocks || {});
           setCgvBlock(res.cgv || null);
           setOnlinePayment(res.onlinePayment || null);
           setPricingQuote(null);
@@ -896,7 +908,8 @@ export default function ReservationPage() {
           const devis = await api.getDevisById(editingDevisId);
           setCgvBlock(devis.cgv || null);
           setOnlinePayment(devis.onlinePayment || null);
-          const { options: catalogueOptions } = await loadPropertyContext(devis.propertyId, props);
+          const loaded = await loadPropertyContext(devis.propertyId, props);
+          const catalogueOptions = addFrozenOptions(loaded.options, devis.frozenOptions);
 
           const allRes = await api.getReservations({ propertyId: devis.propertyId });
           setReservations(allRes || []);
@@ -2607,37 +2620,6 @@ export default function ReservationPage() {
     setRefundsVersion((v) => v + 1);
   }, []);
 
-  // specs/neat-cancellation-insurance-subscription.md §3.3 rules 14-15 — the two actions of the
-  // insurance card's Neat chip. Both replace the block with the server's answer; voiding is always
-  // a confirmed, manual act.
-  const retryNeatSubscription = useCallback(async () => {
-    try {
-      const res = await api.retryNeatSubscription(editingReservationId);
-      setNeatBlock(res.neat || null);
-      if (res.neat && res.neat.status === 'active') showSuccess('Souscription Neat effectuée.');
-    } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Nouvelle tentative impossible.' });
-    }
-  }, [editingReservationId, showSuccess, alert]);
-
-  const voidNeatSubscription = useCallback(async () => {
-    const clientName = `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim() || 'ce client';
-    const ok = await confirm({
-      title: 'Résilier la souscription Neat ?',
-      message: `Résilier la souscription Neat de ${clientName} ? Le client ne sera plus couvert.`,
-      confirmLabel: 'Résilier',
-      confirmColor: 'error',
-    });
-    if (!ok) return;
-    try {
-      const res = await api.voidNeatSubscription(editingReservationId);
-      setNeatBlock(res.neat || null);
-      showSuccess('Souscription Neat résiliée.');
-    } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Résiliation impossible.' });
-    }
-  }, [editingReservationId, selectedClient, confirm, alert, showSuccess]);
-
   const createRefund = useCallback(async (payload) => {
     const res = await api.createReservationRefund(editingReservationId, payload);
     applyRefundPayload(res);
@@ -3137,9 +3119,13 @@ export default function ReservationPage() {
     refundTotals: refundRegister.refundTotals,
     refundCollectedTtc: refundRegister.collectedTtc,
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
-    // specs/neat-cancellation-insurance-subscription.md §3.3 — Neat chip + actions on the
-    // insurance card. The block is server-shaped; the card renders and decides nothing.
-    neat: neatOn ? neatBlock : null, retryNeatSubscription, voidNeatSubscription,
+    // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line: their block,
+    // its setter, and what they may need to know about the stay.
+    pluginBlocks, setPluginBlock,
+    pluginLineContext: {
+      reservationId: editingReservationId,
+      guestName: `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim(),
+    },
   };
 
   return (

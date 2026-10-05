@@ -128,13 +128,8 @@ test('the dropped columns are no longer what a line is resolved from (rule 21)',
 
 function buildController({ captures, insurance = null, options = [{ id: 7 }] }) {
   return withMocks({
-    // Only what `resolveNeatPricing` reads: the property's name for the Neat snapshot.
     '../../database': { prepare: () => ({ get: () => ({ name: 'La Granja' }) }) },
-    '../../utils/neatGuestPricing': {
-      isNeatPricingActive: () => false,
-      buildQuoteSnapshot: () => ({}),
-      resolveInsurancePricing: () => null,
-    },
+    '../../utils/quotePostProcessors': { dynamicInsurance: () => false, livePrice: async () => null },
     '../../utils/pricing': {
       calculateReservationQuote: () => engineQuote(),
       computePercentOfStayAmount: () => 0,

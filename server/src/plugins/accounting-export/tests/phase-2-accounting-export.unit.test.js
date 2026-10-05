@@ -198,6 +198,16 @@ test('specs/plugins-phase-2-hosts.md rule 19 — the four account and VAT settin
     'cancellationCompensationAccount', 'defaultCommissionAccountNumber', 'vatRateCancellationCompensation', 'vatRateCommission',
   ]);
   assert.equal(res.body.defaultCommissionAccountNumber, '62260002');
+
+  // The same checks as the Plan comptable page: the generic PUT stores nothing it would refuse.
+  const refused = fakeRes();
+  controller.saveSettings({ params: { id: ID }, body: { vatRateCommission: '-10', defaultCommissionAccountNumber: 'abc' } }, refused);
+  assert.equal(refused.statusCode, 400);
+  assert.deepEqual(Object.keys(refused.body.errors).sort(), ['defaultCommissionAccountNumber', 'vatRateCommission']);
+  const kept = fakeRes();
+  controller.getSettings({ params: { id: ID } }, kept);
+  assert.equal(kept.body.defaultCommissionAccountNumber, '62260002');
+  controller.saveSettings({ params: { id: ID }, body: { vatRateCommission: '5,5' } }, fakeRes());
   db.close();
 });
 

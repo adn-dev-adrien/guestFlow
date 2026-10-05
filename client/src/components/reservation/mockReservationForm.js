@@ -107,11 +107,10 @@ export function makeMockContext(overrides = {}) {
     setRefundDialogOpen: vi.fn(),
     createRefund: vi.fn(),
     deleteRefund: vi.fn(),
-    // specs/neat-cancellation-insurance-subscription.md §3.3 — Neat chip + actions on the
-    // insurance card; null by default (feature off / not insured), overridden by its own suite.
-    neat: null,
-    retryNeatSubscription: vi.fn(),
-    voidNeatSubscription: vi.fn(),
+    // specs/plugins-phase-3b-neat.md rule 16 — what plugins draw under an option line.
+    pluginBlocks: {},
+    setPluginBlock: vi.fn(),
+    pluginLineContext: { reservationId: null, guestName: '' },
     ...rest,
   };
 }

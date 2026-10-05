@@ -14,9 +14,12 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsSmtpSection from '../../components/SettingsSmtpSection';
 import SettingsEmailContentSection from '../../components/SettingsEmailContentSection';
 import SettingsNotificationsSection from '../../components/SettingsNotificationsSection';
+import { usePlugin } from '../../hooks/usePlugins';
+import { WEBSITE_BOOKING } from '../../constants/plugins';
 import SettingsPushNotificationsSection from '../../components/SettingsPushNotificationsSection';
 
 export default function EmailSettingsPage() {
+  const websiteOn = usePlugin(WEBSITE_BOOKING);
   const navigate = useNavigate();
   const form = useSettingsForm({ groups: ['smtp', 'notifications', 'emails'], navigate });
   const disabled = form.loading || form.saving;
@@ -68,6 +71,7 @@ export default function EmailSettingsPage() {
         errors={form.errors}
         onChange={(key, value) => form.setField('notifications', key, value)}
         disabled={disabled}
+        websiteOn={websiteOn}
       />
       <SettingsPushNotificationsSection />
     </SettingsFormPage>

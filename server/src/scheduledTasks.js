@@ -20,9 +20,6 @@ const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner'
 const { runBreakfastPush } = require('./utils/breakfastPushRunner');
 const breakfastModel = require('./models/breakfastModel');
 
-const { whenPluginActive } = require('./utils/pluginScheduling');
-const PLUGINS = require('./constants/plugins');
-
 // Self-update version check (specs/self-update-and-releases.md §3.B rule 12).
 const systemController = require('./controllers/systemController');
 
@@ -127,19 +124,6 @@ async function runBreakfastPushPass(reason = 'tick') {
   }
 }
 
-// Neat cancellation-insurance subscriptions (specs/neat-cancellation-insurance-subscription.md
-// §3.2 rule 8): scan insured + deposit-paid reservations, subscribe due jobs, retry failures.
-// The controller owns the pass (re-entrancy guard + real deps) and bails silently while the
-// integration is unconfigured; the payment flows kick the same pass so the nominal case
-// subscribes within seconds of the acompte, this tick being the safety net.
-async function runNeatSubscriptionPass(reason = 'cron') {
-  try {
-    await require('./controllers/neatController').runPass(reason);
-  } catch (err) {
-    console.error('[neat] pass error:', err && err.message ? err.message : err);
-  }
-}
-
 // No money pass here, on purpose (specs/payment-schedule-and-cancellation.md §1 amendment, rule 44).
 // A daily job used to mint the solde link and mail the request at J-30; the operator now sends every
 // money email himself from the dashboard's « Échéances de paiement » card, which lists the same
@@ -180,13 +164,6 @@ function startScheduledTasks() {
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
 
-  // Neat subscriptions: every 5 min (the payment flows kick the pass for the nominal case; this
-  // tick is the retry ladder + the safety net). Boot pass 150 s after start.
-  const NEAT_TICK = 5 * 60 * 1000;
-  const neatPass = whenPluginActive(PLUGINS.NEAT, runNeatSubscriptionPass);
-  setInterval(() => neatPass('cron').catch((err) => console.error('[neat] unhandled:', err)), NEAT_TICK);
-  setTimeout(() => neatPass('boot').catch((err) => console.error('[neat] unhandled:', err)), 150 * 1000);
-
   // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
   // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
   // `runVersionCheck` never rejects — an unreachable GitHub leaves the last known state in place.
@@ -202,6 +179,4 @@ module.exports = {
   runArrivalDeparturePushPass,
   // Breakfast push — exposed for tests + ops trigger.
   runBreakfastPushPass,
-  // Neat subscription pass — exposed for tests + ops trigger.
-  runNeatSubscriptionPass,
 };

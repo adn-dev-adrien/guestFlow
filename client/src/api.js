@@ -596,6 +596,7 @@ const api = {
 
   // Email automation (specs/email-automation.md)
   getEmailTemplates:        () => request('/email-templates'),
+  getEmailPluginVariables:  () => request('/email-templates/plugin-variables'),
   getEmailTemplate:         (id) => request(`/email-templates/${id}`),
   createEmailTemplate:      (data) => request('/email-templates', { method: 'POST', body: data }),
   updateEmailTemplate:      (id, data) => request(`/email-templates/${id}`, { method: 'PUT', body: data }),

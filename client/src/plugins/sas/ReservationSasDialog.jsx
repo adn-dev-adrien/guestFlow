@@ -1298,7 +1298,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return (
           <Stack spacing={0.5} divider={<Divider />}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Éléments de linge manquants</Typography>
-            {bedItems.length === 0 && <Typography variant="body2" color="text.secondary">Aucun tarif configuré (Réglages → Blanchisserie).</Typography>}
+            {bedItems.length === 0 && <Typography variant="body2" color="text.secondary">Aucun tarif : à saisir dans Options &amp; ressources › Facturables au SAS.</Typography>}
             {bedItems.map((it) => <QtyRow key={it.id} item={it} qtyMap={missingBed} setQtyMap={setMissingBed} />)}
           </Stack>
         );
@@ -1508,7 +1508,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return (
           <Stack spacing={0.5} divider={<Divider />}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Éléments manquants</Typography>
-            {allItems.length === 0 && <Typography variant="body2" color="text.secondary">Aucun tarif configuré (Réglages → Blanchisserie).</Typography>}
+            {allItems.length === 0 && <Typography variant="body2" color="text.secondary">Aucun tarif : à saisir dans Options &amp; ressources › Facturables au SAS.</Typography>}
             {allItems.map((it) => <QtyRow key={it.id} item={it} qtyMap={missingDep} setQtyMap={setMissingDep} />)}
           </Stack>
         );
@@ -1541,7 +1541,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Stack spacing={1}>
             <Typography variant="body1" sx={{ fontWeight: 600 }}>Frais extincteur à facturer</Typography>
             {extinguisherTariffs.length === 0 && (
-              <Typography variant="body2" color="text.secondary">Aucun tarif extincteur configuré (Réglages → Tarifs facturables).</Typography>
+              <Typography variant="body2" color="text.secondary">Aucun tarif extincteur : à saisir dans Options &amp; ressources › Facturables au SAS.</Typography>
             )}
             <Stack divider={<Divider />}>
               {extinguisherTariffs.map((t) => (

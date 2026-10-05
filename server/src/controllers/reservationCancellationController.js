@@ -75,7 +75,7 @@ async function cancel(req, res) {
     emailSent,
     paymentLinksNotDeactivated: notDeactivated,
     paymentLinksWarning: notDeactivated > 0
-      ? `Le lien de paiement n’a pas pu être désactivé chez ${providerLabel}. GuestFlow réessaie à chaque vérification ; tu peux aussi le désactiver depuis ${providerLabel}.`
+      ? `Lien de paiement encore actif chez ${providerLabel} : à désactiver depuis ${providerLabel}.`
       : null,
   });
   // Fire-and-forget, exactly like a delete: the dates are free in GuestFlow the moment the

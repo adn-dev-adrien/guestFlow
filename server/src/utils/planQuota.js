@@ -19,7 +19,7 @@ function quotaRefusal(quota, count, licence = require('./licence').default) {
     error: 'QUOTA_REACHED',
     quota,
     limit,
-    message: `Votre forfait${plan ? ` ${plan}` : ''} comprend ${LABELS[quota](limit)}. Contactez-nous pour changer de forfait.`,
+    message: `${plan ? `Forfait ${plan}` : 'Forfait'} : ${LABELS[quota](limit)} maximum.`,
   };
 }
 

@@ -33,9 +33,11 @@ function recordOn(database) {
 // reservation; a full payment marks it fully settled (deposit + balance). On conversion the dates are
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
-function applyPaidEffect({ database, devisModel, link, checkConflict, recordPayment = recordOn(database) }) {
+function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, recordPayment = recordOn(database) }) {
   const row = database.prepare('SELECT id, kind, convertedReservationId FROM reservations WHERE id = ?').get(link.reservationId);
   if (!row) return { effect: 'no-reservation' };
+  // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
+  if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
 
   const isDeposit = link.type === 'deposit';
   const isFull = link.type === 'full';
@@ -50,18 +52,18 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, recordPaym
       reservationId = conv.data.reservationId;
       effect = 'converted';
     }
-    recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit' });
+    recordPayment({ reservationId, bucket: isFull ? 'full' : 'deposit', paidDate });
     return { effect, reservationId, conflict: flagConflictIfAny({ database, checkConflict, reservationId }) };
   }
 
   if (isDeposit) {
-    recordPayment({ reservationId: link.reservationId, bucket: 'deposit' });
+    recordPayment({ reservationId: link.reservationId, bucket: 'deposit', paidDate });
     return { effect: 'deposit-marked' };
   }
 
   // balance / full on an existing reservation → the stay is fully paid pre-arrival.
   if (link.type === 'balance' || isFull) {
-    recordPayment({ reservationId: link.reservationId, bucket: 'balance' });
+    recordPayment({ reservationId: link.reservationId, bucket: 'balance', paidDate });
     return { effect: 'balance-marked' };
   }
   return { effect: 'noop' };
@@ -87,7 +89,7 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // `emitPluginEvent` is injectable like every other dep; by default the webhook, the on-demand poll
 // and the cron all announce a freshly converted reservation to the plugins (Google pushes it at
 // once — specs/plugins-phase-1-sdk.md rule 9).
-async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit }) {
+async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment, emitPluginEvent = require('../plugins/sdk/eventBus').emit }) {
   const p = paidPayment || {};
   // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
   // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
@@ -97,7 +99,13 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
   if (!flipped) {
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'already-processed' };
   }
-  const effect = applyPaidEffect({ database, devisModel, link, checkConflict, recordPayment });
+  // The day the guest paid, as the provider says, in Paris time — not the day we noticed.
+  const paidDate = require('./stayPaymentRecorder').paidDayOf(p.paidAt);
+  const effect = applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, recordPayment });
+  if (effect.effect === 'reservation-cancelled') {
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
+  }
 
   // Devis→reservation conversion is the only paid effect that changes the calendar event set
   // (deposit/balance flags are not event-visible fields).
@@ -133,6 +141,11 @@ async function retryPendingCancellations({ paymentLinksModel, provider, notifyPa
       paymentLinksModel.clearRemoteCancelPending(link.id);
       results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'deactivated' });
     } catch (err) {
+      if (await require('./paymentLinkDeactivation').alreadyInactive(provider, link.providerLinkId)) {
+        paymentLinksModel.clearRemoteCancelPending(link.id);
+        results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'already-inactive' });
+        continue;
+      }
       results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'deactivation-pending', error: String((err && err.message) || err) });
       if (err && err.code === 'RATE_LIMITED') return { results, stoppedBy: 'rate-limit' };
     }
@@ -163,7 +176,7 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
       // Authoritative "paid" signal = the provider's payment record for the link.
       const pay = await provider.getPayment(link.providerLinkId, { origin: 'poll' });
       if (pay.paid) {
-        const res = await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, sendConfirmation, checkConflict, notifyConflict, recordPayment });
+        const res = await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, sendConfirmation, checkConflict, notifyConflict, notifyPaidAfterCancel, recordPayment });
         results.push(res);
         continue;
       }

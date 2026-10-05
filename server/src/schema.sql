@@ -553,28 +553,6 @@ CREATE TABLE IF NOT EXISTS user_roles (
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
 
-CREATE TABLE IF NOT EXISTS neat_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reservationId INTEGER NOT NULL,
-    environment TEXT NOT NULL,
-    externalId TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    neatSubscriptionId TEXT,
-    premiumAmount REAL,
-    billedAmount REAL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    nextAttemptAt TEXT,
-    lastError TEXT,
-    errorKind TEXT,
-    lastNotifiedAt TEXT,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-    CHECK (environment IN ('production', 'staging')),
-    CHECK (status IN ('pending', 'active', 'failed', 'voided')),
-    UNIQUE (reservationId, environment),
-    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
-  );
-
 CREATE TABLE IF NOT EXISTS terms_draft (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     markdownFr TEXT NOT NULL DEFAULT '',
@@ -605,16 +583,6 @@ CREATE TABLE IF NOT EXISTS terms_acceptances (
     pluginVersion TEXT,
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (termsVersionId) REFERENCES terms_versions(id)
-  );
-
-CREATE TABLE IF NOT EXISTS neat_price_cache (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    environment TEXT NOT NULL,
-    contractId TEXT NOT NULL,
-    fieldsHash TEXT NOT NULL,
-    premium REAL NOT NULL,
-    fetchedAt TEXT NOT NULL,
-    UNIQUE (environment, contractId, fieldsHash)
   );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -723,7 +691,6 @@ CREATE INDEX IF NOT EXISTS idx_reservations_startDate ON reservations(startDate)
 
 CREATE INDEX IF NOT EXISTS idx_resource_bookings_date ON resource_bookings(date);
 
-CREATE INDEX IF NOT EXISTS idx_neat_subscriptions_due ON neat_subscriptions (status, nextAttemptAt);
 
 CREATE INDEX IF NOT EXISTS idx_terms_acceptances_reservation ON terms_acceptances (reservationId);
 

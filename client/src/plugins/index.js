@@ -10,7 +10,8 @@ import websiteBooking from './website-booking';
 import accountingExport from './accounting-export';
 import linen from './linen';
 import onlinePayment from './online-payment';
+import neat from './neat';
 
-const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment];
+const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment, neat];
 
 export default PLUGIN_MODULES;

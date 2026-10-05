@@ -1,15 +1,16 @@
 /**
- * Neat-derived guest pricing (specs/neat-cancellation-insurance-subscription.md §3.2 rule 13).
+ * Neat-derived guest pricing (specs/neat-cancellation-insurance-subscription.md §3.2 rule 13), declared to
+ * the core as its quote post-processor (specs/plugins-phase-3b-neat.md rules 1, 7).
  *
  * Guest price = ceil(premium × (1 + marginPercent/100)) in whole euros — the premium being Neat's
  * own /price answer for the stay's mapped fields. Resolution is async and happens at the request
- * boundary; the pricing engine receives the result as `cancellationInsurancePriceOverride` and
- * stays pure. Premiums go through `neat_price_cache` (24 h freshness); the fallback ladder is
+ * boundary; the core re-runs its engine with the result (`utils/quotePostProcessors.js`) and the
+ * engine stays pure. Premiums go through `neat_price_cache` (24 h freshness); the fallback ladder is
  * fresh cache → live → stale cache → null (static Options tariff, today's behavior).
  */
 
 const crypto = require('crypto');
-const { parseMappingJson, validateMapping, buildServiceFieldValues } = require('./neatFieldMapping');
+const { parseMappingJson, validateMapping, buildServiceFieldValues } = require('./fieldMapping');
 
 const CACHE_FRESH_MS = 24 * 60 * 60 * 1000;
 
@@ -99,25 +100,6 @@ async function resolveInsurancePricing(deps, staySnapshot) {
 }
 
 /**
- * The stay snapshot of a quote that is not (yet) a stored reservation — public quote/booking,
- * fiche live preview. `totalAmount` deliberately EXCLUDES the insurance line itself, so the
- * premium never depends on whether the visitor already ticked « Oui » (no circularity).
- */
-function buildQuoteSnapshot({ startDate, endDate, engineQuote, insuranceLineTotal = 0, propertyName = '', reservationRef = '' }) {
-  return {
-    startDate,
-    endDate,
-    nights: Number(engineQuote.nights || 0),
-    guests: Number(engineQuote.persons || 0),
-    accommodationAmount: Number(engineQuote.cancellationInsuranceBase || 0),
-    insuranceAmount: 0,
-    totalAmount: Math.max(0, Number(engineQuote.totalStayPrice || 0) - Number(insuranceLineTotal || 0)),
-    propertyName,
-    reservationRef,
-  };
-}
-
-/**
  * Cache-only, SYNCHRONOUS resolution — for the sync engine paths (devis compute, reservation
  * save) that cannot await a live call. Any cached premium serves (stale included): the async
  * preview paths keep the cache warm, and a stale price beats an inconsistent one. Null on a cold
@@ -136,51 +118,20 @@ function resolveInsurancePricingSync(deps, staySnapshot) {
   return unitPrice === null ? null : { unitPrice, premium: cached.premium, marginPercent: cfg.marginPercent, source: 'cache' };
 }
 
-// Shared plumbing of the two reprice wrappers below: snapshot the FIRST engine run, then hand the
-// resolved unit price back through a second run. Returns null when Neat pricing does not apply.
-function prepareReprice({ engineInput, quote, settingsModel }) {
-  if (!engineInput || !engineInput.db || !quote || quote.error) return null;
-  if (!pricingConfig(readNeatConfig(settingsModel))) return null;
-  const { db } = engineInput;
-  const insuranceOpt = db.prepare('SELECT id FROM options WHERE isCancellationInsurance = 1 ORDER BY id LIMIT 1').get();
-  if (!insuranceOpt) return null;
-  const line = (quote.optionLines || []).find((l) => Number(l.optionId) === Number(insuranceOpt.id));
-  const property = db.prepare('SELECT name FROM properties WHERE id = ?').get(Number(engineInput.propertyId));
-  return buildQuoteSnapshot({
-    startDate: engineInput.startDate,
-    endDate: engineInput.endDate,
-    engineQuote: quote,
-    insuranceLineTotal: line ? Number(line.totalPrice || 0) : 0,
-    propertyName: property ? String(property.name || '') : '',
-  });
-}
-
 /**
- * SYNC reprice for the engine paths that cannot await (devis compute, reservation create/save):
- * cache-only resolution, then a second engine run with the override. On a cold cache the original
- * quote is returned untouched (static tariff — rule 13 fallback). `calculate` is the engine
- * function, injected to keep this module engine-agnostic and the tests self-contained.
+ * The quote post-processor of rule 1: `priceSync` reads the cache only (saves), `priceLive` may call
+ * Neat and warms the cache (previews). `isReady` = guest pricing fully configured, margin included.
  */
-function repriceQuoteWithNeatSync({ engineInput, quote, settingsModel, cacheModel, calculate }) {
-  const snapshot = prepareReprice({ engineInput, quote, settingsModel });
-  if (!snapshot) return { quote, neatPricing: null };
-  const neatPricing = resolveInsurancePricingSync({ settingsModel, cacheModel }, snapshot);
-  if (!neatPricing) return { quote, neatPricing: null };
-  const repriced = calculate({ ...engineInput, cancellationInsurancePriceOverride: neatPricing.unitPrice });
-  return { quote: repriced.error ? quote : repriced, neatPricing };
-}
-
-/**
- * ASYNC reprice for the preview paths (public /quote, fiche calculate-price): live resolution
- * through the cache — which it WARMS, so the sync save paths that follow read the same premium.
- */
-async function repriceQuoteWithNeatLive({ engineInput, quote, settingsModel, cacheModel, buildClient, calculate, now, logger }) {
-  const snapshot = prepareReprice({ engineInput, quote, settingsModel });
-  if (!snapshot) return { quote, neatPricing: null };
-  const neatPricing = await resolveInsurancePricing({ settingsModel, cacheModel, buildClient, now, logger }, snapshot);
-  if (!neatPricing) return { quote, neatPricing: null };
-  const repriced = calculate({ ...engineInput, cancellationInsurancePriceOverride: neatPricing.unitPrice });
-  return { quote: repriced.error ? quote : repriced, neatPricing };
+function createInsuranceProcessor({ settings, cacheModel, buildClient, now, logger }) {
+  const answer = (pricing) => (pricing ? { cancellationInsurancePrice: pricing.unitPrice } : null);
+  return {
+    id: 'neat',
+    isReady: () => isNeatPricingActive(settings),
+    priceSync: (snapshot) => answer(resolveInsurancePricingSync({ settingsModel: settings, cacheModel: cacheModel() }, snapshot)),
+    priceLive: async (snapshot) => answer(await resolveInsurancePricing({
+      settingsModel: settings, cacheModel: cacheModel(), buildClient, now, logger,
+    }, snapshot)),
+  };
 }
 
 // Whether Neat-derived guest pricing is fully configured (drives the public visibility of a
@@ -195,9 +146,7 @@ module.exports = {
   isNeatPricingActive,
   resolveInsurancePricing,
   resolveInsurancePricingSync,
-  repriceQuoteWithNeatSync,
-  repriceQuoteWithNeatLive,
-  buildQuoteSnapshot,
+  createInsuranceProcessor,
   pricingConfig,
   hashFieldValues,
   CACHE_FRESH_MS,

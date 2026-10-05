@@ -108,7 +108,7 @@ describe('PluginsPage', () => {
     expect(screen.getByText('Surface de Linge et blanchisserie')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Désinstaller' }));
     expect(api.uninstallPlugin).not.toHaveBeenCalled();
-    expect(screen.getByText(/Tes données sont conservées/)).toBeInTheDocument();
+    expect(screen.getByText(/^Données conservées\.$/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Confirmer la désinstallation' }));
     expect(api.uninstallPlugin).toHaveBeenCalledWith('linen');
   });

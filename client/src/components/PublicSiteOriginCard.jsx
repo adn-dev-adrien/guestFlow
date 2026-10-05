@@ -48,8 +48,8 @@ export default function PublicSiteOriginCard({ value, onSaved }) {
             size="small"
             value={draft}
             onChange={(v) => { setDraft(v); setError(''); }}
-            placeholder="https://www.domainesolio.com"
-            helperText="Sert à construire le lien vers vos conditions générales dans les emails, et le retour après un paiement en ligne."
+            placeholder="https://www.mon-site.fr"
+            helperText="Adresse du site, utilisée dans les liens vers les conditions générales."
             error={error}
             disabled={saving}
             sx={{ flex: 1, maxWidth: { sm: 520 } }}
