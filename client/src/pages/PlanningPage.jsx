@@ -5,7 +5,6 @@ import {
   TextField, Button, IconButton,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -29,12 +28,8 @@ import { useAuth } from '../hooks/useAuth';
 import { isReceptionOnly } from '../constants/roles';
 import api from '../api';
 import { usePlugin } from '../hooks/usePlugins';
-import { HOURLY_RESOURCES, SAS } from '../constants/plugins';
+import { SAS } from '../constants/plugins';
 import { useSlot } from '../plugins/sdk/useSlot';
-
-// A plugin's planning data is only fetched while the plugin is active
-// (specs/plugins-phase-0-foundation.md rule 18); otherwise its empty shape stands in.
-const fetchIf = (active, call, empty) => (active ? call().catch(() => empty) : Promise.resolve(empty));
 
 const DAYS_AHEAD = 14;
 
@@ -55,30 +50,9 @@ function addDays(dateStr, n) {
   return d.toISOString().split('T')[0];
 }
 
-// « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
-// (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
-// card sits at the end of the evening, which IS the instruction.
-function ignitionLabel(item) {
-  const when = Number(item.dayOffset) === 1 ? 'demain' : `dans ${Number(item.dayOffset) || 2} jours`;
-  const target = `pour ${when} ${item.sessionStart}`;
-  return item.time ? `${item.time} → ${target}` : target;
-}
-
 function frenchWeekday(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
-
-function timeToMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + (m || 0);
-}
-
-function minutesToTime(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 // `BedVisual` was inlined here until 2026-06-06; it now lives co-located with
@@ -109,54 +83,6 @@ function mapBreakfastItem(i, date) {
   };
 }
 
-function ResourceBookingsSection({ bookings }) {
-  if (!bookings || bookings.length === 0) return null;
-  return (
-    <>
-      {bookings.map((b) => {
-        const turnover = Number(b.turnoverMinutes || 0);
-        const turnoverEnd = turnover > 0
-          ? minutesToTime(timeToMinutes(b.endTime) + turnover)
-          : null;
-        return (
-          <Card key={b.id} variant="outlined" sx={(t) => ({ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: alpha(t.palette.info.main, 0.04) })}>
-            <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Inventory2Icon sx={{ fontSize: 16, color: 'info.main' }} />
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.dark' }}>
-                  {b.resourceName || 'Ressource'}
-                </Typography>
-                {b.paid && <Chip label="Payé" size="small" color="success" sx={{ height: 18, fontSize: 10 }} />}
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Chip
-                  label={`${b.startTime}–${b.endTime}`}
-                  size="small"
-                  sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: b.paid ? 'success.light' : 'info.light' }}
-                />
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{b.displayName}</Typography>
-                {b.propertyName && (
-                  <Typography variant="caption" color="text.secondary">· {b.propertyName}</Typography>
-                )}
-                {b.clientPhone && (
-                  <Typography variant="caption" color="text.secondary">· {b.clientPhone}</Typography>
-                )}
-              </Box>
-
-              {turnover > 0 && turnoverEnd && (
-                <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 1, display: 'block' }}>
-                  Remise en état: +{turnover} min (jusqu'à {turnoverEnd})
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </>
-  );
-}
-
 // `ReservationCard` and `DepartureMiniRow` lived inline here until 2026-06-06. They
 // were extracted to `components/ReservationCard.js` and `components/DepartureMiniRow.js`
 // to enable direct Vitest coverage of the per-tile rules (time pill, Famille
@@ -174,7 +100,6 @@ export default function PlanningPage() {
   // The SAS locks themselves (specs/reception-sas-today-only.md) ride along in the reservation
   // payload — the cards read them directly, nothing to pass down from here.
   const receptionMode = isReceptionOnly(user);
-  const hourlyOn = usePlugin(HOURLY_RESOURCES);
   const sasOn = usePlugin(SAS);
   // Reused by every "card / row click → open reservation" handler below (arrivals,
   // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
@@ -229,32 +154,6 @@ export default function PlanningPage() {
     }
   }, [showError]);
 
-  // Resource session card « fait » toggle (specs/resource-hourly-scheduling.md §3.4). Matched by
-  // reservationId + resourceId + date + start; optimistic with revert on failure.
-  const handleToggleResourceCardDone = useCallback(async (item, nextDone) => {
-    if (!item) return;
-    // An ignition card lives on ITS OWN day (specs/resource-ignition-task.md §3 rule 4) while still
-    // addressing the session it prepares — hence `cardDate` for the optimistic patch and `kind` in the
-    // match, so ticking « démarrer » never flips the session's « préparé ».
-    const cardDate = item.cardDate || item.date;
-    const matches = (it) => it.reservationId === item.reservationId && it.resourceId === item.resourceId
-      && it.date === item.date && it.start === item.start && (it.kind || 'session') === (item.kind || 'session');
-    const apply = (value) => setResourceCardsByDate((prev) => {
-      const day = prev[cardDate];
-      if (!day) return prev;
-      return { ...prev, [cardDate]: { ...day, items: day.items.map((it) => (matches(it) ? { ...it, done: value } : it)) } };
-    });
-    apply(nextDone);
-    try {
-      await api.setPlanningResourceCardDone({
-        reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone, kind: item.kind,
-      });
-    } catch (e) {
-      apply(!nextDone); // revert
-      showError(e.message || 'Impossible de mettre à jour la session.');
-    }
-  }, [showError]);
-
   // Arrival / departure SAS (specs/arrival-departure-sas.md). Clicking an arrival card opens the
   // arrival SAS, a departure row the departure SAS. `{ reservationId, mode }` drives the dialog.
   const [sas, setSas] = useState(null);
@@ -284,7 +183,6 @@ export default function PlanningPage() {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [alertMap, setAlertMap] = useState({});
   const [properties, setProperties] = useState([]);
-  const [resourceBookingsMap, setResourceBookingsMap] = useState({});
   const [departuresMap, setDeparturesMap] = useState({});
   // Cards plugins add to the days (slot `planning.days`, specs/plugins-phase-2-hosts.md rule 5):
   // contribution id → { [date]: entry }, each loaded by the contribution's own `load`.
@@ -299,9 +197,6 @@ export default function PlanningPage() {
   // `{ items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] }`.
   // Empty days are absent; `OptionDayCard` hides itself if data is missing.
   const [optionCardsByDate, setOptionCardsByDate] = useState({});
-  // Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4). Map ISO date →
-  // `{ items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] }`.
-  const [resourceCardsByDate, setResourceCardsByDate] = useState({});
 
   // specs/planning-breakfast-prep-popup.md — the breakfast card item whose preparation popup
   // is open (null = closed). The fiche stays reachable from the popup's « Fiche » button.
@@ -465,16 +360,13 @@ export default function PlanningPage() {
     try {
       const to = addDays(from, DAYS_AHEAD - 1);
       contributedUntilRef.current = to;
-      const [reservationsBase, rbEvents, breakfastSummary, optionCardsSummary, resourceCardsSummary] = await Promise.all([
+      const [reservationsBase, breakfastSummary, optionCardsSummary] = await Promise.all([
         api.getReservations({ from, to }),
-        fetchIf(hourlyOn, () => api.getResourceBookingPlanningEvents(from, to), []),
         // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
         // Non-blocking like the others; an empty map keeps the planning fully functional.
         api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
         // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
         api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
-        // specs/resource-hourly-scheduling.md §3.4 — resource session cards. Non-blocking.
-        fetchIf(hourlyOn, () => api.getPlanningResourceCards({ from, to }), { resourceCardsByDate: {} }),
         // The plugins' day cards — non-blocking: a failed contribution only loses its own cards.
         loadContributions(dayContributions, { from, to }),
       ]);
@@ -510,20 +402,10 @@ export default function PlanningPage() {
       });
       setDeparturesMap(departuresByDate);
 
-      // Group resource bookings by date
-      const rbByDate = {};
-      for (const rb of rbEvents) {
-        if (!rbByDate[rb.date]) rbByDate[rb.date] = [];
-        rbByDate[rb.date].push(rb);
-      }
-      setResourceBookingsMap(rbByDate);
-
       // Breakfast map (date → { items, totalPersons }) directly from the server payload.
       setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
       // Option-driven planning cards (specs/option-planning-card.md §3.3).
       setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
-      // Resource session cards (specs/resource-hourly-scheduling.md §3.4).
-      setResourceCardsByDate(resourceCardsSummary?.resourceCardsByDate || {});
 
       detectAlerts(days, properties);
       lastLoadedRef.current = to;
@@ -567,12 +449,6 @@ export default function PlanningPage() {
             setOptionCardsByDate((prev) => ({ ...prev, ...next }));
           })
           .catch(() => {});
-        // Same incremental pattern for resource session cards (specs/resource-hourly-scheduling.md §3.4).
-        fetchIf(hourlyOn, () => api.getPlanningResourceCards({ from: nextStart, to: nextEnd }), { resourceCardsByDate: {} })
-          .then((summary) => {
-            const next = summary?.resourceCardsByDate || {};
-            setResourceCardsByDate((prev) => ({ ...prev, ...next }));
-          });
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
           if (newReservations.length === 0) {
             lastLoadedRef.current = null;
@@ -726,12 +602,11 @@ export default function PlanningPage() {
           <EmptyState message={`Aucune arrivée ni créneau ressource sur les ${DAYS_AHEAD} prochains jours.`} />
         )}
 
-        {/* Merge reservation days + resource booking days + the dates the plugins' day cards
+        {/* Merge reservation days + the dates the plugins' day cards
             return (specs/plugins-phase-2-hosts.md rule 5): a day with only a laundry card still
             renders. Each contribution decides which of its dates carry a card. */}
         {[...new Set([
           ...planningDays.map((d) => d.date),
-          ...Object.keys(resourceBookingsMap),
           ...Object.keys(departuresMap),
           ...dayContributions.flatMap((c) => Object.keys(contributedByDate[contributionId(c)] || {})),
           // specs/breakfast-option-and-planning-card.md §3 rule 8 — a date that has ONLY a
@@ -740,11 +615,8 @@ export default function PlanningPage() {
           ...Object.keys(breakfastByDate).filter((d) => (breakfastByDate[d]?.items?.length || 0) > 0),
           // specs/option-planning-card.md §3.3 — a date with ONLY an option card must still render.
           ...Object.keys(optionCardsByDate).filter((d) => (optionCardsByDate[d]?.items?.length || 0) > 0),
-          // specs/resource-hourly-scheduling.md §3.4 — a date with ONLY a resource card must still render.
-          ...Object.keys(resourceCardsByDate).filter((d) => (resourceCardsByDate[d]?.items?.length || 0) > 0),
         ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
-          const dayResourceBookings = resourceBookingsMap[date] || [];
           const dayDepartures = departuresMap[date] || [];
           const reservations = day ? day.reservations : [];
           const isToday = date === todayStr;
@@ -754,7 +626,6 @@ export default function PlanningPage() {
           const dayTasks = countDayTasks({
             arrivals: reservations,
             departures: dayDepartures,
-            resourceCards: resourceCardsByDate[date]?.items,
             // A plugin card counts only if its contribution says what it holds to tick (rule 7).
             contributed: dayContributions
               .filter((c) => c.countTasks && contributedByDate[contributionId(c)]?.[date])
@@ -824,42 +695,31 @@ export default function PlanningPage() {
               />
             ),
           }));
-          // Resource session cards — sort by the range start; display the full start–end range.
-          (resourceCardsByDate[date]?.items || []).forEach((i) => {
-            // specs/resource-ignition-task.md §3 rule 5 — « Démarrer le bain nordique — pour 09:00 »,
-            // placed at the moment it must be lit; the session card itself is unchanged.
-            const isIgnition = i.kind === 'ignition';
-            entries.push({
-              key: `res-${isIgnition ? 'ign-' : ''}${i.reservationId}-${i.resourceId}-${i.start || ''}`,
-              time: isIgnition ? i.time : i.start,
-              node: (
-                <OptionDayCard
-                  theme="resource"
-                  data={{
-                    items: [{
-                      ...i,
-                      optionId: i.resourceId,
-                      title: isIgnition ? `Démarrer ${i.name}` : i.name,
-                      time: isIgnition ? ignitionLabel(i) : (i.end ? `${i.start}–${i.end}` : i.start),
-                    }],
-                  }}
-                  onItemClick={openReservation}
-                  onToggleDone={handleToggleResourceCardDone}
-                />
-              ),
-            });
-          });
-          // Resource bookings (startTime) — one section per booking so each is orderable.
-          dayResourceBookings.forEach((b) => entries.push({
-            key: `rb-${b.id}`,
-            time: b.startTime,
-            node: <ResourceBookingsSection bookings={[b]} />,
-          }));
-          // The plugins' day cards (slot `planning.days`) — time-less, placed among the day's other
-          // time-less cards by their `rank`.
+          // The plugins' day cards (slot `planning.days`). A `timed` contribution gives a list of cards
+          // for the day, each with its `time`, sorted among the day's own timed cards
+          // (specs/plugins-phase-3c-hourly-resources.md rule 22); the others give one time-less
+          // card, placed among the day's other time-less cards by its `rank`.
           dayContributions.forEach((c) => {
             const entry = contributedByDate[contributionId(c)]?.[date];
             if (!entry) return;
+            if (c.timed) {
+              (Array.isArray(entry) ? entry : []).forEach((card) => entries.push({
+                key: `${contributionId(c)}-${card.key}`,
+                time: card.time || null,
+                rank: c.rank,
+                node: (
+                  <Suspense fallback={null}>
+                    <c.Component
+                      date={date}
+                      entry={card}
+                      reload={() => reloadContributions([c])}
+                      onOpenReservation={receptionMode ? undefined : openReservation}
+                    />
+                  </Suspense>
+                ),
+              }));
+              return;
+            }
             entries.push({
               key: `${contributionId(c)}-${date}`,
               time: null,

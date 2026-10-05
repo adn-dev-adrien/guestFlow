@@ -1,38 +1,17 @@
 import React from 'react';
 import {
-  Box, Typography, FormControlLabel, Switch, FormControl, InputLabel, Select, MenuItem,
-  TextField, FormGroup, Checkbox
+  Box, Typography, FormControlLabel, TextField, Checkbox,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import api from '../api';
 import PricedItemsPage, { PRICE_TYPES } from '../components/PricedItemsPage';
 import { usePlugin } from '../hooks/usePlugins';
 import { HOURLY_RESOURCES } from '../constants/plugins';
+import { useSlot } from '../plugins/sdk';
 
-// Without the hourly-resources plugin, « Par heure » is no longer offered; a resource that already
-// has it keeps it, labelled (specs/plugins-phase-0-foundation.md rule 20).
-const PRICE_TYPES_WITHOUT_HOURLY = PRICE_TYPES.map((t) => (t.value === 'per_hour'
-  ? { ...t, label: 'Par heure (plugin inactif)', retired: true }
-  : t));
-import { alpha } from '@mui/material/styles';
-
-const SLOT_DURATION_OPTIONS = [
-  { value: 5, label: '5 min' },
-  { value: 10, label: '10 min' },
-  { value: 15, label: '15 min' },
-  { value: 30, label: '30 min' },
-  { value: 60, label: '1 heure' },
-  { value: 120, label: '2 heures' },
-];
-
-const DAY_OPTIONS = [
-  { value: 1, label: 'Lun' },
-  { value: 2, label: 'Mar' },
-  { value: 3, label: 'Mer' },
-  { value: 4, label: 'Jeu' },
-  { value: 5, label: 'Ven' },
-  { value: 6, label: 'Sam' },
-  { value: 0, label: 'Dim' },
-];
+// Without the hourly-resources plugin, nothing is sold by the hour: « À l'heure » is not offered and
+// the resources that have it are hidden (specs/plugins-phase-3c-hourly-resources.md rules 18, 20).
+const PRICE_TYPES_WITHOUT_HOURLY = PRICE_TYPES.filter((t) => t.value !== 'per_hour');
 
 const emptyResource = {
   name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
@@ -44,8 +23,10 @@ const emptyResource = {
   heatUpMinutes: 0, heatRetentionMinutes: 0,
 };
 
-function ComplexResourceFields({ form, setForm, properties }) {
-  const openDays = Array.isArray(form.openDays) ? form.openDays : [0, 1, 2, 3, 4, 5, 6];
+// The per-property price of any resource. For one sold by the hour, the price is per hour and the
+// first hour can be offered.
+function PropertyPricingFields({ form, setForm, properties }) {
+  const hourly = form.priceType === 'per_hour';
   const normalizedPropertyIds = Array.isArray(form.propertyIds) ? form.propertyIds.map((id) => Number(id)) : [];
   const targetProperties = normalizedPropertyIds.length > 0
     ? (properties || []).filter((p) => normalizedPropertyIds.includes(Number(p.id)))
@@ -94,48 +75,27 @@ function ComplexResourceFields({ form, setForm, properties }) {
     setForm({ ...form, propertyPricing: nextPricing });
   };
 
-  const toggleDay = (dayNum) => {
-    const next = openDays.includes(dayNum)
-      ? openDays.filter((d) => d !== dayNum)
-      : [...openDays, dayNum];
-    setForm({ ...form, openDays: next });
-  };
-  const showMinimumUsage = form.priceType === 'per_hour';
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-      {showMinimumUsage && (
-        <FormControl fullWidth size="small">
-          <InputLabel>Temps minimum d'utilisation</InputLabel>
-          <Select
-            value={form.minimumUsageMinutes || 60}
-            label="Temps minimum d'utilisation"
-            onChange={(e) => setForm({ ...form, minimumUsageMinutes: Number(e.target.value) || 0 })}
-          >
-            {SLOT_DURATION_OPTIONS.map((o) => <MenuItem key={`min-${o.value}`} value={o.value}>{o.label}</MenuItem>)}
-          </Select>
-        </FormControl>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+      <Typography variant="body2" fontWeight={600}>Prix spécifique par logement (optionnel)</Typography>
+      <Typography variant="caption" color="text.secondary">Vide : prix général.</Typography>
+      {targetProperties.length === 0 && (
+        <Typography variant="caption" color="text.secondary">Aucun logement disponible.</Typography>
       )}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography variant="body2" fontWeight={600}>Prix specifique par logement (optionnel)</Typography>
-        <Typography variant="caption" color="text.secondary">
-          Laisse vide pour utiliser le prix general. Tu peux aussi offrir la 1ere heure.
-        </Typography>
-        {targetProperties.length === 0 && (
-          <Typography variant="caption" color="text.secondary">Aucun logement disponible.</Typography>
-        )}
-        {targetProperties.map((property) => (
-          <Box key={property.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
-            <TextField
-              label={`Prix ${property.name} (EUR/h)`}
-              type="number"
-              size="small"
-              value={getPropertyPricingLine(property.id).price}
-              onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
-              fullWidth
-              slotProps={{
-                htmlInput: { min: 0, step: '0.01' }
-              }}
-            />
+      {targetProperties.map((property) => (
+        <Box key={property.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+          <TextField
+            label={`Prix ${property.name}${hourly ? ' (EUR/h)' : ''}`}
+            type="number"
+            size="small"
+            value={getPropertyPricingLine(property.id).price}
+            onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
+            fullWidth
+            slotProps={{
+              htmlInput: { min: 0, step: '0.01' }
+            }}
+          />
+          {hourly && (
             <FormControlLabel
               control={
                 <Checkbox
@@ -144,171 +104,54 @@ function ComplexResourceFields({ form, setForm, properties }) {
                   onChange={(e) => updatePropertyFirstHourFree(property.id, e.target.checked)}
                 />
               }
-              label={<Typography variant="caption">1ere heure offerte pour {property.name}</Typography>}
+              label={<Typography variant="caption">1ère heure offerte pour {property.name}</Typography>}
               sx={{ m: 0 }}
             />
-          </Box>
-        ))}
-      </Box>
-      <FormControlLabel
-        control={<Switch checked={Boolean(form.isComplex)} onChange={(e) => setForm({ ...form, isComplex: e.target.checked })} />}
-        label={<Typography variant="body2" fontWeight={600}>Ressource à créneaux (bain nordique, salle…)</Typography>}
-      />
-      {form.isComplex && (
-        <Box sx={{ pl: 2, display: 'flex', flexDirection: 'column', gap: 2, borderLeft: '3px solid', borderColor: 'primary.light' }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Durée minimale</InputLabel>
-            <Select
-              value={form.slotDuration || 5}
-              label="Durée minimale"
-              onChange={(e) => setForm({ ...form, slotDuration: e.target.value })}
-            >
-              {SLOT_DURATION_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              label="Heure d'ouverture"
-              type="time"
-              size="small"
-              value={form.openTime || '08:00'}
-              onChange={(e) => setForm({ ...form, openTime: e.target.value })}
-              sx={{ flex: 1 }}
-              slotProps={{
-                inputLabel: { shrink: true }
-              }}
-            />
-            <TextField
-              label="Heure de fermeture"
-              type="time"
-              size="small"
-              value={form.closeTime || '22:00'}
-              onChange={(e) => setForm({ ...form, closeTime: e.target.value })}
-              sx={{ flex: 1 }}
-              slotProps={{
-                inputLabel: { shrink: true }
-              }}
-            />
-          </Box>
-          <TextField
-            label="Temps de remise en état (min)"
-            type="number"
-            size="small"
-            value={form.turnoverMinutes || 0}
-            onChange={(e) => setForm({ ...form, turnoverMinutes: Math.max(0, Number(e.target.value) || 0) })}
-            helperText="Entre deux passages, quand la ressource est déjà prête"
-            fullWidth
-            slotProps={{
-              htmlInput: { min: 0, step: 5 }
-            }}
-          />
-          {/* Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11). Left
-              at 0 the resource behaves exactly as before: only the opening window, the capacity and
-              the turnover gate a slot. */}
-          {form.priceType === 'per_hour' && (
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
-              <TextField
-                label="Montée en chauffe (min)"
-                type="number"
-                size="small"
-                value={form.heatUpMinutes || 0}
-                onChange={(e) => setForm({ ...form, heatUpMinutes: Math.max(0, Number(e.target.value) || 0) })}
-                helperText="Temps pour rendre la ressource utilisable à froid (bain nordique : 240)"
-                fullWidth
-                slotProps={{ htmlInput: { min: 0, step: 15 } }}
-              />
-              <TextField
-                label="Reste chaude (min)"
-                type="number"
-                size="small"
-                value={form.heatRetentionMinutes || 0}
-                onChange={(e) => setForm({ ...form, heatRetentionMinutes: Math.max(0, Number(e.target.value) || 0) })}
-                helperText="Durée d'utilisation sans réchauffer après un passage (bain nordique : 480)"
-                fullWidth
-                slotProps={{ htmlInput: { min: 0, step: 30 } }}
-              />
-            </Box>
-          )}
-          <Box>
-            <Typography variant="caption" color="text.secondary" gutterBottom display="block">Jours d'ouverture</Typography>
-            <FormGroup row>
-              {DAY_OPTIONS.map((d) => (
-                <FormControlLabel
-                  key={d.value}
-                  control={<Checkbox size="small" checked={openDays.includes(d.value)} onChange={() => toggleDay(d.value)} />}
-                  label={<Typography variant="caption">{d.label}</Typography>}
-                  sx={{ mr: 1 }}
-                />
-              ))}
-            </FormGroup>
-          </Box>
-
-          {/* Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1). Only
-              meaningful for a per_hour resource: the planning card + the day/evening + external grid. */}
-          {form.priceType === 'per_hour' && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px dashed', borderColor: 'divider', pt: 1.5 }}>
-              <FormControlLabel
-                control={<Switch checked={Boolean(form.showsPlanningCard)} onChange={(e) => setForm({ ...form, showsPlanningCard: e.target.checked })} />}
-                label={<Typography variant="body2" fontWeight={600}>Planification par séances + tarif horaire (carte planning)</Typography>}
-              />
-              {form.showsPlanningCard && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Le tarif horaire de jour est le prix général ci-dessus ({form.price || 0} €/h). En soirée, le tarif soir s'applique.
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                    <TextField
-                      label="Heure de bascule soir"
-                      type="time"
-                      size="small"
-                      value={form.hourlyEveningStart || ''}
-                      onChange={(e) => setForm({ ...form, hourlyEveningStart: e.target.value })}
-                      sx={{ flex: 1 }}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                    <TextField
-                      label="Tarif horaire soir (€/h)"
-                      type="number"
-                      size="small"
-                      value={form.hourlyEveningRate ?? 0}
-                      onChange={(e) => setForm({ ...form, hourlyEveningRate: Math.max(0, Number(e.target.value) || 0) })}
-                      sx={{ flex: 1 }}
-                      slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
-                    />
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                    Tarif extérieurs (sans réservation logement)
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                    <TextField
-                      label="Tarif jour extérieurs (€/h)"
-                      type="number"
-                      size="small"
-                      value={form.hourlyExternalDayRate ?? 0}
-                      onChange={(e) => setForm({ ...form, hourlyExternalDayRate: Math.max(0, Number(e.target.value) || 0) })}
-                      helperText="Vide / 0 = tarif invité"
-                      sx={{ flex: 1 }}
-                      slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
-                    />
-                    <TextField
-                      label="Tarif soir extérieurs (€/h)"
-                      type="number"
-                      size="small"
-                      value={form.hourlyExternalEveningRate ?? 0}
-                      onChange={(e) => setForm({ ...form, hourlyExternalEveningRate: Math.max(0, Number(e.target.value) || 0) })}
-                      helperText="Vide / 0 = tarif invité"
-                      sx={{ flex: 1 }}
-                      slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
-                    />
-                  </Box>
-                </Box>
-              )}
-            </Box>
           )}
         </Box>
-      )}
+      ))}
     </Box>
   );
+}
+
+// What plugins draw under the base fields (specs/plugins-phase-3c-hourly-resources.md rule 21): the
+// hourly block of a resource sold by the hour.
+function PluginResourceFields({ form, setForm }) {
+  const contributions = useSlot('resources.fields').filter((c) => c.appliesTo(form));
+  return contributions.map(({ key, pluginId, Component }) => (
+    <React.Suspense key={`${pluginId}:${key}`} fallback={null}>
+      <Component draft={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+    </React.Suspense>
+  ));
+}
+
+const DEFAULT_HOURLY_SETTINGS = {
+  isComplex: 0, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00',
+  openDays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]), turnoverMinutes: 0, showsPlanningCard: 0,
+  hourlyEveningStart: null, hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
+  heatUpMinutes: 0, heatRetentionMinutes: 0,
+};
+
+function hourlySettings(form) {
+  if (form.priceType !== 'per_hour') return DEFAULT_HOURLY_SETTINGS;
+  const slotted = Boolean(form.isComplex);
+  const card = Boolean(form.showsPlanningCard);
+  return {
+    isComplex: slotted ? 1 : 0,
+    slotDuration: slotted ? (Number(form.slotDuration) || 5) : 5,
+    minimumUsageMinutes: Number(form.minimumUsageMinutes) || 60,
+    openTime: slotted ? (form.openTime || '08:00') : '08:00',
+    closeTime: slotted ? (form.closeTime || '22:00') : '22:00',
+    openDays: JSON.stringify(slotted ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),
+    turnoverMinutes: slotted ? (Number(form.turnoverMinutes) || 0) : 0,
+    showsPlanningCard: card ? 1 : 0,
+    hourlyEveningStart: card && form.hourlyEveningStart ? form.hourlyEveningStart : null,
+    hourlyEveningRate: card ? (Number(form.hourlyEveningRate) || 0) : 0,
+    hourlyExternalDayRate: card ? (Number(form.hourlyExternalDayRate) || 0) : 0,
+    hourlyExternalEveningRate: card ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
+    heatUpMinutes: Math.max(0, Number(form.heatUpMinutes) || 0),
+    heatRetentionMinutes: Math.max(0, Number(form.heatRetentionMinutes) || 0),
+  };
 }
 
 /**
@@ -328,30 +171,16 @@ export function toResourcePayload(form) {
         const parsedPrice = Number(rawPrice?.price);
         const parsedFreeMinutes = Number(rawPrice?.freeMinutes || 0);
         const hasPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0;
-        const freeMinutes = Number.isFinite(parsedFreeMinutes) ? Math.max(0, Math.round(parsedFreeMinutes)) : 0;
+        // A free hour exists only on a resource sold by the hour (rule 4).
+        const freeMinutes = form.priceType === 'per_hour' && Number.isFinite(parsedFreeMinutes) ? Math.max(0, Math.round(parsedFreeMinutes)) : 0;
         if (hasPrice || freeMinutes > 0) acc[String(propertyId)] = { price: hasPrice ? parsedPrice : 0, freeMinutes };
         return acc;
       }, {}),
     note: form.description || '',
-    isComplex: form.isComplex ? 1 : 0,
-    slotDuration: form.isComplex ? (Number(form.slotDuration) || 5) : 5,
-    minimumUsageMinutes: form.priceType === 'per_hour' ? (Number(form.minimumUsageMinutes) || 60) : 0,
-    openTime: form.isComplex ? (form.openTime || '08:00') : '08:00',
-    closeTime: form.isComplex ? (form.closeTime || '22:00') : '22:00',
-    openDays: JSON.stringify(form.isComplex ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),
-    turnoverMinutes: form.isComplex ? (Number(form.turnoverMinutes) || 0) : 0,
-    // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1). Only meaningful
-    // for a per_hour resource; cleared otherwise so toggling priceType away resets the planning flag.
-    showsPlanningCard: form.priceType === 'per_hour' && form.showsPlanningCard ? 1 : 0,
-    hourlyEveningStart: form.priceType === 'per_hour' && form.showsPlanningCard && form.hourlyEveningStart
-      ? form.hourlyEveningStart : null,
-    hourlyEveningRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyEveningRate) || 0) : 0,
-    hourlyExternalDayRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyExternalDayRate) || 0) : 0,
-    hourlyExternalEveningRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
-    // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3 rule 11) — per_hour
-    // only, cleared otherwise so switching priceType away cannot leave a stale warm-up in place.
-    heatUpMinutes: form.priceType === 'per_hour' ? Math.max(0, Number(form.heatUpMinutes) || 0) : 0,
-    heatRetentionMinutes: form.priceType === 'per_hour' ? Math.max(0, Number(form.heatRetentionMinutes) || 0) : 0,
+    // Hours, slots and the planning card are for a resource sold by the hour only
+    // (specs/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise, so switching the price
+    // type away leaves no stale setting behind.
+    ...hourlySettings(form),
   };
 }
 
@@ -416,7 +245,8 @@ export default function ResourcesPage({ barTabs }) {
       getRowSx={(item) => (item.isComplex ? { bgcolor: (t) => alpha(t.palette.info.main, 0.05) } : {})}
       renderExtraFormFields={(form, setForm, { properties }) => (
         <>
-          <ComplexResourceFields form={form} setForm={setForm} properties={properties} />
+          <PropertyPricingFields form={form} setForm={setForm} properties={properties} />
+          <PluginResourceFields form={form} setForm={setForm} />
         </>
       )}
     />

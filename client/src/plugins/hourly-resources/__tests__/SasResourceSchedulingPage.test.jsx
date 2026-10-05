@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach } from 'vitest';
 
-import SasResourceSchedulingPage, { seedResourceBlocks } from '../SasResourceSchedulingPage';
+import SasResourceSchedulingPage from '../SasResourceSchedulingPage';
+import { seedResourceBlocks } from '../scheduling';
 import api from '../../../api';
 
 vi.mock('../../../api', () => ({ default: { getResourceFreeSlots: vi.fn() } }));

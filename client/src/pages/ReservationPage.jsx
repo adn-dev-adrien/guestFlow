@@ -229,6 +229,9 @@ export default function ReservationPage() {
   // payloads that predate the feature: ExtrasSection then falls back to the flat list.
   const [propertyOptionGroups, setPropertyOptionGroups] = useState(null);
   const [availableResources, setAvailableResources] = useState([]);
+  // specs/plugins-phase-3c-hourly-resources.md rule 18 — the resources this stay carries that the
+  // catalogue now hides (sold by the hour, plugin off), drawn read-only beside the others.
+  const [frozenResources, setFrozenResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
@@ -732,6 +735,7 @@ export default function ReservationPage() {
           ? null
           : (urlPropId ? Number(urlPropId) : (props.length > 0 ? props[0].id : ''));
         setExistingReservationLocked(false);
+        setFrozenResources([]);
 
         if (prefillDevis?.form) {
           const prefillPropertyId = Number(prefillDevis.propertyId || prefillDevis.form.propertyId || 0) || null;
@@ -766,6 +770,7 @@ export default function ReservationPage() {
           setPastUnlocked(false);
           const loaded = await loadPropertyContext(res.propertyId, props);
           const catalogueOptions = addFrozenOptions(loaded.options, res.frozenOptions);
+          setFrozenResources(Array.isArray(res.frozenResources) ? res.frozenResources : []);
 
           // Load all reservations for this property to check conflicts
           const allRes = await api.getReservations({ propertyId: res.propertyId });
@@ -910,6 +915,7 @@ export default function ReservationPage() {
           setOnlinePayment(devis.onlinePayment || null);
           const loaded = await loadPropertyContext(devis.propertyId, props);
           const catalogueOptions = addFrozenOptions(loaded.options, devis.frozenOptions);
+          setFrozenResources(Array.isArray(devis.frozenResources) ? devis.frozenResources : []);
 
           const allRes = await api.getReservations({ propertyId: devis.propertyId });
           setReservations(allRes || []);
@@ -2920,11 +2926,13 @@ export default function ReservationPage() {
   const accommodationDiscountedPriceDisplay = pricingQuote?.accommodationAdjustedPrice != null
     ? Number(pricingQuote.accommodationAdjustedPrice).toFixed(2)
     : (parsedCustomPrice !== null ? Number(parsedCustomPrice).toFixed(2) : accommodationBasePriceDisplay);
-  const displayableResources = availableResources.filter((resource) => {
+  const displayableResources = [
+    ...availableResources,
+    ...frozenResources.filter((frozen) => !availableResources.some((r) => Number(r.id) === Number(frozen.id))),
+  ].filter((resource) => {
     const name = String(resource?.name || '').toLowerCase();
     return !(name.includes('lit') && (name.includes('bébé') || name.includes('bebe')));
   });
-  const isHourlyResource = (resource) => Boolean(resource?.isComplex) || resource?.priceType === 'per_hour';
   const hasExtrasSection = true;
   const formSectionCardSx = {
     bgcolor: 'background.paper',

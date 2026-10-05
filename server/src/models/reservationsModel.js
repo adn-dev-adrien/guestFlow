@@ -841,6 +841,7 @@ function createReservationsModel(database) {
           COALESCE(rco.offered, 0) as offered,
           COALESCE(rco.inComplement, 0) as inComplement,
           COALESCE(rco.sasArrivalOrigin, 0) as sasArrivalOrigin,
+          ${HAS_RCO_SAS_LINE_KEY ? 'rco.sasLineKey' : 'NULL'} as sasLineKey,
           rco.acompteContribTtc as acompteContribTtc,
           rco.soldeContribTtc as soldeContribTtc,
           1 as isCustom

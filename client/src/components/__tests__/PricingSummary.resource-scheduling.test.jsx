@@ -7,8 +7,9 @@ import PricingSummary from '../PricingSummary';
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 5 — an hourly resource is normally
 // sold unscheduled and planned with the guest during the arrival SAS. « à planifier » is an ordinary
 // state, not an alarm, but it has to be visible: otherwise a bath nobody booked a slot for looks
-// exactly like a scheduled one. The counts come from the server (`quantity` / `scheduledHours`) —
-// the summary never derives them from the session list.
+// exactly like a scheduled one. The wording comes from the server (`detail`, written by the
+// hourly-resources plugin — specs/plugins-phase-3c-hourly-resources.md rule 23): the summary never
+// derives it.
 
 const BAIN = {
   id: 2, name: 'Bain nordique', price: 30, priceType: 'per_hour',
@@ -46,33 +47,33 @@ const line = (over = {}) => ({
 });
 
 test('hours sold but nothing placed → « à planifier »', () => {
-  renderSummary(line({ scheduledHours: 0 }));
+  renderSummary(line({ scheduledHours: 0, detail: 'À planifier' }));
   expect(screen.getByText('Bain nordique ×3h')).toBeInTheDocument();
-  expect(screen.getByText('à planifier')).toBeInTheDocument();
+  expect(screen.getByText('À planifier')).toBeInTheDocument();
 });
 
 test('partially placed → « 1 h / 3 h planifiées »', () => {
-  renderSummary(line({ scheduledHours: 1 }));
+  renderSummary(line({ scheduledHours: 1, detail: '1 h / 3 h planifiées' }));
   expect(screen.getByText('1 h / 3 h planifiées')).toBeInTheDocument();
-  expect(screen.queryByText('à planifier')).not.toBeInTheDocument();
+  expect(screen.queryByText('À planifier')).not.toBeInTheDocument();
 });
 
 test('fully placed → no chip at all', () => {
   renderSummary(line({ scheduledHours: 3 }));
-  expect(screen.queryByText('à planifier')).not.toBeInTheDocument();
+  expect(screen.queryByText('À planifier')).not.toBeInTheDocument();
   expect(screen.queryByText(/planifiées/)).not.toBeInTheDocument();
 });
 
 test('a resource that cannot be scheduled never shows the chip', () => {
   // No `scheduledHours` on the line = the server says « not schedulable » (a per_stay resource, say).
   renderSummary(line({ priceType: 'per_stay', quantity: 2 }));
-  expect(screen.queryByText('à planifier')).not.toBeInTheDocument();
+  expect(screen.queryByText('À planifier')).not.toBeInTheDocument();
   expect(screen.queryByText(/planifiées/)).not.toBeInTheDocument();
 });
 
 test('REGRESSION: an unscheduled hourly resource is still worth its money in the summary', () => {
   // The reported bug: the line was dropped entirely, so the resource vanished with its 90 €
   // (specs/hourly-resource-quantity-and-sas-scheduling.md §1 defect 1).
-  renderSummary(line({ scheduledHours: 0 }));
+  renderSummary(line({ scheduledHours: 0, detail: 'À planifier' }));
   expect(screen.getByText('90,00 €')).toBeInTheDocument();
 });

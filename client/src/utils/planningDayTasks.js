@@ -7,9 +7,10 @@
  *
  *   - an arrival    → done when `checkInReady` (the card's « Prêt » checkbox);
  *   - a departure   → done when `checkOutDone` (« Effectué »);
- *   - a resource session card (bain nordique & co) → done when its `done` flag is set;
- *   - a plugin's day card → what its `planning.days` contribution's `countTasks(entry)` returns,
- *     `{ done, total }` (specs/plugins-phase-2-hosts.md rule 7). The laundry card counts none.
+ *   - a plugin's day cards → what its `planning.days` contribution's `countTasks(entry)` returns,
+ *     `{ done, total }` (specs/plugins-phase-2-hosts.md rule 7). The laundry card counts none; the
+ *     hourly resources count their ignition and session cards (specs/plugins-phase-3c-hourly-resources.md
+ *     rule 22).
  *
  * Pure: it counts the very items the page is rendering, so the chip can never disagree with the cards
  * below it.
@@ -20,11 +21,10 @@ const countDone = (list, predicate) => (Array.isArray(list) ? list.filter(predic
 
 const sumOf = (list, key) => (Array.isArray(list) ? list.reduce((n, t) => n + (Number(t && t[key]) || 0), 0) : 0);
 
-export function countDayTasks({ arrivals, departures, resourceCards, contributed } = {}) {
-  const total = len(arrivals) + len(departures) + len(resourceCards) + sumOf(contributed, 'total');
+export function countDayTasks({ arrivals, departures, contributed } = {}) {
+  const total = len(arrivals) + len(departures) + sumOf(contributed, 'total');
   const done = countDone(arrivals, (r) => Boolean(r.checkInReady))
     + countDone(departures, (r) => Boolean(r.checkOutDone))
-    + countDone(resourceCards, (c) => Boolean(c.done))
     + sumOf(contributed, 'done');
   return { done, total, allDone: total > 0 && done === total };
 }

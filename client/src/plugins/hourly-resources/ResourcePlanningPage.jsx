@@ -8,13 +8,10 @@ import { alpha } from '@mui/material/styles';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import AddIcon from '@mui/icons-material/Add';
-import PageActionBar from '../components/PageActionBar';
-import EmptyState from '../components/EmptyState';
-import ErrorAlert from '../components/ErrorAlert';
-import ResourceBookingDialog from '../components/ResourceBookingDialog';
-import { useToast } from '../components/DialogProvider';
-import { withFrom } from '../utils/navigation';
-import api from '../api';
+import {
+  api, PageActionBar, EmptyState, ErrorAlert, useToast, withFrom,
+} from '../sdk';
+import ResourceBookingDialog from './ResourceBookingDialog';
 
 const PIXELS_PER_MINUTE = 1.5; // 60 min = 90px
 const MIN_BOOKING_HEIGHT = 18;

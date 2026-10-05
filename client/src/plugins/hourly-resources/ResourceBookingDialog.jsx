@@ -5,8 +5,8 @@ import {
   FormControlLabel, Checkbox, Typography, Divider, Switch, Autocomplete
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import api from '../api';
-import { previewRangeTotal } from '../utils/resourceSessions';
+import { api } from '../sdk';
+import { previewRangeTotal } from './resourceSessions';
 
 function timeToMinutes(t) {
   const [h, m] = (t || '00:00').split(':').map(Number);

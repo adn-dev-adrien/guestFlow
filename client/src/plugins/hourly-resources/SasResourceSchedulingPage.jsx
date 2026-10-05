@@ -6,6 +6,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { api, SlotPickerGrid } from '../sdk';
+import { dayLabel } from './scheduling';
 
 /**
  * Arrival SAS — « Planifier les ressources »
@@ -25,31 +26,6 @@ import { api, SlotPickerGrid } from '../sdk';
 function formatHours(hours) {
   const value = Math.round(Number(hours || 0) * 100) / 100;
   return Number.isInteger(value) ? `${value} h` : `${value} h`;
-}
-
-function dayLabel(day) {
-  return day.weekdayLabel || day.date;
-}
-
-/**
- * The blocks a re-opened SAS starts from: the hours already placed, in the shape a freshly placed
- * block has (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 26).
- */
-export function seedResourceBlocks(scheduling) {
-  return (scheduling?.resources || []).flatMap((resource) => (resource.sessions || []).map((session) => {
-    const day = (resource.days || []).find((d) => d.date === session.date);
-    const [sh, sm] = String(session.start).split(':').map(Number);
-    const [eh, em] = String(session.end).split(':').map(Number);
-    return {
-      resourceId: resource.resourceId,
-      date: session.date,
-      dayLabel: day ? dayLabel(day) : session.date,
-      start: session.start,
-      end: session.end,
-      supplement: Number(session.supplement || 0),
-      durationMinutes: Math.max(0, (eh * 60 + em) - (sh * 60 + sm)),
-    };
-  }));
 }
 
 /**
