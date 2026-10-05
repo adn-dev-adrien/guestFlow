@@ -50,7 +50,8 @@ function createModel(database) {
     let rows;
     try {
       rows = database.prepare(`
-        SELECT rr.resourceId, rr.quantity, ${HAS_SESSIONS ? 'rr.sessions' : 'NULL AS sessions'}
+        SELECT rr.resourceId, rr.quantity, rr.unitPrice, rr.billedUnits, rr.totalPrice, rr.offered,
+          ${HAS_SESSIONS ? 'rr.sessions' : 'NULL AS sessions'}
         FROM reservation_resources rr
         JOIN resources r ON r.id = rr.resourceId
         WHERE rr.reservationId = ? AND r.showsPlanningCard = 1 AND r.priceType = 'per_hour'
@@ -68,14 +69,64 @@ function createModel(database) {
       );
       const hoursSold = Math.max(0, Number(row.quantity) || 0);
       const hoursPlaced = round2(placedMinutes / 60);
+      // What the sold line already bills above the day rate — a line priced from evening sessions
+      // before the sale carries its evening difference in its own amount (rule 30). An offered line
+      // keeps its real amount in unitPrice × billedUnits.
+      const billedUnits = Math.max(0, Number(row.billedUnits) || 0);
+      const lineAmount = Number(row.offered) === 1
+        ? round2((Number(row.unitPrice) || 0) * billedUnits)
+        : round2(row.totalPrice);
+      const eveningCredit = Math.max(0, round2(lineAmount - Number(resource.price || 0) * billedUnits));
       return {
         resource,
         sessions,
         hoursSold,
         hoursPlaced,
         hoursRemaining: Math.max(0, round2(hoursSold - hoursPlaced)),
+        eveningCredit,
       };
     }).filter(Boolean);
+  }
+
+  const supplementLabel = (entry) => `${entry.resource.name} — supplément soirée`;
+
+  function eveningOf(entry, blocks) {
+    return eveningSupplement(blocks, {
+      dayRate: Number(entry.resource.price || 0),
+      eveningRate: Number(entry.resource.hourlyEveningRate) || 0,
+      eveningStart: entry.resource.hourlyEveningStart || null,
+      slotMinutes: Number(entry.resource.slotDuration || 60),
+    });
+  }
+
+  /**
+   * The evening supplements a stay owes (§3.4 rules 22, 30): for each sold schedulable resource, the
+   * evening difference of ALL its hours on a slot — `blocksByResource` for the resources the SAS
+   * re-placed, the stored sessions for the others — minus what the sold line already bills for the
+   * evening. Recomputed from scratch, so it is billed once whatever the number of commits.
+   */
+  function supplementsFor(entries, blocksByResource = new Map()) {
+    return entries.map((entry) => {
+      const id = Number(entry.resource.id);
+      const blocks = blocksByResource.has(id) ? blocksByResource.get(id) : entry.sessions;
+      const amount = supplementOf(entry, blocks);
+      return { resourceId: id, label: supplementLabel(entry), amount };
+    }).filter((s) => s.amount > 0);
+  }
+
+  /** One resource's supplement for a set of blocks, what the SAS recap shows as it changes. */
+  function supplementOf(entry, blocks) {
+    return Math.max(0, round2(eveningOf(entry, blocks) - entry.eveningCredit));
+  }
+
+  /** The supplements of the stored sessions — a commit whose scheduling step did not run. */
+  function storedSupplements(reservation) {
+    return supplementsFor(soldSchedulableResources(reservation));
+  }
+
+  /** The labels the supplements of this stay are written under, owed or not. */
+  function supplementLabels(reservation) {
+    return soldSchedulableResources(reservation).map(supplementLabel);
   }
 
   /**
@@ -127,7 +178,12 @@ function createModel(database) {
       hoursRemaining: entry.hoursRemaining,
       slotDuration: Number(entry.resource.slotDuration || 60),
       minimumUsageMinutes: Number(entry.resource.minimumUsageMinutes || 0),
-      sessions: entry.sessions,
+      // Re-opening the SAS starts from the hours already placed (§3.4 rule 26), each with its own
+      // « +X € » badge, as a freshly placed block shows it.
+      sessions: entry.sessions.map((session) => ({ ...session, supplement: eveningOf(entry, [session]) })),
+      // What the stored hours owe now — the recap's line until the operator moves a block (rule 32).
+      supplement: supplementOf(entry, entry.sessions),
+      supplementLabel: supplementLabel(entry),
       days: daysFor({ reservation, entry, pending, now }),
     }));
     return {
@@ -141,7 +197,8 @@ function createModel(database) {
     const entry = soldSchedulableResources(reservation)
       .find((e) => Number(e.resource.id) === Number(resourceId));
     if (!entry) return null;
-    return { days: daysFor({ reservation, entry, pending, now }) };
+    // `pending` is every block on the picker (rule 26), so its supplement is the resource's.
+    return { days: daysFor({ reservation, entry, pending, now }), supplement: supplementOf(entry, pending) };
   }
 
   /**
@@ -153,7 +210,6 @@ function createModel(database) {
     const entries = soldSchedulableResources(reservation);
     const { notBefore, notAfter } = stayBounds(reservation, now);
     const accepted = new Map(); // resourceId → blocks accepted so far
-    const supplements = [];
 
     for (const block of blocks) {
       const entry = entries.find((e) => Number(e.resource.id) === Number(block?.resourceId));
@@ -185,25 +241,13 @@ function createModel(database) {
       accepted.set(Number(block.resourceId), [...already, block]);
     }
 
-    // Evening supplement per resource: the hours were sold at the day rate, an evening slot owes the
-    // difference (§3.4 rule 22). Recomputed from scratch on every commit, so it never accumulates.
-    for (const [resourceId, resourceBlocks] of accepted) {
-      const entry = entries.find((e) => Number(e.resource.id) === resourceId);
-      const amount = eveningSupplement(resourceBlocks, {
-        dayRate: Number(entry.resource.price || 0),
-        eveningRate: Number(entry.resource.hourlyEveningRate) || 0,
-        eveningStart: entry.resource.hourlyEveningStart || null,
-        slotMinutes: Number(entry.resource.slotDuration || 60),
-      });
-      if (amount > 0) {
-        supplements.push({ resourceId, label: `${entry.resource.name} — supplément soirée`, amount });
-      }
-    }
-
-    return { ok: true, supplements };
+    return { ok: true, supplements: supplementsFor(entries, accepted) };
   }
 
-  return { getSchedulingPayload, getFreeSlots, validateBlocks, soldSchedulableResources, stayBounds };
+  return {
+    getSchedulingPayload, getFreeSlots, validateBlocks, soldSchedulableResources, stayBounds,
+    storedSupplements, supplementLabels,
+  };
 }
 
 const defaultModel = createModel(db);

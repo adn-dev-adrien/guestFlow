@@ -331,7 +331,11 @@ function commitArrival(req, res) {
   // can be stale by the time it commits — so everything is re-checked here (opening window, capacity,
   // turnover, thermal readiness, the sold-hours budget) and a conflict aborts the WHOLE commit rather
   // than double-booking (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 27).
-  let eveningSupplements = [];
+  //
+  // The evening supplement is the server's, recomputed on EVERY arrival commit from all the hours on
+  // a slot (rules 22, 30): the step's blocks when it ran, the stored sessions otherwise. A supplement
+  // the dialog carries back from an earlier run is dropped — it used to stack on the fresh one.
+  let eveningSupplements = resourceSchedulingModel.storedSupplements(reservation);
   const blocks = Array.isArray(resourceBlocks) ? resourceBlocks : undefined;
   if (blocks) {
     const verdict = resourceSchedulingModel.validateBlocks({ reservation, blocks });
@@ -340,6 +344,7 @@ function commitArrival(req, res) {
     }
     eveningSupplements = verdict.supplements;
   }
+  const supplementLabels = new Set(resourceSchedulingModel.supplementLabels(reservation));
 
   const beforeSas = snapshotSas(Number(req.params.id));
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
@@ -352,6 +357,7 @@ function commitArrival(req, res) {
     // element noted but not billed). The evening supplement is never offered: it is machine-computed.
     complementItems: [
       ...(Array.isArray(complementItems) ? complementItems : [])
+        .filter((i) => !supplementLabels.has(String((i && i.label) || '')))
         .map((i) => ({ label: i && i.label, amount: i && i.amount, offered: Boolean(i && i.offered) })),
       ...eveningSupplements.map((s) => ({ label: s.label, amount: s.amount })),
     ],

@@ -31,7 +31,7 @@ import RoomServiceIcon from '@mui/icons-material/RoomService';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import HotTubIcon from '@mui/icons-material/HotTub';
 import PaymentsIcon from '@mui/icons-material/Payments';
-import SasResourceSchedulingPage from './SasResourceSchedulingPage';
+import SasResourceSchedulingPage, { seedResourceBlocks } from './SasResourceSchedulingPage';
 import SasStayPaymentPage from './SasStayPaymentPage';
 import KingBedIcon from '@mui/icons-material/KingBed';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
@@ -236,6 +236,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // Hours the operator placed on real slots during this run. In-memory only until the single commit
   // at the recap (specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 24).
   const [resourceBlocks, setResourceBlocks] = useState([]);
+  // The evening supplement per resource, as the server computes it for the blocks on the picker
+  // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 32).
+  const [resourceSupplements, setResourceSupplements] = useState({});
   // specs/sas-bath-linen-upsell.md — arrival bath-linen upsell: add it or not. Settlement (incl. « en
   // fin de séjour ») is chosen once, for the whole complement, on the recap — never at option selection.
   const [bathLinenAdded, setBathLinenAdded] = useState(false);
@@ -322,7 +325,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setPreservedDeparture([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
-    setWeatherAlerts([]); setOffered(new Set());
+    setWeatherAlerts([]); setOffered(new Set()); setResourceBlocks([]); setResourceSupplements({});
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
     // still undo its own upsell) and at check-out (where it can never be billed twice).
@@ -330,6 +333,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       .then((d) => {
         if (cancelled) return;
         setData(d); setStepKey('intro');
+        // specs/hourly-resource-quantity-and-sas-scheduling.md §3.4 rule 26 — a re-opened SAS starts
+        // from the hours already placed: the commit REPLACES the sessions, so a block left out of the
+        // picker would be deleted.
+        setResourceBlocks(seedResourceBlocks(d?.resourceScheduling));
+        setResourceSupplements(Object.fromEntries((d?.resourceScheduling?.resources || [])
+          .map((resource) => [resource.resourceId, Number(resource.supplement || 0)])));
         const res = d?.reservation || {};
         const b = d?.breakfast;
         if (b?.applicable) {
@@ -439,6 +448,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             && String(o.autoOptionType || '') === type && Number(o.sasArrivalOrigin || 0) === 1);
           if (Number(sasUpsellRow('cleaning')?.offered || 0) === 1) seed.add('cleaning');
           if (Number(sasUpsellRow('bathroom_linen')?.offered || 0) === 1) seed.add('bathLinen');
+          // The evening supplement is the server's, recomputed at every commit (rule 32): it is shown
+          // from `resourceSupplements`, never carried back as a preserved line.
+          const supplementLabels = new Set((d?.resourceScheduling?.resources || []).map((resource) => resource.supplementLabel));
           (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1).forEach((o) => {
             const label = String(o.description || o.title || '');
             const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
@@ -447,7 +459,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             if (item && Number(item.price) > 0) {
               nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
               if (lineOffered) seed.add(`bed:${item.id}`);
-            } else {
+            } else if (!supplementLabels.has(label)) {
               if (lineOffered) seed.add(`preserved:${keep.length}`);
               keep.push({ label, amount });
             }
@@ -730,6 +742,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     ...l, offerKey: `preserved:${i}`, real: round2(l.amount), amount: billed(`preserved:${i}`, l.amount),
   }));
   const preservedArrivalSum = preservedArrivalLines.reduce((s, l) => s + l.amount, 0);
+  const eveningSupplementLines = mode === 'arrival'
+    ? (data?.resourceScheduling?.resources || [])
+      .map((resource) => ({ label: resource.supplementLabel, amount: Number(resourceSupplements[resource.resourceId] || 0) }))
+      .filter((l) => l.amount > 0)
+    : [];
+  const eveningSupplementSum = eveningSupplementLines.reduce((s, l) => s + l.amount, 0);
 
   // Detail of the PRE-EXISTING complement (the « déjà dû »): every extra routed to the complément
   // (options / resources / custom — `inComplement`), with its quantity + unit price, EXCLUDING the
@@ -777,7 +795,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // whether the settlement was one gesture or two; the server re-prices every line either way.
   const arrivalComplementTotal = round2(
     Math.max(0, round2(Number(r?.complementAmount || 0) - sasOriginSum - preExistingOfferDelta))
-    + arrivalAdded + preservedArrivalSum,
+    + arrivalAdded + preservedArrivalSum + eveningSupplementSum,
   );
   const unifiableNow = mode === 'arrival'
     && Boolean(data?.arrivalPayment?.complementOpen)
@@ -905,7 +923,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const placedMinutes = resourceBlocks
           .filter((b) => Number(b.resourceId) === Number(resource.resourceId))
           .reduce((sum, b) => sum + Number(b.durationMinutes || 0), 0);
-        const hours = Math.max(0, Math.round((resource.hoursRemaining - placedMinutes / 60) * 100) / 100);
+        const hours = Math.max(0, Math.round((resource.hoursSold - placedMinutes / 60) * 100) / 100);
         return { resourceId: resource.resourceId, name: resource.name, hours };
       })
       .filter((u) => u.hours > 0)
@@ -1230,6 +1248,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             onRemove={(idx, block) => setResourceBlocks((prev) => prev.filter((b) => (
               !(b.resourceId === block.resourceId && b.date === block.date && b.start === block.start)
             )))}
+            onSupplement={(resourceId, amount) => setResourceSupplements((prev) => ({ ...prev, [resourceId]: amount }))}
           />
         );
       case 'breakfast':
@@ -1620,6 +1639,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                   offered={isOffered(l.offerKey)}
                   onToggle={() => toggleOffered(l.offerKey)}
                 />
+              ))}
+              {eveningSupplementLines.map((l, i) => (
+                <OfferableLine key={`e${i}`} prefix="+ " text={`${l.label} : ${formatCurrency(l.amount)}`} />
               ))}
               {preservedArrivalLines.map((l, i) => (
                 <OfferableLine
