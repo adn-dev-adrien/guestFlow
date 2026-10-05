@@ -840,7 +840,9 @@ CREATE INDEX IF NOT EXISTS idx_translation_values_lang ON translation_values(lan
 -- `gate_key_results` keeps the LATEST outcome the house reported per reservation — the code and the
 -- link the emails, the SAS and the fiche show, or the error the dashboard raises. `label`,
 -- `startsAt`, `endsAt` are the window as it was listed, kept so a DELETED reservation can still be
--- revoked. `alertedError` is the error the admins were last pushed about (one push per error).
+-- revoked. `propertyId` is the reservation's property, kept for the same reason: the revoke of a
+-- deleted reservation still carries its stay (specs/sowel-stays-in-keys.md). `alertedError` is the
+-- error the admins were last pushed about (one push per error).
 -- No foreign key on purpose: the row must outlive a deleted reservation, that is when it matters.
 CREATE TABLE IF NOT EXISTS gate_key_results (
     reservationId INTEGER PRIMARY KEY,
@@ -855,7 +857,8 @@ CREATE TABLE IF NOT EXISTS gate_key_results (
     startsAt      TEXT,
     endsAt        TEXT,
     receivedAt    TEXT NOT NULL,
-    alertedError  TEXT
+    alertedError  TEXT,
+    propertyId    INTEGER
 );
 
 -- One row (id = 1): when the house last read the list of keys, and whether the admins were already
