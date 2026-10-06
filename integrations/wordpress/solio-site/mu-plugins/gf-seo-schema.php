@@ -61,6 +61,15 @@ function gf_seo_schema_geo() {
 }
 
 /**
+ * Heure d’arrivee ou de depart au format ISO 8601 avec decalage (« 16:00:00+02:00 »).
+ *
+ * Google refuse « 16:00 » seul pour un VacationRental et le compte comme absent.
+ */
+function gf_seo_schema_heure( $heure ) {
+	return $heure ? $heure . ':00' . wp_date( 'P' ) : null;
+}
+
+/**
  * Transforme une liste d’equipements en LocationFeatureSpecification.
  *
  * Deux formes sont acceptees : la liste de phrases des equipements du domaine, et les
@@ -233,6 +242,7 @@ function gf_seo_schema_hebergement( $cle ) {
 		array(
 			'@type'                  => 'Accommodation',
 			'@id'                    => $url . '#logement',
+			'additionalType'         => 'EntirePlace',
 			'name'                   => gf_fait( $l, 'nom' ),
 			'numberOfBedrooms'       => $l['chambres'],
 			'numberOfBathroomsTotal' => $l['salles_eau'],
@@ -268,10 +278,16 @@ function gf_seo_schema_hebergement( $cle ) {
 		),
 	) : null;
 
+	// Champs exiges par les resultats enrichis « location de vacances » de Google. Ce type n'y
+	// accepte aucune offre : le prix du gite reste publie dans llms.txt.
+	$location = 'gite' === $cle;
+
 	return gf_seo_compact(
 		array(
-			'@type'          => 'gite' === $cle ? 'VacationRental' : 'Campground',
+			'@type'          => $location ? 'VacationRental' : 'Campground',
 			'@id'            => $url . '#hebergement',
+			'additionalType' => $location ? 'Gite' : null,
+			'identifier'     => $location ? 'solio-' . $l['slug'] : null,
 			'name'           => gf_fait( $l, 'nom' ),
 			'url'            => $url,
 			'description'    => gf_seo_description(),
@@ -279,15 +295,17 @@ function gf_seo_schema_hebergement( $cle ) {
 			'telephone'      => $d['telephone'],
 			'address'        => gf_seo_schema_adresse(),
 			'geo'            => gf_seo_schema_geo(),
-			'checkinTime'    => $l['checkin'],
-			'checkoutTime'   => $l['checkout'],
+			'latitude'       => $location ? $d['latitude'] : null,
+			'longitude'      => $location ? $d['longitude'] : null,
+			'checkinTime'    => gf_seo_schema_heure( $l['checkin'] ),
+			'checkoutTime'   => gf_seo_schema_heure( $l['checkout'] ),
 			'petsAllowed'    => (bool) $d['chiens_acceptes'],
 			'smokingAllowed' => empty( $l['non_fumeur'] ),
 			'numberOfRooms'  => $l['chambres'],
 			'award'          => $l['label'],
 			'amenityFeature' => gf_seo_schema_equipements( $l['equipements'] ),
 			'containsPlace'  => $logement,
-			'makesOffer'     => $offre,
+			'makesOffer'     => $location ? null : $offre,
 			'isPartOf'       => array( '@id' => home_url( '/#domaine' ) ),
 		)
 	);
