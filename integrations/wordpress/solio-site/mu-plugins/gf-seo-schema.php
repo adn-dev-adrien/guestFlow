@@ -63,10 +63,11 @@ function gf_seo_schema_geo() {
 /**
  * Heure d’arrivee ou de depart au format ISO 8601 avec decalage (« 16:00:00+02:00 »).
  *
- * Google refuse « 16:00 » seul pour un VacationRental et le compte comme absent.
+ * Google refuse « 16:00 » seul pour un VacationRental et le compte comme absent. L’API
+ * GuestFlow peut renvoyer « 16:00 » comme « 16:00:00 » : seules les heures et minutes comptent.
  */
 function gf_seo_schema_heure( $heure ) {
-	return $heure ? $heure . ':00' . wp_date( 'P' ) : null;
+	return $heure ? substr( $heure, 0, 5 ) . ':00' . wp_date( 'P' ) : null;
 }
 
 /**
