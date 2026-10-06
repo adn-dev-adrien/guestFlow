@@ -91,7 +91,7 @@ function gf_seo_schema_equipements( $equipements ) {
 function gf_seo_schema_domaine() {
 	$d = gf_seo_domaine();
 
-	$reseaux = array_values( array_filter( array( $d['facebook'], $d['instagram'] ) ) );
+	$reseaux = array_values( array_filter( array_merge( array( $d['facebook'], $d['instagram'] ), $d['fiches'] ) ) );
 
 	// Le tarif le plus bas des deux hebergements donne le « a partir de » du domaine.
 	$prix = array();
@@ -286,6 +286,7 @@ function gf_seo_schema_hebergement( $cle ) {
 			'numberOfRooms'  => $l['chambres'],
 			'award'          => $l['label'],
 			'amenityFeature' => gf_seo_schema_equipements( $l['equipements'] ),
+			'sameAs'         => array_values( $l['fiches'] ?? array() ),
 			'containsPlace'  => $logement,
 			'makesOffer'     => $offre,
 			'isPartOf'       => array( '@id' => home_url( '/#domaine' ) ),
