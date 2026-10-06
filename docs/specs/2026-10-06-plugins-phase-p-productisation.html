@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase P</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.app{display:grid;grid-template-columns:200px 1fr;gap:14px}
+@media (max-width:760px){.app{grid-template-columns:1fr}}
+.nav{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px;font-size:13.5px;align-self:start}
+.nav div{padding:6px 8px;border-radius:6px}
+.nav .sub{padding-left:22px;color:var(--muted)}
+.panes{display:grid;gap:12px}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pane h4{margin:0 0 8px;font:600 14px var(--serif);color:var(--sapin)}
+.line{border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin:8px 0;background:var(--field)}
+.line .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.line .top b{flex:1;min-width:160px}
+.line.ro{opacity:.85;background:color-mix(in srgb,var(--ghost) 8%,var(--field))}
+.line.dup{border-color:var(--ko)}
+.amt{font:600 15px var(--serif);color:var(--sapin)}
+.sub2{font-size:12.5px;color:var(--muted);margin-top:4px}
+.badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));color:var(--ok)}
+.badge.ko{background:color-mix(in srgb,var(--ko) 15%,var(--card));color:var(--ko)}
+.badge.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:40px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.mini:disabled{opacity:.45;cursor:not-allowed}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media (max-width:600px){.acts .mini{flex:1 1 100%;min-height:44px}}
+.field{display:flex;flex-direction:column;gap:4px;margin:8px 0;max-width:420px}
+.field label{font-size:12.5px;color:var(--muted)}
+.field select,.field input{font:inherit;min-height:44px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+.field input.bad,.field select.bad{border-color:var(--ko)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media (max-width:600px){.grid2{grid-template-columns:1fr}}
+.block{border-left:3px solid var(--info);padding:4px 0 4px 12px;margin:8px 0}
+.err{color:var(--ko);font-size:13px;margin-top:4px}
+.ok{color:var(--ok)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.steps span{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--fieldline)}
+.steps span.l{border-color:var(--info);color:var(--info);font-weight:600}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.pcard .h{font-weight:700;min-width:46px;color:var(--sapin)}
+.pcard b{flex:1;min-width:140px}
+.pcard.res{border-left:4px solid var(--info)}
+.pcard.done{opacity:.55;text-decoration:line-through}
+.total{display:flex;justify-content:space-between;border-top:2px solid var(--line);margin-top:10px;padding-top:8px;font-weight:700}
+.total .amt{font-size:17px}
+.dlg{max-width:520px;border:1px solid var(--line);border-radius:12px;background:var(--field);padding:16px;box-shadow:0 6px 22px rgba(0,0,0,.08)}
+.dlg h4{margin:0 0 6px;font:600 17px var(--serif);color:var(--sapin)}
+.dlg ul{margin:6px 0 10px;padding-left:20px;font-size:13.5px}
+.dlg li{margin:4px 0}
+.dlg .w{color:var(--ocre);font-weight:600;border-left:4px solid var(--ocre);padding:6px 10px;background:color-mix(in srgb,var(--ocre) 10%,var(--card));border-radius:6px;font-size:13.5px;margin:8px 0}
+.dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.btn{appearance:none;font:inherit;font-weight:600;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);cursor:pointer}
+.btn.o{background:transparent;color:var(--sapin)}
+.btn.ko{background:var(--ko);border-color:var(--ko)}
+@media (max-width:600px){.dlg .row .btn{flex:1 1 100%}}
+.log{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px;white-space:pre-wrap;overflow-wrap:anywhere}
+.q{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:12px 14px;margin:12px 0}
+.q h3{margin:0 0 6px}
+.opt{display:block;border:1px solid var(--fieldline);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;cursor:pointer;background:var(--field)}
+.opt input{margin-right:8px;accent-color:var(--lichen)}
+.opt.rec{border-color:var(--ok)}
+.gone{display:none}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tabs button{appearance:none;font:inherit;font-weight:600;font-size:13px;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+textarea{font:inherit;font-size:13.5px;width:100%;min-height:76px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);resize:vertical}
+textarea.bad{border-color:var(--ko)}
+.tok{display:inline-block;font:12px ui-monospace,Menlo,monospace;padding:3px 8px;margin:3px 4px 0 0;border-radius:999px;border:1px dashed var(--info);color:var(--info);background:transparent;cursor:pointer;min-height:28px}
+.mail{font:14px/1.6 var(--serif);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:12px 14px;white-space:pre-wrap}
+.mail .hl{background:color-mix(in srgb,var(--ocre) 16%,transparent);border-radius:3px}
+.phone{max-width:375px;margin:0 auto;border:1px solid var(--line);border-radius:18px;background:var(--field);padding:14px;min-height:460px;display:flex;flex-direction:column}
+.desk{max-width:720px;margin:0 auto;border:1px solid var(--line);border-radius:12px;background:var(--field);padding:20px 24px;min-height:420px;display:flex;flex-direction:column}
+.wz-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.wz-mark{font:600 17px var(--serif);color:var(--sapin)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:6px 0 14px}
+.bar i{display:block;height:100%;background:var(--lichen);transition:width .2s}
+.wz-foot{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;padding-top:14px}
+.phone .wz-foot .btn{flex:1 1 100%}
+.plug{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px}
+.plug.off{opacity:.55}
+.plug input{width:20px;height:20px;margin-top:2px;accent-color:var(--lichen)}
+.eq{font-weight:700}
+.side{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.side{grid-template-columns:1fr}}
+.mrow{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--field)}
+.mrow .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mrow .top b{flex:1;min-width:150px}
+.optchips label{display:inline-flex;align-items:center;gap:6px;font-size:13px;border:1px solid var(--fieldline);border-radius:999px;padding:4px 10px;margin:3px 4px 0 0;min-height:34px;cursor:pointer}
+.acc{display:grid;grid-template-columns:1fr 160px;gap:6px 12px;align-items:center;font-size:13.5px;max-width:560px}
+.acc input{font:inherit;min-height:40px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);width:100%}
+.acc input.bad{border-color:var(--ko)}
+@media (max-width:600px){.acc{grid-template-columns:1fr}}
+.unsub{max-width:460px;margin:0 auto;border:1px solid var(--line);border-radius:12px;background:#fff;color:#222;padding:18px;font:14px/1.5 var(--sans)}
+.unsub h4{margin:0 0 6px;font:600 18px Georgia,serif;color:#2b2b2b}
+.unsub .b{display:inline-block;margin-top:10px;padding:8px 14px;border-radius:8px;background:#3d4a5c;color:#fff}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Plugins — phase P : un nouveau client part de zéro</h1>
+<div class="meta">Spec <code>specs/plugins-phase-p-productisation.md</code> · brouillon du 06/10/2026 · branche <code>feature/plugins-phase-p-productisation</code> · aucun code écrit</div>
+
+<div class="note"><b>En une phrase.</b> Une nouvelle instance ne reçoit plus rien de Solio, un assistant la met en route, et les phrases que le code écrivait dans les mails deviennent des textes éditables. Pour Solio, tout reste identique au caractère près, et un test le prouve.</div>
+
+<h2>Constat</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Ce qu’une base vierge reçoit aujourd’hui</h3>
+    <ul class="tight">
+      <li>Les 6 mails de la séquence avec l’adresse du domaine, « 13 hectares », le bain nordique, la piscine partagée.</li>
+      <li>14 options traiteur au tarif de Solio (Brasserie du Pilat, Pressoir du Pilat, Terroir Ardèche).</li>
+      <li>Une saison de piscine du 15/06 au 31/08.</li>
+      <li>L’étape extincteur au départ, et deux lignes de réparation pour l’extincteur.</li>
+      <li>Une page de désabonnement « Vos nouvelles du Domaine Solio ».</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Ce que le code écrit tout seul</h3>
+    <ul class="tight">
+      <li><code>stayContentContext.js</code> compose environ 25 paragraphes, en français et en anglais : jus et bières du Pilat, repas des trappeurs, animaux, Nespresso, « bâtiment d’accueil »…</li>
+      <li>Le rappel du bain nordique, déclenché par le mot « nordique » dans le nom.</li>
+      <li>Lodgify compté comme vente directe, en dur.</li>
+      <li>Le plan comptable dans une constante.</li>
+      <li>Aucun premier lancement : le premier admin arrive sur un tableau de bord vide.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu’on propose</h2>
+<div class="cols2">
+  <div class="card"><h3>A–B · Les textes deviennent des données</h3><p>Chaque phrase devient un <b>texte de séjour</b> avec une clé, un texte FR/EN et des variables contrôlées. Ce qui concerne des options devient une <b>mention</b> : une phrase pour la proposer, une phrase une fois réservée, et un prix qui suit les options.</p></div>
+  <div class="card"><h3>C · Une base vierge neutre</h3><p>Pas de traiteur, pas de piscine, un lit bébé à 0 €, des mails de séquence neutres. L’extincteur devient un réglage du plugin sas, éteint par défaut. Le désabonnement porte le nom de l’entreprise.</p></div>
+  <div class="card"><h3>D · L’assistant de démarrage</h3><p>4 étapes : Entreprise, Premier logement, Plugins, C’est prêt. Chaque étape est validée par le serveur. « Plus tard » reste possible.</p></div>
+  <div class="card"><h3>E · Solio identique</h3><p>Une migration ponctuelle ne tourne que sur une base qui a déjà des données. Elle écrit les textes, mentions, phrases de ressource, Lodgify direct, sujet VAPID et réglage extincteur d’aujourd’hui. Le test « golden » compare les 6 mails × 2 langues × 6 séjours, avant et après.</p></div>
+  <div class="card"><h3>F · Plan comptable en réglages</h3><p>Les numéros de compte deviennent des réglages du plugin comptabilité, avec les valeurs d’aujourd’hui par défaut. Le CSV reste identique.</p></div>
+  <div class="card"><h3>G · Dépôt</h3><p>Le site WordPress de Solio et le script Aventura Lodge vont dans un dépôt privé. La section DNS du README devient générique.</p></div>
+</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li>La liste et les couleurs des plateformes lues en base : la liste actuelle est celle du marché français et ne contient rien de Solio.</li>
+  <li>Une seule source pour <code>Europe/Paris</code>, puisque le marché français seul est décidé.</li>
+  <li>Un autre format d’export comptable (FEC).</li>
+  <li>Les commentaires du code qui citent Solio, l’instance de démo, le centre d’aide.</li>
+</ul>
+
+<div class="alert"><b>Le risque.</b> Un mail de Solio qui change sans qu’on le voie. Trois parades :
+<ul class="tight">
+<li>la migration ne fait qu’ajouter des lignes et n’écrase jamais une valeur existante ;</li>
+<li>les sorties d’aujourd’hui sont figées en fixtures <i>avant</i> la refonte, et la comparaison doit être exacte au caractère près ;</li>
+<li>les 6 mails sont prévisualisés sur une copie de la prod.</li>
+</ul>
+Second risque : l’écran des textes est riche. Les variables inconnues sont donc refusées à l’enregistrement, jamais affichées en accolades chez le client.</div>
+
+<!-- ============================================================ DEMO 1 -->
+<h2>Démo 1 — L’assistant de démarrage</h2>
+<p class="muted">Remplir, se tromper, voir le refus. La largeur bascule entre téléphone et ordinateur.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Écran</span>
+    <div class="seg" id="wzWidth"><button aria-pressed="true" data-w="phone">Téléphone 375 px</button><button aria-pressed="false" data-w="desk">Ordinateur</button></div>
+    <span class="lab">Instance</span>
+    <div class="seg" id="wzPlan"><button aria-pressed="true" data-p="pro">Hébergée, forfait Pro</button><button aria-pressed="false" data-p="self">Auto-hébergée</button></div>
+    <button class="mini" id="wzReset">Recommencer</button>
+  </div>
+  <div class="sbody"><div id="wz" class="phone"></div></div>
+</div>
+
+<!-- ============================================================ DEMO 2 -->
+<h2>Démo 2 — Réglages › Emails › Textes des mails</h2>
+<p class="muted">La base change ce que l’écran contient. Les variables se cliquent pour être insérées. Essayer par exemple <code>{{prix}}</code> au lieu de <code>{{price}}</code> pour voir le refus.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Base</span>
+    <div class="seg" id="base"><button aria-pressed="true" data-b="solio">Solio, après migration</button><button aria-pressed="false" data-b="new">Nouvelle instance</button></div>
+  </div>
+  <div class="sbody">
+    <div class="tabs" role="tablist" id="tTabs">
+      <button role="tab" aria-selected="true" data-t="texts">Par mail</button>
+      <button role="tab" aria-selected="false" data-t="mentions">Options citées</button>
+      <button role="tab" aria-selected="false" data-t="preview">Aperçu</button>
+    </div>
+    <div id="tPane"></div>
+  </div>
+</div>
+
+<!-- ============================================================ DEMO 3 -->
+<h2>Démo 3 — Solio : le J-7 avant et après</h2>
+<p class="muted">À gauche, le moteur d’aujourd’hui (phrases dans le code). À droite, le nouveau moteur qui lit les données écrites par la migration. Les cases changent le séjour, et les deux colonnes suivent. Si un texte est modifié dans la démo 2, la différence apparaît ici : c’est voulu.</p>
+<div class="studio">
+  <div class="sbar">
+    <label class="chk"><input type="checkbox" id="g-kids" checked> Enfants</label>
+    <label class="chk"><input type="checkbox" id="g-juice"> Jus réservés</label>
+    <label class="chk"><input type="checkbox" id="g-board"> Planche réservée</label>
+    <label class="chk"><input type="checkbox" id="g-bkf"> Petit-déj réservé</label>
+    <label class="chk"><input type="checkbox" id="g-pool" checked> Séjour en saison piscine</label>
+    <span id="gEq" class="badge ok eq">identique</span>
+  </div>
+  <div class="sbody side">
+    <div><div class="lab">Aujourd’hui</div><div class="mail" id="gOld"></div></div>
+    <div><div class="lab">Après (données migrées)</div><div class="mail" id="gNew"></div></div>
+  </div>
+</div>
+
+<!-- ============================================================ DEMO 4 -->
+<h2>Démo 4 — Comptabilité › Plan comptable</h2>
+<div class="studio">
+  <div class="sbody">
+    <div class="acc" id="acc"></div>
+    <div class="acts"><button class="mini" id="accSave">Enregistrer</button><button class="mini" id="accReset">Valeurs par défaut</button></div>
+    <div class="log" id="accLog">Une ligne du CSV pour un séjour de 300 € (10 % de TVA) apparaîtra ici.</div>
+  </div>
+</div>
+
+<!-- ============================================================ DEMO 5 -->
+<h2>Démo 5 — Les petits réglages qui remplacent du code en dur</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Comptabilité › Plateformes</h3>
+    <div id="plats"></div>
+    <div class="sub2" id="platNote"></div>
+  </div>
+  <div class="card">
+    <h3>Plugin Arrivée et départ guidés</h3>
+    <label class="chk"><input type="checkbox" id="ext"> Contrôle de l’extincteur</label>
+    <div class="steps" id="sasSteps"></div>
+    <div class="sub2">Nouvelle instance : éteint. Solio : allumé par la migration.</div>
+  </div>
+</div>
+<div class="card" style="margin-top:12px">
+  <h3>Page de désabonnement</h3>
+  <div class="field"><label>Nom de l’entreprise (Réglages › Entreprise)</label><input id="coName" value="Les Chalets du Lac"></div>
+  <div class="unsub" id="unsub"></div>
+</div>
+
+<!-- ============================================================ ARBITRAGES -->
+<h2>Arbitrages en attente</h2>
+<p class="muted">Déjà tranchés le 06/10 : une seule spec (pas de découpage), les textes de Solio par migration (P18) et les phrases sur les options (P19).</p>
+<div class="q"><h3>P19 bis — Une mention peut couvrir plusieurs options</h3>
+  <label class="opt rec"><input type="radio" name="p19" checked> <b>Oui, une mention regroupe des options (recommandé)</b> — les 4 jus de Solio sont cités une fois, « 6 € le litre ». C’est indispensable pour garder Solio identique.</label>
+  <label class="opt"><input type="radio" name="p19"> Une phrase par option, strictement — 4 lignes pour les jus : le mail de Solio change.</label></div>
+<div class="q"><h3>P20 — Le site WordPress de Solio</h3>
+  <label class="opt rec"><input type="radio" name="p20" checked> <b>Dépôt privé <code>solio-site</code> (recommandé)</b> — IP du réseau local, utilisateur SSH et rapports SEO quittent le dépôt public. Le dépôt est à créer par Adrien ; les notes qui citent l’ancien chemin seront mises à jour.</label>
+  <label class="opt"><input type="radio" name="p20"> Le garder ici pour l’instant.</label></div>
+<div class="q"><h3>P21 — « Plus tard » dans l’assistant</h3>
+  <label class="opt rec"><input type="radio" name="p21" checked> <b>Possible à chaque étape (recommandé)</b> — l’assistant se rouvre depuis Réglages › Système.</label>
+  <label class="opt"><input type="radio" name="p21"> L’assistant doit être terminé avant d’accéder à l’application.</label></div>
+<div class="q"><h3>P22 — Les options d’une base vierge</h3>
+  <label class="opt rec"><input type="radio" name="p22" checked> <b>Garder linge, petit-déjeuner, ménage, assurance, lit bébé (recommandé)</b> — ce sont des fonctions du produit, avec des prix à 0 ou à saisir.</label>
+  <label class="opt"><input type="radio" name="p22"> Aucune option : le client crée tout.</label></div>
+
+</div>
+
+<script>
+(function(){
+const $=(s,r=document)=>r.querySelector(s);
+const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const euro=(n)=>{const w=Number.isInteger(n);return (w?n:n.toFixed(2).replace('.',','))+' €';};
+const joinFr=(a)=>a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' et '+a[a.length-1];
+function seg(id,cb){const el=$(id);el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));cb(b.dataset);});}
+
+/* ---------------------------------------------------------------- wizard */
+const PLUGINS=[
+  {id:'website-booking',l:'Réservation en ligne',d:'Moteur de réservation pour le site, demandes en direct.',plan:'pro',rec:true},
+  {id:'sas',l:'Arrivée et départ guidés',d:'Accueil et départ pas à pas, encaissement du complément.',plan:'pro',rec:true},
+  {id:'online-payment',l:'Paiement en ligne',d:'Liens de paiement Qonto ou Mollie.',plan:'pro'},
+  {id:'google-calendar',l:'Google Agenda',d:'Les séjours dans un agenda Google.',plan:'pro'},
+  {id:'linen',l:'Linge',d:'Stock, lavage et pénuries de linge.',plan:'premium'},
+  {id:'hourly-resources',l:'Ressources à l’heure',d:'Une ressource vendue à l’heure, placée sur des créneaux.',plan:'premium'},
+  {id:'accounting-export',l:'Export comptable',d:'Journal des ventes pour le comptable.',plan:'pro'},
+];
+let wz={step:1,w:'phone',plan:'pro',co:{name:'',email:'',phone:'',addr:'',siret:''},pr:{name:'',cap:'4',in:'16:00',out:'10:00',price:'90'},pl:{},err:{},done:false,later:false};
+PLUGINS.forEach(p=>wz.pl[p.id]=!!p.rec);
+const allowed=(p)=>wz.plan==='self'||p.plan==='pro';
+function vStep(){
+  const e={};
+  if(wz.step===1){
+    if(!wz.co.name.trim())e.name='Nom obligatoire';
+    if(!wz.co.email.trim())e.email='Adresse obligatoire';else if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(wz.co.email))e.email='Adresse invalide';
+    if(wz.co.siret&&!/^\d{14}$/.test(wz.co.siret.replace(/\s/g,'')))e.siret='14 chiffres';
+  }
+  if(wz.step===2){
+    if(!wz.pr.name.trim())e.pname='Nom obligatoire';
+    const c=Number(wz.pr.cap);if(!Number.isInteger(c)||c<1||c>50)e.cap='Entre 1 et 50';
+    const p=Number(wz.pr.price);if(wz.pr.price===''||!(p>=0))e.price='Prix positif ou nul';
+  }
+  return e;
+}
+function fld(key,label,obj,k,type='text',ph=''){const e=wz.err[key];return `<div class="field"><label>${label}</label><input data-o="${obj}" data-k="${k}" type="${type}" value="${esc(wz[obj][k])}" placeholder="${ph}" class="${e?'bad':''}">${e?`<div class="err">${e}</div>`:''}</div>`;}
+function renderWz(){
+  const el=$('#wz');el.className=wz.w;
+  if(wz.later||wz.done){el.innerHTML=`<div class="wz-mark">GuestFlow</div><p style="margin-top:16px">${wz.done?'<b>Tableau de bord.</b> Le logement « '+esc(wz.pr.name)+' » existe ; plugins actifs : '+(PLUGINS.filter(p=>wz.pl[p.id]&&allowed(p)).map(p=>p.l).join(', ')||'aucun')+'.':'<b>Tableau de bord.</b> Ce qui a été enregistré reste. L’assistant se rouvre depuis Réglages › Système.'}</p>`;return;}
+  const titles=['Entreprise','Premier logement','Plugins','C’est prêt'];
+  let body='';
+  if(wz.step===1)body=fld('name','Nom de l’entreprise','co','name')+fld('email','Email','co','email','email')+fld('phone','Téléphone','co','phone','tel')+fld('addr','Adresse','co','addr')+fld('siret','SIRET','co','siret','text','14 chiffres');
+  if(wz.step===2)body=fld('pname','Nom du logement','pr','name')+`<div class="grid2">${fld('cap','Capacité','pr','cap','number')}${fld('price','Prix par nuit (€)','pr','price','number')}${fld('in','Arrivée à partir de','pr','in','time')}${fld('out','Départ avant','pr','out','time')}</div>`;
+  if(wz.step===3)body=PLUGINS.map(p=>{const ok=allowed(p);return `<label class="plug ${ok?'':'off'}"><input type="checkbox" data-pl="${p.id}" ${wz.pl[p.id]&&ok?'checked':''} ${ok?'':'disabled'}><span><b>${p.l}</b><br><span class="muted">${p.d}</span>${ok?'':`<br><span class="badge">Inclus dans le forfait Premium</span>`}</span></label>`;}).join('');
+  if(wz.step===4)body=`<p><b>${esc(wz.co.name)}</b> est prêt.</p><ul class="tight"><li>Réglages › Emails : relire les textes des mails</li><li>Tarifs : saisons et prix de « ${esc(wz.pr.name)} »</li><li>Plugins : ${PLUGINS.filter(p=>wz.pl[p.id]&&allowed(p)).length} actif(s)</li></ul>`;
+  el.innerHTML=`<div class="wz-top"><span class="wz-mark">GuestFlow</span><span class="muted">Étape ${wz.step} sur 4</span></div><div class="bar"><i style="width:${wz.step*25}%"></i></div><h3 style="margin-top:0">${titles[wz.step-1]}</h3>${body}
+  <div class="wz-foot">${wz.step<4?'<button class="btn o" data-a="later">Plus tard</button>':''}${wz.step>1&&wz.step<4?'<button class="btn o" data-a="prev">Précédent</button>':''}<button class="btn" data-a="next">${wz.step===4?'Ouvrir le tableau de bord':'Suivant'}</button></div>`;
+}
+$('#wz').addEventListener('input',e=>{const t=e.target;if(t.dataset.o){wz[t.dataset.o][t.dataset.k]=t.value;}});
+$('#wz').addEventListener('change',e=>{const t=e.target;if(t.dataset.pl){wz.pl[t.dataset.pl]=t.checked;}});
+$('#wz').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
+  if(a==='later'){wz.later=true;}
+  if(a==='prev'){wz.step--;wz.err={};}
+  if(a==='next'){if(wz.step===4){wz.done=true;}else{wz.err=vStep();if(!Object.keys(wz.err).length)wz.step++;}}
+  renderWz();});
+seg('#wzWidth',d=>{wz.w=d.w;renderWz();});
+seg('#wzPlan',d=>{wz.plan=d.p;renderWz();});
+$('#wzReset').onclick=()=>{wz={...wz,step:1,co:{name:'',email:'',phone:'',addr:'',siret:''},pr:{name:'',cap:'4',in:'16:00',out:'10:00',price:'90'},err:{},done:false,later:false};renderWz();};
+renderWz();
+
+/* ---------------------------------------------------------------- stay texts + mentions */
+const SOLIO_TEXTS={
+  'bag.items':'- Maillots de bain et serviettes pour le bain nordique{{#if stayOverlapsPool}}, et pour la piscine{{/if}}\n- Des chaussures fermées pour les sentiers du domaine',
+  'offers.localIntro':'Pour alléger les courses, nous travaillons avec des producteurs locaux : {{list}}. Nous vous les proposons à leur prix de vente en magasin, et ils peuvent vous attendre au frais à votre arrivée.',
+  'offers.extrasIntro':'Pour alléger les courses, nous pouvons prévoir {{list}}.',
+  'offers.extrasAfterLocal':'De la même façon, nous pouvons prévoir {{list}}.',
+  'offers.deadline':'Il suffit de nous le dire d’ici le {{date}}.',
+  'house':'Dans le logement, une machine Nespresso à capsules vous attend pour le café du matin.',
+};
+const NEUTRAL_TEXTS={
+  'bag.items':'- Des chaussures confortables pour les balades{{#if stayOverlapsPool}}\n- Maillots de bain et serviettes pour la piscine{{/if}}',
+  'offers.localIntro':'Pour alléger les courses, nous pouvons vous proposer : {{list}}.',
+  'offers.extrasIntro':'Pour alléger les courses, nous pouvons prévoir {{list}}.',
+  'offers.extrasAfterLocal':'Nous pouvons aussi prévoir {{list}}.',
+  'offers.deadline':'Il suffit de nous le dire d’ici le {{date}}.',
+  'house':'',
+};
+const TEXT_META={
+  'bag.items':{mail:'J-7',label:'À emporter',tokens:[],flags:['stayOverlapsPool']},
+  'offers.localIntro':{mail:'J-7',label:'Produits locaux — introduction',tokens:['list'],flags:[]},
+  'offers.extrasIntro':{mail:'J-7',label:'À prévoir — introduction',tokens:['list'],flags:[]},
+  'offers.extrasAfterLocal':{mail:'J-7',label:'À prévoir — après les produits locaux',tokens:['list'],flags:[]},
+  'offers.deadline':{mail:'J-7',label:'Date limite',tokens:['date'],flags:[]},
+  'house':{mail:'J-2',label:'Dans le logement',tokens:[],flags:[],over:true},
+};
+const SOLIO_OPTIONS=[
+  {id:1,t:'Jus de pomme 1 L',p:6},{id:2,t:'Jus de pomme 25 cl',p:3},{id:3,t:'Jus pomme-poire 1 L',p:6},{id:4,t:'Jus de raisin 1 L',p:6},
+  {id:5,t:'Bière blonde 75 cl',p:6.5},{id:6,t:'Biscanna 75 cl',p:7.5},{id:7,t:'Mad Max 75 cl',p:7},
+  {id:8,t:'Planche S',p:17},{id:9,t:'Planche M',p:32},{id:10,t:'Repas des trappeurs',p:25},{id:11,t:'Petit déjeuner',p:12},{id:12,t:'Rencontre avec les animaux',p:0},
+];
+const NEW_OPTIONS=[{id:11,t:'Petit déjeuner',p:0},{id:20,t:'Linge de lit',p:0},{id:21,t:'Lit bébé',p:0}];
+const SOLIO_MENTIONS=[
+  {id:'m1',sec:'local',offer:'les jus du Pressoir du Pilat ({{price}} le litre)',booked:'Les jus du Pressoir du Pilat vous attendront au frais.',src:'option',ref:1,opts:[1,2,3,4]},
+  {id:'m2',sec:'local',offer:'les bières de la Brasserie du Pilat ({{price}} la bouteille)',booked:'Les bières de la Brasserie du Pilat vous attendront au frais.',src:'min',opts:[5,6,7]},
+  {id:'m3',sec:'extras',offer:'une planche du terroir pour le premier apéritif (à partir de {{price}})',booked:'Votre planche du terroir sera prête pour un premier apéritif sur la terrasse.',src:'min',opts:[8,9]},
+  {id:'m4',sec:'extras',offer:'le repas des trappeurs ({{price}} par personne)',booked:'Pour le repas des trappeurs, nous conviendrons du soir ensemble à votre arrivée.',src:'min',opts:[10]},
+  {id:'m5',sec:'extras',offer:'le petit-déjeuner, à retirer chaque matin au bâtiment d’accueil ({{price}} par personne et par jour)',booked:'Le petit-déjeuner vous attendra chaque matin au bâtiment d’accueil.',src:'min',opts:[11]},
+  {id:'m6',sec:'kids',offer:'Et si vos enfants aiment les animaux, il y a aussi quelques beaux moments à partager avec ceux du domaine : nous vous en parlerons sur place.',booked:'Pour le moment avec les animaux, nous choisirons l’heure ensemble sur place.',src:'min',opts:[12]},
+];
+const NEW_MENTIONS=[{id:'n1',sec:'extras',offer:'le petit-déjeuner ({{price}} par personne et par jour)',booked:'Le petit-déjeuner sera prêt chaque matin.',src:'min',opts:[11]}];
+const SECTIONS={local:'Produits locaux',extras:'À prévoir',kids:'Enfants'};
+const clone=(o)=>JSON.parse(JSON.stringify(o));
+const DB={solio:{texts:clone(SOLIO_TEXTS),mentions:clone(SOLIO_MENTIONS),options:SOLIO_OPTIONS,confirmOrder:['m5','m3','m1','m2','m4','m6']},new:{texts:clone(NEUTRAL_TEXTS),mentions:clone(NEW_MENTIONS),options:NEW_OPTIONS}};
+let base='solio',tab='texts',msg={};
+const cur=()=>DB[base];
+
+function badTokens(text,allowedTokens,allowedFlags){
+  const bad=[];
+  text.replace(/\{\{\s*(#if\s+)?([A-Za-z_.]+)\s*\}\}/g,(m,iff,name)=>{if(name==='else'||name==='/if')return m;
+    if(iff){if(!allowedFlags.includes(name))bad.push(name);}else if(!allowedTokens.includes(name))bad.push(name);return m;});
+  text.replace(/\{\{\/if\}\}|\{\{else\}\}/g,'');
+  return bad;
+}
+function render(text,vars,flags){
+  let s=text.replace(/\{\{#if\s+(\w+)\s*\}\}([\s\S]*?)\{\{\/if\}\}/g,(m,f,inner)=>{const i=inner.indexOf('{{else}}');const y=i<0?inner:inner.slice(0,i),n=i<0?'':inner.slice(i+8);return flags[f]?y:n;});
+  return s.replace(/\{\{(\w+)\}\}/g,(m,k)=>vars[k]!==undefined?vars[k]:m);
+}
+function priceOf(m,opts){const os=opts.filter(o=>m.opts.includes(o.id));if(!os.length)return null;if(m.src==='option'){const r=os.find(o=>o.id===m.ref);if(r)return r.p;}return Math.min(...os.map(o=>o.p));}
+
+/* the new engine: data only */
+function newEngine(db,stay){
+  const prop=(m)=>m.opts.some(id=>db.options.find(o=>o.id===id))&&!m.opts.some(id=>stay.booked.includes(id));
+  const local=db.mentions.filter(m=>m.sec==='local'&&prop(m)).map(m=>m.offer.replace('{{price}}',euro(priceOf(m,db.options))));
+  const extras=db.mentions.filter(m=>m.sec==='extras'&&prop(m)).map(m=>m.offer.replace('{{price}}',euro(priceOf(m,db.options))));
+  const parts=[];
+  if(local.length)parts.push(render(db.texts['offers.localIntro'],{list:joinFr(local)},{}));
+  if(extras.length)parts.push(render(db.texts[local.length?'offers.extrasAfterLocal':'offers.extrasIntro'],{list:joinFr(extras)},{}));
+  if(parts.length)parts.push(render(db.texts['offers.deadline'],{date:'mardi 13 octobre 2026'},{}));
+  const kids=stay.kids?db.mentions.filter(m=>m.sec==='kids'&&prop(m)).map(m=>m.offer).join('\n\n'):'';
+  const bag=render(db.texts['bag.items'],{},{stayOverlapsPool:stay.pool});
+  const order=(db.confirmOrder||db.mentions.map(m=>m.id)).map(id=>db.mentions.find(m=>m.id===id)).filter(Boolean);
+  const booked=order.filter(m=>m.opts.some(id=>stay.booked.includes(id))).map(m=>m.booked).join('\n');
+  return ['À emporter :\n'+bag,parts.join(' '),kids,booked?'— Au J-2 —\n'+booked:''].filter(Boolean).join('\n\n');
+}
+/* today's engine: sentences in the code (Solio only) */
+function oldEngine(stay){
+  const b=(ids)=>ids.some(id=>stay.booked.includes(id));
+  const local=[],extras=[];
+  if(!b([1,2,3,4]))local.push('les jus du Pressoir du Pilat (6 € le litre)');
+  if(!b([5,6,7]))local.push('les bières de la Brasserie du Pilat (6,50 € la bouteille)');
+  if(!b([8,9]))extras.push('une planche du terroir pour le premier apéritif (à partir de 17 €)');
+  if(!b([10]))extras.push('le repas des trappeurs (25 € par personne)');
+  if(!b([11]))extras.push('le petit-déjeuner, à retirer chaque matin au bâtiment d’accueil (12 € par personne et par jour)');
+  const parts=[];
+  if(local.length)parts.push(`Pour alléger les courses, nous travaillons avec des producteurs locaux : ${joinFr(local)}. Nous vous les proposons à leur prix de vente en magasin, et ils peuvent vous attendre au frais à votre arrivée.`);
+  if(extras.length)parts.push(local.length?`De la même façon, nous pouvons prévoir ${joinFr(extras)}.`:`Pour alléger les courses, nous pouvons prévoir ${joinFr(extras)}.`);
+  if(parts.length)parts.push('Il suffit de nous le dire d’ici le mardi 13 octobre 2026.');
+  const kids=stay.kids&&!b([12])?'Et si vos enfants aiment les animaux, il y a aussi quelques beaux moments à partager avec ceux du domaine : nous vous en parlerons sur place.':'';
+  const bag=`- Maillots de bain et serviettes pour le bain nordique${stay.pool?', et pour la piscine':''}\n- Des chaussures fermées pour les sentiers du domaine`;
+  const order=[[11,'Le petit-déjeuner vous attendra chaque matin au bâtiment d’accueil.'],[8,'Votre planche du terroir sera prête pour un premier apéritif sur la terrasse.'],[1,'Les jus du Pressoir du Pilat vous attendront au frais.']];
+  const bookedRole=(id)=>({1:[1,2,3,4],8:[8,9],11:[11]})[id];
+  const booked=order.filter(([id])=>b(bookedRole(id))).map(x=>x[1]);
+  return {text:['À emporter :\n'+bag,parts.join(' '),kids,booked.length?'— Au J-2 —\n'+booked.join('\n'):''].filter(Boolean).join('\n\n'),bookedOrder:booked};
+}
+
+function renderTexts(){
+  const db=cur();
+  return `<div class="sub2" style="margin-bottom:8px">Texte vide = pas de paragraphe. ${base==='new'?'Nouvelle instance : textes neutres du produit.':'Solio : textes écrits par la migration.'}</div>`+
+  Object.keys(TEXT_META).map(k=>{const m=TEXT_META[k];const def=NEUTRAL_TEXTS[k];const isDef=db.texts[k]===def;const e=msg[k];
+    return `<div class="mrow"><div class="top"><b>${m.label}</b><span class="badge i">${m.mail}</span>${isDef?'<span class="badge ok">par défaut</span>':'<span class="badge">personnalisé</span>'}${m.over?'<span class="badge i">surchargeable par logement</span>':''}</div>
+    <div class="sub2">Variables : ${m.tokens.map(t=>`<button class="tok" data-ins="${k}" data-v="{{${t}}}">{{${t}}}</button>`).join('')||'—'} ${m.flags.map(f=>`<button class="tok" data-ins="${k}" data-v="{{#if ${f}}}…{{/if}}">{{#if ${f}}}</button>`).join('')}</div>
+    <textarea data-k="${k}" class="${e&&e.bad?'bad':''}">${esc(db.texts[k])}</textarea>
+    ${e?`<div class="${e.bad?'err':'ok'}">${e.text}</div>`:''}
+    <div class="acts"><button class="mini" data-save="${k}">Enregistrer</button><button class="mini" data-def="${k}" ${isDef?'disabled':''}>Rétablir le texte par défaut</button></div></div>`;}).join('');
+}
+function renderMentions(){
+  const db=cur();
+  return Object.keys(SECTIONS).map(sec=>{const ms=db.mentions.filter(m=>m.sec===sec);
+    return `<h3>${SECTIONS[sec]}</h3>`+(ms.length?ms.map(m=>{const pr=priceOf(m,db.options);const e=msg[m.id];
+      return `<div class="mrow"><div class="top"><b>${esc(m.offer.slice(0,60))}${m.offer.length>60?'…':''}</b>${pr!=null&&m.offer.includes('{{price}}')?`<span class="badge i">prix cité ${euro(pr)}</span>`:''}</div>
+      <div class="optchips">${db.options.map(o=>`<label><input type="checkbox" data-mo="${m.id}" data-o="${o.id}" ${m.opts.includes(o.id)?'checked':''}> ${esc(o.t)} · ${euro(o.p)}</label>`).join('')}</div>
+      <div class="grid2"><div class="field"><label>Prix cité</label><select data-src="${m.id}"><option value="min" ${m.src==='min'?'selected':''}>Le plus bas des options</option>${db.options.filter(o=>m.opts.includes(o.id)).map(o=>`<option value="${o.id}" ${m.src==='option'&&m.ref===o.id?'selected':''}>Celui de « ${esc(o.t)} »</option>`).join('')}</select></div></div>
+      <div class="field" style="max-width:none"><label>Pour la proposer (J-7) <button class="tok" data-mins="${m.id}">{{price}}</button></label><textarea data-moff="${m.id}" class="${e&&e.bad?'bad':''}">${esc(m.offer)}</textarea></div>
+      <div class="field" style="max-width:none"><label>Une fois réservée (J-2)</label><textarea data-mbk="${m.id}">${esc(m.booked)}</textarea></div>
+      ${e?`<div class="${e.bad?'err':'ok'}">${e.text}</div>`:''}
+      <div class="acts"><button class="mini" data-msave="${m.id}">Enregistrer</button></div></div>`;}).join(''):'<div class="sub2">Aucune mention.</div>');}).join('')+
+    `<div class="acts"><button class="mini" id="addM">Ajouter une mention</button></div>`+
+    `<h3>Ordre des confirmations (J-2)</h3><div class="sub2">Indépendant de l’ordre des propositions du J-7. Lit bébé et serviettes s’y placent aussi.</div>`+
+    (db.confirmOrder||db.mentions.map(m=>m.id)).map((id,i,a)=>{const m=db.mentions.find(x=>x.id===id);return m?`<div class="pcard"><span class="h">${i+1}</span><b>${esc(m.booked.slice(0,70))}</b><button class="mini" data-up="${i}" ${i===0?'disabled':''} aria-label="Monter">↑</button><button class="mini" data-dn="${i}" ${i===a.length-1?'disabled':''} aria-label="Descendre">↓</button></div>`:'';}).join('');
+}
+let pv={kids:true,pool:false,booked:[]};
+function renderPreview(){
+  const db=cur();
+  return `<div class="sbar" style="border:1px solid var(--line);border-radius:8px;margin-bottom:10px">
+    <label class="chk"><input type="checkbox" data-pv="kids" ${pv.kids?'checked':''}> Enfants</label>
+    <label class="chk"><input type="checkbox" data-pv="pool" ${pv.pool?'checked':''}> Saison piscine</label>
+    ${db.options.slice(0,6).map(o=>`<label class="chk"><input type="checkbox" data-pvo="${o.id}" ${pv.booked.includes(o.id)?'checked':''}> ${esc(o.t)} réservé</label>`).join('')}
+  </div><div class="mail">${esc(newEngine(db,pv))}</div><div class="sub2">Rendu par le serveur (<code>POST /api/email-mentions/preview</code>) ; ici simulé.</div>`;
+}
+function renderTab(){
+  document.querySelectorAll('#tTabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===tab)));
+  $('#tPane').innerHTML=tab==='texts'?renderTexts():tab==='mentions'?renderMentions():renderPreview();
+}
+$('#tTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.t;msg={};renderTab();});
+seg('#base',d=>{base=d.b;msg={};renderTab();});
+$('#tPane').addEventListener('click',e=>{
+  const t=e.target;const db=cur();
+  if(t.dataset.ins){const ta=$(`textarea[data-k="${t.dataset.ins}"]`);const p=ta.selectionStart??ta.value.length;ta.value=ta.value.slice(0,p)+t.dataset.v+ta.value.slice(p);ta.focus();}
+  if(t.dataset.mins){const ta=$(`textarea[data-moff="${t.dataset.mins}"]`);const p=ta.selectionStart??ta.value.length;ta.value=ta.value.slice(0,p)+'{{price}}'+ta.value.slice(p);ta.focus();}
+  if(t.dataset.save){const k=t.dataset.save,m=TEXT_META[k];const v=$(`textarea[data-k="${k}"]`).value;const bad=badTokens(v,m.tokens,m.flags);
+    if(bad.length){msg[k]={bad:true,text:`Variable inconnue : {{${bad[0]}}}`};}else{db.texts[k]=v;msg[k]={text:'Enregistré.'};}renderTab();renderGolden();}
+  if(t.dataset.def){db.texts[t.dataset.def]=NEUTRAL_TEXTS[t.dataset.def];msg[t.dataset.def]={text:'Texte par défaut rétabli.'};renderTab();renderGolden();}
+  if(t.dataset.msave){const id=t.dataset.msave;const m=db.mentions.find(x=>x.id===id);const off=$(`textarea[data-moff="${id}"]`).value;const bad=badTokens(off,['price'],[]);
+    if(bad.length){msg[id]={bad:true,text:`Variable inconnue : {{${bad[0]}}}`};}
+    else if(!m.opts.length){msg[id]={bad:true,text:'Au moins une option.'};}
+    else{m.offer=off;m.booked=$(`textarea[data-mbk="${id}"]`).value;msg[id]={text:'Enregistré.'};}renderTab();renderGolden();}
+  if(t.dataset.up||t.dataset.dn){if(!db.confirmOrder)db.confirmOrder=db.mentions.map(m=>m.id);const i=Number(t.dataset.up||t.dataset.dn),j=t.dataset.up?i-1:i+1;[db.confirmOrder[i],db.confirmOrder[j]]=[db.confirmOrder[j],db.confirmOrder[i]];renderTab();renderGolden();}
+  if(t.id==='addM'){const nid='x'+Date.now();db.mentions.push({id:nid,sec:'extras',offer:'',booked:'',src:'min',opts:[]});if(db.confirmOrder)db.confirmOrder.push(nid);renderTab();}
+});
+$('#tPane').addEventListener('change',e=>{const t=e.target;const db=cur();
+  if(t.dataset.mo){const m=db.mentions.find(x=>x.id===t.dataset.mo);const id=Number(t.dataset.o);m.opts=t.checked?[...m.opts,id]:m.opts.filter(x=>x!==id);if(m.src==='option'&&!m.opts.includes(m.ref))m.src='min';renderTab();renderGolden();}
+  if(t.dataset.src){const m=db.mentions.find(x=>x.id===t.dataset.src);if(t.value==='min')m.src='min';else{m.src='option';m.ref=Number(t.value);}renderTab();renderGolden();}
+  if(t.dataset.pv){pv[t.dataset.pv]=t.checked;renderTab();}
+  if(t.dataset.pvo){const id=Number(t.dataset.pvo);pv.booked=t.checked?[...pv.booked,id]:pv.booked.filter(x=>x!==id);renderTab();}
+});
+renderTab();
+
+/* ---------------------------------------------------------------- golden */
+function renderGolden(){
+  const booked=[];if($('#g-juice').checked)booked.push(1);if($('#g-board').checked)booked.push(8);if($('#g-bkf').checked)booked.push(11);
+  const stay={kids:$('#g-kids').checked,pool:$('#g-pool').checked,booked};
+  const old=oldEngine(stay).text;
+  const nw=newEngine(DB.solio,stay);
+  $('#gOld').textContent=old;$('#gNew').textContent=nw;
+  const eq=old===nw;const b=$('#gEq');b.textContent=eq?'identique':'différent : un texte a été modifié';b.className='badge eq '+(eq?'ok':'ko');
+}
+['#g-kids','#g-juice','#g-board','#g-bkf','#g-pool'].forEach(s=>$(s).addEventListener('change',renderGolden));
+renderGolden();
+
+/* ---------------------------------------------------------------- account plan */
+const ACC=[['Location (hébergement)','70600000'],['Prestations complémentaires','70600010'],['Activités (ressources)','70601000'],['TVA 10 %','44571100'],['TVA 20 %','44571200'],['Taxe de séjour','46710000'],['TVA déductible sur commissions','44566000'],['Rabais accordés','70900000'],['Indemnités d’annulation et pourboires','75880000'],['Code journal','VT']];
+let acc=ACC.map(a=>a[1]);
+function renderAcc(errs={}){
+  $('#acc').innerHTML=ACC.map((a,i)=>`<label for="ac${i}">${a[0]}<div class="sub2">Par défaut : ${a[1]}</div></label><div><input id="ac${i}" data-i="${i}" value="${esc(acc[i])}" class="${errs[i]?'bad':''}">${errs[i]?`<div class="err">${errs[i]}</div>`:''}</div>`).join('');
+}
+function csvLine(){return `VT;06/10/2026;C00412;Séjour R-2026-118;330,00;;\n${acc[9]};06/10/2026;${acc[0]};Séjour R-2026-118;;272,73;\n${acc[9]};06/10/2026;${acc[3]};Séjour R-2026-118;;27,27;\n${acc[9]};06/10/2026;${acc[5]};Taxe de séjour;;30,00;`.replace(/^VT/,acc[9]);}
+$('#acc').addEventListener('input',e=>{acc[Number(e.target.dataset.i)]=e.target.value;});
+$('#accSave').onclick=()=>{const errs={};acc.forEach((v,i)=>{if(i===9){if(!/^[A-Z0-9]{1,4}$/.test(v))errs[i]='1 à 4 majuscules ou chiffres';}else if(!/^\d{3,12}$/.test(v))errs[i]='3 à 12 chiffres';});
+  renderAcc(errs);$('#accLog').textContent=Object.keys(errs).length?'Refusé : '+Object.keys(errs).length+' champ(s) à corriger.':'Enregistré. Extrait du CSV :\n'+csvLine();};
+$('#accReset').onclick=()=>{acc=ACC.map(a=>a[1]);renderAcc();$('#accLog').textContent='Valeurs par défaut. Extrait du CSV :\n'+csvLine();};
+renderAcc();
+
+/* ---------------------------------------------------------------- platforms, SAS, unsubscribe */
+let plats=[['Direct',true,true],['Lodgify',true,false],['Airbnb',false,false],['Booking',false,false]];
+function renderPlats(){
+  $('#plats').innerHTML=plats.map((p,i)=>`<label class="chk" style="display:flex"><input type="checkbox" data-pi="${i}" ${p[1]?'checked':''} ${p[2]?'disabled':''}> <span style="flex:1">${p[0]}</span> <span class="muted">${p[2]?'toujours direct':'Compté comme vente directe'}</span></label>`).join('');
+  $('#platNote').textContent='Ventes directes : '+plats.filter(p=>p[1]).map(p=>p[0]).join(', ')+'. Elles demandent un avis Google au J+1 et ne portent pas de commission.';
+}
+$('#plats').addEventListener('change',e=>{plats[Number(e.target.dataset.pi)][1]=e.target.checked;renderPlats();});
+renderPlats();
+function renderSas(){const on=$('#ext').checked;$('#sasSteps').innerHTML=['Inventaire','État des lieux',...(on?['Extincteur']:[]),'Complément','Clés'].map((s,i)=>`<span class="${s==='Extincteur'?'l':''}">${i+1}. ${s}</span>`).join('');}
+$('#ext').addEventListener('change',renderSas);renderSas();
+function renderUnsub(){const n=$('#coName').value.trim()||'GuestFlow';$('#unsub').innerHTML=`<h4>Vos nouvelles de ${esc(n)}</h4><p>Deux mails par an, en novembre et en janvier, pour garder le contact. Ils s’arrêtent d’un clic.</p><span class="b">Ne plus recevoir ces mails</span>`;}
+$('#coName').addEventListener('input',renderUnsub);renderUnsub();
+})();
+</script>
+</body>
+</html>
