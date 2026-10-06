@@ -1,6 +1,6 @@
 <?php
 /**
- * gf-seo-indexation.php — robots.txt, sitemap et llms.txt.
+ * gf-seo-indexation.php — robots.txt, sitemap, llms.txt et IndexNow.
  *
  * Les trois fichiers sont generes par WordPress, pas deposes sur le disque : ils suivent
  * automatiquement le nom de domaine utilise par le visiteur, ce qui evite de reproduire
@@ -240,6 +240,21 @@ function gf_seo_llms_txt() {
 	}
 	$l[] = '';
 
+	// Les memes fiches que le `sameAs` du JSON-LD : un modele relie ainsi le site aux avis
+	// publies ailleurs, sans qu’aucun lien vers une plateforme ne s’affiche sur les pages.
+	$l[] = '## Où nous trouver';
+	$l[] = '';
+	foreach ( $d['fiches'] as $plateforme => $url ) {
+		$l[] = '- ' . $plateforme . ' (domaine) : ' . $url;
+	}
+	foreach ( array( 'gite', 'lodge' ) as $cle ) {
+		$h = gf_seo_lodging( $cle );
+		foreach ( $h['fiches'] ?? array() as $plateforme => $url ) {
+			$l[] = '- ' . $plateforme . ' (' . $h['nom'] . ') : ' . $url;
+		}
+	}
+	$l[] = '';
+
 	$l[] = '## Réseaux';
 	$l[] = '';
 	$l[] = '- Facebook : ' . $d['facebook'];
@@ -249,4 +264,79 @@ function gf_seo_llms_txt() {
 	$l[] = 'Dernière mise à jour : ' . date_i18n( 'Y-m-d' ) . '. Contenu généré depuis les données du domaine ; aucune valeur estimée.';
 
 	return implode( "\n", $l ) . "\n";
+}
+
+/* ---------------------------------------------------------------------------
+ * IndexNow — previent Bing des qu'une page publiee change.
+ *
+ * L'index de Bing alimente la recherche de ChatGPT et de Copilot : sans ce signal, une page
+ * modifiee y reste dans son ancienne version jusqu'au prochain passage du robot, souvent
+ * plusieurs semaines sur un petit site. La cle n'est pas un secret : le protocole exige
+ * qu'elle soit lisible a /<cle>.txt, ce qui prouve que le site est bien le notre.
+ * ------------------------------------------------------------------------- */
+
+const GF_INDEXNOW_CLE = 'b71cdb76c48b01d0cc3edcf28bdf8f7c';
+
+// Servi sans regle de reecriture : en ajouter une imposerait de vider le cache des regles,
+// ce qui reconstruit aussi celui de Polylang.
+add_action(
+	'init',
+	function () {
+		$chemin = wp_parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH );
+		if ( '/' . GF_INDEXNOW_CLE . '.txt' !== $chemin ) {
+			return;
+		}
+		header( 'Content-Type: text/plain; charset=utf-8' );
+		header( 'X-Robots-Tag: noindex' );
+		echo GF_INDEXNOW_CLE; // phpcs:ignore WordPress.Security.EscapeOutput -- cle hexadecimale.
+		exit;
+	},
+	0
+);
+
+add_action(
+	'transition_post_status',
+	function ( $nouveau, $ancien, $post ) {
+		if ( 'publish' !== $nouveau || ! in_array( $post->post_type, array( 'page', 'post' ), true ) ) {
+			return;
+		}
+		if ( ! empty( gf_seo_pages()[ $post->post_name ]['noindex'] ) ) {
+			return;
+		}
+		gf_indexnow_signaler( get_permalink( $post ) );
+	},
+	10,
+	3
+);
+
+/**
+ * Met une adresse en file ; l'envoi part une seule fois, en fin de requete.
+ */
+function gf_indexnow_signaler( $url ) {
+	static $file = null;
+	if ( null === $file ) {
+		$file = array();
+		add_action(
+			'shutdown',
+			function () use ( &$file ) {
+				wp_remote_post(
+					'https://api.indexnow.org/indexnow',
+					array(
+						'blocking' => false,
+						'timeout'  => 5,
+						'headers'  => array( 'Content-Type' => 'application/json; charset=utf-8' ),
+						'body'     => wp_json_encode(
+							array(
+								'host'        => wp_parse_url( home_url( '/' ), PHP_URL_HOST ),
+								'key'         => GF_INDEXNOW_CLE,
+								'keyLocation' => home_url( '/' . GF_INDEXNOW_CLE . '.txt' ),
+								'urlList'     => array_values( array_unique( $file ) ),
+							)
+						),
+					)
+				);
+			}
+		);
+	}
+	$file[] = $url;
 }
