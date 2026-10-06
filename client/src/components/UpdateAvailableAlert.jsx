@@ -6,7 +6,7 @@
  * postponed, or an update already running all render nothing. Nothing is ever installed from here —
  * the button opens the dialog that shows what changed first.
  *
- * Mirrors the other dashboard alerts (EmailPendingAlert, IcalNewReservationsAlert): renders null on
+ * Mirrors the other dashboard alerts (EmailPendingAlert, NewReservationsAlert): renders null on
  * error, because a dashboard card must never break the page.
  */
 import React, { useState } from 'react';

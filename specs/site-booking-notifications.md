@@ -163,7 +163,7 @@ to the address configured in the SMTP settings.
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | the existing dashboard-alert pattern (`EmailPendingAlert`, `IcalNewReservationsAlert`) as the template; MUI `Alert`/card primitives already used there | Same visual language as the other dashboard alerts. |
+| **Consumed (existing generic)** | the existing dashboard-alert pattern (`EmailPendingAlert`, `NewReservationsAlert`) as the template; MUI `Alert`/card primitives already used there | Same visual language as the other dashboard alerts. |
 | **Created (new generic)** | — | `DevisPublicRequestAlert` is feature-specific (queries public devis), consistent with the existing one-file-per-alert convention on the dashboard. |
 | **Specific (kept feature-local)** | `DevisPublicRequestAlert` | Mirrors siblings; not generic by design (each alert owns its fetch + copy). |
 

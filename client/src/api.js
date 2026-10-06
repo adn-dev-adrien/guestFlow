@@ -513,7 +513,7 @@ const api = {
   rejectIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/reject`, { method: 'POST' }),
   // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
   // iCal during the current day (specs/dashboard-ical-new-reservations.md).
-  getIcalNewReservationsToday: () => request('/dashboard/ical-new-today'),
+  getNewReservations: () => request('/dashboard/new-reservations'),
   // Dashboard "pending site devis" — booking requests submitted from the public website that are
   // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
   getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),
