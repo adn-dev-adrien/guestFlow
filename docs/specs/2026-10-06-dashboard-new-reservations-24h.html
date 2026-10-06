@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nouvelles réservations 24 h</title>
+<style>
+:root{
+  --paper:#f7f4ee; --card:#fffdf9; --ink:#1f2a24; --muted:#65706a; --line:#e2ddd2;
+  --sapin:#2f5d46; --info:#2b6cb0; --info-bg:#eef4fb; --warn:#b7791f; --old:#a0a7a3; --hover:#f0ede6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9aa5a0; --line:#323c37;
+    --sapin:#7fbf9c; --info:#7fb2ea; --info-bg:#1b2733; --warn:#e0b25a; --old:#5d6661; --hover:#26302b;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9aa5a0; --line:#323c37;
+  --sapin:#7fbf9c; --info:#7fb2ea; --info-bg:#1b2733; --warn:#e0b25a; --old:#5d6661; --hover:#26302b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:28px 16px 60px}
+h1,h2{font-family:Georgia,"Times New Roman",serif;font-weight:600;color:var(--sapin)}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:20px;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sub{color:var(--muted);margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.box h3{margin:0 0 6px;font-size:15px}
+ul{margin:6px 0;padding-left:20px}
+code{font-size:13px;background:var(--hover);padding:1px 5px;border-radius:4px}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+/* playground */
+.controls{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:8px 0 14px}
+.controls label{font-size:13px;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--sapin)}
+.now{font-weight:700;font-variant-numeric:tabular-nums}
+.timeline{position:relative;margin:8px 0 4px;font-size:12px}
+.tl-row{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:8px;min-height:30px}
+@media (max-width:600px){.tl-row{grid-template-columns:96px 1fr}}
+.tl-track{position:relative;height:22px;background:var(--hover);border-radius:4px}
+.bar{position:absolute;top:3px;height:7px;border-radius:3px}
+.bar.old{background:var(--old)}
+.bar.new{top:12px;background:var(--sapin)}
+.dot{position:absolute;top:0;width:2px;height:22px;background:var(--ink);opacity:.35}
+.cursor{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--warn);z-index:2}
+.axis{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-left:158px}
+@media (max-width:600px){.axis{margin-left:104px}}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:7px;border-radius:3px;vertical-align:middle;margin-right:5px}
+/* the card, MUI-like */
+.alert{border:2px solid var(--info);border-radius:6px;background:var(--card);padding:10px 14px}
+.alert.empty{border-style:dashed;border-color:var(--line);color:var(--muted);font-size:13px;text-align:center;padding:18px}
+.alert-title{font-weight:700;color:var(--info);margin-bottom:6px}
+.row{display:flex;align-items:center;gap:8px;padding:8px;margin:0 -8px;border-radius:4px;min-height:44px;cursor:pointer;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row:hover{background:var(--hover)}
+.row .who{font-weight:700;font-size:14px}
+.row .when{font-size:13px;color:var(--muted)}
+.row .cap{font-size:12px;color:var(--muted)}
+.row .chev{margin-left:auto;color:var(--muted)}
+.colh{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 6px}
+.toast{min-height:20px;font-size:13px;color:var(--sapin);margin-top:8px}
+form.add{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:10px}
+form.add label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:3px}
+form.add input,form.add select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);min-height:38px}
+form.add input.bad{border-color:#c53030}
+form.add button{font:inherit;padding:8px 14px;border-radius:6px;border:0;background:var(--sapin);color:#fff;min-height:38px;cursor:pointer}
+.err{color:#c53030;font-size:13px;min-height:18px;margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}
+</style>
+</head>
+<body>
+<main>
+<h1>Nouvelles réservations : 24 h sur le dashboard</h1>
+<p class="sub">Amendement de <code>specs/dashboard-ical-new-reservations.md</code> · 06/10/2026 · statut : <span class="tag">validée le 06/10/2026</span></p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="box"><h3>Une durée de vie au hasard</h3>
+    La carte affiche les réservations du <b>jour UTC</b>. Importée à 23 h 50, une résa disparaît dix minutes plus tard. Importée à 1 h du matin (23 h UTC la veille), elle a disparu avant le petit-déjeuner.</div>
+  <div class="box"><h3>Seulement l'iCal</h3>
+    Les réservations payées sur le site et celles saisies dans GuestFlow n'apparaissent jamais, alors que ce sont aussi de nouvelles réservations.</div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li>Chaque nouvelle réservation reste affichée <b>exactement 24 h</b> après sa création, quelle que soit l'heure.</li>
+  <li><b>Toutes les origines</b> : plateformes (iCal), site (devis payé puis converti), saisie dans GuestFlow.</li>
+  <li>La source indique l'origine : nom de la plateforme, <b>Site</b>, ou le canal choisi sur la fiche (<b>Direct</b>, Booking…).</li>
+  <li>Titre « Nouvelles réservations — N sur les dernières 24 h », légende « Arrivée il y a X ».</li>
+  <li>La carte se recharge toutes les 5 minutes : une résa sort à la fin de ses 24 h sans recharger la page.</li>
+</ul>
+
+<h2>À manipuler</h2>
+<p class="sub">Déplacer le curseur pour faire avancer l'heure (heure de Paris). Les barres grises montrent quand l'ancienne carte affichait chaque résa, les vertes la nouvelle.</p>
+<div class="box">
+  <div class="controls" style="display:block">
+    <label for="t">Maintenant : <span class="now" id="nowLbl"></span></label>
+    <input type="range" id="t" min="0" max="2880" step="10" value="1500">
+  </div>
+  <div class="timeline" id="tl"></div>
+  <div class="axis"><span>lun. 0 h</span><span>lun. 12 h</span><span>mar. 0 h</span><span>mar. 12 h</span><span>mer. 0 h</span></div>
+  <div class="legend"><span><i style="background:var(--old)"></i>Aujourd'hui : jour UTC, iCal seulement</span><span><i style="background:var(--sapin)"></i>Proposé : 24 h, toutes origines</span><span><i style="background:var(--warn);width:3px"></i>Maintenant</span></div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div><p class="colh">Dashboard aujourd'hui</p><div id="cardOld"></div></div>
+    <div><p class="colh">Dashboard proposé</p><div id="cardNew"></div></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <form class="add" id="addForm" novalidate>
+    <label>Client<input id="fName" value="Paul Girard" maxlength="40"></label>
+    <label>Jour<select id="fDay"><option value="0">lundi</option><option value="1" selected>mardi</option></select></label>
+    <label>Heure (HH:MM)<input id="fTime" value="18:30" size="6" inputmode="numeric"></label>
+    <label>Origine<select id="fOrigin">
+      <option value="ical:Airbnb">Plateforme iCal : Airbnb</option>
+      <option value="ical:Booking">Plateforme iCal : Booking</option>
+      <option value="site:Site">Site (devis payé)</option>
+      <option value="manual:Direct">Saisie GuestFlow : Direct</option>
+    </select></label>
+    <button type="submit">Ajouter une réservation</button>
+  </form>
+  <div class="err" id="err"></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Pas de bouton « vu » ni d'acquittement : la carte se vide toute seule.</li>
+  <li>Pas de durée réglable.</li>
+  <li>Les demandes de devis du site gardent leur propre carte tant qu'elles ne sont pas payées.</li>
+  <li>Aucune notification push ou e-mail en plus.</li>
+</ul>
+
+<h2>Risques</h2>
+<table>
+  <tr><th>Risque</th><th>Mesure</th></tr>
+  <tr><td>Les résas saisies soi-même apparaissent aussi : un peu de bruit.</td><td>Choix assumé (« toutes les nouvelles »). Elles partent seules après 24 h.</td></tr>
+  <tr><td>Renommage de l'endpoint et du composant (<code>/ical-new-today</code> → <code>/new-reservations</code>).</td><td>Route interne <code>/api</code>, client et serveur livrés dans la même archive : aucun consommateur externe.</td></tr>
+  <tr><td>Aucune donnée touchée.</td><td>Lecture seule, pas de migration.</td></tr>
+</table>
+
+<h2>Arbitrages</h2>
+<table>
+  <tr><th>Question</th><th>Réponse</th></tr>
+  <tr><td>Fenêtre</td><td>24 h glissantes après la création ✔</td></tr>
+  <tr><td>Périmètre</td><td>Toutes les nouvelles réservations ✔ (choisi le 06/10)</td></tr>
+  <tr><td>Reste à valider</td><td>La spec amendée, puis le plan d'implémentation.</td></tr>
+</table>
+</main>
+
+<script>
+// Times are minutes since Monday 00:00 Paris (UTC+2 in October).
+const TZ = 120, DAY = 1440;
+const res = [
+  { id: 1, name: 'Claire Martin', prop: "L'Estiva", from: '24/10', to: '26/10', t: 7*60+41, origin: 'site', label: 'Site' },
+  { id: 2, name: 'Jean Dupont', prop: 'Gîte', from: '10/11', to: '13/11', t: 23*60+50, origin: 'ical', label: 'Airbnb' },
+  { id: 3, name: 'Sofia Rossi', prop: 'Gîte', from: '02/01', to: '05/01', t: DAY + 60+10, origin: 'ical', label: 'Booking' },
+  { id: 4, name: 'Marc Lefèvre', prop: "L'Estiva", from: '18/04', to: '20/04', t: DAY + 14*60+20, origin: 'manual', label: 'Direct' },
+];
+const MAX = 2*DAY;
+const $ = (id) => document.getElementById(id);
+const pct = (m) => `${Math.max(0, Math.min(100, m / MAX * 100))}%`;
+const utcDay = (m) => Math.floor((m - TZ) / DAY);
+const days = ['lun.', 'mar.', 'mer.'];
+const fmt = (m) => `${days[Math.floor(m / DAY)] || 'mer.'} ${String(Math.floor(m % DAY / 60)).padStart(2,'0')} h ${String(m % 60).padStart(2,'0')}`;
+
+function oldVisible(r, now) { return r.origin === 'ical' && now >= r.t && utcDay(r.t) === utcDay(now); }
+function newVisible(r, now) { return now >= r.t && now - r.t < DAY; }
+function oldWindow(r) {
+  if (r.origin !== 'ical') return null;
+  const end = (utcDay(r.t) + 1) * DAY + TZ;
+  return [r.t, end];
+}
+function ago(m) {
+  if (m < 1) return 'il y a quelques instants';
+  if (m < 60) return `il y a ${m} min`;
+  return `il y a ${Math.round(m / 60)} h`;
+}
+
+function card(list, now, isNew) {
+  if (!list.length) return '<div class="alert empty">Carte absente : rien à afficher</div>';
+  const n = list.length;
+  const title = isNew
+    ? `Nouvelles réservations — ${n} sur les dernières 24 h`
+    : `Nouvelles réservations iCal — ${n} importée${n > 1 ? 's' : ''} aujourd'hui`;
+  const rows = list.slice().sort((a, b) => b.t - a.t).map((r) => `
+    <div class="row" data-id="${r.id}" role="button" tabindex="0">
+      <div><div class="who">${esc(r.name)} · ${esc(r.prop)}</div>
+      <div class="when">Du <b>${r.from}</b> au <b>${r.to}</b> · Source : <b>${esc(r.label)}</b></div>
+      <div class="cap">${isNew ? 'Arrivée' : 'Importée'} ${ago(now - r.t)}</div></div>
+      <span class="chev">›</span>
+    </div>`).join('');
+  return `<div class="alert"><div class="alert-title">${title}</div>${rows}</div>`;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function render() {
+  const now = +$('t').value;
+  $('nowLbl').textContent = fmt(now);
+  $('tl').innerHTML = res.map((r) => {
+    const ow = oldWindow(r);
+    return `<div class="tl-row"><div>${esc(r.name)}<br><span style="color:var(--muted)">${esc(r.label)} · ${fmt(r.t)}</span></div>
+      <div class="tl-track">
+        <span class="dot" style="left:${pct(r.t)}"></span>
+        ${ow ? `<span class="bar old" style="left:${pct(ow[0])};width:calc(${pct(ow[1])} - ${pct(ow[0])})"></span>` : ''}
+        <span class="bar new" style="left:${pct(r.t)};width:calc(${pct(r.t + DAY)} - ${pct(r.t)})"></span>
+        <span class="cursor" style="left:${pct(now)}"></span>
+      </div></div>`;
+  }).join('');
+  $('cardOld').innerHTML = card(res.filter((r) => oldVisible(r, now)), now, false);
+  $('cardNew').innerHTML = card(res.filter((r) => newVisible(r, now)), now, true);
+}
+
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const r = res.find((x) => x.id === +row.dataset.id);
+  $('toast').textContent = `→ ouvre /reservations/${22300 + r.id} (${r.name})`;
+});
+$('t').addEventListener('input', render);
+
+$('addForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const time = $('fTime').value.trim();
+  const name = $('fName').value.trim();
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(time);
+  $('fTime').classList.toggle('bad', !m);
+  $('fName').classList.toggle('bad', !name);
+  if (!name) { $('err').textContent = 'Nom du client requis.'; return; }
+  if (!m) { $('err').textContent = `« ${time} » n'est pas une heure valide (HH:MM, de 00:00 à 23:59).`; return; }
+  $('err').textContent = '';
+  const [origin, label] = $('fOrigin').value.split(':');
+  const t = +$('fDay').value * DAY + (+m[1]) * 60 + (+m[2]);
+  res.push({ id: res.length + 1, name, prop: 'Gîte', from: '12/12', to: '14/12', t, origin, label });
+  $('t').value = Math.min(MAX, t + 10);
+  render();
+});
+render();
+</script>
+</body>
+</html>

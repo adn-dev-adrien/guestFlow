@@ -8,6 +8,7 @@
 
 const sdk = require('../sdk');
 const createGateKeysModel = require('./keysModel');
+const { migratePropertyId } = createGateKeysModel;
 const { buildController } = require('./controller');
 const { buildPublicRouter } = require('./publicRoutes');
 const { buildRequireGateConnector } = require('./requireConnector');
@@ -44,6 +45,11 @@ function register(ctx) {
         staleAlertedAt TEXT
       );
     `),
+  }, {
+    // The stay every key carries (specs/sowel-stays-in-keys.md): the property survives a deleted
+    // reservation, so its revoke still names it.
+    name: 'stay_property_v1',
+    up: (db) => { migratePropertyId(db); },
   }]);
 
   // Rule 18 — the connector keys exist only once the plugin is installed. Two secrets, distinct from

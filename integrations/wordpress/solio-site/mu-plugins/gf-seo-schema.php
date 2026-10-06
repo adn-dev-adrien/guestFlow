@@ -345,10 +345,15 @@ function gf_seo_faq_depuis_contenu() {
 	if ( ! preg_match_all( '~<details[^>]*>\s*<summary[^>]*>(.*?)</summary>(.*?)</details>~s', $contenu, $m, PREG_SET_ORDER ) ) {
 		return array();
 	}
+	// Le contenu est du HTML brut : sans decodage, « &nbsp; » et « &rsquo; » partaient tels quels dans le JSON-LD.
+	$texte  = static function ( $html ) {
+		$brut = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		return trim( preg_replace( '/[\s\x{00A0}]+/u', ' ', $brut ) );
+	};
 	$sortie = array();
 	foreach ( $m as $bloc ) {
-		$question = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $bloc[1] ) ) );
-		$reponse  = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $bloc[2] ) ) );
+		$question = $texte( $bloc[1] );
+		$reponse  = $texte( $bloc[2] );
 		if ( $question && $reponse ) {
 			$sortie[] = array( 'q' => $question, 'r' => $reponse );
 		}
@@ -557,6 +562,23 @@ function gf_seo_render_schema() {
 			'publisher'  => array( '@id' => home_url( '/#domaine' ) ),
 		),
 	);
+
+	// Sans date de mise a jour, Perplexity et les apercus IA de Google tiennent la page pour
+	// perimee : l'audit GEO du 2026-10-05 plafonnait Perplexity a 40/100 sur toutes les pages.
+	if ( is_singular() ) {
+		$id       = get_queried_object_id();
+		$graphe[] = array(
+			'@type'         => 'WebPage',
+			'@id'           => get_permalink( $id ) . '#page',
+			'url'           => get_permalink( $id ),
+			'name'          => gf_seo_document_title(),
+			'inLanguage'    => $graphe[1]['inLanguage'],
+			'isPartOf'      => array( '@id' => home_url( '/#site' ) ),
+			'about'         => array( '@id' => home_url( '/#domaine' ) ),
+			'datePublished' => get_the_date( 'c', $id ),
+			'dateModified'  => get_the_modified_date( 'c', $id ),
+		);
+	}
 
 	// Structure, pas texte : sans ce repli l'anglais perdait le noeud `VacationRental` de La Granja
 	// et le `Campground` de L'Estiva — celui qui decrit le logement comme louable (regle 52).

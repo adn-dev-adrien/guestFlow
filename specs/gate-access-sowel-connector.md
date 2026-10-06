@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | #623 |
 | **Supersedes** | PR #563 (`claude/sowel-guestflow-connector-y0df44`): its stay **feed** (`GET /stays` with revisions and a cursor, the `gate_stay_feed` table, its reconciler and its purge) and its `POST /invitations`. What #563 got right is kept as it was: the signed channel, the window computation, the email tokens, the SAS step with its QR, the fiche card and the settings card |
-| **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract » v1 + its « v2 changes » (2026-09-27: wider window, signed responses, `implausible_stay`, the secrets in Réglages), implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
+| **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract » v1 + its « v2 changes » (2026-09-27: wider window, signed responses, `implausible_stay`, the secrets in Réglages) + **v3** (2026-10-05, additive: the `stay` block on every key, `specs/sowel-stays-in-keys.md`), implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
 
 ## 0. The feature at a glance
 
@@ -68,6 +68,16 @@ a key could not be made or when Sowel stopped asking.
    wall clock**; the two margins are real durations applied to those instants, so a DST night never
    stretches them; the result is sent as UTC ISO (`gateWindow.js`, taken from #547 with its tests).
    The check-in time is the planned arrival: a guest a little early is let in (contract v2).
+4b. **The stay** (contract v3, `specs/sowel-stays-in-keys.md`): every key, `create` and `revoke`,
+   carries `stay: { propertyId, propertyName, arrival, departure }` — the reservation's property and
+   its check-in / check-out themselves, **without** the −3 h / +2 h: the same inputs and fallbacks
+   as rule 4 (`checkInTime` / `checkOutTime`, else 15:00 / 10:00), sent as Europe/Paris wall clock
+   **with the numeric offset** (`2026-10-06T16:00:00+02:00`), so a stay across a DST night reads
+   right on both ends. It is what Sowel's heating needs to know a property is occupied. A deleted
+   reservation's revoke rebuilds it from its stored result: the property kept on the row (rule 9)
+   and the stored window minus its margins. The block is **optional**: it is left out when the
+   property is not known any more — a result filed before the column existed for a reservation
+   deleted since, or a property deleted — rather than sent half-filled.
 5. **The label** is short and human, with no family name: `property name · reservation number ·
    guest first name` (« Gîte · R-2026-041 · Marie »). A family name has no business on an equipment
    that opens a gate.
@@ -82,9 +92,9 @@ a key could not be made or when Sowel stopped asking.
 
 ### 3.2 The results
 
-9. guestFlow keeps **the latest result per reservation**: each one replaces the previous. The window
-   and the label listed with a key are kept on the row, so a reservation deleted afterwards can still
-   be revoked (rule 6).
+9. guestFlow keeps **the latest result per reservation**: each one replaces the previous. The window,
+   the label and the property listed with a key are kept on the row, so a reservation deleted
+   afterwards can still be revoked (rule 6), with its stay (rule 4b).
 10. **The code and the link are opaque.** They are stored and shown as Sowel handed them — guestFlow
     never builds, parses or rewrites a link. `code` may be null (a profile without a code), `url`
     may be null (Sowel has no public address).
@@ -191,11 +201,12 @@ a key could not be made or when Sowel stopped asking.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `utils/` | `gateWindow.js` | C (from #563) | A stay's window, Paris wall clock, DST-safe |
-| `utils/` | `gateKeys.js` | C | The list of keys (rules 2-7), the label, the French reasons, « is Sowel late » |
+| `utils/` | `gateWindow.js` | C (from #563) | A stay's window, Paris wall clock, DST-safe; `toParisIso` writes an instant with its Paris offset (rule 4b) |
+| `utils/` | `gateKeys.js` | C | The list of keys (rules 2-7), the `stay` block (rule 4b), the label, the French reasons, « is Sowel late » |
 | `utils/` | `gateResults.js` | C | Files the results, pushes the admins once per error, the stale-read pass, the dashboard payload |
 | `utils/` | `gateInvitationView.js` | C (from #563, rewritten) | What the email, the SAS and the fiche show of the stored result |
-| `models/` | `gateKeysModel.js` | C | `gate_key_results`, `gate_connector_state`, the stays around now, the admins |
+| `models/` | `gateKeysModel.js` | C | `gate_key_results`, `gate_connector_state`, the stays around now, the admins; `migratePropertyId` (rule 4b) |
+| `plugins/gate-access/index.js` | — | T | Runs `migratePropertyId` once, as the plugin migration `stay_property_v1` (the tables live in the plugin since phase 2) |
 | `middleware/` | `requireGateConnector.js` | C (from #563) | Key + signature + freshness, failing closed |
 | `middleware/` | `signGateResponse.js` | C | Signs every 2xx answer of the gate router over the exact bytes sent |
 | `controllers/` | `gateConnectorController.js` | C | `keys`, `results`, `ping`, the dashboard and settings reads, the secrets for the plugin |
@@ -243,13 +254,29 @@ stand, so a hand-made fix, an iCal import or a restore is seen like everything e
 
 | Method | Endpoint | Body | Response | Notes |
 |---|---|---|---|---|
-| GET | `/public/v1/gate/keys` | — | `{ now, keys[] }` | `keys[]` = `{ reservationId (string), action: "create"\|"revoke", label, startsAt, endsAt }`; stamps `lastReadAt` |
+| GET | `/public/v1/gate/keys` | — | `{ now, keys[] }` | `keys[]` = `{ reservationId (string), action: "create"\|"revoke", label, startsAt, endsAt, stay? }`; stamps `lastReadAt` |
 | POST | `/public/v1/gate/results` | `{ results[] }` | `{ stored }` | `results[]` = `{ reservationId, action, ok, state?, code?, url?, error?, message? }`; 400 without the list, 413 past 500 |
 | GET | `/public/v1/gate/ping` | — | `{ ok, now }` | Checks key, signature and clock in one call |
 | GET | `/api/dashboard/gate-keys` | — | `{ failures[], stale, lastReadAt }` | Admin; `failures[]` = `{ reservationId, reservationNumber, guestFirstName, name, action, title, reason, exists }` |
 | GET | `/api/reservations/:id/gate-access` | — | `{ card, sas }` | Session; a read for reception |
 | GET | `/api/settings/gate-connector` | — | `{ configured, lastReadAt, stale, keysCreated, secretsFile, secretNames }` | Admin; no secret value |
 | GET | `/api/settings/gate-connector/secrets` | — | `{ address: { value, source: setting\|request\|none }, apiKey, signingSecret }` | Admin; `Cache-Control: no-store` |
+
+**Contract v3 (2026-10-05) — `stay`**, on every key, optional (rule 4b):
+
+```json
+"stay": {
+  "propertyId": 1,
+  "propertyName": "Gîte",
+  "arrival": "2026-10-06T16:00:00+02:00",
+  "departure": "2026-10-09T10:00:00+02:00"
+}
+```
+
+`propertyId` is an integer, `propertyName` the property's name; `arrival` / `departure` are ISO-8601
+with the Europe/Paris offset of that instant, not UTC. Additive: a v0.3.0 plugin validates only
+`reservationId`, `action`, `label`, `startsAt`, `endsAt` and ignores it; nothing else in the
+contract moved (endpoint, auth, signatures, the 7-day lead, the results).
 
 `state` is Sowel's access status (`live | outside_hours | not_yet | ended | suspended | revoked |
 no_gate`); `error` is one of Sowel's codes (`disabled`, `unknown_profile`, `profile_incomplete`,
@@ -263,11 +290,16 @@ envelope, and sign every 2xx answer with `X-Gate-Response-Signature` (rules 22b-
 
 | Table | Columns |
 |---|---|
-| `gate_key_results` | `reservationId` (PK, no FK — it must outlive a deleted reservation), `action`, `ok`, `state`, `code`, `url`, `error`, `message`, `label`, `startsAt`, `endsAt`, `receivedAt`, `alertedError` (the error the admins were last pushed about) |
+| `gate_key_results` | `reservationId` (PK, no FK — it must outlive a deleted reservation), `action`, `ok`, `state`, `code`, `url`, `error`, `message`, `label`, `startsAt`, `endsAt`, `receivedAt`, `alertedError` (the error the admins were last pushed about), `propertyId` (contract v3, rule 4b — the reservation's property, kept for a deleted reservation's stay) |
 | `gate_connector_state` | one row (`id = 1`): `lastReadAt`, `staleAlertedAt` |
 
 Both tables are created empty by `schema.sql` and touch no existing data. **Data impact:** none;
-dropping both would return guestFlow to its previous state. #563's `gate_stay_feed` and
+dropping both would return guestFlow to its previous state.
+
+**Migration (contract v3, 2026-10-05):** `gate_key_results.propertyId INTEGER`, nullable, added by
+`migratePropertyId` (the gate-access plugin's `stay_property_v1` migration) on databases that predate it and backfilled from the reservation for every row
+whose reservation still exists. A row whose reservation was deleted before the migration stays NULL:
+its revoke goes out without `stay` (rule 4b). No data is lost or rewritten. #563's `gate_stay_feed` and
 `gate_invitations` were never on `master` and are not created.
 
 ## 6. UI / UX
@@ -306,6 +338,10 @@ nothing overflows horizontally.
 - [x] `gate-response-signature.unit.test.js` — the pinned vector, exact bytes, bound to the request,
       errors unsigned, every gate route behind the signer
 - [x] `gate-window.unit.test.js` (from #547) — − 3 h / + 2 h, both DST transitions
+- [x] `gate-keys-stay.unit.test.js` (contract v3) — the Paris offset, the `create` and `revoke`
+      shapes, each stay's own times and their fallback, a stay across 2026-10-25, a deleted stay
+      rebuilt from the results table, no block without a known property, the stored property kept,
+      the migration and its backfill
 
 ### Client unit tests
 - [x] `GateKeysAlert.test.jsx` — nothing to say, a failure row, the stale row, a silent server
