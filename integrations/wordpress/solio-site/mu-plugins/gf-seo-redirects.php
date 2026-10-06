@@ -21,8 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Correspondance des anciennes adresses Lodgify vers les pages WordPress.
  *
  * Les cles sont les chemins tels qu’ils existaient sur domainesolio.com ; les valeurs sont
- * des chemins relatifs du nouveau site. Les URL anglaises pointent pour l’instant vers
- * l’equivalent francais : elles seront reaffectees quand la version anglaise existera.
+ * des chemins relatifs du nouveau site. Les URL anglaises pointent vers la version anglaise.
  */
 function gf_seo_redirections_lodgify() {
 	return array(
@@ -48,15 +47,15 @@ function gf_seo_redirections_lodgify() {
 		'/activites-autour-du-domaine'                     => '/autour-de-nous/',
 		'/tarifs-et-reservation'                           => '/',
 
-		'/en'                                              => '/',
-		'/en/to-complete'                                  => '/la-granja/',
-		'/en/aventura-lodge-tente-tout-confort'            => '/estiva/',
-		'/en/faq'                                          => '/contact/',
-		'/en/all-properties'                               => '/',
-		'/en/options'                                      => '/la-granja/#reserver',
-		'/en/discovery'                                    => '/autour-de-nous/',
-		'/en/contact-us'                                   => '/contact/',
-		'/en/life-on-the-estate'                           => '/le-domaine/',
+		// Reaffectees a la version anglaise le 2026-10-05 : elle existe depuis le 2026-09-24.
+		'/en/to-complete'                                  => '/en/la-granja-gite/',
+		'/en/aventura-lodge-tente-tout-confort'            => '/en/estiva-safari-tent/',
+		'/en/faq'                                          => '/en/getting-here/',
+		'/en/all-properties'                               => '/en/',
+		'/en/options'                                      => '/en/la-granja-gite/',
+		'/en/discovery'                                    => '/en/around-us/',
+		'/en/contact-us'                                   => '/en/getting-here/',
+		'/en/life-on-the-estate'                           => '/en/the-estate/',
 
 		// Resserrement 2026-09-24 : quatre pages publiees et quatre brouillons retires.
 		'/reserver'                                        => '/',
@@ -113,7 +112,20 @@ function gf_seo_redirect() {
 		}
 	}
 
-	// 2. Anciennes adresses Lodgify.
+	// 2. Fiches de reservation Lodgify « /listing/<langue>/<roomTypeId> » : Google Vacation Rentals
+	// y envoyait encore ses clics (ref=gvr) le 2026-10-05, et elles repondaient 404.
+	if ( preg_match( '~^/listing/([a-z]{2})/(806256|808379)$~i', $normalise, $m ) ) {
+		$anglais = 'fr' !== strtolower( $m[1] );
+		if ( '806256' === $m[2] ) {
+			$cible = $anglais ? '/en/la-granja-gite/' : '/la-granja/';
+		} else {
+			$cible = $anglais ? '/en/estiva-safari-tent/' : '/estiva/';
+		}
+		wp_safe_redirect( gf_seo_redirect_utm( home_url( $cible ) ), 301 );
+		exit;
+	}
+
+	// 3. Anciennes adresses Lodgify.
 	foreach ( gf_seo_redirections_lodgify() as $ancien => $cible ) {
 		if ( strcasecmp( $normalise, '/' . trim( $ancien, '/' ) ) === 0 ) {
 			wp_safe_redirect( gf_seo_redirect_utm( home_url( $cible ) ), 301 );

@@ -34,6 +34,8 @@ test('a create carries the reservation id as a string, the label and the Paris w
     label: 'Gîte · R-2026-041 · Marie',
     startsAt: '2026-10-01T10:00:00.000Z',
     endsAt: '2026-10-04T10:00:00.000Z',
+    // Contract v3 (specs/sowel-stays-in-keys.md) — the stay itself, without the gate's margins.
+    stay: { propertyId: 1, propertyName: 'Gîte', arrival: '2026-10-01T15:00:00+02:00', departure: '2026-10-04T10:00:00+02:00' },
   }]);
 });
 

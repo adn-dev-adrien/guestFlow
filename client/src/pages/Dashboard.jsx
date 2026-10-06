@@ -19,7 +19,7 @@ import PaymentDeadlinesAlert from '../components/PaymentDeadlinesAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
-import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
+import NewReservationsAlert from '../components/NewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
 import Slot from '../plugins/sdk/Slot';
@@ -387,7 +387,7 @@ export default function Dashboard() {
           <CancellationCompensationsPendingAlert />
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
-          <IcalNewReservationsAlert />
+          <NewReservationsAlert />
           {/* The other plugin alerts, e.g. the linen shortage, the tariff-recipe runs to review and the
               website requests still pending (specs/plugins-phase-2-hosts.md rules 15, 25). */}
           <Slot name="dashboard.alerts" />

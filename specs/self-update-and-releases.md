@@ -403,7 +403,7 @@ argument-array spawning (never a shell string), and every interpolated value is 
 |---|---|---|
 | **Consumed (existing generic)** | `StatusCard`, `SummaryItem`, `StatusBadge`, `ConfirmDialog`, `FormDialog`, `ErrorAlert`, `LoadingState`, `CollapsibleSection` | The settings card is a `StatusCard` + `SummaryItem` lines; the confirm is `ConfirmDialog`. |
 | **Created (new generic)** | `HeaderPill` | The top bar had no indicator grammar of its own. `HeaderPill` is the one: it knows nothing about updates, only about being a tinted, tappable pill in the `AppBar` (icon + optional count/label + tone + tooltip), so the next thing worth surfacing there reuses it instead of hand-rolling another `IconButton`. |
-| **Specific (kept feature-local)** | `UpdateAvailableAlert`, `UpdateDialog`, `UpdateProgressOverlay`, `SettingsSystemUpdateSection`, `AppVersionBadge` | The alert follows the established `<Feature>Alert` family of the dashboard (`EmailPendingAlert`, `IcalNewReservationsAlert`, …) and the section follows the `Settings<Feature>Section` family. The overlay is a one-of-a-kind full-screen blocker tied to the restart lifecycle. |
+| **Specific (kept feature-local)** | `UpdateAvailableAlert`, `UpdateDialog`, `UpdateProgressOverlay`, `SettingsSystemUpdateSection`, `AppVersionBadge` | The alert follows the established `<Feature>Alert` family of the dashboard (`EmailPendingAlert`, `NewReservationsAlert`, …) and the section follows the `Settings<Feature>Section` family. The overlay is a one-of-a-kind full-screen blocker tied to the restart lifecycle. |
 
 ### 4.3 API contract
 
@@ -552,7 +552,7 @@ admin only, only when `updateAvailable && version !== dismissedVersion`.
 > ⬆️ **GuestFlow 1.3.0 est disponible** — vous utilisez la 1.2.1.
 > [Voir les nouveautés]  [Plus tard]
 
-Severity `info`, same visual family as `EmailPendingAlert` / `IcalNewReservationsAlert`.
+Severity `info`, same visual family as `EmailPendingAlert` / `NewReservationsAlert`.
 When `selfUpdateSupported` is false the alert still informs, but the primary action becomes
 "Voir les nouveautés" only, with a caption explaining the manual procedure.
 

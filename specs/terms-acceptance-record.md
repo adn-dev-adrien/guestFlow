@@ -136,7 +136,9 @@ exact version accepted.
     UTC, millisecond precision — never a client time), the **version** accepted, the visitor's **IP**
     and **User-Agent** relayed by the proxy, and the plugin version (`X-GuestFlow-Plugin` header).
 19. It is **append-only**: no endpoint edits or deletes it; editing the devis, converting it into a
-    reservation (same row), re-pricing or cancelling keep it. It is deleted only with its row.
+    reservation, re-pricing or cancelling keep it. It is deleted only with its row. (Amended
+    2026-10-01: the conversion inserts a **new** reservation row and the acceptance stays on the devis
+    — see rule 29.)
 20. The creation writes a `terms_accepted` entry in `reservation_history` (« Historique des
     modifications »).
 21. The fiche of a public request (`GET /api/reservations/:id` and `GET /api/devis/:id` both carry the
@@ -188,6 +190,20 @@ exact version accepted.
     `[guestflow_cgv]`, deploy the mu-plugin without its checkbox. (4) Test booking end to end.
     Window of unavailability: between (1) and (3), to be done in one sitting, off-peak.
     > **Sans test** — production procedure, not behaviour of the code.
+
+### 3.9 A converted request keeps its proof (added 2026-10-01)
+
+29. Converting a website request inserts a new reservation row (`convertToReservation`), and the
+    acceptance stays on the devis row, which keeps `convertedReservationId`. Until this rule, the stay
+    looked for an acceptance under its own id only: its fiche read « CGV : aucune acceptation
+    enregistrée » and its `{{cgvUrl}}` pointed at the current version. Now:
+    - the fiche block (rule 21) and `{{cgvUrl}}` (rule 26) of a reservation read the acceptance recorded
+      on the reservation **or on the devis it was converted from**. The record itself is not moved or
+      copied (rule 19);
+    - deleting a converted devis that carries an acceptance is refused with 409 « Ce devis porte
+      l'acceptation des CGV de la réservation qui en est issue : il ne peut pas être supprimé. », since
+      the delete would cascade the stay's proof away. An unconverted request is deleted with its
+      acceptance, as before.
 
 **Edge cases:**
 - Honeypot filled → fake success, nothing stored.
@@ -352,7 +368,7 @@ interactive mock-up validated on 2026-09-22.
 
 ## 7. Test plan
 
-### Server unit tests (+45)
+### Server unit tests (+48)
 - [x] `tests/terms-renderer.unit.test.js` (9) — raw HTML escaped, `javascript:` links inert, attribute
       break-out impossible, subset, variables, `{{cautions}}` list, hash.
 - [x] `tests/terms-publishing.unit.test.js` (11) — empty / unknown variable / nothing new refused,
@@ -369,6 +385,8 @@ interactive mock-up validated on 2026-09-22.
       version, rendered before « Une question », accepted version wins, missing tables, migration
       (placement, EN, idempotent, fallback at end, no template).
 - [x] `tests/public-booking-request-controller.unit.test.js` — fixtures accept version 1.
+- [x] `tests/cgv-acceptance-follows-conversion.unit.test.js` (3) — rule 29: the converted stay's fiche
+      block, its `{{cgvUrl}}` pinned to the accepted version, the converted devis's delete refused.
 
 ### Client (Vitest, +13)
 - [x] `pages/settings/__tests__/TermsSettingsPage.test.jsx` (9)

@@ -96,6 +96,21 @@ function wallClockToDate(dateStr, timeStr) {
 }
 
 /**
+ * A `Date` as Europe/Paris wall clock with its numeric offset — `2026-10-06T16:00:00+02:00`. The
+ * offset is the one the zone had at that very instant, so both sides of a DST night read right.
+ */
+function toParisIso(date) {
+  const instantMs = date instanceof Date ? date.getTime() : NaN;
+  if (!Number.isFinite(instantMs)) return null;
+  const offsetMs = zoneOffsetMs(instantMs);
+  const wallClock = new Date(instantMs + offsetMs).toISOString().slice(0, 19);
+  const offsetMin = Math.round(Math.abs(offsetMs) / 60000);
+  const sign = offsetMs < 0 ? '-' : '+';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${wallClock}${sign}${pad(Math.floor(offsetMin / 60))}:${pad(offsetMin % 60)}`;
+}
+
+/**
  * The window of a stay, or `null` when the reservation cannot yield one (missing dates). Early
  * opening and prolongation are the owner's, set in Sowel's list: they never enter this computation
  * (specs/gate-access-sowel-connector.md §3.1).
@@ -122,5 +137,6 @@ module.exports = {
   DEFAULT_CHECK_IN,
   DEFAULT_CHECK_OUT,
   computeWindow,
+  toParisIso,
   __test: { wallClockToDate, zoneOffsetMs },
 };
