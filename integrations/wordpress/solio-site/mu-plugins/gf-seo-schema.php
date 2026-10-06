@@ -345,10 +345,15 @@ function gf_seo_faq_depuis_contenu() {
 	if ( ! preg_match_all( '~<details[^>]*>\s*<summary[^>]*>(.*?)</summary>(.*?)</details>~s', $contenu, $m, PREG_SET_ORDER ) ) {
 		return array();
 	}
+	// Le contenu est du HTML brut : sans decodage, « &nbsp; » et « &rsquo; » partaient tels quels dans le JSON-LD.
+	$texte  = static function ( $html ) {
+		$brut = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		return trim( preg_replace( '/[\s\x{00A0}]+/u', ' ', $brut ) );
+	};
 	$sortie = array();
 	foreach ( $m as $bloc ) {
-		$question = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $bloc[1] ) ) );
-		$reponse  = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $bloc[2] ) ) );
+		$question = $texte( $bloc[1] );
+		$reponse  = $texte( $bloc[2] );
 		if ( $question && $reponse ) {
 			$sortie[] = array( 'q' => $question, 'r' => $reponse );
 		}
