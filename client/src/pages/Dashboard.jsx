@@ -20,7 +20,7 @@ import PaymentDeadlinesAlert from '../components/PaymentDeadlinesAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import CancellationCompensationsPendingAlert from '../components/CancellationCompensationsPendingAlert';
-import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
+import NewReservationsAlert from '../components/NewReservationsAlert';
 import TariffRecipeRunsAlert from '../components/TariffRecipeRunsAlert';
 import GateKeysAlert from '../components/GateKeysAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
@@ -386,7 +386,7 @@ export default function Dashboard() {
           <CancellationCompensationsPendingAlert />
           {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
               notification; renders nothing when nothing was imported today. */}
-          <IcalNewReservationsAlert />
+          <NewReservationsAlert />
           <TariffRecipeRunsAlert />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}

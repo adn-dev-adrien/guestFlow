@@ -41,7 +41,7 @@ vi.mock('react-router', async (importOriginal) => {
 vi.mock('../../components/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalNewReservationsAlert', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../components/NewReservationsAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/EmailPendingAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/DevisPublicRequestAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, default: () => <div>CUMULATIVE_CALENDAR</div> }));
