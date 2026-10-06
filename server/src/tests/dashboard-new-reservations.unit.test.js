@@ -46,7 +46,7 @@ function addRes(db, {
 const manual = (over = {}) => ({ sourceType: 'manual', sourceIcalSourceId: null, sourcePlatformKey: null, ...over });
 const ids = (rows) => rows.map((r) => r.reservationId);
 
-test('lists an iCal reservation created now, fully shaped', () => {
+test('rule 3 — lists an iCal reservation created now, fully shaped', () => {
   const { db, model } = freshModel();
   const id = addRes(db, {});
   const rows = model.listNewReservations();
@@ -59,14 +59,14 @@ test('lists an iCal reservation created now, fully shaped', () => {
 });
 
 // Under the former UTC-day rule, 23 h 59 ago almost always fell on the previous day and was dropped.
-test('keeps a reservation created 23 h 59 ago, drops one created 24 h 01 ago', () => {
+test('rule 2 — keeps a reservation created 23 h 59 ago, drops one created 24 h 01 ago', () => {
   const { db, model } = freshModel();
   const inside = addRes(db, { age: '-1439 minutes' });
   addRes(db, { age: '-1441 minutes' });
   assert.deepEqual(ids(model.listNewReservations()), [inside]);
 });
 
-test('lists every origin: iCal, website and GuestFlow entries', () => {
+test('rule 1 — lists every origin: iCal, website and GuestFlow entries', () => {
   const { db, model } = freshModel();
   const ical = addRes(db, { age: '-3 hours' });
   const site = addRes(db, manual({ platform: 'Lodgify', age: '-2 hours' }));
@@ -75,34 +75,34 @@ test('lists every origin: iCal, website and GuestFlow entries', () => {
   assert.deepEqual(ids(model.listNewReservations()), [entered, site, ical]);
 });
 
-test('excludes devis, even a website request', () => {
+test('rule 1 — excludes devis, even a website request', () => {
   const { db, model } = freshModel();
   addRes(db, manual({ kind: 'devis' }));
   addRes(db, manual({ kind: 'devis', requestOrigin: 'public' }));
   assert.equal(model.listNewReservations().length, 0);
 });
 
-test('iCal label: source name first, then the formatted platform key', () => {
+test('rule 9 — iCal label: source name first, then the formatted platform key', () => {
   const { db, model } = freshModel();
   addRes(db, { sourceIcalSourceId: null, sourcePlatformKey: 'booking' });
   assert.equal(model.listNewReservations()[0].platformLabel, 'Booking');
 });
 
-test('label is « Site » for a reservation converted from a website devis', () => {
+test('rule 9 — label is « Site » for a reservation converted from a website devis', () => {
   const { db, model } = freshModel();
   const id = addRes(db, manual({ platform: 'Lodgify' }));
   addRes(db, manual({ kind: 'devis', requestOrigin: 'public', convertedReservationId: id, age: '-3 days' }));
   assert.equal(model.listNewReservations()[0].platformLabel, 'Site');
 });
 
-test('a devis converted from the back-office does not make the label « Site »', () => {
+test('rule 9 — a devis converted from the back-office does not make the label « Site »', () => {
   const { db, model } = freshModel();
   const id = addRes(db, manual({ platform: 'Lodgify' }));
   addRes(db, manual({ kind: 'devis', requestOrigin: null, convertedReservationId: id, age: '-3 days' }));
   assert.equal(model.listNewReservations()[0].platformLabel, 'Lodgify');
 });
 
-test('label of a GuestFlow entry is its channel, « direct » shown as « Direct »', () => {
+test('rule 9 — label of a GuestFlow entry is its channel, « direct » shown as « Direct »', () => {
   const { db, model } = freshModel();
   addRes(db, manual({ platform: 'direct', age: '-2 hours' }));
   addRes(db, manual({ platform: 'GitesDeFrance', age: '-1 hours' }));
@@ -110,7 +110,7 @@ test('label of a GuestFlow entry is its channel, « direct » shown as « Direct
   assert.deepEqual(model.listNewReservations().map((r) => r.platformLabel), ['', 'Gîtes de France', 'Direct']);
 });
 
-test('orders most recent first', () => {
+test('rule 6 — orders most recent first', () => {
   const { db, model } = freshModel();
   const older = addRes(db, { age: '-2 hours' });
   const newer = addRes(db, {});

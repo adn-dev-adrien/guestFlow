@@ -74,7 +74,7 @@ test('clicking a row navigates to the reservation page', async () => {
   expect(navigate).toHaveBeenCalledWith('/reservations/12087');
 });
 
-test('refetches every 5 minutes so the list follows the 24-hour window', async () => {
+test('rule 10 — refetches every 5 minutes so the list follows the 24-hour window', async () => {
   vi.useFakeTimers();
   try {
     api.getNewReservations.mockResolvedValueOnce({ alerts: [row()] }).mockResolvedValueOnce({ alerts: [] });
