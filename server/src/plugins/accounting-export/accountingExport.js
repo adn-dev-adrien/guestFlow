@@ -5,7 +5,8 @@
  * in a given month — shape produced by `accountingModel.encaissementsByMonth`), produces the
  * balanced double-entry journal lines expected by the accountant.
  *
- * Column layout (set 2026-06-01 from Adrien's accountant `Exemple export ventes SOLIO.csv`):
+ * « Format standard (CSV) » (specs/plugins-phase-p-productisation.md rule 29) — the column layout set
+ * on 2026-06-01 from the accountant's example file:
  *
  *   Jour ; Mois  ; Année ; Journal ; Pièce ; Libellé de l'écriture ; Compte ; Débit ; Crédit
  *   then a GuestFlow-specific extension: Plateforme ; Prix payé client ; Commission
@@ -61,6 +62,7 @@ const {
   DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   DISCOUNT_ACCOUNT,
   TIP_ACCOUNT,
+  planMapper,
 } = require('./accountPlan');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
@@ -121,7 +123,7 @@ function zerofyMoneyColumns(row) {
 //     platforms with `entry.commission` populated. Σ debits = encaissement GROSS TTC.
 //   - CREDITS unchanged in shape — revenue 70xxx + VAT 44571xxx (scaled to GROSS by the
 //     model upstream) + tax pass-through 46710000. Σ credits = encaissement GROSS TTC.
-function entryToRows(entry) {
+function rowsAtDefaults(entry) {
   // Remboursements (specs/reservation-refunds.md §3.4): the very same money shape, sides swapped.
   if (entry && entry.direction === 'refund') return refundEntryToRows(entry);
   // Indemnités d'annulation (specs/cancellation-compensation.md §3.3 rule 16).
@@ -433,10 +435,30 @@ function tipEntryToRows(entry) {
   ];
 }
 
-function buildRows(entries) {
+// Column positions of the journal code and the account in a row (CSV_HEADERS).
+const JOURNAL_COLUMN = 3;
+const ACCOUNT_COLUMN = 6;
+
+/**
+ * The rows of one entry, in the operator's account plan (specs/plugins-phase-p-productisation.md
+ * rule 27). Without a plan, or with the defaults, the rows are exactly the engine's.
+ */
+function entryToRows(entry, plan) {
+  const rows = rowsAtDefaults(entry);
+  if (!plan) return rows;
+  const mapper = planMapper(plan);
+  return rows.map((row) => {
+    const out = [...row];
+    out[JOURNAL_COLUMN] = mapper.journal;
+    out[ACCOUNT_COLUMN] = mapper.account(out[ACCOUNT_COLUMN]);
+    return out;
+  });
+}
+
+function buildRows(entries, plan) {
   const rows = [];
   for (const entry of entries || []) {
-    for (const row of entryToRows(entry)) rows.push(row);
+    for (const row of entryToRows(entry, plan)) rows.push(row);
   }
   return rows;
 }
@@ -445,8 +467,10 @@ function buildRows(entries) {
 // lines already classified by type so the UI can colour them). Guarantees the rendered preview
 // = the CSV content: each entry's lines are produced from the same `entryToRows` walk so any
 // future change to the export (e.g. an extra commission-as-charge line) appears in both at once.
-function entryToStructured(entry) {
-  const rows = entryToRows(entry);
+function entryToStructured(entry, plan) {
+  const rows = entryToRows(entry, plan);
+  // Labels and line types are known by the default numbers; an account the plan renamed reads as its role.
+  const roleOf = planMapper(plan).defaultOf;
   if (rows.length === 0) return null;
   const [day, month, year] = rows[0];
 
@@ -482,13 +506,13 @@ function entryToStructured(entry) {
       // specs/arrival-payment-detail-and-adjustment.md rule 25 — the pourboire shares the produit-divers
       // account with the indemnité d'annulation, so an entry may name what ITS use of the account is.
       // Everything else keeps the shared chart-of-accounts label.
-      accountLabel: (entry.accountLabels && entry.accountLabels[String(compte)]) || accountLabel(compte),
+      accountLabel: (entry.accountLabels && entry.accountLabels[String(compte)]) || accountLabel(roleOf(compte)),
       libelle: String(libelle),
       // Map literal-0 placeholders back to null so the preview shows a blank cell on the
       // counter-side (the user sees `100,00 / —` not `100,00 / 0,00`).
       debit: debitVal === 0 ? null : debitVal,
       credit: creditVal === 0 ? null : creditVal,
-      type: classifyLine(compte),
+      type: classifyLine(roleOf(compte)),
     };
   });
 
@@ -564,8 +588,8 @@ function classifyLine(compte) {
   return 'other';
 }
 
-function buildStructuredEntries(entries) {
-  return (entries || []).map(entryToStructured).filter(Boolean);
+function buildStructuredEntries(entries, plan) {
+  return (entries || []).map((entry) => entryToStructured(entry, plan)).filter(Boolean);
 }
 
 module.exports = {

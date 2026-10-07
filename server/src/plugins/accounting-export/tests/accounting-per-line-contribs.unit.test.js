@@ -164,7 +164,7 @@ test('complement entry sums forced + delta correctly', () => {
 
 // specs/force-item-to-complement.md rule 5
 test('tax routed to complement (touristTaxInComplement=1) → kept with taxTtc surfaced for the 46710000 line', () => {
-  // Policy 2026-06-01 (accountant SOLIO format): the tax now rides on the `46710000` pass-
+  // Policy 2026-06-01 (the standard format): the tax now rides on the `46710000` pass-
   // through account; a pure-tax complement is a valid 1-debit / 1-credit row.
   const perLineData = {
     optionLines: [], customOptionLines: [], resourceLines: [],

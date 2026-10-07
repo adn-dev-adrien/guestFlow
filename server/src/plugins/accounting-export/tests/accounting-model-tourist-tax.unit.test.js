@@ -8,7 +8,7 @@ const { __test: { buildEntry } } = require('../accountingModel');
 //   2. Platform-collect (e.g. Airbnb default) — tax = 0; nothing to do, schedule is finalPrice-only.
 //   3. Owner-collect non-direct (`collectsTouristTax = 0`) — tax routed to the complement bucket.
 //
-// **Policy change 2026-06-01** (from the accountant's `Exemple export ventes SOLIO.csv`): the
+// **Policy change 2026-06-01** (from the accountant's example file, the « Format standard (CSV) »): the
 // tourist tax is now surfaced on every entry via `taxTtc` and the export engine credits it on
 // the `46710000` pass-through account. The entry is no longer dropped when revenue is 0 — a
 // pure-tax encaissement is a valid 1-debit / 1-credit row. Tests below pin the new behaviour;

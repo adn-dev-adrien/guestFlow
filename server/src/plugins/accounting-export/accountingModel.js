@@ -142,6 +142,12 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
       const commissionContext = buildCommissionContext(settings.read());
+      // A tip lands on the plan's tip account (specs/plugins-phase-p-productisation.md rule 27): its
+      // default is shared with the compensation account, so the entry names it.
+      const tipAccount = String(settings.read().tipAccount || TIP_ACCOUNT);
+      const inTipAccount = (entry) => (entry.kind === 'tip'
+        ? { ...entry, tipAccount, accountLabels: { [tipAccount]: 'Pourboire' } }
+        : entry);
 
       return reservations.flatMap((row) => {
         const perLineData = buildPerLineData(database, row);
@@ -199,7 +205,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
           if (group.cash === 0 && group.at >= from && group.at < nextMonth) {
             const stamp = { id, at: group.at, cash: false, total: group.total };
             const adjustments = buildArrivalAdjustmentEntries(row, group, commissionContext.vatRate);
-            for (const entry of adjustments) entries.push({ ...entry, paymentGroup: stamp });
+            for (const entry of adjustments) entries.push({ ...inTipAccount(entry), paymentGroup: stamp });
           }
         }
         // Pure-tax entries are dropped (see `buildEntry`).

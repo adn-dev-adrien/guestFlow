@@ -10,7 +10,7 @@ const {
 } = require('../accountPlan');
 
 // Pure engine: encaissement entries → balanced double-entry journal rows.
-// Column layout (aligned with the accountant's `Exemple export ventes SOLIO.csv`):
+// Column layout (aligned with the accountant's example file, the « Format standard (CSV) »):
 //   [0] Jour [1] Mois  [2] Année [3] Journal [4] Pièce [5] Libellé [6] Compte
 //   [7] Débit [8] Crédit [9] Plateforme [10] Prix payé client [11] Commission
 
@@ -217,8 +217,8 @@ test('paidDate "YYYY-MM-DD" is split into day, month, year integers', () => {
 });
 
 // specs/accountant-accounting-export.md rule 14
-test('client account formatting: C + up to 6 chars (variable width, matches SOLIO example)', () => {
-  // SOLIO example shows variable-width codes: CNOTIN (6 chars), CCAGGUI (7 chars). We follow:
+test('client account formatting: C + up to 6 chars (variable width, matches the standard format)', () => {
+  // The example file shows variable-width codes: CNOTIN (6 chars), CCAGGUI (7 chars). We follow:
   // 'C' + lastname uppercased, accent-stripped, non-alpha removed, truncated to 6 chars.
   // Empty / unknown names fall back to the literal `CXXXXX` placeholder.
   assert.equal(buildClientAccount('Élise'),     'CELISE');     // accent stripped, 5 letters

@@ -16,7 +16,11 @@
  */
 
 const sdk = require('../sdk');
-const { createAccountSettings } = require('./settings');
+const { createAccountSettings, validateAccount, validateJournalCode } = require('./settings');
+const { PLAN_DEFAULTS } = require('./accountPlan');
+
+// specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, edited on the same page.
+const PLAN_KEYS = Object.keys(PLAN_DEFAULTS);
 
 const { validateVatRate } = sdk.coreModule('settingsValidation');
 
@@ -29,17 +33,14 @@ function validateRequiredVatRate(value) {
   return validateVatRate(String(value).replace(',', '.'));
 }
 
-// Validates a French chart-of-accounts code. We accept 6 to 8 digits:
-//   - 6 digits = generic bucket account (`622600` is the default).
-//   - 8 digits = specific sub-account (`62260300` Airbnb, `62260500` Gîtes de France, etc.).
+// Validates a French chart-of-accounts code: 3 to 12 digits (specs/plugins-phase-p-productisation.md
+// rule 28), so a 6-digit bucket (`622600`) and an 8-digit sub-account (`62260300`) both pass.
 // Empty string = "use the default" on per-platform rows (legitimate).
 function validateAccountNumber(value, { required = false } = {}) {
   if (value == null || value === '') {
-    return required ? 'Compte requis (6 à 8 chiffres).' : null;
+    return required ? 'Compte requis (3 à 12 chiffres).' : null;
   }
-  const str = String(value).trim();
-  if (!/^\d{6,8}$/.test(str)) return 'Compte doit comporter 6 à 8 chiffres.';
-  return null;
+  return validateAccount(value);
 }
 
 function createPlatformAccountsModel(database, { platforms = sdk.coreModule('platformsModel'), settings = createAccountSettings(database) } = {}) {
@@ -59,11 +60,14 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         hasVatOnCommission: Number(p.hasVatOnCommission) === 1,
         isDirect: String(p.name).toLowerCase() === 'direct',
       }));
+      const stored = settings.read();
       return {
         defaultAccount,
         vatRateCommission,
         cancellationCompensationAccount,
         vatRateCancellationCompensation,
+        // Each role with its number and the default it falls back to (the page's helper text).
+        plan: PLAN_KEYS.map((key) => ({ key, value: String(stored[key]), default: String(PLAN_DEFAULTS[key]) })),
         platforms: decoratedPlatforms,
       };
     },
@@ -87,6 +91,19 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
         if (err) errors[input] = err;
         else vatRates[input] = Number(String(body[input]).replace(',', '.'));
       }
+      // Absent `plan` ⇒ untouched; an empty value goes back to the default.
+      const plan = {};
+      if (body.plan && typeof body.plan === 'object') {
+        const planErrors = {};
+        for (const key of PLAN_KEYS) {
+          if (!Object.prototype.hasOwnProperty.call(body.plan, key)) continue;
+          const value = String(body.plan[key] == null ? '' : body.plan[key]).trim();
+          const err = key === 'journalCode' ? validateJournalCode(value) : validateAccount(value);
+          if (err) planErrors[key] = err;
+          else plan[key] = value || String(PLAN_DEFAULTS[key]);
+        }
+        if (Object.keys(planErrors).length) errors.plan = planErrors;
+      }
       const platformList = Array.isArray(body.platforms) ? body.platforms : [];
       const perPlatformErrors = [];
       for (const p of platformList) {
@@ -107,6 +124,7 @@ function createPlatformAccountsModel(database, { platforms = sdk.coreModule('pla
             ? { cancellationCompensationAccount: String(body.cancellationCompensationAccount).trim() }
             : {}),
           ...vatRates,
+          ...plan,
         });
         // 2) Per-platform rows. Direct row writes are silently ignored by platformsModel.update.
         for (const p of platformList) {

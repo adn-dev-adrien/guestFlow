@@ -54,7 +54,7 @@ function register(ctx) {
   let controller = null;
   let platformAccounts = null;
   const getController = () => {
-    if (!controller) controller = createAccountingController(createAccountingModel(ctx.db));
+    if (!controller) controller = createAccountingController(createAccountingModel(ctx.db), { plan: () => createAccountSettings(ctx.db).read() });
     return controller;
   };
   const getPlatformAccounts = () => {

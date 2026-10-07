@@ -5,7 +5,7 @@
  * that is missing or empty reads the shipped defaults — the values erasure goes back to (rule 22).
  */
 
-const { DEFAULT_COMMISSION_ACCOUNT, DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT } = require('./accountPlan');
+const { DEFAULT_COMMISSION_ACCOUNT, DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, PLAN_DEFAULTS } = require('./accountPlan');
 
 const PLUGIN_ID = 'accounting-export';
 
@@ -14,6 +14,8 @@ const DEFAULTS = Object.freeze({
   vatRateCommission: 20,
   cancellationCompensationAccount: DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
   vatRateCancellationCompensation: 0,
+  // The account plan (specs/plugins-phase-p-productisation.md rule 27).
+  ...PLAN_DEFAULTS,
 });
 
 const KEYS = Object.freeze(Object.keys(DEFAULTS));
@@ -26,13 +28,24 @@ function validateRate(value) {
   return Number.isFinite(n) && n >= 0 && n <= 100 ? null : 'Doit être un nombre entre 0 et 100.';
 }
 
+// Rule 28: 3 to 12 digits for an account, 1 to 4 capitals or digits for the journal code.
 function validateAccount(value) {
   if (value == null || String(value).trim() === '') return null;
-  return /^\d{6,8}$/.test(String(value).trim()) ? null : 'Compte doit comporter 6 à 8 chiffres.';
+  return /^\d{3,12}$/.test(String(value).trim()) ? null : 'De 3 à 12 chiffres.';
 }
 
+function validateJournalCode(value) {
+  if (value == null || String(value).trim() === '') return null;
+  return /^[A-Z0-9]{1,4}$/.test(String(value).trim()) ? null : 'De 1 à 4 majuscules ou chiffres.';
+}
+
+const validatorOf = (key) => {
+  if (RATE_KEYS.has(key)) return validateRate;
+  return key === 'journalCode' ? validateJournalCode : validateAccount;
+};
+
 // What `ctx.settings.declare` receives: the generic GET/PUT /api/plugins/accounting-export/settings.
-const DECLARED = KEYS.map((key) => ({ key, default: String(DEFAULTS[key]), validate: RATE_KEYS.has(key) ? validateRate : validateAccount }));
+const DECLARED = KEYS.map((key) => ({ key, default: String(DEFAULTS[key]), validate: validatorOf(key) }));
 
 function parseValue(key, raw) {
   if (raw == null || String(raw).trim() === '') return DEFAULTS[key];
@@ -78,4 +91,4 @@ function createAccountSettings(database) {
   };
 }
 
-module.exports = { PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings };
+module.exports = { PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode };
