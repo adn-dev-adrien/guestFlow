@@ -10,6 +10,7 @@
  */
 
 const { formatDateLong, formatTimeShort } = require('./dateFr');
+const { renderText } = require('./stayTextCatalogue');
 const { formatCurrency } = require('./devisHelpers');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isCleaningOption } = require('./cleaningOption');
@@ -19,13 +20,6 @@ const { resolveEmailIdentity } = require('./emailIdentity');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
-}
-
-// Accent/case-insensitive keyword matcher for option/resource NAMES (specs/email-automation.md).
-// Matching on the operator-facing name is more robust than an `autoOptionType` tag, which custom
-// catalog entries don't always carry (e.g. a hand-created « Ménage » or « Bain nordique »).
-function normalizeName(v) {
-  return safeStr(v).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 }
 
 function diffDays(startIso, endIso) {
@@ -183,22 +177,20 @@ function buildContext({ reservation, client, property, options = [], resources =
   const resourcesList = resourcesTitles.join(', ');
   const hasResources = resourcesTitles.length > 0;
 
-  // Nordic-bath reminder (specs/email-automation.md): guests who booked the « Bain nordique »
-  // resource must bring their own swimsuit / towel / flip-flops (nothing is provided). Matched on
-  // the resource name. The slots recalled are those of the stay's hourly lines, whatever their
-  // name, and only while hourly resources are a live plugin
-  // (specs/plugins-phase-3c-hourly-resources.md rule 15).
-  const nordicResource = (resources || []).find((rr) => normalizeName(rr.name).includes('nordique'));
-  const hasNordicBath = Boolean(nordicResource);
+  // A booked resource speaks through its own sentence (specs/plugins-phase-p-productisation.md rule
+  // 11), `{{slots}}` recalling the slots placed on it while hourly resources are a live plugin
+  // (specs/plugins-phase-3c-hourly-resources.md rule 15). `hasNordicBath`, `nordicBathSchedule` and
+  // `nordicBathReminder` keep their names, so stored templates keep rendering.
   const parseSessions = (raw) => {
     if (Array.isArray(raw)) return raw;
     try { const parsed = JSON.parse(raw || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
   };
-  const scheduledSessions = hasNordicBath && hourlyResourcesLive()
-    ? (resources || []).filter((rr) => rr.priceType === 'per_hour').flatMap((rr) => parseSessions(rr.sessions))
-      .sort((a, b) => String(a && a.date).localeCompare(String(b && b.date)) || String(a && a.start).localeCompare(String(b && b.start)))
-    : [];
-  const nordicBathSchedule = scheduledSessions
+  const hourlyLive = hourlyResourcesLive();
+  const sessionsOf = (lines) => (hourlyLive ? lines : [])
+    .filter((rr) => rr.priceType === 'per_hour')
+    .flatMap((rr) => parseSessions(rr.sessions))
+    .sort((a, b) => String(a && a.date).localeCompare(String(b && b.date)) || String(a && a.start).localeCompare(String(b && b.start)));
+  const slotsLabel = (sessions) => sessions
     .filter((s) => s && s.date)
     .map((s) => {
       const day = formatDateLong(s.date, L);
@@ -214,21 +206,14 @@ function buildContext({ reservation, client, property, options = [], resources =
       return `le ${day}`;
     })
     .join(isEn ? ' and ' : ' et ');
-  // Composed server-side (the renderer has no nested conditionals): one sentence that optionally
-  // recalls the scheduled slot. The template renders it via `{{#if hasNordicBath}}{{nordicBathReminder}}{{/if}}`.
-  const nordicBathReminder = hasNordicBath
-    ? (isEn
-      ? [
-        'You have booked the nordic bath: a real moment of relaxation awaits you!',
-        nordicBathSchedule ? `Your slot is reserved ${nordicBathSchedule}.` : '',
-        'To make the most of it, remember to bring your swimsuit, a bathrobe or a towel, and a pair of flip-flops — these items are not provided on site.',
-      ].filter(Boolean).join(' ')
-      : [
-        'Vous avez réservé le bain nordique : un véritable moment de détente vous attend !',
-        nordicBathSchedule ? `Votre créneau est réservé ${nordicBathSchedule}.` : '',
-        'Pour en profiter pleinement, pensez à emporter votre maillot de bain, un peignoir ou une serviette, ainsi qu\'une paire de tongs — ces équipements ne sont pas fournis sur place.',
-      ].filter(Boolean).join(' '))
-    : '';
+  const sentenceOf = (rr) => safeStr(isEn ? (safeStr(rr.emailBookedTextEn).trim() || rr.emailBookedText) : rr.emailBookedText).trim();
+  const speakingResources = (resources || []).filter((rr) => sentenceOf(rr));
+  const hasNordicBath = speakingResources.length > 0;
+  const nordicBathSchedule = hasNordicBath ? slotsLabel(sessionsOf(resources || [])) : '';
+  const nordicBathReminder = speakingResources
+    .map((rr) => renderText(sentenceOf(rr), { slots: slotsLabel(sessionsOf([rr])) }))
+    .filter(Boolean)
+    .join(' ');
 
   // Complement to collect on arrival (specs/j1-complement-to-collect.md). The notice appears only
   // when an unpaid complement remains. The per-item breakdown matches the options/resources/custom

@@ -90,6 +90,6 @@ test('preview of a sequence email renders the per-property paragraphs', async ()
   const { controller, reservationId, templateId } = setup();
   const res = await call(controller.preview, { query: { reservationId, templateId: templateId('arrival_reminder_1d') } });
   assert.equal(res.status, 200);
-  assert.match(res.body.body, /vous n'avez pas choisi l'option ménage/);
+  assert.match(res.body.body, /ménage de fin de séjour n'est pas compris/, 'the neutral stay text of a new database');
   assert.deepEqual(res.body.missingVariables, []);
 });

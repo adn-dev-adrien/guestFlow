@@ -6,8 +6,12 @@
  * empty facts instead of throwing, so an email still renders — just without the property-specific
  * paragraphs.
  *
- * API: loadStayFacts(database, reservation) → { defaults, available, optionMeta, bathFreeMinutes, properties }
+ * API: loadStayFacts(database, reservation) → { defaults, available, optionMeta, bathFreeMinutes, properties,
+ *      texts, mentions, confirmationOrder }
  */
+
+const stayTextsModel = require('./stayTextsModel');
+const emailMentionsModel = require('./emailMentionsModel');
 
 function tryAll(fn, fallback) {
   try { return fn(); } catch { return fallback; }
@@ -76,7 +80,31 @@ function loadStayFacts(database, reservation) {
      ORDER BY p.id
   `).all(), []);
 
-  return { defaults, available, optionMeta, bathFreeMinutes, properties };
+  // The wording (specs/plugins-phase-p-productisation.md §3.A–3.B): the stored stay texts, global and
+  // the property's own, and the mentions with their confirmation order.
+  const texts = tryAll(() => stayTextsModel.buildModel(database).forContext(propertyId), { global: {}, property: {} });
+  const mentionsModel = tryAll(() => emailMentionsModel.buildModel(database), null);
+  const mentions = mentionsModel ? tryAll(() => mentionsModel.list(), []) : [];
+  const confirmationOrder = mentionsModel ? tryAll(() => mentionsModel.confirmationOrder(), []) : [];
+
+  return { defaults, available, optionMeta, bathFreeMinutes, properties, texts, mentions, confirmationOrder };
 }
 
-module.exports = { loadStayFacts };
+/**
+ * The sentence each booked resource carries once booked (specs/plugins-phase-p-productisation.md rule
+ * 11), attached in place to the reservation's resource lines. Guarded like the facts above.
+ */
+function attachResourceSentences(database, resources = []) {
+  const byId = new Map(tryAll(
+    () => database.prepare('SELECT id, emailBookedText, emailBookedTextEn FROM resources').all(),
+    [],
+  ).map((row) => [Number(row.id), row]));
+  for (const line of resources) {
+    const row = byId.get(Number(line.resourceId));
+    line.emailBookedText = row ? row.emailBookedText || '' : '';
+    line.emailBookedTextEn = row ? row.emailBookedTextEn || '' : '';
+  }
+  return resources;
+}
+
+module.exports = { loadStayFacts, attachResourceSentences };

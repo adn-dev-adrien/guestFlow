@@ -79,8 +79,26 @@ function renderTemplate(template, context) {
   };
 }
 
+/**
+ * The first name a text uses that it may not (specs/plugins-phase-p-productisation.md rule 4), or
+ * null. `{{#if x}}` accepts a flag or a token; `{{x}}` a token only.
+ */
+function unknownToken(text, { tokens = [], flags = [] } = {}) {
+  const asFlag = new Set([...flags, ...tokens]);
+  const asToken = new Set(tokens);
+  const re = /\{\{\s*(#if\s+)?([^{}\s]*)\s*\}\}/g;
+  let m;
+  while ((m = re.exec(String(text || ''))) !== null) {
+    const name = m[2];
+    if (!m[1] && (name === 'else' || name === '/if')) continue;
+    if (m[1] ? !asFlag.has(name) : !asToken.has(name)) return name;
+  }
+  return null;
+}
+
 module.exports = {
   renderTemplate,
+  unknownToken,
   // Exposed for tests + future renderer reuse.
   __test: { renderConditionals, renderVariables },
 };

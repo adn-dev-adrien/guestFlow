@@ -166,6 +166,10 @@ function buildSolioDb() {
   const update = db.prepare('UPDATE email_templates SET subject = ?, body = ?, subjectEn = ?, bodyEn = ? WHERE stableKey = ?');
   for (const [key, t] of Object.entries(TEMPLATES)) update.run(t.subject, t.body, t.subjectEn, t.bodyEn, key);
 
+  // The upgrade: the fixture booted as a new database, Solio's is an existing one.
+  db.prepare("DELETE FROM migrations WHERE name = 'productisation_v1'").run();
+  require('../utils/productisationMigration').runProductisationMigration(db, { env: {} });
+
   return db;
 }
 

@@ -1,10 +1,13 @@
 // specs/guest-email-sequence.md §3.5 rules 20-29 — what each property includes, what is booked, what
-// may still be proposed, and the paragraphs composed from it.
+// may still be proposed, and the paragraphs composed from it. Since specs/plugins-phase-p-productisation.md
+// the wording is data: these cases read Solio's, as productisation_v1 writes it (rules 7–9, 24).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildStayContent, classifyOptions, roleOf } = require('../utils/stayContentContext');
+const { legacyRoleOf } = require('../utils/productisationMigration');
+const { withSolioWording } = require('./solioWordingFixture');
 
 const META = {
   3: { id: 3, title: 'Ménage', autoOptionType: 'cleaning' },
@@ -37,21 +40,25 @@ const ESTIVA = {
 const RES = { id: 1, startDate: '2027-07-10', endDate: '2027-07-17', adults: 2, children: 2, doubleBeds: 1, singleBeds: 2, platform: 'direct' };
 
 function content({ reservation = {}, property = {}, options = [], facts = GRANJA, settings = {}, lang = 'fr', sequence = {} } = {}) {
+  const filterCoffee = Number(property.hasFilterCoffeeMaker || 0) === 1;
   return buildStayContent({
     reservation: { ...RES, ...reservation },
     client: { id: 1, email: 'c@x.fr' },
     property: { name: 'La Granja', nameArticle: 'à', ...property },
-    options, facts, settings, lang, sequence,
+    options, facts: withSolioWording(facts, { filterCoffee }), settings: { poolSeasonStart: '06-15', poolSeasonEnd: '08-31', ...settings }, lang, sequence,
   });
 }
 
-test('roles come from seed keys and tags first, the name only for hand-made options', () => {
-  assert.equal(roleOf(META[21]), 'juice');
-  assert.equal(roleOf(META[18]), 'beer');
-  assert.equal(roleOf(META[27]), 'board');
-  assert.equal(roleOf(META[16]), 'trapperMeal');
+test('the engine knows linen, towels, cleaning and the baby cot by their tag; the rest are mentions', () => {
   assert.equal(roleOf(META[9]), 'towels');
   assert.equal(roleOf({ title: 'Ménage fin de séjour' }), 'cleaning');
+  assert.equal(roleOf(META[33]), 'babyBed');
+  for (const id of [21, 18, 27, 16, 6, 11]) assert.equal(roleOf(META[id]), null, META[id].title);
+  // plugins-phase-p rule 10: seed keys and names are read once, by the migration.
+  assert.equal(legacyRoleOf(META[21]), 'juice');
+  assert.equal(legacyRoleOf(META[18]), 'beer');
+  assert.equal(legacyRoleOf(META[27]), 'board');
+  assert.equal(legacyRoleOf(META[16]), 'trapperMeal');
 });
 
 test('included = the property defaults — even on an iCal booking with no option line', () => {

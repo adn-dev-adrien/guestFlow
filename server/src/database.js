@@ -2421,6 +2421,20 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- PRODUCTISATION — specs/plugins-phase-p-productisation.md §3.E ----------
+// After the plugins: the migration reads whether the SAS plugin is active. On an existing database it
+// writes, once, the wording the code held before phase P; a new database starts neutral.
+{
+  const { applyProductisationSchema, runProductisationMigration } = require('./utils/productisationMigration');
+  applyProductisationSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    const result = runProductisationMigration(db);
+    if (result.action === 'migrated') {
+      console.log(`[migration:productisation_v1] ${result.texts} text(s), ${result.mentions} mention(s), ${result.resources} resource sentence(s) kept`);
+    }
+  }
+}
+
 // ---------- TRANSLATION CATALOGUE ----------
 // specs/translation-catalogue.md §5. Two tables rather than a column per language, so a third
 // language is data and never a migration (rule 17). `translation_values` cascades: a retired entry
