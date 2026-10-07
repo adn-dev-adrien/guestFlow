@@ -55,7 +55,7 @@ export default function SettingsEmailContentSection({
               value={values.poolSeasonStart || ''}
               onChange={(e) => onChange('poolSeasonStart', e.target.value)}
               error={Boolean(errors.poolSeasonStart)}
-              helperText={errors.poolSeasonStart || 'ex. 06-15'}
+              helperText={errors.poolSeasonStart || 'ex. 06-15 · vide : sans piscine'}
               disabled={disabled}
               fullWidth
             />

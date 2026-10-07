@@ -15,13 +15,22 @@ const { loadLocalEnv, persistVar } = require('./localEnv');
 
 // Contact required by the Web Push spec for the VAPID `sub` claim. It MUST be a routable URL/mailto:
 // Apple's push gateway rejects the JWT with `403 BadJwtToken` when the subject is a non-routable domain
-// (e.g. a `.local` TLD), which silently kills every iOS push. Override per-deployment via VAPID_SUBJECT
-// in `.env.local` (git-ignored) if a specific contact address is preferred.
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:contact@domainesolio.com';
+// (e.g. a `.local` TLD), which silently kills every iOS push. Resolved in this order
+// (specs/plugins-phase-p-productisation.md rule 18): VAPID_SUBJECT in the environment, the
+// `vapidSubject` setting, the company email, the SMTP sender. With none, push stays off.
+function resolveSubject(settings = {}, env = process.env) {
+  const clean = (v) => String(v == null ? '' : v).trim();
+  if (clean(env.VAPID_SUBJECT)) return clean(env.VAPID_SUBJECT);
+  if (clean(settings.vapidSubject)) return clean(settings.vapidSubject);
+  if (clean(settings.companyEmail)) return `mailto:${clean(settings.companyEmail)}`;
+  if (clean(settings.smtpFromEmail)) return `mailto:${clean(settings.smtpFromEmail)}`;
+  return '';
+}
 
 let configured = false;
 
-function ensureVapid() {
+/** Boot, and again whenever an address the subject depends on is saved. */
+function ensureVapid(settings = {}) {
   loadLocalEnv();
   let publicKey = (process.env.VAPID_PUBLIC_KEY || '').trim();
   let privateKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
@@ -30,8 +39,10 @@ function ensureVapid() {
     publicKey = persistVar('VAPID_PUBLIC_KEY', keys.publicKey);
     privateKey = persistVar('VAPID_PRIVATE_KEY', keys.privateKey);
   }
+  const subject = resolveSubject(settings);
   try {
-    webpush.setVapidDetails(VAPID_SUBJECT, publicKey, privateKey);
+    if (!subject) throw new Error('NO_VAPID_SUBJECT');
+    webpush.setVapidDetails(subject, publicKey, privateKey);
     configured = true;
   } catch {
     configured = false;
@@ -47,4 +58,4 @@ function isConfigured() {
   return configured && Boolean(getPublicKey());
 }
 
-module.exports = { ensureVapid, getPublicKey, isConfigured, VAPID_SUBJECT };
+module.exports = { ensureVapid, getPublicKey, isConfigured, resolveSubject };

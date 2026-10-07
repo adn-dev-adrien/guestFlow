@@ -195,6 +195,8 @@ function updateSettings(req, res) {
   settingsModel.upsert(payload);
 
   const row = settingsModel.read();
+  // The push subject follows the company and sender addresses (specs/plugins-phase-p-productisation.md rule 18).
+  if (company || smtp) require('../utils/vapid').ensureVapid(row);
   return res.json(shapeResponse(row));
 }
 

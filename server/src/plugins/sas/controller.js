@@ -11,6 +11,7 @@ const sdk = require('../sdk');
 const { sasData: pluginSasData } = require('../sdk/eventBus');
 const registry = require('../sdk/registry');
 const { buildSasSnapshot, computeSasChanges } = require('./sasAudit');
+const { extinguisherCheckOn } = require('./settings');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -302,6 +303,8 @@ function getSas(req, res) {
     arrivalComplement: reservationsModel.buildArrivalComplementDetail(reservation.id, { includeOffered: true }),
     // « Tarifs facturables » — repair prices (incl. the keyed extinguisher seal) for the SAS check.
     repairAmounts: repairAmountsModel.list(),
+    // specs/plugins-phase-p-productisation.md rule 16 — off, the departure shows no extinguisher step.
+    extinguisherCheck: extinguisherCheckOn(),
     // Breakfast page state (arrival SAS): applicable? + resolved person count + effective hour +
     // stored counts/note. `reservation.departureHandoverNote` rides along via `r.*`.
     breakfast: breakfastModel.getForReservation(reservation.id),
@@ -409,7 +412,7 @@ function commitArrival(req, res) {
     breakfastBread,
     breakfastNote,
     departureHandoverNote,
-    extinguisherSealOkAtArrival,
+    extinguisherSealOkAtArrival: extinguisherCheckOn() ? extinguisherSealOkAtArrival : undefined,
     // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
     complementSettled: unified.complementSettled,
     complementPaidCash: unified.complementPaidCash,
@@ -447,9 +450,12 @@ function commitDeparture(req, res) {
   const departureLock = receptionSasLock(req, reservation, 'departure');
   if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const {
-    cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges,
-    complementsSettled, complementsPaidCash, offeredArrivalExtras,
+    cautionReturned, endOfStayComplementDetail = null, complementsSettled, complementsPaidCash, offeredArrivalExtras,
   } = req.body || {};
+  // specs/plugins-phase-p-productisation.md rule 16 — with the check off, no seal field is accepted.
+  const checked = extinguisherCheckOn();
+  const extinguisherSealOkAtDeparture = checked ? (req.body || {}).extinguisherSealOkAtDeparture : undefined;
+  const extinguisherCharges = checked ? (req.body || {}).extinguisherCharges : undefined;
   const beforeSas = snapshotSas(Number(req.params.id));
   reservationsModel.commitDepartureSas(Number(req.params.id), {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).

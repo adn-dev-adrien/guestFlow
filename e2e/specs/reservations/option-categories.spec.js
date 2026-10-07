@@ -4,19 +4,20 @@
 //
 // Unit tests can't prove this: the sections depend on the server's `optionGroups` payload, and the
 // rule that matters (an enabled option stays visible while its category is collapsed) is only
-// meaningful across a save + reload. The « Boissons » and « Restauration » catalogues come from the
-// boot seed (server/src/utils/cateringSeed.js), so nothing extra needs seeding here.
+// meaningful across a save + reload. The « Boissons » and « Restauration » catalogue is seeded here:
+// the core no longer ships one (specs/plugins-phase-p-productisation.md rule 12).
 import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 import { CLIENT_URL } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
 
 /**
- * Attach the breakfast option to a property. The catering seed links its own articles to every
- * property, but « Petit déjeuner » predates it and carries no link — on a property created by this
- * spec it would simply be absent, and rule 9bis would have nothing to prove.
+ * Attach the breakfast option to a property. `seedCateringOptions` links the catalogue articles, but
+ * « Petit déjeuner » is not one of them — on a property created by this spec it would simply be
+ * absent, and rule 9bis would have nothing to prove.
  */
 async function linkBreakfastOption(propertyId) {
   const ctx = await pwRequest.newContext({ baseURL: CLIENT_URL, storageState: STORAGE_STATE });
@@ -43,6 +44,7 @@ const optionCard = (page, title) => extras(page).locator('.MuiCard-root').filter
 
 async function openFiche(page, { withBreakfast = false } = {}) {
   const property = await createProperty({ name: 'E2E option-categories villa' });
+  seedCateringOptions(property.id);
   if (withBreakfast) await linkBreakfastOption(property.id);
   const client = await createClient({ firstName: 'Test', lastName: 'OptionCategories' });
   const reservation = await createReservation({

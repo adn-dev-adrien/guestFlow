@@ -120,7 +120,7 @@ try {
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
-require('./utils/vapid').ensureVapid();
+require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
 
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));

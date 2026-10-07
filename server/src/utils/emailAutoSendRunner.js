@@ -19,15 +19,9 @@ const { loadTermsVersion } = require('./reservationEmailGraph');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
-const { DIRECT_CHANNELS } = require('./platformNameFormat');
+const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
-
-// Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
-// platformNameFormat.js — adding a channel there reaches this pass for free. Same pattern as
-// balanceRequestRunner.
-const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
-const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
 
 function isoToday(now = new Date()) {
   // Use the server's local date — same locale the cron fires at 08:00 of.
@@ -77,6 +71,8 @@ async function performAutoEmailPass(deps) {
   //   • 'balanceDueDate' → the solde deadline, same guard.
   // A payment anchor whose échéance gets paid stops matching immediately: the dunning email cannot
   // chase money that has arrived, dedup or no dedup.
+  // The own channels are platformNameFormat's, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  registerDirectChannelSql(database);
   const findReservationsStmt = database.prepare(`
     SELECT * FROM reservations
     WHERE COALESCE(kind, 'reservation') = 'reservation'
@@ -95,18 +91,18 @@ async function performAutoEmailPass(deps) {
       AND COALESCE(${amountColumn}, 0) > 0
       AND COALESCE(${paidColumn}, 0) != 1
       AND date(${anchor}, ? || ' days') = ?
-      AND LOWER(COALESCE(NULLIF(TRIM(platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
+      AND is_direct_channel(platform) = 1
   `);
   // Each anchor carries the extra bound parameters ITS query needs, after the shared (offset, today).
   const statementsByAnchor = {
     start: { statement: findReservationsStmt, extraParams: [] },
     depositDueDate: {
       statement: paymentAnchorStmt('depositDueDate', 'depositAmount', 'depositPaid'),
-      extraParams: DIRECT_CHANNEL_LIST,
+      extraParams: [],
     },
     balanceDueDate: {
       statement: paymentAnchorStmt('balanceDueDate', 'balanceAmount', 'balancePaid'),
-      extraParams: DIRECT_CHANNEL_LIST,
+      extraParams: [],
     },
   };
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');

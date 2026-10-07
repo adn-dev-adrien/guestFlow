@@ -20,7 +20,7 @@ vi.mock('../../api', () => ({
 
 const GRID = {
   platforms: [
-    { id: 1, name: 'Direct', commissionPercent: 5, isDirect: true },
+    { id: 1, name: 'Direct', commissionPercent: 5, isDirect: true, directVia: ['Lodgify'] },
     { id: 2, name: 'Airbnb', commissionPercent: 15.5, isDirect: false },
     { id: 3, name: 'Booking', commissionPercent: 15, isDirect: false },
   ],
@@ -47,12 +47,13 @@ test('renders one row per channel, Direct first with its caption, whole-euro pri
   render(<PlatformPriceCard propertyId={1} />);
   // Await the RENDERED grid, not merely the fetch call: the state update lands a tick later and
   // asserting on the call alone makes the test flaky under a loaded full-suite run.
-  await screen.findByText('moteur Lodgify');
+  await screen.findByText('Lodgify');
   expect(api.getPlatformPrices).toHaveBeenCalledWith(1);
   const rows = screen.getAllByRole('row');
   // header + 3 channel rows; Direct is the first body row
   expect(rows[1]).toHaveTextContent('Direct');
-  expect(rows[1]).toHaveTextContent('moteur Lodgify');
+  // specs/plugins-phase-p-productisation.md rule 19 — the caption names the platforms counted as direct.
+  expect(rows[1]).toHaveTextContent('Lodgify');
   expect(rows[1]).toHaveTextContent('179 €');
   expect(rows[1]).toHaveTextContent('247 €');
   expect(rows[1]).toHaveTextContent('27 €');

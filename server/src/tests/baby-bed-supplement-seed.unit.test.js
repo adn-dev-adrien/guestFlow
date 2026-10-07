@@ -6,7 +6,7 @@ const { ensureBabyBedSupplementOption, SEED_KEY, DEFAULT_PRICE } = require('../u
 
 // specs/baby-bed-supplement.md §5 — an idempotent, non-destructive boot seed keyed on `seedKey`,
 // linked to every property, carrying the engine contract (`autoOptionType = 'baby_bed'` +
-// `autoEnabled = 1`) and the default 5 € per cot. It never overwrites what the operator changed.
+// `autoEnabled = 1`) and the default 0 € per cot (specs/plugins-phase-p-productisation.md rule 15). It never overwrites what the operator changed.
 
 const SILENT = { logger: { log() {}, warn() {} } };
 
@@ -34,7 +34,7 @@ const seeded = (db) => db.prepare('SELECT * FROM options WHERE seedKey = ?').get
 const links = (db, optionId) => db.prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId')
   .all(optionId).map((r) => r.propertyId);
 
-test('first boot seeds one 5 € cot supplement, linked to every property', () => {
+test('first boot seeds one 0 € cot supplement, linked to every property', () => {
   const db = freshDb();
   const res = ensureBabyBedSupplementOption(db, SILENT);
   assert.equal(res.action, 'seeded');

@@ -317,6 +317,26 @@ function writeSettings(db, env) {
   }
 }
 
+// A new database proposes breakfast, a product feature, in neutral words (rule 15).
+const NEUTRAL_BREAKFAST = {
+  section: 'extras',
+  offerFr: 'le petit-déjeuner{{#if hasPrice}} ({{price}} par personne et par jour){{/if}}',
+  offerEn: 'breakfast{{#if hasPrice}} ({{price}} per person per day){{/if}}',
+  bookedFr: 'Le petit-déjeuner est réservé pour chaque matin du séjour.',
+  bookedEn: 'Breakfast is booked for every morning of your stay.',
+};
+
+function seedNeutralMentions(db) {
+  if (db.prepare('SELECT 1 FROM email_mentions LIMIT 1').get()) return;
+  const breakfast = db.prepare("SELECT id FROM options WHERE autoOptionType = 'breakfast' ORDER BY id").all();
+  if (!breakfast.length) return;
+  const id = Number(db.prepare(`
+    INSERT INTO email_mentions (section, offerFr, offerEn, bookedFr, bookedEn, priceSource, sortOrder)
+    VALUES (@section, @offerFr, @offerEn, @bookedFr, @bookedEn, 'min', 1)
+  `).run(NEUTRAL_BREAKFAST).lastInsertRowid);
+  for (const o of breakfast) db.prepare('INSERT INTO email_mention_options (mentionId, optionId) VALUES (?, ?)').run(id, o.id);
+}
+
 /**
  * Runs `productisation_v1` once. Returns a tag for the boot log: `skipped` (already ran),
  * `fresh` (a new database: nothing to keep, recorded so it never runs later), or what it wrote.
@@ -325,7 +345,10 @@ function runProductisationMigration(db, { env = process.env } = {}) {
   if (db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(MIGRATION)) return { action: 'skipped' };
   const record = () => db.prepare('INSERT INTO migrations (name) VALUES (?)').run(MIGRATION);
   if (!hasData(db)) {
-    record();
+    db.transaction(() => {
+      seedNeutralMentions(db);
+      record();
+    })();
     return { action: 'fresh' };
   }
   return db.transaction(() => {

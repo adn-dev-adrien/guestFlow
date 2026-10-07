@@ -151,7 +151,28 @@ function setClientEmailLanguage(clientId, lang) {
   });
 }
 
+/**
+ * A « Boissons » + « Restauration » catalogue, linked to one property. The core no longer seeds one
+ * (specs/plugins-phase-p-productisation.md rule 12): the spec that needs it brings it, here the list
+ * Solio's database holds. Idempotent per article.
+ */
+function seedCateringOptions(propertyId) {
+  const CATERING = require('../../server/src/tests/fixtures/productisation/solio-catering.json');
+  return withDb((db) => {
+    for (const o of CATERING) {
+      let row = db.prepare('SELECT id FROM options WHERE seedKey = ?').get(o.seedKey);
+      if (!row) {
+        const res = db.prepare("INSERT INTO options (title, price, priceType, category, seedKey) VALUES (?, ?, 'per_stay', ?, ?)")
+          .run(o.title, o.price, o.category, o.seedKey);
+        row = { id: Number(res.lastInsertRowid) };
+      }
+      db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, row.id);
+    }
+  });
+}
+
 module.exports = {
+  seedCateringOptions,
   seedPendingDateDrift,
   seedPendingCancellation,
   setLinenStock,

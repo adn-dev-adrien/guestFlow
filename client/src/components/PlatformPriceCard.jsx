@@ -117,8 +117,8 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
                   <TableRow key={p.id}>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: p.isDirect ? 700 : 500 }}>{p.name}</Typography>
-                      {p.isDirect && (
-                        <Typography variant="caption" color="text.secondary">moteur Lodgify</Typography>
+                      {p.isDirect && p.directVia?.length > 0 && (
+                        <Typography variant="caption" color="text.secondary">{p.directVia.join(', ')}</Typography>
                       )}
                     </TableCell>
                     <TableCell align="right">

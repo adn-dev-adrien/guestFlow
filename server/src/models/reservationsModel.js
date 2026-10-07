@@ -9,7 +9,7 @@
 
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
-const { formatPlatformName, DIRECT_CHANNELS } = require('../utils/platformNameFormat');
+const { formatPlatformName, registerDirectChannelSql } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
@@ -18,15 +18,6 @@ const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { LINEN } = require('../constants/plugins');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
-
-// Own channels, bound as NAMED parameters (the deadline read already uses `@today`, and better-sqlite3
-// refuses a mix of named and positional binds). Single-sourced from platformNameFormat so adding a
-// channel there reaches this read for free.
-const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
-const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map((_, i) => `@directChannel${i}`).join(', ');
-const DIRECT_CHANNEL_PARAMS = Object.fromEntries(
-  DIRECT_CHANNEL_LIST.map((channel, i) => [`directChannel${i}`, channel]),
-);
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
 const { isCleaningOption } = require('../utils/cleaningOption');
@@ -276,6 +267,8 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
 }
 
 function createReservationsModel(database) {
+  // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  registerDirectChannelSql(database);
   // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
   // write so the core INSERT/UPDATE SQL stays untouched; absent in minimal test schemas → no-op.
   const HAS_RESERVATION_BREAKFAST_TIME = (() => {
@@ -1819,10 +1812,10 @@ function createReservationsModel(database) {
              OR (COALESCE(r.finalPrice, 0) = 0
                  AND COALESCE(r.depositAmount, 0) = 0
                  AND COALESCE(r.balanceAmount, 0) = 0
-                 AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) NOT IN (${DIRECT_CHANNEL_PLACEHOLDERS}))
+                 AND is_direct_channel(r.platform) = 0)
            )
          ORDER BY r.startDate, r.id
-      `).all({ today, ...DIRECT_CHANNEL_PARAMS });
+      `).all({ today });
     },
 
     // The booking channel alone — all the dunning guard needs to know before sending anything

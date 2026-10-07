@@ -11,6 +11,9 @@ const { __test: { buildStayPayment } } = require('../controller');
 
 const ctx = { isDeparture: false, receptionOnly: false };
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../../../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('a platform booking with an unpaid solde gets NO stay step', () => {
   const stay = buildStayPayment({ platform: 'Booking', depositAmount: 0, balanceAmount: 146.93, balancePaid: 0 }, ctx);
   assert.equal(stay.applicable, false);

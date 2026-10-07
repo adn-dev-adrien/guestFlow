@@ -33,6 +33,9 @@ function freshModel({ seedIcal = [] } = {}) {
   return { model: platformsModel.create(db), db };
 }
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('platforms table is created with Direct row + auto-seeded from iCal sources', () => {
   const { model } = freshModel({ seedIcal: ['Airbnb', 'Gîtes de France', 'Airbnb'] });
   const rows = model.listAll();

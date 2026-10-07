@@ -10,6 +10,9 @@ const { isDirectChannel } = require('../utils/platformNameFormat');
 
 // ── rule 15 — validateAttribution ─────────────────────────────────────────────────────────
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('validateAttribution keeps the known keys, trimmed', () => {
   assert.deepEqual(validateAttribution({
     referrer: ' L.Instagram.com ', utmSource: ' instagram ', utmCampaign: 'lancement-2026',

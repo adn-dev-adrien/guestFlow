@@ -12,6 +12,9 @@
 const id = 'sas';
 
 function register(ctx) {
+  // specs/plugins-phase-p-productisation.md rule 16 — « Contrôle de l'extincteur ».
+  require('./settings').bind(ctx);
+
   // Resolved on the first request: the controllers bind core models when they load, and plugins
   // register while the core is still booting.
   const controller = (name) => (req, res) => require('./controller')[name](req, res);

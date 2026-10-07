@@ -37,15 +37,19 @@ export default function SettingsPushNotificationsSection() {
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // specs/plugins-phase-p-productisation.md rule 18 — without any address to sign with, push is off.
+  const [serverReady, setServerReady] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const [st, pr] = await Promise.all([
+      const [st, pr, key] = await Promise.all([
         getPushState(),
         api.getPushPreferences().catch(() => ({ newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true })),
+        api.getPushPublicKey().catch(() => ({ configured: true })),
       ]);
       setState({ enabled: st.enabled, permission: st.permission });
       setPrefs(pr);
+      setServerReady(key?.configured !== false);
     } finally {
       setLoading(false);
     }
@@ -108,6 +112,8 @@ export default function SettingsPushNotificationsSection() {
 
           {!supported ? (
             <Alert severity="info">Ce navigateur ne supporte pas les notifications push.</Alert>
+          ) : !loading && !serverReady ? (
+            <Alert severity="info">Envoi push indisponible : renseigner l'email de l'entreprise.</Alert>
           ) : loading ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><CircularProgress size={18} /><Typography variant="body2" color="text.secondary">Chargement…</Typography></Box>
           ) : (

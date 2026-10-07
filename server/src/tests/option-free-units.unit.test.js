@@ -49,6 +49,9 @@ const BASE = {
 };
 const line = (q) => q.optionLines.find((l) => l.optionId === 10);
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('5 guests × 2 nights with 2 free: 10 breakfasts prepared, 8 billed', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, adults: 5, startDate: '2026-05-01', endDate: '2026-05-03' });

@@ -12,7 +12,7 @@
  */
 
 const db = require('../database');
-const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
+const { formatPlatformName, isDirectChannel, refreshDirectChannels } = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
 
@@ -337,10 +337,30 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, payoutDueDays: value };
     },
 
+    // « Compté comme vente directe » (specs/plugins-phase-p-productisation.md rule 19). Guarded: a
+    // database without the column counts `direct` alone.
+    countsAsDirectIds() {
+      try {
+        return new Set(database.prepare('SELECT id FROM platforms WHERE countsAsDirect = 1').all().map((r) => Number(r.id)));
+      } catch {
+        return new Set();
+      }
+    },
+
+    setCountsAsDirect(id, on) {
+      database.prepare('UPDATE platforms SET countsAsDirect = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
+    },
+
+    /** The cached set `isDirectChannel` reads, re-read after a save. */
+    refreshDirectChannels() {
+      refreshDirectChannels(database);
+    },
+
     // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
     // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
     // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
     listSettings() {
+      const counted = this.countsAsDirectIds();
       return stmts.listAll.all().map((p) => {
         const isDirect = platformSlug(p.name) === DIRECT_NAME;
         const ownChannel = isDirectChannel(p.name);
@@ -348,6 +368,7 @@ function createPlatformsModel(database) {
           id: p.id,
           name: p.name,
           isDirect,
+          countsAsDirect: isDirect || counted.has(Number(p.id)),
           color: resolveColor(p.name, p.color),
           commissionPercent: Number(p.commissionPercent) || 0,
           takesDeposit: isDirect ? null : this.getDepositMode(p.name) === 1,

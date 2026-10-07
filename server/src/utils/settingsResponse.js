@@ -97,8 +97,9 @@ function shapeResponse(row) {
       sequenceStartDate: row.guestSequenceStartDate || null,
       googleReviewUrl: row.googleReviewUrl || '',
       instagramUrl: row.instagramUrl || '',
-      poolSeasonStart: row.poolSeasonStart || '06-15',
-      poolSeasonEnd: row.poolSeasonEnd || '08-31',
+      // Empty = no pool (specs/plugins-phase-p-productisation.md rule 14).
+      poolSeasonStart: row.poolSeasonStart || '',
+      poolSeasonEnd: row.poolSeasonEnd || '',
     },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),

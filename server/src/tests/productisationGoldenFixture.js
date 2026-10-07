@@ -169,6 +169,7 @@ function buildSolioDb() {
   // The upgrade: the fixture booted as a new database, Solio's is an existing one.
   db.prepare("DELETE FROM migrations WHERE name = 'productisation_v1'").run();
   require('../utils/productisationMigration').runProductisationMigration(db, { env: {} });
+  require('../utils/platformNameFormat').refreshDirectChannels(db);
 
   return db;
 }

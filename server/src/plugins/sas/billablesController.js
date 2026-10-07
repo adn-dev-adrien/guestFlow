@@ -9,6 +9,7 @@ const sdk = require('../sdk');
 
 const linenItemsModel = sdk.coreModule('linenItemsModel');
 const repairAmountsModel = sdk.coreModule('repairAmountsModel');
+const { extinguisherCheckOn } = require('./settings');
 
 const itemsOf = (body) => (Array.isArray(body) ? body : (body && Array.isArray(body.items) ? body.items : null));
 
@@ -29,7 +30,7 @@ function getRepairAmounts(req, res) {
 function updateRepairAmounts(req, res) {
   const items = itemsOf(req.body);
   if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-  return res.json(repairAmountsModel.replaceAll(items));
+  return res.json(repairAmountsModel.replaceAll(items, { keepProtected: extinguisherCheckOn() }));
 }
 
 module.exports = { getLinenItems, updateLinenItems, getRepairAmounts, updateRepairAmounts };
