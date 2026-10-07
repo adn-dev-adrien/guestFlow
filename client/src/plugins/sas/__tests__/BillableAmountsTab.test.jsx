@@ -19,6 +19,9 @@ vi.mock('../../../api', () => ({
     getRepairAmounts: vi.fn(),
     updateLinenItems: vi.fn().mockResolvedValue([]),
     updateRepairAmounts: vi.fn().mockResolvedValue([]),
+    // specs/plugins-phase-p-productisation.md rule 16 — the « Contrôle de l'extincteur » card.
+    getPluginSettings: vi.fn().mockResolvedValue({ extinguisherCheck: '1' }),
+    savePluginSettings: vi.fn().mockResolvedValue({ extinguisherCheck: '1' }),
   },
 }));
 

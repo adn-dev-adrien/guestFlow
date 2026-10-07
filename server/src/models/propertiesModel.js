@@ -46,7 +46,6 @@ const EMAIL_FACT_FIELDS = [
   { key: 'emailHookEn', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'parkingDistanceMeters', coerce: (v) => Math.max(0, Math.round(Number(v) || 0)) },
   { key: 'hasWifi', coerce: toBit },
-  { key: 'hasFilterCoffeeMaker', coerce: toBit },
 ];
 
 const EMAIL_HOOK_MAX_LENGTH = 300;

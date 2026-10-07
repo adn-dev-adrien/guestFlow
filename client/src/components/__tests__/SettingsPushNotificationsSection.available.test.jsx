@@ -12,6 +12,7 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getPushPreferences: vi.fn(),
+    getPushPublicKey: vi.fn().mockResolvedValue({ publicKey: 'k', configured: true }),
     updatePushPreferences: vi.fn().mockResolvedValue({}),
     sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),
   },

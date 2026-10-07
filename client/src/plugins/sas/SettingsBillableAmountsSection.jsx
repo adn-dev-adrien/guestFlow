@@ -73,8 +73,7 @@ export default function SettingsBillableAmountsSection({ linen, setLinen, repair
           {/* Montants de réparation */}
           <Typography variant="sectionHeader">Montants de réparation</Typography>
           <FormHelperText sx={{ m: 0 }}>
-            Facturés en fin de séjour si une réparation est constatée. « Plomb extincteur » est le montant
-            utilisé par le contrôle extincteur du SAS.
+            Facturés en fin de séjour si une réparation est constatée.
           </FormHelperText>
           {repairs.length === 0 && <Typography variant="caption" color="text.secondary">Aucun montant.</Typography>}
           {repairs.map((it, i) => {

@@ -1,14 +1,17 @@
 /**
  * PropertyStayTab — « Séjour » tab of the property page (specs/settings-rationalization.md
- * rules 17c, 21): the facts the guest emails read (parking distance, wifi, coffee maker) and the
- * early-arrival / late-departure options. The J-7 hook is edited in the J-7 template (Emails), not
+ * rules 17c, 21): the facts the guest emails read (parking distance, wifi), the property's own
+ * texts of those emails (specs/plugins-phase-p-productisation.md rule 3) and the early-arrival /
+ * late-departure options. The J-7 hook is edited in the J-7 template (Emails), not
  * here.
  *
  * Props:
  *   form, errors, updateField(field, value), onZeroFocus(event)
  *   timedOptions: { early, late }, updateTimedOptionField(kind, field, value), timeOptions (string[])
+ *   propertyId — null for a property not created yet (its texts come once it exists)
  */
 import React from 'react';
+import PropertyStayTexts from './PropertyStayTexts';
 import {
   Box, Card, CardContent, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Switch, TextField, Typography,
 } from '@mui/material';
@@ -19,7 +22,7 @@ const TIMED = [
 ];
 
 export default function PropertyStayTab({
-  form, errors = {}, updateField, onZeroFocus, timedOptions, updateTimedOptionField, timeOptions,
+  form, errors = {}, updateField, onZeroFocus, timedOptions, updateTimedOptionField, timeOptions, propertyId = null,
 }) {
   return (
     <>
@@ -49,15 +52,12 @@ export default function PropertyStayTab({
                 label="Wifi dans le logement"
                 sx={{ minHeight: 44 }}
               />
-              <FormControlLabel
-                control={<Switch checked={Boolean(form.hasFilterCoffeeMaker)} onChange={(e) => updateField('hasFilterCoffeeMaker', e.target.checked)} />}
-                label="Cafetière familiale (café moulu)"
-                sx={{ minHeight: 44 }}
-              />
             </Box>
           </Box>
         </CardContent>
       </Card>
+
+      {propertyId && <PropertyStayTexts propertyId={propertyId} />}
 
       <Card sx={{ mb: 3 }}>
         <CardContent>

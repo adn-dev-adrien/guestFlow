@@ -13,6 +13,7 @@ vi.mock('../../api', () => ({
   default: {
     getPushPreferences: vi.fn().mockResolvedValue({ newReservation: true, arrivals: true, departures: true, breakfast: true }),
     updatePushPreferences: vi.fn().mockResolvedValue({}),
+    getPushPublicKey: vi.fn().mockResolvedValue({ publicKey: 'k', configured: true }),
     sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),
   },
 }));

@@ -40,7 +40,7 @@ const NEW_DEFAULTS = {
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   depositEnabled: false,
   defaultCautionAmount: 500,
-  parkingDistanceMeters: 0, hasWifi: true, hasFilterCoffeeMaker: false,
+  parkingDistanceMeters: 0, hasWifi: true,
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
@@ -67,7 +67,7 @@ export const FIELD_TAB = {
   touristTaxPerDayPerPerson: 'tarifs', touristTaxPercentage: 'tarifs', touristTaxDepartmentPercentage: 'tarifs', touristTaxFixedAmount: 'tarifs',
   depositEnabled: 'paiement', depositPercent: 'paiement', depositDueDays: 'paiement', balanceDaysBefore: 'paiement',
   cancelAfterBalanceDueDays: 'paiement', defaultCautionAmount: 'paiement',
-  parkingDistanceMeters: 'sejour', hasWifi: 'sejour', hasFilterCoffeeMaker: 'sejour',
+  parkingDistanceMeters: 'sejour', hasWifi: 'sejour',
 };
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -162,7 +162,6 @@ export default function PropertyDetail() {
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       parkingDistanceMeters: p.parkingDistanceMeters ?? 0,
       hasWifi: p.hasWifi == null ? true : Boolean(p.hasWifi),
-      hasFilterCoffeeMaker: Boolean(p.hasFilterCoffeeMaker),
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
       touristTaxPercentage: p.touristTaxPercentage ?? 0,
@@ -516,6 +515,7 @@ export default function PropertyDetail() {
             timedOptions={timedOptions}
             updateTimedOptionField={updateTimedOptionField}
             timeOptions={TIME_OPTIONS}
+            propertyId={isNew ? null : property.id}
           />
         )}
         {tab === 'plateformes' && !isNew && (

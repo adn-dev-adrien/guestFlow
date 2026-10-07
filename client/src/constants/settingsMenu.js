@@ -34,7 +34,7 @@ const BASE_MENU = [
   { path: '/parametres/vacances-fermetures', label: 'Fermetures', labelWith: { plugin: 'school-holidays', label: 'Vacances & fermetures' }, Icon: DateRangeIcon, matches: ['/school-holidays', '/establishment-closures'] },
   null,
   { path: '/settings/tva-exercice', label: 'TVA & exercice', Icon: PercentIcon },
-  { path: '/settings/emails', label: 'Emails & notifications', Icon: AlternateEmailIcon },
+  { path: '/settings/emails', label: 'Emails & notifications', Icon: AlternateEmailIcon, matches: ['/settings/emails/textes'] },
   { path: '/settings/integrations', label: 'Intégrations', Icon: CableIcon },
   null,
   { path: '/settings/utilisateurs', label: 'Utilisateurs', Icon: AdminPanelSettingsIcon },

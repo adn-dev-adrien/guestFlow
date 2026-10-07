@@ -17,6 +17,8 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
+import OnboardingPage from './pages/OnboardingPage';
+import EmailTextsSettingsPage from './pages/settings/EmailTextsSettingsPage';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
 import LoadingState from './components/LoadingState';
@@ -706,6 +708,7 @@ function AppShell() {
           <Route path="/settings/plateformes" element={<PlatformsSettingsPage />} />
           <Route path="/settings/tva-exercice" element={<VatFiscalSettingsPage />} />
           <Route path="/settings/emails" element={<EmailSettingsPage />} />
+          <Route path="/settings/emails/textes" element={<EmailTextsSettingsPage />} />
           <Route path="/settings/integrations" element={pluginRoute('/settings/integrations', <IntegrationsSettingsPage />)} />
           <Route path="/settings/systeme" element={<SystemSettingsPage />} />
           <Route path="/settings/utilisateurs" element={<UserManagementPage />} />
@@ -768,6 +771,7 @@ function ForcedPasswordChange() {
 
 function AuthGate() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
@@ -777,6 +781,9 @@ function AuthGate() {
   }
   if (!user) return <LoginPage />;
   if (user.mustChangePassword) return <ForcedPasswordChange />;
+  // The start assistant, full screen and outside the side menu (specs/plugins-phase-p-productisation.md
+  // rule 20): an admin lands there while it is open, and may reopen it from Réglages › Système.
+  if (userHasRole(user, ADMIN) && (user.onboardingOpen || location.pathname === '/demarrage')) return <OnboardingPage />;
   return <AppShell />;
 }
 
