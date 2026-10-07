@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved (2026-10-07) |
 | **Branch** | `feature/plugins-phase-p-productisation` (from `inte/plugins` at 252edfbb) |
 | **Created** | 2026-10-06 |
 | **Author** | Adrien |
@@ -443,11 +443,13 @@ the seeded E2E database, which is an existing database, so everything stays as t
 
 ## 9. Open questions (put to Adrien in the summary)
 
+All resolved; the recommended option was taken each time.
+
 - **P18** — Solio's texts by migration on existing databases: **decided 2026-10-06**.
-- **P19** — Email phrases on the options: **decided 2026-10-06**; *mention* grouping (rule 7) to
-  validate.
-- **P20** — Solio's WordPress site: a private repository `solio-site` (recommended), or kept here
-  for now.
-- **P21** — « Plus tard » in the assistant (recommended), or an assistant that must be finished.
-- **P22** — Neutral seeds keep linen, breakfast, cleaning, insurance and baby bed (recommended), or
-  a new database starts with no option at all.
+- **P19** — Email phrases on the options: **decided 2026-10-06**. **P19 bis, decided 2026-10-07**: a
+  mention may cover several options (rule 7), as Solio's single line for the four juices needs.
+- **P20** — **Decided 2026-10-07**: Solio's WordPress site moves to a private repository
+  `solio-site`, which Adrien creates.
+- **P21** — **Decided 2026-10-07**: « Plus tard » is allowed at every step of the assistant.
+- **P22** — **Decided 2026-10-07**: neutral seeds keep linen, breakfast, cleaning, insurance and
+  baby bed.
