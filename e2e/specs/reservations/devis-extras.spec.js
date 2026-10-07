@@ -13,6 +13,8 @@
 // independent of whatever properties the other specs left in the shared ephemeral DB.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty } from '../../fixtures/apiSeed.js';
+// The core seeds no catalogue (specs/plugins-phase-p-productisation.md rule 12): the spec brings one.
+import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 
 // Scope every locator to the extras card: an enabled option's title also shows in the pricing panel.
 const extras = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Options et ressources' }).first();
@@ -33,6 +35,7 @@ async function openNewDevis(page, propertyId) {
 
 test('« Nouveau devis » shows the logement\'s option catalogue right away, with no dates set', async ({ page }) => {
   const property = await createProperty({ name: 'E2E devis-extras villa' });
+  seedCateringOptions(property.id);
 
   await openNewDevis(page, property.id);
 
@@ -45,6 +48,7 @@ test('« Nouveau devis » shows the logement\'s option catalogue right away, wit
 
 test('a devis keeps a ticked option across save + reopen (rules 12 + 16)', async ({ page }) => {
   const property = await createProperty({ name: 'E2E devis-roundtrip villa' });
+  seedCateringOptions(property.id);
   const client = await createClient({ firstName: 'Devis', lastName: 'Parite' });
 
   await openNewDevis(page, property.id);

@@ -171,8 +171,18 @@ function seedCateringOptions(propertyId) {
   });
 }
 
+/** The property the start assistant created, with its standard price (specs/plugins-phase-p-productisation.md rule 21). */
+function onboardingProperty(name) {
+  return withDb((db) => db.prepare(`
+    SELECT p.maxGuests, p.doubleBeds, p.singleBeds, pr.pricePerNight
+      FROM properties p JOIN pricing_rules pr ON pr.propertyId = p.id
+     WHERE p.name = ? ORDER BY p.id DESC LIMIT 1
+  `).get(name) || null);
+}
+
 module.exports = {
   seedCateringOptions,
+  onboardingProperty,
   seedPendingDateDrift,
   seedPendingCancellation,
   setLinenStock,
