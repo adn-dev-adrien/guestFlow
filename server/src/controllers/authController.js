@@ -11,9 +11,16 @@
 
 const defaultUsersModel = require('../models/usersModel');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
+const { ADMIN, userHasRole } = require('../constants/roles');
 
-function createAuthController(users, { activePlugins = () => [] } = {}) {
-  const withPlugins = (user) => ({ ...user, enabledPlugins: activePlugins() });
+function createAuthController(users, { activePlugins = () => [], onboardingOpen = () => false } = {}) {
+  // `onboardingOpen` sends an admin to the start assistant (specs/plugins-phase-p-productisation.md
+  // rule 20); the other roles never see it.
+  const withPlugins = (user) => ({
+    ...user,
+    enabledPlugins: activePlugins(),
+    onboardingOpen: userHasRole(user, ADMIN) && onboardingOpen(),
+  });
 
   function login(req, res) {
     const { email, password } = req.body || {};
@@ -102,6 +109,7 @@ const defaultController = createAuthController(defaultUsersModel, {
     const registry = require('../plugins/sdk/registry');
     return require('../models/pluginsModel').listActiveIds().filter((id) => registry.isLive(id));
   },
+  onboardingOpen: () => require('../models/onboardingModel').buildModel(require('../database')).isOpen(),
 });
 defaultController.create = createAuthController;
 

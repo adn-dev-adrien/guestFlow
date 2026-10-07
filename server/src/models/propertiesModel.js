@@ -543,7 +543,8 @@ function createPropertiesModel(database) {
       `).run(
         propertyId,
         'Tarif annuel',
-        100,
+        // The start assistant names its price (specs/plugins-phase-p-productisation.md rule 21).
+        body.pricePerNight != null && body.pricePerNight !== '' && Number(body.pricePerNight) >= 0 ? Number(body.pricePerNight) : 100,
         'fixed',
         '[]',
         JSON.stringify([{ startDate: `${currentYear}-01-01`, endDate: `${currentYear}-12-31` }]),

@@ -63,6 +63,9 @@ function run() {
   // rule 6); the server may have booted before this seed, so create them here, as an install does.
   require('../src/plugins').forEach((mod) => applyPluginSchema(db, mod.id));
   console.log(`[seed-e2e] ${PLUGIN_IDS.length} built-in plugins installed and active.`);
+  // The start assistant is done (specs/plugins-phase-p-productisation.md rule 20): the suite tests the
+  // app, and e2e/specs/onboarding opens the assistant on its own.
+  db.prepare("UPDATE app_settings SET onboardingCompletedAt = datetime('now') WHERE onboardingCompletedAt IS NULL").run();
   return 0;
 }
 
