@@ -1218,3 +1218,24 @@ d'Abracadaroom le jour même, et ne jamais rejouer un enregistrement qui « n'a 
 ferait que réécrire la même valeur. Relire le back-office après rechargement, noter la date, et
 revenir voir la page publique le lendemain. Si le retard dépasse deux jours, demander à
 `support@unicstay.com` s'il existe une étape de validation éditoriale.
+
+## Renommer un hébergement partout — relevé le 2026-10-06/07
+
+Exercice : « Aventura Lodge » devient « L'Estiva », et deux faits changent avec lui (Safari de
+Peaugres à **25 min**, piscine **de mi-juin à fin août**). Le nom vivait dans **neuf champs sur
+sept plateformes**, et chaque plateforme donnait aussi sa propre version des deux faits (Peaugres à
+20, « 20 à 30 » ou 30 min ; piscine en « juillet-août », « début juillet » ou « en été »).
+
+| Plateforme | Où vit le nom | Remarques |
+|---|---|---|
+| Lodgify | `rental/<id>/overview/name-and-description` → `name` (60 car.) | Le nom part vers **Abritel**, qui ne le reprend qu'une fois par jour. Description = éditeur riche : poser une `Range` + `execCommand('insertText')`, le `textarea[name=description]` caché suit au bout d'une seconde. **Le nom anglais du Gîte valait « To complete »** : relire chaque langue du sélecteur. |
+| Booking | Établissement › Infos sur l'établissement › « Changer le nom de l'établissement » | **L'apostrophe passe** (« L'Estiva … »). La confirmation prévient : Booking **envoie un e-mail aux clients ayant une réservation à venir**. Visible sous 24 h. Les boutons du dialogue ne se cliquent qu'en JavaScript (`[role=dialog] button`). |
+| Airbnb | titre, mais aussi « Accès des voyageurs » | Le titre de la tente ne portait pas le nom ; c'est le texte d'accès (« l'Aventura Lodge se mérite… ») qui le portait, dans le champ « English » rempli en français. |
+| GreenGo | `annonce/accommodation/<logementId>/description` → `name` | Le nom du **logement** s'affiche sur l'annonce publique (« 1 tente — Aventura Lodge ») même quand le titre de l'annonce est juste. Compteur `n/100` = React a vu la saisie. |
+| Abracadaroom | `…/services/<serviceId>/general`, premier `input` | Onglet TARIFS = `…/services/<serviceId>/offer`. Le back-office avait déjà la plancha juste : seule la page publique retardait (voir plus haut). |
+| Campspace | `…/host/space/<id>/general` → `space[description]` | Le titre portait déjà le nouveau nom. |
+| Office de tourisme / Ardèche Guide | Apidae 7563546 (gîte), 7693918 (tente) | Pas de back-office : demande par mail à l'office du Val d'Ay, qui saisit dans Apidae. |
+| Gîtes de France | — | Par message au relais départemental (voir plus haut). |
+
+**Toujours commencer par la page publique** : c'est elle qui a montré le nom du logement GreenGo et
+le texte d'accès Airbnb, deux champs que personne n'aurait cherchés.
