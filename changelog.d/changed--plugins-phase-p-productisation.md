@@ -1,0 +1,2 @@
+- **Neutral seeds** (spec `plugins-phase-p-productisation.md` §3.C). A new database gets no catering catalogue, no pool season, a free baby cot, neutral guest emails and no extinguisher check. The extinguisher check becomes a setting of the SAS plugin; Lodgify counts as a direct sale through « Compté comme vente directe » on Paramètres › Plateformes; the push subject follows the company email; the unsubscribe page speaks for the company.
+- **Repository**: the README and the WordPress plugin name no deployment. Solio's site moves to a private repository in a follow-up.

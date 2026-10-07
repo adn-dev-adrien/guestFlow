@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (2026-10-07) |
+| **Status** | Implemented (2026-10-07) — rule 30's repository move pending the private repository |
 | **Branch** | `feature/plugins-phase-p-productisation` (from `inte/plugins` at 252edfbb) |
 | **Created** | 2026-10-06 |
 | **Author** | Adrien |
@@ -84,6 +84,7 @@ Decisions taken on 2026-10-06:
 
    | Key | Email | Appears when | Tokens and flags |
    |---|---|---|---|
+   | `beds.made` | J-7 | beds made (included or booked) | `bedConfig` |
    | `beds.linenNotIncluded` | J-7 | beds not made | `bedConfig`, `price`, flag `linenOffered` |
    | `baby.booked` | J-7 | baby cot booked | — |
    | `baby.offer` | J-7 | babies, cot proposable | `price` |
@@ -102,8 +103,12 @@ Decisions taken on 2026-10-06:
    | `review.platform` | J+1 | platform channel | `platform`, `link`, flag `hasGoogleReview` |
    | `instagram` | J+1 | an Instagram link | `link` |
    | `quietSinceDeparture` | J+1 | always | `PropertyWith`, `propertyWith`, `propertyName` |
-   | `gift.offer` / `gift.fallback` | November | per property with a price / none | `propertyWith`, `price` |
+   | `gift.list` | November | a property has a price | `list` (the `gift.offer` items) |
+   | `gift.offer` / `gift.fallback` | November | per property with a price / none | `propertyWith`, `propertyName`, `price` |
    | `booked.babyBed` / `booked.towels` | J-2 | the option was booked | — |
+
+   Every price-bearing text also gets the flag `hasPrice` (the amount is above zero), so a neutral
+   default never shows « (0 €) ». Any token may also be read as a flag (`{{#if slots}}`).
 
 3. **A property may override `house`, `travelLight`, `parkingLine` and `noWifi`.** An empty override
    falls back to the global text.
@@ -114,7 +119,8 @@ Decisions taken on 2026-10-06:
 6. **The stored templates of the sequence keep their variables.** For example,
    `{{bedsParagraph}}`, `{{bagList}}`, `{{coffeeParagraph}}` and `{{quietSinceDeparture}}` keep
    their names and flags; only their source changes. A template an operator already edited keeps
-   working unchanged.
+   working unchanged. The neutral templates of rule 13 use four new flags, offered to any template:
+   `hasBagList`, `hasCoffeeParagraph`, `hasCleaningParagraph` and `hasQuietSinceDeparture`.
 
 ### 3.B Option mentions — what the J-7 proposes and the J-2 confirms
 
@@ -286,6 +292,11 @@ Decisions taken on 2026-10-06:
     - the README's DNS section is rewritten for `example.com`.
 
     The history keeps the old files: the purge is the separate `refs/pull` item of the inventory.
+
+    *2026-10-07:* the private repository does not exist yet, so the move ships in a follow-up PR once
+    Adrien has created it; the README and the WordPress plugin are done here.
+
+    > **Sans test** — moving files to another repository is checked by reading the tree, not by a test.
 31. **The WordPress plugin** names « GuestFlow » as its author, and its settings placeholder is
     `https://guestflow.example.com`.
 
@@ -308,15 +319,19 @@ Decisions taken on 2026-10-06:
 | `models/` | `stayTextsModel.js` | C | `stay_texts`, global and per property |
 | `models/` | `emailMentionsModel.js` | C | `email_mentions` + `email_mention_options` |
 | `models/` | `stayFactsModel.js` | T | Loads texts, mentions and resource sentences for the context |
-| `models/` | `onboardingModel.js` | C | The steps' writes and `onboardingCompletedAt` |
+| `models/` | `onboardingModel.js` | C | `onboardingCompletedAt`: open or completed |
+| `models/` | `resourcesModel.js`, `platformsModel.js`, `settingsModel.js`, `propertiesModel.js` | T | The resource sentence; `countsAsDirect`; `vapidSubject` and `onboardingCompletedAt`; the standard rule at the assistant's price |
+| `controllers/` | `resourcesController.js`, `platformsController.js`, `settingsController.js`, `authController.js` | T | `{{slots}}` validation; `countsAsDirect` and the refresh; the VAPID subject after a company save; `onboardingOpen` on `/me` |
+| `controllers/` | `pluginsController.js` + `plugins/sdk/createContext.js` | T | A declared setting may carry `afterSave(value)` (rule 16) |
+| `scripts/` | `seed-e2e.js` | T | Closes the assistant on the E2E database |
 | `controllers/` | `stayTextsController.js` | C | List, save with token validation, reset to default |
 | `controllers/` | `emailMentionsController.js` | C | CRUD, both orders, preview |
 | `controllers/` | `onboardingController.js` | C | State, the 4 steps, « Plus tard » |
 | `controllers/public/` | `emailPreferencesController.js` | T | Company name, neutral copy (rule 17) |
 | `routes/` | `stayTexts.js`, `emailMentions.js`, `onboarding.js` | C | Thin |
 | `database.js`, `schema.sql` | — | T | New tables and columns; empty pool defaults; the migration call; catering seed and extinguisher rows removed |
-| `plugins/sas/` | `index.js`, `settings.js`, `sasAudit.js` | T | Extinguisher setting and its repair rows (rule 16) |
-| `plugins/accounting-export/` | `accountPlan.js`, `settings.js`, `accountingExport.js` | T | Rules 27–29 |
+| `plugins/sas/` | `index.js`, `settings.js` (C), `controller.js`, `billablesController.js` | T | Extinguisher setting, its repair rows, the seal fields refused while off (rule 16) |
+| `plugins/accounting-export/` | `accountPlan.js`, `settings.js`, `accountingExport.js`, `accountingModel.js`, `platformAccountsModel.js`, `controller.js` | T | Rules 27–29: `planMapper` turns the engine's default numbers into the plan's when the rows are produced |
 | `middleware/` | `enforceRoleAccess.js` | T | The new routes are admin-only |
 
 ### 4.2 Client side (`client/src/`)
@@ -328,8 +343,13 @@ Decisions taken on 2026-10-06:
 | `components/` | `TokenTextField.jsx` | C | **Generic**: a FR/EN text field with its token chips, insertion at the cursor, the server's refusal shown inline. The email template editor can adopt it later |
 | `components/` | `MentionEditor.jsx` | C | Specific: one mention, its options and its price source |
 | `components/` | `StepperPage.jsx` | C | **Generic**: a page-level stepper with the counter, « Plus tard », « Précédent » / « Suivant ». Reusable for any guided flow |
+| `components/property/` | `PropertyStayTexts.jsx` | C | Specific: « Textes propres à ce logement », saved text by text |
+| `pages/settings/` | `SystemSettingsPage.jsx` | T | « Assistant de démarrage » reopens `/demarrage` |
+| `components/` | `SettingsPushNotificationsSection.jsx` | T | Says when no address can sign push (rule 18) |
+| `plugins/sas/` | `ExtinguisherCheckCard.jsx` | C | The switch, in the « Facturables au SAS » tab |
+| `plugins/accounting-export/` | `PlatformAccountsPage.jsx` | T | The « Comptes » section |
 | `components/` | `SettingsEmailContentSection.jsx` | T | Pool season may be empty; a link to « Textes des mails » |
-| `components/property/` | `PropertyStayTab.jsx` | T | « Cafetière familiale » replaced by the property's own texts (rule 3) |
+| `components/property/` | `PropertyStayTab.jsx` | T | « Cafetière familiale » replaced by `PropertyStayTexts` (rule 3) |
 | `components/` | `PlatformPriceCard.jsx` | T | Rule 19 label |
 | `pages/` | Resource form (`ResourcesPage`) | T | « Phrase dans les mails une fois réservée » (rule 11) |
 | `pages/settings/` | `PlatformsSettingsPage.jsx` | T | « Compté comme vente directe » |
@@ -347,16 +367,24 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 | GET | `/api/stay-texts?propertyId=` | `[{ key, email, tokens, flags, fr, en, defaultFr, defaultEn, isDefault, overridable }]` |
 | PUT | `/api/stay-texts/:key` | `{ fr, en, propertyId? }` → 200 or 422 `{ field, message }` |
 | DELETE | `/api/stay-texts/:key?propertyId=&lang=` | back to default, or to the global text for a property |
-| GET / POST / PUT / DELETE | `/api/email-mentions[/:id]` | `{ section, offerFr, offerEn, bookedFr, bookedEn, priceSource, priceOptionId, optionIds, sortOrder }` |
+| GET / POST / PUT / DELETE | `/api/email-mentions[/:id]` | `{ section, offerFr, offerEn, bookedFr, bookedEn, priceSource, priceOptionId, optionIds }`; GET answers `{ mentions, confirmationOrder }` |
+| PUT | `/api/email-mentions/order` | `{ ids }`, every mention: the proposal order |
+| PUT | `/api/email-mentions/confirmation-order` | `{ items }` of `mention:<id>`, `babyBed`, `towels` (rule 9) |
 | POST | `/api/email-mentions/preview` | `{ propertyId, children, startDate }` → `{ fr, en }`: the J-7 offers paragraph and the J-2 confirmations, rendered by the server |
-| GET | `/api/onboarding` | `{ open, step, company, plugins: [{ id, label, description, allowed, plan, recommended }] }` |
-| PUT | `/api/onboarding/company`, `/api/onboarding/property`, `/api/onboarding/plugins` | Validated writes; 422 per field |
+| GET | `/api/onboarding` | `{ open, company, plugins: [{ id, label, description, allowed, plan, state, recommended }] }` |
+| PUT | `/api/onboarding/company`, `/api/onboarding/property` | Validated writes; 422 `{ errors }` per field; 402 when the plan's unit quota is reached |
+| PUT | `/api/onboarding/plugins` | `{ ids }` → `{ results: [{ id, ok, error }] }`, each through the existing install or activate handler |
+| GET | `/api/auth/me` | gains `onboardingOpen` (admins only) |
+| GET / PUT | `/api/platforms/settings` | each row gains `countsAsDirect` |
+| GET / PUT | `/api/accounting/platform-accounts` | gains `plan: [{ key, value, default }]`; PUT takes `plan: { key: value }` |
 | POST | `/api/onboarding/done` | Records `onboardingCompletedAt` |
 
 ## 5. Data model
 
-- **`stay_texts`** `(key TEXT, propertyId INTEGER NULL, fr TEXT, en TEXT, updatedAt)`, unique on
-  `(key, COALESCE(propertyId, 0))`. No row means the catalogue default.
+- **`stay_texts`** `(key TEXT, propertyId INTEGER NOT NULL DEFAULT 0, fr TEXT, en TEXT, updatedAt)`,
+  primary key `(key, propertyId)`; `propertyId` 0 is the global text. No row means the catalogue
+  default; a NULL language means « never edited » for that language, '' means « no paragraph ».
+  Created with the sequence schema (`utils/guestEmailSequenceSchema.js`), so test databases get it.
 - **`email_mentions`** `(id, section TEXT CHECK IN ('local','extras','kids'), offerFr, offerEn,
   bookedFr, bookedEn, priceSource TEXT CHECK IN ('min','option'), priceOptionId NULL, sortOrder)`.
 - **`email_mention_options`** `(mentionId, optionId)`, primary key on both, with cascade.
@@ -401,38 +429,37 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 
 ### Server unit tests
 
-- `productisation-golden.unit.test.js` (rule 26): the 6 emails × 2 languages × 6 stays, identical
-  before and after.
-- `stay-texts.unit.test.js` (rules 1–6): defaults, a global save, a per-property override,
-  rejection of an unknown token or flag, reset, stored template variables unchanged.
-- `email-mentions.unit.test.js` (rules 7–11): proposable / included / booked, price min vs chosen
-  option, sections, the confirmation order independent of the proposal order, kids only with children, resource sentence with and
-  without slots.
-- `neutral-seeds.unit.test.js` (rules 12–17): a fresh database has no catering, no pool, a 0 € baby
-  bed, neutral templates without any Solio term (grep of the rendered output), no extinguisher row,
-  and an unsubscribe page with the company name.
-- `vapid-subject.unit.test.js` (rule 18), `platform-counts-as-direct.unit.test.js` (rule 19).
-- `onboarding.unit.test.js` (rules 20–22): visible to an admin only, step validation, plugins outside
-  the licence refused, a partial plugin failure, « Plus tard ».
-- `productisation-migration.unit.test.js` (rules 24–25): runs only with data, never twice, never
-  overwrites, and writes each item listed.
-- `account-plan-settings.unit.test.js` (rules 27–29): defaults equal today's constants, validation,
-  and the CSV byte-identical with the defaults.
+| File | Tests | Rules |
+|---|---|---|
+| `productisation-golden.unit.test.js` | 1 (72 renderings) | 26 — 6 emails × 2 languages × 6 stays, byte-identical; captured before the refactor, with the option-metadata fix of #671 |
+| `stay-texts.unit.test.js` | 7 | 1–6 |
+| `email-mentions.unit.test.js` | 8 | 7–11 |
+| `neutral-seeds.unit.test.js` | 5 | 12–17, on a new database booted by `database.js` |
+| `vapid-subject.unit.test.js` | 2 | 18 |
+| `platform-counts-as-direct.unit.test.js` | 4 | 19 |
+| `onboarding.unit.test.js` | 5 | 20–22 |
+| `productisation-migration.unit.test.js` | 6 | 24–25 |
+| `plugins/accounting-export/tests/account-plan-settings.unit.test.js` | 5 | 27–29 |
+| `plugins/sas/tests/sas-extinguisher-setting.unit.test.js` | 3 | 16 |
+| `wordpress-plugin-neutral.unit.test.js` | 2 | 31 |
+
+Suites that checked Solio's wording read it from `tests/solioWordingFixture.js`, built from the same
+constants as the migration; the tests that assume Lodgify is a direct channel set it as the migration
+does.
 
 ### Client (Vitest)
 
-- `TokenTextField`;
-- `MentionEditor`;
-- `EmailTextsSettingsPage`;
-- `OnboardingPage` (the steps, a server error kept on its step, « Plus tard », mobile layout);
-- `PropertyStayTab.texts`;
-- `ReservationSasDialog.extinguisher-off`.
+`TokenTextField` (2), `MentionEditor` (2), `EmailTextsSettingsPage` (3), `OnboardingPage` (4),
+`PropertyStayTexts` (1), `ReservationSasDialog.extinguisher-off` (1),
+`PlatformsSettingsPage.counts-as-direct` (1), `PlatformAccountsPage.account-plan` (2).
 
 ### E2E
 
-`e2e/specs/onboarding.spec.js`: an empty database, then login, the forced password change and the 4
-steps, ending on the dashboard with the property and the plugins active. The existing suite runs on
-the seeded E2E database, which is an existing database, so everything stays as today.
+`e2e/specs/onboarding/onboarding.spec.js` (2): the four steps with a refused step, ending on the
+dashboard with the property at its price; the mobile layout and « Plus tard ». The E2E database is
+shared by every spec, so the spec reopens the assistant instead of starting from an empty database;
+the forced password change is covered by the auth specs. `seed-e2e.js` closes the assistant for the
+rest of the suite, and `option-categories.spec.js` seeds the catering catalogue it needs.
 
 ### Manual UI verification
 
