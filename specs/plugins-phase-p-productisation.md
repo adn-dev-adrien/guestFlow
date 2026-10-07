@@ -122,7 +122,8 @@ Decisions taken on 2026-10-06:
    - a section: « Produits locaux », « À prévoir » or « Enfants »;
    - a proposal text, French and English, with `{{price}}`;
    - a confirmation text, French and English, used once one of its options is booked;
-   - the price to quote: either the lowest price among its options, or the price of one chosen option;
+   - the price to quote: either the lowest price among its available options, or the price of one
+     chosen option — falling back to the lowest when that option is not available for the property;
    - its options;
    - an order.
 
@@ -135,7 +136,8 @@ Decisions taken on 2026-10-06:
 
    This is the rule 20 of `guest-email-sequence.md`, unchanged. A « Produits locaux » mention lands in
    `offers.localIntro`, and an « À prévoir » mention in `offers.extrasIntro`. An « Enfants » mention
-   is a paragraph of its own, shown only when the stay has children, and replaces `kidsParagraph`.
+   is a paragraph of its own and replaces `kidsParagraph`: it is shown when the stay has children
+   and one of its options is available, booked or not, as today.
 9. **The confirmations have an order of their own** (« Ordre des confirmations », Options citées
    tab). It is independent of the proposal order, because Solio's J-7 proposes the juices first while
    its J-2 confirms breakfast first. The baby cot (`booked.babyBed`) and the towels (`booked.towels`)
@@ -163,7 +165,8 @@ Decisions taken on 2026-10-06:
     tagging, insurance) are product features and stay seeded. Breakfast is seeded with a neutral
     « À prévoir » mention.
 16. **The extinguisher check belongs to the SAS plugin and is off by default.**
-    - The plugin gains the setting « Contrôle de l'extincteur » (arrival and departure).
+    - The plugin gains the setting « Contrôle de l'extincteur ». It governs the departure step (the
+      only one the dialog has) and the seal fields the server accepts.
     - Its two repair rows are inserted by the plugin when the setting is turned on, never by the core.
     - With the setting off, the SAS shows no extinguisher step and the audit records none.
 17. **The unsubscribe page speaks for the company.**
@@ -176,7 +179,8 @@ Decisions taken on 2026-10-06:
     says so in the existing push card. There is no domainesolio fallback.
 19. **A platform counts as direct by an attribute, not by its name.**
     - `platforms.countsAsDirect` is always true for `direct`, and editable for the others under
-      Comptabilité › Plateformes (« Compté comme vente directe »).
+      Paramètres › Plateformes (« Compté comme vente directe »), a core page: the accounting
+      plugin's page could not hold it, since a core rule depends on it.
     - `isDirectChannel(name)` keeps its signature and reads a cached set, refreshed on every platform
       save.
     - The « moteur Lodgify » label becomes the platform's name.
@@ -195,16 +199,20 @@ Decisions taken on 2026-10-06:
        - SIRET (14 digits when filled).
     2. **Premier logement**:
        - name (required);
-       - capacity (1–50);
+       - double beds and single beds;
+       - capacity (1–50), pre-filled with the sleeping places (two per double bed, one per single
+         bed); the existing property rule holds: the sleeping places must cover the capacity
+         (decided 2026-10-07);
        - check-in and check-out times;
        - base price per night (≥ 0).
 
-       This creates the property, its standard pricing rule and its arrival/departure options,
-       through the existing property creation.
+       This creates the property, its standard pricing rule at that price and its arrival/departure
+       options, through the existing property creation.
     3. **Plugins**:
        - every plugin the licence allows, with its one-line description;
        - a hosted instance shows the others greyed, with the plan that includes them;
-       - « Réservation en ligne » and « Arrivée et départ guidés » are ticked by default;
+       - « Réservation depuis le site » (`website-booking`) and « Arrivée et départ guidés » (`sas`)
+         are ticked by default; labels and descriptions are the catalogue's (`constants/plugins.js`);
        - the ticked ones are installed and activated through the existing plugin endpoints;
        - a failure names the plugin and lets the others go through.
     4. **C'est prêt**: three links (Réglages › Emails, Tarifs, Plugins), and « Ouvrir le tableau de
@@ -273,6 +281,8 @@ Decisions taken on 2026-10-06:
       created by Adrien;
     - `scripts/configure-aventura-lodge-2026.mjs` moves with it;
     - the Solio section of `integrations/wordpress/INSTALL.md` moves with it;
+    - the 6 server tests that read `solio-site/mu-plugins` (cited by `site-english-version.md`)
+      move with it;
     - the README's DNS section is rewritten for `example.com`.
 
     The history keeps the old files: the purge is the separate `refs/pull` item of the inventory.
@@ -322,7 +332,7 @@ Decisions taken on 2026-10-06:
 | `components/property/` | `PropertyStayTab.jsx` | T | « Cafetière familiale » replaced by the property's own texts (rule 3) |
 | `components/` | `PlatformPriceCard.jsx` | T | Rule 19 label |
 | `pages/` | Resource form (`ResourcesPage`) | T | « Phrase dans les mails une fois réservée » (rule 11) |
-| `pages/` | Comptabilité › Plateformes | T | « Compté comme vente directe » |
+| `pages/settings/` | `PlatformsSettingsPage.jsx` | T | « Compté comme vente directe » |
 | `plugins/accounting-export/` | settings section | T | « Plan comptable » (rules 27–28) |
 | `plugins/sas/` | settings + `ReservationSasDialog.jsx` | T | Rule 16 |
 | `App.jsx` | — | T | Redirects an admin to `/demarrage` while onboarding is open (rule 20) |
@@ -355,8 +365,8 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 - **New columns:**
   - `resources.emailBookedText`, `resources.emailBookedTextEn`;
   - `platforms.countsAsDirect INTEGER DEFAULT 0`;
-  - `app_settings.onboardingCompletedAt`, `app_settings.vapidSubject`, and the
-    `productisation_v1` marker.
+  - `app_settings.onboardingCompletedAt`, `app_settings.vapidSubject`;
+  - the `productisation_v1` marker is a row in `migrations`, like every one-shot migration.
 - **Changed defaults:**
   - `app_settings.poolSeasonStart` / `poolSeasonEnd`: the schema default becomes empty for new
     rows. The existing row keeps its value.
@@ -382,7 +392,7 @@ Reused: `PageActionBar`, `FormDialog`, `ConfirmDialog`, `HelpedTextField`, `Stat
 - **Assistant:** `/demarrage`, outside the side menu, with the GuestFlow wordmark, one step per
   screen and the counter « Étape 2 sur 4 ».
 - **SAS plugin settings:** a switch « Contrôle de l'extincteur ».
-- **Comptabilité › Plateformes:** a switch « Compté comme vente directe » per platform; it is
+- **Paramètres › Plateformes:** a switch « Compté comme vente directe » per platform; it is
   locked on for `direct`.
 - **Comptabilité › Plan comptable** (plugin settings): one field per account, with its role as the
   label and the default as the helper text.

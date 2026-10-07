@@ -265,7 +265,7 @@ Second risque : l’écran des textes est riche. Les variables inconnues sont do
 <h2>Démo 5 — Les petits réglages qui remplacent du code en dur</h2>
 <div class="cols2">
   <div class="card">
-    <h3>Comptabilité › Plateformes</h3>
+    <h3>Paramètres › Plateformes</h3>
     <div id="plats"></div>
     <div class="sub2" id="platNote"></div>
   </div>
@@ -310,15 +310,15 @@ function seg(id,cb){const el=$(id);el.addEventListener('click',e=>{const b=e.tar
 
 /* ---------------------------------------------------------------- wizard */
 const PLUGINS=[
-  {id:'website-booking',l:'Réservation en ligne',d:'Moteur de réservation pour le site, demandes en direct.',plan:'pro',rec:true},
-  {id:'sas',l:'Arrivée et départ guidés',d:'Accueil et départ pas à pas, encaissement du complément.',plan:'pro',rec:true},
+  {id:'website-booking',l:'Réservation depuis le site',d:'Le moteur de réservation de ton site WordPress.',plan:'pro',rec:true},
+  {id:'sas',l:'Arrivée et départ guidés',d:'Le sas pas à pas de l’accueil et du départ.',plan:'pro',rec:true},
   {id:'online-payment',l:'Paiement en ligne',d:'Liens de paiement Qonto ou Mollie.',plan:'pro'},
   {id:'google-calendar',l:'Google Agenda',d:'Les séjours dans un agenda Google.',plan:'pro'},
   {id:'linen',l:'Linge',d:'Stock, lavage et pénuries de linge.',plan:'premium'},
   {id:'hourly-resources',l:'Ressources à l’heure',d:'Une ressource vendue à l’heure, placée sur des créneaux.',plan:'premium'},
   {id:'accounting-export',l:'Export comptable',d:'Journal des ventes pour le comptable.',plan:'pro'},
 ];
-let wz={step:1,w:'phone',plan:'pro',co:{name:'',email:'',phone:'',addr:'',siret:''},pr:{name:'',cap:'4',in:'16:00',out:'10:00',price:'90'},pl:{},err:{},done:false,later:false};
+let wz={step:1,w:'phone',plan:'pro',co:{name:'',email:'',phone:'',addr:'',siret:''},pr:{name:'',dbl:'1',sgl:'2',cap:'4',in:'16:00',out:'10:00',price:'90'},pl:{},err:{},done:false,later:false};
 PLUGINS.forEach(p=>wz.pl[p.id]=!!p.rec);
 const allowed=(p)=>wz.plan==='self'||p.plan==='pro';
 function vStep(){
@@ -331,10 +331,12 @@ function vStep(){
   if(wz.step===2){
     if(!wz.pr.name.trim())e.pname='Nom obligatoire';
     const c=Number(wz.pr.cap);if(!Number.isInteger(c)||c<1||c>50)e.cap='Entre 1 et 50';
+    else if(c>places())e.cap='Plus de personnes que de couchages ('+places()+')';
     const p=Number(wz.pr.price);if(wz.pr.price===''||!(p>=0))e.price='Prix positif ou nul';
   }
   return e;
 }
+function places(){return 2*(Number(wz.pr.dbl)||0)+(Number(wz.pr.sgl)||0);}
 function fld(key,label,obj,k,type='text',ph=''){const e=wz.err[key];return `<div class="field"><label>${label}</label><input data-o="${obj}" data-k="${k}" type="${type}" value="${esc(wz[obj][k])}" placeholder="${ph}" class="${e?'bad':''}">${e?`<div class="err">${e}</div>`:''}</div>`;}
 function renderWz(){
   const el=$('#wz');el.className=wz.w;
@@ -342,13 +344,15 @@ function renderWz(){
   const titles=['Entreprise','Premier logement','Plugins','C’est prêt'];
   let body='';
   if(wz.step===1)body=fld('name','Nom de l’entreprise','co','name')+fld('email','Email','co','email','email')+fld('phone','Téléphone','co','phone','tel')+fld('addr','Adresse','co','addr')+fld('siret','SIRET','co','siret','text','14 chiffres');
-  if(wz.step===2)body=fld('pname','Nom du logement','pr','name')+`<div class="grid2">${fld('cap','Capacité','pr','cap','number')}${fld('price','Prix par nuit (€)','pr','price','number')}${fld('in','Arrivée à partir de','pr','in','time')}${fld('out','Départ avant','pr','out','time')}</div>`;
+  if(wz.step===2)body=fld('pname','Nom du logement','pr','name')+`<div class="grid2">${fld('dbl','Lits doubles','pr','dbl','number')}${fld('sgl','Lits simples','pr','sgl','number')}${fld('cap','Capacité','pr','cap','number')}${fld('price','Prix par nuit (€)','pr','price','number')}${fld('in','Arrivée à partir de','pr','in','time')}${fld('out','Départ avant','pr','out','time')}</div>`;
   if(wz.step===3)body=PLUGINS.map(p=>{const ok=allowed(p);return `<label class="plug ${ok?'':'off'}"><input type="checkbox" data-pl="${p.id}" ${wz.pl[p.id]&&ok?'checked':''} ${ok?'':'disabled'}><span><b>${p.l}</b><br><span class="muted">${p.d}</span>${ok?'':`<br><span class="badge">Inclus dans le forfait Premium</span>`}</span></label>`;}).join('');
   if(wz.step===4)body=`<p><b>${esc(wz.co.name)}</b> est prêt.</p><ul class="tight"><li>Réglages › Emails : relire les textes des mails</li><li>Tarifs : saisons et prix de « ${esc(wz.pr.name)} »</li><li>Plugins : ${PLUGINS.filter(p=>wz.pl[p.id]&&allowed(p)).length} actif(s)</li></ul>`;
   el.innerHTML=`<div class="wz-top"><span class="wz-mark">GuestFlow</span><span class="muted">Étape ${wz.step} sur 4</span></div><div class="bar"><i style="width:${wz.step*25}%"></i></div><h3 style="margin-top:0">${titles[wz.step-1]}</h3>${body}
   <div class="wz-foot">${wz.step<4?'<button class="btn o" data-a="later">Plus tard</button>':''}${wz.step>1&&wz.step<4?'<button class="btn o" data-a="prev">Précédent</button>':''}<button class="btn" data-a="next">${wz.step===4?'Ouvrir le tableau de bord':'Suivant'}</button></div>`;
 }
-$('#wz').addEventListener('input',e=>{const t=e.target;if(t.dataset.o){wz[t.dataset.o][t.dataset.k]=t.value;}});
+$('#wz').addEventListener('input',e=>{const t=e.target;if(t.dataset.o){wz[t.dataset.o][t.dataset.k]=t.value;
+  if(t.dataset.o==='pr'&&(t.dataset.k==='dbl'||t.dataset.k==='sgl')&&!wz.capTouched){wz.pr.cap=String(places());const c=$('#wz input[data-k="cap"]');if(c)c.value=wz.pr.cap;}
+  if(t.dataset.k==='cap')wz.capTouched=true;}});
 $('#wz').addEventListener('change',e=>{const t=e.target;if(t.dataset.pl){wz.pl[t.dataset.pl]=t.checked;}});
 $('#wz').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
   if(a==='later'){wz.later=true;}
@@ -357,7 +361,7 @@ $('#wz').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
   renderWz();});
 seg('#wzWidth',d=>{wz.w=d.w;renderWz();});
 seg('#wzPlan',d=>{wz.plan=d.p;renderWz();});
-$('#wzReset').onclick=()=>{wz={...wz,step:1,co:{name:'',email:'',phone:'',addr:'',siret:''},pr:{name:'',cap:'4',in:'16:00',out:'10:00',price:'90'},err:{},done:false,later:false};renderWz();};
+$('#wzReset').onclick=()=>{wz={...wz,step:1,co:{name:'',email:'',phone:'',addr:'',siret:''},pr:{name:'',dbl:'1',sgl:'2',cap:'4',in:'16:00',out:'10:00',price:'90'},err:{},done:false,later:false,capTouched:false};renderWz();};
 renderWz();
 
 /* ---------------------------------------------------------------- stay texts + mentions */
