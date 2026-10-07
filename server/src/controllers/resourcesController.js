@@ -6,6 +6,9 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
+const { tokenError } = require('./stayTextsController');
+const { RESOURCE_BOOKED } = require('../utils/stayTextCatalogue');
+
 function validateResourcePayload(body) {
   if (!body || !String(body.name || '').trim()) return 'Le nom de la ressource est requis.';
   const quantity = Number(body.quantity);
@@ -15,6 +18,12 @@ function validateResourcePayload(body) {
     if (!Number.isFinite(price) || price < 0) return 'Prix invalide.';
   }
   return '';
+}
+
+// specs/plugins-phase-p-productisation.md rules 4, 11 — the sentence once booked knows `{{slots}}` only.
+function sentenceError(body) {
+  return tokenError('emailBookedText', (body || {}).emailBookedText, RESOURCE_BOOKED)
+    || tokenError('emailBookedTextEn', (body || {}).emailBookedTextEn, RESOURCE_BOOKED);
 }
 
 
@@ -70,6 +79,8 @@ function createController(model, { isOffered = resourceOffer.isOffered } = {}) {
   function create(req, res) {
     const error = validateResourcePayload(req.body) || refusedPriceType(req.body);
     if (error) return res.status(400).json({ error });
+    const sentence = sentenceError(req.body);
+    if (sentence) return res.status(422).json(sentence);
     return res.json({ id: model.insert(req.body) });
   }
 
@@ -77,6 +88,8 @@ function createController(model, { isOffered = resourceOffer.isOffered } = {}) {
     if (!findOffered(req.params.id)) return res.status(404).json(NOT_FOUND);
     const error = validateResourcePayload(req.body) || refusedPriceType(req.body);
     if (error) return res.status(400).json({ error });
+    const sentence = sentenceError(req.body);
+    if (sentence) return res.status(422).json(sentence);
     model.update(req.params.id, req.body);
     return res.json({ ok: true });
   }

@@ -29,7 +29,10 @@ function buildModel(database) {
   const addOption = database.prepare('INSERT OR IGNORE INTO email_mention_options (mentionId, optionId) VALUES (?, ?)');
   const sortStmt = database.prepare('UPDATE email_mentions SET sortOrder = ? WHERE id = ?');
   const readOrder = database.prepare('SELECT bookedConfirmationOrder AS v FROM app_settings LIMIT 1');
-  const writeOrder = database.prepare('UPDATE app_settings SET bookedConfirmationOrder = ?');
+  const writeOrder = database.prepare(`
+    INSERT INTO app_settings (id, bookedConfirmationOrder) VALUES (1, ?)
+    ON CONFLICT (id) DO UPDATE SET bookedConfirmationOrder = excluded.bookedConfirmationOrder
+  `);
 
   const row = (m, optionIds) => ({ ...m, priceOptionId: m.priceOptionId == null ? null : Number(m.priceOptionId), optionIds });
 

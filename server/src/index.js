@@ -202,6 +202,9 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/email-templates', require('./routes/emailTemplates'));
 app.use('/api/emails',          require('./routes/emails'));
 app.use('/api/email-sequence',  require('./routes/emailSequence'));
+// specs/plugins-phase-p-productisation.md — the wording of the guest emails as data. Admin-only.
+app.use('/api/stay-texts',      require('./routes/stayTexts'));
+app.use('/api/email-mentions',  require('./routes/emailMentions'));
 // specs/self-update-and-releases.md — version probe + self-update control. Admin-only: the role
 // guard above is deny-by-default for every non-admin role, so no allowlist entry is needed.
 app.use('/api/system', require('./routes/system'));
