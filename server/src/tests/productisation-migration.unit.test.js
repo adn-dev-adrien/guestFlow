@@ -88,6 +88,13 @@ test('rule 24: the resource sentence, the direct platform, the VAPID subject and
   assert.equal(db.prepare("SELECT value FROM plugin_settings WHERE plugin_id = 'sas' AND key = 'extinguisherCheck'").get().value, '1');
 });
 
+test('rule 24: an existing « Lodgify » row is marked whatever its case, never doubled', () => {
+  const db = solio();
+  db.prepare("INSERT INTO platforms (name) VALUES ('Lodgify')").run();
+  runProductisationMigration(db, { env: {} });
+  assert.deepEqual(db.prepare("SELECT name, countsAsDirect FROM platforms WHERE LOWER(name) = 'lodgify'").all().map((r) => ({ ...r })), [{ name: 'Lodgify', countsAsDirect: 1 }]);
+});
+
 test('rule 24: VAPID_SUBJECT set in the environment wins, nothing stored', () => {
   const db = solio();
   runProductisationMigration(db, { env: { VAPID_SUBJECT: 'mailto:x@y.fr' } });

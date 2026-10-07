@@ -298,11 +298,14 @@ function writeResourceSentences(db) {
 
 function writeSettings(db, env) {
   // Lodgify was hard-coded as a direct channel (specs/plugins-phase-p-productisation.md rule 19).
+  // The platform row may be spelt « Lodgify » or « lodgify »: mark it whatever its case, and add one
+  // only when none exists.
+  const isLodgify = "LOWER(TRIM(name)) = 'lodgify'";
   const lodgifyUsed = db.prepare("SELECT 1 FROM reservations WHERE LOWER(TRIM(platform)) = 'lodgify' LIMIT 1").get()
-    || db.prepare("SELECT 1 FROM platforms WHERE name = 'lodgify'").get();
+    || db.prepare(`SELECT 1 FROM platforms WHERE ${isLodgify}`).get();
   if (lodgifyUsed) {
-    db.prepare("INSERT OR IGNORE INTO platforms (name) VALUES ('lodgify')").run();
-    db.prepare("UPDATE platforms SET countsAsDirect = 1 WHERE name = 'lodgify'").run();
+    if (!db.prepare(`SELECT 1 FROM platforms WHERE ${isLodgify}`).get()) db.prepare("INSERT INTO platforms (name) VALUES ('lodgify')").run();
+    db.prepare(`UPDATE platforms SET countsAsDirect = 1 WHERE ${isLodgify}`).run();
   }
   // The VAPID subject fell back to Solio's address (rule 18).
   if (!String((env && env.VAPID_SUBJECT) || '').trim()) {
