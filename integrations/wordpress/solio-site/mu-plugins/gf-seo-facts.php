@@ -520,8 +520,8 @@ function gf_seo_faq( $cle ) {
 				'r_en' => 'Yes, on request and arranged in advance; the rate is agreed together, depending on how long you need.' ),
 			array( 'q' => 'Que faire avec des enfants autour du domaine ?',
 				'q_en' => 'What is there to do with children around the estate?',
-				'r' => 'Le Safari de Peaugres à 20 minutes, le lac de Devesset pour la baignade, et la Via Fluvia, plate et praticable à vélo avec de jeunes enfants.',
-				'r_en' => 'Peaugres Safari Park 20 minutes away, Lake Devesset for swimming, and the Via Fluvia, flat and easy to cycle with young children.' ),
+				'r' => 'Le Safari de Peaugres à 25 minutes, le lac de Devesset pour la baignade, et la Via Fluvia, plate et praticable à vélo avec de jeunes enfants.',
+				'r_en' => 'Peaugres Safari Park 25 minutes away, Lake Devesset for swimming, and the Via Fluvia, flat and easy to cycle with young children.' ),
 			array( 'q' => 'Le bain nordique leur est-il accessible ?',
 				'q_en' => 'Can they use the Nordic bath?',
 				'r' => 'À 38 °C, il est pensé pour les adultes — demandez-nous une eau plus douce et ils peuvent en profiter avec vous. La piscine, elle, est à eux de mi-juin à fin août.',
@@ -569,7 +569,7 @@ function gf_seo_faq( $cle ) {
 function gf_seo_distances() {
 	return array(
 		array( 'lieu' => 'Village de Satillieu', 'valeur' => '7 min en voiture' ),
-		array( 'lieu' => 'Safari de Peaugres', 'valeur' => '20 min' ),
+		array( 'lieu' => 'Safari de Peaugres', 'valeur' => '25 min' ),
 		array( 'lieu' => 'Annonay', 'valeur' => 'environ 15 km' ),
 		array( 'lieu' => 'Vallée du Rhône', 'valeur' => '30 min' ),
 		array( 'lieu' => 'Lyon', 'valeur' => 'environ 1 h' ),

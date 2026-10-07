@@ -10,7 +10,7 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatPlatformName, registerDirectChannelSql } = require('../utils/platformNameFormat');
-const { originDisplay } = require('../utils/attributionChannel');
+const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
@@ -47,6 +47,19 @@ const { buildHistoryNameContext } = require('./historyNamesModel');
 const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+// Origin shown on the « Nouvelles réservations » dashboard card (specs/dashboard-ical-new-reservations.md
+// rule 9): the iCal source, else « Site » for a paid website devis, else the channel set on the fiche.
+function newReservationOriginLabel(row) {
+  if (row.sourceType === 'ical') {
+    return String(row.sourceName || '').trim()
+      || (row.sourcePlatformKey ? formatPlatformName(row.sourcePlatformKey) : '');
+  }
+  if (row.siteDevisId) return 'Site';
+  const platform = String(row.platform || '').trim();
+  if (!platform) return '';
+  return platform.toLowerCase() === 'direct' ? 'Direct' : platformDisplayName(platform);
+}
 
 // End-of-stay complement detail (JSON array) → lines, tolerant to NULL / legacy garbage.
 function parseDetailLines(raw) {
@@ -1107,32 +1120,33 @@ function createReservationsModel(database) {
       return (row && row.reservationNumber) || '';
     },
 
-    // Dashboard card (specs/dashboard-ical-new-reservations.md): reservations imported via iCal
-    // during the CURRENT day (UTC, matching the app's datetime('now') convention). Fully shaped
-    // server-side — clientName + platformLabel ready to render, ordered most-recent-import first.
-    listNewIcalReservationsToday() {
+    // Dashboard card (specs/dashboard-ical-new-reservations.md): every reservation created during
+    // the last 24 hours, whatever its origin — a rolling window, so each one stays exactly 24 h
+    // whatever the hour it arrived. Fully shaped server-side, ordered most-recent first.
+    listNewReservations() {
       const rows = database.prepare(`
         SELECT r.id AS reservationId, r.startDate, r.endDate, r.createdAt,
-               r.sourcePlatformKey, s.name AS sourceName,
+               r.sourceType, r.sourcePlatformKey, r.platform, s.name AS sourceName,
+               d.id AS siteDevisId,
                c.firstName, c.lastName, p.name AS propertyName
           FROM reservations r
           LEFT JOIN clients c      ON c.id = r.clientId
           LEFT JOIN properties p   ON p.id = r.propertyId
           LEFT JOIN ical_sources s ON s.id = r.sourceIcalSourceId
+          LEFT JOIN reservations d ON d.kind = 'devis'
+                                  AND d.convertedReservationId = r.id
+                                  AND d.requestOrigin = 'public'
          WHERE r.kind = 'reservation'
-           AND r.sourceType = 'ical'
-           AND date(r.createdAt) = date('now')
+           AND datetime(r.createdAt) > datetime('now', '-24 hours')
          ORDER BY datetime(r.createdAt) DESC, r.id DESC
       `).all();
       return rows.map((row) => {
         const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
-        const platformLabel = String(row.sourceName || '').trim()
-          || (row.sourcePlatformKey ? formatPlatformName(row.sourcePlatformKey) : '');
         return {
           reservationId: row.reservationId,
           clientName: clientName || `#${row.reservationId}`,
           propertyName: row.propertyName || '',
-          platformLabel,
+          platformLabel: newReservationOriginLabel(row),
           startDate: row.startDate || '',
           endDate: row.endDate || '',
           createdAt: row.createdAt || '',

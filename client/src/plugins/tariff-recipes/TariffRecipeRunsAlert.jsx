@@ -10,7 +10,7 @@
  * then it is precisely the reminder the mechanism exists for.
  *
  * Renders nothing when there is nothing to say, or on fetch error (a dashboard card must never
- * break the page). Mirrors the IcalNewReservationsAlert pattern.
+ * break the page). Mirrors the NewReservationsAlert pattern.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {

@@ -4,6 +4,24 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-10-05
+
+### Summary
+- Accès au portail : chaque clé transmise à Sowel indique désormais le logement et les dates du séjour, pour que le chauffage sache quand il est occupé.
+- Le plugin guestflow actuel de Sowel (v0.3.0) continue de fonctionner sans aucun changement.
+- Une demande du site convertie en réservation garde son acceptation des CGV, et le lien des CGV de ses e-mails pointe de nouveau vers la bonne version.
+- Un devis converti portant cette acceptation ne peut plus être supprimé, pour ne pas effacer la preuve du séjour.
+- Au démarrage, les clés de portail existantes sont rattachées à leur logement ; aucune donnée n'est réécrite ni perdue.
+
+### Added
+- **Gate keys carry their stay — Sowel connector contract v3** (`specs/sowel-stays-in-keys.md`, `gate-access-sowel-connector.md` rule 4b). Every key returned by `GET /public/v1/gate/keys`, and every `create` / `revoke` sent to Sowel, now carries an optional `stay: { propertyId, propertyName, arrival, departure }`: the stay's own check-in and check-out, Europe/Paris wall clock with its offset, without the gate's margins. Sowel's heating can then tell when each property is occupied. A deleted reservation's revoke rebuilds the block from the results table. The change is additive: the Sowel `guestflow` plugin v0.3.0 keeps working unchanged.
+
+### Fixed
+- **A website request converted into a reservation keeps its CGV acceptance** (`specs/terms-acceptance-record.md` rule 29). The fiche no longer reads « CGV : aucune acceptation enregistrée » once the devis becomes a stay, `{{cgvUrl}}` in its emails points again at the version the guest accepted, and a converted devis carrying that acceptance can no longer be deleted, since deleting it would erase the stay's proof.
+
+### Migration
+- New nullable column `gate_key_results.propertyId`, added at startup and backfilled from the reservation for every row whose reservation still exists. A row whose reservation was deleted earlier stays NULL, and its revoke goes out without `stay`. No data is rewritten or lost.
+
 ## [3.8.0] - 2026-10-01
 
 ### Summary

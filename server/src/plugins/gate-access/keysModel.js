@@ -15,6 +15,10 @@ const { ADMIN } = roles;
 
 function createGateKeysModel(db) {
   const clean = (value) => (value === undefined || value === null || value === '' ? null : String(value));
+  const cleanId = (value) => {
+    const id = Number(value);
+    return value !== null && value !== '' && Number.isInteger(id) && id > 0 ? id : null;
+  };
 
   function ensureStateRow() {
     db.prepare('INSERT OR IGNORE INTO gate_connector_state (id) VALUES (1)').run();
@@ -30,17 +34,17 @@ function createGateKeysModel(db) {
     },
 
     /**
-     * Replaces the reservation's result with the one just received (rule 9). The listed window is
-     * kept from the previous row when the new one carries none — that is what lets a deleted
-     * reservation still be revoked (rule 6). `alertedError` is left to the caller: it is the alert
+     * Replaces the reservation's result with the one just received (rule 9). The listed window and
+     * property are kept from the previous row when the new one carries none — that is what lets a
+     * deleted reservation still be revoked (rule 6), with its stay (specs/sowel-stays-in-keys.md). `alertedError` is left to the caller: it is the alert
      * bookkeeping, not part of the outcome.
      */
     upsertResult(result) {
       db.prepare(`
         INSERT INTO gate_key_results
-          (reservationId, action, ok, state, code, url, error, message, label, startsAt, endsAt, receivedAt)
+          (reservationId, action, ok, state, code, url, error, message, label, startsAt, endsAt, propertyId, receivedAt)
         VALUES
-          (@reservationId, @action, @ok, @state, @code, @url, @error, @message, @label, @startsAt, @endsAt, @receivedAt)
+          (@reservationId, @action, @ok, @state, @code, @url, @error, @message, @label, @startsAt, @endsAt, @propertyId, @receivedAt)
         ON CONFLICT(reservationId) DO UPDATE SET
           action = excluded.action,
           ok = excluded.ok,
@@ -52,6 +56,7 @@ function createGateKeysModel(db) {
           label = COALESCE(excluded.label, gate_key_results.label),
           startsAt = COALESCE(excluded.startsAt, gate_key_results.startsAt),
           endsAt = COALESCE(excluded.endsAt, gate_key_results.endsAt),
+          propertyId = COALESCE(excluded.propertyId, gate_key_results.propertyId),
           receivedAt = excluded.receivedAt
       `).run({
         reservationId: Number(result.reservationId),
@@ -65,6 +70,7 @@ function createGateKeysModel(db) {
         label: clean(result.label),
         startsAt: clean(result.startsAt),
         endsAt: clean(result.endsAt),
+        propertyId: cleanId(result.propertyId),
         receivedAt: String(result.receivedAt),
       });
     },
@@ -124,7 +130,7 @@ function createGateKeysModel(db) {
     activeStaysAround(fromYmd, toYmd) {
       return db.prepare(`
         SELECT r.id, r.reservationNumber, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
-               p.name AS propertyName, c.firstName AS clientFirstName,
+               r.propertyId, p.name AS propertyName, c.firstName AS clientFirstName,
                g.action AS resultAction, g.ok AS resultOk
         FROM reservations r
         LEFT JOIN properties p ON p.id = r.propertyId
@@ -137,14 +143,18 @@ function createGateKeysModel(db) {
       `).all(String(fromYmd), String(toYmd));
     },
 
-    /** Results whose reservation is no longer a live one: cancelled, deleted (or anything else). */
+    /**
+     * Results whose reservation is no longer a live one: cancelled, deleted (or anything else).
+     * `livePropertyId` is the reservation's when it still exists; `propertyId` is the stored one, the
+     * only one left for a deleted reservation. The property name follows whichever is known.
+     */
     resultsWithoutLiveStay() {
       return db.prepare(`
         SELECT g.*, r.id AS rowId, r.reservationNumber, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
-               p.name AS propertyName, c.firstName AS clientFirstName
+               r.propertyId AS livePropertyId, p.name AS propertyName, c.firstName AS clientFirstName
         FROM gate_key_results g
         LEFT JOIN reservations r ON r.id = g.reservationId
-        LEFT JOIN properties p ON p.id = r.propertyId
+        LEFT JOIN properties p ON p.id = COALESCE(r.propertyId, g.propertyId)
         LEFT JOIN clients c ON c.id = r.clientId
         WHERE r.id IS NULL OR r.kind <> 'reservation'
         ORDER BY g.reservationId
@@ -155,7 +165,7 @@ function createGateKeysModel(db) {
     stayFor(reservationId) {
       return db.prepare(`
         SELECT r.id, r.kind, r.reservationNumber, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
-               p.name AS propertyName, c.firstName AS clientFirstName
+               r.propertyId, p.name AS propertyName, c.firstName AS clientFirstName
         FROM reservations r
         LEFT JOIN properties p ON p.id = r.propertyId
         LEFT JOIN clients c ON c.id = r.clientId
@@ -165,5 +175,23 @@ function createGateKeysModel(db) {
   };
 }
 
+/**
+ * `gate_key_results.propertyId` (specs/sowel-stays-in-keys.md): added to databases that predate it,
+ * then filled from the reservation for every row whose reservation still exists. A row whose
+ * reservation was deleted before this column existed stays NULL — its revoke goes out without a
+ * `stay` block. Idempotent; the plugin's `stay_property_v1` migration runs it.
+ */
+function migratePropertyId(db) {
+  const columns = db.prepare('PRAGMA table_info(gate_key_results)').all().map((c) => c.name);
+  if (!columns.includes('propertyId')) db.exec('ALTER TABLE gate_key_results ADD COLUMN propertyId INTEGER');
+  return db.prepare(`
+    UPDATE gate_key_results
+    SET propertyId = (SELECT r.propertyId FROM reservations r WHERE r.id = gate_key_results.reservationId)
+    WHERE propertyId IS NULL
+      AND EXISTS (SELECT 1 FROM reservations r WHERE r.id = gate_key_results.reservationId)
+  `).run().changes;
+}
+
 module.exports = createGateKeysModel;
 module.exports.createGateKeysModel = createGateKeysModel;
+module.exports.migratePropertyId = migratePropertyId;

@@ -815,8 +815,13 @@ function createModel(database) {
   }
 
   function remove(id) {
-    const existing = database.prepare("SELECT id FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    const existing = database.prepare("SELECT id, convertedReservationId FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    // The CGV acceptance of a converted request lives on this row and is the stay's proof
+    // (specs/terms-acceptance-record.md rule 29): deleting the devis would cascade it away.
+    if (existing.convertedReservationId && database.prepare('SELECT 1 FROM terms_acceptances WHERE reservationId = ?').get(existing.id)) {
+      return { error: "Ce devis porte l'acceptation des CGV de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409 };
+    }
     database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
     return { ok: true, data: { success: true } };
   }

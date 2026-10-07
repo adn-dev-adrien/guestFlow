@@ -130,14 +130,14 @@ function buildController({
     },
 
     /**
-     * GET /api/dashboard/ical-new-today
+     * GET /api/dashboard/new-reservations
      *
-     * Returns the reservations imported via iCal during the current (UTC) day, fully shaped for
-     * display (specs/dashboard-ical-new-reservations.md). Read-only notification card — empty
-     * `alerts: []` when nothing was imported today.
+     * Returns every reservation created during the last 24 hours, whatever its origin, fully shaped
+     * for display (specs/dashboard-ical-new-reservations.md). Read-only notification card — empty
+     * `alerts: []` when nothing arrived.
      */
-    icalNewReservationsToday(req, res) {
-      const alerts = injectedReservationsModel.listNewIcalReservationsToday();
+    newReservations(req, res) {
+      const alerts = injectedReservationsModel.listNewReservations();
       return res.json({ alerts });
     },
 

@@ -74,7 +74,7 @@ async function receiveResults({ model, pushService, logger = console, now = new 
     // The window the key was listed with — kept on the row so a later deletion can still revoke it.
     const described = stay && stay.kind === 'reservation' ? describeStay(stay) : null;
     const previous = model.get(result.reservationId);
-    model.upsertResult({ ...result, ...(described || {}), receivedAt });
+    model.upsertResult({ ...result, ...(described || {}), propertyId: described ? stay.propertyId : null, receivedAt });
     stored += 1;
 
     if (result.ok) {

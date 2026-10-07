@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit SEO Solio</title>
+<style>
+:root{--bg:#f6f3ec;--card:#fffdf8;--ink:#1f2a24;--muted:#5d6b62;--line:#e2ddd0;--forest:#2f5d46;--red:#b3402f;--amber:#b7791f;--green:#2f7d4f;--chip:#efe9dc}
+@media (prefers-color-scheme:dark){:root{--bg:#141a17;--card:#1c2420;--ink:#e8ece9;--muted:#9fb0a6;--line:#2c3832;--forest:#7fc19c;--red:#ec8a78;--amber:#e6b35c;--green:#7fcf9b;--chip:#25302a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Georgia,"Times New Roman",serif}
+main{max-width:920px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:30px;margin:0 0 4px}h2{font-size:21px;margin:36px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sub{color:var(--muted);margin:0 0 24px;font-family:system-ui,sans-serif;font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.kpi b{display:block;font-size:26px;font-family:system-ui,sans-serif}.kpi span{font-size:13px;color:var(--muted);font-family:system-ui,sans-serif}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:10px 0}
+.card h3{margin:0 0 6px;font-size:17px}
+.tag{display:inline-block;font:600 11px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:99px;margin-right:6px;vertical-align:2px}
+.t-red{background:var(--red);color:#fff}.t-amber{background:var(--amber);color:#fff}.t-green{background:var(--green);color:#fff}.t-grey{background:var(--chip);color:var(--muted)}
+p{margin:6px 0}code{font-size:13px;background:var(--chip);padding:1px 5px;border-radius:4px;word-break:break-all}
+table{width:100%;border-collapse:collapse;font:14px system-ui,sans-serif}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+.wrap{overflow-x:auto}
+ol li,ul li{margin:4px 0}
+.who{font:600 12px system-ui,sans-serif;color:var(--forest)}
+</style>
+</head>
+<body><main>
+<h1>Audit SEO et IA de domainesolio.com</h1>
+<p class="sub">5 octobre 2026 · GEO Optimizer, crawl OpenSEO (34 URL), contrôle manuel des 16 pages du sitemap. Search Console sur 90 jours, DataForSEO : 0,06 $ dépensés sur 1 $.</p>
+
+<div class="kpis">
+  <div class="kpi"><b>66/100</b><span>Score GEO de l'accueil</span></div>
+  <div class="kpi"><b>74/100</b><span>La Granja et L'Estiva</span></div>
+  <div class="kpi"><b>0</b><span>Lien cassé, redirection en chaîne ou page orpheline</span></div>
+  <div class="kpi"><b>40/100</b><span>Perplexity, sur toutes les pages</span></div>
+</div>
+
+<h2>Constat</h2>
+<p>La base technique est saine. Le texte est lisible sans JavaScript, tous les robots d'IA sont autorisés, et les hreflang FR/EN sont justes. Les pages répondent en moins de 120 ms. Le llms.txt est complet, et les fiches hébergement portent les schémas VacationRental, Campground, FAQPage et fil d'Ariane.</p>
+<p>Les défauts se concentrent sur <b>la version anglaise</b>, plus quelques signaux attendus par les moteurs d'IA.</p>
+
+<h2>Ce que disent 90 jours de Search Console</h2>
+<div class="kpis">
+  <div class="kpi"><b>228</b><span>clics, 2 478 impressions, position moyenne 6,5</span></div>
+  <div class="kpi"><b>≈ 115</b><span>clics sur la seule marque « domaine solio »</span></div>
+  <div class="kpi"><b>0</b><span>clic sur une requête générique</span></div>
+  <div class="kpi"><b>0</b><span>sitemap soumis, corrigé aujourd'hui</span></div>
+</div>
+<div class="card"><span class="tag t-red">Fort</span><h3>Les liens Google Vacation Rentals tombent en 404</h3>
+<p>Google Maps et Google Hôtels envoient encore leurs clics « réserver » vers les adresses Lodgify <code>/listing/fr/808379</code> (L'Estiva) et <code>/listing/en/806256</code> (La Granja), reconnaissables à <code>ref=gvr</code>. Elles répondent 404 depuis la bascule. Ces clics viennent de personnes prêtes à réserver.</p>
+<p class="who">Correction 8 ci-dessous : redirection 301 vers la bonne fiche, dans la bonne langue. Côté Lodgify, il faudra aussi couper ou réorienter la connexion Google Vacation Rentals.</p></div>
+<div class="card"><span class="tag t-amber">Moyen</span><h3>Ta fiche Google pointe sans doute encore sur www</h3>
+<p>« gite satillieu » (150 impressions) et « ardeche verte » (138) rapportent zéro clic. Tout passe par <code>www.domainesolio.com</code>, qui redirige maintenant. Sur « gite satillieu », Domaine Solio sort 2<sup>e</sup> du bloc Google Maps, mais le site lui-même est absent du top 20 : Booking, Gîtes de France et Abracadaroom se placent avec tes propres annonces.</p>
+<p class="who">À faire : dans Google Business Profile, remplacer le site web par <code>https://domainesolio.com/</code>, sans www.</p></div>
+
+<h2>Mots-clés (DataForSEO, 0,06 $ dépensés)</h2>
+<div class="wrap"><table>
+<tr><th>Requête</th><th>Recherches/mois</th><th>Difficulté</th><th>Ce qu'on voit sur Google</th></tr>
+<tr><td>safari de peaugres</td><td>90 500</td><td>2</td><td>Sur « hébergement safari de peaugres », un aperçu IA de Google, puis un petit site Wix de cottages en 1<sup>re</sup> position. Place à prendre : tu es à 20 min.</td></tr>
+<tr><td>bain nordique</td><td>22 200</td><td>0</td><td>Requête d'information ; « gîte avec bain nordique » (70) : aperçu IA + gîtes de Savoie et des Vosges, rien en Ardèche.</td></tr>
+<tr><td>lac de devesset · via fluvia</td><td>9 900 · 2 400</td><td>1 · 0</td><td>Requêtes d'information, déjà citées dans « Autour de nous ».</td></tr>
+<tr><td>satillieu</td><td>5 400</td><td>10</td><td>Le 1<sup>er</sup> résultat est la page « hébergements » de la mairie : une demande d'inscription avec lien y vaut de l'or.</td></tr>
+<tr><td>gite ardeche</td><td>2 400</td><td>1</td><td>Bloc Maps et agrégateurs (Petit Futé, Abritel, Gîtes de France) ; hors de portée à court terme.</td></tr>
+<tr><td>hotel annonay</td><td>1 600</td><td>0</td><td>Bloc hôtels Google et annuaires : il faut y être via la fiche Google, pas via le site.</td></tr>
+<tr><td>gîte 10 personnes</td><td>1 000</td><td>0</td><td>Bloc Maps et Booking/Abritel, partout en France ; « gîte ardèche 10 personnes » : 70.</td></tr>
+<tr><td>tente safari</td><td>880</td><td>2</td><td>Vendeurs de tentes : pas notre public.</td></tr>
+<tr><td>gîte avec piscine ardèche</td><td>390</td><td>0</td><td>Gîtes de France, offices de tourisme du sud Ardèche.</td></tr>
+</table></div>
+<p>Leçon : les grosses requêtes « gîte » sont tenues par les plateformes et le bloc Maps. Ce qui est accessible, ce sont <b>les requêtes de voisinage</b> (Peaugres, Satillieu, Ardèche verte, bain nordique) et <b>la fiche Google</b>.</p>
+
+<h2>Corrections que je propose</h2>
+<div class="wrap"><table>
+<tr><th>#</th><th>Défaut mesuré</th><th>Correction</th><th>Où</th></tr>
+<tr><td>1</td><td><span class="tag t-red">Fort</span>/en/ affiche le titre et la description <b>en français</b>. Google la voit comme un doublon de l'accueil, et le partage d'un lien anglais sort en français.</td><td>Titre et description anglais propres à /en/</td><td>Champs SEO de la page (base)</td></tr>
+<tr><td>2</td><td><span class="tag t-red">Fort</span>Les boutons « Discover La Granja / L'Estiva » de /en/ pointent vers <code>/en/la-granja/</code> et <code>/en/estiva/</code>, qui redirigent vers les pages <b>françaises</b>.</td><td>Liens vers <code>/en/la-granja-gite/</code> et <code>/en/estiva-safari-tent/</code></td><td>Contenu de la page /en/</td></tr>
+<tr><td>3</td><td><span class="tag t-amber">Moyen</span>Les 6 autres pages anglaises n'ont pas de description rédigée : Google reçoit le début du texte, coupé (« Getting here &amp; contact Domaine Solio welcomes… »). Trois titres dépassent 60 caractères.</td><td>Descriptions de 140 à 155 caractères, titres raccourcis</td><td>Champs SEO des pages</td></tr>
+<tr><td>4</td><td><span class="tag t-amber">Moyen</span>Les CGV et Terms ont pour description <code>[guestflow_cgv]…</code> (le code court brut) et n'ont aucun H1.</td><td>Description rédigée, H1 ajouté</td><td>Champs SEO + contenu</td></tr>
+<tr><td>5</td><td><span class="tag t-amber">Moyen</span>Aucune date de mise à jour n'est publiée. C'est ce qui plafonne Perplexity à 40.</td><td><code>dateModified</code> ajouté au schéma de chaque page, à partir de la date de modification WordPress</td><td><code>gf-seo-schema.php</code></td></tr>
+<tr><td>6</td><td><span class="tag t-grey">Faible</span><code>og:locale</code> reste à <code>fr_FR</code> sur les pages anglaises, et <code>og:url</code> de /en/ pointe vers l'accueil français.</td><td>Langue Polylang utilisée pour ces deux balises</td><td><code>gf-seo-head.php</code></td></tr>
+<tr><td>8</td><td><span class="tag t-red">Fort</span>Liens Google Vacation Rentals <code>/listing/…</code> en 404 ; anciennes adresses anglaises de Lodgify redirigées vers le français.</td><td>301 vers La Granja / L'Estiva dans la langue d'origine ; adresses anglaises vers la version anglaise</td><td><code>gf-seo-redirects.php</code></td></tr>
+<tr><td>7</td><td><span class="tag t-grey">Faible</span>Le schéma ne relie le domaine qu'à Facebook et Instagram.</td><td>Ajouter dans <code>sameAs</code> les fiches Google Maps, Gîtes de France et Booking : les IA s'en servent pour reconnaître l'établissement.</td><td><code>gf-seo-facts.php</code>, URL fournies par toi</td></tr>
+</table></div>
+
+<h2>Ce que je ne fais pas</h2>
+<ul>
+<li><b>ai.txt et /ai/*.json</b> : aucun moteur ne les lit à ce jour, et le llms.txt couvre le même besoin.</li>
+<li><b>WebMCP et Wikipedia/Wikidata</b> : sans effet pour un hébergement de cette taille.</li>
+<li><b>« domaine » répété à 4,9 %</b> : ce sont surtout les occurrences de la marque « Domaine Solio ». Ce n'est pas du bourrage, je ne réécris pas les textes validés.</li>
+<li><b>Citations et statistiques inventées</b>, que l'outil recommande pour le « +41 % » : jamais. Le jour où les avis Google auront du texte, on pourra en citer de vrais.</li>
+</ul>
+
+<h2>Risque</h2>
+<p>Les corrections 1 à 4 changent du contenu en base, sur le WordPress en production (.23). Chaque écriture passe par une requête portant l'en-tête <code>Host: domainesolio.com</code>, et le cache Polylang est purgé juste après : c'est le piège qui avait déjà cassé /en/. Une sauvegarde de la base précède l'opération. Pour les corrections 5 et 6, je compare d'abord le mu-plugin en ligne avec la copie locale avant de le remplacer.</p>
+
+<h2>Ce qui reste chez toi</h2>
+<ol>
+<li><b>Lancer le déploiement</b> (le garde-fou m'interdit d'écrire en production) : <code>sh integrations/wordpress/solio-site/rapports/seo-2026-10-05/deploy.sh</code>.</li>
+<li><b>Google Business Profile</b> : site web = <code>https://domainesolio.com/</code>.</li>
+<li><b>Lodgify</b> : vérifier la connexion Google Vacation Rentals, qui envoie encore vers les anciennes fiches.</li>
+<li><b>Mairie de Satillieu</b> : demander l'ajout de Domaine Solio, avec lien, sur la page « hébergements ».</li>
+</ol>
+
+<h2>Arbitrages pour la suite</h2>
+<ul>
+<li>Une section ou une page « Séjourner près du Safari de Peaugres » (20 min), sur une requête à 90 500 recherches où un petit site Wix est 1<sup>er</sup>.</li>
+<li>Faire du bain nordique un argument de page, avec titre, intertitre et FAQ : aucun gîte d'Ardèche ne sort sur « gîte avec bain nordique ».</li>
+<li>Suivi mensuel des positions : environ 0,02 $ par relevé, le crédit restant (0,94 $) suffit pour des mois.</li>
+</ul>
+</main></body></html>
