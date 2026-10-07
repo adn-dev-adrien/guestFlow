@@ -1,0 +1,86 @@
+[
+  {
+    "seedKey": "drink_blonde_pilat_75",
+    "title": "Blonde du Pilat 75cl - 4,5°",
+    "price": 6.5,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_biscanna_75",
+    "title": "Biscanna 75cl - 5°",
+    "price": 7.5,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_madmax_75",
+    "title": "Mad Max 75cl - 5,5°",
+    "price": 7.5,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_jus_pomme_1l",
+    "title": "Jus de pomme 1L",
+    "price": 5,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_jus_poire_1l",
+    "title": "Jus de poire William's 1L",
+    "price": 6,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_jus_pomme_kiwi_1l",
+    "title": "Jus pomme-kiwi 1L",
+    "price": 5.5,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_jus_pomme_25cl",
+    "title": "Jus de pomme 25cl",
+    "price": 3,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_champagne_75",
+    "title": "Champagne - bouteille 75cl",
+    "price": 40,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "drink_champagne_37",
+    "title": "Champagne - demi-bouteille 37,5cl",
+    "price": 25,
+    "category": "Boissons"
+  },
+  {
+    "seedKey": "board_s",
+    "title": "Planche S — 1-2 pers. (Apéro Solo/Duo)",
+    "price": 17,
+    "category": "Restauration"
+  },
+  {
+    "seedKey": "board_m",
+    "title": "Planche M — 2-3 pers. (Apéro Couple)",
+    "price": 32,
+    "category": "Restauration"
+  },
+  {
+    "seedKey": "board_l",
+    "title": "Planche L — 4 pers. (Apéro Famille)",
+    "price": 52,
+    "category": "Restauration"
+  },
+  {
+    "seedKey": "board_xl",
+    "title": "Planche XL — 6-7 pers. (Apéro Tribu)",
+    "price": 78,
+    "category": "Restauration"
+  },
+  {
+    "seedKey": "board_xxl",
+    "title": "Planche XXL — 10-12 pers. (Apéro Gîte)",
+    "price": 115,
+    "category": "Restauration"
+  }
+]
