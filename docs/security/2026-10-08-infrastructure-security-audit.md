@@ -15,7 +15,7 @@
 
 The codebase is in good shape for a project of this size. The previous audit's work shows: helmet with an explicit CSP, server-side sessions with an auto-generated secret, scrypt password hashing, fail-closed role allowlists, a constant-time API key for the public tree, an HMAC-verified Qonto webhook, AES-256-GCM secrets at rest, a self-update engine that validates checksums, redirects, archive members and rolls back on failure, and **no live credential anywhere in the repository or its history**.
 
-What remains is mostly **blast-radius** work: what happens when a trusted party (GitHub, the WordPress host, a deactivated employee, a calendar platform) turns hostile or leaks. The eight items below are the ones worth doing first; §4 lists every finding: 2 High, 31 Medium, 46 Low, plus 12 Info entries recording what was checked and found sound.
+What remains is mostly **blast-radius** work: what happens when a trusted party (GitHub, the WordPress host, a deactivated employee, a calendar platform) turns hostile or leaks. The nine items below are the ones worth doing first; §4 lists every finding: 2 High, 31 Medium, 46 Low, plus 12 Info entries recording what was checked and found sound.
 
 | # | Finding | Severity | Why it matters |
 |---|---|---|---|
