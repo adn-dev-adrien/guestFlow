@@ -6,7 +6,7 @@
  * Version:           1.14.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
- * Author:            Adrien
+ * Author:            GuestFlow
  * Text Domain:       guestflow-booking
  * Domain Path:       /languages
  *

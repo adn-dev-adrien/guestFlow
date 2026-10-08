@@ -43,6 +43,8 @@ export function sasPayload(over = {}) {
     bathLinen: over.bathLinen || { available: false, unitPrice: 0, priceType: null, persons: 0, nights: 0, amount: 0, label: 'Linge de toilette' },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],
     repairAmounts: over.repairAmounts || [],
+    // specs/plugins-phase-p-productisation.md rule 16 — the suites run with the check on, as Solio does.
+    extinguisherCheck: over.extinguisherCheck ?? true,
     breakfast: over.breakfast, // undefined → breakfast page hidden
     arrivalComplement: over.arrivalComplement, // undefined → no recall at departure
     // specs/sas-breakfast-and-catering-upsell.md — sale steps; nothing on offer by default.

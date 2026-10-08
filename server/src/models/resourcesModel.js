@@ -35,6 +35,16 @@ function createModel(database) {
     } catch { return false; }
   })();
 
+  // The sentence a booked resource carries into the guest emails (specs/plugins-phase-p-productisation.md
+  // rule 11). Its own group, guarded like the two above.
+  const SENTENCE_COLUMNS = ['emailBookedText', 'emailBookedTextEn'];
+  const HAS_SENTENCE_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return SENTENCE_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
   function getPropertyIds(resourceId) {
     return database.prepare('SELECT propertyId FROM resource_properties WHERE resourceId = ? ORDER BY propertyId')
       .all(Number(resourceId))
@@ -261,6 +271,8 @@ function createModel(database) {
       // Negatives would invert the slot algebra (a negative warm-up would open past slots), so clamp.
       heatUpMinutes: Math.max(0, Number(payload.heatUpMinutes) || 0),
       heatRetentionMinutes: Math.max(0, Number(payload.heatRetentionMinutes) || 0),
+      emailBookedText: String(payload.emailBookedText || '').trim(),
+      emailBookedTextEn: String(payload.emailBookedTextEn || '').trim(),
     };
   }
 
@@ -268,9 +280,11 @@ function createModel(database) {
   const optionalSet = (has, cols) => (has ? cols.map((c) => `${c}=@${c}`).join(', ') : '');
   const HOURLY_SET = optionalSet(HAS_HOURLY_COLUMNS, HOURLY_COLUMNS);
   const THERMAL_SET = optionalSet(HAS_THERMAL_COLUMNS, THERMAL_COLUMNS);
+  const SENTENCE_SET = optionalSet(HAS_SENTENCE_COLUMNS, SENTENCE_COLUMNS);
   const OPTIONAL_COLUMNS = [
     ...(HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS : []),
     ...(HAS_THERMAL_COLUMNS ? THERMAL_COLUMNS : []),
+    ...(HAS_SENTENCE_COLUMNS ? SENTENCE_COLUMNS : []),
   ];
   const HOURLY_INSERT_COLS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.join(', ')}` : '';
   const HOURLY_INSERT_VALS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.map((c) => `@${c}`).join(', ')}` : '';
@@ -296,7 +310,7 @@ function createModel(database) {
     const propertyIds = normalizePropertyIds(payload);
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
-      const hourlySet = [HOURLY_SET, THERMAL_SET].filter(Boolean).map((s) => `, ${s}`).join('');
+      const hourlySet = [HOURLY_SET, THERMAL_SET, SENTENCE_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,

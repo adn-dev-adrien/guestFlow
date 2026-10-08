@@ -1,27 +1,33 @@
 /**
- * Stay content of the guest email sequence — pure (specs/guest-email-sequence.md §3.5 + §6.1).
+ * Stay content of the guest email sequence — pure (specs/guest-email-sequence.md §3.5 + §6.1,
+ * specs/plugins-phase-p-productisation.md §3.A–3.B).
  *
  * Decides, for ONE reservation, what its property includes, what the guest booked and what may still
- * be proposed (rule 20), then composes every conditional paragraph of the six emails in French and
- * English. The template engine has no nesting and no loops, so each paragraph arrives here already
+ * be proposed (rule 20), then fills every conditional paragraph of the six emails. It holds no
+ * wording: each paragraph is a stay text (utils/stayTextCatalogue.js) or a mention, chosen and filled
+ * here. The template engine has no nesting and no loops, so each paragraph arrives here already
  * written and the templates only place it: `{{#if hasX}}{{x}}{{/if}}`.
  *
  * Inputs are plain rows; `facts` is loaded by `models/stayFactsModel.js`:
- *   facts.defaults       [{ optionId, offered }]            property_option_defaults
- *   facts.available      [option rows with the property's effective `price`]
- *   facts.optionMeta     { [optionId]: { seedKey, category, autoOptionType, title } }
- *   facts.bathFreeMinutes number — nordic-bath minutes included for this property
- *   facts.properties     [{ id, name, nameArticle, minNightlyPrice }]  for the November email
+ *   facts.defaults          [{ optionId, offered }]            property_option_defaults
+ *   facts.available         [option rows with the property's effective `price`]
+ *   facts.optionMeta        { [optionId]: { category, autoOptionType, title } }
+ *   facts.bathFreeMinutes   number — hourly-resource minutes included for this property
+ *   facts.properties        [{ id, name, nameArticle, minNightlyPrice }]  for the November email
+ *   facts.texts             { global, property } — stored stay texts (models/stayTextsModel.js)
+ *   facts.mentions          [{ id, section, offerFr, offerEn, bookedFr, bookedEn, priceSource,
+ *                              priceOptionId, optionIds }]  in proposal order
+ *   facts.confirmationOrder ['mention:<id>' | 'babyBed' | 'towels']
  */
 
 const { formatDateLong } = require('./dateFr');
 const { isCleaningOption, normalizeOptionName } = require('./cleaningOption');
 const { isClientVisibleOption } = require('./optionVisibility');
 const { isDirectChannel } = require('./platformNameFormat');
+const { renderStayText, renderText } = require('./stayTextCatalogue');
 
 const WEEKDAYS = { fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 const MONTHS = { fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'], en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] };
-const BEER_SEED_KEYS = new Set(['drink_blonde_pilat_75', 'drink_biscanna_75', 'drink_madmax_75']);
 
 const safe = (v) => (v == null ? '' : String(v));
 
@@ -85,28 +91,22 @@ function withArticle(name, article, lang) {
 
 // ---------------------------------------------------------------- option roles
 
-/** What an option IS for the emails — stable seed keys first, the name only as a last resort. */
+/**
+ * The options the engine itself knows, by their product tag — linen, towels, cleaning, baby bed.
+ * Every other option reaches the emails through a mention (rule 10).
+ */
 function roleOf(option) {
   if (!option) return null;
-  const seed = safe(option.seedKey);
   const type = safe(option.autoOptionType);
-  const title = normalizeOptionName(option.title);
-  const category = normalizeOptionName(option.category);
   if (type === 'bed_linen') return 'bedLinen';
   if (type === 'bathroom_linen') return 'towels';
   if (isCleaningOption(option)) return 'cleaning';
-  if (type === 'baby_bed' || title.includes('lit bebe')) return 'babyBed';
-  if (type === 'breakfast') return 'breakfast';
-  if (seed.startsWith('drink_jus')) return 'juice';
-  if (BEER_SEED_KEYS.has(seed)) return 'beer';
-  if (seed.startsWith('board_')) return 'board';
-  if (title.includes('trappeur')) return 'trapperMeal';
-  if (category.includes('animation')) return 'animation';
+  if (type === 'baby_bed' || normalizeOptionName(option.title).includes('lit bebe')) return 'babyBed';
   return null;
 }
 
 /**
- * Rule 20 — included / booked / proposable, per role.
+ * Rule 20 — included / booked / proposable, per typed role and per mention.
  * `lines` are the reservation's option rows (`optionId`, `offered`, title…); `facts` as documented above.
  */
 function classifyOptions(lines, facts) {
@@ -128,6 +128,7 @@ function classifyOptions(lines, facts) {
     .filter(isClientVisibleOption)
     .filter((o) => !offeredDefaultIds.has(Number(o.optionId)));
   const booked = new Set(bookedLines.map(roleOf).filter(Boolean));
+  const bookedIds = new Set(bookedLines.map((o) => Number(o.optionId)));
 
   const available = ((facts && facts.available) || [])
     .map(withMeta)
@@ -135,14 +136,26 @@ function classifyOptions(lines, facts) {
   const byRole = (role) => available.filter((o) => roleOf(o) === role);
   const priceOf = (role) => {
     const opts = byRole(role);
+    return opts.length ? Math.min(...opts.map((o) => Number(o.price || 0))) : null;
+  };
+  const proposable = (role) => byRole(role).length > 0 && !included.has(role) && !booked.has(role);
+
+  // Rules 7–8: a mention is proposed while one of its options is available, none is included and
+  // none is booked; it quotes its chosen option's price, else the lowest.
+  const covers = (mention, ids) => (mention.optionIds || []).some((id) => ids.has(Number(id)));
+  const availableOf = (mention) => available.filter((o) => (mention.optionIds || []).map(Number).includes(Number(o.id)));
+  const mentionBooked = (mention) => covers(mention, bookedIds);
+  const mentionProposable = (mention) => availableOf(mention).length > 0
+    && !covers(mention, offeredDefaultIds) && !mentionBooked(mention);
+  const mentionPrice = (mention) => {
+    const opts = availableOf(mention);
     if (!opts.length) return null;
-    if (role === 'juice') {
-      const litre = opts.find((o) => safe(o.seedKey) === 'drink_jus_pomme_1l');
-      if (litre) return Number(litre.price || 0);
+    if (mention.priceSource === 'option') {
+      const chosen = opts.find((o) => Number(o.id) === Number(mention.priceOptionId));
+      if (chosen) return Number(chosen.price || 0);
     }
     return Math.min(...opts.map((o) => Number(o.price || 0)));
   };
-  const proposable = (role) => byRole(role).length > 0 && !included.has(role) && !booked.has(role);
 
   return {
     included,
@@ -150,6 +163,9 @@ function classifyOptions(lines, facts) {
     bookedTitles: bookedLines.map((o) => safe(o.title).trim()).filter(Boolean),
     proposable,
     priceOf,
+    mentionBooked,
+    mentionProposable,
+    mentionPrice,
   };
 }
 
@@ -166,8 +182,20 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   const c = client || {};
   const cls = classifyOptions(options, facts);
   const t = (fr, e) => (en ? e : fr);
+  const say = (key, tokens = {}, flags = {}) => renderStayText(key, L, tokens, flags, facts.texts);
+  const priced = (amount) => ({ price: amount == null ? '' : euro(amount, L) });
+  const hasPrice = (amount) => Number(amount || 0) > 0;
+  const mentions = facts.mentions || [];
+  const mentionText = (m, side, tokens = {}, flags = {}) => renderText(safe(en ? m[`${side}En`] : m[`${side}Fr`]), tokens, flags);
+  const offerOf = (m) => {
+    const price = cls.mentionPrice(m);
+    return mentionText(m, 'offer', priced(price), { hasPrice: hasPrice(price) });
+  };
 
   const propertyWith = withArticle(p.name, p.nameArticle, L);
+  const PropertyWith = `${propertyWith.charAt(0).toUpperCase()}${propertyWith.slice(1)}`;
+  const propertyFrom = en ? safe(p.name) : propertyWith.replace(/^à /, 'de ').replace(/^au /, 'du ').replace(/^aux /, 'des ');
+  const propertyName = safe(p.name);
   const adults = Number(r.adults || 0);
   const kids = Number(r.children || 0) + Number(r.teens || 0);
   const babies = Number(r.babies || 0);
@@ -192,131 +220,97 @@ function buildStayContent({ reservation, client, property, options = [], facts =
 
   let bedsParagraph = '';
   if (bedConfigLabel && bedsMade) {
-    bedsParagraph = t(
-      `Nous préparerons les lits ainsi : ${bedConfigLabel}. Si une autre installation vous convient mieux, dites-le nous simplement : l'essentiel est que chacun dorme bien.`,
-      `We will make up the beds as follows: ${bedConfigLabel}. If another arrangement suits you better, just let us know: what matters is that everyone sleeps well.`,
-    );
+    bedsParagraph = say('beds.made', { bedConfig: bedConfigLabel });
   } else if (bedConfigLabel) {
-    const linenPrice = cls.proposable('bedLinen') ? cls.priceOf('bedLinen') : null;
-    bedsParagraph = t(
-      `Les lits seront installés ainsi : ${bedConfigLabel}. Le linge de lit n'étant pas compris, pensez à prendre draps et taies d'oreiller${linenPrice != null ? `, ou laissez-nous les préparer si vous préférez voyager plus léger (${euro(linenPrice, L)} par personne)` : ''}.`,
-      `The beds will be set up as follows: ${bedConfigLabel}. Bed linen is not included, so remember to bring sheets and pillowcases${linenPrice != null ? `, or let us prepare them if you would rather travel lighter (${euro(linenPrice, L)} per person)` : ''}.`,
-    );
+    const linenOffered = cls.proposable('bedLinen');
+    const linenPrice = linenOffered ? cls.priceOf('bedLinen') : null;
+    bedsParagraph = say('beds.linenNotIncluded', { bedConfig: bedConfigLabel, ...priced(linenPrice) }, { linenOffered, hasPrice: hasPrice(linenPrice) });
   }
 
   let babyParagraph = '';
   if (babies && cls.booked.has('babyBed')) {
-    babyParagraph = t(
-      'Le lit bébé sera installé avant votre arrivée, avec son linge : vous n\'aurez rien à apporter pour lui.',
-      'The baby cot will be set up before you arrive, with its linen: nothing to bring for it.',
-    );
+    babyParagraph = say('baby.booked');
   } else if (babies && cls.proposable('babyBed')) {
-    babyParagraph = t(
-      `Pour le plus petit, nous pouvons installer un lit bébé avec son linge (${euro(cls.priceOf('babyBed'), L)} pour le séjour) : de quoi laisser le lit parapluie à la maison et gagner un peu de place dans le coffre.`,
-      `For the little one, we can set up a baby cot with its linen (${euro(cls.priceOf('babyBed'), L)} for the stay): you can leave the travel cot at home and free some space in the boot.`,
-    );
+    const babyPrice = cls.priceOf('babyBed');
+    babyParagraph = say('baby.offer', priced(babyPrice), { hasPrice: hasPrice(babyPrice) });
   }
 
-  // --- pool season (settings, MM-DD) overlapping the stay
+  // --- pool season (settings, MM-DD) overlapping the stay; empty means no pool (rule 14)
   const stayOverlapsPool = (() => {
-    const start = safe(settings.poolSeasonStart || '06-15');
-    const end = safe(settings.poolSeasonEnd || '08-31');
+    const start = safe(settings.poolSeasonStart);
+    const end = safe(settings.poolSeasonEnd);
     const year = safe(r.startDate).slice(0, 4);
     if (!year || !/^\d{2}-\d{2}$/.test(start) || !/^\d{2}-\d{2}$/.test(end)) return false;
     return safe(r.startDate).slice(0, 10) <= `${year}-${end}` && safe(r.endDate).slice(0, 10) > `${year}-${start}`;
   })();
 
   // --- J-7 bag + property facts
-  const bagLines = [
-    t(`- Maillots de bain et serviettes pour le bain nordique${stayOverlapsPool ? ', et pour la piscine' : ''}`,
-      `- Swimsuits and towels for the nordic bath${stayOverlapsPool ? ' and the pool' : ''}`),
-    t('- Des chaussures fermées pour les sentiers du domaine', '- Closed shoes for the paths of the domain'),
-  ];
+  const bagLines = [say('bag.items', {}, { stayOverlapsPool })];
   if (!towelsCovered) {
     const towelPrice = cls.proposable('towels') ? cls.priceOf('towels') : null;
     bagLines.push(towelPrice != null
-      ? t(`- Vos serviettes de toilette. Si vous préférez voyager plus léger, et ne pas rentrer avec une machine à lancer, nous pouvons aussi les préparer pour vous (${euro(towelPrice, L)} par personne).`,
-        `- Your bath towels. If you would rather travel lighter, and not come home to a load of washing, we can also prepare them for you (${euro(towelPrice, L)} per person).`)
-      : t('- Vos serviettes de toilette', '- Your bath towels'));
+      ? say('bag.towelsOffer', priced(towelPrice), { hasPrice: hasPrice(towelPrice) })
+      : say('bag.towels'));
   }
   const parking = Number(p.parkingDistanceMeters || 0);
-  const travelLightParagraph = parking > 0 ? t(
-    `Un conseil pour les valises : voyagez léger. Le parking se trouve à ${parking} mètres ${propertyWith.replace(/^à /, 'de ').replace(/^au /, 'du ').replace(/^aux /, 'des ')}, et le dernier bout se fait à pied, à travers la prairie. Un sac souple se porte bien mieux qu'une grosse valise à roulettes.`,
-    `A tip for packing: travel light. The car park is ${parking} metres from ${safe(p.name)}, and the last stretch is on foot, across the meadow. A soft bag is much easier to carry than a large suitcase on wheels.`,
-  ) : '';
-  const wifiParagraph = Number(p.hasWifi == null ? 1 : p.hasWifi) === 0 ? t(
-    `${propertyWith.charAt(0).toUpperCase()}${propertyWith.slice(1)}, pas de wifi : c'est un choix, pour mieux profiter du reste. Le réseau mobile est en revanche disponible sur l'ensemble du domaine.`,
-    `There is no wifi at ${safe(p.name)}: it is a choice, to make the most of everything else. Mobile network, on the other hand, is available across the whole domain.`,
-  ) : '';
+  const placeTokens = { distance: parking, propertyFrom, propertyName };
+  const travelLightParagraph = parking > 0 ? say('travelLight', placeTokens) : '';
+  const wifiParagraph = Number(p.hasWifi == null ? 1 : p.hasWifi) === 0 ? say('noWifi', { PropertyWith, propertyName }) : '';
 
-  // --- J-7 local products, worded as lightening the load (rule 24)
+  // --- J-7 offers: the proposable mentions of each section, in their order (rules 8, 24)
   const deadlineIso = r.startDate ? new Date(Date.parse(`${safe(r.startDate).slice(0, 10)}T00:00:00Z`) - 3 * 86400000).toISOString().slice(0, 10) : '';
-  const local = [];
-  if (cls.proposable('juice')) local.push(t(`les jus du Pressoir du Pilat (${euro(cls.priceOf('juice'), L)} le litre)`, `juices from the Pressoir du Pilat (${euro(cls.priceOf('juice'), L)} a litre)`));
-  if (cls.proposable('beer')) local.push(t(`les bières de la Brasserie du Pilat (${euro(cls.priceOf('beer'), L)} la bouteille)`, `beers from the Brasserie du Pilat (${euro(cls.priceOf('beer'), L)} a bottle)`));
-  const extras = [];
-  if (cls.proposable('board')) extras.push(t(`une planche du terroir pour le premier apéritif (à partir de ${euro(cls.priceOf('board'), L)})`, `a local platter for your first apéritif (from ${euro(cls.priceOf('board'), L)})`));
-  if (cls.proposable('trapperMeal')) extras.push(t(`le repas des trappeurs (${euro(cls.priceOf('trapperMeal'), L)} par personne)`, `the trappers' dinner (${euro(cls.priceOf('trapperMeal'), L)} per person)`));
-  if (cls.proposable('breakfast')) extras.push(t(`le petit-déjeuner, à retirer chaque matin au bâtiment d'accueil (${euro(cls.priceOf('breakfast'), L)} par personne et par jour)`, `breakfast, to collect each morning at the reception building (${euro(cls.priceOf('breakfast'), L)} per person per day)`));
+  const offersIn = (section) => mentions
+    .filter((m) => m.section === section && cls.mentionProposable(m))
+    .map(offerOf)
+    .filter(Boolean);
+  const local = offersIn('local');
+  const extras = offersIn('extras');
   let localProductsParagraph = '';
   if (local.length || extras.length) {
     const parts = [];
-    if (local.length) {
-      parts.push(t(
-        `Pour alléger les courses, nous travaillons avec des producteurs locaux : ${joinList(local, L)}. Nous vous les proposons à leur prix de vente en magasin, et ils peuvent vous attendre au frais à votre arrivée.`,
-        `To lighten your shopping, we work with local producers: ${joinList(local, L)}. We offer them at their shop price, and they can be waiting for you, chilled, when you arrive.`,
-      ));
-    }
-    if (extras.length) {
-      parts.push(local.length
-        ? t(`De la même façon, nous pouvons prévoir ${joinList(extras, L)}.`, `In the same way, we can arrange ${joinList(extras, L)}.`)
-        : t(`Pour alléger les courses, nous pouvons prévoir ${joinList(extras, L)}.`, `To lighten your shopping, we can arrange ${joinList(extras, L)}.`));
-    }
-    parts.push(t(`Il suffit de nous le dire d'ici le ${weekdayDate(deadlineIso, L)}.`, `Just let us know by ${weekdayDate(deadlineIso, L)}.`));
-    localProductsParagraph = parts.join(' ');
+    if (local.length) parts.push(say('offers.localIntro', { list: joinList(local, L) }));
+    if (extras.length) parts.push(say(local.length ? 'offers.extrasAfterLocal' : 'offers.extrasIntro', { list: joinList(extras, L) }));
+    parts.push(say('offers.deadline', { date: weekdayDate(deadlineIso, L) }));
+    localProductsParagraph = parts.filter(Boolean).join(' ');
   }
-  const kidsParagraph = kids && ((facts.available || []).some((o) => roleOf({ ...((facts.optionMeta || {})[o.id] || {}), ...o }) === 'animation')) ? t(
-    'Et si vos enfants aiment les animaux, il y a aussi quelques beaux moments à partager avec ceux du domaine : nous vous en parlerons sur place.',
-    'And if your children love animals, there are some lovely moments to share with those of the domain: we will tell you about them on site.',
-  ) : '';
+  // « Enfants »: shown with children while one of its options is offered by the property, booked or
+  // not (rule 8).
+  const offeredIds = new Set((facts.available || []).map((o) => Number(o.id)));
+  const kidsParagraph = kids
+    ? mentions
+      .filter((m) => m.section === 'kids' && (m.optionIds || []).some((id) => offeredIds.has(Number(id))))
+      .map(offerOf)
+      .filter(Boolean)
+      .join(' ')
+    : '';
 
   // --- J-2
-  const parkingLine = parking > 0 ? t(
-    `- Garez-vous au parking, à ${parking} mètres ${propertyWith.replace(/^à /, 'de ').replace(/^au /, 'du ').replace(/^aux /, 'des ')} : le reste du chemin se fait à pied.`,
-    `- Park in the car park, ${parking} metres from ${safe(p.name)}: the rest of the way is on foot.`,
-  ) : '';
-  const notedSentences = {
-    breakfast: t('Le petit-déjeuner vous attendra chaque matin au bâtiment d\'accueil.', 'Breakfast will be waiting for you every morning at the reception building.'),
-    babyBed: t('Le lit bébé sera installé avant votre arrivée, avec son linge.', 'The baby cot will be set up before you arrive, with its linen.'),
-    towels: t('Vos serviettes de toilette seront prêtes, vous n\'aurez qu\'à poser vos sacs.', 'Your bath towels will be ready: you will only have to put your bags down.'),
-    board: t('Votre planche du terroir sera prête pour un premier apéritif sur la terrasse.', 'Your local platter will be ready for a first apéritif on the terrace.'),
-    juice: t('Les jus du Pressoir du Pilat vous attendront au frais.', 'The Pressoir du Pilat juices will be waiting for you, chilled.'),
-    beer: t('Les bières de la Brasserie du Pilat vous attendront au frais.', 'The Brasserie du Pilat beers will be waiting for you, chilled.'),
-    trapperMeal: t('Pour le repas des trappeurs, nous conviendrons du soir ensemble à votre arrivée.', 'For the trappers\' dinner, we will agree on the evening together when you arrive.'),
-    animation: t('Pour le moment avec les animaux, nous choisirons l\'heure ensemble sur place.', 'For the time with the animals, we will choose the hour together on site.'),
-  };
-  const bookedOptionsParagraph = ['breakfast', 'babyBed', 'towels', 'board', 'juice', 'beer', 'trapperMeal', 'animation']
-    .filter((role) => cls.booked.has(role))
-    .map((role) => notedSentences[role])
+  const parkingLine = parking > 0 ? say('parkingLine', placeTokens) : '';
+  // Rule 9: the confirmations follow their own order; anything it does not name goes last.
+  const order = (facts.confirmationOrder || []).map(String);
+  const confirmations = [
+    ...order,
+    ...['babyBed', 'towels'].filter((item) => !order.includes(item)),
+    ...mentions.map((m) => `mention:${m.id}`).filter((item) => !order.includes(item)),
+  ];
+  const bookedOptionsParagraph = confirmations
+    .map((item) => {
+      if (item === 'babyBed') return cls.booked.has('babyBed') ? say('booked.babyBed') : '';
+      if (item === 'towels') return cls.booked.has('towels') ? say('booked.towels') : '';
+      const mention = mentions.find((m) => `mention:${m.id}` === item);
+      return mention && cls.mentionBooked(mention) ? mentionText(mention, 'booked') : '';
+    })
+    .filter(Boolean)
     .join('\n');
-  const coffeeParagraph = Number(p.hasFilterCoffeeMaker || 0) === 1
-    ? t('Dans la maison, vous trouverez une machine Nespresso à capsules, et aussi une grande cafetière familiale pour le café moulu.', 'In the house you will find a Nespresso capsule machine, and also a large family coffee maker for ground coffee.')
-    : t('Dans le logement, une machine Nespresso à capsules vous attend pour le café du matin.', 'A Nespresso capsule machine is waiting for you for your morning coffee.');
+  const coffeeParagraph = say('house');
   let cleaningParagraph;
-  if (cleaningIncluded) {
-    cleaningParagraph = t('Le ménage de fin de séjour est pour nous : profitez de votre dernière matinée sans y penser.', 'End-of-stay cleaning is on us: enjoy your last morning without a thought for it.');
-  } else if (cleaningBooked) {
-    cleaningParagraph = t('Vous avez choisi l\'option ménage : profitez de votre dernière matinée, nous nous occupons du reste.', 'You chose the cleaning option: enjoy your last morning, we take care of the rest.');
-  } else {
-    cleaningParagraph = t(
-      'Pour rappel, vous n\'avez pas choisi l\'option ménage : nous vous demanderons donc de rendre le logement comme vous l\'avez trouvé. Rien de compliqué, un petit panneau dans le logement vous indique ce qui est attendu. Et si, une fois sur place, vous préférez garder votre dernière matinée pour vous, l\'option reste possible : il suffit de nous le dire.',
-      'As a reminder, you did not choose the cleaning option, so we will ask you to leave the accommodation as you found it. Nothing complicated: a small sign inside tells you what is expected. And if, once there, you would rather keep your last morning for yourselves, the option is still possible: just let us know.',
-    );
-  }
+  if (cleaningIncluded) cleaningParagraph = say('cleaning.included');
+  else if (cleaningBooked) cleaningParagraph = say('cleaning.booked');
+  else cleaningParagraph = say('cleaning.notBooked');
   const complementDue = Number(r.complementAmount || 0) > 0 && Number(r.complementPaid || 0) !== 1;
-  const complementLine = complementDue ? (Number(r.complementDeferredToCheckout || 0) === 1
-    ? t(`Un complément de ${euro(r.complementAmount, L)} reste à régler sur place à votre départ.`, `A balance of ${euro(r.complementAmount, L)} remains to be paid on site when you leave.`)
-    : t(`Un complément de ${euro(r.complementAmount, L)} reste à régler sur place à votre arrivée.`, `A balance of ${euro(r.complementAmount, L)} remains to be paid on site when you arrive.`)) : '';
+  const complementLine = complementDue
+    ? say(Number(r.complementDeferredToCheckout || 0) === 1 ? 'complement.atDeparture' : 'complement.atArrival', { amount: euro(r.complementAmount, L) })
+    : '';
 
   // --- J+1
   const googleReviewUrl = safe(settings.googleReviewUrl).trim();
@@ -329,34 +323,22 @@ function buildStayContent({ reservation, client, property, options = [], facts =
   })();
   let reviewParagraph = '';
   if (isDirectChannel(r.platform)) {
-    if (googleReviewUrl) {
-      reviewParagraph = t(
-        `Si vous en avez envie, quelques mots sur notre page Google nous aideraient beaucoup : ${googleReviewUrl}. C'est souvent grâce à ces avis que d'autres familles osent venir jusqu'ici.`,
-        `If you feel like it, a few words on our Google page would help us a lot: ${googleReviewUrl}. It is often thanks to these reviews that other families dare to come all the way here.`,
-      );
-    }
+    if (googleReviewUrl) reviewParagraph = say('review.direct', { link: googleReviewUrl });
   } else {
-    reviewParagraph = t(
-      `Si ce n'est pas déjà fait, quelques mots sur ${platformName} nous aideraient beaucoup : c'est souvent grâce à ces avis que d'autres familles osent venir jusqu'ici.${googleReviewUrl ? ` Et si vous avez envie d'en dire un peu plus, votre message est aussi le bienvenu sur notre page Google : ${googleReviewUrl}` : ''}`,
-      `If you have not done so already, a few words on ${platformName} would help us a lot: it is often thanks to these reviews that other families dare to come all the way here.${googleReviewUrl ? ` And if you would like to say a little more, your message is also welcome on our Google page: ${googleReviewUrl}` : ''}`,
-    );
+    reviewParagraph = say('review.platform', { platform: platformName, link: googleReviewUrl }, { hasGoogleReview: Boolean(googleReviewUrl) });
   }
   const instagramUrl = safe(settings.instagramUrl).trim();
-  const instagramParagraph = instagramUrl ? t(
-    `Si vous êtes nostalgiques de votre séjour, n'hésitez pas à nous suivre sur les réseaux sociaux : ${instagramUrl}`,
-    `If you miss your stay, feel free to follow us on social media: ${instagramUrl}`,
-  ) : '';
+  const instagramParagraph = instagramUrl ? say('instagram', { link: instagramUrl }) : '';
 
   // --- season emails
   const offers = (facts.properties || [])
     .filter((prop) => Number(prop.minNightlyPrice || 0) > 0)
-    .map((prop) => t(
-      `${withArticle(prop.name, prop.nameArticle, 'fr')}, à partir de ${euro(prop.minNightlyPrice, 'fr')} la nuit`,
-      `at ${safe(prop.name)}, from ${euro(prop.minNightlyPrice, 'en')} a night`,
-    ));
+    .map((prop) => say('gift.offer', {
+      propertyWith: withArticle(prop.name, prop.nameArticle, L), propertyName: safe(prop.name), ...priced(prop.minNightlyPrice),
+    }, { hasPrice: true }));
   const giftVoucherOffer = offers.length
-    ? t(`une ou plusieurs nuits ${offers.join(', ou ')}`, `one or more nights ${offers.join(', or ')}`)
-    : t('une ou plusieurs nuits au domaine', 'one or more nights at the domain');
+    ? say('gift.list', { list: offers.join(t(', ou ', ', or ')) })
+    : say('gift.fallback');
   const sendDate = safe(sequence.sendDate);
   const giftDeadlineLabel = sequence.giftDeadline ? weekdayDate(sequence.giftDeadline, L) : '';
   const lastStayLabel = r.startDate
@@ -366,10 +348,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
 
   // J+1 opening — built on the article, so it reads right whatever the name's gender (« Au Gite »,
   // « À La Granja »).
-  const quietSinceDeparture = t(
-    `${propertyWith.charAt(0).toUpperCase()}${propertyWith.slice(1)}, tout semble bien silencieux depuis votre départ, et les animaux ont l'air de se demander où sont passés leurs visiteurs.`,
-    `At ${safe(p.name)}, everything seems very quiet since you left, and the animals seem to wonder where their visitors have gone.`,
-  );
+  const quietSinceDeparture = say('quietSinceDeparture', { PropertyWith, propertyWith, propertyName });
 
   const bathMinutes = Number(facts.bathFreeMinutes || 0);
   const lastMinute = Boolean(sequence.lastMinute);
@@ -386,7 +365,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       bathIncluded: durationLabel(bathMinutes, L),
       bedsParagraph,
       babyParagraph,
-      bagList: bagLines.join('\n'),
+      bagList: bagLines.filter(Boolean).join('\n'),
       travelLightParagraph,
       wifiParagraph,
       localProductsParagraph,
@@ -414,6 +393,7 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       hasPropertyHook: Boolean(safe(en ? p.emailHookEn : p.emailHook).trim()),
       hasBedsParagraph: Boolean(bedsParagraph),
       hasBabyParagraph: Boolean(babyParagraph),
+      hasBagList: bagLines.some(Boolean),
       hasTravelLight: Boolean(travelLightParagraph),
       hasWifiParagraph: Boolean(wifiParagraph),
       hasLocalProducts: Boolean(localProductsParagraph),
@@ -421,9 +401,12 @@ function buildStayContent({ reservation, client, property, options = [], facts =
       hasParkingLine: Boolean(parkingLine),
       hasComplementLine: Boolean(complementLine),
       hasBookedOptionsParagraph: Boolean(bookedOptionsParagraph),
+      hasCoffeeParagraph: Boolean(coffeeParagraph),
+      hasCleaningParagraph: Boolean(cleaningParagraph),
       hasReservedOptionsLabel: cls.bookedTitles.length > 0,
       hasReviewParagraph: Boolean(reviewParagraph),
       hasInstagram: Boolean(instagramParagraph),
+      hasQuietSinceDeparture: Boolean(quietSinceDeparture),
       isLastMinute: lastMinute,
       hasUnsubscribeUrl: Boolean(safe(sequence.unsubscribeUrl)),
       clientHasEmail: Boolean(safe(c.email).trim()),

@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Alert, Box, Card, CardContent, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
+  Alert, Box, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -32,7 +32,7 @@ const TAX_OPTIONS = [
   { value: 'platform_reversed', label: 'Plateforme → vous' },
   { value: 'owner', label: "À l'arrivée" },
 ];
-const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays'];
+const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect'];
 
 // The rows as the form edits them: numbers become strings so a half-typed value stays as typed.
 function toDraft(platforms) {
@@ -147,6 +147,15 @@ export default function PlatformsSettingsPage() {
       <MenuItem value={1}>Oui</MenuItem>
     </TextField>
   ));
+  // specs/plugins-phase-p-productisation.md rule 19 — always on, and locked, for `direct`.
+  const directCell = (p) => (
+    <Switch
+      checked={Boolean(p.countsAsDirect)}
+      onChange={(e) => setField(p.id, 'countsAsDirect', e.target.checked)}
+      disabled={saving || p.isDirect}
+      slotProps={{ input: { 'aria-label': `Compté comme vente directe ${formatPlatformLabel(p.name)}` } }}
+    />
+  );
   const taxCell = (p) => (p.touristTaxCollection === null ? '—' : (
     <TextField
       select
@@ -203,6 +212,7 @@ export default function PlatformsSettingsPage() {
                   <TableCell>Acompte</TableCell>
                   <TableCell sx={{ minWidth: 200 }}>Taxe de séjour</TableCell>
                   <TableCell>Virement (jours)</TableCell>
+                  <TableCell>Vente directe</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -214,6 +224,7 @@ export default function PlatformsSettingsPage() {
                     <TableCell>{depositCell(p)}</TableCell>
                     <TableCell>{taxCell(p)}</TableCell>
                     <TableCell>{payoutCell(p)}</TableCell>
+                    <TableCell>{directCell(p)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -250,6 +261,7 @@ export default function PlatformsSettingsPage() {
                     {payoutCell(p)}
                   </Box>
                 )}
+                <FormControlLabel control={directCell(p)} label="Compté comme vente directe" sx={{ minHeight: 44 }} />
               </Stack>
             </CardContent>
           </Card>

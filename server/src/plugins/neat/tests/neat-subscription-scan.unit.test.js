@@ -30,6 +30,9 @@ function runPass(db, { settings = fakeNeatSettings(), clientFactory = fakeNeatCl
   };
 }
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../../../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('an insured, deposit-paid, direct, future reservation is enqueued and subscribed', async () => {
   const db = freshNeatDb();
   const id = insertReservation(db);

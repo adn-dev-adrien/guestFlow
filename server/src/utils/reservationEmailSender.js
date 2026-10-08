@@ -36,6 +36,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   `).all(reservation.id);
   // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
   require('./translationResolver').attachEnglishNames(database, { options, resources });
+  require('../models/stayFactsModel').attachResourceSentences(database, resources);
   const customOptions = database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ?').all(reservation.id);
   const bedLinenProvidedByDefault = reservation.propertyId
     ? Boolean(database.prepare(`

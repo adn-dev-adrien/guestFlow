@@ -151,7 +151,7 @@ class GF_Updater
             'name'          => 'GuestFlow Booking',
             'slug'          => self::SLUG,
             'version'       => $manifest['version'],
-            'author'        => 'Adrien',
+            'author'        => 'GuestFlow',
             'homepage'      => 'https://github.com/adn-dev-adrien/guestFlow',
             'requires'      => $manifest['requires'],
             'requires_php'  => $manifest['requires_php'],

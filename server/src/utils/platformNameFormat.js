@@ -48,19 +48,45 @@ function formatPlatformName(input) {
  * Own-channel platforms — `isDirectChannel(platform)`.
  *
  * A booking is « direct » in the commercial sense when the guest relationship is the operator's own,
- * with no OTA in between. That covers two recorded platform values, not one:
- *   - `direct`   — created by hand in GuestFlow (phone, email, walk-in).
- *   - `Lodgify`  — the booking engine ON the operator's own website. Commercially a direct booking;
- *                  its 5 % is an engine fee, not a marketplace commission.
+ * with no OTA in between: `direct` (created by hand in GuestFlow), plus every platform the operator
+ * marked « Compté comme vente directe » — the booking engine of the operator's own website, whose fee
+ * is not a marketplace commission (specs/plugins-phase-p-productisation.md rule 19).
  *
- * Used by the welcome pack (specs/tariff-recipes/spec.md §3.9 rule 53). A strict equality against
- * `'direct'` would miss the majority of real direct bookings, which come through Lodgify.
- * A third own channel is a one-line addition here rather than a new condition somewhere else.
+ * Used by the welcome pack (specs/tariff-recipes/spec.md §3.9 rule 53) and every read that tells a
+ * direct booking from a platform one. Never compare a platform to `'direct'` by hand.
  */
-const DIRECT_CHANNELS = new Set(['direct', 'lodgify']);
+let directChannels = new Set(['direct']);
+
+const channelKey = (platform) => String(platform ?? 'direct').trim().toLowerCase() || 'direct';
 
 function isDirectChannel(platform) {
-  return DIRECT_CHANNELS.has(String(platform ?? 'direct').trim().toLowerCase() || 'direct');
+  return directChannels.has(channelKey(platform));
 }
 
-module.exports = { formatPlatformName, isDirectChannel, DIRECT_CHANNELS };
+/** `direct` always, plus the platforms named here (specs/plugins-phase-p-productisation.md rule 19). */
+function setDirectChannels(names = []) {
+  directChannels = new Set(['direct', ...names.map(channelKey)]);
+}
+
+/** Re-reads `platforms.countsAsDirect`: at boot and after every platform save. */
+function refreshDirectChannels(database) {
+  let names = [];
+  try {
+    names = database.prepare('SELECT name FROM platforms WHERE countsAsDirect = 1').all().map((r) => r.name);
+  } catch {
+    names = [];
+  }
+  setDirectChannels(names);
+}
+
+/**
+ * `is_direct_channel(platform)` for the SQL reads that filter on it, so they follow the same set as
+ * `isDirectChannel` instead of a list frozen when the module loaded. Idempotent per connection.
+ */
+function registerDirectChannelSql(database) {
+  if (!database || typeof database.function !== 'function' || database.__directChannelSql) return;
+  database.function('is_direct_channel', { deterministic: false }, (platform) => (isDirectChannel(platform) ? 1 : 0));
+  Object.defineProperty(database, '__directChannelSql', { value: true });
+}
+
+module.exports = { formatPlatformName, isDirectChannel, setDirectChannels, refreshDirectChannels, registerDirectChannelSql };

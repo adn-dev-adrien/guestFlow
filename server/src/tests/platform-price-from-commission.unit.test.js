@@ -13,6 +13,9 @@ const { buildModel: buildPropertiesModel } = require('../models/propertiesModel'
 
 // ── grossFromNet (pure) ──────────────────────────────────────────────────────
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('grossFromNet: euro_up default — gross = ceil((net + fixedCost) / (1 − c/100))', () => {
   assert.equal(grossFromNet(100, 20), 125);          // exact → ceil no-op
   assert.equal(grossFromNet(100, 15), 118);          // 117.647 → 118

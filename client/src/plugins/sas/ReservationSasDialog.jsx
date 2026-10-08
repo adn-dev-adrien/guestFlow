@@ -635,8 +635,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       missingAsk === true ? 'missingItems' : null,
       'keys',
       cautionReturnStep ? 'cautionReturn' : null,
-      'extinguisher',
-      extinguisherOk === false ? 'extinguisherItems' : null,
+      // specs/plugins-phase-p-productisation.md rule 16 — only while the SAS checks the extinguisher.
+      data.extinguisherCheck ? 'extinguisher' : null,
+      data.extinguisherCheck && extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean), shownPluginSteps);
   }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
@@ -856,7 +857,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         qty: Number(extinguisherQty[t.repairKey]), offerKey, real, amount: billed(offerKey, real),
       };
     }), [extinguisherTariffs, extinguisherQty, billed]);
-  const extinguisherBilled = mode === 'departure' && extinguisherOk === false;
+  const extinguisherBilled = mode === 'departure' && Boolean(data?.extinguisherCheck) && extinguisherOk === false;
   const previewExtinguisherLines = extinguisherBilled ? extinguisherLines : [];
   // specs/sas-bath-linen-upsell.md §3.3 — end-of-stay lines the ARRIVAL SAS wrote (tagged `source`,
   // e.g. deferred bath linen). They must be DISPLAYED in the check-out recap AND counted in the total
@@ -1070,7 +1071,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // (specs/sas-bath-linen-upsell.md §3.3).
           endOfStayComplementDetail: [...endOfStaySentLines, ...carriedEndOfStayLines, ...preservedDepartureLines]
             .map(toDetailLine),
-          extinguisherSealOkAtDeparture: extinguisherOk ? 1 : 0,
+          extinguisherSealOkAtDeparture: data.extinguisherCheck ? (extinguisherOk ? 1 : 0) : undefined,
           extinguisherCharges: extinguisherBilled
             ? extinguisherTariffs.map((t) => ({
               repairKey: t.repairKey,

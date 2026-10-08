@@ -13,7 +13,8 @@
  *   errors:   { [column]: string } — server validation messages
  */
 import React from 'react';
-import { Card, CardContent, Stack, Typography, Box, TextField } from '@mui/material';
+import { Link as RouterLink } from 'react-router';
+import { Card, CardContent, Stack, Typography, Box, TextField, Button } from '@mui/material';
 import HelpedTextField from './HelpedTextField';
 
 export default function SettingsEmailContentSection({
@@ -45,7 +46,7 @@ export default function SettingsEmailContentSection({
             label="Lien Instagram"
             value={values.instagramUrl || ''}
             onChange={(v) => onChange('instagramUrl', v)}
-            helperText="« Si vous êtes nostalgiques de votre séjour… » dans le mail J+1."
+            helperText="Proposé dans le mail de remerciement (J+1)."
             error={errors.instagramUrl}
             disabled={disabled}
           />
@@ -55,7 +56,7 @@ export default function SettingsEmailContentSection({
               value={values.poolSeasonStart || ''}
               onChange={(e) => onChange('poolSeasonStart', e.target.value)}
               error={Boolean(errors.poolSeasonStart)}
-              helperText={errors.poolSeasonStart || 'ex. 06-15'}
+              helperText={errors.poolSeasonStart || 'ex. 06-15 · vide : sans piscine'}
               disabled={disabled}
               fullWidth
             />
@@ -68,6 +69,12 @@ export default function SettingsEmailContentSection({
               disabled={disabled}
               fullWidth
             />
+          </Box>
+          {/* specs/plugins-phase-p-productisation.md §6 — the sentences of the emails. */}
+          <Box>
+            <Button component={RouterLink} to="/settings/emails/textes" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+              Textes des mails
+            </Button>
           </Box>
         </Stack>
       </CardContent>

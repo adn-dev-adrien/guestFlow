@@ -31,6 +31,22 @@ import {
  * Spec: accounting-platform-commission-and-no-deposit.md §3.7 + §6.
  */
 
+// specs/plugins-phase-p-productisation.md rules 27–28 — the account plan, one field per role.
+const PLAN_LABELS = {
+  accommodationAccount: 'Hébergement',
+  complementaryAccount: 'Prestations complémentaires',
+  activitiesAccount: 'Activités',
+  vat20Account: 'TVA collectée 20 %',
+  vat10Account: 'TVA collectée 10 %',
+  touristTaxAccount: 'Taxe de séjour',
+  commissionVatAccount: 'TVA déductible (commissions)',
+  discountAccount: 'Rabais accordés',
+  tipAccount: 'Pourboires',
+  journalCode: 'Code journal des ventes',
+};
+
+const planValues = (rows) => Object.fromEntries((rows || []).map((r) => [r.key, r.value]));
+
 function normalizeAccount(value) {
   if (value == null || value === '') return '';
   return String(value).replace(/\s+/g, '');
@@ -60,6 +76,9 @@ export default function PlatformAccountsPage() {
   const [savedPlatforms, setSavedPlatforms] = useState([]);
   const [defaultAccount, setDefaultAccount] = useState('622600');
   const [platforms, setPlatforms] = useState([]);
+  const [planRows, setPlanRows] = useState([]);
+  const [plan, setPlan] = useState({});
+  const [savedPlan, setSavedPlan] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -81,6 +100,9 @@ export default function PlatformAccountsPage() {
         }));
         setSavedPlatforms(sortedPlatforms);
         setPlatforms(sortedPlatforms);
+        setPlanRows(data.plan || []);
+        setPlan(planValues(data.plan));
+        setSavedPlan(planValues(data.plan));
       } catch (err) {
         if (mounted) setLoadError(true);
       } finally {
@@ -92,16 +114,17 @@ export default function PlatformAccountsPage() {
 
   // Same fields the old manual comparator watched — projected so the guard's deep-equal doesn't
   // trip on unrelated platform metadata (specs/ds-sweep-settings.md §3.7).
-  const dirtyProjection = (account, compensation, list, vatCommission, vatCompensation) => ({
+  const dirtyProjection = (account, compensation, list, vatCommission, vatCompensation, accounts) => ({
     account,
     compensation,
     vatCommission,
     vatCompensation,
+    accounts,
     rows: (list || []).map((x) => ({ id: x.id, c: x.commissionAccountNumber || '', v: Boolean(x.hasVatOnCommission) })),
   });
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft: dirtyProjection(defaultAccount, compensationAccount, platforms, vatRateCommission, vatRateCompensation),
-    saved: dirtyProjection(savedDefaultAccount, savedCompensationAccount, savedPlatforms, savedVatRateCommission, savedVatRateCompensation),
+    draft: dirtyProjection(defaultAccount, compensationAccount, platforms, vatRateCommission, vatRateCompensation, plan),
+    saved: dirtyProjection(savedDefaultAccount, savedCompensationAccount, savedPlatforms, savedVatRateCommission, savedVatRateCompensation, savedPlan),
     navigate,
   });
 
@@ -128,6 +151,13 @@ export default function PlatformAccountsPage() {
     };
   }
 
+  function updatePlanField(key, value) {
+    setPlan((prev) => ({ ...prev, [key]: key === 'journalCode' ? String(value).toUpperCase().trim() : normalizeAccount(value) }));
+    if (errors[`plan-${key}`]) {
+      setErrors((prev) => { const next = { ...prev }; delete next[`plan-${key}`]; return next; });
+    }
+  }
+
   function updatePlatformField(id, field, value) {
     setPlatforms((prev) => prev.map((p) => p.id === id ? ({ ...p, [field]: value }) : p));
     if (errors[`platform-${id}-${field}`]) {
@@ -144,6 +174,7 @@ export default function PlatformAccountsPage() {
         cancellationCompensationAccount: compensationAccount,
         vatRateCommission,
         vatRateCancellationCompensation: vatRateCompensation,
+        plan,
         platforms: platforms
           .filter((p) => !p.isDirect)
           .map((p) => ({
@@ -167,6 +198,9 @@ export default function PlatformAccountsPage() {
       }));
       setSavedPlatforms(sortedPlatforms);
       setPlatforms(sortedPlatforms);
+      setPlanRows(result.plan || []);
+      setPlan(planValues(result.plan));
+      setSavedPlan(planValues(result.plan));
       showSuccess('Configuration enregistrée.');
     } catch (err) {
       const apiErrors = err?.errors || err?.body?.errors;
@@ -176,6 +210,7 @@ export default function PlatformAccountsPage() {
         if (apiErrors.cancellationCompensationAccount) next.compensationAccount = apiErrors.cancellationCompensationAccount;
         if (apiErrors.vatRateCommission) next.vatRateCommission = apiErrors.vatRateCommission;
         if (apiErrors.vatRateCancellationCompensation) next.vatRateCompensation = apiErrors.vatRateCancellationCompensation;
+        for (const [key, message] of Object.entries(apiErrors.plan || {})) next[`plan-${key}`] = message;
         if (Array.isArray(apiErrors.platforms)) {
           for (const row of apiErrors.platforms) {
             if (row.account) next[`platform-${row.id}-account`] = row.account;
@@ -197,6 +232,7 @@ export default function PlatformAccountsPage() {
     setVatRateCommission(savedVatRateCommission);
     setVatRateCompensation(savedVatRateCompensation);
     setPlatforms(savedPlatforms);
+    setPlan(savedPlan);
     setErrors({});
   }
 
@@ -255,6 +291,35 @@ export default function PlatformAccountsPage() {
         <LoadingState />
       ) : (
         <Stack spacing={3}>
+          {planRows.length > 0 && (
+            <Card variant="outlined">
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="sectionHeader">Comptes</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Comptes de l'export des ventes, format standard (CSV).
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                    {planRows.map((row) => (
+                      <TextField
+                        key={row.key}
+                        label={PLAN_LABELS[row.key] || row.key}
+                        value={plan[row.key] ?? ''}
+                        onChange={(e) => updatePlanField(row.key, e.target.value)}
+                        error={Boolean(errors[`plan-${row.key}`])}
+                        helperText={errors[`plan-${row.key}`] || `Par défaut : ${row.default}`}
+                        slotProps={{ htmlInput: row.key === 'journalCode' ? { maxLength: 4 } : { inputMode: 'numeric', pattern: '[0-9]*' } }}
+                        disabled={saving}
+                      />
+                    ))}
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
           <Card variant="outlined">
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Stack spacing={2}>
@@ -269,7 +334,7 @@ export default function PlatformAccountsPage() {
                   value={defaultAccount}
                   onChange={(e) => handleDefaultAccountChange(e.target.value)}
                   error={Boolean(errors.defaultAccount)}
-                  helperText={errors.defaultAccount || '6 à 8 chiffres (ex. 622600).'}
+                  helperText={errors.defaultAccount || '3 à 12 chiffres (ex. 622600).'}
                   sx={{ maxWidth: { sm: 320 } }}
                   slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
                   disabled={saving}
@@ -292,7 +357,7 @@ export default function PlatformAccountsPage() {
                   value={compensationAccount}
                   onChange={(e) => handleCompensationAccountChange(e.target.value)}
                   error={Boolean(errors.compensationAccount)}
-                  helperText={errors.compensationAccount || '6 à 8 chiffres (ex. 75880000, produits divers de gestion courante).'}
+                  helperText={errors.compensationAccount || '3 à 12 chiffres (ex. 75880000, produits divers de gestion courante).'}
                   sx={{ maxWidth: { sm: 320 } }}
                   slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*' } }}
                   disabled={saving}

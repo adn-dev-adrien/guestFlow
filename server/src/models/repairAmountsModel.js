@@ -30,10 +30,11 @@ function buildModel(database) {
     return listStmt.all();
   }
 
-  // Replace-all from the « Tarifs facturables » section. Keyed rows keep their `repairKey`; the
-  // extinguisher-seal row is re-seeded (preserving its current label/price) if the payload dropped it.
+  // Replace-all from the « Tarifs facturables » section. Keyed rows keep their `repairKey`; while the
+  // SAS checks the extinguisher, its rows are re-seeded (preserving their label/price) if the payload
+  // dropped them (specs/plugins-phase-p-productisation.md rule 16: off, nothing comes back).
   // Invalid rows (no label) are dropped; a duplicate key is ignored. Price coerced to ≥ 0.
-  const replaceAll = database.transaction((items) => {
+  const replaceAll = database.transaction((items, { keepProtected = true } = {}) => {
     const existingByKey = {};
     for (const r of listStmt.all()) { if (r.repairKey) existingByKey[r.repairKey] = r; }
     deleteAllStmt.run();
@@ -50,7 +51,7 @@ function buildModel(database) {
       const price = Math.max(0, Number(raw.price) || 0);
       insertStmt.run({ repairKey, label, price, sortOrder: sort++ });
     }
-    for (const seed of PROTECTED_REPAIRS) {
+    for (const seed of keepProtected ? PROTECTED_REPAIRS : []) {
       if (seenKeys.has(seed.repairKey)) continue;
       const prev = existingByKey[seed.repairKey];
       insertStmt.run({
@@ -63,7 +64,17 @@ function buildModel(database) {
     return listStmt.all();
   });
 
-  return { list, replaceAll, EXTINGUISHER_KEY, PROTECTED_REPAIRS };
+  // The two extinguisher rows, inserted by the SAS plugin when its check is turned on (rule 16).
+  const ensureProtected = database.transaction(() => {
+    const present = new Set(listStmt.all().map((r) => r.repairKey).filter(Boolean));
+    let sort = listStmt.all().length;
+    for (const seed of PROTECTED_REPAIRS) {
+      if (!present.has(seed.repairKey)) insertStmt.run({ repairKey: seed.repairKey, label: seed.label, price: 0, sortOrder: sort++ });
+    }
+    return listStmt.all();
+  });
+
+  return { list, replaceAll, ensureProtected, EXTINGUISHER_KEY, PROTECTED_REPAIRS };
 }
 
 const defaultModel = (() => {

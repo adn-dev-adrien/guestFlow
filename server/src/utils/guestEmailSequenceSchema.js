@@ -26,6 +26,36 @@ function applyGuestEmailSequenceSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_guest_email_sends_client ON guest_email_sends(clientId, sentAt);
   `);
 
+  // The wording of the emails as data (specs/plugins-phase-p-productisation.md §5): stay texts,
+  // global (propertyId 0) or per property, NULL meaning « never edited » for that language; and the
+  // sentences tied to options, with the options they cover.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS stay_texts (
+      key        TEXT    NOT NULL,
+      propertyId INTEGER NOT NULL DEFAULT 0,
+      fr         TEXT,
+      en         TEXT,
+      updatedAt  TEXT    NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (key, propertyId)
+    );
+    CREATE TABLE IF NOT EXISTS email_mentions (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      section       TEXT    NOT NULL CHECK (section IN ('local', 'extras', 'kids')),
+      offerFr       TEXT    NOT NULL DEFAULT '',
+      offerEn       TEXT    NOT NULL DEFAULT '',
+      bookedFr      TEXT    NOT NULL DEFAULT '',
+      bookedEn      TEXT    NOT NULL DEFAULT '',
+      priceSource   TEXT    NOT NULL DEFAULT 'min' CHECK (priceSource IN ('min', 'option')),
+      priceOptionId INTEGER,
+      sortOrder     INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS email_mention_options (
+      mentionId INTEGER NOT NULL REFERENCES email_mentions(id) ON DELETE CASCADE,
+      optionId  INTEGER NOT NULL REFERENCES options(id) ON DELETE CASCADE,
+      PRIMARY KEY (mentionId, optionId)
+    );
+  `);
+
   const addColumns = (table, columns) => {
     const existing = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (existing.length === 0) return;
@@ -49,8 +79,14 @@ function applyGuestEmailSequenceSchema(db) {
     ['guestSequenceStartDate', 'TEXT'],
     ['googleReviewUrl', "TEXT DEFAULT ''"],
     ['instagramUrl', "TEXT DEFAULT ''"],
-    ['poolSeasonStart', "TEXT DEFAULT '06-15'"],
-    ['poolSeasonEnd', "TEXT DEFAULT '08-31'"],
+    // Empty = no pool (rule 14). An existing row keeps the season it holds.
+    ['poolSeasonStart', "TEXT DEFAULT ''"],
+    ['poolSeasonEnd', "TEXT DEFAULT ''"],
+    ['bookedConfirmationOrder', "TEXT NOT NULL DEFAULT '[]'"],
+  ]);
+  addColumns('resources', [
+    ['emailBookedText', "TEXT NOT NULL DEFAULT ''"],
+    ['emailBookedTextEn', "TEXT NOT NULL DEFAULT ''"],
   ]);
 }
 

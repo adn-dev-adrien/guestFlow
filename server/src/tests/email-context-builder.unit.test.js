@@ -7,6 +7,10 @@ const assert = require('node:assert/strict');
 const { buildContext, __test } = require('../utils/emailContextBuilder');
 const { liveHourlyResources } = require('./hourlyResourcesFixture');
 
+// Solio's bath, with the sentence productisation_v1 gives it (specs/plugins-phase-p-productisation.md rule 24).
+const { NORDIC_BATH } = require('../utils/productisationMigration');
+const BATH = { name: 'Bain nordique', emailBookedText: NORDIC_BATH.fr, emailBookedTextEn: NORDIC_BATH.en };
+
 // `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
 liveHourlyResources();
 
@@ -303,7 +307,7 @@ test('babyBedNotice: babies but NO baby bed → asks the guest to bring one, fla
 
 test('resourcesList joins booked resource names, sorted (fr); hasResources reflects presence', () => {
   const { vars, flags } = buildContext(baseInput({
-    resources: [{ name: 'Bain nordique' }, { name: 'Lit bébé' }],
+    resources: [{ ...BATH }, { name: 'Lit bébé' }],
   }));
   assert.equal(vars.resourcesList, 'Bain nordique, Lit bébé');
   assert.equal(flags.hasResources, true);
@@ -356,7 +360,7 @@ test('lang="en": option + resource lists use the English name, falling back to F
       { title: 'Ménage', titleEn: '' }, // no English → French fallback
     ],
     resources: [
-      { name: 'Bain nordique', nameEn: 'Nordic bath' },
+      { ...BATH, nameEn: 'Nordic bath' },
       { name: 'Lit bébé', nameEn: '' }, // no English → French fallback
     ],
   });
@@ -376,7 +380,7 @@ test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices ren
     ...baseInput({
       reservation: { startDate: '2026-07-10', endDate: '2026-07-13', singleBeds: 2, doubleBeds: 1, babyBeds: 1, babies: 1, cautionAmount: 0 },
       property: { name: 'Gite', nameArticle: 'au' },
-      resources: [{ name: 'Bain nordique' }],
+      resources: [{ ...BATH }],
     }),
     lang: 'en',
   });
@@ -392,7 +396,7 @@ test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices ren
 
 test('lang="en": nordic-bath scheduled slot recalled in English', () => {
   const { vars } = buildContext({
-    ...baseInput({ resources: [{ name: 'Bain nordique', priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
+    ...baseInput({ resources: [{ ...BATH, priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
     lang: 'en',
   });
   assert.match(vars.nordicBathSchedule, /on 11 July 2026 from 18:00 to 19:30/);
@@ -415,7 +419,7 @@ test('lang="en": complement list intro + localised labels (Tourist tax, Arrival 
 test('default lang (fr) is unchanged — English path never leaks into French output', () => {
   const { vars } = buildContext(baseInput({
     reservation: { startDate: '2026-07-10', singleBeds: 1, doubleBeds: 1 },
-    resources: [{ name: 'Bain nordique' }],
+    resources: [{ ...BATH }],
   }));
   assert.equal(vars.startDate, '10 juillet 2026');
   assert.match(vars.bedConfig, /lit double/);
@@ -439,17 +443,19 @@ test('reservationNumber var + hasReservationNumber flag follow the reservation c
 
 // ── J-2 nordic-bath reminder (specs/j1-arrival-reminder-email.md) ────────────────
 
-test('hasNordicBath matches the resource by NAME (« nordique », accent/case-insensitive)', () => {
-  const yes = buildContext(baseInput({ resources: [{ name: 'Bain Nordique' }] }));
-  assert.equal(yes.flags.hasNordicBath, true);
-  const noAccent = buildContext(baseInput({ resources: [{ name: 'bain nordique premium' }] }));
-  assert.equal(noAccent.flags.hasNordicBath, true);
-  const no = buildContext(baseInput({ resources: [{ name: 'Lit bébé' }] }));
-  assert.equal(no.flags.hasNordicBath, false);
+// specs/plugins-phase-p-productisation.md rule 11 — the resource's own sentence, never its name.
+test('hasNordicBath follows a booked resource that carries a sentence, whatever its name', () => {
+  const named = buildContext(baseInput({ resources: [{ name: 'Bain Nordique' }] }));
+  assert.equal(named.flags.hasNordicBath, false, 'the name alone says nothing');
+  const sauna = buildContext(baseInput({ resources: [{ name: 'Sauna', emailBookedText: 'Le sauna vous attend{{#if slots}} {{slots}}{{/if}}.' }] }));
+  assert.equal(sauna.flags.hasNordicBath, true);
+  assert.equal(sauna.vars.nordicBathReminder, 'Le sauna vous attend.');
+  const english = buildContext({ ...baseInput({ resources: [{ name: 'Sauna', emailBookedText: 'Le sauna vous attend.' }] }), lang: 'en' });
+  assert.equal(english.vars.nordicBathReminder, 'Le sauna vous attend.', 'no English sentence: the French one');
 });
 
 test('nordicBathReminder: gear sentence only when no slot scheduled', () => {
-  const { vars } = buildContext(baseInput({ resources: [{ name: 'Bain nordique' }] }));
+  const { vars } = buildContext(baseInput({ resources: [{ ...BATH }] }));
   assert.ok(vars.nordicBathReminder.includes('maillot de bain'), 'gear sentence present');
   assert.ok(vars.nordicBathReminder.includes('tongs'), 'tongs mentioned');
   assert.ok(!vars.nordicBathReminder.includes('Votre créneau'), 'no slot line when unscheduled');
@@ -462,7 +468,7 @@ test('nordicBathReminder no longer recalls a slot once hourly resources are off'
   require('./hourlyResourcesFixture').withdrawHourlyResources();
   try {
     const { vars } = buildContext(baseInput({
-      resources: [{ name: 'Bain nordique', priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:00' }]) }],
+      resources: [{ ...BATH, priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:00' }]) }],
     }));
     assert.match(vars.nordicBathReminder, /bain nordique/);
     assert.doesNotMatch(vars.nordicBathReminder, /créneau/);
@@ -474,7 +480,7 @@ test('nordicBathReminder no longer recalls a slot once hourly resources are off'
 test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', () => {
   const { vars } = buildContext(baseInput({
     resources: [{
-      name: 'Bain nordique',
+      ...BATH,
       priceType: 'per_hour',
       sessions: JSON.stringify([
         { date: '2026-07-12', start: '18:00', end: '19:30' },
@@ -551,7 +557,7 @@ test('complementNotice lists in-complement options/resources/custom-options + to
       { title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 },
       { title: 'Linge de lit', autoOptionType: 'bed_linen', inComplement: 0, offered: 0, totalPrice: 10 }, // not in complement → excluded
     ],
-    resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
+    resources: [{ ...BATH, inComplement: 1, offered: 0, totalPrice: 40 }],
     customOptions: [{ description: 'Panier garni', amount: 15, inComplement: 1, offered: 0 }],
   }));
   assert.match(vars.complementNotice, /Un complément est à régler directement sur place à votre arrivée :/);

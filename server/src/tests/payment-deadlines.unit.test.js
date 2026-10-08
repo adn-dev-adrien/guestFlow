@@ -37,6 +37,9 @@ function row(overrides = {}) {
 }
 
 // specs/payment-schedule-and-cancellation.md rule 12
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('a solde late past the cancellation deadline proposes the cancellation', () => {
   const out = buildPaymentDeadlineRow(row(), TODAY);
   assert.equal(out.state, 'cancel_due');

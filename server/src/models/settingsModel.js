@@ -98,6 +98,9 @@ const COLUMNS = [
   // (specs/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
   // online-payment plugin's settings (rule 13); they stay in the table, unread.
   'publicSiteOrigin',
+  // specs/plugins-phase-p-productisation.md rules 18 and 20.
+  'vapidSubject',
+  'onboardingCompletedAt',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -108,14 +111,8 @@ const NUMERIC_DEFAULTS = {
   notifyIcalReservationEnabled: 1,
 };
 
-const STRING_DEFAULT_OVERRIDES = {
-  poolSeasonStart: '06-15',
-  poolSeasonEnd: '08-31',
-};
-
 const DEFAULTS = COLUMNS.reduce((acc, col) => {
   if (Object.prototype.hasOwnProperty.call(NUMERIC_DEFAULTS, col)) acc[col] = NUMERIC_DEFAULTS[col];
-  else if (Object.prototype.hasOwnProperty.call(STRING_DEFAULT_OVERRIDES, col)) acc[col] = STRING_DEFAULT_OVERRIDES[col];
   else acc[col] = '';
   return acc;
 }, { createdAt: null, updatedAt: null });

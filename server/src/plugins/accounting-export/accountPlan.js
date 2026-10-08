@@ -22,7 +22,7 @@ const VAT_ACCOUNTS = {
 };
 
 // Pass-through accounts — money on the customer's debit that isn't owner revenue. The
-// `TOURIST_TAX` (46710000) mirrors the SOLIO export style: the tax is part of the
+// `TOURIST_TAX` (46710000) mirrors the standard export format: the tax is part of the
 // encaissement TTC (so the customer's debit covers it), but credited to a "compte d'attente"
 // because the owner owes it to the commune rather than recognising it as turnover.
 const PASS_THROUGH_ACCOUNTS = {
@@ -136,6 +136,44 @@ function buildClientAccount(lastName, { chars = CLIENT_ACCOUNT_NAME_CHARS } = {}
   return `C${cleaned.slice(0, chars)}`;
 }
 
+// specs/plugins-phase-p-productisation.md rules 27–29 — the numbers an accountant may change, as
+// settings of this plugin, with today's constants as defaults. The engine below keeps writing the
+// default numbers; `planMapper` turns them into the plan's when the rows are produced, so the CSV is
+// byte-identical while the plan is untouched. Tips are not mapped: their default is the compensation
+// account's, so the model names the tip account on the entry itself.
+const PLAN_DEFAULTS = Object.freeze({
+  accommodationAccount: REVENUE_ACCOUNTS.ACCOMMODATION,
+  complementaryAccount: REVENUE_ACCOUNTS.COMPLEMENTARY,
+  activitiesAccount: REVENUE_ACCOUNTS.ACTIVITIES,
+  vat20Account: VAT_ACCOUNTS.STANDARD_20,
+  vat10Account: VAT_ACCOUNTS.REDUCED_10,
+  touristTaxAccount: PASS_THROUGH_ACCOUNTS.TOURIST_TAX,
+  commissionVatAccount: VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
+  discountAccount: DISCOUNT_ACCOUNT,
+  tipAccount: TIP_ACCOUNT,
+  journalCode: SALES_JOURNAL_CODE,
+});
+const MAPPED_ROLES = Object.freeze([
+  'accommodationAccount', 'complementaryAccount', 'activitiesAccount', 'vat20Account', 'vat10Account',
+  'touristTaxAccount', 'commissionVatAccount', 'discountAccount',
+]);
+
+function planMapper(plan = {}) {
+  const toPlan = new Map();
+  const toDefault = new Map();
+  for (const role of MAPPED_ROLES) {
+    const fallback = PLAN_DEFAULTS[role];
+    const own = String((plan && plan[role]) || fallback).trim();
+    toPlan.set(fallback, own);
+    if (!toDefault.has(own)) toDefault.set(own, fallback);
+  }
+  return {
+    account: (account) => (toPlan.has(String(account)) ? toPlan.get(String(account)) : account),
+    defaultOf: (account) => (toDefault.has(String(account)) ? toDefault.get(String(account)) : String(account)),
+    journal: String((plan && plan.journalCode) || SALES_JOURNAL_CODE).trim(),
+  };
+}
+
 // How a sale's amounts are sourced. 'gross' = guest-paid (`clientGrossAmount`); 'net' = owner-
 // received (`finalPrice`). Switched to 'gross' on 2026-06-04 per the accountant's email + the
 // commission-as-journal-line rework (spec accounting-platform-commission-and-no-deposit.md §3.5
@@ -163,4 +201,6 @@ module.exports = {
   buildClientAccount,
   RECOGNISE_REVENUE_ON,
   SALES_JOURNAL_CODE,
+  PLAN_DEFAULTS,
+  planMapper,
 };

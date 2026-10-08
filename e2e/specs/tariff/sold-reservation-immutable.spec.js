@@ -13,6 +13,8 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { createProperty, createClient, createReservation } from '../../fixtures/apiSeed.js';
+// The core seeds no catalogue (specs/plugins-phase-p-productisation.md rule 12): the spec brings one.
+import { seedCateringOptions } from '../../fixtures/dbSeed.js';
 import { CLIENT_URL } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
@@ -35,6 +37,7 @@ function withDb(fn) {
 /** A property priced by the shipped recipe, with the occupancy the recipe does not own. */
 async function lodgeWithRecipe(name) {
   const property = await createProperty({ name, capacityAdults: 5 });
+  seedCateringOptions(property.id);
   await api(async (ctx) => {
     const detail = await (await ctx.get(`/api/properties/${property.id}`)).json();
     await ctx.put(`/api/properties/${property.id}`, {
@@ -67,7 +70,7 @@ function landANewTariff(propertyId, optionId) {
   });
 }
 
-/** Billable options the seeded catering catalogue links to every property. */
+/** Billable options of the catering catalogue `seedCateringOptions` links to the property. */
 function linkedOptions(propertyId, limit = 1) {
   return withDb((db) => db.prepare(`
     SELECT o.id, o.title, COALESCE(pop.price, o.price) AS price

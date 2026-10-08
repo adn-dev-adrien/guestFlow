@@ -29,15 +29,17 @@ function monthEntries(accountingModel, params) {
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 
-function createAccountingController(accountingModel) {
+// `plan()` — the account plan of the export (specs/plugins-phase-p-productisation.md rule 27); none
+// means the defaults.
+function createAccountingController(accountingModel, { plan = () => undefined } = {}) {
   return {
     salesCsv(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params);
-      const rows = buildRows(entries);
-      // ISO-8859-1 (latin1) without BOM — matches the accountant's `Exemple export ventes
-      // SOLIO.csv` byte-for-byte. French accounting software (Sage/EBP/Cegid) defaults to
+      const rows = buildRows(entries, plan());
+      // ISO-8859-1 (latin1) without BOM — the « Format standard (CSV) », byte-for-byte the
+      // accountant's example file. French accounting software (Sage/EBP/Cegid) defaults to
       // latin1 and chokes on the UTF-8 BOM, so we drop it via `{ bom: false }` and re-encode
       // the string into a latin1 Buffer. Characters outside the latin1 range (rare for French
       // customer names) get truncated to their low byte — acceptable for the accountant
@@ -57,7 +59,7 @@ function createAccountingController(accountingModel) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params);
-      const structured = buildStructuredEntries(entries);
+      const structured = buildStructuredEntries(entries, plan());
       const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
       const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
       return res.json({

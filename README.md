@@ -836,7 +836,7 @@ database.** This provides protection against database compromise.
 
 GuestFlow sends transactional email (quotes, payment requests, notifications) through the SMTP
 relay configured in **Settings**. In production the `From` address is on **your Workspace domain**
-(e.g. `domainesolio.com`) and the mail is relayed by Google. Strict receivers — **Yahoo, and Gmail
+(e.g. `example.com`) and the mail is relayed by Google. Strict receivers — **Yahoo, and Gmail
 for bulk senders** — reject mail that is **not DKIM-signed, even when SPF passes**:
 
 ```
@@ -851,9 +851,9 @@ the Admin Console **and** publish the matching DNS record.
 **Check the current state** (replace the domain):
 
 ```bash
-dig +short google._domainkey.domainesolio.com TXT   # DKIM  — empty = NOT set up (cause of the Yahoo block)
-dig +short domainesolio.com TXT | grep -i spf       # SPF   — should include _spf.google.com
-dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
+dig +short google._domainkey.example.com TXT   # DKIM  — empty = NOT set up (cause of the Yahoo block)
+dig +short example.com TXT | grep -i spf       # SPF   — should include _spf.google.com
+dig +short _dmarc.example.com TXT              # DMARC — empty = missing
 ```
 
 **Step 1 — Enable DKIM (this is what unblocks Yahoo):**
@@ -864,7 +864,7 @@ dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
 5. Return to the Admin Console → **Start authentication** (the button activates once the record is visible)
 
 **Step 2 — Publish DMARC** (required by Gmail/Yahoo sender rules; start in monitor mode):
-- Host `_dmarc`, TXT value: `v=DMARC1; p=none; rua=mailto:postmaster@domainesolio.com`
+- Host `_dmarc`, TXT value: `v=DMARC1; p=none; rua=mailto:postmaster@example.com`
 - Later tighten `p=none` → `p=quarantine` → `p=reject` once DKIM + SPF are confirmed aligned.
 
 **Publishing a TXT record at Squarespace (ex-Google Domains):**
@@ -877,7 +877,7 @@ dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
 **Verify after propagation** (usually minutes):
 
 ```bash
-dig +short google._domainkey.domainesolio.com TXT   # now returns the v=DKIM1 key
+dig +short google._domainkey.example.com TXT   # now returns the v=DKIM1 key
 ```
 
 Send a test to a Yahoo address — the `550 5.7.9` block disappears as soon as DKIM signs the mail.

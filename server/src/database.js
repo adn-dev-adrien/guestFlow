@@ -1494,16 +1494,9 @@ const { ensureCleaningOptionTagged } = require('./utils/cleaningOptionSeed');
 ensureCleaningOptionTagged(db);
 db.ensureCleaningOptionTagged = ensureCleaningOptionTagged;
 
-// specs/option-categories.md §5.2 — the « Boissons » + « Restauration » catalogue. Same structural
-// contract as the linen/breakfast seeds above, keyed by `options.seedKey` because the family is 14
-// rows rather than a singleton.
-const { ensureCateringOptions } = require('./utils/cateringSeed');
-ensureCateringOptions(db);
-db.ensureCateringOptions = ensureCateringOptions;
-
 // specs/cancellation-insurance.md §3.2 — the « Assurance annulation » article, seeded « par nuit »
-// and unpriced (0 €) so it stays invisible to guests until Adrien sets its tariff. Same structural
-// contract as the catering seed: keyed by `seedKey`, linked to every property on each boot.
+// and unpriced (0 €) so it stays invisible to guests until Adrien sets its tariff. Keyed by
+// `seedKey`, linked to every property on each boot.
 const { ensureCancellationInsuranceOption } = require('./utils/cancellationInsuranceSeed');
 ensureCancellationInsuranceOption(db);
 db.ensureCancellationInsuranceOption = ensureCancellationInsuranceOption;
@@ -1517,7 +1510,7 @@ db.ensureBabyBedSupplementOption = ensureBabyBedSupplementOption;
 
 // One-shot migration (specs/option-categories.md §5.3): file the options that pre-date the category
 // column into their group. The 5 « Animation… » rows and « Le repas des trappeurs » were created by
-// hand, so they carry no seedKey and the catering seed above will never touch them — this backfill
+// hand, so they carry no seedKey and no seed ever touched them — this backfill
 // is the only thing that categorises them. Untouched afterwards: the operator owns the label.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   const migrationName = 'option_categories_v1';
@@ -1932,17 +1925,10 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   );
 `);
-if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_seal' LIMIT 1").get()) {
-  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_seal', 'Plomb manquant', 0, 0)").run();
-}
-// Extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2 — 2026-06-17):
-// the departure SAS asks « extincteur en bon état ? » and, if not, bills these per-quantity. Relabel
-// the legacy seed (was « Plomb extincteur ») in place — the label is operator-protected, so it's always
-// the seed default — and add the « Utilisation » tariff.
+// Extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): the rows are the
+// SAS plugin's, inserted when its « Contrôle de l'extincteur » is turned on, never by the core
+// (specs/plugins-phase-p-productisation.md rule 16). Relabel the legacy seed in place.
 db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey = 'extinguisher_seal' AND label = 'Plomb extincteur'").run();
-if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_use' LIMIT 1").get()) {
-  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_use', 'Utilisation', 0, 1)").run();
-}
 // End-of-stay complement (departure SAS): a dedicated amount, separate from the arrival complement.
 {
   const rcols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
@@ -2419,6 +2405,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     copyAppSettingsToPlugins(db);
     resyncAfterRollback(db);
   }
+}
+
+// ---------- PRODUCTISATION — specs/plugins-phase-p-productisation.md §3.E ----------
+// After the plugins: the migration reads whether the SAS plugin is active. On an existing database it
+// writes, once, the wording the code held before phase P; a new database starts neutral.
+{
+  const { applyProductisationSchema, runProductisationMigration } = require('./utils/productisationMigration');
+  applyProductisationSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    const result = runProductisationMigration(db);
+    if (result.action === 'migrated') {
+      console.log(`[migration:productisation_v1] ${result.texts} text(s), ${result.mentions} mention(s), ${result.resources} resource sentence(s) kept`);
+    }
+  }
+  // `direct` and every platform counted as a direct sale (rule 19).
+  db.prepare("UPDATE platforms SET countsAsDirect = 1 WHERE name = 'direct'").run();
+  require('./utils/platformNameFormat').refreshDirectChannels(db);
 }
 
 // ---------- TRANSLATION CATALOGUE ----------

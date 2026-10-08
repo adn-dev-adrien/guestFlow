@@ -597,6 +597,29 @@ const api = {
   // Email automation (specs/email-automation.md)
   getEmailTemplates:        () => request('/email-templates'),
   getEmailPluginVariables:  () => request('/email-templates/plugin-variables'),
+  // specs/plugins-phase-p-productisation.md §4.3 — the wording of the guest emails as data.
+  getStayTexts: (propertyId) => request(`/stay-texts${propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : ''}`),
+  saveStayText: (key, body) => request(`/stay-texts/${encodeURIComponent(key)}`, { method: 'PUT', body }),
+  resetStayText: (key, { propertyId, lang } = {}) => {
+    const q = new URLSearchParams();
+    if (propertyId) q.set('propertyId', String(propertyId));
+    if (lang) q.set('lang', lang);
+    const qs = q.toString();
+    return request(`/stay-texts/${encodeURIComponent(key)}${qs ? `?${qs}` : ''}`, { method: 'DELETE' });
+  },
+  getEmailMentions: () => request('/email-mentions'),
+  createEmailMention: (body) => request('/email-mentions', { method: 'POST', body }),
+  updateEmailMention: (id, body) => request(`/email-mentions/${id}`, { method: 'PUT', body }),
+  deleteEmailMention: (id) => request(`/email-mentions/${id}`, { method: 'DELETE' }),
+  reorderEmailMentions: (ids) => request('/email-mentions/order', { method: 'PUT', body: { ids } }),
+  saveConfirmationOrder: (items) => request('/email-mentions/confirmation-order', { method: 'PUT', body: { items } }),
+  previewEmailMentions: (body) => request('/email-mentions/preview', { method: 'POST', body }),
+  // specs/plugins-phase-p-productisation.md §3.D — the start assistant.
+  getOnboarding: () => request('/onboarding'),
+  saveOnboardingCompany: (body) => request('/onboarding/company', { method: 'PUT', body }),
+  saveOnboardingProperty: (body) => request('/onboarding/property', { method: 'PUT', body }),
+  saveOnboardingPlugins: (ids) => request('/onboarding/plugins', { method: 'PUT', body: { ids } }),
+  completeOnboarding: () => request('/onboarding/done', { method: 'POST' }),
   getEmailTemplate:         (id) => request(`/email-templates/${id}`),
   createEmailTemplate:      (data) => request('/email-templates', { method: 'POST', body: data }),
   updateEmailTemplate:      (id, data) => request(`/email-templates/${id}`, { method: 'PUT', body: data }),

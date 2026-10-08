@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { CSV_HEADERS, buildRows } = require('../accountingExport');
 const { serializeCsv } = require('../../../utils/csv');
 
-// Pinned-format tests for the accountant CSV (Adrien's `Exemple export ventes SOLIO.csv`).
+// Pinned-format tests for the accountant CSV (the « Format standard (CSV) », pinned on the accountant's example file).
 //
 // The export must serialise byte-identically to the example on every dimension the
 // accountant's software cares about:
@@ -27,7 +27,7 @@ function makeEntry(overrides = {}) {
     taxTtc: 0,
     fraction: 1,
     buckets: [
-      // SOLIO F-2025-011 layout: 70600000 519,17 HT + 44571200 103,83 VAT 20%.
+      // Example F-2025-011 layout: 70600000 519,17 HT + 44571200 103,83 VAT 20%.
       { name: 'accommodation', ht: 519.17, vat: 103.83, ratePercent: 20 },
     ],
     ...overrides,
@@ -35,18 +35,18 @@ function makeEntry(overrides = {}) {
 }
 
 // specs/accounting-platform-commission-and-no-deposit.md rule 14
-test('header line matches the SOLIO example byte-for-byte (incl. trailing space on `Mois `)', () => {
+test('header line matches the standard format byte-for-byte (incl. trailing space on `Mois `)', () => {
   const csv = serializeCsv(CSV_HEADERS, [], { bom: false });
   const headerLine = csv.split('\r\n')[0];
-  // First 9 columns must equal the SOLIO example header exactly.
+  // First 9 columns must equal the standard format header exactly.
   const expectedFirst9 = "Jour;Mois ;Année;Journal;Pièce;Libellé de l'écriture;Compte;Débit;Crédit";
-  assert.ok(headerLine.startsWith(expectedFirst9), `header should start with the SOLIO 9 columns, got: ${headerLine}`);
+  assert.ok(headerLine.startsWith(expectedFirst9), `header should start with the standard 9 columns, got: ${headerLine}`);
   // Then the 3 GuestFlow info columns.
   assert.ok(headerLine.endsWith(';Plateforme;Prix payé client;Commission'), `header should end with the platform info columns, got: ${headerLine}`);
 });
 
 // specs/accountant-accounting-export.md rule 18
-test('a single entry serialises to the SOLIO row shape: debit + revenue + VAT', () => {
+test('a single entry serialises to the standard row shape: debit + revenue + VAT', () => {
   const rows = buildRows([makeEntry()]);
   const csv = serializeCsv(CSV_HEADERS, rows, { bom: false });
   const lines = csv.split('\r\n').filter(Boolean);
@@ -84,8 +84,8 @@ test('a single entry serialises to the SOLIO row shape: debit + revenue + VAT', 
 });
 
 // specs/accountant-accounting-export.md rule 16
-test('entry with tourist tax → an extra 46710000 row matching the SOLIO F-2025-020 shape', () => {
-  // SOLIO F-2025-020: 775 = 690 (70600000 @ 10%) + 69 (44571100 @ 10%) + 16 (46710000).
+test('entry with tourist tax → an extra 46710000 row matching the example F-2025-020 shape', () => {
+  // Example F-2025-020: 775 = 690 (70600000 @ 10%) + 69 (44571100 @ 10%) + 16 (46710000).
   // Buckets sum to 759 TTC (HT 690 + VAT 69); + tax 16 = 775 debit.
   const rows = buildRows([makeEntry({
     reservationId: 20,
@@ -104,7 +104,7 @@ test('entry with tourist tax → an extra 46710000 row matching the SOLIO F-2025
   const taxCols = taxLine.split(';');
   assert.equal(taxCols[5], 'TEDDY CAGGUI');
   assert.equal(taxCols[7], '0');           // debit zerofied
-  assert.equal(taxCols[8], '16');          // tax credit — integer 16 renders bare per SOLIO style
+  assert.equal(taxCols[8], '16');          // tax credit — integer 16 renders bare per the standard format
 
   // Sanity: the debit row carries the full 775.
   const debitCols = lines[1].split(';');
@@ -147,7 +147,7 @@ test('platform info columns appear on the debit row only — accountant ignores 
   })]);
   const csv = serializeCsv(CSV_HEADERS, rows, { bom: false });
   const lines = csv.split('\r\n').filter(Boolean);
-  // Debit row carries platform info — integers render bare (`720`, `97`) per SOLIO style.
+  // Debit row carries platform info — integers render bare (`720`, `97`) per the standard format.
   const debitCols = lines[1].split(';');
   assert.equal(debitCols[9], 'airbnb');
   assert.equal(debitCols[10], '720');

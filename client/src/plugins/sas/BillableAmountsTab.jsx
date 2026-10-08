@@ -15,6 +15,7 @@ import {
   api, PageActionBar, ErrorAlert, ConfirmDialog, useToast, useDirtyFormGuard,
 } from '../sdk';
 import SettingsBillableAmountsSection from './SettingsBillableAmountsSection';
+import ExtinguisherCheckCard from './ExtinguisherCheckCard';
 
 export default function BillableAmountsTab({ barTabs }) {
   const navigate = useNavigate();
@@ -97,6 +98,7 @@ export default function BillableAmountsTab({ barTabs }) {
         {loadError && (
           <ErrorAlert message="Impossible de charger les tarifs facturables." onRetry={load} sx={{ mb: 2 }} />
         )}
+        <ExtinguisherCheckCard onChanged={load} />
         <SettingsBillableAmountsSection
           linen={linen}
           setLinen={setLinen}

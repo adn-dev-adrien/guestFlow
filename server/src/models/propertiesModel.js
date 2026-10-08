@@ -16,7 +16,7 @@ const {
   grossFromNet,
 } = require('../utils/pricing');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
-const { isDirectChannel } = require('../utils/platformNameFormat');
+const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const platformsModel = require('./platformsModel');
@@ -46,7 +46,6 @@ const EMAIL_FACT_FIELDS = [
   { key: 'emailHookEn', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'parkingDistanceMeters', coerce: (v) => Math.max(0, Math.round(Number(v) || 0)) },
   { key: 'hasWifi', coerce: toBit },
-  { key: 'hasFilterCoffeeMaker', coerce: toBit },
 ];
 
 const EMAIL_HOOK_MAX_LENGTH = 300;
@@ -379,13 +378,6 @@ function createPropertiesModel(database) {
       if (typeof database.ensureDefaultTimedOptionsForProperty === 'function') {
         database.ensureDefaultTimedOptionsForProperty(Number(id));
       }
-      // Same lazy-seed hook for the catering catalogue (specs/option-categories.md §5.2): the boot
-      // seed links the articles to the properties that existed AT BOOT, so a property created since
-      // would otherwise show no « Boissons » until the next restart. The call is idempotent.
-      if (typeof database.ensureCateringOptions === 'function') {
-        database.ensureCateringOptions(database);
-      }
-
       // specs/tariff-recipes/spec.md §3.4 rules 25bis-25ter — the closures applicable to this
       // property (its own + the global ones), and, per season, the date ranges MINUS those closures.
       // The stored ranges keep their full span: a closure that moves simply re-reveals the days.
@@ -550,7 +542,8 @@ function createPropertiesModel(database) {
       `).run(
         propertyId,
         'Tarif annuel',
-        100,
+        // The start assistant names its price (specs/plugins-phase-p-productisation.md rule 21).
+        body.pricePerNight != null && body.pricePerNight !== '' && Number(body.pricePerNight) >= 0 ? Number(body.pricePerNight) : 100,
         'fixed',
         '[]',
         JSON.stringify([{ startDate: `${currentYear}-01-01`, endDate: `${currentYear}-12-31` }]),
@@ -675,12 +668,13 @@ function createPropertiesModel(database) {
       // Direct row first (synthesized at 0 % when no `Direct` platform row exists yet).
       const directRow = rows.find((p) => p.isDirect)
         || { id: 'direct', name: 'Direct', commissionPercent: 0, isDirect: true };
-      // The other OWN channels — Lodgify — are the Direct row: its « moteur Lodgify » caption says
-      // so, and its commission IS the engine fee. Listing Lodgify again underneath would ask the
-      // operator to configure the same channel twice, with two rates that must never disagree.
-      // Hidden from this grid only: the platform row itself still carries reservations and their
-      // commissions.
-      const platforms = [directRow, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))];
+      // The other OWN channels — the platforms counted as a direct sale — are the Direct row: its
+      // caption names them (specs/plugins-phase-p-productisation.md rule 19), and its commission IS
+      // their engine fee. Listing them again underneath would ask the operator to configure the same
+      // channel twice, with two rates that must never disagree. Hidden from this grid only: the
+      // platform row itself still carries reservations and their commissions.
+      const directVia = rows.filter((p) => !p.isDirect && isDirectChannel(p.name)).map((p) => formatPlatformName(p.name) || p.name);
+      const platforms = [{ ...directRow, directVia }, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))];
 
       const seasons = database.prepare(
         'SELECT id, label, pricePerNight, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, extraGuestTiers FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',

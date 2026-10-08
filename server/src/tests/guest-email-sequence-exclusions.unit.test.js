@@ -19,6 +19,9 @@ function season(stableKey, stays, { client = CLIENT, sendDate, startDate = '2026
 }
 
 // rule 1 — a cancelled stay leaves the sequence from the moment it is cancelled.
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('a cancelled stay receives nothing', () => {
   for (const entry of Object.values(stay({ kind: 'cancelled' }))) assert.equal(entry.blocked, 'cancelled', entry.stableKey);
 });

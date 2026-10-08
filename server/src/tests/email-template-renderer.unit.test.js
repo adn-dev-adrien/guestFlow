@@ -127,10 +127,15 @@ test('whitespace around the variable name is tolerated', () => {
   assert.equal(out.body, 'Hello Jean');
 });
 
-// End-to-end: the shipped J-7 and J-2 bodies (mails 2 and 3 of specs/guest-email-sequence.md §6.1)
-// rendered through the real context builder, with the property facts the sequence reads.
+// End-to-end: Solio's J-7 and J-2 bodies (mails 2 and 3 of specs/guest-email-sequence.md §6.1)
+// rendered through the real context builder, with the property facts the sequence reads and the
+// wording productisation_v1 keeps for Solio (specs/plugins-phase-p-productisation.md rule 24).
 const { buildContext } = require('../utils/emailContextBuilder');
-const { ARRIVAL_REMINDER_7D_BODY, ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
+const { withSolioWording } = require('./solioWordingFixture');
+const SOLIO_TEMPLATES = require('./fixtures/productisation/solio-sequence-templates.json');
+
+const ARRIVAL_REMINDER_7D_BODY = SOLIO_TEMPLATES.arrival_reminder_7d.body;
+const ARRIVAL_REMINDER_1D_BODY = SOLIO_TEMPLATES.arrival_reminder_1d.body;
 
 // Catalogue ids: 8 bed linen, 9 bath linen, 7 cleaning (L'Estiva includes all three), 3 cleaning
 // (La Granja, paid), 33 baby cot.
@@ -164,7 +169,7 @@ function render(body, { reservation = {}, property = {}, options = [], facts = G
     client: { firstName: 'Jean', lastName: 'Dupont' },
     property: { name: 'La Granja', nameArticle: 'à', defaultCautionAmount: 500, ...property },
     options,
-    stayFacts: facts,
+    stayFacts: withSolioWording(facts, { filterCoffee: Number(property.hasFilterCoffeeMaker || 0) === 1 }),
     settings: { companyName: 'GF', smtpFromName: 'GF', companyPhone: '0102' },
   });
   return renderTemplate({ subject: 'x', body }, context);

@@ -37,6 +37,9 @@ async function remind(platform, body = { type: 'balance' }) {
   return { res, sent };
 }
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('rule 20 — relancer une réservation Airbnb est refusé, et aucun email ne part', async () => {
   const { res, sent } = await remind('airbnb');
   assert.equal(res.statusCode, 400);

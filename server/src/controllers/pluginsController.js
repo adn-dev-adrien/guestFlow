@@ -238,11 +238,13 @@ function createController(model = defaultModel, deps = {}) {
         if (message) errors[key] = message;
       });
       if (Object.keys(errors).length) return res.status(400).json({ error: 'INVALID_SETTING', errors });
-      record.settings.forEach(({ key, secret }) => {
+      record.settings.forEach(({ key, secret, afterSave }) => {
         if (!Object.prototype.hasOwnProperty.call(body, key)) return;
         const value = body[key];
         if (secret && value === '') return;
-        settingsModel().set(entry.id, key, value == null ? '' : String(value).trim(), { secret: Boolean(secret) });
+        const stored = value == null ? '' : String(value).trim();
+        settingsModel().set(entry.id, key, stored, { secret: Boolean(secret) });
+        if (afterSave) afterSave(stored);
       });
       return res.json(settingsModel().httpView(entry.id, record.settings));
     },

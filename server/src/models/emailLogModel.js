@@ -17,12 +17,7 @@
  */
 
 const { EVENT_TRIGGERED_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
-const { DIRECT_CHANNELS } = require('../utils/platformNameFormat');
-
-// Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
-// platformNameFormat.js — same pattern as emailAutoSendRunner.
-const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
-const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
+const { registerDirectChannelSql } = require('../utils/platformNameFormat');
 
 // The request whose departure unlocks each anchor's reminder (rule 40bis).
 const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDate: 'balance_request' };
@@ -37,6 +32,8 @@ const SEND_MODE_MANUAL_ONLY = "t.sendMode = 'manual'";
 const STAY_RETENTION_DAYS = 3;
 
 function buildModel(database) {
+  // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  registerDirectChannelSql(database);
   const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail';
 
   // Resolve "today" to a UTC ISO date (matches SQLite's date('now')); injectable for tests.
@@ -123,7 +120,7 @@ function buildModel(database) {
         AND ${sendModePredicate}
         AND COALESCE(t.anchor, 'start') = '${anchor}'
         AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
-        AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
+        AND is_direct_channel(r.platform) = 1
         AND EXISTS (
           SELECT 1 FROM email_log rl
             JOIN email_templates rt ON rt.id = rl.templateId
@@ -226,9 +223,9 @@ function buildModel(database) {
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
       // …then the two payment anchors, each followed by its channel list and its request key.
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
-      ...DIRECT_CHANNEL_LIST, REQUEST_KEY_BY_ANCHOR.depositDueDate,
+      REQUEST_KEY_BY_ANCHOR.depositDueDate,
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
-      ...DIRECT_CHANNEL_LIST, REQUEST_KEY_BY_ANCHOR.balanceDueDate,
+      REQUEST_KEY_BY_ANCHOR.balanceDueDate,
     );
   }
 

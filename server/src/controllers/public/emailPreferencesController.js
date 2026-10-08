@@ -9,19 +9,21 @@
  * Self-contained HTML: no script, no external asset, readable on a phone.
  */
 
+// The house speaks under its own name (specs/plugins-phase-p-productisation.md rule 17): `{name}` is
+// the company name, « GuestFlow » while none is set.
 const COPY = {
   fr: {
-    title: 'Vos nouvelles du Domaine Solio',
-    ask: 'Vous recevez de temps en temps des nouvelles du domaine : nos bons cadeau en novembre, nos vœux en janvier.',
-    button: 'Ne plus recevoir les nouvelles du domaine',
+    title: 'Vos nouvelles de {name}',
+    ask: 'Vous recevez de temps en temps nos nouvelles, deux mails par an au plus.',
+    button: 'Ne plus recevoir nos nouvelles',
     done: 'C\'est noté. Vous ne recevrez plus nos nouvelles. Les informations liées à vos séjours continueront de vous parvenir.',
     already: 'C\'est déjà fait : vous ne recevez plus nos nouvelles. Les informations liées à vos séjours continuent de vous parvenir.',
     unknown: 'Ce lien n\'est plus valable. Pour toute demande, répondez simplement à l\'un de nos mails.',
   },
   en: {
-    title: 'News from Domaine Solio',
-    ask: 'From time to time you receive news from the domain: our gift vouchers in November, our greetings in January.',
-    button: 'Stop receiving news from the domain',
+    title: 'News from {name}',
+    ask: 'From time to time you receive our news, two emails a year at most.',
+    button: 'Stop receiving our news',
     done: 'Done. You will no longer receive our news. Information about your stays will keep reaching you.',
     already: 'Already done: you no longer receive our news. Information about your stays keeps reaching you.',
     unknown: 'This link is no longer valid. For any request, simply reply to one of our emails.',
@@ -30,13 +32,21 @@ const COPY = {
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
+// The product's neutral palette (client/src/theme.js).
 function page(copy, inner) {
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(copy.title)}</title>
-<style>body{margin:0;background:#F5F0E6;color:#1F241D;font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}main{max-width:520px;margin:0 auto;padding:40px 20px}h1{font:600 24px/1.25 Georgia,serif;color:#2E3B2A;margin:0 0 16px}button{width:100%;min-height:48px;border:0;border-radius:8px;background:#2E3B2A;color:#fff;font:600 16px/1.2 inherit;cursor:pointer;margin-top:12px}</style>
+<style>body{margin:0;background:#F8F5EF;color:#27251F;font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}main{max-width:520px;margin:0 auto;padding:40px 20px}h1{font:600 24px/1.25 Georgia,serif;color:#2F5D46;margin:0 0 16px}button{width:100%;min-height:48px;border:0;border-radius:8px;background:#2F5D46;color:#fff;font:600 16px/1.2 inherit;cursor:pointer;margin-top:12px}</style>
 </head><body><main><h1>${escapeHtml(copy.title)}</h1>${inner}</main></body></html>`;
 }
 
 function buildController({ preferences, database }) {
+  function copyFor(lang) {
+    let name = '';
+    try { name = String((database.prepare('SELECT companyName FROM app_settings LIMIT 1').get() || {}).companyName || '').trim(); } catch { name = ''; }
+    const base = COPY[lang];
+    return { ...base, title: base.title.replace('{name}', name || 'GuestFlow') };
+  }
+
   function languageOf(clientId) {
     try {
       const row = database.prepare('SELECT emailLanguage FROM clients WHERE id = ?').get(Number(clientId));
@@ -50,8 +60,8 @@ function buildController({ preferences, database }) {
     const token = String((req.query && req.query.t) || '');
     const found = preferences.findByToken(token);
     res.set('Cache-Control', 'no-store');
-    if (!found) return res.status(200).type('html').send(page(COPY.fr, `<p>${escapeHtml(COPY.fr.unknown)}</p>`));
-    const copy = COPY[languageOf(found.id)];
+    if (!found) return res.status(200).type('html').send(page(copyFor('fr'), `<p>${escapeHtml(COPY.fr.unknown)}</p>`));
+    const copy = copyFor(languageOf(found.id));
     if (found.marketingUnsubscribedAt) return res.type('html').send(page(copy, `<p>${escapeHtml(copy.already)}</p>`));
     return res.type('html').send(page(copy, `<p>${escapeHtml(copy.ask)}</p>
 <form method="post" action="${escapeHtml(req.baseUrl + req.path)}"><input type="hidden" name="t" value="${escapeHtml(token)}"><button type="submit">${escapeHtml(copy.button)}</button></form>`));
@@ -61,8 +71,8 @@ function buildController({ preferences, database }) {
     const token = String((req.body && req.body.t) || '');
     const found = preferences.findByToken(token);
     res.set('Cache-Control', 'no-store');
-    if (!found) return res.status(200).type('html').send(page(COPY.fr, `<p>${escapeHtml(COPY.fr.unknown)}</p>`));
-    const copy = COPY[languageOf(found.id)];
+    if (!found) return res.status(200).type('html').send(page(copyFor('fr'), `<p>${escapeHtml(COPY.fr.unknown)}</p>`));
+    const copy = copyFor(languageOf(found.id));
     preferences.unsubscribe(found.id);
     return res.type('html').send(page(copy, `<p>${escapeHtml(copy.done)}</p>`));
   }

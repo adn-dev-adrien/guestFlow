@@ -5,6 +5,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import api from '../api';
 import PricedItemsPage, { PRICE_TYPES } from '../components/PricedItemsPage';
+import TokenTextField from '../components/TokenTextField';
 import { usePlugin } from '../hooks/usePlugins';
 import { HOURLY_RESOURCES } from '../constants/plugins';
 import { useSlot } from '../plugins/sdk';
@@ -21,6 +22,8 @@ const emptyResource = {
   showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
   // Thermal model (specs/hourly-resource-quantity-and-sas-scheduling.md §3.3). 0 = not applicable.
   heatUpMinutes: 0, heatRetentionMinutes: 0,
+  // The sentence of the guest emails once booked (specs/plugins-phase-p-productisation.md rule 11).
+  emailBookedText: '', emailBookedTextEn: '',
 };
 
 // The per-property price of any resource. For one sold by the hour, the price is per hour and the
@@ -177,6 +180,8 @@ export function toResourcePayload(form) {
         return acc;
       }, {}),
     note: form.description || '',
+    emailBookedText: form.emailBookedText || '',
+    emailBookedTextEn: form.emailBookedTextEn || '',
     // Hours, slots and the planning card are for a resource sold by the hour only
     // (specs/plugins-phase-3c-hourly-resources.md rule 4): cleared otherwise, so switching the price
     // type away leaves no stale setting behind.
@@ -233,6 +238,8 @@ export default function ResourcesPage({ barTabs }) {
         turnoverMinutes: Number(item.turnoverMinutes || 0),
         heatUpMinutes: Number(item.heatUpMinutes || 0),
         heatRetentionMinutes: Number(item.heatRetentionMinutes || 0),
+        emailBookedText: item.emailBookedText || '',
+        emailBookedTextEn: item.emailBookedTextEn || '',
       })}
       toPayload={toResourcePayload}
       formNameKey="name"
@@ -247,6 +254,13 @@ export default function ResourcesPage({ barTabs }) {
         <>
           <PropertyPricingFields form={form} setForm={setForm} properties={properties} />
           <PluginResourceFields form={form} setForm={setForm} />
+          <TokenTextField
+            label="Phrase dans les mails une fois réservée"
+            fr={form.emailBookedText || ''}
+            en={form.emailBookedTextEn || ''}
+            onChange={(lang, value) => setForm((f) => ({ ...f, [lang === 'fr' ? 'emailBookedText' : 'emailBookedTextEn']: value }))}
+            tokens={['slots']}
+          />
         </>
       )}
     />

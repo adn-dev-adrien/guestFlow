@@ -235,7 +235,7 @@ final class GF_Settings
                         <th scope="row"><label for="gf_api_base_url"><?php echo esc_html__("URL de l'API GuestFlow", 'guestflow-booking'); ?></label></th>
                         <td>
                             <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[api_base_url]" id="gf_api_base_url" type="url"
-                                   class="regular-text" placeholder="https://guestflow.exemple.com"
+                                   class="regular-text" placeholder="https://guestflow.example.com"
                                    value="<?php echo esc_attr($o['api_base_url']); ?>" />
                             <p class="description"><?php echo esc_html__("Base du serveur GuestFlow, sans /public/v1.", 'guestflow-booking'); ?></p>
                         </td>
@@ -277,7 +277,7 @@ final class GF_Settings
                         <th scope="row"><label for="gf_booking_page"><?php echo esc_html__('Page de réservation', 'guestflow-booking'); ?></label></th>
                         <td>
                             <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[booking_page_url]" id="gf_booking_page" type="url" class="regular-text"
-                                   value="<?php echo esc_attr($o['booking_page_url']); ?>" placeholder="https://exemple.com/reserver" />
+                                   value="<?php echo esc_attr($o['booking_page_url']); ?>" placeholder="https://example.com/reserver" />
                             <p class="description"><?php echo esc_html__("Les cartes de logements pointent vers cette page avec ?property=ID.", 'guestflow-booking'); ?></p>
                         </td>
                     </tr>
@@ -293,7 +293,7 @@ final class GF_Settings
                         <th scope="row"><label for="gf_trusted_proxies"><?php echo esc_html__('Proxys de confiance', 'guestflow-booking'); ?></label></th>
                         <td>
                             <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[trusted_proxies]" id="gf_trusted_proxies" type="text" class="regular-text"
-                                   value="<?php echo esc_attr($o['trusted_proxies']); ?>" placeholder="192.168.0.21" />
+                                   value="<?php echo esc_attr($o['trusted_proxies']); ?>" placeholder="203.0.113.10" />
                             <p class="description"><?php echo esc_html__("Adresses IP des reverse proxys placés devant WordPress (séparées par des virgules). Sans elles, GuestFlow reçoit l'adresse du proxy au lieu de celle du visiteur : la preuve d'acceptation des CGV et la limite anti-spam en dépendent.", 'guestflow-booking'); ?></p>
                         </td>
                     </tr>
