@@ -24,6 +24,9 @@ const ALLOWED_WRITES = [
   ['POST', /^\/reservations\/calculate-price$/],
   ['POST', /^\/properties\/\d+\/pricing\/progressive-preview$/],
   ['POST', /^\/terms\/preview$/],
+  // Support and account safety stay in reach of an unpaid customer (specs/hosting-h2-account-security.md).
+  ['POST', /^\/support-access\/(\d+\/(decide|revoke)|page)$/],
+  ['DELETE', /^\/users\/\d+\/two-factor$/],
 ];
 
 const READ_ONLY_BODY = {

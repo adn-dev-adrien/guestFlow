@@ -8,6 +8,10 @@
  *     writable there — the server ignores them).
  *   - « Mon mot de passe » — ChangePasswordForm. On a forced first-login change the server destroys
  *     the session and the page redirects to /login?reason=password-changed.
+ *   - « Second code » — TwoFactorSection (specs/hosting-h2-account-security.md rule 6).
+ *
+ * A support session borrows an account it must not touch: neither password nor second step
+ * (rule 15).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -17,6 +21,7 @@ import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
 import ChangePasswordForm from '../components/ChangePasswordForm';
 import SelfProfileSection from '../components/SelfProfileSection';
+import TwoFactorSection from '../components/TwoFactorSection';
 import { useAuth } from '../hooks/useAuth';
 
 export default function AccountPage() {
@@ -81,6 +86,7 @@ export default function AccountPage() {
           busy={profileBusy}
           onSubmit={handleProfileSubmit}
         />
+        {!(me && me.isSupport) && (
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
@@ -105,6 +111,8 @@ export default function AccountPage() {
             </Stack>
           </CardContent>
         </Card>
+        )}
+        {me && !me.isSupport && !wasMustChange && <TwoFactorSection account={me.email} />}
       </Box>
     </Box>
   );

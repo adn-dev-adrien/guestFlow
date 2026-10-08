@@ -7,7 +7,7 @@
  *
  * Safe user shape (returned everywhere):
  *   { id, email, firstName, lastName, companyName, notes, roles: string[], isActive,
- *     mustChangePassword, lastLoginAt, emailChangedAt }
+ *     mustChangePassword, lastLoginAt, emailChangedAt, isSupport }
  *
  * `emailChangedAt` (added 2026-06-02): ISO timestamp of the last `updateUser` call that mutated
  * the email column. Lets the client surface the "vérifier votre nouvelle adresse" banner until the
@@ -28,6 +28,7 @@ const db = require('../database');
 const { hashPassword, verifyPassword } = require('../utils/passwordHash');
 const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('../constants/authDefaults');
 const { isKnownRole, ADMIN } = require('../constants/roles');
+const { SUPPORT_USER_EMAIL } = require('../utils/supportAccess');
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -37,8 +38,9 @@ function buildModel(database) {
   // ----- prepared statements (built once per model instance) -----
   const findByEmailStmt = database.prepare('SELECT * FROM users WHERE email = ?');
   const findByIdStmt = database.prepare('SELECT * FROM users WHERE id = ?');
+  // The « Support GuestFlow » account (specs/hosting-h2-account-security.md rule 14) is never listed.
   const listStmt = database.prepare(`
-    SELECT * FROM users
+    SELECT * FROM users WHERE email <> '${SUPPORT_USER_EMAIL}'
     ORDER BY lastName COLLATE NOCASE, firstName COLLATE NOCASE, email COLLATE NOCASE
   `);
   const loadRolesStmt = database.prepare('SELECT role FROM user_roles WHERE userId = ? ORDER BY role');
@@ -102,6 +104,7 @@ function buildModel(database) {
       mustChangePassword: Number(row.mustChangePassword) === 1,
       lastLoginAt: row.lastLoginAt || null,
       emailChangedAt: row.emailChangedAt || null,
+      isSupport: row.email === SUPPORT_USER_EMAIL,
     };
   }
 
@@ -147,7 +150,7 @@ function buildModel(database) {
 
     verifyCredentials(email, password) {
       const row = findByEmailStmt.get(normalizeEmail(email));
-      if (!row || Number(row.isActive) !== 1) return null;
+      if (!row || Number(row.isActive) !== 1 || row.email === SUPPORT_USER_EMAIL) return null;
       if (!verifyPassword(String(password || ''), row.passwordHash)) return null;
       return toSafeUser(row);
     },
@@ -284,6 +287,13 @@ function buildModel(database) {
       database.pragma('foreign_keys = ON');
       hardDeleteStmt.run(numericId);
       return true;
+    },
+
+    // A fingerprint of the stored password hash: it changes with every new password, which is what
+    // revokes a trusted device (specs/hosting-h2-account-security.md rule 7). Never the hash itself.
+    credentialStamp(id) {
+      const row = findByIdStmt.get(Number(id));
+      return row ? require('crypto').createHash('sha256').update(String(row.passwordHash)).digest('hex') : null;
     },
 
     touchLastLogin(id) {

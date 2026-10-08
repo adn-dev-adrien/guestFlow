@@ -43,6 +43,7 @@ vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, defaul
 vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/NewReservationsAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/EmailPendingAlert', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../components/TwoFactorNudgeCard', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, default: () => <div>CUMULATIVE_CALENDAR</div> }));
 
 import api from '../../api';

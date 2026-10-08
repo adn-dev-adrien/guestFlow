@@ -46,6 +46,10 @@ const api = {
   cancelErase: (id) => request('POST', `/api/customers/${id}/cancel-erase`, {}),
   eraseNow: (id, confirmSlug) => request('POST', `/api/customers/${id}/erase`, { confirmSlug }),
   licenceUrl: (id) => `/api/customers/${id}/licence`,
+  // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+  supportState: (id) => request('GET', `/api/customers/${id}/support`),
+  supportRequest: (id, reason) => request('POST', `/api/customers/${id}/support/request`, { reason }),
+  supportLink: (id) => request('POST', `/api/customers/${id}/support/link`, {}),
   renamePreview: (id, slug) => request('POST', `/api/customers/${id}/rename/preview`, { slug }),
   rename: (id, slug, checked) => request('POST', `/api/customers/${id}/rename`, { slug, checked }),
   setBilling: (id, body) => request('POST', `/api/customers/${id}/billing`, body),
