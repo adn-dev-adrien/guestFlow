@@ -458,6 +458,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Password reset, first login and password change stay on the instance's page.
     - The page has no password field. The lookup reads only `email` and ignores any other field; it
       answers company names and addresses, nothing about the account.
+    - Added 2026-10-08 with H2 (specs/hosting-h2-account-security.md rules 1–5): the forgotten
+      password is the instance's own page too (« Mot de passe oublié ? », a link by email); the
+      central page still never sees it.
 26. **The directory** (reworked 2026-09-30 with C3, §9 Q16).
     - The control plane keeps `(HMAC-SHA256(email), customerId)` pairs, never the email in clear.
       The HMAC key is the console's own (`CP_DATA_DIR/.directory-key`, created on first run).
@@ -519,6 +522,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Backup codes are stored with the password hash (scrypt), not a fast hash; codes stored before
       2026-10-04 (SHA-256) keep working until used.
     - An operator session expires after 12 hours, or after 30 minutes without a request.
+    - Moved 2026-10-08 with H2 (specs/hosting-h2-account-security.md rule 11): the TOTP and
+      backup-code helpers live in `server/src/utils/totp.js`, shared with the instance's own second
+      step; the console requires them through `utils/gf.js`. Behaviour unchanged.
 32. **The console's Qonto connection** (added 2026-09-30 with C2b, §9 Q12, Q14).
     - The console invoices from the Qonto organisation that sells GuestFlow, **ADN Dev**, never from
       a customer's or Solio's.

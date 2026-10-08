@@ -65,9 +65,10 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   // Every plugin active (the Solio configuration): the plugin gate has its own suite,
   // roles.plugins.test.js.
   const enabledPlugins = PLUGIN_IDS;
-  const admin = { roles: ['admin'], enabledPlugins };
+  // An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
+  const admin = { roles: ['admin'], enabledPlugins, supportAccessEnabled: true };
   const accountant = { roles: ['accountant'], enabledPlugins };
-  const both = { roles: ['admin', 'accountant'], enabledPlugins };
+  const both = { roles: ['admin', 'accountant'], enabledPlugins, supportAccessEnabled: true };
 
   test('admin can see every registered route', () => {
     for (const path of Object.keys(ROUTE_ROLES)) {
@@ -103,7 +104,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   });
 
   test('multi-role admin+reception: admin scope (everything) wins', () => {
-    const adminReception = { roles: ['admin', 'reception'], enabledPlugins };
+    const adminReception = { roles: ['admin', 'reception'], enabledPlugins, supportAccessEnabled: true };
     for (const path of Object.keys(ROUTE_ROLES)) {
       expect(canSeeRoute(adminReception, path)).toBe(true);
     }

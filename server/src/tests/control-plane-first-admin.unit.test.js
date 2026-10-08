@@ -35,7 +35,9 @@ test('rule 7 — the script creates an admin who must change the password, and c
     const again = run(dbPath, 'claire@aulnes.fr', 'Claire Martin');
     assert.deepEqual(again, { created: false, temporaryPassword: null, removedBootstrap: false });
     const db = new Database(dbPath, { readonly: true });
-    const users = db.prepare('SELECT u.email, u.firstName, u.lastName, u.mustChangePassword, r.role FROM users u JOIN user_roles r ON r.userId = u.id').all();
+    // The disabled « Support GuestFlow » account every instance carries is not a person
+    // (specs/hosting-h2-account-security.md rule 14).
+    const users = db.prepare("SELECT u.email, u.firstName, u.lastName, u.mustChangePassword, r.role FROM users u JOIN user_roles r ON r.userId = u.id WHERE u.email <> 'support@guestflow.invalid'").all();
     db.close();
     assert.deepEqual(users, [{ email: 'claire@aulnes.fr', firstName: 'Claire', lastName: 'Martin', mustChangePassword: 1, role: 'admin' }]);
   } finally {

@@ -45,6 +45,7 @@ function buildController({
   passwordGenerator = defaultGenerateTemporaryPassword,
   buildEmailService = createEmailService,
   planQuota = quotaRefusal,
+  twoFactor = null,
 }) {
   // emailService can be passed in pre-built (test isolation). Otherwise we lazily build it from
   // the live SMTP settings on each call — that way settings changes are honoured without restart.
@@ -70,8 +71,25 @@ function buildController({
 
   return {
     // GET /api/users — admin only (the route group is admin-gated by enforceRoleAccess).
+    // Each account says whether its second step is on, so the admin can turn it off
+    // (specs/hosting-h2-account-security.md rule 9). The support account is never listed.
     list(req, res) {
-      return res.json({ users: usersModel.list() });
+      const withTwoFactor = new Set(twoFactor ? twoFactor.enabledUserIds() : []);
+      return res.json({ users: usersModel.list().map((u) => ({ ...u, twoFactorEnabled: withTwoFactor.has(u.id) })) });
+    },
+
+    // DELETE /api/users/:id/two-factor — rule 9: an admin turns another user's second step off
+    // (a lost phone); recorded in that user's history. Never the admin's own: that takes a password.
+    disableTwoFactor(req, res) {
+      const id = asInt(req.params.id);
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (isSelf(req, id)) return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
+      try {
+        return res.json(twoFactor.disableFor(req.user, id));
+      } catch (err) {
+        if (err && err.body) return res.status(err.status).json(err.body);
+        throw err;
+      }
     },
 
     // GET /api/users/me — any authenticated user reads their own profile.
@@ -237,7 +255,7 @@ function buildController({
       if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
       const body = req.body || {};
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
 
       const nextRoles = Array.isArray(body.roles)
         ? body.roles.map((r) => String(r || '').trim()).filter(Boolean)
@@ -276,7 +294,7 @@ function buildController({
         return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Utilisez la page Mot de passe pour modifier le vôtre.' });
       }
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
       // A reset reactivates the account, so a disabled one counts against the plan's quota
       // (specs/control-plane-plans-and-access.md rule 13).
       if (!target.isActive) {
@@ -325,7 +343,7 @@ function buildController({
         return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
       }
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
       // Last-admin guard: deactivating an active admin must keep ≥1 active admin alive.
       const removesAnAdmin = target.isActive && target.roles.includes(ADMIN);
       if (removesAnAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
@@ -343,7 +361,7 @@ function buildController({
         return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
       }
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND' });
       // The user is by definition still mustChangePassword=1 + lastLoginAt=null when eligible, so
       // they can't be the active admin holding the fort. But we still guard for safety.
       const removesAnAdmin = target.isActive && target.roles.includes(ADMIN);
@@ -373,6 +391,10 @@ const defaultDeps = {
   settingsModel: defaultSettingsModel,
   emailTemplates: defaultEmailTemplates,
   passwordGenerator: defaultGenerateTemporaryPassword,
+  get twoFactor() {
+    const { twoFactor, twoFactorModel } = require('../utils/accountSecurityServices');
+    return { disableFor: twoFactor.disableFor, enabledUserIds: twoFactorModel.enabledUserIds };
+  },
 };
 
 const defaultController = buildController(defaultDeps);

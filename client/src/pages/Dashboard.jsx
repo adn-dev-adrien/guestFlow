@@ -22,6 +22,7 @@ import CancellationCompensationsPendingAlert from '../components/CancellationCom
 import NewReservationsAlert from '../components/NewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
+import TwoFactorNudgeCard from '../components/TwoFactorNudgeCard';
 import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
@@ -367,6 +368,9 @@ export default function Dashboard() {
           {/* New GuestFlow version published (specs/self-update-and-releases.md §6.1). Admin-only,
               self-contained: renders nothing when up to date, postponed, or already updating. */}
           <UpdateAvailableAlert />
+          {/* An admin without a second step (specs/hosting-h2-account-security.md rule 10). Renders
+              nothing once it is on, or for 30 days after « Plus tard ». */}
+          <TwoFactorNudgeCard />
           {/* Échéances de paiement dépassées (specs/payment-schedule-and-cancellation.md §3.4).
               Sits high: it is the only surface that says an acompte or un solde is late, and the
               only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}

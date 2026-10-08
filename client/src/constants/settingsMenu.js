@@ -19,6 +19,7 @@ import CableIcon from '@mui/icons-material/Cable';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import PowerIcon from '@mui/icons-material/Power';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import PLUGIN_MODULES from '../plugins';
 
 export const PROPERTIES_PATH = '/properties';
@@ -38,6 +39,8 @@ const BASE_MENU = [
   { path: '/settings/integrations', label: 'Intégrations', Icon: CableIcon },
   null,
   { path: '/settings/utilisateurs', label: 'Utilisateurs', Icon: AdminPanelSettingsIcon },
+  // specs/hosting-h2-account-security.md rule 15 — shown on a managed instance only (constants/roles.js).
+  { path: '/parametres/acces-support', label: 'Accès du support', Icon: SupportAgentIcon },
   { path: '/settings/systeme', label: 'Système', Icon: SettingsApplicationsIcon },
   { path: '/parametres/plugins', label: 'Plugins', Icon: PowerIcon },
 ];

@@ -12,26 +12,18 @@
 
 const crypto = require('crypto');
 const QRCode = require('qrcode');
-const { passwordHash } = require('../utils/gf');
-const totp = require('../utils/totp');
+const { passwordHash, totp } = require('../utils/gf');
 const { httpError } = require('../utils/httpError');
 
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
 const EMAIL_CODE_MINUTES = 10;
-const BACKUP_CODES = 10;
-const BACKUP_RE = /^[a-z0-9]{5}-[a-z0-9]{5}$/;
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 // Spends the same time on an unknown email as on a known one.
 const DUMMY_HASH = passwordHash.hashPassword(crypto.randomBytes(16).toString('hex'));
 const LEGACY_BACKUP_HASH = /^[0-9a-f]{64}$/;
 const sixDigits = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-const backupCode = () => {
-  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
-  const pick = () => Array.from({ length: 5 }, () => alphabet[crypto.randomInt(0, alphabet.length)]).join('');
-  return `${pick()}-${pick()}`;
-};
 const maskEmail = (email) => email.replace(/^(.)(.*)(.@)/, (m, a, mid, b) => `${a}${'•'.repeat(Math.max(mid.length, 1))}${b}`);
 
 function createAuthController(ctx) {
@@ -75,8 +67,9 @@ function createAuthController(ctx) {
   // Codes stored before 2026-10-04 are plain SHA-256; they keep working until used.
   function useBackupCode(op, code) {
     const hashes = JSON.parse(op.backupCodes || '[]');
-    const value = String(code).trim().toLowerCase();
-    const match = hashes.find((h) => (LEGACY_BACKUP_HASH.test(h) ? h === sha256(value) : passwordHash.verifyPassword(value, h)));
+    const value = totp.normalizeCode(code);
+    const match = hashes.find((h) => LEGACY_BACKUP_HASH.test(h) && h === sha256(value))
+      || totp.findBackupCode(value, hashes.filter((h) => !LEGACY_BACKUP_HASH.test(h)));
     if (!match) return false;
     operators.setBackupCodes(op.id, JSON.stringify(hashes.filter((x) => x !== match)));
     return true;
@@ -116,7 +109,7 @@ function createAuthController(ctx) {
     const value = String(code || '').trim().toLowerCase();
     let ok = false;
     let usedBackup = false;
-    if (BACKUP_RE.test(value)) ok = usedBackup = useBackupCode(op, value);
+    if (totp.isBackupCodeShape(value)) ok = usedBackup = useBackupCode(op, value);
     else if (op.mfaMethod === 'totp') ok = Boolean(op.totpSecret) && useTotp(op, op.totpSecret, value);
     else ok = checkEmailCode(op, value);
     if (!ok) {
@@ -167,7 +160,7 @@ function createAuthController(ctx) {
     if (method === 'totp') {
       const secret = totp.generateSecret();
       operators.setPending(op.id, 'totp', secrets.encrypt(secret));
-      const uri = totp.otpauthUri({ secret, account: op.email });
+      const uri = totp.otpauthUri({ secret, account: op.email, issuer: 'Console GuestFlow' });
       return {
         method,
         message: 'Scannez ce code avec votre appli, puis saisissez le code affiché pour confirmer.',
@@ -197,8 +190,8 @@ function createAuthController(ctx) {
       }
       throw httpError(400, 'BAD_CODE', 'Code incorrect : la méthode actuelle reste en place.');
     }
-    const codes = Array.from({ length: BACKUP_CODES }, backupCode);
-    operators.activatePending(op.id, JSON.stringify(codes.map((c) => passwordHash.hashPassword(c))));
+    const codes = totp.generateBackupCodes();
+    operators.activatePending(op.id, JSON.stringify(codes.map(totp.hashBackupCode)));
     const fresh = operators.byId(op.id);
     return {
       operator: publicOperator(fresh),

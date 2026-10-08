@@ -26,6 +26,7 @@ const { createAuthController } = require('./controllers/authController');
 const { createBillingController } = require('./controllers/billingController');
 const { createTemplatesController } = require('./controllers/templatesController');
 const { createLoginController } = require('./controllers/loginController');
+const { createSupportController } = require('./controllers/supportController');
 
 // `qonto` replaces the Qonto facade in tests; the console itself builds it over its own settings,
 // with no environment fallback: Qonto is configured from the Paiements page only (rule 32).
@@ -69,6 +70,8 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     auth: createAuthController(ctx),
     templates: createTemplatesController(ctx),
     login: createLoginController(ctx, customers),
+    // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+    support: createSupportController(ctx, customers),
     // GuestFlow's own Qonto settings handlers, over the console's settings (rule 32).
     qontoSettings: qontoSettingsController.createQontoSettingsController({
       settings: models.qontoSettings, env: {}, scopes: BILLING_SCOPES, now: () => now().getTime(),

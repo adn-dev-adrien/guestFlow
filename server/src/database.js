@@ -2498,6 +2498,11 @@ db.exec(`
 db.exec('CREATE INDEX IF NOT EXISTS idx_booking_pace_cancellations_property ON booking_pace_cancellations(propertyId)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(createdAt)');
 
+// ---------- ACCOUNT SECURITY (specs/hosting-h2-account-security.md §5) ----------
+// Reset links, second step, backup codes, account history, support access and its log, and the
+// disabled « Support GuestFlow » user. Additive, idempotent.
+require('./utils/accountSecuritySchema').applyAccountSecuritySchema(db);
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes
