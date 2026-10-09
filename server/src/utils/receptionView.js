@@ -173,6 +173,37 @@ function toReceptionPropertyList(properties) {
   return (properties || []).map(toReceptionPropertyView);
 }
 
+// Resource-planning event fields the reception Planning needs (the operational slot: what, where,
+// when, for whom). Money dropped: `paid`, `totalPrice`, `resourcePrice`. PII dropped: `clientPhone`,
+// `notes`, raw `firstName`/`lastName`/`clientName` (the operator-facing `displayName` — a name the
+// reception already sees on reservations — survives for the row label). Resource config
+// (`slotDuration`, `openTime`, …) is dropped as noise. Whitelist, not blacklist, so a finance column
+// added to the planning payload later can never silently reach a reception account
+// (specs/reception-role-checkin-only.md §3.2; 2026-10-08 audit AUTH-4).
+const PLANNING_EVENT_KEEP = [
+  'id',
+  'kind',
+  'reservationId',
+  'resourceId',
+  'resourceName',
+  'propertyId',
+  'propertyName',
+  'date',
+  'startTime',
+  'endTime',
+  'turnoverMinutes',
+  'displayName',
+];
+
+function toReceptionPlanningEvent(event) {
+  if (!event) return event;
+  return pick(event, PLANNING_EVENT_KEEP);
+}
+
+function toReceptionPlanningEventList(events) {
+  return (events || []).map(toReceptionPlanningEvent);
+}
+
 // specs/reception-role-checkin-only.md §3.5 rule 10 — the ONLY reservation fields a reception-only
 // user may write through `PATCH /reservations/:id/payment`. Every financial field in the incoming
 // body (deposit / balance / complement / caution / amounts) is dropped.
@@ -214,6 +245,9 @@ module.exports = {
   toReceptionPaymentPatch,
   toReceptionStayPayment,
   toReceptionSasCommit,
+  toReceptionPlanningEvent,
+  toReceptionPlanningEventList,
   RESERVATION_KEEP,
   PROPERTY_KEEP,
+  PLANNING_EVENT_KEEP,
 };
