@@ -36,6 +36,15 @@ test('set upserts, keeps the sign, rounds floats; get reads back; update replace
   assert.equal(m.get('2026-06-09').largeTowels, 0);
 });
 
+test('set collapses a non-finite count to 0 (DATA-5: Infinity/NaN must not corrupt sums)', () => {
+  const m = makeDb();
+  const stored = m.set('2026-06-09', { singleBeds: Infinity, doubleBeds: NaN, largeTowels: 3 });
+  assert.equal(stored.singleBeds, 0);
+  assert.equal(stored.doubleBeds, 0);
+  assert.equal(stored.largeTowels, 3); // a finite value beside them is untouched
+  assert.equal(m.get('2026-06-09').largeTowels, 3);
+});
+
 test('set all-zero deletes the row', () => {
   const m = makeDb();
   m.set('2026-06-09', { singleBeds: 2 });

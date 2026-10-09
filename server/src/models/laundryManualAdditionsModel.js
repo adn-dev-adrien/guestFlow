@@ -34,7 +34,11 @@ function zeros() {
 // never wash more than what is dirty) belongs to the summary and to the inventory engine, which are
 // the two places that know what the trip actually holds.
 function clampCount(v) {
-  return Math.round(Number(v) || 0);
+  // Finite guard (2026-10-08 audit DATA-5): this is reception-writable, and JSON.parse('1e999') is
+  // Infinity, which `Number(v) || 0` lets through and `Math.round` keeps as Infinity — corrupting
+  // every downstream linen sum. A non-finite count is meaningless here, so it collapses to 0.
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
 function normalize(counts) {
