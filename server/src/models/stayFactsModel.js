@@ -17,7 +17,9 @@ function loadStayFacts(database, reservation) {
   const propertyId = Number(reservation && reservation.propertyId);
 
   const optionMeta = {};
-  tryAll(() => database.prepare('SELECT id, title, titleEn, seedKey, category, autoOptionType, displayToClient FROM options').all(), [])
+  // No `titleEn`: English names live in the translation catalogue since specs/translation-catalogue.md,
+  // and naming the dropped column made this read fail — every booked catering option then went unseen.
+  tryAll(() => database.prepare('SELECT id, title, seedKey, category, autoOptionType, displayToClient FROM options').all(), [])
     .forEach((o) => { optionMeta[o.id] = o; });
 
   const defaults = propertyId
