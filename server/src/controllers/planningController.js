@@ -7,6 +7,7 @@
  * the already-fat /api/reservations route.
  */
 
+const { checkPlanningRange } = require('../utils/planningDateRange');
 const laundryModel = require('../models/laundryModel');
 const settingsModel = require('../models/settingsModel');
 const linenInventoryModel = require('../models/linenInventoryModel');
@@ -90,6 +91,11 @@ function buildController({
         // The horizon fallback never trips this because horizon ≥ today by construction.
         return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
       }
+      // Bound the span before the ledger walks it date by date (DATA-1): reception can reach this
+      // endpoint, and the ledger runs ~10 queries per date — an unbounded `from` is a CPU/SQL DoS.
+      // The ceiling is generous enough never to reject a real laundry horizon (see planningDateRange).
+      const rangeError = checkPlanningRange(from, to);
+      if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
       // specs/laundry-extra-trip.md §3.2 — the summary is a ledger over the TRIP SEQUENCE: every
       // non-skipped regular laundry day plus every active extra trip, chronologically. A skipped
       // trip (specs/skip-laundry-trip.md §3.1 rule 6) is simply absent from the sequence, so the

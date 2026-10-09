@@ -7,11 +7,26 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
+const { isReceptionOnly } = require('../constants/roles');
+const { toReceptionPlanningEventList } = require('../utils/receptionView');
+const { checkPlanningRange } = require('../utils/planningDateRange');
+
 function createController(model) {
   function planningEvents(req, res) {
     const { from, to } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
-    return res.json(model.listPlanningEvents(from, to));
+    // Bound the span before touching the DB (DATA-1): reception can reach this endpoint, and an
+    // unbounded range is a query-amplification DoS.
+    const rangeError = checkPlanningRange(from, to);
+    if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
+
+    const events = model.listPlanningEvents(from, to);
+    // Reception must never receive the finance (price/paid) or PII (phone/notes/raw names) that the
+    // full planning payload carries — project through the whitelist (AUTH-4). Admin keeps everything.
+    if (isReceptionOnly(req.user)) {
+      return res.json(toReceptionPlanningEventList(events));
+    }
+    return res.json(events);
   }
 
   function occupiedSlots(req, res) {
