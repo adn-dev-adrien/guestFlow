@@ -9,7 +9,9 @@
  * them. Here, we read.
  *
  * The QR stays on screen: never printed on a PDF, never attached to an email, never logged. It is
- * a key for as long as the stay lasts.
+ * a key for as long as the stay lasts. « Partager » hands the same link to the phone's native share
+ * sheet (Messages, WhatsApp, mail…) so guests renting together can send it to one another; where the
+ * browser has no share sheet, « Copier le lien » stands in.
  *
  * Props:
  *   reservationId: number
@@ -18,7 +20,48 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Stack, Typography } from '@mui/material';
+import ShareIcon from '@mui/icons-material/Share';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import api from '../../api';
+
+const SHARE_TEXT = "Voici l'accès au portail pour notre séjour : ouvrez ce lien sur votre téléphone.";
+
+const canShare = () => typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+function ShareLinkButton({ url }) {
+  const [copied, setCopied] = useState(false);
+  if (!url) return null;
+
+  if (canShare()) {
+    const share = async () => {
+      try {
+        await navigator.share({ title: 'Accès portail', text: SHARE_TEXT, url });
+      } catch {
+        // A dismissed share sheet rejects with AbortError: nothing to say.
+      }
+    };
+    return (
+      <Button variant="contained" startIcon={<ShareIcon />} onClick={share} sx={{ minHeight: 44 }}>
+        Partager
+      </Button>
+    );
+  }
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={copy} sx={{ minHeight: 44 }}>
+      {copied ? 'Lien copié' : 'Copier le lien'}
+    </Button>
+  );
+}
 
 function KeypadCode({ portalCode, secondary }) {
   if (!portalCode) return null;
@@ -101,6 +144,7 @@ export default function SasGateAccessStep({ reservationId, available, portalCode
           sx={{ width: 220, maxWidth: '100%', minWidth: 180, height: 'auto', display: 'block', bgcolor: '#fff', p: 1, borderRadius: 1 }}
         />
       ) : null}
+      <ShareLinkButton url={step.url} />
       {/* The code stays readable and dictable beside the QR, for a guest who would rather type it
           or who hears it over the telephone. */}
       {step.code ? (
