@@ -47,6 +47,16 @@ supports multiple users later, but ships with a single admin account for now.
    Login is rate-limited (see PR2; in PR1 a minimal in-memory throttle on `/api/auth/login`).
 3. **Session** is a server-side session keyed by an httpOnly, `secure` (prod), `sameSite=lax` cookie,
    persisted in SQLite so it survives PM2 restarts. Logout destroys the session.
+   **Re-validation (2026-10-08 audit AUTH-1):** every `/api` request re-reads the user row through
+   `requireAuth`; the login-time snapshot is never trusted past the current request. A user deleted
+   or deactivated mid-session is rejected on their next request with `401` and the session is
+   destroyed; a demoted user's new roles take effect on the next request (the persisted snapshot is
+   refreshed, so `enforceRoleAccess` sees them). `GET /api/auth/me` applies the same active check.
+   **Anti-fixation (AUTH-2):** the session id is regenerated on login, so a session id planted
+   before authentication cannot be reused after it.
+   **Revocation (AUTH-1/AUTH-6):** account-lifecycle events delete the stored session rows via
+   `models/sessionsModel.js` — deactivation, admin password reset and a role change revoke *all* of
+   the target's sessions; a voluntary password change revokes every session *except* the caller's.
 4. **Passwords** are hashed with `scrypt` (Node built-in) + a per-password random salt; never stored or
    logged in clear. Verification is constant-time.
 5. **Default admin + forced first-login password change.** `users` table with a `role` column
@@ -61,7 +71,10 @@ supports multiple users later, but ships with a single admin account for now.
    change-password screen.
 7. **Change password** (`POST /api/auth/change-password` with `{ currentPassword, newPassword }`):
    requires a valid session + correct current password; new password validated (min 10 chars, and must
-   differ from the current/default). On success, clears `mustChangePassword` → full access.
+   differ from the current/default). On success, clears `mustChangePassword` → full access, and
+   **revokes the user's other sessions** so every other device the account was open on is logged
+   out (the caller's own session is kept). A forced first-login change still destroys the session
+   entirely so the user re-authenticates with the new password.
 8. **Client guard:** the SPA checks `GET /api/auth/me` on load; unauthenticated → login page; a `401`
    from any API call redirects to login. When `me` reports `mustChangePassword`, the SPA shows **only**
    the change-password screen until it's done. All API calls send the cookie
@@ -111,6 +124,7 @@ supports multiple users later, but ships with a single admin account for now.
 | `routes/` | `auth.js` | C | Thin: `POST /login`, `POST /logout`, `GET /me`, `POST /change-password` → controller. |
 | `controllers/` | `authController.js` | C | Orchestrates login/logout/me/change-password. |
 | `models/` | `usersModel.js` | C | `users` CRUD: find by email, verify password, create, update password, seed admin. |
+| `models/` | `sessionsModel.js` | C | Revoke stored session rows (all of a user's, or all-but-current) on deactivation / role change / password reset / voluntary password change. |
 | `middleware/` | `requireAuth.js` | C | Rejects unauthenticated requests with `401 UNAUTHENTICATED`; attaches `req.user`. |
 | `utils/` | `passwordHash.js` | C | `hashPassword`/`verifyPassword` via `crypto.scrypt` (+ salt), constant-time compare. |
 | `utils/` | `encryption.js` | C | AES-256-GCM `encrypt`/`decrypt`, `isEncrypted`, key bootstrap (read/generate `GUESTFLOW_ENCRYPTION_KEY` in `.env.local`). |

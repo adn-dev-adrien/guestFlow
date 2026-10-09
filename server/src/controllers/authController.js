@@ -6,19 +6,35 @@
  */
 
 const defaultUsersModel = require('../models/usersModel');
+const defaultSessionsModel = require('../models/sessionsModel');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
 
-function createAuthController(users) {
+function createAuthController(users, sessions = defaultSessionsModel) {
   function login(req, res) {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
     const user = users.verifyCredentials(email, password);
     if (!user) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
-    // Track the last login so the admin can see who's been actively using their account and so the
-    // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
-    if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
-    req.session.user = user;
-    return res.json(user);
+
+    const finish = () => {
+      // Track the last login so the admin can see who's been actively using their account and so the
+      // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
+      if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
+      req.session.user = user;
+      return res.json(user);
+    };
+
+    // Regenerate the session id on login so a session id planted in the victim's browser BEFORE
+    // authentication (cookie injection from a sibling host, or over plain HTTP) cannot be reused
+    // once the victim logs in — session fixation. 2026-10-08 infrastructure audit, finding AUTH-2.
+    // Falls back to the existing session when the store/mock exposes no `regenerate` (unit tests).
+    if (req.session && typeof req.session.regenerate === 'function') {
+      return req.session.regenerate((err) => {
+        if (err) console.error('[authController.login] session regenerate failed:', err);
+        return finish();
+      });
+    }
+    return finish();
   }
 
   function logout(req, res) {
@@ -43,8 +59,9 @@ function createAuthController(users) {
     // The re-read also refreshes `req.session.user` so downstream middleware reads
     // (req.user via requireAuth) see the new values without needing a logout / login cycle.
     const fresh = users.findById(req.session.user.id);
-    if (!fresh) {
-      // Underlying user was deleted while the session was live — kill the session too.
+    if (!fresh || fresh.isActive === false) {
+      // Underlying user was deleted OR deactivated while the session was live — kill the session
+      // too, so a deactivated account cannot keep reading its own profile (2026-10-08 audit AUTH-1).
       if (typeof req.session.destroy === 'function') {
         return req.session.destroy(() => res.status(401).json({ error: 'UNAUTHENTICATED' }));
       }
@@ -81,8 +98,11 @@ function createAuthController(users) {
       return res.status(204).end();
     }
 
-    // Voluntary change from /settings/password: keep the session active (current UX).
+    // Voluntary change from /settings/password: keep THIS session active (current UX) but revoke
+    // every OTHER session of this user, so changing the password logs out any other device the
+    // account was open on (2026-10-08 infrastructure audit, finding AUTH-6).
     req.session.user = { ...sessionUser, mustChangePassword: false };
+    sessions.revokeOtherSessionsForUser(sessionUser.id, req.sessionID);
     return res.status(204).end();
   }
 
