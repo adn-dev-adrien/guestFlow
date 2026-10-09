@@ -20,6 +20,7 @@
  */
 
 const defaultUsersModel = require('../models/usersModel');
+const defaultSessionsModel = require('../models/sessionsModel');
 const defaultSettingsModel = require('../models/settingsModel');
 const { createEmailService } = require('../utils/emailService');
 const defaultEmailTemplates = require('../utils/emailTemplates');
@@ -43,6 +44,7 @@ function buildController({
   emailTemplates = defaultEmailTemplates,
   passwordGenerator = defaultGenerateTemporaryPassword,
   buildEmailService = createEmailService,
+  sessionsModel = defaultSessionsModel,
 }) {
   // emailService can be passed in pre-built (test isolation). Otherwise we lazily build it from
   // the live SMTP settings on each call — that way settings changes are honoured without restart.
@@ -260,6 +262,14 @@ function buildController({
         notes: body.notes,
         roles: nextRoles,
       });
+      // Revoke this user's live sessions when their ROLES actually changed, so a demotion takes
+      // effect immediately instead of leaving the old permissions on an open session (2026-10-08
+      // audit AUTH-1). A plain identity edit (name/company/notes) must NOT log the user out.
+      const rolesChanged =
+        nextRoles !== undefined &&
+        (nextRoles.length !== target.roles.length ||
+          [...nextRoles].sort().join('\u0000') !== [...target.roles].sort().join('\u0000'));
+      if (rolesChanged) sessionsModel.revokeAllForUser(id);
       return res.json({ user: updated });
     },
 
@@ -293,6 +303,9 @@ function buildController({
         .then(() => getEmailService().send({ to: target.email, subject, text }))
         .then(() => {
           usersModel.resetUserPassword(id, temporaryPassword);
+          // An admin reset is the lever used when an account may be compromised: end every live
+          // session so the old password's sessions cannot continue (2026-10-08 audit AUTH-1).
+          sessionsModel.revokeAllForUser(id);
           return res.status(204).end();
         })
         .catch((err) => {
@@ -321,6 +334,9 @@ function buildController({
         return res.status(400).json({ error: 'LAST_ADMIN' });
       }
       usersModel.softDelete(id);
+      // Deactivation is the control reached for after an employee leaves — it must end the session
+      // already open on their device, not only block future logins (2026-10-08 audit AUTH-1).
+      sessionsModel.revokeAllForUser(id);
       return res.status(204).end();
     },
 
@@ -347,6 +363,9 @@ function buildController({
         }
         throw err;
       }
+      // Belt-and-braces: a hard-deleted user keeps no row for requireAuth to find, but clear any
+      // stray session row so the store does not keep dangling state (2026-10-08 audit AUTH-1).
+      sessionsModel.revokeAllForUser(id);
       return res.status(204).end();
     },
   };
