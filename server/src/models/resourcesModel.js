@@ -7,7 +7,7 @@
  */
 
 const db = require('../database');
-const { sentenceCase } = require('../utils/textFormatters');
+const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { isBabyBedResource } = require('../utils/babyBedResource');
 
 const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
@@ -245,7 +245,7 @@ function createModel(database) {
       quantity: Number(payload.quantity) || 0,
       price: Number(payload.price) || 0,
       priceType: payload.priceType || 'per_stay',
-      note: sentenceCase(payload.note),
+      note: capitalizeFirst(payload.note),
       isComplex: payload.isComplex ? 1 : 0,
       slotDuration: Number(payload.slotDuration) || 60,
       minimumUsageMinutes: Number(payload.minimumUsageMinutes) || 0,
