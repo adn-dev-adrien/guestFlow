@@ -1263,6 +1263,62 @@ Majorations Lodgify qui s'appliquaient avant la coupure : gîte **11 %**, tente 
 (remis à 0 €) et toutes les réductions de durée. **Ce qu'elle épargne** : la disponibilité — les
 fermetures et les réservations survivent toutes (vérifié par devis public sur les deux logements).
 
+### Vérifier une grille Airbnb jour par jour, sans cliquer
+
+Le calendrier hôte répond en GraphQL, et c'est le seul moyen raisonnable de contrôler plusieurs
+centaines de dates :
+
+```js
+// listingId = base64("StayListing:<id>")
+const hash = '5b153a16f8f392d6d4c6b5ee6259cf7f89ef972e0f79bf3f87753136af9a338c';
+const vars = { listingId: btoa('StayListing:' + id), startDate, endDate,
+  hostCalendarViewType: 'MONTH_VIEW', lensTypes: ['PRICE'],
+  timeZone: 'Europe/Paris', localizationContext: { timeZone: 'Europe/Paris', firstDayOfWeek: 1 },
+  hostCalendarSectionTypes: ['MAIN_VIEW'], includeCustomSettings: false };
+fetch(`/api/v3/getDLSHostCalendar/${hash}?operationName=getDLSHostCalendar&locale=fr&currency=EUR`
+      + `&variables=${encodeURIComponent(JSON.stringify(vars))}`
+      + `&extensions=${encodeURIComponent(JSON.stringify({persistedQuery:{version:1,sha256Hash:hash}}))}`,
+      { headers: { 'X-Airbnb-API-Key': 'd306zoyjsyarp7ifhu67rjxn52tv0t20' }, credentials: 'include' });
+```
+
+`…sections.calendarGridViewSection.days[]` donne un objet par date :
+`priceData.nativePrice`, `available`, `reservationData`, `promotionType`,
+`listingSmartPricingEnabled`. Fenêtres de 3 mois, 808 jours par annonce en 9 appels. Les jours
+portant une `reservationData` affichent le prix de la réservation, pas celui de la grille : les
+exclure de la comparaison. `CustomSettingsQuery`
+(`4bd5cf31cc9ce097fb5126d446c96cc5f96bbe7dad4495d5195a2b503e074591`, mêmes bornes) donne en
+parallèle les fenêtres de **nuits minimum** personnalisées, les promotions et les conditions
+d'annulation par date.
+
+### Pièges 30 à 32 — mesurés le 2026-10-15 au soir
+
+30. **Une ré-saisie de grille oublie le bloc courant et les plages d'un seul jour.** Sur le gîte,
+    16 → 30 octobre 2026 est resté au prix de base (341 € au lieu de 358 €, 15 nuits à −17 €) et le
+    30 décembre 2026 aussi (341 € au lieu de 404 €), coincé entre Noël et le Nouvel An. La saisie
+    commence **à la date du jour**, et la recette se parcourt plage par plage, y compris celles qui
+    ne couvrent qu'une date.
+31. **Sur Airbnb, le taux stocké est le bon taux** — l'inverse de Booking (piège n° 29). Le panneau
+    « Revenus » de `/hosting/stay/<code de confirmation>` détaille « Frais de service hôte (15.5 %) »
+    et on retombe sur 15,50 % exactement (124,78 ÷ 805,00 ; 46,04 ÷ 297,00). Deux points à retenir :
+    « Frais de service voyageur » est à 0 € (modèle à commission hôte seule, rien de caché côté
+    voyageur), et **l'assiette inclut les frais de ménage** — les 80 € du gîte ne rapportent que
+    67,60 €. La taxe de séjour, elle, voyage hors assiette.
+32. **Les nuits minimum par date disparaissent avec la coupure, comme les prix.** Après la
+    ré-saisie il ne restait qu'une fenêtre (gîte, 2027-07-10 → 08-20, 4 nuits) ; les plages courtes
+    de la recette (3 nuits au pont de mai, 3 nuits au 11 novembre, 2 nuits mi-mai sur la tente)
+    étaient retombées au minimum de l'annonce (2 pour le gîte, 1 pour la tente). Elles ne sautent
+    pas aux yeux : le calendrier n'affiche que le prix.
+
+**Un forfait ménage qui n'existe que sur Airbnb.** Le gîte facture 80 € de ménage par séjour sur
+Airbnb ; GuestFlow n'a aucune notion de forfait ménage (`cleaningHours` est une durée de travail) et
+ni Booking ni le direct n'en facture. Un voyageur Airbnb paie donc 80 € au-dessus de la recette pour
+le même séjour.
+
+**Ne pas délier l'import iCal Lodgify des annonces Airbnb avant d'avoir basculé Abritel.** La tente
+importe AbracadaRoom, Lodgify, GreenGO et GuestFlow ; les sources Lodgify de GuestFlow étant
+désactivées, cet import Lodgify est la **seule** protection d'Airbnb contre un surbooking venu
+d'Abritel.
+
 ---
 
 ## Booking — console autonome (depuis le 15/10/2026)

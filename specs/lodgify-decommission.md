@@ -302,6 +302,14 @@ tables, because its Booking source now goes through the Booking path.
     one, not the contractual one, or every price derived from it misses its net. Corrected to 16.44
     and both grids re-entered. The same measurement is owed on Airbnb (recorded 15.5 %) and on
     Abritel (recorded 15 %, measured 9.7 % at some point — unresolved).
+  - A: **Measured on Airbnb 2026-10-15 — the stored 15.5 % is exact.** Two settled
+    reservations: the gîte's HMEZ45YASB (725 € of nights + 80 € cleaning, « Frais de service
+    hôte (15.5 %) » −124,78 €, 124,78 ÷ 805,00 = 15,50 %) and L'Estiva's HM9JRBCT4S (297 € of
+    nights, −46,04 €, = 15,50 %). Airbnb's host-only fee model shows « Frais de service
+    voyageur 0,00 € » on both, so nothing is hidden on the guest side, and the tourist tax
+    travels outside the commissionable base. No correction, and no grid to re-enter — the
+    opposite of Booking. Note the base: Airbnb commissions the **cleaning fee** too, which is
+    why the gîte's 80 € fee nets 67,60 € and not 80 €.
 - Q6: L'Estiva's Booking degressivity stops at −15 % for 7 nights where the recipe asks for
   24/33/38/41/43/45 %. Build the missing plans or leave it?
   - A: **Resolved 2026-10-15** — build them. Five derived rate plans (2 to 6 nights) are created and
@@ -373,8 +381,11 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
    2. Re-enter prices in the extranet. **Measured on Airbnb, 2026-10-15, for both properties:**
       availability is *preserved* (closures and bookings all survive the cut), but every per-date
       price is wiped — the whole calendar falls back to the single base price — along with the
-      extra-guest fee (reset to 0) and every length-of-stay discount. Budget for a full re-entry of
-      the grid, not a spot check.
+      extra-guest fee (reset to 0), every length-of-stay discount and every per-date **min-nights**
+      window. Budget for a full re-entry of the grid, not a spot check. The re-entry starts at the
+      **current date** — the block running from today to the next season boundary is the one that
+      gets forgotten — and walks every range of the recipe, including the ranges that cover a single
+      day (2026-12-30 on the gîte was missed exactly this way).
    2bis. **Hunt for dormant rules.** A channel-level rule that a channel manager's per-date pushes
       were masking becomes live the moment those pushes stop. L'Estiva carried a +35,75 % Airbnb
       weekend premium that was inert under Lodgify (a Friday quoted at the plain base price) and
@@ -471,3 +482,39 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   both properties, not La Granja alone. GuestFlow had no Airbnb source for property 2 — source #14
   created. Both listings disconnected from Lodgify, grids re-entered from the recipes via the repo's
   own `grossFromNet`, and verified by public quote. Booking and Abritel still to do.
+
+- 2026-10-15 — **Airbnb verified season by season, 808 days per listing.** Asked for after Booking:
+  the same commission measurement and the same day-by-day read-back on this channel.
+  - *The commission is what GuestFlow stores* — 15,50 % measured twice (see §9 Q7). Airbnb is the
+    channel where the contractual rate and the withheld rate coincide, because the host fee is a
+    single line and the guest fee is zero.
+  - *Read without clicking.* The host calendar answers over its own GraphQL:
+    `getDLSHostCalendar` with `listingId = base64("StayListing:<id>")`, a start/end date, `lensTypes:
+    ["PRICE"]` and `hostCalendarSectionTypes: ["MAIN_VIEW"]` returns one object per day carrying
+    `priceData.nativePrice`, `available` and `reservationData`. Three-month windows, 808 days per
+    listing from 2026-10-16 to 2028-12-31, compared with `grossFromNet(netTarget, 15.5)`.
+  - *Two gaps on the gîte, none on L'Estiva.* 16 → 30 October 2026 was left at the base price 341 €
+    where Moyenne asks 358 € (15 nights, −17 € a night), and 30 December 2026 at 341 € where Haute
+    asks 404 €. Both are dates the re-entry skipped: the first block starts *today*, and a single
+    day wedged between two other seasons (Noël on the 24-25th, Nouvel An on the 31st) is the easiest
+    one to miss. **A grid re-entry starts at the current date and must cover every range of the
+    recipe, including one-day ranges.**
+  - *Everything else matches.* Length-of-stay curve as a per-night-count discount: gîte 20/30/36/40 %
+    for 3-6 nights plus 42 % weekly (recipe 42,86 % — Airbnb takes integers, rounding down keeps the
+    net above target), L'Estiva 24/33/38/41/43 % for 2-6 nights plus 45 % weekly. Extra guest 30 €
+    beyond 10 on the gîte and 17 € beyond 2 on L'Estiva, both the recipe's figures. Weekend
+    adjustment back to +0 % on both, smart pricing off, no active promotion, no last-minute or
+    early-bird rule.
+  - *Min-nights left behind.* Only one custom window survives (gîte, 2027-07-10 → 08-20, 4 nights).
+    The recipe's short windows are missing: gîte 2027-05-06 → 05-08 and 2027-11-11 → 11-13 at 3
+    nights, L'Estiva 2027-05-06 → 05-08 at 3 and 2027-05-15 → 05-16 at 2. The listing defaults (2
+    and 1) apply instead, so those dates accept stays shorter than the recipe allows.
+  - *An 80 € cleaning fee only Airbnb charges.* The gîte's Airbnb listing bills 80 € per stay for
+    cleaning; GuestFlow has no cleaning-fee concept at all (`cleaningHours` is a housekeeping
+    duration, not a price) and neither Booking nor the direct channel charges one. So an Airbnb
+    guest pays 80 € above the recipe for the same stay. Open: keep it as extra margin or drop it to
+    hold one pricing policy across channels (§9 Q5).
+  - *Do not unlink Lodgify from the Airbnb listings yet.* L'Estiva still imports AbracadaRoom,
+    Lodgify, GreenGO and GuestFlow. With both Lodgify sources inactive in GuestFlow, that Lodgify
+    import is the **only** thing standing between an Abritel booking and an Airbnb double-booking.
+    It goes after Abritel is switched over, not before.
