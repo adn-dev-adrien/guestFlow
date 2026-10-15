@@ -284,13 +284,15 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
   rent choice, proposal, auto-apply off, pending → applied, unmapped gîte, no mapping → no read,
   `Message-ID` and dossier dedup, unreadable vs other mails, rate 0, custom lines, refused save, no
   e-mail, dismiss, no mailbox.
+- [x] `.../tests/isolation.unit.test.js` (1): rule 0 — no core file names the plugin's table, routes or
+  folder outside the two registration lists.
 - [x] Core `server/src/tests/reservation-update-service.unit.test.js` (6): recorder, `performUpdate` =
   HTTP answer (success, refusal), `toUpdateBody`, `ctx.core.reservations.update` (patch + history line,
   started stay refused).
 - [x] Guards updated: catalogue count (13), module lists, job intervals (`plugins-phase-0`,
   `plugins-phase-1-sdk`, client `registry.test.jsx`), E2E `plugins-page.spec.js` (Installés (13)).
 - [x] Client `IntakeBanner.rent.test.jsx` (1) and `IntakeBanner.states.test.jsx` (4).
-- [x] Suites on 2026-10-15: server 4944 ✓, client 1538 ✓, E2E 98 ✓ (+1 skipped),
+- [x] Suites on 2026-10-15: server 4945 ✓, client 1538 ✓, E2E 98 ✓ (+1 skipped),
   `check-spec-coverage` 0 missing.
 - [x] Manual, real browser on a copy of the dev base (IMAP stubbed with the fixture mail): settings card →
   gîte 309700 → « Relever maintenant » → the real iCal fiche 22296 (13–15/11) filled: Claire Dupont,
