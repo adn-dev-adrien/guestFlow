@@ -234,6 +234,8 @@ function readSpecs() {
 function readCitations() {
   const files = [
     ...listFiles(path.join(ROOT, 'server', 'src', 'tests'), isTestFile),
+    // specs/plugin-engine-backport.md — a plugin module carries its tests in its own folder.
+    ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/tests\/.*\.test\.js$/.test(f)),
     ...listFiles(path.join(ROOT, 'client', 'src'), isTestFile),
     ...listFiles(path.join(ROOT, 'e2e'), isTestFile),
   ];

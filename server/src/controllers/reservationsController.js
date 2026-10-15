@@ -42,6 +42,7 @@ const { isDevisExpired } = require('../utils/devisValidity');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
 const gateInvitationView = require('../utils/gateInvitationView');
+const { createResultRecorder } = require('../utils/resultRecorder');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -883,7 +884,23 @@ function create(req, res) {
   // the booking raises a `deposit_to_request` row on the dashboard instead, and the operator sends it.
 }
 
+// The HTTP save of the fiche. The work itself lives in `performUpdate` so a server caller (a plugin,
+// through `ctx.core.reservations.update`) goes through exactly the same validation, pricing, history and
+// `reservation.updated` event as the operator's « Enregistrer » (specs/gites-de-france-mail-intake.md §4.1).
 function update(req, res) {
+  const result = performUpdate(req.params.id, req.body, { unlockPast: pastUnlockRequested(req) });
+  return res.status(result.status).json(result.body);
+}
+
+// `body` is the full PUT payload of the fiche (the model rewrites every column from it). `unlockPast`
+// is the admin's « Déverrouiller cette fiche » for this one save. Returns `{ status, body }`.
+function performUpdate(reservationId, body, { unlockPast = false } = {}) {
+  const res = createResultRecorder();
+  applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
+  return res.result();
+}
+
+function applyUpdate(req, res, pastUnlocked) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -968,7 +985,6 @@ function update(req, res) {
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
   // only, after « Déverrouiller cette fiche » (specs/settings-rationalization.md rule 17a).
-  const pastUnlocked = pastUnlockRequested(req);
   const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= getTodayIsoDate())
     && !pastUnlocked;
 
@@ -1464,5 +1480,5 @@ async function gateAccess(req, res) {
 
 module.exports = {
   suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
-  create, update, updatePayment, settleArrivalPayment, remove, gateAccess,
+  create, update, performUpdate, updatePayment, settleArrivalPayment, remove, gateAccess,
 };
