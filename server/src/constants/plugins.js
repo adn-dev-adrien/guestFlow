@@ -14,6 +14,7 @@ const SAS = 'sas';
 const TARIFF_RECIPES = 'tariff-recipes';
 const SCHOOL_HOLIDAYS = 'school-holidays';
 const WEATHER_ALERTS = 'weather-alerts';
+const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 
 const PLUGIN_CATALOG = Object.freeze([
   {
@@ -99,6 +100,13 @@ const PLUGIN_CATALOG = Object.freeze([
     description: 'Prévient le voyageur d’une alerte météo à l’arrivée.',
     icon: 'thunderstorm',
     surfaces: ['Intégrations › Météo', 'L’étape météo du sas'],
+  },
+  {
+    id: GITES_DE_FRANCE_INTAKE,
+    name: 'Saisie Gîtes de France',
+    description: 'Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.',
+    icon: 'mail',
+    surfaces: ['Paramètres › Intégrations › Saisie Gîtes de France', 'Le bandeau en haut de la fiche', 'Une alerte du tableau de bord'],
   },
 ].map((p) => Object.freeze({ ...p, surfaces: Object.freeze(p.surfaces), requires: Object.freeze([]) })));
 

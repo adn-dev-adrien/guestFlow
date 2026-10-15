@@ -90,6 +90,14 @@ const api = {
   // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, values) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: values }),
+  // Saisie Gîtes de France plugin (specs/gites-de-france-mail-intake.md §4.4).
+  getGdfIntakeForReservation: (reservationId) => request(`/gdf-intake/reservation/${reservationId}`),
+  applyGdfIntake: (intakeId, body = {}) => request(`/gdf-intake/${intakeId}/apply`, { method: 'POST', body }),
+  dismissGdfIntake: (intakeId) => request(`/gdf-intake/${intakeId}/dismiss`, { method: 'POST' }),
+  getGdfIntakeAlerts: () => request('/gdf-intake'),
+  getGdfIntakeMailbox: () => request('/gdf-intake/mailbox'),
+  testGdfIntakeMailbox: () => request('/gdf-intake/test-mailbox', { method: 'POST' }),
+  runGdfIntake: () => request('/gdf-intake/run', { method: 'POST' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 

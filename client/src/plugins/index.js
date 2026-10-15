@@ -12,7 +12,8 @@ import linen from './linen';
 import onlinePayment from './online-payment';
 import neat from './neat';
 import hourlyResources from './hourly-resources';
+import gitesDeFranceIntake from './gites-de-france-intake';
 
-const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment, neat, hourlyResources];
+const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment, neat, hourlyResources, gitesDeFranceIntake];
 
 export default PLUGIN_MODULES;
