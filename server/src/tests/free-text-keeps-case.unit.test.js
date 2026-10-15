@@ -23,13 +23,13 @@ function freshDb() {
   return db;
 }
 
-test('capitalizeFirst: blank and null → empty string', () => {
+test('specs/free-text-keeps-case.md rule 1 — capitalizeFirst: blank and null → empty string', () => {
   assert.equal(capitalizeFirst(null), '');
   assert.equal(capitalizeFirst(undefined), '');
   assert.equal(capitalizeFirst('   '), '');
 });
 
-test('capitalizeFirst: raises only the first letter, keeps every other character', () => {
+test('specs/free-text-keeps-case.md rule 1 — capitalizeFirst raises only the first letter, keeps every other character', () => {
   assert.equal(capitalizeFirst('été : clé chez M. Dupont'), 'Été : clé chez M. Dupont');
   assert.equal(capitalizeFirst(TYPED), TYPED);
   assert.equal(capitalizeFirst('  voir la TVA  '), 'Voir la TVA');
@@ -37,11 +37,11 @@ test('capitalizeFirst: raises only the first letter, keeps every other character
   assert.equal(capitalizeFirst('→ 42'), '→ 42');
 });
 
-test('labels still go through sentenceCase', () => {
+test('specs/free-text-keeps-case.md rule 3 — labels still go through sentenceCase', () => {
   assert.equal(sentenceCase('FERMETURE HIVER'), 'Fermeture hiver');
 });
 
-test('reservation notes keep their capitals on create and update', () => {
+test('specs/free-text-keeps-case.md rule 2 — reservation notes keep their capitals on create and update', () => {
   const db = freshDb();
   const model = reservationsModel.create(db);
   const quote = { totalPrice: 0, finalPrice: 0 };
@@ -55,7 +55,7 @@ test('reservation notes keep their capitals on create and update', () => {
   assert.equal(db.prepare('SELECT notes FROM reservations WHERE id = ?').get(id).notes, TYPED);
 });
 
-test('client notes keep their capitals; names keep sentenceCase', () => {
+test('specs/free-text-keeps-case.md rule 2 + specs/free-text-keeps-case.md rule 3 — client notes keep their capitals; names keep sentenceCase', () => {
   const db = freshDb();
   const model = clientsModel.create(db);
   const client = model.insert({ lastName: 'GARNIER', firstName: 'camille', notes: 'Client fidèle, réserve via Booking' });
@@ -64,14 +64,14 @@ test('client notes keep their capitals; names keep sentenceCase', () => {
   assert.equal(client.firstName, 'Camille');
 });
 
-test('calendar notes keep their capitals', () => {
+test('specs/free-text-keeps-case.md rule 2 — calendar notes keep their capitals', () => {
   const db = new Database(':memory:');
   db.exec('CREATE TABLE calendar_notes (propertyId INTEGER, date TEXT, note TEXT, PRIMARY KEY (propertyId, date));');
   const model = calendarNotesModel.buildModel(db);
   assert.equal(model.upsert(1, '2026-11-06', 'arrivée Booking tardive').note, 'Arrivée Booking tardive');
 });
 
-test('audit: re-saving an unchanged note records no change', () => {
+test('specs/free-text-keeps-case.md rule 2 — audit: re-saving an unchanged note records no change', () => {
   const before = buildAuditSnapshotFromPayload({ notes: TYPED }, {});
   const after = buildAuditSnapshotFromPayload({ notes: TYPED }, {});
   assert.equal(after.notes, TYPED);

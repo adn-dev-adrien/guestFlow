@@ -54,6 +54,7 @@ capitalised.
    scope.)
 4. Existing rows are **not rewritten**: the lost capitals cannot be recovered. The next save of a
    fiche keeps whatever the operator then types.
+   > **Sans test** — no code path: the rule is the absence of a data migration.
 
 **Edge cases:**
 - Note starting with a digit or a symbol (« 2 lits… ») → the first letter found is capitalised
