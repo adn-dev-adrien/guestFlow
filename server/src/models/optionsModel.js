@@ -2,7 +2,7 @@
 // normalization. SQL moved verbatim from routes/options.js.
 
 const db = require('../database');
-const { sentenceCase } = require('../utils/textFormatters');
+const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { formatTimeShort } = require('../utils/dateFr');
 const { normalizeCategory, pinCancellationInsurance } = require('../utils/optionGrouping');
 
@@ -362,7 +362,7 @@ function createOptionsModel(database) {
       const optionId = database.transaction(() => {
         const args = [
           sentenceCase(payload.title),
-          sentenceCase(payload.description),
+          capitalizeFirst(payload.description),
           payload.priceType || 'per_stay',
           Number(payload.price || 0),
           JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
@@ -421,7 +421,7 @@ function createOptionsModel(database) {
         const existingAutoType = (database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id) || {}).autoOptionType || null;
         const args = [
           sentenceCase(payload.title),
-          sentenceCase(payload.description),
+          capitalizeFirst(payload.description),
           payload.priceType || 'per_stay',
           Number(payload.price || 0),
           JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),

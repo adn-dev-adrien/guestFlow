@@ -10,6 +10,20 @@ function sentenceCase(value) {
   return `${lower.slice(0, firstLetterIndex)}${lower.charAt(firstLetterIndex).toLocaleUpperCase('fr-FR')}${lower.slice(firstLetterIndex + 1)}`;
 }
 
+// Free text (notes, descriptions) keeps the operator's capitals: only the first letter is raised.
+// specs/free-text-keeps-case.md
+function capitalizeFirst(value) {
+  if (value === null || value === undefined) return '';
+  const trimmed = String(value).trim();
+  if (!trimmed) return '';
+
+  const firstLetterIndex = trimmed.search(/\p{L}/u);
+  if (firstLetterIndex === -1) return trimmed;
+
+  return `${trimmed.slice(0, firstLetterIndex)}${trimmed.charAt(firstLetterIndex).toLocaleUpperCase('fr-FR')}${trimmed.slice(firstLetterIndex + 1)}`;
+}
+
 module.exports = {
   sentenceCase,
+  capitalizeFirst,
 };

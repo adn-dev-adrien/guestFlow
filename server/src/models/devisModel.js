@@ -13,7 +13,7 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { sentenceCase } = require('../utils/textFormatters');
+const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
 const { buildHistoryRows } = require('../utils/reservationAudit');
@@ -270,7 +270,7 @@ function createModel(database) {
       finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
       depositAmount: Number(quote.depositAmount || 0), depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
       balanceAmount: Number(quote.balanceAmount || 0), balanceDueDate: quote.balanceDueDate || payload.balanceDueDate || null,
-      status: payload.status || null, notes: sentenceCase(payload.notes) || null,
+      status: payload.status || null, notes: capitalizeFirst(payload.notes) || null,
     };
   }
 
