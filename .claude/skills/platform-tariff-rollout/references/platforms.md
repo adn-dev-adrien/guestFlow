@@ -1329,3 +1329,31 @@ dérivés et promotions survivent tous. La déconnexion ne fait qu'ouvrir l'extr
 faire apparaître le menu iCal. En revanche Lodgify, lui, se met à réexporter les séjours du canal
 coupé **sous de nouveaux identifiants anonymisés** : sa source dans GuestFlow doit être désactivée
 dans la foulée, sinon elle recrée chaque séjour en double au cycle de synchronisation suivant.
+
+### Piège n° 29 — le taux de commission stocké n'est pas celui qui est prélevé
+
+`platforms.commissionPercent` est l'unique source du regrossage (`propertiesModel.js:693`) : les
+recettes ne contiennent que des cibles nettes. Si ce taux est faux, **toute la grille du canal rate
+sa cible**, saison par saison, sans qu'aucun contrôle interne ne le voie — l'arithmétique reste
+cohérente avec elle-même.
+
+Booking était enregistré à 15 %, son taux contractuel. Ce qu'il retient réellement, sur la ligne
+« Commission et frais » de la fiche réservation, vaut **16,44 %** : mesuré sur trois séjours réglés
+(115,38/701,80 ; 330,72/2 014,18 ; 157,97/960,96). Le point et demi d'écart est la commission de
+« Paiements par Booking.com », que l'extranet fond dans la même ligne. À 15 %, la grille manquait sa
+cible de 2,07 € la nuit en basse saison de la tente et de 14,74 € à Noël.
+
+**Règle : avant de poser une grille sur un canal, ouvrir une réservation déjà réglée et calculer
+`commission ÷ montant commissionnable`.** C'est la seule mesure qui vaille ; le taux annoncé au
+contrat ne tient pas compte des frais de paiement, de devise ou de programme. Le contrôle se refait
+à chaque rollout, et pour chaque canal.
+
+### Vérifier une grille jour par jour sur Booking
+
+Le calendrier accepte la période dans l'URL :
+`extranet_ng/manage/calendar/index.html?hotel_id=…&view_mode=LIST&from=AAAA-MM-JJ&until=AAAA-MM-JJ`
+(le champ `[aria-label="Sélectionner une période."]` se remplit aussi au clavier, format
+`AAAA-MM-JJ — AAAA-MM-JJ`, validé par Entrée). Quinze fenêtres de 31 jours couvrent deux ans : on
+relève la ligne du plan de base et on compare chaque date à `grossFromNet(netTarget, taux)`.
+Un échantillon par saison ne suffit pas — une plage ratée dans une boucle de saisie ne se voit que
+comme ça.

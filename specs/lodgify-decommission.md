@@ -293,6 +293,15 @@ tables, because its Booking source now goes through the Booking path.
     markup and a 15 % regross nearly coincide). The net then lands exactly on target instead of
     above it, and the cut goes the right way on a channel whose click-through is already the
     weak point.
+- Q7: Is `platforms.commissionPercent` the rate a channel actually takes?
+  - A: **Resolved 2026-10-15 — no, not for Booking.** The recipes hold net targets only; the rate
+    lives in the `platforms` table and `propertiesModel.js:693` regrosses with it. Booking was
+    recorded at 15 %, its contractual rate, but what it withholds is a single « Commission et
+    frais » line measured at **16,44 %** on three settled reservations — the extra point and a half
+    being the « Paiements par Booking.com » facilitation fee. The stored rate must be the *measured*
+    one, not the contractual one, or every price derived from it misses its net. Corrected to 16.44
+    and both grids re-entered. The same measurement is owed on Airbnb (recorded 15.5 %) and on
+    Abritel (recorded 15 %, measured 9.7 % at some point — unresolved).
 - Q6: L'Estiva's Booking degressivity stops at −15 % for 7 nights where the recipe asks for
   24/33/38/41/43/45 %. Build the missing plans or leave it?
   - A: **Resolved 2026-10-15** — build them. Five derived rate plans (2 to 6 nights) are created and
@@ -438,9 +447,24 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     stay returns 1 122 € and a three-night 586 €, which are the recipe's 1 020,25 € and 532,65 €
     plus the ~10 % of "taxes et frais" that L'Estiva's quotes carry and the gîte's do not.
     **Rule: one channel, one layer of degressivity** — promotions and derived rate plans multiply.
+  - *The commission rate in `platforms` was wrong, and the whole grid with it.* Asked to check the
+    net against the commission season by season, the arithmetic held — but only against the 15 %
+    stored for Booking. Three live reservations say otherwise: 115,38 / 701,80 = 16,44 %,
+    330,72 / 2 014,18 = 16,42 %, 157,97 / 960,96 = 16,44 %. The extra ~1,44 point is the
+    « Paiements par Booking.com » facilitation fee, which the extranet bundles into a single
+    « Commission et frais » line. At 15 % the grid undershot its net target on **every** season, by
+    2,07 € a night on L'Estiva's low season up to 14,74 € at Christmas. `platforms.commissionPercent`
+    for Booking was set to 16.44 and both grids re-entered: gîte 345 / 362 / 409 / 495 / 1009 /
+    1087 €, L'Estiva 192 / 234 / 270 €.
+  - *Verified day by day, not by sample.* The extranet calendar accepts `&from=&until=` in the URL,
+    which makes a full sweep possible: fifteen 31-day windows per property, the base plan's price
+    read for each date and compared with `grossFromNet(netTarget, 16.44)`. **442 days per property,
+    zero discrepancies.**
   - *Lesson for the next channel:* read **every** per-channel rule page (promotions, weekend
     premiums, derived plans, occupancy pricing) on **each** property before concluding anything —
-    the two properties of one account are configured differently more often than not.
+    the two properties of one account are configured differently more often than not. And never
+    trust `platforms.commissionPercent`: measure the real take on a settled reservation first,
+    because a channel's « commission » line can bundle payment fees the contractual rate ignores.
 
 - 2026-10-15 — **Airbnb switched over, both properties.** Correction to §1: L'Estiva *is* listed on
   Airbnb (listing `1576845044615216441`; the gîte is `1398287456607254737`), so this channel covers
