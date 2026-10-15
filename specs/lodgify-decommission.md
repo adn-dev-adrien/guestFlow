@@ -266,7 +266,39 @@ tables, because its Booking source now goes through the Booking path.
 - Q2: Tombstone window — 72 h?
   - A: **Resolved 2026-09-21** — 72 hours.
 - Q3: Does Booking's native export really carry reservations as `CLOSED - Not available` for these two properties? It cannot be read before the connectivity provider is removed.
-  - A: _to verify on day J, step 5 of the runbook, before any Lodgify source is set inactive._
+  - A: **Resolved 2026-10-15** — yes. Once the provider is removed, « Synchroniser le calendrier »
+    appears in the extranet (it is hidden while an XML provider holds the property) and publishes a
+    feed at `https://ical.booking.com/v1/export?t=<uuid>`. Every reservation comes through as one
+    `VEVENT` with `SUMMARY:CLOSED - Not available`, dates only, an opaque `@booking.com` UID and no
+    guest identity — so the takeover has nothing but the date range to match on, which is exactly
+    what rule 4 assumes. The feed is not instantaneous: the gîte's was empty for the first few
+    minutes and then carried its four stays. Booking's sync settings offer « Les dates réservées et
+    fermées » or « Uniquement les dates réservées »; the second is what we want, because GuestFlow's
+    own calendar is imported *into* Booking and re-exporting those blocks would echo them straight
+    back. **The default is not the same on both properties** — L'Estiva was already on « réservées
+    seulement », the gîte was on « réservées et fermées » and had to be changed.
+- Q4: Can a per-night tiered extra-guest supplement be expressed on a channel?
+  - A: **Resolved 2026-10-15** — no, not on Airbnb: it takes a single flat per-night fee, and it does
+    **not** apply length-of-stay discounts to it (measured: a 45 % weekly discount of 841,05 € on a
+    7-night stay equals 45 % of the accommodation alone, 1 869 €, not of the 2 107 € that includes
+    the supplement). Lodgify did discount it, so the cut makes long stays with extra guests dearer.
+    Decision: keep the flat fee at the recipe's **first-night** gross (17 € for L'Estiva, net 14 €) —
+    it never falls under the net target, and L'Estiva's stays are overwhelmingly 1 to 2 nights.
+- Q5: Booking's prices are Lodgify's marked up a flat +10 %, which clears the recipe's net target by
+  about 10 € a night. Re-enter the recipe, or reproduce today's displayed prices?
+  - A: **Resolved 2026-10-15** — re-enter the recipe. One pricing policy has to govern every channel,
+    or the decommission just moves Lodgify's private rules into three extranets. The gross grid
+    becomes 339 / 356 / 402 / 486 / 992 / 1069 € for the gîte and 189 / 230 / 265 € for L'Estiva,
+    a cut of roughly 3 % (−11.90 € a night in Très basse, −0.20 € at Christmas, where a flat 10 %
+    markup and a 15 % regross nearly coincide). The net then lands exactly on target instead of
+    above it, and the cut goes the right way on a channel whose click-through is already the
+    weak point.
+- Q6: L'Estiva's Booking degressivity stops at −15 % for 7 nights where the recipe asks for
+  24/33/38/41/43/45 %. Build the missing plans or leave it?
+  - A: **Resolved 2026-10-15** — build them. Five derived rate plans (2 to 6 nights) are created and
+    the weekly plan goes from −15 % to −45 %. Leaving it would have kept a high-season week at about
+    1 598 € on Booking against 1 020 € on Airbnb for the same tent, which is not a price difference
+    but a channel that cannot be booked.
 
 ---
 
@@ -283,16 +315,77 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
    Booking, Airbnb or Abritel (rule 4). Create the `Abritel` platform at 15 % (rule 12).
 4. **Record every channel's current settings** (standard price, derived plans, promotions, minimum
    stays, booking window) — Booking may reset the standard plan when the provider is removed.
-5. **Per channel, one at a time — Booking, then Airbnb, then Abritel:**
+
+   **Booking — record taken 2026-10-15, before the cut.** Two hotels under one group account
+   (`hotel_account_id=22925006`): the gîte is `14407976`, L'Estiva is `15343212`. Lodgify is
+   `provider_id=689`, connected since 2025-12-04; the connection is managed per hotel at
+   `extranet_ng/manage/channel-manager/connections.html?hotel_id=…`, and the red « Déconnecter »
+   control is a link to `…/channel-manager/deactivate.html?…&provider_id=689` — **reaching that page
+   triggers an SMS second factor**, so the operator has to be at hand for the cut itself.
+
+   What Booking holds today, and what it means for the re-entry:
+
+   - **Only the base rate plan is fed by XML.** Every other plan is marked « Non XML » and is
+     *derived* — Booking recomputes it from the base plan as a percentage. The derived plans
+     therefore survive the disconnection untouched, and re-entering the grid means re-entering the
+     base plan alone. This is the opposite of Airbnb, where the length-of-stay curve is a channel
+     setting that the cut wipes.
+   - **The gîte's degressivity already matches the recipe** and is already derived: « Gite 3 nuits et
+     plus 20 pct » (`68725154`), 4 → 30 % (`68725190`), 5 → 36 % (`68725222`), 6 → 40 %
+     (`68725254`), 7 → 42 % (`68725290`, weekly). `gite-2027` asks for 20/30/36/40/42.857, so only
+     the weekly plan is off, by 0.86 pt in the house's favour. Base plan: « Peu flexible »
+     (`57972851`), flexible 14 days.
+   - **L'Estiva's degressivity does not exist.** Its only long-stay plan is « Tarif semaine -15 % à 7
+     nuits » (`65366034`) where `aventura-lodge-2026` asks for 24/33/38/41/43/45 % from 2 to 7
+     nights. Its base plan is « Lodgify sans annulation » (`60363389`, non-refundable) and a third
+     plan « Lodgify avec annulation 3 jours » (`65028316`) sits at +15 %.
+   - **Occupancy pricing.** The gîte has none (base occupancy 10 = maximum 10, every per-occupancy
+     row disabled): one flat price whatever the party size, which is what the property record asks
+     for. L'Estiva charges +17.39 € per guest above 2 (`price-60363389-3/4/5` = 17.39 / 34.81 /
+     52.21, cumulative) — within a cent of the 17 € the recipe regrosses from its 15 € net. But that
+     configuration is **absent from the weekly plan**, whose per-occupancy rows are all off: a
+     seven-night stay on Booking currently collects no extra-guest supplement at all.
+   - **No active promotion** on either hotel, so nothing dormant of the kind L'Estiva hid on Airbnb.
+   - **Lodgify marks Booking up by a flat +10 %**, not by regrossing from a net target: the gîte's
+     334 € becomes 367.40 € and its 319 € becomes 350.90 €, exactly ×1.1. That lands roughly 10 €
+     per night *above* the recipe's net target, so applying the recipe is a price cut of about 3 %
+     (see §9 Q5).
+   - Two future reservations carried the grid faithfully and can be used to check the re-entry:
+     `6392081711` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5449776734` (25 Jul–1 Aug
+     2027, 7 nights, 2 014.18 € = 7 × 496.10 × 0.58).
+   - Unrelated but blocking in time: the extranet shows a « Connaître son partenaire » compliance
+     banner on both hotels.
+5. **Per channel, one at a time — Airbnb, then Booking, then Abritel** (reordered 2026-10-15:
+   Airbnb is the cheapest rehearsal — its disconnection is reversible from Lodgify and costs nothing
+   but re-entering a price grid, whereas Booking's requires removing the connectivity provider,
+   which is irreversible):
    1. Disconnect it in Lodgify (`channels/manager/<canal>`), and on Booking remove the connectivity
       provider in the extranet.
-   2. Re-enter prices and availability in the extranet if they were reset.
+   2. Re-enter prices in the extranet. **Measured on Airbnb, 2026-10-15, for both properties:**
+      availability is *preserved* (closures and bookings all survive the cut), but every per-date
+      price is wiped — the whole calendar falls back to the single base price — along with the
+      extra-guest fee (reset to 0) and every length-of-stay discount. Budget for a full re-entry of
+      the grid, not a spot check.
+   2bis. **Hunt for dormant rules.** A channel-level rule that a channel manager's per-date pushes
+      were masking becomes live the moment those pushes stop. L'Estiva carried a +35,75 % Airbnb
+      weekend premium that was inert under Lodgify (a Friday quoted at the plain base price) and
+      started inflating every Friday and Saturday after the cut. Read the channel's own price rules
+      — weekend, seasonal, smart pricing — before declaring a grid posted.
    3. In the extranet, import GuestFlow's export feed for the property (Réglages → iCal export link).
    4. Copy the channel's own export URL into the matching GuestFlow source (Booking #11/#12, a new
       Abritel source, Airbnb for the Lodge), sync it, and read the result: takeovers expected, no
       creation on a date already held.
-6. **Once the three native feeds are synced, set both Lodgify sources inactive** (rule 10). Not
-   urgent to the minute: taken-over UIDs are superseded (rule 2bis).
+6. **Set a channel's Lodgify source inactive in the same minute you disconnect that channel**
+   (rule 10) — *rewritten 2026-10-15 after it went wrong in production, see §11.* The original
+   wording («  once the three native feeds are synced », « not urgent to the minute ») is **false
+   and dangerous**. Disconnecting a channel from Lodgify changes what Lodgify's own iCal feed says
+   about that channel's stays: it keeps exporting them, but **under fresh UIDs**, anonymised and
+   with the guest count flattened to one adult. GuestFlow has never seen those UIDs, so rule 2bis
+   does not recognise them and the ordinary create path runs: five duplicate reservations were
+   created within five minutes of the Booking cut, on dates already held, worth 5 023,24 € of
+   phantom revenue. The Lodgify source must go inactive *before* `performAutoSync` next runs.
+   Corollary: the last channel still on Lodgify loses its path into GuestFlow the moment the others
+   are cut, so either wire its own feed first or accept a gap and say so.
 7. **Test by quote** on each channel: a date held by another channel must be unavailable; a free date
    must price as recorded in step 3.
 8. Watch the dashboard for 72 h (new iCal reservations, cancellation alerts, conflict badges).
@@ -307,3 +400,46 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 
 - 2026-09-21 — server implementation, 19 unit tests, rehearsed on a production copy, spec synced (Implemented). No client code: the
   sync message is server-built text.
+- 2026-10-15 — **Booking switched over, both properties, with one production incident.**
+  - *The cut itself is benign on Booking and the opposite of Airbnb.* Removing the connectivity
+    provider (`.../channel-manager/deactivate.html?...&provider_id=689`, behind an SMS second
+    factor, reason « Je change de fournisseur ») **preserves everything**: per-date prices,
+    availability, restrictions and every derived rate plan. It only unlocks the extranet — the
+    calendar's « XML (non modifiable) » badge becomes « Faire des modifications multiples », and the
+    iCal menu appears. Nothing had to be rebuilt; the grid was re-entered only because we chose to
+    move it onto the recipe (Q5).
+  - *Grids re-entered from the recipes*, derived from `pricing_rules.dateRanges` and the repo's own
+    `grossFromNet` at 15 %: 36 bulk ranges on the gîte, 13 on L'Estiva. Verified by public quote on
+    the gîte: 682 € for two nights in Très basse (339 × 2 + 4 € of tourist tax), 716 € in Moyenne,
+    808 € in Haute, 1 369 € for four nights in Très haute — the −30 % four-night plan applying
+    exactly as the recipe asks. Christmas 2027 could not be quoted: at fourteen months it is beyond
+    Booking's booking window.
+  - *iCal wired both ways.* GuestFlow's export is imported into each hotel, and Booking's own feed
+    (`ical.booking.com/v1/export?t=…`) into sources #12 and #11. First sync: **4 takeovers on the
+    gîte and 1 on L'Estiva, zero creations** — rule 4 behaving exactly as specified, the five stays
+    now carrying their Booking references (6392081711, 6646665983, 5449776734 and the two others).
+  - *The incident.* See the rewritten step 6 above. Five duplicates (22310–22314) were created by
+    the **Lodgify** source, not by the Booking one, in the minutes following the cut. GuestFlow
+    flagged each of them itself with « Ce logement est déjà réservé pour ces dates ». Both Lodgify
+    sources were set inactive, the five were deleted after the operator confirmed, and both
+    properties' exports returned to their pre-cut counts (32 and 27 events, no duplicate range).
+  - *A second thing this spec had wrong about L'Estiva.* Its length-of-stay degressivity was never
+    missing (§10 step 4 above says it was): it exists as **six catalogue promotions** created on
+    2026-08-14 and running to 2027-12-31 — 2 nights −24 %, 3 −33 %, 4 −38 %, 5 −41 %, 6 −43 %,
+    7 −45 %, i.e. `aventura-lodge-2026` exactly. They were missed because only the gîte's promotions
+    page had been read. Five redundant rate plans were created and then deleted, and the weekly plan
+    put back to its original −15 %, so the listing's discount structure is byte-for-byte what it was
+    before the evening. **But that structure double-discounts**: the « Tarif semaine -15 % à 7
+    nuits » plan and the −45 % promotion stack, so a seven-night high-season week quotes 954 €
+    where the recipe asks 1 020 € (265 × 0.55 × 7). This predates the decommission — before the cut
+    the same stacking gave about 700 €. Fix, still to be applied: drop the −15 % weekly plan and let
+    the promotions alone carry the curve, after checking the promotions apply to the base plan.
+  - *Lesson for the next channel:* read **every** per-channel rule page (promotions, weekend
+    premiums, derived plans, occupancy pricing) on **each** property before concluding anything —
+    the two properties of one account are configured differently more often than not.
+
+- 2026-10-15 — **Airbnb switched over, both properties.** Correction to §1: L'Estiva *is* listed on
+  Airbnb (listing `1576845044615216441`; the gîte is `1398287456607254737`), so this channel covers
+  both properties, not La Granja alone. GuestFlow had no Airbnb source for property 2 — source #14
+  created. Both listings disconnected from Lodgify, grids re-entered from the recipes via the repo's
+  own `grossFromNet`, and verified by public quote. Booking and Abritel still to do.

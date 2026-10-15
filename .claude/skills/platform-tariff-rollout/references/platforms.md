@@ -115,10 +115,14 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 
 ---
 
-## Airbnb, Booking, Vrbo — les canaux nourris par Lodgify
+## Airbnb, Booking, Vrbo — les canaux autrefois nourris par Lodgify
 
-Ils n'ont pas de console à configurer : Lodgify y pousse prix et disponibilités. **Ils se vérifient
-donc uniquement sur leur page publique**, et c'est là que les surprises apparaissent.
+> **Airbnb n'est plus dans ce cas depuis le 2026-10-15** : les deux annonces sont débranchées de
+> Lodgify et se pilotent depuis la console hôte. Voir « Airbnb — console autonome » plus bas.
+> Booking et Vrbo restent poussés par Lodgify jusqu'à leur propre bascule (`specs/lodgify-decommission.md` §10).
+
+Tant qu'un canal est poussé par Lodgify, il n'a pas de console à configurer. **Il se vérifie donc
+uniquement sur sa page publique**, et c'est là que les surprises apparaissent.
 
 | Canal | Identifiants relevés le 2026-08-14 | Page publique |
 |---|---|---|
@@ -1219,23 +1223,106 @@ ferait que réécrire la même valeur. Relire le back-office après rechargement
 revenir voir la page publique le lendemain. Si le retard dépasse deux jours, demander à
 `support@unicstay.com` s'il existe une étape de validation éditoriale.
 
-## Renommer un hébergement partout — relevé le 2026-10-06/07
 
-Exercice : « Aventura Lodge » devient « L'Estiva », et deux faits changent avec lui (Safari de
-Peaugres à **25 min**, piscine **de mi-juin à fin août**). Le nom vivait dans **neuf champs sur
-sept plateformes**, et chaque plateforme donnait aussi sa propre version des deux faits (Peaugres à
-20, « 20 à 30 » ou 30 min ; piscine en « juillet-août », « début juillet » ou « en été »).
+---
 
-| Plateforme | Où vit le nom | Remarques |
-|---|---|---|
-| Lodgify | `rental/<id>/overview/name-and-description` → `name` (60 car.) | Le nom part vers **Abritel**, qui ne le reprend qu'une fois par jour. Description = éditeur riche : poser une `Range` + `execCommand('insertText')`, le `textarea[name=description]` caché suit au bout d'une seconde. **Le nom anglais du Gîte valait « To complete »** : relire chaque langue du sélecteur. |
-| Booking | Établissement › Infos sur l'établissement › « Changer le nom de l'établissement » | **L'apostrophe passe** (« L'Estiva … »). La confirmation prévient : Booking **envoie un e-mail aux clients ayant une réservation à venir**. Visible sous 24 h. Les boutons du dialogue ne se cliquent qu'en JavaScript (`[role=dialog] button`). |
-| Airbnb | titre, mais aussi « Accès des voyageurs » | Le titre de la tente ne portait pas le nom ; c'est le texte d'accès (« l'Aventura Lodge se mérite… ») qui le portait, dans le champ « English » rempli en français. |
-| GreenGo | `annonce/accommodation/<logementId>/description` → `name` | Le nom du **logement** s'affiche sur l'annonce publique (« 1 tente — Aventura Lodge ») même quand le titre de l'annonce est juste. Compteur `n/100` = React a vu la saisie. |
-| Abracadaroom | `…/services/<serviceId>/general`, premier `input` | Onglet TARIFS = `…/services/<serviceId>/offer`. Le back-office avait déjà la plancha juste : seule la page publique retardait (voir plus haut). |
-| Campspace | `…/host/space/<id>/general` → `space[description]` | Le titre portait déjà le nouveau nom. |
-| Office de tourisme / Ardèche Guide | Apidae 7563546 (gîte), 7693918 (tente) | Pas de back-office : demande par mail à l'office du Val d'Ay, qui saisit dans Apidae. |
-| Gîtes de France | — | Par message au relais départemental (voir plus haut). |
+## Airbnb — console autonome (depuis le 2026-10-15)
 
-**Toujours commencer par la page publique** : c'est elle qui a montré le nom du logement GreenGo et
-le texte d'accès Airbnb, deux champs que personne n'aurait cherchés.
+Annonces : **gîte `1398287456607254737`**, **tente / L'Estiva `1576845044615216441`**.
+Majorations Lodgify qui s'appliquaient avant la coupure : gîte **11 %**, tente **8 %**.
+
+**Tout se pilote sous `/multicalendar/<id>/`, jamais sous `/hosting/listings/editor/<id>/`** (404) :
+
+| Réglage | URL |
+|---|---|
+| Prix de base | `/multicalendar/<id>/pricing-settings/rates/base` → `#PriceInput-basePrice` |
+| Majoration week-end | `/multicalendar/<id>/pricing-settings/rates/weekend` → `#PercentInput-weekendPriceForm-weekendPremium` |
+| Supplément voyageur | `/multicalendar/<id>/pricing-settings/fees/extra-guest` → `#PriceInput-extraGuestFee` + stepper `extraGuestFeeForm-guestCount` |
+| Prix d'une plage de dates | `/multicalendar/<id>/edit-selected-dates/<début>/<fin>/nightly-price` → `#PriceInput-nightlyPrice` (bornes **incluses**, `fin` = dernière nuit) |
+| Dégressivité 2→6 nuits | `/multicalendar/<id>/discounts/trip-length/add` → `[data-testid="lengthOfStay-select"]` puis `#priceChange-input` |
+| Dégressivité 7 nuits | `/multicalendar/<id>/discounts/weekly` → `#weeklyDiscount-discount-percent-input` |
+| Disponibilité, imports iCal | `/multicalendar/<id>/availability-settings` |
+
+**Quatre pièges mesurés le 2026-10-15 :**
+
+15. **`fill()` ajoute au lieu de remplacer** sur les champs prix et pourcentage d'Airbnb : « 35.75 »
+    rempli avec « 0 » a donné **« 350 »**, qui a majoré 14 nuits à 855 €. Toujours cliquer, `Cmd+A`,
+    `Backspace`, puis `pressSequentially` — et **relire la valeur du champ avant d'enregistrer**.
+16. **Une majoration week-end peut dormir sous le channel manager.** La tente portait +35,75 % de
+    « prix spécial week-end », totalement inerte tant que Lodgify poussait des prix par date, et
+    réveillée par la coupure. Relever `rates/weekend` avant de déclarer une grille posée.
+17. **La dégressivité ne s'applique pas au supplément voyageur.** Mesuré : 7 nuits × 301 €
+    (267 + 2 × 17), remise semaine de 841,05 € = 45 % des 1 869 € d'hébergement seul, pas des
+    2 107 €. Lodgify, lui, la lui appliquait. Un forfait à plat au **brut de la 1ʳᵉ nuit** de la
+    recette ne passe donc jamais sous le net, quelle que soit la durée.
+18. **La ligne « N nuits × X € » d'un devis public amortit les frais de ménage.** Le gîte affiche
+    381 € pour un prix hôte de 341 €, et 1 115 € pour 1 075 € : +40 € dans les deux cas, soit
+    80 € ÷ 2 nuits. Ne jamais lire cette ligne comme le prix hôte quand le logement a un ménage.
+
+**Ce qu'une déconnexion Lodgify → Airbnb détruit** : tous les prix par date, le supplément voyageur
+(remis à 0 €) et toutes les réductions de durée. **Ce qu'elle épargne** : la disponibilité — les
+fermetures et les réservations survivent toutes (vérifié par devis public sur les deux logements).
+
+---
+
+## Booking — console autonome (depuis le 15/10/2026)
+
+L'extranet Booking n'est plus nourri par Lodgify. Deux hôtels sous un même compte groupe
+(`hotel_account_id=22925006`) : le gîte est `14407976`, L'Estiva `15343212`.
+
+| Quoi | Où |
+| --- | --- |
+| Calendrier et saisie en masse | `extranet_ng/manage/calendar/index.html?hotel_id=…` → bouton `#av-calendar-general-modal-cta` |
+| Plans tarifaires | `extranet_ng/manage/rate_plans.html?hotel_id=…` |
+| Créer / modifier un plan | `extranet_ng/manage/rate_advisor.html?hotel_id=…&rate=<id>` |
+| Tarification par client | `extranet_ng/manage/occupancy-pricing/setup.html?hotel_id=…` |
+| Promotions actives | `extranet_ng/manage/promotions/list.html?hotel_id=…` |
+| Synchronisation iCal | `extranet_ng/manage/sync/index.html?hotel_id=…` |
+| Fournisseur de connectivité | `extranet_ng/manage/channel-manager/connections.html?hotel_id=…` |
+
+**Saisie en masse d'une grille** — la modale `[data-test-id="general-modal"]`, dont la copie
+*visible* est `.av-general-modal` (il y en a deux dans le DOM, celle du dessus fait 0 px de haut) :
+`#date-from`, `#date-until`, l'accordéon « Tarifs », puis `#price-select-0` (le plan) et
+`#price-input-0` (le prix). Le bouton d'enregistrement de chaque section est le premier
+`button:not([disabled])` portant « Enregistrer les modifications ».
+
+### Pièges mesurés
+
+19. **Le sélecteur de plan se vide après chaque enregistrement.** Il faut le repositionner à chaque
+    itération, sinon le bouton reste grisé et la boucle enchaîne des échecs silencieux.
+20. **`#rate-select-0` n'est pas le sélecteur de la section Tarifs** — c'est celui des Restrictions,
+    invisible tant que l'accordéon est replié. Celui des tarifs est `#price-select-0`, et sa valeur
+    est `<planId>|<occupation de base>`, par exemple `57972851|10`.
+21. **Les événements synthétiques ne réveillent pas le composant.** Poser `value` par le setter natif
+    met à jour le DOM mais pas l'état interne : le récapitulatif affiche la bonne période et le
+    bouton reste inactif. Passer par de vraies interactions Playwright (`fill`, `selectOption`).
+22. **Les champs de la tarification par client s'adressent par `id`, pas par `name`** :
+    `#price-<planId>-<occ>` et `#toggle-<planId>-<occ>`. Un sélecteur `input[name=…]` ne matche rien
+    et échoue sans erreur.
+23. **Créer un plan dérivé lui donne l'occupation de base maximale**, pas celle du plan de base. Sur
+    L'Estiva les nouveaux paliers sont nés en « base 5 personnes » : le prix nuitée aurait englobé
+    cinq voyageurs. Corriger l'occupation **remet tous les suppléments à zéro**, donc les ressaisir
+    après, jamais avant.
+24. **Lire la page Promotions de CHAQUE logement.** L'Estiva portait six promotions catalogue
+    (−24 / −33 / −38 / −41 / −43 / −45 % selon la durée) créées le 14/08/2026, invisibles depuis le
+    gîte qui n'en a aucune. Des plans tarifaires dégressifs créés par-dessus **se cumulent** : une
+    semaine est passée à −70 % le temps de s'en apercevoir. Un devis public avant / après est le
+    seul contrôle qui le montre.
+25. **Les promotions se cumulent aussi avec un plan dérivé préexistant.** Le « Tarif semaine −15 % »
+    de L'Estiva et la promotion −45 % s'empilent depuis août : la semaine se vend 954 € au lieu des
+    1 020 € de la recette. Un canal ne doit porter **qu'une seule couche** de dégressivité.
+26. **Le devis public est servi en cache pendant quelques minutes.** Juste après une modification il
+    renvoie encore l'ancienne grille — attendre, et ajouter un paramètre d'URL quelconque.
+27. **Les deux logements n'ont pas la même fiscalité affichée.** Le gîte quote 678 € + 4 € de taxe
+    de séjour pour deux nuits à 339 € ; L'Estiva quote 288 € pour une nuit à 265 €, soit environ
+    +8,7 %. Ne jamais transposer d'un logement à l'autre.
+28. **Accéder à la page de déconnexion déclenche un second facteur par SMS.** L'opérateur doit être
+    là au moment précis de la coupure, pas avant ni après.
+
+### Ce qu'une déconnexion détruit, et ce qu'elle épargne
+
+Rien n'est détruit — c'est l'inverse d'Airbnb. Prix par date, disponibilités, restrictions, plans
+dérivés et promotions survivent tous. La déconnexion ne fait qu'ouvrir l'extranet en écriture et
+faire apparaître le menu iCal. En revanche Lodgify, lui, se met à réexporter les séjours du canal
+coupé **sous de nouveaux identifiants anonymisés** : sa source dans GuestFlow doit être désactivée
+dans la foulée, sinon elle recrée chaque séjour en double au cycle de synchronisation suivant.
