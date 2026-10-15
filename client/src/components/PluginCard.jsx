@@ -26,6 +26,7 @@ import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SchoolIcon from '@mui/icons-material/School';
 import ThunderstormIcon from '@mui/icons-material/Thunderstorm';
+import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StatusBadge from './StatusBadge';
@@ -43,6 +44,7 @@ const ICONS = {
   'trending-up': TrendingUpIcon,
   school: SchoolIcon,
   thunderstorm: ThunderstormIcon,
+  mail: MarkEmailReadIcon,
 };
 
 export default function PluginCard({ plugin, busy = false, error = null, onAction }) {

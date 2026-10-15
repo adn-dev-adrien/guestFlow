@@ -11,7 +11,7 @@
  *   - a **reception** account (specs/reception-role-checkin-only.md,
  *     specs/reception-sas-today-only.md) for the specs that assert the « Accueil » confinement and
  *     the day-window SAS locks — they opt in via their own storageState.
- * It also installs the twelve built-in plugins, active: the suite starts from an empty database, which
+ * It also installs every built-in plugin, active: the suite starts from an empty database, which
  * GuestFlow treats as a new customer with no plugin (specs/plugins-phase-0-foundation.md rule 11),
  * while the specs describe the Solio configuration. The plugin specs switch them off themselves.
  * The `force-password-change` spec uses the standard `reset-admin.js` script against the default
