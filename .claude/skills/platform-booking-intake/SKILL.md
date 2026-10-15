@@ -1,6 +1,6 @@
 ---
 name: platform-booking-intake
-description: Complete a GuestFlow reservation fiche from the platform's extranet when a new OTA booking arrives (Booking.com today, other platforms later) — guest identity, contact, language, party composition, booking number, bed linen and the « Paiement plateforme » block. Use when the operator says a new Booking/Airbnb/… reservation came in, gives a platform booking number, or asks to fill or check a platform fiche.
+description: Complete a GuestFlow reservation fiche from the platform's extranet when a new OTA booking arrives (Booking.com and Gîtes de France today, other platforms later) — guest identity, contact, language, party composition, booking number, bed linen and the « Paiement plateforme » block. Use when the operator says a new Booking/Gîtes de France/Airbnb/… reservation came in, gives a platform booking number, or asks to fill or check a platform fiche.
 ---
 
 # Completing a platform reservation fiche
