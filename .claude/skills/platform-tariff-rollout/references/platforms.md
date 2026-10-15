@@ -1309,8 +1309,11 @@ L'extranet Booking n'est plus nourri par Lodgify. Deux hôtels sous un même com
     semaine est passée à −70 % le temps de s'en apercevoir. Un devis public avant / après est le
     seul contrôle qui le montre.
 25. **Les promotions se cumulent aussi avec un plan dérivé préexistant.** Le « Tarif semaine −15 % »
-    de L'Estiva et la promotion −45 % s'empilent depuis août : la semaine se vend 954 € au lieu des
-    1 020 € de la recette. Un canal ne doit porter **qu'une seule couche** de dégressivité.
+    de L'Estiva et la promotion −45 % s'empilaient depuis août : la semaine se vendait 954 € au lieu
+    des 1 020 € de la recette. Un canal ne doit porter **qu'une seule couche** de dégressivité.
+    Le détail d'une promotion (bouton « Sélectionner pour obtenir plus de détails ») dit à quels
+    plans elle s'applique : « Tous les plans tarifaires » signifie qu'elle couvre déjà le plan de
+    base, et qu'un plan dérivé dégressif est donc redondant, pas complémentaire.
 26. **Le devis public est servi en cache pendant quelques minutes.** Juste après une modification il
     renvoie encore l'ancienne grille — attendre, et ajouter un paramètre d'URL quelconque.
 27. **Les deux logements n'ont pas la même fiscalité affichée.** Le gîte quote 678 € + 4 € de taxe

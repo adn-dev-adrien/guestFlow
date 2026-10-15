@@ -429,11 +429,15 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     7 −45 %, i.e. `aventura-lodge-2026` exactly. They were missed because only the gîte's promotions
     page had been read. Five redundant rate plans were created and then deleted, and the weekly plan
     put back to its original −15 %, so the listing's discount structure is byte-for-byte what it was
-    before the evening. **But that structure double-discounts**: the « Tarif semaine -15 % à 7
-    nuits » plan and the −45 % promotion stack, so a seven-night high-season week quotes 954 €
-    where the recipe asks 1 020 € (265 × 0.55 × 7). This predates the decommission — before the cut
-    the same stacking gave about 700 €. Fix, still to be applied: drop the −15 % weekly plan and let
-    the promotions alone carry the curve, after checking the promotions apply to the base plan.
+    before the evening. **That structure double-discounted**: the « Tarif semaine -15 % à 7
+    nuits » plan and the −45 % promotion stacked, so a seven-night high-season week quoted 954 €
+    where the recipe asks 1 020 € (265 × 0.55 × 7). This predated the decommission — before the cut
+    the same stacking gave about 700 €. **Fixed the same evening**: the promotions are configured
+    for « Tous les plans tarifaires », so the −15 % weekly plan was redundant and was deleted, and
+    the promotions alone now carry the curve. Verified by public quote: a seven-night high-season
+    stay returns 1 122 € and a three-night 586 €, which are the recipe's 1 020,25 € and 532,65 €
+    plus the ~10 % of "taxes et frais" that L'Estiva's quotes carry and the gîte's do not.
+    **Rule: one channel, one layer of degressivity** — promotions and derived rate plans multiply.
   - *Lesson for the next channel:* read **every** per-channel rule page (promotions, weekend
     premiums, derived plans, occupancy pricing) on **each** property before concluding anything —
     the two properties of one account are configured differently more often than not.
