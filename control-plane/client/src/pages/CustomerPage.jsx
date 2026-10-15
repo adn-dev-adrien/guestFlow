@@ -33,6 +33,7 @@ import ProvisioningSteps from '../components/ProvisioningSteps';
 import KeyValues from '../components/KeyValues';
 import EmailQueue from '../components/EmailQueue';
 import MailPreview from '../components/MailPreview';
+import SupportAccessSection from '../components/SupportAccessSection';
 import api from '../api';
 
 const DEPROVISION_ORDER = [
@@ -201,6 +202,8 @@ export default function CustomerPage() {
             <ProvisioningSteps steps={c.deprovisionSteps} onAction={stepAction} busy={busyStep} />
           </Section>
         )}
+        {/* specs/hosting-h2-account-security.md rules 12-14. */}
+        <SupportAccessSection customerId={c.id} onChanged={load} />
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0,1fr)', md: 'minmax(0,1fr) minmax(0,1fr)' } }}>
           <Section title="Factures">
             {c.invoices.length === 0 ? <Typography variant="body2" color="text.secondary">Aucune facture.</Typography> : (

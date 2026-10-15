@@ -82,6 +82,8 @@ export const ROUTE_ROLES = Object.freeze({
   '/settings/utilisateurs':  [ADMIN],
   // specs/plugins-phase-0-foundation.md rule 21 — the Plugins page.
   '/parametres/plugins':     [ADMIN],
+  // specs/hosting-h2-account-security.md rules 15, 17 — on a managed instance only (ROUTE_CONDITIONS).
+  '/parametres/acces-support': [ADMIN],
   // Rule 6 — « Mon compte » (my information, my password) for every role.
   '/mon-compte':             [ADMIN, ACCOUNTANT, RECEPTION],
   // Pages of plugin modules, with the roles each declares (specs/plugins-phase-1-sdk.md rule 15).
@@ -90,9 +92,15 @@ export const ROUTE_ROLES = Object.freeze({
 
 // A page also needs its plugin active (specs/plugins-phase-0-foundation.md rule 16): the sidebar, the
 // settings submenu and the route guard all go through this one predicate.
+// Routes that also need something of the instance, as the server says in `/auth/me`.
+const ROUTE_CONDITIONS = Object.freeze({
+  '/parametres/acces-support': (user) => Boolean(user && user.supportAccessEnabled),
+});
+
 export function canSeeRoute(user, path) {
   const allowed = ROUTE_ROLES[path];
   if (!allowed) return false;
+  if (ROUTE_CONDITIONS[path] && !ROUTE_CONDITIONS[path](user)) return false;
   return allowed.some((role) => userHasRole(user, role)) && isRouteEnabled(user, path);
 }
 

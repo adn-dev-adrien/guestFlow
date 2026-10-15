@@ -18,7 +18,7 @@ async function request(path, options = {}) {
     const apiError = new Error(message);
     Object.assign(apiError, err, { status: res.status });
     // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth.
-    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login') {
+    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login' && !path.startsWith('/auth/2fa/') && path !== '/auth/reset') {
       window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
     }
     // An unpaid instance refuses writes (specs/control-plane-plans-and-access.md rule 14): the app
@@ -79,6 +79,27 @@ const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/auth/me'),
+  // specs/hosting-h2-account-security.md — the forgotten password (rules 1-5), the second step of the
+  // login (rules 6-10) and the support access (rules 12-17).
+  getAuthOptions: () => request('/auth/options'),
+  forgotPassword: (email) => request('/auth/forgot', { method: 'POST', body: { email } }),
+  checkResetToken: (token) => request(`/auth/reset?token=${encodeURIComponent(token)}`),
+  resetPassword: (token, password) => request('/auth/reset', { method: 'POST', body: { token, password } }),
+  verifySecondFactor: (code, trustDevice) => request('/auth/2fa/verify', { method: 'POST', body: { code, trustDevice } }),
+  resendSecondFactor: () => request('/auth/2fa/resend', { method: 'POST' }),
+  getTwoFactorStatus: () => request('/auth/2fa/status'),
+  startTwoFactor: (method, password) => request('/auth/2fa/start', { method: 'POST', body: { method, password } }),
+  confirmTwoFactor: (code) => request('/auth/2fa/confirm', { method: 'POST', body: { code } }),
+  disableTwoFactor: (password) => request('/auth/2fa/disable', { method: 'POST', body: { password } }),
+  regenerateBackupCodes: (password) => request('/auth/2fa/backup-codes', { method: 'POST', body: { password } }),
+  snoozeTwoFactor: () => request('/auth/2fa/snooze', { method: 'POST' }),
+  disableUserTwoFactor: (id) => request(`/users/${id}/two-factor`, { method: 'DELETE' }),
+  getSupportBanner: () => request('/support-access/banner'),
+  getSupportAccesses: () => request('/support-access'),
+  getSupportAccessLog: (id) => request(`/support-access/${id}/log`),
+  decideSupportAccess: (id, decision, hours) => request(`/support-access/${id}/decide`, { method: 'POST', body: { decision, hours } }),
+  revokeSupportAccess: (id) => request(`/support-access/${id}/revoke`, { method: 'POST' }),
+  logSupportPage: (path) => request('/support-access/page', { method: 'POST', body: { path } }),
 
   // Plugins (specs/plugins-phase-0-foundation.md §4.3) — admin only.
   getPlugins: () => request('/plugins'),
