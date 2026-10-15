@@ -316,6 +316,15 @@ tables, because its Booking source now goes through the Booking path.
     the weekly plan goes from −15 % to −45 %. Leaving it would have kept a high-season week at about
     1 598 € on Booking against 1 020 € on Airbnb for the same tent, which is not a price difference
     but a channel that cannot be booked.
+- Q8: The gîte's Airbnb listing bills 80 € of cleaning per stay. GuestFlow has no cleaning-fee
+  concept, and neither Booking nor the direct channel charges one, so an Airbnb guest pays 80 €
+  above the recipe. Keep it, drop it, or carry it to every channel?
+  - A: **Resolved 2026-10-15 — keep it and say so in the listing.** Airbnb has no optional-extra
+    mechanism: a cleaning fee is a flat per-stay charge or nothing, so it cannot be offered as an
+    add-on the guest chooses. The fee stays (67,60 € net per stay, the commission applying to it
+    too) and the listing's « Autres informations à noter » now states it in French and English, so
+    nobody discovers it at checkout. The divergence with the recipe is deliberate and recorded here
+    rather than silent.
 
 ---
 
@@ -518,3 +527,13 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     Lodgify, GreenGO and GuestFlow. With both Lodgify sources inactive in GuestFlow, that Lodgify
     import is the **only** thing standing between an Abritel booking and an Airbnb double-booking.
     It goes after Abritel is switched over, not before.
+  - *Corrected the same evening.* The two price gaps were re-entered (16-30 October 2026 at 358 €,
+    30 December 2026 at 404 €) and the four missing min-nights windows created. Read back
+    afterwards: **808 days per listing, zero discrepancies**, and the custom min-nights windows now
+    read exactly the recipe's — gîte 2027-05-06→08 at 3, 2027-07-10→08-20 at 4, 2027-11-11→13 at 3;
+    L'Estiva 2027-05-06→08 at 3, 2027-05-15→16 at 2. The 80 € cleaning fee stays and is now
+    disclosed in the listing (Q8).
+  - *Unrelated, found while editing:* the gîte's « Autres informations à noter » block says
+    different things in French and in English — the English version carries the hot-tub pricing and
+    the children's activities, the French one does not. Airbnb does not translate these fields, it
+    stores one text per language, so they drift. Worth a pass of its own on both listings.

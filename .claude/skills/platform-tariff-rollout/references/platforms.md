@@ -1312,7 +1312,18 @@ d'annulation par date.
 **Un forfait ménage qui n'existe que sur Airbnb.** Le gîte facture 80 € de ménage par séjour sur
 Airbnb ; GuestFlow n'a aucune notion de forfait ménage (`cleaningHours` est une durée de travail) et
 ni Booking ni le direct n'en facture. Un voyageur Airbnb paie donc 80 € au-dessus de la recette pour
-le même séjour.
+le même séjour. **Airbnb ne sait pas rendre un frais optionnel** — c'est un forfait par séjour ou
+rien, jamais un extra que le voyageur coche. Arbitrage du 15/10 : on le garde et on l'écrit dans
+« Autres informations à noter », en français *et* en anglais.
+
+**Les champs de description ont une valeur PAR LANGUE, et elles divergent.**
+`/hosting/listings/editor/<id>/details/description` affiche deux zones de texte par bloc :
+`#listing-description-Français-textarea` et `#listing-description-English-textarea`. Airbnb ne
+traduit pas, il stocke deux textes — sur le gîte, l'anglais portait le tarif du bain nordique et les
+activités enfants, le français non. Limite **500 caractères par langue**, à mesurer avant d'écrire
+(`value.length`) : l'anglais du gîte était à 474, il ne restait la place que d'une ligne. Pour
+ajouter sans écraser : clic dans la zone, `Meta+ArrowDown` pour aller à la fin, puis
+`pressSequentially`.
 
 **Ne pas délier l'import iCal Lodgify des annonces Airbnb avant d'avoir basculé Abritel.** La tente
 importe AbracadaRoom, Lodgify, GreenGO et GuestFlow ; les sources Lodgify de GuestFlow étant
