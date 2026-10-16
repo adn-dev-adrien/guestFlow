@@ -13,7 +13,7 @@ function buildUserscript({ publicUrl, secret }) {
   return `// ==UserScript==
 // @name         GuestFlow – réservation Booking
 // @namespace    ${base}
-// @version      1
+// @version      2
 // @description  Envoie la réservation Booking ouverte à GuestFlow, qui remplit la fiche.
 // @match        ${MATCH}
 // @grant        GM_xmlhttpRequest
@@ -48,6 +48,21 @@ function buildUserscript({ publicUrl, secret }) {
       (function poll() {
         var value = test();
         if (value || Date.now() - started > timeoutMs) return resolve(value);
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
+  // Booking renders the price table after the reservation number: send only once the page stops changing.
+  function settled(quietMs, timeoutMs) {
+    return new Promise(function (resolve) {
+      var started = Date.now();
+      var last = document.body.innerText;
+      var since = Date.now();
+      (function poll() {
+        var now = document.body.innerText;
+        if (now !== last) { last = now; since = Date.now(); }
+        if (Date.now() - since >= quietMs || Date.now() - started > timeoutMs) return resolve();
         setTimeout(poll, 250);
       })();
     });
@@ -90,6 +105,8 @@ function buildUserscript({ publicUrl, secret }) {
     if (!reveal) return null;
     reveal.click();
     return wait(function () { return !/Afficher le numéro de téléphone/i.test(document.body.innerText); }, 2000);
+  }).then(function () {
+    return settled(1500, 15000);
   }).then(function () {
     var text = document.body.innerText;
     if (!/Numéro de réservation/.test(text)) return;
