@@ -115,16 +115,21 @@ Domaine Solio : rentalId **741262**, roomTypeId **808379**, slug **adrien-jouve*
 
 ---
 
-## Airbnb, Booking, Vrbo — les canaux nourris par Lodgify
+## Airbnb, Booking, Vrbo — les canaux autrefois nourris par Lodgify
 
-Ils n'ont pas de console à configurer : Lodgify y pousse prix et disponibilités. **Ils se vérifient
-donc uniquement sur leur page publique**, et c'est là que les surprises apparaissent.
+> **Airbnb n'est plus dans ce cas depuis le 2026-10-15** : les deux annonces sont débranchées de
+> Lodgify et se pilotent depuis la console hôte. Voir « Airbnb — console autonome » plus bas.
+> Booking et Vrbo restent poussés par Lodgify jusqu'à leur propre bascule (`specs/lodgify-decommission.md` §10).
+
+Tant qu'un canal est poussé par Lodgify, il n'a pas de console à configurer. **Il se vérifie donc
+uniquement sur sa page publique**, et c'est là que les surprises apparaissent.
 
 | Canal | Identifiants relevés le 2026-08-14 | Page publique |
 |---|---|---|
 | Airbnb | annonce **1576845044615216441** | `airbnb.fr/rooms/<id>?check_in=AAAA-MM-JJ&check_out=…&adults=N` |
 | Booking | hôtel **15343212**, chambre 1534321201 | `booking.com/hotel/fr/tente-domaine-solio.fr.html?checkin=…&checkout=…&group_adults=N#availability` |
 | Vrbo / Abritel | propriété **123465737**, unité 327755592, annonce **AB 2622643**, clé composite **731.2622643.2799576** | `abritel.fr/location-vacances/p2622643` |
+| Vrbo / Abritel — **gîte** (relevé le 2026-10-16) | propriété **118194015**, unité 326936714, annonce **AB 2577203**, clé composite **731.2577203.2754136** | `abritel.fr/location-vacances/p2577203` |
 
 Les identifiants se lisent dans `app.lodgify.com/channels/manager/<canal>`, colonne « Hébergement
 sur … ». La page Booking se trouve sinon par une recherche sur le nom de l'annonce.
@@ -1219,23 +1224,258 @@ ferait que réécrire la même valeur. Relire le back-office après rechargement
 revenir voir la page publique le lendemain. Si le retard dépasse deux jours, demander à
 `support@unicstay.com` s'il existe une étape de validation éditoriale.
 
-## Renommer un hébergement partout — relevé le 2026-10-06/07
 
-Exercice : « Aventura Lodge » devient « L'Estiva », et deux faits changent avec lui (Safari de
-Peaugres à **25 min**, piscine **de mi-juin à fin août**). Le nom vivait dans **neuf champs sur
-sept plateformes**, et chaque plateforme donnait aussi sa propre version des deux faits (Peaugres à
-20, « 20 à 30 » ou 30 min ; piscine en « juillet-août », « début juillet » ou « en été »).
+---
 
-| Plateforme | Où vit le nom | Remarques |
-|---|---|---|
-| Lodgify | `rental/<id>/overview/name-and-description` → `name` (60 car.) | Le nom part vers **Abritel**, qui ne le reprend qu'une fois par jour. Description = éditeur riche : poser une `Range` + `execCommand('insertText')`, le `textarea[name=description]` caché suit au bout d'une seconde. **Le nom anglais du Gîte valait « To complete »** : relire chaque langue du sélecteur. |
-| Booking | Établissement › Infos sur l'établissement › « Changer le nom de l'établissement » | **L'apostrophe passe** (« L'Estiva … »). La confirmation prévient : Booking **envoie un e-mail aux clients ayant une réservation à venir**. Visible sous 24 h. Les boutons du dialogue ne se cliquent qu'en JavaScript (`[role=dialog] button`). |
-| Airbnb | titre, mais aussi « Accès des voyageurs » | Le titre de la tente ne portait pas le nom ; c'est le texte d'accès (« l'Aventura Lodge se mérite… ») qui le portait, dans le champ « English » rempli en français. |
-| GreenGo | `annonce/accommodation/<logementId>/description` → `name` | Le nom du **logement** s'affiche sur l'annonce publique (« 1 tente — Aventura Lodge ») même quand le titre de l'annonce est juste. Compteur `n/100` = React a vu la saisie. |
-| Abracadaroom | `…/services/<serviceId>/general`, premier `input` | Onglet TARIFS = `…/services/<serviceId>/offer`. Le back-office avait déjà la plancha juste : seule la page publique retardait (voir plus haut). |
-| Campspace | `…/host/space/<id>/general` → `space[description]` | Le titre portait déjà le nouveau nom. |
-| Office de tourisme / Ardèche Guide | Apidae 7563546 (gîte), 7693918 (tente) | Pas de back-office : demande par mail à l'office du Val d'Ay, qui saisit dans Apidae. |
-| Gîtes de France | — | Par message au relais départemental (voir plus haut). |
+## Airbnb — console autonome (depuis le 2026-10-15)
 
-**Toujours commencer par la page publique** : c'est elle qui a montré le nom du logement GreenGo et
-le texte d'accès Airbnb, deux champs que personne n'aurait cherchés.
+Annonces : **gîte `1398287456607254737`**, **tente / L'Estiva `1576845044615216441`**.
+Majorations Lodgify qui s'appliquaient avant la coupure : gîte **11 %**, tente **8 %**.
+
+**Tout se pilote sous `/multicalendar/<id>/`, jamais sous `/hosting/listings/editor/<id>/`** (404) :
+
+| Réglage | URL |
+|---|---|
+| Prix de base | `/multicalendar/<id>/pricing-settings/rates/base` → `#PriceInput-basePrice` |
+| Majoration week-end | `/multicalendar/<id>/pricing-settings/rates/weekend` → `#PercentInput-weekendPriceForm-weekendPremium` |
+| Supplément voyageur | `/multicalendar/<id>/pricing-settings/fees/extra-guest` → `#PriceInput-extraGuestFee` + stepper `extraGuestFeeForm-guestCount` |
+| Prix d'une plage de dates | `/multicalendar/<id>/edit-selected-dates/<début>/<fin>/nightly-price` → `#PriceInput-nightlyPrice` (bornes **incluses**, `fin` = dernière nuit) |
+| Dégressivité 2→6 nuits | `/multicalendar/<id>/discounts/trip-length/add` → `[data-testid="lengthOfStay-select"]` puis `#priceChange-input` |
+| Dégressivité 7 nuits | `/multicalendar/<id>/discounts/weekly` → `#weeklyDiscount-discount-percent-input` |
+| Disponibilité, imports iCal | `/multicalendar/<id>/availability-settings` |
+
+**Quatre pièges mesurés le 2026-10-15 :**
+
+15. **`fill()` ajoute au lieu de remplacer** sur les champs prix et pourcentage d'Airbnb : « 35.75 »
+    rempli avec « 0 » a donné **« 350 »**, qui a majoré 14 nuits à 855 €. Toujours cliquer, `Cmd+A`,
+    `Backspace`, puis `pressSequentially` — et **relire la valeur du champ avant d'enregistrer**.
+16. **Une majoration week-end peut dormir sous le channel manager.** La tente portait +35,75 % de
+    « prix spécial week-end », totalement inerte tant que Lodgify poussait des prix par date, et
+    réveillée par la coupure. Relever `rates/weekend` avant de déclarer une grille posée.
+17. **La dégressivité ne s'applique pas au supplément voyageur.** Mesuré : 7 nuits × 301 €
+    (267 + 2 × 17), remise semaine de 841,05 € = 45 % des 1 869 € d'hébergement seul, pas des
+    2 107 €. Lodgify, lui, la lui appliquait. Un forfait à plat au **brut de la 1ʳᵉ nuit** de la
+    recette ne passe donc jamais sous le net, quelle que soit la durée.
+18. **La ligne « N nuits × X € » d'un devis public amortit les frais de ménage.** Le gîte affiche
+    381 € pour un prix hôte de 341 €, et 1 115 € pour 1 075 € : +40 € dans les deux cas, soit
+    80 € ÷ 2 nuits. Ne jamais lire cette ligne comme le prix hôte quand le logement a un ménage.
+
+**Ce qu'une déconnexion Lodgify → Airbnb détruit** : tous les prix par date, le supplément voyageur
+(remis à 0 €) et toutes les réductions de durée. **Ce qu'elle épargne** : la disponibilité — les
+fermetures et les réservations survivent toutes (vérifié par devis public sur les deux logements).
+
+### Vérifier une grille Airbnb jour par jour, sans cliquer
+
+Le calendrier hôte répond en GraphQL, et c'est le seul moyen raisonnable de contrôler plusieurs
+centaines de dates :
+
+```js
+// listingId = base64("StayListing:<id>")
+const hash = '5b153a16f8f392d6d4c6b5ee6259cf7f89ef972e0f79bf3f87753136af9a338c';
+const vars = { listingId: btoa('StayListing:' + id), startDate, endDate,
+  hostCalendarViewType: 'MONTH_VIEW', lensTypes: ['PRICE'],
+  timeZone: 'Europe/Paris', localizationContext: { timeZone: 'Europe/Paris', firstDayOfWeek: 1 },
+  hostCalendarSectionTypes: ['MAIN_VIEW'], includeCustomSettings: false };
+fetch(`/api/v3/getDLSHostCalendar/${hash}?operationName=getDLSHostCalendar&locale=fr&currency=EUR`
+      + `&variables=${encodeURIComponent(JSON.stringify(vars))}`
+      + `&extensions=${encodeURIComponent(JSON.stringify({persistedQuery:{version:1,sha256Hash:hash}}))}`,
+      { headers: { 'X-Airbnb-API-Key': 'd306zoyjsyarp7ifhu67rjxn52tv0t20' }, credentials: 'include' });
+```
+
+`…sections.calendarGridViewSection.days[]` donne un objet par date :
+`priceData.nativePrice`, `available`, `reservationData`, `promotionType`,
+`listingSmartPricingEnabled`. Fenêtres de 3 mois, 808 jours par annonce en 9 appels. Les jours
+portant une `reservationData` affichent le prix de la réservation, pas celui de la grille : les
+exclure de la comparaison. `CustomSettingsQuery`
+(`4bd5cf31cc9ce097fb5126d446c96cc5f96bbe7dad4495d5195a2b503e074591`, mêmes bornes) donne en
+parallèle les fenêtres de **nuits minimum** personnalisées, les promotions et les conditions
+d'annulation par date.
+
+### Pièges 30 à 32 — mesurés le 2026-10-15 au soir
+
+30. **Une ré-saisie de grille oublie le bloc courant et les plages d'un seul jour.** Sur le gîte,
+    16 → 30 octobre 2026 est resté au prix de base (341 € au lieu de 358 €, 15 nuits à −17 €) et le
+    30 décembre 2026 aussi (341 € au lieu de 404 €), coincé entre Noël et le Nouvel An. La saisie
+    commence **à la date du jour**, et la recette se parcourt plage par plage, y compris celles qui
+    ne couvrent qu'une date.
+31. **Sur Airbnb, le taux stocké est le bon taux** — l'inverse de Booking (piège n° 29). Le panneau
+    « Revenus » de `/hosting/stay/<code de confirmation>` détaille « Frais de service hôte (15.5 %) »
+    et on retombe sur 15,50 % exactement (124,78 ÷ 805,00 ; 46,04 ÷ 297,00). Deux points à retenir :
+    « Frais de service voyageur » est à 0 € (modèle à commission hôte seule, rien de caché côté
+    voyageur), et **l'assiette inclut les frais de ménage** — les 80 € du gîte ne rapportent que
+    67,60 €. La taxe de séjour, elle, voyage hors assiette.
+32. **Les nuits minimum par date disparaissent avec la coupure, comme les prix.** Après la
+    ré-saisie il ne restait qu'une fenêtre (gîte, 2027-07-10 → 08-20, 4 nuits) ; les plages courtes
+    de la recette (3 nuits au pont de mai, 3 nuits au 11 novembre, 2 nuits mi-mai sur la tente)
+    étaient retombées au minimum de l'annonce (2 pour le gîte, 1 pour la tente). Elles ne sautent
+    pas aux yeux : le calendrier n'affiche que le prix.
+
+**Un forfait ménage qui n'existe que sur Airbnb.** Le gîte facture 80 € de ménage par séjour sur
+Airbnb ; GuestFlow n'a aucune notion de forfait ménage (`cleaningHours` est une durée de travail) et
+ni Booking ni le direct n'en facture. Un voyageur Airbnb paie donc 80 € au-dessus de la recette pour
+le même séjour. **Airbnb ne sait pas rendre un frais optionnel** — c'est un forfait par séjour ou
+rien, jamais un extra que le voyageur coche. Arbitrage du 16/10 : **forfait remis à 0 €**
+(`pricing-settings/fees/cleaning` → `#PriceInput-cleaningFee`, bouton
+`[data-testid="cleaningFeeForm-submit"]`) et le ménage devient une option annoncée dans « Autres
+informations à noter », payée sur place à l'arrivée — même schéma que les repas sur Booking. Le
+prix Airbnb retombe pile sur la recette, et les 80 € ne passent plus par la commission : 80 € nets
+au lieu de 67,60 €. Contrôle : « Total voyageur » du panneau `nightly-price` est passé de 774 € à
+694 € pour deux nuits à 341 €.
+
+**Les champs de description ont une valeur PAR LANGUE, et elles divergent.**
+`/hosting/listings/editor/<id>/details/description` affiche deux zones de texte par bloc :
+`#listing-description-Français-textarea` et `#listing-description-English-textarea`. Airbnb ne
+traduit pas, il stocke deux textes — sur le gîte, l'anglais portait le tarif du bain nordique et les
+activités enfants, le français non. Limite **500 caractères par langue**, à mesurer avant d'écrire
+(`value.length`) : l'anglais du gîte était à 474, il ne restait la place que d'une ligne. Pour
+ajouter sans écraser : clic dans la zone, `Meta+ArrowDown` pour aller à la fin, puis
+`pressSequentially`.
+
+**Ne pas délier l'import iCal Lodgify des annonces Airbnb avant d'avoir basculé Abritel.** La tente
+importe AbracadaRoom, Lodgify, GreenGO et GuestFlow ; les sources Lodgify de GuestFlow étant
+désactivées, cet import Lodgify est la **seule** protection d'Airbnb contre un surbooking venu
+d'Abritel.
+
+---
+
+## Booking — console autonome (depuis le 15/10/2026)
+
+L'extranet Booking n'est plus nourri par Lodgify. Deux hôtels sous un même compte groupe
+(`hotel_account_id=22925006`) : le gîte est `14407976`, L'Estiva `15343212`.
+
+| Quoi | Où |
+| --- | --- |
+| Calendrier et saisie en masse | `extranet_ng/manage/calendar/index.html?hotel_id=…` → bouton `#av-calendar-general-modal-cta` |
+| Plans tarifaires | `extranet_ng/manage/rate_plans.html?hotel_id=…` |
+| Créer / modifier un plan | `extranet_ng/manage/rate_advisor.html?hotel_id=…&rate=<id>` |
+| Tarification par client | `extranet_ng/manage/occupancy-pricing/setup.html?hotel_id=…` |
+| Promotions actives | `extranet_ng/manage/promotions/list.html?hotel_id=…` |
+| Synchronisation iCal | `extranet_ng/manage/sync/index.html?hotel_id=…` |
+| Fournisseur de connectivité | `extranet_ng/manage/channel-manager/connections.html?hotel_id=…` |
+
+**Saisie en masse d'une grille** — la modale `[data-test-id="general-modal"]`, dont la copie
+*visible* est `.av-general-modal` (il y en a deux dans le DOM, celle du dessus fait 0 px de haut) :
+`#date-from`, `#date-until`, l'accordéon « Tarifs », puis `#price-select-0` (le plan) et
+`#price-input-0` (le prix). Le bouton d'enregistrement de chaque section est le premier
+`button:not([disabled])` portant « Enregistrer les modifications ».
+
+### Pièges mesurés
+
+19. **Le sélecteur de plan se vide après chaque enregistrement.** Il faut le repositionner à chaque
+    itération, sinon le bouton reste grisé et la boucle enchaîne des échecs silencieux.
+20. **`#rate-select-0` n'est pas le sélecteur de la section Tarifs** — c'est celui des Restrictions,
+    invisible tant que l'accordéon est replié. Celui des tarifs est `#price-select-0`, et sa valeur
+    est `<planId>|<occupation de base>`, par exemple `57972851|10`.
+21. **Les événements synthétiques ne réveillent pas le composant.** Poser `value` par le setter natif
+    met à jour le DOM mais pas l'état interne : le récapitulatif affiche la bonne période et le
+    bouton reste inactif. Passer par de vraies interactions Playwright (`fill`, `selectOption`).
+22. **Les champs de la tarification par client s'adressent par `id`, pas par `name`** :
+    `#price-<planId>-<occ>` et `#toggle-<planId>-<occ>`. Un sélecteur `input[name=…]` ne matche rien
+    et échoue sans erreur.
+23. **Créer un plan dérivé lui donne l'occupation de base maximale**, pas celle du plan de base. Sur
+    L'Estiva les nouveaux paliers sont nés en « base 5 personnes » : le prix nuitée aurait englobé
+    cinq voyageurs. Corriger l'occupation **remet tous les suppléments à zéro**, donc les ressaisir
+    après, jamais avant.
+24. **Lire la page Promotions de CHAQUE logement.** L'Estiva portait six promotions catalogue
+    (−24 / −33 / −38 / −41 / −43 / −45 % selon la durée) créées le 14/08/2026, invisibles depuis le
+    gîte qui n'en a aucune. Des plans tarifaires dégressifs créés par-dessus **se cumulent** : une
+    semaine est passée à −70 % le temps de s'en apercevoir. Un devis public avant / après est le
+    seul contrôle qui le montre.
+25. **Les promotions se cumulent aussi avec un plan dérivé préexistant.** Le « Tarif semaine −15 % »
+    de L'Estiva et la promotion −45 % s'empilaient depuis août : la semaine se vendait 954 € au lieu
+    des 1 020 € de la recette. Un canal ne doit porter **qu'une seule couche** de dégressivité.
+    Le détail d'une promotion (bouton « Sélectionner pour obtenir plus de détails ») dit à quels
+    plans elle s'applique : « Tous les plans tarifaires » signifie qu'elle couvre déjà le plan de
+    base, et qu'un plan dérivé dégressif est donc redondant, pas complémentaire.
+26. **Le devis public est servi en cache pendant quelques minutes.** Juste après une modification il
+    renvoie encore l'ancienne grille — attendre, et ajouter un paramètre d'URL quelconque.
+27. **Les deux logements n'ont pas la même fiscalité affichée.** Le gîte quote 678 € + 4 € de taxe
+    de séjour pour deux nuits à 339 € ; L'Estiva quote 288 € pour une nuit à 265 €, soit environ
+    +8,7 %. Ne jamais transposer d'un logement à l'autre.
+28. **Accéder à la page de déconnexion déclenche un second facteur par SMS.** L'opérateur doit être
+    là au moment précis de la coupure, pas avant ni après.
+
+### Ce qu'une déconnexion détruit, et ce qu'elle épargne
+
+Rien n'est détruit — c'est l'inverse d'Airbnb. Prix par date, disponibilités, restrictions, plans
+dérivés et promotions survivent tous. La déconnexion ne fait qu'ouvrir l'extranet en écriture et
+faire apparaître le menu iCal. En revanche Lodgify, lui, se met à réexporter les séjours du canal
+coupé **sous de nouveaux identifiants anonymisés** : sa source dans GuestFlow doit être désactivée
+dans la foulée, sinon elle recrée chaque séjour en double au cycle de synchronisation suivant.
+
+### Piège n° 29 — le taux de commission stocké n'est pas celui qui est prélevé
+
+`platforms.commissionPercent` est l'unique source du regrossage (`propertiesModel.js:693`) : les
+recettes ne contiennent que des cibles nettes. Si ce taux est faux, **toute la grille du canal rate
+sa cible**, saison par saison, sans qu'aucun contrôle interne ne le voie — l'arithmétique reste
+cohérente avec elle-même.
+
+Booking était enregistré à 15 %, son taux contractuel. Ce qu'il retient réellement, sur la ligne
+« Commission et frais » de la fiche réservation, vaut **16,44 %** : mesuré sur trois séjours réglés
+(115,38/701,80 ; 330,72/2 014,18 ; 157,97/960,96). Le point et demi d'écart est la commission de
+« Paiements par Booking.com », que l'extranet fond dans la même ligne. À 15 %, la grille manquait sa
+cible de 2,07 € la nuit en basse saison de la tente et de 14,74 € à Noël.
+
+**Règle : avant de poser une grille sur un canal, ouvrir une réservation déjà réglée et calculer
+`commission ÷ montant commissionnable`.** C'est la seule mesure qui vaille ; le taux annoncé au
+contrat ne tient pas compte des frais de paiement, de devise ou de programme. Le contrôle se refait
+à chaque rollout, et pour chaque canal.
+
+### Vérifier une grille jour par jour sur Booking
+
+Le calendrier accepte la période dans l'URL :
+`extranet_ng/manage/calendar/index.html?hotel_id=…&view_mode=LIST&from=AAAA-MM-JJ&until=AAAA-MM-JJ`
+(le champ `[aria-label="Sélectionner une période."]` se remplit aussi au clavier, format
+`AAAA-MM-JJ — AAAA-MM-JJ`, validé par Entrée). Quinze fenêtres de 31 jours couvrent deux ans : on
+relève la ligne du plan de base et on compare chaque date à `grossFromNet(netTarget, taux)`.
+Un échantillon par saison ne suffit pas — une plage ratée dans une boucle de saisie ne se voit que
+comme ça.
+
+### Piège n° 33 — « Désactivé » dans GuestFlow ne veut pas dire « plus synchronisé »
+
+Mesuré le 16/10/2026, deux fois, dont une en production pendant un nettoyage.
+
+Sur l'onglet Plateformes d'un logement, le seul bouton est « Désactiver » / « Réactiver », et il
+écrit `ical_sources.disabled`. Cette colonne **masque** les réservations de la plateforme dans les
+vues du logement, grise la carte et bloque le bouton de synchronisation **manuelle**. Le job horaire
+`scheduledTasks.performAutoSync` sélectionne `WHERE isActive = 1` et **ne regarde jamais
+`disabled`**. Un calendrier affiché « Désactivé » continue donc d'importer toutes les heures.
+
+Deux conséquences à ne pas confondre :
+
+- **Ce qu'on croit coupé ne l'est pas.** Vérifier par la donnée, pas par l'écran :
+  `GET /api/properties/<id>/ical-sources` → `isActive`, et `lastSyncAt` / `lastSyncMessage` disent
+  si le flux tourne encore. Pour vraiment arrêter une source, il faut un
+  `PUT /api/properties/<id>/ical-sources/<sourceId>` avec `isActive: false` — en renvoyant `url` et
+  `platformKey`, que `resolveSourceInput` relit. L'UI n'a pas ce contrôle.
+- **Supprimer un doublon avant d'arrêter sa source ne sert à rien.** Une suppression faite par
+  l'opérateur ne laisse pas de tombstone que l'import respecte : l'événement du flux redevient
+  « nouveau » au passage suivant et la réservation est recréée. En supprimant cinq doublons à la
+  main, le sync tombé au milieu en a recréé trois dans la même minute. **L'ordre est : on arrête la
+  source, on vérifie `isActive = 0`, puis on nettoie, puis on force un `sync-all` pour confirmer que
+  rien ne revient.**
+
+Le même raisonnement vaut pour tout canal dont on coupe le gestionnaire : un flux qu'on croit mort
+continue de parler, et il parle sous de **nouveaux UID** anonymisés, avec le nombre de voyageurs
+ramené à 1 — signature exacte d'un doublon de coupure.
+
+### Piège n° 34 — Vrbo ne se débranche pas depuis Lodgify
+
+Mesuré le 16/10/2026. Contrairement à Airbnb (« Unsync » par annonce) et à Booking (retirer le
+fournisseur de connectivité), **aucun bouton ne coupe Vrbo** : Lodgify renvoie vers Vrbo pour un
+« decommissioning » du compte entier (FR : aide.abritel.fr/contact), ou vers son propre support pour
+retirer le mapping d'une annonce, puis son équipe Connectivité finalise. Le délai est celui de Vrbo,
+et d'autres éditeurs signalent des annonces dépubliées plusieurs jours ou archivées en route.
+**Demander par écrit, avant tout geste, que les annonces restent en ligne et gardent leurs avis.**
+
+Trois choses à savoir avant d'y toucher :
+
+- **Abritel porte les DEUX logements** : le gîte (AB 2577203, 3 avis) autant que la tente. Compter
+  les annonces dans `abritel.fr/p/properties`, jamais dans nos notes.
+- **Le calendrier Abritel est verrouillé tant que Lodgify tient l'annonce** (`/p/calendar/ipm` :
+  « téléchargés depuis votre logiciel de gestion intégré »).
+- **Deux circuits d'encaissement, deux relevés.** `supply/financial-reporting?tab=payout-summary`
+  ne liste que les séjours payés *par Abritel* ; ceux payés par Lodgify sont facturés à part dans
+  l'onglet « Factures de réservations » (`tab=ipm-booking-invoices`). Pour mesurer la commission,
+  lire le second : 129,28 € sur 861,84 € = **15,00 %**, assiette = total entier. Le 9,67 % du
+  premier vient de séjours antérieurs à Lodgify, sous l'ancienne formule.
