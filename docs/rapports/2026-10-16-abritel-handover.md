@@ -5,7 +5,8 @@ fresh session together with [`specs/lodgify-decommission.md`](../../specs/lodgif
 which stays the source of truth for *why*. This document only says **where we are** and **what is
 left**, and it corrects three things the spec and the session memory currently get wrong.
 
-Read §2 before planning anything. It changes the plan.
+Read §2 before planning anything. It changes the plan — and note that **Abritel no longer reaches
+GuestFlow at all** since this morning (§2.1), which puts a clock on the switch-over.
 
 ---
 
@@ -26,9 +27,9 @@ GuestFlow platform commissions, read from production this morning: `Abracadaroom
 
 ## 2. Three corrections — measured this morning
 
-### 2.1 The Lodgify sources are **not** stopped, whatever the UI says
+### 2.1 The Lodgify sources were not stopped — now they are
 
-Both Lodgify iCal sources (#10 on Granja, #5 on L'Estiva) display « Désactivé » in GuestFlow. That
+Both Lodgify iCal sources (#10 on Granja, #5 on L'Estiva) displayed « Désactivé » in GuestFlow. That
 chip reflects `ical_sources.disabled = 1`, and `disabled` is a **display filter only**: it hides
 that platform's bookings from the property's reservation views
 ([`propertyIcalModel.js:1028`](../../server/src/models/propertyIcalModel.js#L1028)), greys the card
@@ -42,29 +43,33 @@ The hourly job selects on a different column —
 SELECT * FROM ical_sources WHERE isActive = 1 ORDER BY id
 ```
 
-`disabled` is not in that query. Both sources still carry `isActive = 1`, and source #10 reports
-`lastSyncAt = 2026-10-16 05:31:27`, `success`, « 0 créé(s), 0 mis à jour, 0 verrouillé(s),
-0 annulation(s) à valider, 7 inchangé(s) ». The feeds answer and still carry stays — anonymised,
-exactly as described in §11 after a disconnection (`SUMMARY:A** L** O******** M*****`): 15 events
-on Granja of which 7 in the future, 26 on L'Estiva of which 4 in the future. The 7 future Granja
-events are the « 7 inchangé(s) ».
+`disabled` is not in that query, so both sources kept importing every hour. Proof, not inference:
+deleting the five duplicates of §2.2 triggered the 05:46:27 sync to **re-create three of them**
+(« 3 créé(s), 0 mis à jour, 0 verrouillé(s), 0 annulation(s) à valider, 4 inchangé(s) »). Deleting
+is futile while the source is active — the operator's deletion leaves no tombstone the import
+honours.
 
-**Two consequences, opposite in sign.**
+**Resolved 2026-10-16, on the operator's call.** Both sources are now `isActive = 0`, URL and
+platform key preserved, every other source untouched. The UI has no control that writes that column,
+so it was done with a `PUT /api/properties/<id>/ical-sources/<sourceId>` carrying
+`isActive: false` from the authenticated browser session. A forced `sync-all` on both properties
+then created nothing.
 
-- *Good:* Abritel still reaches GuestFlow through the Lodgify feed, so **there is no overbooking gap
-  today**. The spec's §11 note — « plus aucun flux vers GuestFlow depuis Abritel », treated as
-  urgent — is wrong as long as Abritel is still connected on the Lodgify side (verify that first,
-  §3 step A).
-- *Bad:* spec rule 10 requires `isActive = 0`, and **the UI offers no control that writes it**. The
-  only button is « Désactiver » / « Réactiver ». So rule 10 is currently unenforceable from the
-  interface, and the duplicate mechanism of runbook step 6 stays armed. This needs a decision
-  (§5.3), not a workaround.
+**The live exposure this creates — read it before Abritel.** Lodgify was the last path an Abritel
+booking had into GuestFlow. From now until the Abritel switch-over, **a new Abritel reservation does
+not reach GuestFlow at all** and will not block the dates on any other channel. The risk is bounded
+— there is no future Abritel stay today (§2.3) — but it grows with every day the switch-over waits,
+and the Airbnb listings' own Lodgify *import* is the only remaining guard on that side, which is why
+it must not be unlinked (§3 step G.4).
 
-### 2.2 The five phantom reservations of 15/10 are still in production
+**Still open:** rule 10 asks for `isActive = 0` and the interface cannot produce it. Give the UI that
+control, make the hourly job honour `disabled`, or rewrite the rule — see §5.3.
 
-Each shadows a real Booking reservation on the same dates and property:
+### 2.2 The duplicate reservations of 15/10 — found, and deleted
 
-| Phantom (`Lodgify`, 0 €) | Shadows (`Booking`, real) | Dates | Property |
+Each shadowed a real Booking reservation on the same dates and property:
+
+| Phantom (`Lodgify`, 0 €) | Shadowed (`Booking`, real) | Dates | Property |
 |---|---|---|---|
 | #22316 / 202610004 | #22309 / 6392081711 — 638 € | 2026-11-06 → 11-08 | Granja |
 | #22317 / 202610005 | #22282 / 6396936881 — 750 € | 2027-06-11 → 06-13 | Granja |
@@ -72,26 +77,31 @@ Each shadows a real Booking reservation on the same dates and property:
 | #22319 / 202610007 | #22304 / 5449776734 — 1 804 € | 2027-07-25 → 08-01 | Granja |
 | #22315 / 202610003 | #22270 / 6646665983 — 600 € | 2027-08-07 → 08-13 | L'Estiva |
 
-Signature, checked on #22316: `createdAt 2026-10-15 18:41:27`, total `0 €`, one guest, anonymous
-client `#144`. That is the incident recorded in §11 — fresh UIDs, anonymised, guest count flattened
-to one adult — and it was **never cleaned up**. They carry no money, but they occupy the calendar
-twice on five future stays.
+Signature, checked on each one before deleting: created `2026-10-15 18:41`, total `0 €`, one guest,
+anonymous client `#144`, and the reservation page's own warning « Ce logement est déjà réservé pour
+ces dates ». That is the incident recorded in §11 — fresh UIDs, anonymised, guest count flattened to
+one adult.
 
-Deleting a production reservation is irreversible: it is the operator's call, never the session's.
-Ask, then delete through the UI (§5.2).
+**Deleted 2026-10-16**, one at a time through the UI, each identified before the click. The 05:46
+sync re-created three mid-way (#22320, #22321, #22322 / 202610008-010); those were deleted too,
+**after** the sources were stopped (§2.1). A forced `sync-all` on both properties then created
+nothing, and production holds **9 future reservations** — 5 `Booking`, 2 `direct`, 1 `Greengo`,
+1 `GitesDeFrance`, **zero `Lodgify`** — with every real reservation intact.
 
 ### 2.3 Runbook step 3 is already settled, but not the way it reads
 
-Production holds **14 future reservations** (2026-10-16 → 2028-12-31): 5 `Booking`, 5 `Lodgify`,
-2 `direct`, 1 `Greengo`, 1 `GitesDeFrance`. **No `Abritel` and no `Airbnb`.** So:
+Production held **14 future reservations** (2026-10-16 → 2028-12-31) when this was written: 5
+`Booking`, 5 `Lodgify`, 2 `direct`, 1 `Greengo`, 1 `GitesDeFrance` — **no `Abritel` and no
+`Airbnb`** — and holds 9 since the deletions of §2.2. So:
 
 - « Relabel every future reservation filed under `Lodgify` that actually came from Booking, Airbnb
   or Abritel » has no real subject — the five `Lodgify` rows are the phantoms of §2.2, to delete and
   not to relabel.
 - « Create the `Abritel` platform at 15 % » is done.
 
-Step 3 therefore reduces to the deletion in §5.2. Note also that **no future Abritel stay exists**,
-which makes this the cheapest possible moment to cut the channel.
+Step 3 is therefore **done**: the deletion is carried out (§2.2) and the platform exists. Note also
+that **no future Abritel stay exists**, which makes this the cheapest possible moment to cut the
+channel.
 
 ---
 
@@ -198,21 +208,26 @@ exhaustive day-by-day comparison used on Airbnb, not a sample.
 
 ## 5. Open arbitrations for Adrien
 
-1. **The champagne evening package.** Both listings announce « bain privatisé après 20 h et
-   champagne au bord du bain, 50 € » (in French and English on the tent; it was English-only on the
-   gîte and was removed there on 16/10). GuestFlow's catalogue has no such package: the nordic bath
-   is 30 €/h with `hourlyEveningStart 20:00` and `hourlyEveningRate 50`, and champagne is a separate
-   option (40 € the bottle, 25 € the half). As written, the listing sells a 40 € bottle plus a 50 €
-   hour for 50 € total. Either create the package as a real option, or reword the two listings.
-2. **The five phantom reservations** of §2.2 — delete them?
+1. ~~The champagne evening package.~~ **Settled 2026-10-16: kept as it stands**, and written into
+   the catalogue so accounting sees it — option **#34** « Formule soirée : bain nordique privatisé +
+   champagne », 50 € per stay, category *Animations*, both properties, visible to the guest. The
+   bottle is therefore a deliberate gesture on the evening slot, and the two listings stay as they
+   are. ⚠️ **One thing to watch when the first guest takes it:** the nordic bath is also an hourly
+   *resource* at 50 €/h after 20:00, and the option does not book that slot. If the guest's free
+   hour (60 min per stay, both properties) is already used in the daytime, scheduling the evening
+   hour **on top of** the option bills 50 € twice. Decide then whether the option should book the
+   slot at 0 € or whether the slot is simply not recorded.
+2. ~~The five phantom reservations.~~ **Settled 2026-10-16: deleted**, see §2.2.
 3. **Rule 10 has no UI.** Add a control that writes `isActive`, make the hourly job honour
-   `disabled`, or rewrite rule 10 to match what the interface can actually do.
+   `disabled`, or rewrite rule 10 to match what the interface can actually do. Stopping the sources
+   this morning needed a direct `PUT` on the API, which is not a procedure to leave in a runbook.
 4. **The gîte's house rules** now that the cleaning is optional: what is expected of a guest who
    declines it (state of return, washing-up, bins). The current rules say nothing.
 5. **Three services announced on Airbnb but absent from GuestFlow's catalogue** (tent): « Kit
    Aventurier », « plaque de cuisson », « Option Portage de Bagages ».
-
----
+6. **Free text loses its capitals.** Option #34's description came back as « … réservé aux
+   adultes. » where « Réservé » was typed. A `fix/free-text-keeps-case` branch already exists for
+   this; the text is guest-facing, so it is worth finishing.
 
 ## 6. Reference
 

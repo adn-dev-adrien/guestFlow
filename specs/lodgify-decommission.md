@@ -132,7 +132,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     > `performAutoSync` ignores it. A source shown « Désactivé » therefore keeps importing every
     > hour. Both Lodgify sources are in that state today — see §11, 2026-10-16. Pending
     > arbitration: give the UI a control that writes `isActive`, make the hourly job honour
-    > `disabled`, or rewrite this rule.
+    > `disabled`, or rewrite this rule. **Applied 2026-10-16** on both Lodgify sources with a
+    > `PUT /api/properties/<id>/ical-sources/<sourceId>` carrying `isActive: false` — which is not a
+    > procedure to leave in a runbook, hence the arbitration.
 11. The `Lodgify` platform row stays: 17 reservations and their accounting entries reference it, and
     `isDirectChannel()` keeps counting it as an own channel. No new reservation is filed under it.
     > **Sans test** — nothing is changed: the row and `isDirectChannel()` stay as they are.
@@ -621,3 +623,35 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *Handover.* The state of the world and the ordered remainder of the Abritel job are written in
     [`docs/rapports/2026-10-16-abritel-handover.md`](../docs/rapports/2026-10-16-abritel-handover.md),
     for a session that picks the channel up from here.
+
+- 2026-10-16 (later the same morning) — **the three findings above are closed, and one of them bit
+  back first.**
+  - *Deleting a duplicate is futile while its source is active.* The five reservations were deleted
+    one at a time through the UI, each identified before the click; the **05:46:27 sync re-created
+    three of them** (#22320, #22321, #22322 / 202610008-010, « 3 créé(s) … 4 inchangé(s) »). An
+    operator deletion leaves no tombstone the import honours, so the feed's event looks new again at
+    the next pass. **This is the lesson to keep**: the order is always *stop the source, then clean*,
+    never the reverse — which is runbook step 6 read in the other direction.
+  - *Rule 10 applied for real.* On the operator's call, both Lodgify sources were set
+    `isActive = 0` — URL, platform key, colour and tax flags preserved, every other source
+    untouched. The UI cannot write that column, so it took a
+    `PUT /api/properties/<id>/ical-sources/<sourceId>` with `isActive: false` from the authenticated
+    session. A forced `sync-all` on both properties then created nothing, and the three late
+    duplicates were deleted. Production now holds **9 future reservations** — 5 `Booking`,
+    2 `direct`, 1 `Greengo`, 1 `GitesDeFrance`, **zero `Lodgify`** — every real one intact.
+  - ⚠️ *The gap is now real.* Lodgify was the last path an Abritel booking had into GuestFlow. From
+    today until the switch-over, **a new Abritel reservation does not reach GuestFlow** and blocks
+    no dates anywhere else. Bounded — no future Abritel stay exists — but it grows with every day of
+    delay, and the Airbnb listings' own Lodgify import is the only remaining guard on that side
+    (runbook step 5, do not unlink it).
+  - *The champagne evening package is kept, and finally exists.* §9's new question — both listings
+    sell « bain privatisé après 20 h et champagne au bord du bain, 50 € » while the catalogue has no
+    such package — is resolved by the operator: **keep the offer as announced** and record it, so
+    the accounting sees it. Option **#34** « Formule soirée : bain nordique privatisé + champagne »,
+    50 € par séjour, catégorie *Animations*, les deux logements, visible côté client. The bottle is
+    therefore a deliberate gesture on the evening slot. One thing to watch on the first booking: the
+    bath is *also* an hourly resource at 50 €/h after 20:00 and the option does not book that slot,
+    so a guest who has already used the free hour in the daytime could be billed 50 € twice.
+  - *Side finding.* Option #34's description came back as « … réservé aux adultes. » where
+    « Réservé » was typed — the capital is lost on free text, which the existing
+    `fix/free-text-keeps-case` branch addresses. The field is guest-facing.
