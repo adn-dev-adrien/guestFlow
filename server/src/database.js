@@ -2668,7 +2668,7 @@ require('./models/gateKeysModel').migratePropertyId(db);
   ensurePluginsTable(db);
   ensurePluginSettingsTable(db);
   if (process.env.SKIP_MIGRATIONS !== 'true') {
-    require('./utils/pluginsBackportSeed').seedBackportPlugins(db, require('./constants/plugins').PLUGIN_IDS);
+    require('./utils/pluginsBackportSeed').seedBackportPlugins(db);
   }
 }
 

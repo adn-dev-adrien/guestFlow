@@ -110,7 +110,7 @@ test('specs/plugin-engine-backport.md rule 1: the catalogue lists the plugins sh
 test('specs/plugin-engine-backport.md rule 3: the plugins are seeded installed but inactive, once, under their own ledger', () => {
   const db = freshDb();
   const plugins = buildPluginsModel(db);
-  seedBackportPlugins(db, PLUGIN_IDS);
+  seedBackportPlugins(db);
   PLUGIN_IDS.forEach((id) => {
     const row = plugins.get(id);
     assert.ok(row, id);
@@ -122,7 +122,7 @@ test('specs/plugin-engine-backport.md rule 3: the plugins are seeded installed b
   assert.notEqual(LEDGER_NAME, 'plugins_builtin_seed_v1');
 
   plugins.setEnabled(PLUGIN_IDS[0], true);
-  seedBackportPlugins(db, PLUGIN_IDS);
+  seedBackportPlugins(db);
   assert.equal(plugins.get(PLUGIN_IDS[0]).enabled, true, 'a second boot never switches an activated plugin off');
 });
 
@@ -180,7 +180,7 @@ test('specs/plugin-engine-backport.md rule 5: list, activate and deactivate; an 
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error, 'NOT_INSTALLED');
 
-  seedBackportPlugins(db, PLUGIN_IDS);
+  seedBackportPlugins(db);
   res = fakeRes();
   ctrl.list({}, res);
   assert.deepEqual(res.body.map((p) => [p.id, p.enabled]), PLUGIN_IDS.map((id) => [id, false]));
@@ -250,7 +250,7 @@ test('specs/plugin-engine-backport.md rule 7: a throwing register or migration m
 
 test('specs/plugin-engine-backport.md rule 8: right after the seed no plugin is live, no job runs and nothing is exposed to the client', () => {
   const db = freshDb();
-  seedBackportPlugins(db, PLUGIN_IDS);
+  seedBackportPlugins(db);
   const model = buildPluginsModel(db);
   registry.reset();
   registry.configure({ isActive: (id) => model.isActive(id) });

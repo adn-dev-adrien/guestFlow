@@ -5,4 +5,5 @@
 
 module.exports = [
   require('./gites-de-france-intake'),
+  require('./booking-intake'),
 ];

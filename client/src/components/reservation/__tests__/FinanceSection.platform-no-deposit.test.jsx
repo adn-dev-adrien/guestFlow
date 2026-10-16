@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
@@ -12,7 +12,8 @@ import { makeMockContext } from '../mockReservationForm';
 // caption "Pas d'acompte (réservation plateforme — virement unique)"). Direct bookings
 // keep the regular Acompte block.
 
-vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
+vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));
+import api from '../../../api';
 
 function renderFinance(overrides) {
   const ctx = makeMockContext(overrides);
@@ -24,6 +25,21 @@ function renderFinance(overrides) {
       </DialogProvider>
   );
   return ctx;
+}
+
+// specs/booking-extranet-intake.md §4.1 — the commission is computed by the server
+// (`POST /api/reservations/platform-commission`, rules in platform-commission.unit.test.js); the button
+// only sends the figures of the form and writes back what it answers.
+async function calculate(ctx) {
+  api.computePlatformCommission.mockResolvedValueOnce({ commission: 123.45 });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  await waitFor(() => expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 123.45 }));
+  expect(api.computePlatformCommission).toHaveBeenCalledWith({
+    gross: ctx.form.platformGrossAmount,
+    payout: ctx.form.platformPayoutAmount,
+    touristTax: ctx.form.platformTouristTaxAmount,
+    acompteCommission: ctx.form.acompteCommissionAmount,
+  });
 }
 
 test("direct reservation: the Acompte block is rendered as usual", () => {
@@ -148,19 +164,16 @@ test('« Calculer la commission »: disabled until both montant client + viremen
   expect(screen.getByRole('button', { name: /Calculer la commission/i })).toBeDisabled();
 });
 
-test('« Calculer la commission »: fills Commission solde = montant client − virement (no acompte)', () => {
+test(`« Calculer la commission »: sends montant client and virement to the server`, async () => {
   const ctx = renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 600, platformPayoutAmount: 520 } });
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 });
+  await calculate(ctx);
 });
 
-test('« Calculer la commission »: subtracts an already-entered acompte commission', () => {
+test(`« Calculer la commission »: sends an already-entered acompte commission`, async () => {
   const ctx = renderFinance({ form: {
     platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520, acompteCommissionAmount: 10,
   } });
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  // 600 − 520 − 10 = 70 ; the acompte commission itself is left untouched.
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 70 });
+  await calculate(ctx); // the acompte commission itself is left untouched.
 });
 
 // specs/platform-brut-excludes-offered-tourist-tax.md rule 3 — the tourist tax is NEVER subtracted,
@@ -168,31 +181,28 @@ test('« Calculer la commission »: subtracts an already-entered acompte commiss
 // above excludes the tax (it is the stay total the platform bills us) and so does the virement; when
 // the platform reverses the tax to us, both carry it. Deducting our own estimate under-stated every
 // Gîtes de France commission — the accountant's 2026-08-24 report.
-test('« Calculer la commission »: never subtracts the tax when the platform collects + remits it to the commune', () => {
+test(`« Calculer la commission »: the engine's tax estimate is never sent (platform collects and remits)`, async () => {
   const ctx = renderFinance({
     form: { platform: 'Airbnb', platformGrossAmount: 600, platformPayoutAmount: 520 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 12 },
   });
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 }); // 600 − 520, tax untouched
+  await calculate(ctx);
 });
 
-test('« Calculer la commission »: same formula when the tax is reversed to us (reversed / owner / direct)', () => {
+test(`« Calculer la commission »: same request when the tax is reversed to us`, async () => {
   const ctx = renderFinance({
     form: { platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520 },
     pricingQuote: { touristTaxOfferedByPlatform: false, touristTaxOriginalTotal: 12 },
   });
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 }); // 600 − 520, tax not subtracted
+  await calculate(ctx);
 });
 
-test('the Grimaud case: 733 facturé − 668 viré → commission 65 (was 50,60 with the tax deducted)', () => {
+test(`the Grimaud case: 733 facturé and 668 viré go to the server`, async () => {
   const ctx = renderFinance({
     form: { platform: 'GitesDeFrance', platformGrossAmount: 733, platformPayoutAmount: 668 },
     pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.4 },
   });
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 65 });
+  await calculate(ctx);
 });
 
 // Rule 7 — which number to copy off the statement depends on the platform's tax mode, so the field says it.

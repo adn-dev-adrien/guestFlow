@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import Booking</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --ok:#356f49; --ok-bg:#e6efe7; --warn:#80601a; --warn-bg:#f6edd7;
+  --err:#9c3d34; --err-bg:#f7e8e5; --info:#31556e; --info-bg:#e4edf3; --bk:#1f3f73;
+  --shadow:0 1px 2px rgba(39,37,31,.06),0 8px 24px -12px rgba(39,37,31,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817;
+    --err:#e08b82; --err-bg:#341f1c; --info:#8fb6d4; --info-bg:#1b2733; --bk:#9db8e6;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817;
+  --err:#e08b82; --err-bg:#341f1c; --info:#8fb6d4; --info-bg:#1b2733; --bk:#9db8e6;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+::selection{background:var(--sapin);color:var(--card)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:28px 16px 72px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px;color:var(--sapin);letter-spacing:-.01em}
+h2{font-size:20px;margin:44px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px;color:var(--sapin)}
+h3{font-size:16px;margin:0 0 6px}
+p,li{max-width:72ch}
+.sub{color:var(--muted);margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+ul{margin:6px 0;padding-left:20px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--hover);padding:1px 5px;border-radius:4px}
+.num{font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:13px}
+.scroll{overflow-x:auto}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.seg{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:7px 14px;min-height:40px;font-size:14px;cursor:pointer;transition:transform .1s ease-out,background .15s}
+.seg:active{transform:scale(.97)}
+.seg[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--card)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
+.label{font-size:13px;color:var(--muted);margin:14px 0 4px}
+.small{font-size:12px;color:var(--muted)}
+
+.flow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:18px;align-items:start}
+@media (max-width:900px){.flow{grid-template-columns:1fr}}
+.win{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.chrome{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--hover);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.dots{display:flex;gap:5px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.url{flex:1;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pane{padding:14px 16px}
+.ext h3{color:var(--bk);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px}
+.ext .note{font-size:12px;color:var(--muted);margin:0 0 10px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+@media (max-width:480px){.fgrid{grid-template-columns:1fr}}
+.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+.fld input,.fld select{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-height:36px}
+.fld input:focus,.fld select:focus{outline:2px solid var(--bk);outline-offset:0;border-color:transparent}
+.fld.full{grid-column:1/-1}
+.fld input.bad{border-color:var(--err);background:var(--err-bg)}
+.open{margin-top:12px;width:100%;min-height:44px;border-radius:10px;border:1px solid var(--bk);background:transparent;color:var(--bk);font-weight:600;cursor:pointer;transition:transform .1s ease-out}
+.open:active{transform:scale(.98)}
+.toast{margin-top:12px;border-radius:10px;padding:10px 12px;font-size:13.5px;animation:in .28s cubic-bezier(.2,.8,.2,1);background:var(--card);border:1px solid var(--line)}
+.toast b{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.toast.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}.toast.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}.toast.err{background:var(--err-bg);color:var(--err);border-color:transparent}
+@keyframes in{from{opacity:0;transform:translateY(6px);filter:blur(2px)}to{opacity:1;transform:none;filter:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.gf{transition:max-width .3s cubic-bezier(.2,.8,.2,1);margin-inline:auto;width:100%}
+.gf.mobile{max-width:390px}
+.abar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.abar b{font-family:Georgia,serif;font-size:17px;flex:1;min-width:0}
+.stage{padding:14px;min-height:380px}
+.stage>*{animation:in .28s cubic-bezier(.2,.8,.2,1)}
+.dline{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;border-radius:10px;padding:10px 12px;background:var(--info-bg);color:var(--info);font-size:14px;margin-bottom:12px}
+.dline b{flex:1 1 220px}
+.dline button,.alert button{border:1px solid currentColor;background:transparent;color:inherit;border-radius:8px;padding:6px 12px;min-height:40px;cursor:pointer;transition:transform .1s ease-out}
+.dline button:active,.alert button:active{transform:scale(.97)}
+.gf.mobile .dline button,.gf.mobile .alert button{flex:1 1 100%}
+.alert{border-radius:10px;padding:12px 14px;font-size:14px;margin-bottom:12px}
+.alert.ok{background:var(--ok-bg);color:var(--ok)} .alert.warn{background:var(--warn-bg);color:var(--warn)}
+.alert b{display:block;margin-bottom:2px}
+.alert .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.alert table{margin-top:6px}.alert td{border-top:1px solid color-mix(in srgb,currentColor 25%,transparent);padding:4px 6px}
+.alert del{opacity:.7}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:14px}
+.gf.mobile .fields{grid-template-columns:1fr}
+.f{border-bottom:1px solid var(--line);padding:4px 0}
+.f span{display:block;color:var(--muted);font-size:12px}
+.f.empty{color:var(--muted)}
+.f.new{background:linear-gradient(90deg,var(--ok-bg),transparent)}
+.chk{display:flex;align-items:center;gap:6px;margin-top:10px;font-weight:600;color:var(--ok);font-size:14px}
+.chk svg{width:16px;height:16px}
+.chk.no{color:var(--muted);font-weight:400}
+</style>
+</head>
+<body>
+<main>
+<h1>Remplir une réservation Booking pendant que tu l'ouvres</h1>
+<p class="sub">Spec <code>specs/booking-extranet-intake.md</code>, brouillon du 15/10/2026, à valider. Plugin <code>booking-intake</code>, inactif par défaut, livré sur <code>master</code> avec le moteur minimal.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="box">
+    <h3>Booking n'envoie rien d'exploitable</h3>
+    <ul>
+      <li>Ses mails ne partent que si le client écrit : celui du 15/10 notifiait un message.</li>
+      <li>Son API est réservée aux channel managers certifiés.</li>
+      <li>La liste de l'extranet n'a pas la taxe de séjour : ni montant total, ni virement.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3>Tout est sur la page de la réservation</h3>
+    <p style="margin:0">Elle est derrière ton mot de passe et la 2FA : GuestFlow ne se connecte jamais à ta place. En revanche, un script installé dans <b>ton</b> navigateur peut lire la page que tu ouvres et la lui transmettre.</p>
+  </div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li>Un script à installer une fois (Tampermonkey, Violentmonkey ou Userscripts sur Safari), fourni par GuestFlow avec le secret de ton instance.</li>
+  <li>Une ligne sur le tableau de bord dès que l'iCal importe une réservation Booking à compléter, avec « Ouvrir dans Booking ».</li>
+  <li>Dès que la page de la réservation s'affiche, le script l'envoie. GuestFlow vérifie que les montants se recoupent, retrouve la fiche et la remplit tout seul, uniquement si elle est encore vierge. Un petit message s'affiche sur la page Booking.</li>
+  <li>Une fiche déjà remplie n'est jamais écrasée en silence : le bandeau de la fiche propose les différences, avec « Appliquer » ou « Ignorer ».</li>
+</ul>
+
+<h2>À manipuler : de l'alerte à la fiche remplie</h2>
+<p>Modifie une valeur de la page Booking (par exemple la taxe de séjour), puis clique sur « Ouvrir la réservation » : le script envoie la page et GuestFlow répond. La situation choisie change ce que contient la fiche.</p>
+
+<div class="label">Situation dans GuestFlow</div>
+<div class="btnrow" id="scen" role="group" aria-label="Situation">
+  <button class="seg" aria-pressed="true" data-s="fill">Fiche iCal vierge</button>
+  <button class="seg" aria-pressed="false" data-s="same">Déjà remplie, identique</button>
+  <button class="seg" aria-pressed="false" data-s="diff">Déjà remplie, différente</button>
+  <button class="seg" aria-pressed="false" data-s="none">Aucune fiche</button>
+  <button class="seg" aria-pressed="false" data-s="past">Séjour commencé</button>
+  <button class="seg" aria-pressed="false" data-s="old">Secret régénéré</button>
+  <button class="seg" aria-pressed="false" data-s="off">Module inactif</button>
+</div>
+<div class="label">Largeur de GuestFlow</div>
+<div class="btnrow" id="width" role="group" aria-label="Largeur">
+  <button class="seg" aria-pressed="true" data-w="desk">Ordinateur</button>
+  <button class="seg" aria-pressed="false" data-w="mobile">Téléphone · 390 px</button>
+  <button class="seg" type="button" id="reset" style="margin-left:auto">Recommencer</button>
+</div>
+
+<div class="flow">
+  <div class="win ext" id="extwin">
+    <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">admin.booking.com/…/booking.html?hotel_id=14407976&amp;res_id=6300000001</span></div>
+    <div class="pane">
+      <h3>Détails de la réservation</h3>
+      <p class="note">Maquette simplifiée de la page de l'extranet, données fictives.</p>
+      <div class="fgrid">
+        <div class="fld"><label for="in">Date d'arrivée</label><input id="in" type="date" value="2026-11-06"></div>
+        <div class="fld"><label for="out">Date de départ</label><input id="out" type="date" value="2026-11-08"></div>
+        <div class="fld"><label for="ad">Adultes</label><input id="ad" type="number" min="0" value="10"></div>
+        <div class="fld"><label for="ages">Âges des enfants</label><input id="ages" placeholder="ex. 3, 8, 15"></div>
+        <div class="fld full"><label for="name">Nom du client</label><input id="name" value="Camille Garnier"></div>
+        <div class="fld"><label for="lang">Langue préférée</label><select id="lang"><option>français</option><option>néerlandais</option><option>anglais</option></select></div>
+        <div class="fld"><label for="arr">Heure d'arrivée</label><select id="arr"><option value="">non précisée</option><option selected>Entre 20:00 et 21:00</option><option>Entre 16:00 et 17:00</option></select></div>
+        <div class="fld"><label for="sub">Sous-total</label><input id="sub" inputmode="decimal" value="701,80"></div>
+        <div class="fld"><label for="tax">Taxe de séjour</label><input id="tax" inputmode="decimal" value="20,02"></div>
+        <div class="fld"><label for="tot">Montant total</label><input id="tot" inputmode="decimal" value="721,82"></div>
+        <div class="fld"><label for="com">Commission et frais</label><input id="com" inputmode="decimal" value="115,38"></div>
+        <div class="fld full"><label for="msg">Dernier message du client</label><input id="msg" value="Est-ce possible d'avoir 2 lits d'appoint ?"></div>
+      </div>
+      <button class="open" id="openres" type="button">Ouvrir la réservation</button>
+      <div id="toastzone" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="win gf" id="gf">
+    <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url" id="gfurl">guestflow.domainesolio.com</span></div>
+    <div class="abar"><b id="gftitle">Tableau de bord</b></div>
+    <div class="stage" id="stage"></div>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Aucun mot de passe Booking dans GuestFlow, aucune connexion faite à ta place, aucune lecture de Booking par GuestFlow lui-même.</li>
+  <li>Le texte brut de la page n'est jamais stocké ni journalisé. Seuls les champs lus d'une saisie appliquée ou proposée sont gardés.</li>
+  <li>Pas de création de réservation quand l'iCal ne l'a pas encore importée.</li>
+  <li>Pas de lecture des mails Booking.</li>
+  <li>Pas de suivi des modifications ni des annulations faites ensuite sur Booking : la synchro iCal s'en charge.</li>
+  <li>Aucun mail envoyé au client.</li>
+</ul>
+
+<h2>Risques</h2>
+<div class="scroll"><table>
+  <tr><th>Risque</th><th>Parade</th></tr>
+  <tr><td>Un tiers envoie de fausses données à GuestFlow</td><td>La route publique exige le secret de ton instance (comparaison à temps constant, limite de débit). Sans lui, rien n'est lu ni écrit. Il est chiffré en base et se régénère d'un clic.</td></tr>
+  <tr><td>Booking renomme un libellé</td><td>Le contrôle de cohérence refuse la saisie et nomme la valeur introuvable : jamais de montant faux. Le correctif passe par une release, pas par le script.</td></tr>
+  <tr><td>Booking durcit un jour ses pages contre les scripts</td><td>Repli sur la skill <code>/platform-booking-intake</code>, toujours là.</td></tr>
+  <tr><td>Le script remplit une fiche à tort</td><td>Il n'écrit que sur une fiche vierge (ni e-mail ni téléphone, paiement plateforme vide) dont les dates correspondent. Chaque saisie apparaît dans l'historique de la fiche.</td></tr>
+  <tr><td>Une fiche du flux Lodgify n'est pas une réservation Booking</td><td>Bouton « Pas une réservation Booking » sur la ligne du tableau de bord.</td></tr>
+  <tr><td>Un ajout au SDK sur <code>master</code> diverge de la branche plugins</td><td><code>ctx.core.clients.update</code> est aussi appliqué à l'identique sur <code>inte/plugins</code>, pour que le même fichier ne change pas de deux façons.</td></tr>
+</table></div>
+
+<h2>Arbitrages</h2>
+<p>Tout est tranché le 15/10/2026 : plugin sur <code>master</code> avec un moteur minimal, déclencheur iCal, script avec remplissage automatique protégé par un secret, fiche déjà remplie traitée en proposition. Reste à valider cette spec et celle du moteur, puis à installer le script une fois après la mise en production.</p>
+</main>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var S = { scen:'fill', ran:false, result:null, applied:false, dismissed:false };
+  var CHK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>';
+
+  function num(v){ v = String(v).replace(/\s/g,'').replace(',','.'); return v === '' || isNaN(+v) ? NaN : Math.round(+v*100)/100; }
+  function eur(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+  function fr(d){ var p = d.split('-'); return p[2]+'/'+p[1]; }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function parse(){
+    var r = { errors:[], bad:[] };
+    r.inD = $('in').value; r.outD = $('out').value;
+    r.nights = Math.round((new Date(r.outD) - new Date(r.inD)) / 864e5);
+    r.adults = parseInt($('ad').value, 10);
+    var raw = $('ages').value.trim();
+    r.ages = raw ? raw.split(/[,;\s]+/).filter(Boolean).map(Number) : [];
+    r.name = $('name').value.trim();
+    r.lang = $('lang').value === 'français' ? 'FR' : 'EN';
+    var a = $('arr').value.match(/(\d\d:\d\d)/); r.arr = a ? a[1] : null;
+    ['sub','tax','tot','com'].forEach(function(k){ r[k] = num($(k).value); });
+    r.msg = $('msg').value.trim();
+    if (!(r.nights > 0)) { r.errors.push('Dates incohérentes.'); r.bad.push('in','out'); }
+    if (!(r.adults >= 1)) { r.errors.push('Adultes introuvable.'); r.bad.push('ad'); }
+    if (r.ages.some(function(x){ return isNaN(x) || x < 0 || x > 17; })) { r.errors.push('Âge d\'enfant illisible.'); r.bad.push('ages'); }
+    if (!r.name) { r.errors.push('Nom du client introuvable.'); r.bad.push('name'); }
+    [['sub','Sous-total'],['tax','Taxe de séjour'],['tot','Montant total'],['com','Commission et frais']].forEach(function(k){ if (isNaN(r[k[0]])) { r.errors.push(k[1] + ' introuvable.'); r.bad.push(k[0]); } });
+    if (!r.errors.length && Math.abs(r.sub + r.tax - r.tot) > 0.01) { r.errors.push('Montants incohérents : Sous-total ' + eur(r.sub) + ' + taxe ' + eur(r.tax) + ' ≠ total ' + eur(r.tot) + '. Rien n\'a été écrit.'); r.bad.push('sub','tax','tot'); }
+    if (!r.errors.length) {
+      r.payout = Math.round((r.tot - r.com)*100)/100;
+      r.commission = Math.max(0, Math.round((r.tot - r.payout - r.tax)*100)/100);
+      r.teens = r.ages.filter(function(x){ return x >= 12; }).length;
+      r.kids = r.ages.filter(function(x){ return x >= 2 && x < 12; }).length;
+      r.babies = r.ages.filter(function(x){ return x < 2; }).length;
+    }
+    ['in','out','ad','ages','name','sub','tax','tot','com'].forEach(function(id){ $(id).classList.toggle('bad', r.bad.indexOf(id) >= 0); });
+    return r;
+  }
+  function party(r){
+    var p = [r.adults + ' adulte' + (r.adults > 1 ? 's' : '')];
+    if (r.teens) p.push(r.teens + ' ado' + (r.teens > 1 ? 's' : ''));
+    if (r.kids) p.push(r.kids + ' enfant' + (r.kids > 1 ? 's' : ''));
+    if (r.babies) p.push(r.babies + ' bébé' + (r.babies > 1 ? 's' : ''));
+    return p.join(', ');
+  }
+  function toast(kind, text){ $('toastzone').innerHTML = text ? '<div class="toast ' + kind + '" role="status"><b>Message du script sur la page Booking</b>' + esc(text) + '</div>' : ''; }
+
+  function answer(r){
+    if (S.scen === 'off') return { kind:'err', text:'GuestFlow : module inactif.' };
+    if (S.scen === 'old') return { kind:'err', text:'GuestFlow : script obsolète, le réinstaller depuis GuestFlow.' };
+    if (r.errors.length) return { kind:'err', text:'GuestFlow : ' + r.errors[0] };
+    if (S.scen === 'none') return { kind:'err', text:'GuestFlow : aucune fiche du ' + fr(r.inD) + ' au ' + fr(r.outD) + ', la synchro iCal ne l\'a pas encore importée.' };
+    if (S.scen === 'past') return { kind:'err', text:'GuestFlow : séjour commencé, fiche à saisir à la main.' };
+    if (S.scen === 'same') return { kind:'ok', text:'GuestFlow : déjà à jour.' };
+    if (S.scen === 'diff') return { kind:'warn', text:'GuestFlow : fiche déjà remplie, 3 champs diffèrent, à valider dans GuestFlow.', proposal:true };
+    return { kind:'ok', text:'GuestFlow : fiche 22309 remplie ✓', apply:true };
+  }
+
+  function ficheHtml(r, filled, isNew){
+    var f = function(l, v, cls){ return '<div class="f ' + (cls || '') + '"><span>' + l + '</span>' + v + '</div>'; };
+    if (!filled) {
+      return '<div class="fields">' + f('Client','C. G. (placeholder iCal)','empty') + f('Canal','Lodgify','empty') + f('Voyageurs','1 adulte','empty') +
+        f('Montant total payé','—','empty') + f('Taxe de séjour retenue','—','empty') + f('Virement reçu','—','empty') + '</div><div class="chk no">Paiement plateforme vide</div>';
+    }
+    var n = isNew ? 'new' : '';
+    return '<div class="fields num">' + f('Client', esc(r.name) + ' · e-mails ' + r.lang, n) + f('Canal · n°','Booking · 6300000001', n) +
+      f('Arrivée', fr(r.inD) + (r.arr ? ' · ' + r.arr : ''), n) + f('Départ', fr(r.outD), n) + f('Voyageurs', party(r), n) +
+      f('Montant total payé', eur(r.tot), n) + f('Taxe de séjour retenue', eur(r.tax), n) + f('Virement reçu', eur(r.payout), n) + f('Commission', eur(r.commission), n) + '</div>' +
+      '<div class="chk">' + CHK + 'Net perçu ' + eur(r.payout) + ' · cohérent avec le virement</div>';
+  }
+
+  function render(){
+    var r = parse(), st = $('stage');
+    $('gftitle').textContent = S.ran ? 'Réservation 22309' : 'Tableau de bord';
+    $('gfurl').textContent = 'guestflow.domainesolio.com/' + (S.ran ? 'reservations/22309' : '');
+    if (S.dismissed) { st.innerHTML = '<p class="small">Ligne écartée : ce n\'était pas une réservation Booking.</p>'; return; }
+    var pendingScen = S.scen === 'fill' || S.scen === 'none' || S.scen === 'past' || S.scen === 'old' || S.scen === 'off';
+    var showLine = pendingScen && !S.applied;
+    var line = showLine ? '<div class="dline" role="status"><b>Réservation Booking à compléter · La Granja ' + (r.inD ? fr(r.inD) : '') + ' → ' + (r.outD ? fr(r.outD) : '') + '</b><button type="button" data-g="openbk">Ouvrir dans Booking</button><button type="button" data-g="dismiss">Pas une réservation Booking</button></div>' : '';
+    if (!S.ran) {
+      st.innerHTML = (line || '<p class="small">Aucune réservation Booking à compléter.</p>') + '<p class="small" style="margin-top:10px">Clique sur « Ouvrir dans Booking », ou directement sur « Ouvrir la réservation ».</p>';
+      return;
+    }
+    var banner = '';
+    var res = r.errors.length ? null : r;
+    if (S.applied && res) banner = '<div class="alert ok" role="status"><b>Rempli depuis l\'extranet Booking le 15/10 à 15:52.</b>' + (res.msg ? 'Message client sans réponse sur Booking.' : '') + '</div>';
+    else if (S.result && S.result.proposal && res) banner = '<div class="alert warn" role="status"><b>La page Booking propose 3 valeurs différentes de la fiche.</b><table class="num"><tr><td>Adultes</td><td><del>8</del> → ' + res.adults + '</td></tr><tr><td>Taxe de séjour retenue</td><td><del>2,40 €</del> → ' + eur(res.tax) + '</td></tr><tr><td>Virement reçu</td><td><del>701,80 €</del> → ' + eur(res.payout) + '</td></tr></table><div class="acts"><button type="button" data-g="apply">Appliquer</button><button type="button" data-g="ignore">Ignorer</button></div></div>';
+    var filledNow = S.applied || S.scen === 'same' || S.scen === 'diff';
+    var base = res || { name:'', lang:'', inD:'', outD:'', adults:0, ages:[], tot:0, tax:0, payout:0, commission:0 };
+    st.innerHTML = line + banner + ficheHtml(base, filledNow && !!res, S.applied);
+  }
+
+  function run(){
+    var r = parse(), a = answer(r);
+    S.ran = true; S.result = a; S.applied = !!a.apply; S.dismissed = false;
+    toast(a.kind, a.text);
+    render();
+  }
+  function clearAll(){ S.ran = false; S.applied = false; S.result = null; S.dismissed = false; toast('', ''); }
+
+  $('openres').addEventListener('click', run);
+  $('stage').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-g]'); if (!b) return;
+    var k = b.getAttribute('data-g');
+    if (k === 'openbk') { $('extwin').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'center'}); $('openres').focus({preventScroll:true}); }
+    else if (k === 'apply') { S.applied = true; S.result = { kind:'ok' }; toast('ok','GuestFlow : fiche 22309 mise à jour ✓'); render(); }
+    else if (k === 'ignore') { S.result = null; S.scen = 'same'; syncSeg(); toast('', ''); render(); }
+    else if (k === 'dismiss') { S.dismissed = true; render(); }
+  });
+  document.querySelectorAll('.ext input, .ext select').forEach(function(el){ el.addEventListener('input', function(){ parse(); }); });
+  function syncSeg(){ document.querySelectorAll('#scen .seg').forEach(function(x){ x.setAttribute('aria-pressed', String(x.getAttribute('data-s') === S.scen)); }); }
+  document.querySelectorAll('#scen .seg').forEach(function(b){ b.addEventListener('click', function(){ S.scen = b.getAttribute('data-s'); clearAll(); syncSeg(); render(); }); });
+  document.querySelectorAll('#width .seg[data-w]').forEach(function(b){ b.addEventListener('click', function(){
+    document.querySelectorAll('#width .seg[data-w]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    $('gf').classList.toggle('mobile', b.getAttribute('data-w') === 'mobile');
+  }); });
+  $('reset').addEventListener('click', function(){ clearAll(); render(); });
+  render();
+})();
+</script>
+</body>
+</html>

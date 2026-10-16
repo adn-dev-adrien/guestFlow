@@ -47,8 +47,11 @@ its version of each file.
    content. Every deviation (trimmed file, 2-line patch) is listed in §4 and resolves by taking the
    branch's version.
    > **Sans test** — a method of work (how files are copied), not behaviour: nothing to assert.
-3. **Seeded installed but inactive.** At boot, the two plugin ids get a `plugins` row with
-   `enabled = 0` (`INSERT OR IGNORE`), recorded in its own ledger entry `plugins_backport_seed_v1`.
+3. **Seeded installed but inactive.** At boot, each plugin id gets a `plugins` row with
+   `enabled = 0` (`INSERT OR IGNORE`), batch by batch, each batch recorded in its own ledger entry
+   (`plugins_backport_seed_v1`: Gîtes de France; `_v2`: Booking, shipped later). A plugin added later joins
+   a new batch, so databases that already ran the earlier ones receive it too, and a plugin removed since is
+   never seeded back. The batches live in `constants/plugins.js`.
    The branch's `seedBuiltinPlugins` and its ledger `plugins_builtin_seed_v1` are **never** called on
    `master`: calling it would make the later full merge skip seeding the other plugins on existing
    databases.

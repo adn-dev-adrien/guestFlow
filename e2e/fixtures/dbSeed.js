@@ -148,7 +148,37 @@ function setClientEmailLanguage(clientId, lang) {
   });
 }
 
+/**
+ * The public URL the userscript of a plugin embeds (app_settings.publicUrl) — empty on a fresh database.
+ */
+function setPublicUrl(url) {
+  return withDb((db) => {
+    db.prepare('UPDATE app_settings SET publicUrl = ? WHERE id = 1').run(url);
+  });
+}
+
+/**
+ * Make a reservation look like the placeholder an iCal import created: source type and feed key.
+ */
+function markIcalImported(reservationId, platformKey) {
+  return withDb((db) => {
+    db.prepare("UPDATE reservations SET sourceType = 'ical', sourcePlatformKey = ? WHERE id = ?").run(platformKey, reservationId);
+  });
+}
+
+/**
+ * Overwrite one stored « Paiement plateforme » figure, as if the operator had edited it by hand.
+ */
+function setPlatformPayout(reservationId, amount) {
+  return withDb((db) => {
+    db.prepare('UPDATE reservations SET platformPayoutAmount = ? WHERE id = ?').run(amount, reservationId);
+  });
+}
+
 module.exports = {
+  setPublicUrl,
+  markIcalImported,
+  setPlatformPayout,
   seedPendingDateDrift,
   seedPendingCancellation,
   setLinenStock,
