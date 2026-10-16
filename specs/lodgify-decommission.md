@@ -124,6 +124,15 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     deleting it or emptying its URL: an inactive source is not synced, so its mappings raise no
     cancellation alert, and its past reservations keep their origin for the history.
     > **Sans test** — an operator action on the existing `isActive` toggle; that inactive sources are never synced is pre-existing behaviour (`scheduledTasks.performAutoSync` selects `isActive = 1`), covered by its own suites.
+    >
+    > ⚠️ **Measured 2026-10-16 — this rule cannot be applied from the interface.** The property's
+    > platforms tab offers « Désactiver » / « Réactiver » only, and that button writes
+    > `ical_sources.disabled`, not `isActive` (`PropertyPlatformsTab.jsx:214`). `disabled` hides the
+    > platform's bookings from the property views and blocks the *manual* sync button; the hourly
+    > `performAutoSync` ignores it. A source shown « Désactivé » therefore keeps importing every
+    > hour. Both Lodgify sources are in that state today — see §11, 2026-10-16. Pending
+    > arbitration: give the UI a control that writes `isActive`, make the hourly job honour
+    > `disabled`, or rewrite this rule.
 11. The `Lodgify` platform row stays: 17 reservations and their accounting entries reference it, and
     `isDirectChannel()` keeps counting it as an own channel. No new reservation is filed under it.
     > **Sans test** — nothing is changed: the row and `isDirectChannel()` stay as they are.
@@ -342,6 +351,11 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
    further on this channel.
 3. **Relabel in GuestFlow** every future reservation filed under `Lodgify` that actually came from
    Booking, Airbnb or Abritel (rule 4). Create the `Abritel` platform at 15 % (rule 12).
+
+   **Done / void, measured 2026-10-16.** The `Abritel` platform exists at 15 %. Of the 14 future
+   reservations, the five labelled `Lodgify` are the duplicates of the 15/10 incident, to **delete**
+   rather than relabel (§11); none of the others came from a channel under another name. Nothing is
+   left to relabel.
 4. **Record every channel's current settings** (standard price, derived plans, promotions, minimum
    stays, booking window) — Booking may reset the standard plan when the provider is removed.
 
@@ -550,3 +564,60 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   reworded in two places to fit — these fields hold **one text per language, 500 characters each**,
   and the gîte's two versions had drifted apart (the English one carries the hot-tub pricing and the
   children's activities, the French one does not); worth a pass of its own on both listings.
+
+- 2026-10-16 — **The FR/EN description blocks are realigned on both Airbnb listings, and three
+  things measured on the way turn out to contradict what is written above.**
+  - *The descriptions.* Airbnb stores one text per language per field and never translates, so the
+    five fields of each listing had drifted independently. On the **gîte**, four of the five English
+    texts were rewritten from the French: the listing summary (it was missing the 3-star rating, the
+    beds made on arrival and the sliding rates), « Mon logement » (250 characters about insulation
+    and the wood stove, against 770 in French describing the four bedrooms, the terrace, the
+    playroom), « Accès des voyageurs » — which still sold **an abandoned pricing model**: « for
+    bookings with fewer than 8 people … the "attic" space will not be accessible … an additional
+    charge will apply » — and « Autres informations à noter », which was missing the pets and
+    reduced-mobility lines the French carries. « Échanges avec les voyageurs » was left as it was,
+    the English being richer than the French there.
+  - *On the **tent**, three fields held their French text in the **English** slot with the French
+    slot empty* (« Mon logement » 1 778 characters, « Accès des voyageurs » 1 154, « Échanges »).
+    Each was moved to the French slot and given a real English translation; one broken French
+    sentence was repaired in passing (« et les lors de votre départ » → « et nous les reprenons lors
+    de votre départ »). The tent's summary and « Autres informations » were already in sync and were
+    left alone. Field limits are not uniform: 500 characters for the short blocks, at least 1 778
+    for « Mon logement ».
+  - *A claim no catalogue backs.* Both listings announce « bain privatisé après 20 h et champagne au
+    bord du bain, 50 € ». GuestFlow has no such package: the bath is 30 €/h with
+    `hourlyEveningStart 20:00` and `hourlyEveningRate 50`, and champagne is a separate option (40 €
+    the bottle, 25 € the half). The listing therefore sells a 40 € bottle plus a 50 € hour for 50 €
+    in total. Removed from the gîte's English block (it was English-only there); left on the tent,
+    where both languages say it, as an arbitration for the operator. Same question for « Kit
+    Aventurier », « plaque de cuisson » and « Option Portage de Bagages », announced on the tent and
+    absent from the catalogue.
+  - ⚠️ **The Lodgify sources are not stopped.** Both show « Désactivé » in GuestFlow, which writes
+    `ical_sources.disabled = 1` — a **display filter**: it hides that platform's bookings from the
+    property views (`propertyIcalModel.disabledPlatformLabels`), greys the card and blocks the
+    *manual* sync button (`PropertyPlatformsTab.jsx:214`). The hourly job selects
+    `WHERE isActive = 1` (`scheduledTasks.js:59-63`) and never looks at `disabled`. Both sources
+    still carry `isActive = 1`; source #10 last synced **2026-10-16 05:31:27, success, « 7
+    inchangé(s) »**, and both feeds still answer with anonymised stays (15 events on Granja, 7 of
+    them future; 26 on L'Estiva, 4 future). Two consequences: Abritel **still reaches GuestFlow**
+    through Lodgify, so the warning above about « plus aucun flux » and an urgent overbooking gap is
+    wrong as long as Abritel stays connected on the Lodgify side; and **rule 10 has no control in
+    the interface** — « Désactiver » cannot write `isActive = 0`. Either the UI gains that control,
+    or the hourly job honours `disabled`, or rule 10 is rewritten to match what the screen can do.
+    Left as an arbitration, because the right answer changes behaviour for every platform, not just
+    Lodgify.
+  - ⚠️ **The five duplicate reservations of 15/10 are still in production.** #22316, #22317, #22318,
+    #22319 and #22315 (numbers 202610003 to 202610007), all created `2026-10-15 18:41`, all at 0 €
+    with one guest and the anonymous client #144, each shadowing a real Booking reservation on the
+    same dates and property (#22309 / 6392081711, #22282 / 6396936881, #22301 / 6617083884, #22304 /
+    5449776734, #22270 / 6646665983). They carry no money but they occupy the calendar twice on five
+    future stays. Deleting a production reservation is irreversible, so it waits for the operator.
+  - *Runbook step 3 is smaller than it reads.* Production holds 14 future reservations (2026-10-16 →
+    2028-12-31): 5 `Booking`, 5 `Lodgify`, 2 `direct`, 1 `Greengo`, 1 `GitesDeFrance` — **no
+    `Abritel`, no `Airbnb`**. So « relabel every future `Lodgify` reservation » has no real subject
+    (the five are the duplicates above, to delete, not to relabel), the `Abritel` platform already
+    exists at 15 %, and no future Abritel stay exists at all — which makes this the cheapest
+    possible moment to cut that channel.
+  - *Handover.* The state of the world and the ordered remainder of the Abritel job are written in
+    [`docs/rapports/2026-10-16-abritel-handover.md`](../docs/rapports/2026-10-16-abritel-handover.md),
+    for a session that picks the channel up from here.
