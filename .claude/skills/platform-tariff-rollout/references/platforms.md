@@ -1429,3 +1429,31 @@ Le calendrier accepte la période dans l'URL :
 relève la ligne du plan de base et on compare chaque date à `grossFromNet(netTarget, taux)`.
 Un échantillon par saison ne suffit pas — une plage ratée dans une boucle de saisie ne se voit que
 comme ça.
+
+### Piège n° 33 — « Désactivé » dans GuestFlow ne veut pas dire « plus synchronisé »
+
+Mesuré le 16/10/2026, deux fois, dont une en production pendant un nettoyage.
+
+Sur l'onglet Plateformes d'un logement, le seul bouton est « Désactiver » / « Réactiver », et il
+écrit `ical_sources.disabled`. Cette colonne **masque** les réservations de la plateforme dans les
+vues du logement, grise la carte et bloque le bouton de synchronisation **manuelle**. Le job horaire
+`scheduledTasks.performAutoSync` sélectionne `WHERE isActive = 1` et **ne regarde jamais
+`disabled`**. Un calendrier affiché « Désactivé » continue donc d'importer toutes les heures.
+
+Deux conséquences à ne pas confondre :
+
+- **Ce qu'on croit coupé ne l'est pas.** Vérifier par la donnée, pas par l'écran :
+  `GET /api/properties/<id>/ical-sources` → `isActive`, et `lastSyncAt` / `lastSyncMessage` disent
+  si le flux tourne encore. Pour vraiment arrêter une source, il faut un
+  `PUT /api/properties/<id>/ical-sources/<sourceId>` avec `isActive: false` — en renvoyant `url` et
+  `platformKey`, que `resolveSourceInput` relit. L'UI n'a pas ce contrôle.
+- **Supprimer un doublon avant d'arrêter sa source ne sert à rien.** Une suppression faite par
+  l'opérateur ne laisse pas de tombstone que l'import respecte : l'événement du flux redevient
+  « nouveau » au passage suivant et la réservation est recréée. En supprimant cinq doublons à la
+  main, le sync tombé au milieu en a recréé trois dans la même minute. **L'ordre est : on arrête la
+  source, on vérifie `isActive = 0`, puis on nettoie, puis on force un `sync-all` pour confirmer que
+  rien ne revient.**
+
+Le même raisonnement vaut pour tout canal dont on coupe le gestionnaire : un flux qu'on croit mort
+continue de parler, et il parle sous de **nouveaux UID** anonymisés, avec le nombre de voyageurs
+ramené à 1 — signature exacte d'un doublon de coupure.
