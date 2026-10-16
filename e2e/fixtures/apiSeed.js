@@ -42,11 +42,14 @@ async function createProperty({
   basePrice = 100,
   capacityAdults = 4,
   capacityChildren = 2,
+  maxGuests = undefined,
+  singleBeds = undefined,
+  doubleBeds = undefined,
 } = {}) {
   return withRequest(async (ctx) => {
     const res = await ctx.post('/api/properties', {
       data: { name, address, city, postalCode, defaultCheckIn, defaultCheckOut,
-        defaultCautionAmount, basePrice, capacityAdults, capacityChildren },
+        defaultCautionAmount, basePrice, capacityAdults, capacityChildren, maxGuests, singleBeds, doubleBeds },
     });
     if (!res.ok()) throw new Error(`createProperty failed: ${res.status()} ${await res.text()}`);
     return res.json();

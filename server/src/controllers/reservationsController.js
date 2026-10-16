@@ -16,6 +16,7 @@ const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require(
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
+const { computePlatformCommission } = require('../utils/platformCommission');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
@@ -304,6 +305,15 @@ function suggestBeds(req, res) {
     maxSingleBeds: Number(property.singleBeds || 0),
     maxDoubleBeds: Number(property.doubleBeds || 0),
   });
+}
+
+// « Calculer la commission » of the fiche (specs/booking-extranet-intake.md §4.1): the rule lives here,
+// the client only shows the figure.
+function platformCommission(req, res) {
+  const { gross, payout, touristTax, acompteCommission } = req.body || {};
+  const commission = computePlatformCommission({ gross, payout, touristTax, acompteCommission });
+  if (commission == null) return res.status(400).json({ error: 'Total facturé et virement requis' });
+  return res.json({ commission });
 }
 
 function list(req, res) {
@@ -1479,6 +1489,6 @@ async function gateAccess(req, res) {
 }
 
 module.exports = {
-  suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
+  suggestBeds, platformCommission, list, search, occupiedDates, getById, getHistory, calculatePrice,
   create, update, performUpdate, updatePayment, settleArrivalPayment, remove, gateAccess,
 };

@@ -88,6 +88,14 @@ const api = {
   getGdfIntakeMailbox: () => request('/gdf-intake/mailbox'),
   testGdfIntakeMailbox: () => request('/gdf-intake/test-mailbox', { method: 'POST' }),
   runGdfIntake: () => request('/gdf-intake/run', { method: 'POST' }),
+  getBookingIntakeForReservation: (reservationId) => request(`/booking-intake/reservation/${reservationId}`),
+  applyBookingIntake: (intakeId) => request(`/booking-intake/${intakeId}/apply`, { method: 'POST' }),
+  ignoreBookingIntake: (intakeId) => request(`/booking-intake/${intakeId}/ignore`, { method: 'POST' }),
+  hideBookingIntake: (intakeId) => request(`/booking-intake/${intakeId}/hide`, { method: 'POST' }),
+  getBookingIntakePending: () => request('/booking-intake/pending'),
+  dismissBookingIntakePending: (reservationId) => request(`/booking-intake/pending/${reservationId}/dismiss`, { method: 'POST' }),
+  getBookingIntakeLog: (limit = 10) => request(`/booking-intake/intakes?limit=${limit}`),
+  regenerateBookingIntakeSecret: () => request('/booking-intake/secret/regenerate', { method: 'POST' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 
@@ -266,6 +274,7 @@ const api = {
   getGateKeysAlerts: () => request('/dashboard/gate-keys'),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
+  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),

@@ -8,6 +8,7 @@ const cancellationController = require('../controllers/reservationCancellationCo
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
 router.post('/suggest-beds', controller.suggestBeds);
+router.post('/platform-commission', controller.platformCommission);
 router.get('/', controller.list);
 // MUST stay before '/:id' — otherwise Express matches `:id = 'search'`.
 router.get('/search', controller.search);
