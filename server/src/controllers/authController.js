@@ -3,13 +3,19 @@
  *
  * Factory `createAuthController(usersModel)` so tests can inject a fake model; a default instance is
  * bound to the production usersModel. Sessions store only the safe user object (no hash).
+ *
+ * `login` and `me` also carry `enabledPlugins`, the ids of the live plugins: the client hides every entry
+ * point of the others (specs/plugin-engine-backport.md rule 4). It is not stored in the session, so a
+ * plugin switched on or off shows at the next `/me`.
  */
 
 const defaultUsersModel = require('../models/usersModel');
 const defaultSessionsModel = require('../models/sessionsModel');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
 
-function createAuthController(users, sessions = defaultSessionsModel) {
+function createAuthController(users, sessions = defaultSessionsModel, { activePlugins = () => [] } = {}) {
+  const withPlugins = (user) => ({ ...user, enabledPlugins: activePlugins() });
+
   function login(req, res) {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
@@ -21,7 +27,7 @@ function createAuthController(users, sessions = defaultSessionsModel) {
       // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
       if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
       req.session.user = user;
-      return res.json(user);
+      return res.json(withPlugins(user));
     };
 
     // Regenerate the session id on login so a session id planted in the victim's browser BEFORE
@@ -68,7 +74,7 @@ function createAuthController(users, sessions = defaultSessionsModel) {
       return res.status(401).json({ error: 'UNAUTHENTICATED' });
     }
     req.session.user = fresh;
-    return res.json(fresh);
+    return res.json(withPlugins(fresh));
   }
 
   function changePassword(req, res) {
@@ -109,7 +115,13 @@ function createAuthController(users, sessions = defaultSessionsModel) {
   return { login, logout, me, changePassword };
 }
 
-const defaultController = createAuthController(defaultUsersModel);
+const defaultController = createAuthController(defaultUsersModel, defaultSessionsModel, {
+  // The registry's answer: a plugin that failed to start reads as off everywhere.
+  activePlugins: () => {
+    const registry = require('../plugins/sdk/registry');
+    return require('../models/pluginsModel').listActiveIds().filter((id) => registry.isLive(id));
+  },
+});
 defaultController.create = createAuthController;
 
 module.exports = defaultController;

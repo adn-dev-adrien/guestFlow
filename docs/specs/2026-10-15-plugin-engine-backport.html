@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moteur de plugins minimal</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6a665b; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --ok:#356f49; --ok-bg:#e6efe7; --warn:#80601a; --warn-bg:#f6edd7; --info:#31556e; --info-bg:#e4edf3;
+  --shadow:0 1px 2px rgba(39,37,31,.06),0 8px 24px -12px rgba(39,37,31,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817; --info:#8fb6d4; --info-bg:#1b2733;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9fa9a4; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817; --info:#8fb6d4; --info-bg:#1b2733;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+::selection{background:var(--sapin);color:var(--card)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:960px;margin:0 auto;padding:28px 16px 72px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;text-wrap:balance}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px;color:var(--sapin);letter-spacing:-.01em}
+h2{font-size:20px;margin:44px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px;color:var(--sapin)}
+h3{font-size:16px;margin:0 0 6px}
+p,li{max-width:72ch}
+.sub{color:var(--muted);margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+ul{margin:6px 0;padding-left:20px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--hover);padding:1px 5px;border-radius:4px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:13px}
+.scroll{overflow-x:auto}
+.small{font-size:12px;color:var(--muted)}
+:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.win{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.chrome{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--hover);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.dots{display:flex;gap:5px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.url{flex:1;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+.pane{padding:14px 16px}
+.mod{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding:10px 0}
+.mod:first-of-type{border-top:0}
+.mod div{flex:1;min-width:0}
+.mod b{display:block}
+.mod span{font-size:13px;color:var(--muted)}
+.sw{position:relative;width:52px;height:32px;min-width:52px;border-radius:99px;border:1px solid var(--line);background:var(--hover);cursor:pointer;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.sw[aria-checked="true"]{background:var(--sapin);border-color:var(--sapin)}
+.sw[aria-checked="true"]::after{transform:translateX(20px)}
+.sw::before{content:"";position:absolute;inset:-6px -2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.dline{border-radius:10px;padding:10px 12px;background:var(--info-bg);color:var(--info);font-size:14px;margin-bottom:10px}
+.alert{border-radius:10px;padding:10px 12px;background:var(--ok-bg);color:var(--ok);font-size:14px;margin-bottom:10px}
+.dash{min-height:120px;margin-top:12px}
+.dash>*{animation:in .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.dyn{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;font-size:14px}
+.dyn .st{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>Livrer les deux plugins sur master, sans la branche plugins</h1>
+<p class="sub">Spec <code>specs/plugin-engine-backport.md</code>, brouillon du 15/10/2026, à valider. Elle prépare Gîtes de France (déjà écrit) et Booking.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="box">
+    <h3>Le moteur n'existe que dans la branche plugins</h3>
+    <p style="margin:0"><code>master</code>, donc la production, n'a ni chargeur ni emplacements d'interface. La branche les a, avec des mois de refonte pour rendre GuestFlow générique, que tu veux tester à fond avant la production.</p>
+  </div>
+  <div class="box">
+    <h3>Mesuré le 15/10</h3>
+    <ul>
+      <li>Le strict nécessaire : environ 20 fichiers serveur (1 075 lignes copiées à l'identique) et 8 côté client.</li>
+      <li>12 fichiers de <code>master</code> touchés, environ 110 lignes.</li>
+      <li>Les points de branchement n'ont pas bougé depuis la base commune.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<ul>
+  <li>Reprendre les fichiers du moteur tels quels avec <code>git checkout origin/inte/plugins -- &lt;fichier&gt;</code>, pour que la fusion future les voie identiques. Seuls quelques fichiers sont allégés.</li>
+  <li>Les deux plugins sont installés mais <b>inactifs</b> au premier démarrage. Une carte « Modules » dans Réglages → Intégrations les active ou les désactive. Inactif, un plugin répond 404, ne fait rien tourner et n'affiche rien.</li>
+  <li>Le plugin Gîtes de France de la branche est repris tel quel. Booking suit dans une seconde PR.</li>
+  <li>Gîtes de France et le moteur partent ensemble dans la PR n° 1, Booking dans la n° 2 : on active Gîtes de France en prod avant d'ajouter le reste.</li>
+</ul>
+
+<h2>À manipuler : la carte « Modules »</h2>
+<p>Active un plugin et regarde ce qui apparaît sur le tableau de bord et la fiche ; désactive-le et tout disparaît.</p>
+<div class="win">
+  <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">guestflow.domainesolio.com/settings/integrations</span></div>
+  <div class="pane">
+    <h3>Modules</h3>
+    <div class="mod"><div><b>Saisie Gîtes de France</b><span>Remplit la fiche depuis le mail de la centrale.</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Saisie Gîtes de France" data-p="gdf"></button></div>
+    <div class="mod"><div><b>Import Booking</b><span>Remplit la fiche depuis la page de l'extranet.</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Import Booking" data-p="bk"></button></div>
+    <div class="dash" id="dash" aria-live="polite"></div>
+    <div class="dyn"><span class="st" id="st"></span></div>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Aucune synchronisation de <code>inte/plugins</code>, ni fusion de la branche.</li>
+  <li>Pas de page Plugins complète, de licence, d'abonnement, de rôles ni d'événements <code>reservation.*</code> : aucun des deux plugins n'en a besoin, et la branche a réécrit le même code.</li>
+  <li>Pas de purge ni de désinstallation : désactiver garde les données.</li>
+  <li>Les onze autres plugins de la branche ne viennent pas, et le catalogue n'en liste que deux.</li>
+</ul>
+
+<h2>Risques</h2>
+<div class="scroll"><table>
+  <tr><th>Risque</th><th>Parade</th></tr>
+  <tr><td>La fusion future crée des conflits</td><td>Fichiers copiés à l'identique là où c'est possible. Huit fichiers allégés ou modifiés seront en conflit : on prend la version de la branche. <code>authController.js</code> est relu à la main pour garder les correctifs de sécurité de <code>master</code>.</td></tr>
+  <tr><td>Un plugin se met en route seul</td><td>Semés inactifs, avec leur propre entrée de registre. Aucun appel au semis de la branche, qui ferait sauter les autres plugins à la fusion.</td></tr>
+  <tr><td>Le refactor de <code>reservationsController</code> change « Enregistrer »</td><td>Il est repris de la PR #683 déjà relue, avec son test : <code>PUT /api/reservations/:id</code> garde son comportement.</td></tr>
+  <tr><td>Un plugin en échec bloque le démarrage</td><td>Un plugin qui échoue est marqué en erreur, ses routes répondent 404, le serveur démarre.</td></tr>
+</table></div>
+
+<h2>Arbitrages</h2>
+<p>Aucun : tu as demandé de ne prendre que le strict nécessaire du moteur. Reste à valider cette spec et celle de Booking.</p>
+</main>
+<script>
+(function(){
+  var on = { gdf:false, bk:false };
+  var dash = document.getElementById('dash'), st = document.getElementById('st');
+  function render(){
+    var h = '';
+    if (on.bk) h += '<div class="dline" role="status">Réservation Booking à compléter · La Granja 06/11 → 08/11</div>';
+    if (on.gdf) h += '<div class="alert" role="status">Rempli depuis le mail Gîtes de France du 14/10 à 18:32.</div>';
+    dash.innerHTML = h || '<p class="small">Tableau de bord et fiche comme aujourd\'hui : aucun plugin actif.</p>';
+    var a = Object.keys(on).filter(function(k){ return on[k]; }).length;
+    st.textContent = a === 0 ? 'Les routes des deux plugins répondent 404, aucune tâche ne tourne.' : a === 1 ? 'Un plugin actif : ses routes et ses tâches fonctionnent, l\'autre reste à l\'arrêt.' : 'Les deux plugins sont actifs.';
+  }
+  document.querySelectorAll('.sw').forEach(function(b){
+    b.addEventListener('click', function(){ var k = b.getAttribute('data-p'); on[k] = !on[k]; b.setAttribute('aria-checked', String(on[k])); render(); });
+  });
+  render();
+})();
+</script>
+</body>
+</html>

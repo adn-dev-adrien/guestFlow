@@ -2661,6 +2661,17 @@ if (baselineDeferredError) {
 // exists from here.
 require('./models/gateKeysModel').migratePropertyId(db);
 
+// ---------- PLUGINS — specs/plugin-engine-backport.md ----------
+// The state and settings tables of the plugin engine; the plugins shipped here start installed but inactive.
+{
+  const { ensurePluginsTable, ensurePluginSettingsTable } = require('./utils/pluginsSchema');
+  ensurePluginsTable(db);
+  ensurePluginSettingsTable(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    require('./utils/pluginsBackportSeed').seedBackportPlugins(db, require('./constants/plugins').PLUGIN_IDS);
+  }
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

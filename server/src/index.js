@@ -26,6 +26,10 @@ const { buildServer } = require('./utils/httpsBootstrap');
 loadLocalEnv();
 const SqliteStore = require('better-sqlite3-session-store')(session);
 const db = require('./database');
+// specs/plugin-engine-backport.md — plugin modules declare their routes, tables and jobs here; a module
+// that throws is marked failed and the boot goes on (rule 7).
+const pluginLoader = require('./plugins/loader');
+pluginLoader.registerAll({ db });
 
 function logErrorMarker(message) {
   const timestamp = new Date().toISOString();
@@ -143,6 +147,8 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use('/public/v1/gate', require('./routes/public/gate'));
 
 app.use('/public/v1', require('./routes/public'));
+// A plugin's public routes (`/public/<plugin>/…`): each authenticates itself (rule 6).
+pluginLoader.mountPublic(app);
 
 // Guest email preferences (specs/guest-email-sequence.md §4.3) — the unsubscribe link of the season
 // emails. Public by nature (a guest opens it from an email): no session, no API key, own limiter.
@@ -220,6 +226,10 @@ app.use('/api/system', require('./routes/system'));
 app.use('/api/neat', require('./routes/neat'));
 // specs/terms-acceptance-record.md — the CGV the operator writes and publishes. Admin-only.
 app.use('/api/terms', require('./routes/terms'));
+// specs/plugin-engine-backport.md — activation of the plugins. Admin-only through the role guard above.
+app.use('/api/plugins', require('./routes/plugins'));
+// The routes of plugin modules, each behind requirePlugin: after the core guards, so admin-only.
+pluginLoader.mountApi(app);
 
 app.get('/api/version', (req, res) => {
   res.json({
@@ -303,6 +313,7 @@ const server = serverHandle.listen(PORT, () => {
 
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
+  pluginLoader.startJobs();
 });
 
 function shutdown(signal) {

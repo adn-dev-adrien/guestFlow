@@ -26,6 +26,7 @@ import GateKeysAlert from '../components/GateKeysAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import UpdateAvailableAlert from '../components/UpdateAvailableAlert';
+import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
@@ -370,6 +371,7 @@ export default function Dashboard() {
               Sits high: it is the only surface that says an acompte or un solde is late, and the
               only place a stay gets cancelled for non-payment. Renders nothing when nothing is late. */}
           <PaymentDeadlinesAlert />
+          <Slot name="dashboard.alerts.urgent" />
           {/* Gate keys Sowel could not make, or a Sowel that stopped reading the list
               (specs/gate-access-sowel-connector.md §3.3). A guest at a closed gate is the cost of
               missing it, hence high. Renders nothing when all is well. */}
@@ -390,6 +392,7 @@ export default function Dashboard() {
           <TariffRecipeRunsAlert />
           {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
               nothing when no manual email is pending. */}
+          <Slot name="dashboard.alerts" />
           <EmailPendingAlert />
           {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
               Self-contained: renders nothing when there is no pending website request. */}

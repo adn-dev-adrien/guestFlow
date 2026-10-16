@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saisie Gîtes de France</title>
+<style>
+:root{
+  --paper:#f8f5ef; --card:#fffdf9; --ink:#27251f; --muted:#6e6a5e; --line:#e2ddd2; --hover:#f0ede6;
+  --sapin:#2f5d46; --ok:#3e7d54; --ok-bg:#e6efe7; --warn:#8f6a1d; --warn-bg:#f6edd7;
+  --err:#a8433a; --err-bg:#f7e8e5; --info:#31556e; --info-bg:#e4edf3;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9aa5a0; --line:#323c37; --hover:#26302b;
+    --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817;
+    --err:#e08b82; --err-bg:#341f1c; --info:#8fb6d4; --info-bg:#1b2733;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#151a17; --card:#1d2420; --ink:#e8ece9; --muted:#9aa5a0; --line:#323c37; --hover:#26302b;
+  --sapin:#7fbf9c; --ok:#86c79c; --ok-bg:#1f2e24; --warn:#e0b25a; --warn-bg:#2f2817;
+  --err:#e08b82; --err-bg:#341f1c; --info:#8fb6d4; --info-bg:#1b2733;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:28px 16px 64px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600}
+h1{font-size:28px;margin:0 0 4px;color:var(--sapin);letter-spacing:-.01em}
+h2{font-size:20px;margin:40px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px;color:var(--sapin)}
+h3{font-size:16px;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+ul{margin:6px 0;padding-left:20px}
+code{font-size:13px;background:var(--hover);padding:1px 5px;border-radius:4px}
+.num{font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font-size:12px;padding:1px 9px;border-radius:99px;font-weight:600}
+.tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.warn{background:var(--warn-bg);color:var(--warn)} .tag.err{background:var(--err-bg);color:var(--err)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:13px}
+.scroll{overflow-x:auto}
+/* playground */
+textarea{width:100%;min-height:330px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}
+textarea:focus,button:focus-visible{outline:2px solid var(--sapin);outline-offset:2px}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.result{margin-top:10px;border-radius:10px;padding:10px 12px;font-size:14px}
+.result.ok{background:var(--ok-bg);color:var(--ok)} .result.warn{background:var(--warn-bg);color:var(--warn)} .result.err{background:var(--err-bg);color:var(--err)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.seg{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:7px 14px;min-height:40px;font:inherit;font-size:14px;cursor:pointer;transition:transform .1s ease-out}
+.seg:active{transform:scale(.97)}
+.seg[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--card)}
+/* fiche mock */
+.fiche{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;max-width:100%;transition:max-width .3s ease}
+.fiche.mobile{max-width:390px}
+.bar{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px}
+.bar b{font-family:Georgia,serif;font-size:17px;flex:1}
+.ico{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-size:16px}
+.ico.save{background:var(--sapin);border-color:var(--sapin);color:var(--card)}
+.banner{border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:14px;animation:in .25s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.banner{animation:none}.fiche{transition:none}}
+.banner.ok{background:var(--ok-bg);color:var(--ok)} .banner.warn{background:var(--warn-bg);color:var(--warn)} .banner.info{background:var(--info-bg);color:var(--info)}
+.banner .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.banner button{font:inherit;font-size:14px;border-radius:8px;padding:8px 12px;min-height:44px;cursor:pointer;border:1px solid currentColor;background:transparent;color:inherit;transition:transform .1s ease-out}
+.banner button:active{transform:scale(.97)}
+.banner.info button.fill{background:var(--info);border-color:var(--info);color:var(--card)}
+.rent{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.rent button{text-align:left;line-height:1.3}
+.rent small{display:block;opacity:.8}
+.fiche.mobile .acts button{flex:1 1 100%}
+@media (max-width:360px){.rent{grid-template-columns:1fr}}
+.fields{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 14px;font-size:14px}
+.fiche.mobile .fields{grid-template-columns:1fr}
+@media (max-width:600px){.fields{grid-template-columns:1fr}}
+.f{border-bottom:1px solid var(--line);padding:4px 0}
+.f span{display:block;color:var(--muted);font-size:12px}
+.f.pending{color:var(--warn)}
+.chk{margin-top:12px;font-size:14px;font-weight:600}
+.cmp td:first-child{color:var(--muted);width:24%}
+.rec{background:var(--ok-bg);border-color:transparent}
+</style>
+</head>
+<body>
+<main>
+<h1>Saisie automatique des réservations Gîtes de France</h1>
+<p class="sub">Spec <code>specs/gites-de-france-mail-intake.md</code> — brouillon du 15/10/2026, à valider.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="box"><h3>L'iCal ne donne que les dates</h3>
+    <p>Chaque réservation Gîtes de France arrive en fiche « Ical Booked », 1 adulte, sans montant. Tout le reste se recopie à la main depuis ITEA — ce matin, dossier 11773, une demi-heure.</p></div>
+  <div class="box"><h3>La saisie à la main se trompe sans bruit</h3>
+    <p>3 fiches passées (Lehmann, Vallée, Filizetti) ont le « Prix total client » en brut : la commission avale les frais de dossier de la centrale, et le ✓ du virement reste vert.</p></div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="box rec">
+  <p><strong>GuestFlow lit le mail « Une nouvelle réservation a été effectuée » reçu sur <code>contact@domainesolio.com</code></strong>, en lecture seule, toutes les 3 heures (réglable de 1 à 24 h, plus un bouton « Relever maintenant »). Ce qui compte, c'est que ça se fasse tout seul, pas que ça aille vite. Il le rattache à la fiche iCal (mêmes dates, gîte 309700), la remplit, et vérifie que tout tombe sur le net versé avant d'écrire quoi que ce soit.</p>
+  <p><strong>Livré comme un plugin</strong> (« Saisie Gîtes de France »), installé chez Solio seulement : une installation de base n'en garde aucune trace. Le cœur gagne trois briques génériques, inertes sans plugin : lire la boîte d'envoi, mettre à jour une réservation par le chemin normal, un emplacement de bandeau en haut de la fiche.</p>
+  <p>Le mail donne tout sauf deux choses : l'adresse postale (inutile au séjour) et le <strong>prix de location brut</strong> — il donne le net de commission (454 € au lieu de 504 €). GuestFlow le retrouve avec la règle mesurée (commission = 10 % arrondi) ; quand deux loyers donnent le même net, la fiche demande lequel, en un clic.</p>
+</div>
+
+<h3 style="margin-top:20px">Les deux pistes comparées</h3>
+<div class="scroll"><table class="cmp">
+<tr><th></th><th>A — le mail (recommandé)</th><th>B — le portail ITEA</th></tr>
+<tr><td>Identifiants</td><td>Ceux de la boîte <code>contact@</code>, déjà à vous</td><td>Votre mot de passe ITEA stocké sur le serveur</td></tr>
+<tr><td>Stabilité</td><td>Mail-type de la centrale, change rarement</td><td>Page HTML d'un tiers, peut casser sans prévenir</td></tr>
+<tr><td>Données</td><td>Tout sauf adresse et loyer brut</td><td>Tout, y compris l'adresse et les frais</td></tr>
+<tr><td>Loyer brut</td><td>Recalculé ; 1 cas sur ~10 demande un clic</td><td>Lu tel quel</td></tr>
+<tr><td>Conditions d'usage</td><td>Aucun souci : c'est votre courrier</td><td>Connexion automatisée sur le compte d'un adhérent, non prévue</td></tr>
+<tr><td>Coût</td><td>Moyen (lecture IMAP, nouveau)</td><td>Élevé (session, export, maintenance)</td></tr>
+</table></div>
+
+<h2>À manipuler — 1. Le mail réel</h2>
+<p class="hint">Le mail du dossier 11773, tel que reçu. Modifiez un montant (ex. « Total net : 534.00 » → 540.00) : la lecture refuse. Passez le net de la location à 455.00 et le total net à 535.00 : il n'y a plus qu'un loyer possible, et la fiche se remplit sans rien demander.</p>
+<div class="grid2" style="margin-top:10px">
+  <textarea id="mail" aria-label="Texte du mail Gîtes de France" spellcheck="false">Réservation n° 11773-2026
+
+État : Réservation confirmée
+Gîte 309700 | Domaine Solio
+
+du 13/11/2026 à partir de 16h00
+au 15/11/2026 avant 10h00 (2 nuits)
+
+Réservation effectuée par : ROUX Lucie
+8 adultes, 2 enfants et 2 bébés
+Pas de chien, pas de chat
+lucie.roux@ymail.com
+0743338633
+
+Détail des suppléments
+Forfait ménage ( 1 ) x 1	80.00 €
+
+Détail des crédits
+Montant net de la location
+454.00 €
+Total des options
+80.00 €
+Total net : 534.00 €
+
+Information : une taxe de séjour d'un montant de 19.20 € a été calculée pour cette réservation.</textarea>
+  <div class="box" aria-live="polite">
+    <h3>Ce que GuestFlow en tire</h3>
+    <dl class="kv" id="parsed"></dl>
+    <div id="verdict"></div>
+  </div>
+</div>
+
+<h2>À manipuler — 2. Le bandeau sur la fiche</h2>
+<div class="btnrow" role="group" aria-label="État du bandeau">
+  <button class="seg" data-state="applied" aria-pressed="false">Rempli automatiquement</button>
+  <button class="seg" data-state="rent" aria-pressed="true">Loyer à choisir</button>
+  <button class="seg" data-state="proposal" aria-pressed="false">Fiche déjà modifiée</button>
+  <button class="seg" data-state="unknown" aria-pressed="false">Supplément inconnu</button>
+</div>
+<div class="btnrow" role="group" aria-label="Largeur">
+  <button class="seg" data-width="desk" aria-pressed="true">Ordinateur</button>
+  <button class="seg" data-width="mobile" aria-pressed="false">Téléphone</button>
+</div>
+<div class="fiche" id="fiche">
+  <div class="bar"><span class="ico">←</span><b>Réservation 11773</b><span class="ico save">✓</span><span class="ico">✕</span></div>
+  <div id="banner"></div>
+  <div class="fields" id="fields"></div>
+  <div class="chk" id="chk"></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+  <li>Se connecter au portail ITEA (piste B) : aucun mot de passe ITEA sur le serveur.</li>
+  <li>Les mails d'annulation ou de modification : l'iCal gère déjà les annulations.</li>
+  <li>Corriger les 3 fiches passées (décision du 15/10).</li>
+  <li>Envoyer quoi que ce soit au client : remplir la fiche ne déclenche aucun mail.</li>
+  <li>Écraser une fiche déjà retouchée : elle reçoit une proposition, pas une écriture.</li>
+</ul>
+
+<h2>Risques</h2>
+<div class="grid2">
+  <div class="box"><h3>Le taux change</h3><p>Le taux 2027 reste à 10 % seulement si l'adhésion a été renouvelée avant le 30/09 (15 % sinon). Si le taux bouge, aucun loyer ne colle au net : la fiche passe en erreur au lieu d'écrire un faux chiffre.</p></div>
+  <div class="box"><h3>Le mail change de forme</h3><p>Toute lecture incomplète ou des totaux qui ne s'additionnent pas → rien n'est écrit, une ligne apparaît au tableau de bord.</p></div>
+</div>
+
+<h2>Arbitrages</h2>
+<p><strong>Tranchés le 15/10 :</strong></p>
+<ul>
+  <li><span class="tag ok">Décidé</span> Piste A seule, le mail. La skill reste le recours pour les cas ambigus.</li>
+  <li><span class="tag ok">Décidé</span> Remplissage automatique d'une fiche iCal intacte, proposition à accepter sinon.</li>
+  <li><span class="tag ok">Décidé</span> Taux de commission réglable : celui déjà saisi pour la plateforme (Comptabilité → plateformes).</li>
+</ul>
+<ul>
+  <li><span class="tag ok">Décidé</span> Expéditeur filtré : <code>resa@gdf07.com</code>. Boîte : la même que l'envoi SMTP, mêmes identifiants.</li>
+  <li><span class="tag ok">Décidé</span> Un plugin, pas l'installation de base.</li>
+  <li><span class="tag ok">Décidé</span> Relève toutes les 3 heures, sans déclenchement à chaque import iCal.</li>
+  <li><span class="tag ok">Décidé</span> Bandeau en haut de la fiche (nouvel emplacement générique).</li>
+</ul>
+</main>
+
+<script>
+(function(){
+  var RATE = 0.10;
+  var eur = function(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; };
+  var num = function(s){ return s == null ? null : parseFloat(String(s).replace(',', '.')); };
+  var title = function(s){ return s.toLowerCase().replace(/(^|[\s-])\S/g, function(m){ return m.toUpperCase(); }); };
+
+  function rentCandidates(net){
+    var out = [];
+    for (var L = Math.floor(net); L <= Math.ceil(net / (1 - RATE)) + 2; L++){
+      if (L - Math.round(RATE * L) === Math.round(net)) out.push(L);
+    }
+    return out;
+  }
+
+  function parse(t){
+    var g = function(re){ var m = t.match(re); return m ? m : null; };
+    var r = {}, err = [];
+    var m;
+    if ((m = g(/Réservation n°\s*(\d+)-(\d{4})/))) r.dossier = m[1]; else err.push('numéro de dossier introuvable');
+    if ((m = g(/Gîte\s+(\d+)/))) r.gite = m[1];
+    if ((m = g(/du\s+(\d\d\/\d\d\/\d{4})\s+à partir de\s+(\d+h\d\d)/))) { r.arr = m[1]; r.arrT = m[2]; } else err.push('date d\'arrivée introuvable');
+    if ((m = g(/au\s+(\d\d\/\d\d\/\d{4})\s+avant\s+(\d+h\d\d)/))) { r.dep = m[1]; r.depT = m[2]; } else err.push('date de départ introuvable');
+    if ((m = g(/effectuée par\s*:\s*([A-ZÀ-Ü' -]+?)\s+([A-ZÀ-Üa-zà-ü' -]+)\n/))) { r.last = title(m[1].trim()); r.first = title(m[2].trim()); } else err.push('nom du client introuvable');
+    if ((m = g(/(\d+)\s+adultes?/))) r.ad = +m[1]; else err.push('nombre d\'adultes introuvable');
+    r.ch = (m = g(/(\d+)\s+enfants?/)) ? +m[1] : 0;
+    r.ba = (m = g(/(\d+)\s+bébés?/)) ? +m[1] : 0;
+    if ((m = g(/([\w.+-]+@[\w-]+\.[\w.-]+)/))) r.mail = m[1];
+    if ((m = g(/\b(0\d{9})\b/))) r.tel = m[1].replace(/(\d\d)(?=\d)/g, '$1 ');
+    r.supp = [];
+    var re = /\n([^\n\t]+?)\s*\(\s*\d+\s*\)\s*x\s*(\d+)\s+([\d.,]+)\s*€/g, s;
+    while ((s = re.exec(t))) r.supp.push({ label: s[1].trim(), qty: +s[2], amount: num(s[3]) });
+    r.netLoc = (m = g(/Montant net de la location\s*([\d.,]+)/)) ? num(m[1]) : null;
+    r.opts = (m = g(/Total des options\s*([\d.,]+)/)) ? num(m[1]) : 0;
+    r.total = (m = g(/Total net\s*:\s*([\d.,]+)/)) ? num(m[1]) : null;
+    r.tax = (m = g(/taxe de séjour d'un montant de\s*([\d.,]+)/)) ? num(m[1]) : null;
+    if (r.netLoc == null) err.push('montant net de la location introuvable');
+    if (r.total == null) err.push('total net introuvable');
+    if (r.tax == null) err.push('taxe de séjour introuvable');
+    if (!err.length){
+      var sumSupp = r.supp.reduce(function(a, x){ return a + x.amount; }, 0);
+      if (Math.abs(r.netLoc + r.opts - r.total) > 0.005) err.push('location nette ' + eur(r.netLoc) + ' + options ' + eur(r.opts) + ' ≠ total net ' + eur(r.total));
+      if (Math.abs(sumSupp - r.opts) > 0.005) err.push('suppléments ' + eur(sumSupp) + ' ≠ total des options ' + eur(r.opts));
+    }
+    r.err = err;
+    if (!err.length) r.cands = rentCandidates(r.netLoc);
+    return r;
+  }
+
+  var mailEl = document.getElementById('mail'), parsedEl = document.getElementById('parsed'), verdictEl = document.getElementById('verdict');
+  function row(k, v){ return '<dt>' + k + '</dt><dd class="num">' + (v == null || v === '' ? '—' : v) + '</dd>'; }
+  function renderParse(){
+    var r = parse(mailEl.value), h = '';
+    h += row('Dossier', r.dossier) + row('Client', [r.first, r.last].filter(Boolean).join(' '));
+    h += row('Séjour', r.arr ? r.arr + ' ' + (r.arrT || '') + ' → ' + r.dep + ' ' + (r.depT || '') : null);
+    h += row('Groupe', r.ad != null ? r.ad + ' adultes, ' + r.ch + ' enfants (2–12), ' + r.ba + ' bébés' : null);
+    h += row('Contact', [r.tel, r.mail].filter(Boolean).join(' · '));
+    h += row('Options', r.supp.length ? r.supp.map(function(s){ return s.label + ' ' + eur(s.amount); }).join(', ') : 'aucune');
+    parsedEl.innerHTML = h;
+    if (r.err.length){
+      verdictEl.innerHTML = '<div class="result err"><strong>Refusé — rien n\'est écrit.</strong><br>' + r.err.join('<br>') + '</div>';
+      return;
+    }
+    if (!r.cands.length){
+      verdictEl.innerHTML = '<div class="result err"><strong>Refusé.</strong> Aucun loyer ne donne ' + eur(r.netLoc) + ' net à 10 % : le taux a peut-être changé.</div>';
+      return;
+    }
+    var lines = r.cands.map(function(L){
+      var brut = L + r.opts + r.tax;
+      return 'Loyer ' + eur(L) + ' → brut <strong>' + eur(brut) + '</strong>, commission ' + eur(L - r.netLoc) + ', virement ' + eur(r.total) + ' ✓';
+    });
+    verdictEl.innerHTML = r.cands.length === 1
+      ? '<div class="result ok"><strong>Rempli automatiquement.</strong><br>' + lines[0] + '<br>Taxe retenue ' + eur(r.tax) + '</div>'
+      : '<div class="result warn"><strong>Deux loyers possibles — la fiche demandera lequel.</strong><br>' + lines.join('<br>') + '</div>';
+  }
+  mailEl.addEventListener('input', renderParse);
+  renderParse();
+
+  var state = 'rent', chosen = null, width = 'desk';
+  var bannerEl = document.getElementById('banner'), fieldsEl = document.getElementById('fields'), chkEl = document.getElementById('chk'), fiche = document.getElementById('fiche');
+  function f(label, value, pending){ return '<div class="f' + (pending ? ' pending' : '') + '"><span>' + label + '</span>' + value + '</div>'; }
+  function renderFiche(){
+    var rent = state === 'rent' ? chosen : 504;
+    var b = '';
+    if (state === 'applied') b = '<div class="banner ok" role="status">Rempli depuis le mail Gîtes de France du 14/10 à 18:32.<div class="acts"><button data-act="hide">Masquer</button></div></div>';
+    if (state === 'rent' && chosen == null) b = '<div class="banner warn" role="status"><strong>Prix de location : 504 € ou 505 € ?</strong> Le mail ne donne que le net (454 €).<div class="rent"><button data-rent="504">504 €<small>commission 50 €</small></button><button data-rent="505">505 €<small>commission 51 €</small></button></div><div class="acts"><button data-act="itea">Voir le dossier sur ITEA</button></div></div>';
+    if (state === 'rent' && chosen != null) b = '<div class="banner ok" role="status">Loyer ' + chosen + ' € retenu. Rempli depuis le mail Gîtes de France du 14/10 à 18:32.<div class="acts"><button data-rent="">Changer</button></div></div>';
+    if (state === 'proposal') b = '<div class="banner info" role="status">Le mail Gîtes de France du 14/10 propose des valeurs différentes de la fiche.<div class="acts"><button data-act="see">Voir</button><button class="fill" data-act="apply">Appliquer</button><button data-act="ignore">Ignorer</button></div></div>';
+    if (state === 'unknown') b = '<div class="banner warn" role="status">Rempli depuis le mail du 14/10. Supplément non reconnu : « Panier petit-déjeuner » 24 € — à ajouter à la main.<div class="acts"><button data-act="hide">Compris</button></div></div>';
+    bannerEl.innerHTML = b;
+    var pend = state === 'rent' && chosen == null;
+    var proposal = state === 'proposal';
+    fieldsEl.innerHTML =
+      f('Client', proposal ? 'Ical Booked' : 'Lucie Roux · 07 43 33 86 33') +
+      f('N° de réservation', proposal ? '202610003' : '11773') +
+      f('Groupe', proposal ? '1 adulte' : '8 adultes · 2 enfants · 2 bébés') +
+      f('Options', proposal ? '—' : 'Ménage 80 € (payé à la plateforme)') +
+      f('Total séjour facturé', proposal ? '—' : pend ? '603,20 € ou 604,20 €' : eur(rent + 80 + 19.2), pend) +
+      f('Commission', proposal ? '—' : pend ? 'à confirmer' : eur(rent - 454), pend);
+    chkEl.innerHTML = proposal || pend ? '' : '<span class="tag ok">✓ cohérent avec le virement — 534,00 €</span>';
+  }
+  bannerEl.addEventListener('click', function(e){
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.hasAttribute('data-rent')) { chosen = t.getAttribute('data-rent') ? +t.getAttribute('data-rent') : null; renderFiche(); }
+    else if (t.dataset.act === 'hide') bannerEl.innerHTML = '';
+    else if (t.dataset.act === 'apply') { state = 'applied'; sync(); }
+    else if (t.dataset.act === 'ignore') bannerEl.innerHTML = '';
+  });
+  function sync(){
+    document.querySelectorAll('[data-state]').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.state === state)); });
+    renderFiche();
+  }
+  document.querySelectorAll('[data-state]').forEach(function(b){
+    b.addEventListener('click', function(){ state = b.dataset.state; chosen = null; sync(); });
+  });
+  document.querySelectorAll('[data-width]').forEach(function(b){
+    b.addEventListener('click', function(){
+      width = b.dataset.width;
+      document.querySelectorAll('[data-width]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      fiche.classList.toggle('mobile', width === 'mobile');
+    });
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

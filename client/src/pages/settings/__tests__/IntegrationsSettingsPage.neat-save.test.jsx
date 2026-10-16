@@ -43,6 +43,10 @@ vi.mock('../../../components/DialogProvider', () => {
 });
 
 vi.mock('../../../components/SettingsGoogleCalendarSection', () => ({ __esModule: true, default: () => null }));
+// The plugin slots read the user's enabled plugins; the « Modules » card is covered by its own suite
+// (specs/plugin-engine-backport.md rule 11).
+vi.mock('../../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => ({ user: { enabledPlugins: [] }, refresh: vi.fn() }) }));
+vi.mock('../../../components/PluginsActivationSection', () => ({ __esModule: true, default: () => null }));
 
 import api from '../../../api';
 import IntegrationsSettingsPage from '../IntegrationsSettingsPage';
