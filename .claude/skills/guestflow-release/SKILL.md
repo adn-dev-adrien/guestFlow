@@ -116,9 +116,15 @@ The GitHub release body IS the CHANGELOG section, and the operator reads it in t
 before clicking « Installer ». No section, no release.
 
 ```bash
+node scripts/check-plugin-versions.mjs --bump     # patch-bump every plugin that changed since the last tag
 node scripts/build-changelog.mjs                  # preview the pending fragments
 node scripts/build-changelog.mjs --release X.Y.Z   # fold them into a dated section
 ```
+
+The bump comes **first** (specs/plugins-phase-4-registry.md P26, rules 23–24): the fold writes each
+`plugin:<id>` bullet — in French, read in the Plugins page's update dialog — into that plugin's
+`manifest.json` under the version this release ships. The `verify` job runs
+`node scripts/check-plugin-versions.mjs` and refuses a changed plugin that kept its version.
 
 Then do the two pieces of writing this step exists for.
 
@@ -175,7 +181,8 @@ If it did, bump `Version:` in the header AND `GF_BOOKING_VERSION` AND `Stable ta
 ```bash
 git checkout -b release/vX.Y.Z
 git add package.json server/package.json client/package.json CHANGELOG.md changelog.d
-# plus the plugin files if it was bumped
+git add server/src/plugins/*/manifest.json   # the plugin bumps and changelog lines, if any
+# plus the WordPress plugin files if it was bumped
 git commit -m "release: vX.Y.Z"
 git push -u origin release/vX.Y.Z
 gh pr create --base master --title "release: vX.Y.Z" --body "..."

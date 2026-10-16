@@ -36,6 +36,9 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v7
+        with:
+          # The plugin version check compares with the previous tag: it needs the history and tags.
+          fetch-depth: 0
 
       - name: 🔢 Resolve the version being released
         id: resolve
@@ -109,6 +112,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/build-changelog.mjs --check-digest "${{ steps.resolve.outputs.version }}"
+
+      - name: 🔌 A plugin that changed carries a new version
+        # specs/plugins-phase-4-registry.md P26, rule 23 — an instance compares plugin versions to offer
+        # an update; a changed plugin that kept its number would never be offered, or would install
+        # different code under the same version. The release skill bumps them (`--bump`).
+        run: node scripts/check-plugin-versions.mjs
 
   # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
   tests:
@@ -194,6 +203,11 @@ jobs:
       - name: ⚛️ Build the React client
         run: cd client && npm ci && npm run build
 
+      - name: 🔌 Build the plugin packages
+        # specs/plugins-phase-4-registry.md rule 23 — one package per plugin, shipped inside the core
+        # archive (`plugins-dist/`) and attached to the release for the registry.
+        run: node scripts/build-plugin-packages.mjs --out plugins-dist
+
       - name: 📦 Create the release archive
         env:
           VERSION: ${{ needs.verify.outputs.version }}
@@ -203,6 +217,7 @@ jobs:
           ./release.sh "guestflow-${VERSION}"
           mkdir -p dist-release
           mv "guestflow-${VERSION}.tar.gz" dist-release/
+          cp plugins-dist/*.tgz dist-release/
 
       - name: 🔌 Package the WordPress plugin
         # The plugin updates itself from WordPress admin against this asset

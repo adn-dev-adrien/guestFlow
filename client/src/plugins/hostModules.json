@@ -1,0 +1,12 @@
+[
+  "react",
+  "react/jsx-runtime",
+  "react-dom",
+  "react-router",
+  "@mui/material",
+  "@mui/material/styles",
+  "@mui/material/colors",
+  "@mui/material/utils",
+  "guestflow/sdk",
+  "guestflow/sdk/ui"
+]

@@ -9,9 +9,16 @@
  * Exports a default model bound to the production DB + a `buildModel(db)` factory for tests.
  *
  * API:
- *   list()                  → [{ id, enabled, source, version, installedAt, updatedAt }]
+ *   list()                  → [{ id, enabled, source, version, manifest, pinnedSha256, previousVersion,
+ *                              previousSource, previousSha256, rollbackUntil, installedAt, updatedAt }]
  *   get(id)                 → row | null
- *   install(id)             → inserts an active row
+ *   install(id, pkg?)       → inserts an active row; `pkg` = { version, source, manifest, sha256 }
+ *                             (specs/plugins-phase-4-registry.md rule 11), `bundled` when omitted
+ *   switchVersion(id, pkg, { rollbackUntil }) → records an update: the running package becomes the
+ *                             previous one, kept for `rollbackUntil` (rule 16)
+ *   rollBack(id)            → the previous package becomes the running one, and no rollback is left
+ *   expireRollback(id)      → forgets the previous package (its window is over)
+ *   syncBundled(id, manifest, sha256) → a `bundled` row follows the copy the running release ships
  *   setEnabled(id, enabled) → flips the flag
  *   uninstall(id)           → deletes the row (the plugin's data is kept, rule 6)
  *   isActive(id)            → boolean
@@ -20,13 +27,28 @@
  */
 
 function buildModel(database) {
-  const listStmt = database.prepare(
-    'SELECT id, enabled, source, version, installed_at AS installedAt, updated_at AS updatedAt FROM plugins ORDER BY id'
-  );
-  const getStmt = database.prepare(
-    'SELECT id, enabled, source, version, installed_at AS installedAt, updated_at AS updatedAt FROM plugins WHERE id = ?'
-  );
-  const insertStmt = database.prepare("INSERT INTO plugins (id, enabled, source) VALUES (?, 1, 'builtin')");
+  const COLUMNS = `id, enabled, source, version, manifest, pinned_sha256 AS pinnedSha256,
+    previous_version AS previousVersion, previous_source AS previousSource, previous_sha256 AS previousSha256,
+    rollback_until AS rollbackUntil, installed_at AS installedAt, updated_at AS updatedAt`;
+  const listStmt = database.prepare(`SELECT ${COLUMNS} FROM plugins ORDER BY id`);
+  const getStmt = database.prepare(`SELECT ${COLUMNS} FROM plugins WHERE id = ?`);
+  const insertStmt = database.prepare(`INSERT INTO plugins (id, enabled, source, version, manifest, pinned_sha256)
+    VALUES (@id, 1, @source, @version, @manifest, @sha256)`);
+  const switchStmt = database.prepare(`UPDATE plugins SET
+      previous_version = version, previous_source = source, previous_sha256 = pinned_sha256,
+      version = @version, source = @source, manifest = @manifest, pinned_sha256 = @sha256,
+      rollback_until = @rollbackUntil, updated_at = datetime('now')
+    WHERE id = @id`);
+  const rollBackStmt = database.prepare(`UPDATE plugins SET
+      version = previous_version, source = previous_source, pinned_sha256 = previous_sha256, manifest = @manifest,
+      previous_version = NULL, previous_source = NULL, previous_sha256 = NULL, rollback_until = NULL,
+      updated_at = datetime('now')
+    WHERE id = @id AND previous_version IS NOT NULL`);
+  const expireStmt = database.prepare(`UPDATE plugins SET previous_version = NULL, previous_source = NULL,
+      previous_sha256 = NULL, rollback_until = NULL WHERE id = ?`);
+  const syncBundledStmt = database.prepare(`UPDATE plugins SET version = @version, manifest = @manifest, pinned_sha256 = @sha256
+    WHERE id = @id AND source = 'bundled'
+      AND (version IS NOT @version OR manifest IS NOT @manifest OR pinned_sha256 IS NOT @sha256)`);
   const setEnabledStmt = database.prepare("UPDATE plugins SET enabled = ?, updated_at = datetime('now') WHERE id = ?");
   const deleteStmt = database.prepare('DELETE FROM plugins WHERE id = ?');
   const activeStmt = database.prepare('SELECT id FROM plugins WHERE enabled = 1 ORDER BY id');
@@ -51,12 +73,29 @@ function buildModel(database) {
       AND NOT EXISTS (SELECT 1 FROM user_roles a WHERE a.userId = u.id AND a.role = 'admin')
   `);
 
-  const toRow = (row) => (row ? { ...row, enabled: row.enabled === 1 } : null);
+  const parseManifest = (text) => {
+    if (!text) return null;
+    try { return JSON.parse(text); } catch { return null; }
+  };
+  const toRow = (row) => (row ? { ...row, enabled: row.enabled === 1, manifest: parseManifest(row.manifest) } : null);
+  const pkgParams = (id, pkg = {}) => ({
+    id,
+    source: pkg.source || 'bundled',
+    version: pkg.version || null,
+    manifest: pkg.manifest ? JSON.stringify(pkg.manifest) : null,
+    sha256: pkg.sha256 || null,
+  });
 
   return {
     list: () => listStmt.all().map(toRow),
     get: (id) => toRow(getStmt.get(id)),
-    install(id) { insertStmt.run(id); },
+    install(id, pkg) { insertStmt.run(pkgParams(id, pkg)); },
+    switchVersion(id, pkg, { rollbackUntil = null } = {}) { switchStmt.run({ ...pkgParams(id, pkg), rollbackUntil }); },
+    rollBack(id, manifest) { return rollBackStmt.run({ id, manifest: manifest ? JSON.stringify(manifest) : null }).changes > 0; },
+    expireRollback(id) { expireStmt.run(id); },
+    syncBundled(id, manifest, sha256 = null) {
+      return syncBundledStmt.run({ id, version: manifest.version, manifest: JSON.stringify(manifest), sha256 }).changes > 0;
+    },
     setEnabled(id, enabled) { setEnabledStmt.run(enabled ? 1 : 0, id); },
     uninstall(id) { deleteStmt.run(id); },
     isActive: (id) => Boolean(isActiveStmt.get(id)),

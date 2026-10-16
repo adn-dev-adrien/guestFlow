@@ -30,7 +30,16 @@ const db = require('./database');
 // specs/plugins-phase-1-sdk.md — plugin modules declare their routes, tables, jobs and handlers here;
 // a module that throws is marked failed and the boot goes on (rule 4).
 const pluginLoader = require('./plugins/loader');
-pluginLoader.registerAll({ db });
+// specs/plugins-phase-4-registry.md rules 14, 17, 19 — a release loads each installed plugin from its
+// package; a development tree registers the source folders.
+const pluginHost = require('./plugins/host');
+pluginHost.boot({
+  db,
+  loader: pluginLoader,
+  registry: require('./plugins/sdk/registry'),
+  model: require('./models/pluginsModel'),
+  catalogue: require('./constants/plugins').PLUGIN_CATALOG,
+});
 
 function logErrorMarker(message) {
   const timestamp = new Date().toISOString();
@@ -124,6 +133,12 @@ require('./utils/vapid').ensureVapid(require('./models/settingsModel').read());
 
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// specs/plugins-phase-4-registry.md rule 18 — the client bundle of each loaded plugin, immutable, and
+// the list the browser imports before rendering. Outside /api and its guards: the bundles hold no
+// data, and the list is read before the login so a signed-in session never needs a reload.
+app.get('/plugin-assets/entries.json', (req, res) => res.set('Cache-Control', 'no-store').json(pluginHost.clientEntries()));
+app.use('/plugin-assets/:id/:version', pluginHost.assetsMiddleware(express));
 
 // Public API (specs/public-api.md) — `/public/v1/*`, a SEPARATE tree from the internal `/api/*`
 // admin API: it never passes through the `/api` session guard below, so that guard can neither
@@ -242,11 +257,14 @@ const dynamicFavicon = buildFaviconHandler({
 app.get(['/favicon.ico', '/favicon.svg'], dynamicFavicon);
 
 // In production, serve the built React app for non-API routes.
-const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');
+// GUESTFLOW_CLIENT_DIR points at another build (the production-build E2E suite serves client/dist).
+const clientBuildDir = process.env.GUESTFLOW_CLIENT_DIR
+  ? path.resolve(process.env.GUESTFLOW_CLIENT_DIR)
+  : path.join(__dirname, '..', '..', 'client', 'build');
 const clientIndexPath = path.join(clientBuildDir, 'index.html');
 if (fs.existsSync(clientIndexPath)) {
   app.use(express.static(clientBuildDir));
-  app.get(/^\/(?!api|uploads).*/, (req, res) => {
+  app.get(/^\/(?!api|uploads|plugin-assets).*/, (req, res) => {
     res.sendFile(clientIndexPath);
   });
 }
@@ -302,6 +320,8 @@ const server = serverHandle.listen(PORT, () => {
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
   pluginLoader.startJobs();
+  // Rule 9 — the registry index at boot, then every 6 hours; rule 16 — the expired rollback copies.
+  pluginHost.startBackground({ model: require('./models/pluginsModel'), ids: require('./constants/plugins').PLUGIN_IDS });
 });
 
 function shutdown(signal) {

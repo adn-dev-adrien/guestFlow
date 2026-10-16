@@ -39,7 +39,9 @@ function readTree(dir, acc = {}) {
 }
 
 // Rule 3 — a plugin file imports its folder, the SDK or npm; the core imports only the module list
-// and the SDK.
+// and the SDK — and, since specs/plugins-phase-4-registry.md rule 18, the host side of the bundles
+// (`runtime.js` loads them, `runtimeModules.js` is the list a production build reads).
+const HOST_FILES = ['sdk', 'index', 'runtime', 'runtimeModules'];
 function importViolations(files) {
   const out = [];
   for (const [rel, source] of Object.entries(files)) {
@@ -50,7 +52,7 @@ function importViolations(files) {
         if (!target.startsWith(`plugins/${inPlugin[1]}`) && !target.startsWith('plugins/sdk')) out.push(`${rel} → ${m[1]}`);
       } else if (!inPlugin && rel !== 'plugins/index.js') {
         const t = target.match(/^plugins\/([^/.]+)/);
-        if (t && t[1] !== 'sdk' && t[1] !== 'index') out.push(`${rel} → ${m[1]}`);
+        if (t && !HOST_FILES.includes(t[1])) out.push(`${rel} → ${m[1]}`);
       }
     }
   }

@@ -18,6 +18,9 @@ module.exports = {
   licence: require(path.join(GF_SERVER, 'src', 'utils', 'licence')),
   passwordHash: require(path.join(GF_SERVER, 'src', 'utils', 'passwordHash')),
   plugins: require(path.join(GF_SERVER, 'src', 'constants', 'plugins')),
+  // specs/plugins-phase-4-registry.md rule 8 — the registry checks a package with the instance's own
+  // checks: its members, its layout and its manifest.
+  packages: require(path.join(GF_SERVER, 'src', 'plugins', 'packageStore')),
   qontoClient: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoClient')),
   qontoConfig: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoConfig')),
   qontoService: require(path.join(GF_ONLINE_PAYMENT, 'qonto', 'qontoService')),

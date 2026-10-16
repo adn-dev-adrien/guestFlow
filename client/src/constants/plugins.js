@@ -2,6 +2,7 @@
 // states; the client only hides what `user.enabledPlugins` does not list).
 // specs/plugins-phase-0-foundation.md rules 14 and 16; specs/plugins-phase-1-sdk.md rule 15.
 import PLUGIN_MODULES from '../plugins';
+import liveRecord from '../utils/liveRecord';
 
 export const HOURLY_RESOURCES = 'hourly-resources';
 export const LINEN = 'linen';
@@ -21,20 +22,24 @@ export const PLUGIN_IDS = Object.freeze([
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
 ]);
 
-// The pages plugin modules contribute, with the roles that may open them (rule 15).
-const MODULE_ROUTES = PLUGIN_MODULES.flatMap((mod) => ((mod.contributes && mod.contributes.routes) || [])
+// The pages plugin modules contribute, with the roles that may open them (rule 15). Read live:
+// a production build fills the module list after this file evaluated
+// (specs/plugins-phase-4-registry.md rule 18).
+const moduleRoutes = () => PLUGIN_MODULES.flatMap((mod) => ((mod.contributes && mod.contributes.routes) || [])
   .map((route) => ({ ...route, pluginId: mod.id })));
+const modulesVersion = () => PLUGIN_MODULES.length;
 
-export const MODULE_ROUTE_ROLES = Object.freeze(
-  Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.roles || ['admin']])),
+export const MODULE_ROUTE_ROLES = liveRecord(
+  () => Object.fromEntries(moduleRoutes().map((route) => [route.path, route.roles || ['admin']])),
+  modulesVersion,
 );
 
 // Pages that only exist for a plugin. An array means « visible while any of them is active »
 // (Intégrations holds the sections of four plugins). Plugin modules add their own pages.
-export const ROUTE_PLUGINS = Object.freeze({
+export const ROUTE_PLUGINS = liveRecord(() => ({
   '/settings/integrations': [GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS],
-  ...Object.fromEntries(MODULE_ROUTES.map((route) => [route.path, route.pluginId])),
-});
+  ...Object.fromEntries(moduleRoutes().map((route) => [route.path, route.pluginId])),
+}), modulesVersion);
 
 export function isPluginEnabled(user, id) {
   return Boolean(user && Array.isArray(user.enabledPlugins) && user.enabledPlugins.includes(id));

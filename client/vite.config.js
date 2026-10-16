@@ -6,11 +6,33 @@
 // produce 18 passed / 1 skipped / 0 failed, identical to V02.01.00. Do NOT change the
 // dev server port, proxy target or output dir without re-running the E2E suite.
 
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const STATIC_PLUGIN_LIST = fileURLToPath(new URL('./src/plugins/index.js', import.meta.url));
+const RUNTIME_PLUGIN_LIST = fileURLToPath(new URL('./src/plugins/runtimeModules.js', import.meta.url));
+
+// specs/plugins-phase-4-registry.md rule 18, P27 — a production build ships no plugin code: every
+// import of the static module list (`src/plugins/index.js`, which imports the twelve source folders)
+// is redirected to the list `src/plugins/runtime.js` fills from each plugin's own bundle. The dev
+// server and the unit suites keep the static list (rule 19).
+function pluginRuntimeList() {
+  return {
+    name: 'guestflow-plugin-runtime-list',
+    apply: 'build',
+    enforce: 'pre',
+    async resolveId(source, importer, options) {
+      if (!importer || !source.startsWith('.')) return null;
+      const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+      return resolved && resolved.id === STATIC_PLUGIN_LIST ? RUNTIME_PLUGIN_LIST : null;
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    pluginRuntimeList(),
     // GuestFlow's source uses `.js` files with JSX inside (CRA convention preserved).
     react({ include: /\.(jsx?|tsx?)$/ }),
   ],
@@ -41,6 +63,7 @@ export default defineConfig({
     proxy: {
       '/api': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
       '/uploads': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
+      '/plugin-assets': `http://localhost:${process.env.GUESTFLOW_API_PORT || 4000}`,
     },
   },
 

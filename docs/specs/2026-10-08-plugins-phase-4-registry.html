@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase 4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.app{display:grid;grid-template-columns:200px 1fr;gap:14px}
+@media (max-width:760px){.app{grid-template-columns:1fr}}
+.nav{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px;font-size:13.5px;align-self:start}
+.nav div{padding:6px 8px;border-radius:6px}
+.nav .sub{padding-left:22px;color:var(--muted)}
+.panes{display:grid;gap:12px}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pane h4{margin:0 0 8px;font:600 14px var(--serif);color:var(--sapin)}
+.line{border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin:8px 0;background:var(--field)}
+.line .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.line .top b{flex:1;min-width:160px}
+.line.ro{opacity:.85;background:color-mix(in srgb,var(--ghost) 8%,var(--field))}
+.line.dup{border-color:var(--ko)}
+.amt{font:600 15px var(--serif);color:var(--sapin)}
+.sub2{font-size:12.5px;color:var(--muted);margin-top:4px}
+.badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));color:var(--ok)}
+.badge.ko{background:color-mix(in srgb,var(--ko) 15%,var(--card));color:var(--ko)}
+.badge.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:40px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.mini:disabled{opacity:.45;cursor:not-allowed}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media (max-width:600px){.acts .mini{flex:1 1 100%;min-height:44px}}
+.field{display:flex;flex-direction:column;gap:4px;margin:8px 0;max-width:420px}
+.field label{font-size:12.5px;color:var(--muted)}
+.field select,.field input{font:inherit;min-height:44px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+.field input.bad,.field select.bad{border-color:var(--ko)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media (max-width:600px){.grid2{grid-template-columns:1fr}}
+.block{border-left:3px solid var(--info);padding:4px 0 4px 12px;margin:8px 0}
+.err{color:var(--ko);font-size:13px;margin-top:4px}
+.ok{color:var(--ok)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.steps span{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--fieldline)}
+.steps span.l{border-color:var(--info);color:var(--info);font-weight:600}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.pcard .h{font-weight:700;min-width:46px;color:var(--sapin)}
+.pcard b{flex:1;min-width:140px}
+.pcard.res{border-left:4px solid var(--info)}
+.pcard.done{opacity:.55;text-decoration:line-through}
+.total{display:flex;justify-content:space-between;border-top:2px solid var(--line);margin-top:10px;padding-top:8px;font-weight:700}
+.total .amt{font-size:17px}
+.dlg{max-width:520px;border:1px solid var(--line);border-radius:12px;background:var(--field);padding:16px;box-shadow:0 6px 22px rgba(0,0,0,.08)}
+.dlg h4{margin:0 0 6px;font:600 17px var(--serif);color:var(--sapin)}
+.dlg ul{margin:6px 0 10px;padding-left:20px;font-size:13.5px}
+.dlg li{margin:4px 0}
+.dlg .w{color:var(--ocre);font-weight:600;border-left:4px solid var(--ocre);padding:6px 10px;background:color-mix(in srgb,var(--ocre) 10%,var(--card));border-radius:6px;font-size:13.5px;margin:8px 0}
+.dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.btn{appearance:none;font:inherit;font-weight:600;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);cursor:pointer}
+.btn.o{background:transparent;color:var(--sapin)}
+.btn.ko{background:var(--ko);border-color:var(--ko)}
+@media (max-width:600px){.dlg .row .btn{flex:1 1 100%}}
+.log{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px;white-space:pre-wrap;overflow-wrap:anywhere}
+.q{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:12px 14px;margin:12px 0}
+.q h3{margin:0 0 6px}
+.opt{display:block;border:1px solid var(--fieldline);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;cursor:pointer;background:var(--field)}
+.opt input{margin-right:8px;accent-color:var(--lichen)}
+.opt.rec{border-color:var(--ok)}
+.gone{display:none}
+</style>
+
+
+<style>
+.pl-bar{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px 10px;margin-bottom:10px;flex-wrap:wrap}
+.pl-bar b{font:600 17px var(--serif);color:var(--sapin);flex:1}
+.tabs{display:inline-flex;border:1px solid var(--fieldline);border-radius:999px;overflow:hidden}
+.tabs button{appearance:none;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;font-weight:600;padding:0 12px;min-height:40px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.icon{appearance:none;width:44px;height:44px;border-radius:9px;border:1px solid var(--info);background:transparent;color:var(--info);font-size:18px;cursor:pointer}
+.banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid color-mix(in srgb,var(--info) 40%,var(--line));background:color-mix(in srgb,var(--info) 10%,var(--card));border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.banner span{flex:1;min-width:180px;font-weight:600;color:var(--info)}
+.reg{font-size:12.5px;color:var(--muted);margin:0 0 10px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.narrow .cards{grid-template-columns:1fr}
+@media (max-width:760px){.cards{grid-template-columns:1fr}}
+.narrow{max-width:390px;margin:0 auto}
+.narrow .pl-bar b{font-size:15px}
+.pc{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pc .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pc .tile{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--lichen) 18%,var(--card));color:var(--sapin);font-size:18px;flex:none}
+.pc .who{flex:1;min-width:150px}
+.pc .who b{font-size:14px}
+.pc .v{font-size:12px;color:var(--muted);margin-left:6px}
+.pc .d{font-size:13px;color:var(--muted)}
+.chip{appearance:none;border:0;border-radius:999px;padding:0 12px;min-height:36px;font:inherit;font-size:12.5px;font-weight:700;background:var(--sapin);color:var(--paper);cursor:pointer}
+.narrow .pc .btn,.narrow .pc .chip{flex:1 1 100%}
+.overlay{position:fixed;inset:0;background:rgba(20,26,20,.72);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;font:600 20px var(--serif)}
+.overlay.on{display:flex}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:40}
+.modal.on{display:flex}
+.modal .dlg{width:100%}
+.narrowmodal .dlg{max-width:390px;height:100%;border-radius:0}
+</style>
+
+<body>
+<div class="wrap">
+
+<h1>Plugins — phase 4 : paquets, registre signé, mises à jour</h1>
+<div class="meta">Spec <code>specs/plugins-phase-4-registry.md</code> · 08/10/2026 · branche <code>feature/plugins-phase-4</code> → <code>inte/plugins</code> · implémentée, arbitrages P23–P27 pris avec l’option recommandée</div>
+
+<div class="note"><b>En une phrase.</b> Chaque plugin devient un paquet avec sa propre version ; une release les embarque tous, la console peut en publier de nouvelles versions entre deux releases, et la page Plugins les installe, les met à jour et revient en arrière. Solio ne voit aucune différence tant qu’aucun registre n’est configuré.</div>
+
+<h2>Constat</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Avant la phase 4</h3>
+    <ul class="tight">
+      <li>Les douze plugins sont compilés dans le cœur : listes d’imports statiques côté serveur et client.</li>
+      <li>Le catalogue est une constante figée ; pas de version, pas de dépendances, pas de plage de compatibilité.</li>
+      <li>La release publie une seule archive ; rien par plugin.</li>
+      <li>Un plugin non installé est quand même chargé et téléchargé par le navigateur.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Ce qui bloquait la suite</h3>
+    <ul class="tight">
+      <li>Corriger un plugin imposait une release complète du cœur.</li>
+      <li>Le dépôt devient privé (D4) : une instance ne peut plus lire GitHub sans jeton.</li>
+      <li>La console a déjà une clé Ed25519 et chaque instance sait vérifier ses signatures.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu’on propose</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Le paquet</h3>
+    <ul class="tight">
+      <li><code>&lt;id&gt;-&lt;version&gt;.tgz</code> : <code>manifest.json</code>, <code>server/</code> (sans tests ni <code>node_modules</code>), <code>client/</code> (un module ES et ses morceaux).</li>
+      <li>Le manifeste décrit le plugin : nom, version, plage GuestFlow, plage SDK, dépendances, journal des versions.</li>
+      <li>Le SDK a sa version (1.0.0). Le build refuse tout import hors du dossier du plugin et du SDK.</li>
+      <li>Côté navigateur, React, MUI, le routeur et le SDK sont ceux de l’application : un seul thème.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Le registre et l’instance</h3>
+    <ul class="tight">
+      <li>Page « Registre » de la console : dépôt de paquets, retrait d’une version ; index signé.</li>
+      <li>L’instance lit l’index au démarrage, toutes les 6 h et sur demande ; signature fausse → index ignoré.</li>
+      <li>Sans registre : les versions de l’archive, et rien ne le signale.</li>
+      <li>Mise à jour : téléchargement, empreinte vérifiée, bascule, redémarrage. Retour arrière possible 7 jours.</li>
+      <li>Une release charge chaque plugin depuis son paquet ; un plugin non installé ne coûte rien.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Maquette interactive — Paramètres › Plugins</h2>
+<p class="muted">Cliquer une puce « Mise à jour », choisir l’issue, mettre à jour ; tester « Tout mettre à jour », la version compatible d’un plugin incompatible, l’installation avec dépendance, le retour arrière.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Issue d’une mise à jour</span>
+    <div class="seg" id="outcome">
+      <button aria-pressed="true" data-v="ok">Réussie</button>
+      <button aria-pressed="false" data-v="sig">Signature fausse</button>
+      <button aria-pressed="false" data-v="dl">Téléchargement impossible</button>
+    </div>
+    <span class="lab">Registre</span>
+    <div class="seg" id="registry">
+      <button aria-pressed="true" data-v="ok">Lu</button>
+      <button aria-pressed="false" data-v="down">Injoignable</button>
+      <button aria-pressed="false" data-v="none">Aucun</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="phone"> Téléphone (390 px)</label>
+  </div>
+  <div class="sbody"><div id="mock"></div></div>
+</div>
+<div class="modal" id="modal"><div class="dlg" id="dlg"></div></div>
+<div class="overlay" id="overlay"><div class="spin"></div>Redémarrage en cours</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li>Plugins tiers et comptes développeurs : seul le registre officiel existe.</li>
+  <li>Mises à jour poussées sur toute la flotte : c’est la phase H (hébergement).</li>
+  <li>Mise à jour automatique : rien ne s’installe sans un clic de l’administrateur.</li>
+  <li>Un dépôt par plugin : les paquets sont construits depuis ce dépôt.</li>
+  <li>Un nouvel identifiant de plugin publié seul : il arrive avec une release du cœur, qui connaît son forfait.</li>
+</ul>
+
+<h2>Risques et parades</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Solio après la migration</h3>
+    <p>Les lignes <code>builtin</code> deviennent <code>bundled</code>, actives, données intactes. Vérifié sur une copie de la base de dev : tableau de bord, fiche réservation, planning, page Plugins, Paramètres › Linge, Intégrations, Vacances scolaires, sans erreur console, avec le build de production et les douze paquets.</p>
+  </div>
+  <div class="card">
+    <h3>Une release qui retomberait sur les sources</h3>
+    <p>Le build client ne contient plus de code de plugin. Une instance trouve <code>plugins-dist/</code> et charge les paquets quel que soit <code>NODE_ENV</code> ; seuls <code>npm run dev</code> et la suite E2E de dev forcent les sources.</p>
+  </div>
+  <div class="card">
+    <h3>Redémarrage</h3>
+    <p>Une mise à jour finit par un arrêt propre que PM2 relance. Sans superviseur, elle est refusée avant tout changement. Une mise à jour qui échoue laisse la version en place.</p>
+  </div>
+  <div class="card">
+    <h3>Registre compromis ou en panne</h3>
+    <p>Index signé par la clé de la console ; empreinte et taille vérifiées ; https seulement. En panne : versions de l’archive et une ligne discrète.</p>
+  </div>
+</div>
+
+<h2>Arbitrages (pris avec l’option recommandée)</h2>
+<div class="q"><h3>P23 — Où vit le registre ?</h3>
+  <label class="opt rec"><input type="radio" checked disabled>Dans la console, index signé avec la clé des licences (recommandé, retenu)</label>
+  <label class="opt"><input type="radio" disabled>Fichier brut sur GitHub, comme Sowel — exclu : dépôt privé (D4)</label></div>
+<div class="q"><h3>P24 — L’archive de release embarque-t-elle les paquets ?</h3>
+  <label class="opt rec"><input type="radio" checked disabled>Oui, tous : une instance sans registre installe et met à jour depuis son archive (retenu)</label>
+  <label class="opt"><input type="radio" disabled>Non, tout passe par le registre</label></div>
+<div class="q"><h3>P25 — Qui installe et met à jour ?</h3>
+  <label class="opt rec"><input type="radio" checked disabled>L’administrateur de l’instance, dans les limites de sa licence ; rien d’automatique (retenu)</label>
+  <label class="opt"><input type="radio" disabled>L’opérateur, pour toute la flotte (phase H)</label></div>
+<div class="q"><h3>P26 — Comment versionner ?</h3>
+  <label class="opt rec"><input type="radio" checked disabled>Une version semver par plugin, montée par la release ; le contrôle <code>verify</code> refuse un plugin modifié sans nouvelle version (retenu)</label>
+  <label class="opt"><input type="radio" disabled>La version du cœur pour tous</label></div>
+<div class="q"><h3>P27 — Combien de chemins de chargement ?</h3>
+  <label class="opt rec"><input type="radio" checked disabled>Un seul en production : chaque plugin depuis son paquet ; le dev garde les sources (retenu)</label>
+  <label class="opt"><input type="radio" disabled>Les plugins livrés compilés dans le cœur, les autres en paquets</label></div>
+
+<h2>Arbitrages pris pendant l’implémentation</h2>
+<ul class="tight">
+  <li>Plage GuestFlow des douze manifestes : <code>&gt;=3.9.0</code> sans plafond ; c’est la plage SDK (<code>^1.0.0</code>) qui protège d’un cœur incompatible.</li>
+  <li>Une mise à jour dont la nouvelle version exige un plugin absent est refusée (« à installer d’abord ») ; seule l’installation propose la dépendance.</li>
+  <li>Après une installation, la page se recharge pour charger le nouveau paquet dans le navigateur ; côté serveur aucun redémarrage.</li>
+  <li>La liste des paquets à charger est lisible avant la connexion : le navigateur les charge avant l’application.</li>
+  <li>Règle 25 ajoutée : un plugin <code>bundled</code> suit la version que la release embarque.</li>
+  <li>Les lignes de journal <code>plugin:&lt;id&gt;</code> sont écrites en français, car lues dans la fenêtre de mise à jour.</li>
+</ul>
+
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const st = {
+  tab: 'installed', outcome: 'ok', registry: 'ok', phone: false,
+  plugins: [
+    { id: 'linen', icon: '🧺', name: 'Linge et blanchisserie', d: 'Stock de linge, tournées de blanchisserie, lits à préparer.', state: 'active', version: '1.0.0',
+      update: { version: '1.2.0', lines: [['1.2.0', ['Le stock des serviettes se lit sur la bonne semaine.']], ['1.1.0', ['Une alerte prévient d’une rupture trois jours avant.']]] } },
+    { id: 'tariff', icon: '📈', name: 'Recettes tarifaires', d: 'Génère les saisons et les prix à partir d’une recette.', state: 'active', version: '1.0.0',
+      update: { version: '2.0.0', lines: [['2.0.0', ['Les recettes acceptent les semaines glissantes.']]], refusal: 'Nécessite GuestFlow 4.1 ou plus récent.' } },
+    { id: 'weather', icon: '⛈', name: 'Vigilance Météo-France', d: 'Prévient le voyageur d’une alerte météo à l’arrivée.', state: 'incompatible', version: '2.0.0', compatible: '1.0.0' },
+    { id: 'school', icon: '🎒', name: 'Vacances scolaires', d: 'Zones A, B, C récupérées sur education.gouv.fr.', state: 'active', version: '1.0.3',
+      update: { version: '1.0.4', lines: [['1.0.4', ['Les ponts de mai sont importés sur un seul jour.']]] } },
+    { id: 'booking', icon: '🌐', name: 'Réservation depuis le site', d: 'Le moteur de réservation du site WordPress.', state: 'available', version: '1.1.0', requires: ['Paiement en ligne (Qonto) 1.0.0'] },
+    { id: 'pay', icon: '💳', name: 'Paiement en ligne (Qonto)', d: 'Liens de paiement envoyés aux voyageurs.', state: 'available', version: '1.0.0' },
+    { id: 'export', icon: '📒', name: 'Export comptable', d: 'Écritures, plan comptable et export pour le cabinet comptable.', state: 'available', version: '2.0.0', refusal: 'Nécessite GuestFlow 4.1 ou plus récent.' },
+  ],
+};
+const regLine = () => st.registry === 'ok' ? 'Registre lu il y a 5 min.' : st.registry === 'down' ? 'Registre injoignable, dernière lecture il y a 3 h.' : '';
+const offered = (p) => p.update && (st.registry === 'ok' || p.id === 'school');
+function updates() { return st.plugins.filter((p) => p.state !== 'available' && p.state !== 'incompatible' && offered(p) && !p.update.refusal); }
+function card(p) {
+  const inst = p.state !== 'available';
+  let badge = '';
+  if (p.state === 'active') badge = '<span class="badge ok">Actif</span>';
+  if (p.state === 'incompatible') badge = '<span class="badge ko">Incompatible avec cette version</span>';
+  let right = '';
+  if (inst && p.state !== 'incompatible' && offered(p)) right += `<button class="chip" data-upd="${p.id}">⬆ Mise à jour ${p.update.version}</button>`;
+  if (p.state === 'incompatible') right += `<button class="btn" data-compat="${p.id}">Installer la version ${p.compatible}</button>`;
+  if (p.state === 'active') right += '<button class="btn o">Désactiver</button>';
+  if (!inst) right += `<button class="btn" data-inst="${p.id}" ${p.refusal ? 'disabled style="opacity:.45"' : ''}>Installer</button>`;
+  let extra = '';
+  if (!inst && p.refusal) extra += `<div class="sub2" style="color:var(--ocre)">${p.refusal}</div>`;
+  if (!inst && p.requires) extra += `<div class="sub2">Nécessite : ${p.requires.map((r) => r.replace(/ [\d.]+$/, '')).join(', ')}</div>`;
+  if (p.rollback) extra += `<div class="acts"><button class="mini" data-rb="${p.id}">Revenir à la version précédente</button></div><div class="sub2">Version ${p.rollback}, possible jusqu’au 15/10.</div>`;
+  if (p.msg) extra += `<div class="err">${p.msg}</div>`;
+  return `<div class="pc"><div class="top"><div class="tile">${p.icon}</div><div class="who"><b>${p.name}</b><span class="v">${p.version}</span><div class="d">${p.d}</div><div style="margin-top:4px">${badge}</div></div>${right}</div>${extra}</div>`;
+}
+function render() {
+  const inst = st.plugins.filter((p) => p.state !== 'available');
+  const avail = st.plugins.filter((p) => p.state === 'available');
+  const shown = st.tab === 'installed' ? inst : avail;
+  const n = updates().length;
+  let h = `<div class="${st.phone ? 'narrow' : ''}"><div class="pl-bar"><b>Plugins</b><span class="tabs"><button data-tab="installed" aria-pressed="${st.tab === 'installed'}">Installés (${inst.length})</button><button data-tab="available" aria-pressed="${st.tab === 'available'}">Disponibles (${avail.length})</button></span>${st.registry !== 'none' ? '<button class="icon" title="Rechercher des mises à jour" aria-label="Rechercher des mises à jour" data-search>⟳</button>' : ''}</div>`;
+  if (n && st.tab === 'installed') h += `<div class="banner"><span>${n} mise${n > 1 ? 's' : ''} à jour disponible${n > 1 ? 's' : ''}</span><button class="btn o" data-all>Tout mettre à jour</button></div>`;
+  if (regLine()) h += `<p class="reg">${regLine()}</p>`;
+  h += `<div class="cards">${shown.map(card).join('')}</div></div>`;
+  $('#mock').innerHTML = h;
+}
+function openDialog(html) { $('#dlg').innerHTML = html; $('#modal').classList.add('on'); $('#modal').classList.toggle('narrowmodal', st.phone); }
+const closeDialog = () => $('#modal').classList.remove('on');
+function restart(after) { closeDialog(); $('#overlay').classList.add('on'); setTimeout(() => { after(); $('#overlay').classList.remove('on'); render(); }, 1600); }
+function updateDialog(p) {
+  const u = p.update;
+  const refusal = u.refusal ? `<div class="w">${u.refusal}</div>` : '';
+  openDialog(`<h4>${p.name} ${u.version}</h4><div class="sub2">Version installée : ${p.version}. La mise à jour redémarre GuestFlow.</div>${u.lines.map(([v, ls]) => `<div style="margin-top:8px"><b>${v}</b><ul>${ls.map((l) => `<li>${l}</li>`).join('')}</ul></div>`).join('')}<div id="dmsg">${refusal}</div><div class="row"><button class="btn o" data-close>Fermer</button><button class="btn" data-go="${p.id}" ${u.refusal ? 'disabled style="opacity:.45"' : ''}>Mettre à jour</button></div>`);
+}
+function doUpdate(p) {
+  if (st.outcome === 'sig') { $('#dmsg').innerHTML = '<div class="w">Le paquet reçu ne correspond pas à sa signature — rien n’a été modifié.</div>'; return; }
+  if (st.outcome === 'dl') { $('#dmsg').innerHTML = '<div class="w">Téléchargement impossible — rien n’a été modifié.</div>'; return; }
+  restart(() => { p.rollback = p.version; p.version = p.update.version; p.update = null; });
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return;
+  const find = (id) => st.plugins.find((p) => p.id === id);
+  if (t.dataset.tab) { st.tab = t.dataset.tab; render(); }
+  if (t.dataset.upd) updateDialog(find(t.dataset.upd));
+  if (t.dataset.go) doUpdate(find(t.dataset.go));
+  if (t.dataset.close !== undefined) closeDialog();
+  if (t.dataset.all !== undefined) {
+    if (st.outcome !== 'ok') { render(); $('#mock .banner').insertAdjacentHTML('afterend', `<div class="alert">${st.outcome === 'sig' ? 'Le paquet reçu ne correspond pas à sa signature — rien n’a été modifié.' : 'Téléchargement impossible — rien n’a été modifié.'}</div>`); return; }
+    restart(() => updates().forEach((p) => { p.rollback = p.version; p.version = p.update.version; p.update = null; }));
+  }
+  if (t.dataset.compat) { const p = find(t.dataset.compat); restart(() => { p.rollback = null; p.version = p.compatible; p.state = 'active'; }); }
+  if (t.dataset.rb) { const p = find(t.dataset.rb); restart(() => { p.version = p.rollback; p.rollback = null; }); }
+  if (t.dataset.search !== undefined) { t.textContent = '…'; setTimeout(render, 600); }
+  if (t.dataset.inst) {
+    const p = find(t.dataset.inst);
+    if (p.requires) {
+      openDialog(`<h4>Installer ${p.name}</h4><p>Nécessite aussi : ${p.requires.join(', ')}, installé en premier.</p><div class="row"><button class="btn o" data-close>Annuler</button><button class="btn" data-both="${p.id}">Tout installer</button></div>`);
+    } else { p.state = 'active'; st.tab = 'installed'; render(); }
+  }
+  if (t.dataset.both) { closeDialog(); find('pay').state = 'active'; find(t.dataset.both).state = 'active'; delete find(t.dataset.both).requires; st.tab = 'installed'; render(); }
+});
+for (const id of ['outcome', 'registry']) {
+  $('#' + id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    $('#' + id).querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    st[id] = b.dataset.v; render();
+  });
+}
+$('#phone').addEventListener('change', (e) => { st.phone = e.target.checked; render(); });
+$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeDialog(); });
+render();
+</script>
+</body>
+</html>

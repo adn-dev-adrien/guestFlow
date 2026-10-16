@@ -1,0 +1,19 @@
+{
+  "id": "neat",
+  "name": "Assurance annulation Neat",
+  "version": "1.0.0",
+  "description": "Souscription automatique de l’assurance annulation.",
+  "icon": "umbrella",
+  "surfaces": [
+    "Intégrations › Neat",
+    "La puce Neat et ses actions sur la ligne d’assurance"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^1.0.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ]
+  }
+}

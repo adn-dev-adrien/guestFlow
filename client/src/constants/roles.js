@@ -3,6 +3,7 @@
 // projection used by the UI (sidebar gating, role multi-select, status chips).
 
 import { isRouteEnabled, MODULE_ROUTE_ROLES } from './plugins';
+import liveRecord from '../utils/liveRecord';
 
 export const ADMIN = 'admin';
 export const ACCOUNTANT = 'accountant';
@@ -45,7 +46,7 @@ export function isReceptionOnly(user) {
 // Server-side `enforceRoleAccess` middleware enforces the same rules at the API boundary; this map
 // only controls UI visibility. A user that hits a hidden route directly via URL still gets the
 // server's 403 (and the client-side AccountantConfinement guard sends them home).
-export const ROUTE_ROLES = Object.freeze({
+const CORE_ROUTE_ROLES = Object.freeze({
   // specs/reception-role-checkin-only.md — the reception role sees only the finance-free home
   // (arrivals/departures), the Planning (+ SAS), and « Mon compte ».
   '/':                       [ADMIN, RECEPTION],
@@ -84,9 +85,12 @@ export const ROUTE_ROLES = Object.freeze({
   '/parametres/plugins':     [ADMIN],
   // Rule 6 — « Mon compte » (my information, my password) for every role.
   '/mon-compte':             [ADMIN, ACCOUNTANT, RECEPTION],
-  // Pages of plugin modules, with the roles each declares (specs/plugins-phase-1-sdk.md rule 15).
-  ...MODULE_ROUTE_ROLES,
 });
+
+// Pages of plugin modules, with the roles each declares (specs/plugins-phase-1-sdk.md rule 15) —
+// read live, since a production build loads the modules after this file
+// (specs/plugins-phase-4-registry.md rule 18).
+export const ROUTE_ROLES = liveRecord(() => ({ ...CORE_ROUTE_ROLES, ...MODULE_ROUTE_ROLES }), () => Object.keys(MODULE_ROUTE_ROLES).length);
 
 // A page also needs its plugin active (specs/plugins-phase-0-foundation.md rule 16): the sidebar, the
 // settings submenu and the route guard all go through this one predicate.

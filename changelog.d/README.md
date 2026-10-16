@@ -26,6 +26,17 @@ heading, just the `- …` lines. Example — `changelog.d/added--j7-email-baby-b
 
 That's it. Because each PR adds a **new file**, `git` never reports a conflict.
 
+### A line about one plugin
+
+A bullet that starts with `plugin:<id>` belongs to that plugin (specs/plugins-phase-4-registry.md
+rule 24). Write it **in French**: the release fold copies it into the plugin's manifest, under the
+version the release ships, and the Plugins page shows it in the update dialog. In `CHANGELOG.md` it
+appears as « **Plugin `<id>`** — … ».
+
+```markdown
+- plugin:linen Le stock des serviettes se lit sur la bonne semaine.
+```
+
 ## Preview the pending changelog
 
 ```

@@ -1,6 +1,10 @@
 /**
  * Plugins controller (specs/plugins-phase-0-foundation.md §3.B, §4.3). Owns the states, the refusal
  * rules and the payload the Plugins page renders; the page never derives a state itself.
+ *
+ * specs/plugins-phase-4-registry.md rules 10–16, 20–22: each plugin's version, the version offered
+ * (registry or release archive), the update with its changelog lines, the rollback window, the
+ * refusals in French; install from a package, update and rollback with a restart.
  */
 
 const defaultModel = require('../models/pluginsModel');
@@ -8,6 +12,27 @@ const registry = require('../plugins/sdk/registry');
 const { forgetPluginMigrations } = require('../plugins/sdk/pluginMigrations');
 const { PLUGIN_CATALOG, findPlugin, ONLINE_PAYMENT, SAS, ACCOUNTING_EXPORT } = require('../constants/plugins');
 const { RECEPTION, ACCOUNTANT } = require('../constants/roles');
+const {
+  MESSAGES, rangeRefusal, bestCandidate, bestRefusal, requirementPlan, changelogBetween, dependentsOf,
+} = require('../utils/pluginOffers');
+
+const ROLLBACK_DAYS = 7;
+const DAY_MS = 86400000;
+
+// « il y a 3 h » — the age of the last registry read, as the page prints it (rule 9 edge case).
+function agoLabel(iso, now) {
+  const ms = now.getTime() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 60000) return 'à l’instant';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 48) return `il y a ${h} h`;
+  return `il y a ${Math.floor(h / 24)} j`;
+}
+
+const frDay = (iso) => new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' }).format(new Date(iso));
+
+const PACKAGE_STATUS = { PACKAGE_REJECTED: 422, DOWNLOAD_FAILED: 502 };
 
 // Rule 8 — turning these off would leave something live without its tool.
 function blockerFor(id, model) {
@@ -64,6 +89,23 @@ function createController(model = defaultModel, deps = {}) {
   const settingsModel = deps.settingsModel || (() => require('../models/pluginSettingsModel'));
   const loader = deps.loader || (() => require('../plugins/loader'));
   const licence = deps.licence || (() => require('../utils/licence').default);
+  const host = deps.host || (() => require('../plugins/host'));
+  const coreVersion = deps.coreVersion || (() => require('../utils/appVersion').getAppVersion());
+  const sdkVersion = deps.sdkVersion || require('../plugins/sdk/version').SDK_VERSION;
+  const now = deps.now || (() => new Date());
+
+  const packages = () => host().mode() === 'packages';
+  const env = () => ({ coreVersion: coreVersion(), sdkVersion });
+  // The two sources of rule 10: the verified registry index and the release's own copy.
+  const sources = () => ({
+    registry: (id) => (packages() ? host().registryClient().versions(id) : []),
+    bundled: (id) => host().runningCopy(id),
+  });
+  const nameOf = (id) => (findPlugin(id) || {}).name || id;
+  const installedVersions = () => Object.fromEntries(model.list().map((r) => [r.id, r.version || (host().runningCopy(r.id) || { manifest: {} }).manifest.version]));
+  const planCtx = () => ({
+    sources: sources(), env: env(), installed: installedVersions(), nameOf, allows: (id) => licence().allowsPlugin(id),
+  });
 
   const erasable = (id) => Boolean(reg.get(id) && reg.get(id).data);
 
@@ -95,25 +137,247 @@ function createController(model = defaultModel, deps = {}) {
     return true;
   }
 
+  // Rule 16 — the previous copy, while its window is open and its files are still there.
+  function rollbackView(row) {
+    if (!packages() || !row || !row.previousVersion || !row.rollbackUntil) return null;
+    if (Date.parse(row.rollbackUntil) <= now().getTime()) return null;
+    if (!previousManifest(row)) return null;
+    return { version: row.previousVersion, until: row.rollbackUntil, label: `Version ${row.previousVersion}, possible jusqu’au ${frDay(row.rollbackUntil)}.` };
+  }
+
+  function previousManifest(row) {
+    if (row.previousSource === 'registry') {
+      const dir = host().store().packageDirFor(row.id, { source: 'registry', version: row.previousVersion });
+      if (!dir) return null;
+      try {
+        return require('../plugins/manifest').parseManifest(require('fs').readFileSync(require('path').join(dir, 'manifest.json'), 'utf8'));
+      } catch {
+        return null;
+      }
+    }
+    const copy = host().runningCopy(row.id);
+    return copy && copy.manifest.version === row.previousVersion ? copy.manifest : null;
+  }
+
+  // Rules 10, 12, 20 — what this plugin is offered: an update for an installed one, a version (and
+  // the requirements installed with it) for an available one. Only a release runs packages; a
+  // development tree runs its sources and is offered nothing.
+  function packageView(entry, row) {
+    const incompatible = row ? host().state().incompatible[entry.id] || null : null;
+    if (!packages()) return { update: null, offer: null, incompatible, rollback: null };
+    const src = sources();
+    if (!row) {
+      const offer = bestCandidate(entry.id, src, env());
+      if (!offer) {
+        const refusal = bestRefusal(entry.id, src, env()) || { code: 'UNAVAILABLE', message: 'Indisponible.' };
+        return { update: null, incompatible: null, rollback: null, offer: { version: null, requirements: [], refusal } };
+      }
+      const { plan, refusal } = requirementPlan(offer.manifest, planCtx());
+      return {
+        update: null, incompatible: null, rollback: null,
+        offer: { version: offer.version, requirements: plan.map(({ id, name, version }) => ({ id, name, version })), refusal },
+      };
+    }
+    if (incompatible) {
+      const target = bestCandidate(entry.id, src, env(), { except: row.version });
+      return {
+        offer: null,
+        rollback: rollbackView(row),
+        incompatible: { ...incompatible, compatibleVersion: target ? target.version : null },
+        update: target ? updateView(row, target) : null,
+      };
+    }
+    const target = bestCandidate(entry.id, src, env(), { above: row.version });
+    return { offer: null, incompatible: null, rollback: rollbackView(row), update: target ? updateView(row, target) : null };
+  }
+
+  function updateView(row, target) {
+    const { plan, refusal } = requirementPlan(target.manifest, planCtx());
+    const missing = plan.length ? { code: 'REQUIREMENT_MISSING', message: `Nécessite ${plan.map((p) => p.name).join(', ')} : à installer d’abord.` } : null;
+    return {
+      version: target.version,
+      changelog: changelogBetween(target.manifest, row.version, target.version),
+      refusal: refusal || missing,
+    };
+  }
+
   function view(entry) {
     const row = model.get(entry.id);
     const record = reg.get(entry.id);
+    const pkg = packageView(entry, row);
     let state = !row ? 'available' : row.enabled ? 'active' : 'inactive';
     if (row && record && record.failed) state = 'failed';
+    if (row && pkg.incompatible) state = 'incompatible';
+    // A version installed from the registry describes itself (rule 2); otherwise the release's copy.
+    const manifest = (row && row.manifest) || entry;
+    const copy = host().runningCopy(entry.id);
+    let version = row ? row.version || (copy && copy.manifest.version) || entry.version : entry.version;
+    if (!row && pkg.offer && pkg.offer.version) version = pkg.offer.version;
     return {
       ...planView(entry.id),
       id: entry.id,
-      name: entry.name,
-      description: entry.description,
-      icon: entry.icon,
-      surfaces: entry.surfaces,
-      requires: entry.requires,
+      name: manifest.name || entry.name,
+      description: manifest.description || entry.description,
+      icon: manifest.icon || entry.icon,
+      surfaces: manifest.surfaces || entry.surfaces,
+      requires: manifest.requires || entry.requires,
+      version,
+      source: row ? row.source : null,
       state,
       blocker: state === 'available' ? null : blockerFor(entry.id, model),
-      hasModule: Boolean(record),
+      hasModule: Boolean(record) || Boolean(copy),
       erasable: erasable(entry.id),
       data: row && erasable(entry.id) ? dataLines(entry.id) : [],
+      ...pkg,
     };
+  }
+
+  // Rule 9 edge case: a registry that cannot be read is said discreetly, never as an error.
+  function registryLine(status) {
+    if (!status.configured) return null;
+    if (status.state === 'ok') return `Registre lu ${agoLabel(status.lastOkAt, now())}.`;
+    if (status.state === 'invalid') return 'Registre ignoré : signature invalide.';
+    if (status.state === 'unreachable') {
+      return status.lastOkAt ? `Registre injoignable, dernière lecture ${agoLabel(status.lastOkAt, now())}.` : 'Registre injoignable.';
+    }
+    return null;
+  }
+
+  function statusView() {
+    const updates = PLUGIN_CATALOG.map(view).filter((p) => p.update && !p.update.refusal && !p.outOfPlan);
+    const n = updates.length;
+    const regStatus = packages() ? host().registryClient().status() : { configured: false };
+    return {
+      mode: host().mode(),
+      registry: { ...regStatus, label: registryLine(regStatus) },
+      updates: n,
+      banner: n ? `${n} mise${n > 1 ? 's' : ''} à jour disponible${n > 1 ? 's' : ''}` : null,
+      updateIds: updates.map((p) => p.id),
+      canRestart: packages() ? host().state().restart.supervised : false,
+    };
+  }
+
+  /**
+   * Fetches (registry) or points at (archive) the package of `candidate`, verified (rule 11). Throws a
+   * PackageError — nothing moved — or returns { manifest, dir, sha256 }.
+   */
+  async function acquire(id, candidate) {
+    if (candidate.source === 'registry') {
+      return host().store().fetchFromRegistry({
+        id, version: candidate.version, sha256: candidate.sha256, size: candidate.size,
+        url: host().registryClient().packageUrl(id, candidate.version),
+      });
+    }
+    const pkg = host().store().bundled()[id];
+    return { manifest: pkg.manifest, dir: pkg.dir, sha256: pkg.sha256 };
+  }
+
+  function refusePackageError(err, res) {
+    const code = err && err.code;
+    if (!PACKAGE_STATUS[code]) throw err;
+    console.error(`[plugins] package refused: ${err.message}`);
+    return res.status(PACKAGE_STATUS[code]).json({ error: code, message: MESSAGES[code] });
+  }
+
+  // Rule 13 — a package installed while the app runs: loaded, registered, mounted, migrated, then
+  // recorded. Returns null, or the refusal to send.
+  async function installPackage(id, candidate) {
+    const pkg = await acquire(id, candidate);
+    if (candidate.source === 'registry') host().store().setCurrent(id, candidate.version);
+    const loaded = host().state().loaded[id];
+    let restart = false;
+    if (loaded && loaded !== candidate.version) {
+      restart = true;
+    } else if (!loaded) {
+      let mod;
+      try {
+        mod = loader().requirePackage(id, pkg.dir);
+      } catch (err) {
+        mod = { id, register() { throw err; } };
+      }
+      if (!loader().registerLive(mod, { db: getDb() })) {
+        return { status: 500, body: { error: 'PLUGIN_REGISTER_FAILED', plugin: id, message: 'Échec du démarrage.' } };
+      }
+      host().setLoaded(id, candidate.version);
+      try {
+        loader().migrate(getDb(), id);
+      } catch (err) {
+        console.error(`[plugin:${id}] install migration failed:`, err && err.message ? err.message : err);
+        return { status: 500, body: { error: 'PLUGIN_MIGRATION_FAILED', plugin: id } };
+      }
+    }
+    model.install(id, { version: candidate.version, source: candidate.source, manifest: pkg.manifest, sha256: pkg.sha256 });
+    if (!restart) await loader().runInstallHooks(id);
+    return { restart };
+  }
+
+  // The target of an update: `version` when asked (an incompatible plugin, rule 14), else the newest.
+  function updateTarget(row, version) {
+    const src = sources();
+    if (version) {
+      const target = bestCandidate(row.id, src, env(), { range: version });
+      return target && target.version === version && target.version !== row.version ? target : null;
+    }
+    return bestCandidate(row.id, src, env(), { above: row.version });
+  }
+
+  function refuseUpdateConditions(res) {
+    if (!packages()) { res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE }); return true; }
+    if (host().state().updating) { res.status(409).json({ error: 'UPDATE_IN_PROGRESS', message: MESSAGES.UPDATE_IN_PROGRESS }); return true; }
+    if (!host().state().restart.supervised) { res.status(412).json({ error: 'RESTART_UNAVAILABLE', message: MESSAGES.RESTART_UNAVAILABLE }); return true; }
+    return false;
+  }
+
+  // Switches one plugin to an acquired package and keeps the previous copy for the window (rule 16).
+  function switchTo(row, target, pkg) {
+    if (target.source === 'registry') host().store().setCurrent(row.id, target.version);
+    model.switchVersion(row.id, { version: target.version, source: target.source, manifest: pkg.manifest, sha256: pkg.sha256 }, {
+      rollbackUntil: new Date(now().getTime() + ROLLBACK_DAYS * DAY_MS).toISOString(),
+    });
+    const keep = [];
+    if (target.source === 'registry') keep.push(target.version);
+    if (row.source === 'registry' && row.version) keep.push(row.version);
+    host().store().prune(row.id, keep);
+  }
+
+  function restartNow(res, body = {}) {
+    res.status(202).json({ restarting: true, ...body });
+    host().state().restart.schedule({ reason: 'plugin update' });
+  }
+
+  // POST /api/plugins/:id/install in a release (rules 10–13): the requirements first when the
+  // confirmation included them (`withRequirements`), then the plugin itself.
+  async function installFromPackages(entry, req, res) {
+    const offer = bestCandidate(entry.id, sources(), env());
+    if (!offer) {
+      const refusal = bestRefusal(entry.id, sources(), env()) || { code: 'UNAVAILABLE', message: 'Indisponible.' };
+      return res.status(409).json({ error: refusal.code, message: refusal.message });
+    }
+    const { plan, refusal } = requirementPlan(offer.manifest, planCtx());
+    if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
+    const withRequirements = Boolean(req.body && req.body.withRequirements);
+    if (plan.length && !withRequirements) {
+      return res.status(409).json({
+        error: 'REQUIREMENTS',
+        message: `Nécessite aussi : ${plan.map((p) => p.name).join(', ')}.`,
+        requirements: plan.map(({ id, name, version }) => ({ id, name, version })),
+      });
+    }
+    const steps = [...plan.map((p) => ({ id: p.id, candidate: bestCandidate(p.id, sources(), env(), { range: p.version }) })), { id: entry.id, candidate: offer }];
+    let restart = false;
+    for (const step of steps) {
+      let result;
+      try {
+        result = await installPackage(step.id, step.candidate); // eslint-disable-line no-await-in-loop
+      } catch (err) {
+        return refusePackageError(err, res);
+      }
+      if (result.status) return res.status(result.status).json(result.body);
+      restart = restart || result.restart;
+    }
+    if (restart && host().state().restart.supervised) return restartNow(res, { version: offer.version });
+    // The browser loads the new bundle at its next page load (rule 18): the page reloads.
+    return res.json({ ...view(entry), reload: true });
   }
 
   // Rule 12 — one transaction: the plugin's own clean-up, its tables, its settings, its ledger rows.
@@ -155,6 +419,7 @@ function createController(model = defaultModel, deps = {}) {
       if (!entry) return undefined;
       if (model.get(entry.id)) return res.status(409).json({ error: 'ALREADY_INSTALLED' });
       if (refuseIfOutOfPlan(entry, res)) return undefined;
+      if (packages()) return installFromPackages(entry, req, res);
       if (reg.get(entry.id)) {
         try {
           loader().migrate(getDb(), entry.id);
@@ -166,6 +431,80 @@ function createController(model = defaultModel, deps = {}) {
       model.install(entry.id);
       if (reg.get(entry.id)) await loader().runInstallHooks(entry.id);
       return res.json(view(entry));
+    },
+
+    // GET /api/plugins/status — the banner, the registry line (rules 9, 20).
+    status(req, res) {
+      return res.json(statusView());
+    },
+
+    // POST /api/plugins/refresh — « Rechercher des mises à jour » (rule 9).
+    async refresh(req, res) {
+      if (packages()) await host().registryClient().refresh();
+      return res.json(statusView());
+    },
+
+    // POST /api/plugins/:id/update — rules 11, 13, 14: verified package, switch, restart.
+    async update(req, res) {
+      const entry = resolve(req, res);
+      if (!entry) return undefined;
+      const row = model.get(entry.id);
+      if (!row) return res.status(409).json({ error: 'NOT_INSTALLED' });
+      if (refuseUpdateConditions(res)) return undefined;
+      if (refuseIfOutOfPlan(entry, res)) return undefined;
+      const requested = req.body && typeof req.body.version === 'string' ? req.body.version : null;
+      const target = updateTarget(row, requested);
+      if (!target) return res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE });
+      const refusal = updateView(row, target).refusal;
+      if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
+      host().state().updating = true;
+      try {
+        const pkg = await acquire(entry.id, target);
+        switchTo(row, target, pkg);
+      } catch (err) {
+        host().state().updating = false;
+        return refusePackageError(err, res);
+      }
+      return restartNow(res, { version: target.version });
+    },
+
+    // POST /api/plugins/update-all — « Tout mettre à jour »: every package verified first, then one
+    // switch and one restart. A refused package leaves every plugin as it was.
+    async updateAll(req, res) {
+      if (refuseUpdateConditions(res)) return undefined;
+      const targets = PLUGIN_CATALOG.map((entry) => {
+        const row = model.get(entry.id);
+        if (!row || host().state().incompatible[entry.id] || !licence().allowsPlugin(entry.id)) return null;
+        const target = updateTarget(row, null);
+        return target && !updateView(row, target).refusal ? { row, target } : null;
+      }).filter(Boolean);
+      if (!targets.length) return res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE });
+      host().state().updating = true;
+      let acquired;
+      try {
+        acquired = [];
+        for (const t of targets) acquired.push({ ...t, pkg: await acquire(t.row.id, t.target) }); // eslint-disable-line no-await-in-loop
+      } catch (err) {
+        host().state().updating = false;
+        return refusePackageError(err, res);
+      }
+      acquired.forEach(({ row, target, pkg }) => switchTo(row, target, pkg));
+      return restartNow(res, { updated: acquired.map((t) => ({ id: t.row.id, version: t.target.version })) });
+    },
+
+    // POST /api/plugins/:id/rollback — rule 16: the previous copy, inside its 7 days.
+    rollback(req, res) {
+      const entry = resolve(req, res);
+      if (!entry) return undefined;
+      const row = model.get(entry.id);
+      if (!row) return res.status(409).json({ error: 'NOT_INSTALLED' });
+      if (refuseUpdateConditions(res)) return undefined;
+      if (!rollbackView(row)) return res.status(409).json({ error: 'NO_ROLLBACK', message: MESSAGES.NO_ROLLBACK });
+      const manifest = previousManifest(row);
+      if (row.previousSource === 'registry') host().store().setCurrent(row.id, row.previousVersion);
+      model.rollBack(row.id, manifest);
+      host().state().updating = true;
+      return restartNow(res, { version: row.previousVersion });
     },
 
     // POST /api/plugins/:id/activate
@@ -196,10 +535,20 @@ function createController(model = defaultModel, deps = {}) {
       if (!model.get(entry.id)) return res.status(409).json({ error: 'NOT_INSTALLED' });
       const wantsPurge = req.query && (req.query.purge === '1' || req.query.purge === 'true');
       if (wantsPurge && !erasable(entry.id)) return res.status(409).json({ error: 'NOT_ERASABLE' });
+      // specs/plugins-phase-4-registry.md rule 12 — a plugin another installed plugin requires stays.
+      const installedManifests = Object.fromEntries(model.list().filter((r) => r.id !== entry.id)
+        .map((r) => [r.id, r.manifest || findPlugin(r.id)]));
+      const dependents = dependentsOf(entry.id, installedManifests);
+      if (dependents.length) {
+        const names = dependents.map((m) => m.name || nameOf(m.id)).join(', ');
+        return res.status(409).json({ error: 'REQUIRED_BY', message: `Nécessaire à ${names} : à désinstaller d’abord.` });
+      }
       if (refuseIfBlocked(entry, res)) return undefined;
       if (wantsPurge) {
         try {
           purge(entry.id);
+          // Rule 15 — the plugin's own files go with its tables.
+          host().store().eraseData(entry.id);
         } catch (err) {
           console.error(`[plugin:${entry.id}] erasure failed:`, err && err.message ? err.message : err);
           // Rule 12: a failed erasure leaves the plugin installed and inactive.

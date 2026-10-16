@@ -10,6 +10,9 @@
  */
 
 const records = new Map();
+// specs/plugins-phase-4-registry.md rules 14, 17 — in the package mode only the installed, loadable
+// packages register: a plugin with no record is then not loaded, so it is not live either.
+let requireRecord = false;
 let isActiveImpl = (id) => require('../../models/pluginsModel').isActive(id);
 let allowsImpl = (id) => require('../../utils/licence').allowsPlugin(id);
 
@@ -67,15 +70,18 @@ module.exports = {
   },
   isLive: (id) => {
     const record = records.get(id);
+    if (!record && requireRecord) return false;
     if (record && record.failed) return false;
     return Boolean(isActiveImpl(id)) && allowsImpl(id);
   },
-  configure({ isActive, allows } = {}) {
+  configure({ isActive, allows, requireRecord: required } = {}) {
     if (isActive) isActiveImpl = isActive;
     if (allows) allowsImpl = allows;
+    if (required !== undefined) requireRecord = Boolean(required);
   },
   reset() {
     records.clear();
+    requireRecord = false;
     isActiveImpl = (id) => require('../../models/pluginsModel').isActive(id);
     allowsImpl = (id) => require('../../utils/licence').allowsPlugin(id);
   },
