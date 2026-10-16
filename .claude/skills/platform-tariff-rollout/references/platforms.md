@@ -129,6 +129,7 @@ uniquement sur sa page publique**, et c'est là que les surprises apparaissent.
 | Airbnb | annonce **1576845044615216441** | `airbnb.fr/rooms/<id>?check_in=AAAA-MM-JJ&check_out=…&adults=N` |
 | Booking | hôtel **15343212**, chambre 1534321201 | `booking.com/hotel/fr/tente-domaine-solio.fr.html?checkin=…&checkout=…&group_adults=N#availability` |
 | Vrbo / Abritel | propriété **123465737**, unité 327755592, annonce **AB 2622643**, clé composite **731.2622643.2799576** | `abritel.fr/location-vacances/p2622643` |
+| Vrbo / Abritel — **gîte** (relevé le 2026-10-16) | propriété **118194015**, unité 326936714, annonce **AB 2577203**, clé composite **731.2577203.2754136** | `abritel.fr/location-vacances/p2577203` |
 
 Les identifiants se lisent dans `app.lodgify.com/channels/manager/<canal>`, colonne « Hébergement
 sur … ». La page Booking se trouve sinon par une recherche sur le nom de l'annonce.
@@ -1457,3 +1458,24 @@ Deux conséquences à ne pas confondre :
 Le même raisonnement vaut pour tout canal dont on coupe le gestionnaire : un flux qu'on croit mort
 continue de parler, et il parle sous de **nouveaux UID** anonymisés, avec le nombre de voyageurs
 ramené à 1 — signature exacte d'un doublon de coupure.
+
+### Piège n° 34 — Vrbo ne se débranche pas depuis Lodgify
+
+Mesuré le 16/10/2026. Contrairement à Airbnb (« Unsync » par annonce) et à Booking (retirer le
+fournisseur de connectivité), **aucun bouton ne coupe Vrbo** : Lodgify renvoie vers Vrbo pour un
+« decommissioning » du compte entier (FR : aide.abritel.fr/contact), ou vers son propre support pour
+retirer le mapping d'une annonce, puis son équipe Connectivité finalise. Le délai est celui de Vrbo,
+et d'autres éditeurs signalent des annonces dépubliées plusieurs jours ou archivées en route.
+**Demander par écrit, avant tout geste, que les annonces restent en ligne et gardent leurs avis.**
+
+Trois choses à savoir avant d'y toucher :
+
+- **Abritel porte les DEUX logements** : le gîte (AB 2577203, 3 avis) autant que la tente. Compter
+  les annonces dans `abritel.fr/p/properties`, jamais dans nos notes.
+- **Le calendrier Abritel est verrouillé tant que Lodgify tient l'annonce** (`/p/calendar/ipm` :
+  « téléchargés depuis votre logiciel de gestion intégré »).
+- **Deux circuits d'encaissement, deux relevés.** `supply/financial-reporting?tab=payout-summary`
+  ne liste que les séjours payés *par Abritel* ; ceux payés par Lodgify sont facturés à part dans
+  l'onglet « Factures de réservations » (`tab=ipm-booking-invoices`). Pour mesurer la commission,
+  lire le second : 129,28 € sur 861,84 € = **15,00 %**, assiette = total entier. Le 9,67 % du
+  premier vient de séjours antérieurs à Lodgify, sous l'ancienne formule.

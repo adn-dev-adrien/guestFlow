@@ -313,6 +313,12 @@ tables, because its Booking source now goes through the Booking path.
     one, not the contractual one, or every price derived from it misses its net. Corrected to 16.44
     and both grids re-entered. The same measurement is owed on Airbnb (recorded 15.5 %) and on
     Abritel (recorded 15 %, measured 9.7 % at some point — unresolved).
+  - A: **Measured on Abritel 2026-10-16 — the stored 15 % is right for today's formula.** The stay
+    whose payment Lodgify processed (gîte, 30/01 → 02/02/2026, Lodgify total 861,84 €) was billed
+    129,28 € by Abritel's commission statement of 10/03/2026: 15,00 % of the whole total. The
+    9,67 % came from the two 2025 stays (165,72 € on 1 714 €), booked before the Lodgify connection
+    and paid through Abritel's own payment under the older terms. Still open: whether payment fees
+    come on top of the 15 % once Abritel collects again after the cut — asked of Vrbo support.
   - A: **Measured on Airbnb 2026-10-15 — the stored 15.5 % is exact.** Two settled
     reservations: the gîte's HMEZ45YASB (725 € of nights + 80 € cleaning, « Frais de service
     hôte (15.5 %) » −124,78 €, 124,78 ÷ 805,00 = 15,50 %) and L'Estiva's HM9JRBCT4S (297 € of
@@ -351,6 +357,15 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
    (property 123465737) is owned by the Lodgify integration. If disconnecting would deactivate it or
    drop its reviews, stop and ask Vrbo support for a transfer to a direct owner account before going
    further on this channel.
+
+   **Checked 2026-10-16 — stop condition met.** Abritel carries **two** listings, not one: the gîte
+   (AB 2577203, property 118194015, 3 reviews) as well as the tent (AB 2622643, property
+   123465737). Both sit on the owner account and are mapped in Lodgify on full sync. Lodgify cannot
+   disconnect Vrbo itself: the account is decommissioned **by Vrbo** on request, in a time Vrbo
+   decides, which elsewhere has left listings unlisted for days. A written request to Abritel
+   support asks first for written guarantees (listings stay online, reviews kept, owner-space
+   editing and iCal afterwards, cut-over date, commission). Nothing else on this channel moves
+   before the answer.
 3. **Relabel in GuestFlow** every future reservation filed under `Lodgify` that actually came from
    Booking, Airbnb or Abritel (rule 4). Create the `Abritel` platform at 15 % (rule 12).
 
@@ -655,3 +670,22 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *Side finding.* Option #34's description came back as « … réservé aux adultes. » where
     « Réservé » was typed — the capital is lost on free text, which the existing
     `fix/free-text-keeps-case` branch addresses. The field is guest-facing.
+
+- 2026-10-16 (afternoon) — **Abritel step A: stopped, as the runbook asks.**
+  - *Two listings.* The partner space lists the **gîte** (AB 2577203, property 118194015, unit
+    326936714, 3 reviews) and the **tent** (AB 2622643, property 123465737, no review), both
+    « Performance - 2 (15 % pour chaque réservation) », online on Abritel and Expedia. Every earlier
+    note knew the tent only. Lodgify's Vrbo page maps both, full sync, « Synchronisé ».
+  - *No self-service cut.* Lodgify's help centre: a Vrbo account is disconnected by asking Vrbo for a
+    decommissioning (FR: aide.abritel.fr/contact), one listing by asking Lodgify to drop the mapping,
+    and Lodgify's connectivity team finalises. Vendors report listings unlisted for days or
+    archived along the way, which is the loss step 2 guards against. A written request is sent
+    before anything is touched.
+  - *Interim.* Lodgify still imports GuestFlow's export of both properties every two hours, so
+    Abritel cannot sell a date held elsewhere. The reverse is open: an Abritel booking does not
+    reach GuestFlow, and is entered by hand from its notification e-mail (operator's call).
+  - *Commission.* 15 % confirmed for the current formula (§9 Q7).
+  - *Recorded for step 4 (Lodgify → Vrbo settings).* Gîte: markup 4 %, cleaning fee **80 €**, room
+    tax 1,20 €, promotions 3 → 7 nights 20/30/36/40/42,85 %. Tent: markup 7,5 %, room tax 5,51 %, VAT
+    10 % included, promotions 2 → 7 nights 24/33/38/41/43/45 %. Both « Modérée », instant booking,
+    booking window 550 days. The gîte's Vrbo cleaning fee is the same question as Q8 on Airbnb.

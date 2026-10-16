@@ -16,7 +16,7 @@ GuestFlow at all** since this morning (§2.1), which puts a clock on the switch-
 |---|---|---|
 | **Airbnb** | Done. Disconnected from Lodgify, grid re-entered on both listings, 808 days verified day by day twice (zero discrepancy), per-date min-nights restored, commission **measured at exactly 15,5 %**, cleaning fee moved off the price and sold on site, FR/EN description blocks realigned. | 15–16/10 |
 | **Booking** | Done. Connectivity provider removed (`provider_id=689`), commission corrected **15 % → 16,44 %** (measured), both grids re-entered, L'Estiva's five missing derived rate plans built. One production incident, see §2.2. | 15/10 |
-| **Abritel / Vrbo** | **Not started.** Everything in §3. | — |
+| **Abritel / Vrbo** | **Blocked on Vrbo support** since step A: **two** listings, not one (§3A), and Lodgify cannot disconnect Vrbo on its own. Commission measured: 15 % confirmed (§3B). | 16/10 |
 | **Lodgify subscription** | Still live. Cancelled last, after the 72 h watch. | — |
 
 GuestFlow platform commissions, read from production this morning: `Abracadaroom 20 %`,
@@ -121,12 +121,47 @@ before touching anything. Nothing else on this channel starts before this answer
 While in Lodgify, confirm Abritel is still connected there — §2.1's « no gap » conclusion depends on
 it.
 
+> **Result, 2026-10-16 — stop condition met, written request to Vrbo support pending.**
+> - **Two listings, not one.** The owner account (formula « Performance - 2 (15 % pour chaque
+>   réservation) ») holds the **gîte**, AB **2577203** / property **118194015** / unit 326936714,
+>   **3 reviews**, and the **tent**, AB **2622643** / property 123465737 / unit 327755592, no
+>   review. Both online, distributed on Abritel **and Expedia**, both mapped in Lodgify
+>   (`ExtID` 806256 / 808379 = the Lodgify room types) on **full sync**. Abritel's calendar is
+>   locked: « Vos tarifs et disponibilités sont téléchargés depuis votre logiciel de gestion
+>   intégré » (`/p/calendar/ipm`).
+> - **Lodgify cannot cut Vrbo by itself.** Its help centre: the whole Vrbo account is
+>   disconnected by asking **Vrbo** for a decommissioning, a single listing by asking Lodgify to
+>   remove the mapping, and Lodgify's connectivity team finalises afterwards. The duration is
+>   Vrbo's. Other PMS vendors report Vrbo listings left unlisted for days or weeks, or archived when
+>   unmatched — the gîte's three reviews are exactly what this step protects.
+> - **Vrbo is still « Connecté »** in Lodgify (`channels/manager/vrbo`), both listings
+>   « Synchronisé », so §2.1's gap analysis holds.
+> - **Interim, decided by the operator:** every Abritel booking notified by e-mail is entered by
+>   hand in GuestFlow (platform `Abritel`) on receipt. The other direction is covered: Lodgify
+>   imports GuestFlow's export of both properties (`BookingSettings` → export-import, sources
+>   264729 and 264730, refreshed every 2 h), so Abritel cannot sell a date held elsewhere.
+>   Re-activating the GuestFlow Lodgify sources is **not** an option — it re-creates §2.2.
+> - **Written request** to Abritel support (aide.abritel.fr/contact), asking before any action
+>   for written confirmation that both listings stay online, keep their reviews and numbers,
+>   become editable in the owner space with iCal, the cut-over date, and the commission that
+>   applies once Abritel collects payment itself.
+
 ### Step B — measure the commission before deriving any price
 
 Abritel is recorded at **15 %** and was **measured at 9,7 %** at some point; the contradiction is
 unresolved. This is the same question as Q7, and it has gone both ways already: Booking's stored
 15 % was really 16,44 %, Airbnb's stored 15,5 % was exact. Until it is measured, every Abritel price
 derived from a recipe misses its net target.
+
+> **Measured 2026-10-16 — the stored 15 % is right for the current formula; the 9,7 % is the
+> previous one.** Abritel's « Factures de réservations » bills the stays whose payment Lodgify
+> processed: statement `HHA55B0000554353` (10/03/2026) = **129,28 €** for the gîte's 30/01 → 02/02
+> stay, whose Lodgify total is 861,84 € → **15,00 %**, on the whole total. The two stays listed in
+> « Récapitulatif de paiement » (24/10/2025 and 31/12/2025, 165,72 € withheld on 1 714 € gross =
+> **9,67 %**) are `HomeAwayNotManaged` in Lodgify: booked before the Lodgify connection of early
+> December 2025 and paid through Abritel's own payment, under the older terms. Open: once Abritel
+> collects payment itself again, whether payment fees come on top of the 15 % — asked in the
+> support request. Until answered, keep 15 %.
 
 Method that worked twice: take a **settled** payout, divide what the channel withheld by the
 commissionable base, and state explicitly what is inside that base. On Airbnb the base includes the
@@ -240,7 +275,10 @@ for the short fields and more for « Mon logement » (1 778 characters observed)
 **Booking** — group `hotel_account_id=22925006`, gîte `14407976`, L'Estiva `15343212`, Lodgify was
 `provider_id=689`.
 
-**Abritel** — listing `AB 2622643`, property `123465737`.
+**Abritel** — gîte: listing `AB 2577203`, property `118194015`, unit `326936714`, calendar key
+`731.2577203.2754136`; tent: listing `AB 2622643`, property `123465737`, unit `327755592`, key
+`731.2622643.2799576`. Lodgify Vrbo settings: `channels/manager/vrbo/<rental>/room/<roomType>/settings`
+— gîte markup 4 %, cleaning 80 €, tax 1,20 €; tent markup 7,5 %, tax 5,51 %, VAT 10 % included.
 
 **GuestFlow** — properties `#1 Granja`, `#2 Estiva`. iCal sources: Granja #9 Abracadaroom, #2 Airbnb,
 #12 Booking, #1 GitesDeFrance, #7 Greengo, #10 Lodgify (`isActive = 0` since 2026-10-16); Estiva
