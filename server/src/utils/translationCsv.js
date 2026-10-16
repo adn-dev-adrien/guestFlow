@@ -132,6 +132,18 @@ function splitRows(text, sep) {
 }
 
 /**
+ * Separator: whichever of `,` and `;` appears first on the header line. Excel on a French locale
+ * writes `;`, Numbers writes `,`, and both are this file's natural home. Shared with
+ * utils/emailTextsCsv.js (specs/guest-email-texts-made-simple.md rule 18).
+ */
+function detectSeparator(raw) {
+  const firstLine = String(raw || '').split(/\r?\n/, 1)[0];
+  const comma = firstLine.indexOf(',');
+  const semi = firstLine.indexOf(';');
+  return semi !== -1 && (comma === -1 || semi < comma) ? ';' : ',';
+}
+
+/**
  * Parse an uploaded file into the changes it asks for.
  *
  * Returns `{ languages, rows: [{ entryKey, values: { en: '…' }, reviewAcknowledged, line }] }`.
@@ -144,13 +156,7 @@ function parse(text) {
   const raw = String(text == null ? '' : text).replace(/^﻿/, '');
   if (!raw.trim()) throw new CsvError('Le fichier est vide.', 1);
 
-  // Separator: whichever of `,` and `;` appears first on the header line. Excel on a French locale
-  // writes `;`, Numbers writes `,`, and both are this file's natural home.
-  const firstLine = raw.split(/\r?\n/, 1)[0];
-  const comma = firstLine.indexOf(',');
-  const semi = firstLine.indexOf(';');
-  const sep = semi !== -1 && (comma === -1 || semi < comma) ? ';' : ',';
-
+  const sep = detectSeparator(raw);
   const rows = splitRows(raw, sep);
   if (!rows.length) throw new CsvError('Le fichier est vide.', 1);
 
@@ -191,6 +197,9 @@ module.exports = {
   serialise,
   parse,
   CsvError,
+  cell,
+  splitRows,
+  detectSeparator,
   headerFor,
   KIND_LABELS,
   KIND_ORDER,

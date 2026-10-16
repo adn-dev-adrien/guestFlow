@@ -24,6 +24,9 @@ const controller = buildController({
 });
 
 router.get('/preview', controller.preview);
+// specs/guest-email-texts-made-simple.md rules 13–15 — a draft rendered, and a test to oneself.
+router.post('/preview', controller.previewDraft);
+router.post('/test', controller.sendTest);
 router.post('/send',   controller.send);
 router.get('/pending', controller.pending);
 router.post('/pending/:templateId/:reservationId/acknowledge', controller.acknowledge);

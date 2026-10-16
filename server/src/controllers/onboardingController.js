@@ -7,6 +7,8 @@
  *   PUT  /api/onboarding/property   { name, doubleBeds, singleBeds, maxGuests, checkIn, checkOut,
  *                                     pricePerNight } → 200 { id } | 422 { errors } | 402 quota
  *   PUT  /api/onboarding/plugins    { ids } → { results: [{ id, ok, error }] }
+ *   PUT  /api/onboarding/emails     { phone, senderName, nameArticle, address, access, wifiName, wifiPassword }
+ *                                     → 200 | 422 { errors } (specs/guest-email-texts-made-simple.md rule 21)
  *   POST /api/onboarding/done       records onboardingCompletedAt (« C'est prêt » and « Plus tard »)
  *
  * Every step reuses the core's own write path: the company settings, the property creation, the
@@ -17,6 +19,11 @@ const validation = require('../utils/settingsValidation');
 const { validatePropertyInput } = require('../utils/propertyValidation');
 const { quotaRefusal } = require('../utils/planQuota');
 const onboardingModel = require('../models/onboardingModel');
+const arrivalFactsModel = require('../models/propertyArrivalFactsModel');
+const { __test: { formatPropertyWithArticle } } = require('../utils/emailContextBuilder');
+
+// The articles a property name may take (models/propertiesModel.js), offered as a choice.
+const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
 
 const RECOMMENDED = new Set(['website-booking', 'sas']);
 const MAX_CAPACITY = 50;
@@ -57,8 +64,54 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     }));
   }
 
+  // Step « Vos emails » (rule 21): what the J-2 needs, pre-filled from what is already known.
+  function emailsOf(row) {
+    const property = database.prepare('SELECT id, name, nameArticle FROM properties ORDER BY id LIMIT 1').get() || null;
+    const facts = property ? arrivalFactsModel.buildModel(database).forForm(property.id) : null;
+    return {
+      phone: row.companyPhone || '',
+      senderName: row.smtpFromName || row.companyName || '',
+      // The article as the guest will read it: « au Gîte », « à la Maison »…
+      articles: NAME_ARTICLES.map((value) => ({ value, label: property ? formatPropertyWithArticle(property.name, value) : value })),
+      property: property ? {
+        id: property.id, name: property.name, nameArticle: property.nameArticle || 'au',
+        address: facts.address, access: facts.accessFr, wifiName: facts.wifiName, hasWifiPassword: facts.hasWifiPassword,
+      } : null,
+      previewStableKey: 'arrival_reminder_1d',
+    };
+  }
+
   async function get(req, res) {
-    return res.json({ open: model().isOpen(), company: companyOf(settingsModel.read()), plugins: await pluginList() });
+    const row = settingsModel.read();
+    return res.json({ open: model().isOpen(), company: companyOf(row), emails: emailsOf(row), plugins: await pluginList() });
+  }
+
+  // Every field may be skipped: an absent one is left as it is.
+  function saveEmails(req, res) {
+    const b = req.body || {};
+    const errors = {};
+    if (b.nameArticle !== undefined && !NAME_ARTICLES.includes(b.nameArticle)) errors.nameArticle = 'Article inconnu';
+    for (const key of ['address', 'access', 'wifiName', 'wifiPassword']) {
+      if (b[key] !== undefined && String(b[key]).length > arrivalFactsModel.MAX_LENGTH) errors[key] = 'Trop long';
+    }
+    if (Object.keys(errors).length) return res.status(422).json({ errors });
+    const settings = {};
+    if (b.phone !== undefined) settings.companyPhone = String(b.phone).trim();
+    if (b.senderName !== undefined) settings.smtpFromName = String(b.senderName).trim();
+    if (Object.keys(settings).length) settingsModel.upsert(settings);
+    const property = database.prepare('SELECT id FROM properties ORDER BY id LIMIT 1').get();
+    if (property) {
+      if (b.nameArticle !== undefined) {
+        database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(b.nameArticle, property.id);
+      }
+      const patch = {};
+      if (b.address !== undefined) patch.address = b.address;
+      if (b.access !== undefined) patch.accessFr = b.access;
+      if (b.wifiName !== undefined) patch.wifiName = b.wifiName;
+      if (b.wifiPassword !== undefined && b.wifiPassword !== '') patch.wifiPassword = b.wifiPassword;
+      if (Object.keys(patch).length) arrivalFactsModel.buildModel(database).save(property.id, patch);
+    }
+    return res.json({ emails: emailsOf(settingsModel.read()) });
   }
 
   function saveCompany(req, res) {
@@ -125,7 +178,7 @@ function buildController({ database, settingsModel, propertiesModel, plugins, en
     return res.json({ open: false });
   }
 
-  return { get, saveCompany, saveProperty, savePlugins, done };
+  return { get, saveCompany, saveProperty, savePlugins, saveEmails, done };
 }
 
 module.exports = { buildController, RECOMMENDED };

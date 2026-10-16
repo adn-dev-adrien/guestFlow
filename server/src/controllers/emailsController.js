@@ -23,6 +23,7 @@ const {
 } = require('../utils/guestEmailSequence');
 const { sequenceContextFor, nextSeasonDate } = require('../utils/sequenceRenderContext');
 const { resolveEmailIdentity } = require('../utils/emailIdentity');
+const { buildDraftPreview } = require('../utils/emailDraftPreview');
 
 // Templates that re-offer an existing payment link (injected read-only at preview/send time).
 const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
@@ -62,7 +63,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return emailServiceFactory(smtp);
   }
 
-  function buildPreview(reservationId, templateId, overrides = {}, lang) {
+  function buildPreview(reservationId, templateId, overrides = {}, lang, extra = {}) {
+    const settings = { ...readSettings(), ...(extra.settings || {}) };
     const template = templatesModel.findById(templateId);
     if (!template) return { error: 'TEMPLATE_NOT_FOUND', status: 404 };
     const graph = loadReservationGraph(database, reservationId);
@@ -85,9 +87,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       termsVersion: graph.termsVersion,
       sequence:    sequenceContextFor({
         stableKey: template.stableKey, reservation: graph.reservation, client: graph.client,
-        settings: readSettings(), preferences, sendDate: (sequencePlanFor(template, graph) || {}).sendDate,
+        settings, preferences, sendDate: (sequencePlanFor(template, graph) || {}).sendDate,
       }),
-      settings:    readSettings(),
+      settings,
       lang:        useLang,
       // The local copy of the invitation: composing an email never reaches the house.
       pluginContext: pluginEmailContext(reservationId),
@@ -439,7 +441,41 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return res.json({ ok: true, queued: true });
   }
 
+  // ---------- Draft preview and test send (specs/guest-email-texts-made-simple.md rules 13–15) ----------
+
+  const draftPreview = buildDraftPreview({ database, templatesModel, buildPreview });
+
+  function previewDraft(req, res) {
+    const result = draftPreview.render(req.body || {});
+    if (result.error) return res.status(result.status).json(result.body || { error: result.error });
+    return res.json(result.payload);
+  }
+
+  // Rule 15 — the previewed email, to the company's own address, « [Test] » in front of the subject.
+  // Nothing is written: no email_log row, no ledger key, no queue change.
+  async function sendTest(req, res) {
+    if (!smtpConfigured()) {
+      return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', message: 'SMTP non configuré : Paramètres › Emails' });
+    }
+    const result = draftPreview.render(req.body || {});
+    if (result.error) return res.status(result.status).json(result.body || { error: result.error });
+    const settings = readSettings();
+    const to = String(settings.companyEmail || '').trim() || resolveEmailIdentity(settings).fromEmail;
+    if (!to) return res.status(409).json({ error: 'NO_COMPANY_EMAIL', message: 'Email de l’entreprise manquant : Paramètres › Établissement' });
+    try {
+      await buildEmailService().send({ to, subject: `[Test] ${result.payload.subject}`, text: result.payload.body });
+      return res.json({ ok: true, to });
+    } catch (err) {
+      const notConfigured = err && err.code === 'EMAIL_NOT_CONFIGURED';
+      return res.status(notConfigured ? 409 : 500).json({
+        error: notConfigured ? 'EMAIL_NOT_CONFIGURED' : 'EMAIL_SEND_FAILED',
+        message: notConfigured ? 'SMTP non configuré : Paramètres › Emails' : 'Envoi impossible',
+      });
+    }
+  }
+
   return {
+    previewDraft, sendTest,
     preview, send, pending, acknowledge, markSent, history, queue, eligibleReservations,
     // Exposed for the scheduled task: it reuses the same render → send → log pipeline.
     buildPreview,

@@ -1,0 +1,1 @@
+- An unknown variable in an email template is now refused at save (422 « Variable inconnue : {{x}} »), like a stay text or a mention, instead of being dropped at send time.

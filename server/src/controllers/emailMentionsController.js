@@ -18,7 +18,7 @@ const emailMentionsModel = require('../models/emailMentionsModel');
 const { loadStayFacts } = require('../models/stayFactsModel');
 const { buildStayContent } = require('../utils/stayContentContext');
 const { MENTION_OFFER, MENTION_BOOKED } = require('../utils/stayTextCatalogue');
-const { tokenError } = require('./stayTextsController');
+const { tokenError } = require('../utils/templateTokens');
 
 const SECTIONS = ['local', 'extras', 'kids'];
 const PRICE_SOURCES = ['min', 'option'];

@@ -1,6 +1,7 @@
 /**
  * OnboardingPage — `/demarrage`, the start assistant (specs/plugins-phase-p-productisation.md §3.D
- * rules 20–23). Four steps: Entreprise, Premier logement, Plugins, C'est prêt. Every step is
+ * rules 20–23). Five steps: Entreprise, Premier logement, Plugins, Vos emails
+ * (specs/guest-email-texts-made-simple.md rule 21), C'est prêt. Every step is
  * validated and saved by the server when « Suivant » is pressed; an error keeps the step open.
  * « Plus tard » closes the assistant and keeps what was saved.
  */
@@ -14,8 +15,12 @@ import { useAuth } from '../hooks/useAuth';
 import StepperPage from '../components/StepperPage';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import OnboardingEmailsStep from '../components/OnboardingEmailsStep';
+import ReadinessList, { targetUrl } from '../components/ReadinessList';
 
-const TITLES = ['Entreprise', 'Premier logement', 'Plugins', 'C’est prêt'];
+const TITLES = ['Entreprise', 'Premier logement', 'Plugins', 'Vos emails', 'C’est prêt'];
+const STEPS = TITLES.length;
+const EMAILS_STEP = 4;
 const EMPTY_PROPERTY = { name: '', doubleBeds: '1', singleBeds: '0', maxGuests: '2', checkIn: '16:00', checkOut: '10:00', pricePerNight: '' };
 
 const Brand = () => (
@@ -37,6 +42,9 @@ export default function OnboardingPage() {
   const [capacityTouched, setCapacityTouched] = useState(false);
   const [plugins, setPlugins] = useState([]);
   const [picked, setPicked] = useState({});
+  const [emails, setEmails] = useState(null);
+  const [emailDraft, setEmailDraft] = useState({});
+  const [readiness, setReadiness] = useState([]);
 
   useEffect(() => {
     if (location.pathname !== '/demarrage') navigate('/demarrage', { replace: true });
@@ -84,6 +92,21 @@ export default function OnboardingPage() {
     }
   }
 
+  // « Vos emails » opens pre-filled from what the earlier steps saved; « C'est prêt » lists what is missing.
+  async function enter(target) {
+    if (target === EMAILS_STEP) {
+      const data = await api.getOnboarding();
+      const e = data.emails;
+      setEmails(e);
+      setEmailDraft({
+        phone: e.phone, senderName: e.senderName, nameArticle: e.property ? e.property.nameArticle : undefined,
+        address: e.property ? e.property.address : '', access: e.property ? e.property.access : '', wifiName: e.property ? e.property.wifiName : '', wifiPassword: '',
+      });
+    }
+    if (target === STEPS) setReadiness((await api.getEmailReadiness()).items || []);
+    setStep(target);
+  }
+
   async function next() {
     setBusy(true);
     setFailure('');
@@ -101,9 +124,10 @@ export default function OnboardingPage() {
           return;
         }
       }
-      if (step === 4) { await leave(); return; }
+      if (step === EMAILS_STEP) await api.saveOnboardingEmails(emailDraft);
+      if (step === STEPS) { await leave(); return; }
       setErrors({});
-      setStep(step + 1);
+      await enter(step + 1);
     } catch (err) {
       if (err?.errors) setErrors(err.errors);
       else setFailure(err?.message || 'Échec de l’enregistrement.');
@@ -120,12 +144,12 @@ export default function OnboardingPage() {
     <StepperPage
       brand={<Brand />}
       step={step}
-      total={4}
+      total={STEPS}
       title={TITLES[step - 1]}
       onNext={next}
-      nextLabel={step === 4 ? 'Ouvrir le tableau de bord' : 'Suivant'}
-      onBack={step > 1 && step < 4 ? () => { setErrors({}); setFailure(''); setStep(step - 1); } : undefined}
-      onLater={step < 4 ? () => leave() : undefined}
+      nextLabel={step === STEPS ? 'Ouvrir le tableau de bord' : 'Suivant'}
+      onBack={step > 1 && step < STEPS ? () => { setErrors({}); setFailure(''); setStep(step - 1); } : undefined}
+      onLater={step < STEPS ? () => leave() : undefined}
       busy={busy}
     >
       {failure && <Alert severity="error" sx={{ mb: 2 }}>{failure}</Alert>}
@@ -178,9 +202,19 @@ export default function OnboardingPage() {
         </Stack>
       )}
 
-      {step === 4 && (
+      {step === EMAILS_STEP && emails && (
+        <OnboardingEmailsStep
+          emails={emails}
+          value={emailDraft}
+          onChange={(patch) => { setEmailDraft((d) => ({ ...d, ...patch })); setErrors({}); }}
+          errors={errors}
+        />
+      )}
+
+      {step === STEPS && (
         <Stack spacing={1.5}>
           <Typography>{`${company.name || 'L’établissement'} est prêt.`}</Typography>
+          <ReadinessList items={readiness} title="Emails à compléter" onOpen={(target) => leave(targetUrl(target))} />
           <Link component="button" type="button" onClick={() => leave('/settings/emails/textes')} sx={{ textAlign: 'left' }}>Réglages › Emails : les textes des mails</Link>
           <Link component="button" type="button" onClick={() => leave('/properties')} sx={{ textAlign: 'left' }}>Tarifs : saisons et prix des logements</Link>
           <Link component="button" type="button" onClick={() => leave('/parametres/plugins')} sx={{ textAlign: 'left' }}>{`Plugins : ${active.length} actif(s)`}</Link>

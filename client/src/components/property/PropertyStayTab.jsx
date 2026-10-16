@@ -1,9 +1,9 @@
 /**
  * PropertyStayTab — « Séjour » tab of the property page (specs/settings-rationalization.md
- * rules 17c, 21): the facts the guest emails read (parking distance, wifi), the property's own
- * texts of those emails (specs/plugins-phase-p-productisation.md rule 3) and the early-arrival /
- * late-departure options. The J-7 hook is edited in the J-7 template (Emails), not
- * here.
+ * rules 17c, 21): the facts the guest emails read (parking distance, wifi), the arrival facts of the
+ * J-2 (specs/guest-email-texts-made-simple.md rules 1–2) and the early-arrival / late-departure
+ * options. The property's own texts and its J-7 hook are written on « Textes des emails », linked
+ * from here (rule 12).
  *
  * Props:
  *   form, errors, updateField(field, value), onZeroFocus(event)
@@ -11,9 +11,10 @@
  *   propertyId — null for a property not created yet (its texts come once it exists)
  */
 import React from 'react';
-import PropertyStayTexts from './PropertyStayTexts';
+import { Link as RouterLink } from 'react-router';
+import PropertyArrivalFacts from './PropertyArrivalFacts';
 import {
-  Box, Card, CardContent, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Switch, TextField, Typography,
+  Box, Card, CardContent, FormControl, FormControlLabel, InputLabel, Link, MenuItem, Select, Switch, TextField, Typography,
 } from '@mui/material';
 
 const TIMED = [
@@ -30,8 +31,7 @@ export default function PropertyStayTab({
         <CardContent>
           <Typography variant="sectionHeader" sx={{ display: 'block' }}>Équipements &amp; accès</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Repris dans les mails clients (affaires à prévoir, conseils d&apos;arrivée). L&apos;accroche du
-            mail J-7 se règle dans le modèle J-7, dans Emails.
+            Repris dans les mails clients (affaires à prévoir, conseils d&apos;arrivée).
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
@@ -57,7 +57,18 @@ export default function PropertyStayTab({
         </CardContent>
       </Card>
 
-      {propertyId && <PropertyStayTexts propertyId={propertyId} />}
+      {propertyId && <PropertyArrivalFacts propertyId={propertyId} />}
+
+      {propertyId && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="sectionHeader" sx={{ display: 'block' }}>Textes</Typography>
+            <Link component={RouterLink} to={`/settings/emails/textes?propertyId=${propertyId}#j7`}>
+              Accroche et textes propres à ce logement
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <Card sx={{ mb: 3 }}>
         <CardContent>

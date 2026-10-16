@@ -1,340 +1,425 @@
 /**
- * EmailTextsSettingsPage — Réglages › Emails › « Textes des mails » (specs/plugins-phase-p-productisation.md
- * §6). Three tabs:
- *   - Par mail: the stay texts grouped by email, French and English, with their tokens and « Rétablir »;
- *   - Options citées: the mentions by section, their proposal order, then the confirmation order;
- *   - Aperçu: the offers and confirmations as the guest reads them, rendered by the server.
+ * EmailTextsSettingsPage — Paramètres › « Textes des emails », the single page where the guest emails
+ * are written (specs/guest-email-texts-made-simple.md §3.B–3.F, §6).
  *
- * Every text is validated by the server: an unknown token comes back as a 422 shown under its field.
+ *   - « À compléter » on top: what the server found missing (rules 6–7);
+ *   - one section per email in send order, each with only its own sentences (rule 9), variables shown
+ *     by their label (rule 10), the full template behind « Modifier le modèle complet »;
+ *   - beside it (below on mobile, « Voir l'email »), the email rendered by the server from the draft,
+ *     FR/EN, on the next stay or « Exemple », with « M'envoyer un test » (rules 13–15);
+ *   - one file out, one file in, and the English filled by the platform's translator (rules 16–20).
+ *
+ * The page holds drafts only; the server renders, validates and saves. `?propertyId=` picks the
+ * property whose own texts are shown, `#<section>` opens one email.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import {
-  Box, Button, Card, CardContent, FormControl, IconButton, InputLabel, List, ListItem, ListItemText, MenuItem,
-  Select, Stack, TextField, Tooltip, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Box, Button, FormControl, InputLabel, MenuItem, Select, Stack,
+  Table, TableBody, TableCell, TableHead, TableRow, Typography, useMediaQuery,
 } from '@mui/material';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
+import { useTheme } from '@mui/material/styles';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DownloadIcon from '@mui/icons-material/Download';
+import UploadIcon from '@mui/icons-material/Upload';
+import TranslateIcon from '@mui/icons-material/Translate';
 import api from '../../api';
 import PageActionBar from '../../components/PageActionBar';
 import PageTabs from '../../components/PageTabs';
 import TokenTextField from '../../components/TokenTextField';
-import MentionEditor, { SECTIONS } from '../../components/MentionEditor';
+import EmailPreviewPane, { SAMPLE } from '../../components/EmailPreviewPane';
+import ReadinessList from '../../components/ReadinessList';
+import EmailMentionsPanel from '../../components/EmailMentionsPanel';
 import FormDialog from '../../components/FormDialog';
-import ConfirmDialog from '../../components/ConfirmDialog';
+import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorAlert from '../../components/ErrorAlert';
 import { useToast } from '../../components/DialogProvider';
 
 const TABS = [
-  { value: 'texts', label: 'Par mail' },
+  { value: 'texts', label: 'Par email' },
   { value: 'mentions', label: 'Options citées' },
-  { value: 'preview', label: 'Aperçu' },
 ];
-const MAIL_ORDER = ['J-7', 'J-2', 'J+1', 'Novembre'];
-const EMPTY_MENTION = { section: 'extras', optionIds: [], priceSource: 'min', priceOptionId: null, offerFr: '', offerEn: '', bookedFr: '', bookedEn: '' };
-const TYPED_LABELS = { babyBed: 'Lit bébé', towels: 'Serviettes de toilette' };
-
-const move = (list, index, delta) => {
-  const next = [...list];
-  const [item] = next.splice(index, 1);
-  next.splice(index + delta, 0, item);
-  return next;
-};
-
-function OrderButtons({ index, length, onMove, label }) {
-  return (
-    <>
-      <Tooltip title="Monter"><span><IconButton size="small" aria-label={`Monter ${label}`} disabled={index === 0} onClick={() => onMove(index, -1)}><ArrowUpwardIcon fontSize="small" /></IconButton></span></Tooltip>
-      <Tooltip title="Descendre"><span><IconButton size="small" aria-label={`Descendre ${label}`} disabled={index === length - 1} onClick={() => onMove(index, 1)}><ArrowDownwardIcon fontSize="small" /></IconButton></span></Tooltip>
-    </>
-  );
-}
+const PREVIEW_DELAY_MS = 400;
+const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 export default function EmailTextsSettingsPage() {
+  const theme = useTheme();
+  const desktop = useMediaQuery(theme.breakpoints.up('md'));
+  const location = useLocation();
+  const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
+  const fileInput = useRef(null);
+
   const [tab, setTab] = useState('texts');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [texts, setTexts] = useState([]);
+  const [data, setData] = useState({ sections: [], properties: [], propertyId: null, canTranslate: false });
+  const [readiness, setReadiness] = useState([]);
   const [drafts, setDrafts] = useState({});
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [mentions, setMentions] = useState([]);
-  const [confirmationOrder, setConfirmationOrder] = useState([]);
-  const [options, setOptions] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [editError, setEditError] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [properties, setProperties] = useState([]);
-  const [sample, setSample] = useState({ propertyId: '', children: '1', startDate: '' });
-  const [preview, setPreview] = useState(null);
+  const [open, setOpen] = useState(location.hash ? location.hash.slice(1) : 'j2');
+  const [templateBySection, setTemplateBySection] = useState({});
+  const [mobilePreview, setMobilePreview] = useState(false);
+  const [language, setLanguage] = useState('fr');
+  const [reservationId, setReservationId] = useState(null);
+  const [preview, setPreview] = useState({ subject: '', body: '', reservations: [], loading: false, error: '', notice: null });
+  const [testMessage, setTestMessage] = useState('');
+  const [fullTemplate, setFullTemplate] = useState(null);
+  const [importPlan, setImportPlan] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const propertyParam = new URLSearchParams(location.search).get('propertyId');
 
   const load = useCallback(async () => {
     try {
-      const [t, m, o, p] = await Promise.all([api.getStayTexts(), api.getEmailMentions(), api.getOptions(), api.getProperties()]);
-      setTexts(t.texts || []);
-      setDrafts({});
-      setMentions(m.mentions || []);
-      setConfirmationOrder(m.confirmationOrder || []);
-      setOptions((Array.isArray(o) ? o : o.options || []).map((x) => ({ id: x.id, title: x.title })));
-      const list = Array.isArray(p) ? p : p.properties || [];
-      setProperties(list);
-      setSample((s) => ({ ...s, propertyId: s.propertyId || (list[0] && list[0].id) || '' }));
+      const [texts, ready] = await Promise.all([api.getEmailTexts(propertyParam), api.getEmailReadiness()]);
+      setData(texts);
+      setReadiness(ready.items || []);
       setLoadError(false);
     } catch {
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
-
+  }, [propertyParam]);
   useEffect(() => { load(); }, [load]);
 
-  // ---- Par mail
-  const byMail = useMemo(() => MAIL_ORDER
-    .map((mail) => ({ mail, rows: texts.filter((t) => t.email === mail) }))
-    .filter((g) => g.rows.length), [texts]);
-  const dirtyKeys = Object.keys(drafts);
-  const valueOf = (row, lang) => (drafts[row.key] && drafts[row.key][lang] !== undefined ? drafts[row.key][lang] : row[lang]);
+  useEffect(() => {
+    if (location.hash) setOpen(location.hash.slice(1));
+  }, [location.hash]);
 
-  const editText = (row, lang, value) => {
-    setDrafts((prev) => ({ ...prev, [row.key]: { fr: valueOf(row, 'fr'), en: valueOf(row, 'en'), [lang]: value } }));
-    if (errors[row.key]) setErrors((prev) => { const next = { ...prev }; delete next[row.key]; return next; });
+  const section = data.sections.find((s) => s.id === open) || null;
+  const templateId = section ? (templateBySection[section.id] || (section.templates[0] || {}).id) : null;
+  const dirty = Object.keys(drafts).length > 0;
+
+  const valueOf = (item, lang) => (drafts[item.key] && drafts[item.key][lang] !== undefined ? drafts[item.key][lang] : item[lang]);
+  const edit = (item, lang, value) => {
+    setDrafts((prev) => ({ ...prev, [item.key]: { ...(prev[item.key] || {}), [lang]: value } }));
+    if (errors[item.key]) setErrors((prev) => { const next = { ...prev }; delete next[item.key]; return next; });
   };
 
-  async function saveTexts() {
-    setSaving(true);
-    const nextErrors = {};
-    for (const key of dirtyKeys) {
+  // ---- live preview (rule 13): debounced, the server renders the draft
+  const previewBody = useMemo(() => ({
+    templateId,
+    propertyId: data.propertyId,
+    reservationId: reservationId || undefined,
+    language,
+    draft: { texts: drafts, ...(fullTemplate && fullTemplate.id === templateId ? { template: fullTemplate.draft } : {}) },
+  }), [templateId, data.propertyId, reservationId, language, drafts, fullTemplate]);
+
+  useEffect(() => {
+    if (!templateId || tab !== 'texts') return undefined;
+    setPreview((p) => ({ ...p, loading: true }));
+    const timer = setTimeout(async () => {
       try {
-        await api.saveStayText(key, drafts[key]);
+        const r = await api.previewEmailDraft(previewBody);
+        setPreview({
+          subject: r.subject, body: r.body, reservations: r.reservations || [], loading: false, error: '',
+          notice: r.englishNotice, current: r.sample ? SAMPLE : r.reservationId,
+        });
       } catch (err) {
-        nextErrors[key] = { [err.field || 'fr']: err.message };
+        if (err.key) setErrors((prev) => ({ ...prev, [err.key]: { [err.field || 'fr']: err.message } }));
+        setPreview((p) => ({ ...p, loading: false, error: err.message || 'Aperçu impossible.' }));
       }
+    }, PREVIEW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [previewBody, templateId, tab]);
+
+  async function sendTest() {
+    setTestMessage('');
+    try {
+      const r = await api.sendTestEmail(previewBody);
+      setTestMessage(`Envoyé à ${r.to}`);
+    } catch (err) {
+      setTestMessage(err.message || 'Envoi impossible');
+    }
+  }
+
+  // ---- save, cancel
+  async function save() {
+    setSaving(true);
+    try {
+      await api.saveEmailTexts(drafts);
+      setDrafts({});
+      setErrors({});
+      showSuccess('Textes enregistrés.');
+      await load();
+    } catch (err) {
+      if (err.key) {
+        setErrors({ [err.key]: { [err.field || 'fr']: err.message } });
+        const owner = data.sections.find((s) => s.items.some((i) => i.key === err.key));
+        if (owner) setOpen(owner.id);
+      }
+      showError(err.message || 'Enregistrement impossible.');
     }
     setSaving(false);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) {
-      showError('Vérifiez les champs en erreur.');
-      const t = await api.getStayTexts();
-      setTexts(t.texts || []);
-      setDrafts((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => nextErrors[key])));
-      return;
-    }
-    showSuccess('Textes enregistrés.');
-    load();
   }
 
-  async function resetText(key) {
-    await api.resetStayText(key);
-    setDrafts((prev) => { const next = { ...prev }; delete next[key]; return next; });
-    const t = await api.getStayTexts();
-    setTexts(t.texts || []);
+  async function confirmTranslation(item) {
+    await api.confirmEmailText(item.key);
+    await load();
   }
 
-  // ---- Options citées
-  const optionTitle = (id) => (options.find((o) => o.id === id) || {}).title || `#${id}`;
-  const mentionLabel = (m) => (m.optionIds || []).map(optionTitle).join(', ') || 'Sans option';
-
-  async function moveMention(section, index, delta) {
-    const inSection = mentions.filter((m) => m.section === section);
-    const moved = move(inSection, index, delta);
-    const ids = SECTIONS.flatMap((s) => (s.value === section ? moved : mentions.filter((m) => m.section === s.value))).map((m) => m.id);
-    const result = await api.reorderEmailMentions(ids);
-    setMentions(result.mentions || []);
+  // ---- file (rules 16–17) and translation (rule 19)
+  async function exportFile() {
+    try { await api.downloadEmailTexts(); } catch (err) { showError(err.message); }
   }
-
-  const confirmationItems = useMemo(() => {
-    const known = [...confirmationOrder];
-    for (const item of ['babyBed', 'towels', ...mentions.map((m) => `mention:${m.id}`)]) if (!known.includes(item)) known.push(item);
-    return known;
-  }, [confirmationOrder, mentions]);
-  const confirmationLabel = (item) => {
-    if (TYPED_LABELS[item]) return TYPED_LABELS[item];
-    const mention = mentions.find((m) => `mention:${m.id}` === item);
-    return mention ? mentionLabel(mention) : item;
-  };
-
-  async function moveConfirmation(index, delta) {
-    const result = await api.saveConfirmationOrder(move(confirmationItems, index, delta));
-    setConfirmationOrder(result.confirmationOrder || []);
-  }
-
-  async function saveMention() {
-    setEditError(null);
+  async function readFile(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    const csv = await file.text();
     try {
-      if (editing.id) await api.updateEmailMention(editing.id, editing);
-      else await api.createEmailMention(editing);
-      setEditing(null);
-      showSuccess('Phrase enregistrée.');
-      load();
+      const plan = await api.importEmailTexts(csv);
+      setImportPlan({ ...plan, csv });
     } catch (err) {
-      setEditError({ field: err.field, message: err.message });
+      showError(err.message || 'Fichier illisible.');
     }
   }
-
-  async function removeMention() {
-    await api.deleteEmailMention(deleting.id);
-    setDeleting(null);
-    load();
-  }
-
-  // ---- Aperçu
-  async function runPreview() {
+  async function applyImport() {
+    setBusy(true);
     try {
-      setPreview(await api.previewEmailMentions({ propertyId: Number(sample.propertyId), children: Number(sample.children) || 0, startDate: sample.startDate || undefined }));
+      await api.importEmailTexts(importPlan.csv, { confirm: true });
+      showSuccess(`${plural(importPlan.changed.length, 'texte')} enregistré${importPlan.changed.length > 1 ? 's' : ''}.`);
+      setImportPlan(null);
+      await load();
     } catch (err) {
-      showError(err?.message || 'Aperçu impossible.');
+      showError(err.message || 'Import impossible.');
+    }
+    setBusy(false);
+  }
+  async function translate() {
+    setBusy(true);
+    try {
+      const r = await api.translateEmailTexts();
+      showSuccess(r.translated ? `${plural(r.translated, 'texte')} traduit${r.translated > 1 ? 's' : ''}, à relire.` : 'Rien à traduire.');
+      await load();
+    } catch (err) {
+      showError(err.message || 'Traduction impossible.');
+    }
+    setBusy(false);
+  }
+
+  // ---- the full template (rule 9: behind « Modifier le modèle complet »)
+  async function openFullTemplate() {
+    const [template, chips] = await Promise.all([api.getEmailTemplate(templateId), api.getEmailTemplateVariables(templateId)]);
+    setFullTemplate({ id: template.id, template, chips, draft: {}, error: null });
+  }
+  const fullValue = (field) => (fullTemplate.draft[field] !== undefined ? fullTemplate.draft[field] : fullTemplate.template[field] || '');
+  const editFull = (field, value) => setFullTemplate((f) => ({ ...f, draft: { ...f.draft, [field]: value }, error: null }));
+  async function saveFullTemplate() {
+    try {
+      await api.updateEmailTemplate(fullTemplate.id, fullTemplate.draft);
+      setFullTemplate(null);
+      showSuccess('Modèle enregistré.');
+      await load();
+    } catch (err) {
+      setFullTemplate((f) => ({ ...f, error: { field: err.field, message: err.message } }));
     }
   }
 
-  return (
-    <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1100, mx: 'auto' }}>
-      <PageActionBar
-        title="Textes des mails"
-        backTo="/settings/emails"
-        tabs={<PageTabs value={tab} onChange={setTab} items={TABS} ariaLabel="Textes des mails" />}
-        onSave={tab === 'texts' ? saveTexts : undefined}
-        saveDisabled={!dirtyKeys.length || saving}
-        saveBusy={saving}
-        onCancel={tab === 'texts' ? () => { setDrafts({}); setErrors({}); } : undefined}
-        cancelDisabled={!dirtyKeys.length || saving}
-      />
+  const pane = (
+    <EmailPreviewPane
+      subject={preview.subject}
+      body={preview.body}
+      loading={preview.loading}
+      error={preview.error}
+      language={language}
+      onLanguageChange={setLanguage}
+      notice={preview.notice}
+      reservations={preview.reservations}
+      reservationId={reservationId || preview.current || SAMPLE}
+      onReservationChange={setReservationId}
+      onSendTest={sendTest}
+      testMessage={testMessage}
+    />
+  );
 
-      {loadError && <ErrorAlert message="Impossible de charger les textes." onRetry={load} sx={{ mb: 2 }} />}
-      {loading ? <LoadingState /> : (
-        <Stack spacing={3} sx={{ mt: 2 }}>
-          {tab === 'texts' && byMail.map(({ mail, rows }) => (
-            <Card key={mail} variant="outlined">
-              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                <Typography variant="sectionHeader" sx={{ mb: 2, display: 'block' }}>{mail}</Typography>
-                <Stack spacing={2.5}>
-                  {rows.map((row) => (
-                    <TokenTextField
-                      key={row.key}
-                      label={row.label}
-                      fr={valueOf(row, 'fr')}
-                      en={valueOf(row, 'en')}
-                      onChange={(lang, value) => editText(row, lang, value)}
-                      tokens={row.tokens}
-                      flags={row.flags}
-                      errorFr={errors[row.key]?.fr}
-                      errorEn={errors[row.key]?.en}
-                      placeholderFr="Vide : pas de paragraphe"
-                      placeholderEn="Vide : pas de paragraphe"
-                      disabled={saving}
-                      helper={!row.isDefault && (
-                        <Button size="small" color="inherit" onClick={() => resetText(row.key)}>Rétablir le texte par défaut</Button>
-                      )}
-                    />
-                  ))}
-                </Stack>
-              </CardContent>
-            </Card>
-          ))}
-
-          {tab === 'mentions' && (
-            <>
-              {SECTIONS.map((section) => {
-                const inSection = mentions.filter((m) => m.section === section.value);
-                return (
-                  <Card key={section.value} variant="outlined">
-                    <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="sectionHeader">{section.label}</Typography>
-                        <Button size="small" startIcon={<AddIcon />} onClick={() => { setEditError(null); setEditing({ ...EMPTY_MENTION, section: section.value }); }}>Ajouter</Button>
-                      </Box>
-                      <List dense>
-                        {inSection.map((m, index) => (
-                          <ListItem
-                            key={m.id}
-                            disableGutters
-                            secondaryAction={(
-                              <Box>
-                                <OrderButtons index={index} length={inSection.length} onMove={(i, d) => moveMention(section.value, i, d)} label={mentionLabel(m)} />
-                                <Tooltip title="Modifier"><IconButton size="small" aria-label={`Modifier ${mentionLabel(m)}`} onClick={() => { setEditError(null); setEditing({ ...m }); }}><EditIcon fontSize="small" /></IconButton></Tooltip>
-                                <Tooltip title="Supprimer"><IconButton size="small" aria-label={`Supprimer ${mentionLabel(m)}`} onClick={() => setDeleting(m)}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
-                              </Box>
-                            )}
-                            sx={{ pr: 18 }}
-                          >
-                            <ListItemText primary={m.offerFr} secondary={mentionLabel(m)} />
-                          </ListItem>
-                        ))}
-                        {!inSection.length && <Typography variant="body2" color="text.secondary">Aucune phrase.</Typography>}
-                      </List>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-              <Card variant="outlined">
-                <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                  <Typography variant="sectionHeader">Ordre des confirmations</Typography>
-                  <Typography variant="body2" color="text.secondary">Ordre des phrases du J-2 pour ce qui est réservé.</Typography>
-                  <List dense>
-                    {confirmationItems.map((item, index) => (
-                      <ListItem key={item} disableGutters secondaryAction={<OrderButtons index={index} length={confirmationItems.length} onMove={moveConfirmation} label={confirmationLabel(item)} />}>
-                        <ListItemText primary={`${index + 1}. ${confirmationLabel(item)}`} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </CardContent>
-              </Card>
-            </>
-          )}
-
-          {tab === 'preview' && (
-            <Card variant="outlined">
-              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
-                  <FormControl size="small" sx={{ minWidth: 200 }}>
-                    <InputLabel id="preview-property">Logement</InputLabel>
-                    <Select labelId="preview-property" label="Logement" value={sample.propertyId} onChange={(e) => setSample((s) => ({ ...s, propertyId: e.target.value }))}>
-                      {properties.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                  <TextField size="small" type="number" label="Enfants" value={sample.children} onChange={(e) => setSample((s) => ({ ...s, children: e.target.value }))} />
-                  <TextField size="small" type="date" label="Arrivée" value={sample.startDate} onChange={(e) => setSample((s) => ({ ...s, startDate: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
-                  <Button variant="outlined" onClick={runPreview} disabled={!sample.propertyId}>Afficher</Button>
-                </Stack>
-                {preview && (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                    {['fr', 'en'].map((lang) => (
-                      <Box key={lang} sx={{ bgcolor: 'background.default', borderRadius: 1, p: 2, whiteSpace: 'pre-wrap' }}>
-                        <Typography variant="overline">{lang === 'fr' ? 'Français' : 'Anglais'} — J-7</Typography>
-                        <Typography variant="body2" sx={{ mb: 2 }}>{preview[lang].offers || '—'}</Typography>
-                        <Typography variant="overline">J-2</Typography>
-                        <Typography variant="body2">{preview[lang].confirmations || '—'}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
+  const fieldOf = (item) => (
+    <TokenTextField
+      key={item.key}
+      id={item.key}
+      label={item.label}
+      fr={valueOf(item, 'fr')}
+      en={valueOf(item, 'en')}
+      onChange={(lang, value) => edit(item, lang, value)}
+      tokens={item.chips.variables}
+      flags={item.chips.conditions}
+      errorFr={errors[item.key]?.fr}
+      errorEn={errors[item.key]?.en}
+      placeholderFr={item.placeholderFr || 'Vide : pas de phrase'}
+      placeholderEn={item.placeholderEn || 'Vide : pas de phrase'}
+      disabled={saving}
+      badge={item.autoTranslated && <StatusBadge status="info" label="Traduit automatiquement, à relire" />}
+      helper={(
+        <Stack direction="row" spacing={1}>
+          {item.autoTranslated && <Button size="small" onClick={() => confirmTranslation(item)}>Relu</Button>}
+          {item.kind === 'text' && (valueOf(item, 'fr') !== item.defaultFr || valueOf(item, 'en') !== item.defaultEn) && (
+            <Button size="small" color="inherit" onClick={() => setDrafts((prev) => ({ ...prev, [item.key]: { fr: item.defaultFr, en: item.defaultEn } }))}>
+              Rétablir le texte par défaut
+            </Button>
           )}
         </Stack>
       )}
+    />
+  );
+
+  return (
+    <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1400, mx: 'auto' }}>
+      <PageActionBar
+        title="Textes des emails"
+        backTo="/settings/emails"
+        tabs={<PageTabs value={tab} onChange={setTab} items={TABS} ariaLabel="Textes des emails" />}
+        onSave={tab === 'texts' ? save : undefined}
+        saveDisabled={!dirty || saving}
+        saveBusy={saving}
+        onCancel={tab === 'texts' ? () => { setDrafts({}); setErrors({}); } : undefined}
+        cancelDisabled={!dirty || saving}
+        actionsBefore={tab === 'texts' ? [
+          { icon: <DownloadIcon />, tooltip: 'Exporter les textes', onClick: exportFile, color: 'info' },
+          { icon: <UploadIcon />, tooltip: 'Importer', onClick: () => fileInput.current && fileInput.current.click(), color: 'info', disabled: dirty || busy },
+          ...(data.canTranslate ? [{ icon: <TranslateIcon />, tooltip: 'Traduire les textes manquants', onClick: translate, color: 'info', disabled: dirty || busy }] : []),
+        ] : []}
+      />
+      <input ref={fileInput} type="file" accept=".csv,text/csv" hidden onChange={readFile} data-testid="email-texts-file" />
+
+      {loadError && <ErrorAlert message="Impossible de charger les textes." onRetry={load} sx={{ mt: 2 }} />}
+      {loading && <LoadingState />}
+      {!loading && tab === 'mentions' && <Box sx={{ mt: 2 }}><EmailMentionsPanel onChanged={load} /></Box>}
+      {!loading && tab === 'texts' && (
+        <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 0.85fr)' }, gap: 2, alignItems: 'start' }}>
+          <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+            <ReadinessList items={readiness} />
+            {data.properties.length > 1 && (
+              <FormControl size="small" sx={{ maxWidth: 320 }}>
+                <InputLabel id="texts-property">Logement</InputLabel>
+                <Select
+                  labelId="texts-property"
+                  label="Logement"
+                  value={data.propertyId || ''}
+                  disabled={dirty}
+                  onChange={(e) => navigate({ search: `?propertyId=${e.target.value}`, hash: location.hash }, { replace: true })}
+                >
+                  {data.properties.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+                </Select>
+              </FormControl>
+            )}
+            {data.sections.map((s, index) => (
+              <Accordion
+                key={s.id}
+                id={s.id}
+                expanded={open === s.id}
+                onChange={(e, expanded) => { setOpen(expanded ? s.id : ''); setReservationId(null); setMobilePreview(false); setTestMessage(''); }}
+                disableGutters
+                variant="outlined"
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 48 }}>
+                  <Typography sx={{ fontWeight: 600 }}>{`${index + 1}. ${s.title}`}</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={2}>
+                    {s.templates.length > 1 && (
+                      <FormControl size="small">
+                        <InputLabel id={`tpl-${s.id}`}>Email</InputLabel>
+                        <Select
+                          labelId={`tpl-${s.id}`}
+                          label="Email"
+                          value={templateId || ''}
+                          onChange={(e) => { setTemplateBySection((m) => ({ ...m, [s.id]: e.target.value })); setReservationId(null); }}
+                        >
+                          {s.templates.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                    )}
+                    {s.items.map(fieldOf)}
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <Button variant="outlined" onClick={openFullTemplate} disabled={!templateId} sx={{ minHeight: 44 }}>Modifier le modèle complet</Button>
+                      {!desktop && (
+                        <Button variant="contained" onClick={() => setMobilePreview((v) => !v)} sx={{ minHeight: 44 }}>
+                          {mobilePreview ? 'Masquer l’email' : 'Voir l’email'}
+                        </Button>
+                      )}
+                    </Stack>
+                    {!desktop && mobilePreview && open === s.id && pane}
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+            ))}
+          </Stack>
+          {desktop && section && <Box sx={{ position: 'sticky', top: 128 }}>{pane}</Box>}
+        </Box>
+      )}
 
       <FormDialog
-        open={Boolean(editing)}
-        onClose={() => setEditing(null)}
-        title={editing && editing.id ? 'Modifier la phrase' : 'Nouvelle phrase'}
-        onSubmit={saveMention}
+        open={Boolean(fullTemplate)}
+        onClose={() => setFullTemplate(null)}
+        title="Modèle complet"
+        onSubmit={saveFullTemplate}
+        submitDisabled={!fullTemplate || !Object.keys(fullTemplate.draft).length}
         maxWidth="md"
       >
-        {editing && <MentionEditor value={editing} onChange={setEditing} options={options} error={editError} />}
+        {fullTemplate && (
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {[['subject', 'subjectEn', 'Objet'], ['body', 'bodyEn', 'Corps']].map(([frField, enField, label]) => (
+              <TokenTextField
+                key={frField}
+                label={label}
+                fr={fullValue(frField)}
+                en={fullValue(enField)}
+                onChange={(lang, value) => editFull(lang === 'fr' ? frField : enField, value)}
+                tokens={frField === 'body' ? fullTemplate.chips.variables : []}
+                flags={frField === 'body' ? fullTemplate.chips.conditions : []}
+                errorFr={fullTemplate.error && fullTemplate.error.field === frField ? fullTemplate.error.message : undefined}
+                errorEn={fullTemplate.error && fullTemplate.error.field === enField ? fullTemplate.error.message : undefined}
+              />
+            ))}
+          </Stack>
+        )}
       </FormDialog>
-      <ConfirmDialog
-        open={Boolean(deleting)}
-        onClose={() => setDeleting(null)}
-        onConfirm={removeMention}
-        title="Supprimer la phrase"
-        message="Cette phrase ne sera plus proposée ni confirmée dans les mails."
-        confirmLabel="Supprimer"
-      />
+
+      <FormDialog
+        open={Boolean(importPlan)}
+        onClose={() => setImportPlan(null)}
+        title="Importer les textes"
+        onSubmit={applyImport}
+        submitLabel={importPlan ? `Enregistrer ${importPlan.changed.length}` : 'Enregistrer'}
+        submitDisabled={!importPlan || !importPlan.changed.length}
+        submitBusy={busy}
+        maxWidth="md"
+      >
+        {importPlan && (
+          <Stack spacing={2}>
+            <Typography sx={{ fontWeight: 600 }}>
+              {`${plural(importPlan.changed.length, 'texte')} modifié${importPlan.changed.length > 1 ? 's' : ''}, ${importPlan.refused.length} refusé${importPlan.refused.length > 1 ? 's' : ''}`}
+            </Typography>
+            {(importPlan.changed.length > 0 || importPlan.refused.length > 0) && (
+              <Box sx={{ overflowX: 'auto' }}>
+                <Table size="small">
+                  <TableHead><TableRow><TableCell>Ligne</TableCell><TableCell>Texte</TableCell><TableCell>Détail</TableCell></TableRow></TableHead>
+                  <TableBody>
+                    {importPlan.changed.map((c) => (
+                      <TableRow key={`c-${c.line}`}>
+                        <TableCell>{c.line}</TableCell>
+                        <TableCell>{c.description}</TableCell>
+                        <TableCell>{c.fr !== undefined ? c.fr : c.en}</TableCell>
+                      </TableRow>
+                    ))}
+                    {importPlan.refused.map((r) => (
+                      <TableRow key={`r-${r.line}`}>
+                        <TableCell>{r.line}</TableCell>
+                        <TableCell><StatusBadge status="error" label="Refusée" /></TableCell>
+                        <TableCell sx={{ color: 'error.main' }}>{r.message}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            )}
+          </Stack>
+        )}
+      </FormDialog>
     </Box>
   );
 }

@@ -1,17 +1,15 @@
-// specs/plugins-phase-p-productisation.md §6 — « Textes des mails »: the texts by email with the
-// server's refusal under its field, the mentions with their two orders, the server-rendered preview.
-import React from 'react';
+// specs/guest-email-texts-made-simple.md rules 9–10 (and specs/plugins-phase-p-productisation.md §6) —
+// the single page: one section per email in send order, variables shown by label, one save for every
+// draft with the server's refusal under its field; the mentions keep their two orders.
 import { vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
-    getStayTexts: vi.fn(), saveStayText: vi.fn(), resetStayText: vi.fn(),
+    getEmailTexts: vi.fn(), saveEmailTexts: vi.fn(), getEmailReadiness: vi.fn(), previewEmailDraft: vi.fn(),
     getEmailMentions: vi.fn(), reorderEmailMentions: vi.fn(), saveConfirmationOrder: vi.fn(),
-    createEmailMention: vi.fn(), updateEmailMention: vi.fn(), deleteEmailMention: vi.fn(), previewEmailMentions: vi.fn(),
-    getOptions: vi.fn(), getProperties: vi.fn(),
+    createEmailMention: vi.fn(), updateEmailMention: vi.fn(), deleteEmailMention: vi.fn(), getOptions: vi.fn(),
   },
 }));
 vi.mock('../../../components/DialogProvider', () => {
@@ -21,11 +19,8 @@ vi.mock('../../../components/DialogProvider', () => {
 
 import api from '../../../api';
 import EmailTextsSettingsPage from '../EmailTextsSettingsPage';
+import { TEXTS, PREVIEW, renderAt } from './emailTextsFixtures';
 
-const TEXTS = [
-  { key: 'offers.localIntro', email: 'J-7', label: 'Produits locaux — introduction', tokens: ['list'], flags: [], fr: 'Nous proposons {{list}}.', en: 'We offer {{list}}.', isDefault: true },
-  { key: 'house', email: 'J-2', label: 'Dans le logement', tokens: [], flags: [], fr: '', en: '', isDefault: true },
-];
 const MENTIONS = [
   { id: 1, section: 'local', optionIds: [10], offerFr: 'le cidre ({{price}})', bookedFr: 'Le cidre est prêt.' },
   { id: 2, section: 'extras', optionIds: [11], offerFr: 'un plateau ({{price}})', bookedFr: 'Le plateau est prêt.' },
@@ -33,30 +28,49 @@ const MENTIONS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  api.getStayTexts.mockResolvedValue({ texts: TEXTS });
+  api.getEmailTexts.mockResolvedValue(TEXTS);
+  api.getEmailReadiness.mockResolvedValue({ items: [], soonCount: 0 });
+  api.previewEmailDraft.mockResolvedValue(PREVIEW);
   api.getEmailMentions.mockResolvedValue({ mentions: MENTIONS, confirmationOrder: [] });
   api.getOptions.mockResolvedValue([{ id: 10, title: 'Cidre' }, { id: 11, title: 'Plateau' }]);
-  api.getProperties.mockResolvedValue([{ id: 1, name: 'La Grange' }]);
 });
 
-const renderPage = () => render(<MemoryRouter><EmailTextsSettingsPage /></MemoryRouter>);
+test('rule 9: one section per email, in send order; the J-2 opens by default', async () => {
+  renderAt(EmailTextsSettingsPage);
+  const titles = await screen.findAllByText(/^\d\. /);
+  expect(titles.map((t) => t.textContent)).toEqual(['1. Confirmation', '2. J-7', '3. J-2']);
+  expect(screen.getByRole('button', { name: '3. J-2' })).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('button', { name: '2. J-7' })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.getByRole('button', { name: 'Modifier le modèle complet' })).toBeInTheDocument();
+});
 
-test('texts by email; an unknown token is refused under its field', async () => {
-  api.saveStayText.mockRejectedValue(Object.assign(new Error('Variable inconnue : {{prix}}'), { field: 'fr' }));
-  renderPage();
-  expect(await screen.findByText('J-7')).toBeInTheDocument();
-  expect(screen.getByText('J-2')).toBeInTheDocument();
-  const [fr] = screen.getAllByLabelText('Français');
-  fireEvent.change(fr, { target: { value: 'Nous proposons {{prix}}.' } });
+test('rule 9: `#j7` opens that email', async () => {
+  renderAt(EmailTextsSettingsPage, '/settings/emails/textes#j7');
+  expect(await screen.findByRole('button', { name: '2. J-7' })).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('rule 10: a variable shows as its label, and is saved as its token', async () => {
+  api.saveEmailTexts.mockResolvedValue({ applied: 1 });
+  renderAt(EmailTextsSettingsPage, '/settings/emails/textes#j7');
+  const field = await screen.findByDisplayValue('Nous proposons ⟦Liste⟧.');
+  fireEvent.change(field, { target: { value: 'Nous pouvons prévoir ⟦Liste⟧.' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-  expect(await screen.findByText('Variable inconnue : {{prix}}')).toBeInTheDocument();
-  expect(api.saveStayText).toHaveBeenCalledWith('offers.localIntro', { fr: 'Nous proposons {{prix}}.', en: 'We offer {{list}}.' });
+  await waitFor(() => expect(api.saveEmailTexts).toHaveBeenCalledWith({ 'text:offers.localIntro': { fr: 'Nous pouvons prévoir {{list}}.' } }));
+});
+
+test('rule 11: the server refusal lands under its field', async () => {
+  api.saveEmailTexts.mockRejectedValue(Object.assign(new Error('Variable inconnue : {{prix}}'), { key: 'text:house', field: 'fr', message: 'Variable inconnue : {{prix}}' }));
+  renderAt(EmailTextsSettingsPage);
+  const field = await screen.findByDisplayValue('Café offert.');
+  fireEvent.change(field, { target: { value: 'Café {{prix}}' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  expect(await screen.findByText('Variable inconnue : {{prix}}', { selector: 'p' })).toBeInTheDocument();
 });
 
 test('mentions by section; the confirmation order moves on its own', async () => {
   api.saveConfirmationOrder.mockResolvedValue({ confirmationOrder: ['towels', 'babyBed', 'mention:1', 'mention:2'] });
-  renderPage();
-  await screen.findByText('J-7');
+  renderAt(EmailTextsSettingsPage);
+  await screen.findByText('1. Confirmation');
   fireEvent.click(screen.getByRole('tab', { name: 'Options citées' }));
   expect(await screen.findByText('le cidre ({{price}})')).toBeInTheDocument();
   expect(screen.getByText('1. Lit bébé')).toBeInTheDocument();
@@ -64,15 +78,4 @@ test('mentions by section; the confirmation order moves on its own', async () =>
   await waitFor(() => expect(api.saveConfirmationOrder).toHaveBeenCalledWith(['towels', 'babyBed', 'mention:1', 'mention:2']));
   expect(await screen.findByText('1. Serviettes de toilette')).toBeInTheDocument();
   expect(api.reorderEmailMentions).not.toHaveBeenCalled();
-});
-
-test('the preview shows what the server renders, in both languages', async () => {
-  api.previewEmailMentions.mockResolvedValue({ fr: { offers: 'Nous proposons le cidre (5 €).', confirmations: 'Le cidre est prêt.' }, en: { offers: 'We offer cider (€5).', confirmations: 'Cider is ready.' } });
-  renderPage();
-  await screen.findByText('J-7');
-  fireEvent.click(screen.getByRole('tab', { name: 'Aperçu' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Afficher' }));
-  expect(await screen.findByText('Nous proposons le cidre (5 €).')).toBeInTheDocument();
-  expect(screen.getByText('Cider is ready.')).toBeInTheDocument();
-  expect(api.previewEmailMentions).toHaveBeenCalledWith({ propertyId: 1, children: 1, startDate: undefined });
 });
