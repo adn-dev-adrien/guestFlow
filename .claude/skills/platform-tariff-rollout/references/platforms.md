@@ -1313,8 +1313,13 @@ d'annulation par date.
 Airbnb ; GuestFlow n'a aucune notion de forfait ménage (`cleaningHours` est une durée de travail) et
 ni Booking ni le direct n'en facture. Un voyageur Airbnb paie donc 80 € au-dessus de la recette pour
 le même séjour. **Airbnb ne sait pas rendre un frais optionnel** — c'est un forfait par séjour ou
-rien, jamais un extra que le voyageur coche. Arbitrage du 15/10 : on le garde et on l'écrit dans
-« Autres informations à noter », en français *et* en anglais.
+rien, jamais un extra que le voyageur coche. Arbitrage du 16/10 : **forfait remis à 0 €**
+(`pricing-settings/fees/cleaning` → `#PriceInput-cleaningFee`, bouton
+`[data-testid="cleaningFeeForm-submit"]`) et le ménage devient une option annoncée dans « Autres
+informations à noter », payée sur place à l'arrivée — même schéma que les repas sur Booking. Le
+prix Airbnb retombe pile sur la recette, et les 80 € ne passent plus par la commission : 80 € nets
+au lieu de 67,60 €. Contrôle : « Total voyageur » du panneau `nightly-price` est passé de 774 € à
+694 € pour deux nuits à 341 €.
 
 **Les champs de description ont une valeur PAR LANGUE, et elles divergent.**
 `/hosting/listings/editor/<id>/details/description` affiche deux zones de texte par bloc :

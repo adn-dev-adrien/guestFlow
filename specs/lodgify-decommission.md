@@ -319,12 +319,15 @@ tables, because its Booking source now goes through the Booking path.
 - Q8: The gîte's Airbnb listing bills 80 € of cleaning per stay. GuestFlow has no cleaning-fee
   concept, and neither Booking nor the direct channel charges one, so an Airbnb guest pays 80 €
   above the recipe. Keep it, drop it, or carry it to every channel?
-  - A: **Resolved 2026-10-15 — keep it and say so in the listing.** Airbnb has no optional-extra
-    mechanism: a cleaning fee is a flat per-stay charge or nothing, so it cannot be offered as an
-    add-on the guest chooses. The fee stays (67,60 € net per stay, the commission applying to it
-    too) and the listing's « Autres informations à noter » now states it in French and English, so
-    nobody discovers it at checkout. The divergence with the recipe is deliberate and recorded here
-    rather than silent.
+  - A: **Resolved 2026-10-16 — remove it from the Airbnb price and sell the cleaning on site.**
+    A first answer the evening before was to keep the fee and disclose it; the operator's call is
+    better. Airbnb has no optional-extra mechanism — a cleaning fee is a flat per-stay charge or
+    nothing — so the fee is set to **0 €** and the listing's « Autres informations à noter » offers
+    the cleaning as an option paid on arrival, in French and in English. Three things fall out of it:
+    the Airbnb price is back on the recipe exactly, like every other channel (§9 Q5); the 80 € no
+    longer passes through the 15,5 % commission, so it nets 80 € instead of 67,60 € when a guest
+    takes it; and it follows the pattern already used for the meals on Booking — an optional service
+    priced on site, announced in the listing, never a surcharge discovered at checkout.
 
 ---
 
@@ -537,3 +540,13 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     different things in French and in English — the English version carries the hot-tub pricing and
     the children's activities, the French one does not. Airbnb does not translate these fields, it
     stores one text per language, so they drift. Worth a pass of its own on both listings.
+
+- 2026-10-16 — **The gîte's Airbnb cleaning fee is removed, the cleaning becomes an option paid on
+  arrival** (Q8 re-decided). `pricing-settings/fees/cleaning` set from 80 € to 0 €, and the
+  « Autres informations à noter » block rewritten in both languages: « Le ménage de fin de séjour
+  est en option : 80 €, à régler sur place le jour de l'arrivée. » / « Cleaning: 80 EUR, optional,
+  on arrival. » Verified on a two-night quote: 694 € for 9-10 November 2026 (2 × 341 € plus the
+  tourist tax) where the same dates cost 774 € an hour earlier. The English block had to be
+  reworded in two places to fit — these fields hold **one text per language, 500 characters each**,
+  and the gîte's two versions had drifted apart (the English one carries the hot-tub pricing and the
+  children's activities, the French one does not); worth a pass of its own on both listings.
