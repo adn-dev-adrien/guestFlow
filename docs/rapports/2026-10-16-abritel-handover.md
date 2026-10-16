@@ -25,7 +25,7 @@ GuestFlow platform commissions, read from production this morning: `Abracadaroom
 
 ---
 
-## 2. Three corrections — measured this morning
+## 2. Three things the spec got wrong — measured, and two of them already fixed
 
 ### 2.1 The Lodgify sources were not stopped — now they are
 
@@ -88,7 +88,7 @@ sync re-created three mid-way (#22320, #22321, #22322 / 202610008-010); those we
 nothing, and production holds **9 future reservations** — 5 `Booking`, 2 `direct`, 1 `Greengo`,
 1 `GitesDeFrance`, **zero `Lodgify`** — with every real reservation intact.
 
-### 2.3 Runbook step 3 is already settled, but not the way it reads
+### 2.3 Runbook step 3 is done, but not the way it reads
 
 Production held **14 future reservations** (2026-10-16 → 2028-12-31) when this was written: 5
 `Booking`, 5 `Lodgify`, 2 `direct`, 1 `Greengo`, 1 `GitesDeFrance` — **no `Abritel` and no
@@ -243,8 +243,9 @@ for the short fields and more for « Mon logement » (1 778 characters observed)
 **Abritel** — listing `AB 2622643`, property `123465737`.
 
 **GuestFlow** — properties `#1 Granja`, `#2 Estiva`. iCal sources: Granja #9 Abracadaroom, #2 Airbnb,
-#12 Booking, #1 GitesDeFrance, #7 Greengo, #10 Lodgify; Estiva #8 Abracadaroom, #14 Airbnb,
-#11 Booking, #13 Campspace, #6 Greengo, #5 Lodgify. Production `adrien@192.168.0.24`, public host
+#12 Booking, #1 GitesDeFrance, #7 Greengo, #10 Lodgify (`isActive = 0` since 2026-10-16); Estiva
+#8 Abracadaroom, #14 Airbnb, #11 Booking, #13 Campspace, #6 Greengo, #5 Lodgify (`isActive = 0`).
+Every other source is active. Production `adrien@192.168.0.24`, public host
 `https://guestflow.adn-dev.fr`.
 
 **Files** — [`specs/lodgify-decommission.md`](../../specs/lodgify-decommission.md) (rules §3, runbook
