@@ -167,6 +167,9 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
    The console then shows each step, green or red. A failed step can be retried alone.
    - Until phase H, the directory, the process and the route are manual steps the operator ticks.
      The console does the licence (rule 9) and the first admin itself.
+     **Since 2026-10-08 ([hosting-h1-fleet-runtime.md](hosting-h1-fleet-runtime.md) rules 1–2, 7):** every step is
+     automatic — directory, secrets, port, licence, database, first admin, process, route, health
+     check, backup — shown live; a failed step offers « Reprendre » from itself.
    - The first admin is created by the instance's own `server/scripts/create-first-admin.js`, run
      against the instance's database: an admin with a temporary password to change at first login.
      The console emails the address, the login link with `login_hint` and that password to the
@@ -386,7 +389,10 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - The export is one `.tar.gz`: the database copy, the uploads, and `reservations.csv` and
       `clients.csv`. The console serves it at `/exports/<token>`, a random token that is the only
       credential, until the 30 days are over (then `410`).
-    - Stopping the process and the route is a manual step until phase H.
+    - Stopping the process and the route is a manual step until phase H. **Since 2026-10-08
+      (hosting H1 rules 3, 4, 7):** automatic — the unit stops, the address serves the closed page,
+      replication stops and the copies stay until the erasure; reactivating restarts it all. A
+      failed stop holds the erasure back until « Réessayer » succeeds.
     - The erasure only ever removes `<CP_INSTANCES_ROOT>/<slug>`; any other path is refused.
     - Added 2026-10-04 after the review:
       - Nothing is erased, by hand or by the daily run, before « Processus et route arrêtés » is
@@ -420,6 +426,8 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - The console renames the customer, journals it, and re-issues the licence (written to the new
       directory when it exists, downloadable otherwise, as in rule 9). Until phase H, a manual step
       « Dossier renommé, processus et route relancés, redirection 301 posée jusqu'au … » follows.
+      **Since 2026-10-08 (hosting H1 rule 5):** that step runs by itself; the old address answers
+      `301` for **90 days** and stays reserved for the 12 months.
     - The directory (rule 26) follows at its next read.
     - Until « Dossier renommé… » is ticked, the instance still runs from its old directory: the login
       page sends its users to the old address, the directory and the fleet read the old directory,
@@ -873,7 +881,9 @@ each plan. The C2a console screens have their own mock
 - **Fleet (console):** a sticky `PageActionBar` with « Nouveau client », the three counters as
   filter chips, the table (sortable by every column), and a row click that opens the customer. On
   `xs`, one card per customer: name and state, address and plan, end date and days left. Version,
-  process and last backup read « — » until phase H.
+  process and last backup read « — » until phase H. **Since 2026-10-08 (hosting H1 rule 15):** real
+  values — version, process, last backup, last verified restore, disk, certificate — on the table
+  and the cards.
 - **Instance banners** (`SubscriptionBanner`, at the top of the main area on every page, admins
   only; « Renouveler » opens `payUrl` when the licence carries one). The instance only knows
   `endsAt`, not the grace length, so no banner quotes a later date:
@@ -1138,7 +1148,7 @@ databases with a `users` table, the client on :3200):
 - **Custom domains** (`reservation.mongite.fr`): later, with Caddy on-demand TLS (study §9.3).
 - **Self-service sign-up and plan change by the customer:** the operator does both in the console
   for now.
-- **Fleet updates and backups:** a separate hosting spec (phase H).
+- **Fleet updates and backups:** a separate hosting spec (phase H) — [`hosting-h1-fleet-runtime.md`](hosting-h1-fleet-runtime.md), implemented 2026-10-08.
 - **Central identity** (one password for all spaces, SSO): rejected in rule 25 for isolation.
   Reconsider only if customers ask.
 - **VAT handling beyond French VAT on French customers** (D7).

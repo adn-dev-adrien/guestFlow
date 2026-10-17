@@ -11,6 +11,14 @@
  *   CP_SESSION_SECRET        required in production
  *   CP_SMTP_HOST/PORT/USER/PASS/FROM
  *   CP_PORT                  default 4100
+ *
+ * Hosting (specs/hosting-h1-fleet-runtime.md; deploy/hosting/README.md lists the production values):
+ *   CP_RELEASES_DIR          the shared releases, <dir>/<version> (default: <CP_INSTANCES_ROOT>/../releases)
+ *   CP_PORT_RANGE            the instances' ports (default 4400-4499)
+ *   CP_HEALTH_TIMEOUT_MS     the health check's limit (default 60000)
+ *   CP_PROCESS_DRIVER / CP_PROXY_DRIVER / CP_BACKUP_DRIVER / CP_MAIL_DRIVER, and their settings
+ *                            (utils/drivers/index.js); all default to the `local` drivers
+ *   CP_MAIL_DAILY_LIMIT      emails per instance per day through the platform (default 300)
  */
 
 const path = require('path');
@@ -55,6 +63,8 @@ const ctx = createContext({
   domain: env.CP_DOMAIN || 'guestflow.fr',
   consoleUrl: env.CP_PUBLIC_URL,
   runFirstAdmin: createFirstAdminRunner(),
+  releasesDir: env.CP_RELEASES_DIR ? path.resolve(env.CP_RELEASES_DIR) : undefined,
+  hostingEnv: env,
 });
 
 const app = createApp(ctx, {

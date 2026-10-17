@@ -47,12 +47,14 @@ test('rule 9 — no temporary file is left behind; a re-issue replaces the licen
 });
 
 test('rule 9 — without the instance directory the step fails with its reason, and the licence can be downloaded', async () => {
-  const { ctx, publicKey } = makeContext();
+  const { ctx, publicKey, root } = makeContext();
   const c = await ctx.controllers.customers.create(NEW_CUSTOMER, 'op');
+  require('fs').rmSync(require('path').join(root, 'aulnes'), { recursive: true, force: true });
+  ctx.controllers.customers.refresh(c.id, 'système');
   const step = ctx.controllers.customers.view(c.id).steps.find((s) => s.step === 'licence');
   assert.equal(step.status, 'failed');
   assert.match(step.detail, /introuvable.*Téléchargez-la/);
-  assert.equal(step.action, 'retry');
+  assert.equal(step.action, 'resume');
   const { filename, token } = ctx.controllers.customers.licenceDownload(c.id);
   assert.equal(filename, 'licence-aulnes.jws');
   assert.equal(gfLicence.verifyJws(token, publicKey).slug, 'aulnes');

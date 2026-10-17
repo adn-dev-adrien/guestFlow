@@ -16,12 +16,12 @@ function consoleRoutes(ctx) {
 
   router.get('/customers', (req, res) => res.json(customers.fleet()));
   router.post('/customers/preview', (req, res) => res.json(customers.preview(body(req))));
-  router.post('/customers', async (req, res) => res.status(201).json(await customers.create(body(req), who(req))));
+  router.post('/customers', async (req, res) => res.status(201).json(await customers.create(body(req), who(req), { background: true })));
   router.get('/customers/:id', (req, res) => res.json(customers.view(req.params.id)));
-  router.post('/customers/:id/steps/:step', async (req, res) => res.json(await customers.stepAction(req.params.id, req.params.step, body(req).action, who(req))));
+  router.post('/customers/:id/steps/:step', async (req, res) => res.json(await customers.stepAction(req.params.id, req.params.step, body(req).action, who(req), { background: true })));
   router.post('/customers/:id/payment', async (req, res) => res.json(await billing.recordPayment(req.params.id, body(req), who(req))));
   router.post('/customers/:id/rename/preview', (req, res) => res.json(customers.renamePreview(req.params.id, body(req))));
-  router.post('/customers/:id/rename', (req, res) => res.json(customers.rename(req.params.id, body(req), who(req))));
+  router.post('/customers/:id/rename', async (req, res) => res.json(await customers.rename(req.params.id, body(req), who(req))));
   router.post('/customers/:id/billing', (req, res) => res.json(customers.setBilling(req.params.id, body(req), who(req))));
   router.post('/customers/:id/remind', async (req, res) => res.json(await billing.remind(req.params.id, body(req), who(req))));
   router.post('/customers/:id/invoice/retry', async (req, res) => res.json(await billing.retryInvoice(req.params.id, who(req))));
@@ -30,9 +30,9 @@ function consoleRoutes(ctx) {
   router.post('/customers/:id/force-active', (req, res) => res.json(customers.forceActive(req.params.id, body(req), who(req))));
   router.post('/customers/:id/plan', (req, res) => res.json(customers.changePlan(req.params.id, body(req), who(req))));
   router.post('/customers/:id/deprovision', async (req, res) => res.json(await billing.deprovision(req.params.id, body(req), who(req))));
-  router.post('/customers/:id/reactivate', (req, res) => res.json(customers.reactivate(req.params.id, who(req))));
+  router.post('/customers/:id/reactivate', async (req, res) => res.json(await customers.reactivate(req.params.id, who(req))));
   router.post('/customers/:id/cancel-erase', (req, res) => res.json(customers.cancelErase(req.params.id, who(req))));
-  router.post('/customers/:id/erase', (req, res) => res.json(customers.eraseNow(req.params.id, body(req), who(req))));
+  router.post('/customers/:id/erase', async (req, res) => res.json(await customers.eraseNow(req.params.id, body(req), who(req))));
   router.get('/customers/:id/licence', (req, res) => {
     const { filename, token } = customers.licenceDownload(req.params.id);
     res.set('Content-Disposition', `attachment; filename="${filename}"`).type('application/jose').send(token);

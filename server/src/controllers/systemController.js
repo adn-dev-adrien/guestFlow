@@ -32,6 +32,11 @@ const KEEP_RELEASES = 3;
 
 let lastManualCheckAt = 0;
 
+// specs/hosting-h1-fleet-runtime.md rule 9 — on a hosted instance the operator updates from the
+// console; the instance shows its version and nothing to press.
+const MANAGED_LABEL = 'Mises à jour gérées par l’hébergeur';
+const isManaged = (env = process.env) => env.GUESTFLOW_MANAGED === '1';
+
 function healthUrl(env = process.env) {
   const protocol = shouldEnforceHttps(env) ? 'https' : 'http';
   return `${protocol}://127.0.0.1:${env.PORT || 4000}/api/version`;
@@ -65,8 +70,26 @@ function buildVersionSpan(state, current, latest) {
 }
 
 /** The `GET /api/system/version` payload, built from local state only (no network call). */
-function buildVersionInfo(model = updateStateModel) {
+function buildVersionInfo(model = updateStateModel, env = process.env) {
   const current = getAppVersion();
+  if (isManaged(env)) {
+    return {
+      current,
+      managed: true,
+      managedLabel: MANAGED_LABEL,
+      latest: null,
+      updateAvailable: false,
+      publishedAt: null,
+      versions: [],
+      versionsTruncated: false,
+      lastCheckAt: null,
+      dismissedVersion: null,
+      selfUpdateSupported: false,
+      selfUpdateReason: null,
+      updateInProgress: false,
+      history: [],
+    };
+  }
   const state = model.readState();
   const support = selfUpdateSupported();
   const latest = state.latestVersion;
@@ -82,6 +105,8 @@ function buildVersionInfo(model = updateStateModel) {
     versionsTruncated: Boolean(state.releasesTruncated) && versions.length === state.releases.length,
     lastCheckAt: state.lastCheckAt,
     dismissedVersion: state.dismissedVersion,
+    managed: false,
+    managedLabel: null,
     selfUpdateSupported: support.supported,
     selfUpdateReason: support.reason,
     updateInProgress: model.isLocked(),
@@ -157,7 +182,8 @@ function finishInProcess(model, phase, errorCode, message) {
  * next release was published badly would take the update away from an operator who could still
  * install the one they were already being offered.
  */
-async function runVersionCheck({ model = updateStateModel, fetchImpl = fetch } = {}) {
+async function runVersionCheck({ model = updateStateModel, fetchImpl = fetch, env = process.env } = {}) {
+  if (isManaged(env)) return null;
   const feed = await fetchReleaseFeed({ fetchImpl });
   const previous = model.readState().latestVersion;
   if (!feed || !feed.release) {
@@ -208,7 +234,12 @@ function getVersion(req, res) {
   res.json(buildVersionInfo());
 }
 
+function refuseManaged(res) {
+  return res.status(403).json({ error: 'MANAGED_BY_HOST', message: `${MANAGED_LABEL}.` });
+}
+
 async function checkNow(req, res) {
+  if (isManaged()) return refuseManaged(res);
   const now = Date.now();
   const elapsed = now - lastManualCheckAt;
   if (elapsed < CHECK_THROTTLE_MS) {
@@ -228,6 +259,7 @@ function getUpdateStatus(req, res) {
 }
 
 function dismissUpdate(req, res) {
+  if (isManaged()) return refuseManaged(res);
   const version = req.body?.version;
   if (!isValidVersion(version)) {
     return res.status(400).json({ error: 'INVALID_VERSION', message: 'Version invalide.' });
@@ -237,6 +269,7 @@ function dismissUpdate(req, res) {
 }
 
 async function startUpdate(req, res) {
+  if (isManaged()) return refuseManaged(res);
   const model = updateStateModel;
   const current = getAppVersion();
   const targetVersion = req.body?.targetVersion;
@@ -390,7 +423,7 @@ module.exports = {
   initOnBoot,
   // Exposed for tests.
   __test: {
-    buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage, isKnownStagingCode,
+    buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage, isKnownStagingCode, MANAGED_LABEL,
     CHECK_THROTTLE_MS, REQUIRED_FREE_BYTES, REQUIRED_FREE_MEMORY_BYTES,
   },
 };

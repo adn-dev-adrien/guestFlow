@@ -2,6 +2,8 @@
  * The fleet (specs/control-plane-plans-and-access.md rules 8, 18 and 33): today's alerts, the emails
  * awaiting approval, the three counters as filters, and one line per customer — a table on sm+,
  * cards on xs. Sorting a column is presentation only; every value comes ready from the server.
+ * Since the hosting (specs/hosting-h1-fleet-runtime.md rule 15) each line carries the measures of the
+ * probe: version, process, last backup, last verified restore, disk, certificate.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -11,11 +13,13 @@ import PageActionBar from '@gf/components/PageActionBar';
 import ResponsiveTable from '@gf/components/ResponsiveTable';
 import LoadingState from '@gf/components/LoadingState';
 import ErrorAlert from '@gf/components/ErrorAlert';
+import StatusBadge from '@gf/components/StatusBadge';
 import { useToast } from '@gf/components/DialogProvider';
 import LifecycleChip from '../components/LifecycleChip';
 import EmailQueue from '../components/EmailQueue';
 import api from '../api';
 
+// `sort` is the field the server sends for ordering when the shown value is a label.
 const COLUMNS = [
   { key: 'companyName', label: 'Client' },
   { key: 'planName', label: 'Forfait' },
@@ -25,8 +29,13 @@ const COLUMNS = [
   { key: 'version', label: 'Version' },
   { key: 'installedCount', label: 'Plugins' },
   { key: 'process', label: 'Processus' },
-  { key: 'lastBackup', label: 'Sauvegarde' },
+  { key: 'lastBackup', label: 'Sauvegarde', sort: 'lastBackupAt' },
+  { key: 'verified', label: 'Vérifiée', sort: 'verifiedAt' },
+  { key: 'disk', label: 'Disque', sort: 'diskBytes' },
+  { key: 'cert', label: 'Certificat', sort: 'certAt' },
 ];
+const SORT_FIELD = Object.fromEntries(COLUMNS.map((c) => [c.key, c.sort || c.key]));
+const TONE = { error: 'error.main', warning: 'warning.main' };
 const dash = (v) => (v === null || v === undefined ? '—' : v);
 
 export default function FleetPage() {
@@ -51,7 +60,8 @@ export default function FleetPage() {
     if (!data) return [];
     const kept = filter ? data.rows.filter((r) => r.counters.includes(filter)) : data.rows;
     const factor = sort.dir === 'asc' ? 1 : -1;
-    const value = (r) => (r[sort.key] === null ? Infinity : r[sort.key]);
+    const field = SORT_FIELD[sort.key];
+    const value = (r) => (r[field] === null || r[field] === undefined ? Infinity : r[field]);
     return [...kept].sort((a, b) => (value(a) > value(b) ? factor : value(a) < value(b) ? -factor : 0));
   }, [data, filter, sort]);
 
@@ -118,7 +128,7 @@ export default function FleetPage() {
           getKey={(r) => r.id}
           emptyText={filter ? 'Aucun client dans ce filtre.' : 'Aucun client pour l’instant.'}
           onItemClick={open}
-          minWidth={900}
+          minWidth={1240}
           head={(
             <TableRow>
               {COLUMNS.map((c) => (
@@ -142,8 +152,11 @@ export default function FleetPage() {
               <TableCell>{dash(r.daysLeft)}</TableCell>
               <TableCell>{dash(r.version)}</TableCell>
               <TableCell>{dash(r.installedCount)}</TableCell>
-              <TableCell>{dash(r.process)}</TableCell>
-              <TableCell>{dash(r.lastBackup)}</TableCell>
+              <TableCell>{r.process ? <StatusBadge status={r.processSeverity || 'neutral'} label={r.process} /> : '—'}</TableCell>
+              <TableCell sx={{ color: TONE[r.lastBackupSeverity] }}>{dash(r.lastBackup)}</TableCell>
+              <TableCell>{dash(r.verified)}</TableCell>
+              <TableCell>{dash(r.disk)}</TableCell>
+              <TableCell sx={{ color: TONE[r.certSeverity] }}>{dash(r.cert)}</TableCell>
             </TableRow>
           )}
           renderMobileCard={(r) => (
@@ -158,6 +171,20 @@ export default function FleetPage() {
               <Typography variant="caption" color="text.secondary" component="div">
                 Échéance {r.endsAtLabel}{r.daysLeft !== null ? ` (${r.daysLeft} j)` : ''}
               </Typography>
+              {r.version && (
+                <>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', mt: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">{r.version}</Typography>
+                    {r.process && <StatusBadge status={r.processSeverity || 'neutral'} label={r.process} />}
+                  </Box>
+                  <Typography variant="caption" color={r.lastBackupSeverity ? 'error' : 'text.secondary'} component="div">
+                    Sauvegarde {dash(r.lastBackup)}{r.verified ? ` · vérifiée le ${r.verified}` : ''}
+                  </Typography>
+                  <Typography variant="caption" color={r.certSeverity ? 'warning.main' : 'text.secondary'} component="div">
+                    {[r.disk, r.cert && `certificat ${r.cert}`].filter(Boolean).join(' · ')}
+                  </Typography>
+                </>
+              )}
             </>
           )}
         />

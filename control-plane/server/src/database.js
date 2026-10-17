@@ -295,6 +295,110 @@ function seedTemplates(db) {
   for (const t of DEFAULT_TEMPLATES) insert.run(t.key, t.subject, t.body);
 }
 
+// --- Hosting H1 (specs/hosting-h1-fleet-runtime.md §5) ------------------------------------------
+// Kept in its own block, apart from the C-phase schema above: the instances the console runs, the
+// fleet updates, the weekly restore checks, the platform's email counters, the 301 redirects of the
+// renamed addresses (rule 5) and the host alerts.
+
+const HOSTING_SCHEMA = `
+CREATE TABLE IF NOT EXISTS instances (
+  customer_id INTEGER PRIMARY KEY REFERENCES customers(id),
+  port INTEGER UNIQUE,
+  version TEXT,
+  previous_version TEXT,
+  unit_state TEXT NOT NULL DEFAULT 'absent',
+  last_backup_at TEXT,
+  last_backup_verified_at TEXT,
+  disk_bytes INTEGER,
+  disk_measured_at TEXT,
+  cert_expires_at TEXT,
+  memory_bytes INTEGER,
+  memory_max_bytes INTEGER,
+  down_since TEXT,
+  probed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS fleet_updates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL DEFAULT 'release' CHECK (kind IN ('release', 'plugin')),
+  plugin_id TEXT,
+  target_version TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('running', 'done', 'failed')),
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  error TEXT,
+  operator TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS fleet_update_items (
+  update_id INTEGER NOT NULL REFERENCES fleet_updates(id),
+  customer_id INTEGER NOT NULL REFERENCES customers(id),
+  position INTEGER NOT NULL,
+  from_version TEXT,
+  state TEXT NOT NULL CHECK (state IN ('pending', 'running', 'done', 'rolled_back', 'skipped')),
+  phase TEXT,
+  detail TEXT NOT NULL DEFAULT '',
+  snapshot TEXT,
+  PRIMARY KEY (update_id, customer_id)
+);
+CREATE TABLE IF NOT EXISTS backup_checks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL REFERENCES customers(id),
+  at TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  reservations INTEGER,
+  detail TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_backup_checks_customer ON backup_checks(customer_id, id);
+CREATE TABLE IF NOT EXISTS mail_counters (
+  instance INTEGER NOT NULL REFERENCES customers(id),
+  day TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (instance, day)
+);
+CREATE TABLE IF NOT EXISTS host_redirects (
+  slug TEXT PRIMARY KEY,
+  customer_id INTEGER NOT NULL REFERENCES customers(id),
+  until TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS host_alerts (
+  key TEXT PRIMARY KEY,
+  customer_id INTEGER,
+  kind TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  text TEXT NOT NULL,
+  opened_at TEXT NOT NULL,
+  last_sent_at TEXT,
+  closed_at TEXT
+);
+`;
+
+// Rule 1: a step can be running while the operator watches it. The C-phase CHECK did not know that
+// status, and SQLite cannot alter a CHECK: the table is rebuilt once, rows kept.
+function allowRunningSteps(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'provisioning_steps'").get();
+  if (!row || row.sql.includes("'running'")) return;
+  db.transaction(() => {
+    db.exec(`CREATE TABLE provisioning_steps_h1 (
+      customerId INTEGER NOT NULL REFERENCES customers(id),
+      step TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('ok', 'failed', 'todo', 'skipped', 'running')),
+      detail TEXT NOT NULL DEFAULT '',
+      at TEXT NOT NULL,
+      PRIMARY KEY (customerId, step)
+    );
+    INSERT INTO provisioning_steps_h1 SELECT customerId, step, status, detail, at FROM provisioning_steps;
+    DROP TABLE provisioning_steps;
+    ALTER TABLE provisioning_steps_h1 RENAME TO provisioning_steps;`);
+  })();
+}
+
+function migrateHosting(db) {
+  db.exec(HOSTING_SCHEMA);
+  allowRunningSteps(db);
+}
+
+// --- end of Hosting H1 -----------------------------------------------------------------------------
+
 function openDatabase(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
@@ -305,6 +409,7 @@ function openDatabase(file) {
   seedCatalogue(db);
   db.prepare('INSERT OR IGNORE INTO qonto_settings (id) VALUES (1)').run();
   seedTemplates(db);
+  migrateHosting(db);
   return db;
 }
 

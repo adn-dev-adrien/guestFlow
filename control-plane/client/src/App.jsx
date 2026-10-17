@@ -1,7 +1,8 @@
 /**
  * The console's shell (specs/control-plane-plans-and-access.md §4.2): GuestFlow's theme and dialog
  * provider, the login until an operator is signed in (rule 31), then the navigation between the
- * fleet, the catalogue, the renewal emails, GuestFlow's own Paiements page (rule 32) and the profile.
+ * fleet, the releases and fleet updates (specs/hosting-h1-fleet-runtime.md), the catalogue, the
+ * renewal emails, GuestFlow's own Paiements page (rule 32) and the profile.
  */
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router';
@@ -16,6 +17,7 @@ import FleetPage from './pages/FleetPage';
 import NewCustomerPage from './pages/NewCustomerPage';
 import CustomerPage from './pages/CustomerPage';
 import CataloguePage from './pages/CataloguePage';
+import VersionsPage from './pages/VersionsPage';
 import ProfilePage from './pages/ProfilePage';
 import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import PaymentsSettingsPage from '@gf/plugins/online-payment/PaymentsSettingsPage';
@@ -23,6 +25,7 @@ import api from './api';
 
 const NAV = [
   { to: '/', label: 'Clients', match: (p) => p === '/' || p.startsWith('/clients') },
+  { to: '/versions', label: 'Versions', match: (p) => p.startsWith('/versions') },
   { to: '/catalogue', label: 'Catalogue', match: (p) => p.startsWith('/catalogue') },
   { to: '/emails', label: 'Emails', match: (p) => p.startsWith('/emails') },
   { to: '/parametres/paiements', label: 'Réglages', match: (p) => p.startsWith('/parametres') },
@@ -58,6 +61,7 @@ function Shell({ operator, setOperator, notice }) {
           <Route path="/" element={<FleetPage />} />
           <Route path="/clients/nouveau" element={<NewCustomerPage />} />
           <Route path="/clients/:id" element={<CustomerPage />} />
+          <Route path="/versions" element={<VersionsPage />} />
           <Route path="/catalogue" element={<CataloguePage />} />
           <Route path="/emails" element={<EmailTemplatesPage />} />
           <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />

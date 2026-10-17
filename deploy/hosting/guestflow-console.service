@@ -1,0 +1,21 @@
+# The GuestFlow console (control plane), specs/control-plane-plans-and-access.md and
+# specs/hosting-h1-fleet-runtime.md. Runs as `guestflow`, like the instances it manages; the sudoers
+# rule installed by bootstrap-host.sh lets it drive their units and restart Litestream.
+
+[Unit]
+Description=GuestFlow — console
+After=network-online.target caddy.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=guestflow
+Group=guestflow
+EnvironmentFile=/srv/guestflow/console/env
+WorkingDirectory=/srv/guestflow/console/src/control-plane/server
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,5 @@
 // specs/control-plane-plans-and-access.md rules 7, 15, 19 and 20 — the customer page: the creation
-// steps and their actions, a payment with the server's preview, the refused override without a
+// steps and their actions (automatic since specs/hosting-h1-fleet-runtime.md rule 2), a payment with the server's preview, the refused override without a
 // reason, and deprovisioning confirmed by the slug.
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
@@ -16,13 +16,14 @@ const page = () => renderAt(<CustomerPage />, { path: '/clients/:id', route: '/c
 
 beforeEach(() => { setWidth(1280); vi.clearAllMocks(); api.customer.mockResolvedValue(customer); });
 
-it('rule 7 — a failed step is retried, a manual one is marked done', async () => {
+it('rule 7 — a failed creation step is resumed, a failed restart retried; nothing is ticked by hand', async () => {
   api.stepAction.mockResolvedValue(customer);
   page();
-  fireEvent.click(await screen.findByRole('button', { name: 'Réessayer' }));
-  await waitFor(() => expect(api.stepAction).toHaveBeenCalledWith('3', 'licence', 'retry'));
-  fireEvent.click(screen.getByRole('button', { name: 'Marquer fait' }));
-  await waitFor(() => expect(api.stepAction).toHaveBeenCalledWith('3', 'instance', 'done'));
+  fireEvent.click(await screen.findByRole('button', { name: 'Reprendre' }));
+  await waitFor(() => expect(api.stepAction).toHaveBeenCalledWith('3', 'route', 'resume'));
+  fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+  await waitFor(() => expect(api.stepAction).toHaveBeenCalledWith('3', 'restart', 'retry'));
+  expect(screen.queryByRole('button', { name: 'Marquer fait' })).not.toBeInTheDocument();
 });
 
 it('rule 15 — the payment dialog shows the server’s preview for the chosen length', async () => {

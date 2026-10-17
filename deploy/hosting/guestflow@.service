@@ -1,0 +1,32 @@
+# One GuestFlow instance per customer (specs/hosting-h1-fleet-runtime.md H-D1).
+#
+# Installed once by bootstrap-host.sh into /etc/systemd/system/. The console enables and starts
+# `guestflow@<slug>.service`; everything the instance needs — its port, its version, its database,
+# its secrets, the platform sender — is in its environment file, written by the console (mode 600).
+# The release directory is shared by every instance on that version (H-D4).
+
+[Unit]
+Description=GuestFlow — %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=guestflow
+Group=guestflow
+EnvironmentFile=/srv/guestflow/instances/%i/env
+WorkingDirectory=/srv/guestflow/instances/%i
+ExecStart=/usr/bin/node ${GUESTFLOW_RELEASE_DIR}/server/src/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+# The memory limit per instance; the console's probe alerts above 90 % of it (rule 16).
+MemoryMax=512M
+MemoryHigh=460M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

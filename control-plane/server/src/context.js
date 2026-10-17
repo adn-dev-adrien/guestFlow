@@ -4,6 +4,7 @@
  * database and a temporary directory.
  */
 
+const crypto = require('crypto');
 const path = require('path');
 const { buildCatalogueModel } = require('./models/catalogueModel');
 const { buildCustomersModel } = require('./models/customersModel');
@@ -15,6 +16,7 @@ const { buildMetaModel } = require('./models/metaModel');
 const { buildEmailsModel } = require('./models/emailsModel');
 const { buildQontoSettingsModel } = require('./models/qontoSettingsModel');
 const { buildDirectoryModel } = require('./models/directoryModel');
+const { buildHostingModel } = require('./models/hostingModel');
 const { createQontoBilling, BILLING_SCOPES } = require('./utils/qontoBilling');
 const { qontoSettingsController } = require('./utils/gf');
 const { createInstances } = require('./utils/instances');
@@ -26,10 +28,25 @@ const { createAuthController } = require('./controllers/authController');
 const { createBillingController } = require('./controllers/billingController');
 const { createTemplatesController } = require('./controllers/templatesController');
 const { createLoginController } = require('./controllers/loginController');
+const { createFleetController } = require('./controllers/fleetController');
+const { createDrivers } = require('./utils/drivers');
+const { createReleases } = require('./utils/releases');
+const { createProvisioner } = require('./utils/provisioner');
+const { createFleetUpdater } = require('./utils/fleetUpdater');
+const { createRestoreVerifier } = require('./utils/restoreVerifier');
+const { createHostAlerts } = require('./utils/hostAlerts');
+const { createProbe } = require('./tasks/probe');
+const { createWeeklyRestore } = require('./tasks/weeklyRestore');
+const { parisDay } = require('./utils/days');
 
 // `qonto` replaces the Qonto facade in tests; the console itself builds it over its own settings,
 // with no environment fallback: Qonto is configured from the Paiements page only (rule 32).
-function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto, directoryKey }) {
+// The hosting (specs/hosting-h1-fleet-runtime.md) adds the host drivers, the shared releases and the
+// fetch used by the health checks; the tests pass fakes, index.js builds them from the environment.
+function createContext({
+  db, now, mailer, secrets, privateKey, instancesRoot, dataDir, domain, consoleUrl, runFirstAdmin, qonto, directoryKey,
+  drivers, releasesDir, hostingEnv = {}, fetchImpl = fetch, releasesFetch, installRelease, pluginInstaller = null, isPortFree, diskRatio,
+}) {
   const publicUrl = consoleUrl || `https://console.${domain}`;
   const models = {
     catalogue: buildCatalogueModel(db),
@@ -42,8 +59,11 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     emails: buildEmailsModel(db),
     qontoSettings: buildQontoSettingsModel(db, { secrets, publicUrl }),
     directory: buildDirectoryModel(db),
+    hosting: buildHostingModel(db),
   };
   const instances = createInstances({ root: instancesRoot });
+  const releasesRoot = releasesDir || path.join(path.dirname(path.resolve(instancesRoot)), 'releases');
+  const today = () => parisDay(now());
   const ctx = {
     db,
     models,
@@ -58,7 +78,59 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     exportsDir: path.join(dataDir, 'exports'),
     qonto: qonto || createQontoBilling({ settings: models.qontoSettings, env: {} }),
     directoryKey,
+    fetchImpl,
   };
+
+  // --- Hosting H1 ---
+  ctx.releases = createReleases({ dir: releasesRoot, now, fetchImpl: releasesFetch || fetchImpl, installImpl: installRelease });
+  ctx.drivers = drivers || createDrivers({
+    env: hostingEnv,
+    root: instances.root,
+    releasesDir: releasesRoot,
+    dataDir,
+    domain,
+    now,
+    // Litestream's configuration lists every instance whose backup step is done, and the console's
+    // own database.
+    listReplicas: () => [
+      { key: 'console', dbPath: path.join(dataDir, 'control-plane.db') },
+      ...models.customers.list()
+        .filter((c) => { const r = models.provisioning.get(c.id, 'backup'); return r && r.status === 'ok' && !c.archivedAt; })
+        .map((c) => ctx.provisioner.instanceOf(c)),
+    ],
+  });
+  const healthTimeoutMs = Number(hostingEnv.CP_HEALTH_TIMEOUT_MS) || 60000;
+  const journal = (...args) => ctx.controllers.customers.journal(...args);
+  ctx.provisioner = createProvisioner({
+    models,
+    drivers: ctx.drivers,
+    releases: ctx.releases,
+    instances,
+    now,
+    today,
+    fetchImpl,
+    portRange: hostingEnv.CP_PORT_RANGE || '4400-4499',
+    ...(isPortFree ? { isPortFree } : {}),
+    healthTimeoutMs,
+    licencePublicKey: privateKey ? crypto.createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).toString('base64') : null,
+    hooks: {
+      licence: (id) => ctx.controllers.customers.issueLicence(id),
+      admin: (id) => ctx.controllers.customers.adminStep(id),
+      journal,
+    },
+  });
+  ctx.hostAlerts = createHostAlerts({ hosting: models.hosting, operators: models.operators, mailer, now, consoleUrl: publicUrl });
+  ctx.fleetUpdater = createFleetUpdater({
+    models, drivers: ctx.drivers, releases: ctx.releases, provisioner: ctx.provisioner, now, fetchImpl, healthTimeoutMs, journal, pluginInstaller,
+  });
+  ctx.restoreVerifier = createRestoreVerifier({
+    models, drivers: ctx.drivers, provisioner: ctx.provisioner, fleetUpdater: ctx.fleetUpdater, now, fetchImpl, healthTimeoutMs, alerts: ctx.hostAlerts, journal,
+  });
+  ctx.probe = createProbe({
+    models, drivers: ctx.drivers, provisioner: ctx.provisioner, alerts: ctx.hostAlerts, now, fetchImpl, root: instances.root, today, ...(diskRatio ? { diskRatio } : {}),
+  });
+  ctx.weeklyRestore = createWeeklyRestore({ meta: models.meta, verifier: ctx.restoreVerifier, today });
+
   const customers = createCustomersController(ctx);
   const billing = createBillingController(ctx, customers);
   ctx.controllers = {
@@ -69,6 +141,7 @@ function createContext({ db, now, mailer, secrets, privateKey, instancesRoot, da
     auth: createAuthController(ctx),
     templates: createTemplatesController(ctx),
     login: createLoginController(ctx, customers),
+    fleet: createFleetController(ctx, customers),
     // GuestFlow's own Qonto settings handlers, over the console's settings (rule 32).
     qontoSettings: qontoSettingsController.createQontoSettingsController({
       settings: models.qontoSettings, env: {}, scopes: BILLING_SCOPES, now: () => now().getTime(),

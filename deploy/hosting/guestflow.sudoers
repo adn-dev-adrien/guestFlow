@@ -1,0 +1,4 @@
+# GuestFlow host (specs/hosting-h1-fleet-runtime.md H-D1, H-D3): the console, running as
+# `guestflow`, may run one root command — the wrapper that accepts only the instance units and the
+# Litestream restart. Installed by bootstrap-host.sh into /etc/sudoers.d/guestflow (mode 440).
+guestflow ALL=(root) NOPASSWD: /usr/local/sbin/guestflow-systemctl

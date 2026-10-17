@@ -1,0 +1,20 @@
+# GuestFlow host — Litestream (specs/hosting-h1-fleet-runtime.md H-D3, rule 12).
+#
+# Installed once by bootstrap-host.sh into /etc/litestream.yml, owned by the guestflow group. The
+# console rewrites it whole each time an instance is added, stopped, renamed or erased: one entry per
+# database, replicated to <CP_BACKUP_URL>/c<customer id>/db, snapshots every 24 h kept 30 days.
+# The object storage credentials live in /etc/default/litestream (LITESTREAM_ACCESS_KEY_ID,
+# LITESTREAM_SECRET_ACCESS_KEY), never in this file.
+#
+# Example of one entry, as the console writes it:
+#
+#   - path: /srv/guestflow/instances/aulnes/data/guestflow.db
+#     replicas:
+#       - type: s3
+#         url: s3://guestflow-backups/fleet/c12/db
+#         endpoint: https://s3.fr-par.scw.cloud
+#         region: fr-par
+#         retention: 720h
+#         snapshot-interval: 24h
+#         sync-interval: 1s
+dbs: []

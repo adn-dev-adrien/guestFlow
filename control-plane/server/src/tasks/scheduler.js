@@ -12,7 +12,13 @@
  * Every 15 minutes: the open invoices are checked in Qonto, so a payment renews within the quarter
  * hour even when the webhook never came.
  *
- * Every minute: the directory is read from the instances' active accounts (rule 26).
+ * Every minute: the directory is read from the instances' active accounts (rule 26), and the probe
+ * measures the instances and raises the host alerts (specs/hosting-h1-fleet-runtime.md rules 15–17).
+ *
+ * The hosting adds to the daily run: the uploads synced to the backup storage (H1 rule 12), the
+ * weekly restore check on Sundays (rule 13), and the 301 of renamed addresses past their 90 days
+ * removed (rule 5). At start-up, a fleet update cut short by a restart is closed, and the `local`
+ * process driver starts the enabled instances again, as systemd does at boot.
  */
 
 const { parisDay } = require('../utils/days');
@@ -31,14 +37,39 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
   async function runDaily() {
     const day = parisDay(now());
     const refreshed = controllers.customers.reissueAll('système');
-    const erased = controllers.customers.eraseDue('système');
+    const erased = await controllers.customers.eraseDue('système');
     controllers.customers.purgeExpiredExports();
     models.meta.set('lastDailyRun', day);
+    await runHostDaily();
     const invoiced = await controllers.billing.runDaily(log);
     const notified = await controllers.billing.sendDigest(controllers.alerts.digestLines(), day)
       .catch((err) => { log(`[scheduler] daily email failed: ${err.message}`); return 0; });
     log(`[scheduler] ${day}: ${refreshed.length} licence(s) re-issued, ${erased.length} erased, ${invoiced} invoice(s) open, ${notified} operator email(s)`);
     return { day, refreshed: refreshed.length, erased: erased.length, invoiced, notified };
+  }
+
+  async function runHostDaily() {
+    for (const c of models.customers.list().filter((x) => !x.archivedAt)) {
+      const row = models.provisioning.get(c.id, 'backup');
+      if (!row || row.status !== 'ok') continue;
+      await ctx.drivers.backup.syncUploads(ctx.provisioner.instanceOf(c)).catch((err) => log(`[backup] ${c.slug} uploads: ${err.message}`));
+    }
+    await ctx.provisioner.dropExpiredRedirects().catch((err) => log(`[proxy] redirects: ${err.message}`));
+    await ctx.weeklyRestore.runIfDue().catch((err) => log(`[restore-check] failed: ${err.message}`));
+  }
+
+  let probing = false;
+  async function probe() {
+    if (probing) return 0;
+    probing = true;
+    try {
+      return await ctx.probe.runOnce();
+    } catch (err) {
+      log(`[probe] failed: ${err.message}`);
+      return 0;
+    } finally {
+      probing = false;
+    }
   }
 
   // Due when today's run has not happened and it is past the run hour (or the console was down).
@@ -79,14 +110,18 @@ function createScheduler(ctx, log = (msg) => console.log(msg)) {
   }
 
   function start(intervalMs = 60000) {
+    ctx.fleetUpdater.recover();
+    const live = models.customers.list().filter((c) => !c.archivedAt).map((c) => ctx.provisioner.instanceOf(c));
+    ctx.drivers.process.resumeEnabled(live).catch((err) => log(`[process] resume failed: ${err.message}`));
     tick();
     readDirectory();
-    const timers = [setInterval(tick, intervalMs), setInterval(checkPayments, PAYMENT_CHECK_MS), setInterval(readDirectory, intervalMs)];
+    const timers = [setInterval(tick, intervalMs), setInterval(checkPayments, PAYMENT_CHECK_MS), setInterval(readDirectory, intervalMs),
+      setInterval(probe, intervalMs)];
     for (const t of timers) t.unref();
     return () => timers.forEach(clearInterval);
   }
 
-  return { runDaily, isDue, tick, checkPayments, readDirectory, start };
+  return { runDaily, runHostDaily, isDue, tick, checkPayments, readDirectory, probe, start };
 }
 
 module.exports = { createScheduler, RUN_HOUR, PAYMENT_CHECK_MS };

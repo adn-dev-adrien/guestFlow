@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const { authRoutes } = require('./routes/auth');
 const { consoleRoutes } = require('./routes/console');
+const { fleetRoutes } = require('./routes/fleet');
 const { exportRoutes } = require('./routes/exports');
 const { paymentsRoutes, qontoWebhook } = require('./routes/payments');
 const { publicRoutes } = require('./routes/public');
@@ -39,7 +40,7 @@ function createApp(ctx, { sessionSecret, sessionStore, secureCookies = false, cl
 
   app.use('/api/auth', authRoutes(ctx));
   app.post('/api/payments/qonto/webhook', qontoWebhook(ctx));
-  app.use('/api', requireOperator({ now: ctx.now }), consoleRoutes(ctx));
+  app.use('/api', requireOperator({ now: ctx.now }), consoleRoutes(ctx), fleetRoutes(ctx));
   app.use('/api/payments', paymentsRoutes(ctx));
   app.use('/exports', exportRoutes(ctx));
 
