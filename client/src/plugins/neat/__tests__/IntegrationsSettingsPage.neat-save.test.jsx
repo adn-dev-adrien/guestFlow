@@ -47,6 +47,7 @@ vi.mock('../../../components/DialogProvider', () => {
 vi.mock('../../../plugins/google-calendar/SettingsGoogleCalendarSection', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../../plugins/gate-access/SettingsGateAccessSection', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../../plugins/gites-de-france-intake/SettingsSection', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../../plugins/booking-intake/SettingsSection', () => ({ __esModule: true, default: () => null }));
 
 import api from '../../../api';
 import IntegrationsSettingsPage from '../../../pages/settings/IntegrationsSettingsPage';

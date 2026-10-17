@@ -74,7 +74,9 @@ test('the step offers no action on the access — they live in Sowel', async () 
   api.getReservationGateAccess.mockResolvedValue({ sas: step() });
   render(<SasGateAccessStep reservationId={42} available portalCode="" />);
   await screen.findByText('4K7M-9QT2');
-  expect(screen.queryAllByRole('button')).toHaveLength(0);
+  // Handing the link on (rule 24b) is the only button: nothing activates, suspends or revokes.
+  const names = screen.queryAllByRole('button').map((b) => b.textContent);
+  expect(names.every((name) => /Partager|Copier le lien/.test(name))).toBe(true);
 });
 
 test('a key without a code (a profile without one) still shows its QR', async () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
@@ -14,7 +14,8 @@ import { makeMockContext } from '../mockReservationForm';
 // The numbers are the Gîtes de France statement for Grimaud #22225 (26-28 June 2026):
 // client 747,40 · taxe 14,40 · virement 668,00 → commission 65,00, not 79,40.
 
-vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
+vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), computePlatformCommission: vi.fn() } }));
+import api from '../../../api';
 
 const OFFERED = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 14.40 };
 const REVERSED = { touristTaxOfferedByPlatform: false, touristTaxReversedByPlatform: true, touristTaxOriginalTotal: 14.40 };
@@ -30,6 +31,21 @@ function renderFinance(overrides) {
     </DialogProvider>,
   );
   return ctx;
+}
+
+// specs/booking-extranet-intake.md §4.1 — the commission is computed by the server
+// (`POST /api/reservations/platform-commission`, rules in platform-commission.unit.test.js); the button
+// only sends the figures of the form and writes back what it answers.
+async function calculate(ctx) {
+  api.computePlatformCommission.mockResolvedValueOnce({ commission: 123.45 });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  await waitFor(() => expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 123.45 }));
+  expect(api.computePlatformCommission).toHaveBeenCalledWith({
+    gross: ctx.form.platformGrossAmount,
+    payout: ctx.form.platformPayoutAmount,
+    touristTax: ctx.form.platformTouristTaxAmount,
+    acompteCommission: ctx.form.acompteCommissionAmount,
+  });
 }
 
 const boxLabel = /Taxe de séjour retenue/i;
@@ -121,7 +137,7 @@ test('rule 12 — nothing is printed while the box is empty (the amount is the b
 // rule 10 — the commission
 // ---------------------------------------------------------------------------
 
-test('rule 10 — « Calculer la commission » subtracts the withheld tax: 65,00 and not 79,40', () => {
+test(`rule 10 — « Calculer la commission » sends the withheld tax to the server`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Gîtes de France',
@@ -132,11 +148,10 @@ test('rule 10 — « Calculer la commission » subtracts the withheld tax: 65,00
     pricingQuote: OFFERED,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 65 });
+  await calculate(ctx);
 });
 
-test('rule 10 — an empty box reproduces the August formula exactly', () => {
+test(`rule 10 — an empty box is sent as is: the server reproduces the August formula`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Gîtes de France',
@@ -147,11 +162,10 @@ test('rule 10 — an empty box reproduces the August formula exactly', () => {
     pricingQuote: OFFERED,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 65 });
+  await calculate(ctx);
 });
 
-test('rule 10 — an acompte commission is still taken out first', () => {
+test(`rule 10 — the acompte commission is sent too`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Gîtes de France',
@@ -163,11 +177,10 @@ test('rule 10 — an acompte commission is still taken out first', () => {
     pricingQuote: OFFERED,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 55 });
+  await calculate(ctx);
 });
 
-test('rule 10 — the commission is clamped at 0, never negative', () => {
+test(`rule 10 — the figure the server answers is written, even 0`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Gîtes de France',
@@ -178,8 +191,7 @@ test('rule 10 — the commission is clamped at 0, never negative', () => {
     pricingQuote: OFFERED,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 0 });
+  await calculate(ctx);
 });
 
 // ---------------------------------------------------------------------------
@@ -192,7 +204,7 @@ test('rule 10 — the commission is clamped at 0, never negative', () => {
 
 const BOOKING_22219 = { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 19.20 };
 
-test('rule 24 — the extranet’s Montant Total plus the withheld tax gives the commission alone: 188,87', () => {
+test(`rule 24 — a Booking statement: Montant Total and withheld tax go to the server`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Booking',
@@ -203,11 +215,10 @@ test('rule 24 — the extranet’s Montant Total plus the withheld tax gives the
     pricingQuote: BOOKING_22219,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 188.87 });
+  await calculate(ctx);
 });
 
-test('rule 24 — the same entry with an empty box hands the 19,20 to the commission: the accountant’s report', () => {
+test(`rule 24 — the same entry with an empty box is sent without a tax`, async () => {
   const ctx = renderFinance({
     form: {
       platform: 'Booking',
@@ -218,6 +229,5 @@ test('rule 24 — the same entry with an empty box hands the 19,20 to the commis
     pricingQuote: BOOKING_22219,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 208.07 });
+  await calculate(ctx);
 });

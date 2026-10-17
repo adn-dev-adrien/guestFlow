@@ -7,6 +7,7 @@
 | **Created** | 2026-09-20, rewritten 2026-09-27, contract v2 the same day |
 | **Author** | Adrien |
 | **Related PR** | #623 |
+| **Update** | 2026-10-09 — the SAS « Portail » step gains « Partager » (rule 24b): guests renting together send each other the link through the phone's native share sheet |
 | **Supersedes** | PR #563 (`claude/sowel-guestflow-connector-y0df44`): its stay **feed** (`GET /stays` with revisions and a cursor, the `gate_stay_feed` table, its reconciler and its purge) and its `POST /invitations`. What #563 got right is kept as it was: the signed channel, the window computation, the email tokens, the SAS step with its QR, the fiche card and the settings card |
 | **Wire contract** | « guestFlow ↔ Sowel gate keys — wire contract » v1 + its « v2 changes » (2026-09-27: wider window, signed responses, `implausible_stay`, the secrets in Réglages) + **v3** (2026-10-05, additive: the `stay` block on every key, `specs/sowel-stays-in-keys.md`), implemented on the Sowel side by the `guestflow` plugin. §4.3 below is guestFlow's copy of it |
 
@@ -161,6 +162,14 @@ a key could not be made or when Sowel stopped asking.
     type and a QR of the very link the email carries — flashing it installs the key with nothing to
     type — and, on the same page, the gate keypad's code when there is one. The QR stays on screen:
     never on a PDF, never attached to an email, never logged.
+24b. **« Partager » under the QR** (2026-10-09, Adrien): guests renting the same lodging together
+    must be able to pass the access to one another without scanning side by side. The button hands
+    **the same link the QR carries** — the key in its fragment, as Sowel made it — to the phone's
+    native share sheet (Web Share API: Messages, WhatsApp, mail…), with the title « Accès portail »
+    and one sentence asking to open it on the phone. Where the browser has no share sheet (most
+    desktops), the button is « Copier le lien » instead. A dismissed sheet says nothing. No link → no
+    button: the code alone is dictated. Sharing is the operator's or guest's deliberate gesture; the
+    QR itself still never lands on a PDF or in a log.
 25. **The SAS activates nothing.** With no usable key, the gate keypad's code (Réglages) stays there,
     to dictate.
 26. **The fiche** carries a compact read-only card: the state, the window, the code and the link —
@@ -233,7 +242,7 @@ stand, so a hand-made fix, an iCal import or a restore is seen like everything e
 |---|---|---|---|
 | `components/` | `GateKeysAlert.jsx` | C | Dashboard alert: failed keys and a Sowel that stopped reading |
 | `pages/` | `Dashboard.jsx` | T | Mounts it with the other admin alerts |
-| `components/sas/` | `SasGateAccessStep.jsx` | C (from #563) | The step: code, QR, window, fallback to the keypad code |
+| `components/sas/` | `SasGateAccessStep.jsx` | C (from #563) | The step: code, QR, « Partager » (native share sheet, else copy — rule 24b), window, fallback to the keypad code |
 | `components/sas/` | `ReservationSasDialog.jsx` | T | Mounts the step in place of the bare code |
 | `components/` | `GateAccessCard.jsx` | C (from #563) | The fiche's card |
 | `components/` | `SettingsGateAccessSection.jsx` | C (from #563) | The connector's state and the three values for the plugin |
@@ -307,7 +316,7 @@ its revoke goes out without `stay` (rule 4b). No data is lost or rewritten. #563
 | Surface | Content |
 |---|---|
 | **Dashboard** | « Clés portail » alert (warning): one row per failed key — « R-2026-041 · Marie — Clé portail non créée » and the reason under it; a click opens the reservation. A row « Sowel ne lit plus les clés depuis le … » when rule 17 holds. Nothing otherwise |
-| **SAS, « Portail » step** | « Flashez pour installer l'accès au portail », the QR, the code under it, the window; the keypad code as a fallback |
+| **SAS, « Portail » step** | « Flashez pour installer l'accès au portail », the QR, « Partager » under it (« Copier le lien » without a share sheet, rule 24b), the code, the window; the keypad code as a fallback |
 | **Fiche** | « Accès portail » card: state badge, code, validity, link — or « Échec » and the reason; the sentence pointing at Sowel |
 | **Réglages → Intégrations** | « Accès portail (Sowel) » card: configured / read / « Sowel ne lit plus », last read, keys created; then « guestFlow address », « API key (GATE_API_KEY) », « Signing secret (GATE_SIGNING_SECRET) », each with « Copier », the secrets masked behind « Afficher ». The buttons stack under the value on `xs` |
 | **Email editor** | Two tokens (`Code portail`, `Lien portail`) and one condition (`Si accès portail`) |
@@ -347,6 +356,8 @@ nothing overflows horizontally.
 - [x] `GateKeysAlert.test.jsx` — nothing to say, a failure row, the stale row, a silent server
 - [x] `GateAccessCard.test.jsx`, `SasGateAccessStep.test.jsx`, `SettingsGateAccessSection.test.jsx`
       (from #563, adapted)
+- [x] `SasGateAccessStep.share.test.jsx` (rule 24b, 4 tests) — the link goes to `navigator.share`, a
+      dismissed sheet says nothing, « Copier le lien » without a share sheet, no link → no button
 
 ### Visual verification (2026-09-27)
 - [x] Real server on a scratch database, both endpoints called with signed requests: the list came

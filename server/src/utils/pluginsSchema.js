@@ -8,7 +8,7 @@
  * re-seeded at the next boot.
  */
 
-const { PLUGIN_IDS } = require('../constants/plugins');
+const { SEEDED_ON_EXISTING_IDS } = require('../constants/plugins');
 
 const SEED_MIGRATION = 'plugins_builtin_seed_v1';
 const SETTINGS_COPY_MIGRATION = 'plugin_settings_from_app_settings_v1';
@@ -68,7 +68,7 @@ function seedBuiltinPlugins(db) {
     || db.prepare('SELECT 1 FROM reservations LIMIT 1').get();
   const insert = db.prepare("INSERT OR IGNORE INTO plugins (id, enabled, source) VALUES (?, 1, 'bundled')");
   db.transaction(() => {
-    if (existing) PLUGIN_IDS.forEach((id) => insert.run(id));
+    if (existing) SEEDED_ON_EXISTING_IDS.forEach((id) => insert.run(id));
     db.prepare('INSERT INTO migrations (name) VALUES (?)').run(SEED_MIGRATION);
   })();
   return Boolean(existing);

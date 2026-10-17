@@ -1,7 +1,7 @@
 // Calendar notes model — per-property, per-date short notes shown on the calendar.
 
 const db = require('../database');
-const { sentenceCase } = require('../utils/textFormatters');
+const { capitalizeFirst } = require('../utils/textFormatters');
 
 const MAX_NOTE_LENGTH = 50;
 
@@ -18,7 +18,7 @@ function createCalendarNotesModel(database) {
 
     // Upsert; an empty note deletes the row. Returns the saved row, or { deleted: true }.
     upsert(propertyId, date, rawNote) {
-      const note = sentenceCase(rawNote || '').slice(0, MAX_NOTE_LENGTH);
+      const note = capitalizeFirst(rawNote || '').slice(0, MAX_NOTE_LENGTH);
       if (!note.trim()) {
         database.prepare('DELETE FROM calendar_notes WHERE propertyId = ? AND date = ?').run(propertyId, date);
         return { deleted: true };

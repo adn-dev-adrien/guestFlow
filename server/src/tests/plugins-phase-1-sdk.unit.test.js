@@ -83,8 +83,9 @@ const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
 // specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
 // (specs/plugins-phase-3b-neat.md rule 7).
 const PHASE_3_IDS = ['online-payment', 'neat', 'hourly-resources'];
-// specs/gites-de-france-mail-intake.md — the first plugin added after the twelve.
-const LATER_IDS = ['gites-de-france-intake'];
+// specs/gites-de-france-mail-intake.md — the first plugin added after the twelve; then
+// specs/booking-extranet-intake.md.
+const LATER_IDS = ['gites-de-france-intake', 'booking-intake'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
   assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS, ...LATER_IDS].sort());

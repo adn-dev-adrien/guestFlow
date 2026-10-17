@@ -1,1 +1,0 @@
-- **Guest emails:** the J-2 confirms the drinks, the board, the trappers' dinner and the animals again, and the J-7 stops proposing them once booked. Since the English names moved to the translation catalogue, the option details these emails read failed to load without a sign.

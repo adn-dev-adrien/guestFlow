@@ -31,6 +31,7 @@ const CORE_MODULES = Object.freeze({
   reservationSettlement: '../../utils/reservationSettlement', // what the stay still owes at the door
   platformNameFormat: '../../utils/platformNameFormat', // direct channel vs platform for the stay step
   receptionView: '../../utils/receptionView', // the reception's money-stripped reads and commits
+  planningDateRange: '../../utils/planningDateRange', // linen, hourly-resources — the span cap of the planning reads (DATA-1)
   // website-booking — the public API prices, checks and records with the core's own models (rule 23)
   propertiesModel: '../../models/propertiesModel', // the catalogue the site lists
   resourcesModel: '../../models/resourcesModel', // resources offered and checked on a quote

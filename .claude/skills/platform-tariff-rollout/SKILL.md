@@ -119,6 +119,10 @@ and Vrbo, but the *editorial* — title, description — stays on each platform:
 reached Booking and never reached Airbnb. Verify the title on each public page, and expect to edit
 the text in each platform's own back office.
 
+**Price on Booking is a ranking factor.** Any markup or discount moves where the listing shows up,
+and a visibility programme (Genius, deals) is one more discount stacked on the grid. Cost those with
+the `platform-ranking` skill before touching them.
+
 **Record what each quote is worth before moving on**: the accommodation subtotal (excluding the
 platform's taxes and fees), the net after that channel's commission, and the recipe's target. A total
 alone cannot be compared across channels that collect different taxes.

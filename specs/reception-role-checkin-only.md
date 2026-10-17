@@ -184,6 +184,28 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     keeps title × quantity only. Contribution splits (`acompteContribTtc`/`soldeContribTtc`) and
     `originalTotalPrice` are stripped on every line.
 
+12ter. **Resource planning events are projected too** (fixed 2026-10-09, 2026-10-08 audit AUTH-4).
+    `GET /resource-bookings/planning-events` used to return `rb.*` + joins — carrying `clientPhone`,
+    `notes`, `totalPrice`, `resourcePrice` and `paid` — with no reception projection, the one
+    reception-reachable endpoint that still leaked finance + PII. For a reception-only requester the
+    controller now runs each event through `toReceptionPlanningEventList` (whitelist
+    `PLANNING_EVENT_KEEP` in `utils/receptionView.js`: id, kind, reservationId, resourceId,
+    resourceName, propertyId, propertyName, date, startTime, endTime, turnoverMinutes, displayName).
+    The operator label `displayName` survives (a name reception already sees on reservations); money
+    and contact PII are dropped. A unit test pins the key set.
+    > **2026-10-18 (merge into `inte/plugins`):** the endpoint is served by the `hourly-resources`
+    > plugin (`server/src/plugins/hourly-resources/controller.js`), the laundry summary by the `linen`
+    > plugin (`server/src/plugins/linen/planningController.js`); both reach `receptionView` and
+    > `planningDateRange` through `sdk.coreModule`. Same behaviour, same test.
+
+    **Bounded date range (2026-10-08 audit DATA-1).** The reception-reachable planning queries
+    `GET /planning/laundry` and `GET /resource-bookings/planning-events` reject a span wider than
+    `MAX_PLANNING_RANGE_DAYS` (`utils/planningDateRange.js`, 750 days) with `400 DATE_RANGE_TOO_WIDE`,
+    and a malformed/inverted range with `400 INVALID_DATE_RANGE`, **before** touching the DB. The
+    laundry ledger runs ~10 queries per date of the window, so an unbounded `from`/`to` was a
+    single-threaded CPU/SQL denial of service. The ceiling is deliberately generous so it never
+    rejects a real planning or laundry horizon.
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).

@@ -64,6 +64,15 @@ function gf_seo_domaine() {
 		'telephone_affiche' => '06 15 73 93 37',
 		'facebook'         => 'https://www.facebook.com/Solio07',
 		'instagram'        => 'https://www.instagram.com/domainesolio',
+		// Fiches publiques du domaine ailleurs, verifiees le 06/10/2026 : publiees en `sameAs` et
+		// dans llms.txt pour que les moteurs d’IA relient le site a ses avis. Jamais en lien visible.
+		'fiches'           => array(
+			'Google Maps'    => 'https://www.google.com/maps?cid=8290763928945273589',
+			'Ardèche Guide'  => 'https://www.ardeche-guide.com/gite/domaine-solio-7563546/',
+			'Office de tourisme Ardèche Grand Air' => 'https://www.ardechegrandair.com/dormir/locations-gites/7563546_domaine-solio/',
+			'Mappy'          => 'https://fr.mappy.com/poi/69b9e56c32eb0c7da2b8104c',
+			'Abracadaroom'   => 'https://www.abracadaroom.com/fr/location-domaine-solio-sejour-nature-en-ardeche-3822/',
+		),
 		'superficie_ha'    => 13,
 		'boucle_km'        => 2,
 		'nb_hebergements'  => 2,
@@ -185,6 +194,14 @@ function gf_seo_lodgings() {
 			'accessible_pmr_note_en' => 'not suitable for guests with reduced mobility — a house over three floors',
 
 			'caution'              => 500,
+			'fiches'               => array(
+				'Gîtes de France'         => 'https://www.gites-de-france.com/fr/auvergne-rhone-alpes/ardeche/domaine-solio-07g309700',
+				'Gîtes de France Ardèche' => 'https://www.gites-de-france-ardeche.com/location-Gite-Satillieu-07G309700.html',
+				'Booking.com'             => 'https://www.booking.com/hotel/fr/gite-a-la-ferme-domaine-solio.fr.html',
+				'Airbnb'                  => 'https://www.airbnb.fr/rooms/1398287456607254737',
+				'GreenGo'                 => 'https://www.greengo.voyage/hote/la-granja-domaine-solio-13ha-de-verdure',
+				'Abracadaroom'            => 'https://www.abracadaroom.com/fr/reservation-domaine-solio-sejour-nature-en-ardeche-les-inedits-gite-nature-13-ha-piscine-6516/',
+			),
 			'bain_nordique'        => $bain,
 			'bain_nordique_en'     => $bain_en,
 			'equipements'          => array(
@@ -273,6 +290,15 @@ function gf_seo_lodgings() {
 			'accessible_pmr_note_en' => 'not suitable for guests with reduced mobility — a 300 m walk on natural ground',
 
 			'caution'              => 400,
+			'fiches'               => array(
+				'Booking.com'  => 'https://www.booking.com/hotel/fr/tente-domaine-solio.fr.html',
+				'Airbnb'       => 'https://www.airbnb.fr/rooms/1576845044615216441',
+				'Abritel'      => 'https://www.abritel.fr/location-vacances/p2622643',
+				'Office de tourisme Ardèche Grand Air' => 'https://www.ardechegrandair.com/dormir/logements-insolites/7693918_aventura-lodge/',
+				'Campspace'    => 'https://campspace.com/en/s/l-estiva-une-tente-safari-pour-vous-seuls-au-coeur-des-13-ha-du-domaine_25232',
+				'GreenGo'      => 'https://www.greengo.voyage/hote/l-estiva-lodge-seul-au-monde-sur-13-ha-anes-et-chevres-ideal-en-famille',
+				'Abracadaroom' => 'https://www.abracadaroom.com/fr/reservation-domaine-solio-sejour-nature-en-ardeche-tente-et-tente-lodge-aventura-lodge-seul-au-monde-sur-13-ha-anes-et-chevres-ideal-en-famille-6567/',
+			),
 			'bain_nordique'        => $bain,
 			'bain_nordique_en'     => $bain_en,
 			'equipements'          => array(

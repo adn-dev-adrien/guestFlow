@@ -17,4 +17,5 @@ module.exports = [
   require('./neat'),
   require('./hourly-resources'),
   require('./gites-de-france-intake'),
+  require('./booking-intake'),
 ];

@@ -1,0 +1,28 @@
+On reprend la sortie de Lodgify : il ne reste qu'Abritel/Vrbo.
+
+Lis d'abord, dans cet ordre :
+  1. docs/rapports/2026-10-16-abritel-handover.md  (l'état mesuré et le reste à faire en 7 étapes)
+  2. specs/lodgify-decommission.md                 (les règles §3, le runbook §10, le journal §11)
+  3. .claude/skills/platform-tariff-rollout/references/platforms.md  (pièges 1 à 33)
+
+Ces fichiers sont sur la branche docs/lodgify-decommission-booking (PR #687) ; le document de
+passation est aussi présent dans le dépôt principal.
+
+Ce que tu dois savoir avant de proposer quoi que ce soit :
+- Airbnb et Booking sont faits. Abritel n'est pas commencé.
+- Depuis le 16/10, les deux sources Lodgify sont à isActive = 0 : plus aucune réservation Abritel
+  n'entre dans GuestFlow. Il y a donc une horloge sur cette bascule.
+- Ne délie PAS l'import Lodgify des annonces Airbnb : c'est la seule protection restante contre un
+  double-booking d'origine Abritel.
+- La commission Abritel stockée est de 15 % et a été mesurée à 9,7 % à un moment : à remesurer sur
+  un versement réel AVANT de dériver le moindre prix.
+- Première action du canal : vérifier dans l'espace partenaire si débrancher désactiverait l'annonce
+  AB 2622643 (logement 123465737) ou ferait perdre ses avis. Si oui, on s'arrête et on écrit au
+  support Vrbo.
+
+Règles de travail : tu ne me demandes jamais mes identifiants, j'ouvre moi-même les sessions ; tu
+t'arrêtes et tu me demandes avant tout geste irréversible ; les prix viennent des recettes GuestFlow
+via la skill platform-tariff-rollout, avec une vérification jour par jour à la fin ; tout choix passe
+par AskUserQuestion ; la spec est mise à jour dans le même commit ; tu ne merges jamais.
+
+Je vais ouvrir l'espace partenaire Abritel/Vrbo et le back-office Lodgify. Dis-moi quand tu as lu.
