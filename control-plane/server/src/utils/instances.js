@@ -45,6 +45,25 @@ function createInstances({ root }) {
       }
     },
 
+    // The support access of the instance (specs/hosting-h2-account-security.md §4.2): its pending
+    // request and its open access, read like the rest. null when it cannot be read (an instance from
+    // before H2 has no such table).
+    readSupportAccess(slug, nowIso) {
+      let db;
+      try {
+        db = new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+        const pending = db.prepare('SELECT id, requestId, reason, requestedAt FROM support_access WHERE decision IS NULL ORDER BY id DESC LIMIT 1').get() || null;
+        const open = db.prepare(`SELECT id, reason, expiresAt FROM support_access WHERE decision = 'accepted' AND revokedAt IS NULL AND expiresAt > ?
+          ORDER BY expiresAt DESC LIMIT 1`).get(nowIso) || null;
+        const last = db.prepare('SELECT id, reason, decision, decidedAt, expiresAt, revokedAt FROM support_access WHERE decision IS NOT NULL ORDER BY decidedAt DESC, id DESC LIMIT 1').get() || null;
+        return { pending, open, last };
+      } catch {
+        return null;
+      } finally {
+        if (db) db.close();
+      }
+    },
+
     // The emails of the active accounts (rule 26), as stored. null when the instance cannot be read,
     // so the directory keeps what it had rather than forgetting everyone.
     readActiveEmails(slug) {

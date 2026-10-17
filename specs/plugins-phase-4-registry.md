@@ -282,7 +282,9 @@ See the summary page. Mobile: cards stack, the update chip stays on the card, di
 _(added 2026-10-08)_ The banner « N mises à jour disponibles » with « Tout mettre à jour » sits above
 the search field; the registry line beside it (under it on a phone); « Rechercher des mises à jour »
 is an icon of the action bar. « Redémarrage en cours » covers the page until the server answers
-again. Console « Registre »: a table on desktop, cards on a phone.
+again. Console « Registre »: a table on desktop, cards on a phone. The cards sit two per row from
+`lg` only (1 200 px): at 900 px, beside the menu, two columns squeezed each description to a
+word per line (seen in the browser check of 2026-10-17).
 
 ## 7. Test plan
 
@@ -306,4 +308,25 @@ None at writing time; P23–P27 are recorded in §3.A.
 
 ## 10. Implementation progress
 
-— (filled at implementation)
+Implemented 2026-10-08, merged with `inte/plugins` on 2026-10-17 (H2 #673, Saisie Gîtes de France
+#683). That merge brought a thirteenth plugin, `gites-de-france-intake`: it got its manifest
+(`1.0.0`) and builds into a package like the others, so « the twelve » in this spec reads « every
+plugin of the catalogue » from then on.
+
+| Suite | Result |
+|---|---|
+| Server (`node --test`) | 5 034 / 5 034 — of which `plugins-phase-4-registry.unit.test.js` 39, `plugin-packages-release.unit.test.js` 7 |
+| Client (Vitest) | 1 566 / 1 566 — of which `PluginsPage.registry.test.jsx` 12, `runtime.bundles.test.jsx` 3 |
+| Control plane server | 112 / 112 — of which `registry.unit.test.js` 5 |
+| Control plane client | 40 / 40 — of which `RegistryPage.upload.test.jsx` 3; console build OK |
+| Spec rules | 25 / 25 rules cited by a test |
+| E2E dev suite | see the PR |
+| E2E production build (`npm run test:e2e:prod`) | 4 / 4 — render without console error, install from the registry, update with restart and rollback, refused package |
+| Package build | 13 packages, 44–80 KB each, ~1.5 s |
+
+Verified by hand on a copy of the development database (Solio's data), first booted by the code of
+`inte/plugins` before phase 4 (twelve `builtin` rows), then by this branch in the package mode with
+the production client build: the rows became `bundled` 1.0.0, all active; dashboard, reservation
+page, planning, Plugins page, Paramètres › Linge, Intégrations and Vacances scolaires render without
+a console error; an update from a local signed registry restarted the instance and left the rollback;
+a package with a wrong hash was refused with nothing changed. Screenshots at 390 px and 1 280 px.

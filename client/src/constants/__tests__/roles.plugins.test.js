@@ -5,7 +5,8 @@ import { canSeeRoute, canSeeAnyRoute, ROUTE_ROLES } from '../roles';
 import { PLUGIN_IDS, ROUTE_PLUGINS, isRouteEnabled, isPluginEnabled } from '../plugins';
 import { visibleSettingsMenu, SETTINGS_MENU } from '../settingsMenu';
 
-const admin = (enabledPlugins) => ({ roles: ['admin'], enabledPlugins });
+// An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
+const admin = (enabledPlugins) => ({ roles: ['admin'], enabledPlugins, supportAccessEnabled: true });
 
 describe('plugin gate on routes', () => {
   test('every plugin route is a registered route', () => {

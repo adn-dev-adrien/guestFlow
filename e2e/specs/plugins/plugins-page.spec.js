@@ -2,7 +2,7 @@
 // plugins/plugins-page — specs/plugins-phase-0-foundation.md §3.B, §3.D, §3.E.
 // Drives the Plugins page against the real server and checks that an inactive plugin leaves no
 // trace. Only Google Agenda is switched off: no other spec depends on it, so the suite can keep
-// running in parallel locally. The seed installs the twelve plugins active (seed-e2e.js); the
+// running in parallel locally. The seed installs every catalogue plugin active (seed-e2e.js); the
 // last step puts Google Agenda back in that state.
 import { test, expect } from '@playwright/test';
 
@@ -11,9 +11,9 @@ const googleCard = (page) => page.locator('.MuiCard-root').filter({ hasText: GOO
 
 test.describe.configure({ mode: 'serial' });
 
-test('the seeded database has the twelve plugins installed and active', async ({ page }) => {
+test('the seeded database has every catalogue plugin installed and active', async ({ page }) => {
   await page.goto('/parametres/plugins');
-  await expect(page.getByRole('tab', { name: 'Installés (12)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Installés (13)' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: 'Disponibles (0)' })).toBeVisible();
   await expect(googleCard(page).getByText('Actif', { exact: true })).toBeVisible();
 });
@@ -47,11 +47,11 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
   await expect(googleCard(page).getByText(/^Données conservées\.$/)).toBeVisible();
   await googleCard(page).getByRole('button', { name: 'Confirmer la désinstallation' }).click();
 
-  await expect(page.getByRole('tab', { name: 'Installés (11)' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Installés (12)' })).toBeVisible();
   await page.getByRole('tab', { name: 'Disponibles (1)' }).click();
   await googleCard(page).getByRole('button', { name: 'Installer' }).click();
 
-  await expect(page.getByRole('tab', { name: 'Installés (12)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Installés (13)' })).toHaveAttribute('aria-selected', 'true');
   await expect(googleCard(page).getByText('Actif', { exact: true })).toBeVisible();
 });
 
@@ -86,6 +86,6 @@ test('uninstalling Météo with « Effacer aussi ses données » erases its key;
 
   await page.getByRole('tab', { name: /^Disponibles/ }).click();
   await weather.getByRole('button', { name: 'Installer' }).click();
-  await expect(page.getByRole('tab', { name: 'Installés (12)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Installés (13)' })).toHaveAttribute('aria-selected', 'true');
   expect(await (await request.get('/api/plugins/weather-alerts/settings')).json()).toEqual({ apiKeySet: false });
 });

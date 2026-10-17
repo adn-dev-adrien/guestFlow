@@ -16,6 +16,7 @@ const SAS = 'sas';
 const TARIFF_RECIPES = 'tariff-recipes';
 const SCHOOL_HOLIDAYS = 'school-holidays';
 const WEATHER_ALERTS = 'weather-alerts';
+const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 
 // specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
 // list only fixes the order the Plugins page shows them in. A version installed from the registry
@@ -23,6 +24,7 @@ const WEATHER_ALERTS = 'weather-alerts';
 const CATALOG_ORDER = [
   HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
   GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
+  GITES_DE_FRANCE_INTAKE,
 ];
 
 const PLUGIN_CATALOG = Object.freeze(CATALOG_ORDER.map((id) => readSourceManifest(id)));

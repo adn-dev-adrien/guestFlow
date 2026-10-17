@@ -147,8 +147,9 @@ const fakeLoader = (calls = []) => ({
 
 // ---------- §3.B package and manifest (rules 1–5) ----------
 
-test('rule 2: each of the twelve plugins has a valid manifest, and the catalogue is built from them', () => {
-  assert.equal(PLUGIN_CATALOG.length, 12);
+test('rule 2: each plugin has a valid manifest, and the catalogue is built from them', () => {
+  assert.equal(PLUGIN_CATALOG.length, PLUGIN_IDS.length);
+  assert.ok(PLUGIN_IDS.length >= 12);
   PLUGIN_IDS.forEach((id) => {
     const m = readSourceManifest(id);
     assert.deepEqual(validateManifest(m), [], id);
@@ -646,11 +647,11 @@ test('§5, rule 25: an existing install\'s `builtin` rows become `bundled` and f
   assert.equal(model.syncBundled('linen', readSourceManifest('linen'), 'a'.repeat(64)), false, 'idempotent');
 });
 
-test('§5: a database seeded before phase 4 or after gets the twelve plugins as `bundled`', () => {
+test('§5: a database seeded before phase 4 or after gets every catalogue plugin as `bundled`', () => {
   const db = freshDb();
   db.prepare('INSERT INTO properties (id) VALUES (1)').run();
   seedBuiltinPlugins(db);
   const rows = buildPluginsModel(db).list();
-  assert.equal(rows.length, 12);
+  assert.equal(rows.length, PLUGIN_IDS.length);
   assert.ok(rows.every((r) => r.source === 'bundled' && r.enabled));
 });

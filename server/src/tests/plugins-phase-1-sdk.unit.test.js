@@ -83,9 +83,11 @@ const PHASE_2_IDS = ['sas', 'website-booking', 'accounting-export', 'linen'];
 // specs/plugins-phase-3a-online-payment.md rule 10 — and phase 3a adds online payment, 3b Neat
 // (specs/plugins-phase-3b-neat.md rule 7).
 const PHASE_3_IDS = ['online-payment', 'neat', 'hourly-resources'];
+// specs/gites-de-france-mail-intake.md — the first plugin added after the twelve.
+const LATER_IDS = ['gites-de-france-intake'];
 
 test('rule 1-2: the plugin modules are listed once, each with an id and a register function', () => {
-  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS].sort());
+  assert.deepEqual(MODULES.map((m) => m.id).sort(), [...MODULE_IDS, ...PHASE_2_IDS, ...PHASE_3_IDS, ...LATER_IDS].sort());
   MODULES.forEach((m) => assert.equal(typeof m.register, 'function', m.id));
 });
 
@@ -337,9 +339,10 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   loader.startJobs({ setIntervalFn: (fn, ms) => intervals.push([fn, ms]), setTimeoutFn: (fn, ms) => timeouts.push(ms) });
   const HOUR = 60 * 60 * 1000;
   // The payment poll joined in phase 3a with its own cadence: 8 h, first pass at 110 s; the Neat pass
-  // in phase 3b: 5 min, first pass at 150 s.
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 160 * 1000]);
+  // in phase 3b: 5 min, first pass at 150 s; the Gîtes de France mail intake: a 15-min tick that reads
+  // the mailbox every `pollEveryHours`, first tick at 120 s (specs/gites-de-france-mail-intake.md rule 2).
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, 8 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 160 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };

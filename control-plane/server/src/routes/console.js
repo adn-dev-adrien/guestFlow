@@ -33,6 +33,10 @@ function consoleRoutes(ctx) {
   router.post('/customers/:id/reactivate', (req, res) => res.json(customers.reactivate(req.params.id, who(req))));
   router.post('/customers/:id/cancel-erase', (req, res) => res.json(customers.cancelErase(req.params.id, who(req))));
   router.post('/customers/:id/erase', (req, res) => res.json(customers.eraseNow(req.params.id, body(req), who(req))));
+  // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+  router.get('/customers/:id/support', (req, res) => res.json(ctx.controllers.support.state(req.params.id)));
+  router.post('/customers/:id/support/request', (req, res) => res.json(ctx.controllers.support.request(req.params.id, body(req), who(req))));
+  router.post('/customers/:id/support/link', (req, res) => res.json(ctx.controllers.support.link(req.params.id, who(req))));
   router.get('/customers/:id/licence', (req, res) => {
     const { filename, token } = customers.licenceDownload(req.params.id);
     res.set('Content-Disposition', `attachment; filename="${filename}"`).type('application/jose').send(token);

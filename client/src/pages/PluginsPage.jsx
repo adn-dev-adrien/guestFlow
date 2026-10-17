@@ -227,7 +227,7 @@ export default function PluginsPage({ onReload = reloadPage, pollMs = RESTART_PO
         ) : (
           <Grid container spacing={1.5}>
             {shown.map((plugin) => (
-              <Grid key={plugin.id} size={{ xs: 12, md: 6 }}>
+              <Grid key={plugin.id} size={{ xs: 12, lg: 6 }}>
                 <PluginCard
                   plugin={plugin}
                   busy={busyId === plugin.id || busyId === '*'}
