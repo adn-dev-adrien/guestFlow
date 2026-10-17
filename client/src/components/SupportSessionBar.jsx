@@ -39,6 +39,9 @@ export default function SupportSessionBar() {
         right: 0,
         zIndex: (t) => t.zIndex.drawer + 2,
         minHeight: SUPPORT_BAR_HEIGHT,
+        // Clear of the home indicator on a phone (specs/hosting-h2-account-security.md rule 16).
+        boxSizing: 'content-box',
+        pb: 'env(safe-area-inset-bottom, 0px)',
         bgcolor: 'error.main',
         color: 'error.contrastText',
         fontWeight: 700,

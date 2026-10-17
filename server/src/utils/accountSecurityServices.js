@@ -34,15 +34,19 @@ const passwordReset = createPasswordResetController({
   twoFactorModel,
 });
 
+// specs/hosting-h2-account-security.md rule 22 — the instance's slug: the hosting's GUESTFLOW_SLUG
+// when set, else the one the verified licence was issued for.
+const instanceSlug = () => process.env.GUESTFLOW_SLUG || require('./licence').default.slug();
+
 const supportAccess = createSupportAccessController({
   model: supportAccessModel,
   users: usersModel,
   publicKey: process.env.GUESTFLOW_LICENCE_PUBLIC_KEY || null,
-  slug: process.env.GUESTFLOW_SLUG || null,
+  slug: instanceSlug,
   readRequest: () => supportAccessTokens.readRequest({
     dataDir: require('./deploymentPaths').resolvePaths().dataDir,
     publicKey: process.env.GUESTFLOW_LICENCE_PUBLIC_KEY,
-    slug: process.env.GUESTFLOW_SLUG || null,
+    slug: instanceSlug(),
   }),
 });
 

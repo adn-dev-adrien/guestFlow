@@ -9,7 +9,8 @@
  *   a reset by link, a recovery by the command line.
  * - `support_access`, `support_access_links`, `support_access_log` — rules 12–17.
  * - The « Support GuestFlow » user (rule 14): an admin account that is never active and holds a
- *   password nobody knows. Only an open access lets a signed link open a session with it.
+ *   password nobody knows. Only an open access lets a signed link open a session with it. It is
+ *   told by `users.isSupportAccount`, never by its email (rule 21).
  */
 
 const crypto = require('crypto');
@@ -93,12 +94,22 @@ function applyAccountSecuritySchema(db) {
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userCols.includes('twoFactorSnoozedUntil')) db.exec('ALTER TABLE users ADD COLUMN twoFactorSnoozedUntil TEXT');
 
-  const support = db.prepare('SELECT id FROM users WHERE email = ?').get(SUPPORT_USER_EMAIL);
+  // Rule 21: the support account is told by this flag, never by its email. Existing databases mark
+  // the row the first boot created, by the address it was created with.
+  if (!userCols.includes('isSupportAccount')) {
+    // One transaction: a crash between the two never leaves the column without its flagged row.
+    db.transaction(() => {
+      db.exec('ALTER TABLE users ADD COLUMN isSupportAccount INTEGER NOT NULL DEFAULT 0');
+      db.prepare('UPDATE users SET isSupportAccount = 1 WHERE email = ?').run(SUPPORT_USER_EMAIL);
+    })();
+  }
+
+  const support = db.prepare('SELECT id FROM users WHERE isSupportAccount = 1').get();
   if (!support) {
     // A password nobody holds, and never active: the account cannot log in with a password.
     const id = Number(db.prepare(`
-      INSERT INTO users (email, passwordHash, firstName, lastName, mustChangePassword, isActive)
-      VALUES (?, ?, 'Support', 'GuestFlow', 0, 0)
+      INSERT INTO users (email, passwordHash, firstName, lastName, mustChangePassword, isActive, isSupportAccount)
+      VALUES (?, ?, 'Support', 'GuestFlow', 0, 0, 1)
     `).run(SUPPORT_USER_EMAIL, hashPassword(crypto.randomBytes(32).toString('base64'))).lastInsertRowid);
     db.prepare("INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, 'admin')").run(id);
   }

@@ -1,6 +1,7 @@
 /**
  * BackupCodesDialog — the 10 backup codes, shown once, with « Copier » and « Télécharger »
- * (specs/hosting-h2-account-security.md rule 6). Full screen on a phone (§6).
+ * (specs/hosting-h2-account-security.md rule 6). Full screen on a phone (§6). Only « Terminé »
+ * closes it: neither a click outside nor Escape.
  *
  * Props: open, codes: string[], account (the email, written in the downloaded file), onClose.
  */
@@ -39,7 +40,8 @@ export default function BackupCodesDialog({ open, codes = [], account = '', onCl
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullScreen={fullScreen} maxWidth="xs" fullWidth>
+    // Closed by « Terminé » only: a stray tap outside or Escape must not lose codes shown once.
+    <Dialog open={open} fullScreen={fullScreen} maxWidth="xs" fullWidth>
       <DialogTitle>Codes de secours</DialogTitle>
       <DialogContent>
         <Alert severity="warning" sx={{ mb: 2 }}>Affichés une seule fois. Chaque code remplace le second code une fois.</Alert>
