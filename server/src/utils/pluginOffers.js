@@ -16,6 +16,7 @@ const { satisfies, compare, highest, floorLabel, isVersion } = require('./semver
 const DEV_CORE = '0.0.0-dev';
 
 const MESSAGES = Object.freeze({
+  CORE_TOO_OLD: 'Nécessite une version plus récente de GuestFlow.',
   CORE_INCOMPATIBLE: 'Incompatible avec cette version de GuestFlow.',
   PACKAGE_REJECTED: 'Le paquet reçu ne correspond pas à sa signature — rien n’a été modifié.',
   DOWNLOAD_FAILED: 'Téléchargement impossible — rien n’a été modifié.',
@@ -25,8 +26,24 @@ const MESSAGES = Object.freeze({
   NO_ROLLBACK: 'Aucune version précédente à restaurer.',
 });
 
+/**
+ * Rule 33 — the names a package takes from the app that this app does not expose. `hostExports` is
+ * the app's own list (spec → '*' | [names]); null means unknown (a development tree): nothing missing.
+ */
+function missingHostImports(manifest, hostExports) {
+  if (!hostExports || !manifest.hostImports) return [];
+  const missing = [];
+  for (const [spec, names] of Object.entries(manifest.hostImports)) {
+    const exposed = hostExports[spec];
+    if (exposed === '*') continue;
+    if (!exposed) { missing.push(spec); continue; }
+    names.filter((n) => n !== 'default' && !exposed.includes(n)).forEach((n) => missing.push(`${spec}#${n}`));
+  }
+  return missing;
+}
+
 /** The refusal of a manifest's ranges, or null when the running core and SDK satisfy them. */
-function rangeRefusal(manifest, { coreVersion, sdkVersion }) {
+function rangeRefusal(manifest, { coreVersion, sdkVersion, hostExports = null }) {
   if (coreVersion !== DEV_CORE && !satisfies(coreVersion, manifest.guestflow)) {
     const floor = floorLabel(manifest.guestflow);
     const minimum = floor && floor.split('.').length === 2 ? `${floor}.0` : floor;
@@ -36,6 +53,9 @@ function rangeRefusal(manifest, { coreVersion, sdkVersion }) {
     return { code: 'CORE_INCOMPATIBLE', message: MESSAGES.CORE_INCOMPATIBLE };
   }
   if (!satisfies(sdkVersion, manifest.sdk)) return { code: 'SDK_INCOMPATIBLE', message: MESSAGES.CORE_INCOMPATIBLE };
+  // Built for a newer app: it needs a name this app does not give (rule 33) — the same refusal as a
+  // core too old, since a newer GuestFlow is what it takes.
+  if (missingHostImports(manifest, hostExports).length) return { code: 'CORE_TOO_OLD', message: MESSAGES.CORE_TOO_OLD };
   return null;
 }
 
@@ -113,6 +133,7 @@ module.exports = {
   DEV_CORE,
   MESSAGES,
   rangeRefusal,
+  missingHostImports,
   candidates,
   bestCandidate,
   bestRefusal,

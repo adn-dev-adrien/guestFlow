@@ -164,10 +164,10 @@ app.use('/api', (req, res, next) => {
 });
 
 // A write under /api must come from GuestFlow's own pages (specs/plugins-phase-4-registry.md rule 31):
-// a cross-site form or script cannot ride an administrator's session. Plugin webhooks are exempt. Not
-// in a development process (NODE_ENV unset): the Vite proxy rewrites the host, and a phone opening
-// the dev client by its LAN address would otherwise be refused every write.
-const enforceSameOrigin = Boolean(process.env.NODE_ENV) && process.env.NODE_ENV !== 'development';
+// a cross-site form or script cannot ride an administrator's session. Plugin webhooks are exempt. Off
+// only with GUESTFLOW_DEV=1, which the development scripts alone set: the Vite proxy rewrites the host.
+const enforceSameOrigin = process.env.GUESTFLOW_DEV !== '1';
+console.log(`[boot] same-origin writes: ${enforceSameOrigin ? 'on' : 'off (GUESTFLOW_DEV=1)'}`);
 app.use('/api', require('./middleware/sameOriginWrites').createSameOriginWrites({
   allowedOrigins,
   isExempt: (req) => !enforceSameOrigin || pluginLoader.isWebhook(req.method, req.path),

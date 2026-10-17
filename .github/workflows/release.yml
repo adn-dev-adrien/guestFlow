@@ -216,8 +216,10 @@ jobs:
 
       - name: 🔌 A published plugin version keeps its content
         # specs/plugins-phase-4-registry.md rule 27 — the packages of the previous release, compared by
-        # content hash: a plugin whose built files changed (a dependency bump, say) under the same
-        # version would be cached as the old one by every browser. The fix is a bump in a PR.
+        # content hash: a plugin whose built files changed under the same version would be cached as the
+        # old one by every browser. Unchanged sources (a dependency bump) → the published package is
+        # kept as it is; changed sources without a bump → the release stops (the skill's pre-flight
+        # runs the same check before the tag, so this never fails after tagging).
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.verify.outputs.version }}
@@ -228,7 +230,7 @@ jobs:
           if [ -n "$PREV" ] && [ "$PREV" != "v${VERSION}" ]; then
             gh release download "$PREV" -p '*.tgz' -D prev-dist || echo "::notice::No plugin package in $PREV."
           fi
-          node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
+          node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist ${PREV:+--previous-tag "$PREV"}
 
       - name: 📦 Create the release archive
         env:

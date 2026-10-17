@@ -130,3 +130,20 @@ test('rule 7: the registry answers without authentication; uploading needs an op
     h.cleanup();
   }
 });
+
+test('rules 8, 30: each signed index is dated after the previous one, even when the clock does not move', async () => {
+  const h = makeContext();
+  try {
+    const read = () => JSON.parse(fs.readFileSync(path.join(h.dataDir, 'registry', 'index.json'), 'utf8')).generatedAt;
+    await h.ctx.registry.publish(makePackage(manifest('linen', '1.0.1')), 'linen-1.0.1.tgz');
+    const first = read();
+    h.ctx.registry.withdraw('linen', '1.0.1');
+    const second = read();
+    assert.ok(Date.parse(second) > Date.parse(first), `${second} after ${first}`);
+    h.now.set('2026-01-01T00:00:00Z');
+    h.ctx.registry.sign();
+    assert.ok(Date.parse(read()) > Date.parse(second), 'a clock stepping back does not date it back');
+  } finally {
+    h.cleanup();
+  }
+});

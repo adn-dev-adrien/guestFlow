@@ -106,7 +106,21 @@ The E2E suite needs ports 3000/4000. Free them without asking (`npm run stop`), 
 `npm run dev` in the background afterwards** if it was running — and say so, since the suite wipes
 the dev database on the way through.
 
-> **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green.
+Then the plugin packages, exactly as the release's `package` job will judge them — so that job can
+never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27):
+
+```bash
+node scripts/build-plugin-packages.mjs
+PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+rm -rf prev-dist && mkdir prev-dist && gh release download "$PREV" -p '*.tgz' -D prev-dist
+node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist --previous-tag "$PREV"
+rm -rf prev-dist
+```
+
+A `✗` means a plugin's sources changed without a version bump: stop, bump it in an ordinary PR.
+`↺` lines are fine (a dependency bump: the published package is kept).
+
+> **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green, plugin packages checked.
 
 ---
 

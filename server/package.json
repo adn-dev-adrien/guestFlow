@@ -3,7 +3,7 @@
   "version": "3.9.0",
   "scripts": {
     "dev:clean": "fuser -k 4000/tcp 2>/dev/null || true",
-    "dev:watch": "GUESTFLOW_PLUGINS=sources nodemon --watch src --ext js,json --signal SIGTERM src/index.js",
+    "dev:watch": "GUESTFLOW_PLUGINS=sources GUESTFLOW_DEV=1 nodemon --watch src --ext js,json --signal SIGTERM src/index.js",
     "dev": "npm run dev:clean && npm run dev:watch",
     "start": "node src/index.js",
     "reset-admin": "node scripts/reset-admin.js",

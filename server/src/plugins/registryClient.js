@@ -19,6 +19,7 @@ const { isAllowedRegistryUrl, readLimited } = require('./packageStore');
 
 const POLL_MS = 6 * 60 * 60 * 1000;
 const MAX_INDEX_BYTES = 2 * 1024 * 1024;
+const FUTURE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 
 function toKey(publicKey) {
   if (!publicKey) return null;
@@ -83,15 +84,18 @@ function createRegistryClient({ url, publicKey, fetchImpl = fetch, now = () => n
     return (await readLimited(res, MAX_INDEX_BYTES)).toString('utf8');
   }
 
-  const readLastGenerated = () => {
-    if (!stateFile) return null;
-    try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')).generatedAt || null; } catch { return null; }
+  // Keyed by registry URL and key (second review m2): changing either starts a fresh history.
+  const stateKey = crypto.createHash('sha256').update(`${base}\n${publicKey || ''}`).digest('hex').slice(0, 16);
+  const readState = () => {
+    if (!stateFile) return {};
+    try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')) || {}; } catch { return {}; }
   };
+  const readLastGenerated = () => (readState()[stateKey] || {}).generatedAt || null;
   const writeLastGenerated = (generatedAt) => {
     if (!stateFile) return;
     try {
       fs.mkdirSync(require('path').dirname(stateFile), { recursive: true });
-      fs.writeFileSync(stateFile, JSON.stringify({ generatedAt }));
+      fs.writeFileSync(stateFile, JSON.stringify({ ...readState(), [stateKey]: { generatedAt } }));
     } catch (err) {
       log.warn(`[plugins] registry state not saved: ${err.message}`);
     }
@@ -127,6 +131,14 @@ function createRegistryClient({ url, publicKey, fetchImpl = fetch, now = () => n
       state = 'invalid';
       plugins = {};
       log.error(`[plugins] registry index unreadable: ${err.message}`);
+      return status();
+    }
+    // An index dated beyond tomorrow is never accepted, nor remembered: one bad date would otherwise
+    // lock every later, honest index out (second review m2).
+    if (Date.parse(generatedAt) > now().getTime() + FUTURE_TOLERANCE_MS) {
+      state = 'invalid';
+      plugins = {};
+      log.error(`[plugins] registry index dated ${generatedAt}, in the future — index ignored`);
       return status();
     }
     if (lastGenerated && Date.parse(generatedAt) < Date.parse(lastGenerated)) {

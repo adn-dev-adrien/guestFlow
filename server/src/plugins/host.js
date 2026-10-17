@@ -38,6 +38,7 @@ function init({ env = process.env, dataDir, store, registryClient, restart } = {
   });
   state.registryClient = registryClient || fromEnv(env, { stateFile: path.join(state.store.packagesDir, 'registry-state.json') });
   state.restart = restart || require('../utils/processRestart').createRestarter({ env });
+  hostExportsCache = undefined;
   state.incompatible = {};
   state.loaded = {};
   state.assetKeys = {};
@@ -48,6 +49,24 @@ function init({ env = process.env, dataDir, store, registryClient, restart } = {
 // Before `boot()` (unit suites requiring the controller) the host is the development one: a stray
 // `plugins-dist/` built in a checkout never turns a test into a release.
 const ensure = () => { if (!state.store) init({ env: { ...process.env, GUESTFLOW_PLUGINS: process.env.GUESTFLOW_PLUGINS || 'sources' } }); return state; };
+
+/**
+ * Rule 33 — the names this release's app gives the plugin bundles (`plugins-dist/hostModules.json`,
+ * copied by the package build). Null in a development tree: its client imports the sources.
+ */
+let hostExportsCache;
+function hostExports() {
+  const s = ensure();
+  if (s.mode !== 'packages') return null;
+  if (hostExportsCache === undefined) {
+    try {
+      hostExportsCache = JSON.parse(require('fs').readFileSync(path.join(s.store.distDir, 'hostModules.json'), 'utf8'));
+    } catch {
+      hostExportsCache = null;
+    }
+  }
+  return hostExportsCache;
+}
 
 /**
  * The manifest the running release ships for `id`: the unpacked package in `packages` mode, the
@@ -93,14 +112,21 @@ function housekeeping({ model, ids, now = new Date() }) {
   return model.list();
 }
 
-// Rule 27 — the URL of a package's client files carries the hash of the package, so a file served
-// immutable can never be one of another build with the same version number.
-const assetKey = (version, sha256) => `${version}-${String(sha256 || 'nohash').slice(0, 12)}`;
+// Rule 27 — the URL of a package's client files carries its content hash (the package manifest's
+// `contentHash`, second review m5), so a file served immutable is never one of another build.
+const assetKey = (version, contentHash) => `${version}-${String(contentHash || 'nohash').slice(0, 12)}`;
 
-function setLoaded(id, version, sha256) {
+function setLoaded(id, version, contentHash) {
   const s = ensure();
   s.loaded[id] = version;
-  s.assetKeys[id] = assetKey(version, sha256);
+  s.assetKeys[id] = assetKey(version, contentHash);
+}
+
+// Rule 29 — a requirement whose install was undone is no longer offered to the browser.
+function unsetLoaded(id) {
+  const s = ensure();
+  delete s.loaded[id];
+  delete s.assetKeys[id];
 }
 
 /** Rule 18 — the client bundles the browser imports before rendering: every loaded package. */
@@ -144,16 +170,10 @@ function boot({ db, loader, registry, model, catalogue }) {
   const { SDK_VERSION } = require('./sdk/version');
   const nameOf = (id) => (catalogue.find((p) => p.id === id) || {}).name || id;
   const { modules, incompatible, manifests } = loader.loadPackages({
-    store: s.store, rows, order: ids, env: { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION }, nameOf,
+    store: s.store, rows, order: ids, env: { coreVersion: getAppVersion(), sdkVersion: SDK_VERSION, hostExports: hostExports() }, nameOf,
   });
   s.incompatible = incompatible;
-  const shaOf = (id) => {
-    const row = rows.find((r) => r.id === id);
-    if (row && row.source === 'registry') return row.pinnedSha256;
-    const pkg = s.store.bundled()[id];
-    return pkg ? pkg.sha256 : null;
-  };
-  Object.values(manifests).forEach((m) => setLoaded(m.id, m.version, shaOf(m.id)));
+  Object.values(manifests).forEach((m) => setLoaded(m.id, m.version, m.contentHash));
   Object.entries(incompatible).forEach(([id, why]) => console.error(`[plugin:${id}] not loaded — ${why.message}`)); // eslint-disable-line no-console
   loader.registerAll({ db, modules, dataDir: (id) => s.store.dataDirPath(id) });
 }
@@ -175,6 +195,7 @@ module.exports = {
   store: () => ensure().store,
   registryClient: () => ensure().registryClient,
   runningCopy,
+  hostExports,
   housekeeping,
   clientEntries,
   assetsMiddleware,
@@ -182,5 +203,6 @@ module.exports = {
   startBackground,
   setIncompatible(map) { ensure().incompatible = { ...map }; },
   setLoaded,
+  unsetLoaded,
   dataDirOf: (id) => path.join(ensure().store.dataDirPath(id)),
 };

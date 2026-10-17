@@ -5,8 +5,8 @@ import { Alert as M0_Alert, AlertTitle as M0_AlertTitle, Autocomplete as M0_Auto
 import { createSvgIcon as M1_createSvgIcon } from '@mui/material/SvgIcon';
 import { cyan as M2_cyan } from '@mui/material/colors';
 import { alpha as M3_alpha, useTheme as M3_useTheme } from '@mui/material/styles';
-import { ADMIN as M4_ADMIN, BaguetteIcon as M4_BaguetteIcon, ConfirmDialog as M4_ConfirmDialog, DateField as M4_DateField, EmptyState as M4_EmptyState, ErrorAlert as M4_ErrorAlert, FormDialog as M4_FormDialog, LoadingState as M4_LoadingState, MaskedTextField as M4_MaskedTextField, MonthYearPicker as M4_MonthYearPicker, OccurrenceGrid as M4_OccurrenceGrid, OptionDayCard as M4_OptionDayCard, PRICE_TYPE_LABELS as M4_PRICE_TYPE_LABELS, PageActionBar as M4_PageActionBar, PlatformChip as M4_PlatformChip, QuantityField as M4_QuantityField, SasKeypadCode as M4_SasKeypadCode, SecretRevealField as M4_SecretRevealField, Slot as M4_Slot, SlotPickerGrid as M4_SlotPickerGrid, StatusBadge as M4_StatusBadge, SummaryItem as M4_SummaryItem, WheatIcon as M4_WheatIcon, api as M4_api, displayDate as M4_displayDate, displayDateLong as M4_displayDateLong, formatCurrency as M4_formatCurrency, formatPlatformLabel as M4_formatPlatformLabel, getPlatformColor as M4_getPlatformColor, isReceptionOnly as M4_isReceptionOnly, sasLockMessage as M4_sasLockMessage, sasLockTitle as M4_sasLockTitle, useAppDialogs as M4_useAppDialogs, useAuth as M4_useAuth, useDirtyFormGuard as M4_useDirtyFormGuard, useSlot as M4_useSlot, useToast as M4_useToast, userHasRole as M4_userHasRole, withFrom as M4_withFrom } from './sdk';
-import { ConfirmDialog as M5_ConfirmDialog, ErrorAlert as M5_ErrorAlert, HelpedTextField as M5_HelpedTextField, MaskedTextField as M5_MaskedTextField, PageActionBar as M5_PageActionBar, StatusBadge as M5_StatusBadge, SummaryItem as M5_SummaryItem, api as M5_api, useDirtyFormGuard as M5_useDirtyFormGuard, useToast as M5_useToast } from './sdk/ui';
+import * as M4 from './sdk';
+import * as M5 from './sdk/ui';
 import * as M6 from 'react';
 import { Link as M7_Link, useLocation as M7_useLocation, useNavigate as M7_useNavigate, useSearchParams as M7_useSearchParams } from 'react-router';
 import * as M8 from 'react/jsx-runtime';
@@ -16,8 +16,8 @@ export const HOST_MODULES = Object.freeze({
   '@mui/material/SvgIcon': Object.freeze({ createSvgIcon: M1_createSvgIcon }),
   '@mui/material/colors': Object.freeze({ cyan: M2_cyan }),
   '@mui/material/styles': Object.freeze({ alpha: M3_alpha, useTheme: M3_useTheme }),
-  'guestflow/sdk': Object.freeze({ ADMIN: M4_ADMIN, BaguetteIcon: M4_BaguetteIcon, ConfirmDialog: M4_ConfirmDialog, DateField: M4_DateField, EmptyState: M4_EmptyState, ErrorAlert: M4_ErrorAlert, FormDialog: M4_FormDialog, LoadingState: M4_LoadingState, MaskedTextField: M4_MaskedTextField, MonthYearPicker: M4_MonthYearPicker, OccurrenceGrid: M4_OccurrenceGrid, OptionDayCard: M4_OptionDayCard, PRICE_TYPE_LABELS: M4_PRICE_TYPE_LABELS, PageActionBar: M4_PageActionBar, PlatformChip: M4_PlatformChip, QuantityField: M4_QuantityField, SasKeypadCode: M4_SasKeypadCode, SecretRevealField: M4_SecretRevealField, Slot: M4_Slot, SlotPickerGrid: M4_SlotPickerGrid, StatusBadge: M4_StatusBadge, SummaryItem: M4_SummaryItem, WheatIcon: M4_WheatIcon, api: M4_api, displayDate: M4_displayDate, displayDateLong: M4_displayDateLong, formatCurrency: M4_formatCurrency, formatPlatformLabel: M4_formatPlatformLabel, getPlatformColor: M4_getPlatformColor, isReceptionOnly: M4_isReceptionOnly, sasLockMessage: M4_sasLockMessage, sasLockTitle: M4_sasLockTitle, useAppDialogs: M4_useAppDialogs, useAuth: M4_useAuth, useDirtyFormGuard: M4_useDirtyFormGuard, useSlot: M4_useSlot, useToast: M4_useToast, userHasRole: M4_userHasRole, withFrom: M4_withFrom }),
-  'guestflow/sdk/ui': Object.freeze({ ConfirmDialog: M5_ConfirmDialog, ErrorAlert: M5_ErrorAlert, HelpedTextField: M5_HelpedTextField, MaskedTextField: M5_MaskedTextField, PageActionBar: M5_PageActionBar, StatusBadge: M5_StatusBadge, SummaryItem: M5_SummaryItem, api: M5_api, useDirtyFormGuard: M5_useDirtyFormGuard, useToast: M5_useToast }),
+  'guestflow/sdk': M4,
+  'guestflow/sdk/ui': M5,
   'react': M6,
   'react-router': Object.freeze({ Link: M7_Link, useLocation: M7_useLocation, useNavigate: M7_useNavigate, useSearchParams: M7_useSearchParams }),
   'react/jsx-runtime': M8,

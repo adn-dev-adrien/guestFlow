@@ -96,7 +96,7 @@ function createController(model = defaultModel, deps = {}) {
   const now = deps.now || (() => new Date());
 
   const packages = () => host().mode() === 'packages';
-  const env = () => ({ coreVersion: coreVersion(), sdkVersion });
+  const env = () => ({ coreVersion: coreVersion(), sdkVersion, hostExports: host().hostExports() });
   // The two sources of rule 10: the verified registry index and the release's own copy.
   const sources = () => ({
     registry: (id) => (packages() ? host().registryClient().versions(id) : []),
@@ -283,9 +283,13 @@ function createController(model = defaultModel, deps = {}) {
 
   // Rule 13 — a package installed while the app runs: loaded, registered, mounted, migrated, then
   // recorded. Returns null, or the refusal to send.
-  async function installPackage(id, candidate) {
+  async function installPackage(id, candidate, undo = []) {
     const pkg = await acquire(id, candidate);
-    if (candidate.source === 'registry') host().store().setCurrent(id, candidate.version);
+    if (candidate.source === 'registry') {
+      const before = host().store().readCurrent(id);
+      host().store().setCurrent(id, candidate.version);
+      undo.push(() => (before ? host().store().setCurrent(id, before) : host().store().clearCurrent(id)));
+    }
     const loaded = host().state().loaded[id];
     let restart = false;
     if (loaded && loaded !== candidate.version) {
@@ -300,7 +304,8 @@ function createController(model = defaultModel, deps = {}) {
       if (!loader().registerLive(mod, { db: getDb() })) {
         return { status: 500, body: { error: 'PLUGIN_REGISTER_FAILED', plugin: id, message: 'Échec du démarrage.' } };
       }
-      host().setLoaded(id, candidate.version, pkg.sha256);
+      host().setLoaded(id, candidate.version, pkg.manifest.contentHash);
+      undo.push(() => host().unsetLoaded(id));
       try {
         loader().migrate(getDb(), id);
       } catch (err) {
@@ -309,8 +314,29 @@ function createController(model = defaultModel, deps = {}) {
       }
     }
     model.install(id, { version: candidate.version, source: candidate.source, manifest: pkg.manifest, sha256: pkg.sha256 });
+    undo.push(() => model.uninstall(id));
     if (!restart) await loader().runInstallHooks(id);
     return { restart };
+  }
+
+  /**
+   * Second review m3 — one plugin operation at a time: `work(restart)` runs under the lock, which is
+   * released on every way out except the restart (the next process starts unlocked).
+   */
+  async function underLock(res, work) {
+    const state = host().state();
+    if (state.updating) return res.status(409).json({ error: 'UPDATE_IN_PROGRESS', message: MESSAGES.UPDATE_IN_PROGRESS });
+    state.updating = true;
+    let restarting = false;
+    const restart = (body) => {
+      restarting = true;
+      return restartNow(res, body);
+    };
+    try {
+      return await work(restart);
+    } finally {
+      if (!restarting) state.updating = false;
+    }
   }
 
   // The target of an update: `version` when asked (an incompatible plugin, rule 14), else the newest.
@@ -377,33 +403,31 @@ function createController(model = defaultModel, deps = {}) {
       return res.status(412).json({ error: 'RESTART_UNAVAILABLE', message: MESSAGES.RESTART_UNAVAILABLE });
     }
     // Rule 29 — one install at a time, and all or nothing: a requirement installed for a plugin whose
-    // own install then fails is uninstalled again.
-    if (state.updating) return res.status(409).json({ error: 'UPDATE_IN_PROGRESS', message: MESSAGES.UPDATE_IN_PROGRESS });
-    state.updating = true;
-    const done = [];
-    let restart = false;
-    try {
+    // own install then fails is undone — its row, its `current` pointer and its bundle in the list the
+    // browser loads. Its server code, already registered, stays in memory, inert (not live) until the
+    // next restart.
+    return underLock(res, async (restart) => {
+      const undo = [];
+      const rollback = () => undo.reverse().forEach((step) => step());
+      let restartWanted = false;
       for (const step of steps) {
         let result;
         try {
-          result = await installPackage(step.id, step.candidate); // eslint-disable-line no-await-in-loop
+          result = await installPackage(step.id, step.candidate, undo); // eslint-disable-line no-await-in-loop
         } catch (err) {
-          done.forEach((id) => model.uninstall(id));
+          rollback();
           return refusePackageError(err, res);
         }
         if (result.status) {
-          done.forEach((id) => model.uninstall(id));
+          rollback();
           return res.status(result.status).json(result.body);
         }
-        done.push(step.id);
-        restart = restart || result.restart;
+        restartWanted = restartWanted || result.restart;
       }
-    } finally {
-      if (!restart) state.updating = false;
-    }
-    if (restart) return restartNow(res, { version: offer.version });
-    // The browser loads the new bundle at its next page load (rule 18): the page reloads.
-    return res.json({ ...view(entry), reload: true });
+      if (restartWanted) return restart({ version: offer.version });
+      // The browser loads the new bundle at its next page load (rule 18): the page reloads.
+      return res.json({ ...view(entry), reload: true });
+    });
   }
 
   // Rule 12 — one transaction: the plugin's own clean-up, its tables, its settings, its ledger rows.
@@ -483,15 +507,15 @@ function createController(model = defaultModel, deps = {}) {
       if (!target) return res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE });
       const refusal = updateView(row, target).refusal;
       if (refusal) return res.status(409).json({ error: refusal.code, message: refusal.message });
-      host().state().updating = true;
-      try {
-        const pkg = await acquire(entry.id, target);
-        switchTo(row, target, pkg);
-      } catch (err) {
-        host().state().updating = false;
-        return refusePackageError(err, res);
-      }
-      return restartNow(res, { version: target.version });
+      return underLock(res, async (restart) => {
+        try {
+          const pkg = await acquire(entry.id, target);
+          switchTo(row, target, pkg);
+        } catch (err) {
+          return refusePackageError(err, res);
+        }
+        return restart({ version: target.version });
+      });
     },
 
     // POST /api/plugins/update-all — « Tout mettre à jour »: every package verified first, then one
@@ -505,17 +529,16 @@ function createController(model = defaultModel, deps = {}) {
         return target && !updateView(row, target).refusal ? { row, target } : null;
       }).filter(Boolean);
       if (!targets.length) return res.status(409).json({ error: 'NO_UPDATE', message: MESSAGES.NO_UPDATE });
-      host().state().updating = true;
-      let acquired;
-      try {
-        acquired = [];
-        for (const t of targets) acquired.push({ ...t, pkg: await acquire(t.row.id, t.target) }); // eslint-disable-line no-await-in-loop
-      } catch (err) {
-        host().state().updating = false;
-        return refusePackageError(err, res);
-      }
-      acquired.forEach(({ row, target, pkg }) => switchTo(row, target, pkg));
-      return restartNow(res, { updated: acquired.map((t) => ({ id: t.row.id, version: t.target.version })) });
+      return underLock(res, async (restart) => {
+        const acquired = [];
+        try {
+          for (const t of targets) acquired.push({ ...t, pkg: await acquire(t.row.id, t.target) }); // eslint-disable-line no-await-in-loop
+        } catch (err) {
+          return refusePackageError(err, res);
+        }
+        acquired.forEach(({ row, target, pkg }) => switchTo(row, target, pkg));
+        return restart({ updated: acquired.map((t) => ({ id: t.row.id, version: t.target.version })) });
+      });
     },
 
     // POST /api/plugins/:id/rollback — rule 16: the previous copy, inside its 7 days.
@@ -526,11 +549,12 @@ function createController(model = defaultModel, deps = {}) {
       if (!row) return res.status(409).json({ error: 'NOT_INSTALLED' });
       if (refuseUpdateConditions(res)) return undefined;
       if (!rollbackView(row)) return res.status(409).json({ error: 'NO_ROLLBACK', message: MESSAGES.NO_ROLLBACK });
-      const manifest = previousManifest(row);
-      if (row.previousSource === 'registry') host().store().setCurrent(row.id, row.previousVersion);
-      model.rollBack(row.id, manifest);
-      host().state().updating = true;
-      return restartNow(res, { version: row.previousVersion });
+      return underLock(res, async (restart) => {
+        const manifest = previousManifest(row);
+        if (row.previousSource === 'registry') host().store().setCurrent(row.id, row.previousVersion);
+        model.rollBack(row.id, manifest);
+        return restart({ version: row.previousVersion });
+      });
     },
 
     // POST /api/plugins/:id/activate

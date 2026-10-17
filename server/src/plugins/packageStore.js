@@ -208,6 +208,10 @@ function createPackageStore({ dataDir, distDir, fetchImpl = fetch, now = () => n
     fs.renameSync(tmp, link);
   }
 
+  function clearCurrent(id) {
+    fs.rmSync(path.join(packagesDir, id, 'current'), { force: true });
+  }
+
   function readCurrent(id) {
     try { return fs.readlinkSync(path.join(packagesDir, id, 'current')); } catch { return null; }
   }
@@ -284,6 +288,7 @@ function createPackageStore({ dataDir, distDir, fetchImpl = fetch, now = () => n
     packageDirFor,
     clientDirFor,
     setCurrent,
+    clearCurrent,
     readCurrent,
     fetchFromRegistry,
     prune,

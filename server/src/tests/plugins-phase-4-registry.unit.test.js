@@ -119,7 +119,7 @@ function fakeRes() {
 }
 
 // The host of a release (packages mode) over a temporary data dir and dist.
-function fakeHost({ dist, dataDir = tmp(), registryClient, supervised = true, loaded = {} }) {
+function fakeHost({ dist, dataDir = tmp(), registryClient, supervised = true, loaded = {}, hostExports = null }) {
   const store = createPackageStore({ dataDir, distDir: dist, fetchImpl: registryClient && registryClient.fetchImpl });
   const restarts = [];
   const state = {
@@ -133,7 +133,9 @@ function fakeHost({ dist, dataDir = tmp(), registryClient, supervised = true, lo
     store: () => store,
     registryClient: () => registryClient,
     runningCopy: (id) => { const p = store.bundled()[id]; return p ? { manifest: p.manifest, sha256: p.sha256 } : null; },
+    hostExports: () => hostExports,
     setLoaded: (id, v) => { state.loaded[id] = v; },
+    unsetLoaded: (id) => { delete state.loaded[id]; },
   };
 }
 
@@ -704,7 +706,44 @@ test('rule 29: a requirement installed for a plugin whose install fails is unins
   assert.equal(model.get('linen'), null);
   assert.equal(model.get('sas'), null);
   assert.equal(host.state().updating, false);
+  // Second review m4 — the browser is no longer offered the undone requirement's bundle.
+  assert.equal(host.state().loaded.linen, undefined);
   assert.ok(ctrl);
+});
+
+test('rule 29: a requirement downloaded from the registry and undone leaves no `current` pointer', async () => {
+  const linen = manifest('linen', '1.1.0');
+  const sas = manifest('sas', '1.0.0', { requires: [{ id: 'linen', range: '^1.1.0' }] });
+  const { model, host, registryClient } = setup({ bundled: [manifest('linen', '1.0.0'), sas], regEntries: [{ m: linen, buf: makePackage(linen).buf }] });
+  await registryClient.refresh();
+  const failing = createController(model, {
+    registry, host: () => host, db: () => freshDb(), licence: () => allowAll, coreVersion: () => '3.9.0',
+    loader: () => ({ ...fakeLoader(), registerLive: (mod) => mod.id !== 'sas' }),
+  });
+  assert.equal((await call(failing.install, { params: { id: 'sas' }, body: { withRequirements: true } })).statusCode, 500);
+  assert.equal(host.store().readCurrent('linen'), null);
+  assert.equal(model.get('linen'), null);
+});
+
+test('rule 29 (second review m3): every refusal releases the lock; only a restart keeps it', async () => {
+  const next = manifest('linen', '1.1.0');
+  const buf = makePackage(next).buf;
+  const { ctrl, registryClient, host, files } = setup({
+    bundled: [manifest('linen', '1.0.0'), manifest('neat', '1.0.0', { guestflow: '>=9.0.0' })],
+    regEntries: [{ m: next, buf }],
+    installed: [{ id: 'linen', version: '1.0.0', source: 'bundled' }],
+  });
+  await registryClient.refresh();
+  delete files['/packages/linen-1.1.0.tgz'];
+  assert.equal((await call(ctrl.update, { params: { id: 'linen' } })).statusCode, 502);
+  assert.equal(host.state().updating, false);
+  assert.equal((await call(ctrl.updateAll)).statusCode, 502);
+  assert.equal(host.state().updating, false);
+  assert.equal((await call(ctrl.install, { params: { id: 'neat' } })).statusCode, 409);
+  assert.equal(host.state().updating, false);
+  files['/packages/linen-1.1.0.tgz'] = buf;
+  assert.equal((await call(ctrl.update, { params: { id: 'linen' } })).statusCode, 202);
+  assert.equal(host.state().updating, true, 'held until the restart');
 });
 
 test('rule 27: the client files are listed under a URL carrying the package hash', () => {
@@ -766,4 +805,64 @@ test('rule 31: a write under /api from another site is refused; webhooks and non
   } finally {
     server.close();
   }
+});
+
+// ---------- second review (2026-10-18): rules 30, 31, 33 ----------
+
+test('rule 33: a package needing a host name this app does not expose is refused as « newer GuestFlow needed »', () => {
+  const m = parseManifest(JSON.stringify(manifest('linen', '1.2.0', { hostImports: { '@mui/material': ['Box', 'Rating'], react: ['*'] }, contentHash: 'c'.repeat(64) })));
+  assert.deepEqual(m.hostImports['@mui/material'], ['Box', 'Rating'], 'kept by the manifest reader');
+  assert.equal(m.contentHash, 'c'.repeat(64));
+  const host = { '@mui/material': ['Box'], react: '*' };
+  assert.deepEqual(rangeRefusal(m, { ...ENV, hostExports: host }), { code: 'CORE_TOO_OLD', message: 'Nécessite une version plus récente de GuestFlow.' });
+  assert.equal(rangeRefusal(m, { ...ENV, hostExports: { ...host, '@mui/material': ['Box', 'Rating'] } }), null);
+  assert.equal(rangeRefusal(m, ENV), null, 'a development tree has no list: nothing refused');
+});
+
+test('rule 33: the offer skips a registry version the app cannot serve', () => {
+  const src = sourcesOf({
+    registry: { linen: [{ version: '1.3.0', manifest: manifest('linen', '1.3.0', { hostImports: { '@mui/material': ['Rating'] } }) }] },
+    bundled: { linen: manifest('linen', '1.0.0') },
+  });
+  assert.equal(bestCandidate('linen', src, { ...ENV, hostExports: { '@mui/material': ['Box'] } }).version, '1.0.0');
+});
+
+test('rule 30: an index dated more than a day ahead is refused and not remembered; the state is per registry', async () => {
+  const { publicKey, privateKey } = keys();
+  const m = manifest('linen', '1.0.1');
+  const files = {};
+  const publish = (generatedAt) => {
+    const index = indexOf([{ m, buf: makePackage(m).buf }], generatedAt);
+    files['/index.json'] = index;
+    files['/index.json.sig'] = signIndex(index, privateKey);
+  };
+  const stateFile = path.join(tmp(), 'registry-state.json');
+  const clock = () => new Date('2026-10-18T12:00:00Z');
+  const make = (url = 'https://r.example/registry/v1') => createRegistryClient({ url, publicKey: spki(publicKey), fetchImpl: fakeFetch(files), stateFile, now: clock, log: { warn() {}, error() {} } });
+  publish('2030-01-01T00:00:00.000Z');
+  assert.equal((await make().refresh()).state, 'invalid');
+  publish('2026-10-18T11:00:00.000Z');
+  assert.equal((await make().refresh()).state, 'ok', 'the future date was not remembered');
+  publish('2026-10-10T00:00:00.000Z');
+  assert.equal((await make().refresh()).state, 'stale');
+  assert.equal((await make('https://other.example/registry/v1').refresh()).state, 'ok', 'another registry has its own history');
+});
+
+test('rule 31: same origin means same host AND port', async () => {
+  const { createSameOriginWrites } = require('../middleware/sameOriginWrites');
+  const app = express();
+  app.use('/api', createSameOriginWrites({ allowedOrigins: [] }));
+  app.post(/^\/api\/.*/, (req, res) => res.json({ ok: true }));
+  const server = app.listen(0);
+  const port = server.address().port;
+  const post = (origin) => fetch(`http://127.0.0.1:${port}/api/x`, { method: 'POST', headers: { origin } }).then((r) => r.status);
+  try {
+    assert.equal(await post(`http://127.0.0.1:${port}`), 200);
+    assert.equal(await post(`http://127.0.0.1:${port + 1}`), 403);
+  } finally {
+    server.close();
+  }
+  const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+  assert.match(index, /GUESTFLOW_DEV !== '1'/, 'on unless the development scripts say otherwise');
+  assert.match(index, /same-origin writes: /);
 });

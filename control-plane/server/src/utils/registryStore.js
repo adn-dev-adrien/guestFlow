@@ -43,13 +43,22 @@ function createRegistryStore({ db, dir, privateKey, now = () => new Date() }) {
     statusLabel: r.withdrawnAt ? `Retiré le ${frDay(r.withdrawnAt)}` : 'Publié',
   }));
 
+  // The instances refuse an index older than the last they read (rule 30): each index is dated after
+  // the previous one, even when two changes fall in the same millisecond or the clock steps back.
+  let lastGenerated = 0;
+  try { lastGenerated = Date.parse(JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')).generatedAt) || 0; } catch { lastGenerated = 0; }
+  const nextGeneratedAt = () => {
+    lastGenerated = Math.max(now().getTime(), lastGenerated + 1);
+    return new Date(lastGenerated).toISOString();
+  };
+
   /** Rebuilds and signs the index from the published, not withdrawn, versions. */
   function sign() {
     const plugins = {};
     rows().filter((r) => !r.withdrawnAt).forEach((r) => {
       (plugins[r.id] ||= []).push({ version: r.version, sha256: r.sha256, size: r.size, manifest: r.manifest, publishedAt: r.publishedAt });
     });
-    const bytes = Buffer.from(JSON.stringify({ format: 1, generatedAt: now().toISOString(), plugins }, null, 2));
+    const bytes = Buffer.from(JSON.stringify({ format: 1, generatedAt: nextGeneratedAt(), plugins }, null, 2));
     writeAtomic(path.join(dir, 'index.json'), bytes);
     writeAtomic(path.join(dir, 'index.json.sig'), `${crypto.sign(null, bytes, privateKey).toString('base64')}\n`);
     return bytes;

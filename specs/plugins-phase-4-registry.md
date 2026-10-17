@@ -220,11 +220,13 @@ below are the recommended ones; each is reversible in a later spec.
     plugin takes a name the list lacks. A bundle checks the names as it loads: a version built for a
     newer core that needs a name this core does not expose fails to load (shown « Échec du
     chargement. ») instead of rendering `undefined` — and its `guestflow` floor must say so.
+    > **2026-10-18 (second review):** The SDK (`guestflow/sdk`, `guestflow/sdk/ui`) is exposed whole: it is GuestFlow's own versioned contract, so a plugin version built later may use any of its entries. The list is append-only and each package says what it needs (rule 33).
 27. **A plugin's client files are cached by content.** Their URL carries the package's hash
     (`/plugin-assets/<id>/<version>-<hash12>/…`), so files served immutable are never those of another
     build with the same version. Each package's manifest records a `contentHash` of its files; the
     release refuses a package whose content differs from the one already published under the same
     version (a dependency bump, say) — the plugin is then bumped in a PR.
+    > **2026-10-18 (second review):** The URL's hash is the package manifest's `contentHash` (not the archive's), and the archive itself is reproducible: names sorted, owner 0, mtime 0, gzip without a timestamp. When a rebuilt package differs from the one published under the same version but the plugin's sources did not change since the previous tag (a dependency bump), the release keeps the published package instead of failing; it fails only for changed sources without a bump — and the release skill runs the same check in its pre-flight, so this never fails after the tag.
 28. **A plugin is versioned in the pull request that changes it.** CI refuses a PR that changes a
     plugin's files (tests excepted) without a new `version` in its manifest and French lines under
     `changelog["<version>"]`. The release PR never edits a manifest; it only folds `changelog.d/`.
@@ -232,18 +234,28 @@ below are the recommended ones; each is reversible in a later spec.
     (409 « Mise à jour déjà en cours. »); a requirement installed for a plugin whose own install then
     fails is uninstalled again; an install that needs a restart (another version still loaded) is
     refused without a supervisor, like an update (412).
+    > **2026-10-18 (second review):** Every refusal releases the lock; only an actual restart keeps it (the next process starts unlocked). An undone requirement loses its row, its `current` pointer and its place in the list of bundles the browser loads; its server code, already registered, stays in memory, inert (not live), until the next restart.
 30. **A replayed index is refused.** The instance remembers the `generatedAt` of the last index it
     accepted (`<data>/plugins/registry-state.json`) and ignores an older one, even correctly signed
     (« Registre ignoré : index plus ancien que le dernier lu. »). An index or package larger than its
     limit is refused as it streams (declared length first), not after being read whole.
+    > **2026-10-18 (second review):** An index dated more than 24 hours ahead of the instance's clock is refused and not remembered (one bad date would otherwise lock out every honest index after it). The remembered date is kept per registry URL and key. The console dates each index after the previous one (`max(now, last + 1 ms)`).
 31. **Writes under `/api` come from GuestFlow's pages.** A non-GET request whose `Origin` (or
     `Referer`) names another site is refused with 403 — so another site cannot install or update a
     plugin with an administrator's session. Requests without either (scripts, server-to-server) and
     the plugin webhooks pass; the public API (`/public/v1`, the WordPress site) is not under `/api`. A
     development process (`NODE_ENV` unset) does not check: the Vite proxy rewrites the host.
+    > **2026-10-18 (second review):** Same origin is now the same host **and port**. The check is on everywhere unless `GUESTFLOW_DEV=1`, which only the development scripts set (`npm run dev`, the dev E2E suite) — no longer inferred from `NODE_ENV`. The boot log says « same-origin writes: on » or « off ».
 32. **The waits ask and give up.** « Revenir à la version précédente » asks for confirmation; the
     « Redémarrage en cours » wait says « Le redémarrage est plus long que prévu. » after 90 s and
     offers « Réessayer ».
+33. **A package says what it needs from the app, and the app's list only grows** (added 2026-10-18,
+    second review). The package build records in each package's manifest the names it takes from the
+    app (`hostImports`) and ships the app's own list with the release (`plugins-dist/hostModules.json`).
+    An instance refuses a version — install, update, or loading at boot — whose `hostImports` its app
+    does not expose, with the refusal of a core too old (« Nécessite une version plus récente de
+    GuestFlow. »). `client/src/plugins/hostModules.json` only grows: `--write-host` keeps what was there,
+    and CI refuses a PR or a release that removes a module or a name since its base.
 
 ---
 
@@ -360,17 +372,17 @@ Implemented 2026-10-08, merged with `inte/plugins` on 2026-10-17 (H2 #673, Saisi
 (`1.0.0`) and builds into a package like the others, so « the twelve » in this spec reads « every
 plugin of the catalogue » from then on.
 
-| Suite | Result (after the review fixes, 2026-10-17) |
+| Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|
-| Server (`node --test`) | 5 047 / 5 047 — of which `plugins-phase-4-registry.unit.test.js` 47, `plugin-packages-release.unit.test.js` 12 |
-| Client (Vitest) | 1 570 / 1 570 — of which `PluginsPage.registry.test.jsx` 13, `runtime.bundles.test.jsx` 4, `PluginLoadBanner.modules.test.jsx` 2 |
-| Control plane server | 112 / 112 — of which `registry.unit.test.js` 5 |
-| Control plane client | 40 / 40 — of which `RegistryPage.upload.test.jsx` 3; console build OK |
-| Spec rules | 32 / 32 rules cited by a test |
-| E2E dev suite | 101 passed, 1 skipped |
-| E2E production build (`npm run test:e2e:prod`) | 4 / 4 — render without console error, install from the registry, update with restart and rollback, refused package |
-| Package build | 13 packages; no MUI, emotion or React code inside a bundle (the build checks it); deterministic content hash |
-| Eager client code (gzip, `npx vite build`) | 572 KB + 8 KB of plugin entry bundles, against 573 KB on `inte/plugins` (+1.2 %) |
+| Server (`node --test`) | 5 136 / 5 136 — of which `plugins-phase-4-registry.unit.test.js` 54, `plugin-packages-release.unit.test.js` 15 |
+| Client (Vitest) | 1 605 / 1 605 — of which `PluginsPage.registry.test.jsx` 13, `runtime.bundles.test.jsx` 4, `PluginLoadBanner.modules.test.jsx` 2 |
+| Control plane server | 173 / 173 — of which `registry.unit.test.js` 6 |
+| Control plane client | 51 / 51; console build OK |
+| Spec rules | 33 / 33 rules cited by a test |
+| E2E dev suite | 103 passed, 1 skipped |
+| E2E production build (`npm run test:e2e:prod`) | 4 / 4 |
+| Package build | 13 packages, reproducible byte for byte; no MUI, emotion or React code inside a bundle |
+| Eager client code (gzip, `npx vite build`) | 576 KB + 8 KB of plugin entry bundles, against 578 KB on `inte/plugins` (+1.0 %) |
 
 The review (2026-10-17) also checked in the browser, production mode, on the copy of the
 development database: the hourly-resources card icon (`color: 'info.main'`) renders `#31556E`, the

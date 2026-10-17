@@ -33,6 +33,13 @@ function validateManifest(manifest) {
   }
   if (!isRange(m.guestflow)) errors.push('Version de GuestFlow requise invalide.');
   if (!isRange(m.sdk)) errors.push('Version du SDK requise invalide.');
+  // Written by the package build (rules 27, 33): absent from a source manifest.
+  if (m.contentHash !== undefined && !/^[a-f0-9]{64}$/.test(String(m.contentHash))) errors.push('Empreinte du contenu invalide.');
+  if (m.hostImports !== undefined) {
+    const ok = m.hostImports && typeof m.hostImports === 'object' && !Array.isArray(m.hostImports)
+      && Object.values(m.hostImports).every((names) => Array.isArray(names) && names.every(isText));
+    if (!ok) errors.push('Modules hôtes invalides.');
+  }
   if (m.changelog !== undefined) {
     const ok = m.changelog && typeof m.changelog === 'object' && !Array.isArray(m.changelog)
       && Object.entries(m.changelog).every(([v, lines]) => isVersion(v) && Array.isArray(lines) && lines.every(isText));
@@ -54,6 +61,8 @@ function normalizeManifest(m) {
     guestflow: m.guestflow,
     sdk: m.sdk,
     changelog: Object.freeze({ ...(m.changelog || {}) }),
+    ...(m.contentHash ? { contentHash: m.contentHash } : {}),
+    ...(m.hostImports ? { hostImports: Object.freeze({ ...m.hostImports }) } : {}),
   });
 }
 

@@ -182,3 +182,61 @@ test('rule 23: the release workflow builds the packages, checks the versions and
   const releaseSh = fs.readFileSync(path.join(ROOT, 'release.sh'), 'utf8');
   assert.match(releaseSh, /plugins-dist/);
 });
+
+// ---------- second review (2026-10-18): rules 27, 33 ----------
+
+test('rule 27: the package archive is reproducible — same files, same bytes — and tar reads it', async () => {
+  const { reproducibleTgz } = await load('build-plugin-packages.mjs');
+  const { execFileSync } = require('child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-tgz-'));
+  fs.mkdirSync(path.join(dir, 'client', 'chunks'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'server'));
+  fs.writeFileSync(path.join(dir, 'manifest.json'), '{}');
+  fs.writeFileSync(path.join(dir, 'server', 'index.js'), 'module.exports = {};');
+  fs.writeFileSync(path.join(dir, 'client', 'index.js'), 'export default {};');
+  const long = `${'a'.repeat(70)}-${'b'.repeat(20)}.js`; // path over 100 bytes: the ustar prefix field
+  fs.writeFileSync(path.join(dir, 'client', 'chunks', long), 'x');
+  const one = reproducibleTgz(dir, ['manifest.json', 'server', 'client']);
+  fs.utimesSync(path.join(dir, 'server', 'index.js'), new Date(), new Date(2001, 1, 1));
+  const two = reproducibleTgz(dir, ['server', 'client', 'manifest.json']);
+  assert.ok(one.equals(two));
+  const file = path.join(dir, 'p.tgz');
+  fs.writeFileSync(file, one);
+  const names = execFileSync('tar', ['-tzf', file], { encoding: 'utf8' }).split('\n').filter(Boolean);
+  assert.ok(names.includes('server/index.js') && names.includes(`client/chunks/${long}`));
+});
+
+test('rule 27: an unchanged plugin whose rebuild differs keeps the package already published', async () => {
+  const { execFileSync } = require('child_process');
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-reuse-'));
+  const pack = (dir, contentHash) => {
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-reuse-src-'));
+    fs.writeFileSync(path.join(src, 'manifest.json'), JSON.stringify({ id: 'linen', version: '1.0.0', contentHash }));
+    fs.mkdirSync(dir, { recursive: true });
+    execFileSync('tar', ['-czf', path.join(dir, 'linen-1.0.0.tgz'), '-C', src, 'manifest.json'], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
+  };
+  pack(path.join(work, 'built'), 'b'.repeat(64));
+  pack(path.join(work, 'prev'), 'a'.repeat(64));
+  const run = (tag) => execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'check-plugin-versions.mjs'), '--built', path.join(work, 'built'),
+    '--previous', path.join(work, 'prev'), ...(tag ? ['--previous-tag', tag] : [])], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.throws(() => run(null), /Command failed/, 'without the tag nothing tells the sources are unchanged');
+  assert.match(run('HEAD'), /linen 1\.0\.0: unchanged sources/);
+  const kept = execFileSync('tar', ['-xOzf', path.join(work, 'built', 'linen-1.0.0.tgz'), 'manifest.json'], { encoding: 'utf8' });
+  assert.equal(JSON.parse(kept).contentHash, 'a'.repeat(64));
+  assert.match(fs.readFileSync(path.join(work, 'built', 'SHA256SUMS'), 'utf8'), /linen-1\.0\.0\.tgz/);
+});
+
+test('rule 33: the host module list only grows, and the SDK is exposed whole', async () => {
+  const { hostRemovals } = await load('check-plugin-versions.mjs');
+  const { hostModulesSource, HOST_EXPORTS } = await load('build-plugin-packages.mjs');
+  assert.deepEqual(hostRemovals({ '@mui/material': ['Box', 'Card'], 'react-router': ['Link'] }, { '@mui/material': ['Box'] }),
+    ['@mui/material#Card', 'react-router']);
+  assert.deepEqual(hostRemovals({ 'guestflow/sdk': ['api'] }, { 'guestflow/sdk': '*' }), []);
+  const { json } = hostModulesSource({ '@mui/material': new Set(['Box']) }, { '@mui/material': ['Card'] });
+  assert.deepEqual(json['@mui/material'], ['Box', 'Card'], '--write-host keeps what was there');
+  assert.equal(HOST_EXPORTS['guestflow/sdk'], '*');
+  assert.equal(HOST_EXPORTS['guestflow/sdk/ui'], '*');
+  const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(workflow, /--previous-tag/);
+  assert.match(fs.readFileSync(path.join(ROOT, '.claude', 'skills', 'guestflow-release', 'SKILL.md'), 'utf8'), /--built plugins-dist --previous prev-dist --previous-tag/);
+});

@@ -58,8 +58,9 @@ module.exports = defineConfig({
       // storageState cookie remains valid for the whole suite.
       // GUESTFLOW_PLUGINS=sources: this suite runs the Vite dev client, which imports the plugin
       // sources; the production-build suite (playwright.prod.config.js) runs the packages
-      // (specs/plugins-phase-4-registry.md rule 19).
-      command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test GUESTFLOW_PLUGINS=sources'
+      // (specs/plugins-phase-4-registry.md rule 19). GUESTFLOW_DEV=1: the Vite proxy rewrites the host,
+      // so the same-origin check of writes (rule 31) is off here — the production-build suite keeps it on.
+      command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test GUESTFLOW_PLUGINS=sources GUESTFLOW_DEV=1'
         + ' GUESTFLOW_SESSION_SECRET="' + E2E_SESSION_SECRET + '"'
         + ' GUESTFLOW_ENCRYPTION_KEY="' + E2E_ENCRYPTION_KEY + '"'
         + ` PORT=${SERVER_PORT}`
