@@ -104,6 +104,7 @@ test('rule 25: on a phone each sentence is one line until tapped', async () => {
   const row = await screen.findByRole('button', { name: 'Modifier Dans le logement' });
   expect(row).toHaveTextContent('Café offert.');
   expect(screen.queryByDisplayValue('Café offert.')).toBeNull();
+  expect(row).toHaveTextContent('EN manquant');
   fireEvent.click(row);
-  expect(await screen.findByDisplayValue('Café offert.')).toBeInTheDocument();
+  expect(await screen.findByDisplayValue('Café offert.')).toHaveFocus();
 });

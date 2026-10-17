@@ -217,7 +217,9 @@ function buildModel(database) {
 
   /** The variable of each item, and whether a stored template of its email places it (rule 25). */
   function withUse(items) {
-    const bySection = new Map(SECTIONS.map((s) => [s.id, namesUsedBy(templates().filter((t) => s.stableKeys.includes(t.stableKey)))]));
+    // Only an enabled template sends: a disabled one places nothing.
+    const sending = templates().filter((t) => Number(t.enabled) === 1);
+    const bySection = new Map(SECTIONS.map((s) => [s.id, namesUsedBy(sending.filter((t) => s.stableKeys.includes(t.stableKey)))]));
     return items.map((item) => {
       const variable = item.variable !== undefined ? item.variable : variableOf(item);
       return { ...item, variable, used: !variable || (bySection.get(item.section) || new Set()).has(variable) };

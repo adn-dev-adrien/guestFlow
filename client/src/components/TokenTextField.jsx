@@ -17,6 +17,7 @@
  *   helper                 ReactNode — under the pair (e.g. « Rétablir »)
  *   badge                  ReactNode — beside the label (e.g. « à relire »)
  *   disabled, id
+ *   autoFocus              focus the French field on mount (an editor opened from a compact row)
  *
  * French and English sit side by side from `md`, stacked below. The chips insert into the field that
  * last had the focus (French by default).
@@ -27,7 +28,7 @@ import { buildDictionary, toDisplay, toRaw, chipSnippet, chipLabel } from '../ut
 
 export default function TokenTextField({
   label, fr = '', en = '', onChange, tokens = [], flags = [], errorFr, errorEn,
-  placeholderFr, placeholderEn, helper, badge, disabled = false, id,
+  placeholderFr, placeholderEn, helper, badge, disabled = false, id, autoFocus = false,
 }) {
   const refs = { fr: useRef(null), en: useRef(null) };
   const [focused, setFocused] = useState('fr');
@@ -64,6 +65,7 @@ export default function TokenTextField({
       fullWidth
       size="small"
       disabled={disabled}
+      autoFocus={autoFocus && lang === 'fr'}
     />
   );
 

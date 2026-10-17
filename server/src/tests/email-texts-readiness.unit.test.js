@@ -108,6 +108,15 @@ test('rule 6: the company address stands in for the property address', () => {
   const { db } = setup();
   arrivalFactsModel.buildModel(db).save(1, { accessFr: 'Porte bleue.', wifiName: 'Gite' });
   assert.deepEqual(ids(readiness(db)), ['property.address:1']);
+  const derived = readiness(db, { ...FULL, companyAddress: '12 chemin des Prés, Pélussin' });
+  // Said once, never urgent: a company domiciled elsewhere notices.
+  assert.deepEqual(derived.items.map((i) => [i.id, i.label, i.soon]), [
+    ['property.address-company:1', 'Adresse — Le Gîte : celle de l’entreprise est utilisée', false],
+  ]);
+  assert.deepEqual(derived.items[0].target, { path: '/properties/1', search: 'tab=sejour' });
+  assert.equal(derived.soonCount, 0);
+  // A template that never places the address asks nothing, derived or not (Solio).
+  handWrittenJ2(db);
   assert.deepEqual(readiness(db, { ...FULL, companyAddress: '12 chemin des Prés, Pélussin' }).items, []);
 });
 

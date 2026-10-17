@@ -176,8 +176,8 @@ export default function EmailTextsSettingsPage() {
     const file = event.target.files && event.target.files[0];
     event.target.value = '';
     if (!file) return;
-    const csv = await readTextFile(file);
     try {
+      const csv = await readTextFile(file);
       const plan = await api.importEmailTexts(csv);
       setImportPlan({ ...plan, csv });
     } catch (err) {
@@ -244,20 +244,28 @@ export default function EmailTextsSettingsPage() {
     />
   );
 
-  // On a phone a sentence is one line until tapped: the J-2 alone holds dozens of them.
-  const compactOf = (item) => (
-    <ButtonBase
-      key={item.key}
-      onClick={() => setEditingKey(item.key)}
-      aria-label={`Modifier ${item.label}`}
-      sx={{ display: 'block', width: '100%', textAlign: 'left', borderBottom: 1, borderColor: 'divider', py: 1, minHeight: 44 }}
-    >
-      <Typography variant="subtitle2">{item.label}</Typography>
-      <Typography variant="body2" color={valueOf(item, 'fr') ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-        {toDisplay(valueOf(item, 'fr'), buildDictionary(item.chips.variables, item.chips.conditions)) || 'Vide'}
-      </Typography>
-    </ButtonBase>
-  );
+  // On a phone a sentence is one line until tapped: the J-2 alone holds dozens of them. The row says
+  // what needs attention (English missing, machine translation to read).
+  const compactOf = (item) => {
+    const englishMissing = Boolean(String(valueOf(item, 'fr')).trim()) && !String(valueOf(item, 'en')).trim();
+    return (
+      <ButtonBase
+        key={item.key}
+        onClick={() => setEditingKey(item.key)}
+        aria-label={`Modifier ${item.label}`}
+        sx={{ display: 'block', width: '100%', textAlign: 'left', borderBottom: 1, borderColor: 'divider', py: 1, minHeight: 44 }}
+      >
+        <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Typography component="span" variant="subtitle2">{item.label}</Typography>
+          {englishMissing && <StatusBadge status="warning" label="EN manquant" />}
+          {item.autoTranslated && <StatusBadge status="info" label="À relire" />}
+        </Box>
+        <Typography component="span" variant="body2" color={valueOf(item, 'fr') ? 'text.secondary' : 'text.disabled'} sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {toDisplay(valueOf(item, 'fr'), buildDictionary(item.chips.variables, item.chips.conditions)) || 'Vide'}
+        </Typography>
+      </ButtonBase>
+    );
+  };
   const fieldOf = (item) => (!desktop && editingKey !== item.key && !errors[item.key] ? compactOf(item) : editorOf(item));
   const editorOf = (item) => (
     <TokenTextField
@@ -274,6 +282,7 @@ export default function EmailTextsSettingsPage() {
       placeholderFr={item.placeholderFr || 'Vide : pas de phrase'}
       placeholderEn={item.placeholderEn || 'Vide : pas de phrase'}
       disabled={saving}
+      autoFocus={!desktop && editingKey === item.key}
       badge={item.autoTranslated && <StatusBadge status="info" label="Traduit automatiquement, à relire" />}
       helper={(
         <Stack direction="row" spacing={1}>

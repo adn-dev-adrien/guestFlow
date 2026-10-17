@@ -106,10 +106,11 @@ test('rule 22: a cell Excel turned into an error value is refused with its line,
   const rows = emailTextsCsv.parse('clé;français;english\ntext:house;#NOM?;\ntext:noWifi;Pas de wifi.;#NAME?\n');
   const plan = emailTextsCsv.plan(rows, { find: () => ({ fr: '', en: '', description: 'x' }), validate: () => null });
   assert.deepEqual(plan.refused.map((r) => r.message), [
-    'Excel a transformé ce texte en formule — ligne 2',
-    'Excel a transformé ce texte en formule — ligne 3',
+    'Excel a transformé ce texte en formule — ligne 2. Remettre le texte avec une apostrophe devant, puis réimporter le fichier.',
+    'Excel a transformé ce texte en formule — ligne 3. Remettre le texte avec une apostrophe devant, puis réimporter le fichier.',
   ]);
-  assert.throws(() => translationCsv.parse('clé,français,english\noption.title:1,Pain,#VALUE!\n'), /Excel a transformé ce texte en formule/);
+  assert.throws(() => translationCsv.parse('clé,français,english\noption.title:1,Pain,#VALUE!\n'),
+    /Excel a transformé ce texte en formule\. Remettre le texte avec une apostrophe devant, puis réimporter le fichier\./);
 });
 
 test('rule 23: a file that was not UTF-8 is refused before anything is read', async () => {

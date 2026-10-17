@@ -8,7 +8,7 @@
  * In a cell: empty means « keep the current text », a lone `-` means « empty it ».
  */
 
-const { cell, readCell, splitRows, detectSeparator, CsvError, FORMULA_MESSAGE } = require('./translationCsv');
+const { cell, readCell, splitRows, detectSeparator, CsvError, FORMULA_MESSAGE, FORMULA_REMEDY } = require('./translationCsv');
 const { SECTIONS } = require('./templateTokens');
 
 const COLUMNS = Object.freeze({
@@ -81,7 +81,7 @@ function plan(rows, model) {
   let unchanged = 0;
   const seen = new Set();
   for (const row of rows) {
-    if (row.formula) { refused.push({ line: row.line, key: row.key, message: `${FORMULA_MESSAGE} — ligne ${row.line}` }); continue; }
+    if (row.formula) { refused.push({ line: row.line, key: row.key, message: `${FORMULA_MESSAGE} — ligne ${row.line}. ${FORMULA_REMEDY}` }); continue; }
     const item = row.key ? model.find(row.key) : null;
     if (!item) { refused.push({ line: row.line, key: row.key, message: `Clé inconnue : ${row.key || '(vide)'}` }); continue; }
     if (seen.has(row.key)) { refused.push({ line: row.line, key: row.key, message: 'Clé en double' }); continue; }

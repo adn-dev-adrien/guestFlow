@@ -1,14 +1,12 @@
 /**
- * FileUploadButton — pick a file and hand its contents to a caller.
- *
- * Generic on purpose: restoring a backup, importing an iCal feed and sending back the translation
- * catalogue are the same gesture, and each of them is written today as a bare `<input type="file">`
- * with its own styling.
+ * FileUploadButton — pick a TEXT file and hand its contents to a caller: text only (UTF-8, else
+ * Windows-1252 — specs/guest-email-texts-made-simple.md rule 23), never for binaries or backups.
  *
  * Props:
  *   label:      string                       button text
  *   accept?:    string                       the input's accept attribute (e.g. '.csv,text/csv')
- *   onFile:     (text, file) => void|Promise called with the file read as UTF-8 text
+ *   onFile:     (text, file) => void|Promise called with the file read as text
+ *   onError?:   (message) => void            a file in an unreadable encoding
  *   disabled?:  boolean
  *   busy?:      boolean                      shows a spinner and blocks a second pick
  *   variant?:   MUI Button variant           default 'contained'
@@ -23,6 +21,7 @@ export default function FileUploadButton({
   label,
   accept,
   onFile,
+  onError,
   disabled = false,
   busy = false,
   variant = 'contained',
@@ -36,7 +35,13 @@ export default function FileUploadButton({
     // input keeps its value.
     event.target.value = '';
     if (!file) return;
-    const text = await readTextFile(file);
+    let text;
+    try {
+      text = await readTextFile(file);
+    } catch (err) {
+      if (onError) onError(err.message);
+      return;
+    }
     await onFile(text, file);
   };
 

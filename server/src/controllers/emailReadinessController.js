@@ -77,7 +77,8 @@ function buildController({ database, settingsModel }) {
     const facts = new Map(database.prepare('SELECT propertyId, address, accessFr, accessCodeEncrypted, wifiName FROM property_arrival_facts').all()
       .map((f) => [f.propertyId, f]));
     // The company's address stands in for a property's (rule 3, 2026-10-17).
-    const addressNeeded = uses('addressParagraph', 'hasAddressParagraph', 'propertyAddress') && blank(settings.companyAddress);
+    const addressUsed = uses('addressParagraph', 'hasAddressParagraph', 'propertyAddress');
+    const addressNeeded = addressUsed && blank(settings.companyAddress);
     const accessNeeded = uses('accessParagraph', 'hasAccessParagraph');
     const wifiNeeded = uses('arrivalWifiParagraph', 'hasArrivalWifiParagraph');
     for (const p of properties) {
@@ -89,6 +90,11 @@ function buildController({ database, settingsModel }) {
       }
       if (!stay.any) continue;
       const f = facts.get(p.id) || {};
+      // The company's address stands in: said once, never urgent, so a company domiciled elsewhere
+      // notices (rule 6, 2026-10-17 bis).
+      if (addressUsed && blank(f.address) && !blank(settings.companyAddress)) {
+        push({ id: `property.address-company:${p.id}`, check: 'arrival', label: `Adresse — ${p.name} : celle de l’entreprise est utilisée`, section: 'j2', propertyId: p.id, target: stayTab, soon: false });
+      }
       if (addressNeeded && blank(f.address)) {
         push({ id: `property.address:${p.id}`, check: 'arrival', label: `Adresse — ${p.name}`, section: 'j2', propertyId: p.id, target: stayTab, soon: stay.soon });
       }

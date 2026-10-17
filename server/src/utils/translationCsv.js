@@ -62,6 +62,7 @@ function readCell(raw) {
 }
 
 const FORMULA_MESSAGE = 'Excel a transformé ce texte en formule';
+const FORMULA_REMEDY = 'Remettre le texte avec une apostrophe devant, puis réimporter le fichier.';
 
 /** Rule 23 — a file that was not UTF-8 decodes with U+FFFD in place of its accents. */
 const ENCODING_MESSAGE = 'Fichier mal encodé : l’enregistrer en « CSV UTF-8 ».';
@@ -207,7 +208,7 @@ function parse(text) {
     const values = {};
     for (const { index, lang } of langCols) {
       const read = readCell(cells[index]);
-      if (read.formula) throw new CsvError(`${FORMULA_MESSAGE}.`, line);
+      if (read.formula) throw new CsvError(`${FORMULA_MESSAGE}. ${FORMULA_REMEDY}`, line);
       values[lang] = read.value.trim();
     }
     // An emptied « à revérifier » cell is how the operator says « I have looked at it » (rule 5).
@@ -227,6 +228,7 @@ module.exports = {
   detectSeparator,
   badlyEncoded,
   FORMULA_MESSAGE,
+  FORMULA_REMEDY,
   ENCODING_MESSAGE,
   headerFor,
   KIND_LABELS,

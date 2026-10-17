@@ -98,4 +98,7 @@ test('rule 25: a sentence the stored template of its email does not place is mar
   assert.equal(await usedOf('access:1'), false);
   assert.equal(await usedOf('subject:arrival_reminder_1d'), true);
   assert.equal(await usedOf('text:beds.made'), true, 'the J-7 still places the beds');
+  // A disabled template sends nothing, so it places nothing.
+  db.prepare("UPDATE email_templates SET enabled = 0 WHERE stableKey = 'arrival_reminder_7d'").run();
+  assert.equal(await usedOf('text:beds.made'), false);
 });

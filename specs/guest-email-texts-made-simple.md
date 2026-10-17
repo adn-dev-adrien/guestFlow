@@ -118,6 +118,11 @@ email shown beside the text. The whole wording can also go out and come back as 
    is listed only for a sentence a template places (rule 25), and counts for the dashboard only when a
    stay within 14 days is written to in English.
 
+   *2026-10-17 bis:* when a template places the address and a property has none of its own while the
+   company has one, the list says so once, never as urgent and never on the dashboard: « Adresse —
+   <logement> : celle de l'entreprise est utilisée », linked to the property, so a company domiciled
+   elsewhere notices. Solio's templates never place the address, so its list stays empty.
+
 ### 3.C One page, in send order
 
 9. Paramètres › « Textes des emails » becomes the single editing page. It shows one section per email,
@@ -257,11 +262,17 @@ email shown beside the text. The whole wording can also go out and come back as 
     apostrophe, which Excel and LibreOffice read as « text », and the import takes the apostrophe off. A
     cell Excel already turned into an error value (`#NAME?`, `#NOM?`, `#VALUE!`, `#VALEUR!`, `#REF!`,
     `#DIV/0!`, `#N/A`, `#NUM!`, `#NULL!`…) is refused: « Excel a transformé ce texte en formule — ligne
-    N ». The translation catalogue's file follows the same rule (`utils/translationCsv.js`).
+    N. Remettre le texte avec une apostrophe devant, puis réimporter le fichier. » The translation
+    catalogue's file follows the same rule (`utils/translationCsv.js`).
+
+    *Known edges (2026-10-17):* a text that really starts with `'=`, `'+`, `'-` or `'@` loses its
+    apostrophe on import, and a French text that is exactly `-` cannot be stored through the file
+    (`-` means « vider », rule 17). Both are typed on the page instead.
 23. **Accents survive Excel's « CSV (point-virgule) ».** The browser reads a picked file as UTF-8 if it
-    is valid UTF-8, else as Windows-1252. The server refuses a file that still holds « � » (U+FFFD):
-    « Fichier mal encodé : l'enregistrer en « CSV UTF-8 ». », nothing read. Same for the translation
-    catalogue.
+    is valid UTF-8, else as Windows-1252; a file that then still holds C1 control characters
+    (U+0080–U+009F, e.g. MacRoman) is refused in the browser. The server refuses a file that still holds
+    « � » (U+FFFD). Both say « Fichier mal encodé : l'enregistrer en « CSV UTF-8 ». », nothing read.
+    Same for the translation catalogue. The shared uploader (`FileUploadButton`) is for text files only.
 24. **Every sentence an automatic email sends is in the key space.** A resource's sentence once booked
     is the key `resource:<id>` (section J-2): on the page, in the file, in the English check and in the
     translation. Option and resource names stay in the translation catalogue (Paramètres › Système),
@@ -269,8 +280,9 @@ email shown beside the text. The whole wording can also go out and come back as 
 25. **The page shows what the stored template sends.** A sentence whose variable no stored template of
     its email places goes under a folded « Phrases non utilisées par le modèle »; the readiness list
     ignores it. A property without Wi-Fi is not asked for its network. On a phone each sentence is one
-    line (its name and the start of its French) until tapped: Solio's J-2 section went from about
-    7,000 px to 3,400 px at 390 px.
+    line (its name and the start of its French, with « EN manquant » or « À relire » when due) until
+    tapped, and the opened editor takes the focus: Solio's J-2 section went from about 7,000 px to
+    3,400 px at 390 px. Only an enabled template counts as placing a sentence.
 
 ---
 

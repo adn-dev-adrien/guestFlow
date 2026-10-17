@@ -112,6 +112,7 @@ export default function TranslationCatalogueCard() {
                   accept=".csv,text/csv"
                   busy={busy}
                   onFile={(csv) => send(csv, false)}
+                  onError={(message) => setReport({ severity: 'error', message })}
                 />
               </Box>
               {report && <Alert severity={report.severity}>{report.message}</Alert>}
