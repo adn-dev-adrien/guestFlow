@@ -6,31 +6,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const crypto = require('crypto');
 const { setup, fakeRes, fakeSession, keyPair } = require('./accountSecurityFixture');
 const supportTokens = require('../utils/supportAccess');
 const { createSupportAudit, isForbidden } = require('../middleware/supportAudit');
 const authController = require('../controllers/authController');
 
-function withRequest({ reason = 'Vérifier la synchronisation Booking', requestId = 'req-1', slug = 'domaine-ombre', keys = keyPair() } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-support-'));
-  const write = (r) => fs.writeFileSync(path.join(dir, supportTokens.REQUEST_FILE), supportTokens.signRequest({ slug, requestedAt: '2026-10-08T09:00:00.000Z', ...r }, keys.privateKey));
-  write({ reason, requestId });
-  const readRequest = () => supportTokens.readRequest({ dataDir: dir, publicKey: keys.publicKey, slug: 'domaine-ombre' });
-  const h = setup({ publicKey: keys.publicKey, readRequest });
-  const marie = h.addUser('marie@domaine-ombre.fr', { firstName: 'Marie' });
-  return { ...h, keys, dir, write, marie };
-}
-
-const link = (h, accessId, { jti = crypto.randomUUID(), slug = 'domaine-ombre', at = h.now() } = {}) => supportTokens.signLink({ slug, accessId, jti, now: at }, h.keys.privateKey);
-
-function openAccess(h, hours) {
-  const { pending } = h.supportAccess.banner(h.marie);
-  h.supportAccess.decide(h.marie, pending.id, { decision: 'accept', hours });
-  return pending.id;
-}
+const { withSupportRequest: withRequest, supportLink: link, openSupportAccess: openAccess } = require('./accountSecurityFixture');
 
 test('rule 12 — the console\'s request shows every administrator a banner with its reason', () => {
   const h = withRequest();
@@ -154,12 +136,13 @@ test('rules 15-16 — writes and pages are written to support_access_log; me car
   assert.ok(passed);
   res.statusCode = 200;
   res.finish();
-  audit({ method: 'GET', path: '/reservations/22301', session }, fakeRes(), () => {});
   h.supportAccess.record(id, { method: 'PAGE', path: '/planning', summary: '' });
 
+  // Rule 20: the customer reads what was done, never a method, a path or an HTTP status.
   const { entries } = h.supportAccess.logs(id);
-  assert.deepEqual(entries.map((e) => e.label).sort(), ['Connexion du support', 'PUT /api/reservations/22301', 'Page ouverte : /planning'].sort());
-  assert.equal(entries.find((e) => e.label.startsWith('PUT')).summary, '200');
+  assert.deepEqual(entries.map((e) => e.label).sort(), ['Connexion du support', 'Réservation 22301 modifiée', 'Page ouverte : Planning'].sort());
+  assert.equal(entries.find((e) => e.label === 'Réservation 22301 modifiée').outcomeLabel, 'Effectué');
+  assert.ok(entries.every((e) => !('summary' in e) && !/\/api|PUT|GET|\b200\b/.test(`${e.label} ${e.outcomeLabel}`)));
 
   const c = authController.create(h.users, { supportAccess: h.supportAccess });
   const me = fakeRes();

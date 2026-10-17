@@ -193,6 +193,14 @@ function createLicenceReader({
       const name = planName || plan || null;
       return { state, endsAt: endDay, daysLeft, planName: name, payUrl: payUrl || null, ...bannerText(state, { endDay, daysLeft, planName: name }) };
     },
+    // The slug the licence was issued for, expired or not: how a managed instance knows its own name
+    // when the hosting does not set GUESTFLOW_SLUG (specs/hosting-h2-account-security.md rule 22).
+    // A forged licence never verifies, so it never names one.
+    slug() {
+      const lic = current();
+      const source = lic.valid ? lic.payload : lic.expired || null;
+      return source && source.slug ? String(source.slug) : null;
+    },
     invalidate() { cached = null; },
   };
 }

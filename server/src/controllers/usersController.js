@@ -143,6 +143,10 @@ function buildController({
         if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
           return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
         }
+        // specs/hosting-h2-account-security.md rule 21 — the support account is never edited.
+        if (err && err.code === 'SUPPORT_ACCOUNT_LOCKED') {
+          return res.status(403).json({ error: 'SUPPORT_FORBIDDEN', message: 'Action réservée au compte du client.' });
+        }
         throw err;
       }
       if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND' });
